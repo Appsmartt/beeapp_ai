@@ -215,6 +215,50 @@ export default function UsuarioDetallePage({ params }: { params: { id: string } 
             </div>
           </div>
 
+          <div className="panel-card">
+            <span className="panel-card-title">BeeServices / Actividad comercial</span>
+            {user.actividadComercial && user.actividadComercial.tipo !== 'ninguno' ? (
+              <div className="detail-rows" style={{ marginTop: '12px' }}>
+                <div className="detail-row">
+                  <span className="detail-row-label">Tipo de Oferta</span>
+                  <span className="detail-row-value" style={{ textTransform: 'capitalize', fontWeight: 'bold', color: '#6025d2' }}>
+                    {user.actividadComercial.tipo}
+                  </span>
+                </div>
+                <div className="detail-row">
+                  <span className="detail-row-label">Rubro comercial</span>
+                  <span className="detail-row-value" style={{ fontWeight: '500' }}>
+                    {user.actividadComercial.rubro ?? 'No especificado'}
+                  </span>
+                </div>
+                <div className="detail-row" style={{ flexDirection: 'column', alignItems: 'flex-start', gap: '4px' }}>
+                  <span className="detail-row-label">Descripción de actividad</span>
+                  <p style={{ margin: 0, fontSize: '13px', color: '#495057', lineHeight: '1.5' }}>
+                    {user.actividadComercial.descripcion ?? 'Sin descripción'}
+                  </p>
+                </div>
+                <div className="detail-row">
+                  <span className="detail-row-label">Publicaciones en catálogo</span>
+                  <span className="detail-row-value">
+                    {user.actividadComercial.cantidadPublicaciones ?? 0} registrados
+                  </span>
+                </div>
+                <div className="detail-row">
+                  <span className="detail-row-label">Estado comercial</span>
+                  <span className="detail-row-value">
+                    <span style={{ textTransform: 'capitalize', display: 'inline-block' }}>
+                      <StatusBadge status={user.actividadComercial.estadoPerfil === 'verificado' ? 'activo' : user.actividadComercial.estadoPerfil === 'inactivo' ? 'inactivo' : 'pendiente'} />
+                    </span>
+                  </span>
+                </div>
+              </div>
+            ) : (
+              <p className="activity-feed-empty" style={{ margin: '12px 0 0 0' }}>
+                El usuario no registra actividad comercial en la plataforma.
+              </p>
+            )}
+          </div>
+
           <NetworkSection
             cargo={user.cargo}
             departamento={user.departamento}

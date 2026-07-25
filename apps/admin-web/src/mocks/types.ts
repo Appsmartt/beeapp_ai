@@ -57,6 +57,17 @@ export interface AdminUser {
   integraciones: Integration[];
   reportesCount: number;
   verificacionRed: VerificationStatus;
+  actividadComercial?: CommercialActivity;
+}
+
+export type CommercialActivityType = 'productos' | 'servicios' | 'ambos' | 'ninguno';
+
+export interface CommercialActivity {
+  tipo: CommercialActivityType;
+  rubro?: string;
+  descripcion?: string;
+  cantidadPublicaciones?: number;
+  estadoPerfil?: 'activo' | 'verificado' | 'inactivo';
 }
 
 export type ReportReason = 'spam' | 'acoso' | 'contenido_inapropiado' | 'suplantacion' | 'otro';

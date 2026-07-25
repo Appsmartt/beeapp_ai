@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { Users, UserCheck, UserPlus, CreditCard, Wallet, HardDrive } from 'lucide-react';
+import { Users, UserCheck, UserPlus, CreditCard, Wallet, HardDrive, Cpu, Phone, Bot, TrendingUp } from 'lucide-react';
 import {
   ResponsiveContainer,
   LineChart,
@@ -56,6 +56,30 @@ const RECENT_USERS_COLUMNS: DataTableColumn<AdminUser>[] = [
   { key: 'fecha', header: 'Registro', render: (row) => formatDate(row.fechaRegistro), align: 'right' },
 ];
 
+// Operational platform cost mock data
+const INFRA_COST_HISTORY = [
+  { label: 'Ene', almacenamiento: 180, llamadas: 450, ia: 90, integraciones: 110, total: 830 },
+  { label: 'Feb', almacenamiento: 195, llamadas: 480, ia: 100, integraciones: 115, total: 890 },
+  { label: 'Mar', almacenamiento: 210, llamadas: 520, ia: 110, integraciones: 120, total: 960 },
+  { label: 'Abr', almacenamiento: 220, llamadas: 560, ia: 125, integraciones: 130, total: 1035 },
+  { label: 'May', almacenamiento: 235, llamadas: 600, ia: 135, integraciones: 138, total: 1108 },
+  { label: 'Jun', almacenamiento: 246, llamadas: 622, ia: 142, integraciones: 142, total: 1152 },
+];
+
+const COST_BREAKDOWN_DATA = [
+  { nombre: 'Llamadas/Vídeo', valor: 622.50, color: '#6025d2' },
+  { nombre: 'Almacenamiento', valor: 246.00, color: '#00C49F' },
+  { nombre: 'Asistente IA', valor: 142.00, color: '#FFBB28' },
+  { nombre: 'Integraciones', valor: 142.00, color: '#FF8042' },
+];
+
+const AVG_USER_CONSUMPTION = [
+  { label: 'Almacenamiento (GB)', value: 5.8 },
+  { label: 'Llamadas (min)', value: 173 },
+  { label: 'Cuentas Conectadas', value: 1.97 },
+  { label: 'Consultas IA / 10', value: 3.94 },
+];
+
 export default function DashboardPage() {
   const [range, setRange] = useState('7');
   const months = Number(range);
@@ -77,7 +101,16 @@ export default function DashboardPage() {
     { id: 'nuevos', icon: UserPlus, label: 'Nuevos registros', value: formatNumber(DASHBOARD_KPIS.nuevosRegistros), delta: { value: '+18% vs mes anterior', trend: 'up' } },
     { id: 'subs', icon: CreditCard, label: 'Suscripciones activas', value: formatNumber(DASHBOARD_KPIS.suscripcionesActivas), delta: { value: '+2.4% vs mes anterior', trend: 'up' } },
     { id: 'ingresos', icon: Wallet, label: 'Ingresos del mes', value: formatCurrencyCOP(DASHBOARD_KPIS.ingresosMes), delta: { value: '+6.1% vs mes anterior', trend: 'up' } },
-    { id: 'storage', icon: HardDrive, label: 'Almacenamiento consumido', value: `${DASHBOARD_KPIS.almacenamientoConsumidoGB.toFixed(1)} GB`, delta: { value: 'Estable', trend: 'neutral' } },
+    { id: 'storage', icon: HardDrive, label: 'Almacenamiento total', value: `${DASHBOARD_KPIS.almacenamientoConsumidoGB.toFixed(1)} GB`, delta: { value: 'Estable', trend: 'neutral' } },
+  ];
+
+  // Infra operational cost KPIs
+  const infraKpiItems: KpiItem[] = [
+    { id: 'c_storage', icon: HardDrive, label: 'Almacenamiento (Costos)', value: '8.2 TB', delta: { value: 'Costo: $246.00 USD', trend: 'down' } },
+    { id: 'c_integraciones', icon: Cpu, label: 'Cuentas integradas', value: '1,420 acct', delta: { value: 'Costo: $142.00 USD', trend: 'down' } },
+    { id: 'c_llamadas', icon: Phone, label: 'Llamadas/Videollamadas', value: '124,500 min', delta: { value: 'Costo: $622.50 USD', trend: 'down' } },
+    { id: 'c_ai', icon: Bot, label: 'Consultas Asistente IA', value: '28,400 cons', delta: { value: 'Costo: $142.00 USD', trend: 'down' } },
+    { id: 'c_rentabilidad', icon: TrendingUp, label: 'Rentabilidad Operativa', value: '72.3% Margen', delta: { value: 'Costo: $1,198 vs Ingreso: $4,320', trend: 'up' } },
   ];
 
   return (
@@ -163,7 +196,73 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      <div className="bottom-grid">
+      {/* ── Consumo y Costos de la plataforma Section ── */}
+      <div className="page-toolbar" style={{ marginTop: '36px', borderTop: '1px solid #E9ECEF', paddingTop: '24px' }}>
+        <div className="page-toolbar-heading">
+          <span className="page-toolbar-title" style={{ fontSize: '18px' }}>Consumo y Costos Operativos de la Plataforma</span>
+          <span className="page-toolbar-subtitle">Monitoreo de costos de infraestructura y rentabilidad del ecosistema</span>
+        </div>
+      </div>
+
+      <div className="page-section">
+        <KpiGrid items={infraKpiItems} />
+      </div>
+
+      <div className="page-section">
+        <div className="charts-grid">
+          {/* History Cost Chart */}
+          <ChartCard title="Evolución de costos mensuales" subtitle="Costo total de operación en USD">
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={INFRA_COST_HISTORY} margin={{ top: 8, right: 8, left: -12, bottom: 0 }}>
+                <CartesianGrid vertical={false} stroke={CHART_GRID_STROKE} />
+                <XAxis dataKey="label" tick={CHART_AXIS_TICK} axisLine={CHART_AXIS_LINE} tickLine={false} />
+                <YAxis tick={CHART_AXIS_TICK} axisLine={false} tickLine={false} width={40} tickFormatter={(v) => `$${v}`} />
+                <Tooltip content={<ChartTooltip valueFormatter={(v) => `$${v} USD`} />} />
+                <Line type="monotone" dataKey="total" name="Costo Infra" stroke="#6025d2" strokeWidth={2.5} dot={{ r: 4, fill: '#6025d2', stroke: CHART_COLORS.surface, strokeWidth: 2 }} activeDot={{ r: 5 }} isAnimationActive={false} />
+              </LineChart>
+            </ResponsiveContainer>
+          </ChartCard>
+
+          {/* Cost breakdown pie chart */}
+          <ChartCard title="Desglose de costos por servicio" subtitle="Distribución actual de costos ($1,152 USD)">
+            <div style={{ display: 'flex', flexDirection: 'column', height: '100%', gap: 12 }}>
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie data={COST_BREAKDOWN_DATA} dataKey="valor" nameKey="nombre" innerRadius={54} outerRadius={82} paddingAngle={2} label={({ percent }) => `${((percent ?? 0) * 100).toFixed(0)}%`} labelLine={false} isAnimationActive={false}>
+                    {COST_BREAKDOWN_DATA.map((entry, index) => (
+                      <Cell key={`cost-cell-${index}`} fill={entry.color} stroke={CHART_COLORS.surface} strokeWidth={2} />
+                    ))}
+                  </Pie>
+                  <Tooltip content={<ChartTooltip valueFormatter={(v) => `$${v} USD`} />} />
+                </PieChart>
+              </ResponsiveContainer>
+              <ChartLegend
+                items={COST_BREAKDOWN_DATA.map((entry) => ({
+                  id: entry.nombre,
+                  label: entry.nombre,
+                  color: entry.color,
+                  value: `$${entry.valor.toFixed(2)} USD`,
+                }))}
+              />
+            </div>
+          </ChartCard>
+
+          {/* Average use per user chart */}
+          <ChartCard title="Promedios de consumo por usuario" subtitle="Métricas de uso de recursos promedio">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={AVG_USER_CONSUMPTION} margin={{ top: 8, right: 8, left: -12, bottom: 0 }}>
+                <CartesianGrid vertical={false} stroke={CHART_GRID_STROKE} />
+                <XAxis dataKey="label" tick={{ fontSize: 10, fill: '#6C757D' }} axisLine={CHART_AXIS_LINE} tickLine={false} />
+                <YAxis tick={CHART_AXIS_TICK} axisLine={false} tickLine={false} width={30} />
+                <Tooltip content={<ChartTooltip />} cursor={CHART_CURSOR} />
+                <Bar dataKey="value" name="Consumo Promedio" fill="#00C49F" radius={[4, 4, 0, 0]} maxBarSize={28} isAnimationActive={false} />
+              </BarChart>
+            </ResponsiveContainer>
+          </ChartCard>
+        </div>
+      </div>
+
+      <div className="bottom-grid" style={{ marginTop: '36px' }}>
         <div className="panel-card">
           <div className="panel-card-header">
             <span className="panel-card-title">Últimos registros</span>

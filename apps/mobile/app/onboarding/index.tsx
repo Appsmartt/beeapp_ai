@@ -25,6 +25,7 @@ export default function OnboardingScreen() {
 
   // Step 1 States - About You
   const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
   const [occupation, setOccupation] = useState('');
   const [address, setAddress] = useState('');
   const [hasPhoto, setHasPhoto] = useState(false);
@@ -44,6 +45,10 @@ export default function OnboardingScreen() {
     if (step === 1) {
       if (!name.trim()) {
         alert('Por favor ingresa tu nombre completo para continuar.');
+        return;
+      }
+      if (!email.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        alert('Por favor ingresa un correo electrónico válido.');
         return;
       }
       setStep(2);
@@ -123,6 +128,8 @@ export default function OnboardingScreen() {
                   <AboutYouSection
                     name={name}
                     onNameChange={setName}
+                    email={email}
+                    onEmailChange={setEmail}
                     occupation={occupation}
                     onOccupationChange={setOccupation}
                     address={address}

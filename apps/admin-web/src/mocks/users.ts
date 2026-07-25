@@ -22,6 +22,13 @@ export const MOCK_USERS: AdminUser[] = [
       { id: 'int_outlook', nombre: 'Outlook', conectado: true, fechaConexion: '2026-01-20' },
       { id: 'int_drive', nombre: 'Google Drive', conectado: false },
     ],
+    actividadComercial: {
+      tipo: 'servicios',
+      rubro: 'Asesoría de Ventas',
+      descripcion: 'Servicios de consultoría comercial y desarrollo de estrategias de ventas.',
+      cantidadPublicaciones: 5,
+      estadoPerfil: 'verificado'
+    }
   },
   {
     id: 'usr_002',
@@ -41,6 +48,9 @@ export const MOCK_USERS: AdminUser[] = [
     onboarding: { completado: true, pasoActual: 5, totalPasos: 5, fechaInicio: '2025-11-02', fechaFinalizacion: '2025-11-02' },
     metricasUso: { mensajesEnviados: 892, llamadasRealizadas: 18, almacenamientoUsadoGB: 12.6, ultimaConexion: '2026-07-10T09:15:00' },
     integraciones: [{ id: 'int_outlook', nombre: 'Outlook', conectado: true, fechaConexion: '2025-11-05' }],
+    actividadComercial: {
+      tipo: 'ninguno'
+    }
   },
   {
     id: 'usr_003',
@@ -63,6 +73,13 @@ export const MOCK_USERS: AdminUser[] = [
       { id: 'int_drive', nombre: 'Google Drive', conectado: true, fechaConexion: '2025-08-25' },
       { id: 'int_calendar', nombre: 'Calendario', conectado: true, fechaConexion: '2025-08-25' },
     ],
+    actividadComercial: {
+      tipo: 'productos',
+      rubro: 'Accesorios Tecnológicos',
+      descripcion: 'Venta de gadgets y accesorios para productividad personal.',
+      cantidadPublicaciones: 12,
+      estadoPerfil: 'activo'
+    }
   },
   {
     id: 'usr_004',
@@ -82,6 +99,9 @@ export const MOCK_USERS: AdminUser[] = [
     onboarding: { completado: false, pasoActual: 2, totalPasos: 5, fechaInicio: '2026-07-20' },
     metricasUso: { mensajesEnviados: 12, llamadasRealizadas: 0, almacenamientoUsadoGB: 0.1, ultimaConexion: '2026-07-20T14:45:00' },
     integraciones: [],
+    actividadComercial: {
+      tipo: 'ninguno'
+    }
   },
   {
     id: 'usr_005',
@@ -100,6 +120,13 @@ export const MOCK_USERS: AdminUser[] = [
     onboarding: { completado: true, pasoActual: 5, totalPasos: 5, fechaInicio: '2026-03-11', fechaFinalizacion: '2026-03-12' },
     metricasUso: { mensajesEnviados: 640, llamadasRealizadas: 9, almacenamientoUsadoGB: 2.4, ultimaConexion: '2026-07-23T07:20:00' },
     integraciones: [{ id: 'int_drive', nombre: 'Google Drive', conectado: true, fechaConexion: '2026-03-15' }],
+    actividadComercial: {
+      tipo: 'servicios',
+      rubro: 'Capacitación y HR',
+      descripcion: 'Talleres de capacitación empresarial y coaching de liderazgo.',
+      cantidadPublicaciones: 3,
+      estadoPerfil: 'activo'
+    }
   },
   {
     id: 'usr_006',
@@ -119,6 +146,13 @@ export const MOCK_USERS: AdminUser[] = [
     onboarding: { completado: true, pasoActual: 5, totalPasos: 5, fechaInicio: '2025-05-30', fechaFinalizacion: '2025-06-01' },
     metricasUso: { mensajesEnviados: 410, llamadasRealizadas: 5, almacenamientoUsadoGB: 7.9, ultimaConexion: '2026-06-02T11:10:00' },
     integraciones: [{ id: 'int_outlook', nombre: 'Outlook', conectado: true, fechaConexion: '2025-06-01' }],
+    actividadComercial: {
+      tipo: 'ambos',
+      rubro: 'Servicios y Plantillas Legales',
+      descripcion: 'Plantillas de contratos comerciales listos para usar y consultoría jurídica.',
+      cantidadPublicaciones: 25,
+      estadoPerfil: 'activo'
+    }
   },
   {
     id: 'usr_007',
@@ -141,6 +175,9 @@ export const MOCK_USERS: AdminUser[] = [
       { id: 'int_drive', nombre: 'Google Drive', conectado: true, fechaConexion: '2025-03-01' },
       { id: 'int_calendar', nombre: 'Calendario', conectado: true, fechaConexion: '2025-03-01' },
     ],
+    actividadComercial: {
+      tipo: 'ninguno'
+    }
   },
   {
     id: 'usr_008',
@@ -153,89 +190,121 @@ export const MOCK_USERS: AdminUser[] = [
     verificacionRed: 'no_solicitado',
     planId: 'free',
     visibilidadRed: 'solo_equipo',
-    fechaRegistro: '2026-06-05',
-    ultimoAcceso: '2026-07-21T16:05:00',
-    departamento: 'Soporte',
-    cargo: 'Agente de Soporte',
-    onboarding: { completado: true, pasoActual: 5, totalPasos: 5, fechaInicio: '2026-06-05', fechaFinalizacion: '2026-06-06' },
-    metricasUso: { mensajesEnviados: 305, llamadasRealizadas: 3, almacenamientoUsadoGB: 0.6, ultimaConexion: '2026-07-21T16:05:00' },
+    fechaRegistro: '2026-06-15',
+    ultimoAcceso: '2026-07-21T16:10:00',
+    departamento: 'Ventas',
+    cargo: 'Asesor',
+    onboarding: { completado: true, pasoActual: 5, totalPasos: 5, fechaInicio: '2026-06-15', fechaFinalizacion: '2026-06-15' },
+    metricasUso: { mensajesEnviados: 180, llamadasRealizadas: 2, almacenamientoUsadoGB: 0.8, ultimaConexion: '2026-07-21T16:10:00' },
     integraciones: [],
+    actividadComercial: {
+      tipo: 'productos',
+      rubro: 'Mobiliario Corporativo',
+      descripcion: 'Escritorios ergonómicos ajustables y sillas ejecutivas de alta calidad.',
+      cantidadPublicaciones: 8,
+      estadoPerfil: 'verificado'
+    }
   },
   {
     id: 'usr_009',
     nombreCompleto: 'Isabella Muñoz',
     email: 'isabella.munoz@empresa.com',
     iniciales: 'IM',
-    estado: 'bloqueado',
-    reportesCount: 1,
-    verificacionRed: 'no_solicitado',
+    estado: 'activo',
+    reportesCount: 0,
+    verificacionRed: 'pendiente',
     planId: 'plus',
-    visibilidadRed: 'privado',
-    fechaRegistro: '2025-09-18',
-    ultimoAcceso: '2026-05-14T10:30:00',
+    visibilidadRed: 'publico',
+    fechaRegistro: '2026-04-03',
+    ultimoAcceso: '2026-07-22T15:30:00',
     departamento: 'Marketing',
-    cargo: 'Diseñadora',
-    onboarding: { completado: true, pasoActual: 5, totalPasos: 5, fechaInicio: '2025-09-18', fechaFinalizacion: '2025-09-19' },
-    metricasUso: { mensajesEnviados: 780, llamadasRealizadas: 22, almacenamientoUsadoGB: 15.1, ultimaConexion: '2026-05-14T10:30:00' },
-    integraciones: [{ id: 'int_drive', nombre: 'Google Drive', conectado: true, fechaConexion: '2025-09-20' }],
+    cargo: 'Diseñadora Visual',
+    onboarding: { completado: true, pasoActual: 5, totalPasos: 5, fechaInicio: '2026-04-03', fechaFinalizacion: '2026-04-03' },
+    metricasUso: { mensajesEnviados: 1420, llamadasRealizadas: 35, almacenamientoUsadoGB: 15.2, ultimaConexion: '2026-07-22T15:30:00' },
+    integraciones: [
+      { id: 'int_drive', nombre: 'Google Drive', conectado: true, fechaConexion: '2026-04-05' },
+      { id: 'int_calendar', nombre: 'Calendario', conectado: true, fechaConexion: '2026-04-05' },
+    ],
+    actividadComercial: {
+      tipo: 'servicios',
+      rubro: 'Diseño UX/UI y Branding',
+      descripcion: 'Diseño de aplicaciones móviles, sitios web corporativos e identidad de marca.',
+      cantidadPublicaciones: 7,
+      estadoPerfil: 'activo'
+    }
   },
   {
     id: 'usr_010',
     nombreCompleto: 'Santiago Vargas',
     email: 'santiago.vargas@empresa.com',
-    telefono: '+57 318 442 6650',
     iniciales: 'SV',
     estado: 'activo',
     reportesCount: 0,
-    verificacionRed: 'pendiente',
-    planId: 'pro',
-    visibilidadRed: 'publico',
-    fechaRegistro: '2026-04-22',
-    ultimoAcceso: '2026-07-23T09:10:00',
-    departamento: 'Tecnología',
-    cargo: 'Desarrollador',
-    onboarding: { completado: true, pasoActual: 5, totalPasos: 5, fechaInicio: '2026-04-22', fechaFinalizacion: '2026-04-22' },
-    metricasUso: { mensajesEnviados: 1560, llamadasRealizadas: 30, almacenamientoUsadoGB: 9.4, ultimaConexion: '2026-07-23T09:10:00' },
-    integraciones: [{ id: 'int_outlook', nombre: 'Outlook', conectado: true, fechaConexion: '2026-04-25' }],
+    verificacionRed: 'no_solicitado',
+    planId: 'free',
+    visibilidadRed: 'solo_equipo',
+    fechaRegistro: '2026-05-18',
+    ultimoAcceso: '2026-07-20T10:15:00',
+    departamento: 'Soporte',
+    cargo: 'Técnico Especialista',
+    onboarding: { completado: true, pasoActual: 5, totalPasos: 5, fechaInicio: '2026-05-18', fechaFinalizacion: '2026-05-19' },
+    metricasUso: { mensajesEnviados: 290, llamadasRealizadas: 3, almacenamientoUsadoGB: 1.1, ultimaConexion: '2026-07-20T10:15:00' },
+    integraciones: [],
+    actividadComercial: {
+      tipo: 'ninguno'
+    }
   },
   {
     id: 'usr_011',
     nombreCompleto: 'Daniela Peña',
     email: 'daniela.pena@empresa.com',
     iniciales: 'DP',
-    estado: 'pendiente',
+    estado: 'activo',
     reportesCount: 0,
     verificacionRed: 'no_solicitado',
-    planId: 'free',
-    visibilidadRed: 'solo_equipo',
-    fechaRegistro: '2026-07-18',
-    ultimoAcceso: '2026-07-18T13:00:00',
+    planId: 'plus',
+    visibilidadRed: 'publico',
+    fechaRegistro: '2026-02-28',
+    ultimoAcceso: '2026-07-22T09:40:00',
     departamento: 'Ventas',
-    cargo: 'Ejecutiva Comercial',
-    onboarding: { completado: false, pasoActual: 1, totalPasos: 5, fechaInicio: '2026-07-18' },
-    metricasUso: { mensajesEnviados: 4, llamadasRealizadas: 0, almacenamientoUsadoGB: 0, ultimaConexion: '2026-07-18T13:00:00' },
-    integraciones: [],
+    cargo: 'Ejecutiva',
+    onboarding: { completado: true, pasoActual: 5, totalPasos: 5, fechaInicio: '2026-02-28', fechaFinalizacion: '2026-03-01' },
+    metricasUso: { mensajesEnviados: 950, llamadasRealizadas: 14, almacenamientoUsadoGB: 4.6, ultimaConexion: '2026-07-22T09:40:00' },
+    integraciones: [{ id: 'int_calendar', nombre: 'Calendario', conectado: true, fechaConexion: '2026-03-02' }],
+    actividadComercial: {
+      tipo: 'productos',
+      rubro: 'Papelería y Agendas',
+      descripcion: 'Planificadores diarios, agendas corporativas y libretas personalizadas.',
+      cantidadPublicaciones: 15,
+      estadoPerfil: 'activo'
+    }
   },
   {
     id: 'usr_012',
     nombreCompleto: 'Nicolás Restrepo',
     email: 'nicolas.restrepo@empresa.com',
-    telefono: '+57 300 887 1234',
     iniciales: 'NR',
     estado: 'activo',
     reportesCount: 0,
-    verificacionRed: 'pendiente',
-    planId: 'enterprise',
-    visibilidadRed: 'privado',
-    fechaRegistro: '2025-06-09',
-    ultimoAcceso: '2026-07-22T21:40:00',
-    departamento: 'Finanzas',
-    cargo: 'Director Financiero',
-    onboarding: { completado: true, pasoActual: 5, totalPasos: 5, fechaInicio: '2025-06-09', fechaFinalizacion: '2025-06-10' },
-    metricasUso: { mensajesEnviados: 2340, llamadasRealizadas: 88, almacenamientoUsadoGB: 33.7, ultimaConexion: '2026-07-22T21:40:00' },
+    verificacionRed: 'no_solicitado',
+    planId: 'pro',
+    visibilidadRed: 'solo_equipo',
+    fechaRegistro: '2025-10-10',
+    ultimoAcceso: '2026-07-21T14:50:00',
+    departamento: 'Tecnología',
+    cargo: 'Arquitecto Cloud',
+    onboarding: { completado: true, pasoActual: 5, totalPasos: 5, fechaInicio: '2025-10-10', fechaFinalizacion: '2025-10-11' },
+    metricasUso: { mensajesEnviados: 1740, llamadasRealizadas: 58, almacenamientoUsadoGB: 21.4, ultimaConexion: '2026-07-21T14:50:00' },
     integraciones: [
-      { id: 'int_outlook', nombre: 'Outlook', conectado: true, fechaConexion: '2025-06-11' },
-      { id: 'int_calendar', nombre: 'Calendario', conectado: true, fechaConexion: '2025-06-11' },
+      { id: 'int_outlook', nombre: 'Outlook', conectado: true, fechaConexion: '2025-10-15' },
+      { id: 'int_drive', nombre: 'Google Drive', conectado: true, fechaConexion: '2025-10-15' },
     ],
-  },
+    actividadComercial: {
+      tipo: 'servicios',
+      rubro: 'Consultoría TI y Nube',
+      descripcion: 'Auditorías de seguridad, optimización de costos en la nube y arquitectura AWS.',
+      cantidadPublicaciones: 4,
+      estadoPerfil: 'inactivo'
+    }
+  }
 ];

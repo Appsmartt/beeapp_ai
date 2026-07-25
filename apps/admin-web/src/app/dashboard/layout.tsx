@@ -15,15 +15,16 @@ import {
   LogOut,
   ChevronDown,
   User,
-  Shield,
-  HelpCircle,
+  Settings,
 } from 'lucide-react';
+import ConfirmDialog from '../../components/ConfirmDialog';
 
 const NAV_ITEMS = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/dashboard/usuarios', label: 'Usuarios', icon: Users },
   { href: '/dashboard/suscripciones', label: 'Suscripciones', icon: CreditCard },
   { href: '/dashboard/notificaciones', label: 'Notificaciones', icon: Bell },
+  { href: '/dashboard/configuracion', label: 'Configuraciones', icon: Settings },
 ];
 
 const TOPBAR_ALERTS = [
@@ -38,6 +39,8 @@ function getPageTitle(pathname: string): string {
   if (pathname.startsWith('/dashboard/usuarios')) return 'Usuarios Registrados';
   if (pathname.startsWith('/dashboard/suscripciones')) return 'Control de Suscripciones';
   if (pathname.startsWith('/dashboard/notificaciones')) return 'Notificaciones Push';
+  if (pathname.startsWith('/dashboard/configuracion')) return 'Configuraciones Generales';
+  if (pathname.startsWith('/dashboard/perfil')) return 'Perfil del Administrador';
   return 'Panel de Control';
 }
 
@@ -48,8 +51,15 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [profileDropdownOpen, setProfileDropdownOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const [confirmLogoutOpen, setConfirmLogoutOpen] = useState(false);
 
-  const handleLogout = () => {
+  const handleLogoutClick = () => {
+    setProfileDropdownOpen(false);
+    setConfirmLogoutOpen(true);
+  };
+
+  const handleConfirmLogout = () => {
+    setConfirmLogoutOpen(false);
     router.replace('/login');
   };
 
@@ -64,6 +74,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             width={48}
             height={48}
             className="sidebar-brand-logo"
+            priority
           />
           <div className="sidebar-logo-text-col">
             <span className="sidebar-brand-title">BeeApp AI</span>
@@ -99,7 +110,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               <span className="admin-footer-role">Administrador</span>
             </div>
           </div>
-          <button onClick={handleLogout} className="sidebar-logout-btn">
+          <button onClick={handleLogoutClick} className="sidebar-logout-btn">
             <LogOut size={16} />
             <span>Cerrar Sesión</span>
           </button>
@@ -175,19 +186,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                     <span className="dropdown-popover-name">Santiago Valencia</span>
                     <span className="dropdown-popover-email">santiago@beeapp.ai</span>
                   </div>
-                  <button onClick={() => setProfileDropdownOpen(false)} className="dropdown-popover-row">
+                  <Link href="/dashboard/perfil" onClick={() => setProfileDropdownOpen(false)} className="dropdown-popover-row">
                     <User size={14} />
                     <span>Mi Perfil</span>
-                  </button>
-                  <button onClick={() => setProfileDropdownOpen(false)} className="dropdown-popover-row">
-                    <Shield size={14} />
-                    <span>Seguridad y Roles</span>
-                  </button>
-                  <button onClick={() => setProfileDropdownOpen(false)} className="dropdown-popover-row">
-                    <HelpCircle size={14} />
-                    <span>Ayuda</span>
-                  </button>
-                  <button onClick={handleLogout} className="dropdown-popover-row text-red">
+                  </Link>
+                  <button onClick={handleLogoutClick} className="dropdown-popover-row text-red">
                     <LogOut size={14} />
                     <span>Cerrar Sesión</span>
                   </button>
@@ -199,6 +202,17 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
         <main className="admin-content-canvas">{children}</main>
       </div>
+
+      <ConfirmDialog
+        open={confirmLogoutOpen}
+        title="¿Cerrar sesión de administrador?"
+        description="Estás a punto de cerrar tu sesión de control y salir del panel de administración seguro."
+        confirmLabel="Cerrar sesión"
+        cancelLabel="Cancelar"
+        tone="danger"
+        onConfirm={handleConfirmLogout}
+        onCancel={() => setConfirmLogoutOpen(false)}
+      />
     </div>
   );
 }

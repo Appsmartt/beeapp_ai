@@ -1,10 +1,9 @@
-import React, { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
   TextInput,
   TouchableOpacity,
-  Image,
   StyleSheet,
   SafeAreaView,
   KeyboardAvoidingView,
@@ -14,13 +13,16 @@ import {
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { colors } from '@beeapp/design-system';
-
-declare const require: any;
+import AnimatedLogo from '../../src/components/AnimatedLogo';
 
 export default function VerifyScreen() {
   const router = useRouter();
   const params = useLocalSearchParams();
-  const phone = params.phone || '+57 300 000 0000';
+  
+  const rawPhone = params.phone || '300 000 0000';
+  const dialCode = params.dialCode || '+57';
+  const flag = params.flag || '🇨🇴';
+  const phone = `${flag} ${dialCode} ${rawPhone}`;
   
   const [code, setCode] = useState<string[]>(['', '', '', '', '', '']);
   const [timer, setTimer] = useState(60);
@@ -92,13 +94,9 @@ export default function VerifyScreen() {
           <View style={styles.innerContainer}>
             {/* Main Content */}
             <View style={styles.contentContainer}>
-              {/* Circular Logo */}
+              {/* Animated Logo (without text, autoStopAfter 2.5s) */}
               <View style={styles.logoContainer}>
-                <Image
-                  source={require('../../src/assets/logo.png')}
-                  style={styles.logo}
-                  resizeMode="cover"
-                />
+                <AnimatedLogo size={80} showText={false} autoStopAfter={2500} />
               </View>
 
               <Text style={styles.title}>Verifica tu Código</Text>

@@ -27,9 +27,9 @@ export default function PlansSection() {
   }
 
   return (
-    <div className="page-section">
+    <div className="page-section" style={{ padding: 0, marginTop: 0 }}>
       <span className="panel-card-title">Gestión de planes</span>
-      <div className="plans-grid">
+      <div className="plans-grid" style={{ marginTop: '16px' }}>
         {plans.map((plan) => (
           <div key={plan.id} className="plan-manage-card">
             <div className="plan-manage-card-top">

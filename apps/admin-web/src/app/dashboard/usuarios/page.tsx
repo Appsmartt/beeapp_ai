@@ -24,6 +24,7 @@ export default function UsuariosPage() {
   const [registro, setRegistro] = useState('');
   const [reportes, setReportes] = useState('');
   const [red, setRed] = useState('');
+  const [actividad, setActividad] = useState('');
   const [page, setPage] = useState(1);
   const [sort, setSort] = useState<SortState>({ key: 'fecha', direction: 'desc' });
 
@@ -49,6 +50,17 @@ export default function UsuariosPage() {
         { value: 'plus', label: 'Plus' },
         { value: 'pro', label: 'Pro' },
         { value: 'enterprise', label: 'Enterprise' },
+      ],
+    },
+    {
+      id: 'actividad',
+      label: 'Actividad Comercial',
+      value: actividad,
+      options: [
+        { value: 'productos', label: 'Productos' },
+        { value: 'servicios', label: 'Servicios' },
+        { value: 'ambos', label: 'Ambos' },
+        { value: 'ninguno', label: 'Ninguno' },
       ],
     },
     {
@@ -99,6 +111,7 @@ export default function UsuariosPage() {
     if (id === 'registro') setRegistro(value);
     if (id === 'reportes') setReportes(value);
     if (id === 'red') setRed(value);
+    if (id === 'actividad') setActividad(value);
   };
 
   const filteredUsers = useMemo(() => {
@@ -116,9 +129,11 @@ export default function UsuariosPage() {
         !reportes || (reportes === 'con_reportes' ? user.reportesCount > 0 : user.reportesCount === 0);
       const matchesRed =
         !red || (red === 'visibles' ? user.visibilidadRed !== 'privado' : user.verificacionRed === 'pendiente');
-      return matchesSearch && matchesEstado && matchesPlan && matchesVisibilidad && matchesRegistro && matchesReportes && matchesRed;
+      const matchesActividad =
+        !actividad || (user.actividadComercial && user.actividadComercial.tipo === actividad);
+      return matchesSearch && matchesEstado && matchesPlan && matchesVisibilidad && matchesRegistro && matchesReportes && matchesRed && matchesActividad;
     });
-  }, [search, estado, plan, visibilidad, registro, reportes, red]);
+  }, [search, estado, plan, visibilidad, registro, reportes, red, actividad]);
 
   const sortedUsers = useMemo(() => {
     const sorted = [...filteredUsers].sort((a, b) => {
@@ -157,6 +172,29 @@ export default function UsuariosPage() {
     },
     { key: 'estado', header: 'Estado', render: (row) => <StatusBadge status={row.estado} /> },
     { key: 'plan', header: 'Plan', render: (row) => <PlanBadge planId={row.planId} /> },
+    {
+      key: 'actividad',
+      header: 'Actividad',
+      render: (row) => {
+        const act = row.actividadComercial?.tipo || 'ninguno';
+        const colors: Record<string, string> = {
+          productos: '#20c997',
+          servicios: '#0d6efd',
+          ambos: '#6025d2',
+          ninguno: '#6c757d',
+        };
+        return (
+          <span style={{
+            textTransform: 'capitalize',
+            fontWeight: 'bold',
+            fontSize: '12px',
+            color: colors[act] || '#6c757d',
+          }}>
+            {act}
+          </span>
+        );
+      }
+    },
     { key: 'visibilidad', header: 'Visibilidad', render: (row) => VISIBILITY_LABELS[row.visibilidadRed], hideOnMobile: true },
     {
       key: 'reportes',

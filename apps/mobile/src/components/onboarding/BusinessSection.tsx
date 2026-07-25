@@ -68,15 +68,19 @@ export default function BusinessSection({
                 </View>
               ) : (
                 <View style={styles.logoCircle}>
-                  <Building2 size={24} color={colors.neutral.gray600} style={{ marginBottom: 4 }} />
-                  <Text style={styles.logoPlaceholderText}>Logo</Text>
+                  <Building2 size={24} color={colors.neutral.gray600} />
                 </View>
               )}
             </TouchableOpacity>
             <View style={sharedStyles.avatarInfo}>
-              <Text style={sharedStyles.avatarInfoTitle}>Logo de la Empresa</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 2 }}>
+                <Text style={sharedStyles.avatarInfoTitle}>Logo de la Empresa</Text>
+                <View style={{ backgroundColor: colors.neutral.gray200, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4, marginLeft: 6 }}>
+                  <Text style={{ fontSize: 9, fontWeight: '700', color: colors.neutral.gray600, textTransform: 'uppercase' }}>Opcional</Text>
+                </View>
+              </View>
               <Text style={sharedStyles.avatarInfoDesc}>
-                {hasBusinessLogo ? 'Logo cargado (Simulado)' : 'Toca para simular logo (Opcional)'}
+                {hasBusinessLogo ? 'Logo cargado (Simulado)' : 'Toca para cargar'}
               </Text>
             </View>
           </View>

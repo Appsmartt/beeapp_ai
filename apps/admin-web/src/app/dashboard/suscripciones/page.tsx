@@ -1,6 +1,7 @@
 'use client';
 
-import { Wallet, TrendingUp, UserPlus, UserMinus, TrendingDown, Coins } from 'lucide-react';
+import Link from 'next/link';
+import { Wallet, TrendingUp, UserPlus, UserMinus, TrendingDown, Coins, Settings } from 'lucide-react';
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip } from 'recharts';
 import KpiGrid, { type KpiItem } from '@/components/KpiGrid';
 import ChartCard from '@/components/ChartCard';
@@ -10,7 +11,6 @@ import { SUBSCRIPTION_KPIS, REVENUE_SERIES, SUBSCRIPTIONS_FLOW_SERIES } from '@/
 import { formatCurrencyCOP } from '@/utils/format';
 import { CHART_COLORS, CHART_GRID_STROKE, CHART_AXIS_TICK, CHART_AXIS_LINE, CHART_CURSOR, formatMillionsTick } from '@/utils/chart';
 import TransactionsSection from './TransactionsSection';
-import PlansSection from './PlansSection';
 
 export default function SuscripcionesPage() {
   const kpiItems: KpiItem[] = [
@@ -69,7 +69,19 @@ export default function SuscripcionesPage() {
         <TransactionsSection />
       </div>
 
-      <PlansSection />
+      {/* Migrated plans banner redirecting to configurations */}
+      <div className="panel-card" style={{ display: 'flex', alignItems: 'center', gap: '16px', backgroundColor: '#F8F9FC', border: '1.5px dashed #E9ECEF', padding: '20px' }}>
+        <Settings size={24} style={{ color: '#6025d2', flexShrink: 0 }} />
+        <div style={{ flex: 1 }}>
+          <span className="panel-card-title" style={{ margin: 0, fontSize: '15px', color: '#1A1A2E' }}>Gestión de planes de suscripción</span>
+          <p style={{ margin: '4px 0 0 0', fontSize: '13px', color: '#6C757D' }}>
+            La configuración de precios, límites y características de los planes se ha trasladado al módulo de configuraciones generales.
+          </p>
+        </div>
+        <Link href="/dashboard/configuracion" className="confirm-dialog-btn-confirm" style={{ textDecoration: 'none', display: 'inline-flex', alignItems: 'center', whiteSpace: 'nowrap' }}>
+          Configurar planes
+        </Link>
+      </div>
     </div>
   );
 }

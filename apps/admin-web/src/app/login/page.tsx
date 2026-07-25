@@ -1,53 +1,109 @@
 'use client';
 
 import React, { useState } from 'react';
-import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import AnimatedLogo from '../../components/AnimatedLogo';
+import { COUNTRIES, Country } from '../../mocks/countries';
 
 export default function AdminLoginPage() {
   const router = useRouter();
   const [phoneNumber, setPhoneNumber] = useState('');
   const [error, setError] = useState('');
+  const [selectedCountry, setSelectedCountry] = useState<Country>(COUNTRIES[0]);
+  const [dropdownOpen, setDropdownOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
 
   const handleContinue = (e: React.FormEvent) => {
     e.preventDefault();
     const cleaned = phoneNumber.replace(/\D/g, '');
-    if (cleaned.length < 10) {
-      setError('Ingresa un número celular válido de 10 dígitos.');
+    if (cleaned.length < 7 || cleaned.length > 15) {
+      setError('Ingresa un número celular válido.');
       return;
     }
     setError('');
-    router.push(`/verify?phone=${encodeURIComponent(`+57 ${cleaned}`)}`);
+    router.push(`/verify?phone=${encodeURIComponent(cleaned)}&dialCode=${encodeURIComponent(selectedCountry.dialCode)}&flag=${encodeURIComponent(selectedCountry.flag)}`);
   };
+
+  const filteredCountries = COUNTRIES.filter(
+    (c) =>
+      c.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      c.dialCode.includes(searchQuery)
+  );
 
   return (
     <div style={containerStyle}>
       <div style={cardStyle}>
-        {/* Top Logo */}
+        {/* Top Logo (AnimatedLogo, plays once 2.5s) */}
         <div style={{ textAlign: 'center', marginBottom: '24px' }}>
-          <Image
-            src="/logo.png"
-            alt="BeeApp AI Admin Logo"
-            width={150}
-            height={150}
-            style={{ borderRadius: '100%' }}
-            priority
-          />
+          <AnimatedLogo size={80} showText={false} autoStopAfter={2500} />
         </div>
         <h1 style={titleStyle}>BeeApp AI</h1>
+        <p style={{ textAlign: 'center', color: '#6C757D', fontSize: '14px', marginBottom: '28px', marginTop: '-4px' }}>
+          Acceso Personal Administrativo
+        </p>
 
         <form onSubmit={handleContinue}>
           <div style={inputGroupStyle}>
             <div style={phoneRowStyle}>
-              <div style={badgeStyle}>
-                <span style={{ marginRight: '6px' }}>🇨🇴</span>
-                <span style={{ fontWeight: '700', fontSize: '15px', color: '#1A1A2E' }}>+57</span>
+              {/* Country Code Dropdown */}
+              <div style={{ position: 'relative' }}>
+                <button
+                  type="button"
+                  onClick={() => setDropdownOpen(!dropdownOpen)}
+                  style={badgeStyle}
+                >
+                  <span style={{ marginRight: '6px', fontSize: '16px' }}>{selectedCountry.flag}</span>
+                  <span style={{ fontWeight: '700', fontSize: '15px', color: '#1A1A2E' }}>{selectedCountry.dialCode}</span>
+                </button>
+
+                {dropdownOpen && (
+                  <>
+                    <div style={backdropStyle} onClick={() => setDropdownOpen(false)} />
+                    <div style={dropdownContainerStyle}>
+                      <input
+                        type="text"
+                        placeholder="Buscar país o código..."
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        style={dropdownSearchStyle}
+                        autoFocus
+                      />
+                      <div style={dropdownListStyle}>
+                        {filteredCountries.map((c) => (
+                          <button
+                            key={c.code}
+                            type="button"
+                            onClick={() => {
+                              setSelectedCountry(c);
+                              setDropdownOpen(false);
+                              setSearchQuery('');
+                            }}
+                            style={dropdownItemStyle}
+                            onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#F1F3F5')}
+                            onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
+                          >
+                            <span style={{ marginRight: '10px', fontSize: '18px' }}>{c.flag}</span>
+                            <span style={{ flex: 1, textAlign: 'left', fontWeight: '500', color: '#1A1A2E', fontSize: '13px' }}>{c.name}</span>
+                            <span style={{ fontWeight: '700', color: '#6025d2', fontSize: '13px' }}>{c.dialCode}</span>
+                          </button>
+                        ))}
+                        {filteredCountries.length === 0 && (
+                          <p style={{ padding: '8px', fontSize: '12px', color: '#ADB5BD', textAlign: 'center', margin: 0 }}>
+                            Sin resultados
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  </>
+                )}
               </div>
+
+              {/* Phone number input */}
               <input
                 type="tel"
                 placeholder="300 000 0000"
-                maxLength={10}
+                maxLength={15}
                 value={phoneNumber}
                 onChange={(e) => {
                   setPhoneNumber(e.target.value.replace(/\D/g, ''));
@@ -109,7 +165,7 @@ const cardStyle: React.CSSProperties = {
 
 const titleStyle: React.CSSProperties = {
   fontSize: '24px',
-  fontWeight: '700',
+  fontWeight: '800',
   color: '#1A1A2E',
   textAlign: 'center',
   marginBottom: '8px',
@@ -132,9 +188,68 @@ const badgeStyle: React.CSSProperties = {
   display: 'flex',
   alignItems: 'center',
   backgroundColor: '#F1F3F5',
-  padding: '6px 10px',
+  padding: '8px 12px',
   borderRadius: '8px',
   marginRight: '10px',
+  border: 'none',
+  cursor: 'pointer',
+};
+
+const backdropStyle: React.CSSProperties = {
+  position: 'fixed',
+  top: 0,
+  left: 0,
+  right: 0,
+  bottom: 0,
+  zIndex: 90,
+  backgroundColor: 'transparent',
+};
+
+const dropdownContainerStyle: React.CSSProperties = {
+  position: 'absolute',
+  top: '100%',
+  left: 0,
+  width: '280px',
+  backgroundColor: '#FFFFFF',
+  border: '1px solid #E9ECEF',
+  borderRadius: '12px',
+  boxShadow: '0 8px 24px rgba(26, 26, 46, 0.12)',
+  padding: '12px',
+  zIndex: 100,
+  marginTop: '6px',
+};
+
+const dropdownSearchStyle: React.CSSProperties = {
+  width: '100%',
+  padding: '8px 12px',
+  borderRadius: '8px',
+  border: '1.5px solid #E9ECEF',
+  fontSize: '13px',
+  outline: 'none',
+  marginBottom: '10px',
+  color: '#1A1A2E',
+  boxSizing: 'border-box',
+};
+
+const dropdownListStyle: React.CSSProperties = {
+  maxHeight: '180px',
+  overflowY: 'auto',
+  display: 'flex',
+  flexDirection: 'column',
+  gap: '2px',
+};
+
+const dropdownItemStyle: React.CSSProperties = {
+  display: 'flex',
+  alignItems: 'center',
+  padding: '8px 10px',
+  border: 'none',
+  backgroundColor: 'transparent',
+  borderRadius: '6px',
+  cursor: 'pointer',
+  width: '100%',
+  transition: 'background-color 0.2s',
+  boxSizing: 'border-box',
 };
 
 const inputStyle: React.CSSProperties = {

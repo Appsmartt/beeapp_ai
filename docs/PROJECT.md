@@ -60,8 +60,8 @@ beeapp_ai/
 │   ├── mobile/
 │   │   ├── app/              # Rutas de Expo Router (cada archivo = una pantalla)
 │   │   │   ├── _layout.tsx   # Layout raíz (Stack)
-│   │   │   ├── index.tsx     # Redirección inicial
-│   │   │   ├── (auth)/       # Login, verificación, términos y privacidad
+│   │   │   ├── index.tsx     # Splash Screen animada (White background + paths + logo)
+│   │   │   ├── (auth)/       # Login (selector país), verify (matching flag/code), terms y privacy
 │   │   │   ├── (main)/       # Módulos principales de la app
 │   │   │   │   ├── index.tsx       # Home (dashboard)
 │   │   │   │   ├── calendar/       # Calendario
@@ -96,14 +96,20 @@ beeapp_ai/
 │           │   ├── page.tsx        # Landing / redirección
 │           │   ├── login/ verify/ terms/ privacy/
 │           │   └── dashboard/
+│           │       ├── layout.tsx        # Layout compartido (sidebar + topbar)
 │           │       ├── page.tsx          # Dashboard home (KPIs + gráficas)
-│           │       ├── usuarios/         # Lista y detalle de usuarios
-│           │       ├── suscripciones/    # Planes y transacciones
+│           │       ├── usuarios/         # Tabla de usuarios
+│           │       │   ├── page.tsx      # Listado
+│           │       │   └── [id]/
+│           │       │       └── page.tsx  # Detalle de un usuario
+│           │       ├── suscripciones/    # Suscripciones y planes
+│           │       │   └── page.tsx
 │           │       └── notificaciones/   # Envío e historial de campañas
-│           ├── components/   # Componentes reutilizables del panel
-│           ├── mocks/        # Datos mock centralizados con tipos
+│           │           └── page.tsx
+│           ├── components/   # Componentes reutilizables del panel (KpiCard, DataTable, etc.)
+│           ├── mocks/        # Datos mock split por dominio (types.ts, users.ts, transactions.ts, etc.)
 │           ├── utils/        # Formateo, etiquetas y constantes de gráficas
-│           ├── features/     # dashboard/ + reservada para crecimiento
+│           ├── features/     # (vacía) reservada para organización modular futura
 │           ├── services/     # (vacía) futura capa de llamadas a API
 │           ├── hooks/        # (vacía) futuros hooks
 │           ├── lib/          # (vacía) futuros clientes/configuración
@@ -126,7 +132,7 @@ beeapp_ai/
 
 | Módulo | Pantallas | Qué hace |
 |---|---|---|
-| **Auth** `(auth)/` | `login`, `verify`, `terms`, `privacy` | Inicio de sesión, verificación por código, y páginas legales |
+| **Auth** `(auth)/` | `login`, `verify`, `terms`, `privacy` | Inicio de sesión (con selector de país internacional), verificación por código (con indicativo coherente), y páginas legales |
 | **Onboarding** `onboarding/` | `index` | Flujo guiado de 4 pasos: datos personales, negocio, tono del asistente y beneficios/permisos |
 | **Home** `(main)/index` | `index` | Dashboard con tarjeta del asistente IA, plan/almacenamiento, accesos rápidos personalizables (máx. 3), actividad reciente y próximos eventos |
 | **Chat** `(main)/chat/` | `index`, `conversation`, `new`, `call`, `story`, `create-story` | Lista de chats con historias, conversación con burbujas de mensajes, nuevo chat, llamada y creación/visualización de historias |
@@ -146,10 +152,11 @@ Navegación transversal: `FloatingTabBar` (barra flotante tipo píldora presente
 | Sección | Páginas / componentes | Qué hace |
 |---|---|---|
 | **Auth y legales** | `login/`, `verify/`, `terms/`, `privacy/` | Acceso al panel y páginas legales |
-| **Dashboard home** | `dashboard/page.tsx` | KPIs globales, gráfica de crecimiento de usuarios, ingresos y uso por módulo, feed de actividad reciente |
-| **Usuarios** | `usuarios/page.tsx`, `usuarios/[id]/page.tsx` + `ModerationSection`, `NetworkSection` | Tabla de usuarios con filtros y paginación; detalle con métricas de uso, integraciones, onboarding, moderación (reportes y sanciones) y red empresarial |
-| **Suscripciones** | `suscripciones/page.tsx` + `PlansSection`, `PlanEditor`, `PlanFeaturesEditor`, `PlanPreviewCard`, `TransactionsSection` | KPIs de suscripción, distribución y flujo de planes, edición de planes (límites, precios, funcionalidades) con vista previa móvil, y tabla de transacciones |
-| **Notificaciones** | `notificaciones/page.tsx` + `SendSection`, `HistorySection` | Composición de campañas push (todos / segmento / usuarios específicos) con vista previa en teléfono, e historial de envíos |
+| **Dashboard home** | `dashboard/page.tsx` | KPIs globales, consumo y costos operativos de la plataforma, crecimiento de usuarios, ingresos y uso por módulo, feed de actividad reciente |
+| **Usuarios** | `usuarios/page.tsx`, `usuarios/[id]/page.tsx` | Tabla de usuarios con filtros, paginación y filtro por actividad comercial (BeeServices); detalle con métricas, integraciones, onboarding, BeeServices y privacidad |
+| **Suscripciones** | `suscripciones/page.tsx` | KPIs de suscripción, distribución y flujo de ingresos, y tabla de transacciones. La edición de planes se trasladó a Configuraciones |
+| **Configuraciones** | `dashboard/configuracion/page.tsx` | Gestión legal de términos y condiciones (editable), políticas de privacidad (editable) y planes de suscripción (precios, límites, funciones) |
+| **Perfil** | `dashboard/perfil/page.tsx` | Perfil administrativo para ver y editar nombre completo, correo (con validación de formato) y foto de perfil, con teléfono de solo lectura |
 
 ---
 
@@ -159,6 +166,7 @@ Navegación transversal: `FloatingTabBar` (barra flotante tipo píldora presente
 
 | Componente | Descripción |
 |---|---|
+| `AnimatedLogo.tsx` | Logo animado vectorial con alas giratorias (clockwise/counter-clockwise), cuadro central estático e inclinado (12 grados), y opción de autodetenerse (`autoStopAfter`) |
 | `FloatingTabBar.tsx` | Barra de navegación flotante tipo píldora con acceso al asistente |
 | `AssistantMiniChat.tsx` | Modal de mini-chat con el asistente IA |
 | `calendar/CalendarHeader.tsx` | Cabecera del calendario + chips de filtro (exporta tipos `ViewMode`/`FilterChip`) |
@@ -200,18 +208,14 @@ Auxiliares: `src/utils/storageHelpers.ts` (ordenación, filtrado y creación moc
 |---|---|
 | `KpiCard.tsx` / `KpiGrid.tsx` | Tarjeta de métrica con delta y grid contenedor |
 | `ChartCard.tsx` | Contenedor de gráfica con título y acciones |
-| `ChartLegend.tsx` | Leyenda de series con valores opcionales |
-| `ChartTooltip.tsx` | Tooltip personalizado para recharts |
 | `DataTable.tsx` | Tabla genérica con columnas configurables |
 | `FilterBar.tsx` | Barra de búsqueda y filtros por select |
 | `Pagination.tsx` | Paginación de tablas |
 | `StatusBadge.tsx` | Badge de estado con color semántico |
 | `PlanBadge.tsx` | Badge del plan de suscripción |
 | `ActivityFeed.tsx` | Feed de actividad reciente |
-| `ConfirmDialog.tsx` | Diálogo de confirmación de acciones |
 | `SlidePanel.tsx` | Panel lateral deslizante (detalles/edición) |
-| `PhonePreview.tsx` | Marco de teléfono para previsualizar notificaciones |
-| `RecipientPicker.tsx` | Selector de destinatarios de campañas |
+| `AnimatedLogo.tsx` | Logo animado vectorial con alas giratorias (clockwise/counter-clockwise), cuadro central estático e inclinado (12 grados), y opción de autodetenerse (`autoStopAfter`) |
 
 Auxiliares en `src/utils/`: `format.ts` (fechas, moneda, números), `labels.ts` (mapas de etiquetas en español para estados/tipos), `chart.ts` (colores, ejes y constantes de recharts).
 
@@ -251,6 +255,7 @@ import { colors } from '@beeapp/design-system';
 | `mocks/contacts.ts` | Mis contactos, contactos por descubrir, registro de llamadas y detalles (`MY_CONTACTS`, `DISCOVER_CONTACTS`, `CALL_LOGS`, `ALL_CONTACT_DETAILS`, `CONTACT_CALLS`) |
 | `mocks/chats.ts` | Chats, historias y mensajes de conversación (`MOCK_CHATS`, `MOCK_STORIES`, `MOCK_CONVERSATION_MESSAGES`) |
 | `mocks/subscription.ts` | Beneficios del plan Plus (`BENEFICIOS_PLUS`) |
+| `mocks/countries.ts` | Lista mundial completa de indicativos telefónicos y banderas de países (`COUNTRIES`) |
 | `stores/calendarStore.ts` | Eventos de calendario con invitados (`CalendarEvent`, `getEvents`/`setEvents`) — estado mutable compartido entre pantallas |
 | `stores/storageStore.ts` | Archivos y carpetas (`StorageItem`, `getItems`/`setItems`) — estado mutable compartido entre pantallas |
 
@@ -264,10 +269,9 @@ Algunas pantallas conservan arrays de configuración de UI inline (paletas de co
 | `users.ts` | Usuarios de la plataforma (`MOCK_USERS`) |
 | `plans.ts` | Planes de suscripción con límites y funcionalidades (`MOCK_PLANS`) |
 | `transactions.ts` | Transacciones de pago (`MOCK_TRANSACTIONS`) |
-| `notifications.ts` | Campañas de notificación enviadas/programadas (`MOCK_NOTIFICATIONS`) |
-| `moderation.ts` | Reportes y sanciones de usuarios (`MOCK_REPORTS`, `MOCK_SANCTIONS`) |
 | `activities.ts` | Feed de actividad reciente (`MOCK_ACTIVITIES`) |
 | `metrics.ts` | KPIs y series para gráficas (crecimiento, ingresos, distribución de planes, uso por módulo) |
+| `countries.ts` | Lista mundial completa de indicativos telefónicos y banderas de países (`COUNTRIES`) |
 
 ---
 

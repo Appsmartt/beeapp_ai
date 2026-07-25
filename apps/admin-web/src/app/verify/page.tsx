@@ -1,13 +1,18 @@
 'use client';
 
 import React, { useState, useEffect, useRef, Suspense } from 'react';
-import Image from 'next/image';
 import { useRouter, useSearchParams } from 'next/navigation';
+import AnimatedLogo from '../../components/AnimatedLogo';
 
 function VerifyForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const phone = searchParams.get('phone') || '+57 300 000 0000';
+  
+  // Format the phone number dynamically using passed flag and dialCode
+  const phoneVal = searchParams.get('phone') || '300 000 0000';
+  const dialCode = searchParams.get('dialCode') || '+57';
+  const flag = searchParams.get('flag') || '🇨🇴';
+  const phone = `${flag} ${dialCode} ${phoneVal}`;
 
   const [code, setCode] = useState(['', '', '', '', '', '']);
   const inputRefs = useRef<Array<HTMLInputElement | null>>([]);
@@ -67,16 +72,9 @@ function VerifyForm() {
 
   return (
     <div style={cardStyle}>
-      {/* Top Logo */}
+      {/* Top Logo (AnimatedLogo web version, auto-stop after 2.5s) */}
       <div style={{ textAlign: 'center', marginBottom: '24px' }}>
-        <Image
-          src="/logo.png"
-          alt="BeeApp AI Admin Logo"
-          width={150}
-          height={150}
-          style={{ borderRadius: '100%' }}
-          priority
-        />
+        <AnimatedLogo size={80} showText={false} autoStopAfter={2500} />
       </div>
 
       <h1 style={titleStyle}>Verificación de Seguridad</h1>

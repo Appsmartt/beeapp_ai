@@ -1,43 +1,51 @@
-import React, { useState, useRef } from 'react';
+import { useState, useRef } from 'react';
 import {
   View,
   Text,
   TextInput,
   TouchableOpacity,
-  Image,
   StyleSheet,
   SafeAreaView,
   KeyboardAvoidingView,
   Platform,
   TouchableWithoutFeedback,
   Keyboard,
+  Modal,
+  FlatList,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { colors } from '@beeapp/design-system';
+import AnimatedLogo from '../../src/components/AnimatedLogo';
 
-declare const require: any;
+import { COUNTRIES, Country } from '../../src/mocks/countries';
 
 export default function LoginScreen() {
   const router = useRouter();
   const [phoneNumber, setPhoneNumber] = useState('');
   const [error, setError] = useState('');
+  const [selectedCountry, setSelectedCountry] = useState<Country>(COUNTRIES[0]);
+  const [modalVisible, setModalVisible] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
 
   const handleContinue = () => {
     const cleaned = phoneNumber.replace(/\D/g, '');
-    if (cleaned.length < 10) {
-      setError('Ingresa un número celular válido de 10 dígitos.');
+    if (cleaned.length < 7 || cleaned.length > 15) {
+      setError('Ingresa un número celular válido.');
       return;
     }
     setError('');
     router.push({
       pathname: '/(auth)/verify',
-      params: { from: 'login', phone: `+57 ${cleaned}` },
+      params: { 
+        from: 'login', 
+        phone: cleaned,
+        dialCode: selectedCountry.dialCode,
+        flag: selectedCountry.flag
+      },
     });
   };
 
   // TEMPORAL DEVELOPMENT BYPASS: Double tap skips OTP & Onboarding directly to main dashboard
-  // Single tap proceeds to verify OTP and onboarding account setup.
-  // TODO: Remove this shortcut when real auth verification/user checking flow is implemented.
   const lastTap = useRef<number>(0);
   const tapTimeout = useRef<NodeJS.Timeout | null>(null);
 
@@ -63,6 +71,12 @@ export default function LoginScreen() {
     lastTap.current = now;
   };
 
+  const filteredCountries = COUNTRIES.filter(
+    (c) =>
+      c.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      c.dialCode.includes(searchQuery)
+  );
+
   return (
     <SafeAreaView style={styles.safeArea}>
       <KeyboardAvoidingView
@@ -73,13 +87,9 @@ export default function LoginScreen() {
           <View style={styles.innerContainer}>
             {/* Main Content Container */}
             <View style={styles.contentContainer}>
-              {/* Circular Logo, larger and closer to the title */}
+              {/* Animated Logo (without text, autoStopAfter 2.5s) */}
               <View style={styles.logoContainer}>
-                <Image
-                  source={require('../../src/assets/logo.png')}
-                  style={styles.logo}
-                  resizeMode="cover"
-                />
+                <AnimatedLogo size={80} showText={false} autoStopAfter={2500} />
               </View>
 
               <Text style={styles.title}>Inicia Sesión</Text>
@@ -89,13 +99,20 @@ export default function LoginScreen() {
 
               {/* Phone Input Box */}
               <View style={styles.inputCard}>
-                <Text style={styles.inputLabel}>Número Telefónico (Colombia)</Text>
+                <Text style={styles.inputLabel}>Número Telefónico</Text>
                 <View style={styles.phoneInputContainer}>
-                  {/* Fixed Prefix with Flag */}
-                  <View style={styles.prefixBadge}>
-                    <Text style={styles.flag}>🇨🇴</Text>
-                    <Text style={styles.prefixText}>+57</Text>
-                  </View>
+                  {/* Selectable Prefix with Flag */}
+                  <TouchableOpacity
+                    style={styles.prefixBadge}
+                    activeOpacity={0.7}
+                    onPress={() => {
+                      setSearchQuery('');
+                      setModalVisible(true);
+                    }}
+                  >
+                    <Text style={styles.flag}>{selectedCountry.flag}</Text>
+                    <Text style={styles.prefixText}>{selectedCountry.dialCode}</Text>
+                  </TouchableOpacity>
 
                   {/* Editable Phone Field */}
                   <TextInput
@@ -103,7 +120,7 @@ export default function LoginScreen() {
                     placeholder="300 000 0000"
                     placeholderTextColor={colors.neutral.gray500}
                     keyboardType="number-pad"
-                    maxLength={10}
+                    maxLength={15}
                     value={phoneNumber}
                     onChangeText={(text) => {
                       setPhoneNumber(text.replace(/\D/g, ''));
@@ -142,6 +159,62 @@ export default function LoginScreen() {
           </View>
         </TouchableWithoutFeedback>
       </KeyboardAvoidingView>
+
+      {/* Country Selector Modal */}
+      <Modal
+        animationType="slide"
+        transparent={true}
+        visible={modalVisible}
+        onRequestClose={() => setModalVisible(false)}
+      >
+        <TouchableWithoutFeedback onPress={() => setModalVisible(false)}>
+          <View style={styles.modalOverlay}>
+            <TouchableWithoutFeedback>
+              <View style={styles.modalContent}>
+                <View style={styles.modalHeader}>
+                  <Text style={styles.modalTitle}>Selecciona un País</Text>
+                  <TouchableOpacity
+                    style={styles.closeButton}
+                    onPress={() => setModalVisible(false)}
+                  >
+                    <Text style={styles.closeButtonText}>Cerrar</Text>
+                  </TouchableOpacity>
+                </View>
+
+                {/* Country Search Bar */}
+                <TextInput
+                  style={styles.searchBar}
+                  placeholder="Buscar país o indicativo..."
+                  placeholderTextColor={colors.neutral.gray500}
+                  value={searchQuery}
+                  onChangeText={setSearchQuery}
+                />
+
+                <FlatList
+                  data={filteredCountries}
+                  keyExtractor={(item) => item.code}
+                  keyboardShouldPersistTaps="handled"
+                  renderItem={({ item }) => (
+                    <TouchableOpacity
+                      style={styles.countryRow}
+                      activeOpacity={0.7}
+                      onPress={() => {
+                        setSelectedCountry(item);
+                        setModalVisible(false);
+                      }}
+                    >
+                      <Text style={styles.countryFlag}>{item.flag}</Text>
+                      <Text style={styles.countryName}>{item.name}</Text>
+                      <Text style={styles.countryDialCode}>{item.dialCode}</Text>
+                    </TouchableOpacity>
+                  )}
+                  style={{ maxHeight: 300 }}
+                />
+              </View>
+            </TouchableWithoutFeedback>
+          </View>
+        </TouchableWithoutFeedback>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -164,13 +237,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 20,
     marginTop: Platform.OS === 'ios' ? 40 : 20,
-  },
-  logo: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
-    borderWidth: 2,
-    borderColor: colors.neutral.gray200,
   },
   contentContainer: {
     flex: 1,
@@ -287,5 +353,74 @@ const styles = StyleSheet.create({
   footerDot: {
     fontSize: 12,
     color: colors.neutral.gray500,
+  },
+  // Modal Styles
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(26, 26, 46, 0.4)',
+    justifyContent: 'flex-end',
+  },
+  modalContent: {
+    backgroundColor: colors.neutral.white,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    maxHeight: '80%',
+    padding: 24,
+    paddingBottom: Platform.OS === 'ios' ? 40 : 24,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: colors.neutral.text,
+  },
+  closeButton: {
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    backgroundColor: colors.neutral.gray100,
+    borderRadius: 8,
+  },
+  closeButtonText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: colors.neutral.gray700,
+  },
+  searchBar: {
+    backgroundColor: colors.neutral.gray100,
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    fontSize: 14,
+    color: colors.neutral.text,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: colors.neutral.gray200,
+  },
+  countryRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.neutral.gray100,
+  },
+  countryFlag: {
+    fontSize: 20,
+    marginRight: 14,
+  },
+  countryName: {
+    flex: 1,
+    fontSize: 15,
+    fontWeight: '600',
+    color: colors.neutral.text,
+  },
+  countryDialCode: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: colors.brand.primary,
   },
 });
