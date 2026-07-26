@@ -7,7 +7,7 @@ import {
   TouchableOpacity,
   SafeAreaView,
 } from 'react-native';
-import { useRouter, useLocalSearchParams } from 'expo-router';
+import { useModuleNav, useScreenParams } from '../../../src/components/embedded/EmbeddedNavContext';
 import { colors } from '@beeapp/design-system';
 import {
   ChevronLeft,
@@ -26,8 +26,8 @@ import { MOCK_EMAILS } from '../../../src/mocks/emails';
 
 
 export default function MailDetailScreen() {
-  const router = useRouter();
-  const { id } = useLocalSearchParams();
+  const router = useModuleNav();
+  const { id } = useScreenParams();
 
   // Mock Emails pool
   const emails = MOCK_EMAILS;
@@ -172,7 +172,7 @@ export default function MailDetailScreen() {
         </ScrollView>
 
         {/* Tab Menu bar */}
-        <FloatingTabBar activeTab="home" />
+        {!router.embedded && <FloatingTabBar activeTab="home" />}
       </View>
     </SafeAreaView>
   );

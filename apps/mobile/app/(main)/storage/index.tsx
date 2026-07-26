@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { View, StyleSheet, ScrollView, SafeAreaView } from 'react-native';
-import { useRouter, useNavigation } from 'expo-router';
+import { useNavigation } from 'expo-router';
+import { useModuleNav } from '../../../src/components/embedded/EmbeddedNavContext';
 import { colors } from '@beeapp/design-system';
 import FloatingTabBar from '../../../src/components/FloatingTabBar';
 import StorageHeader from '../../../src/components/storage/StorageHeader';
@@ -15,6 +16,8 @@ import StorageItemsView from '../../../src/components/storage/StorageItemsView';
 import StorageContextMenu from '../../../src/components/storage/StorageContextMenu';
 import { MoveFolderModal, FolderNameDialog } from '../../../src/components/storage/StorageDialogs';
 import StorageFabMenu from '../../../src/components/storage/StorageFabMenu';
+import PinLockModal from '../../../src/components/security/PinLockModal';
+import { getProtectedIds, hasPin, isProtected, setProtected } from '../../../src/stores/pinStore';
 import {
   StorageSummaryCard,
   StorageFilterChips,
@@ -22,7 +25,7 @@ import {
 } from '../../../src/components/storage/StorageSummaryFilters';
 
 export default function StorageIndexScreen() {
-  const router = useRouter();
+  const router = useModuleNav();
   const navigation = useNavigation();
 
   // Storage State
@@ -41,6 +44,10 @@ export default function StorageIndexScreen() {
   // Modals & Menu States
   const [activeItem, setActiveItem] = useState<StorageItem | null>(null);
   const [contextMenuVisible, setContextMenuVisible] = useState(false);
+
+  // PIN protection (mock, global store)
+  const [protectedIds, setProtectedIds] = useState<string[]>(getProtectedIds());
+  const [lockedItem, setLockedItem] = useState<StorageItem | null>(null);
   const [folderModalVisible, setFolderModalVisible] = useState(false);
   const [folderModalMode, setFolderModalMode] = useState<'create' | 'rename'>('create');
   const [folderNameInput, setFolderNameInput] = useState('');
@@ -78,8 +85,16 @@ export default function StorageIndexScreen() {
     setFabMenuVisible(false);
   };
 
-  // Open folder or preview file
+  // Open folder or preview file, asking for the PIN when protected
   const handleOpenItem = (item: StorageItem) => {
+    if (isProtected(item.id)) {
+      setLockedItem(item);
+      return;
+    }
+    openItemContent(item);
+  };
+
+  const openItemContent = (item: StorageItem) => {
     if (item.type === 'folder') {
       handleFolderPress(item);
     } else {
@@ -88,6 +103,17 @@ export default function StorageIndexScreen() {
         params: { id: item.id },
       });
     }
+  };
+
+  // Protect / unprotect with the global PIN
+  const handleToggleProtect = (item: StorageItem) => {
+    if (!hasPin()) {
+      alert('Primero crea tu PIN de protección en Perfil → Seguridad.');
+      return;
+    }
+    const wasProtected = isProtected(item.id);
+    setProtectedIds([...setProtected(item.id, !wasProtected)]);
+    alert(wasProtected ? 'Protección retirada.' : 'Elemento protegido con tu PIN.');
   };
 
   // Folder CRUD Operations
@@ -165,7 +191,8 @@ export default function StorageIndexScreen() {
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.container}>
         <StorageHeader
-          onBack={() => router.back()}
+          onBack={router.canGoBack ? () => router.back() : undefined}
+          onAction={router.embedded ? () => setFabMenuVisible(!fabMenuVisible) : undefined}
           sortBy={sortBy}
           onSortChange={setSortBy}
           viewMode={viewMode}
@@ -186,6 +213,7 @@ export default function StorageIndexScreen() {
 
           <StorageItemsView
             items={filteredItems}
+            protectedIds={protectedIds}
             viewMode={viewMode}
             onOpenItem={handleOpenItem}
             onOpenMenu={openContextMenu}
@@ -199,6 +227,8 @@ export default function StorageIndexScreen() {
           item={activeItem}
           onClose={() => setContextMenuVisible(false)}
           onOpenItem={handleOpenItem}
+          isProtected={activeItem ? protectedIds.includes(activeItem.id) : false}
+          onToggleProtect={handleToggleProtect}
           onRename={triggerRenameFlow}
           onMove={() => setMoveModalVisible(true)}
           onShare={() => { alert('Compartir enlace generado.'); setContextMenuVisible(false); }}
@@ -230,7 +260,20 @@ export default function StorageIndexScreen() {
           onConfirm={folderModalMode === 'create' ? handleCreateFolder : handleRenameItem}
         />
 
+        {/* PIN required to open a protected element */}
+        <PinLockModal
+          visible={!!lockedItem}
+          itemName={lockedItem?.name}
+          onClose={() => setLockedItem(null)}
+          onSuccess={() => {
+            const item = lockedItem;
+            setLockedItem(null);
+            if (item) openItemContent(item);
+          }}
+        />
+
         <StorageFabMenu
+          embedded={router.embedded}
           menuVisible={fabMenuVisible}
           onToggleMenu={() => setFabMenuVisible(!fabMenuVisible)}
           onCloseMenu={() => setFabMenuVisible(false)}
@@ -244,7 +287,7 @@ export default function StorageIndexScreen() {
         />
 
         {/* Tab Menu bar */}
-        <FloatingTabBar activeTab="explore" />
+        {!router.embedded && <FloatingTabBar activeTab="explore" />}
       </View>
     </SafeAreaView>
   );

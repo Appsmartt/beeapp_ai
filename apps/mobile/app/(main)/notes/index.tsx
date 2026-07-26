@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -9,7 +9,8 @@ import {
   SafeAreaView,
   Dimensions,
 } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useNavigation } from 'expo-router';
+import { useModuleNav } from '../../../src/components/embedded/EmbeddedNavContext';
 import { colors } from '@beeapp/design-system';
 import {
   ChevronLeft,
@@ -23,8 +24,11 @@ import {
   Edit2,
   FolderOpen,
   ArrowUpDown,
+  Lock,
 } from 'lucide-react-native';
 import FloatingTabBar from '../../../src/components/FloatingTabBar';
+import PinLockModal from '../../../src/components/security/PinLockModal';
+import { getProtectedIds, isProtected } from '../../../src/stores/pinStore';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const FAB_BOTTOM_OFFSET = 105; // Spacing offset to separate FAB from FloatingTabBar
@@ -42,7 +46,7 @@ interface NoteItem {
 }
 
 export default function NotesListScreen() {
-  const router = useRouter();
+  const router = useModuleNav();
 
   // Layout states
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
@@ -50,6 +54,17 @@ export default function NotesListScreen() {
   const [searchQuery, setSearchQuery] = useState('');
   const [sortOption, setSortOption] = useState<'updated' | 'created' | 'alpha'>('updated');
   const [swipeActiveId, setSwipeActiveId] = useState<string | null>(null);
+
+  // PIN protection (mock, global store)
+  const [protectedIds, setProtectedIds] = useState<string[]>(getProtectedIds());
+  const navigation = useNavigation();
+
+  // Protection is toggled inside the note: refresh the indicators on return
+  useEffect(() => {
+    const unsubscribe = navigation.addListener('focus', () => setProtectedIds([...getProtectedIds()]));
+    return unsubscribe;
+  }, [navigation]);
+  const [lockedNoteId, setLockedNoteId] = useState<string | null>(null);
 
   // Mock Notes list data
   const [notes, setNotes] = useState<NoteItem[]>([
@@ -185,6 +200,19 @@ export default function NotesListScreen() {
     return 'Modificado';
   };
 
+  // Open a note, asking for the PIN when it is protected
+  const openNote = (noteId: string) => {
+    router.push({ pathname: '/(main)/notes/edit', params: { id: noteId } });
+  };
+
+  const handleOpenNote = (noteId: string) => {
+    if (isProtected(noteId)) {
+      setLockedNoteId(noteId);
+      return;
+    }
+    openNote(noteId);
+  };
+
   const hasNotes = sortedNotes.length > 0;
 
   return (
@@ -193,9 +221,11 @@ export default function NotesListScreen() {
         {/* Header toolbar */}
         <View style={styles.header}>
           <View style={styles.headerLeftCol}>
-            <TouchableOpacity onPress={() => router.back()} style={styles.backBtn} activeOpacity={0.7}>
-              <ChevronLeft size={24} color={colors.neutral.text} />
-            </TouchableOpacity>
+            {router.canGoBack && (
+              <TouchableOpacity onPress={() => router.back()} style={styles.backBtn} activeOpacity={0.7}>
+                <ChevronLeft size={24} color={colors.neutral.text} />
+              </TouchableOpacity>
+            )}
             <Text style={styles.headerTitle}>Mis Notas</Text>
           </View>
 
@@ -216,6 +246,17 @@ export default function NotesListScreen() {
                 <Grid size={20} color={colors.neutral.text} />
               )}
             </TouchableOpacity>
+
+            {/* Create action in the header while embedded (instead of a FAB) */}
+            {router.embedded && (
+              <TouchableOpacity
+                onPress={() => router.push('/(main)/notes/edit')}
+                style={styles.headerActionBtn}
+                activeOpacity={0.8}
+              >
+                <Plus size={18} color={colors.neutral.white} />
+              </TouchableOpacity>
+            )}
           </View>
         </View>
 
@@ -276,12 +317,15 @@ export default function NotesListScreen() {
                     <TouchableOpacity
                       key={note.id}
                       style={[styles.noteCardGrid, { borderLeftColor: note.colorTag }]}
-                      onPress={() => router.push({ pathname: '/(main)/notes/edit', params: { id: note.id } })}
+                      onPress={() => handleOpenNote(note.id)}
                       onLongPress={() => setSwipeActiveId(isSwipeActive ? null : note.id)}
                       activeOpacity={0.7}
                     >
                       {/* Card Header title */}
                       <View style={styles.cardHeader}>
+                        {protectedIds.includes(note.id) && (
+                          <Lock size={12} color={colors.brand.primary} style={{ marginRight: 4, marginTop: 2 }} />
+                        )}
                         <Text style={styles.cardTitle} numberOfLines={2}>
                           {note.title || 'Sin Título'}
                         </Text>
@@ -341,14 +385,19 @@ export default function NotesListScreen() {
                     <View key={note.id} style={styles.listWrapper}>
                       <TouchableOpacity
                         style={[styles.noteRowList, { borderLeftColor: note.colorTag }]}
-                        onPress={() => router.push({ pathname: '/(main)/notes/edit', params: { id: note.id } })}
+                        onPress={() => handleOpenNote(note.id)}
                         onLongPress={() => setSwipeActiveId(isSwipeActive ? null : note.id)}
                         activeOpacity={0.7}
                       >
                         <View style={styles.listDetails}>
-                          <Text style={styles.listTitle} numberOfLines={1}>
-                            {note.title || 'Sin Título'}
-                          </Text>
+                          <View style={styles.listTitleRow}>
+                            {protectedIds.includes(note.id) && (
+                              <Lock size={12} color={colors.brand.primary} style={{ marginRight: 4 }} />
+                            )}
+                            <Text style={styles.listTitle} numberOfLines={1}>
+                              {note.title || 'Sin Título'}
+                            </Text>
+                          </View>
                           <Text style={styles.listBody} numberOfLines={1}>
                             {note.content}
                           </Text>
@@ -381,7 +430,7 @@ export default function NotesListScreen() {
                         <View style={styles.swipePanel}>
                           <TouchableOpacity
                             style={[styles.swipeBtn, { backgroundColor: '#EEF2F6' }]}
-                            onPress={() => router.push({ pathname: '/(main)/notes/edit', params: { id: note.id } })}
+                            onPress={() => handleOpenNote(note.id)}
                             activeOpacity={0.8}
                           >
                             <Edit2 size={16} color={colors.neutral.text} />
@@ -424,18 +473,32 @@ export default function NotesListScreen() {
           </View>
         )}
 
-        {/* Create Note Floating Action Button */}
-        <TouchableOpacity
-          style={styles.createFab}
-          onPress={() => router.push('/(main)/notes/edit')}
-          activeOpacity={0.8}
-        >
-          <Plus size={20} color={colors.neutral.white} style={{ marginRight: 6 }} />
-          <Text style={styles.createFabText}>Nueva Nota</Text>
-        </TouchableOpacity>
+        {/* Create Note FAB - standalone only: embedded it lives in the header */}
+        {!router.embedded && (
+          <TouchableOpacity
+            style={styles.createFab}
+            onPress={() => router.push('/(main)/notes/edit')}
+            activeOpacity={0.8}
+          >
+            <Plus size={20} color={colors.neutral.white} style={{ marginRight: 6 }} />
+            <Text style={styles.createFabText}>Nueva Nota</Text>
+          </TouchableOpacity>
+        )}
+
+        {/* PIN required to open a protected note */}
+        <PinLockModal
+          visible={!!lockedNoteId}
+          itemName={notes.find((n) => n.id === lockedNoteId)?.title}
+          onClose={() => setLockedNoteId(null)}
+          onSuccess={() => {
+            const id = lockedNoteId;
+            setLockedNoteId(null);
+            if (id) openNote(id);
+          }}
+        />
 
         {/* Tab Menu navigation */}
-        <FloatingTabBar activeTab="home" />
+        {!router.embedded && <FloatingTabBar activeTab="home" />}
       </View>
     </SafeAreaView>
   );
@@ -571,10 +634,17 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 1,
   },
+  listTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
   cardHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
     marginBottom: 6,
   },
   cardTitle: {
+    flex: 1,
     fontSize: 13,
     fontWeight: '800',
     color: colors.neutral.text,
@@ -721,6 +791,15 @@ const styles = StyleSheet.create({
     color: colors.neutral.gray600,
     textAlign: 'center',
     lineHeight: 18,
+  },
+  headerActionBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 10,
+    backgroundColor: colors.brand.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: 8,
   },
   createFab: {
     position: 'absolute',

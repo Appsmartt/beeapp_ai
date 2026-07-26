@@ -12,6 +12,7 @@ import { useRouter } from 'expo-router';
 import { colors } from '@beeapp/design-system';
 import { ChevronLeft, Check, Sparkles, Database, AlertCircle, RefreshCw, CreditCard } from 'lucide-react-native';
 import { BENEFICIOS_PLUS } from '../../../src/mocks/subscription';
+import FloatingTabBar from '../../../src/components/FloatingTabBar';
 
 
 export default function SubscriptionScreen() {
@@ -291,7 +292,13 @@ export default function SubscriptionScreen() {
             </View>
 
           </View>
+
+          {/* Clearance for the floating menu */}
+          <View style={{ height: 100 }} />
         </ScrollView>
+
+        {/* Assistant always within reach */}
+        <FloatingTabBar />
       </View>
     </SafeAreaView>
   );

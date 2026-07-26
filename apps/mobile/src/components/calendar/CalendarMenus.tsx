@@ -76,14 +76,16 @@ interface CalendarFabMenuProps {
   visible: boolean;
   onClose: () => void;
   onAction: (type: 'meeting' | 'event') => void;
+  /** Embedded in Home: the trigger lives in the header, menu drops from the top */
+  embedded?: boolean;
 }
 
-export function CalendarFabMenu({ visible, onClose, onAction }: CalendarFabMenuProps) {
+export function CalendarFabMenu({ visible, onClose, onAction, embedded }: CalendarFabMenuProps) {
   if (!visible) return null;
   return (
     <Modal transparent visible={visible} animationType="fade">
       <TouchableOpacity style={styles.fabBackdrop} activeOpacity={1} onPress={onClose}>
-        <View style={[styles.fabMenuContainer, { bottom: FAB_BOTTOM_OFFSET + 65 }]}>
+        <View style={[styles.fabMenuContainer, embedded ? styles.fabMenuTop : { bottom: FAB_BOTTOM_OFFSET + 65 }]}>
           <TouchableOpacity style={styles.fabMenuRow} onPress={() => onAction('meeting')}>
             <Video size={16} color="#7C3AED" />
             <Text style={styles.fabMenuText}>Nueva reunión (con video)</Text>
@@ -159,6 +161,10 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.15,
     shadowRadius: 10,
     elevation: 8,
+  },
+  fabMenuTop: {
+    top: 120,
+    right: 26,
   },
   fabMenuRow: {
     flexDirection: 'row',

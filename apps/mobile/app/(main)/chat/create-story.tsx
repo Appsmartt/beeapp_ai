@@ -9,7 +9,7 @@ import {
   Dimensions,
   Platform,
 } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useModuleNav } from '../../../src/components/embedded/EmbeddedNavContext';
 import { colors } from '@beeapp/design-system';
 import { ChevronLeft, Camera, Type, Palette, Sparkles } from 'lucide-react-native';
 
@@ -25,7 +25,7 @@ const COLOR_PALETTES = [
 ];
 
 export default function CreateStoryScreen() {
-  const router = useRouter();
+  const router = useModuleNav();
   
   const [activeTab, setActiveTab] = useState<'text' | 'camera'>('text');
   const [textContent, setTextContent] = useState('');

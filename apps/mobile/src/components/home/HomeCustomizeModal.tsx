@@ -1,6 +1,7 @@
 
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Modal } from 'react-native';
 import { colors } from '@beeapp/design-system';
+import { ChevronUp, ChevronDown } from 'lucide-react-native';
 import { MODULES_POOL } from './homeModules';
 
 interface HomeCustomizeModalProps {
@@ -12,6 +13,23 @@ interface HomeCustomizeModalProps {
 }
 
 export default function HomeCustomizeModal({ visible, selectedIds, onChangeSelected, onCancel, onSave }: HomeCustomizeModalProps) {
+  const toggle = (id: string) => {
+    if (selectedIds.includes(id)) {
+      onChangeSelected(selectedIds.filter((x) => x !== id));
+    } else {
+      onChangeSelected([...selectedIds, id]);
+    }
+  };
+
+  const move = (id: string, dir: -1 | 1) => {
+    const idx = selectedIds.indexOf(id);
+    const target = idx + dir;
+    if (idx < 0 || target < 0 || target >= selectedIds.length) return;
+    const next = [...selectedIds];
+    [next[idx], next[target]] = [next[target], next[idx]];
+    onChangeSelected(next);
+  };
+
   return (
     <Modal transparent visible={visible} animationType="slide">
       <View style={styles.modalBackdrop}>
@@ -19,33 +37,24 @@ export default function HomeCustomizeModal({ visible, selectedIds, onChangeSelec
           <View style={styles.modalHeader}>
             <Text style={styles.modalTitle}>Personalizar Accesos</Text>
             <Text style={styles.modalSubtitle}>
-              Selecciona exactamente 3 accesos rápidos para tu pantalla de inicio.
+              Elige qué módulos ves en el inicio y en qué orden. Puedes activarlos todos.
             </Text>
             <Text style={styles.selectionCounter}>
-              {selectedIds.length} de 3 seleccionados
+              {selectedIds.length} de {MODULES_POOL.length} activos
             </Text>
           </View>
 
           <ScrollView style={styles.modulesScroll} showsVerticalScrollIndicator={false}>
             <View style={styles.modulesModalList}>
               {MODULES_POOL.map((item) => {
-                const isSelected = selectedIds.includes(item.id);
+                const orderIdx = selectedIds.indexOf(item.id);
+                const isSelected = orderIdx >= 0;
                 const IconComponent = item.icon;
                 return (
                   <TouchableOpacity
                     key={item.id}
                     style={[styles.modalModuleItem, isSelected && styles.modalModuleItemActive]}
-                    onPress={() => {
-                      if (isSelected) {
-                        onChangeSelected(selectedIds.filter(id => id !== item.id));
-                      } else {
-                        if (selectedIds.length >= 3) {
-                          alert('Solo puedes seleccionar un máximo de 3 accesos rápidos.');
-                          return;
-                        }
-                        onChangeSelected([...selectedIds, item.id]);
-                      }
-                    }}
+                    onPress={() => toggle(item.id)}
                     activeOpacity={0.8}
                   >
                     <View style={[styles.modalModuleIconWrap, { backgroundColor: item.bgColor }]}>
@@ -53,18 +62,34 @@ export default function HomeCustomizeModal({ visible, selectedIds, onChangeSelec
                     </View>
                     <View style={{ flex: 1 }}>
                       <Text style={styles.modalModuleName}>{item.name}</Text>
-                      <Text style={styles.modalModuleDesc}>
-                        {item.id === 'mail' ? 'Bandeja de entrada y correos' :
-                         item.id === 'notes' ? 'Notas y apuntes personales' :
-                         item.id === 'contacts' ? 'Buscador de red empresarial y contactos' :
-                         item.id === 'files' ? 'Archivos y firma digital de documentos' :
-                         item.id === 'calendar' ? 'Calendario y agenda de eventos' :
-                         'Historial de llamadas entrantes y salientes'}
-                      </Text>
+                      <Text style={styles.modalModuleDesc}>{item.desc}</Text>
                     </View>
-                    <View style={[styles.checkboxCircle, isSelected && styles.checkboxCircleActive]}>
-                      {isSelected && <View style={styles.checkboxCircleInner} />}
-                    </View>
+
+                    {isSelected ? (
+                      <View style={styles.orderControls}>
+                        <TouchableOpacity
+                          style={[styles.orderBtn, orderIdx === 0 && styles.orderBtnDisabled]}
+                          onPress={() => move(item.id, -1)}
+                          disabled={orderIdx === 0}
+                          activeOpacity={0.7}
+                        >
+                          <ChevronUp size={14} color={orderIdx === 0 ? colors.neutral.gray400 : colors.brand.primary} />
+                        </TouchableOpacity>
+                        <View style={styles.orderBadge}>
+                          <Text style={styles.orderBadgeText}>{orderIdx + 1}</Text>
+                        </View>
+                        <TouchableOpacity
+                          style={[styles.orderBtn, orderIdx === selectedIds.length - 1 && styles.orderBtnDisabled]}
+                          onPress={() => move(item.id, 1)}
+                          disabled={orderIdx === selectedIds.length - 1}
+                          activeOpacity={0.7}
+                        >
+                          <ChevronDown size={14} color={orderIdx === selectedIds.length - 1 ? colors.neutral.gray400 : colors.brand.primary} />
+                        </TouchableOpacity>
+                      </View>
+                    ) : (
+                      <View style={styles.checkboxCircle} />
+                    )}
                   </TouchableOpacity>
                 );
               })}
@@ -77,11 +102,8 @@ export default function HomeCustomizeModal({ visible, selectedIds, onChangeSelec
             </TouchableOpacity>
 
             <TouchableOpacity
-              style={[
-                styles.modalSaveBtn,
-                selectedIds.length !== 3 && styles.modalSaveBtnDisabled
-              ]}
-              disabled={selectedIds.length !== 3}
+              style={[styles.modalSaveBtn, selectedIds.length === 0 && styles.modalSaveBtnDisabled]}
+              disabled={selectedIds.length === 0}
               onPress={onSave}
               activeOpacity={0.8}
             >
@@ -169,24 +191,42 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: colors.neutral.gray600,
   },
+  orderControls: {
+    alignItems: 'center',
+    marginLeft: 12,
+    gap: 2,
+  },
+  orderBtn: {
+    width: 24,
+    height: 20,
+    borderRadius: 6,
+    backgroundColor: '#F3E8FF',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  orderBtnDisabled: {
+    backgroundColor: colors.neutral.gray100,
+  },
+  orderBadge: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: colors.brand.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  orderBadgeText: {
+    color: colors.neutral.white,
+    fontSize: 10,
+    fontWeight: '800',
+  },
   checkboxCircle: {
     width: 20,
     height: 20,
     borderRadius: 10,
     borderWidth: 2,
     borderColor: colors.neutral.gray300,
-    alignItems: 'center',
-    justifyContent: 'center',
     marginLeft: 12,
-  },
-  checkboxCircleActive: {
-    borderColor: colors.brand.primary,
-  },
-  checkboxCircleInner: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    backgroundColor: colors.brand.primary,
   },
   modalActions: {
     flexDirection: 'row',

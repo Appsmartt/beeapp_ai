@@ -11,7 +11,7 @@ import {
   Platform,
   TouchableWithoutFeedback,
 } from 'react-native';
-import { useRouter, useLocalSearchParams } from 'expo-router';
+import { useModuleNav, useScreenParams } from '../../../src/components/embedded/EmbeddedNavContext';
 import { colors } from '@beeapp/design-system';
 import { X, Send, Eye, Trash2 } from 'lucide-react-native';
 
@@ -99,8 +99,8 @@ const STORIERS_DATA: Record<
 };
 
 export default function StoryViewerScreen() {
-  const router = useRouter();
-  const params = useLocalSearchParams();
+  const router = useModuleNav();
+  const params = useScreenParams();
   
   const storyId = (params.id as string) || '1';
   const isSelf = params.isSelf === 'true' || storyId === 'tu';

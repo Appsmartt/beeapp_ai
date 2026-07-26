@@ -13,6 +13,7 @@ import {
 import { useRouter } from 'expo-router';
 import { colors } from '@beeapp/design-system';
 import { ChevronLeft, Check, AlertTriangle, Key, ArrowRight, Sparkles } from 'lucide-react-native';
+import FloatingTabBar from '../../../src/components/FloatingTabBar';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -204,8 +205,12 @@ export default function IntegrationsScreen() {
               </Text>
             </View>
           </View>
-          <View style={{ height: 60 }} />
+          {/* Clearance for the floating menu */}
+          <View style={{ height: 100 }} />
         </ScrollView>
+
+        {/* Assistant always within reach */}
+        <FloatingTabBar />
 
         {/* OAuth Consent Screen Simulation Modal */}
         {activeConsentItem && (

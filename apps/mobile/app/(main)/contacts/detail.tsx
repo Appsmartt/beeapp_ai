@@ -8,7 +8,7 @@ import {
   SafeAreaView,
   Alert,
 } from 'react-native';
-import { useRouter, useLocalSearchParams } from 'expo-router';
+import { useModuleNav, useScreenParams } from '../../../src/components/embedded/EmbeddedNavContext';
 import { colors } from '@beeapp/design-system';
 import {
   ChevronLeft,
@@ -33,8 +33,8 @@ import { ALL_CONTACT_DETAILS, CONTACT_CALLS } from '../../../src/mocks/contacts'
 
 
 export default function ContactDetailScreen() {
-  const router = useRouter();
-  const params = useLocalSearchParams();
+  const router = useModuleNav();
+  const params = useScreenParams();
   const contactId = params.id as string || 'c1';
 
   const [isMuted, setIsMuted] = useState(false);

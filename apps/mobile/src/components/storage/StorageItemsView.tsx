@@ -1,20 +1,20 @@
 
-import { View, Text, StyleSheet, TouchableOpacity, Dimensions } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { colors } from '@beeapp/design-system';
-import { MoreVertical, ShieldCheck, FolderOpen } from 'lucide-react-native';
+import { MoreVertical, ShieldCheck, FolderOpen, Lock } from 'lucide-react-native';
 import { StorageItem } from '../../stores/storageStore';
 import { renderItemIcon } from './storageItemIcon';
 
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
-
 interface StorageItemsViewProps {
   items: StorageItem[];
+  /** Ids protected with the global PIN: they show a lock and ask for it on open */
+  protectedIds: string[];
   viewMode: 'grid' | 'list';
   onOpenItem: (item: StorageItem) => void;
   onOpenMenu: (item: StorageItem) => void;
 }
 
-export default function StorageItemsView({ items, viewMode, onOpenItem, onOpenMenu }: StorageItemsViewProps) {
+export default function StorageItemsView({ items, protectedIds, viewMode, onOpenItem, onOpenMenu }: StorageItemsViewProps) {
   if (items.length === 0) {
     // Empty State
     return (
@@ -54,6 +54,11 @@ export default function StorageItemsView({ items, viewMode, onOpenItem, onOpenMe
             {/* Visual icon representation */}
             <View style={styles.gridIconBox}>
               {renderItemIcon(item)}
+              {protectedIds.includes(item.id) && (
+                <View style={styles.lockBadge}>
+                  <Lock size={10} color={colors.neutral.white} />
+                </View>
+              )}
             </View>
 
             {/* Metadata text */}
@@ -95,6 +100,11 @@ export default function StorageItemsView({ items, viewMode, onOpenItem, onOpenMe
         >
           <View style={styles.listIconBox}>
             {renderItemIcon(item)}
+            {protectedIds.includes(item.id) && (
+              <View style={styles.lockBadge}>
+                <Lock size={10} color={colors.neutral.white} />
+              </View>
+            )}
           </View>
 
           <View style={styles.listDetails}>
@@ -127,14 +137,29 @@ export default function StorageItemsView({ items, viewMode, onOpenItem, onOpenMe
 }
 
 const styles = StyleSheet.create({
+  lockBadge: {
+    position: 'absolute',
+    bottom: -2,
+    right: -2,
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    backgroundColor: colors.brand.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: colors.neutral.white,
+  },
   gridViewContainer: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    paddingHorizontal: 20,
-    gap: 12,
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    rowGap: 12,
   },
   gridCard: {
-    width: (SCREEN_WIDTH - 40 - 12) / 2,
+    // Percentage keeps exactly 2 columns both full screen and embedded in Home
+    width: '48.5%',
     backgroundColor: colors.neutral.white,
     borderWidth: 1,
     borderColor: colors.neutral.gray200,

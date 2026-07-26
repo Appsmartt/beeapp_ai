@@ -9,6 +9,7 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { colors } from '@beeapp/design-system';
+import FloatingTabBar from '../../src/components/FloatingTabBar';
 
 export default function TermsScreen() {
   const router = useRouter();
@@ -60,7 +61,13 @@ export default function TermsScreen() {
         <Text style={styles.paragraph}>
           Para soporte, sugerencias o aclaraciones legales, puede escribirnos a soporte@beeapp.ai o consultar directamente con el administrador asignado por su empresa.
         </Text>
+
+        {/* Clearance for the floating menu */}
+        <View style={{ height: 100 }} />
       </ScrollView>
+
+      {/* Assistant always within reach */}
+      <FloatingTabBar />
     </SafeAreaView>
   );
 }

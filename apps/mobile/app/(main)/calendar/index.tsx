@@ -1,24 +1,27 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, SafeAreaView } from 'react-native';
-import { useRouter, useNavigation } from 'expo-router';
+import { useNavigation } from 'expo-router';
+import { useModuleNav } from '../../../src/components/embedded/EmbeddedNavContext';
 import { colors } from '@beeapp/design-system';
-import { Plus } from 'lucide-react-native';
+import { Plus, ChevronLeft, ChevronRight } from 'lucide-react-native';
 import FloatingTabBar from '../../../src/components/FloatingTabBar';
 import { getEvents, setEvents, CalendarEvent, TODAY_STR } from '../../../src/stores/calendarStore';
 import CalendarMonthGrid from '../../../src/components/calendar/CalendarMonthGrid';
+import CalendarWeekStrip from '../../../src/components/calendar/CalendarWeekStrip';
 import CalendarHourlyAgenda from '../../../src/components/calendar/CalendarHourlyAgenda';
 import CalendarEventsList from '../../../src/components/calendar/CalendarEventsList';
 import { CalendarContextMenu, CalendarFabMenu, FAB_BOTTOM_OFFSET } from '../../../src/components/calendar/CalendarMenus';
 import { CalendarHeader, CalendarFilterChips, ViewMode, FilterChip } from '../../../src/components/calendar/CalendarHeader';
+import { addDays, addMonths, periodLabel, parseDate, monthName } from '../../../src/utils/dateHelpers';
 
 export default function CalendarIndexScreen() {
-  const router = useRouter();
+  const router = useModuleNav();
   const navigation = useNavigation();
 
   // Calendar States
   const [events, setLocalEvents] = useState<CalendarEvent[]>([]);
   const [selectedDate, setSelectedDate] = useState<string>(TODAY_STR);
-  const [currentView, setCurrentView] = useState<ViewMode>('month');
+  const [currentView, setCurrentView] = useState<ViewMode>('week');
   const [searchQuery, setSearchQuery] = useState('');
   const [activeFilter, setActiveFilter] = useState<FilterChip>('upcoming');
 
@@ -91,6 +94,15 @@ export default function CalendarIndexScreen() {
     return list.sort((a, b) => a.timeStart.localeCompare(b.timeStart));
   };
 
+  // Side arrows: move a day / a week / a month depending on the active view
+  const shiftPeriod = (direction: -1 | 1) => {
+    if (currentView === 'month') {
+      setSelectedDate(addMonths(selectedDate, direction));
+    } else {
+      setSelectedDate(addDays(selectedDate, currentView === 'day' ? direction : direction * 7));
+    }
+  };
+
   const handleFabAction = (type: 'meeting' | 'event') => {
     setFabMenuVisible(false);
     router.push({
@@ -117,7 +129,8 @@ export default function CalendarIndexScreen() {
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.container}>
         <CalendarHeader
-          onBack={() => router.back()}
+          onBack={router.canGoBack ? () => router.back() : undefined}
+          onAction={router.embedded ? () => setFabMenuVisible(!fabMenuVisible) : undefined}
           onToday={() => setSelectedDate(TODAY_STR)}
           currentView={currentView}
           onViewChange={setCurrentView}
@@ -125,39 +138,58 @@ export default function CalendarIndexScreen() {
           onSearchChange={setSearchQuery}
         />
 
-        <ScrollView style={styles.mainScroll} showsVerticalScrollIndicator={false}>
-          {/* Main Calendar Viewport */}
-          <View style={styles.calendarViewport}>
-            {currentView === 'month' ? (
-              <CalendarMonthGrid events={events} selectedDate={selectedDate} onSelectDate={setSelectedDate} />
-            ) : (
-              // Week / Day lists are represented by selected date hourly planners
-              <View style={styles.plannerContainer}>
-                <Text style={styles.plannerSelectedDay}>
-                  Agenda para el {selectedDate.split('-')[2]} de Julio
-                </Text>
-                <CalendarHourlyAgenda
-                  events={events}
-                  selectedDate={selectedDate}
-                  onEventPress={goToDetail}
-                  onEventLongPress={openContextMenu}
-                />
-              </View>
-            )}
+        {/* Compact day strip (default) or the full month grid under "Mes" */}
+        {currentView === 'month' ? (
+          <View style={styles.monthViewport}>
+            <View style={styles.navRow}>
+              <TouchableOpacity style={styles.navBtn} onPress={() => shiftPeriod(-1)} activeOpacity={0.7}>
+                <ChevronLeft size={18} color={colors.brand.primary} />
+              </TouchableOpacity>
+              <Text style={styles.navLabel}>{periodLabel(selectedDate, 'month')}</Text>
+              <TouchableOpacity style={styles.navBtn} onPress={() => shiftPeriod(1)} activeOpacity={0.7}>
+                <ChevronRight size={18} color={colors.brand.primary} />
+              </TouchableOpacity>
+            </View>
+            <CalendarMonthGrid events={events} selectedDate={selectedDate} onSelectDate={setSelectedDate} />
           </View>
+        ) : (
+          <CalendarWeekStrip
+            events={events}
+            selectedDate={selectedDate}
+            onSelectDate={setSelectedDate}
+            onShift={shiftPeriod}
+            label={periodLabel(selectedDate, currentView)}
+          />
+        )}
 
+        <ScrollView style={styles.mainScroll} showsVerticalScrollIndicator={false}>
           {/* Filter Chips */}
           <CalendarFilterChips activeFilter={activeFilter} onChange={setActiveFilter} />
 
-          {/* Events List */}
-          <Text style={styles.sectionTitle}>Eventos del día</Text>
+          {/* Day planner (only in "Día") */}
+          {currentView === 'day' && (
+            <View style={styles.plannerContainer}>
+              <Text style={styles.plannerSelectedDay}>Planificación por horas</Text>
+              <CalendarHourlyAgenda
+                events={events}
+                selectedDate={selectedDate}
+                onEventPress={goToDetail}
+                onEventLongPress={openContextMenu}
+              />
+            </View>
+          )}
+
+          {/* Events of the selected day */}
+          <Text style={styles.sectionTitle}>
+            {`Eventos del ${parseDate(selectedDate).getDate()} de ${monthName(parseDate(selectedDate))}`}
+          </Text>
           <CalendarEventsList
             events={filteredEvents}
             onEventPress={goToDetail}
             onEventLongPress={openContextMenu}
           />
 
-          <View style={{ height: 160 }} />
+          <View style={{ height: 120 }} />
         </ScrollView>
 
         {/* Options Context Menu Overlay */}
@@ -178,22 +210,25 @@ export default function CalendarIndexScreen() {
 
         {/* FAB Menu Selection Drawer */}
         <CalendarFabMenu
+          embedded={router.embedded}
           visible={fabMenuVisible}
           onClose={() => setFabMenuVisible(false)}
           onAction={handleFabAction}
         />
 
-        {/* FAB (+) Trigger - Respecting vertical height offset */}
-        <TouchableOpacity
-          style={styles.createFab}
-          onPress={() => setFabMenuVisible(!fabMenuVisible)}
-          activeOpacity={0.8}
-        >
-          <Plus size={24} color={colors.neutral.white} />
-        </TouchableOpacity>
+        {/* FAB (+) Trigger - standalone only: embedded it lives in the header */}
+        {!router.embedded && (
+          <TouchableOpacity
+            style={styles.createFab}
+            onPress={() => setFabMenuVisible(!fabMenuVisible)}
+            activeOpacity={0.8}
+          >
+            <Plus size={24} color={colors.neutral.white} />
+          </TouchableOpacity>
+        )}
 
         {/* Tab Menu bar */}
-        <FloatingTabBar activeTab="explore" />
+        {!router.embedded && <FloatingTabBar activeTab="explore" />}
       </View>
     </SafeAreaView>
   );
@@ -210,17 +245,41 @@ const styles = StyleSheet.create({
   mainScroll: {
     flex: 1,
   },
-  calendarViewport: {
+  monthViewport: {
     backgroundColor: colors.neutral.white,
     borderBottomWidth: 1,
     borderColor: colors.neutral.gray200,
-    paddingVertical: 16,
+    paddingTop: 10,
+    paddingBottom: 12,
+  },
+  navRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 10,
+    paddingHorizontal: 16,
+  },
+  navBtn: {
+    width: 30,
+    height: 30,
+    borderRadius: 10,
+    backgroundColor: colors.neutral.gray50,
+    borderWidth: 1,
+    borderColor: colors.neutral.gray200,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  navLabel: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: colors.neutral.text,
   },
   plannerContainer: {
     paddingHorizontal: 20,
+    marginBottom: 8,
   },
   plannerSelectedDay: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '700',
     color: colors.neutral.gray700,
     marginBottom: 12,

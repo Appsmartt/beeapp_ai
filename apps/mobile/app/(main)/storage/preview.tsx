@@ -8,7 +8,7 @@ import {
   ScrollView,
   Platform,
 } from 'react-native';
-import { useRouter, useLocalSearchParams } from 'expo-router';
+import { useModuleNav, useScreenParams } from '../../../src/components/embedded/EmbeddedNavContext';
 import { colors } from '@beeapp/design-system';
 import {
   ChevronLeft,
@@ -22,8 +22,8 @@ import {
 import { getItems, setItems, StorageItem } from '../../../src/stores/storageStore';
 
 export default function FilePreviewScreen() {
-  const router = useRouter();
-  const params = useLocalSearchParams();
+  const router = useModuleNav();
+  const params = useScreenParams();
   const fileId = params.id as string;
 
   const [fileItem, setFileItem] = useState<StorageItem | null>(null);

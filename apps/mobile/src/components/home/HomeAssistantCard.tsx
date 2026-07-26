@@ -1,110 +1,159 @@
 
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { useEffect, useRef, useState } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, Animated, Easing } from 'react-native';
+import Svg, { Path } from 'react-native-svg';
 import { colors } from '@beeapp/design-system';
-import { Sparkles, Calendar, FileText, Mail } from 'lucide-react-native';
+import { Mic } from 'lucide-react-native';
+import AssistantGlow from '../assistant/AssistantGlow';
+import VoiceAssistantScreen from '../assistant/VoiceAssistantScreen';
 
-interface HomeAssistantCardProps {
-  onChipPress: () => void;
-}
+// Compact wave: same height as the row, loops seamlessly on one period
+const WAVE_HEIGHT = 26;
+const WAVE_PERIOD = 26;
+const WAVE_VISIBLE = 46;
+const WAVE_WIDTH = WAVE_VISIBLE + WAVE_PERIOD * 2;
 
-export default function HomeAssistantCard({ onChipPress }: HomeAssistantCardProps) {
+const buildWavePath = (amplitude: number, phase: number) => {
+  const mid = WAVE_HEIGHT / 2;
+  let d = `M 0 ${mid.toFixed(1)}`;
+  for (let x = 0; x <= WAVE_WIDTH; x += 2) {
+    const y = mid + amplitude * Math.sin((x / WAVE_PERIOD) * 2 * Math.PI + phase);
+    d += ` L ${x} ${y.toFixed(1)}`;
+  }
+  return d;
+};
+
+const IDLE_PATHS = [
+  { d: buildWavePath(4, 0), opacity: 0.9, width: 2 },
+  { d: buildWavePath(6.5, 1.6), opacity: 0.4, width: 1.5 },
+];
+
+const LISTENING_PATHS = [
+  { d: buildWavePath(8, 0), opacity: 0.95, width: 2 },
+  { d: buildWavePath(11, 1.6), opacity: 0.45, width: 1.5 },
+];
+
+/**
+ * Compact voice assistant strip: same height as the search bar, with a soft
+ * glow so it stands out. Tapping it opens the immersive voice experience.
+ */
+export default function HomeAssistantCard() {
+  const [voiceVisible, setVoiceVisible] = useState(false);
+  const waveAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    waveAnim.setValue(0);
+    const loop = Animated.loop(
+      Animated.timing(waveAnim, {
+        toValue: 1,
+        duration: voiceVisible ? 420 : 1100,
+        easing: Easing.linear,
+        useNativeDriver: true,
+      })
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [voiceVisible]);
+
+  const translateX = waveAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0, -WAVE_PERIOD],
+  });
+
+  const paths = voiceVisible ? LISTENING_PATHS : IDLE_PATHS;
+
   return (
-    <View style={styles.aiCard}>
-      <View style={styles.aiCardHeader}>
-        <View style={styles.aiCardBadge}>
-          <Sparkles size={16} color={colors.neutral.white} />
+    <>
+      <TouchableOpacity
+        style={styles.row}
+        onPress={() => setVoiceVisible(true)}
+        activeOpacity={0.85}
+      >
+        {/* Small animated wave */}
+        <View style={styles.waveWindow}>
+          <Animated.View style={{ width: WAVE_WIDTH, transform: [{ translateX }] }}>
+            <Svg width={WAVE_WIDTH} height={WAVE_HEIGHT}>
+              {paths.map((p, idx) => (
+                <Path
+                  key={idx}
+                  d={p.d}
+                  stroke={colors.brand.primary}
+                  strokeOpacity={p.opacity}
+                  strokeWidth={p.width}
+                  strokeLinecap="round"
+                  fill="none"
+                />
+              ))}
+            </Svg>
+          </Animated.View>
         </View>
-        <Text style={styles.aiCardTitle}>Asistente BeeAI</Text>
-      </View>
-      <Text style={styles.aiCardPrompt}>"¿En qué te ayudo hoy?"</Text>
 
-      {/* Quick Action Suggestion Chips - No emojis, using Lucide Icons */}
-      <View style={styles.chipsContainer}>
-        <TouchableOpacity style={styles.chip} onPress={onChipPress} activeOpacity={0.8}>
-          <View style={styles.chipContent}>
-            <Calendar size={13} color={colors.neutral.text} style={styles.chipIcon} />
-            <Text style={styles.chipText}>Agenda una reunión</Text>
-          </View>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.chip} onPress={onChipPress} activeOpacity={0.8}>
-          <View style={styles.chipContent}>
-            <FileText size={13} color={colors.neutral.text} style={styles.chipIcon} />
-            <Text style={styles.chipText}>Crea una nota</Text>
-          </View>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.chip} onPress={onChipPress} activeOpacity={0.8}>
-          <View style={styles.chipContent}>
-            <Mail size={13} color={colors.neutral.text} style={styles.chipIcon} />
-            <Text style={styles.chipText}>Redacta un correo</Text>
-          </View>
-        </TouchableOpacity>
-      </View>
-    </View>
+        <Text style={styles.prompt} numberOfLines={1}>
+          ¿En qué te ayudo hoy?
+        </Text>
+
+        {/* Voice-only interaction, with a soft glow so it stands out */}
+        <View style={styles.micWrap}>
+          <AssistantGlow size={32} />
+          <TouchableOpacity
+            style={styles.micBtn}
+            onPress={() => setVoiceVisible(true)}
+            activeOpacity={0.8}
+          >
+            <Mic size={17} color={colors.neutral.white} />
+          </TouchableOpacity>
+        </View>
+      </TouchableOpacity>
+
+      {/* Immersive voice experience */}
+      <VoiceAssistantScreen visible={voiceVisible} onClose={() => setVoiceVisible(false)} />
+    </>
   );
 }
 
 const styles = StyleSheet.create({
-  aiCard: {
-    backgroundColor: '#F5F3FF', // Very light purple brand tint
-    borderRadius: 20,
-    padding: 18,
-    borderWidth: 1,
-    borderColor: '#DDD6FE',
-    marginBottom: 20,
-    shadowColor: colors.brand.primary,
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.04,
-    shadowRadius: 12,
-    elevation: 2,
-  },
-  aiCardHeader: {
+  row: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 8,
-  },
-  aiCardBadge: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    backgroundColor: colors.brand.primary,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 8,
-  },
-  aiCardTitle: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: colors.brand.primary,
-  },
-  aiCardPrompt: {
-    fontSize: 18,
-    fontWeight: '800',
-    color: colors.neutral.text,
-    marginBottom: 16,
-  },
-  chipsContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-  },
-  chip: {
-    backgroundColor: colors.neutral.white,
-    borderWidth: 1,
-    borderColor: '#DDD6FE',
+    height: 44,
     borderRadius: 14,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
+    backgroundColor: '#F5F3FF',
+    borderWidth: 1,
+    borderColor: '#DDD6FE',
+    paddingLeft: 10,
+    paddingRight: 6,
+    marginTop: 10,
+    marginBottom: 12,
+    shadowColor: colors.brand.primary,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.18,
+    shadowRadius: 10,
+    elevation: 3,
   },
-  chipContent: {
-    flexDirection: 'row',
+  micWrap: {
+    width: 32,
+    height: 32,
     alignItems: 'center',
+    justifyContent: 'center',
   },
-  chipIcon: {
-    marginRight: 4,
+  waveWindow: {
+    width: WAVE_VISIBLE,
+    height: WAVE_HEIGHT,
+    overflow: 'hidden',
+    marginRight: 10,
   },
-  chipText: {
-    fontSize: 11,
-    fontWeight: '600',
+  prompt: {
+    flex: 1,
+    fontSize: 13,
+    fontWeight: '700',
     color: colors.neutral.text,
+  },
+  micBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: colors.brand.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 });

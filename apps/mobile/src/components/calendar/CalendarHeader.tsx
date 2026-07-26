@@ -1,13 +1,16 @@
 
 import { View, Text, StyleSheet, TouchableOpacity, TextInput, ScrollView } from 'react-native';
 import { colors } from '@beeapp/design-system';
-import { ChevronLeft, Search } from 'lucide-react-native';
+import { ChevronLeft, Search, Plus } from 'lucide-react-native';
 
 export type ViewMode = 'day' | 'week' | 'month';
 export type FilterChip = 'upcoming' | 'past' | 'meetings' | 'events';
 
 interface CalendarHeaderProps {
-  onBack: () => void;
+  /** Omitted when there is nothing to go back to (root of an embedded module) */
+  onBack?: () => void;
+  /** Create action shown in the header while embedded (instead of a FAB) */
+  onAction?: () => void;
   onToday: () => void;
   currentView: ViewMode;
   onViewChange: (view: ViewMode) => void;
@@ -15,16 +18,18 @@ interface CalendarHeaderProps {
   onSearchChange: (value: string) => void;
 }
 
-export function CalendarHeader({ onBack, onToday, currentView, onViewChange, searchQuery, onSearchChange }: CalendarHeaderProps) {
+export function CalendarHeader({ onBack, onAction, onToday, currentView, onViewChange, searchQuery, onSearchChange }: CalendarHeaderProps) {
   return (
     <>
       {/* Header */}
       <View style={styles.header}>
         <View style={styles.headerLeftCol}>
-          <TouchableOpacity onPress={onBack} style={styles.backBtn} activeOpacity={0.7}>
-            <ChevronLeft size={24} color={colors.neutral.text} />
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>Calendario</Text>
+          {onBack && (
+            <TouchableOpacity onPress={onBack} style={styles.backBtn} activeOpacity={0.7}>
+              <ChevronLeft size={24} color={colors.neutral.text} />
+            </TouchableOpacity>
+          )}
+          <Text style={styles.headerTitle}>Agenda</Text>
         </View>
 
         {/* Today and View triggers */}
@@ -46,6 +51,12 @@ export function CalendarHeader({ onBack, onToday, currentView, onViewChange, sea
               </TouchableOpacity>
             ))}
           </View>
+
+          {onAction && (
+            <TouchableOpacity onPress={onAction} style={styles.headerActionBtn} activeOpacity={0.8}>
+              <Plus size={18} color={colors.neutral.white} />
+            </TouchableOpacity>
+          )}
         </View>
       </View>
 
@@ -54,7 +65,7 @@ export function CalendarHeader({ onBack, onToday, currentView, onViewChange, sea
         <Search size={18} color={colors.neutral.gray500} style={styles.searchIcon} />
         <TextInput
           style={styles.searchInput}
-          placeholder="Buscar reuniones y eventos..."
+          placeholder="Buscar en tu agenda..."
           placeholderTextColor={colors.neutral.gray500}
           value={searchQuery}
           onChangeText={onSearchChange}
@@ -167,6 +178,14 @@ const styles = StyleSheet.create({
   segmentTextActive: {
     color: colors.brand.primary,
     fontWeight: '700',
+  },
+  headerActionBtn: {
+    width: 30,
+    height: 30,
+    borderRadius: 10,
+    backgroundColor: colors.brand.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   searchBarBox: {
     flexDirection: 'row',

@@ -9,7 +9,7 @@ import {
   Alert,
   Platform,
 } from 'react-native';
-import { useRouter, useLocalSearchParams } from 'expo-router';
+import { useModuleNav, useScreenParams } from '../../../src/components/embedded/EmbeddedNavContext';
 import { colors } from '@beeapp/design-system';
 import {
   ChevronLeft,
@@ -31,8 +31,8 @@ import {
 import { getEvents, setEvents, CalendarEvent, Invitee } from '../../../src/stores/calendarStore';
 
 export default function EventDetailScreen() {
-  const router = useRouter();
-  const params = useLocalSearchParams();
+  const router = useModuleNav();
+  const params = useScreenParams();
   const eventId = params.id as string;
 
   const [eventItem, setEventItem] = useState<CalendarEvent | null>(null);

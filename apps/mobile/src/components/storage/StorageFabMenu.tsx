@@ -6,6 +6,8 @@ import { Plus, FolderPlus, FilePlus, FileText, Image as ImageIcon, Video as Vide
 export const FAB_BOTTOM_OFFSET = 105;
 
 interface StorageFabMenuProps {
+  /** Embedded in Home: the trigger lives in the header, menu drops from the top */
+  embedded?: boolean;
   menuVisible: boolean;
   onToggleMenu: () => void;
   onCloseMenu: () => void;
@@ -13,14 +15,14 @@ interface StorageFabMenuProps {
   onUpload: (type: 'pdf' | 'image' | 'video' | 'doc', customName?: string) => void;
 }
 
-export default function StorageFabMenu({ menuVisible, onToggleMenu, onCloseMenu, onCreateFolder, onUpload }: StorageFabMenuProps) {
+export default function StorageFabMenu({ embedded, menuVisible, onToggleMenu, onCloseMenu, onCreateFolder, onUpload }: StorageFabMenuProps) {
   return (
     <>
       {/* FAB Submenu overlay */}
       {menuVisible && (
         <Modal transparent visible={menuVisible} animationType="fade">
           <TouchableOpacity style={styles.fabBackdrop} activeOpacity={1} onPress={onCloseMenu}>
-            <View style={[styles.fabMenuContainer, { bottom: FAB_BOTTOM_OFFSET + 65 }]}>
+            <View style={[styles.fabMenuContainer, embedded ? styles.fabMenuTop : { bottom: FAB_BOTTOM_OFFSET + 65 }]}>
               <TouchableOpacity style={styles.fabMenuRow} onPress={onCreateFolder} activeOpacity={0.8}>
                 <FolderPlus size={16} color="#7C3AED" />
                 <Text style={styles.fabMenuText}>Crear carpeta</Text>
@@ -54,10 +56,12 @@ export default function StorageFabMenu({ menuVisible, onToggleMenu, onCloseMenu,
         </Modal>
       )}
 
-      {/* FAB Button - Respecting vertical height offset */}
-      <TouchableOpacity style={styles.createFab} onPress={onToggleMenu} activeOpacity={0.8}>
-        <Plus size={24} color={colors.neutral.white} />
-      </TouchableOpacity>
+      {/* FAB Button - only standalone: embedded, the trigger sits in the header */}
+      {!embedded && (
+        <TouchableOpacity style={styles.createFab} onPress={onToggleMenu} activeOpacity={0.8}>
+          <Plus size={24} color={colors.neutral.white} />
+        </TouchableOpacity>
+      )}
     </>
   );
 }
@@ -97,6 +101,10 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.15,
     shadowRadius: 10,
     elevation: 8,
+  },
+  fabMenuTop: {
+    top: 120,
+    right: 26,
   },
   fabMenuRow: {
     flexDirection: 'row',

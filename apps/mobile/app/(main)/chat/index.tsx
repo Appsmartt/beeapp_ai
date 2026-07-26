@@ -9,7 +9,7 @@ import {
   Dimensions,
   SafeAreaView,
 } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useModuleNav } from '../../../src/components/embedded/EmbeddedNavContext';
 import { colors } from '@beeapp/design-system';
 import { SquarePen, Search, Plus } from 'lucide-react-native';
 import FloatingTabBar from '../../../src/components/FloatingTabBar';
@@ -19,7 +19,7 @@ import { MOCK_CHATS, MOCK_STORIES } from '../../../src/mocks/chats';
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 export default function ChatListScreen() {
-  const router = useRouter();
+  const router = useModuleNav();
   const [searchText, setSearchText] = useState('');
 
   // Interactive Mock Chat List State
@@ -201,7 +201,7 @@ export default function ChatListScreen() {
         </ScrollView>
 
         {/* Menu Tab Bar */}
-        <FloatingTabBar activeTab="chat" />
+        {!router.embedded && <FloatingTabBar activeTab="chat" />}
       </View>
     </SafeAreaView>
   );

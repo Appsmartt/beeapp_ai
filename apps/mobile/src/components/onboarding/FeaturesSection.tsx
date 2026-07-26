@@ -20,7 +20,7 @@ const BENEFITS = [
   { icon: MessageCircle, title: 'Chats y llamadas', desc: 'Conversa, llama y haz videollamadas con tus equipos de trabajo.' },
   { icon: FileText, title: 'Notas', desc: 'Guarda, edita y organiza tus ideas y recordatorios diarios.' },
   { icon: Folder, title: 'Archivos', desc: 'Almacena, organiza y firma digitalmente todos tus documentos.' },
-  { icon: Calendar, title: 'Calendario', desc: 'Programa y administra reuniones corporativas en segundos.' },
+  { icon: Calendar, title: 'Agenda', desc: 'Programa y administra reuniones corporativas en segundos.' },
   { icon: Sparkles, title: 'Asistente de IA', desc: 'Agiliza envíos de mails, notas y búsquedas con comandos de voz.' },
 ];
 

@@ -9,14 +9,14 @@ import {
   SafeAreaView,
   Dimensions,
 } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useModuleNav } from '../../../src/components/embedded/EmbeddedNavContext';
 import { colors } from '@beeapp/design-system';
 import { ChevronLeft, Search, Users, X, Check, ArrowRight } from 'lucide-react-native';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 export default function NewChatScreen() {
-  const router = useRouter();
+  const router = useModuleNav();
   const [searchText, setSearchText] = useState('');
   
   // Interactive Wizard States

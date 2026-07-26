@@ -8,7 +8,7 @@ import {
   TextInput,
   SafeAreaView,
 } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useModuleNav } from '../../../src/components/embedded/EmbeddedNavContext';
 import { colors } from '@beeapp/design-system';
 import {
   ChevronLeft,
@@ -30,7 +30,7 @@ import { ContactItem, CallLogItem, MY_CONTACTS, DISCOVER_CONTACTS, CALL_LOGS } f
 
 
 export default function ContactsScreen() {
-  const router = useRouter();
+  const router = useModuleNav();
   const [activeTab, setActiveTab] = useState<'my' | 'discover' | 'calls'>('my');
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -93,9 +93,11 @@ export default function ContactsScreen() {
         {/* Header */}
         <View style={styles.header}>
           <View style={styles.headerLeft}>
-            <TouchableOpacity onPress={() => router.back()} style={styles.backBtn} activeOpacity={0.7}>
-              <ChevronLeft size={24} color={colors.neutral.text} />
-            </TouchableOpacity>
+            {router.canGoBack && (
+              <TouchableOpacity onPress={() => router.back()} style={styles.backBtn} activeOpacity={0.7}>
+                <ChevronLeft size={24} color={colors.neutral.text} />
+              </TouchableOpacity>
+            )}
             <Text style={styles.headerTitle}>Contactos</Text>
           </View>
           <TouchableOpacity style={styles.addBtn} activeOpacity={0.7} onPress={() => alert('Crear contacto nuevo')}>
@@ -315,7 +317,7 @@ export default function ContactsScreen() {
         </ScrollView>
 
         {/* Tab Menu bar */}
-        <FloatingTabBar activeTab="explore" />
+        {!router.embedded && <FloatingTabBar activeTab="explore" />}
       </View>
     </SafeAreaView>
   );

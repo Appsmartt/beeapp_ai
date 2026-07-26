@@ -1,16 +1,8 @@
 
-import { View, Text, StyleSheet, TouchableOpacity, Dimensions } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { colors } from '@beeapp/design-system';
 import { CalendarEvent, TODAY_STR } from '../../stores/calendarStore';
-
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
-
-// Helper date lists for Month grid (simple mock month representation: July 2026)
-const daysInJuly = Array.from({ length: 31 }, (_, i) => {
-  const dayNum = i + 1;
-  const dateStr = `2026-07-${String(dayNum).padStart(2, '0')}`;
-  return { dayNum, dateStr };
-});
+import { parseDate, formatDate } from '../../utils/dateHelpers';
 
 interface CalendarMonthGridProps {
   events: CalendarEvent[];
@@ -24,14 +16,22 @@ export default function CalendarMonthGrid({ events, selectedDate, onSelectDate }
     return events.some((e) => e.date === dateStr);
   };
 
-  // 1st of July 2026 was a Wednesday (3rd column of index 0-based week starting Sunday)
-  // We add 3 dummy prefix boxes
-  const prefixes = Array.from({ length: 3 });
+  // Grid of the month the selected date belongs to (weeks start on Monday)
+  const selected = parseDate(selectedDate);
+  const year = selected.getFullYear();
+  const month = selected.getMonth();
+  const totalDays = new Date(year, month + 1, 0).getDate();
+  const firstWeekday = (new Date(year, month, 1).getDay() + 6) % 7; // 0 = Monday
+  const prefixes = Array.from({ length: firstWeekday });
+  const monthDays = Array.from({ length: totalDays }, (_, i) => {
+    const date = new Date(year, month, i + 1);
+    return { dayNum: i + 1, dateStr: formatDate(date) };
+  });
 
   return (
     <View style={styles.monthGrid}>
       {/* Days of Week Header */}
-      {['DOM', 'LUN', 'MAR', 'MIÉ', 'JUE', 'VIE', 'SÁB'].map((day) => (
+      {['LUN', 'MAR', 'MIÉ', 'JUE', 'VIE', 'SÁB', 'DOM'].map((day) => (
         <Text key={day} style={styles.gridDayHeader}>{day}</Text>
       ))}
 
@@ -39,7 +39,7 @@ export default function CalendarMonthGrid({ events, selectedDate, onSelectDate }
         <View key={`pre-${i}`} style={styles.gridDayBoxEmpty} />
       ))}
 
-      {daysInJuly.map(({ dayNum, dateStr }) => {
+      {monthDays.map(({ dayNum, dateStr }) => {
         const isToday = dateStr === TODAY_STR;
         const isSelected = dateStr === selectedDate;
         const hasEvent = dateHasEvents(dateStr);
@@ -86,7 +86,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
   },
   gridDayHeader: {
-    width: (SCREEN_WIDTH - 20) / 7,
+    width: '14.28%',
     textAlign: 'center',
     fontSize: 9,
     fontWeight: '700',
@@ -94,7 +94,7 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   gridDayBox: {
-    width: (SCREEN_WIDTH - 20) / 7,
+    width: '14.28%',
     height: 44,
     justifyContent: 'center',
     alignItems: 'center',
@@ -103,7 +103,7 @@ const styles = StyleSheet.create({
     position: 'relative',
   },
   gridDayBoxEmpty: {
-    width: (SCREEN_WIDTH - 20) / 7,
+    width: '14.28%',
     height: 44,
   },
   gridDayBoxToday: {

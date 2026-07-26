@@ -1,7 +1,7 @@
 
 import { View, Text, StyleSheet, TouchableOpacity, TextInput, Dimensions } from 'react-native';
 import { colors } from '@beeapp/design-system';
-import { ChevronLeft, ChevronDown, Search, Inbox, Settings } from 'lucide-react-native';
+import { ChevronLeft, ChevronDown, Search, Inbox, Settings, SquarePen } from 'lucide-react-native';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -12,7 +12,10 @@ interface MailHeaderProps {
   menuVisible: boolean;
   onToggleMenu: () => void;
   onSelectAccount: (account: MailAccountFilter) => void;
-  onBack: () => void;
+  /** Omitted when there is nothing to go back to (root of an embedded module) */
+  onBack?: () => void;
+  /** Compose action shown in the header while embedded (instead of a floating button) */
+  onCompose?: () => void;
   onConnectAccount: () => void;
   searchQuery: string;
   onSearchChange: (value: string) => void;
@@ -24,6 +27,7 @@ export default function MailHeader({
   onToggleMenu,
   onSelectAccount,
   onBack,
+  onCompose,
   onConnectAccount,
   searchQuery,
   onSearchChange,
@@ -32,9 +36,13 @@ export default function MailHeader({
     <>
       {/* Header with selector */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={onBack} style={styles.backBtn} activeOpacity={0.7}>
-          <ChevronLeft size={24} color={colors.neutral.text} />
-        </TouchableOpacity>
+        {onBack ? (
+          <TouchableOpacity onPress={onBack} style={styles.backBtn} activeOpacity={0.7}>
+            <ChevronLeft size={24} color={colors.neutral.text} />
+          </TouchableOpacity>
+        ) : (
+          <View style={styles.headerSideSlot} />
+        )}
 
         <TouchableOpacity style={styles.accountSelectorBtn} onPress={onToggleMenu} activeOpacity={0.8}>
           <Text style={styles.accountNameText} numberOfLines={1}>
@@ -43,7 +51,13 @@ export default function MailHeader({
           <ChevronDown size={16} color={colors.neutral.gray600} style={{ marginLeft: 6 }} />
         </TouchableOpacity>
 
-        <View style={{ width: 32 }} />
+        {onCompose ? (
+          <TouchableOpacity onPress={onCompose} style={styles.headerActionBtn} activeOpacity={0.7}>
+            <SquarePen size={18} color={colors.brand.primary} />
+          </TouchableOpacity>
+        ) : (
+          <View style={styles.headerSideSlot} />
+        )}
       </View>
 
       {/* Dropdown Account Selector Menu */}
@@ -116,6 +130,17 @@ const styles = StyleSheet.create({
   },
   backBtn: {
     padding: 4,
+  },
+  headerSideSlot: {
+    width: 32,
+  },
+  headerActionBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 10,
+    backgroundColor: '#F3E8FF',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   accountSelectorBtn: {
     flexDirection: 'row',

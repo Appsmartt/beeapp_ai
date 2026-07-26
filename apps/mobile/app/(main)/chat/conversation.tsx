@@ -10,7 +10,7 @@ import {
   Platform,
   Alert,
 } from 'react-native';
-import { useRouter, useLocalSearchParams } from 'expo-router';
+import { useModuleNav, useScreenParams } from '../../../src/components/embedded/EmbeddedNavContext';
 import { colors } from '@beeapp/design-system';
 import { ChevronLeft, Phone, Video, MoreVertical, BellOff, Trash2, ShieldAlert } from 'lucide-react-native';
 import MessageBubble from '../../../src/components/chat/MessageBubble';
@@ -18,8 +18,8 @@ import WriteBar from '../../../src/components/chat/WriteBar';
 
 
 export default function ConversationScreen() {
-  const router = useRouter();
-  const params = useLocalSearchParams();
+  const router = useModuleNav();
+  const params = useScreenParams();
   const chatId = params.id as string;
   const chatName = params.name as string || 'Conversación';
   const isGroup = params.isGroup === 'true';

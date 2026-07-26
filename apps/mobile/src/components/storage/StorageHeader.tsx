@@ -1,11 +1,14 @@
 
 import { View, Text, StyleSheet, TouchableOpacity, TextInput } from 'react-native';
 import { colors } from '@beeapp/design-system';
-import { ChevronLeft, Search, Grid, List, ArrowUpDown } from 'lucide-react-native';
+import { ChevronLeft, Search, Grid, List, ArrowUpDown, Plus } from 'lucide-react-native';
 import { SortOption } from '../../utils/storageHelpers';
 
 interface StorageHeaderProps {
-  onBack: () => void;
+  /** Omitted when there is nothing to go back to (root of an embedded module) */
+  onBack?: () => void;
+  /** Create/upload action shown in the header while embedded (instead of a FAB) */
+  onAction?: () => void;
   sortBy: SortOption;
   onSortChange: (next: SortOption) => void;
   viewMode: 'grid' | 'list';
@@ -16,6 +19,7 @@ interface StorageHeaderProps {
 
 export default function StorageHeader({
   onBack,
+  onAction,
   sortBy,
   onSortChange,
   viewMode,
@@ -28,9 +32,11 @@ export default function StorageHeader({
       {/* Header */}
       <View style={styles.header}>
         <View style={styles.headerLeftCol}>
-          <TouchableOpacity onPress={onBack} style={styles.backBtn} activeOpacity={0.7}>
-            <ChevronLeft size={24} color={colors.neutral.text} />
-          </TouchableOpacity>
+          {onBack && (
+            <TouchableOpacity onPress={onBack} style={styles.backBtn} activeOpacity={0.7}>
+              <ChevronLeft size={24} color={colors.neutral.text} />
+            </TouchableOpacity>
+          )}
           <Text style={styles.headerTitle}>Almacenamiento</Text>
         </View>
 
@@ -54,6 +60,12 @@ export default function StorageHeader({
               <Grid size={18} color={colors.brand.primary} />
             )}
           </TouchableOpacity>
+
+          {onAction && (
+            <TouchableOpacity onPress={onAction} style={styles.headerActionBtn} activeOpacity={0.8}>
+              <Plus size={18} color={colors.neutral.white} />
+            </TouchableOpacity>
+          )}
         </View>
       </View>
 
@@ -106,6 +118,14 @@ const styles = StyleSheet.create({
     backgroundColor: colors.neutral.gray50,
     borderWidth: 1,
     borderColor: colors.neutral.gray200,
+  },
+  headerActionBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 10,
+    backgroundColor: colors.brand.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   searchBarBox: {
     flexDirection: 'row',

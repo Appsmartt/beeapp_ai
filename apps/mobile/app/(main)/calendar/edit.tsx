@@ -10,7 +10,7 @@ import {
   Switch,
   Alert,
 } from 'react-native';
-import { useRouter, useLocalSearchParams } from 'expo-router';
+import { useModuleNav, useScreenParams } from '../../../src/components/embedded/EmbeddedNavContext';
 import { colors } from '@beeapp/design-system';
 import {
   ChevronLeft,
@@ -23,8 +23,8 @@ import {
 import { getEvents, setEvents, CalendarEvent, MOCK_CONTACTS, Invitee } from '../../../src/stores/calendarStore';
 
 export default function EditEventScreen() {
-  const router = useRouter();
-  const params = useLocalSearchParams();
+  const router = useModuleNav();
+  const params = useScreenParams();
   const eventId = params.id as string;
   const initialType = (params.type as 'meeting' | 'event') || 'meeting';
   const preSelectedDate = (params.date as string) || '';

@@ -8,7 +8,7 @@ import {
   TextInput,
   SafeAreaView,
 } from 'react-native';
-import { useRouter, useLocalSearchParams } from 'expo-router';
+import { useModuleNav, useScreenParams } from '../../../src/components/embedded/EmbeddedNavContext';
 import { colors } from '@beeapp/design-system';
 import {
   ChevronLeft,
@@ -23,8 +23,8 @@ import { SENDER_ACCOUNTS } from '../../../src/mocks/emails';
 
 
 export default function MailComposeScreen() {
-  const router = useRouter();
-  const params = useLocalSearchParams();
+  const router = useModuleNav();
+  const params = useScreenParams();
 
   // Populate pre-defined parameters if replied/forwarded
   const initialTo = (params.to as string) || '';
@@ -232,7 +232,7 @@ export default function MailComposeScreen() {
         </ScrollView>
 
         {/* Tab Menu bar */}
-        <FloatingTabBar activeTab="home" />
+        {!router.embedded && <FloatingTabBar activeTab="home" />}
       </View>
     </SafeAreaView>
   );

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, SafeAreaView } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useModuleNav } from '../../../src/components/embedded/EmbeddedNavContext';
 import { colors } from '@beeapp/design-system';
 import { Mail, SquarePen } from 'lucide-react-native';
 import FloatingTabBar from '../../../src/components/FloatingTabBar';
@@ -12,7 +12,7 @@ import MailListItem from '../../../src/components/mail/MailListItem';
 const FAB_BOTTOM_OFFSET = 105; // Spacing offset to separate FAB from FloatingTabBar
 
 export default function MailInboxScreen() {
-  const router = useRouter();
+  const router = useModuleNav();
 
   // Active accounts and selector states
   const [activeAccount, setActiveAccount] = useState<MailAccountFilter>('all');
@@ -113,7 +113,8 @@ export default function MailInboxScreen() {
           menuVisible={accountMenuVisible}
           onToggleMenu={() => setAccountMenuVisible(!accountMenuVisible)}
           onSelectAccount={handleSelectAccount}
-          onBack={() => router.back()}
+          onBack={router.canGoBack ? () => router.back() : undefined}
+          onCompose={router.embedded ? () => router.push('/(main)/mail/compose') : undefined}
           onConnectAccount={() => {
             setAccountMenuVisible(false);
             router.push('/(main)/profile/integrations');
@@ -175,7 +176,8 @@ export default function MailInboxScreen() {
           </View>
         )}
 
-        {/* Compose Floating Action Button */}
+        {/* Compose Floating Action Button (standalone only: embedded it lives in the header) */}
+        {!router.embedded && (
         <TouchableOpacity
           style={styles.composeFab}
           onPress={() => router.push('/(main)/mail/compose')}
@@ -184,9 +186,10 @@ export default function MailInboxScreen() {
           <SquarePen size={20} color={colors.neutral.white} style={{ marginRight: 6 }} />
           <Text style={styles.composeFabText}>Redactar</Text>
         </TouchableOpacity>
+        )}
 
         {/* Navigation Floating Tab bar */}
-        <FloatingTabBar activeTab="home" />
+        {!router.embedded && <FloatingTabBar activeTab="home" />}
       </View>
     </SafeAreaView>
   );

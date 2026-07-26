@@ -83,8 +83,8 @@ const ALL_MODULES: ModuleDef[] = [
   },
   {
     id: 'calendar',
-    name: 'Calendario',
-    description: 'Agenda tus reuniones, citas y control de cronograma diario.',
+    name: 'Agenda',
+    description: 'Organiza tus reuniones, citas y cronograma diario.',
     category: 'Productividad',
     icon: Calendar,
     bgColor: '#F3E8FF',

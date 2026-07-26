@@ -19,6 +19,7 @@ import {
   Shield,
   CreditCard,
   Grid,
+  ShieldCheck,
   Share2,
   HelpCircle,
   FileText,
@@ -137,6 +138,14 @@ export default function ProfileMainScreen() {
                 <Grid size={18} color="#1E88E5" />
               </View>
               <Text style={styles.optionLabel}>Integraciones Externas</Text>
+              <ChevronRight size={16} color={colors.neutral.gray500} />
+            </TouchableOpacity>
+
+            <TouchableOpacity style={styles.optionRow} onPress={() => navigateTo('/(main)/profile/security')} activeOpacity={0.7}>
+              <View style={[styles.optionIconWrap, { backgroundColor: '#DCFCE7' }]}>
+                <ShieldCheck size={18} color="#2E7D32" />
+              </View>
+              <Text style={styles.optionLabel}>Seguridad y PIN</Text>
               <ChevronRight size={16} color={colors.neutral.gray500} />
             </TouchableOpacity>
 

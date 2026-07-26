@@ -8,7 +8,7 @@ import {
   TextInput,
   SafeAreaView,
 } from 'react-native';
-import { useRouter, useLocalSearchParams } from 'expo-router';
+import { useModuleNav, useScreenParams } from '../../../src/components/embedded/EmbeddedNavContext';
 import { colors } from '@beeapp/design-system';
 import {
   ChevronLeft,
@@ -17,8 +17,11 @@ import {
   Check,
   X,
   Palette,
+  Lock,
+  LockOpen,
 } from 'lucide-react-native';
 import FloatingTabBar from '../../../src/components/FloatingTabBar';
+import { hasPin, isProtected, setProtected } from '../../../src/stores/pinStore';
 
 const COLOR_TAGS = [
   '#A78BFA', // Purple
@@ -40,8 +43,8 @@ interface NoteItem {
 }
 
 export default function NoteEditScreen() {
-  const router = useRouter();
-  const { id } = useLocalSearchParams();
+  const router = useModuleNav();
+  const { id } = useScreenParams();
 
   // Mock pool of notes to pre-populate if ID matches
   const mockNotes: NoteItem[] = [
@@ -98,6 +101,25 @@ export default function NoteEditScreen() {
     }
     alert('Nota guardada con éxito.');
     router.replace('/(main)/notes');
+  };
+
+  // PIN protection of this note (mock global store)
+  const noteId = id as string | undefined;
+  const [isNoteProtected, setIsNoteProtected] = useState(noteId ? isProtected(noteId) : false);
+
+  const handleToggleProtection = () => {
+    if (!noteId) {
+      alert('Guarda la nota primero para poder protegerla con tu PIN.');
+      return;
+    }
+    if (!hasPin()) {
+      alert('Aún no tienes PIN de protección. Créalo en Perfil → Seguridad.');
+      return;
+    }
+    const next = !isNoteProtected;
+    setProtected(noteId, next);
+    setIsNoteProtected(next);
+    alert(next ? 'Nota protegida con tu PIN.' : 'Protección retirada de la nota.');
   };
 
   const handleToggleReminder = () => {
@@ -200,6 +222,34 @@ export default function NoteEditScreen() {
             )}
           </View>
 
+          {/* PIN protection toggle */}
+          <TouchableOpacity
+            style={[styles.protectRow, isNoteProtected && styles.protectRowActive]}
+            onPress={handleToggleProtection}
+            activeOpacity={0.8}
+          >
+            <View style={[styles.protectIconWrap, isNoteProtected && styles.protectIconWrapActive]}>
+              {isNoteProtected ? (
+                <Lock size={16} color={colors.neutral.white} />
+              ) : (
+                <LockOpen size={16} color={colors.neutral.gray600} />
+              )}
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.protectTitle, isNoteProtected && styles.protectTitleActive]}>
+                {isNoteProtected ? 'Protegida con PIN' : 'Proteger con PIN'}
+              </Text>
+              <Text style={styles.protectDesc}>
+                {isNoteProtected
+                  ? 'Se pedirá tu PIN de 4 dígitos para abrir esta nota.'
+                  : 'Pide tu PIN de 4 dígitos cada vez que se abra esta nota.'}
+              </Text>
+            </View>
+            <Text style={[styles.protectAction, isNoteProtected && styles.protectActionActive]}>
+              {isNoteProtected ? 'Quitar' : 'Activar'}
+            </Text>
+          </TouchableOpacity>
+
           {/* Body Content Text multiline input */}
           <TextInput
             style={styles.bodyInput}
@@ -214,7 +264,7 @@ export default function NoteEditScreen() {
         </ScrollView>
 
         {/* Tab Menu navigation */}
-        <FloatingTabBar activeTab="home" />
+        {!router.embedded && <FloatingTabBar activeTab="home" />}
       </View>
     </SafeAreaView>
   );
@@ -358,6 +408,57 @@ const styles = StyleSheet.create({
     color: colors.neutral.text,
     fontWeight: '600',
     paddingVertical: 2,
+  },
+  protectRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.neutral.white,
+    borderWidth: 1,
+    borderColor: colors.neutral.gray200,
+    borderRadius: 16,
+    paddingVertical: 12,
+    paddingHorizontal: 12,
+    marginBottom: 16,
+    gap: 10,
+  },
+  protectRowActive: {
+    borderColor: colors.brand.primary,
+    backgroundColor: '#FBFBFF',
+  },
+  protectIconWrap: {
+    width: 32,
+    height: 32,
+    borderRadius: 10,
+    backgroundColor: colors.neutral.gray100,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  protectIconWrapActive: {
+    backgroundColor: colors.brand.primary,
+  },
+  protectTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: colors.neutral.text,
+  },
+  protectTitleActive: {
+    color: colors.brand.primary,
+  },
+  protectDesc: {
+    fontSize: 10,
+    fontWeight: '500',
+    color: colors.neutral.gray600,
+    marginTop: 2,
+    lineHeight: 14,
+  },
+  protectAction: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: colors.neutral.gray600,
+    textTransform: 'uppercase',
+  },
+  protectActionActive: {
+    color: colors.brand.primary,
   },
   bodyInput: {
     backgroundColor: colors.neutral.white,

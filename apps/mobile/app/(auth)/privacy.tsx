@@ -9,6 +9,7 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { colors } from '@beeapp/design-system';
+import FloatingTabBar from '../../src/components/FloatingTabBar';
 
 export default function PrivacyScreen() {
   const router = useRouter();
@@ -62,7 +63,13 @@ export default function PrivacyScreen() {
         <Text style={styles.paragraph}>
           Podemos actualizar nuestra Política de Privacidad de forma periódica. Le notificaremos cualquier cambio sustancial mediante alertas internas en la aplicación móvil o por correo electrónico.
         </Text>
+
+        {/* Clearance for the floating menu */}
+        <View style={{ height: 100 }} />
       </ScrollView>
+
+      {/* Assistant always within reach */}
+      <FloatingTabBar />
     </SafeAreaView>
   );
 }

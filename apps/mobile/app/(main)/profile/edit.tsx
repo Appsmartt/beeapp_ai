@@ -11,6 +11,7 @@ import {
 import { useRouter } from 'expo-router';
 import { colors } from '@beeapp/design-system';
 import { ChevronLeft, Camera, Building, Sparkles } from 'lucide-react-native';
+import FloatingTabBar from '../../../src/components/FloatingTabBar';
 
 const TONOS_ASISTENTE = [
   { id: 'amable', label: 'Amable', desc: 'Trato cálido y cercano.' },
@@ -231,7 +232,13 @@ export default function EditProfileScreen() {
               <Text style={styles.saveBtnText}>Guardar Cambios</Text>
             </TouchableOpacity>
           </View>
+
+          {/* Clearance for the floating menu */}
+          <View style={{ height: 100 }} />
         </ScrollView>
+
+        {/* Assistant always within reach */}
+        <FloatingTabBar />
       </View>
     </SafeAreaView>
   );
