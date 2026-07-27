@@ -6,10 +6,10 @@ import {
   ScrollView,
   TouchableOpacity,
   TextInput,
-  SafeAreaView,
   Switch,
   Alert,
 } from 'react-native';
+import ScreenSafeArea from '../../../src/components/layout/ScreenSafeArea';
 import { useModuleNav, useScreenParams } from '../../../src/components/embedded/EmbeddedNavContext';
 import { colors } from '@beeapp/design-system';
 import {
@@ -158,7 +158,7 @@ export default function EditEventScreen() {
   const filteredContacts = getFilteredContacts();
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <ScreenSafeArea style={styles.safeArea}>
       <View style={styles.container}>
         {/* Header */}
         <View style={styles.header}>
@@ -236,7 +236,8 @@ export default function EditEventScreen() {
                 <Switch
                   value={isAllDay}
                   onValueChange={setIsAllDay}
-                  trackColor={{ false: colors.neutral.gray300, true: colors.brand.primary }}
+                  trackColor={{ false: colors.neutral.gray300, true: colors.brand.primary + '80' }}
+                  thumbColor={isAllDay ? colors.brand.primary : colors.neutral.gray400}
                 />
               </View>
             )}
@@ -402,7 +403,7 @@ export default function EditEventScreen() {
           <View style={{ height: 60 }} />
         </ScrollView>
       </View>
-    </SafeAreaView>
+    </ScreenSafeArea>
   );
 }
 

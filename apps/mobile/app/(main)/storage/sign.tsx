@@ -3,12 +3,12 @@ import {
   View,
   Text,
   StyleSheet,
-  SafeAreaView,
   TouchableOpacity,
   ScrollView,
   Alert,
   Platform,
 } from 'react-native';
+import ScreenSafeArea from '../../../src/components/layout/ScreenSafeArea';
 import { useModuleNav, useScreenParams } from '../../../src/components/embedded/EmbeddedNavContext';
 import { colors } from '@beeapp/design-system';
 import {
@@ -44,14 +44,14 @@ export default function SignDocumentScreen() {
 
   if (!fileItem) {
     return (
-      <SafeAreaView style={styles.safeArea}>
+      <ScreenSafeArea style={styles.safeArea}>
         <View style={styles.errorContainer}>
           <Text style={styles.errorText}>Archivo no encontrado</Text>
           <TouchableOpacity onPress={() => router.back()} style={styles.backLink}>
             <Text style={styles.backLinkText}>Volver</Text>
           </TouchableOpacity>
         </View>
-      </SafeAreaView>
+      </ScreenSafeArea>
     );
   }
 
@@ -113,7 +113,7 @@ export default function SignDocumentScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <ScreenSafeArea style={styles.safeArea}>
       <View style={styles.container}>
         {/* Header */}
         <View style={styles.header}>
@@ -280,7 +280,7 @@ export default function SignDocumentScreen() {
           </TouchableOpacity>
         </View>
       </View>
-    </SafeAreaView>
+    </ScreenSafeArea>
   );
 }
 

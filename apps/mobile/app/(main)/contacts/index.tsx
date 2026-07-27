@@ -5,14 +5,12 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  TextInput,
-  SafeAreaView,
 } from 'react-native';
+import ScreenSafeArea from '../../../src/components/layout/ScreenSafeArea';
 import { useModuleNav } from '../../../src/components/embedded/EmbeddedNavContext';
 import { colors } from '@beeapp/design-system';
 import {
   ChevronLeft,
-  Search,
   Users,
   Globe,
   Info,
@@ -25,6 +23,7 @@ import {
   Video,
   PhoneCall,
 } from 'lucide-react-native';
+import VerifiedBadge from '../../../src/components/VerifiedBadge';
 import FloatingTabBar from '../../../src/components/FloatingTabBar';
 import { ContactItem, CallLogItem, MY_CONTACTS, DISCOVER_CONTACTS, CALL_LOGS } from '../../../src/mocks/contacts';
 
@@ -88,7 +87,7 @@ export default function ContactsScreen() {
   const filteredItems = getFilteredItems();
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <ScreenSafeArea style={styles.safeArea}>
       <View style={styles.container}>
         {/* Header */}
         <View style={styles.header}>
@@ -150,24 +149,6 @@ export default function ContactsScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* Search Bar */}
-        <View style={styles.searchBarBox}>
-          <Search size={18} color={colors.neutral.gray500} style={styles.searchIcon} />
-          <TextInput
-            style={styles.searchInput}
-            placeholder={
-              activeTab === 'calls'
-                ? 'Buscar en historial de llamadas...'
-                : activeTab === 'my'
-                ? 'Buscar por nombre, cargo, empresa...'
-                : 'Buscar por profesión, intereses, rubros...'
-            }
-            placeholderTextColor={colors.neutral.gray500}
-            value={searchQuery}
-            onChangeText={setSearchQuery}
-          />
-        </View>
-
         <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
           {/* Privacy/Notice callout in discover mode */}
           {activeTab === 'discover' && (
@@ -184,10 +165,10 @@ export default function ContactsScreen() {
             <View style={styles.contactsList}>
               {activeTab === 'calls' ? (
                 // Calls history render
-                (filteredItems as CallLogItem[]).map((log) => (
+                (filteredItems as CallLogItem[]).map((log, index) => (
                   <TouchableOpacity
                     key={log.id}
-                    style={styles.contactCard}
+                    style={[styles.contactRow, index < filteredItems.length - 1 && styles.rowSeparator]}
                     onPress={() => handleContactPress(log.contactId)}
                     activeOpacity={0.7}
                   >
@@ -198,7 +179,10 @@ export default function ContactsScreen() {
 
                     {/* Middle Column: Call info */}
                     <View style={styles.detailsCol}>
-                      <Text style={styles.contactName}>{log.name}</Text>
+                      <View style={styles.nameRow}>
+                        <Text style={styles.contactName}>{log.name}</Text>
+                        {log.verified && <VerifiedBadge size={13} style={styles.nameBadge} />}
+                      </View>
                       <View style={styles.callMetaRow}>
                         {renderCallIcon(log.type)}
                         <Text
@@ -238,10 +222,10 @@ export default function ContactsScreen() {
                 ))
               ) : (
                 // Standard contact list render
-                (filteredItems as ContactItem[]).map((contact) => (
+                (filteredItems as ContactItem[]).map((contact, index) => (
                   <TouchableOpacity
                     key={contact.id}
-                    style={styles.contactCard}
+                    style={[styles.contactRow, index < filteredItems.length - 1 && styles.rowSeparator]}
                     onPress={() => handleContactPress(contact.id)}
                     activeOpacity={0.7}
                   >
@@ -254,25 +238,16 @@ export default function ContactsScreen() {
                     <View style={styles.detailsCol}>
                       <View style={styles.nameRow}>
                         <Text style={styles.contactName}>{contact.name}</Text>
+                        {contact.verified && <VerifiedBadge size={13} style={styles.nameBadge} />}
                         {contact.isFavorite && (
                           <View style={styles.favBadge}>
                             <Text style={styles.favBadgeText}>Fav</Text>
                           </View>
                         )}
                       </View>
-                      <Text style={styles.contactProfession}>{contact.profession}</Text>
-                      {contact.company && (
-                        <Text style={styles.contactCompany}>{contact.company}</Text>
-                      )}
-                      
-                      {/* Tags of interests */}
-                      <View style={styles.tagsContainer}>
-                        {contact.interests.map((tag, idx) => (
-                          <View key={idx} style={styles.tagBadge}>
-                            <Text style={styles.tagBadgeText}>{tag}</Text>
-                          </View>
-                        ))}
-                      </View>
+                      <Text style={styles.contactSubtitle} numberOfLines={1}>
+                        {contact.company ? `${contact.profession} · ${contact.company}` : contact.profession}
+                      </Text>
                     </View>
 
                     {/* Right Column: Quick Call/Chat */}
@@ -308,7 +283,9 @@ export default function ContactsScreen() {
               <Users size={48} color={colors.neutral.gray400} style={styles.emptyIcon} />
               <Text style={styles.emptyTitle}>Sin resultados</Text>
               <Text style={styles.emptyDesc}>
-                No encontramos registros que coincidan con la búsqueda "{searchQuery}".
+                {searchQuery
+                  ? `No encontramos registros que coincidan con la búsqueda "${searchQuery}".`
+                  : 'Todavía no hay registros en esta pestaña.'}
               </Text>
             </View>
           )}
@@ -319,7 +296,7 @@ export default function ContactsScreen() {
         {/* Tab Menu bar */}
         {!router.embedded && <FloatingTabBar activeTab="explore" />}
       </View>
-    </SafeAreaView>
+    </ScreenSafeArea>
   );
 }
 
@@ -391,25 +368,6 @@ const styles = StyleSheet.create({
     color: colors.brand.primary,
     fontWeight: '700',
   },
-  searchBarBox: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.neutral.white,
-    borderBottomWidth: 1,
-    borderColor: colors.neutral.gray100,
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-  },
-  searchIcon: {
-    marginRight: 10,
-  },
-  searchInput: {
-    flex: 1,
-    fontSize: 13,
-    color: colors.neutral.text,
-    paddingVertical: 6,
-    fontWeight: '500',
-  },
   scrollView: {
     flex: 1,
   },
@@ -436,26 +394,25 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   contactsList: {
-    paddingHorizontal: 20,
-    paddingTop: 16,
-    gap: 12,
+    backgroundColor: colors.neutral.white,
   },
-  contactCard: {
+  contactRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.neutral.white,
-    borderRadius: 20,
-    padding: 14,
-    borderWidth: 1,
-    borderColor: colors.neutral.gray200,
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+  },
+  rowSeparator: {
+    borderBottomWidth: 1,
+    borderBottomColor: colors.neutral.gray100,
   },
   avatarWrap: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: 14,
+    marginRight: 12,
   },
   avatarText: {
     fontSize: 14,
@@ -470,9 +427,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 2,
   },
+  nameBadge: {
+    marginLeft: 4,
+  },
   contactName: {
-    fontSize: 14,
-    fontWeight: '800',
+    fontSize: 13,
+    fontWeight: '700',
     color: colors.neutral.text,
   },
   favBadge: {
@@ -489,32 +449,10 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#D97706',
   },
-  contactProfession: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: colors.neutral.gray700,
-    marginBottom: 2,
-  },
-  contactCompany: {
-    fontSize: 11,
-    color: colors.neutral.gray600,
-    marginBottom: 6,
-  },
-  tagsContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 4,
-  },
-  tagBadge: {
-    backgroundColor: colors.neutral.gray100,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 6,
-  },
-  tagBadgeText: {
-    fontSize: 9,
-    color: colors.neutral.gray700,
+  contactSubtitle: {
+    fontSize: 11.5,
     fontWeight: '500',
+    color: colors.neutral.gray600,
   },
   actionsCol: {
     flexDirection: 'row',

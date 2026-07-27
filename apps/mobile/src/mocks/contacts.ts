@@ -13,6 +13,8 @@ export interface ContactItem {
   initials: string;
   color: string;
   isFavorite?: boolean;
+  /** Mock: shows the verified badge next to the name (Bee Verify) */
+  verified?: boolean;
 }
 
 export interface CallLogItem {
@@ -25,11 +27,14 @@ export interface CallLogItem {
   isVideo: boolean;
   time: string;
   duration: string;
+  /** Mock: shows the verified badge next to the name (Bee Verify) */
+  verified?: boolean;
 }
 
 export const MY_CONTACTS: ContactItem[] = [
   {
     id: 'c1',
+    verified: true,
     name: 'Carlos Mendoza',
     profession: 'Abogado Corporativo',
     company: 'Mendoza & Asociados',
@@ -41,6 +46,7 @@ export const MY_CONTACTS: ContactItem[] = [
   },
   {
     id: 'c2',
+    verified: false,
     name: 'Eduardo Torres',
     profession: 'Director de Ventas',
     company: 'Tech Solutions',
@@ -51,6 +57,7 @@ export const MY_CONTACTS: ContactItem[] = [
   },
   {
     id: 'c3',
+    verified: true,
     name: 'María Gómez',
     profession: 'Contadora Pública',
     company: 'Gómez Consultores',
@@ -62,6 +69,7 @@ export const MY_CONTACTS: ContactItem[] = [
   },
   {
     id: 'c4',
+    verified: false,
     name: 'Sofía Castro',
     profession: 'Diseñadora UX/UI',
     company: 'Creative Studio',
@@ -75,6 +83,7 @@ export const MY_CONTACTS: ContactItem[] = [
 export const DISCOVER_CONTACTS: ContactItem[] = [
   {
     id: 'd1',
+    verified: true,
     name: 'Alejandro Ruiz',
     profession: 'Desarrollador Mobile',
     company: 'BeeApp Labs',
@@ -85,6 +94,7 @@ export const DISCOVER_CONTACTS: ContactItem[] = [
   },
   {
     id: 'd2',
+    verified: true,
     name: 'Laura Ramos',
     profession: 'Consultora de Negocios',
     company: 'Prime Advisors',
@@ -95,6 +105,7 @@ export const DISCOVER_CONTACTS: ContactItem[] = [
   },
   {
     id: 'd3',
+    verified: false,
     name: 'Felipe Ortega',
     profession: 'Asesor Financiero',
     company: 'Ortega & Co',
@@ -105,6 +116,7 @@ export const DISCOVER_CONTACTS: ContactItem[] = [
   },
   {
     id: 'd4',
+    verified: false,
     name: 'Valeria Soler',
     profession: 'Especialista en Marketing',
     company: 'Growth Agency',
@@ -118,6 +130,7 @@ export const DISCOVER_CONTACTS: ContactItem[] = [
 export const CALL_LOGS: CallLogItem[] = [
   {
     id: 'l1',
+    verified: true,
     contactId: 'c1',
     name: 'Carlos Mendoza',
     initials: 'CM',
@@ -129,6 +142,7 @@ export const CALL_LOGS: CallLogItem[] = [
   },
   {
     id: 'l2',
+    verified: false,
     contactId: 'c2',
     name: 'Eduardo Torres',
     initials: 'ET',
@@ -140,6 +154,7 @@ export const CALL_LOGS: CallLogItem[] = [
   },
   {
     id: 'l3',
+    verified: true,
     contactId: 'c3',
     name: 'María Gómez',
     initials: 'MG',
@@ -151,6 +166,7 @@ export const CALL_LOGS: CallLogItem[] = [
   },
   {
     id: 'l4',
+    verified: true,
     contactId: 'c1',
     name: 'Carlos Mendoza',
     initials: 'CM',
@@ -174,11 +190,14 @@ export interface ContactDetail {
   initials: string;
   color: string;
   online: boolean;
+  /** Mock: shows the verified badge next to the name (Bee Verify) */
+  verified?: boolean;
 }
 
 export const ALL_CONTACT_DETAILS: Record<string, ContactDetail> = {
   c1: {
     id: 'c1',
+    verified: true,
     name: 'Carlos Mendoza',
     profession: 'Abogado Corporativo',
     company: 'Mendoza & Asociados',
@@ -192,6 +211,7 @@ export const ALL_CONTACT_DETAILS: Record<string, ContactDetail> = {
   },
   c2: {
     id: 'c2',
+    verified: false,
     name: 'Eduardo Torres',
     profession: 'Director de Ventas',
     company: 'Tech Solutions Ltd.',
@@ -205,6 +225,7 @@ export const ALL_CONTACT_DETAILS: Record<string, ContactDetail> = {
   },
   c3: {
     id: 'c3',
+    verified: true,
     name: 'María Gómez',
     profession: 'Contadora Pública',
     company: 'Gómez Consultores',
@@ -218,6 +239,7 @@ export const ALL_CONTACT_DETAILS: Record<string, ContactDetail> = {
   },
   c4: {
     id: 'c4',
+    verified: false,
     name: 'Sofía Castro',
     profession: 'Diseñadora UX/UI',
     company: 'Creative Studio',

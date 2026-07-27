@@ -10,6 +10,7 @@ import ChatNewScreen from '../../../app/(main)/chat/new';
 import ChatCallScreen from '../../../app/(main)/chat/call';
 import ChatStoryScreen from '../../../app/(main)/chat/story';
 import ChatCreateStoryScreen from '../../../app/(main)/chat/create-story';
+import AiSettingsRoute from '../../../app/(main)/chat/ai-settings';
 import StorageScreen from '../../../app/(main)/storage/index';
 import StoragePreviewScreen from '../../../app/(main)/storage/preview';
 import StorageSignScreen from '../../../app/(main)/storage/sign';
@@ -18,10 +19,11 @@ import CalendarDetailScreen from '../../../app/(main)/calendar/detail';
 import CalendarEditScreen from '../../../app/(main)/calendar/edit';
 import ContactsScreen from '../../../app/(main)/contacts/index';
 import ContactDetailScreen from '../../../app/(main)/contacts/detail';
-import BeeServicesScreen from '../../../app/(main)/beeservices/index';
-import BeeProductScreen from '../../../app/(main)/beeservices/product';
-import BeeServiceScreen from '../../../app/(main)/beeservices/service';
-import BeeSellerScreen from '../../../app/(main)/beeservices/seller';
+import AllModulesOverview from '../home/AllModulesOverview';
+import { OVERVIEW_MODULE_ID } from '../home/homeModules';
+
+/** Virtual path of the cross-module overview: it has no real route file */
+export const OVERVIEW_PATH = '/(main)/overview';
 
 /**
  * Screens that can render inside the embedded module host, keyed by the
@@ -29,6 +31,8 @@ import BeeSellerScreen from '../../../app/(main)/beeservices/seller';
  * to real router navigation (closing the embedded module first).
  */
 export const EMBEDDED_SCREENS: Record<string, ComponentType<any>> = {
+  // Overview root: can push the detail screens of ANY module below
+  [OVERVIEW_PATH]: AllModulesOverview,
   '/(main)/mail': MailInboxScreen,
   '/(main)/mail/detail': MailDetailScreen,
   '/(main)/mail/compose': MailComposeScreen,
@@ -40,6 +44,7 @@ export const EMBEDDED_SCREENS: Record<string, ComponentType<any>> = {
   '/(main)/chat/call': ChatCallScreen,
   '/(main)/chat/story': ChatStoryScreen,
   '/(main)/chat/create-story': ChatCreateStoryScreen,
+  '/(main)/chat/ai-settings': AiSettingsRoute,
   '/(main)/storage': StorageScreen,
   '/(main)/storage/preview': StoragePreviewScreen,
   '/(main)/storage/sign': StorageSignScreen,
@@ -48,19 +53,15 @@ export const EMBEDDED_SCREENS: Record<string, ComponentType<any>> = {
   '/(main)/calendar/edit': CalendarEditScreen,
   '/(main)/contacts': ContactsScreen,
   '/(main)/contacts/detail': ContactDetailScreen,
-  '/(main)/beeservices': BeeServicesScreen,
-  '/(main)/beeservices/product': BeeProductScreen,
-  '/(main)/beeservices/service': BeeServiceScreen,
-  '/(main)/beeservices/seller': BeeSellerScreen,
 };
 
 /** Root path of each quick-access module (ids from MODULES_POOL). */
 export const MODULE_ROOTS: Record<string, string> = {
+  [OVERVIEW_MODULE_ID]: OVERVIEW_PATH,
   mail: '/(main)/mail',
   notes: '/(main)/notes',
   contacts: '/(main)/contacts',
   files: '/(main)/storage',
   calendar: '/(main)/calendar',
   chat: '/(main)/chat',
-  beeservices: '/(main)/beeservices',
 };

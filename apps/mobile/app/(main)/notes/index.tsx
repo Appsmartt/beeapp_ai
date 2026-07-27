@@ -5,32 +5,17 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  TextInput,
-  SafeAreaView,
-  Dimensions,
 } from 'react-native';
+import ScreenSafeArea from '../../../src/components/layout/ScreenSafeArea';
 import { useNavigation } from 'expo-router';
 import { useModuleNav } from '../../../src/components/embedded/EmbeddedNavContext';
 import { colors } from '@beeapp/design-system';
-import {
-  ChevronLeft,
-  Search,
-  Grid,
-  List,
-  Star,
-  Clock,
-  Plus,
-  Trash2,
-  Edit2,
-  FolderOpen,
-  ArrowUpDown,
-  Lock,
-} from 'lucide-react-native';
+import { ChevronLeft, Plus, FolderOpen, ArrowUpDown } from 'lucide-react-native';
 import FloatingTabBar from '../../../src/components/FloatingTabBar';
+import NoteListRow from '../../../src/components/notes/NoteListRow';
 import PinLockModal from '../../../src/components/security/PinLockModal';
 import { getProtectedIds, isProtected } from '../../../src/stores/pinStore';
 
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const FAB_BOTTOM_OFFSET = 105; // Spacing offset to separate FAB from FloatingTabBar
 
 interface NoteItem {
@@ -49,9 +34,9 @@ export default function NotesListScreen() {
   const router = useModuleNav();
 
   // Layout states
-  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [activeFilter, setActiveFilter] = useState<'all' | 'recent' | 'reminder' | 'favorite' | 'trash'>('all');
-  const [searchQuery, setSearchQuery] = useState('');
+  // Search moved to the global Home search bar: the module keeps the filter dormant
+  const [searchQuery] = useState('');
   const [sortOption, setSortOption] = useState<'updated' | 'created' | 'alpha'>('updated');
   const [swipeActiveId, setSwipeActiveId] = useState<string | null>(null);
 
@@ -216,7 +201,7 @@ export default function NotesListScreen() {
   const hasNotes = sortedNotes.length > 0;
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <ScreenSafeArea style={styles.safeArea}>
       <View style={styles.container}>
         {/* Header toolbar */}
         <View style={styles.header}>
@@ -235,18 +220,6 @@ export default function NotesListScreen() {
               <Text style={styles.sortToggleText}>{getSortLabel()}</Text>
             </TouchableOpacity>
 
-            <TouchableOpacity
-              onPress={() => setViewMode(viewMode === 'grid' ? 'list' : 'grid')}
-              style={styles.layoutToggleBtn}
-              activeOpacity={0.7}
-            >
-              {viewMode === 'grid' ? (
-                <List size={20} color={colors.neutral.text} />
-              ) : (
-                <Grid size={20} color={colors.neutral.text} />
-              )}
-            </TouchableOpacity>
-
             {/* Create action in the header while embedded (instead of a FAB) */}
             {router.embedded && (
               <TouchableOpacity
@@ -258,21 +231,6 @@ export default function NotesListScreen() {
               </TouchableOpacity>
             )}
           </View>
-        </View>
-
-        {/* Search Bar */}
-        <View style={styles.searchBarBox}>
-          <Search size={18} color={colors.neutral.gray500} style={styles.searchIcon} />
-          <TextInput
-            style={styles.searchInput}
-            placeholder="Buscar notas..."
-            placeholderTextColor={colors.neutral.gray500}
-            value={searchQuery}
-            onChangeText={(txt) => {
-              setSearchQuery(txt);
-              setSwipeActiveId(null);
-            }}
-          />
         </View>
 
         {/* Horizontal Navigation filter chips */}
@@ -308,156 +266,25 @@ export default function NotesListScreen() {
         {/* Notes listing area */}
         {hasNotes ? (
           <ScrollView style={styles.scrollContainer} showsVerticalScrollIndicator={false}>
-            {viewMode === 'grid' ? (
-              // Two column Grid Layout
-              <View style={styles.notesGrid}>
-                {sortedNotes.map((note) => {
-                  const isSwipeActive = swipeActiveId === note.id;
-                  return (
-                    <TouchableOpacity
-                      key={note.id}
-                      style={[styles.noteCardGrid, { borderLeftColor: note.colorTag }]}
-                      onPress={() => handleOpenNote(note.id)}
-                      onLongPress={() => setSwipeActiveId(isSwipeActive ? null : note.id)}
-                      activeOpacity={0.7}
-                    >
-                      {/* Card Header title */}
-                      <View style={styles.cardHeader}>
-                        {protectedIds.includes(note.id) && (
-                          <Lock size={12} color={colors.brand.primary} style={{ marginRight: 4, marginTop: 2 }} />
-                        )}
-                        <Text style={styles.cardTitle} numberOfLines={2}>
-                          {note.title || 'Sin Título'}
-                        </Text>
-                      </View>
-
-                      {/* Content Preview */}
-                      <Text style={styles.cardContent} numberOfLines={4}>
-                        {note.content}
-                      </Text>
-
-                      {/* Footer info: date and actions */}
-                      <View style={styles.cardFooter}>
-                        {note.reminderDate ? (
-                          <View style={styles.reminderBadge}>
-                            <Clock size={10} color="#D97706" style={{ marginRight: 2 }} />
-                            <Text style={styles.reminderText} numberOfLines={1}>{note.reminderDate.split('•')[0]}</Text>
-                          </View>
-                        ) : (
-                          <Text style={styles.dateText}>
-                            {new Date(note.updatedAt).toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })}
-                          </Text>
-                        )}
-
-                        <View style={styles.cardActionRow}>
-                          <TouchableOpacity onPress={(e) => handleToggleFavorite(note.id, e)} style={styles.smallIconBtn}>
-                            <Star
-                              size={14}
-                              color={note.isFavorite ? '#F59E0B' : colors.neutral.gray400}
-                              fill={note.isFavorite ? '#F59E0B' : 'transparent'}
-                            />
-                          </TouchableOpacity>
-                          
-                          <TouchableOpacity
-                            onPress={(e) => {
-                              if (activeFilter === 'trash') {
-                                handlePermanentDelete(note.id, e);
-                              } else {
-                                handleDeleteNote(note.id, e);
-                              }
-                            }}
-                            style={styles.smallIconBtn}
-                          >
-                            <Trash2 size={14} color={colors.neutral.gray500} />
-                          </TouchableOpacity>
-                        </View>
-                      </View>
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
-            ) : (
-              // Traditional Row List Layout
-              <View style={styles.notesListCol}>
-                {sortedNotes.map((note) => {
-                  const isSwipeActive = swipeActiveId === note.id;
-                  return (
-                    <View key={note.id} style={styles.listWrapper}>
-                      <TouchableOpacity
-                        style={[styles.noteRowList, { borderLeftColor: note.colorTag }]}
-                        onPress={() => handleOpenNote(note.id)}
-                        onLongPress={() => setSwipeActiveId(isSwipeActive ? null : note.id)}
-                        activeOpacity={0.7}
-                      >
-                        <View style={styles.listDetails}>
-                          <View style={styles.listTitleRow}>
-                            {protectedIds.includes(note.id) && (
-                              <Lock size={12} color={colors.brand.primary} style={{ marginRight: 4 }} />
-                            )}
-                            <Text style={styles.listTitle} numberOfLines={1}>
-                              {note.title || 'Sin Título'}
-                            </Text>
-                          </View>
-                          <Text style={styles.listBody} numberOfLines={1}>
-                            {note.content}
-                          </Text>
-                          <View style={styles.listMetaRow}>
-                            <Text style={styles.dateText}>
-                              {new Date(note.updatedAt).toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })}
-                            </Text>
-                            {note.reminderDate && (
-                              <View style={[styles.reminderBadge, { marginLeft: 10 }]}>
-                                <Clock size={10} color="#D97706" style={{ marginRight: 2 }} />
-                                <Text style={styles.reminderText}>{note.reminderDate}</Text>
-                              </View>
-                            )}
-                          </View>
-                        </View>
-
-                        <View style={styles.listActions}>
-                          <TouchableOpacity onPress={(e) => handleToggleFavorite(note.id, e)} style={styles.listIconBtn}>
-                            <Star
-                              size={16}
-                              color={note.isFavorite ? '#F59E0B' : colors.neutral.gray400}
-                              fill={note.isFavorite ? '#F59E0B' : 'transparent'}
-                            />
-                          </TouchableOpacity>
-                        </View>
-                      </TouchableOpacity>
-
-                      {/* List Swipe Overlay buttons */}
-                      {isSwipeActive && (
-                        <View style={styles.swipePanel}>
-                          <TouchableOpacity
-                            style={[styles.swipeBtn, { backgroundColor: '#EEF2F6' }]}
-                            onPress={() => handleOpenNote(note.id)}
-                            activeOpacity={0.8}
-                          >
-                            <Edit2 size={16} color={colors.neutral.text} />
-                            <Text style={styles.swipeBtnText}>Editar</Text>
-                          </TouchableOpacity>
-
-                          <TouchableOpacity
-                            style={[styles.swipeBtn, { backgroundColor: '#FEE2E2' }]}
-                            onPress={(e) => {
-                              if (activeFilter === 'trash') {
-                                handlePermanentDelete(note.id, e);
-                              } else {
-                                handleDeleteNote(note.id, e);
-                              }
-                            }}
-                            activeOpacity={0.8}
-                          >
-                            <Trash2 size={16} color={colors.semantic.error} />
-                            <Text style={[styles.swipeBtnText, { color: colors.semantic.error }]}>Borrar</Text>
-                          </TouchableOpacity>
-                        </View>
-                      )}
-                    </View>
-                  );
-                })}
-              </View>
-            )}
+            {sortedNotes.map((note, index) => (
+              <NoteListRow
+                key={note.id}
+                note={note}
+                isProtected={protectedIds.includes(note.id)}
+                isSwipeActive={swipeActiveId === note.id}
+                showSeparator={index < sortedNotes.length - 1}
+                onPress={() => handleOpenNote(note.id)}
+                onLongPress={() => setSwipeActiveId(swipeActiveId === note.id ? null : note.id)}
+                onToggleFavorite={(e) => handleToggleFavorite(note.id, e)}
+                onDelete={(e) => {
+                  if (activeFilter === 'trash') {
+                    handlePermanentDelete(note.id, e);
+                  } else {
+                    handleDeleteNote(note.id, e);
+                  }
+                }}
+              />
+            ))}
             <View style={{ height: 120 }} />
           </ScrollView>
         ) : (
@@ -500,7 +327,7 @@ export default function NotesListScreen() {
         {/* Tab Menu navigation */}
         {!router.embedded && <FloatingTabBar activeTab="home" />}
       </View>
-    </SafeAreaView>
+    </ScreenSafeArea>
   );
 }
 
@@ -555,28 +382,6 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: colors.neutral.text,
   },
-  layoutToggleBtn: {
-    padding: 4,
-  },
-  searchBarBox: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.neutral.white,
-    borderBottomWidth: 1,
-    borderColor: colors.neutral.gray100,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-  },
-  searchIcon: {
-    marginRight: 10,
-  },
-  searchInput: {
-    flex: 1,
-    fontSize: 14,
-    color: colors.neutral.text,
-    paddingVertical: 6,
-    fontWeight: '500',
-  },
   filtersContainer: {
     paddingVertical: 10,
     backgroundColor: colors.neutral.white,
@@ -610,157 +415,6 @@ const styles = StyleSheet.create({
   },
   scrollContainer: {
     flex: 1,
-  },
-  notesGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    padding: 14,
-    justifyContent: 'space-between',
-    gap: 12,
-  },
-  noteCardGrid: {
-    width: (SCREEN_WIDTH - 40) / 2, // Standard grid half size minus margins
-    backgroundColor: colors.neutral.white,
-    borderRadius: 18,
-    borderLeftWidth: 5,
-    padding: 14,
-    borderWidth: 1,
-    borderColor: colors.neutral.gray200,
-    minHeight: 150,
-    justifyContent: 'space-between',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.01,
-    shadowRadius: 4,
-    elevation: 1,
-  },
-  listTitleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  cardHeader: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    marginBottom: 6,
-  },
-  cardTitle: {
-    flex: 1,
-    fontSize: 13,
-    fontWeight: '800',
-    color: colors.neutral.text,
-    lineHeight: 18,
-  },
-  cardContent: {
-    fontSize: 12,
-    color: colors.neutral.gray700,
-    lineHeight: 16,
-    marginBottom: 10,
-    flex: 1,
-  },
-  cardFooter: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    borderTopWidth: 1,
-    borderColor: colors.neutral.gray100,
-    paddingTop: 8,
-    marginTop: 4,
-  },
-  dateText: {
-    fontSize: 10,
-    color: colors.neutral.gray600,
-    fontWeight: '500',
-  },
-  cardActionRow: {
-    flexDirection: 'row',
-    gap: 8,
-  },
-  smallIconBtn: {
-    padding: 2,
-  },
-  notesListCol: {
-    padding: 16,
-    gap: 12,
-  },
-  listWrapper: {
-    position: 'relative',
-  },
-  noteRowList: {
-    flexDirection: 'row',
-    backgroundColor: colors.neutral.white,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: colors.neutral.gray200,
-    borderLeftWidth: 5,
-    padding: 14,
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  listDetails: {
-    flex: 1,
-    paddingRight: 16,
-  },
-  listTitle: {
-    fontSize: 14,
-    fontWeight: '800',
-    color: colors.neutral.text,
-    marginBottom: 2,
-  },
-  listBody: {
-    fontSize: 12,
-    color: colors.neutral.gray700,
-    marginBottom: 6,
-  },
-  listMetaRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  reminderBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#FEF3C7',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 6,
-    borderWidth: 1,
-    borderColor: '#FDE68A',
-  },
-  reminderText: {
-    fontSize: 9,
-    fontWeight: '700',
-    color: '#D97706',
-  },
-  listActions: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  listIconBtn: {
-    padding: 4,
-  },
-  swipePanel: {
-    position: 'absolute',
-    right: 0,
-    top: 0,
-    bottom: 0,
-    flexDirection: 'row',
-    width: 130,
-    zIndex: 10,
-    borderRadius: 16,
-    overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: colors.neutral.gray200,
-  },
-  swipeBtn: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  swipeBtnText: {
-    fontSize: 9,
-    fontWeight: '700',
-    color: colors.neutral.text,
-    marginTop: 4,
-    textTransform: 'uppercase',
   },
   emptyContainer: {
     flex: 1,

@@ -5,11 +5,11 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  SafeAreaView,
   Modal,
   Dimensions,
   Platform,
 } from 'react-native';
+import ScreenSafeArea from '../../../src/components/layout/ScreenSafeArea';
 import { useRouter } from 'expo-router';
 import { colors } from '@beeapp/design-system';
 import { ChevronLeft, Check, AlertTriangle, Key, ArrowRight, Sparkles } from 'lucide-react-native';
@@ -120,7 +120,7 @@ export default function IntegrationsScreen() {
   const activeConsentItem = integrations.find((i) => i.id === consentActiveId);
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <ScreenSafeArea style={styles.safeArea}>
       <View style={styles.container}>
         {/* Header */}
         <View style={styles.header}>
@@ -288,7 +288,7 @@ export default function IntegrationsScreen() {
           </Modal>
         )}
       </View>
-    </SafeAreaView>
+    </ScreenSafeArea>
   );
 }
 

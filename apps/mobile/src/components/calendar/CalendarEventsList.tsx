@@ -14,10 +14,10 @@ export default function CalendarEventsList({ events, onEventPress, onEventLongPr
   return (
     <View style={styles.eventsListContainer}>
       {events.length > 0 ? (
-        events.map((item) => (
+        events.map((item, index) => (
           <TouchableOpacity
             key={item.id}
-            style={styles.eventCard}
+            style={[styles.eventRow, index < events.length - 1 && styles.rowSeparator]}
             onPress={() => onEventPress(item)}
             onLongPress={() => onEventLongPress(item)}
             activeOpacity={0.7}
@@ -89,18 +89,19 @@ export default function CalendarEventsList({ events, onEventPress, onEventLongPr
 }
 
 const styles = StyleSheet.create({
+  // Flat rows, no cards: the list flows with the screen
   eventsListContainer: {
-    paddingHorizontal: 20,
-    gap: 12,
+    backgroundColor: colors.neutral.white,
   },
-  eventCard: {
+  eventRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.neutral.white,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: colors.neutral.gray200,
-    padding: 14,
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+  },
+  rowSeparator: {
+    borderBottomWidth: 1,
+    borderBottomColor: colors.neutral.gray100,
   },
   cardTimeColumn: {
     width: 60,
@@ -118,7 +119,7 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   cardBarIndicator: {
-    width: 4,
+    width: 3,
     height: '80%',
     borderRadius: 2,
     backgroundColor: colors.brand.primary,

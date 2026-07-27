@@ -5,12 +5,12 @@ import {
   TextInput,
   TouchableOpacity,
   StyleSheet,
-  SafeAreaView,
   KeyboardAvoidingView,
   Platform,
   TouchableWithoutFeedback,
   Keyboard,
 } from 'react-native';
+import ScreenSafeArea from '../../src/components/layout/ScreenSafeArea';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { colors } from '@beeapp/design-system';
 import AnimatedLogo from '../../src/components/AnimatedLogo';
@@ -85,7 +85,7 @@ export default function VerifyScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <ScreenSafeArea style={styles.safeArea}>
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={styles.container}
@@ -170,7 +170,7 @@ export default function VerifyScreen() {
           </View>
         </TouchableWithoutFeedback>
       </KeyboardAvoidingView>
-    </SafeAreaView>
+    </ScreenSafeArea>
   );
 }
 

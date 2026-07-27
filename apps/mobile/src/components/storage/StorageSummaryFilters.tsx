@@ -87,14 +87,10 @@ export function StorageBreadcrumbs({ pathStack, onPress }: StorageBreadcrumbsPro
 }
 
 const styles = StyleSheet.create({
+  // Summary block, not a card: no background, border or shadow
   summaryCard: {
-    backgroundColor: colors.neutral.white,
-    borderRadius: 20,
-    marginHorizontal: 20,
-    marginTop: 16,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: colors.neutral.gray200,
+    paddingHorizontal: 20,
+    paddingTop: 16,
   },
   summaryInfo: {
     marginBottom: 8,

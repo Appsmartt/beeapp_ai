@@ -6,6 +6,8 @@
 export interface EmailItem {
   id: string;
   senderName: string;
+  /** Mock: shows the verified badge next to the sender name (Bee Verify) */
+  senderVerified?: boolean;
   senderEmail: string;
   subject: string;
   bodyPreview: string;
@@ -25,6 +27,7 @@ export const MOCK_EMAILS: EmailItem[] = [
   {
     id: 'm1',
     senderName: 'Eduardo Torres',
+    senderVerified: false,
     senderEmail: 'etorres@empresa-cliente.com',
     subject: 'Cotización aprobada para el proyecto Q3',
     bodyPreview: 'Hola Santiago, te confirmo que la junta directiva aprobó el presupuesto estimado para el proyecto de consultoría. Quedamos a la espera del contrato de servicios...',
@@ -42,6 +45,7 @@ export const MOCK_EMAILS: EmailItem[] = [
   {
     id: 'm2',
     senderName: 'María Alejandra Gomez',
+    senderVerified: true,
     senderEmail: 'mgomez@consultores.com',
     subject: 'Minuta de la reunión con el equipo legal',
     bodyPreview: 'Hola equipo, les comparto los puntos clave tratados en la llamada de ayer respecto a la protección de datos y las nuevas cláusulas NDA para consultores externos...',
@@ -59,6 +63,7 @@ export const MOCK_EMAILS: EmailItem[] = [
   {
     id: 'm3',
     senderName: 'Soporte BeeApp',
+    senderVerified: true,
     senderEmail: 'soporte@beeapp.ai',
     subject: 'Bienvenido a BeeApp AI - Primeros pasos',
     bodyPreview: '¡Hola Santiago! Tu cuenta ya está lista. Descubre cómo usar los accesos rápidos de correo, notas y el asistente inteligente BeeAI para simplificar tu flujo...',
@@ -75,6 +80,7 @@ export const MOCK_EMAILS: EmailItem[] = [
   {
     id: 'm4',
     senderName: 'Santiago Valencia',
+    senderVerified: false,
     senderEmail: 'santiago.valencia@consultores.com',
     subject: 'Propuesta comercial preliminar - Cliente Q3',
     bodyPreview: 'Adjunto envío borrador con la propuesta estructurada para Eduardo. Favor revisar precios y condiciones comerciales antes del envío formal...',
@@ -91,6 +97,7 @@ export const MOCK_EMAILS: EmailItem[] = [
   {
     id: 'm5',
     senderName: 'Newsletter Marketing',
+    senderVerified: false,
     senderEmail: 'promo@marketin-ideas.com',
     subject: '¡Consigue 100 clientes en 7 días con IA!',
     bodyPreview: 'Oferta exclusiva por tiempo limitado. Aprende las mejores estrategias de automatización del mercado y dispara tus métricas de conversión comercial...',

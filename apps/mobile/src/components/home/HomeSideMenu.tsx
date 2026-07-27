@@ -25,15 +25,14 @@ import {
   ShieldCheck,
   FileText,
   LogOut,
+  Package,
 } from 'lucide-react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { sideMenuStyles as styles, PANEL_WIDTH } from './homeSideMenuStyles';
-import SideMenuBeeServices from './SideMenuBeeServices';
 
 interface HomeSideMenuProps {
   visible: boolean;
   onClose: () => void;
-  /** Provided by Home: opens a module embedded instead of navigating away */
-  onOpenModule?: (moduleId: string) => void;
 }
 
 interface MenuRow {
@@ -44,7 +43,9 @@ interface MenuRow {
   onPress: () => void;
 }
 
-export default function HomeSideMenu({ visible, onClose, onOpenModule }: HomeSideMenuProps) {
+export default function HomeSideMenu({ visible, onClose }: HomeSideMenuProps) {
+  // The drawer is its own window: it needs the status bar inset too
+  const insets = useSafeAreaInsets();
   const router = useRouter();
   const [isVisibleInNetwork, setIsVisibleInNetwork] = useState(true);
   const [rendered, setRendered] = useState(visible);
@@ -74,15 +75,8 @@ export default function HomeSideMenu({ visible, onClose, onOpenModule }: HomeSid
     router.push(path);
   };
 
-  // Marketplace: opens embedded in Home when possible, as a route otherwise
-  const openBeeServices = () => {
-    onClose();
-    if (onOpenModule) {
-      onOpenModule('beeservices');
-    } else {
-      router.push('/(main)/beeservices');
-    }
-  };
+  // BeeServices: the user's own products and services
+  const openMyServices = () => goTo('/(main)/my-services');
 
   const handleShareApp = async () => {
     try {
@@ -167,7 +161,7 @@ export default function HomeSideMenu({ visible, onClose, onOpenModule }: HomeSid
     <Modal transparent visible animationType="none" onRequestClose={onClose}>
       <View style={styles.overlay}>
         <TouchableOpacity style={styles.backdrop} onPress={onClose} activeOpacity={1} />
-        <Animated.View style={[styles.panel, { transform: [{ translateX: slideAnim }] }]}>
+        <Animated.View style={[styles.panel, { paddingTop: insets.top + 12, transform: [{ translateX: slideAnim }] }]}>
           {/* Panel header */}
           <View style={styles.panelHeader}>
             <Text style={styles.panelTitle}>Menú</Text>
@@ -197,9 +191,21 @@ export default function HomeSideMenu({ visible, onClose, onOpenModule }: HomeSid
               </TouchableOpacity>
             </View>
 
-            {/* Marketplace: highlighted entry */}
-            <Text style={styles.groupHeader}>Marketplace</Text>
-            <SideMenuBeeServices onPress={openBeeServices} />
+            {/* BeeServices: highlighted entry */}
+            <Text style={styles.groupHeader}>Mis Negocios</Text>
+            <View style={styles.optionsCard}>
+              <TouchableOpacity
+                style={styles.optionRow}
+                onPress={openMyServices}
+                activeOpacity={0.7}
+              >
+                <View style={[styles.optionIconWrap, { backgroundColor: '#F3E8FF' }]}>
+                  <Package size={18} color={colors.brand.primary} />
+                </View>
+                <Text style={[styles.optionLabel, { color: colors.brand.primary, fontWeight: '700' }]}>BeeServices</Text>
+                <ChevronRight size={16} color={colors.brand.primary} />
+              </TouchableOpacity>
+            </View>
 
             {/* Mi Cuenta */}
             <Text style={styles.groupHeader}>Mi Cuenta</Text>
@@ -207,7 +213,7 @@ export default function HomeSideMenu({ visible, onClose, onOpenModule }: HomeSid
             <View style={[styles.optionsCard, { marginTop: 8 }]}>
               <View style={styles.switchOptionRow}>
                 <View style={[styles.optionIconWrap, { backgroundColor: '#F3E8FF' }]}>
-                  <Shield size={18} color="#7C3AED" />
+                  <Shield size={18} color={colors.brand.primary} />
                 </View>
                 <View style={styles.switchTextCol}>
                   <Text style={styles.optionLabel}>Visibilidad en la red</Text>
@@ -218,8 +224,8 @@ export default function HomeSideMenu({ visible, onClose, onOpenModule }: HomeSid
                 <Switch
                   value={isVisibleInNetwork}
                   onValueChange={setIsVisibleInNetwork}
-                  trackColor={{ false: '#E5E7EB', true: '#C084FC' }}
-                  thumbColor={isVisibleInNetwork ? '#7C3AED' : '#F3F4F6'}
+                  trackColor={{ false: colors.neutral.gray300, true: colors.brand.primary + '80' }}
+                  thumbColor={isVisibleInNetwork ? colors.brand.primary : colors.neutral.gray400}
                 />
               </View>
             </View>

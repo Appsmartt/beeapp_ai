@@ -1,4 +1,4 @@
-import { StyleSheet, Dimensions, Platform } from 'react-native';
+import { StyleSheet, Dimensions } from 'react-native';
 import { colors } from '@beeapp/design-system';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
@@ -16,7 +16,7 @@ export const sideMenuStyles = StyleSheet.create({
   panel: {
     width: PANEL_WIDTH,
     backgroundColor: colors.neutral.gray50,
-    paddingTop: Platform.OS === 'ios' ? 56 : 32,
+    // Top padding comes from the device inset, applied at render time
   },
   panelHeader: {
     flexDirection: 'row',

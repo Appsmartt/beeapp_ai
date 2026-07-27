@@ -6,8 +6,8 @@ import {
   ScrollView,
   TouchableOpacity,
   TextInput,
-  SafeAreaView,
 } from 'react-native';
+import ScreenSafeArea from '../../../src/components/layout/ScreenSafeArea';
 import { useModuleNav, useScreenParams } from '../../../src/components/embedded/EmbeddedNavContext';
 import { colors } from '@beeapp/design-system';
 import {
@@ -133,7 +133,7 @@ export default function NoteEditScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <ScreenSafeArea style={styles.safeArea}>
       <View style={styles.container}>
         {/* Header */}
         <View style={styles.header}>
@@ -266,7 +266,7 @@ export default function NoteEditScreen() {
         {/* Tab Menu navigation */}
         {!router.embedded && <FloatingTabBar activeTab="home" />}
       </View>
-    </SafeAreaView>
+    </ScreenSafeArea>
   );
 }
 

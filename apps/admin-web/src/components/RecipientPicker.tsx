@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import { Users, Filter, UserSearch, X, Search } from 'lucide-react';
+import VerifiedBadge from './VerifiedBadge';
 import { MOCK_USERS } from '@/mocks/users';
 import { DASHBOARD_KPIS } from '@/mocks/metrics';
 import type { NotificationRecipientMode, NotificationSegmentCriteria } from '@/mocks/types';
@@ -166,7 +167,10 @@ export default function RecipientPicker({ value, onChange }: RecipientPickerProp
                 <button key={user.id} type="button" className="recipient-search-result-row" onClick={() => addUser(user.id)}>
                   <div className="table-user-avatar">{user.iniciales}</div>
                   <div className="table-user-name-col">
-                    <span className="table-user-name">{user.nombreCompleto}</span>
+                    <div className="table-user-name-row">
+                      <span className="table-user-name">{user.nombreCompleto}</span>
+                      {user.verificacionRed === 'verificado' && <VerifiedBadge size={13} />}
+                    </div>
                     <span className="table-user-email">{user.email}</span>
                   </div>
                 </button>

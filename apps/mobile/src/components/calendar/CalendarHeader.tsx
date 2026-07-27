@@ -1,7 +1,7 @@
 
-import { View, Text, StyleSheet, TouchableOpacity, TextInput, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
 import { colors } from '@beeapp/design-system';
-import { ChevronLeft, Search, Plus } from 'lucide-react-native';
+import { ChevronLeft, Plus } from 'lucide-react-native';
 
 export type ViewMode = 'day' | 'week' | 'month';
 export type FilterChip = 'upcoming' | 'past' | 'meetings' | 'events';
@@ -14,11 +14,9 @@ interface CalendarHeaderProps {
   onToday: () => void;
   currentView: ViewMode;
   onViewChange: (view: ViewMode) => void;
-  searchQuery: string;
-  onSearchChange: (value: string) => void;
 }
 
-export function CalendarHeader({ onBack, onAction, onToday, currentView, onViewChange, searchQuery, onSearchChange }: CalendarHeaderProps) {
+export function CalendarHeader({ onBack, onAction, onToday, currentView, onViewChange }: CalendarHeaderProps) {
   return (
     <>
       {/* Header */}
@@ -58,18 +56,6 @@ export function CalendarHeader({ onBack, onAction, onToday, currentView, onViewC
             </TouchableOpacity>
           )}
         </View>
-      </View>
-
-      {/* Search */}
-      <View style={styles.searchBarBox}>
-        <Search size={18} color={colors.neutral.gray500} style={styles.searchIcon} />
-        <TextInput
-          style={styles.searchInput}
-          placeholder="Buscar en tu agenda..."
-          placeholderTextColor={colors.neutral.gray500}
-          value={searchQuery}
-          onChangeText={onSearchChange}
-        />
       </View>
     </>
   );
@@ -186,25 +172,6 @@ const styles = StyleSheet.create({
     backgroundColor: colors.brand.primary,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  searchBarBox: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.neutral.white,
-    borderBottomWidth: 1,
-    borderColor: colors.neutral.gray100,
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-  },
-  searchIcon: {
-    marginRight: 10,
-  },
-  searchInput: {
-    flex: 1,
-    fontSize: 13,
-    color: colors.neutral.text,
-    paddingVertical: 6,
-    fontWeight: '500',
   },
   filtersScroll: {
     marginVertical: 14,

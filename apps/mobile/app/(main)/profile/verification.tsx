@@ -1,4 +1,5 @@
-import { View, Text, StyleSheet, ScrollView, SafeAreaView, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+import ScreenSafeArea from '../../../src/components/layout/ScreenSafeArea';
 import { useRouter } from 'expo-router';
 import { colors } from '@beeapp/design-system';
 import {
@@ -12,8 +13,7 @@ import {
   Clock,
 } from 'lucide-react-native';
 import FloatingTabBar from '../../../src/components/FloatingTabBar';
-
-const BADGE_COLOR = '#1D9BF0';
+import VerifiedBadge, { VERIFIED_COLOR } from '../../../src/components/VerifiedBadge';
 
 const BENEFITS = [
   {
@@ -24,7 +24,7 @@ const BENEFITS = [
   {
     icon: Store,
     title: 'Más confianza al vender',
-    desc: 'Los compradores de BeeServices ven que tu negocio fue revisado por el equipo de BeeApp.',
+    desc: 'Los clientes ven que tu negocio fue revisado por el equipo de BeeApp.',
   },
   {
     icon: Search,
@@ -55,7 +55,7 @@ export default function VerificationScreen() {
   const pending = REQUIREMENTS.filter((r) => !r.done).length;
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <ScreenSafeArea style={styles.safeArea}>
       <View style={styles.container}>
         <View style={styles.header}>
           <TouchableOpacity onPress={() => router.back()} style={styles.backBtn} activeOpacity={0.7}>
@@ -69,7 +69,7 @@ export default function VerificationScreen() {
           {/* Hero */}
           <View style={styles.hero}>
             <View style={styles.heroBadge}>
-              <BadgeCheck size={40} color={BADGE_COLOR} />
+              <BadgeCheck size={40} color={VERIFIED_COLOR} />
             </View>
             <View style={styles.servicePill}>
               <Text style={styles.servicePillText}>Bee Verify</Text>
@@ -91,13 +91,13 @@ export default function VerificationScreen() {
               <View style={styles.previewCol}>
                 <View style={styles.previewNameRow}>
                   <Text style={styles.previewName}>Santiago Valencia</Text>
-                  <BadgeCheck size={15} color={BADGE_COLOR} />
+                  <VerifiedBadge size={15} />
                 </View>
                 <Text style={styles.previewSub}>Consultores Asociados S.A.S.</Text>
               </View>
             </View>
             <Text style={styles.previewNote}>
-              La insignia acompaña tu nombre en toda la app: chats, contactos, estados y BeeServices.
+              La insignia acompaña tu nombre en toda la app: chats, contactos, estados y tus productos/servicios.
             </Text>
           </View>
 
@@ -112,7 +112,7 @@ export default function VerificationScreen() {
                   style={[styles.benefitRow, idx === BENEFITS.length - 1 && styles.lastRow]}
                 >
                   <View style={styles.benefitIcon}>
-                    <Icon size={17} color={BADGE_COLOR} />
+                    <Icon size={17} color={VERIFIED_COLOR} />
                   </View>
                   <View style={styles.benefitCol}>
                     <Text style={styles.benefitTitle}>{item.title}</Text>
@@ -162,7 +162,7 @@ export default function VerificationScreen() {
         {/* Assistant always within reach */}
         <FloatingTabBar />
       </View>
-    </SafeAreaView>
+    </ScreenSafeArea>
   );
 }
 
@@ -227,7 +227,7 @@ const styles = StyleSheet.create({
   servicePillText: {
     fontSize: 9.5,
     fontWeight: '900',
-    color: BADGE_COLOR,
+    color: VERIFIED_COLOR,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
@@ -392,7 +392,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
-    backgroundColor: BADGE_COLOR,
+    backgroundColor: VERIFIED_COLOR,
     borderRadius: 16,
     paddingVertical: 15,
     marginTop: 20,

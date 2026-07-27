@@ -1,10 +1,10 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Sliders, FileText, ShieldAlert, Save, CheckCircle } from 'lucide-react';
+import { Sliders, FileText, ShieldAlert, Save, CheckCircle, HelpCircle, Link2 } from 'lucide-react';
 import PlansSection from './PlansSection';
 
-type ConfigTab = 'planes' | 'terminos' | 'privacidad';
+type ConfigTab = 'planes' | 'terminos' | 'privacidad' | 'soporte';
 
 export default function ConfiguracionPage() {
   const [activeTab, setActiveTab] = useState<ConfigTab>('planes');
@@ -46,8 +46,20 @@ De acuerdo con las estrictas regulaciones de privacidad de la plataforma:
 No vendemos ni alquilamos datos personales a terceros. Los datos de procesamiento de IA se transmiten de manera segura a través de túneles encriptados hacia los modelos de lenguaje aprobados.`
   );
 
+  // Support channel states
+  const [supportUrl, setSupportUrl] = useState('https://wa.me/573001234567');
+  const [channelType, setChannelType] = useState('WhatsApp');
+
+  const isUrlValid = supportUrl.startsWith('http://') || supportUrl.startsWith('https://');
+
   const handleSave = (tab: ConfigTab) => {
-    setSaveFeedback(`¡${tab === 'terminos' ? 'Términos y condiciones' : 'Política de privacidad'} guardados exitosamente!`);
+    const messages: Record<ConfigTab, string> = {
+      planes: '¡Planes guardados exitosamente!',
+      terminos: '¡Términos y condiciones guardados exitosamente!',
+      privacidad: '¡Política de privacidad guardada exitosamente!',
+      soporte: 'Configuración de soporte actualizada',
+    };
+    setSaveFeedback(messages[tab]);
     setTimeout(() => {
       setSaveFeedback('');
     }, 3000);
@@ -92,6 +104,18 @@ No vendemos ni alquilamos datos personales a terceros. Los datos de procesamient
         >
           <ShieldAlert size={16} />
           <span>Política de Privacidad</span>
+        </button>
+        <button
+          onClick={() => setActiveTab('soporte')}
+          style={{
+            ...tabButtonStyle,
+            borderBottomColor: activeTab === 'soporte' ? '#6025d2' : 'transparent',
+            color: activeTab === 'soporte' ? '#6025d2' : '#6C757D',
+            fontWeight: activeTab === 'soporte' ? '700' : '500',
+          }}
+        >
+          <HelpCircle size={16} />
+          <span>Soporte</span>
         </button>
       </div>
 
@@ -174,6 +198,92 @@ No vendemos ni alquilamos datos personales a terceros. Los datos de procesamient
               >
                 <Save size={16} />
                 <span>Guardar Política</span>
+              </button>
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'soporte' && (
+          <div className="panel-card" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+            <div>
+              <span className="panel-card-title">Canal de Soporte</span>
+              <p style={{ margin: '4px 0 0 0', fontSize: '13px', color: '#6C757D' }}>
+                Configura el enlace al que serán dirigidos los usuarios cuando toquen 'Soporte' en la aplicación.
+              </p>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', maxWidth: '500px' }}>
+              <div className="form-field">
+                <label className="form-field-label">Enlace de soporte</label>
+                <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                  <Link2 size={16} color="#9EA5B1" style={{ position: 'absolute', left: '12px' }} />
+                  <input
+                    type="text"
+                    className="form-field-input"
+                    style={{
+                      paddingLeft: '36px',
+                      borderColor: !isUrlValid && supportUrl.trim() !== '' ? '#F44336' : '#E9ECEF',
+                    }}
+                    placeholder="https://wa.me/573001234567"
+                    value={supportUrl}
+                    onChange={(e) => setSupportUrl(e.target.value)}
+                  />
+                </div>
+                {!isUrlValid && supportUrl.trim() !== '' && (
+                  <p style={{ color: '#F44336', fontSize: '12px', marginTop: '4px', margin: '4px 0 0 0' }}>
+                    Ingresa una URL válida que comience con http:// o https://
+                  </p>
+                )}
+              </div>
+
+              <div className="form-field">
+                <label className="form-field-label">Tipo de canal</label>
+                <div style={{ display: 'flex', gap: '10px', marginTop: '4px' }}>
+                  {['WhatsApp', 'Sitio web', 'Correo', 'Otro'].map((type) => {
+                    const isSelected = channelType === type;
+                    return (
+                      <button
+                        key={type}
+                        type="button"
+                        onClick={() => setChannelType(type)}
+                        style={{
+                          padding: '8px 16px',
+                          borderRadius: '20px',
+                          border: '1.5px solid',
+                          borderColor: isSelected ? '#6025d2' : '#E9ECEF',
+                          backgroundColor: isSelected ? '#F3EDFC' : '#FFFFFF',
+                          color: isSelected ? '#6025d2' : '#495057',
+                          fontSize: '13px',
+                          fontWeight: '600',
+                          cursor: 'pointer',
+                          transition: 'all 0.2s',
+                          outline: 'none',
+                        }}
+                      >
+                        {type}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', borderTop: '1px solid #E9ECEF', paddingTop: '16px' }}>
+              <button
+                onClick={() => handleSave('soporte')}
+                disabled={!isUrlValid || supportUrl.trim() === ''}
+                className="confirm-dialog-btn-confirm"
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  padding: '12px 24px',
+                  opacity: (!isUrlValid || supportUrl.trim() === '') ? 0.6 : 1,
+                  cursor: (!isUrlValid || supportUrl.trim() === '') ? 'not-allowed' : 'pointer',
+                }}
+              >
+                <Save size={16} />
+                <span>Guardar Configuración</span>
               </button>
             </div>
           </div>

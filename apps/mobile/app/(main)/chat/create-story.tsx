@@ -5,10 +5,10 @@ import {
   StyleSheet,
   TouchableOpacity,
   TextInput,
-  SafeAreaView,
   Dimensions,
   Platform,
 } from 'react-native';
+import ScreenSafeArea from '../../../src/components/layout/ScreenSafeArea';
 import { useModuleNav } from '../../../src/components/embedded/EmbeddedNavContext';
 import { colors } from '@beeapp/design-system';
 import { ChevronLeft, Camera, Type, Palette, Sparkles } from 'lucide-react-native';
@@ -47,7 +47,7 @@ export default function CreateStoryScreen() {
   };
 
   return (
-    <SafeAreaView style={[styles.safeArea, { backgroundColor: activeTab === 'text' ? selectedColor : '#0F0E17' }]}>
+    <ScreenSafeArea style={[styles.safeArea, { backgroundColor: activeTab === 'text' ? selectedColor : '#0F0E17' }]}>
       <View style={styles.container}>
         {/* Header */}
         <View style={styles.header}>
@@ -121,7 +121,7 @@ export default function CreateStoryScreen() {
           </TouchableOpacity>
         </View>
       </View>
-    </SafeAreaView>
+    </ScreenSafeArea>
   );
 }
 

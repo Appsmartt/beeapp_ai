@@ -2,6 +2,7 @@
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { colors } from '@beeapp/design-system';
 import { Star, Paperclip, MailOpen, Archive, Trash2 } from 'lucide-react-native';
+import VerifiedBadge from '../VerifiedBadge';
 import { EmailItem } from '../../mocks/emails';
 
 const getInitials = (name: string) => {
@@ -47,9 +48,12 @@ export default function MailListItem({
         {/* Mail description preview */}
         <View style={styles.mailDetailsCol}>
           <View style={styles.senderTimeRow}>
-            <Text style={[styles.senderNameText, !item.isRead && styles.senderNameTextUnread]} numberOfLines={1}>
-              {item.senderName}
-            </Text>
+            <View style={styles.senderNameWrap}>
+              <Text style={[styles.senderNameText, !item.isRead && styles.senderNameTextUnread]} numberOfLines={1}>
+                {item.senderName}
+              </Text>
+              {item.senderVerified && <VerifiedBadge size={13} />}
+            </View>
             <Text style={styles.mailTimeText}>{item.time}</Text>
           </View>
 
@@ -161,12 +165,18 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 4,
   },
+  senderNameWrap: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginRight: 8,
+  },
   senderNameText: {
+    flexShrink: 1,
     fontSize: 13,
     color: colors.neutral.text,
     fontWeight: '600',
-    flex: 1,
-    marginRight: 8,
   },
   senderNameTextUnread: {
     fontWeight: '800',

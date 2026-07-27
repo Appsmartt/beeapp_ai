@@ -2,9 +2,12 @@
 import { useEffect, useRef, useState } from 'react';
 import { View, Text, StyleSheet, Modal, ScrollView, TouchableOpacity, Platform } from 'react-native';
 import { X, Mic, Pause, RotateCcw } from 'lucide-react-native';
+import { useRouter } from 'expo-router';
 import VoiceOrb, { OrbState } from './VoiceOrb';
 import { VOICE_CONVERSATION } from '../../mocks/voiceAssistant';
 import { voiceStyles as styles } from './voiceAssistantStyles';
+import { MOCK_CHATS } from '../../mocks/chats';
+import AiCatalogModal from '../chat/AiCatalogModal';
 
 interface VoiceAssistantScreenProps {
   visible: boolean;
@@ -33,10 +36,12 @@ const STATE_LABEL: Record<OrbState, string> = {
  * No keyboard, no chat bubbles — everything is mock.
  */
 export default function VoiceAssistantScreen({ visible, onClose }: VoiceAssistantScreenProps) {
+  const router = useRouter();
   const [phase, setPhase] = useState<OrbState>('idle');
   const [turnIndex, setTurnIndex] = useState(0);
   const [history, setHistory] = useState<Line[]>([]);
   const [current, setCurrent] = useState<Line | null>(null);
+  const [catalogVisible, setCatalogVisible] = useState(false);
   const scrollRef = useRef<ScrollView>(null);
 
   // Auto-start listening when the experience opens
@@ -76,6 +81,11 @@ export default function VoiceAssistantScreen({ visible, onClose }: VoiceAssistan
               setPhase('thinking');
             } else {
               setPhase('idle');
+              if (turn.showCatalog) {
+                setTimeout(() => {
+                  setCatalogVisible(true);
+                }, 500);
+              }
               setTurnIndex((t) => t + 1);
             }
           }, 350);
@@ -110,6 +120,46 @@ export default function VoiceAssistantScreen({ visible, onClose }: VoiceAssistan
     setCurrent(null);
     setTurnIndex(0);
     setPhase('listening');
+  };
+
+  const handleContactSeller = (result: any) => {
+    setCatalogVisible(false);
+    onClose(); // Close the voice screen
+
+    // Check if chat already exists
+    let existingChat = MOCK_CHATS.find((c) => c.name === result.sellerName);
+    const initialText = `Hola, me interesa tu servicio de ${result.productName} que encontré en BeeApp.`;
+    
+    if (!existingChat) {
+      // Create new chat
+      const newChatId = 'seller_' + Date.now().toString(36);
+      existingChat = {
+        id: newChatId,
+        name: result.sellerName,
+        lastMessage: initialText,
+        time: 'Ahora',
+        unreadCount: 0,
+        isGroup: false,
+        status: 'sent',
+        online: true,
+        verified: result.sellerVerified,
+      };
+      MOCK_CHATS.push(existingChat);
+    } else {
+      existingChat.lastMessage = initialText;
+    }
+
+    // Now navigate to conversation screen with the new/existing chat
+    router.replace({
+      pathname: '/(main)/chat/conversation',
+      params: {
+        id: existingChat.id,
+        name: existingChat.name,
+        isGroup: 'false',
+        online: 'true',
+        initialMessage: initialText,
+      },
+    });
   };
 
   const isTalking = phase === 'listening' || phase === 'speaking';
@@ -186,6 +236,12 @@ export default function VoiceAssistantScreen({ visible, onClose }: VoiceAssistan
         <Text style={styles.footerHint}>
           {Platform.OS === 'web' ? 'Experiencia de voz simulada' : 'Habla con naturalidad, te escucho'}
         </Text>
+
+        <AiCatalogModal
+          visible={catalogVisible}
+          onClose={() => setCatalogVisible(false)}
+          onContact={handleContactSeller}
+        />
       </View>
     </Modal>
   );

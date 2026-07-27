@@ -7,6 +7,7 @@ import { ArrowLeft, ShieldAlert, MessageSquare, Phone, HardDrive, Clock, Check, 
 import KpiGrid, { type KpiItem } from '@/components/KpiGrid';
 import DataTable, { type DataTableColumn } from '@/components/DataTable';
 import StatusBadge from '@/components/StatusBadge';
+import VerifiedBadge from '@/components/VerifiedBadge';
 import PlanBadge from '@/components/PlanBadge';
 import ModerationSection from './ModerationSection';
 import NetworkSection from './NetworkSection';
@@ -91,12 +92,20 @@ export default function UsuarioDetallePage({ params }: { params: { id: string } 
       <div className="user-detail-header">
         <div className="table-user-avatar user-detail-avatar">{user.iniciales}</div>
         <div className="table-user-name-col">
-          <span className="user-detail-name">{user.nombreCompleto}</span>
+          <div className="table-user-name-row">
+            <span className="user-detail-name">{user.nombreCompleto}</span>
+            {verificacionRed === 'verificado' && <VerifiedBadge size={17} />}
+          </div>
           <span className="table-user-email">{user.email}</span>
         </div>
         <div className="user-detail-badges">
           <StatusBadge status={estado} />
           <PlanBadge planId={user.planId} />
+          {/* Bee Verify state, live with the actions of the network section */}
+          <span className="user-detail-verification">
+            <span className="user-detail-verification-label">Bee Verify</span>
+            <StatusBadge status={verificacionRed} />
+          </span>
         </div>
       </div>
 
@@ -216,7 +225,7 @@ export default function UsuarioDetallePage({ params }: { params: { id: string } 
           </div>
 
           <div className="panel-card">
-            <span className="panel-card-title">BeeServices / Actividad comercial</span>
+            <span className="panel-card-title">Mis Productos y Servicios / Actividad comercial</span>
             {user.actividadComercial && user.actividadComercial.tipo !== 'ninguno' ? (
               <div className="detail-rows" style={{ marginTop: '12px' }}>
                 <div className="detail-row">

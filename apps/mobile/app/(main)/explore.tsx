@@ -6,9 +6,9 @@ import {
   ScrollView,
   TouchableOpacity,
   TextInput,
-  SafeAreaView,
   Alert,
 } from 'react-native';
+import ScreenSafeArea from '../../src/components/layout/ScreenSafeArea';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { colors } from '@beeapp/design-system';
 import {
@@ -213,7 +213,7 @@ export default function ExploreScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <ScreenSafeArea style={styles.safeArea}>
       <View style={styles.container}>
         {/* Header Title */}
         <View style={styles.headerBar}>
@@ -269,7 +269,7 @@ export default function ExploreScreen() {
         {/* Menu tab bar */}
         <FloatingTabBar activeTab="explore" />
       </View>
-    </SafeAreaView>
+    </ScreenSafeArea>
   );
 }
 

@@ -1,10 +1,11 @@
 
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
-import { colors } from '@beeapp/design-system';
+import { colors, spacing } from '@beeapp/design-system';
 import { Settings } from 'lucide-react-native';
-import { MODULES_POOL } from './homeModules';
+import { MODULES_POOL, OVERVIEW_MODULE_ID } from './homeModules';
 
 interface ModuleSwitcherRowProps {
+  /** User modules; the overview chip is always prepended to them */
   selectedModuleIds: string[];
   activeModuleId: string | null;
   onSelect: (id: string) => void;
@@ -14,12 +15,16 @@ interface ModuleSwitcherRowProps {
 /**
  * Horizontal chips of the user's modules: picks which module is shown
  * embedded right below, and opens the personalization selector.
+ * Only the selected chip shows its name; the rest stay icon-only.
  */
 export default function ModuleSwitcherRow({ selectedModuleIds, activeModuleId, onSelect, onCustomize }: ModuleSwitcherRowProps) {
+  // "Todas" is always the first chip and cannot be removed or reordered
+  const chipIds = [OVERVIEW_MODULE_ID, ...selectedModuleIds.filter((id) => id !== OVERVIEW_MODULE_ID)];
+
   return (
     <View style={styles.wrap}>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.scroll}>
-        {selectedModuleIds.map((id) => {
+        {chipIds.map((id) => {
           const item = MODULES_POOL.find((m) => m.id === id);
           if (!item) return null;
           const isActive = id === activeModuleId;
@@ -27,12 +32,12 @@ export default function ModuleSwitcherRow({ selectedModuleIds, activeModuleId, o
           return (
             <TouchableOpacity
               key={id}
-              style={[styles.chip, isActive && styles.chipActive]}
+              style={[styles.chip, isActive ? styles.chipActive : styles.chipIconOnly]}
               onPress={() => onSelect(id)}
               activeOpacity={0.7}
             >
-              <IconComp size={13} color={isActive ? colors.brand.primary : item.iconColor} />
-              <Text style={[styles.chipText, isActive && styles.chipTextActive]}>{item.name}</Text>
+              <IconComp size={15} color={isActive ? colors.brand.primary : item.iconColor} />
+              {isActive && <Text style={styles.chipTextActive}>{item.name}</Text>}
             </TouchableOpacity>
           );
         })}
@@ -48,35 +53,35 @@ export default function ModuleSwitcherRow({ selectedModuleIds, activeModuleId, o
 
 const styles = StyleSheet.create({
   wrap: {
-    marginBottom: 10,
+    marginBottom: spacing.sm,
   },
   scroll: {
     paddingHorizontal: 12,
-    gap: 8,
+    gap: spacing.sm,
   },
   chip: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
     gap: 5,
-    paddingHorizontal: 12,
-    paddingVertical: 7,
+    height: 32,
     borderRadius: 14,
     backgroundColor: colors.neutral.white,
     borderWidth: 1,
+  },
+  chipIconOnly: {
+    width: 34,
     borderColor: colors.neutral.gray200,
   },
   chipActive: {
+    paddingHorizontal: 12,
     backgroundColor: '#F3E8FF',
     borderColor: colors.brand.primary,
   },
-  chipText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: colors.neutral.gray700,
-  },
   chipTextActive: {
-    color: colors.brand.primary,
+    fontSize: 12,
     fontWeight: '700',
+    color: colors.brand.primary,
   },
   customizeChip: {
     width: 34,

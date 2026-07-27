@@ -6,12 +6,13 @@ import {
   ScrollView,
   TouchableOpacity,
   TextInput,
-  SafeAreaView,
   Dimensions,
 } from 'react-native';
+import ScreenSafeArea from '../../../src/components/layout/ScreenSafeArea';
 import { useModuleNav } from '../../../src/components/embedded/EmbeddedNavContext';
 import { colors } from '@beeapp/design-system';
 import { ChevronLeft, Search, Users, X, Check, ArrowRight } from 'lucide-react-native';
+import VerifiedBadge from '../../../src/components/VerifiedBadge';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -28,12 +29,12 @@ export default function NewChatScreen() {
 
   // Mock Contact list
   const [contacts, setContacts] = useState([
-    { id: '1', name: 'Carlos Mendoza', status: 'En línea', initials: 'C' },
-    { id: '2', name: 'Mariana Gómez', status: 'Últ. vez hace 1 hora', initials: 'M' },
-    { id: '3', name: 'Alejandro Reyes', status: 'En línea', initials: 'A' },
-    { id: '4', name: 'Laura Restrepo', status: 'En línea', initials: 'L' },
-    { id: '5', name: 'Felipe Jaramillo', status: 'Últ. vez ayer', initials: 'F' },
-    { id: '6', name: 'Daniela Ortiz', status: 'Ausente', initials: 'D' },
+    { id: '1', name: 'Carlos Mendoza', status: 'En línea', initials: 'C', verified: true },
+    { id: '2', name: 'Mariana Gómez', status: 'Últ. vez hace 1 hora', initials: 'M', verified: true },
+    { id: '3', name: 'Alejandro Reyes', status: 'En línea', initials: 'A', verified: true },
+    { id: '4', name: 'Laura Restrepo', status: 'En línea', initials: 'L', verified: true },
+    { id: '5', name: 'Felipe Jaramillo', status: 'Últ. vez ayer', initials: 'F', verified: false },
+    { id: '6', name: 'Daniela Ortiz', status: 'Ausente', initials: 'D', verified: false },
   ]);
 
   const handleContactPress = (contact: typeof contacts[0]) => {
@@ -96,7 +97,7 @@ export default function NewChatScreen() {
   );
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <ScreenSafeArea style={styles.safeArea}>
       <View style={styles.container}>
         {/* Header */}
         <View style={styles.header}>
@@ -234,7 +235,10 @@ export default function NewChatScreen() {
                       <Text style={styles.avatarText}>{contact.initials}</Text>
                     </View>
                     <View style={styles.contactDetails}>
-                      <Text style={styles.contactName}>{contact.name}</Text>
+                      <View style={styles.contactNameRow}>
+                        <Text style={styles.contactName}>{contact.name}</Text>
+                        {contact.verified && <VerifiedBadge size={13} />}
+                      </View>
                       <Text style={styles.contactStatus}>{contact.status}</Text>
                     </View>
 
@@ -268,7 +272,7 @@ export default function NewChatScreen() {
           </View>
         )}
       </View>
-    </SafeAreaView>
+    </ScreenSafeArea>
   );
 }
 
@@ -433,7 +437,13 @@ const styles = StyleSheet.create({
   contactDetails: {
     flex: 1,
   },
+  contactNameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
   contactName: {
+    flexShrink: 1,
     fontSize: 14,
     fontWeight: '700',
     color: colors.neutral.text,

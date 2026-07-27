@@ -1,7 +1,7 @@
 
-import { View, Text, StyleSheet, TouchableOpacity, TextInput, Dimensions } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Dimensions } from 'react-native';
 import { colors } from '@beeapp/design-system';
-import { ChevronLeft, ChevronDown, Search, Inbox, Settings, SquarePen } from 'lucide-react-native';
+import { ChevronLeft, ChevronDown, Inbox, Settings, SquarePen } from 'lucide-react-native';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -17,8 +17,6 @@ interface MailHeaderProps {
   /** Compose action shown in the header while embedded (instead of a floating button) */
   onCompose?: () => void;
   onConnectAccount: () => void;
-  searchQuery: string;
-  onSearchChange: (value: string) => void;
 }
 
 export default function MailHeader({
@@ -29,8 +27,6 @@ export default function MailHeader({
   onBack,
   onCompose,
   onConnectAccount,
-  searchQuery,
-  onSearchChange,
 }: MailHeaderProps) {
   return (
     <>
@@ -101,18 +97,6 @@ export default function MailHeader({
           </TouchableOpacity>
         </View>
       )}
-
-      {/* Search Bar */}
-      <View style={styles.searchBarBox}>
-        <Search size={18} color={colors.neutral.gray500} style={styles.searchIcon} />
-        <TextInput
-          style={styles.searchInput}
-          placeholder="Buscar en el correo..."
-          placeholderTextColor={colors.neutral.gray500}
-          value={searchQuery}
-          onChangeText={onSearchChange}
-        />
-      </View>
     </>
   );
 }
@@ -216,24 +200,5 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '700',
     color: colors.brand.primary,
-  },
-  searchBarBox: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.neutral.white,
-    borderBottomWidth: 1,
-    borderColor: colors.neutral.gray100,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-  },
-  searchIcon: {
-    marginRight: 10,
-  },
-  searchInput: {
-    flex: 1,
-    fontSize: 14,
-    color: colors.neutral.text,
-    paddingVertical: 6,
-    fontWeight: '500',
   },
 });

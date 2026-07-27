@@ -5,8 +5,8 @@ import {
   ScrollView,
   TouchableOpacity,
   StyleSheet,
-  SafeAreaView,
 } from 'react-native';
+import ScreenSafeArea from '../../src/components/layout/ScreenSafeArea';
 import { useRouter } from 'expo-router';
 import { colors } from '@beeapp/design-system';
 import FloatingTabBar from '../../src/components/FloatingTabBar';
@@ -15,7 +15,7 @@ export default function PrivacyScreen() {
   const router = useRouter();
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <ScreenSafeArea style={styles.safeArea}>
       <View style={styles.header}>
         <TouchableOpacity style={styles.backButton} onPress={() => router.back()} activeOpacity={0.7}>
           <Text style={styles.backButtonText}>← Volver</Text>
@@ -70,7 +70,7 @@ export default function PrivacyScreen() {
 
       {/* Assistant always within reach */}
       <FloatingTabBar />
-    </SafeAreaView>
+    </ScreenSafeArea>
   );
 }
 

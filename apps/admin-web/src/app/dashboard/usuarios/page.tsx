@@ -2,11 +2,12 @@
 
 import { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Eye, Flag } from 'lucide-react';
+import { Eye, Flag, Clock, ShieldOff } from 'lucide-react';
 import FilterBar, { type FilterConfig } from '@/components/FilterBar';
 import DataTable, { type DataTableColumn, type SortState } from '@/components/DataTable';
 import Pagination from '@/components/Pagination';
 import StatusBadge from '@/components/StatusBadge';
+import VerifiedBadge from '@/components/VerifiedBadge';
 import PlanBadge from '@/components/PlanBadge';
 import { MOCK_USERS } from '@/mocks/users';
 import type { AdminUser } from '@/mocks/types';
@@ -24,6 +25,7 @@ export default function UsuariosPage() {
   const [registro, setRegistro] = useState('');
   const [reportes, setReportes] = useState('');
   const [red, setRed] = useState('');
+  const [verificacion, setVerificacion] = useState('');
   const [actividad, setActividad] = useState('');
   const [page, setPage] = useState(1);
   const [sort, setSort] = useState<SortState>({ key: 'fecha', direction: 'desc' });
@@ -93,13 +95,20 @@ export default function UsuariosPage() {
       ],
     },
     {
+      id: 'verificacion',
+      label: 'Verificación',
+      value: verificacion,
+      options: [
+        { value: 'verificados', label: 'Verificados' },
+        { value: 'no_verificados', label: 'Sin verificar' },
+        { value: 'pendientes', label: 'Pendientes de revisar' },
+      ],
+    },
+    {
       id: 'red',
       label: 'Red empresarial',
       value: red,
-      options: [
-        { value: 'visibles', label: 'Visibles en la red' },
-        { value: 'pendientes_verificacion', label: 'Pendientes de verificar' },
-      ],
+      options: [{ value: 'visibles', label: 'Visibles en la red' }],
     },
   ];
 
@@ -111,6 +120,7 @@ export default function UsuariosPage() {
     if (id === 'registro') setRegistro(value);
     if (id === 'reportes') setReportes(value);
     if (id === 'red') setRed(value);
+    if (id === 'verificacion') setVerificacion(value);
     if (id === 'actividad') setActividad(value);
   };
 
@@ -127,13 +137,30 @@ export default function UsuariosPage() {
         !registro || now - new Date(user.fechaRegistro).getTime() <= Number(registro) * 24 * 60 * 60 * 1000;
       const matchesReportes =
         !reportes || (reportes === 'con_reportes' ? user.reportesCount > 0 : user.reportesCount === 0);
-      const matchesRed =
-        !red || (red === 'visibles' ? user.visibilidadRed !== 'privado' : user.verificacionRed === 'pendiente');
+      const matchesRed = !red || user.visibilidadRed !== 'privado';
+      // Bee Verify: verified accounts, pending requests or everything else
+      const matchesVerificacion =
+        !verificacion ||
+        (verificacion === 'verificados'
+          ? user.verificacionRed === 'verificado'
+          : verificacion === 'pendientes'
+            ? user.verificacionRed === 'pendiente'
+            : user.verificacionRed === 'no_solicitado');
       const matchesActividad =
         !actividad || (user.actividadComercial && user.actividadComercial.tipo === actividad);
-      return matchesSearch && matchesEstado && matchesPlan && matchesVisibilidad && matchesRegistro && matchesReportes && matchesRed && matchesActividad;
+      return (
+        matchesSearch &&
+        matchesEstado &&
+        matchesPlan &&
+        matchesVisibilidad &&
+        matchesRegistro &&
+        matchesReportes &&
+        matchesRed &&
+        matchesVerificacion &&
+        matchesActividad
+      );
     });
-  }, [search, estado, plan, visibilidad, registro, reportes, red, actividad]);
+  }, [search, estado, plan, visibilidad, registro, reportes, red, verificacion, actividad]);
 
   const sortedUsers = useMemo(() => {
     const sorted = [...filteredUsers].sort((a, b) => {
@@ -155,6 +182,16 @@ export default function UsuariosPage() {
 
   const goToDetail = (user: AdminUser) => router.push(`/dashboard/usuarios/${user.id}`);
 
+  // Bee Verify counters over the whole base, not over the current page
+  const verificationCounts = useMemo(
+    () => ({
+      verificados: MOCK_USERS.filter((u) => u.verificacionRed === 'verificado').length,
+      pendientes: MOCK_USERS.filter((u) => u.verificacionRed === 'pendiente').length,
+      noVerificados: MOCK_USERS.filter((u) => u.verificacionRed === 'no_solicitado').length,
+    }),
+    []
+  );
+
   const columns: DataTableColumn<AdminUser>[] = [
     {
       key: 'usuario',
@@ -164,7 +201,10 @@ export default function UsuariosPage() {
         <div className="table-user-cell">
           <div className="table-user-avatar">{row.iniciales}</div>
           <div className="table-user-name-col">
-            <span className="table-user-name">{row.nombreCompleto}</span>
+            <div className="table-user-name-row">
+              <span className="table-user-name">{row.nombreCompleto}</span>
+              {row.verificacionRed === 'verificado' && <VerifiedBadge size={13} />}
+            </div>
             <span className="table-user-email">{row.email}</span>
           </div>
         </div>
@@ -206,7 +246,7 @@ export default function UsuariosPage() {
         </span>
       ),
     },
-    { key: 'red', header: 'Red empresarial', render: (row) => <StatusBadge status={row.verificacionRed} />, hideOnMobile: true },
+    { key: 'verificacion', header: 'Verificación', render: (row) => <StatusBadge status={row.verificacionRed} /> },
     { key: 'fecha', header: 'Registro', sortable: true, align: 'right', render: (row) => formatDate(row.fechaRegistro) },
     {
       key: 'acciones',
@@ -233,6 +273,37 @@ export default function UsuariosPage() {
         <div className="page-toolbar-heading">
           <span className="page-toolbar-title">Usuarios registrados</span>
           <span className="page-toolbar-subtitle">{sortedUsers.length} usuarios encontrados</span>
+        </div>
+
+        {/* Bee Verify summary of the whole user base */}
+        <div className="verification-counters">
+          <button
+            type="button"
+            className={`verification-counter is-verified ${verificacion === 'verificados' ? 'is-active' : ''}`}
+            onClick={() => handleFilterChange('verificacion', verificacion === 'verificados' ? '' : 'verificados')}
+          >
+            <VerifiedBadge size={13} />
+            <span className="verification-counter-value">{verificationCounts.verificados}</span>
+            <span className="verification-counter-label">verificados</span>
+          </button>
+          <button
+            type="button"
+            className={`verification-counter is-pending ${verificacion === 'pendientes' ? 'is-active' : ''}`}
+            onClick={() => handleFilterChange('verificacion', verificacion === 'pendientes' ? '' : 'pendientes')}
+          >
+            <Clock size={13} />
+            <span className="verification-counter-value">{verificationCounts.pendientes}</span>
+            <span className="verification-counter-label">pendientes</span>
+          </button>
+          <button
+            type="button"
+            className={`verification-counter ${verificacion === 'no_verificados' ? 'is-active' : ''}`}
+            onClick={() => handleFilterChange('verificacion', verificacion === 'no_verificados' ? '' : 'no_verificados')}
+          >
+            <ShieldOff size={13} />
+            <span className="verification-counter-value">{verificationCounts.noVerificados}</span>
+            <span className="verification-counter-label">sin verificar</span>
+          </button>
         </div>
       </div>
 

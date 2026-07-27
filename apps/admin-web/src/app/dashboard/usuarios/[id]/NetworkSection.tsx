@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { ShieldCheck, ShieldX, EyeOff } from 'lucide-react';
 import StatusBadge from '@/components/StatusBadge';
+import VerifiedBadge from '@/components/VerifiedBadge';
 import ConfirmDialog from '@/components/ConfirmDialog';
 import type { NetworkVisibility, VerificationStatus } from '@/mocks/types';
 import { VISIBILITY_LABELS } from '@/utils/labels';
@@ -10,9 +11,9 @@ import { VISIBILITY_LABELS } from '@/utils/labels';
 type NetworkAction = 'aprobar' | 'rechazar' | 'revocar_verificacion' | 'revocar_visibilidad';
 
 const ACTION_META: Record<NetworkAction, { title: string; description: string }> = {
-  aprobar: { title: 'Aprobar verificación', description: 'El usuario aparecerá como verificado en la red empresarial.' },
+  aprobar: { title: 'Aprobar verificación', description: 'El usuario recibirá la insignia azul de cuenta verificada junto a su nombre en la app.' },
   rechazar: { title: 'Rechazar verificación', description: 'La solicitud de verificación quedará marcada como no solicitada.' },
-  revocar_verificacion: { title: 'Revocar verificación', description: 'El usuario perderá la insignia de verificado en la red.' },
+  revocar_verificacion: { title: 'Revocar verificación', description: 'El usuario perderá la insignia azul de cuenta verificada en toda la app.' },
   revocar_visibilidad: { title: 'Revocar visibilidad en la red', description: 'El perfil dejará de ser visible para otros usuarios de la red empresarial.' },
 };
 
@@ -58,9 +59,12 @@ export default function NetworkSection({
           <span className="detail-row-value">{VISIBILITY_LABELS[visibilidadRed]}</span>
         </div>
         <div className="detail-row">
-          <span className="detail-row-label">Verificación</span>
+          <span className="detail-row-label">Verificación (Bee Verify)</span>
           <span className="detail-row-value">
-            <StatusBadge status={verificacionRed} />
+            <span className="table-user-name-row">
+              <StatusBadge status={verificacionRed} />
+              {verificacionRed === 'verificado' && <VerifiedBadge size={14} />}
+            </span>
           </span>
         </div>
         <div className="detail-row">

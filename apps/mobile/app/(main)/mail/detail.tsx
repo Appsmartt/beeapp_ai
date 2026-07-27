@@ -5,8 +5,8 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  SafeAreaView,
 } from 'react-native';
+import ScreenSafeArea from '../../../src/components/layout/ScreenSafeArea';
 import { useModuleNav, useScreenParams } from '../../../src/components/embedded/EmbeddedNavContext';
 import { colors } from '@beeapp/design-system';
 import {
@@ -22,6 +22,7 @@ import {
   Mail,
 } from 'lucide-react-native';
 import FloatingTabBar from '../../../src/components/FloatingTabBar';
+import VerifiedBadge from '../../../src/components/VerifiedBadge';
 import { MOCK_EMAILS } from '../../../src/mocks/emails';
 
 
@@ -52,7 +53,7 @@ export default function MailDetailScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <ScreenSafeArea style={styles.safeArea}>
       <View style={styles.container}>
         {/* Header toolbar */}
         <View style={styles.header}>
@@ -95,7 +96,10 @@ export default function MailDetailScreen() {
               <Text style={styles.avatarText}>{getInitials(email.senderName)}</Text>
             </View>
             <View style={styles.senderDetails}>
-              <Text style={styles.senderName}>{email.senderName}</Text>
+              <View style={styles.senderNameRow}>
+                <Text style={styles.senderName}>{email.senderName}</Text>
+                {email.senderVerified && <VerifiedBadge size={14} />}
+              </View>
               <Text style={styles.senderEmail}>De: {email.senderEmail}</Text>
               <Text style={styles.receiverEmail}>Para: mí</Text>
             </View>
@@ -174,7 +178,7 @@ export default function MailDetailScreen() {
         {/* Tab Menu bar */}
         {!router.embedded && <FloatingTabBar activeTab="home" />}
       </View>
-    </SafeAreaView>
+    </ScreenSafeArea>
   );
 }
 
@@ -255,11 +259,17 @@ const styles = StyleSheet.create({
   senderDetails: {
     flex: 1,
   },
+  senderNameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginBottom: 2,
+  },
   senderName: {
+    flexShrink: 1,
     fontSize: 13,
     fontWeight: '700',
     color: colors.neutral.text,
-    marginBottom: 2,
   },
   senderEmail: {
     fontSize: 11,

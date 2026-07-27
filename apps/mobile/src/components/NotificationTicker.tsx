@@ -1,4 +1,3 @@
-
 import { useEffect, useRef, useState } from 'react';
 import { Animated, StyleSheet, Text } from 'react-native';
 import { colors } from '@beeapp/design-system';
@@ -39,15 +38,28 @@ export const KIND_COLORS: Record<TickerKind, string> = {
 interface NotificationTickerProps {
   items: TickerItem[];
   intervalMs?: number;
+  onCurrentChange?: (item: TickerItem | null) => void;
+  showIcon?: boolean;
 }
 
-/**
- * One-line notification strip that rotates through its items with a
- * smooth fade + slide swap (mock data, purely visual).
- */
-export default function NotificationTicker({ items, intervalMs = 3500 }: NotificationTickerProps) {
+export default function NotificationTicker({
+  items,
+  intervalMs = 3500,
+  onCurrentChange,
+  showIcon = true,
+}: NotificationTickerProps) {
   const [index, setIndex] = useState(0);
   const anim = useRef(new Animated.Value(1)).current;
+
+  // Prevent infinite update loops by holding handler in a ref
+  const onCurrentChangeRef = useRef(onCurrentChange);
+  useEffect(() => {
+    onCurrentChangeRef.current = onCurrentChange;
+  }, [onCurrentChange]);
+
+  useEffect(() => {
+    onCurrentChangeRef.current?.(items[index] || null);
+  }, [index, items]);
 
   useEffect(() => {
     if (items.length <= 1) return;
@@ -68,7 +80,7 @@ export default function NotificationTicker({ items, intervalMs = 3500 }: Notific
 
   return (
     <Animated.View style={[styles.row, { opacity: anim, transform: [{ translateY }] }]}>
-      <Icon size={10} color={KIND_COLORS[item.kind]} style={styles.icon} />
+      {showIcon && <Icon size={10} color={KIND_COLORS[item.kind]} style={styles.icon} />}
       <Text style={styles.text} numberOfLines={1}>
         {item.text}
       </Text>
@@ -77,19 +89,7 @@ export default function NotificationTicker({ items, intervalMs = 3500 }: Notific
 }
 
 const styles = StyleSheet.create({
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 2,
-    maxWidth: '100%',
-  },
-  icon: {
-    marginRight: 4,
-  },
-  text: {
-    flex: 1,
-    fontSize: 9,
-    fontWeight: '600',
-    color: colors.neutral.gray600,
-  },
+  row: { flexDirection: 'row', alignItems: 'center', marginTop: 2, maxWidth: '100%' },
+  icon: { marginRight: 4 },
+  text: { flex: 1, fontSize: 9, fontWeight: '600', color: colors.neutral.gray600 },
 });

@@ -5,9 +5,9 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  SafeAreaView,
   Alert,
 } from 'react-native';
+import ScreenSafeArea from '../../../src/components/layout/ScreenSafeArea';
 import { useRouter } from 'expo-router';
 import { colors } from '@beeapp/design-system';
 import { ChevronLeft, Check, Sparkles, Database, AlertCircle, RefreshCw, CreditCard } from 'lucide-react-native';
@@ -58,7 +58,7 @@ export default function SubscriptionScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <ScreenSafeArea style={styles.safeArea}>
       <View style={styles.container}>
         {/* Header */}
         <View style={styles.header}>
@@ -300,7 +300,7 @@ export default function SubscriptionScreen() {
         {/* Assistant always within reach */}
         <FloatingTabBar />
       </View>
-    </SafeAreaView>
+    </ScreenSafeArea>
   );
 }
 

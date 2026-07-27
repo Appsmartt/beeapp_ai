@@ -1,8 +1,9 @@
 import { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, SafeAreaView } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+import ScreenSafeArea from '../../../src/components/layout/ScreenSafeArea';
 import { useRouter } from 'expo-router';
 import { colors } from '@beeapp/design-system';
-import { ChevronLeft, ShieldCheck, KeyRound, Lock, MessageSquare } from 'lucide-react-native';
+import { ChevronLeft, ShieldCheck, KeyRound, Lock, MessageSquare, Smartphone, Mail } from 'lucide-react-native';
 import PinPad from '../../../src/components/security/PinPad';
 import FloatingTabBar from '../../../src/components/FloatingTabBar';
 import {
@@ -14,14 +15,10 @@ import {
   RECOVERY_CODE_LENGTH,
 } from '../../../src/stores/pinStore';
 
-type Stage = 'gate' | 'menu' | 'create' | 'confirm' | 'recover-code' | 'recover-pin';
+type Stage = 'gate' | 'menu' | 'create' | 'confirm' | 'recover-select' | 'recover-code' | 'recover-pin';
 
 const MOCK_SMS_CODE = '123456';
 
-/**
- * Security section: creates, validates, changes and recovers the global
- * 4-digit PIN that protects files, folders and notes. Everything is mock.
- */
 export default function SecurityScreen() {
   const router = useRouter();
   const [stage, setStage] = useState<Stage>(hasPin() ? 'gate' : 'menu');
@@ -29,6 +26,7 @@ export default function SecurityScreen() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [protectedCount, setProtectedCount] = useState(getProtectedIds().length);
+  const [selectedMethod, setSelectedMethod] = useState<'sms' | 'email' | null>(null);
 
   const goStage = (next: Stage) => {
     setError(null);
@@ -37,7 +35,6 @@ export default function SecurityScreen() {
     setStage(next);
   };
 
-  // Gate: current PIN required before entering the section
   const handleGate = (pin: string) => {
     if (isPinCorrect(pin)) {
       setError(null);
@@ -77,18 +74,16 @@ export default function SecurityScreen() {
       setTimeout(() => goStage('recover-pin'), 550);
     } else {
       setSuccess(null);
-      setError('Código incorrecto. Revisa el SMS e inténtalo otra vez.');
+      setError(`Código incorrecto. Revisa tu ${selectedMethod === 'email' ? 'correo' : 'SMS'} e inténtalo otra vez.`);
     }
   };
 
   const pinExists = hasPin();
-  // Code entry needs full focus: the floating menu only shows on the options list
   const showTabBar = stage === 'menu';
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <ScreenSafeArea style={styles.safeArea}>
       <View style={styles.container}>
-        {/* Header */}
         <View style={styles.header}>
           <TouchableOpacity onPress={() => router.back()} style={styles.backBtn} activeOpacity={0.7}>
             <ChevronLeft size={24} color={colors.neutral.text} />
@@ -97,10 +92,7 @@ export default function SecurityScreen() {
           <View style={{ width: 32 }} />
         </View>
 
-        <ScrollView
-          contentContainerStyle={[styles.scrollBody, showTabBar && styles.scrollBodyWithBar]}
-          showsVerticalScrollIndicator={false}
-        >
+        <ScrollView contentContainerStyle={[styles.scrollBody, showTabBar && styles.scrollBodyWithBar]} showsVerticalScrollIndicator={false}>
           {stage === 'gate' && (
             <PinPad
               title="Ingresa tu PIN actual"
@@ -109,7 +101,7 @@ export default function SecurityScreen() {
               error={error}
               success={success}
               footer={
-                <TouchableOpacity onPress={() => goStage('recover-code')} activeOpacity={0.7}>
+                <TouchableOpacity onPress={() => { setSelectedMethod(null); goStage('recover-select'); }} activeOpacity={0.7}>
                   <Text style={styles.linkText}>¿Olvidaste tu PIN?</Text>
                 </TouchableOpacity>
               }
@@ -118,14 +110,11 @@ export default function SecurityScreen() {
 
           {stage === 'menu' && (
             <View style={styles.menuWrap}>
-              {/* Status card */}
               <View style={styles.statusCard}>
                 <View style={[styles.statusIcon, pinExists ? styles.statusIconOn : styles.statusIconOff]}>
                   <ShieldCheck size={22} color={pinExists ? colors.semantic.success : colors.neutral.gray500} />
                 </View>
-                <Text style={styles.statusTitle}>
-                  {pinExists ? 'Protección con PIN activa' : 'Sin PIN de protección'}
-                </Text>
+                <Text style={styles.statusTitle}>{pinExists ? 'Protección con PIN activa' : 'Sin PIN de protección'}</Text>
                 <Text style={styles.statusDesc}>
                   {pinExists
                     ? `Tu PIN protege ${protectedCount} ${protectedCount === 1 ? 'elemento' : 'elementos'} entre archivos, carpetas y notas.`
@@ -133,26 +122,21 @@ export default function SecurityScreen() {
                 </Text>
               </View>
 
-              {/* Actions */}
               <View style={styles.optionsCard}>
                 <TouchableOpacity style={styles.optionRow} onPress={() => goStage('create')} activeOpacity={0.7}>
                   <View style={[styles.optionIconWrap, { backgroundColor: '#F3E8FF' }]}>
                     <KeyRound size={18} color={colors.brand.primary} />
                   </View>
                   <View style={{ flex: 1 }}>
-                    <Text style={styles.optionLabel}>
-                      {pinExists ? 'Cambiar PIN de protección' : 'Crear PIN de protección'}
-                    </Text>
-                    <Text style={styles.optionDesc}>
-                      {pinExists ? 'Define un PIN nuevo de 4 dígitos.' : 'Elige un PIN de 4 dígitos y confírmalo.'}
-                    </Text>
+                    <Text style={styles.optionLabel}>{pinExists ? 'Cambiar PIN de protección' : 'Crear PIN de protección'}</Text>
+                    <Text style={styles.optionDesc}>{pinExists ? 'Define un PIN nuevo de 4 dígitos.' : 'Elige un PIN de 4 dígitos y confírmalo.'}</Text>
                   </View>
                 </TouchableOpacity>
 
                 {pinExists && (
                   <TouchableOpacity
                     style={[styles.optionRow, { borderBottomWidth: 0 }]}
-                    onPress={() => goStage('recover-code')}
+                    onPress={() => { setSelectedMethod(null); goStage('recover-select'); }}
                     activeOpacity={0.7}
                   >
                     <View style={[styles.optionIconWrap, { backgroundColor: '#E0F2FE' }]}>
@@ -160,7 +144,7 @@ export default function SecurityScreen() {
                     </View>
                     <View style={{ flex: 1 }}>
                       <Text style={styles.optionLabel}>¿Olvidaste tu PIN?</Text>
-                      <Text style={styles.optionDesc}>Recupéralo con un código enviado por SMS.</Text>
+                      <Text style={styles.optionDesc}>Recupéralo con un código de verificación.</Text>
                     </View>
                   </TouchableOpacity>
                 )}
@@ -168,9 +152,7 @@ export default function SecurityScreen() {
 
               <View style={styles.infoRow}>
                 <Lock size={13} color={colors.neutral.gray600} />
-                <Text style={styles.infoText}>
-                  Protege elementos desde el menú de cada archivo, carpeta o nota.
-                </Text>
+                <Text style={styles.infoText}>Protege elementos desde el menú de cada archivo, carpeta o nota.</Text>
               </View>
             </View>
           )}
@@ -194,16 +176,61 @@ export default function SecurityScreen() {
             />
           )}
 
+          {stage === 'recover-select' && (
+            <View style={styles.menuWrap}>
+              <Text style={styles.selectTitle}>¿Cómo quieres recibir el código?</Text>
+              <Text style={styles.selectSubtitle}>Selecciona un canal para recibir el código de verificación de 6 dígitos.</Text>
+              
+              <TouchableOpacity
+                style={[styles.methodRow, selectedMethod === 'sms' && styles.methodRowActive]}
+                onPress={() => setSelectedMethod('sms')}
+                activeOpacity={0.85}
+              >
+                <View style={[styles.methodIconWrap, selectedMethod === 'sms' && styles.methodIconActive]}>
+                  <Smartphone size={20} color={selectedMethod === 'sms' ? colors.brand.primary : colors.neutral.gray600} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.methodLabel, selectedMethod === 'sms' && styles.methodLabelActive]}>Mensaje de texto (SMS)</Text>
+                  <Text style={styles.methodDesc}>+57 *** ***67</Text>
+                </View>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.methodRow, selectedMethod === 'email' && styles.methodRowActive]}
+                onPress={() => setSelectedMethod('email')}
+                activeOpacity={0.85}
+              >
+                <View style={[styles.methodIconWrap, selectedMethod === 'email' && styles.methodIconActive]}>
+                  <Mail size={20} color={selectedMethod === 'email' ? colors.brand.primary : colors.neutral.gray600} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.methodLabel, selectedMethod === 'email' && styles.methodLabelActive]}>Correo electrónico</Text>
+                  <Text style={styles.methodDesc}>s******@appsmartt.com</Text>
+                </View>
+              </TouchableOpacity>
+
+              {selectedMethod && (
+                <TouchableOpacity style={styles.primaryButton} onPress={() => goStage('recover-code')} activeOpacity={0.8}>
+                  <Text style={styles.primaryButtonText}>Enviar código</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          )}
+
           {stage === 'recover-code' && (
             <PinPad
               title="Verifica tu identidad"
-              subtitle={`Enviamos un código de 6 dígitos por SMS a ${MOCK_RECOVERY_PHONE}. Ingrésalo para crear un PIN nuevo.`}
+              subtitle={
+                selectedMethod === 'email'
+                  ? 'Enviamos un código de 6 dígitos por correo a s******@appsmartt.com. Ingrésalo para crear un PIN nuevo.'
+                  : `Enviamos un código de 6 dígitos por SMS a ${MOCK_RECOVERY_PHONE}. Ingrésalo para crear un PIN nuevo.`
+              }
               length={RECOVERY_CODE_LENGTH}
               onComplete={handleRecoveryCode}
               error={error}
               success={success}
               footer={
-                <TouchableOpacity onPress={() => alert('Código reenviado por SMS.')} activeOpacity={0.7}>
+                <TouchableOpacity onPress={() => alert(`Código reenviado por ${selectedMethod === 'email' ? 'correo' : 'SMS'}.`)} activeOpacity={0.7}>
                   <Text style={styles.linkText}>Reenviar código</Text>
                 </TouchableOpacity>
               }
@@ -220,138 +247,44 @@ export default function SecurityScreen() {
           )}
         </ScrollView>
 
-        {/* Assistant always within reach, except while typing a code */}
         {showTabBar && <FloatingTabBar />}
       </View>
-    </SafeAreaView>
+    </ScreenSafeArea>
   );
 }
 
 const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: colors.neutral.gray50,
-  },
-  container: {
-    flex: 1,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    backgroundColor: colors.neutral.white,
-    borderBottomWidth: 1,
-    borderColor: colors.neutral.gray100,
-  },
-  backBtn: {
-    padding: 4,
-  },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: '800',
-    color: colors.neutral.text,
-  },
-  scrollBody: {
-    paddingVertical: 24,
-    paddingBottom: 60,
-  },
-  // Clearance so the last row is not hidden behind the floating menu
-  scrollBodyWithBar: {
-    paddingBottom: 120,
-  },
-  linkText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: colors.brand.primary,
-    marginTop: 14,
-  },
-  menuWrap: {
-    paddingHorizontal: 20,
-  },
-  statusCard: {
-    backgroundColor: colors.neutral.white,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: colors.neutral.gray200,
-    padding: 20,
-    alignItems: 'center',
-    marginBottom: 18,
-  },
-  statusIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 12,
-  },
-  statusIconOn: {
-    backgroundColor: '#DCFCE7',
-  },
-  statusIconOff: {
-    backgroundColor: colors.neutral.gray100,
-  },
-  statusTitle: {
-    fontSize: 15,
-    fontWeight: '800',
-    color: colors.neutral.text,
-    marginBottom: 6,
-  },
-  statusDesc: {
-    fontSize: 12,
-    fontWeight: '500',
-    color: colors.neutral.gray600,
-    textAlign: 'center',
-    lineHeight: 17,
-  },
-  optionsCard: {
-    backgroundColor: colors.neutral.white,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: colors.neutral.gray200,
-    overflow: 'hidden',
-  },
-  optionRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 14,
-    paddingHorizontal: 14,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.neutral.gray100,
-  },
-  optionIconWrap: {
-    width: 32,
-    height: 32,
-    borderRadius: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 12,
-  },
-  optionLabel: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: colors.neutral.text,
-  },
-  optionDesc: {
-    fontSize: 11,
-    fontWeight: '500',
-    color: colors.neutral.gray600,
-    marginTop: 2,
-  },
-  infoRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    marginTop: 16,
-    paddingHorizontal: 4,
-  },
-  infoText: {
-    flex: 1,
-    fontSize: 11,
-    fontWeight: '500',
-    color: colors.neutral.gray600,
-    lineHeight: 15,
-  },
+  safeArea: { flex: 1, backgroundColor: colors.neutral.gray50 },
+  container: { flex: 1 },
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 12, backgroundColor: colors.neutral.white, borderBottomWidth: 1, borderColor: colors.neutral.gray100 },
+  backBtn: { padding: 4 },
+  headerTitle: { fontSize: 18, fontWeight: '800', color: colors.neutral.text },
+  scrollBody: { paddingVertical: 24, paddingBottom: 60 },
+  scrollBodyWithBar: { paddingBottom: 120 },
+  linkText: { fontSize: 12, fontWeight: '700', color: colors.brand.primary, marginTop: 14, textAlign: 'center' },
+  menuWrap: { paddingHorizontal: 20 },
+  statusCard: { backgroundColor: colors.neutral.white, borderRadius: 20, borderWidth: 1, borderColor: colors.neutral.gray200, padding: 20, alignItems: 'center', marginBottom: 18 },
+  statusIcon: { width: 48, height: 48, borderRadius: 24, alignItems: 'center', justifyContent: 'center', marginBottom: 12 },
+  statusIconOn: { backgroundColor: '#DCFCE7' },
+  statusIconOff: { backgroundColor: colors.neutral.gray100 },
+  statusTitle: { fontSize: 15, fontWeight: '800', color: colors.neutral.text, marginBottom: 6 },
+  statusDesc: { fontSize: 12, fontWeight: '500', color: colors.neutral.gray600, textAlign: 'center', lineHeight: 17 },
+  optionsCard: { backgroundColor: colors.neutral.white, borderRadius: 20, borderWidth: 1, borderColor: colors.neutral.gray200, overflow: 'hidden' },
+  optionRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 14, paddingHorizontal: 14, borderBottomWidth: 1, borderBottomColor: colors.neutral.gray100 },
+  optionIconWrap: { width: 32, height: 32, borderRadius: 10, alignItems: 'center', justifyContent: 'center', marginRight: 12 },
+  optionLabel: { fontSize: 14, fontWeight: '700', color: colors.neutral.text },
+  optionDesc: { fontSize: 11, fontWeight: '500', color: colors.neutral.gray600, marginTop: 2 },
+  infoRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 16, paddingHorizontal: 4 },
+  infoText: { flex: 1, fontSize: 11, fontWeight: '500', color: colors.neutral.gray600, lineHeight: 15 },
+  selectTitle: { fontSize: 18, fontWeight: '800', color: colors.neutral.text, marginBottom: 6, marginTop: 10 },
+  selectSubtitle: { fontSize: 13, fontWeight: '500', color: colors.neutral.gray600, marginBottom: 24, lineHeight: 18 },
+  methodRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.neutral.white, borderRadius: 16, borderWidth: 1.5, borderColor: colors.neutral.gray200, padding: 16, marginBottom: 12 },
+  methodRowActive: { borderColor: colors.brand.primary, backgroundColor: '#F5F3FF' },
+  methodIconWrap: { width: 40, height: 40, borderRadius: 12, backgroundColor: colors.neutral.gray100, alignItems: 'center', justifyContent: 'center', marginRight: 14 },
+  methodIconActive: { backgroundColor: '#EBE5FC' },
+  methodLabel: { fontSize: 14, fontWeight: '700', color: colors.neutral.text, marginBottom: 2 },
+  methodLabelActive: { color: colors.brand.primary },
+  methodDesc: { fontSize: 12, fontWeight: '500', color: colors.neutral.gray500 },
+  primaryButton: { backgroundColor: colors.brand.primary, borderRadius: 14, paddingVertical: 15, alignItems: 'center', marginTop: 20, shadowColor: colors.brand.primary, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.15, shadowRadius: 8, elevation: 3 },
+  primaryButtonText: { color: colors.neutral.white, fontSize: 14, fontWeight: '700' },
 });

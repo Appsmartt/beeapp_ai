@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, SafeAreaView } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+import ScreenSafeArea from '../../../src/components/layout/ScreenSafeArea';
 import { useNavigation } from 'expo-router';
 import { useModuleNav } from '../../../src/components/embedded/EmbeddedNavContext';
 import { colors } from '@beeapp/design-system';
@@ -22,7 +23,8 @@ export default function CalendarIndexScreen() {
   const [events, setLocalEvents] = useState<CalendarEvent[]>([]);
   const [selectedDate, setSelectedDate] = useState<string>(TODAY_STR);
   const [currentView, setCurrentView] = useState<ViewMode>('week');
-  const [searchQuery, setSearchQuery] = useState('');
+  // Search moved to the global Home search bar: the module keeps the filter dormant
+  const [searchQuery] = useState('');
   const [activeFilter, setActiveFilter] = useState<FilterChip>('upcoming');
 
   // Menu / Modal states
@@ -126,7 +128,7 @@ export default function CalendarIndexScreen() {
   const filteredEvents = getFilteredEvents();
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <ScreenSafeArea style={styles.safeArea}>
       <View style={styles.container}>
         <CalendarHeader
           onBack={router.canGoBack ? () => router.back() : undefined}
@@ -134,8 +136,6 @@ export default function CalendarIndexScreen() {
           onToday={() => setSelectedDate(TODAY_STR)}
           currentView={currentView}
           onViewChange={setCurrentView}
-          searchQuery={searchQuery}
-          onSearchChange={setSearchQuery}
         />
 
         {/* Compact day strip (default) or the full month grid under "Mes" */}
@@ -230,7 +230,7 @@ export default function CalendarIndexScreen() {
         {/* Tab Menu bar */}
         {!router.embedded && <FloatingTabBar activeTab="explore" />}
       </View>
-    </SafeAreaView>
+    </ScreenSafeArea>
   );
 }
 

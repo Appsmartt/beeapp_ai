@@ -1,7 +1,8 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Dimensions } from 'react-native';
 import { colors } from '@beeapp/design-system';
-import { Check, CheckCheck, BellOff, Pin, Trash2, Users } from 'lucide-react-native';
+import { Check, CheckCheck, BellOff, Pin, Trash2, Users, Lock } from 'lucide-react-native';
+import VerifiedBadge from '../VerifiedBadge';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -12,14 +13,18 @@ interface ChatListItemProps {
   time: string;
   unreadCount: number;
   isGroup: boolean;
+  /** Mock: paints the verified badge next to the name */
+  verified?: boolean;
   status: 'sent' | 'delivered' | 'read';
   online?: boolean;
   isPinned?: boolean;
   isMuted?: boolean;
+  isProtected?: boolean;
   onPress: () => void;
   onDelete: () => void;
   onMute: () => void;
   onPin: () => void;
+  onLongPress?: () => void;
 }
 
 export default function ChatListItem({
@@ -28,14 +33,17 @@ export default function ChatListItem({
   time,
   unreadCount,
   isGroup,
+  verified,
   status,
   online,
   isPinned,
   isMuted,
+  isProtected,
   onPress,
   onDelete,
   onMute,
   onPin,
+  onLongPress,
 }: ChatListItemProps) {
   return (
     <ScrollView
@@ -49,6 +57,7 @@ export default function ChatListItem({
       <TouchableOpacity
         style={styles.mainRow}
         onPress={onPress}
+        onLongPress={onLongPress}
         activeOpacity={0.7}
       >
         {/* Avatar Section */}
@@ -63,14 +72,22 @@ export default function ChatListItem({
             </View>
           )}
           {online && !isGroup && <View style={styles.onlineBadge} />}
+          {isProtected && (
+            <View style={styles.lockBadge}>
+              <Lock size={9} color={colors.neutral.white} />
+            </View>
+          )}
         </View>
 
         {/* Text Details Section */}
         <View style={styles.textContainer}>
           <View style={styles.nameTimeRow}>
-            <Text style={styles.name} numberOfLines={1}>
-              {name}
-            </Text>
+            <View style={styles.nameWrap}>
+              <Text style={styles.name} numberOfLines={1}>
+                {name}
+              </Text>
+              {verified && <VerifiedBadge size={14} />}
+            </View>
             <Text style={[styles.time, unreadCount > 0 && styles.timeUnread]}>
               {time}
             </Text>
@@ -79,8 +96,14 @@ export default function ChatListItem({
           <View style={styles.messageStatusRow}>
             <View style={styles.messageWrap}>
               {isMuted && <BellOff size={12} color={colors.neutral.gray500} style={styles.mutedIcon} />}
-              <Text style={styles.lastMessage} numberOfLines={1}>
-                {lastMessage}
+              <Text
+                style={[
+                  styles.lastMessage,
+                  isProtected && { color: colors.neutral.gray400, fontStyle: 'italic' }
+                ]}
+                numberOfLines={1}
+              >
+                {isProtected ? 'Chat protegido' : lastMessage}
               </Text>
             </View>
 
@@ -90,11 +113,13 @@ export default function ChatListItem({
                 <Text style={styles.unreadBadgeText}>{unreadCount}</Text>
               </View>
             ) : (
-              <View style={styles.statusCheck}>
-                {status === 'sent' && <Check size={14} color={colors.neutral.gray500} />}
-                {status === 'delivered' && <CheckCheck size={14} color={colors.neutral.gray500} />}
-                {status === 'read' && <CheckCheck size={14} color={colors.brand.primary} />}
-              </View>
+              !isProtected && (
+                <View style={styles.statusCheck}>
+                  {status === 'sent' && <Check size={14} color={colors.neutral.gray500} />}
+                  {status === 'delivered' && <CheckCheck size={14} color={colors.neutral.gray500} />}
+                  {status === 'read' && <CheckCheck size={14} color={colors.brand.primary} />}
+                </View>
+              )
             )}
           </View>
         </View>
@@ -206,12 +231,18 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 6,
   },
+  nameWrap: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginRight: 10,
+  },
   name: {
+    flexShrink: 1,
     fontSize: 15,
     fontWeight: '700',
     color: colors.neutral.text,
-    flex: 1,
-    marginRight: 10,
   },
   time: {
     fontSize: 12,
@@ -276,5 +307,18 @@ const styles = StyleSheet.create({
     color: colors.neutral.text,
     marginTop: 4,
     textTransform: 'uppercase',
+  },
+  lockBadge: {
+    position: 'absolute',
+    bottom: -2,
+    right: -2,
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    backgroundColor: colors.brand.primary,
+    borderWidth: 1.5,
+    borderColor: colors.neutral.white,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 });

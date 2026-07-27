@@ -1433,6 +1433,90 @@ body {
   text-overflow: ellipsis;
 }
 
+/* Bee Verify chip in the user detail header */
+.user-detail-verification {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 8px 3px 10px;
+  border-radius: 999px;
+  border: 1.5px solid #E9ECEF;
+  background: #F8F9FA;
+}
+
+.user-detail-verification-label {
+  font-size: 10.5px;
+  font-weight: 800;
+  letter-spacing: 0.3px;
+  text-transform: uppercase;
+  color: #6C757D;
+}
+
+/* Bee Verify counters in the users list header */
+.verification-counters {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.verification-counter {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 12px;
+  border-radius: 10px;
+  border: 1.5px solid #E9ECEF;
+  background: #FFFFFF;
+  color: #6C757D;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.verification-counter:hover {
+  border-color: #DEE2E6;
+  background: #F8F9FA;
+}
+
+.verification-counter.is-active {
+  border-color: #6025d2;
+  background: #F6F1FF;
+}
+
+.verification-counter.is-verified {
+  color: #1D9BF0;
+}
+
+.verification-counter.is-pending {
+  color: #FF9800;
+}
+
+.verification-counter-value {
+  font-size: 13px;
+  font-weight: 850;
+}
+
+.verification-counter-label {
+  font-size: 11.5px;
+  font-weight: 700;
+  color: #6C757D;
+}
+
+/* Verified account (Bee Verify) */
+.table-user-name-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+
+.verified-badge {
+  display: inline-flex;
+  align-items: center;
+  color: #1D9BF0;
+  flex-shrink: 0;
+}
+
 .table-user-email {
   font-size: 11px;
   font-weight: 600;

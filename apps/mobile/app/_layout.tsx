@@ -1,12 +1,20 @@
 import { Stack } from 'expo-router';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 export default function RootLayout() {
   return (
-    <Stack
-      screenOptions={{
-        headerShown: false,
-        contentStyle: { backgroundColor: '#6025d2' },
-      }}
-    />
+    // Root for gesture-driven UI (e.g. drag & drop in the Home customizer)
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      {/* Provides the device insets (status bar, notch) to every screen */}
+      <SafeAreaProvider>
+        <Stack
+          screenOptions={{
+            headerShown: false,
+            contentStyle: { backgroundColor: '#6025d2' },
+          }}
+        />
+      </SafeAreaProvider>
+    </GestureHandlerRootView>
   );
 }

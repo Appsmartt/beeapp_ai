@@ -5,7 +5,7 @@
  * secure storage and no backend — that arrives with the real integration.
  */
 
-let currentPin: string | null = null;
+let currentPin: string | null = '1234';
 
 export const getPin = () => currentPin;
 export const hasPin = () => currentPin !== null;
@@ -14,8 +14,8 @@ export const setPin = (pin: string | null) => {
 };
 export const isPinCorrect = (pin: string) => currentPin !== null && pin === currentPin;
 
-/** Ids of protected elements (storage items and notes share this list) */
-let protectedIds: string[] = [];
+/** Ids of protected elements (storage items, notes and chats share this list) */
+let protectedIds: string[] = ['n4', '1', '2'];
 
 export const getProtectedIds = () => protectedIds;
 export const isProtected = (id: string) => protectedIds.includes(id);

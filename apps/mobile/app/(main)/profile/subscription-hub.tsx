@@ -1,8 +1,10 @@
-import { View, Text, StyleSheet, ScrollView, SafeAreaView, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+import ScreenSafeArea from '../../../src/components/layout/ScreenSafeArea';
 import { useRouter } from 'expo-router';
 import { colors } from '@beeapp/design-system';
 import { ChevronLeft, ChevronRight, CreditCard, BadgeCheck } from 'lucide-react-native';
 import FloatingTabBar from '../../../src/components/FloatingTabBar';
+import { VERIFIED_COLOR } from '../../../src/components/VerifiedBadge';
 
 // Mock account state shown as a summary above the two options
 const MOCK_PLAN = 'BeeApp Gratis';
@@ -13,7 +15,7 @@ export default function SubscriptionHubScreen() {
   const router = useRouter();
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <ScreenSafeArea style={styles.safeArea}>
       <View style={styles.container}>
         <View style={styles.header}>
           <TouchableOpacity onPress={() => router.back()} style={styles.backBtn} activeOpacity={0.7}>
@@ -63,7 +65,7 @@ export default function SubscriptionHubScreen() {
             activeOpacity={0.8}
           >
             <View style={[styles.optionIcon, { backgroundColor: '#EBF5FF' }]}>
-              <BadgeCheck size={20} color="#1D9BF0" />
+              <BadgeCheck size={20} color={VERIFIED_COLOR} />
             </View>
             <View style={styles.optionCol}>
               <View style={styles.optionTitleRow}>
@@ -83,7 +85,7 @@ export default function SubscriptionHubScreen() {
         {/* Assistant always within reach */}
         <FloatingTabBar />
       </View>
-    </SafeAreaView>
+    </ScreenSafeArea>
   );
 }
 
@@ -150,7 +152,7 @@ const styles = StyleSheet.create({
     color: colors.neutral.text,
   },
   statusValueOn: {
-    color: '#1D9BF0',
+    color: VERIFIED_COLOR,
   },
   optionCard: {
     flexDirection: 'row',
@@ -193,7 +195,7 @@ const styles = StyleSheet.create({
   servicePillText: {
     fontSize: 9,
     fontWeight: '900',
-    color: '#1D9BF0',
+    color: VERIFIED_COLOR,
     textTransform: 'uppercase',
     letterSpacing: 0.4,
   },

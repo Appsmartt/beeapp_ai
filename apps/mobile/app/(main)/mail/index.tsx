@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, SafeAreaView } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+import ScreenSafeArea from '../../../src/components/layout/ScreenSafeArea';
 import { useModuleNav } from '../../../src/components/embedded/EmbeddedNavContext';
 import { colors } from '@beeapp/design-system';
 import { Mail, SquarePen } from 'lucide-react-native';
@@ -18,7 +19,8 @@ export default function MailInboxScreen() {
   const [activeAccount, setActiveAccount] = useState<MailAccountFilter>('all');
   const [accountMenuVisible, setAccountMenuVisible] = useState(false);
   const [activeFolder, setActiveFolder] = useState<MailFolder>('inbox');
-  const [searchQuery, setSearchQuery] = useState('');
+  // Search moved to the global Home search bar: the module keeps the filter dormant
+  const [searchQuery] = useState('');
   const [swipeActiveId, setSwipeActiveId] = useState<string | null>(null);
 
   // Mock Emails state
@@ -106,7 +108,7 @@ export default function MailInboxScreen() {
   const hasEmails = filteredEmails.length > 0;
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <ScreenSafeArea style={styles.safeArea}>
       <View style={styles.container}>
         <MailHeader
           activeAccount={activeAccount}
@@ -118,11 +120,6 @@ export default function MailInboxScreen() {
           onConnectAccount={() => {
             setAccountMenuVisible(false);
             router.push('/(main)/profile/integrations');
-          }}
-          searchQuery={searchQuery}
-          onSearchChange={(txt) => {
-            setSearchQuery(txt);
-            setSwipeActiveId(null);
           }}
         />
 
@@ -191,7 +188,7 @@ export default function MailInboxScreen() {
         {/* Navigation Floating Tab bar */}
         {!router.embedded && <FloatingTabBar activeTab="home" />}
       </View>
-    </SafeAreaView>
+    </ScreenSafeArea>
   );
 }
 

@@ -1,23 +1,27 @@
 import { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Platform } from 'react-native';
-import { colors } from '@beeapp/design-system';
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { colors, spacing } from '@beeapp/design-system';
 import { LayoutGrid } from 'lucide-react-native';
 import FloatingTabBar from '../../src/components/FloatingTabBar';
 import HomeHeader from '../../src/components/home/HomeHeader';
 import HomeSideMenu from '../../src/components/home/HomeSideMenu';
-import HomeAssistantCard from '../../src/components/home/HomeAssistantCard';
 import ModuleSwitcherRow from '../../src/components/home/ModuleSwitcherRow';
 import HomeCustomizeModal from '../../src/components/home/HomeCustomizeModal';
 import EmbeddedModuleHost from '../../src/components/embedded/EmbeddedModuleHost';
+import { OVERVIEW_MODULE_ID } from '../../src/components/home/homeModules';
 import { TickerTarget } from '../../src/mocks/tabNotifications';
 
 const DEFAULT_MODULE_IDS = ['mail', 'notes', 'contacts'];
 
 /**
- * All-in-one Home: top bar, voice assistant, module chips and the selected
- * module rendered embedded right below. Modules never navigate away.
+ * All-in-one Home: top bar, module chips and the selected module rendered
+ * embedded right below. Modules never navigate away. The voice assistant
+ * lives only in the floating tab bar.
  */
 export default function HomeScreen() {
+  // Device inset: the Home is the screen that pushes everything below the status bar
+  const insets = useSafeAreaInsets();
   const [sideMenuVisible, setSideMenuVisible] = useState(false);
 
   // Which modules are shown as chips, and in which order
@@ -25,8 +29,8 @@ export default function HomeScreen() {
   const [isCustomizing, setIsCustomizing] = useState(false);
   const [tempSelectedModuleIds, setTempSelectedModuleIds] = useState<string[]>(DEFAULT_MODULE_IDS);
 
-  // Module shown embedded below the chips (the first one is open by default)
-  const [activeModuleId, setActiveModuleId] = useState<string | null>(DEFAULT_MODULE_IDS[0]);
+  // Module shown embedded below the chips ("Todas" overview is open by default)
+  const [activeModuleId, setActiveModuleId] = useState<string | null>(OVERVIEW_MODULE_ID);
   // Optional inner screen to open the module on (coming from a notification)
   const [moduleTarget, setModuleTarget] = useState<{ path: string; params?: Record<string, string> } | null>(null);
   // Bumped on every open so the host remounts with a fresh stack
@@ -50,6 +54,11 @@ export default function HomeScreen() {
   const saveCustomize = () => {
     setSelectedModuleIds(tempSelectedModuleIds);
     setIsCustomizing(false);
+    // The overview lists the chips: remount it so the sections match the new list
+    if (activeModuleId === OVERVIEW_MODULE_ID) {
+      setOpenSeq((s) => s + 1);
+      return;
+    }
     // Keep a valid module open: fall back to the first chip of the new list
     if (!activeModuleId || !tempSelectedModuleIds.includes(activeModuleId)) {
       if (tempSelectedModuleIds.length > 0) {
@@ -60,24 +69,16 @@ export default function HomeScreen() {
     }
   };
 
-  // A module opened from the side menu (e.g. BeeServices) gets its own chip
-  // while it stays open, even if it is not part of the saved selection
-  const visibleModuleIds =
-    activeModuleId && !selectedModuleIds.includes(activeModuleId)
-      ? [...selectedModuleIds, activeModuleId]
-      : selectedModuleIds;
-
   return (
-    <View style={styles.container}>
-      {/* Top bar + voice assistant stay visible above the module */}
+    <View style={[styles.container, { paddingTop: insets.top }]}>
+      {/* Top bar stays visible above the module */}
       <View style={styles.topSection}>
         <HomeHeader onMenuPress={() => setSideMenuVisible(true)} />
-        <HomeAssistantCard />
       </View>
 
       {/* Module chips (configurable list and order) */}
       <ModuleSwitcherRow
-        selectedModuleIds={visibleModuleIds}
+        selectedModuleIds={selectedModuleIds}
         activeModuleId={activeModuleId}
         onSelect={(id) => openModule(id)}
         onCustomize={openCustomize}
@@ -90,6 +91,12 @@ export default function HomeScreen() {
           moduleId={activeModuleId}
           initialPath={moduleTarget?.path}
           initialParams={moduleTarget?.params}
+          // The overview needs the chip list and a way to jump to a module
+          rootParams={
+            activeModuleId === OVERVIEW_MODULE_ID
+              ? { moduleIds: selectedModuleIds, onOpenModule: (id: string) => openModule(id) }
+              : undefined
+          }
         />
       ) : (
         <View style={styles.emptyState}>
@@ -113,11 +120,7 @@ export default function HomeScreen() {
       <FloatingTabBar onOpenNotificationTarget={openNotificationTarget} />
 
       {/* Side menu drawer (holds the profile section) */}
-      <HomeSideMenu
-        visible={sideMenuVisible}
-        onClose={() => setSideMenuVisible(false)}
-        onOpenModule={openModule}
-      />
+      <HomeSideMenu visible={sideMenuVisible} onClose={() => setSideMenuVisible(false)} />
 
       {/* Personalization: which chips appear and in which order */}
       <HomeCustomizeModal
@@ -138,7 +141,7 @@ const styles = StyleSheet.create({
   },
   topSection: {
     paddingHorizontal: 20,
-    paddingTop: Platform.OS === 'ios' ? 56 : 24,
+    paddingTop: spacing.md,
   },
   emptyState: {
     flex: 1,

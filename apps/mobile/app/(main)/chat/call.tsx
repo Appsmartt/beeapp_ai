@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Dimensions, SafeAreaView, Platform } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Dimensions, Platform } from 'react-native';
+import ScreenSafeArea from '../../../src/components/layout/ScreenSafeArea';
 import { useModuleNav, useScreenParams } from '../../../src/components/embedded/EmbeddedNavContext';
 import { colors } from '@beeapp/design-system';
 import {
@@ -13,6 +14,8 @@ import {
   Camera,
   RotateCw,
 } from 'lucide-react-native';
+import VerifiedBadge from '../../../src/components/VerifiedBadge';
+import { MOCK_CHATS } from '../../../src/mocks/chats';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -23,6 +26,8 @@ export default function CallScreen() {
   const callerName = params.name as string || 'Contacto';
   const isVideo = params.isVideo === 'true';
   const isGroup = params.isGroup === 'true';
+  // Verified caller: read from the chat mock by id
+  const isVerified = !!MOCK_CHATS.find((c) => c.id === (params.id as string))?.verified;
 
   // Call States
   const [isMuted, setIsMuted] = useState(false);
@@ -50,14 +55,14 @@ export default function CallScreen() {
 
   // Group participants list mock
   const groupParticipants = [
-    { id: '1', name: 'Carlos Mendoza', initials: 'C' },
-    { id: '2', name: 'Mariana Gómez', initials: 'M' },
-    { id: '3', name: 'Laura Restrepo', initials: 'L' },
-    { id: 'self', name: 'Tú (Santiago)', initials: 'S', isSelf: true },
+    { id: '1', name: 'Carlos Mendoza', initials: 'C', verified: true },
+    { id: '2', name: 'Mariana Gómez', initials: 'M', verified: true },
+    { id: '3', name: 'Laura Restrepo', initials: 'L', verified: true },
+    { id: 'self', name: 'Tú (Santiago)', initials: 'S', isSelf: true, verified: false },
   ];
 
   return (
-    <SafeAreaView style={[styles.container, isVideo ? styles.darkContainer : styles.brandContainer]}>
+    <ScreenSafeArea style={[styles.container, isVideo ? styles.darkContainer : styles.brandContainer]}>
       {/* Top Meta info */}
       <View style={styles.topMeta}>
         <Text style={[styles.statusText, isVideo && styles.darkText]}>
@@ -84,7 +89,10 @@ export default function CallScreen() {
                     <View style={styles.avatarCircleBig}>
                       <Text style={styles.avatarCircleBigText}>{part.initials}</Text>
                     </View>
-                    <Text style={styles.partLabel}>{part.name}</Text>
+                    <View style={styles.partLabel}>
+                      <Text style={styles.partLabelText}>{part.name}</Text>
+                      {part.verified && <VerifiedBadge size={12} />}
+                    </View>
                   </View>
                 </View>
               ))}
@@ -98,7 +106,10 @@ export default function CallScreen() {
                   <View style={styles.avatarCircleBig}>
                     <Text style={styles.avatarCircleBigText}>{callerName[0].toUpperCase()}</Text>
                   </View>
-                  <Text style={[styles.nameLabelBig, styles.darkText]}>{callerName}</Text>
+                  <View style={styles.bigNameRow}>
+                    <Text style={[styles.nameLabelBig, styles.darkText]}>{callerName}</Text>
+                    {isVerified && <VerifiedBadge size={20} />}
+                  </View>
                 </View>
               ) : (
                 <View style={styles.videoStreamFull}>
@@ -129,9 +140,12 @@ export default function CallScreen() {
                       {part.initials}
                     </Text>
                   </View>
-                  <Text style={styles.voiceGroupName} numberOfLines={1}>
-                    {part.name}
-                  </Text>
+                  <View style={styles.voiceGroupNameRow}>
+                    <Text style={styles.voiceGroupName} numberOfLines={1}>
+                      {part.name}
+                    </Text>
+                    {part.verified && <VerifiedBadge size={11} />}
+                  </View>
                 </View>
               ))}
             </View>
@@ -141,7 +155,10 @@ export default function CallScreen() {
               <View style={styles.avatarVoiceCircleBig}>
                 <Text style={styles.avatarVoiceCircleBigText}>{callerName[0].toUpperCase()}</Text>
               </View>
-              <Text style={styles.callerNameText}>{callerName}</Text>
+              <View style={styles.bigNameRow}>
+                <Text style={styles.callerNameText}>{callerName}</Text>
+                {isVerified && <VerifiedBadge size={20} />}
+              </View>
               <Text style={styles.callLabelText}>BeeApp Voice</Text>
             </View>
           )}
@@ -202,7 +219,7 @@ export default function CallScreen() {
           <PhoneOff size={24} color={colors.neutral.white} />
         </TouchableOpacity>
       </View>
-    </SafeAreaView>
+    </ScreenSafeArea>
   );
 }
 
@@ -281,6 +298,11 @@ const styles = StyleSheet.create({
     position: 'absolute',
     bottom: 12,
     left: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  partLabelText: {
     fontSize: 12,
     fontWeight: '700',
     color: colors.neutral.white,
@@ -396,11 +418,23 @@ const styles = StyleSheet.create({
   avatarTextVoiceSelf: {
     color: colors.neutral.white,
   },
+  voiceGroupNameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 3,
+    marginTop: 6,
+  },
+  bigNameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
   voiceGroupName: {
+    flexShrink: 1,
     fontSize: 11,
     fontWeight: '700',
     color: colors.neutral.text,
-    marginTop: 6,
     textAlign: 'center',
   },
   individualVoice: {

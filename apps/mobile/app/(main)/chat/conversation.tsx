@@ -5,15 +5,16 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  SafeAreaView,
   Modal,
   Platform,
   Alert,
 } from 'react-native';
+import ScreenSafeArea from '../../../src/components/layout/ScreenSafeArea';
 import { useModuleNav, useScreenParams } from '../../../src/components/embedded/EmbeddedNavContext';
 import { colors } from '@beeapp/design-system';
-import { ChevronLeft, Phone, Video, MoreVertical, BellOff, Trash2, ShieldAlert } from 'lucide-react-native';
+import { ChevronLeft, Phone, Video, MoreVertical, BellOff, Trash2, ShieldAlert, Bot, SlidersHorizontal } from 'lucide-react-native';
 import MessageBubble from '../../../src/components/chat/MessageBubble';
+import VerifiedBadge from '../../../src/components/VerifiedBadge';
 import WriteBar from '../../../src/components/chat/WriteBar';
 
 
@@ -24,15 +25,88 @@ export default function ConversationScreen() {
   const chatName = params.name as string || 'Conversación';
   const isGroup = params.isGroup === 'true';
   const online = params.online === 'true';
+  // Verified state comes from the chat mock, not from the navigation params
+  const isVerified = !!MOCK_CHATS.find((c) => c.id === chatId)?.verified;
+  // A conversation can be opened with an initial preset message (e.g. from the AI catalog)
+  const initialMessage = params.initialMessage as string | undefined;
+  // The pinned assistant chat: logo avatar, its own mock thread and settings
+  const isAI = chatId === AI_CHAT_ID;
 
   const scrollRef = useRef<ScrollView | null>(null);
 
   // States
   const [menuOpen, setMenuOpen] = useState(false);
   const [longPressActive, setLongPressActive] = useState<number | null>(null);
+  const [catalogVisible, setCatalogVisible] = useState(false);
   
-  // Historical Messages Mock State
-  const [messages, setMessages] = useState<ChatMessage[]>(MOCK_CONVERSATION_MESSAGES);
+  // Historical Messages Mock State.
+  // An empty chat can start with an initial injected message.
+  const [messages, setMessages] = useState<ChatMessage[]>(() =>
+    initialMessage
+      ? [
+          {
+            id: 1,
+            isUser: true,
+            type: 'text' as const,
+            text: initialMessage,
+            time: 'Ahora',
+            status: 'sent' as const,
+          },
+        ]
+      : isAI
+      ? AI_CONVERSATION_MESSAGES
+      : MOCK_CONVERSATION_MESSAGES
+  );
+
+  // Trigger catalog when the last message has showCatalog = true
+  React.useEffect(() => {
+    const lastMsg = messages[messages.length - 1];
+    if (lastMsg && lastMsg.showCatalog) {
+      const timer = setTimeout(() => {
+        setCatalogVisible(true);
+      }, 500);
+      return () => clearTimeout(timer);
+    }
+  }, [messages]);
+
+  const handleContactSeller = (result: any) => {
+    setCatalogVisible(false);
+    
+    // Check if chat already exists
+    let existingChat = MOCK_CHATS.find((c) => c.name === result.sellerName);
+    const initialText = `Hola, me interesa tu servicio de ${result.productName} que encontré en BeeApp.`;
+    
+    if (!existingChat) {
+      // Create new chat
+      const newChatId = 'seller_' + Date.now().toString(36);
+      existingChat = {
+        id: newChatId,
+        name: result.sellerName,
+        lastMessage: initialText,
+        time: 'Ahora',
+        unreadCount: 0,
+        isGroup: false,
+        status: 'sent',
+        online: true,
+        verified: result.sellerVerified,
+      };
+      MOCK_CHATS.push(existingChat);
+    } else {
+      existingChat.lastMessage = initialText;
+    }
+
+    // Now navigate to conversation screen with the new/existing chat
+    router.replace({
+      pathname: '/(main)/chat/conversation',
+      params: {
+        id: existingChat.id,
+        name: existingChat.name,
+        isGroup: 'false',
+        online: 'true',
+        initialMessage: initialText,
+      },
+    });
+  };
 
   const handleSendMessage = (text: string) => {
     const newMsg = {
@@ -45,6 +119,9 @@ export default function ConversationScreen() {
     };
     setMessages((prev) => [...prev, newMsg]);
     scrollToBottom();
+
+    // The assistant does not answer on its own: everything here is mock
+    if (isAI) return;
 
     // Mock bot reply
     setTimeout(() => {
@@ -127,6 +204,7 @@ export default function ConversationScreen() {
     router.push({
       pathname: '/(main)/chat/call',
       params: {
+        id: chatId,
         name: chatName,
         isVideo: video ? 'true' : 'false',
         isGroup: isGroup ? 'true' : 'false',
@@ -148,7 +226,7 @@ export default function ConversationScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <ScreenSafeArea style={styles.safeArea}>
       <View style={styles.container}>
         {/* Header bar */}
         <View style={styles.header}>
@@ -157,28 +235,54 @@ export default function ConversationScreen() {
               <ChevronLeft size={24} color={colors.neutral.text} />
             </TouchableOpacity>
 
-            <View style={styles.avatarCircle}>
-              <Text style={styles.avatarText}>{chatName[0].toUpperCase()}</Text>
-              {online && !isGroup && <View style={styles.onlineBadge} />}
+            <View style={[styles.avatarCircle, isAI && styles.avatarCircleAI]}>
+              {isAI ? (
+                <Bot size={20} color={colors.neutral.white} />
+              ) : (
+                <Text style={styles.avatarText}>{chatName[0].toUpperCase()}</Text>
+              )}
+              {online && !isGroup && !isAI && <View style={styles.onlineBadge} />}
             </View>
 
             <View style={styles.nameMetaCol}>
-              <Text style={styles.chatName} numberOfLines={1}>
-                {chatName}
-              </Text>
+              <View style={styles.chatNameRow}>
+                <Text style={styles.chatName} numberOfLines={1}>
+                  {chatName}
+                </Text>
+                {isVerified && <VerifiedBadge size={14} />}
+              </View>
               <Text style={styles.chatMeta}>
-                {isGroup ? '5 participantes' : online ? 'En línea' : 'Últ. vez hace 1 hora'}
+                {isAI
+                  ? 'Asistente de BeeApp · siempre disponible'
+                  : isGroup
+                  ? '5 participantes'
+                  : online
+                  ? 'En línea'
+                  : 'Últ. vez hace 1 hora'}
               </Text>
             </View>
           </View>
 
           <View style={styles.headerRightCol}>
-            <TouchableOpacity onPress={() => handleCall(false)} style={styles.headerIconBtn} activeOpacity={0.7}>
-              <Phone size={20} color={colors.neutral.text} />
-            </TouchableOpacity>
-            <TouchableOpacity onPress={() => handleCall(true)} style={styles.headerIconBtn} activeOpacity={0.7}>
-              <Video size={20} color={colors.neutral.text} />
-            </TouchableOpacity>
+            {isAI ? (
+              /* Only entry point to the assistant settings */
+              <TouchableOpacity
+                onPress={() => router.push('/(main)/chat/ai-settings')}
+                style={styles.headerIconBtn}
+                activeOpacity={0.7}
+              >
+                <SlidersHorizontal size={20} color={colors.brand.primary} />
+              </TouchableOpacity>
+            ) : (
+              <>
+                <TouchableOpacity onPress={() => handleCall(false)} style={styles.headerIconBtn} activeOpacity={0.7}>
+                  <Phone size={20} color={colors.neutral.text} />
+                </TouchableOpacity>
+                <TouchableOpacity onPress={() => handleCall(true)} style={styles.headerIconBtn} activeOpacity={0.7}>
+                  <Video size={20} color={colors.neutral.text} />
+                </TouchableOpacity>
+              </>
+            )}
             <TouchableOpacity onPress={() => setMenuOpen(!menuOpen)} style={styles.headerIconBtn} activeOpacity={0.7}>
               <MoreVertical size={20} color={colors.neutral.text} />
             </TouchableOpacity>
@@ -221,7 +325,9 @@ export default function ConversationScreen() {
             <MessageBubble
               key={msg.id}
               senderName={msg.senderName}
+              senderVerified={msg.senderVerified}
               isUser={msg.isUser}
+              isAI={isAI}
               type={msg.type}
               text={msg.text}
               mediaUrl={msg.mediaUrl}
@@ -261,14 +367,22 @@ export default function ConversationScreen() {
           onSendVoiceNote={handleSendVoiceNote}
           onSendAttachment={handleSendAttachment}
         />
+
+        {/* Ai Catalog Search Results Overlay */}
+        <AiCatalogModal
+          visible={catalogVisible}
+          onClose={() => setCatalogVisible(false)}
+          onContact={handleContactSeller}
+        />
       </View>
-    </SafeAreaView>
+    </ScreenSafeArea>
   );
 }
 
 // Separate helper import for overlay backdrop
 import { TouchableWithoutFeedback } from 'react-native';
-import { ChatMessage, MOCK_CONVERSATION_MESSAGES } from '../../../src/mocks/chats';
+import { AI_CHAT_ID, AI_CONVERSATION_MESSAGES, ChatMessage, MOCK_CONVERSATION_MESSAGES, MOCK_CHATS } from '../../../src/mocks/chats';
+import AiCatalogModal from '../../../src/components/chat/AiCatalogModal';
 
 const styles = StyleSheet.create({
   safeArea: {
@@ -309,6 +423,9 @@ const styles = StyleSheet.create({
     marginRight: 10,
     position: 'relative',
   },
+  avatarCircleAI: {
+    backgroundColor: colors.brand.primary,
+  },
   avatarText: {
     fontSize: 14,
     fontWeight: '700',
@@ -328,7 +445,13 @@ const styles = StyleSheet.create({
   nameMetaCol: {
     flex: 1,
   },
+  chatNameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
   chatName: {
+    flexShrink: 1,
     fontSize: 14,
     fontWeight: '700',
     color: colors.neutral.text,

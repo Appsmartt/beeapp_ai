@@ -1,8 +1,11 @@
 
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Modal } from 'react-native';
-import { colors } from '@beeapp/design-system';
-import { ChevronUp, ChevronDown } from 'lucide-react-native';
-import { MODULES_POOL } from './homeModules';
+import { useEffect, useState } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, Modal } from 'react-native';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import DraggableFlatList, { ScaleDecorator, RenderItemParams } from 'react-native-draggable-flatlist';
+import { colors, spacing } from '@beeapp/design-system';
+import { CUSTOMIZABLE_MODULES, HomeModule } from './homeModules';
+import CustomizeModuleRow from './CustomizeModuleRow';
 
 interface HomeCustomizeModalProps {
   visible: boolean;
@@ -12,89 +15,80 @@ interface HomeCustomizeModalProps {
   onSave: () => void;
 }
 
+/** Active modules first (in chip order), then the ones that are turned off */
+const buildOrder = (selectedIds: string[]) => {
+  const selected = selectedIds.filter((id) => CUSTOMIZABLE_MODULES.some((m) => m.id === id));
+  const rest = CUSTOMIZABLE_MODULES.map((m) => m.id).filter((id) => !selected.includes(id));
+  return [...selected, ...rest];
+};
+
+/**
+ * Home customizer: turn modules on/off and drag them to reorder the chips.
+ * "Todas" is not listed here — it is always the first chip.
+ */
 export default function HomeCustomizeModal({ visible, selectedIds, onChangeSelected, onCancel, onSave }: HomeCustomizeModalProps) {
+  const [order, setOrder] = useState<string[]>(() => buildOrder(selectedIds));
+
+  // Reopening the sheet starts from the order the chips have right now
+  useEffect(() => {
+    if (visible) setOrder(buildOrder(selectedIds));
+  }, [visible]);
+
+  const data = order
+    .map((id) => CUSTOMIZABLE_MODULES.find((m) => m.id === id))
+    .filter((m): m is HomeModule => !!m);
+
   const toggle = (id: string) => {
     if (selectedIds.includes(id)) {
       onChangeSelected(selectedIds.filter((x) => x !== id));
     } else {
-      onChangeSelected([...selectedIds, id]);
+      // Keep the chip order the user dragged, not the tap order
+      onChangeSelected(order.filter((x) => x === id || selectedIds.includes(x)));
     }
   };
 
-  const move = (id: string, dir: -1 | 1) => {
-    const idx = selectedIds.indexOf(id);
-    const target = idx + dir;
-    if (idx < 0 || target < 0 || target >= selectedIds.length) return;
-    const next = [...selectedIds];
-    [next[idx], next[target]] = [next[target], next[idx]];
-    onChangeSelected(next);
+  const handleDragEnd = (next: HomeModule[]) => {
+    const nextOrder = next.map((m) => m.id);
+    setOrder(nextOrder);
+    onChangeSelected(nextOrder.filter((id) => selectedIds.includes(id)));
   };
+
+  const renderItem = ({ item, drag, isActive }: RenderItemParams<HomeModule>) => (
+    <ScaleDecorator activeScale={1.03}>
+      <CustomizeModuleRow
+        item={item}
+        isSelected={selectedIds.includes(item.id)}
+        isActive={isActive}
+        onDrag={drag}
+        onToggle={() => toggle(item.id)}
+      />
+    </ScaleDecorator>
+  );
 
   return (
     <Modal transparent visible={visible} animationType="slide">
-      <View style={styles.modalBackdrop}>
-        <View style={styles.modalSheet}>
+      {/* The modal is its own window: gestures need their own root here */}
+      <GestureHandlerRootView style={styles.gestureRoot}>
+        <View style={styles.modalBackdrop}>
+          <View style={styles.modalSheet}>
           <View style={styles.modalHeader}>
             <Text style={styles.modalTitle}>Personalizar Accesos</Text>
             <Text style={styles.modalSubtitle}>
-              Elige qué módulos ves en el inicio y en qué orden. Puedes activarlos todos.
+              Elige qué módulos ves en el inicio y mantén presionado para arrastrarlos y cambiar su orden.
             </Text>
             <Text style={styles.selectionCounter}>
-              {selectedIds.length} de {MODULES_POOL.length} activos
+              {selectedIds.length} de {CUSTOMIZABLE_MODULES.length} activos
             </Text>
           </View>
 
-          <ScrollView style={styles.modulesScroll} showsVerticalScrollIndicator={false}>
-            <View style={styles.modulesModalList}>
-              {MODULES_POOL.map((item) => {
-                const orderIdx = selectedIds.indexOf(item.id);
-                const isSelected = orderIdx >= 0;
-                const IconComponent = item.icon;
-                return (
-                  <TouchableOpacity
-                    key={item.id}
-                    style={[styles.modalModuleItem, isSelected && styles.modalModuleItemActive]}
-                    onPress={() => toggle(item.id)}
-                    activeOpacity={0.8}
-                  >
-                    <View style={[styles.modalModuleIconWrap, { backgroundColor: item.bgColor }]}>
-                      <IconComponent size={20} color={item.iconColor} />
-                    </View>
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.modalModuleName}>{item.name}</Text>
-                      <Text style={styles.modalModuleDesc}>{item.desc}</Text>
-                    </View>
-
-                    {isSelected ? (
-                      <View style={styles.orderControls}>
-                        <TouchableOpacity
-                          style={[styles.orderBtn, orderIdx === 0 && styles.orderBtnDisabled]}
-                          onPress={() => move(item.id, -1)}
-                          disabled={orderIdx === 0}
-                          activeOpacity={0.7}
-                        >
-                          <ChevronUp size={14} color={orderIdx === 0 ? colors.neutral.gray400 : colors.brand.primary} />
-                        </TouchableOpacity>
-                        <View style={styles.orderBadge}>
-                          <Text style={styles.orderBadgeText}>{orderIdx + 1}</Text>
-                        </View>
-                        <TouchableOpacity
-                          style={[styles.orderBtn, orderIdx === selectedIds.length - 1 && styles.orderBtnDisabled]}
-                          onPress={() => move(item.id, 1)}
-                          disabled={orderIdx === selectedIds.length - 1}
-                          activeOpacity={0.7}
-                        >
-                          <ChevronDown size={14} color={orderIdx === selectedIds.length - 1 ? colors.neutral.gray400 : colors.brand.primary} />
-                        </TouchableOpacity>
-                      </View>
-                    ) : (
-                      <View style={styles.checkboxCircle} />
-                    )}
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
-          </ScrollView>
+          <DraggableFlatList
+            data={data}
+            keyExtractor={(item) => item.id}
+            renderItem={renderItem}
+            onDragEnd={({ data: next }) => handleDragEnd(next)}
+            style={styles.modulesScroll}
+            showsVerticalScrollIndicator={false}
+          />
 
           <View style={styles.modalActions}>
             <TouchableOpacity style={styles.modalCancelBtn} onPress={onCancel} activeOpacity={0.7}>
@@ -110,13 +104,17 @@ export default function HomeCustomizeModal({ visible, selectedIds, onChangeSelec
               <Text style={styles.modalSaveBtnText}>Guardar</Text>
             </TouchableOpacity>
           </View>
+          </View>
         </View>
-      </View>
+      </GestureHandlerRootView>
     </Modal>
   );
 }
 
 const styles = StyleSheet.create({
+  gestureRoot: {
+    flex: 1,
+  },
   modalBackdrop: {
     flex: 1,
     backgroundColor: 'rgba(26, 26, 46, 0.4)',
@@ -126,12 +124,12 @@ const styles = StyleSheet.create({
     backgroundColor: colors.neutral.white,
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
-    padding: 24,
+    padding: spacing.lg,
     maxHeight: '80%',
   },
   modalHeader: {
     alignItems: 'center',
-    marginBottom: 16,
+    marginBottom: spacing.md,
   },
   modalTitle: {
     fontSize: 18,
@@ -144,6 +142,7 @@ const styles = StyleSheet.create({
     color: colors.neutral.gray600,
     textAlign: 'center',
     marginBottom: 10,
+    lineHeight: 17,
   },
   selectionCounter: {
     fontSize: 13,
@@ -155,85 +154,14 @@ const styles = StyleSheet.create({
     borderRadius: 8,
   },
   modulesScroll: {
-    marginBottom: 20,
-  },
-  modulesModalList: {
-    gap: 12,
-  },
-  modalModuleItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 12,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: colors.neutral.gray200,
-    backgroundColor: colors.neutral.white,
-  },
-  modalModuleItemActive: {
-    borderColor: colors.brand.primary,
-    backgroundColor: '#FBFBFF',
-  },
-  modalModuleIconWrap: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 12,
-  },
-  modalModuleName: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: colors.neutral.text,
-    marginBottom: 2,
-  },
-  modalModuleDesc: {
-    fontSize: 11,
-    color: colors.neutral.gray600,
-  },
-  orderControls: {
-    alignItems: 'center',
-    marginLeft: 12,
-    gap: 2,
-  },
-  orderBtn: {
-    width: 24,
-    height: 20,
-    borderRadius: 6,
-    backgroundColor: '#F3E8FF',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  orderBtnDisabled: {
-    backgroundColor: colors.neutral.gray100,
-  },
-  orderBadge: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    backgroundColor: colors.brand.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  orderBadgeText: {
-    color: colors.neutral.white,
-    fontSize: 10,
-    fontWeight: '800',
-  },
-  checkboxCircle: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    borderWidth: 2,
-    borderColor: colors.neutral.gray300,
-    marginLeft: 12,
+    marginBottom: spacing.sm,
   },
   modalActions: {
     flexDirection: 'row',
     gap: 12,
     borderTopWidth: 1,
     borderTopColor: colors.neutral.gray200,
-    paddingTop: 16,
+    paddingTop: spacing.md,
   },
   modalCancelBtn: {
     flex: 1,

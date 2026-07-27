@@ -5,7 +5,6 @@ import {
   TextInput,
   TouchableOpacity,
   StyleSheet,
-  SafeAreaView,
   KeyboardAvoidingView,
   Platform,
   TouchableWithoutFeedback,
@@ -13,6 +12,7 @@ import {
   Modal,
   FlatList,
 } from 'react-native';
+import ScreenSafeArea from '../../src/components/layout/ScreenSafeArea';
 import { useRouter } from 'expo-router';
 import { colors } from '@beeapp/design-system';
 import AnimatedLogo from '../../src/components/AnimatedLogo';
@@ -78,7 +78,7 @@ export default function LoginScreen() {
   );
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <ScreenSafeArea style={styles.safeArea}>
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={styles.container}
@@ -215,7 +215,7 @@ export default function LoginScreen() {
           </View>
         </TouchableWithoutFeedback>
       </Modal>
-    </SafeAreaView>
+    </ScreenSafeArea>
   );
 }
 

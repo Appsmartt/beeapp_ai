@@ -24,6 +24,7 @@ import ActivityFeed from '@/components/ActivityFeed';
 import ChartLegend from '@/components/ChartLegend';
 import PlanBadge from '@/components/PlanBadge';
 import StatusBadge from '@/components/StatusBadge';
+import VerifiedBadge from '@/components/VerifiedBadge';
 import { DASHBOARD_KPIS, USER_GROWTH_SERIES, REVENUE_SERIES, PLAN_DISTRIBUTION, MODULE_USAGE_SERIES } from '@/mocks/metrics';
 import { MOCK_USERS } from '@/mocks/users';
 import { MOCK_ACTIVITIES } from '@/mocks/activities';
@@ -45,7 +46,10 @@ const RECENT_USERS_COLUMNS: DataTableColumn<AdminUser>[] = [
       <div className="table-user-cell">
         <div className="table-user-avatar">{row.iniciales}</div>
         <div className="table-user-name-col">
-          <span className="table-user-name">{row.nombreCompleto}</span>
+          <div className="table-user-name-row">
+            <span className="table-user-name">{row.nombreCompleto}</span>
+            {row.verificacionRed === 'verificado' && <VerifiedBadge size={13} />}
+          </div>
           <span className="table-user-email">{row.email}</span>
         </div>
       </div>

@@ -5,8 +5,8 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  SafeAreaView,
 } from 'react-native';
+import ScreenSafeArea from '../../src/components/layout/ScreenSafeArea';
 import { useRouter } from 'expo-router';
 import { colors } from '@beeapp/design-system';
 import {
@@ -184,7 +184,7 @@ export default function NotificationsScreen() {
   const hasNotifications = filteredNotifications.length > 0;
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <ScreenSafeArea style={styles.safeArea}>
       <View style={styles.container}>
         {/* Header */}
         <View style={styles.header}>
@@ -327,7 +327,7 @@ export default function NotificationsScreen() {
         {/* Tab Menu bar */}
         <FloatingTabBar activeTab="home" />
       </View>
-    </SafeAreaView>
+    </ScreenSafeArea>
   );
 }
 

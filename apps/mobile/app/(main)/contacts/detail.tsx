@@ -5,9 +5,9 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  SafeAreaView,
   Alert,
 } from 'react-native';
+import ScreenSafeArea from '../../../src/components/layout/ScreenSafeArea';
 import { useModuleNav, useScreenParams } from '../../../src/components/embedded/EmbeddedNavContext';
 import { colors } from '@beeapp/design-system';
 import {
@@ -28,6 +28,7 @@ import {
   ArrowUpRight,
   PhoneOff,
 } from 'lucide-react-native';
+import VerifiedBadge from '../../../src/components/VerifiedBadge';
 import { ALL_CONTACT_DETAILS, CONTACT_CALLS } from '../../../src/mocks/contacts';
 
 
@@ -92,7 +93,7 @@ export default function ContactDetailScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <ScreenSafeArea style={styles.safeArea}>
       <View style={styles.container}>
         {/* Header */}
         <View style={styles.header}>
@@ -110,7 +111,10 @@ export default function ContactDetailScreen() {
               <Text style={styles.avatarText}>{contact.initials}</Text>
               {contact.online && <View style={styles.onlineBadge} />}
             </View>
-            <Text style={styles.profileName}>{contact.name}</Text>
+            <View style={styles.profileNameRow}>
+              <Text style={styles.profileName}>{contact.name}</Text>
+              {contact.verified && <VerifiedBadge size={18} />}
+            </View>
             <Text style={styles.profileProfession}>{contact.profession}</Text>
             <Text style={styles.profileCompany}>{contact.company}</Text>
           </View>
@@ -281,7 +285,7 @@ export default function ContactDetailScreen() {
           <View style={{ height: 60 }} />
         </ScrollView>
       </View>
-    </SafeAreaView>
+    </ScreenSafeArea>
   );
 }
 
@@ -346,11 +350,17 @@ const styles = StyleSheet.create({
     bottom: 2,
     right: 2,
   },
+  profileNameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    marginBottom: 4,
+  },
   profileName: {
+    flexShrink: 1,
     fontSize: 18,
     fontWeight: 'bold',
     color: colors.neutral.text,
-    marginBottom: 4,
   },
   profileProfession: {
     fontSize: 13,

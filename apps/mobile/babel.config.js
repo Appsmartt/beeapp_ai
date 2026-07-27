@@ -8,5 +8,7 @@ module.exports = function (api) {
   
   return {
     presets: ['babel-preset-expo'],
+    // Required by react-native-reanimated (drag & drop); must stay last
+    plugins: ['react-native-reanimated/plugin'],
   };
 };

@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { View, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
-import { colors } from '@beeapp/design-system';
 import { EmbeddedNavContext, ModuleNav, NavTarget } from './EmbeddedNavContext';
 import { EMBEDDED_SCREENS, MODULE_ROOTS } from './embeddedRegistry';
 
@@ -17,6 +16,8 @@ interface EmbeddedModuleHostProps {
   /** Optional inner screen to open on top of the module root (e.g. a specific email) */
   initialPath?: string;
   initialParams?: Record<string, any>;
+  /** Params handed to the module root screen (used by the overview) */
+  rootParams?: Record<string, any>;
 }
 
 const normalize = (target: NavTarget): StackEntry =>
@@ -29,11 +30,11 @@ const normalize = (target: NavTarget): StackEntry =>
  * navigation stack: list -> detail -> etc. never leaves the Home route.
  * Paths outside the embedded registry close the module and use the real router.
  */
-export default function EmbeddedModuleHost({ moduleId, onClose, initialPath, initialParams }: EmbeddedModuleHostProps) {
+export default function EmbeddedModuleHost({ moduleId, onClose, initialPath, initialParams, rootParams }: EmbeddedModuleHostProps) {
   const realRouter = useRouter();
   const rootPath = MODULE_ROOTS[moduleId];
   const [stack, setStack] = useState<StackEntry[]>(() => {
-    const base: StackEntry[] = [{ path: rootPath, params: {} }];
+    const base: StackEntry[] = [{ path: rootPath, params: rootParams ?? {} }];
     // Open directly on an inner screen (root stays below so "back" lands on the list)
     if (initialPath && initialPath !== rootPath && EMBEDDED_SCREENS[initialPath]) {
       base.push({ path: initialPath, params: initialParams ?? {} });
@@ -78,7 +79,7 @@ export default function EmbeddedModuleHost({ moduleId, onClose, initialPath, ini
   if (!Screen) return null;
 
   return (
-    <View style={styles.card}>
+    <View style={styles.host}>
       {/* The module screen itself (with its own single header), driving the internal stack */}
       <EmbeddedNavContext.Provider value={{ nav, params: top.params }}>
         <Screen key={`${top.path}-${stack.length}`} />
@@ -88,18 +89,8 @@ export default function EmbeddedModuleHost({ moduleId, onClose, initialPath, ini
 }
 
 const styles = StyleSheet.create({
-  card: {
+  // No card: the module flows straight below the chips, seamless with the Home
+  host: {
     flex: 1,
-    marginHorizontal: 12,
-    backgroundColor: colors.neutral.white,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: colors.neutral.gray200,
-    overflow: 'hidden',
-    shadowColor: colors.brand.primary,
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.06,
-    shadowRadius: 12,
-    elevation: 3,
   },
 });

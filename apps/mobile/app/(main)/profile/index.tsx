@@ -5,12 +5,12 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  SafeAreaView,
   Share,
   Linking,
   Alert,
   Switch,
 } from 'react-native';
+import ScreenSafeArea from '../../../src/components/layout/ScreenSafeArea';
 import { useRouter } from 'expo-router';
 import { colors } from '@beeapp/design-system';
 import {
@@ -91,7 +91,7 @@ export default function ProfileMainScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <ScreenSafeArea style={styles.safeArea}>
       <View style={styles.container}>
         {/* Header Title */}
         <View style={styles.headerBar}>
@@ -152,7 +152,7 @@ export default function ProfileMainScreen() {
             {/* Visibility toggle switch */}
             <View style={styles.switchOptionRow}>
               <View style={[styles.optionIconWrap, { backgroundColor: '#F3E8FF' }]}>
-                <Shield size={18} color="#7C3AED" />
+                <Shield size={18} color={colors.brand.primary} />
               </View>
               <View style={styles.switchTextCol}>
                 <Text style={styles.optionLabel}>Visibilidad en la red</Text>
@@ -163,8 +163,8 @@ export default function ProfileMainScreen() {
               <Switch
                 value={isVisibleInNetwork}
                 onValueChange={setIsVisibleInNetwork}
-                trackColor={{ false: '#E5E7EB', true: '#C084FC' }}
-                thumbColor={isVisibleInNetwork ? '#7C3AED' : '#F3F4F6'}
+                trackColor={{ false: colors.neutral.gray300, true: colors.brand.primary + '80' }}
+                thumbColor={isVisibleInNetwork ? colors.brand.primary : colors.neutral.gray400}
               />
             </View>
           </View>
@@ -229,7 +229,7 @@ export default function ProfileMainScreen() {
         {/* Tab Bar navigation */}
         <FloatingTabBar activeTab="profile" />
       </View>
-    </SafeAreaView>
+    </ScreenSafeArea>
   );
 }
 

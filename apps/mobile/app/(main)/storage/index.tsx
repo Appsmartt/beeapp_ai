@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { View, StyleSheet, ScrollView, SafeAreaView } from 'react-native';
+import { View, StyleSheet, ScrollView } from 'react-native';
+import ScreenSafeArea from '../../../src/components/layout/ScreenSafeArea';
 import { useNavigation } from 'expo-router';
 import { useModuleNav } from '../../../src/components/embedded/EmbeddedNavContext';
 import { colors } from '@beeapp/design-system';
@@ -36,8 +37,8 @@ export default function StorageIndexScreen() {
   ]);
 
   // UI States
-  const [searchQuery, setSearchQuery] = useState('');
-  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+  // Search moved to the global Home search bar: the module keeps the filter dormant
+  const [searchQuery] = useState('');
   const [sortBy, setSortBy] = useState<SortOption>('name');
   const [activeFilter, setActiveFilter] = useState<StorageFilter>('all');
 
@@ -188,17 +189,13 @@ export default function StorageIndexScreen() {
   const filteredItems = getFilteredItems(items, searchQuery, currentFolderId, activeFilter, sortBy);
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <ScreenSafeArea style={styles.safeArea}>
       <View style={styles.container}>
         <StorageHeader
           onBack={router.canGoBack ? () => router.back() : undefined}
           onAction={router.embedded ? () => setFabMenuVisible(!fabMenuVisible) : undefined}
           sortBy={sortBy}
           onSortChange={setSortBy}
-          viewMode={viewMode}
-          onToggleViewMode={() => setViewMode(viewMode === 'grid' ? 'list' : 'grid')}
-          searchQuery={searchQuery}
-          onSearchChange={setSearchQuery}
         />
 
         <ScrollView style={styles.scrollList} showsVerticalScrollIndicator={false}>
@@ -214,7 +211,6 @@ export default function StorageIndexScreen() {
           <StorageItemsView
             items={filteredItems}
             protectedIds={protectedIds}
-            viewMode={viewMode}
             onOpenItem={handleOpenItem}
             onOpenMenu={openContextMenu}
           />
@@ -289,7 +285,7 @@ export default function StorageIndexScreen() {
         {/* Tab Menu bar */}
         {!router.embedded && <FloatingTabBar activeTab="explore" />}
       </View>
-    </SafeAreaView>
+    </ScreenSafeArea>
   );
 }
 

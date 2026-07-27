@@ -2,10 +2,15 @@ import React from 'react';
 import { View, Text, StyleSheet, Image, TouchableOpacity } from 'react-native';
 import { colors } from '@beeapp/design-system';
 import { Check, CheckCheck, FileText, Play, Pause } from 'lucide-react-native';
+import VerifiedBadge from '../VerifiedBadge';
 
 interface MessageBubbleProps {
   senderName?: string;
+  /** Mock: paints the verified badge next to the sender name */
+  senderVerified?: boolean;
   isUser: boolean;
+  /** Assistant message: soft brand-tinted bubble instead of the plain white one */
+  isAI?: boolean;
   type: 'text' | 'image' | 'file' | 'audio';
   text?: string;
   mediaUrl?: string;
@@ -23,7 +28,9 @@ interface MessageBubbleProps {
 
 export default function MessageBubble({
   senderName,
+  senderVerified,
   isUser,
+  isAI,
   type,
   text,
   mediaUrl,
@@ -44,9 +51,14 @@ export default function MessageBubble({
       style={[styles.container, isUser ? styles.containerUser : styles.containerOther]}
     >
       {/* Sender Name for Group chats */}
-      {senderName && !isUser && <Text style={styles.senderName}>{senderName}</Text>}
+      {senderName && !isUser && (
+        <View style={styles.senderRow}>
+          <Text style={styles.senderName}>{senderName}</Text>
+          {senderVerified && <VerifiedBadge size={12} />}
+        </View>
+      )}
 
-      <View style={[styles.bubble, isUser ? styles.bubbleUser : styles.bubbleOther]}>
+      <View style={[styles.bubble, isUser ? styles.bubbleUser : styles.bubbleOther, !isUser && isAI && styles.bubbleAI]}>
         
         {/* Cited Reply Header */}
         {replyTo && (
@@ -168,6 +180,11 @@ const styles = StyleSheet.create({
   containerOther: {
     alignItems: 'flex-start',
   },
+  senderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
   senderName: {
     fontSize: 11,
     fontWeight: '700',
@@ -196,6 +213,10 @@ const styles = StyleSheet.create({
     borderBottomLeftRadius: 2,
     borderWidth: 1,
     borderColor: colors.neutral.gray200,
+  },
+  bubbleAI: {
+    backgroundColor: '#F3E8FF',
+    borderColor: '#DDD6FE',
   },
   messageText: {
     fontSize: 14,

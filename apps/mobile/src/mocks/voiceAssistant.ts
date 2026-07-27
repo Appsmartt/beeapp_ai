@@ -7,6 +7,7 @@
 export interface VoiceTurn {
   user: string;
   assistant: string;
+  showCatalog?: boolean;
 }
 
 export const VOICE_CONVERSATION: VoiceTurn[] = [
@@ -29,5 +30,11 @@ export const VOICE_CONVERSATION: VoiceTurn[] = [
     user: 'Crea una nota con los pendientes de la semana',
     assistant:
       'Creé la nota "Pendientes de la semana" con tres tareas: enviar el contrato Q3, preparar la presentación de resultados y confirmar la llamada con Mariana.',
+  },
+  {
+    user: 'Necesito un diseñador gráfico para mi logo',
+    assistant:
+      'Encontré 3 opciones para ti en la red empresarial:',
+    showCatalog: true,
   },
 ];

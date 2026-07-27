@@ -7,13 +7,15 @@ import {
   TextInput,
   Image,
   Dimensions,
-  SafeAreaView,
   Platform,
   TouchableWithoutFeedback,
 } from 'react-native';
+import ScreenSafeArea from '../../../src/components/layout/ScreenSafeArea';
 import { useModuleNav, useScreenParams } from '../../../src/components/embedded/EmbeddedNavContext';
 import { colors } from '@beeapp/design-system';
 import { X, Send, Eye, Trash2 } from 'lucide-react-native';
+import VerifiedBadge from '../../../src/components/VerifiedBadge';
+import { MOCK_STORIES } from '../../../src/mocks/chats';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -106,6 +108,8 @@ export default function StoryViewerScreen() {
   const isSelf = params.isSelf === 'true' || storyId === 'tu';
 
   const storyData = STORIERS_DATA[storyId] || STORIERS_DATA['1'];
+  // Verified author: read-only flag from the stories mock
+  const isVerified = !!MOCK_STORIES.find((st) => st.id === storyId)?.verified;
   const storyItems = storyData.items;
 
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -186,7 +190,7 @@ export default function StoryViewerScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <ScreenSafeArea style={styles.container}>
       {/* Background status display */}
       <TouchableWithoutFeedback
         onPress={handleTap}
@@ -230,7 +234,10 @@ export default function StoryViewerScreen() {
               <Text style={styles.avatarText}>{storyData.avatarInitials}</Text>
             </View>
             <View style={styles.nameTimeCol}>
-              <Text style={styles.userName}>{storyData.name}</Text>
+              <View style={styles.userNameRow}>
+                <Text style={styles.userName}>{storyData.name}</Text>
+                {isVerified && <VerifiedBadge size={14} />}
+              </View>
               <Text style={styles.timeLabel}>{currentItem.time}</Text>
             </View>
           </View>
@@ -276,7 +283,7 @@ export default function StoryViewerScreen() {
           </View>
         )}
       </View>
-    </SafeAreaView>
+    </ScreenSafeArea>
   );
 }
 
@@ -368,7 +375,13 @@ const styles = StyleSheet.create({
   nameTimeCol: {
     justifyContent: 'center',
   },
+  userNameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
   userName: {
+    flexShrink: 1,
     fontSize: 14,
     fontWeight: '700',
     color: colors.neutral.white,
