@@ -75,7 +75,7 @@ No vendemos ni alquilamos datos personales a terceros. Los datos de procesamient
             ...tabButtonStyle,
             borderBottomColor: activeTab === 'planes' ? '#6025d2' : 'transparent',
             color: activeTab === 'planes' ? '#6025d2' : '#6C757D',
-            fontWeight: activeTab === 'planes' ? '700' : '500',
+            fontWeight: activeTab === 'planes' ? '600' : '400',
           }}
         >
           <Sliders size={16} />
@@ -87,7 +87,7 @@ No vendemos ni alquilamos datos personales a terceros. Los datos de procesamient
             ...tabButtonStyle,
             borderBottomColor: activeTab === 'terminos' ? '#6025d2' : 'transparent',
             color: activeTab === 'terminos' ? '#6025d2' : '#6C757D',
-            fontWeight: activeTab === 'terminos' ? '700' : '500',
+            fontWeight: activeTab === 'terminos' ? '600' : '400',
           }}
         >
           <FileText size={16} />
@@ -99,7 +99,7 @@ No vendemos ni alquilamos datos personales a terceros. Los datos de procesamient
             ...tabButtonStyle,
             borderBottomColor: activeTab === 'privacidad' ? '#6025d2' : 'transparent',
             color: activeTab === 'privacidad' ? '#6025d2' : '#6C757D',
-            fontWeight: activeTab === 'privacidad' ? '700' : '500',
+            fontWeight: activeTab === 'privacidad' ? '600' : '400',
           }}
         >
           <ShieldAlert size={16} />
@@ -111,7 +111,7 @@ No vendemos ni alquilamos datos personales a terceros. Los datos de procesamient
             ...tabButtonStyle,
             borderBottomColor: activeTab === 'soporte' ? '#6025d2' : 'transparent',
             color: activeTab === 'soporte' ? '#6025d2' : '#6C757D',
-            fontWeight: activeTab === 'soporte' ? '700' : '500',
+            fontWeight: activeTab === 'soporte' ? '600' : '400',
           }}
         >
           <HelpCircle size={16} />
@@ -254,7 +254,7 @@ No vendemos ni alquilamos datos personales a terceros. Los datos de procesamient
                           backgroundColor: isSelected ? '#F3EDFC' : '#FFFFFF',
                           color: isSelected ? '#6025d2' : '#495057',
                           fontSize: '13px',
-                          fontWeight: '600',
+                          fontWeight: '400',
                           cursor: 'pointer',
                           transition: 'all 0.2s',
                           outline: 'none',
@@ -325,7 +325,7 @@ const toastStyle: React.CSSProperties = {
   borderRadius: '8px',
   padding: '10px 16px',
   fontSize: '13px',
-  fontWeight: '600',
+  fontWeight: '400',
   alignSelf: 'flex-start',
   animation: 'fadeIn 0.3s ease-out',
 };

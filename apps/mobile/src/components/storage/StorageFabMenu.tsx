@@ -24,22 +24,22 @@ export default function StorageFabMenu({ embedded, menuVisible, onToggleMenu, on
           <TouchableOpacity style={styles.fabBackdrop} activeOpacity={1} onPress={onCloseMenu}>
             <View style={[styles.fabMenuContainer, embedded ? styles.fabMenuTop : { bottom: FAB_BOTTOM_OFFSET + 65 }]}>
               <TouchableOpacity style={styles.fabMenuRow} onPress={onCreateFolder} activeOpacity={0.8}>
-                <FolderPlus size={16} color="#7C3AED" />
+                <FolderPlus size={16} color={colors.brand.primary} />
                 <Text style={styles.fabMenuText}>Crear carpeta</Text>
               </TouchableOpacity>
 
               <TouchableOpacity style={styles.fabMenuRow} onPress={() => onUpload('pdf')} activeOpacity={0.8}>
-                <FilePlus size={16} color="#7C3AED" />
+                <FilePlus size={16} color={colors.brand.primary} />
                 <Text style={styles.fabMenuText}>Subir archivo (Documento)</Text>
               </TouchableOpacity>
 
               <TouchableOpacity style={styles.fabMenuRow} onPress={() => onUpload('image')} activeOpacity={0.8}>
-                <ImageIcon size={16} color="#7C3AED" />
+                <ImageIcon size={16} color={colors.brand.primary} />
                 <Text style={styles.fabMenuText}>Subir foto</Text>
               </TouchableOpacity>
 
               <TouchableOpacity style={styles.fabMenuRow} onPress={() => onUpload('video')} activeOpacity={0.8}>
-                <VideoIcon size={16} color="#7C3AED" />
+                <VideoIcon size={16} color={colors.brand.primary} />
                 <Text style={styles.fabMenuText}>Subir video</Text>
               </TouchableOpacity>
 
@@ -48,7 +48,7 @@ export default function StorageFabMenu({ embedded, menuVisible, onToggleMenu, on
                 onPress={() => onUpload('pdf', 'Doc_Escaneado_Firma.pdf')}
                 activeOpacity={0.8}
               >
-                <FileText size={16} color="#7C3AED" />
+                <FileText size={16} color={colors.brand.primary} />
                 <Text style={styles.fabMenuText}>Escanear documento</Text>
               </TouchableOpacity>
             </View>
@@ -117,7 +117,7 @@ const styles = StyleSheet.create({
   },
   fabMenuText: {
     fontSize: 12,
-    fontWeight: '700',
+    fontWeight: '400',
     color: colors.neutral.text,
   },
 });

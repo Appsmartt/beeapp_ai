@@ -73,36 +73,36 @@ export default function WriteBar({ onSendMessage, onSendVoiceNote, onSendAttachm
       {attachOpen && (
         <View style={styles.attachPanel}>
           <TouchableOpacity style={styles.attachPanelItem} onPress={() => handleAttachItemClick('photo')}>
-            <View style={[styles.attachIconWrap, { backgroundColor: '#EBF5FF' }]}>
-              <Image size={18} color="#1E88E5" />
+            <View style={[styles.attachIconWrap, { backgroundColor: colors.neutral.gray100 }]}>
+              <Image size={18} color={colors.neutral.gray600} />
             </View>
             <Text style={styles.attachText}>Fotos</Text>
           </TouchableOpacity>
 
           <TouchableOpacity style={styles.attachPanelItem} onPress={() => handleAttachItemClick('camera')}>
-            <View style={[styles.attachIconWrap, { backgroundColor: '#FEE2E2' }]}>
-              <Camera size={18} color="#DC2626" />
+            <View style={[styles.attachIconWrap, { backgroundColor: colors.neutral.gray100 }]}>
+              <Camera size={18} color={colors.neutral.gray600} />
             </View>
             <Text style={styles.attachText}>Cámara</Text>
           </TouchableOpacity>
 
           <TouchableOpacity style={styles.attachPanelItem} onPress={() => handleAttachItemClick('file')}>
-            <View style={[styles.attachIconWrap, { backgroundColor: '#FEF3C7' }]}>
-              <File size={18} color="#D97706" />
+            <View style={[styles.attachIconWrap, { backgroundColor: colors.neutral.gray100 }]}>
+              <File size={18} color={colors.neutral.gray600} />
             </View>
             <Text style={styles.attachText}>Archivo</Text>
           </TouchableOpacity>
 
           <TouchableOpacity style={styles.attachPanelItem} onPress={() => handleAttachItemClick('location')}>
-            <View style={[styles.attachIconWrap, { backgroundColor: '#ECFDF5' }]}>
-              <MapPin size={18} color="#059669" />
+            <View style={[styles.attachIconWrap, { backgroundColor: colors.neutral.gray100 }]}>
+              <MapPin size={18} color={colors.neutral.gray600} />
             </View>
             <Text style={styles.attachText}>Ubicación</Text>
           </TouchableOpacity>
 
           <TouchableOpacity style={styles.attachPanelItem} onPress={() => handleAttachItemClick('contact')}>
-            <View style={[styles.attachIconWrap, { backgroundColor: '#F3E8FF' }]}>
-              <User size={18} color="#7C3AED" />
+            <View style={[styles.attachIconWrap, { backgroundColor: colors.neutral.gray100 }]}>
+              <User size={18} color={colors.neutral.gray600} />
             </View>
             <Text style={styles.attachText}>Contacto</Text>
           </TouchableOpacity>
@@ -203,7 +203,7 @@ const styles = StyleSheet.create({
   },
   attachText: {
     fontSize: 11,
-    fontWeight: '700',
+    fontWeight: '400',
     color: colors.neutral.gray700,
   },
   barContainer: {
@@ -276,7 +276,7 @@ const styles = StyleSheet.create({
   },
   recordTimer: {
     fontSize: 13,
-    fontWeight: '600',
+    fontWeight: '400',
     color: colors.neutral.text,
   },
   cancelBtn: {
@@ -286,7 +286,7 @@ const styles = StyleSheet.create({
   cancelBtnText: {
     fontSize: 13,
     color: colors.semantic.error,
-    fontWeight: '700',
+    fontWeight: '400',
   },
   stopRecordBtn: {
     width: 36,

@@ -30,7 +30,7 @@ export default function MyServicesFilterChips({ activeFilter, onChange }: MyServ
               onPress={() => onChange(filter.id)}
               activeOpacity={0.7}
             >
-              <Icon size={13} color={isActive ? colors.neutral.white : colors.neutral.gray600} />
+              <Icon size={13} color={isActive ? colors.brand.primary : colors.neutral.gray600} />
               <Text style={[styles.chipText, isActive && styles.chipTextActive]}>{filter.label}</Text>
             </TouchableOpacity>
           );
@@ -58,18 +58,21 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 8,
     borderRadius: radii.lg,
-    backgroundColor: colors.neutral.gray100,
+    backgroundColor: colors.neutral.gray50,
+    borderWidth: 1,
+    borderColor: colors.neutral.gray200,
   },
   chipActive: {
-    backgroundColor: colors.brand.primary,
+    backgroundColor: colors.brand.primary + '15',
+    borderColor: colors.brand.primary,
   },
   chipText: {
     fontSize: parseInt(typography.fontSize.caption, 10),
-    fontWeight: '600',
-    color: colors.neutral.text,
+    fontWeight: '400',
+    color: colors.neutral.gray700,
   },
   chipTextActive: {
-    color: colors.neutral.white,
-    fontWeight: '700',
+    color: colors.brand.primary,
+    fontWeight: '600',
   },
 });

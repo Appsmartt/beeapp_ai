@@ -114,7 +114,7 @@ function VerifyForm() {
               background: 'none',
               border: 'none',
               fontSize: '13px',
-              fontWeight: '700',
+              fontWeight: '400',
               color: isResendDisabled ? '#ADB5BD' : '#6025d2',
               cursor: isResendDisabled ? 'default' : 'pointer',
             }}
@@ -169,7 +169,7 @@ const cardStyle: React.CSSProperties = {
 
 const titleStyle: React.CSSProperties = {
   fontSize: '24px',
-  fontWeight: '700',
+  fontWeight: '600',
   color: '#1A1A2E',
   textAlign: 'center',
   marginBottom: '8px',
@@ -195,7 +195,7 @@ const codeBoxStyle: React.CSSProperties = {
   borderRadius: '12px',
   border: '1.5px solid #E9ECEF',
   fontSize: '22px',
-  fontWeight: '700',
+  fontWeight: '400',
   color: '#1A1A2E',
   textAlign: 'center',
   outline: 'none',
@@ -222,7 +222,7 @@ const buttonStyle: React.CSSProperties = {
   borderRadius: '12px',
   padding: '16px',
   fontSize: '16px',
-  fontWeight: '700',
+  fontWeight: '600',
   cursor: 'pointer',
   boxShadow: '0 6px 16px rgba(96, 37, 210, 0.25)',
 };

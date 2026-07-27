@@ -47,8 +47,8 @@ export default function CustomizeModuleRow({
         <GripVertical size={20} color={colors.neutral.gray400} />
       </TouchableOpacity>
 
-      <View style={[styles.iconWrap, { backgroundColor: item.bgColor }]}>
-        <Icon size={20} color={item.iconColor} />
+      <View style={[styles.iconWrap, { backgroundColor: isSelected ? colors.brand.primary + '15' : colors.neutral.gray100 }]}>
+        <Icon size={20} color={isSelected ? colors.brand.primary : colors.neutral.gray600} />
       </View>
 
       <View style={styles.texts}>
@@ -73,12 +73,12 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     borderRadius: radii.xl,
     borderWidth: 1,
-    borderColor: colors.neutral.gray200,
-    backgroundColor: colors.neutral.white,
+    borderColor: colors.neutral.gray100,
+    backgroundColor: colors.neutral.gray50,
   },
   rowSelected: {
-    borderColor: colors.brand.primary,
-    backgroundColor: '#FBFBFF',
+    borderColor: colors.brand.primary + '30',
+    backgroundColor: colors.neutral.white,
   },
   // Lifted while dragging
   rowActive: {
@@ -106,7 +106,7 @@ const styles = StyleSheet.create({
   },
   name: {
     fontSize: 14,
-    fontWeight: '700',
+    fontWeight: '400',
     color: colors.neutral.text,
     marginBottom: 2,
   },

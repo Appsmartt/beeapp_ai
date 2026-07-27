@@ -293,7 +293,7 @@ const styles = StyleSheet.create({
   },
   headerTitle: {
     fontSize: 16,
-    fontWeight: '800',
+    fontWeight: '600',
     color: colors.neutral.text,
   },
   saveHeaderBtn: {
@@ -308,7 +308,7 @@ const styles = StyleSheet.create({
   },
   titleInput: {
     fontSize: 20,
-    fontWeight: '800',
+    fontWeight: '600',
     color: colors.neutral.text,
     paddingVertical: 10,
     borderBottomWidth: 1,
@@ -351,18 +351,18 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
   },
   favToggleBtnActive: {
-    backgroundColor: '#FEF3C7',
-    borderColor: '#FDE68A',
+    backgroundColor: colors.brand.primary + '15',
+    borderColor: colors.brand.primary,
   },
   favToggleText: {
     fontSize: 11,
-    fontWeight: '600',
+    fontWeight: '400',
     color: colors.neutral.gray700,
     marginLeft: 6,
   },
   favToggleTextActive: {
-    color: '#D97706',
-    fontWeight: 'bold',
+    color: colors.brand.primary,
+    fontWeight: '600',
   },
   reminderRow: {
     marginBottom: 20,
@@ -380,17 +380,17 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-start',
   },
   reminderBtnActive: {
-    backgroundColor: '#FEF3C7',
-    borderColor: '#FDE68A',
+    backgroundColor: colors.brand.primary + '15',
+    borderColor: colors.brand.primary,
   },
   reminderBtnText: {
     fontSize: 11,
-    fontWeight: '600',
+    fontWeight: '400',
     color: colors.neutral.gray700,
   },
   reminderBtnTextActive: {
-    color: '#D97706',
-    fontWeight: 'bold',
+    color: colors.brand.primary,
+    fontWeight: '600',
   },
   reminderFieldBox: {
     flexDirection: 'row',
@@ -406,7 +406,7 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 12,
     color: colors.neutral.text,
-    fontWeight: '600',
+    fontWeight: '400',
     paddingVertical: 2,
   },
   protectRow: {
@@ -423,7 +423,7 @@ const styles = StyleSheet.create({
   },
   protectRowActive: {
     borderColor: colors.brand.primary,
-    backgroundColor: '#FBFBFF',
+    backgroundColor: colors.brand.primary + '05',
   },
   protectIconWrap: {
     width: 32,
@@ -438,7 +438,7 @@ const styles = StyleSheet.create({
   },
   protectTitle: {
     fontSize: 13,
-    fontWeight: '700',
+    fontWeight: '600',
     color: colors.neutral.text,
   },
   protectTitleActive: {
@@ -446,14 +446,14 @@ const styles = StyleSheet.create({
   },
   protectDesc: {
     fontSize: 10,
-    fontWeight: '500',
+    fontWeight: '400',
     color: colors.neutral.gray600,
     marginTop: 2,
     lineHeight: 14,
   },
   protectAction: {
     fontSize: 11,
-    fontWeight: '800',
+    fontWeight: '400',
     color: colors.neutral.gray600,
     textTransform: 'uppercase',
   },
@@ -469,7 +469,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: colors.neutral.text,
     lineHeight: 22,
-    fontWeight: '500',
+    fontWeight: '400',
     minHeight: 280,
     textAlignVertical: 'top',
   },

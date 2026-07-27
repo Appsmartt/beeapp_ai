@@ -114,7 +114,7 @@ const styles = StyleSheet.create({
   },
   headerTitle: {
     fontSize: 18,
-    fontWeight: '800',
+    fontWeight: '600',
     color: colors.neutral.text,
   },
   headerActions: {
@@ -132,7 +132,7 @@ const styles = StyleSheet.create({
   },
   todayBtnText: {
     fontSize: 11,
-    fontWeight: '700',
+    fontWeight: '400',
     color: colors.brand.primary,
   },
   viewSegment: {
@@ -158,12 +158,12 @@ const styles = StyleSheet.create({
   },
   segmentText: {
     fontSize: 10,
-    fontWeight: '600',
+    fontWeight: '400',
     color: colors.neutral.gray600,
   },
   segmentTextActive: {
     color: colors.brand.primary,
-    fontWeight: '700',
+    fontWeight: '600',
   },
   headerActionBtn: {
     width: 30,
@@ -189,16 +189,16 @@ const styles = StyleSheet.create({
     borderColor: colors.neutral.gray200,
   },
   filterChipActive: {
-    backgroundColor: '#F3E8FF',
+    backgroundColor: colors.brand.primary + '15',
     borderColor: colors.brand.primary,
   },
   filterChipText: {
     fontSize: 12,
-    fontWeight: '600',
+    fontWeight: '400',
     color: colors.neutral.gray700,
   },
   filterChipTextActive: {
     color: colors.brand.primary,
-    fontWeight: '700',
+    fontWeight: '600',
   },
 });

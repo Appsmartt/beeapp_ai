@@ -21,7 +21,7 @@ const soft = (color: string) => `${color}1A`;
 export default function MyServiceItem({ item, onPress }: MyServiceItemProps) {
   const isProduct = item.type === 'product';
   const Icon = isProduct ? Package : Wrench;
-  const accent = isProduct ? colors.brand.primary : colors.semantic.info;
+  const accent = colors.brand.primary;
 
   const categoryName = BEE_CATEGORIES.find((c) => c.id === item.category)?.name ?? 'General';
   const priceLabel = isProduct && item.price !== null ? formatPrice(item.price) : 'Cotización';
@@ -77,12 +77,12 @@ const styles = StyleSheet.create({
   },
   name: {
     fontSize: FONT.body,
-    fontWeight: '700',
+    fontWeight: '600',
     color: colors.neutral.text,
   },
   subtitle: {
     fontSize: FONT.caption,
-    fontWeight: '500',
+    fontWeight: '400',
     color: colors.neutral.gray600,
     marginTop: 2,
   },
@@ -93,6 +93,6 @@ const styles = StyleSheet.create({
   },
   statusText: {
     fontSize: FONT.caption - 1,
-    fontWeight: '700',
+    fontWeight: '400',
   },
 });

@@ -54,7 +54,7 @@ export default function AdminLoginPage() {
                   style={badgeStyle}
                 >
                   <span style={{ marginRight: '6px', fontSize: '16px' }}>{selectedCountry.flag}</span>
-                  <span style={{ fontWeight: '700', fontSize: '15px', color: '#1A1A2E' }}>{selectedCountry.dialCode}</span>
+                  <span style={{ fontWeight: '400', fontSize: '15px', color: '#1A1A2E' }}>{selectedCountry.dialCode}</span>
                 </button>
 
                 {dropdownOpen && (
@@ -84,8 +84,8 @@ export default function AdminLoginPage() {
                             onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
                           >
                             <span style={{ marginRight: '10px', fontSize: '18px' }}>{c.flag}</span>
-                            <span style={{ flex: 1, textAlign: 'left', fontWeight: '500', color: '#1A1A2E', fontSize: '13px' }}>{c.name}</span>
-                            <span style={{ fontWeight: '700', color: '#6025d2', fontSize: '13px' }}>{c.dialCode}</span>
+                            <span style={{ flex: 1, textAlign: 'left', fontWeight: '400', color: '#1A1A2E', fontSize: '13px' }}>{c.name}</span>
+                            <span style={{ fontWeight: '400', color: '#6025d2', fontSize: '13px' }}>{c.dialCode}</span>
                           </button>
                         ))}
                         {filteredCountries.length === 0 && (
@@ -165,7 +165,7 @@ const cardStyle: React.CSSProperties = {
 
 const titleStyle: React.CSSProperties = {
   fontSize: '24px',
-  fontWeight: '800',
+  fontWeight: '600',
   color: '#1A1A2E',
   textAlign: 'center',
   marginBottom: '8px',
@@ -257,7 +257,7 @@ const inputStyle: React.CSSProperties = {
   border: 'none',
   outline: 'none',
   fontSize: '18px',
-  fontWeight: '600',
+  fontWeight: '400',
   color: '#1A1A2E',
   letterSpacing: '1px',
   backgroundColor: 'transparent',
@@ -277,7 +277,7 @@ const buttonStyle: React.CSSProperties = {
   borderRadius: '12px',
   padding: '16px',
   fontSize: '16px',
-  fontWeight: '700',
+  fontWeight: '600',
   cursor: 'pointer',
   boxShadow: '0 6px 16px rgba(96, 37, 210, 0.25)',
   transition: 'all 0.2s ease',
@@ -290,7 +290,7 @@ const footerStyle: React.CSSProperties = {
 
 const linkStyle: React.CSSProperties = {
   fontSize: '12px',
-  fontWeight: '600',
+  fontWeight: '400',
   color: '#6025d2',
   textDecoration: 'none',
 };

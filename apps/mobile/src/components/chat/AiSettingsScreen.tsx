@@ -141,7 +141,7 @@ const styles = StyleSheet.create({
   headerTitle: {
     flex: 1,
     fontSize: 15,
-    fontWeight: '800',
+    fontWeight: '600',
     color: colors.neutral.text,
     textAlign: 'center',
   },
@@ -164,12 +164,12 @@ const styles = StyleSheet.create({
   },
   heroName: {
     fontSize: 17,
-    fontWeight: '800',
+    fontWeight: '600',
     color: colors.neutral.text,
   },
   heroDesc: {
     fontSize: 12,
-    fontWeight: '500',
+    fontWeight: '400',
     color: colors.neutral.gray600,
     textAlign: 'center',
     marginTop: 4,
@@ -177,7 +177,7 @@ const styles = StyleSheet.create({
   },
   label: {
     fontSize: 11,
-    fontWeight: '800',
+    fontWeight: '400',
     color: colors.neutral.gray600,
     textTransform: 'uppercase',
     letterSpacing: 0.4,
@@ -192,7 +192,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 12,
     fontSize: 14,
-    fontWeight: '600',
+    fontWeight: '400',
     color: colors.neutral.text,
   },
   toneCard: {
@@ -208,7 +208,7 @@ const styles = StyleSheet.create({
   },
   toneCardActive: {
     borderColor: colors.brand.primary,
-    backgroundColor: '#FBFBFF',
+    backgroundColor: colors.brand.primary + '08',
   },
   toneIcon: {
     width: 36,
@@ -219,22 +219,23 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   toneIconActive: {
-    backgroundColor: '#F3E8FF',
+    backgroundColor: colors.brand.primary + '15',
   },
   toneTexts: {
     flex: 1,
   },
   toneTitle: {
     fontSize: 13.5,
-    fontWeight: '700',
+    fontWeight: '400',
     color: colors.neutral.text,
   },
   toneTitleActive: {
     color: colors.brand.primary,
+    fontWeight: '600',
   },
   toneDesc: {
     fontSize: 11.5,
-    fontWeight: '500',
+    fontWeight: '400',
     color: colors.neutral.gray600,
     marginTop: 2,
   },
@@ -252,17 +253,17 @@ const styles = StyleSheet.create({
     borderColor: colors.neutral.gray200,
   },
   chipActive: {
-    backgroundColor: '#F3E8FF',
+    backgroundColor: colors.brand.primary + '15',
     borderColor: colors.brand.primary,
   },
   chipText: {
     fontSize: 12.5,
-    fontWeight: '600',
+    fontWeight: '400',
     color: colors.neutral.gray700,
   },
   chipTextActive: {
     color: colors.brand.primary,
-    fontWeight: '800',
+    fontWeight: '600',
   },
   saveBtn: {
     backgroundColor: colors.brand.primary,
@@ -274,6 +275,6 @@ const styles = StyleSheet.create({
   saveBtnText: {
     color: colors.neutral.white,
     fontSize: 14,
-    fontWeight: '800',
+    fontWeight: '600',
   },
 });

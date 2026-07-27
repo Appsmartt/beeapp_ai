@@ -25,14 +25,14 @@ export const KIND_ICONS: Record<TickerKind, typeof Mail> = {
 };
 
 export const KIND_COLORS: Record<TickerKind, string> = {
-  mail: '#1E88E5',
-  event: colors.brand.primary,
-  storage: '#D97706',
-  note: '#D97706',
-  doc: '#2E7D32',
-  message: '#2E7D32',
-  call: '#D03B3B',
-  group: colors.brand.primary,
+  mail: colors.neutral.gray600,
+  event: colors.neutral.gray600,
+  storage: colors.neutral.gray600,
+  note: colors.neutral.gray600,
+  doc: colors.neutral.gray600,
+  message: colors.neutral.gray600,
+  call: colors.neutral.gray600,
+  group: colors.neutral.gray600,
 };
 
 interface NotificationTickerProps {
@@ -91,5 +91,5 @@ export default function NotificationTicker({
 const styles = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center', marginTop: 2, maxWidth: '100%' },
   icon: { marginRight: 4 },
-  text: { flex: 1, fontSize: 9, fontWeight: '600', color: colors.neutral.gray600 },
+  text: { flex: 1, fontSize: 9, fontWeight: '400', color: colors.neutral.gray600 },
 });

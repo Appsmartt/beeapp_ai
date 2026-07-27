@@ -85,14 +85,14 @@ const backButtonStyle: React.CSSProperties = {
   border: 'none',
   color: '#6025d2',
   fontSize: '15px',
-  fontWeight: '600',
+  fontWeight: '400',
   cursor: 'pointer',
   marginRight: '20px',
 };
 
 const titleStyle: React.CSSProperties = {
   fontSize: '22px',
-  fontWeight: '700',
+  fontWeight: '600',
   color: '#1A1A2E',
   margin: 0,
 };
@@ -116,13 +116,13 @@ const paragraphStyle: React.CSSProperties = {
 
 const sectionTitleStyle: React.CSSProperties = {
   fontSize: '17px',
-  fontWeight: '700',
+  fontWeight: '600',
   color: '#1A1A2E',
   marginTop: '24px',
   marginBottom: '12px',
 };
 
 const boldStyle: React.CSSProperties = {
-  fontWeight: '700',
+  fontWeight: '600',
   color: '#1A1A2E',
 };

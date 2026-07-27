@@ -173,7 +173,7 @@ const styles = StyleSheet.create({
   },
   toggleBtnText: {
     fontSize: 13,
-    fontWeight: '600',
+    fontWeight: '400',
     color: colors.neutral.gray600,
   },
   toggleBtnTextActive: {
@@ -201,12 +201,12 @@ const styles = StyleSheet.create({
   },
   logoText: {
     fontSize: 16,
-    fontWeight: '700',
+    fontWeight: '400',
     color: colors.neutral.white,
   },
   logoPlaceholderText: {
     fontSize: 8,
-    fontWeight: '700',
+    fontWeight: '400',
     color: colors.neutral.gray600,
     textTransform: 'uppercase',
   },
@@ -231,12 +231,12 @@ const styles = StyleSheet.create({
   },
   selectorCardText: {
     fontSize: 12,
-    fontWeight: '600',
+    fontWeight: '400',
     color: colors.neutral.gray600,
   },
   selectorCardTextActive: {
     color: colors.brand.primary,
-    fontWeight: '700',
+    fontWeight: '600',
   },
   selectorIconTextRow: {
     flexDirection: 'row',

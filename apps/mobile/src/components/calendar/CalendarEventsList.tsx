@@ -34,13 +34,13 @@ export default function CalendarEventsList({ events, onEventPress, onEventLongPr
               <View style={styles.cardMetaRow}>
                 {item.isVirtual ? (
                   <View style={styles.metaBadge}>
-                    <Video size={10} color="#7C3AED" style={{ marginRight: 3 }} />
-                    <Text style={[styles.metaBadgeText, { color: '#7C3AED' }]}>Videollamada</Text>
+                    <Video size={10} color={colors.brand.primary} style={{ marginRight: 3 }} />
+                    <Text style={[styles.metaBadgeText, { color: colors.brand.primary }]}>Videollamada</Text>
                   </View>
                 ) : (
                   <View style={styles.metaBadge}>
-                    <MapPin size={10} color="#059669" style={{ marginRight: 3 }} />
-                    <Text style={[styles.metaBadgeText, { color: '#059669' }]}>
+                    <MapPin size={10} color={colors.neutral.gray600} style={{ marginRight: 3 }} />
+                    <Text style={[styles.metaBadgeText, { color: colors.neutral.gray600 }]}>
                       {item.location || 'Presencial'}
                     </Text>
                   </View>
@@ -109,13 +109,13 @@ const styles = StyleSheet.create({
   },
   cardTimeText: {
     fontSize: 13,
-    fontWeight: '800',
+    fontWeight: '400',
     color: colors.neutral.text,
   },
   cardDurationText: {
     fontSize: 10,
     color: colors.neutral.gray600,
-    fontWeight: '600',
+    fontWeight: '400',
     marginTop: 2,
   },
   cardBarIndicator: {
@@ -130,7 +130,7 @@ const styles = StyleSheet.create({
   },
   cardTitle: {
     fontSize: 13,
-    fontWeight: '700',
+    fontWeight: '600',
     color: colors.neutral.text,
     marginBottom: 4,
   },
@@ -151,7 +151,7 @@ const styles = StyleSheet.create({
   },
   metaBadgeText: {
     fontSize: 9,
-    fontWeight: '700',
+    fontWeight: '400',
   },
   avatarsRow: {
     flexDirection: 'row',
@@ -168,12 +168,12 @@ const styles = StyleSheet.create({
   },
   avatarText: {
     fontSize: 8,
-    fontWeight: '800',
+    fontWeight: '400',
     color: colors.neutral.text,
   },
   moreAvatars: {
     fontSize: 9,
-    fontWeight: '700',
+    fontWeight: '400',
     color: colors.neutral.gray600,
     marginLeft: 6,
   },
@@ -191,7 +191,7 @@ const styles = StyleSheet.create({
   },
   emptyText: {
     fontSize: 12,
-    fontWeight: '600',
+    fontWeight: '400',
     color: colors.neutral.gray500,
   },
 });

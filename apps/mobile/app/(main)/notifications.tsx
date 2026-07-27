@@ -158,27 +158,18 @@ export default function NotificationsScreen() {
     const size = 16;
     switch (type) {
       case 'message':
-        return <MessageSquare size={size} color="#7C3AED" />;
+        return <MessageSquare size={size} color={colors.neutral.gray600} />;
       case 'call':
-        return <Phone size={size} color="#1E88E5" />;
+        return <Phone size={size} color={colors.neutral.gray600} />;
       case 'reminder':
-        return <Calendar size={size} color="#D97706" />;
+        return <Calendar size={size} color={colors.neutral.gray600} />;
       default:
-        return <Info size={size} color="#059669" />;
+        return <Info size={size} color={colors.neutral.gray600} />;
     }
   };
 
   const renderIconBg = (type: NotificationItem['type']) => {
-    switch (type) {
-      case 'message':
-        return '#F3E8FF';
-      case 'call':
-        return '#EBF5FF';
-      case 'reminder':
-        return '#FEF3C7';
-      default:
-        return '#ECFDF5';
-    }
+    return colors.neutral.gray100;
   };
 
   const hasNotifications = filteredNotifications.length > 0;
@@ -280,12 +271,12 @@ export default function NotificationsScreen() {
                           {isSwipeActive && (
                             <View style={styles.actionsOverlay}>
                               <TouchableOpacity
-                                style={[styles.actionBtn, { backgroundColor: '#EEF2F6' }]}
+                                style={[styles.actionBtn, { backgroundColor: colors.neutral.gray100 }]}
                                 onPress={() => handleToggleRead(item.id)}
                                 activeOpacity={0.8}
                               >
                                 {item.isRead ? (
-                                  <Check size={16} color={colors.neutral.text} />
+                                  <Check size={16} color={colors.neutral.gray600} />
                                 ) : (
                                   <CheckCheck size={16} color={colors.brand.primary} />
                                 )}
@@ -293,7 +284,7 @@ export default function NotificationsScreen() {
                               </TouchableOpacity>
 
                               <TouchableOpacity
-                                style={[styles.actionBtn, { backgroundColor: '#FEE2E2' }]}
+                                style={[styles.actionBtn, { backgroundColor: colors.semantic.error + '15' }]}
                                 onPress={() => handleDelete(item.id)}
                                 activeOpacity={0.8}
                               >
@@ -359,12 +350,12 @@ const styles = StyleSheet.create({
   },
   headerTitle: {
     fontSize: 18,
-    fontWeight: '800',
+    fontWeight: '600',
     color: colors.neutral.text,
   },
   markReadAllBtn: {
     fontSize: 12,
-    fontWeight: '700',
+    fontWeight: '400',
     color: colors.brand.primary,
   },
   filtersContainer: {
@@ -386,24 +377,24 @@ const styles = StyleSheet.create({
     borderColor: colors.neutral.gray200,
   },
   filterChipActive: {
-    backgroundColor: '#F3E8FF',
+    backgroundColor: colors.brand.primary + '15',
     borderColor: colors.brand.primary,
   },
   filterChipText: {
     fontSize: 12,
-    fontWeight: '600',
+    fontWeight: '400',
     color: colors.neutral.gray700,
   },
   filterChipTextActive: {
     color: colors.brand.primary,
-    fontWeight: '700',
+    fontWeight: '600',
   },
   scrollList: {
     flex: 1,
   },
   dateGroupHeader: {
     fontSize: 11,
-    fontWeight: '700',
+    fontWeight: '600',
     color: colors.neutral.gray600,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
@@ -430,7 +421,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.neutral.white,
   },
   itemRowUnread: {
-    backgroundColor: '#FAF5FF', // Subtle purple brand highlight
+    backgroundColor: colors.brand.primary + '08', // Subtle purple brand highlight
   },
   iconWrap: {
     width: 38,
@@ -457,7 +448,7 @@ const styles = StyleSheet.create({
     marginRight: 8,
   },
   itemTitleUnread: {
-    fontWeight: '800',
+    fontWeight: '700',
     color: colors.brand.primary,
   },
   itemTime: {
@@ -493,7 +484,7 @@ const styles = StyleSheet.create({
   },
   actionBtnText: {
     fontSize: 9,
-    fontWeight: '700',
+    fontWeight: '400',
     color: colors.neutral.text,
     marginTop: 4,
     textTransform: 'uppercase',
@@ -518,7 +509,7 @@ const styles = StyleSheet.create({
   },
   emptyTitle: {
     fontSize: 18,
-    fontWeight: '800',
+    fontWeight: '600',
     color: colors.neutral.text,
     marginBottom: 8,
   },

@@ -124,7 +124,7 @@ export default function SecurityScreen() {
 
               <View style={styles.optionsCard}>
                 <TouchableOpacity style={styles.optionRow} onPress={() => goStage('create')} activeOpacity={0.7}>
-                  <View style={[styles.optionIconWrap, { backgroundColor: '#F3E8FF' }]}>
+                  <View style={[styles.optionIconWrap, { backgroundColor: colors.brand.primary + '15' }]}>
                     <KeyRound size={18} color={colors.brand.primary} />
                   </View>
                   <View style={{ flex: 1 }}>
@@ -139,8 +139,8 @@ export default function SecurityScreen() {
                     onPress={() => { setSelectedMethod(null); goStage('recover-select'); }}
                     activeOpacity={0.7}
                   >
-                    <View style={[styles.optionIconWrap, { backgroundColor: '#E0F2FE' }]}>
-                      <MessageSquare size={18} color="#0284C7" />
+                    <View style={[styles.optionIconWrap, { backgroundColor: colors.neutral.gray100 }]}>
+                      <MessageSquare size={18} color={colors.neutral.gray600} />
                     </View>
                     <View style={{ flex: 1 }}>
                       <Text style={styles.optionLabel}>¿Olvidaste tu PIN?</Text>
@@ -258,33 +258,33 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 12, backgroundColor: colors.neutral.white, borderBottomWidth: 1, borderColor: colors.neutral.gray100 },
   backBtn: { padding: 4 },
-  headerTitle: { fontSize: 18, fontWeight: '800', color: colors.neutral.text },
+  headerTitle: { fontSize: 18, fontWeight: '600', color: colors.neutral.text },
   scrollBody: { paddingVertical: 24, paddingBottom: 60 },
   scrollBodyWithBar: { paddingBottom: 120 },
-  linkText: { fontSize: 12, fontWeight: '700', color: colors.brand.primary, marginTop: 14, textAlign: 'center' },
+  linkText: { fontSize: 12, fontWeight: '400', color: colors.brand.primary, marginTop: 14, textAlign: 'center' },
   menuWrap: { paddingHorizontal: 20 },
   statusCard: { backgroundColor: colors.neutral.white, borderRadius: 20, borderWidth: 1, borderColor: colors.neutral.gray200, padding: 20, alignItems: 'center', marginBottom: 18 },
   statusIcon: { width: 48, height: 48, borderRadius: 24, alignItems: 'center', justifyContent: 'center', marginBottom: 12 },
-  statusIconOn: { backgroundColor: '#DCFCE7' },
+  statusIconOn: { backgroundColor: colors.semantic.success + '15' },
   statusIconOff: { backgroundColor: colors.neutral.gray100 },
-  statusTitle: { fontSize: 15, fontWeight: '800', color: colors.neutral.text, marginBottom: 6 },
-  statusDesc: { fontSize: 12, fontWeight: '500', color: colors.neutral.gray600, textAlign: 'center', lineHeight: 17 },
+  statusTitle: { fontSize: 15, fontWeight: '600', color: colors.neutral.text, marginBottom: 6 },
+  statusDesc: { fontSize: 12, fontWeight: '400', color: colors.neutral.gray600, textAlign: 'center', lineHeight: 17 },
   optionsCard: { backgroundColor: colors.neutral.white, borderRadius: 20, borderWidth: 1, borderColor: colors.neutral.gray200, overflow: 'hidden' },
   optionRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 14, paddingHorizontal: 14, borderBottomWidth: 1, borderBottomColor: colors.neutral.gray100 },
   optionIconWrap: { width: 32, height: 32, borderRadius: 10, alignItems: 'center', justifyContent: 'center', marginRight: 12 },
-  optionLabel: { fontSize: 14, fontWeight: '700', color: colors.neutral.text },
-  optionDesc: { fontSize: 11, fontWeight: '500', color: colors.neutral.gray600, marginTop: 2 },
+  optionLabel: { fontSize: 14, fontWeight: '600', color: colors.neutral.text },
+  optionDesc: { fontSize: 11, fontWeight: '400', color: colors.neutral.gray600, marginTop: 2 },
   infoRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 16, paddingHorizontal: 4 },
-  infoText: { flex: 1, fontSize: 11, fontWeight: '500', color: colors.neutral.gray600, lineHeight: 15 },
-  selectTitle: { fontSize: 18, fontWeight: '800', color: colors.neutral.text, marginBottom: 6, marginTop: 10 },
-  selectSubtitle: { fontSize: 13, fontWeight: '500', color: colors.neutral.gray600, marginBottom: 24, lineHeight: 18 },
+  infoText: { flex: 1, fontSize: 11, fontWeight: '400', color: colors.neutral.gray600, lineHeight: 15 },
+  selectTitle: { fontSize: 18, fontWeight: '600', color: colors.neutral.text, marginBottom: 6, marginTop: 10 },
+  selectSubtitle: { fontSize: 13, fontWeight: '400', color: colors.neutral.gray600, marginBottom: 24, lineHeight: 18 },
   methodRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.neutral.white, borderRadius: 16, borderWidth: 1.5, borderColor: colors.neutral.gray200, padding: 16, marginBottom: 12 },
-  methodRowActive: { borderColor: colors.brand.primary, backgroundColor: '#F5F3FF' },
+  methodRowActive: { borderColor: colors.brand.primary, backgroundColor: colors.brand.primary + '15' },
   methodIconWrap: { width: 40, height: 40, borderRadius: 12, backgroundColor: colors.neutral.gray100, alignItems: 'center', justifyContent: 'center', marginRight: 14 },
-  methodIconActive: { backgroundColor: '#EBE5FC' },
-  methodLabel: { fontSize: 14, fontWeight: '700', color: colors.neutral.text, marginBottom: 2 },
-  methodLabelActive: { color: colors.brand.primary },
-  methodDesc: { fontSize: 12, fontWeight: '500', color: colors.neutral.gray500 },
+  methodIconActive: { backgroundColor: colors.brand.primary + '15' },
+  methodLabel: { fontSize: 14, fontWeight: '400', color: colors.neutral.text, marginBottom: 2 },
+  methodLabelActive: { color: colors.brand.primary, fontWeight: '600' },
+  methodDesc: { fontSize: 12, fontWeight: '400', color: colors.neutral.gray500 },
   primaryButton: { backgroundColor: colors.brand.primary, borderRadius: 14, paddingVertical: 15, alignItems: 'center', marginTop: 20, shadowColor: colors.brand.primary, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.15, shadowRadius: 8, elevation: 3 },
-  primaryButtonText: { color: colors.neutral.white, fontSize: 14, fontWeight: '700' },
+  primaryButtonText: { color: colors.neutral.white, fontSize: 14, fontWeight: '600' },
 });

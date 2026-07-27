@@ -78,17 +78,17 @@ const styles = StyleSheet.create({
     borderColor: colors.neutral.gray200,
   },
   folderChipActive: {
-    backgroundColor: '#F3E8FF',
+    backgroundColor: colors.brand.primary + '15',
     borderColor: colors.brand.primary,
   },
   folderChipText: {
     fontSize: 12,
-    fontWeight: '600',
+    fontWeight: '400',
     color: colors.neutral.gray700,
   },
   folderChipTextActive: {
     color: colors.brand.primary,
-    fontWeight: '700',
+    fontWeight: '600',
   },
   unreadBadge: {
     backgroundColor: colors.neutral.gray400,
@@ -102,7 +102,7 @@ const styles = StyleSheet.create({
   },
   unreadBadgeText: {
     fontSize: 10,
-    fontWeight: '800',
+    fontWeight: '400',
     color: colors.neutral.gray700,
   },
   unreadBadgeTextActive: {

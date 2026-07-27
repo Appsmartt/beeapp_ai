@@ -29,7 +29,7 @@ export function MoveFolderModal({ visible, items, activeItem, currentFolderId, o
               style={[styles.moveFolderRow, currentFolderId === null && styles.moveFolderRowActive]}
               onPress={() => onMove(null)}
             >
-              <Folder size={18} color="#7C3AED" />
+              <Folder size={18} color={colors.brand.primary} />
               <Text style={styles.moveFolderText}>Inicio (Carpeta Raíz)</Text>
             </TouchableOpacity>
 
@@ -42,7 +42,7 @@ export function MoveFolderModal({ visible, items, activeItem, currentFolderId, o
                   style={[styles.moveFolderRow, currentFolderId === f.id && styles.moveFolderRowActive]}
                   onPress={() => onMove(f.id)}
                 >
-                  <Folder size={18} color="#7C3AED" />
+                  <Folder size={18} color={colors.brand.primary} />
                   <Text style={styles.moveFolderText}>{f.name}</Text>
                 </TouchableOpacity>
               ))}
@@ -118,7 +118,7 @@ const styles = StyleSheet.create({
   },
   dialogTitle: {
     fontSize: 16,
-    fontWeight: '800',
+    fontWeight: '600',
     color: colors.neutral.text,
     marginBottom: 16,
     textAlign: 'center',
@@ -132,7 +132,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: colors.neutral.text,
     marginBottom: 20,
-    fontWeight: '500',
+    fontWeight: '400',
   },
   dialogActions: {
     flexDirection: 'row',
@@ -148,7 +148,7 @@ const styles = StyleSheet.create({
   },
   dialogBtnCancelText: {
     fontSize: 14,
-    fontWeight: '700',
+    fontWeight: '400',
     color: colors.neutral.gray700,
   },
   dialogBtnConfirm: {
@@ -160,7 +160,7 @@ const styles = StyleSheet.create({
   },
   dialogBtnConfirmText: {
     fontSize: 14,
-    fontWeight: '700',
+    fontWeight: '600',
     color: colors.neutral.white,
   },
   moveSheet: {
@@ -172,7 +172,7 @@ const styles = StyleSheet.create({
   },
   moveTitle: {
     fontSize: 16,
-    fontWeight: '800',
+    fontWeight: '600',
     color: colors.neutral.text,
     marginBottom: 4,
   },
@@ -196,12 +196,12 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   moveFolderRowActive: {
-    backgroundColor: '#F3E8FF',
-    borderColor: '#E9D5FF',
+    backgroundColor: colors.brand.primary + '15',
+    borderColor: colors.brand.primary + '30',
   },
   moveFolderText: {
     fontSize: 13,
-    fontWeight: '600',
+    fontWeight: '400',
     color: colors.neutral.text,
   },
   moveActions: {
@@ -214,7 +214,7 @@ const styles = StyleSheet.create({
   },
   moveCancelText: {
     fontSize: 13,
-    fontWeight: '700',
+    fontWeight: '400',
     color: colors.neutral.gray700,
   },
 });

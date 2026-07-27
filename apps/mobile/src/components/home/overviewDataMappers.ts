@@ -80,9 +80,9 @@ const chatRows = (): OverviewRow[] =>
         // The assistant keeps its logo avatar here too
         initials: chat.isAI ? undefined : initialsOf(chat.name),
         icon: chat.isAI ? Bot : undefined,
-        iconColor: colors.neutral.white,
+        iconColor: chat.isAI ? colors.brand.primary : colors.neutral.gray600,
         key: chat.id,
-        avatarColor: chat.isAI ? colors.brand.primary : colors.neutral.gray100,
+        avatarColor: chat.isAI ? colors.brand.primary + '15' : colors.neutral.gray100,
         title: chat.name,
         subtitle: chatLocked ? 'Chat protegido' : chat.lastMessage,
         timestamp: chat.time,
@@ -110,8 +110,8 @@ const noteRows = (): OverviewRow[] =>
       entry: {
         key: note.id,
         icon: locked ? Lock : FileText,
-        iconColor: locked ? colors.neutral.gray600 : '#D97706',
-        avatarColor: locked ? colors.neutral.gray100 : '#FEF3C7',
+        iconColor: colors.neutral.gray600,
+        avatarColor: colors.neutral.gray100,
         title: locked ? 'Nota protegida' : note.title,
         subtitle: locked ? 'Desbloquea para ver el contenido' : note.preview,
         timestamp: note.date,
@@ -141,8 +141,8 @@ const fileRows = (): OverviewRow[] =>
       entry: {
         key: item.id,
         icon: FILE_ICONS[item.type],
-        iconColor: item.type === 'folder' ? '#059669' : colors.neutral.gray600,
-        avatarColor: item.type === 'folder' ? '#ECFDF5' : colors.neutral.gray100,
+        iconColor: colors.neutral.gray600,
+        avatarColor: colors.neutral.gray100,
         title: item.name,
         subtitle:
           item.type === 'folder'
@@ -167,8 +167,8 @@ const calendarRows = (): OverviewRow[] =>
       entry: {
         key: event.id,
         icon: event.isVirtual ? Video : Calendar,
-        iconColor: '#7C3AED',
-        avatarColor: '#F3E8FF',
+        iconColor: colors.neutral.gray600,
+        avatarColor: colors.neutral.gray100,
         title: event.title,
         subtitle: `${event.timeStart} - ${event.timeEnd} · ${event.isVirtual ? 'Virtual' : event.location ?? 'Presencial'}`,
         timestamp: eventDayLabel(event.date),

@@ -97,14 +97,14 @@ const styles = StyleSheet.create({
   },
   summaryTitle: {
     fontSize: 12,
-    fontWeight: '700',
+    fontWeight: '400',
     color: colors.neutral.text,
     marginBottom: 2,
   },
   summaryStats: {
     fontSize: 11,
     color: colors.neutral.gray600,
-    fontWeight: '600',
+    fontWeight: '400',
   },
   progressBarTrack: {
     height: 8,
@@ -121,7 +121,7 @@ const styles = StyleSheet.create({
   breakdownText: {
     fontSize: 10,
     color: colors.neutral.gray600,
-    fontWeight: '500',
+    fontWeight: '400',
   },
   filtersScroll: {
     marginVertical: 12,
@@ -139,17 +139,17 @@ const styles = StyleSheet.create({
     borderColor: colors.neutral.gray200,
   },
   filterChipActive: {
-    backgroundColor: '#F3E8FF',
+    backgroundColor: colors.brand.primary + '15',
     borderColor: colors.brand.primary,
   },
   filterChipText: {
     fontSize: 12,
-    fontWeight: '600',
+    fontWeight: '400',
     color: colors.neutral.gray700,
   },
   filterChipTextActive: {
     color: colors.brand.primary,
-    fontWeight: '700',
+    fontWeight: '600',
   },
   breadcrumbBar: {
     flexDirection: 'row',
@@ -167,15 +167,15 @@ const styles = StyleSheet.create({
   breadcrumbSeparator: {
     fontSize: 13,
     color: colors.neutral.gray400,
-    fontWeight: '500',
+    fontWeight: '400',
   },
   breadcrumbText: {
     fontSize: 13,
-    fontWeight: '600',
+    fontWeight: '400',
     color: colors.brand.primary,
   },
   breadcrumbTextActive: {
     color: colors.neutral.text,
-    fontWeight: '800',
+    fontWeight: '600',
   },
 });

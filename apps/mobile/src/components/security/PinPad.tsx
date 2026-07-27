@@ -138,26 +138,26 @@ const styles = StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: 24,
-    backgroundColor: '#F3E8FF',
+    backgroundColor: colors.brand.primary + '15',
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 12,
   },
   iconCircleError: {
-    backgroundColor: '#FEE2E2',
+    backgroundColor: colors.semantic.error + '15',
   },
   iconCircleSuccess: {
-    backgroundColor: '#DCFCE7',
+    backgroundColor: colors.semantic.success + '15',
   },
   title: {
     fontSize: 17,
-    fontWeight: '800',
+    fontWeight: '600',
     color: colors.neutral.text,
     textAlign: 'center',
   },
   subtitle: {
     fontSize: 12,
-    fontWeight: '500',
+    fontWeight: '400',
     color: colors.neutral.gray600,
     textAlign: 'center',
     marginTop: 6,
@@ -188,7 +188,7 @@ const styles = StyleSheet.create({
   },
   feedback: {
     fontSize: 12,
-    fontWeight: '600',
+    fontWeight: '400',
     color: colors.neutral.gray600,
     marginTop: 12,
     minHeight: 18,
@@ -196,11 +196,11 @@ const styles = StyleSheet.create({
   },
   feedbackError: {
     color: colors.semantic.error,
-    fontWeight: '700',
+    fontWeight: '400',
   },
   feedbackSuccess: {
     color: colors.semantic.success,
-    fontWeight: '700',
+    fontWeight: '400',
   },
   keypad: {
     flexDirection: 'row',
@@ -226,7 +226,7 @@ const styles = StyleSheet.create({
   },
   keyText: {
     fontSize: 22,
-    fontWeight: '700',
+    fontWeight: '400',
     color: colors.neutral.text,
   },
 });

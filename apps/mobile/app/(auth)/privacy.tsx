@@ -97,12 +97,12 @@ const styles = StyleSheet.create({
   },
   backButtonText: {
     fontSize: 14,
-    fontWeight: '600',
+    fontWeight: '400',
     color: colors.neutral.text,
   },
   headerTitle: {
     fontSize: 18,
-    fontWeight: '700',
+    fontWeight: '600',
     color: colors.neutral.text,
   },
   scrollView: {
@@ -113,7 +113,7 @@ const styles = StyleSheet.create({
   },
   mainTitle: {
     fontSize: 24,
-    fontWeight: '800',
+    fontWeight: '600',
     color: colors.neutral.text,
     marginBottom: 6,
   },
@@ -124,7 +124,7 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     fontSize: 16,
-    fontWeight: '700',
+    fontWeight: '600',
     color: colors.neutral.text,
     marginTop: 16,
     marginBottom: 8,

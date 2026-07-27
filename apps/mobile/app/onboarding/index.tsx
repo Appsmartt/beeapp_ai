@@ -231,12 +231,12 @@ const styles = StyleSheet.create({
   },
   backNavText: {
     fontSize: 12,
-    fontWeight: '600',
+    fontWeight: '400',
     color: colors.neutral.gray700,
   },
   progressText: {
     fontSize: 13,
-    fontWeight: '700',
+    fontWeight: '600',
     color: colors.brand.primary,
     marginBottom: 6,
   },
@@ -280,7 +280,7 @@ const styles = StyleSheet.create({
   primaryButtonText: {
     color: colors.neutral.white,
     fontSize: 16,
-    fontWeight: '700',
+    fontWeight: '600',
     letterSpacing: 0.5,
   },
 });

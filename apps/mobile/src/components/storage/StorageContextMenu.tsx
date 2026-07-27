@@ -89,7 +89,7 @@ export default function StorageContextMenu({
                   ) : (
                     <Lock size={18} color={colors.brand.primary} />
                   )}
-                  <Text style={[styles.menuRowText, { color: colors.brand.primary, fontWeight: '700' }]}>
+                  <Text style={[styles.menuRowText, { color: colors.brand.primary, fontWeight: '400' }]}>
                     {isProtected ? 'Quitar protección' : 'Proteger con PIN'}
                   </Text>
                 </TouchableOpacity>
@@ -102,8 +102,8 @@ export default function StorageContextMenu({
                       onSign(item);
                     }}
                   >
-                    <ShieldCheck size={18} color="#7C3AED" />
-                    <Text style={[styles.menuRowText, { color: '#7C3AED', fontWeight: 'bold' }]}>
+                    <ShieldCheck size={18} color={colors.brand.primary} />
+                    <Text style={[styles.menuRowText, { color: colors.brand.primary, fontWeight: '400' }]}>
                       Firmar documento
                     </Text>
                   </TouchableOpacity>
@@ -145,14 +145,14 @@ const styles = StyleSheet.create({
   },
   menuTitle: {
     fontSize: 15,
-    fontWeight: '800',
+    fontWeight: '600',
     color: colors.neutral.text,
   },
   menuSub: {
     fontSize: 12,
     color: colors.neutral.gray600,
     marginTop: 2,
-    fontWeight: '600',
+    fontWeight: '400',
   },
   menuRow: {
     flexDirection: 'row',
@@ -164,7 +164,7 @@ const styles = StyleSheet.create({
   },
   menuRowText: {
     fontSize: 14,
-    fontWeight: '600',
+    fontWeight: '400',
     color: colors.neutral.text,
   },
 });

@@ -87,12 +87,12 @@ export function CalendarFabMenu({ visible, onClose, onAction, embedded }: Calend
       <TouchableOpacity style={styles.fabBackdrop} activeOpacity={1} onPress={onClose}>
         <View style={[styles.fabMenuContainer, embedded ? styles.fabMenuTop : { bottom: FAB_BOTTOM_OFFSET + 65 }]}>
           <TouchableOpacity style={styles.fabMenuRow} onPress={() => onAction('meeting')}>
-            <Video size={16} color="#7C3AED" />
+            <Video size={16} color={colors.brand.primary} />
             <Text style={styles.fabMenuText}>Nueva reunión (con video)</Text>
           </TouchableOpacity>
 
           <TouchableOpacity style={[styles.fabMenuRow, { borderBottomWidth: 0 }]} onPress={() => onAction('event')}>
-            <CalendarIcon size={16} color="#7C3AED" />
+            <CalendarIcon size={16} color={colors.brand.primary} />
             <Text style={styles.fabMenuText}>Nuevo evento (presencial)</Text>
           </TouchableOpacity>
         </View>
@@ -121,14 +121,14 @@ const styles = StyleSheet.create({
   },
   menuTitle: {
     fontSize: 15,
-    fontWeight: '800',
+    fontWeight: '600',
     color: colors.neutral.text,
   },
   menuSub: {
     fontSize: 12,
     color: colors.neutral.gray600,
     marginTop: 2,
-    fontWeight: '600',
+    fontWeight: '400',
   },
   menuRow: {
     flexDirection: 'row',
@@ -140,7 +140,7 @@ const styles = StyleSheet.create({
   },
   menuRowText: {
     fontSize: 14,
-    fontWeight: '600',
+    fontWeight: '400',
     color: colors.neutral.text,
   },
   fabBackdrop: {
@@ -177,7 +177,7 @@ const styles = StyleSheet.create({
   },
   fabMenuText: {
     fontSize: 12,
-    fontWeight: '700',
+    fontWeight: '400',
     color: colors.neutral.text,
   },
 });

@@ -33,7 +33,7 @@ export default function OverviewSection({
   return (
     <View style={styles.section}>
       <View style={styles.header}>
-        <Icon size={15} color={color} />
+        <Icon size={15} color={colors.neutral.gray600} />
         <Text style={styles.title}>{title}</Text>
         <TouchableOpacity style={styles.moreBtn} onPress={onVerMasPress} activeOpacity={0.7}>
           <Text style={styles.moreText}>Ver más</Text>
@@ -70,7 +70,7 @@ const styles = StyleSheet.create({
   title: {
     flex: 1,
     fontSize: FONT.body - 1,
-    fontWeight: '800',
+    fontWeight: '700',
     color: colors.neutral.text,
   },
   moreBtn: {
@@ -82,12 +82,12 @@ const styles = StyleSheet.create({
   },
   moreText: {
     fontSize: FONT.caption,
-    fontWeight: '700',
+    fontWeight: '400',
     color: colors.brand.primary,
   },
   empty: {
     fontSize: FONT.caption,
-    fontWeight: '500',
+    fontWeight: '400',
     color: colors.neutral.gray500,
     paddingVertical: spacing.sm,
   },

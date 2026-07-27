@@ -120,7 +120,7 @@ export default function AdminProfilePage() {
             />
           </div>
           <div>
-            <h2 style={{ fontSize: '20px', fontWeight: '800', color: '#1A1A2E', margin: '0 0 4px 0' }}>
+            <h2 style={{ fontSize: '20px', fontWeight: '600', color: '#1A1A2E', margin: '0 0 4px 0' }}>
               {savedNombre}
             </h2>
             <span style={roleBadgeStyle}>
@@ -133,7 +133,7 @@ export default function AdminProfilePage() {
         {/* Informative Banner */}
         <div style={bannerStyle}>
           <AlertCircle size={18} style={{ flexShrink: 0, marginTop: '2px' }} />
-          <p style={{ margin: 0, fontSize: '13px', lineHeight: '1.5', fontWeight: '500' }}>
+          <p style={{ margin: 0, fontSize: '13px', lineHeight: '1.5', fontWeight: '400' }}>
             El número de teléfono está enlazado a las credenciales seguras de autenticación del administrador principal y no es modificable desde este módulo.
           </p>
         </div>
@@ -249,7 +249,7 @@ const avatarPlaceholderStyle: React.CSSProperties = {
   alignItems: 'center',
   justifyContent: 'center',
   fontSize: '28px',
-  fontWeight: '800',
+  fontWeight: '400',
   boxShadow: '0 4px 12px rgba(96, 37, 210, 0.15)',
 };
 
@@ -275,7 +275,7 @@ const roleBadgeStyle: React.CSSProperties = {
   backgroundColor: '#F3EDFC',
   color: '#6025d2',
   fontSize: '12px',
-  fontWeight: '700',
+  fontWeight: '400',
   padding: '4px 10px',
   borderRadius: '20px',
 };
@@ -300,7 +300,7 @@ const toastStyle: React.CSSProperties = {
   borderRadius: '8px',
   padding: '10px 16px',
   fontSize: '13px',
-  fontWeight: '600',
+  fontWeight: '400',
   alignSelf: 'flex-start',
 };
 
@@ -314,7 +314,7 @@ const discardButtonStyle: React.CSSProperties = {
   color: '#495057',
   padding: '10px 20px',
   fontSize: '14px',
-  fontWeight: '700',
+  fontWeight: '400',
   cursor: 'pointer',
   transition: 'all 0.2s',
 };

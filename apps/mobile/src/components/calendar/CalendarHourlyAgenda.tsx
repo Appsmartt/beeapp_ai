@@ -74,7 +74,7 @@ const styles = StyleSheet.create({
   hourLabel: {
     width: 45,
     fontSize: 10,
-    fontWeight: '700',
+    fontWeight: '400',
     color: colors.neutral.gray600,
   },
   hourLine: {
@@ -96,22 +96,22 @@ const styles = StyleSheet.create({
     borderLeftWidth: 3,
   },
   hourlyMeeting: {
-    backgroundColor: '#FAF5FF',
-    borderLeftColor: '#7C3AED',
+    backgroundColor: colors.brand.primary + '15',
+    borderLeftColor: colors.brand.primary,
   },
   hourlyEvent: {
-    backgroundColor: '#ECFDF5',
-    borderLeftColor: '#059669',
+    backgroundColor: colors.neutral.gray100,
+    borderLeftColor: colors.neutral.gray400,
   },
   hourlyEventTitle: {
     fontSize: 11,
-    fontWeight: '700',
+    fontWeight: '600',
     color: colors.neutral.text,
   },
   hourlyEventMeta: {
     fontSize: 9,
     color: colors.neutral.gray600,
-    fontWeight: '500',
+    fontWeight: '400',
     marginTop: 2,
   },
 });

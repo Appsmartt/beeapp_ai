@@ -146,9 +146,9 @@ const styles = StyleSheet.create({
   },
   selectionCounter: {
     fontSize: 13,
-    fontWeight: '700',
+    fontWeight: '400',
     color: colors.brand.primary,
-    backgroundColor: '#F3E8FF',
+    backgroundColor: colors.brand.primary + '15',
     paddingHorizontal: 12,
     paddingVertical: 4,
     borderRadius: 8,
@@ -173,7 +173,7 @@ const styles = StyleSheet.create({
   },
   modalCancelBtnText: {
     fontSize: 14,
-    fontWeight: '700',
+    fontWeight: '400',
     color: colors.neutral.gray700,
   },
   modalSaveBtn: {
@@ -189,6 +189,6 @@ const styles = StyleSheet.create({
   modalSaveBtnText: {
     color: colors.neutral.white,
     fontSize: 14,
-    fontWeight: '700',
+    fontWeight: '600',
   },
 });

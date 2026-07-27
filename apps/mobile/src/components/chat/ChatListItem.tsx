@@ -129,29 +129,29 @@ export default function ChatListItem({
       <View style={styles.actionsContainer}>
         {/* Pin Button */}
         <TouchableOpacity
-          style={[styles.actionBtn, { backgroundColor: '#EEF2F6' }]}
+          style={[styles.actionBtn, { backgroundColor: colors.neutral.gray100 }]}
           onPress={onPin}
           activeOpacity={0.8}
         >
-          <Pin size={18} color={colors.neutral.text} />
+          <Pin size={18} color={colors.neutral.gray600} />
           <Text style={styles.actionBtnText}>{isPinned ? 'Desfijar' : 'Fijar'}</Text>
         </TouchableOpacity>
 
         {/* Mute Button */}
         <TouchableOpacity
-          style={[styles.actionBtn, { backgroundColor: '#FEF3C7' }]}
+          style={[styles.actionBtn, { backgroundColor: colors.neutral.gray100 }]}
           onPress={onMute}
           activeOpacity={0.8}
         >
-          <BellOff size={18} color="#D97706" />
-          <Text style={[styles.actionBtnText, { color: '#D97706' }]}>
+          <BellOff size={18} color={colors.neutral.gray600} />
+          <Text style={styles.actionBtnText}>
             {isMuted ? 'Activar' : 'Silenciar'}
           </Text>
         </TouchableOpacity>
 
         {/* Delete Button */}
         <TouchableOpacity
-          style={[styles.actionBtn, { backgroundColor: '#FEE2E2' }]}
+          style={[styles.actionBtn, { backgroundColor: colors.semantic.error + '15' }]}
           onPress={onDelete}
           activeOpacity={0.8}
         >
@@ -185,11 +185,11 @@ const styles = StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: 24,
-    backgroundColor: '#F3E8FF',
+    backgroundColor: colors.brand.primary + '15',
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
-    borderColor: '#DDD6FE',
+    borderColor: colors.brand.primary + '30',
   },
   avatarCirclePinned: {
     borderColor: colors.brand.primary,
@@ -197,7 +197,7 @@ const styles = StyleSheet.create({
   },
   avatarText: {
     fontSize: 18,
-    fontWeight: '700',
+    fontWeight: '400',
     color: colors.brand.primary,
   },
   groupAvatar: {
@@ -241,7 +241,7 @@ const styles = StyleSheet.create({
   name: {
     flexShrink: 1,
     fontSize: 15,
-    fontWeight: '700',
+    fontWeight: '600',
     color: colors.neutral.text,
   },
   time: {
@@ -250,7 +250,7 @@ const styles = StyleSheet.create({
   },
   timeUnread: {
     color: colors.brand.primary,
-    fontWeight: '700',
+    fontWeight: '400',
   },
   messageStatusRow: {
     flexDirection: 'row',
@@ -284,7 +284,7 @@ const styles = StyleSheet.create({
   unreadBadgeText: {
     color: colors.neutral.white,
     fontSize: 10,
-    fontWeight: '800',
+    fontWeight: '400',
   },
   statusCheck: {
     justifyContent: 'center',
@@ -303,7 +303,7 @@ const styles = StyleSheet.create({
   },
   actionBtnText: {
     fontSize: 9,
-    fontWeight: '700',
+    fontWeight: '400',
     color: colors.neutral.text,
     marginTop: 4,
     textTransform: 'uppercase',

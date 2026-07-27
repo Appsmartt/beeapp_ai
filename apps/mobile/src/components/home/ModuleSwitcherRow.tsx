@@ -36,7 +36,7 @@ export default function ModuleSwitcherRow({ selectedModuleIds, activeModuleId, o
               onPress={() => onSelect(id)}
               activeOpacity={0.7}
             >
-              <IconComp size={15} color={isActive ? colors.brand.primary : item.iconColor} />
+              <IconComp size={15} color={isActive ? colors.brand.primary : colors.neutral.gray600} />
               {isActive && <Text style={styles.chipTextActive}>{item.name}</Text>}
             </TouchableOpacity>
           );
@@ -44,7 +44,7 @@ export default function ModuleSwitcherRow({ selectedModuleIds, activeModuleId, o
 
         {/* Personalization: which chips appear and in which order */}
         <TouchableOpacity style={styles.customizeChip} onPress={onCustomize} activeOpacity={0.7}>
-          <Settings size={14} color={colors.brand.primary} />
+          <Settings size={14} color={colors.neutral.gray600} />
         </TouchableOpacity>
       </ScrollView>
     </View>
@@ -66,21 +66,21 @@ const styles = StyleSheet.create({
     gap: 5,
     height: 32,
     borderRadius: 14,
-    backgroundColor: colors.neutral.white,
     borderWidth: 1,
   },
   chipIconOnly: {
     width: 34,
-    borderColor: colors.neutral.gray200,
+    backgroundColor: colors.neutral.gray100,
+    borderColor: 'transparent',
   },
   chipActive: {
     paddingHorizontal: 12,
-    backgroundColor: '#F3E8FF',
-    borderColor: colors.brand.primary,
+    backgroundColor: colors.brand.primary + '15',
+    borderColor: 'transparent',
   },
   chipTextActive: {
     fontSize: 12,
-    fontWeight: '700',
+    fontWeight: '600',
     color: colors.brand.primary,
   },
   customizeChip: {
@@ -89,8 +89,8 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: colors.neutral.white,
+    backgroundColor: colors.neutral.gray100,
     borderWidth: 1,
-    borderColor: colors.neutral.gray200,
+    borderColor: 'transparent',
   },
 });

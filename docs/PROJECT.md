@@ -385,8 +385,10 @@ cd apps/admin-web && npm run dev
 
 ## 10. Convenciones
 
-- **Brand:** púrpura — `#6025d2` primary y `#5B2CD9` dark/accent (definidos en los tokens del design system; usar siempre `colors.brand.*`, no hex sueltos).
-- **Tema:** solo **light mode** en mobile (y en admin).
+- **Brand & Iconos:** Púrpura (`colors.brand.primary` y con opacidad para fondos como `colors.brand.primary + '15'`). Los iconos son monocromáticos y sobrios: gris neutro (`colors.neutral.gray600` o `gray700`) cuando están inactivos, y color de marca (`colors.brand.primary`) cuando están activos o seleccionados. Los fondos circulares de los iconos son gris muy suave (`colors.neutral.gray100`) para inactivos y morado marca con baja opacidad para activos. No se usan colores específicos por módulo (como verde para almacenamiento o amarillo para notas) en iconos ni avatares del sistema.
+- **Tipografía:** Se reduce el uso de negrilla (bold) al mínimo (máximo 10% del contenido). Se usa peso `600`/`700` (bold/semibold) únicamente en títulos principales de pantallas, nombres de usuario en perfiles, KPIs grandes y en la primera línea de ítems de listas (nombres de contactos o remitentes). En el admin, las cabeceras de tablas (`.data-table-th`) se definen con peso `500` (medium). Todo lo demás (subtítulos, descripciones, labels, previews, opciones del menú lateral, celdas de tablas, fechas, etc.) lleva peso normal (`400` / `normal`).
+- **Contenedores:** Se minimiza el uso de tarjetas, sombras pesadas y bordes para mantener la interfaz ligera y limpia. En el menú lateral y el grid del Home de mobile, los contenedores individuales de opciones se renderizan sin bordes (borderless) sobre el fondo de la pantalla.
+- **Tema:** Solo **light mode** en mobile (y en admin).
 - **Idioma de la UI:** español.
 - **Iconos:** Lucide React Native en mobile, Lucide React en admin. **No se usan emojis en la UI.**
 - **Componentes:** nombres en **PascalCase** (`MailListItem.tsx`); helpers/configs no-componente en camelCase (`storageHelpers.ts`, `homeModules.ts`).

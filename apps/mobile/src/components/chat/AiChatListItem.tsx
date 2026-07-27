@@ -116,21 +116,21 @@ const styles = StyleSheet.create({
   name: {
     flexShrink: 1,
     fontSize: 15,
-    fontWeight: '800',
+    fontWeight: '600',
     color: colors.neutral.text,
   },
   aiBadge: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 2,
-    backgroundColor: '#F3E8FF',
+    backgroundColor: colors.brand.primary + '15',
     borderRadius: 6,
     paddingHorizontal: 5,
     paddingVertical: 1,
   },
   aiBadgeText: {
     fontSize: 9,
-    fontWeight: '800',
+    fontWeight: '400',
     color: colors.brand.primary,
     letterSpacing: 0.3,
   },
@@ -141,12 +141,12 @@ const styles = StyleSheet.create({
   },
   time: {
     fontSize: 11,
-    fontWeight: '600',
+    fontWeight: '400',
     color: colors.brand.primary,
   },
   lastMessage: {
     fontSize: 12.5,
-    fontWeight: '500',
+    fontWeight: '400',
     color: colors.neutral.gray600,
   },
 });

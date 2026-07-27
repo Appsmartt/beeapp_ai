@@ -148,11 +148,11 @@ const styles = StyleSheet.create({
     opacity: 0.35, // Semitransparent purple so it blends elegantly
   },
   centralSquare: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.neutral.white,
     justifyContent: 'center',
     alignItems: 'center',
     // Premium soft shadow to lift it above the wings
-    shadowColor: '#1A1A2E',
+    shadowColor: colors.neutral.text,
     shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.15,
     shadowRadius: 12,
@@ -166,12 +166,12 @@ const styles = StyleSheet.create({
   },
   brandTitle: {
     color: colors.brand.primary, // #6025d2
-    fontWeight: '800',
+    fontWeight: '700',
     textAlign: 'center',
   },
   brandSubtitle: {
     color: colors.neutral.gray600, // #6C757D
-    fontWeight: '700',
+    fontWeight: '400',
     marginTop: 4,
     textAlign: 'center',
   },

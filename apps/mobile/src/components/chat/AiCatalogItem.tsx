@@ -119,14 +119,14 @@ const styles = StyleSheet.create({
     width: 64,
     height: 64,
     borderRadius: 8,
-    backgroundColor: '#F3E8FF',
+    backgroundColor: colors.brand.primary + '15',
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 12,
   },
   imagePlaceholderText: {
     fontSize: 20,
-    fontWeight: '800',
+    fontWeight: '400',
     color: colors.brand.primary,
   },
   contentCol: {
@@ -140,7 +140,7 @@ const styles = StyleSheet.create({
   sellerName: {
     fontSize: 11,
     color: colors.neutral.gray500,
-    fontWeight: '600',
+    fontWeight: '400',
     maxWidth: '85%',
   },
   verified: {
@@ -148,14 +148,14 @@ const styles = StyleSheet.create({
   },
   productName: {
     fontSize: 14,
-    fontWeight: '700',
+    fontWeight: '400',
     color: colors.neutral.text,
     lineHeight: 18,
     marginBottom: 4,
   },
   price: {
     fontSize: 13,
-    fontWeight: '700',
+    fontWeight: '400',
     color: colors.brand.primary,
     marginBottom: 6,
   },
@@ -171,7 +171,7 @@ const styles = StyleSheet.create({
   ratingText: {
     fontSize: 11,
     color: colors.neutral.gray600,
-    fontWeight: '700',
+    fontWeight: '400',
   },
   cityBox: {
     flexDirection: 'row',
@@ -189,7 +189,7 @@ const styles = StyleSheet.create({
   },
   expandedTitle: {
     fontSize: 11,
-    fontWeight: '700',
+    fontWeight: '400',
     color: colors.neutral.text,
     marginBottom: 4,
   },
@@ -215,7 +215,7 @@ const styles = StyleSheet.create({
   detailBtnText: {
     fontSize: 12,
     color: colors.neutral.gray600,
-    fontWeight: '600',
+    fontWeight: '400',
     marginRight: 4,
   },
   contactBtn: {
@@ -229,6 +229,6 @@ const styles = StyleSheet.create({
   contactBtnText: {
     color: colors.neutral.white,
     fontSize: 12,
-    fontWeight: '700',
+    fontWeight: '600',
   },
 });

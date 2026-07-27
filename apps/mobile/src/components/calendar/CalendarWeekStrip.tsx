@@ -109,7 +109,7 @@ const styles = StyleSheet.create({
   },
   navLabel: {
     fontSize: 13,
-    fontWeight: '800',
+    fontWeight: '600',
     color: colors.neutral.text,
   },
   daysRow: {
@@ -128,7 +128,7 @@ const styles = StyleSheet.create({
   },
   dayLabel: {
     fontSize: 10,
-    fontWeight: '700',
+    fontWeight: '400',
     color: colors.neutral.gray600,
     marginBottom: 2,
   },
@@ -137,14 +137,16 @@ const styles = StyleSheet.create({
   },
   dayNumber: {
     fontSize: 15,
-    fontWeight: '800',
+    fontWeight: '400',
     color: colors.neutral.text,
   },
   dayNumberSelected: {
     color: colors.neutral.white,
+    fontWeight: '600',
   },
   dayNumberToday: {
     color: colors.brand.primary,
+    fontWeight: '600',
   },
   eventDot: {
     width: 4,

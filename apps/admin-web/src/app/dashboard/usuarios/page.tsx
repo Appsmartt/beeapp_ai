@@ -226,7 +226,7 @@ export default function UsuariosPage() {
         return (
           <span style={{
             textTransform: 'capitalize',
-            fontWeight: 'bold',
+            fontWeight: '400',
             fontSize: '12px',
             color: colors[act] || '#6c757d',
           }}>

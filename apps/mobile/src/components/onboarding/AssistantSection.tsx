@@ -131,12 +131,13 @@ const styles = StyleSheet.create({
   },
   toneTitle: {
     fontSize: 14,
-    fontWeight: '700',
+    fontWeight: '400',
     color: colors.neutral.text,
     marginBottom: 2,
   },
   toneTitleActive: {
     color: colors.brand.primary,
+    fontWeight: '600',
   },
   toneDesc: {
     fontSize: 11,
@@ -152,7 +153,7 @@ const styles = StyleSheet.create({
   },
   previewBoxLabel: {
     fontSize: 11,
-    fontWeight: '700',
+    fontWeight: '400',
     color: colors.neutral.gray600,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
@@ -173,7 +174,7 @@ const styles = StyleSheet.create({
   },
   chatBubble: {
     flex: 1,
-    backgroundColor: '#F3E8FF',
+    backgroundColor: colors.brand.primary + '15',
     borderRadius: 14,
     borderBottomLeftRadius: 2,
     padding: 12,
@@ -182,6 +183,6 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: colors.neutral.text,
     lineHeight: 18,
-    fontWeight: '500',
+    fontWeight: '400',
   },
 });

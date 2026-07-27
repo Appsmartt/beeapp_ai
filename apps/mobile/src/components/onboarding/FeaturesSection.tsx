@@ -73,7 +73,7 @@ export default function FeaturesSection() {
 const styles = StyleSheet.create({
   groupHeader: {
     fontSize: 15,
-    fontWeight: '700',
+    fontWeight: '600',
     color: colors.neutral.text,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
@@ -100,7 +100,7 @@ const styles = StyleSheet.create({
   },
   listItemTitle: {
     fontSize: 14,
-    fontWeight: '700',
+    fontWeight: '600',
     color: colors.neutral.text,
     marginBottom: 2,
   },
@@ -123,7 +123,7 @@ const styles = StyleSheet.create({
   },
   permissionTitle: {
     fontSize: 13,
-    fontWeight: '700',
+    fontWeight: '600',
     color: colors.neutral.text,
     marginBottom: 2,
   },

@@ -138,7 +138,7 @@ export default function MyServiceForm({ initialData, onSave, onCancel }: MyServi
               onPress={() => setCategory(cat.id)}
               activeOpacity={0.7}
             >
-              <Text style={[styles.catChipText, isSelected && { color: cat.color, fontWeight: '700' }]}>
+              <Text style={[styles.catChipText, isSelected && { color: cat.color, fontWeight: '600' }]}>
                 {cat.name}
               </Text>
             </TouchableOpacity>
@@ -243,12 +243,12 @@ export default function MyServiceForm({ initialData, onSave, onCancel }: MyServi
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.neutral.white },
   content: { padding: 16 },
-  label: { fontSize: 13, fontWeight: '700', color: colors.neutral.text, marginBottom: 8 },
+  label: { fontSize: 13, fontWeight: '400', color: colors.neutral.text, marginBottom: 8 },
   chipContainer: { flexDirection: 'row', marginBottom: 16 },
   chip: { flex: 1, paddingVertical: 10, borderWidth: 1, borderColor: colors.neutral.gray200, borderRadius: 8, alignItems: 'center', backgroundColor: colors.neutral.white, marginRight: 8 },
-  chipActive: { borderColor: colors.brand.primary, backgroundColor: '#F3E8FF' },
-  chipText: { fontSize: 13, fontWeight: '600', color: colors.neutral.gray600 },
-  chipTextActive: { color: colors.brand.primary, fontWeight: '700' },
+  chipActive: { borderColor: colors.brand.primary, backgroundColor: colors.brand.primary + '15' },
+  chipText: { fontSize: 13, fontWeight: '400', color: colors.neutral.gray600 },
+  chipTextActive: { color: colors.brand.primary, fontWeight: '600' },
   input: { height: 44, borderWidth: 1, borderColor: colors.neutral.gray200, borderRadius: 8, paddingHorizontal: 12, fontSize: 14, color: colors.neutral.text, marginBottom: 12, backgroundColor: colors.neutral.white },
   inputError: { borderColor: colors.semantic.error },
   errorText: { fontSize: 11, color: colors.semantic.error, marginTop: -8, marginBottom: 12 },
@@ -256,12 +256,12 @@ const styles = StyleSheet.create({
   categoriesRow: { flexDirection: 'row', flexWrap: 'wrap', marginBottom: 12 },
   catChip: { paddingHorizontal: 12, paddingVertical: 6, borderWidth: 1, borderColor: colors.neutral.gray200, borderRadius: 16, marginRight: 8, marginBottom: 8, backgroundColor: colors.neutral.white },
   catChipText: { fontSize: 12, color: colors.neutral.gray600 },
-  servicePriceBox: { height: 44, borderWidth: 1, borderColor: colors.neutral.gray200, borderRadius: 8, justifyContent: 'center', paddingHorizontal: 12, backgroundColor: '#F9FAFB', marginBottom: 16 },
+  servicePriceBox: { height: 44, borderWidth: 1, borderColor: colors.neutral.gray200, borderRadius: 8, justifyContent: 'center', paddingHorizontal: 12, backgroundColor: colors.neutral.gray50, marginBottom: 16 },
   servicePriceText: { fontSize: 14, color: colors.neutral.gray500, fontStyle: 'italic' },
   section: { marginBottom: 16, borderTopWidth: 1, borderTopColor: colors.neutral.gray100, paddingTop: 16 },
   sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
   addBtn: { flexDirection: 'row', alignItems: 'center' },
-  addBtnText: { fontSize: 13, fontWeight: '600', color: colors.brand.primary, marginLeft: 4 },
+  addBtnText: { fontSize: 13, fontWeight: '400', color: colors.brand.primary, marginLeft: 4 },
   variantRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 8 },
   variantInput: { flex: 1, marginBottom: 0 },
   deleteBtn: { padding: 8, marginLeft: 4 },
@@ -273,6 +273,6 @@ const styles = StyleSheet.create({
   btn: { flex: 1, height: 46, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
   btnCancel: { backgroundColor: colors.neutral.white, borderWidth: 1, borderColor: colors.neutral.gray300, marginRight: 12 },
   btnSave: { backgroundColor: colors.brand.primary },
-  btnTextCancel: { fontSize: 14, fontWeight: '600', color: colors.neutral.gray600 },
-  btnTextSave: { fontSize: 14, fontWeight: '700', color: colors.neutral.white },
+  btnTextCancel: { fontSize: 14, fontWeight: '400', color: colors.neutral.gray600 },
+  btnTextSave: { fontSize: 14, fontWeight: '600', color: colors.neutral.white },
 });

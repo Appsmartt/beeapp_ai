@@ -113,13 +113,13 @@ const styles = StyleSheet.create({
   name: {
     flexShrink: 1,
     fontSize: 13,
-    fontWeight: '700',
+    fontWeight: '600',
     color: colors.neutral.text,
   },
   subtext: {
     fontSize: 11.5,
     color: colors.neutral.gray600,
-    fontWeight: '500',
+    fontWeight: '400',
     marginTop: 2,
   },
   metaCol: {
@@ -129,7 +129,7 @@ const styles = StyleSheet.create({
   dateText: {
     fontSize: 11,
     color: colors.neutral.gray500,
-    fontWeight: '500',
+    fontWeight: '400',
   },
   signedTag: {
     flexDirection: 'row',
@@ -138,7 +138,7 @@ const styles = StyleSheet.create({
   },
   signedTagText: {
     fontSize: 9,
-    fontWeight: '700',
+    fontWeight: '400',
     color: colors.brand.primary,
   },
   menuBtn: {
@@ -162,7 +162,7 @@ const styles = StyleSheet.create({
   },
   emptyTitle: {
     fontSize: 16,
-    fontWeight: '800',
+    fontWeight: '600',
     color: colors.neutral.text,
     marginBottom: 8,
   },

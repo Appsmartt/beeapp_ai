@@ -245,7 +245,7 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: 26,
-    fontWeight: '700',
+    fontWeight: '600',
     color: colors.neutral.text,
     textAlign: 'center',
     marginBottom: 8,
@@ -273,7 +273,7 @@ const styles = StyleSheet.create({
   },
   inputLabel: {
     fontSize: 12,
-    fontWeight: '600',
+    fontWeight: '400',
     color: colors.neutral.gray700,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
@@ -298,13 +298,13 @@ const styles = StyleSheet.create({
   },
   prefixText: {
     fontSize: 15,
-    fontWeight: '700',
+    fontWeight: '400',
     color: colors.neutral.text,
   },
   phoneInput: {
     flex: 1,
     fontSize: 18,
-    fontWeight: '600',
+    fontWeight: '400',
     color: colors.neutral.text,
     paddingVertical: 8,
     letterSpacing: 1,
@@ -329,7 +329,7 @@ const styles = StyleSheet.create({
   primaryButtonText: {
     color: colors.neutral.white,
     fontSize: 16,
-    fontWeight: '700',
+    fontWeight: '600',
     letterSpacing: 0.5,
   },
   footer: {
@@ -347,7 +347,7 @@ const styles = StyleSheet.create({
   },
   footerLink: {
     fontSize: 12,
-    fontWeight: '600',
+    fontWeight: '400',
     color: colors.brand.primary,
   },
   footerDot: {
@@ -376,7 +376,7 @@ const styles = StyleSheet.create({
   },
   modalTitle: {
     fontSize: 18,
-    fontWeight: '700',
+    fontWeight: '600',
     color: colors.neutral.text,
   },
   closeButton: {
@@ -387,7 +387,7 @@ const styles = StyleSheet.create({
   },
   closeButtonText: {
     fontSize: 13,
-    fontWeight: '600',
+    fontWeight: '400',
     color: colors.neutral.gray700,
   },
   searchBar: {
@@ -415,12 +415,12 @@ const styles = StyleSheet.create({
   countryName: {
     flex: 1,
     fontSize: 15,
-    fontWeight: '600',
+    fontWeight: '400',
     color: colors.neutral.text,
   },
   countryDialCode: {
     fontSize: 15,
-    fontWeight: '700',
+    fontWeight: '400',
     color: colors.brand.primary,
   },
 });

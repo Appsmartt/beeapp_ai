@@ -95,25 +95,25 @@ export default function MailListItem({
       {isSwipeActive && (
         <View style={styles.actionsPanel}>
           <TouchableOpacity
-            style={[styles.swipeBtn, { backgroundColor: '#EEF2F6' }]}
+            style={[styles.swipeBtn, { backgroundColor: colors.neutral.gray100 }]}
             onPress={onToggleRead}
             activeOpacity={0.8}
           >
-            <MailOpen size={16} color={colors.neutral.text} />
+            <MailOpen size={16} color={colors.neutral.gray600} />
             <Text style={styles.swipeBtnText}>{item.isRead ? 'No leído' : 'Leído'}</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
-            style={[styles.swipeBtn, { backgroundColor: '#E0F2FE' }]}
+            style={[styles.swipeBtn, { backgroundColor: colors.neutral.gray100 }]}
             onPress={onArchive}
             activeOpacity={0.8}
           >
-            <Archive size={16} color="#0284C7" />
-            <Text style={[styles.swipeBtnText, { color: '#0284C7' }]}>Archivar</Text>
+            <Archive size={16} color={colors.neutral.gray600} />
+            <Text style={styles.swipeBtnText}>Archivar</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
-            style={[styles.swipeBtn, { backgroundColor: '#FEE2E2' }]}
+            style={[styles.swipeBtn, { backgroundColor: colors.semantic.error + '15' }]}
             onPress={onDelete}
             activeOpacity={0.8}
           >
@@ -139,7 +139,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.neutral.white,
   },
   mailRowUnread: {
-    backgroundColor: '#FAF8FF',
+    backgroundColor: colors.brand.primary + '08',
   },
   avatarCircle: {
     width: 40,
@@ -153,7 +153,7 @@ const styles = StyleSheet.create({
   avatarText: {
     color: colors.neutral.white,
     fontSize: 14,
-    fontWeight: '800',
+    fontWeight: '400',
   },
   mailDetailsCol: {
     flex: 1,
@@ -179,7 +179,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   senderNameTextUnread: {
-    fontWeight: '800',
+    fontWeight: '700',
   },
   mailTimeText: {
     fontSize: 11,
@@ -188,11 +188,11 @@ const styles = StyleSheet.create({
   subjectText: {
     fontSize: 13,
     color: colors.neutral.text,
-    fontWeight: '600',
+    fontWeight: '400',
     marginBottom: 4,
   },
   subjectTextUnread: {
-    fontWeight: '800',
+    fontWeight: '400',
     color: colors.brand.primary,
   },
   bodyPreviewText: {
@@ -218,7 +218,7 @@ const styles = StyleSheet.create({
   },
   attachmentCountText: {
     fontSize: 10,
-    fontWeight: '600',
+    fontWeight: '400',
     color: colors.neutral.gray700,
   },
   accountTag: {
@@ -229,7 +229,7 @@ const styles = StyleSheet.create({
   },
   accountTagText: {
     fontSize: 9,
-    fontWeight: '700',
+    fontWeight: '400',
   },
   starTouchArea: {
     position: 'absolute',
@@ -254,7 +254,7 @@ const styles = StyleSheet.create({
   },
   swipeBtnText: {
     fontSize: 9,
-    fontWeight: '700',
+    fontWeight: '400',
     color: colors.neutral.text,
     marginTop: 4,
     textTransform: 'uppercase',

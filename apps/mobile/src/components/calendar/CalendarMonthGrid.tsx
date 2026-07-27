@@ -89,7 +89,7 @@ const styles = StyleSheet.create({
     width: '14.28%',
     textAlign: 'center',
     fontSize: 9,
-    fontWeight: '700',
+    fontWeight: '400',
     color: colors.neutral.gray600,
     marginBottom: 8,
   },
@@ -115,16 +115,16 @@ const styles = StyleSheet.create({
   },
   gridDayText: {
     fontSize: 13,
-    fontWeight: '600',
+    fontWeight: '400',
     color: colors.neutral.text,
   },
   gridDayTextToday: {
     color: colors.brand.primary,
-    fontWeight: '800',
+    fontWeight: '600',
   },
   gridDayTextSelected: {
     color: colors.neutral.white,
-    fontWeight: '800',
+    fontWeight: '600',
   },
   gridEventDot: {
     width: 4,

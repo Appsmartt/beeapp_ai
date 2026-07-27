@@ -101,7 +101,7 @@ const styles = StyleSheet.create({
   sheetTitle: {
     flex: 1,
     fontSize: 13,
-    fontWeight: '800',
+    fontWeight: '600',
     color: colors.neutral.text,
     marginRight: 12,
   },
@@ -120,7 +120,7 @@ const styles = StyleSheet.create({
   },
   hint: {
     fontSize: 11,
-    fontWeight: '600',
+    fontWeight: '400',
     color: colors.neutral.gray600,
     textAlign: 'center',
     marginTop: 14,

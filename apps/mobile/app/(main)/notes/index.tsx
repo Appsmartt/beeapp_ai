@@ -359,7 +359,7 @@ const styles = StyleSheet.create({
   },
   headerTitle: {
     fontSize: 18,
-    fontWeight: '800',
+    fontWeight: '600',
     color: colors.neutral.text,
   },
   headerRightCol: {
@@ -379,7 +379,7 @@ const styles = StyleSheet.create({
   },
   sortToggleText: {
     fontSize: 10,
-    fontWeight: '700',
+    fontWeight: '400',
     color: colors.neutral.text,
   },
   filtersContainer: {
@@ -401,17 +401,17 @@ const styles = StyleSheet.create({
     borderColor: colors.neutral.gray200,
   },
   filterChipActive: {
-    backgroundColor: '#F3E8FF',
+    backgroundColor: colors.brand.primary + '15',
     borderColor: colors.brand.primary,
   },
   filterChipText: {
     fontSize: 12,
-    fontWeight: '600',
+    fontWeight: '400',
     color: colors.neutral.gray700,
   },
   filterChipTextActive: {
     color: colors.brand.primary,
-    fontWeight: '700',
+    fontWeight: '600',
   },
   scrollContainer: {
     flex: 1,
@@ -436,7 +436,7 @@ const styles = StyleSheet.create({
   },
   emptyTitle: {
     fontSize: 18,
-    fontWeight: '800',
+    fontWeight: '600',
     color: colors.neutral.text,
     marginBottom: 8,
   },
@@ -474,6 +474,6 @@ const styles = StyleSheet.create({
   createFabText: {
     color: colors.neutral.white,
     fontSize: 14,
-    fontWeight: '700',
+    fontWeight: '600',
   },
 });

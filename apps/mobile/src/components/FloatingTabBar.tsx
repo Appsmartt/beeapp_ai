@@ -162,9 +162,9 @@ const styles = StyleSheet.create({
   sideZone: { flex: 1, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 6 },
   zoneTextCol: { flex: 1, marginLeft: 8, justifyContent: 'center' },
   unreadBadge: { position: 'absolute', top: -4, right: -6, backgroundColor: colors.semantic.error, borderRadius: 7, minWidth: 14, height: 14, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 3, borderWidth: 1.5, borderColor: colors.neutral.white },
-  unreadBadgeText: { color: colors.neutral.white, fontSize: 8, fontWeight: '900' },
+  unreadBadgeText: { color: colors.neutral.white, fontSize: 8, fontWeight: '400' },
   aiContainer: { alignItems: 'center', justifyContent: 'center', marginTop: -30, paddingHorizontal: 10 },
   aiButtonWrap: { width: 58, height: 58, alignItems: 'center', justifyContent: 'center' },
-  aiButton: { width: 58, height: 58, borderRadius: 29, backgroundColor: colors.brand.primary, alignItems: 'center', justifyContent: 'center', shadowColor: '#8B5CF6', shadowOffset: { width: 0, height: 0 }, shadowOpacity: 0.75, shadowRadius: 14, elevation: 10, borderWidth: 4, borderColor: colors.neutral.white },
-  aiLabel: { fontSize: 10, fontWeight: '700', color: colors.brand.primary, marginTop: 2 },
+  aiButton: { width: 58, height: 58, borderRadius: 29, backgroundColor: colors.brand.primary, alignItems: 'center', justifyContent: 'center', shadowColor: colors.brand.primary, shadowOffset: { width: 0, height: 0 }, shadowOpacity: 0.75, shadowRadius: 14, elevation: 10, borderWidth: 4, borderColor: colors.neutral.white },
+  aiLabel: { fontSize: 10, fontWeight: '400', color: colors.brand.primary, marginTop: 2 },
 });

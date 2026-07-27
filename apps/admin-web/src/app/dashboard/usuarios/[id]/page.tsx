@@ -230,13 +230,13 @@ export default function UsuarioDetallePage({ params }: { params: { id: string } 
               <div className="detail-rows" style={{ marginTop: '12px' }}>
                 <div className="detail-row">
                   <span className="detail-row-label">Tipo de Oferta</span>
-                  <span className="detail-row-value" style={{ textTransform: 'capitalize', fontWeight: 'bold', color: '#6025d2' }}>
+                  <span className="detail-row-value" style={{ textTransform: 'capitalize', fontWeight: '400', color: '#6025d2' }}>
                     {user.actividadComercial.tipo}
                   </span>
                 </div>
                 <div className="detail-row">
                   <span className="detail-row-label">Rubro comercial</span>
-                  <span className="detail-row-value" style={{ fontWeight: '500' }}>
+                  <span className="detail-row-value" style={{ fontWeight: '400' }}>
                     {user.actividadComercial.rubro ?? 'No especificado'}
                   </span>
                 </div>

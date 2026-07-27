@@ -118,19 +118,19 @@ export default function HomeSideMenu({ visible, onClose }: HomeSideMenuProps) {
   };
 
   const accountRows: MenuRow[] = [
-    { label: 'Suscripción y Verificación', icon: CreditCard, iconBg: '#FEF3C7', iconColor: '#D97706', onPress: () => goTo('/(main)/profile/subscription-hub') },
-    { label: 'Integraciones Externas', icon: Grid, iconBg: '#EBF5FF', iconColor: '#1E88E5', onPress: () => goTo('/(main)/profile/integrations') },
-    { label: 'Seguridad y PIN', icon: ShieldCheck, iconBg: '#DCFCE7', iconColor: '#2E7D32', onPress: () => goTo('/(main)/profile/security') },
+    { label: 'Suscripción y Verificación', icon: CreditCard, iconBg: colors.neutral.gray100, iconColor: colors.neutral.gray600, onPress: () => goTo('/(main)/profile/subscription-hub') },
+    { label: 'Integraciones Externas', icon: Grid, iconBg: colors.neutral.gray100, iconColor: colors.neutral.gray600, onPress: () => goTo('/(main)/profile/integrations') },
+    { label: 'Seguridad y PIN', icon: ShieldCheck, iconBg: colors.neutral.gray100, iconColor: colors.neutral.gray600, onPress: () => goTo('/(main)/profile/security') },
   ];
 
   const appRows: MenuRow[] = [
-    { label: 'Compartir Aplicación', icon: Share2, iconBg: '#E8F5E9', iconColor: '#2E7D32', onPress: handleShareApp },
-    { label: 'Contactar a Soporte', icon: HelpCircle, iconBg: '#E0F2FE', iconColor: '#0284C7', onPress: handleContactSupport },
+    { label: 'Compartir Aplicación', icon: Share2, iconBg: colors.neutral.gray100, iconColor: colors.neutral.gray600, onPress: handleShareApp },
+    { label: 'Contactar a Soporte', icon: HelpCircle, iconBg: colors.neutral.gray100, iconColor: colors.neutral.gray600, onPress: handleContactSupport },
   ];
 
   const legalRows: MenuRow[] = [
-    { label: 'Términos y Condiciones', icon: FileText, iconBg: '#F3E8FF', iconColor: colors.brand.primary, onPress: () => goTo('/(auth)/terms') },
-    { label: 'Política de Privacidad', icon: Shield, iconBg: '#F3E8FF', iconColor: colors.brand.primary, onPress: () => goTo('/(auth)/privacy') },
+    { label: 'Términos y Condiciones', icon: FileText, iconBg: colors.neutral.gray100, iconColor: colors.neutral.gray600, onPress: () => goTo('/(auth)/terms') },
+    { label: 'Política de Privacidad', icon: Shield, iconBg: colors.neutral.gray100, iconColor: colors.neutral.gray600, onPress: () => goTo('/(auth)/privacy') },
   ];
 
   const renderRows = (rows: MenuRow[]) => (
@@ -199,11 +199,11 @@ export default function HomeSideMenu({ visible, onClose }: HomeSideMenuProps) {
                 onPress={openMyServices}
                 activeOpacity={0.7}
               >
-                <View style={[styles.optionIconWrap, { backgroundColor: '#F3E8FF' }]}>
-                  <Package size={18} color={colors.brand.primary} />
+                <View style={[styles.optionIconWrap, { backgroundColor: colors.neutral.gray100 }]}>
+                  <Package size={18} color={colors.neutral.gray600} />
                 </View>
-                <Text style={[styles.optionLabel, { color: colors.brand.primary, fontWeight: '700' }]}>BeeServices</Text>
-                <ChevronRight size={16} color={colors.brand.primary} />
+                <Text style={styles.optionLabel}>BeeServices</Text>
+                <ChevronRight size={16} color={colors.neutral.gray500} />
               </TouchableOpacity>
             </View>
 
@@ -212,8 +212,8 @@ export default function HomeSideMenu({ visible, onClose }: HomeSideMenuProps) {
             {renderRows(accountRows)}
             <View style={[styles.optionsCard, { marginTop: 8 }]}>
               <View style={styles.switchOptionRow}>
-                <View style={[styles.optionIconWrap, { backgroundColor: '#F3E8FF' }]}>
-                  <Shield size={18} color={colors.brand.primary} />
+                <View style={[styles.optionIconWrap, { backgroundColor: colors.neutral.gray100 }]}>
+                  <Shield size={18} color={colors.neutral.gray600} />
                 </View>
                 <View style={styles.switchTextCol}>
                   <Text style={styles.optionLabel}>Visibilidad en la red</Text>

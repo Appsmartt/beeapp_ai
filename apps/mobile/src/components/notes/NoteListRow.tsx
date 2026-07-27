@@ -161,7 +161,7 @@ const styles = StyleSheet.create({
   title: {
     flexShrink: 1,
     fontSize: 13,
-    fontWeight: '700',
+    fontWeight: '600',
     color: colors.neutral.text,
   },
   iconCircleLocked: {
@@ -170,12 +170,12 @@ const styles = StyleSheet.create({
   titleLocked: {
     flexShrink: 1,
     fontSize: 13,
-    fontWeight: '700',
+    fontWeight: '600',
     color: colors.neutral.gray600,
   },
   previewLocked: {
     fontSize: 11.5,
-    fontWeight: '500',
+    fontWeight: '400',
     color: colors.neutral.gray400,
     marginTop: 2,
   },
@@ -188,22 +188,22 @@ const styles = StyleSheet.create({
   preview: {
     flex: 1,
     fontSize: 11.5,
-    fontWeight: '500',
+    fontWeight: '400',
     color: colors.neutral.gray600,
   },
   reminderBadge: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 2,
-    backgroundColor: '#FEF3C7',
+    backgroundColor: colors.brand.primary + '15',
     borderRadius: 6,
     paddingHorizontal: 5,
     paddingVertical: 1,
   },
   reminderText: {
     fontSize: 9,
-    fontWeight: '700',
-    color: '#D97706',
+    fontWeight: '400',
+    color: colors.brand.primary,
   },
   metaCol: {
     alignItems: 'flex-end',
@@ -211,7 +211,7 @@ const styles = StyleSheet.create({
   },
   dateText: {
     fontSize: 11,
-    fontWeight: '500',
+    fontWeight: '400',
     color: colors.neutral.gray500,
   },
   starBtn: {
@@ -235,11 +235,11 @@ const styles = StyleSheet.create({
     backgroundColor: colors.neutral.gray100,
   },
   deleteBtn: {
-    backgroundColor: '#FEE2E2',
+    backgroundColor: colors.semantic.error + '15',
   },
   actionText: {
     fontSize: 9,
-    fontWeight: '700',
+    fontWeight: '400',
     color: colors.neutral.text,
     textTransform: 'uppercase',
   },

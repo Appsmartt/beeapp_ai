@@ -20,7 +20,7 @@ export const sharedStyles = StyleSheet.create({
   },
   title: {
     fontSize: 24,
-    fontWeight: '800',
+    fontWeight: '600',
     color: colors.neutral.text,
     marginBottom: 6,
   },
@@ -45,7 +45,7 @@ export const sharedStyles = StyleSheet.create({
   },
   sectionHeader: {
     fontSize: 16,
-    fontWeight: '700',
+    fontWeight: '600',
     color: colors.neutral.text,
     marginBottom: 16,
   },
@@ -60,7 +60,7 @@ export const sharedStyles = StyleSheet.create({
   },
   inputLabel: {
     fontSize: 12,
-    fontWeight: '700',
+    fontWeight: '400',
     color: colors.neutral.gray700,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
@@ -75,7 +75,7 @@ export const sharedStyles = StyleSheet.create({
     paddingVertical: 10,
     fontSize: 15,
     color: colors.neutral.text,
-    fontWeight: '500',
+    fontWeight: '400',
   },
   avatarRow: {
     flexDirection: 'row',
@@ -102,7 +102,7 @@ export const sharedStyles = StyleSheet.create({
   },
   avatarText: {
     fontSize: 22,
-    fontWeight: '700',
+    fontWeight: '400',
     color: colors.neutral.white,
   },
   avatarCheckBadge: {
@@ -121,11 +121,11 @@ export const sharedStyles = StyleSheet.create({
   avatarCheckText: {
     color: colors.neutral.white,
     fontSize: 10,
-    fontWeight: '900',
+    fontWeight: '400',
   },
   avatarPlaceholderText: {
     fontSize: 9,
-    fontWeight: '700',
+    fontWeight: '400',
     color: colors.neutral.gray600,
     textTransform: 'uppercase',
   },
@@ -134,7 +134,7 @@ export const sharedStyles = StyleSheet.create({
   },
   avatarInfoTitle: {
     fontSize: 14,
-    fontWeight: '600',
+    fontWeight: '400',
     color: colors.neutral.text,
     marginBottom: 2,
   },

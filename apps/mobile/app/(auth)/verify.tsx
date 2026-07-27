@@ -207,7 +207,7 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: 26,
-    fontWeight: '700',
+    fontWeight: '600',
     color: colors.neutral.text,
     textAlign: 'center',
     marginBottom: 8,
@@ -221,7 +221,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
   },
   phoneHighlight: {
-    fontWeight: '700',
+    fontWeight: '600',
     color: colors.neutral.text,
   },
   inputCard: {
@@ -239,7 +239,7 @@ const styles = StyleSheet.create({
   },
   inputLabel: {
     fontSize: 12,
-    fontWeight: '600',
+    fontWeight: '400',
     color: colors.neutral.gray700,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
@@ -260,7 +260,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.neutral.white,
     textAlign: 'center',
     fontSize: 20,
-    fontWeight: '700',
+    fontWeight: '400',
     color: colors.neutral.text,
   },
   codeInputFocused: {
@@ -291,7 +291,7 @@ const styles = StyleSheet.create({
   primaryButtonText: {
     color: colors.neutral.white,
     fontSize: 16,
-    fontWeight: '700',
+    fontWeight: '600',
     letterSpacing: 0.5,
   },
   resendRow: {
@@ -301,12 +301,12 @@ const styles = StyleSheet.create({
   },
   resendLink: {
     fontSize: 14,
-    fontWeight: '700',
+    fontWeight: '400',
     color: colors.brand.primary,
   },
   resendLinkDisabled: {
     color: colors.neutral.gray500,
-    fontWeight: '500',
+    fontWeight: '400',
   },
   footer: {
     alignItems: 'center',
@@ -314,7 +314,7 @@ const styles = StyleSheet.create({
   },
   footerLink: {
     fontSize: 14,
-    fontWeight: '600',
+    fontWeight: '400',
     color: colors.neutral.gray600,
   },
 });

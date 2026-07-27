@@ -116,7 +116,7 @@ const styles = StyleSheet.create({
   },
   avatarText: {
     fontSize: FONT.caption,
-    fontWeight: '800',
+    fontWeight: '400',
   },
   texts: {
     flex: 1,
@@ -139,11 +139,11 @@ const styles = StyleSheet.create({
     color: colors.neutral.text,
   },
   titleUnread: {
-    fontWeight: '800',
+    fontWeight: '700',
   },
   timestamp: {
     fontSize: FONT.caption - 1,
-    fontWeight: '500',
+    fontWeight: '400',
     color: colors.neutral.gray500,
   },
   bottomLine: {
@@ -155,7 +155,7 @@ const styles = StyleSheet.create({
   subtitle: {
     flex: 1,
     fontSize: FONT.caption,
-    fontWeight: '500',
+    fontWeight: '400',
     color: colors.neutral.gray600,
   },
   unreadDot: {

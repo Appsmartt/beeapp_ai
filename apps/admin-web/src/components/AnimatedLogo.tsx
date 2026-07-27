@@ -117,7 +117,7 @@ export default function AnimatedLogo({ size = 100, showText = true, autoStopAfte
           <h2 style={{
             fontSize: Math.max(18, size * 0.24),
             color: '#6025d2',
-            fontWeight: 800,
+            fontWeight: 700,
             margin: 0
           }}>
             BeeApp AI
@@ -125,7 +125,7 @@ export default function AnimatedLogo({ size = 100, showText = true, autoStopAfte
           <p style={{
             fontSize: Math.max(9, size * 0.1),
             color: '#6C757D',
-            fontWeight: 700,
+            fontWeight: 400,
             letterSpacing: `${size * 0.02}px`,
             margin: '4px 0 0 0',
             textTransform: 'uppercase'

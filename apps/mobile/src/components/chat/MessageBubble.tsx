@@ -187,7 +187,7 @@ const styles = StyleSheet.create({
   },
   senderName: {
     fontSize: 11,
-    fontWeight: '700',
+    fontWeight: '400',
     color: colors.neutral.gray600,
     marginBottom: 2,
     marginLeft: 12,
@@ -215,8 +215,8 @@ const styles = StyleSheet.create({
     borderColor: colors.neutral.gray200,
   },
   bubbleAI: {
-    backgroundColor: '#F3E8FF',
-    borderColor: '#DDD6FE',
+    backgroundColor: colors.brand.primary + '15',
+    borderColor: colors.brand.primary + '30',
   },
   messageText: {
     fontSize: 14,
@@ -254,7 +254,7 @@ const styles = StyleSheet.create({
   },
   replySender: {
     fontSize: 11,
-    fontWeight: '700',
+    fontWeight: '400',
     marginBottom: 2,
   },
   replySenderUser: {
@@ -290,7 +290,7 @@ const styles = StyleSheet.create({
   imagePlaceholderText: {
     fontSize: 11,
     color: colors.neutral.gray600,
-    fontWeight: '600',
+    fontWeight: '400',
   },
   imageCaption: {
     fontSize: 13,
@@ -322,7 +322,7 @@ const styles = StyleSheet.create({
   },
   fileName: {
     fontSize: 13,
-    fontWeight: '700',
+    fontWeight: '400',
   },
   fileSize: {
     fontSize: 11,
@@ -363,14 +363,14 @@ const styles = StyleSheet.create({
     backgroundColor: colors.neutral.gray300,
   },
   waveBarUser: {
-    backgroundColor: '#8B5CF6', // lighter purple for inactive bar
+    backgroundColor: colors.brand.primary + '80', // lighter purple for inactive bar
   },
   waveBarOther: {
     backgroundColor: colors.neutral.gray300,
   },
   audioDuration: {
     fontSize: 11,
-    fontWeight: '600',
+    fontWeight: '400',
   },
   metaRow: {
     flexDirection: 'row',
@@ -383,7 +383,7 @@ const styles = StyleSheet.create({
     marginRight: 4,
   },
   timeUser: {
-    color: '#DDD6FE',
+    color: colors.neutral.white + 'b3',
   },
   timeOther: {
     color: colors.neutral.gray600,

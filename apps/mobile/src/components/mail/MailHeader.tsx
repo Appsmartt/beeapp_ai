@@ -73,7 +73,7 @@ export default function MailHeader({
             onPress={() => onSelectAccount('santiago.valencia@consultores.com')}
             activeOpacity={0.7}
           >
-            <View style={[styles.accountDot, { backgroundColor: '#7C3AED' }]} />
+            <View style={[styles.accountDot, { backgroundColor: colors.brand.primary }]} />
             <Text style={[styles.dropdownText, activeAccount === 'santiago.valencia@consultores.com' && styles.dropdownTextActive]} numberOfLines={1}>
               santiago.valencia@consultores.com
             </Text>
@@ -84,7 +84,7 @@ export default function MailHeader({
             onPress={() => onSelectAccount('ventas@empresa.com')}
             activeOpacity={0.7}
           >
-            <View style={[styles.accountDot, { backgroundColor: '#D97706' }]} />
+            <View style={[styles.accountDot, { backgroundColor: colors.neutral.gray500 }]} />
             <Text style={[styles.dropdownText, activeAccount === 'ventas@empresa.com' && styles.dropdownTextActive]} numberOfLines={1}>
               ventas@empresa.com
             </Text>
@@ -122,7 +122,7 @@ const styles = StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: 10,
-    backgroundColor: '#F3E8FF',
+    backgroundColor: colors.brand.primary + '15',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -140,7 +140,7 @@ const styles = StyleSheet.create({
   },
   accountNameText: {
     fontSize: 13,
-    fontWeight: '700',
+    fontWeight: '600',
     color: colors.neutral.text,
   },
   dropdownMenu: {
@@ -167,18 +167,18 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
   },
   dropdownItemActive: {
-    backgroundColor: '#F9F5FF',
+    backgroundColor: colors.brand.primary + '15',
   },
   dropdownText: {
     fontSize: 13,
-    fontWeight: '600',
+    fontWeight: '400',
     color: colors.neutral.text,
     marginLeft: 12,
     flex: 1,
   },
   dropdownTextActive: {
     color: colors.brand.primary,
-    fontWeight: '700',
+    fontWeight: '600',
   },
   accountDot: {
     width: 10,
@@ -198,7 +198,7 @@ const styles = StyleSheet.create({
   },
   dropdownLinkText: {
     fontSize: 12,
-    fontWeight: '700',
+    fontWeight: '400',
     color: colors.brand.primary,
   },
 });

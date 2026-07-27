@@ -176,13 +176,13 @@ const styles: Record<string, React.CSSProperties> = {
   title: {
     color: '#6025d2',
     fontSize: '16px',
-    fontWeight: '700',
+    fontWeight: '600',
     margin: '0 0 8px 0',
   },
   subtitle: {
     color: '#6C757D',
     fontSize: '13px',
-    fontWeight: '500',
+    fontWeight: '400',
     margin: 0,
   },
 };

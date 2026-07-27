@@ -191,7 +191,7 @@ export default function DashboardPage() {
               <BarChart data={MODULE_USAGE_SERIES} layout="vertical" margin={{ top: 8, right: 24, left: 8, bottom: 0 }}>
                 <CartesianGrid horizontal={false} stroke={CHART_GRID_STROKE} />
                 <XAxis type="number" tick={CHART_AXIS_TICK} axisLine={false} tickLine={false} unit="%" />
-                <YAxis type="category" dataKey="label" tick={{ fontSize: 11.5, fill: '#495057', fontWeight: 650 }} axisLine={false} tickLine={false} width={90} />
+                <YAxis type="category" dataKey="label" tick={{ fontSize: 11.5, fill: '#495057', fontWeight: 400 }} axisLine={false} tickLine={false} width={90} />
                 <Tooltip content={<ChartTooltip valueFormatter={(v) => `${v}%`} />} cursor={CHART_CURSOR} />
                 <Bar dataKey="value" name="Uso" fill={CHART_COLORS.primary} radius={[0, 4, 4, 0]} maxBarSize={18} isAnimationActive={false} />
               </BarChart>

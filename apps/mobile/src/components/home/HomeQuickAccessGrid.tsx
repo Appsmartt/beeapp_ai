@@ -47,8 +47,7 @@ const styles = StyleSheet.create({
   gridItem: {
     width: (SCREEN_WIDTH - 40 - 24) / 3, // Perfect 3-column layout (Container padding: 40px, combined 12px gaps: 24px)
     backgroundColor: colors.neutral.white,
-    borderWidth: 1,
-    borderColor: colors.neutral.gray200,
+    borderWidth: 0,
     borderRadius: 16,
     paddingVertical: 14,
     alignItems: 'center',
@@ -64,7 +63,7 @@ const styles = StyleSheet.create({
   },
   gridLabel: {
     fontSize: 12,
-    fontWeight: '600',
+    fontWeight: '400',
     color: colors.neutral.text,
   },
 });

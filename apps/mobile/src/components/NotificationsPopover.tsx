@@ -114,14 +114,14 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   headerCount: {
-    backgroundColor: '#FEE2E2',
+    backgroundColor: colors.semantic.error + '15',
     borderRadius: 8,
     paddingHorizontal: 8,
     paddingVertical: 2,
   },
   headerCountText: {
     fontSize: 10,
-    fontWeight: '800',
+    fontWeight: '400',
     color: colors.semantic.error,
   },
   unreadDot: {
@@ -133,7 +133,7 @@ const styles = StyleSheet.create({
   },
   panelTitle: {
     fontSize: 14,
-    fontWeight: '800',
+    fontWeight: '600',
     color: colors.neutral.text,
   },
   closeBtn: {
@@ -171,16 +171,16 @@ const styles = StyleSheet.create({
   },
   rowText: {
     fontSize: 13,
-    fontWeight: '600',
+    fontWeight: '400',
     color: colors.neutral.text,
   },
   rowTextRead: {
-    fontWeight: '500',
+    fontWeight: '400',
     color: colors.neutral.gray600,
   },
   rowTime: {
     fontSize: 10,
-    fontWeight: '600',
+    fontWeight: '400',
     color: colors.neutral.gray500,
     marginTop: 2,
   },
