@@ -8,9 +8,10 @@ import ChatListScreen from '../../../app/(main)/chat/index';
 import ChatConversationScreen from '../../../app/(main)/chat/conversation';
 import ChatNewScreen from '../../../app/(main)/chat/new';
 import ChatCallScreen from '../../../app/(main)/chat/call';
-import ChatStoryScreen from '../../../app/(main)/chat/story';
-import ChatCreateStoryScreen from '../../../app/(main)/chat/create-story';
 import AiSettingsRoute from '../../../app/(main)/chat/ai-settings';
+import ChatProfileRoute from '../../../app/(main)/chat/chat-profile';
+import CommunityRoute from '../../../app/(main)/chat/community';
+import CommunityProfileRoute from '../../../app/(main)/chat/community-profile';
 import StorageScreen from '../../../app/(main)/storage/index';
 import StoragePreviewScreen from '../../../app/(main)/storage/preview';
 import StorageSignScreen from '../../../app/(main)/storage/sign';
@@ -42,9 +43,10 @@ export const EMBEDDED_SCREENS: Record<string, ComponentType<any>> = {
   '/(main)/chat/conversation': ChatConversationScreen,
   '/(main)/chat/new': ChatNewScreen,
   '/(main)/chat/call': ChatCallScreen,
-  '/(main)/chat/story': ChatStoryScreen,
-  '/(main)/chat/create-story': ChatCreateStoryScreen,
   '/(main)/chat/ai-settings': AiSettingsRoute,
+  '/(main)/chat/chat-profile': ChatProfileRoute,
+  '/(main)/chat/community': CommunityRoute,
+  '/(main)/chat/community-profile': CommunityProfileRoute,
   '/(main)/storage': StorageScreen,
   '/(main)/storage/preview': StoragePreviewScreen,
   '/(main)/storage/sign': StorageSignScreen,

@@ -31,6 +31,11 @@ export default function ConversationScreen() {
   const initialMessage = params.initialMessage as string | undefined;
   // The pinned assistant chat: logo avatar, its own mock thread and settings
   const isAI = chatId === AI_CHAT_ID;
+  const groupMemberCount = MOCK_CHATS.find((c) => c.id === chatId)?.members?.length ?? 0;
+
+  /** Tapping the avatar or the name opens the profile of this chat */
+  const openChatProfile = () =>
+    router.push({ pathname: '/(main)/chat/chat-profile', params: { id: chatId } });
 
   const scrollRef = useRef<ScrollView | null>(null);
 
@@ -235,32 +240,40 @@ export default function ConversationScreen() {
               <ChevronLeft size={24} color={colors.neutral.text} />
             </TouchableOpacity>
 
-            <View style={[styles.avatarCircle, isAI && styles.avatarCircleAI]}>
-              {isAI ? (
-                <Bot size={20} color={colors.neutral.white} />
-              ) : (
-                <Text style={styles.avatarText}>{chatName[0].toUpperCase()}</Text>
-              )}
-              {online && !isGroup && !isAI && <View style={styles.onlineBadge} />}
-            </View>
-
-            <View style={styles.nameMetaCol}>
-              <View style={styles.chatNameRow}>
-                <Text style={styles.chatName} numberOfLines={1}>
-                  {chatName}
-                </Text>
-                {isVerified && <VerifiedBadge size={14} />}
+            {/* Avatar + name open the chat profile (the assistant has its own settings) */}
+            <TouchableOpacity
+              style={styles.headerIdentity}
+              onPress={openChatProfile}
+              disabled={isAI}
+              activeOpacity={0.7}
+            >
+              <View style={[styles.avatarCircle, isAI && styles.avatarCircleAI]}>
+                {isAI ? (
+                  <Bot size={20} color={colors.neutral.white} />
+                ) : (
+                  <Text style={styles.avatarText}>{chatName[0].toUpperCase()}</Text>
+                )}
+                {online && !isGroup && !isAI && <View style={styles.onlineBadge} />}
               </View>
-              <Text style={styles.chatMeta}>
-                {isAI
-                  ? 'Asistente de BeeApp · siempre disponible'
-                  : isGroup
-                  ? '5 participantes'
-                  : online
-                  ? 'En línea'
-                  : 'Últ. vez hace 1 hora'}
-              </Text>
-            </View>
+
+              <View style={styles.nameMetaCol}>
+                <View style={styles.chatNameRow}>
+                  <Text style={styles.chatName} numberOfLines={1}>
+                    {chatName}
+                  </Text>
+                  {isVerified && <VerifiedBadge size={14} />}
+                </View>
+                <Text style={styles.chatMeta}>
+                  {isAI
+                    ? 'Asistente de BeeApp · siempre disponible'
+                    : isGroup
+                    ? `${groupMemberCount} participantes`
+                    : online
+                    ? 'En línea'
+                    : 'Últ. vez hace 1 hora'}
+                </Text>
+              </View>
+            </TouchableOpacity>
           </View>
 
           <View style={styles.headerRightCol}>
@@ -412,6 +425,12 @@ const styles = StyleSheet.create({
   backBtn: {
     padding: 4,
     marginRight: 4,
+  },
+  // Avatar + name behave as a single tappable block (opens the chat profile)
+  headerIdentity: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
   },
   avatarCircle: {
     width: 38,

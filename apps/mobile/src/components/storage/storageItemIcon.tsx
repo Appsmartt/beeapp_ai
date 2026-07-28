@@ -3,8 +3,7 @@ import { FileText, Folder, Image as ImageIcon, Video as VideoIcon } from 'lucide
 import { StorageItem } from '../../stores/storageStore';
 
 // Icon Render for files
-export function renderItemIcon(item: StorageItem) {
-  const size = 20;
+export function renderItemIcon(item: StorageItem, size = 20) {
   if (item.type === 'folder') {
     return <Folder size={size} color="#7C3AED" fill="#E8D5FF" />;
   }

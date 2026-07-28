@@ -1,23 +1,26 @@
 import { useState, useEffect } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
-  Modal,
-  Platform,
-} from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import ScreenSafeArea from '../../../src/components/layout/ScreenSafeArea';
 import { useModuleNav } from '../../../src/components/embedded/EmbeddedNavContext';
 import { useNavigation } from 'expo-router';
 import { colors } from '@beeapp/design-system';
-import { SquarePen, Plus, Lock, Unlock, Pin, BellOff, Trash2 } from 'lucide-react-native';
+import { SquarePen } from 'lucide-react-native';
 import FloatingTabBar from '../../../src/components/FloatingTabBar';
-import ChatListItem from '../../../src/components/chat/ChatListItem';
-import AiChatListItem from '../../../src/components/chat/AiChatListItem';
-import VerifiedBadge from '../../../src/components/VerifiedBadge';
-import { MOCK_CHATS, MOCK_STORIES } from '../../../src/mocks/chats';
+import ChatListView from '../../../src/components/chat/ChatListView';
+import StatusCirclesRow from '../../../src/components/chat/StatusCirclesRow';
+import StatusViewer from '../../../src/components/chat/StatusViewer';
+import CreateStatusModal from '../../../src/components/chat/CreateStatusModal';
+import ChatTabs, { ChatTab } from '../../../src/components/chat/ChatTabs';
+import ChatCategoryChips from '../../../src/components/chat/ChatCategoryChips';
+import CreateCategoryModal from '../../../src/components/chat/CreateCategoryModal';
+import AssignCategoryModal from '../../../src/components/chat/AssignCategoryModal';
+import ChatOptionsSheet from '../../../src/components/chat/ChatOptionsSheet';
+import CommunitiesTabView from '../../../src/components/chat/CommunitiesTabView';
+import CreateCommunityModal from '../../../src/components/chat/CreateCommunityModal';
+import ChatCreateMenu from '../../../src/components/chat/ChatCreateMenu';
+import { Community, MOCK_COMMUNITIES, addCommunity } from '../../../src/mocks/communities';
+import { MOCK_CHATS, MOCK_CATEGORIES, ChatCategory, addCategory, setChatCategories } from '../../../src/mocks/chats';
+import { MOCK_STATUSES, addStatus, markStatusViewed } from '../../../src/mocks/statuses';
 import { isProtected, hasPin, setProtected } from '../../../src/stores/pinStore';
 import PinLockModal from '../../../src/components/security/PinLockModal';
 
@@ -30,6 +33,31 @@ export default function ChatListScreen() {
   const [lockedChatId, setLockedChatId] = useState<string | null>(null);
   const [pinAction, setPinAction] = useState<{ type: 'open' | 'add' | 'remove'; chat: typeof MOCK_CHATS[0] } | null>(null);
   const [, setTick] = useState(0);
+
+  // Chats or communities
+  const [activeTab, setActiveTab] = useState<ChatTab>('chats');
+
+  // Create menu of the header + the communities it can open
+  const [createMenuOpen, setCreateMenuOpen] = useState(false);
+  const [creatingCommunity, setCreatingCommunity] = useState(false);
+  const [communities, setCommunities] = useState<Community[]>([...MOCK_COMMUNITIES]);
+
+  // Category filter of the chat list (null = "Todos")
+  const [categories, setCategories] = useState<ChatCategory[]>([...MOCK_CATEGORIES]);
+  const [activeCategoryId, setActiveCategoryId] = useState<string | null>(null);
+  const [creatingCategory, setCreatingCategory] = useState(false);
+  const [assigningChat, setAssigningChat] = useState<typeof MOCK_CHATS[0] | null>(null);
+
+  // Statuses shown as cards above the chat list
+  const [statuses, setStatuses] = useState([...MOCK_STATUSES]);
+  const [viewerIndex, setViewerIndex] = useState<number | null>(null);
+  const [creatingStatus, setCreatingStatus] = useState(false);
+
+  const openStatus = (index: number) => {
+    markStatusViewed(statuses[index].id);
+    setStatuses([...MOCK_STATUSES]);
+    setViewerIndex(index);
+  };
 
   // Sync state on focus to update lock statuses and load new chats
   useEffect(() => {
@@ -103,9 +131,11 @@ export default function ChatListScreen() {
     }
   };
 
-  const aiChat = chats.find((c) => c.isAI);
+  // The assistant is pinned on top and never belongs to a category
+  const aiChat = activeCategoryId ? undefined : chats.find((c) => c.isAI);
   const filteredChats = chats
     .filter((c) => !c.isAI)
+    .filter((c) => !activeCategoryId || (c.categoryIds ?? []).includes(activeCategoryId))
     .sort((a, b) => (a.isPinned === b.isPinned ? 0 : a.isPinned ? -1 : 1));
 
   return (
@@ -113,78 +143,73 @@ export default function ChatListScreen() {
       <View style={styles.container}>
         <View style={styles.header}>
           <Text style={styles.title}>Chats</Text>
-          <TouchableOpacity style={styles.newChatBtn} onPress={() => router.push('/(main)/chat/new')} activeOpacity={0.7}>
+          <TouchableOpacity
+            style={styles.newChatBtn}
+            onPress={() => setCreateMenuOpen(true)}
+            activeOpacity={0.7}
+            accessibilityLabel="Crear"
+          >
             <SquarePen size={20} color={colors.neutral.text} />
           </TouchableOpacity>
         </View>
 
-        {/* Stories list */}
-        <View style={styles.storiesContainer}>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.storiesScroll}>
-            {MOCK_STORIES.map((story) => (
-              <View key={story.id} style={styles.storyWrap}>
-                <TouchableOpacity activeOpacity={0.8} onPress={() => router.push(story.isUser ? '/(main)/chat/story?id=tu' : `/(main)/chat/story?id=${story.id}`)}>
-                  {story.isUser ? (
-                    <View style={styles.userStoryCircle}>
-                      <Text style={styles.userStoryText}>YO</Text>
-                      <TouchableOpacity style={styles.addStoryBadge} onPress={() => router.push('/(main)/chat/create-story')} activeOpacity={0.7}>
-                        <Plus size={10} color={colors.neutral.white} strokeWidth={3} />
-                      </TouchableOpacity>
-                    </View>
-                  ) : (
-                    <View style={[styles.storyCircle, story.hasActive && styles.storyCircleActive]}>
-                      <View style={styles.storyInnerCircle}><Text style={styles.storyText}>{story.initials}</Text></View>
-                    </View>
-                  )}
-                </TouchableOpacity>
-                <View style={styles.storyNameRow}>
-                  <Text style={styles.storyName} numberOfLines={1}>{story.name}</Text>
-                  {story.verified && <VerifiedBadge size={11} />}
-                </View>
-              </View>
-            ))}
-          </ScrollView>
-        </View>
+        <ChatTabs activeTab={activeTab} onChange={setActiveTab} />
 
-        <ScrollView style={styles.chatListScroll} showsVerticalScrollIndicator={false}>
-          {aiChat && (
-            <AiChatListItem
-              name={aiChat.name}
-              lastMessage={aiChat.lastMessage}
-              time={aiChat.time}
-              isProtected={isProtected(aiChat.id)}
-              onPress={() => handleChatPress(aiChat)}
-              onLongPress={() => setMenuChat(aiChat)}
+        {activeTab === 'communities' ? (
+          <CommunitiesTabView
+            communities={communities}
+            onOpenCommunity={(community) =>
+              router.push({ pathname: '/(main)/chat/community', params: { id: community.id } })
+            }
+          />
+        ) : (
+          <>
+            {/* Statuses: horizontal row of circles */}
+            <StatusCirclesRow
+              statuses={statuses}
+              onCreate={() => setCreatingStatus(true)}
+              onOpen={openStatus}
             />
-          )}
 
-          {filteredChats.map((chat) => (
-            <ChatListItem
-              key={chat.id}
-              id={chat.id}
-              name={chat.name}
-              lastMessage={chat.lastMessage}
-              time={chat.time}
-              unreadCount={chat.unreadCount}
-              isGroup={chat.isGroup}
-              verified={chat.verified}
-              status={chat.status}
-              online={chat.online}
-              isPinned={chat.isPinned}
-              isMuted={chat.isMuted}
-              isProtected={isProtected(chat.id)}
-              onPress={() => handleChatPress(chat)}
-              onPin={() => handlePin(chat.id)}
-              onMute={() => handleMute(chat.id)}
-              onDelete={() => handleDelete(chat.id)}
-              onLongPress={() => setMenuChat(chat)}
+            <ChatCategoryChips
+              categories={categories}
+              activeCategoryId={activeCategoryId}
+              onChange={setActiveCategoryId}
+              onCreate={() => setCreatingCategory(true)}
             />
-          ))}
-          <View style={{ height: 100 }} />
-        </ScrollView>
+
+            <ChatListView
+              aiChat={aiChat}
+              chats={filteredChats}
+              onOpenChat={handleChatPress}
+              onOpenMenu={setMenuChat}
+              onPin={handlePin}
+              onMute={handleMute}
+              onDelete={handleDelete}
+            />
+          </>
+        )}
 
         {!router.embedded && <FloatingTabBar activeTab="chat" />}
       </View>
+
+      <StatusViewer
+        visible={viewerIndex !== null}
+        statuses={statuses}
+        index={viewerIndex ?? 0}
+        onChangeIndex={openStatus}
+        onClose={() => setViewerIndex(null)}
+      />
+
+      <CreateStatusModal
+        visible={creatingStatus}
+        onPublish={(status) => {
+          addStatus(status);
+          setStatuses([...MOCK_STATUSES]);
+          setCreatingStatus(false);
+        }}
+        onClose={() => setCreatingStatus(false)}
+      />
 
       {/* PinLockModal */}
       <PinLockModal
@@ -194,45 +219,69 @@ export default function ChatListScreen() {
         onSuccess={handlePinSuccess}
       />
 
-      {/* Custom Bottom Sheet Context Menu */}
-      <Modal visible={!!menuChat} transparent animationType="fade" onRequestClose={() => setMenuChat(null)}>
-        <TouchableOpacity style={styles.modalBg} activeOpacity={1} onPress={() => setMenuChat(null)}>
-          <View style={styles.modalSheet}>
-            <Text style={styles.sheetTitle}>{menuChat?.name}</Text>
-            {menuChat && (
-              <>
-                <TouchableOpacity style={styles.sheetBtn} onPress={() => handleToggleProtection(menuChat)}>
-                  {isProtected(menuChat.id) ? (
-                    <><Unlock size={18} color={colors.brand.primary} style={{ marginRight: 12 }} /><Text style={styles.sheetBtnText}>Quitar protección con PIN</Text></>
-                  ) : (
-                    <><Lock size={18} color={colors.brand.primary} style={{ marginRight: 12 }} /><Text style={styles.sheetBtnText}>Proteger con PIN</Text></>
-                  )}
-                </TouchableOpacity>
+      <ChatCreateMenu
+        visible={createMenuOpen}
+        onNewChat={() => {
+          setCreateMenuOpen(false);
+          router.push('/(main)/chat/new');
+        }}
+        onNewGroup={() => {
+          setCreateMenuOpen(false);
+          router.push({ pathname: '/(main)/chat/new', params: { mode: 'group' } });
+        }}
+        onNewCommunity={() => {
+          setCreateMenuOpen(false);
+          setCreatingCommunity(true);
+        }}
+        onClose={() => setCreateMenuOpen(false)}
+      />
 
-                <TouchableOpacity style={styles.sheetBtn} onPress={() => { handlePin(menuChat.id); setMenuChat(null); }}>
-                  <Pin size={18} color={colors.neutral.text} style={{ marginRight: 12 }} />
-                  <Text style={styles.sheetBtnText}>{menuChat.isPinned ? 'Desfijar' : 'Fijar'}</Text>
-                </TouchableOpacity>
+      <CreateCommunityModal
+        visible={creatingCommunity}
+        onCreate={(data) => {
+          addCommunity(data);
+          setCommunities([...MOCK_COMMUNITIES]);
+          setCreatingCommunity(false);
+          setActiveTab('communities');
+        }}
+        onClose={() => setCreatingCommunity(false)}
+      />
 
-                <TouchableOpacity style={styles.sheetBtn} onPress={() => { handleMute(menuChat.id); setMenuChat(null); }}>
-                  <BellOff size={18} color={colors.neutral.text} style={{ marginRight: 12 }} />
-                  <Text style={styles.sheetBtnText}>{menuChat.isMuted ? 'Desactivar silencio' : 'Silenciar'}</Text>
-                </TouchableOpacity>
+      <ChatOptionsSheet
+        chat={menuChat}
+        isProtected={!!menuChat && isProtected(menuChat.id)}
+        onToggleProtection={() => menuChat && handleToggleProtection(menuChat)}
+        onTogglePin={() => { if (menuChat) handlePin(menuChat.id); setMenuChat(null); }}
+        onToggleMute={() => { if (menuChat) handleMute(menuChat.id); setMenuChat(null); }}
+        onAssignCategory={() => { setAssigningChat(menuChat); setMenuChat(null); }}
+        onDelete={() => { if (menuChat) handleDelete(menuChat.id); setMenuChat(null); }}
+        onClose={() => setMenuChat(null)}
+      />
 
-                {!menuChat.isAI && (
-                  <TouchableOpacity style={styles.sheetBtn} onPress={() => { handleDelete(menuChat.id); setMenuChat(null); }}>
-                    <Trash2 size={18} color={colors.semantic.error} style={{ marginRight: 12 }} />
-                    <Text style={[styles.sheetBtnText, { color: colors.semantic.error }]}>Eliminar chat</Text>
-                  </TouchableOpacity>
-                )}
-              </>
-            )}
-            <TouchableOpacity style={styles.cancelBtn} onPress={() => setMenuChat(null)}>
-              <Text style={styles.cancelBtnText}>Cancelar</Text>
-            </TouchableOpacity>
-          </View>
-        </TouchableOpacity>
-      </Modal>
+      <CreateCategoryModal
+        visible={creatingCategory}
+        onCreate={(category) => {
+          const created = addCategory(category);
+          setCategories([...MOCK_CATEGORIES]);
+          setActiveCategoryId(created.id);
+          setCreatingCategory(false);
+        }}
+        onClose={() => setCreatingCategory(false)}
+      />
+
+      <AssignCategoryModal
+        visible={!!assigningChat}
+        chatName={assigningChat?.name}
+        categories={categories}
+        selectedIds={assigningChat?.categoryIds ?? []}
+        onSave={(categoryIds) => {
+          if (assigningChat) setChatCategories(assigningChat.id, categoryIds);
+          setChats([...MOCK_CHATS]);
+          setAssigningChat(null);
+        }}
+        onClose={() => setAssigningChat(null)}
+      />
+
     </ScreenSafeArea>
   );
 }
@@ -243,24 +292,4 @@ const styles = StyleSheet.create({
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingTop: 16, paddingBottom: 12, backgroundColor: colors.neutral.white },
   title: { fontSize: 24, fontWeight: '800', color: colors.neutral.text },
   newChatBtn: { width: 40, height: 40, borderRadius: 12, backgroundColor: colors.neutral.gray100, alignItems: 'center', justifyContent: 'center' },
-  storiesContainer: { paddingVertical: 14, backgroundColor: colors.neutral.white, borderBottomWidth: 1, borderColor: colors.neutral.gray100 },
-  storiesScroll: { paddingHorizontal: 20, gap: 16 },
-  storyWrap: { alignItems: 'center', width: 60 },
-  userStoryCircle: { width: 50, height: 50, borderRadius: 25, backgroundColor: colors.neutral.gray200, alignItems: 'center', justifyContent: 'center', position: 'relative', borderWidth: 1, borderColor: colors.neutral.gray300 },
-  userStoryText: { fontSize: 12, fontWeight: '700', color: colors.neutral.gray700 },
-  addStoryBadge: { position: 'absolute', bottom: -2, right: -2, width: 18, height: 18, borderRadius: 9, backgroundColor: colors.brand.primary, borderWidth: 2, borderColor: colors.neutral.white, alignItems: 'center', justifyContent: 'center' },
-  storyCircle: { width: 50, height: 50, borderRadius: 25, padding: 2, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: 'transparent' },
-  storyCircleActive: { borderColor: colors.brand.primary },
-  storyInnerCircle: { flex: 1, width: '100%', borderRadius: 22, backgroundColor: '#F3E8FF', alignItems: 'center', justifyContent: 'center' },
-  storyText: { fontSize: 16, fontWeight: '700', color: colors.brand.primary },
-  storyNameRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 3, marginTop: 6 },
-  storyName: { flexShrink: 1, fontSize: 11, color: colors.neutral.gray600, fontWeight: '600', textAlign: 'center' },
-  chatListScroll: { flex: 1 },
-  modalBg: { flex: 1, backgroundColor: 'rgba(26, 26, 46, 0.4)', justifyContent: 'flex-end' },
-  modalSheet: { backgroundColor: colors.neutral.white, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, paddingBottom: Platform.OS === 'ios' ? 40 : 24 },
-  sheetTitle: { fontSize: 16, fontWeight: '800', color: colors.neutral.text, marginBottom: 18, textAlign: 'center' },
-  sheetBtn: { flexDirection: 'row', alignItems: 'center', paddingVertical: 14, borderBottomWidth: 1, borderColor: '#F1F3F5' },
-  sheetBtnText: { fontSize: 14, fontWeight: '600', color: colors.neutral.text },
-  cancelBtn: { justifyContent: 'center', alignItems: 'center', borderTopWidth: 1, borderColor: colors.neutral.gray100, marginTop: 12, paddingVertical: 14 },
-  cancelBtnText: { fontWeight: '700', color: colors.neutral.gray600, fontSize: 14 },
 });

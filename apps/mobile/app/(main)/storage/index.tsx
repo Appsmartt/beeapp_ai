@@ -14,6 +14,7 @@ import {
   StorageFilter,
 } from '../../../src/utils/storageHelpers';
 import StorageItemsView from '../../../src/components/storage/StorageItemsView';
+import { ViewMode } from '../../../src/components/layout/ViewModeToggle';
 import StorageContextMenu from '../../../src/components/storage/StorageContextMenu';
 import { MoveFolderModal, FolderNameDialog } from '../../../src/components/storage/StorageDialogs';
 import StorageFabMenu from '../../../src/components/storage/StorageFabMenu';
@@ -40,6 +41,8 @@ export default function StorageIndexScreen() {
   // Search moved to the global Home search bar: the module keeps the filter dormant
   const [searchQuery] = useState('');
   const [sortBy, setSortBy] = useState<SortOption>('name');
+  // List by default; the grid is an adaptive 2/3-column layout
+  const [viewMode, setViewMode] = useState<ViewMode>('list');
   const [activeFilter, setActiveFilter] = useState<StorageFilter>('all');
 
   // Modals & Menu States
@@ -196,6 +199,8 @@ export default function StorageIndexScreen() {
           onAction={router.embedded ? () => setFabMenuVisible(!fabMenuVisible) : undefined}
           sortBy={sortBy}
           onSortChange={setSortBy}
+          viewMode={viewMode}
+          onViewModeChange={setViewMode}
         />
 
         <ScrollView style={styles.scrollList} showsVerticalScrollIndicator={false}>
@@ -213,6 +218,7 @@ export default function StorageIndexScreen() {
             protectedIds={protectedIds}
             onOpenItem={handleOpenItem}
             onOpenMenu={openContextMenu}
+            viewMode={viewMode}
           />
 
           <View style={{ height: 160 }} />
@@ -290,14 +296,7 @@ export default function StorageIndexScreen() {
 }
 
 const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: colors.neutral.gray50,
-  },
-  container: {
-    flex: 1,
-  },
-  scrollList: {
-    flex: 1,
-  },
+  safeArea: { flex: 1, backgroundColor: colors.neutral.gray50 },
+  container: { flex: 1 },
+  scrollList: { flex: 1 },
 });

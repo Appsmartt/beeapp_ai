@@ -8,6 +8,47 @@ export const AI_CHAT_ID = 'ai-assistant';
 /** Nombre que el usuario le puso al asistente en el onboarding (mock) */
 export const AI_ASSISTANT_NAME = 'Bee';
 
+/** Member of a group chat (mock). The current user is always the admin. */
+export interface GroupMember {
+  id: string;
+  name: string;
+  role: 'admin' | 'member';
+  initials: string;
+  /** Background of the initials avatar */
+  color: string;
+  /** The logged user: shown first and tagged "Tú" */
+  isCurrentUser?: boolean;
+}
+
+/** Categoría de chats creada por el usuario (mock) */
+export interface ChatCategory {
+  id: string;
+  name: string;
+  /** Nombre del ícono de Lucide elegido en el modal de crear */
+  icon: string;
+  /** Color del chip (elegido por el usuario, no es un token del sistema) */
+  color: string;
+}
+
+export const MOCK_CATEGORIES: ChatCategory[] = [
+  { id: 'cat-friends', name: 'Amigos', icon: 'Users', color: '#EBF5FF' },
+  { id: 'cat-work', name: 'Trabajo', icon: 'Briefcase', color: '#F1F3F5' },
+  { id: 'cat-family', name: 'Familia', icon: 'Heart', color: '#FCE7F3' },
+];
+
+/** Agrega una categoría nueva (mock en memoria) */
+export function addCategory(category: Omit<ChatCategory, 'id'>): ChatCategory {
+  const created: ChatCategory = { ...category, id: 'cat_' + Date.now().toString(36) };
+  MOCK_CATEGORIES.push(created);
+  return created;
+}
+
+/** Reemplaza las categorías de un chat (un chat puede estar en varias) */
+export function setChatCategories(chatId: string, categoryIds: string[]) {
+  const chat = MOCK_CHATS.find((c) => c.id === chatId);
+  if (chat) chat.categoryIds = categoryIds;
+}
+
 export interface ChatItem {
   id: string;
   name: string;
@@ -24,7 +65,23 @@ export interface ChatItem {
   /** The BeeApp assistant: pinned on top, logo avatar and no swipe actions */
   isAI?: boolean;
   isProtected?: boolean;
+  /** Only on group chats: who is in the group */
+  members?: GroupMember[];
+  /** Categories the user filed this chat under (the assistant has none) */
+  categoryIds?: string[];
 }
+
+/**
+ * Members of the mock group chat ("Equipo de Desarrollo").
+ * The ids of the ones that are also contacts match `MY_CONTACTS`, so the
+ * "agregar miembro" sheet never offers someone who is already in the group.
+ */
+export const MOCK_GROUP_MEMBERS: GroupMember[] = [
+  { id: 'me', name: 'Santiago Valencia', role: 'admin', initials: 'SV', color: '#F3E8FF', isCurrentUser: true },
+  { id: 'c1', name: 'Carlos Mendoza', role: 'member', initials: 'CM', color: '#EBF5FF' },
+  { id: 'c3', name: 'María Gómez', role: 'member', initials: 'MG', color: '#ECFDF5' },
+  { id: 'g1', name: 'Laura Restrepo', role: 'member', initials: 'LR', color: '#FFEBEE' },
+];
 
 export const MOCK_CHATS: ChatItem[] = [
   {
@@ -54,6 +111,7 @@ export const MOCK_CHATS: ChatItem[] = [
     isPinned: true,
     isMuted: false,
     isProtected: true,
+    categoryIds: ['cat-work', 'cat-friends'],
   },
   {
     id: '2',
@@ -68,6 +126,8 @@ export const MOCK_CHATS: ChatItem[] = [
     isPinned: true,
     isMuted: true,
     isProtected: true,
+    members: MOCK_GROUP_MEMBERS,
+    categoryIds: ['cat-work'],
   },
   {
     id: '3',
@@ -81,6 +141,7 @@ export const MOCK_CHATS: ChatItem[] = [
     online: false,
     isPinned: false,
     isMuted: false,
+    categoryIds: ['cat-family'],
   },
   {
     id: '4',
@@ -95,15 +156,6 @@ export const MOCK_CHATS: ChatItem[] = [
     isPinned: false,
     isMuted: false,
   },
-];
-
-export const MOCK_STORIES = [
-  { id: 'tu', name: 'Tu estado', hasActive: false, isUser: true, verified: false },
-  { id: '1', name: 'Carlos', hasActive: true, initials: 'C', verified: true },
-  { id: '2', name: 'Mariana', hasActive: true, initials: 'M', verified: true },
-  { id: '3', name: 'Alejandro', hasActive: false, initials: 'A', verified: true },
-  { id: '4', name: 'Laura', hasActive: true, initials: 'L', verified: true },
-  { id: '5', name: 'Felipe', hasActive: false, initials: 'F', verified: false },
 ];
 
 export interface ChatMessage {

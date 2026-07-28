@@ -15,16 +15,16 @@ interface HomeCustomizeModalProps {
   onSave: () => void;
 }
 
-/** Active modules first (in chip order), then the ones that are turned off */
+/** Current chip order, completed with any module missing from it */
 const buildOrder = (selectedIds: string[]) => {
-  const selected = selectedIds.filter((id) => CUSTOMIZABLE_MODULES.some((m) => m.id === id));
-  const rest = CUSTOMIZABLE_MODULES.map((m) => m.id).filter((id) => !selected.includes(id));
-  return [...selected, ...rest];
+  const known = selectedIds.filter((id) => CUSTOMIZABLE_MODULES.some((m) => m.id === id));
+  const rest = CUSTOMIZABLE_MODULES.map((m) => m.id).filter((id) => !known.includes(id));
+  return [...known, ...rest];
 };
 
 /**
- * Home customizer: turn modules on/off and drag them to reorder the chips.
- * "Todas" is not listed here — it is always the first chip.
+ * Home customizer: drag the modules to reorder the chips. No module can be
+ * hidden, and "Todas" is not listed here — it is always the first chip.
  */
 export default function HomeCustomizeModal({ visible, selectedIds, onChangeSelected, onCancel, onSave }: HomeCustomizeModalProps) {
   const [order, setOrder] = useState<string[]>(() => buildOrder(selectedIds));
@@ -38,30 +38,15 @@ export default function HomeCustomizeModal({ visible, selectedIds, onChangeSelec
     .map((id) => CUSTOMIZABLE_MODULES.find((m) => m.id === id))
     .filter((m): m is HomeModule => !!m);
 
-  const toggle = (id: string) => {
-    if (selectedIds.includes(id)) {
-      onChangeSelected(selectedIds.filter((x) => x !== id));
-    } else {
-      // Keep the chip order the user dragged, not the tap order
-      onChangeSelected(order.filter((x) => x === id || selectedIds.includes(x)));
-    }
-  };
-
   const handleDragEnd = (next: HomeModule[]) => {
     const nextOrder = next.map((m) => m.id);
     setOrder(nextOrder);
-    onChangeSelected(nextOrder.filter((id) => selectedIds.includes(id)));
+    onChangeSelected(nextOrder);
   };
 
   const renderItem = ({ item, drag, isActive }: RenderItemParams<HomeModule>) => (
     <ScaleDecorator activeScale={1.03}>
-      <CustomizeModuleRow
-        item={item}
-        isSelected={selectedIds.includes(item.id)}
-        isActive={isActive}
-        onDrag={drag}
-        onToggle={() => toggle(item.id)}
-      />
+      <CustomizeModuleRow item={item} isActive={isActive} onDrag={drag} />
     </ScaleDecorator>
   );
 
@@ -74,10 +59,10 @@ export default function HomeCustomizeModal({ visible, selectedIds, onChangeSelec
           <View style={styles.modalHeader}>
             <Text style={styles.modalTitle}>Personalizar Accesos</Text>
             <Text style={styles.modalSubtitle}>
-              Elige qué módulos ves en el inicio y mantén presionado para arrastrarlos y cambiar su orden.
+              Mantén presionado un módulo y arrástralo para cambiar el orden de los accesos del inicio.
             </Text>
             <Text style={styles.selectionCounter}>
-              {selectedIds.length} de {CUSTOMIZABLE_MODULES.length} activos
+              {CUSTOMIZABLE_MODULES.length} módulos siempre visibles
             </Text>
           </View>
 
@@ -95,12 +80,7 @@ export default function HomeCustomizeModal({ visible, selectedIds, onChangeSelec
               <Text style={styles.modalCancelBtnText}>Cancelar</Text>
             </TouchableOpacity>
 
-            <TouchableOpacity
-              style={[styles.modalSaveBtn, selectedIds.length === 0 && styles.modalSaveBtnDisabled]}
-              disabled={selectedIds.length === 0}
-              onPress={onSave}
-              activeOpacity={0.8}
-            >
+            <TouchableOpacity style={styles.modalSaveBtn} onPress={onSave} activeOpacity={0.8}>
               <Text style={styles.modalSaveBtnText}>Guardar</Text>
             </TouchableOpacity>
           </View>
@@ -182,9 +162,6 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     paddingVertical: 14,
     alignItems: 'center',
-  },
-  modalSaveBtnDisabled: {
-    backgroundColor: colors.neutral.gray400,
   },
   modalSaveBtnText: {
     color: colors.neutral.white,

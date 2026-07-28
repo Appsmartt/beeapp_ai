@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { colors } from '@beeapp/design-system';
 import { ChevronLeft, ArrowUpDown, Plus } from 'lucide-react-native';
 import { SortOption } from '../../utils/storageHelpers';
+import ViewModeToggle, { ViewMode } from '../layout/ViewModeToggle';
 
 interface StorageHeaderProps {
   /** Omitted when there is nothing to go back to (root of an embedded module) */
@@ -11,9 +12,11 @@ interface StorageHeaderProps {
   onAction?: () => void;
   sortBy: SortOption;
   onSortChange: (next: SortOption) => void;
+  viewMode: ViewMode;
+  onViewModeChange: (mode: ViewMode) => void;
 }
 
-export default function StorageHeader({ onBack, onAction, sortBy, onSortChange }: StorageHeaderProps) {
+export default function StorageHeader({ onBack, onAction, sortBy, onSortChange, viewMode, onViewModeChange }: StorageHeaderProps) {
   return (
     <>
       {/* Header */}
@@ -29,6 +32,8 @@ export default function StorageHeader({ onBack, onAction, sortBy, onSortChange }
 
         {/* Sort & View controls */}
         <View style={styles.headerControls}>
+          <ViewModeToggle mode={viewMode} onChange={onViewModeChange} />
+
           <TouchableOpacity
             onPress={() => {
               const nextSort: Record<SortOption, SortOption> = { name: 'date', date: 'size', size: 'type', type: 'name' };

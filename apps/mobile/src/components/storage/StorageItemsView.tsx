@@ -4,6 +4,8 @@ import { colors, spacing } from '@beeapp/design-system';
 import { MoreVertical, ShieldCheck, FolderOpen, Lock } from 'lucide-react-native';
 import { StorageItem } from '../../stores/storageStore';
 import { renderItemIcon } from './storageItemIcon';
+import StorageItemsGrid from './StorageItemsGrid';
+import { ViewMode } from '../layout/ViewModeToggle';
 
 interface StorageItemsViewProps {
   items: StorageItem[];
@@ -11,13 +13,15 @@ interface StorageItemsViewProps {
   protectedIds: string[];
   onOpenItem: (item: StorageItem) => void;
   onOpenMenu: (item: StorageItem) => void;
+  /** Flat rows by default; 'grid' delegates to the adaptive card grid */
+  viewMode: ViewMode;
 }
 
 /**
  * Single-column list of files and folders: flat rows (no cards) with the
  * same anatomy as the mail list — round icon, name, meta and date.
  */
-export default function StorageItemsView({ items, protectedIds, onOpenItem, onOpenMenu }: StorageItemsViewProps) {
+export default function StorageItemsView({ items, protectedIds, onOpenItem, onOpenMenu, viewMode }: StorageItemsViewProps) {
   if (items.length === 0) {
     // Empty State
     return (
@@ -30,6 +34,17 @@ export default function StorageItemsView({ items, protectedIds, onOpenItem, onOp
           No hay archivos ni carpetas que mostrar en este directorio.
         </Text>
       </View>
+    );
+  }
+
+  if (viewMode === 'grid') {
+    return (
+      <StorageItemsGrid
+        items={items}
+        protectedIds={protectedIds}
+        onOpenItem={onOpenItem}
+        onOpenMenu={onOpenMenu}
+      />
     );
   }
 

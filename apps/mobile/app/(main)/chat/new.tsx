@@ -9,7 +9,7 @@ import {
   Dimensions,
 } from 'react-native';
 import ScreenSafeArea from '../../../src/components/layout/ScreenSafeArea';
-import { useModuleNav } from '../../../src/components/embedded/EmbeddedNavContext';
+import { useModuleNav, useScreenParams } from '../../../src/components/embedded/EmbeddedNavContext';
 import { colors } from '@beeapp/design-system';
 import { ChevronLeft, Search, Users, X, Check, ArrowRight } from 'lucide-react-native';
 import VerifiedBadge from '../../../src/components/VerifiedBadge';
@@ -18,10 +18,12 @@ const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 export default function NewChatScreen() {
   const router = useModuleNav();
+  const params = useScreenParams();
   const [searchText, setSearchText] = useState('');
   
   // Interactive Wizard States
-  const [isCreatingGroup, setIsCreatingGroup] = useState(false);
+  // The header menu can open this screen straight in "new group" mode
+  const [isCreatingGroup, setIsCreatingGroup] = useState(params.mode === 'group');
   const [selectedContacts, setSelectedContacts] = useState<string[]>([]);
   const [groupStep, setGroupStep] = useState(1); // 1: Selection, 2: Group Info
   const [groupName, setGroupName] = useState('');
