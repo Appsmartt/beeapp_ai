@@ -13,6 +13,7 @@ El proyecto es un **monorepo** con dos aplicaciones y paquetes compartidos:
 | Ruta | Qué es |
 |---|---|
 | `apps/mobile` | App móvil (React Native + Expo) para el usuario final |
+| `apps/mobile-web` | Aplicación web (Next.js 14 + Tailwind CSS) para el usuario final |
 | `apps/admin-web` | Panel de administración web (Next.js) |
 | `packages/design-system` | Tokens de diseño y temas compartidos |
 | `packages/shared-types` | Tipos TypeScript compartidos entre apps |
@@ -30,6 +31,12 @@ El proyecto es un **monorepo** con dos aplicaciones y paquetes compartidos:
 - `react-native-safe-area-context`: `SafeAreaProvider` envuelve el `Stack` en `app/_layout.tsx` y las pantallas toman el inset del dispositivo con `useSafeAreaInsets` (nunca un padding fijo)
 - `react-native-gesture-handler` + `react-native-reanimated` (con su plugin de Babel) y `react-native-draggable-flatlist`: sostienen el **arrastrar y soltar** del personalizador de módulos del Home. `GestureHandlerRootView` envuelve el `Stack` en `app/_layout.tsx` **y también el contenido del `Modal` de personalización** (un `Modal` de React Native es una ventana aparte y no hereda el root de gestos del padre)
 - `react-native-web` ~0.19.10 (permite smoke tests en navegador con `expo start --web`)
+
+### Mobile Web (`@beeapp/mobile-web`)
+- **Next.js** ^14.2.35 con **App Router**
+- **TypeScript** ^5.4.0 + **Tailwind CSS** ^3.4.1
+- `lucide-react` (iconos web)
+- Comparte tokens de diseño con el paquete `@beeapp/design-system` vía CSS variables (`--brand-primary: #6025d2`, `--brand-dark: #5B2CD9`, neutros y semánticos)
 
 ### Admin Web (`@beeapp/admin-web`)
 - **Next.js** ^14.2.0 con **App Router**
@@ -92,6 +99,23 @@ beeapp_ai/
 │   │   │   └── navigation/   # (vacía) reservada para utilidades de navegación
 │   │   ├── scripts/          # patch-expo-router.js (parche post-install)
 │   │   └── Build.MD          # Guía de development builds (Expo)
+│   ├── mobile-web/
+│   │   ├── src/
+│   │   │   ├── app/          # Rutas App Router (Next.js 14)
+│   │   │   │   ├── layout.tsx      # Layout raíz limpio con metadata
+│   │   │   │   ├── page.tsx        # Landing Page principal
+│   │   │   │   ├── globals.css     # CSS variables del design-system y Tailwind
+│   │   │   │   ├── login/          # Ruta /login
+│   │   │   │   │   └── page.tsx
+│   │   │   │   ├── verify/         # Ruta /verify (OTP)
+│   │   │   │   │   └── page.tsx
+│   │   │   │   └── app/            # Placeholder post-login (/app)
+│   │   │   │       └── page.tsx
+│   │   │   └── components/
+│   │   │       ├── landing/        # LandingNavbar, Hero, Features, HowItWorks, Security, Cta, Footer
+│   │   │       └── auth/           # LoginForm, OtpForm, CountrySelector
+│   │   ├── tailwind.config.ts  # Configuración Tailwind con tokens de marca
+│   │   └── package.json        # `@beeapp/mobile-web`
 │   └── admin-web/
 │       ├── public/
 │       └── src/
@@ -224,6 +248,48 @@ El descubrimiento de productos y servicios **de otros usuarios** no vive aquí: 
 **Asistente de IA (solo voz):** el único acceso es el **botón central del menú flotante**, con un **halo animado de brillo** (`AssistantGlow`) porque el asistente es la acción principal de la app. Al tocarlo se abre `VoiceAssistantScreen`, una experiencia **inmersiva a pantalla completa** sobre fondo púrpura profundo con un **visual orgánico animado** (`VoiceOrb`: capas de blobs SVG que rotan a distintas velocidades con pulso de respiración, y que se mueve más al escuchar o responder). La conversación es **solo por voz, sin teclado ni burbujas de chat**: la voz del usuario aparece **transcrita palabra por palabra** en pantalla, el asistente "piensa" un instante y su respuesta se transcribe igual, en un diálogo continuo. Los controles inferiores son mínimos: reiniciar conversación, micrófono (hablar/pausar) y cerrar. Todo es simulación mock — no hay reconocimiento de voz ni IA reales.
 
 **Descubrimiento y Búsqueda por IA (Chat y Asistente):** El usuario puede chatear por texto con el asistente de IA (`ai-assistant`). Al realizar una consulta de búsqueda (ej. pedir un diseñador gráfico), la IA responde y de forma inmediata despliega un bottom sheet modal (`AiCatalogModal`) con los resultados de otros proveedores. El usuario puede tocar 'Ver detalle' para expandir la descripción de cada oferta inline, o 'Contactar' para iniciar/abrir una conversación directamente con el vendedor enviando un mensaje preestablecido. La integración de este catálogo en la experiencia de voz (`VoiceAssistantScreen`) queda pendiente para fases futuras.
+
+### Mobile Web (`apps/mobile-web/`)
+
+| Módulo / Ruta | Componentes principales | Qué hace |
+|---|---|---|
+| **Landing Page** `/` | `LandingNavbar`, `HeroSection`, `FeaturesSection`, `HowItWorksSection`, `SecuritySection`, `CtaSection`, `Footer` | Presentación institucional y de producto de BeeApp AI en 6 secciones con scroll vertical: Hero (título, subtítulo, CTA e ilustración/mockup de la app), 6 Características principales (Chat, BeeServices, Asistente IA, Correo, Seguridad, Red), Proceso en 3 pasos, Sección de Seguridad (biometría, PIN, cifrado), CTA final y Footer. |
+| **Login** `/login` | `LoginForm`, `CountrySelector` | Formulario de inicio de sesión centrado e intuitivo con selector desplegable de país con banderas e indicativos internacionales (+57 Colombia por defecto), input de teléfono y enlaces a términos y privacidad. Navega a `/verify`. |
+| **Verificación OTP** `/verify` | `OtpForm` | Verificación por código de 6 dígitos enviado por SMS. Cuadros independientes de entrada con salto automático entre casillas, temporizador de reenvío de 30 segundos y opción de cambiar número. Al verificar navega a `/app`. |
+| **App Shell & Home** `/app` | `AppLayout`, `FloatingTabBar`, `HomeHeader`, `SideMenu`, `ModuleChipRow`, `AllModulesOverview` | Contenedor centrado de 430px (mobile-first) con fondo gris exterior, barra flotante inferior con notificaciones animadas en ticker e ícono central del asistente, cabecera con filtro desplegable y búsqueda, menú lateral drawer completo, barra deslizable de chips de módulos y vista general "Todas" con feed unificado de 5 ítems por módulo. |
+| **Módulo Correo** `/app` (chip) | `MailModule`, `MailDetail`, `MailCompose` | Gestión de correo con selector multi-cuenta, carpetas (Recibidos, No leídos, Enviados, Borradores), lista plana de mensajes con estrella, adjuntos e indicador de no leído, vista de detalle completa con responder/reenviar y modal de redacción. |
+| **Módulo Notas** `/app` (chip) | `NotesModule`, `NoteEdit` | Notas rápidas con selector de vista (lista o cuadrícula de 2 columnas), creación/edición de notas y protección individual con PIN (oculta título y preview en lista/grid). |
+| **Módulo Almacenamiento** `/app` (chip) | `StorageModule`, `StoragePreview` | Explorador de archivos con tarjeta resumen de espacio disponible (15 GB), chips de filtro (Todos, Recientes, Documentos, Fotos, Firmados), conmutador de vista lista/grid, indicador de documentos firmados/protegidos y vista previa de archivos. |
+| **Módulo Chat** `/app` (chip) | `ChatModule`, `ChatConversation`, `ChatProfile`, `CommunityScreen`, `CommunityProfile`, `StatusViewer`, `CreateStatusModal`, Modales | Módulo completo de comunicación con pestañas *Chats* y *Comunidades*, fila de estados/historias con visor fullscreen y editor, chips de categorías personalizables, chat fijado del asistente IA "Bee", conversaciones con respuestas de vendedor e interruptor de respuesta automática IA, perfiles de chat/grupo con mensajes temporales y gestión de miembros, e interacción en comunidades con publicaciones oficiales del administrador y reacciones. |
+| **Módulo Contactos** `/app` (chip) | `ContactsModule`, `ContactDetail`, `CreateContactModal` | Pestañas (*Mis contactos*, *Descubrir red*, *Llamadas*), creación de contactos con selector de indicativo telefónico internacional, tarjetas de perfil con botones rápidos de llamada, chat y correo. |
+| **Módulo Agenda** `/app` (chip) | `CalendarModule`, `CalendarEventDetail`, `CreateEventModal` | Tira horizontal de la semana con día hoy/seleccionado resaltados, conmutador Día/Semana/Mes, lista de eventos diarios con enlaces a videollamadas Meet y creación/edición de compromisos. |
+| **BeeServices** `/app/beeservices` | `BeeServicesPage`, `BusinessDetailView`, Modales (`CreateBusinessModal`, `CreateProductModal`, `CreateServiceModal`) | Sección completa de gestión de negocios y catálogos. Creación de negocios con categorización y modalidades de oferta, vista de detalle con catálogo filtrable por productos o servicios y modales de carga de ítems. |
+| **Perfil & Ajustes** `/app/profile/edit`, `/app/profile/security`, `/app/profile/subscription`, `/app/profile/integrations`, `/app/profile/ai-settings` | `EditProfilePage`, `SecurityPage`, `SubscriptionPage`, `IntegrationsPage`, `AiSettingsPage` | Rutas completas de gestión de cuenta del usuario final: edición de perfil con selector de indicativo de país, seguridad con opciones de bloqueo de app (PIN 6 dígitos / Huella / Face ID) y PIN de 4 dígitos con recuperación por SMS/Email, plan de suscripción con solicitud de Bee Verify, integraciones externas (Gmail, Outlook, Google Calendar) y configuración del asistente de IA. |
+| **Notificaciones** `/app/notifications` | `NotificationsPage` | Centro de notificaciones del usuario agrupadas por temporalidad (*Hoy*, *Ayer*, *Esta semana*) con estado de lectura e ícono distintivo por tipo de alerta. |
+| **Seguridad de Sesión** `/app` (overlay) | `AppLockScreen`, `CustomizeModal` | Pantalla de bloqueo de app de 6 dígitos mediante teclado numérico o simulación biométrica presentada al iniciar la sesión web, y modal de personalización/reordenamiento de chips de módulos. |
+
+---
+
+## 📱 / 💻 Diseño Responsive & Dispositivos Soporte en Web (`apps/mobile-web/`)
+
+La aplicación web `@beeapp/mobile-web` cuenta con una arquitectura completamente responsive adaptada a 3 breakpoints principales utilizando utilidades nativas de Tailwind CSS:
+
+1. **Móvil (<640px)**:
+   - Layout de 1 columna full-width con padding lateral de 16px.
+   - Navegación inferior con `FloatingTabBar` fija en la parte inferior de la pantalla.
+   - Menú lateral como overlay deslizable al accionar la hamburguesa.
+   - Navegación maestro/detalle por cambio de vista con botón de retorno.
+
+2. **Tablet (640px a 1024px, `sm:` y `md:`)**:
+   - Contenido centrado con ancho máximo de 768px (`max-w-3xl`) sobre fondo neutro elegante.
+   - Grids de 2 a 3 columnas para notas, archivos y vista general de módulos (`AllModulesOverview`).
+   - Muestra `FloatingTabBar` inferior en tablet.
+
+3. **Desktop (≥1024px, `lg:` y `xl:`)**:
+   - Layout de 2 columnas principales (`DesktopSidebar` fijo de 280px a la izquierda + área de trabajo en contenedor hasta 1280px `max-w-7xl`).
+   - Sidebar permanente a la izquierda con identidad de marca, perfil de usuario, visibilidad en la red, navegación directa y cierre de sesión.
+   - Layout **Maestro-Detalle** simultáneo estilo WhatsApp Web / Gmail para todos los módulos de contenido (Correos, Chat, Contactos, Agenda, Almacenamiento, Notas, BeeServices): lista a la izquierda (w-96) y panel de detalle/editor/conversación a la derecha (flex-1).
+   - En desktop la `FloatingTabBar` inferior se oculta automáticamente (`lg:hidden`).
 
 ### Admin Web (`apps/admin-web/src/app/`)
 
