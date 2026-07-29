@@ -93,21 +93,6 @@ export const sideMenuStyles = StyleSheet.create({
     fontWeight: '400',
     marginBottom: 8,
   },
-  companyBadgeRow: {
-    backgroundColor: colors.neutral.gray50,
-    borderRadius: 12,
-    paddingVertical: 5,
-    paddingHorizontal: 14,
-    borderWidth: 1,
-    borderColor: colors.neutral.gray200,
-    marginBottom: 14,
-  },
-  companyNameText: {
-    fontSize: 11,
-    fontWeight: '400',
-    color: colors.neutral.text,
-    textAlign: 'center',
-  },
   editProfileBtn: {
     backgroundColor: colors.neutral.gray100,
     borderRadius: 10,

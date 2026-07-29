@@ -69,6 +69,16 @@ export interface ChatItem {
   members?: GroupMember[];
   /** Categories the user filed this chat under (the assistant has none) */
   categoryIds?: string[];
+  /** A customer wrote about something the user sells: enables the AI auto-reply banner */
+  isSellerChat?: boolean;
+  /** What the customer is asking about (only on seller chats) */
+  linkedProduct?: SellerChatProduct | null;
+}
+
+/** Producto o servicio de BeeServices por el que un cliente escribió */
+export interface SellerChatProduct {
+  name: string;
+  businessName: string;
 }
 
 /**
@@ -142,6 +152,8 @@ export const MOCK_CHATS: ChatItem[] = [
     isPinned: false,
     isMuted: false,
     categoryIds: ['cat-family'],
+    isSellerChat: true,
+    linkedProduct: { name: 'Asesoría Legal', businessName: 'Consultores Asociados S.A.S.' },
   },
   {
     id: '4',
@@ -155,6 +167,8 @@ export const MOCK_CHATS: ChatItem[] = [
     online: true,
     isPinned: false,
     isMuted: false,
+    isSellerChat: true,
+    linkedProduct: { name: 'Laptop HP', businessName: 'TechStore Bogotá' },
   },
 ];
 
@@ -177,7 +191,49 @@ export interface ChatMessage {
     text: string;
   };
   showCatalog?: boolean;
+  /** El asistente contestó por el vendedor: la burbuja lleva el badge "IA" */
+  sentByAi?: boolean;
 }
+
+/** Hilo mock de un chat de vendedor: el cliente pregunta y la IA contesta */
+export const SELLER_CONVERSATION_MESSAGES: ChatMessage[] = [
+  {
+    id: 1,
+    senderName: 'Cliente',
+    isUser: false,
+    type: 'text',
+    text: 'Hola, buenas tardes. ¿Todavía tienes disponible lo que publicaste en BeeApp?',
+    time: '09:12',
+    status: 'read',
+  },
+  {
+    id: 2,
+    isUser: true,
+    type: 'text',
+    text: 'Hola, gracias por escribir. Sí, sigue disponible. ¿Quieres que te comparta los detalles y el precio?',
+    time: '09:12',
+    status: 'read',
+    sentByAi: true,
+  },
+  {
+    id: 3,
+    senderName: 'Cliente',
+    isUser: false,
+    type: 'text',
+    text: 'Sí, por favor. ¿Y cuánto tardaría la entrega?',
+    time: '09:14',
+    status: 'read',
+  },
+  {
+    id: 4,
+    isUser: true,
+    type: 'text',
+    text: 'La entrega toma entre dos y tres días hábiles en Bogotá. Te paso la cotización formal en un momento.',
+    time: '09:15',
+    status: 'delivered',
+    sentByAi: true,
+  },
+];
 
 export const MOCK_CONVERSATION_MESSAGES: ChatMessage[] = [
   {

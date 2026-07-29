@@ -14,7 +14,6 @@ import ScreenSafeArea from '../../src/components/layout/ScreenSafeArea';
 import { useRouter } from 'expo-router';
 import { colors } from '@beeapp/design-system';
 import AboutYouSection from '../../src/components/onboarding/AboutYouSection';
-import BusinessSection, { OfferingType } from '../../src/components/onboarding/BusinessSection';
 import AssistantSection, { AssistantTone } from '../../src/components/onboarding/AssistantSection';
 import FeaturesSection from '../../src/components/onboarding/FeaturesSection';
 import { sharedStyles } from '../../src/components/onboarding/onboardingShared';
@@ -29,13 +28,6 @@ export default function OnboardingScreen() {
   const [occupation, setOccupation] = useState('');
   const [address, setAddress] = useState('');
   const [hasPhoto, setHasPhoto] = useState(false);
-
-  // Step 1 States - About Business
-  const [hasBusiness, setHasBusiness] = useState(false);
-  const [businessName, setBusinessName] = useState('');
-  const [hasBusinessLogo, setHasBusinessLogo] = useState(false);
-  const [offeringType, setOfferingType] = useState<OfferingType>('services');
-  const [whatYouSell, setWhatYouSell] = useState('');
 
   // Step 2 States - Assistant Customization
   const [assistantName, setAssistantName] = useState('BeeAI');
@@ -80,7 +72,7 @@ export default function OnboardingScreen() {
 
     switch (tone) {
       case 'friendly':
-        return `¡Hola, ${userName}! Qué gusto saludarte hoy. Soy ${assName}, tu asistente personal de confianza. ¿En qué te puedo colaborar el día de hoy? 😊`;
+        return `¡Hola, ${userName}! Qué gusto saludarte hoy. Soy ${assName}, tu asistente personal de confianza. ¿En qué te puedo colaborar el día de hoy?`;
       case 'professional':
         return `Estimado ${userName}, le saluda ${assName}. Quedo a su completa disposición para colaborar y optimizar sus actividades profesionales el día de hoy.`;
       case 'direct':
@@ -122,7 +114,7 @@ export default function OnboardingScreen() {
                 <View style={sharedStyles.stepWrapper}>
                   <Text style={sharedStyles.title}>Vamos a conocerte</Text>
                   <Text style={sharedStyles.subtitle}>
-                    Queremos conocerte a ti y a tu negocio para personalizar tu experiencia.
+                    Queremos conocerte para personalizar tu experiencia.
                   </Text>
 
                   <AboutYouSection
@@ -138,18 +130,6 @@ export default function OnboardingScreen() {
                     onTogglePhoto={() => setHasPhoto(!hasPhoto)}
                   />
 
-                  <BusinessSection
-                    hasBusiness={hasBusiness}
-                    onHasBusinessChange={setHasBusiness}
-                    businessName={businessName}
-                    onBusinessNameChange={setBusinessName}
-                    hasBusinessLogo={hasBusinessLogo}
-                    onToggleLogo={() => setHasBusinessLogo(!hasBusinessLogo)}
-                    offeringType={offeringType}
-                    onOfferingTypeChange={setOfferingType}
-                    whatYouSell={whatYouSell}
-                    onWhatYouSellChange={setWhatYouSell}
-                  />
                 </View>
               )}
 

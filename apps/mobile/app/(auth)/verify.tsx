@@ -71,8 +71,8 @@ export default function VerifyScreen() {
       return;
     }
     setError('');
-    // Route to onboarding flow
-    router.replace('/onboarding');
+    // Route to app lock setup screen
+    router.replace('/(auth)/app-lock-setup');
   };
 
   const handleResend = () => {

@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet, Image, TouchableOpacity } from 'react-native';
 import { colors } from '@beeapp/design-system';
-import { Check, CheckCheck, FileText, Play, Pause } from 'lucide-react-native';
+import { Check, CheckCheck, FileText, Play, Pause, Bot } from 'lucide-react-native';
 import VerifiedBadge from '../VerifiedBadge';
 
 interface MessageBubbleProps {
@@ -11,6 +11,8 @@ interface MessageBubbleProps {
   isUser: boolean;
   /** Assistant message: soft brand-tinted bubble instead of the plain white one */
   isAI?: boolean;
+  /** The assistant answered on the seller's behalf: the bubble carries an "IA" badge */
+  sentByAi?: boolean;
   type: 'text' | 'image' | 'file' | 'audio';
   text?: string;
   mediaUrl?: string;
@@ -31,6 +33,7 @@ export default function MessageBubble({
   senderVerified,
   isUser,
   isAI,
+  sentByAi,
   type,
   text,
   mediaUrl,
@@ -59,6 +62,13 @@ export default function MessageBubble({
       )}
 
       <View style={[styles.bubble, isUser ? styles.bubbleUser : styles.bubbleOther, !isUser && isAI && styles.bubbleAI]}>
+        {/* Sent by the assistant in the seller's name */}
+        {sentByAi && (
+          <View style={styles.sentByAiBadge}>
+            <Bot size={10} color={colors.neutral.white} />
+            <Text style={styles.sentByAiBadgeText}>IA</Text>
+          </View>
+        )}
         
         {/* Cited Reply Header */}
         {replyTo && (
@@ -213,6 +223,23 @@ const styles = StyleSheet.create({
     borderBottomLeftRadius: 2,
     borderWidth: 1,
     borderColor: colors.neutral.gray200,
+  },
+  sentByAiBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    gap: 3,
+    backgroundColor: 'rgba(255, 255, 255, 0.22)',
+    borderRadius: 6,
+    paddingHorizontal: 5,
+    paddingVertical: 1,
+    marginBottom: 5,
+  },
+  sentByAiBadgeText: {
+    fontSize: 9,
+    fontWeight: '400',
+    color: colors.neutral.white,
+    letterSpacing: 0.3,
   },
   bubbleAI: {
     backgroundColor: colors.brand.primary + '15',

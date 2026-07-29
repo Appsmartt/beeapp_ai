@@ -26,17 +26,17 @@ import {
   LogOut,
 } from 'lucide-react-native';
 import FloatingTabBar from '../../../src/components/FloatingTabBar';
+import { CURRENT_USER } from '../../../src/mocks/currentUser';
 
 export default function ProfileMainScreen() {
   const router = useRouter();
   const [isVisibleInNetwork, setIsVisibleInNetwork] = useState(true);
 
-  // Mock User profile info
+  // Mock User profile info: personal data only, no company
   const userProfile = {
-    name: 'Santiago Valencia',
-    occupation: 'CEO & Consultor Estratégico',
-    companyName: 'Consultores Asociados S.A.S.',
-    initials: 'SV',
+    name: CURRENT_USER.name,
+    email: CURRENT_USER.email,
+    initials: CURRENT_USER.initials,
   };
 
   const handleShareApp = async () => {
@@ -106,12 +106,7 @@ export default function ProfileMainScreen() {
               <View style={styles.onlineBadge} />
             </View>
             <Text style={styles.profileName}>{userProfile.name}</Text>
-            <Text style={styles.profileOccupation}>{userProfile.occupation}</Text>
-
-            {/* Corporate/Company Section - AJUSTE 1: No icon Sparkles, only text centered */}
-            <View style={styles.companyBadgeRow}>
-              <Text style={styles.companyNameText}>{userProfile.companyName}</Text>
-            </View>
+            <Text style={styles.profileOccupation}>{userProfile.email}</Text>
 
             <TouchableOpacity
               style={styles.editProfileBtn}
@@ -313,24 +308,6 @@ const styles = StyleSheet.create({
     color: colors.neutral.gray600,
     fontWeight: '600',
     marginBottom: 10,
-  },
-  companyBadgeRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.neutral.gray50,
-    borderRadius: 12,
-    paddingVertical: 6,
-    paddingHorizontal: 16,
-    borderWidth: 1,
-    borderColor: colors.neutral.gray200,
-    marginBottom: 16,
-  },
-  companyNameText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: colors.neutral.text,
-    textAlign: 'center',
   },
   editProfileBtn: {
     backgroundColor: colors.neutral.gray100,

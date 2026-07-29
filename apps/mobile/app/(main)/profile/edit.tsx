@@ -14,15 +14,9 @@ import {
 import ScreenSafeArea from '../../../src/components/layout/ScreenSafeArea';
 import { useRouter } from 'expo-router';
 import { colors } from '@beeapp/design-system';
-import { ChevronLeft, Camera, Building, Mail } from 'lucide-react-native';
+import { ChevronLeft, Camera, Mail } from 'lucide-react-native';
 import FloatingTabBar from '../../../src/components/FloatingTabBar';
 import { COUNTRIES, Country } from '../../../src/mocks/countries';
-
-const OFERTAS_EMPRESA = [
-  { id: 'productos', label: 'Productos' },
-  { id: 'servicios', label: 'Servicios' },
-  { id: 'ambos', label: 'Ambos' },
-];
 
 export default function EditProfileScreen() {
   const router = useRouter();
@@ -32,14 +26,6 @@ export default function EditProfileScreen() {
   const [email, setEmail] = useState('santiago@appsmartt.com');
   const [phone, setPhone] = useState('3001234567');
   const [selectedCountry, setSelectedCountry] = useState<Country>(COUNTRIES[0]); // Colombia by default
-  const [occupation, setOccupation] = useState('CEO & Consultor Estratégico');
-  const [location, setLocation] = useState('Bogotá, Colombia');
-
-  // Corporate Section Collapsible State
-  const [hasCompany, setHasCompany] = useState(true);
-  const [companyName, setCompanyName] = useState('Consultores Asociados S.A.S.');
-  const [offerType, setOfferType] = useState('servicios');
-  const [whatSells, setWhatSells] = useState('Asesorías y planeación estratégica para pymes');
 
   // Modal / Country search states
   const [modalVisible, setModalVisible] = useState(false);
@@ -147,89 +133,6 @@ export default function EditProfileScreen() {
             </View>
           </View>
 
-          <View style={styles.inputGroup}>
-            <Text style={styles.inputLabel}>¿A qué te dedicas? *</Text>
-            <TextInput
-              style={styles.inputField}
-              placeholder="Ej. Desarrollador, Abogado..."
-              placeholderTextColor={colors.neutral.gray500}
-              value={occupation}
-              onChangeText={setOccupation}
-            />
-          </View>
-
-          <View style={styles.inputGroup}>
-            <Text style={styles.inputLabel}>Ciudad o Dirección</Text>
-            <TextInput
-              style={styles.inputField}
-              placeholder="Ej. Bogotá, Colombia..."
-              placeholderTextColor={colors.neutral.gray500}
-              value={location}
-              onChangeText={setLocation}
-            />
-          </View>
-
-          {/* Collapsible Empresa Section */}
-          <TouchableOpacity
-            style={styles.collapsibleHeader}
-            onPress={() => setHasCompany(!hasCompany)}
-            activeOpacity={0.7}
-          >
-            <View style={styles.collapsibleHeaderLeft}>
-              <Building size={18} color={colors.brand.primary} style={{ marginRight: 10 }} />
-              <Text style={styles.collapsibleTitle}>Datos de Empresa</Text>
-            </View>
-            <Building size={18} color="transparent" />
-          </TouchableOpacity>
-
-          {hasCompany && (
-            <View style={styles.collapsibleContent}>
-              <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>Nombre de la Empresa</Text>
-                <TextInput
-                  style={styles.inputField}
-                  placeholder="Nombre corporativo"
-                  placeholderTextColor={colors.neutral.gray500}
-                  value={companyName}
-                  onChangeText={setCompanyName}
-                />
-              </View>
-
-              <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>Tipo de Oferta</Text>
-                <View style={styles.offerRow}>
-                  {OFERTAS_EMPRESA.map((item) => {
-                    const isSelected = offerType === item.id;
-                    return (
-                      <TouchableOpacity
-                        key={item.id}
-                        style={[styles.offerCard, isSelected && styles.offerCardActive]}
-                        onPress={() => setOfferType(item.id)}
-                        activeOpacity={0.8}
-                      >
-                        <Text style={[styles.offerCardText, isSelected && styles.offerCardTextActive]}>
-                          {item.label}
-                        </Text>
-                      </TouchableOpacity>
-                    );
-                  })}
-                </View>
-              </View>
-
-              <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>¿Qué vendes / ofreces?</Text>
-                <TextInput
-                  style={[styles.inputField, { height: 60 }]}
-                  placeholder="Describe tus servicios o productos..."
-                  placeholderTextColor={colors.neutral.gray500}
-                  multiline
-                  value={whatSells}
-                  onChangeText={setWhatSells}
-                />
-              </View>
-            </View>
-          )}
-
           {/* Action buttons */}
           <View style={styles.actionsBar}>
             <TouchableOpacity style={styles.discardBtn} onPress={() => router.back()} activeOpacity={0.7}>
@@ -318,15 +221,6 @@ const styles = StyleSheet.create({
   prefixBadge: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.neutral.white, borderRadius: 12, borderWidth: 1, borderColor: colors.neutral.gray200, paddingHorizontal: 12, paddingVertical: 10, marginRight: 8 },
   flag: { fontSize: 16, marginRight: 6 },
   prefixText: { fontSize: 14, fontWeight: '700', color: colors.neutral.text },
-  collapsibleHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: colors.neutral.white, borderRadius: 14, paddingVertical: 14, paddingHorizontal: 16, borderWidth: 1, borderColor: colors.neutral.gray200, marginTop: 8, marginBottom: 14 },
-  collapsibleHeaderLeft: { flexDirection: 'row', alignItems: 'center' },
-  collapsibleTitle: { fontSize: 14, fontWeight: '700', color: colors.neutral.text },
-  collapsibleContent: { backgroundColor: colors.neutral.white, borderRadius: 18, padding: 16, borderWidth: 1, borderColor: colors.neutral.gray200, marginBottom: 20 },
-  offerRow: { flexDirection: 'row', gap: 8 },
-  offerCard: { flex: 1, backgroundColor: colors.neutral.gray50, borderWidth: 1, borderColor: colors.neutral.gray200, borderRadius: 10, paddingVertical: 12, alignItems: 'center' },
-  offerCardActive: { borderColor: colors.brand.primary, backgroundColor: '#F5F3FF' },
-  offerCardText: { fontSize: 12, fontWeight: '600', color: colors.neutral.gray700 },
-  offerCardTextActive: { color: colors.brand.primary, fontWeight: '700' },
   actionsBar: { flexDirection: 'row', gap: 12, marginTop: 32, marginBottom: 40 },
   discardBtn: { flex: 1, borderWidth: 1, borderColor: colors.neutral.gray300, borderRadius: 14, paddingVertical: 14, alignItems: 'center' },
   discardBtnText: { fontSize: 14, fontWeight: '700', color: colors.neutral.gray700 },

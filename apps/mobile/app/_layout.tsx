@@ -1,6 +1,7 @@
 import { Stack } from 'expo-router';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+import AppLockScreen from '../src/components/security/AppLockScreen';
 
 export default function RootLayout() {
   return (
@@ -14,6 +15,7 @@ export default function RootLayout() {
             contentStyle: { backgroundColor: '#6025d2' },
           }}
         />
+        <AppLockScreen />
       </SafeAreaProvider>
     </GestureHandlerRootView>
   );

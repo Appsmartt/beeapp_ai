@@ -6,6 +6,7 @@ import { colors } from '@beeapp/design-system';
 import { ChevronLeft, ShieldCheck, KeyRound, Lock, MessageSquare, Smartphone, Mail } from 'lucide-react-native';
 import PinPad from '../../../src/components/security/PinPad';
 import FloatingTabBar from '../../../src/components/FloatingTabBar';
+import AppLockSettingsSection from '../../../src/components/security/AppLockSettingsSection';
 import {
   hasPin,
   isPinCorrect,
@@ -16,7 +17,6 @@ import {
 } from '../../../src/stores/pinStore';
 
 type Stage = 'gate' | 'menu' | 'create' | 'confirm' | 'recover-select' | 'recover-code' | 'recover-pin';
-
 const MOCK_SMS_CODE = '123456';
 
 export default function SecurityScreen() {
@@ -29,52 +29,33 @@ export default function SecurityScreen() {
   const [selectedMethod, setSelectedMethod] = useState<'sms' | 'email' | null>(null);
 
   const goStage = (next: Stage) => {
-    setError(null);
-    setSuccess(null);
-    setDraftPin('');
-    setStage(next);
+    setError(null); setSuccess(null); setDraftPin(''); setStage(next);
   };
 
   const handleGate = (pin: string) => {
     if (isPinCorrect(pin)) {
-      setError(null);
-      setSuccess('PIN correcto');
-      setTimeout(() => goStage('menu'), 450);
+      setError(null); setSuccess('PIN correcto'); setTimeout(() => goStage('menu'), 450);
     } else {
-      setSuccess(null);
-      setError('PIN incorrecto. Inténtalo de nuevo.');
+      setSuccess(null); setError('PIN incorrecto. Inténtalo de nuevo.');
     }
   };
 
   const handleCreate = (pin: string) => {
-    setDraftPin(pin);
-    setError(null);
-    setStage('confirm');
+    setDraftPin(pin); setError(null); setStage('confirm');
   };
 
   const handleConfirm = (pin: string) => {
     if (pin !== draftPin) {
-      setSuccess(null);
-      setError('Los PIN no coinciden. Empieza de nuevo.');
-      setDraftPin('');
-      setStage('create');
-      return;
+      setSuccess(null); setError('Los PIN no coinciden. Empieza de nuevo.'); setDraftPin(''); setStage('create'); return;
     }
-    setPin(pin);
-    setError(null);
-    setSuccess('PIN configurado correctamente');
-    setProtectedCount(getProtectedIds().length);
-    setTimeout(() => goStage('menu'), 700);
+    setPin(pin); setError(null); setSuccess('PIN configurado correctamente'); setProtectedCount(getProtectedIds().length); setTimeout(() => goStage('menu'), 700);
   };
 
   const handleRecoveryCode = (code: string) => {
     if (code === MOCK_SMS_CODE) {
-      setError(null);
-      setSuccess('Código verificado');
-      setTimeout(() => goStage('recover-pin'), 550);
+      setError(null); setSuccess('Código verificado'); setTimeout(() => goStage('recover-pin'), 550);
     } else {
-      setSuccess(null);
-      setError(`Código incorrecto. Revisa tu ${selectedMethod === 'email' ? 'correo' : 'SMS'} e inténtalo otra vez.`);
+      setSuccess(null); setError(`Código incorrecto. Revisa tu ${selectedMethod === 'email' ? 'correo' : 'SMS'} e inténtalo otra vez.`);
     }
   };
 
@@ -110,11 +91,18 @@ export default function SecurityScreen() {
 
           {stage === 'menu' && (
             <View style={styles.menuWrap}>
+              {/* App Lock Configuration */}
+              <AppLockSettingsSection />
+
+              <View style={styles.separator} />
+
+              <Text style={styles.sectionHeaderLabel}>PIN de archivos y chats</Text>
+
               <View style={styles.statusCard}>
                 <View style={[styles.statusIcon, pinExists ? styles.statusIconOn : styles.statusIconOff]}>
                   <ShieldCheck size={22} color={pinExists ? colors.semantic.success : colors.neutral.gray500} />
                 </View>
-                <Text style={styles.statusTitle}>{pinExists ? 'Protección con PIN activa' : 'Sin PIN de protección'}</Text>
+                <Text style={styles.statusTitle}>{pinExists ? 'PIN de archivos y chats activo' : 'Sin PIN de archivos y chats'}</Text>
                 <Text style={styles.statusDesc}>
                   {pinExists
                     ? `Tu PIN protege ${protectedCount} ${protectedCount === 1 ? 'elemento' : 'elementos'} entre archivos, carpetas y notas.`
@@ -128,7 +116,7 @@ export default function SecurityScreen() {
                     <KeyRound size={18} color={colors.brand.primary} />
                   </View>
                   <View style={{ flex: 1 }}>
-                    <Text style={styles.optionLabel}>{pinExists ? 'Cambiar PIN de protección' : 'Crear PIN de protección'}</Text>
+                    <Text style={styles.optionLabel}>{pinExists ? 'Cambiar PIN de archivos y chats' : 'Crear PIN de archivos y chats'}</Text>
                     <Text style={styles.optionDesc}>{pinExists ? 'Define un PIN nuevo de 4 dígitos.' : 'Elige un PIN de 4 dígitos y confírmalo.'}</Text>
                   </View>
                 </TouchableOpacity>
@@ -157,35 +145,15 @@ export default function SecurityScreen() {
             </View>
           )}
 
-          {stage === 'create' && (
-            <PinPad
-              title={pinExists ? 'Nuevo PIN' : 'Crea tu PIN'}
-              subtitle="Elige 4 dígitos que puedas recordar. Protegerá todo el contenido que marques."
-              onComplete={handleCreate}
-              error={error}
-            />
-          )}
-
-          {stage === 'confirm' && (
-            <PinPad
-              title="Confirma tu PIN"
-              subtitle="Escribe otra vez los 4 dígitos para confirmarlo."
-              onComplete={handleConfirm}
-              error={error}
-              success={success}
-            />
-          )}
+          {stage === 'create' && <PinPad title={pinExists ? 'Nuevo PIN' : 'Crea tu PIN'} subtitle="Elige 4 dígitos que puedas recordar. Protegerá todo el contenido que marques." onComplete={handleCreate} error={error} />}
+          {stage === 'confirm' && <PinPad title="Confirma tu PIN" subtitle="Escribe otra vez los 4 dígitos para confirmarlo." onComplete={handleConfirm} error={error} success={success} />}
 
           {stage === 'recover-select' && (
             <View style={styles.menuWrap}>
               <Text style={styles.selectTitle}>¿Cómo quieres recibir el código?</Text>
               <Text style={styles.selectSubtitle}>Selecciona un canal para recibir el código de verificación de 6 dígitos.</Text>
               
-              <TouchableOpacity
-                style={[styles.methodRow, selectedMethod === 'sms' && styles.methodRowActive]}
-                onPress={() => setSelectedMethod('sms')}
-                activeOpacity={0.85}
-              >
+              <TouchableOpacity style={[styles.methodRow, selectedMethod === 'sms' && styles.methodRowActive]} onPress={() => setSelectedMethod('sms')} activeOpacity={0.85}>
                 <View style={[styles.methodIconWrap, selectedMethod === 'sms' && styles.methodIconActive]}>
                   <Smartphone size={20} color={selectedMethod === 'sms' ? colors.brand.primary : colors.neutral.gray600} />
                 </View>
@@ -195,11 +163,7 @@ export default function SecurityScreen() {
                 </View>
               </TouchableOpacity>
 
-              <TouchableOpacity
-                style={[styles.methodRow, selectedMethod === 'email' && styles.methodRowActive]}
-                onPress={() => setSelectedMethod('email')}
-                activeOpacity={0.85}
-              >
+              <TouchableOpacity style={[styles.methodRow, selectedMethod === 'email' && styles.methodRowActive]} onPress={() => setSelectedMethod('email')} activeOpacity={0.85}>
                 <View style={[styles.methodIconWrap, selectedMethod === 'email' && styles.methodIconActive]}>
                   <Mail size={20} color={selectedMethod === 'email' ? colors.brand.primary : colors.neutral.gray600} />
                 </View>
@@ -220,11 +184,7 @@ export default function SecurityScreen() {
           {stage === 'recover-code' && (
             <PinPad
               title="Verifica tu identidad"
-              subtitle={
-                selectedMethod === 'email'
-                  ? 'Enviamos un código de 6 dígitos por correo a s******@appsmartt.com. Ingrésalo para crear un PIN nuevo.'
-                  : `Enviamos un código de 6 dígitos por SMS a ${MOCK_RECOVERY_PHONE}. Ingrésalo para crear un PIN nuevo.`
-              }
+              subtitle={selectedMethod === 'email' ? 'Enviamos un código de 6 dígitos por correo a s******@appsmartt.com.' : `Enviamos un código de 6 dígitos por SMS a ${MOCK_RECOVERY_PHONE}.`}
               length={RECOVERY_CODE_LENGTH}
               onComplete={handleRecoveryCode}
               error={error}
@@ -237,14 +197,7 @@ export default function SecurityScreen() {
             />
           )}
 
-          {stage === 'recover-pin' && (
-            <PinPad
-              title="Crea tu nuevo PIN"
-              subtitle="Identidad verificada. Define 4 dígitos nuevos y confírmalos."
-              onComplete={handleCreate}
-              error={error}
-            />
-          )}
+          {stage === 'recover-pin' && <PinPad title="Crea tu nuevo PIN" subtitle="Identidad verificada. Define 4 dígitos nuevos y confírmalos." onComplete={handleCreate} error={error} />}
         </ScrollView>
 
         {showTabBar && <FloatingTabBar />}
@@ -287,4 +240,18 @@ const styles = StyleSheet.create({
   methodDesc: { fontSize: 12, fontWeight: '400', color: colors.neutral.gray500 },
   primaryButton: { backgroundColor: colors.brand.primary, borderRadius: 14, paddingVertical: 15, alignItems: 'center', marginTop: 20, shadowColor: colors.brand.primary, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.15, shadowRadius: 8, elevation: 3 },
   primaryButtonText: { color: colors.neutral.white, fontSize: 14, fontWeight: '600' },
+  separator: {
+    height: 1,
+    backgroundColor: colors.neutral.gray200,
+    marginVertical: 20,
+  },
+  sectionHeaderLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: colors.neutral.gray600,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginBottom: 8,
+    marginTop: 4,
+  },
 });

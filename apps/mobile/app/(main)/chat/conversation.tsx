@@ -16,6 +16,7 @@ import { ChevronLeft, Phone, Video, MoreVertical, BellOff, Trash2, ShieldAlert, 
 import MessageBubble from '../../../src/components/chat/MessageBubble';
 import VerifiedBadge from '../../../src/components/VerifiedBadge';
 import WriteBar from '../../../src/components/chat/WriteBar';
+import AiAutoReplyBanner from '../../../src/components/chat/AiAutoReplyBanner';
 
 
 export default function ConversationScreen() {
@@ -32,6 +33,9 @@ export default function ConversationScreen() {
   // The pinned assistant chat: logo avatar, its own mock thread and settings
   const isAI = chatId === AI_CHAT_ID;
   const groupMemberCount = MOCK_CHATS.find((c) => c.id === chatId)?.members?.length ?? 0;
+  // A customer wrote about something the user sells: the assistant can reply for them
+  const isSellerChat = !!MOCK_CHATS.find((c) => c.id === chatId)?.isSellerChat;
+  const [aiAutoReply, setAiAutoReply] = useState(false);
 
   /** Tapping the avatar or the name opens the profile of this chat */
   const openChatProfile = () =>
@@ -60,6 +64,8 @@ export default function ConversationScreen() {
         ]
       : isAI
       ? AI_CONVERSATION_MESSAGES
+      : isSellerChat
+      ? SELLER_CONVERSATION_MESSAGES
       : MOCK_CONVERSATION_MESSAGES
   );
 
@@ -322,6 +328,9 @@ export default function ConversationScreen() {
           </View>
         )}
 
+        {/* Seller chats: the assistant can answer the customer automatically */}
+        {isSellerChat && <AiAutoReplyBanner enabled={aiAutoReply} onChange={setAiAutoReply} />}
+
         {/* Message scroll area */}
         <ScrollView
           ref={scrollRef}
@@ -341,6 +350,7 @@ export default function ConversationScreen() {
               senderVerified={msg.senderVerified}
               isUser={msg.isUser}
               isAI={isAI}
+              sentByAi={msg.sentByAi}
               type={msg.type}
               text={msg.text}
               mediaUrl={msg.mediaUrl}
@@ -394,7 +404,7 @@ export default function ConversationScreen() {
 
 // Separate helper import for overlay backdrop
 import { TouchableWithoutFeedback } from 'react-native';
-import { AI_CHAT_ID, AI_CONVERSATION_MESSAGES, ChatMessage, MOCK_CONVERSATION_MESSAGES, MOCK_CHATS } from '../../../src/mocks/chats';
+import { AI_CHAT_ID, AI_CONVERSATION_MESSAGES, ChatMessage, MOCK_CONVERSATION_MESSAGES, SELLER_CONVERSATION_MESSAGES, MOCK_CHATS } from '../../../src/mocks/chats';
 import AiCatalogModal from '../../../src/components/chat/AiCatalogModal';
 
 const styles = StyleSheet.create({

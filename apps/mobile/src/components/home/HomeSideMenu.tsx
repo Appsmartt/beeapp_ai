@@ -26,9 +26,11 @@ import {
   FileText,
   LogOut,
   Package,
+  Bot,
 } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { sideMenuStyles as styles, PANEL_WIDTH } from './homeSideMenuStyles';
+import { CURRENT_USER } from '../../mocks/currentUser';
 
 interface HomeSideMenuProps {
   visible: boolean;
@@ -62,12 +64,11 @@ export default function HomeSideMenu({ visible, onClose }: HomeSideMenuProps) {
     }
   }, [visible]);
 
-  // Mock User profile info (same as former Profile screen)
+  // Mock User profile info: personal data only, no company
   const userProfile = {
-    name: 'Santiago Valencia',
-    occupation: 'CEO & Consultor Estratégico',
-    companyName: 'Consultores Asociados S.A.S.',
-    initials: 'SV',
+    name: CURRENT_USER.name,
+    email: CURRENT_USER.email,
+    initials: CURRENT_USER.initials,
   };
 
   const goTo = (path: string) => {
@@ -121,6 +122,8 @@ export default function HomeSideMenu({ visible, onClose }: HomeSideMenuProps) {
     { label: 'Suscripción y Verificación', icon: CreditCard, iconBg: colors.neutral.gray100, iconColor: colors.neutral.gray600, onPress: () => goTo('/(main)/profile/subscription-hub') },
     { label: 'Integraciones Externas', icon: Grid, iconBg: colors.neutral.gray100, iconColor: colors.neutral.gray600, onPress: () => goTo('/(main)/profile/integrations') },
     { label: 'Seguridad y PIN', icon: ShieldCheck, iconBg: colors.neutral.gray100, iconColor: colors.neutral.gray600, onPress: () => goTo('/(main)/profile/security') },
+    // Shortcut to the assistant settings that already live in the chat module
+    { label: 'Configuración del Asistente', icon: Bot, iconBg: colors.neutral.gray100, iconColor: colors.neutral.gray600, onPress: () => goTo('/(main)/chat/ai-settings') },
   ];
 
   const appRows: MenuRow[] = [
@@ -178,10 +181,7 @@ export default function HomeSideMenu({ visible, onClose }: HomeSideMenuProps) {
                 <View style={styles.onlineBadge} />
               </View>
               <Text style={styles.profileName}>{userProfile.name}</Text>
-              <Text style={styles.profileOccupation}>{userProfile.occupation}</Text>
-              <View style={styles.companyBadgeRow}>
-                <Text style={styles.companyNameText}>{userProfile.companyName}</Text>
-              </View>
+              <Text style={styles.profileOccupation}>{userProfile.email}</Text>
               <TouchableOpacity
                 style={styles.editProfileBtn}
                 onPress={() => goTo('/(main)/profile/edit')}
