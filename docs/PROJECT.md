@@ -259,15 +259,29 @@ La aplicación web `@beeapp/mobile-web` opera con el siguiente modelo de visuali
 
 Overlay a pantalla completa dividido en **dos paneles**, con fondo blanco en toda la superficie (nunca oscuro):
 
-- **Panel izquierdo (70 %) — preview.** `StatusPreviewStage` dibuja el estado como una **hoja 9:16 flotando** sobre un fondo `neutral-50`: contenedor centrado con esquinas de 24 px y sombra difusa. El color, el degradado o la foto viven **dentro** de la hoja, nunca en toda la pantalla. El texto se superpone en la posición elegida y se **arrastra con el mouse** (eventos de puntero; la posición se guarda en porcentaje x/y, acotada al 10-90 % horizontal y 8-92 % vertical). Cuando el texto está vacío se muestra el placeholder "Escribe tu estado..." atenuado.
-- **Panel derecho (30 %, máx. 320 px) — herramientas.** Fondo blanco, borde izquierdo fino y scroll vertical propio. Su cabecera lleva `X` a la izquierda, el título "Crear estado" al centro (peso 600) y **Publicar** en `brand-primary` a la derecha, deshabilitado mientras no haya texto ni imagen. Debajo, cinco **secciones colapsables** (`StatusToolSection`) separadas por líneas finas, cada una con su título en gris, minúsculas versalitas y peso 400:
-  1. **Texto** — `textarea` sin marco, solo una línea inferior que pasa a morado al enfocar.
+- **Panel izquierdo (70 %) — preview.** `StatusPreviewStage` dibuja el estado como una **hoja 9:16 flotando** sobre un fondo `neutral-50`: contenedor centrado con esquinas de 24 px y sombra difusa. El color, el degradado o la foto viven **dentro** de la hoja, nunca en toda la pantalla. Encima se apilan todas las capas del estado, cada una **arrastrable con el mouse** (`DraggableLayer` usa captura de puntero, así que el arrastre sigue al cursor aunque se salga de la capa; la posición se guarda en porcentaje x/y acotado al 5-95 %).
+- **Panel derecho (30 %, máx. 320 px) — herramientas.** Fondo blanco, borde izquierdo fino y scroll vertical propio. Su cabecera lleva `X` a la izquierda, el título "Crear estado" al centro (peso 600) y **Publicar** en `brand-primary` a la derecha, habilitado en cuanto haya texto, foto, imagen o sticker. Debajo, **secciones colapsables** (`StatusToolSection`) separadas por líneas finas, cada una con su título en gris, minúsculas versalitas y peso 400, en este orden: **Texto, Tipografía, Color de texto, Fondo, Imagen, Stickers, Música y Producto**.
+  1. **Texto** — `textarea` sin marco que edita **la capa seleccionada**, más el botón "Agregar texto N/5".
   2. **Tipografía** — slider de tamaño de **16 a 40 px** con el valor a la derecha, toggle de negrita y tres botones de alineación (`AlignLeft`, `AlignCenter`, `AlignRight`); los activos van en `brand-primary` sobre su fondo al 10 %.
   3. **Color de texto** — nueve círculos de 28 px con separación de 8 px (`StatusSwatchRow`), sombra interior sutil y anillo `brand-primary` separado en el seleccionado, para que el color propio se siga viendo entero.
-  4. **Fondo** — los mismos círculos sobre `STATUS_BACKGROUNDS`: tres **degradados** (morado, azul y verde oscuro) más negro, gris oscuro y blanco; debajo, el botón punteado "Agregar imagen" (`ImagePlus`). Con foto puesta, la sección se reduce a "Quitar imagen".
+  4. **Fondo** — los mismos círculos sobre `STATUS_BACKGROUNDS`: tres **degradados** (morado, azul y verde oscuro) más negro, gris oscuro y blanco; debajo, el botón "Foto de fondo" (`Camera`).
   5. **Producto** — "Vincular producto de BeeServices" (`ShoppingBag`) abre `ProductLinkSelector`; una vez vinculado muestra el nombre y el precio con una `X` para quitarlo.
 
-Los fondos se guardan como valor CSS de `background`, así que el mismo dato sirve para el lienzo, el visor (`StatusViewer`) y los círculos del panel. El estado publicado incluye además `textAlign`, que el visor respeta con `center` por defecto. Todo es mock: publicar solo agrega el estado a `MOCK_STATUSES` en memoria. Por debajo de 768 px los dos paneles se apilan, aunque `/app/*` ya está bloqueado en esa franja.
+  Tipografía y Color de texto se atenúan y quedan inertes mientras no haya una capa de texto seleccionada.
+
+### Capas del editor de estados (móvil y web)
+
+El editor trabaja por **capas**, con el mismo modelo en las dos plataformas — en móvil desde la barra de herramientas inferior, en web desde el panel derecho:
+
+- **Varios textos.** Hasta **5** capas de texto; la primera se crea al abrir el editor. Cada una se arrastra por separado y guarda su propio tamaño, peso y color, así que los controles de tipografía aplican **solo a la capa seleccionada**. La activa se marca con un borde punteado en `brand-primary` y una `X` para eliminarla. En móvil la capa seleccionada se escribe directamente sobre el lienzo (`TextInput`); en web se escribe en el `textarea` del panel.
+- **Varias imágenes.** Hasta **3** capas, cada una un placeholder de color distinto (`STATUS_IMAGE_COLORS`) con el ícono `Image` al centro. Se arrastran y se redimensionan con los botones `−`/`+` entre **80 y 220 px** en pasos de 20. No abre galería real.
+- **Stickers.** Hasta **3**, elegidos de una cuadrícula de **12 íconos de Lucide** sobre círculos de color suave (`stickerCatalog.ts`: Heart, ThumbsUp, Star, Zap, Coffee, Rocket, PartyPopper, Flame, Trophy, Check, Crown, Sparkles). Tamaño fijo de 80 px sobre el lienzo. En móvil se eligen en una hoja inferior (`StickerPicker`); en web, en la sección "Stickers".
+- **Música de fondo.** Cinco canciones mock (`STATUS_SONGS`, con título, artista y duración) presentadas con `Play` a la izquierda y `Check` morado en la elegida. La seleccionada aparece como **chip flotante** arriba del lienzo con ícono `Music`, el título y una `X` para quitarla. No se reproduce nada.
+- **Menciones con `@`.** Al escribir `@` en la capa de texto activa se abre la lista de `MY_CONTACTS` (avatar de iniciales y nombre); al elegir un contacto se inserta `@Nombre`. Las menciones se dibujan en `brand-primary` sobre el lienzo (`MentionText` parte el contenido comparándolo con los nombres conocidos). Es solo color: no hay enlace ni notificación.
+
+El estado del editor vive en el hook `useStatusLayers`, y al publicar el `StatusItem` viaja con `textLayers`, `imageLayers`, `stickerLayers` y `music`. Los campos sueltos de siempre (`text`, `textPosition`, `textSize`, `textWeight`, `textColor`) siguen reflejando la **primera** capa de texto, así que los estados mock antiguos y el visor no se rompen. Los fondos se guardan como valor CSS de `background`, de modo que el mismo dato sirve para el lienzo, el visor (`StatusViewer`) y los círculos del panel. Todo es mock: publicar solo agrega el estado a `MOCK_STATUSES` en memoria. Por debajo de 768 px los dos paneles de la web se apilan, aunque `/app/*` ya está bloqueado en esa franja.
+
+> **Pendiente:** `StatusViewer` (móvil y web) sigue dibujando solo la primera capa de texto. Un estado publicado con varias capas, imágenes, stickers o música guarda esos datos, pero el visor todavía no los pinta.
 
 ### Admin Web (`apps/admin-web/src/app/`)
 
@@ -495,10 +509,9 @@ Algunas pantallas conservan arrays de configuración de UI inline (paletas de co
 
 ## 8. Estado de integración
 
-- **Backend: NO conectado.** Toda la aplicación (mobile y admin) funciona exclusivamente con datos mock; no hay llamadas de red ni persistencia real.
-- **Carpetas preparadas para la integración** (existen vacías en ambas apps): `src/services/`, `src/hooks/`, `src/lib/`, `src/types/`, `src/constants/` (y en mobile además `src/stores/`, ya en uso con stores mock).
-
-- **Patrón de integración planeado:** todas las llamadas a datos se harán vía **API REST** a través de la capa `services/`; las apps **nunca** accederán directamente a la base de datos. El tipo `ApiResponse<T>` de `@beeapp/shared-types` ya anticipa el envelope de respuesta.
+- **Backend: NO conectado.** Toda la aplicación (mobile y mobile-web) funciona exclusivamente con datos mock; no hay llamadas de red ni persistencia real.
+- **Módulos web completados en FASE 2:** Chat, Notas, Almacenamiento y Agenda/Calendario con sidebars contextuales de 56px, listas de 40% de ancho, menús contextuales desplegables de tres puntos y modales dedicados.
+- **Barra flotante inferior web:** Integración de popovers deslizantes superiores para Notificaciones generales (izq) y Chats/Llamadas (der) sin cambiar de página.
 
 ---
 

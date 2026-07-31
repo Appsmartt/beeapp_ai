@@ -14,6 +14,8 @@ interface CalendarWeekStripProps {
   onShift: (direction: -1 | 1) => void;
   /** Label of the period being navigated (week range or month) */
   label: string;
+  onOpenMonthPicker?: () => void;
+  onOpenYearPicker?: () => void;
 }
 
 /**
@@ -26,6 +28,8 @@ export default function CalendarWeekStrip({
   onSelectDate,
   onShift,
   label,
+  onOpenMonthPicker,
+  onOpenYearPicker,
 }: CalendarWeekStripProps) {
   const start = startOfWeek(parseDate(selectedDate));
   const days = Array.from({ length: 7 }, (_, i) => {
@@ -41,7 +45,16 @@ export default function CalendarWeekStrip({
         <TouchableOpacity style={styles.navBtn} onPress={() => onShift(-1)} activeOpacity={0.7}>
           <ChevronLeft size={18} color={colors.brand.primary} />
         </TouchableOpacity>
-        <Text style={styles.navLabel}>{label}</Text>
+        <View style={styles.labelContainer}>
+          <TouchableOpacity onPress={onOpenMonthPicker} activeOpacity={0.7}>
+            <Text style={styles.navLabel}>{label}</Text>
+          </TouchableOpacity>
+          <TouchableOpacity onPress={onOpenYearPicker} activeOpacity={0.7} style={{ marginLeft: 6 }}>
+            <Text style={[styles.navLabel, { color: colors.brand.primary }]}>
+              {parseDate(selectedDate).getFullYear()}
+            </Text>
+          </TouchableOpacity>
+        </View>
         <TouchableOpacity style={styles.navBtn} onPress={() => onShift(1)} activeOpacity={0.7}>
           <ChevronRight size={18} color={colors.brand.primary} />
         </TouchableOpacity>
@@ -106,6 +119,13 @@ const styles = StyleSheet.create({
     borderColor: colors.neutral.gray200,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  labelContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
   },
   navLabel: {
     fontSize: 13,

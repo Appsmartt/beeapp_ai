@@ -6,6 +6,12 @@ export interface Invitee {
   status: 'accepted' | 'pending' | 'declined';
 }
 
+export interface Attachment {
+  id: string;
+  name: string;
+  size: string;
+}
+
 export interface CalendarEvent {
   id: string;
   title: string;
@@ -20,6 +26,9 @@ export interface CalendarEvent {
   description: string;
   reminder: '10m' | '30m' | '1h' | '1d';
   repeat: 'none' | 'daily' | 'weekly' | 'monthly';
+  organizer?: { name: string; initials: string; color: string };
+  userResponse?: 'accepted' | 'maybe' | 'declined' | 'pending';
+  attachments?: Attachment[];
   invitees: Invitee[];
 }
 
@@ -61,6 +70,11 @@ export let initialEvents: CalendarEvent[] = [
     description: 'Revisión semanal de los sprints activos, cuellos de botella y metas comerciales.',
     reminder: '10m',
     repeat: 'weekly',
+    organizer: { name: 'Santiago V.', initials: 'SV', color: '#DBEAFE' },
+    userResponse: 'pending',
+    attachments: [
+      { id: 'att1', name: 'Orden_del_Dia_Sprint.pdf', size: '1.2 MB' },
+    ],
     invitees: [
       { id: 'c1', name: 'Carlos Mendoza', initials: 'CM', color: '#EBF5FF', status: 'accepted' },
       { id: 'c2', name: 'Eduardo Torres', initials: 'ET', color: '#FEF3C7', status: 'pending' },
@@ -80,6 +94,11 @@ export let initialEvents: CalendarEvent[] = [
     description: 'Presentación de resultados financieros y operativos correspondientes al segundo trimestre.',
     reminder: '1h',
     repeat: 'none',
+    organizer: { name: 'Sofía Castro', initials: 'SC', color: '#F3E8FF' },
+    userResponse: 'accepted',
+    attachments: [
+      { id: 'att2', name: 'Presentacion_Q2_Resultados.pptx', size: '4.5 MB' },
+    ],
     invitees: [
       { id: 'c1', name: 'Carlos Mendoza', initials: 'CM', color: '#EBF5FF', status: 'accepted' },
       { id: 'c3', name: 'María Gómez', initials: 'MG', color: '#ECFDF5', status: 'accepted' },

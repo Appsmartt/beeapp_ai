@@ -210,18 +210,9 @@ export default function NotesListScreen() {
                   key={note.id}
                   note={note}
                   isProtected={protectedIds.includes(note.id)}
-                  isSwipeActive={swipeActiveId === note.id}
                   showSeparator={index < sortedNotes.length - 1}
                   onPress={() => handleOpenNote(note.id)}
-                  onLongPress={() => setSwipeActiveId(swipeActiveId === note.id ? null : note.id)}
                   onToggleFavorite={(e) => handleToggleFavorite(note.id, e)}
-                  onDelete={(e) => {
-                    if (activeFilter === 'trash') {
-                      handlePermanentDelete(note.id, e);
-                    } else {
-                      handleDeleteNote(note.id, e);
-                    }
-                  }}
                 />
               ))
             )}

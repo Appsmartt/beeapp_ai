@@ -19,7 +19,6 @@ export default function CalendarEventsList({ events, onEventPress, onEventLongPr
             key={item.id}
             style={[styles.eventRow, index < events.length - 1 && styles.rowSeparator]}
             onPress={() => onEventPress(item)}
-            onLongPress={() => onEventLongPress(item)}
             activeOpacity={0.7}
           >
             <View style={styles.cardTimeColumn}>

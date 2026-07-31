@@ -37,16 +37,14 @@ export default function EventDetailScreen() {
 
   const [eventItem, setEventItem] = useState<CalendarEvent | null>(null);
 
-  // Simulated user response state (as a guest)
-  const [userResponse, setUserResponse] = useState<'accepted' | 'declined' | 'pending'>('pending');
+  const [userResponse, setUserResponse] = useState<'accepted' | 'maybe' | 'declined' | 'pending'>('pending');
 
   useEffect(() => {
     if (eventId) {
       const found = getEvents().find((e) => e.id === eventId);
       if (found) {
         setEventItem(found);
-        // Find if user is in list or just set a default response status
-        setUserResponse('pending');
+        setUserResponse(found.userResponse || 'pending');
       }
     }
   }, [eventId]);
@@ -118,13 +116,15 @@ export default function EventDetailScreen() {
     });
   };
 
-  const handleGuestResponse = (status: 'accepted' | 'declined') => {
+  const handleGuestResponse = (status: 'accepted' | 'maybe' | 'declined') => {
     setUserResponse(status);
     Alert.alert(
       'Respuesta enviada',
       status === 'accepted'
-        ? 'Has aceptado la invitación a la reunión.'
-        : 'Has declinado la invitación a la reunión.'
+        ? 'Has aceptado la invitación.'
+        : status === 'maybe'
+        ? 'Has respondido "Tal vez" a la invitación.'
+        : 'Has declinado la invitación.'
     );
   };
 
@@ -302,7 +302,22 @@ export default function EventDetailScreen() {
             ))}
           </View>
 
-          {/* RSVP Guest response bar (simulated guest invitation options) */}
+          {/* Organizer Box */}
+          {eventItem.organizer && (
+            <>
+              <Text style={styles.sectionHeader}>Organizador</Text>
+              <View style={styles.inviteesCard}>
+                <View style={styles.inviteeRow}>
+                  <View style={[styles.inviteeAvatar, { backgroundColor: eventItem.organizer.color }]}>
+                    <Text style={styles.inviteeAvatarText}>{eventItem.organizer.initials}</Text>
+                  </View>
+                  <Text style={styles.inviteeName}>{eventItem.organizer.name}</Text>
+                </View>
+              </View>
+            </>
+          )}
+
+          {/* RSVP Guest response bar */}
           <Text style={styles.sectionHeader}>Tu respuesta</Text>
           <View style={styles.rsvpCard}>
             <Text style={styles.rsvpQuestion}>¿Asistirás a esta reunión/evento?</Text>
@@ -316,6 +331,7 @@ export default function EventDetailScreen() {
                 onPress={() => handleGuestResponse('accepted')}
                 activeOpacity={0.7}
               >
+                <CheckCircle size={14} color={userResponse === 'accepted' ? colors.neutral.white : '#10B981'} />
                 <Text
                   style={[
                     styles.rsvpBtnText,
@@ -329,12 +345,33 @@ export default function EventDetailScreen() {
               <TouchableOpacity
                 style={[
                   styles.rsvpBtn,
+                  styles.rsvpMaybeBtn,
+                  userResponse === 'maybe' && styles.rsvpBtnActiveMaybe,
+                ]}
+                onPress={() => handleGuestResponse('maybe')}
+                activeOpacity={0.7}
+              >
+                <HelpCircle size={14} color={userResponse === 'maybe' ? colors.neutral.white : '#F59E0B'} />
+                <Text
+                  style={[
+                    styles.rsvpBtnText,
+                    userResponse === 'maybe' && styles.rsvpBtnTextActive,
+                  ]}
+                >
+                  Tal vez
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[
+                  styles.rsvpBtn,
                   styles.rsvpDeclineBtn,
-                  userResponse === 'declined' && styles.rsvpBtnActive,
+                  userResponse === 'declined' && styles.rsvpBtnActiveDecline,
                 ]}
                 onPress={() => handleGuestResponse('declined')}
                 activeOpacity={0.7}
               >
+                <XCircle size={14} color={userResponse === 'declined' ? colors.neutral.white : '#EF4444'} />
                 <Text
                   style={[
                     styles.rsvpBtnText,
@@ -624,20 +661,35 @@ const styles = StyleSheet.create({
   },
   rsvpBtn: {
     flex: 1,
+    flexDirection: 'row',
+    gap: 4,
     paddingVertical: 10,
     borderRadius: 10,
     borderWidth: 1.5,
     alignItems: 'center',
+    justifyContent: 'center',
     backgroundColor: colors.neutral.white,
   },
   rsvpAcceptBtn: {
     borderColor: '#10B981',
   },
+  rsvpMaybeBtn: {
+    borderColor: '#F59E0B',
+  },
   rsvpDeclineBtn: {
     borderColor: '#EF4444',
   },
   rsvpBtnActive: {
-    backgroundColor: colors.neutral.gray50,
+    backgroundColor: '#10B981',
+    borderColor: '#10B981',
+  },
+  rsvpBtnActiveMaybe: {
+    backgroundColor: '#F59E0B',
+    borderColor: '#F59E0B',
+  },
+  rsvpBtnActiveDecline: {
+    backgroundColor: '#EF4444',
+    borderColor: '#EF4444',
   },
   rsvpBtnText: {
     fontSize: 11,

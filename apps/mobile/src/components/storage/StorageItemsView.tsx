@@ -55,7 +55,6 @@ export default function StorageItemsView({ items, protectedIds, onOpenItem, onOp
           key={item.id}
           style={[styles.row, index < items.length - 1 && styles.rowSeparator]}
           onPress={() => onOpenItem(item)}
-          onLongPress={() => onOpenMenu(item)}
           activeOpacity={0.7}
         >
           <View style={styles.iconCircle}>{renderItemIcon(item)}</View>

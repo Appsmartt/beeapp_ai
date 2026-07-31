@@ -6,6 +6,7 @@ import {
   ScrollView,
   TouchableOpacity,
   TextInput,
+  Alert,
 } from 'react-native';
 import ScreenSafeArea from '../../../src/components/layout/ScreenSafeArea';
 import { useModuleNav, useScreenParams } from '../../../src/components/embedded/EmbeddedNavContext';
@@ -19,6 +20,7 @@ import {
   Palette,
   Lock,
   LockOpen,
+  Trash2,
 } from 'lucide-react-native';
 import FloatingTabBar from '../../../src/components/FloatingTabBar';
 import { hasPin, isProtected, setProtected } from '../../../src/stores/pinStore';
@@ -132,6 +134,24 @@ export default function NoteEditScreen() {
     }
   };
 
+  const handleDeleteNote = () => {
+    Alert.alert(
+      '¿Eliminar esta nota?',
+      'Esta acción eliminará la nota de tus registros.',
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Eliminar',
+          style: 'destructive',
+          onPress: () => {
+            alert('Nota eliminada.');
+            router.replace('/(main)/notes');
+          },
+        },
+      ]
+    );
+  };
+
   return (
     <ScreenSafeArea style={styles.safeArea}>
       <View style={styles.container}>
@@ -141,9 +161,16 @@ export default function NoteEditScreen() {
             <ChevronLeft size={24} color={colors.neutral.text} />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>{id ? 'Editar Nota' : 'Nueva Nota'}</Text>
-          <TouchableOpacity onPress={handleSave} style={styles.saveHeaderBtn} activeOpacity={0.8}>
-            <Check size={20} color={colors.brand.primary} />
-          </TouchableOpacity>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+            {!!id && (
+              <TouchableOpacity onPress={handleDeleteNote} style={styles.saveHeaderBtn} activeOpacity={0.7}>
+                <Trash2 size={20} color={colors.semantic.error} />
+              </TouchableOpacity>
+            )}
+            <TouchableOpacity onPress={handleSave} style={styles.saveHeaderBtn} activeOpacity={0.8}>
+              <Check size={20} color={colors.brand.primary} />
+            </TouchableOpacity>
+          </View>
         </View>
 
         <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>

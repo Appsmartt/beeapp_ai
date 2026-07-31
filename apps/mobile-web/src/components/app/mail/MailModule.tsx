@@ -1,268 +1,179 @@
 'use client';
 
 import { useState } from 'react';
-import {
-  Mail,
-  ChevronDown,
-  Star,
-  Paperclip,
-  Plus,
-  Inbox,
-  Send,
-  FileText,
-  EyeOff,
-} from 'lucide-react';
-import { MOCK_EMAILS, EmailItem } from '@/mocks/emails';
+import { Mail, ChevronDown, SquarePen, Settings } from 'lucide-react';
+import { MOCK_EMAILS, MAIL_ACCOUNTS, type EmailItem, type MailFolder } from '@/mocks/emails';
+import MailFolderRail from './MailFolderRail';
+import MailListItem from './MailListItem';
 import MailDetail from './MailDetail';
-import MailCompose from './MailCompose';
+import MailCompose, { type ComposeDraft } from './MailCompose';
+import { MAIL_FOLDERS, matchesFolder } from './mailFolders';
 
 export default function MailModule() {
   const [emails, setEmails] = useState<EmailItem[]>(MOCK_EMAILS);
-  const [selectedFolder, setSelectedFolder] = useState<'inbox' | 'unread' | 'sent' | 'drafts'>('inbox');
-  const [selectedAccount, setSelectedAccount] = useState('Todas las cuentas');
-  const [accountDropdownOpen, setAccountDropdownOpen] = useState(false);
-  const [selectedEmail, setSelectedEmail] = useState<EmailItem | null>(null);
+  const [folder, setFolder] = useState<MailFolder>('inbox');
+  /** null = todas las cuentas */
+  const [account, setAccount] = useState<string | null>(null);
+  const [accountMenuOpen, setAccountMenuOpen] = useState(false);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
   const [composeOpen, setComposeOpen] = useState(false);
+  const [draft, setDraft] = useState<ComposeDraft | null>(null);
 
-  const handleToggleStar = (id: string) => {
-    setEmails((prev) =>
-      prev.map((item) => (item.id === id ? { ...item, starred: !item.starred } : item))
-    );
-    if (selectedEmail && selectedEmail.id === id) {
-      setSelectedEmail((prev) => (prev ? { ...prev, starred: !prev.starred } : null));
-    }
+  const patch = (id: string, changes: Partial<EmailItem>) =>
+    setEmails((prev) => prev.map((item) => (item.id === id ? { ...item, ...changes } : item)));
+
+  const moveTo = (id: string, target: MailFolder) => {
+    patch(id, { folder: target });
+    if (selectedId === id) setSelectedId(null);
   };
 
-  const handleDelete = (id: string) => {
-    setEmails((prev) => prev.filter((item) => item.id !== id));
-    if (selectedEmail && selectedEmail.id === id) {
-      setSelectedEmail(null);
-    }
+  const openCompose = (next: ComposeDraft | null) => {
+    setDraft(next);
+    setComposeOpen(true);
   };
 
-  const handleSendCompose = (to: string, subject: string, body: string) => {
-    const newMail: EmailItem = {
-      id: `em-${Date.now()}`,
-      sender: 'Santiago Morales',
-      email: to,
-      subject,
-      preview: body.slice(0, 60),
-      body,
-      timestamp: 'Ahora',
-      unread: false,
-      starred: false,
-      hasAttachment: false,
-      folder: 'sent',
-    };
-    setEmails((prev) => [newMail, ...prev]);
+  const handleSend = (to: string, subject: string, body: string, from: string) => {
+    setEmails((prev) => [
+      {
+        id: `em-${Date.now()}`,
+        sender: 'Santiago Morales',
+        email: to,
+        subject,
+        preview: body.slice(0, 80),
+        body,
+        timestamp: 'Ahora',
+        date: 'Ahora',
+        unread: false,
+        starred: false,
+        hasAttachment: false,
+        folder: 'sent',
+        account: from,
+        initialsColor: '#6025d2',
+      },
+      ...prev,
+    ]);
   };
 
-  const filteredEmails = emails.filter((item) => {
-    if (selectedFolder === 'unread') return item.unread;
-    if (selectedFolder === 'sent') return item.folder === 'sent';
-    if (selectedFolder === 'drafts') return item.folder === 'drafts';
-    return true;
-  });
-
-  const unreadCount = emails.filter((e) => e.unread).length;
+  const visible = emails.filter(
+    (item) => (!account || item.account === account) && matchesFolder(item, folder)
+  );
+  const selected = visible.find((item) => item.id === selectedId) ?? null;
+  const folderLabel = MAIL_FOLDERS.find((item) => item.key === folder)?.label ?? 'Correo';
 
   return (
     <div className="bg-white min-h-full flex flex-row relative">
-      {/* LEFT COLUMN: Mail List (440px wide) */}
-      <div className="w-[440px] shrink-0 border-r border-neutral-200 flex flex-col">
-        {/* Module Header & Account Selector */}
-        <div className="p-4 border-b border-neutral-100 space-y-3">
-          <div className="flex items-center justify-between">
-            <div className="relative">
-              <button
-                type="button"
-                onClick={() => setAccountDropdownOpen(!accountDropdownOpen)}
-                className="flex items-center gap-1.5 text-sm font-semibold text-neutral-900 hover:text-brand-primary transition-colors"
-              >
-                <span>{selectedAccount}</span>
-                <ChevronDown className="w-4 h-4 text-neutral-500" />
-              </button>
+      <MailFolderRail
+        folder={folder}
+        onSelectFolder={(next) => {
+          setFolder(next);
+          setSelectedId(null);
+        }}
+        emails={emails}
+        account={account}
+      />
 
-              {accountDropdownOpen && (
-                <>
-                  <div className="fixed inset-0 z-20" onClick={() => setAccountDropdownOpen(false)} />
-                  <div className="absolute top-full left-0 mt-1 w-56 bg-white border border-neutral-200 rounded-2xl shadow-xl z-30 py-1 text-xs">
-                    {['Todas las cuentas', 'santiago@beeapp.ai', 'personal@gmail.com'].map((acc) => (
-                      <button
-                        key={acc}
-                        type="button"
-                        onClick={() => {
-                          setSelectedAccount(acc);
-                          setAccountDropdownOpen(false);
-                        }}
-                        className={`w-full text-left px-3 py-2 hover:bg-neutral-50 ${
-                          selectedAccount === acc ? 'font-semibold text-brand-primary' : 'text-neutral-700 font-normal'
-                        }`}
-                      >
-                        {acc}
-                      </button>
-                    ))}
-                  </div>
-                </>
-              )}
-            </div>
-
+      {/* LISTA: 40 % del ancho, entre 380 y 450 px */}
+      <div className="w-[40%] min-w-[380px] max-w-[450px] shrink-0 border-r border-neutral-200 flex flex-col">
+        <div className="px-4 py-3 border-b border-neutral-100 flex items-center justify-between gap-2">
+          <div className="relative min-w-0">
             <button
               type="button"
-              onClick={() => setComposeOpen(true)}
-              className="h-9 px-3 rounded-full bg-brand-primary text-white text-xs font-semibold flex items-center gap-1.5 shadow-sm hover:bg-brand-dark transition-colors"
+              onClick={() => setAccountMenuOpen(!accountMenuOpen)}
+              className="flex items-center gap-1.5 min-w-0 text-sm font-semibold text-neutral-900 hover:text-brand-primary transition-colors"
             >
-              <Plus className="w-4 h-4" />
-              <span>Redactar</span>
+              <span className="truncate">{account ?? 'Todas las cuentas'}</span>
+              <ChevronDown className="w-4 h-4 text-neutral-500 shrink-0" />
             </button>
+
+            {accountMenuOpen && (
+              <>
+                <div className="fixed inset-0 z-20" onClick={() => setAccountMenuOpen(false)} />
+                <div className="absolute top-full left-0 mt-1 w-64 bg-white border border-neutral-200 rounded-xl shadow-xl z-30 py-1">
+                  {[null, ...MAIL_ACCOUNTS].map((option) => (
+                    <button
+                      key={option ?? 'all'}
+                      type="button"
+                      onClick={() => {
+                        setAccount(option);
+                        setAccountMenuOpen(false);
+                        setSelectedId(null);
+                      }}
+                      className={`w-full text-left px-3 py-2 text-xs hover:bg-neutral-50 transition-colors truncate ${
+                        option === account
+                          ? 'text-brand-primary font-semibold'
+                          : 'text-neutral-700 font-normal'
+                      }`}
+                    >
+                      {option ?? 'Todas las cuentas'}
+                    </button>
+                  ))}
+
+                  <div className="h-px bg-neutral-100 my-1" />
+                  <span className="flex items-center gap-2 px-3 py-2 text-[11px] font-normal text-neutral-400">
+                    <Settings className="w-3.5 h-3.5" />
+                    Conectar otra cuenta
+                  </span>
+                </div>
+              </>
+            )}
           </div>
 
-          {/* Folder Chips */}
-          <div className="flex gap-2 overflow-x-auto no-scrollbar pt-1">
-            <button
-              type="button"
-              onClick={() => setSelectedFolder('inbox')}
-              className={`px-3 py-1.5 rounded-full text-xs font-medium flex items-center gap-1.5 shrink-0 transition-colors ${
-                selectedFolder === 'inbox'
-                  ? 'bg-brand-primary text-white'
-                  : 'bg-neutral-100 text-neutral-600 hover:bg-neutral-200/70'
-              }`}
-            >
-              <Inbox className="w-3.5 h-3.5" />
-              <span>Recibidos</span>
-              {unreadCount > 0 && (
-                <span className={`text-[10px] px-1.5 py-0.2 rounded-full ${
-                  selectedFolder === 'inbox' ? 'bg-white/20 text-white' : 'bg-brand-primary text-white'
-                }`}>
-                  {unreadCount}
-                </span>
-              )}
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setSelectedFolder('unread')}
-              className={`px-3 py-1.5 rounded-full text-xs font-medium flex items-center gap-1.5 shrink-0 transition-colors ${
-                selectedFolder === 'unread'
-                  ? 'bg-brand-primary text-white'
-                  : 'bg-neutral-100 text-neutral-600 hover:bg-neutral-200/70'
-              }`}
-            >
-              <EyeOff className="w-3.5 h-3.5" />
-              <span>No leídos</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setSelectedFolder('sent')}
-              className={`px-3 py-1.5 rounded-full text-xs font-medium flex items-center gap-1.5 shrink-0 transition-colors ${
-                selectedFolder === 'sent'
-                  ? 'bg-brand-primary text-white'
-                  : 'bg-neutral-100 text-neutral-600 hover:bg-neutral-200/70'
-              }`}
-            >
-              <Send className="w-3.5 h-3.5" />
-              <span>Enviados</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setSelectedFolder('drafts')}
-              className={`px-3 py-1.5 rounded-full text-xs font-medium flex items-center gap-1.5 shrink-0 transition-colors ${
-                selectedFolder === 'drafts'
-                  ? 'bg-brand-primary text-white'
-                  : 'bg-neutral-100 text-neutral-600 hover:bg-neutral-200/70'
-              }`}
-            >
-              <FileText className="w-3.5 h-3.5" />
-              <span>Borradores</span>
-            </button>
-          </div>
+          <button
+            type="button"
+            onClick={() => openCompose(null)}
+            className="h-9 px-3 rounded-full bg-brand-primary text-white text-xs font-semibold flex items-center gap-1.5 hover:bg-brand-dark transition-colors shrink-0"
+          >
+            <SquarePen className="w-4 h-4" />
+            Redactar
+          </button>
         </div>
 
-        {/* Email Flat List */}
         <div className="divide-y divide-neutral-100 flex-1 overflow-y-auto">
-          {filteredEmails.length === 0 ? (
-            <div className="p-12 text-center text-neutral-400 space-y-2">
+          {visible.length === 0 ? (
+            <div className="p-12 text-center space-y-2">
               <Mail className="w-10 h-10 mx-auto text-neutral-300" />
-              <p className="text-xs font-normal">No hay correos en esta carpeta</p>
+              <p className="text-xs font-normal text-neutral-500">
+                No hay correos en {folderLabel.toLowerCase()}.
+              </p>
             </div>
           ) : (
-            filteredEmails.map((item) => (
-              <div
+            visible.map((item) => (
+              <MailListItem
                 key={item.id}
-                onClick={() => {
-                  setEmails((prev) =>
-                    prev.map((e) => (e.id === item.id ? { ...e, unread: false } : e))
-                  );
-                  setSelectedEmail({ ...item, unread: false });
+                email={item}
+                isSelected={selectedId === item.id}
+                onOpen={() => {
+                  patch(item.id, { unread: false });
+                  setSelectedId(item.id);
                 }}
-                className={`p-4 flex items-start gap-3 cursor-pointer hover:bg-neutral-50 transition-colors relative ${
-                  item.unread ? 'bg-brand-primary/5' : ''
-                } ${selectedEmail?.id === item.id ? 'bg-brand-primary/10 border-l-4 border-brand-primary' : ''}`}
-              >
-                <div className="w-10 h-10 rounded-full bg-brand-primary/10 text-brand-primary font-bold text-xs flex items-center justify-center shrink-0">
-                  {item.sender.slice(0, 2).toUpperCase()}
-                </div>
-
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center justify-between gap-2">
-                    <span className={`text-xs truncate ${item.unread ? 'font-semibold text-neutral-900' : 'font-normal text-neutral-800'}`}>
-                      {item.sender}
-                    </span>
-                    <span className="text-[10px] text-neutral-400 font-normal shrink-0">
-                      {item.timestamp}
-                    </span>
-                  </div>
-
-                  <p className={`text-xs truncate mt-0.5 ${item.unread ? 'font-semibold text-neutral-900' : 'font-normal text-neutral-700'}`}>
-                    {item.subject}
-                  </p>
-
-                  <p className="text-[11px] text-neutral-500 font-normal truncate mt-0.5">
-                    {item.preview}
-                  </p>
-
-                  <div className="flex items-center gap-2 mt-1.5">
-                    {item.hasAttachment && (
-                      <span className="inline-flex items-center gap-1 text-[10px] text-neutral-500 font-normal bg-neutral-100 px-2 py-0.5 rounded-full">
-                        <Paperclip className="w-3 h-3" /> Adjunto
-                      </span>
-                    )}
-                  </div>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleToggleStar(item.id);
-                  }}
-                  className="p-1 text-neutral-300 hover:text-amber-400 transition-colors shrink-0"
-                >
-                  <Star className={`w-4 h-4 ${item.starred ? 'text-amber-400 fill-amber-400' : ''}`} />
-                </button>
-              </div>
+                onToggleStar={() => patch(item.id, { starred: !item.starred })}
+                onToggleRead={() => patch(item.id, { unread: !item.unread })}
+                onArchive={() => moveTo(item.id, 'archive')}
+                onDelete={() => moveTo(item.id, 'trash')}
+              />
             ))
           )}
         </div>
       </div>
 
-      {/* RIGHT COLUMN: Mail Detail (flex-1) */}
+      {/* DETALLE */}
       <div className="flex-1 min-w-0 flex flex-col">
-        {selectedEmail ? (
+        {selected ? (
           <MailDetail
-            email={selectedEmail}
-            onBack={() => setSelectedEmail(null)}
-            onToggleStar={handleToggleStar}
-            onDelete={handleDelete}
+            email={selected}
+            onBack={() => setSelectedId(null)}
+            onToggleStar={(id) => patch(id, { starred: !selected.starred })}
+            onArchive={(id) => moveTo(id, 'archive')}
+            onDelete={(id) => moveTo(id, 'trash')}
+            onReply={(mail) => openCompose({ to: mail.email, subject: `Re: ${mail.subject}` })}
+            onForward={(mail) => openCompose({ to: '', subject: `Fwd: ${mail.subject}` })}
           />
         ) : (
-          <div className="flex-1 flex items-center justify-center p-12 text-center text-neutral-400 bg-neutral-50/50">
+          <div className="flex-1 flex items-center justify-center p-12 text-center bg-neutral-50/50">
             <div className="space-y-3 max-w-xs">
               <Mail className="w-12 h-12 mx-auto text-neutral-300" />
-              <h3 className="font-semibold text-sm text-neutral-700">Ningún correo seleccionado</h3>
-              <p className="text-xs text-neutral-500 font-normal">
+              <h3 className="text-sm font-semibold text-neutral-700">Ningún correo seleccionado</h3>
+              <p className="text-xs font-normal text-neutral-500">
                 Selecciona un correo de la lista para leer su contenido.
               </p>
             </div>
@@ -270,11 +181,11 @@ export default function MailModule() {
         )}
       </div>
 
-      {/* Compose Modal */}
       <MailCompose
         isOpen={composeOpen}
+        draft={draft}
         onClose={() => setComposeOpen(false)}
-        onSend={handleSendCompose}
+        onSend={handleSend}
       />
     </div>
   );

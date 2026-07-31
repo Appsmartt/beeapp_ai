@@ -53,9 +53,9 @@ export default function CreateContactModal({ isOpen, onClose, onCreate }: Create
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center max-w-[430px] mx-auto">
-      <div className="fixed inset-0 bg-neutral-900/40 backdrop-blur-xs" onClick={onClose} />
-      <div className="relative w-full bg-white rounded-t-3xl sm:rounded-3xl shadow-2xl z-50 p-5 space-y-4 max-h-[90vh] overflow-y-auto">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="fixed inset-0 bg-black/60 backdrop-blur-xl" onClick={onClose} />
+      <div className="relative w-full max-w-[430px] bg-white rounded-3xl shadow-xl z-50 p-6 space-y-4 max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between border-b border-neutral-100 pb-3">
           <div className="flex items-center gap-2">
             <UserPlus className="w-5 h-5 text-brand-primary" />

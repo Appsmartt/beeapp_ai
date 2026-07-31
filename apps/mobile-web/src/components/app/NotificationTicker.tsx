@@ -2,7 +2,7 @@
 
 import type { ElementType } from 'react';
 import { useEffect, useState } from 'react';
-import { Mail, FileText, FolderOpen, Calendar, MessageCircle } from 'lucide-react';
+import { Mail, FileText, FolderOpen, Calendar, MessageCircle, Phone } from 'lucide-react';
 import { TickerNotification } from '@/mocks/tabNotifications';
 
 const TYPE_ICONS: Record<TickerNotification['type'], ElementType> = {
@@ -11,6 +11,7 @@ const TYPE_ICONS: Record<TickerNotification['type'], ElementType> = {
   storage: FolderOpen,
   calendar: Calendar,
   chat: MessageCircle,
+  call: Phone,
 };
 
 const TYPE_LABELS: Record<TickerNotification['type'], string> = {
@@ -19,6 +20,7 @@ const TYPE_LABELS: Record<TickerNotification['type'], string> = {
   storage: 'Archivo',
   calendar: 'Agenda',
   chat: 'Chat',
+  call: 'Llamada',
 };
 
 interface NotificationTickerProps {

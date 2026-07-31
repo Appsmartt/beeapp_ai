@@ -1,6 +1,6 @@
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { colors, spacing } from '@beeapp/design-system';
-import { FileText, Star, Clock, Lock, Edit2, Trash2 } from 'lucide-react-native';
+import { FileText, Star, Clock, Lock } from 'lucide-react-native';
 
 export interface NoteRowData {
   id: string;
@@ -15,13 +15,9 @@ export interface NoteRowData {
 interface NoteListRowProps {
   note: NoteRowData;
   isProtected: boolean;
-  /** Long press opens the inline actions panel */
-  isSwipeActive: boolean;
   showSeparator: boolean;
   onPress: () => void;
-  onLongPress: () => void;
   onToggleFavorite: (e: any) => void;
-  onDelete: (e: any) => void;
 }
 
 /**
@@ -31,12 +27,9 @@ interface NoteListRowProps {
 export default function NoteListRow({
   note,
   isProtected,
-  isSwipeActive,
   showSeparator,
   onPress,
-  onLongPress,
   onToggleFavorite,
-  onDelete,
 }: NoteListRowProps) {
   const dateLabel = new Date(note.updatedAt).toLocaleDateString('es-ES', { day: 'numeric', month: 'short' });
 
@@ -45,7 +38,6 @@ export default function NoteListRow({
       <TouchableOpacity
         style={[styles.row, showSeparator && styles.rowSeparator]}
         onPress={onPress}
-        onLongPress={onLongPress}
         activeOpacity={0.7}
       >
         {/* Protected notes reveal nothing: no title, no preview */}
@@ -107,21 +99,6 @@ export default function NoteListRow({
           </TouchableOpacity>
         </View>
       </TouchableOpacity>
-
-      {/* Inline actions (long press) */}
-      {isSwipeActive && (
-        <View style={styles.actionsPanel}>
-          <TouchableOpacity style={[styles.actionBtn, styles.editBtn]} onPress={onPress} activeOpacity={0.8}>
-            <Edit2 size={16} color={colors.neutral.text} />
-            <Text style={styles.actionText}>Editar</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity style={[styles.actionBtn, styles.deleteBtn]} onPress={onDelete} activeOpacity={0.8}>
-            <Trash2 size={16} color={colors.semantic.error} />
-            <Text style={[styles.actionText, { color: colors.semantic.error }]}>Borrar</Text>
-          </TouchableOpacity>
-        </View>
-      )}
     </View>
   );
 }

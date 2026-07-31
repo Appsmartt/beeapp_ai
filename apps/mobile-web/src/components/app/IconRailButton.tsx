@@ -15,6 +15,8 @@ interface IconRailButtonProps {
   boxSize?: number;
   /** Lado por el que asoma el tooltip, según el borde en el que viva la barra */
   tooltipSide?: 'left' | 'right';
+  /** Conteo que asoma en la esquina del ícono. Se oculta en cero */
+  badge?: number;
 }
 
 /**
@@ -30,6 +32,7 @@ export default function IconRailButton({
   iconSize = 22,
   boxSize = 48,
   tooltipSide = 'left',
+  badge,
 }: IconRailButtonProps) {
   return (
     <div className="relative group shrink-0">
@@ -45,6 +48,12 @@ export default function IconRailButton({
         {adornment}
         <Icon style={{ width: iconSize, height: iconSize }} strokeWidth={1.6} />
       </button>
+
+      {!!badge && badge > 0 && (
+        <span className="pointer-events-none absolute top-1 right-1 min-w-[16px] h-4 px-1 rounded-full bg-brand-primary text-white text-[9px] font-normal flex items-center justify-center">
+          {badge > 9 ? '9+' : badge}
+        </span>
+      )}
 
       <span
         className={`pointer-events-none absolute top-1/2 -translate-y-1/2 whitespace-nowrap rounded-lg bg-neutral-900 px-2 py-1 text-[11px] font-normal text-white opacity-0 transition-opacity group-hover:opacity-100 z-50 ${

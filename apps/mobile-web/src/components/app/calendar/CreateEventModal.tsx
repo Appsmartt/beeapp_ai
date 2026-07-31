@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { X, Calendar as CalendarIcon, Video } from 'lucide-react';
+import { X, Calendar as CalendarIcon, Video, MapPin } from 'lucide-react';
 import { CalendarEventItem } from '@/mocks/calendarEvents';
 
 interface CreateEventModalProps {
@@ -13,6 +13,9 @@ interface CreateEventModalProps {
 export default function CreateEventModal({ isOpen, onClose, onCreate }: CreateEventModalProps) {
   const [title, setTitle] = useState('');
   const [time, setTime] = useState('10:00 AM - 11:00 AM');
+  const [dateStr, setDateStr] = useState('2026-07-28');
+  const [location, setLocation] = useState('');
+  const [description, setDescription] = useState('');
   const [meetUrl, setMeetUrl] = useState('');
   const [type, setType] = useState<'meeting' | 'task' | 'reminder'>('meeting');
 
@@ -27,8 +30,15 @@ export default function CreateEventModal({ isOpen, onClose, onCreate }: CreateEv
       title,
       time,
       type,
+      location: location || (type === 'meeting' ? 'Virtual' : 'Oficina Principal'),
+      description: description || 'Sin descripción adicional.',
       meetUrl: type === 'meeting' ? (meetUrl || 'https://meet.google.com/new-meeting') : undefined,
-      dateStr: '2026-07-28',
+      dateStr,
+      duration: '45 min',
+      invitees: [
+        { name: 'Carlos Mendoza', initials: 'CM', color: '#EBF5FF' },
+        { name: 'María Gómez', initials: 'MG', color: '#ECFDF5' },
+      ],
     };
 
     onCreate(newEv);
@@ -36,81 +46,127 @@ export default function CreateEventModal({ isOpen, onClose, onCreate }: CreateEv
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center max-w-[430px] mx-auto">
-      <div className="fixed inset-0 bg-neutral-900/40 backdrop-blur-xs" onClick={onClose} />
-      <div className="relative w-full bg-white rounded-t-3xl sm:rounded-3xl shadow-2xl z-50 p-5 space-y-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 select-none">
+      <div className="fixed inset-0 bg-black/60 backdrop-blur-xl" onClick={onClose} />
+      <div className="relative w-full max-w-md bg-white rounded-3xl shadow-xl z-50 p-6 space-y-4 border border-neutral-100 animate-in fade-in zoom-in-95 duration-150">
         
         <div className="flex items-center justify-between border-b border-neutral-100 pb-3">
           <div className="flex items-center gap-2">
-            <CalendarIcon className="w-5 h-5 text-brand-primary" />
+            <div className="w-8 h-8 rounded-xl bg-brand-primary/10 text-brand-primary flex items-center justify-center">
+              <CalendarIcon className="w-4 h-4" />
+            </div>
             <h2 className="font-semibold text-sm text-neutral-900">Nuevo Evento de Agenda</h2>
           </div>
-          <button onClick={onClose} className="p-1 text-neutral-400 hover:text-neutral-900">
-            <X className="w-5 h-5" />
+          <button onClick={onClose} className="p-1 rounded-full text-neutral-400 hover:bg-neutral-100">
+            <X className="w-4 h-4" />
           </button>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-3">
           <div>
-            <label className="text-[11px] font-medium text-neutral-700">Título del evento</label>
+            <label className="text-[11px] font-normal text-neutral-600">Título del evento</label>
             <input
               type="text"
               required
-              placeholder="Reunión de proyecto"
+              placeholder="Ej: Sincronización de Sprint"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              className="w-full h-10 px-3 bg-neutral-50 border border-neutral-200 rounded-xl text-xs outline-none focus:border-brand-primary"
+              className="w-full h-9 px-3 border border-neutral-200 rounded-xl text-xs font-normal outline-none focus:border-brand-primary"
             />
           </div>
 
-          <div>
-            <label className="text-[11px] font-medium text-neutral-700">Horario</label>
-            <input
-              type="text"
-              placeholder="09:00 AM - 10:00 AM"
-              value={time}
-              onChange={(e) => setTime(e.target.value)}
-              className="w-full h-10 px-3 bg-neutral-50 border border-neutral-200 rounded-xl text-xs outline-none focus:border-brand-primary"
-            />
-          </div>
-
-          <div>
-            <label className="text-[11px] font-medium text-neutral-700">Tipo de compromiso</label>
-            <select
-              value={type}
-              onChange={(e) => setType(e.target.value as 'meeting' | 'task' | 'reminder')}
-              className="w-full h-10 px-3 bg-neutral-50 border border-neutral-200 rounded-xl text-xs outline-none focus:border-brand-primary text-neutral-800"
-            >
-              <option value="meeting">Reunión con Videollamada</option>
-              <option value="task">Tarea programada</option>
-              <option value="reminder">Recordatorio</option>
-            </select>
-          </div>
-
-          {type === 'meeting' && (
+          <div className="grid grid-cols-2 gap-2">
             <div>
-              <label className="text-[11px] font-medium text-neutral-700">Enlace de Videollamada (opcional)</label>
-              <div className="flex items-center bg-neutral-50 border border-neutral-200 rounded-xl px-3 h-10 gap-2">
+              <label className="text-[11px] font-normal text-neutral-600">Fecha</label>
+              <input
+                type="date"
+                value={dateStr}
+                onChange={(e) => setDateStr(e.target.value)}
+                className="w-full h-9 px-3 border border-neutral-200 rounded-xl text-xs font-normal outline-none focus:border-brand-primary"
+              />
+            </div>
+            <div>
+              <label className="text-[11px] font-normal text-neutral-600">Horario</label>
+              <input
+                type="text"
+                placeholder="10:00 AM - 11:00 AM"
+                value={time}
+                onChange={(e) => setTime(e.target.value)}
+                className="w-full h-9 px-3 border border-neutral-200 rounded-xl text-xs font-normal outline-none focus:border-brand-primary"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="text-[11px] font-normal text-neutral-600">Tipo de compromiso</label>
+            <div className="flex gap-2 pt-1">
+              {(['meeting', 'task', 'reminder'] as const).map((t) => (
+                <button
+                  key={t}
+                  type="button"
+                  onClick={() => setType(t)}
+                  className={`flex-1 h-8 rounded-xl text-xs font-normal transition-colors border ${
+                    type === t
+                      ? 'bg-brand-primary/10 border-brand-primary text-brand-primary font-semibold'
+                      : 'border-neutral-200 text-neutral-600 hover:bg-neutral-50'
+                  }`}
+                >
+                  {t === 'meeting' ? 'Reunión' : t === 'task' ? 'Tarea' : 'Recordatorio'}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {type === 'meeting' ? (
+            <div>
+              <label className="text-[11px] font-normal text-neutral-600">Enlace de Videollamada (opcional)</label>
+              <div className="flex items-center border border-neutral-200 rounded-xl px-3 h-9 gap-2">
                 <Video className="w-4 h-4 text-neutral-400 shrink-0" />
                 <input
                   type="url"
                   placeholder="https://meet.google.com/..."
                   value={meetUrl}
                   onChange={(e) => setMeetUrl(e.target.value)}
-                  className="w-full bg-transparent text-xs outline-none"
+                  className="w-full bg-transparent text-xs font-normal outline-none"
+                />
+              </div>
+            </div>
+          ) : (
+            <div>
+              <label className="text-[11px] font-normal text-neutral-600">Ubicación</label>
+              <div className="flex items-center border border-neutral-200 rounded-xl px-3 h-9 gap-2">
+                <MapPin className="w-4 h-4 text-neutral-400 shrink-0" />
+                <input
+                  type="text"
+                  placeholder="Sala de conferencias B"
+                  value={location}
+                  onChange={(e) => setLocation(e.target.value)}
+                  className="w-full bg-transparent text-xs font-normal outline-none"
                 />
               </div>
             </div>
           )}
 
-          <button
-            type="submit"
-            className="w-full h-11 rounded-xl bg-brand-primary text-white text-xs font-semibold hover:bg-brand-dark transition-colors shadow-sm mt-2"
-          >
-            Crear evento
-          </button>
-        </form>
+          <div>
+            <label className="text-[11px] font-normal text-neutral-600">Descripción</label>
+            <textarea
+              rows={2}
+              placeholder="Detalles sobre el orden del día..."
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              className="w-full p-2.5 border border-neutral-200 rounded-xl text-xs font-normal outline-none focus:border-brand-primary resize-none"
+            />
+          </div>
 
+          <div className="flex gap-2 pt-2">
+            <button type="button" onClick={onClose} className="flex-1 h-9 rounded-full border border-neutral-200 text-xs font-normal text-neutral-700 hover:bg-neutral-50">
+              Cancelar
+            </button>
+            <button type="submit" className="flex-1 h-9 rounded-full bg-brand-primary text-white text-xs font-semibold hover:bg-brand-dark transition-colors">
+              Crear evento
+            </button>
+          </div>
+        </form>
       </div>
     </div>
   );

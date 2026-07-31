@@ -6,15 +6,16 @@ import {
   STATUS_TEXT_COLORS,
   type StatusItem,
   type StatusProductLink,
-  type StatusTextAlign,
-  type StatusTextPosition,
 } from '@/mocks/statuses';
 import { CURRENT_USER } from '@/mocks/currentUser';
+import type { ContactItem } from '@/mocks/contacts';
 import StatusPreviewStage from './status/StatusPreviewStage';
 import StatusToolPanel from './status/StatusToolPanel';
+import { useStatusLayers } from './status/useStatusLayers';
 import ProductLinkSelector from './ProductLinkSelector';
 
 const MOCK_PHOTO = 'https://picsum.photos/id/1069/600/800';
+const MENTION_TOKEN = /@[^@\n]*$/;
 
 const initialsOf = (name: string) =>
   name
@@ -31,57 +32,88 @@ interface CreateStatusModalProps {
 }
 
 /**
- * Editor de estados a pantalla completa: a la izquierda el lienzo 9:16 sobre
- * fondo claro, a la derecha el panel de herramientas por secciones.
+ * Editor de estados a pantalla completa: a la izquierda el lienzo 9:16 con
+ * las capas, a la derecha el panel de herramientas por secciones.
  */
 export default function CreateStatusModal({
   visible,
   onPublish,
   onClose,
 }: CreateStatusModalProps) {
-  const [text, setText] = useState('');
   const [photo, setPhoto] = useState<string | null>(null);
   const [background, setBackground] = useState(STATUS_BACKGROUNDS[0]);
-  const [textColor, setTextColor] = useState(STATUS_TEXT_COLORS[0]);
-  const [textSize, setTextSize] = useState(24);
-  const [bold, setBold] = useState(false);
-  const [align, setAlign] = useState<StatusTextAlign>('center');
+  const [lastTextColor, setLastTextColor] = useState(STATUS_TEXT_COLORS[0]);
   const [product, setProduct] = useState<StatusProductLink | null>(null);
   const [selectorVisible, setSelectorVisible] = useState(false);
-  const [textPos, setTextPos] = useState<StatusTextPosition>({ x: 50, y: 50 });
+  const [mentionQuery, setMentionQuery] = useState<string | null>(null);
+
+  const layers = useStatusLayers(lastTextColor);
+  const { texts, images, stickers, music, selection, selectedText } = layers;
 
   useEffect(() => {
     if (!visible) return;
-    setText('');
     setPhoto(null);
     setBackground(STATUS_BACKGROUNDS[0]);
-    setTextColor(STATUS_TEXT_COLORS[0]);
-    setTextSize(24);
-    setBold(false);
-    setAlign('center');
+    setLastTextColor(STATUS_TEXT_COLORS[0]);
     setProduct(null);
     setSelectorVisible(false);
-    setTextPos({ x: 50, y: 50 });
+    setMentionQuery(null);
+    layers.reset(STATUS_TEXT_COLORS[0]);
+    // `layers` es estable salvo por reset, que no cambia entre renders
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visible]);
 
   if (!visible) return null;
 
+  /** Al escribir, abre la lista de contactos si hay una "@" a medias */
+  const handleTextChange = (content: string) => {
+    if (!selectedText) return;
+    layers.patchText(selectedText.id, { content });
+    const match = MENTION_TOKEN.exec(content);
+    setMentionQuery(match && match[0].length <= 21 ? match[0].slice(1) : null);
+  };
+
+  const insertMention = (contact: ContactItem) => {
+    if (!selectedText) return;
+    layers.patchText(selectedText.id, {
+      content: selectedText.content.replace(MENTION_TOKEN, `@${contact.name} `),
+    });
+    setMentionQuery(null);
+  };
+
+  const changeTextColor = (color: string) => {
+    setLastTextColor(color);
+    if (selectedText) layers.patchText(selectedText.id, { color });
+  };
+
+  const canPublish =
+    texts.some((layer) => layer.content.trim()) ||
+    !!photo ||
+    images.length > 0 ||
+    stickers.length > 0;
+
   const handlePublish = () => {
+    const first = texts[0];
+
     onPublish({
       authorId: 'me',
       authorName: CURRENT_USER.name,
       authorInitials: initialsOf(CURRENT_USER.name),
       authorColor: '#F3E8FF',
       type: photo ? 'photo' : 'text',
-      text: text.trim(),
+      text: first?.content.trim() ?? '',
       photoUrl: photo,
       bgColor: photo ? null : background,
       linkedProduct: product,
-      textPosition: textPos,
-      textSize,
-      textWeight: bold ? '700' : '400',
-      textColor,
-      textAlign: align,
+      textPosition: { x: first?.x ?? 50, y: first?.y ?? 50 },
+      textSize: first?.fontSize ?? 24,
+      textWeight: first?.fontWeight ?? '400',
+      textColor: first?.color ?? lastTextColor,
+      textAlign: first?.align ?? 'center',
+      textLayers: texts.filter((layer) => layer.content.trim()),
+      imageLayers: images,
+      stickerLayers: stickers,
+      music,
     });
   };
 
@@ -90,35 +122,60 @@ export default function CreateStatusModal({
       <StatusPreviewStage
         background={background}
         photo={photo}
-        text={text}
-        textColor={textColor}
-        textSize={textSize}
-        bold={bold}
-        align={align}
-        position={textPos}
-        onMoveText={setTextPos}
+        texts={texts}
+        images={images}
+        stickers={stickers}
+        music={music}
+        selection={selection}
+        onSelect={layers.setSelection}
+        onMoveText={(id, x, y) => layers.patchText(id, { x, y })}
+        onMoveImage={layers.moveImage}
+        onMoveSticker={layers.moveSticker}
+        onResizeImage={layers.resizeImage}
+        onRemoveLayer={layers.removeLayer}
         onRemovePhoto={() => setPhoto(null)}
+        onRemoveMusic={() => layers.setMusic(null)}
       />
 
       <StatusToolPanel
-        text={text}
-        onChangeText={setText}
-        textSize={textSize}
-        onChangeSize={setTextSize}
-        bold={bold}
-        onToggleBold={() => setBold(!bold)}
-        align={align}
-        onChangeAlign={setAlign}
-        textColor={textColor}
-        onChangeTextColor={setTextColor}
+        text={selectedText?.content ?? ''}
+        onChangeText={handleTextChange}
+        hasTextSelection={!!selectedText}
+        textCount={texts.length}
+        onAddText={layers.addText}
+        mentionQuery={mentionQuery}
+        onSelectMention={insertMention}
+        textSize={selectedText?.fontSize ?? 24}
+        onChangeSize={(size) => selectedText && layers.patchText(selectedText.id, { fontSize: size })}
+        bold={selectedText?.fontWeight === '700'}
+        onToggleBold={() =>
+          selectedText &&
+          layers.patchText(selectedText.id, {
+            fontWeight: selectedText.fontWeight === '700' ? '400' : '700',
+          })
+        }
+        align={selectedText?.align ?? 'center'}
+        onChangeAlign={(align) => selectedText && layers.patchText(selectedText.id, { align })}
+        textColor={selectedText?.color ?? lastTextColor}
+        onChangeTextColor={changeTextColor}
         background={background}
         onChangeBackground={setBackground}
         hasPhoto={!!photo}
         onPickPhoto={() => setPhoto(MOCK_PHOTO)}
         onRemovePhoto={() => setPhoto(null)}
+        imageCount={images.length}
+        onAddImage={layers.addImage}
+        stickerCount={stickers.length}
+        onAddSticker={(sticker) => layers.addSticker(sticker.id)}
+        music={music}
+        onSelectMusic={(song) =>
+          layers.setMusic({ id: song.id, title: song.title, artist: song.artist })
+        }
+        onRemoveMusic={() => layers.setMusic(null)}
         product={product}
         onLinkProduct={() => setSelectorVisible(true)}
         onRemoveProduct={() => setProduct(null)}
+        canPublish={canPublish}
         onClose={onClose}
         onPublish={handlePublish}
       />

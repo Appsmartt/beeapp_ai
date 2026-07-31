@@ -13,7 +13,8 @@ import CalendarHourlyAgenda from '../../../src/components/calendar/CalendarHourl
 import CalendarEventsList from '../../../src/components/calendar/CalendarEventsList';
 import { CalendarContextMenu, CalendarFabMenu, FAB_BOTTOM_OFFSET } from '../../../src/components/calendar/CalendarMenus';
 import { CalendarHeader, CalendarFilterChips, ViewMode, FilterChip } from '../../../src/components/calendar/CalendarHeader';
-import { addDays, addMonths, periodLabel, parseDate, monthName } from '../../../src/utils/dateHelpers';
+import { MonthPickerModal, YearPickerModal } from '../../../src/components/calendar/CalendarPickerModals';
+import { addDays, addMonths, periodLabel, parseDate, monthName, formatDate } from '../../../src/utils/dateHelpers';
 
 export default function CalendarIndexScreen() {
   const router = useModuleNav();
@@ -31,6 +32,20 @@ export default function CalendarIndexScreen() {
   const [activeEvent, setActiveEvent] = useState<CalendarEvent | null>(null);
   const [contextMenuVisible, setContextMenuVisible] = useState(false);
   const [fabMenuVisible, setFabMenuVisible] = useState(false);
+  const [monthPickerVisible, setMonthPickerVisible] = useState(false);
+  const [yearPickerVisible, setYearPickerVisible] = useState(false);
+
+  const handleSelectMonth = (monthIdx: number) => {
+    const cur = parseDate(selectedDate);
+    const updated = new Date(cur.getFullYear(), monthIdx, Math.min(cur.getDate(), 28));
+    setSelectedDate(formatDate(updated));
+  };
+
+  const handleSelectYear = (year: number) => {
+    const cur = parseDate(selectedDate);
+    const updated = new Date(year, cur.getMonth(), Math.min(cur.getDate(), 28));
+    setSelectedDate(formatDate(updated));
+  };
 
   // Load events
   useEffect(() => {
@@ -145,7 +160,9 @@ export default function CalendarIndexScreen() {
               <TouchableOpacity style={styles.navBtn} onPress={() => shiftPeriod(-1)} activeOpacity={0.7}>
                 <ChevronLeft size={18} color={colors.brand.primary} />
               </TouchableOpacity>
-              <Text style={styles.navLabel}>{periodLabel(selectedDate, 'month')}</Text>
+              <TouchableOpacity onPress={() => setMonthPickerVisible(true)} activeOpacity={0.7}>
+                <Text style={styles.navLabel}>{periodLabel(selectedDate, 'month')}</Text>
+              </TouchableOpacity>
               <TouchableOpacity style={styles.navBtn} onPress={() => shiftPeriod(1)} activeOpacity={0.7}>
                 <ChevronRight size={18} color={colors.brand.primary} />
               </TouchableOpacity>
@@ -159,6 +176,8 @@ export default function CalendarIndexScreen() {
             onSelectDate={setSelectedDate}
             onShift={shiftPeriod}
             label={periodLabel(selectedDate, currentView)}
+            onOpenMonthPicker={() => setMonthPickerVisible(true)}
+            onOpenYearPicker={() => setYearPickerVisible(true)}
           />
         )}
 
@@ -191,6 +210,20 @@ export default function CalendarIndexScreen() {
 
           <View style={{ height: 120 }} />
         </ScrollView>
+
+        {/* Month and Year Pickers */}
+        <MonthPickerModal
+          visible={monthPickerVisible}
+          selectedDate={selectedDate}
+          onClose={() => setMonthPickerVisible(false)}
+          onSelectMonth={handleSelectMonth}
+        />
+        <YearPickerModal
+          visible={yearPickerVisible}
+          selectedDate={selectedDate}
+          onClose={() => setYearPickerVisible(false)}
+          onSelectYear={handleSelectYear}
+        />
 
         {/* Options Context Menu Overlay */}
         <CalendarContextMenu

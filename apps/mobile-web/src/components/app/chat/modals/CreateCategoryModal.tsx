@@ -42,9 +42,9 @@ export default function CreateCategoryModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center max-w-md mx-auto">
-      <div className="fixed inset-0 bg-neutral-900/40 backdrop-blur-xs" onClick={onClose} />
-      <div className="relative w-full bg-white rounded-t-3xl sm:rounded-3xl shadow-2xl z-50 p-6 space-y-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="fixed inset-0 bg-black/60 backdrop-blur-xl" onClick={onClose} />
+      <div className="relative w-full max-w-md bg-white rounded-3xl shadow-xl z-50 p-6 space-y-4">
         <h2 className="font-semibold text-base text-neutral-900">Crear categoría</h2>
 
         <form onSubmit={handleSubmit} className="space-y-4">

@@ -1,20 +1,79 @@
 export interface TickerNotification {
   id: string;
-  type: 'mail' | 'chat' | 'notes' | 'storage' | 'calendar';
+  type: 'mail' | 'chat' | 'notes' | 'storage' | 'calendar' | 'call';
+  title?: string;
   message: string;
   timestamp: string;
   read: boolean;
+  sender?: string;
+  initials?: string;
+  chatId?: string;
 }
 
 export const LEFT_TAB_NOTIFICATIONS: TickerNotification[] = [
-  { id: '1', type: 'mail', message: 'Nuevo correo de Juan Pérez', timestamp: 'Hace 5m', read: false },
-  { id: '2', type: 'notes', message: 'Nota compartida: Requisitos de Diseño', timestamp: 'Hace 20m', read: false },
-  { id: '3', type: 'storage', message: 'Documento firmado: Contrato.pdf', timestamp: 'Hace 1h', read: true },
-  { id: '4', type: 'calendar', message: 'Reunión en 15 minutos con Equipo AI', timestamp: 'Hace 2h', read: false },
+  {
+    id: 'g1',
+    type: 'mail',
+    title: 'Nuevo correo corporativo',
+    message: 'Eduardo Torres: Propuesta comercial para Q4',
+    timestamp: 'Hace 5m',
+    read: false,
+  },
+  {
+    id: 'g2',
+    type: 'calendar',
+    title: 'Recordatorio de evento',
+    message: 'Sincronización semanal en 15 minutos',
+    timestamp: 'Hace 15m',
+    read: false,
+  },
+  {
+    id: 'g3',
+    type: 'storage',
+    title: 'Documento firmado',
+    message: 'NDA_Consultor_Asociado.pdf firmado por Santiago V.',
+    timestamp: 'Hace 1h',
+    read: true,
+  },
+  {
+    id: 'g4',
+    type: 'notes',
+    title: 'Nota actualizada',
+    message: 'Ideas campaña de Marketing editada',
+    timestamp: 'Hace 2h',
+    read: false,
+  },
 ];
 
 export const RIGHT_TAB_NOTIFICATIONS: TickerNotification[] = [
-  { id: '1', type: 'chat', message: 'Carlos: ¿Revisaste el catálogo?', timestamp: 'Hace 2m', read: false },
-  { id: '2', type: 'chat', message: 'Grupo Tech: Nueva actualización disponible', timestamp: 'Hace 15m', read: false },
-  { id: '3', type: 'chat', message: 'Asistente IA: 3 respuestas enviadas hoy', timestamp: 'Hace 45m', read: true },
+  {
+    id: 'c1',
+    type: 'chat',
+    sender: 'Mariana Gómez',
+    initials: 'MG',
+    message: '¿Revisaste el catálogo de BeeServices?',
+    timestamp: '13:40',
+    read: false,
+    chatId: '3',
+  },
+  {
+    id: 'c2',
+    type: 'call',
+    sender: 'Carlos Mendoza',
+    initials: 'CM',
+    message: 'Llamada perdida',
+    timestamp: '14:32',
+    read: false,
+    chatId: '1',
+  },
+  {
+    id: 'c3',
+    type: 'chat',
+    sender: 'Equipo de Desarrollo',
+    initials: 'ED',
+    message: 'Sprint review agendado para mañana',
+    timestamp: '12:15',
+    read: true,
+    chatId: '2',
+  },
 ];

@@ -40,9 +40,9 @@ export default function AssignCategoryModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center max-w-md mx-auto">
-      <div className="fixed inset-0 bg-neutral-900/40 backdrop-blur-xs" onClick={onClose} />
-      <div className="relative w-full bg-white rounded-t-3xl sm:rounded-3xl shadow-2xl z-50 p-6 space-y-4 max-h-[75vh] flex flex-col">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="fixed inset-0 bg-black/60 backdrop-blur-xl" onClick={onClose} />
+      <div className="relative w-full max-w-md bg-white rounded-3xl shadow-xl z-50 p-6 space-y-4 max-h-[75vh] flex flex-col">
         <div>
           <h2 className="font-semibold text-base text-neutral-900">Asignar a categoría</h2>
           {chatName && <p className="text-xs text-neutral-500 font-normal mt-0.5">{chatName}</p>}

@@ -1,7 +1,7 @@
 'use client';
 
 import type { ElementType } from 'react';
-import { FolderOpen, Folder, FileText, FileImage, File, Lock } from 'lucide-react';
+import { FolderOpen, Folder, FileText, FileImage, File, Lock, Film, Archive, FileSpreadsheet } from 'lucide-react';
 import { MOCK_STORAGE_ITEMS, StorageItem } from '@/mocks/storageItems';
 import OverviewCard from './OverviewCard';
 
@@ -14,6 +14,9 @@ const TYPE_ICONS: Record<StorageItem['type'], ElementType> = {
   pdf: FileText,
   image: FileImage,
   doc: File,
+  video: Film,
+  zip: Archive,
+  sheet: FileSpreadsheet,
 };
 
 /** Espacio ocupado (mock, coherente con el módulo de Almacenamiento) */
