@@ -64,9 +64,15 @@ export default function PinLockModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center max-w-md mx-auto">
-      <div className="fixed inset-0 bg-neutral-900/50 backdrop-blur-xs" onClick={onClose} />
-      <div className="relative w-full bg-white rounded-t-3xl sm:rounded-3xl shadow-2xl z-50 p-6 space-y-5">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      {/* Overlay con fondo oscuro rgba(0,0,0,0.6) y blur(20px) */}
+      <div
+        className="fixed inset-0 bg-black/60 backdrop-blur-xl transition-all"
+        onClick={onClose}
+      />
+
+      {/* Card del PIN flotante centrado */}
+      <div className="relative w-full max-w-sm bg-white rounded-3xl shadow-xl z-50 p-8 space-y-5 border border-neutral-100 animate-in fade-in zoom-in-95 duration-150">
         <div className="flex items-center justify-between border-b border-neutral-100 pb-3">
           <div className="flex items-center gap-2 min-w-0 pr-2">
             <Lock className="w-4 h-4 text-brand-primary shrink-0" />
@@ -74,15 +80,19 @@ export default function PinLockModal({
               {itemName ? `Contenido protegido: ${itemName}` : 'Contenido protegido'}
             </h2>
           </div>
-          <button type="button" onClick={onClose} className="p-1 text-neutral-400 hover:text-neutral-900">
+          <button
+            type="button"
+            onClick={onClose}
+            className="p-1 rounded-lg text-neutral-400 hover:text-neutral-900 hover:bg-neutral-100 transition-colors"
+          >
             <X className="w-5 h-5" />
           </button>
         </div>
 
         <div className="text-center space-y-1">
           <p className="text-sm font-semibold text-neutral-900">Ingresa tu PIN</p>
-          <p className="text-xs text-neutral-500 font-normal">
-            Este chat está protegido. Escribe tu PIN de 4 dígitos para abrirlo.
+          <p className="text-xs text-neutral-500 font-normal leading-relaxed">
+            Este elemento está protegido. Escribe tu PIN de 4 dígitos para abrirlo.
           </p>
         </div>
 
@@ -110,7 +120,7 @@ export default function PinLockModal({
 
         {error && <p className="text-center text-xs text-red-600 font-medium">{error}</p>}
 
-        <p className="text-center text-[11px] text-neutral-400 font-normal">
+        <p className="text-center text-[11px] text-neutral-400 font-normal pt-1">
           ¿Olvidaste tu PIN? Recupéralo en Perfil → Seguridad.
         </p>
       </div>

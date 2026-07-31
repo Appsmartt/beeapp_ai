@@ -18,6 +18,7 @@ interface ChatListPanelProps {
   onDeleteChat?: (id: string) => void;
   onAssignCategory?: (chat: ChatItem) => void;
   onToggleProtection?: (chat: ChatItem) => void;
+  onArchiveChat?: (id: string) => void;
 }
 
 export default function ChatListPanel({
@@ -33,6 +34,7 @@ export default function ChatListPanel({
   onDeleteChat,
   onAssignCategory,
   onToggleProtection,
+  onArchiveChat,
 }: ChatListPanelProps) {
   // Assistant AI chat is pinned on top and is not filtered out unless a category is explicitly active
   const aiChat = activeCategoryId ? undefined : chats.find((c) => c.isAI);
@@ -59,12 +61,10 @@ export default function ChatListPanel({
             chat={aiChat}
             isSelected={selectedChatId === aiChat.id}
             onClick={() => onSelectChat(aiChat)}
-            onContextMenu={(e) => {
-              if (onAssignCategory) {
-                e.preventDefault();
-                onAssignCategory(aiChat);
-              }
-            }}
+            onPin={onPinChat}
+            onMute={onMuteChat}
+            onAssignCategory={onAssignCategory}
+            onToggleProtection={onToggleProtection}
           />
         )}
 
@@ -79,6 +79,7 @@ export default function ChatListPanel({
             onDelete={onDeleteChat}
             onAssignCategory={onAssignCategory}
             onToggleProtection={onToggleProtection}
+            onArchive={onArchiveChat}
           />
         ))}
       </div>

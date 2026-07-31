@@ -242,9 +242,7 @@ El descubrimiento de productos y servicios **de otros usuarios** no vive aquí: 
 - **Overlay global (`AppLockScreen.tsx`)**: Se monta en `app/_layout.tsx`. Escucha el estado de la aplicación (`AppState`). Al regresar de segundo plano (background → active), la app se bloquea de forma inmediata mostrando un overlay blanco con el logotipo de BeeApp y el método configurado. Si se falla la biometría 3 veces, el sistema cae automáticamente al PIN de 6 dígitos como fallback.
 | **Personalización** `/app` (overlay) | `CustomizeModal` | Modal de personalización/reordenamiento de chips de módulos. **En la web ya no hay App Lock**: entrar a `/app` no pide PIN ni biometría, porque la sesión queda autorizada al escanear el QR desde la app móvil. El componente `AppLockScreen.tsx` sigue en el repositorio pero **no se renderiza en ninguna parte**. |
 
----
-
-## 💻 Formato & Dispositivos Soportados en Web (`apps/mobile-web/`)
+**Opciones y Menú de Chat:** En la app móvil y en la web app, las opciones de cada conversación (fijar/desfijar, silenciar/activar, proteger/quitar PIN, asignar a categoría, archivar y eliminar) se acceden **exclusivamente desde el botón de tres puntos (`MoreVertical`) siempre visible a la derecha de cada fila de chat**, eliminando las acciones por deslizamiento (swipe) y pulsación larga (long-press). Al pulsar los tres puntos se abre un menú contextual desplegable anclado a la fila (en el chat de la IA se ocultan las opciones de archivar y eliminar).
 
 La aplicación web `@beeapp/mobile-web` opera con el siguiente modelo de visualización:
 
@@ -256,6 +254,20 @@ La aplicación web `@beeapp/mobile-web` opera con el siguiente modelo de visuali
 2. **Rutas Públicas 100 % Responsive**:
    - **Landing Page (`/`)**: Completamente adaptada y accesible en celulares, tablets y computadores.
    - **Login QR (`/login`)**: Accesible desde cualquier navegador y resolución para iniciar sesión escaneando el código QR desde la app móvil.
+
+### Editor de estados en web (`components/app/chat/CreateStatusModal.tsx` + `chat/status/`)
+
+Overlay a pantalla completa dividido en **dos paneles**, con fondo blanco en toda la superficie (nunca oscuro):
+
+- **Panel izquierdo (70 %) — preview.** `StatusPreviewStage` dibuja el estado como una **hoja 9:16 flotando** sobre un fondo `neutral-50`: contenedor centrado con esquinas de 24 px y sombra difusa. El color, el degradado o la foto viven **dentro** de la hoja, nunca en toda la pantalla. El texto se superpone en la posición elegida y se **arrastra con el mouse** (eventos de puntero; la posición se guarda en porcentaje x/y, acotada al 10-90 % horizontal y 8-92 % vertical). Cuando el texto está vacío se muestra el placeholder "Escribe tu estado..." atenuado.
+- **Panel derecho (30 %, máx. 320 px) — herramientas.** Fondo blanco, borde izquierdo fino y scroll vertical propio. Su cabecera lleva `X` a la izquierda, el título "Crear estado" al centro (peso 600) y **Publicar** en `brand-primary` a la derecha, deshabilitado mientras no haya texto ni imagen. Debajo, cinco **secciones colapsables** (`StatusToolSection`) separadas por líneas finas, cada una con su título en gris, minúsculas versalitas y peso 400:
+  1. **Texto** — `textarea` sin marco, solo una línea inferior que pasa a morado al enfocar.
+  2. **Tipografía** — slider de tamaño de **16 a 40 px** con el valor a la derecha, toggle de negrita y tres botones de alineación (`AlignLeft`, `AlignCenter`, `AlignRight`); los activos van en `brand-primary` sobre su fondo al 10 %.
+  3. **Color de texto** — nueve círculos de 28 px con separación de 8 px (`StatusSwatchRow`), sombra interior sutil y anillo `brand-primary` separado en el seleccionado, para que el color propio se siga viendo entero.
+  4. **Fondo** — los mismos círculos sobre `STATUS_BACKGROUNDS`: tres **degradados** (morado, azul y verde oscuro) más negro, gris oscuro y blanco; debajo, el botón punteado "Agregar imagen" (`ImagePlus`). Con foto puesta, la sección se reduce a "Quitar imagen".
+  5. **Producto** — "Vincular producto de BeeServices" (`ShoppingBag`) abre `ProductLinkSelector`; una vez vinculado muestra el nombre y el precio con una `X` para quitarlo.
+
+Los fondos se guardan como valor CSS de `background`, así que el mismo dato sirve para el lienzo, el visor (`StatusViewer`) y los círculos del panel. El estado publicado incluye además `textAlign`, que el visor respeta con `center` por defecto. Todo es mock: publicar solo agrega el estado a `MOCK_STATUSES` en memoria. Por debajo de 768 px los dos paneles se apilan, aunque `/app/*` ya está bloqueado en esa franja.
 
 ### Admin Web (`apps/admin-web/src/app/`)
 

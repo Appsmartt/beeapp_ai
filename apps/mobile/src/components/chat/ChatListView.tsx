@@ -5,7 +5,6 @@ import { ChatItem } from '../../mocks/chats';
 import { isProtected } from '../../stores/pinStore';
 
 interface ChatListViewProps {
-  /** The pinned assistant, hidden while a category filter is on */
   aiChat?: ChatItem;
   chats: ChatItem[];
   onOpenChat: (chat: ChatItem) => void;
@@ -15,15 +14,11 @@ interface ChatListViewProps {
   onDelete: (id: string) => void;
 }
 
-/** Scrollable list of conversations of the Chats tab */
 export default function ChatListView({
   aiChat,
   chats,
   onOpenChat,
   onOpenMenu,
-  onPin,
-  onMute,
-  onDelete,
 }: ChatListViewProps) {
   return (
     <ScrollView style={styles.scroll} showsVerticalScrollIndicator={false}>
@@ -34,7 +29,7 @@ export default function ChatListView({
           time={aiChat.time}
           isProtected={isProtected(aiChat.id)}
           onPress={() => onOpenChat(aiChat)}
-          onLongPress={() => onOpenMenu(aiChat)}
+          onMorePress={() => onOpenMenu(aiChat)}
         />
       )}
 
@@ -54,10 +49,7 @@ export default function ChatListView({
           isMuted={chat.isMuted}
           isProtected={isProtected(chat.id)}
           onPress={() => onOpenChat(chat)}
-          onPin={() => onPin(chat.id)}
-          onMute={() => onMute(chat.id)}
-          onDelete={() => onDelete(chat.id)}
-          onLongPress={() => onOpenMenu(chat)}
+          onMorePress={() => onOpenMenu(chat)}
         />
       ))}
 

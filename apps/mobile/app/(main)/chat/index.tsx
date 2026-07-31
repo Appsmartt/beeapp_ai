@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import ScreenSafeArea from '../../../src/components/layout/ScreenSafeArea';
 import { useModuleNav } from '../../../src/components/embedded/EmbeddedNavContext';
 import { useNavigation } from 'expo-router';
@@ -34,23 +34,19 @@ export default function ChatListScreen() {
   const [pinAction, setPinAction] = useState<{ type: 'open' | 'add' | 'remove'; chat: typeof MOCK_CHATS[0] } | null>(null);
   const [, setTick] = useState(0);
 
-  // Chats, communities or contacts
   const [activeTab, setActiveTab] = useState<ChatTab>('chats');
   const [creatingContact, setCreatingContact] = useState(false);
   const isContactsTab = activeTab === 'contacts';
 
-  // Create menu of the header + the communities it can open
   const [createMenuOpen, setCreateMenuOpen] = useState(false);
   const [creatingCommunity, setCreatingCommunity] = useState(false);
   const [communities, setCommunities] = useState<Community[]>([...MOCK_COMMUNITIES]);
 
-  // Category filter of the chat list (null = "Todos")
   const [categories, setCategories] = useState<ChatCategory[]>([...MOCK_CATEGORIES]);
   const [activeCategoryId, setActiveCategoryId] = useState<string | null>(null);
   const [creatingCategory, setCreatingCategory] = useState(false);
   const [assigningChat, setAssigningChat] = useState<typeof MOCK_CHATS[0] | null>(null);
 
-  // Statuses shown as cards above the chat list
   const [statuses, setStatuses] = useState([...MOCK_STATUSES]);
   const [viewerIndex, setViewerIndex] = useState<number | null>(null);
   const [creatingStatus, setCreatingStatus] = useState(false);
@@ -61,7 +57,6 @@ export default function ChatListScreen() {
     setViewerIndex(index);
   };
 
-  // Sync state on focus to update lock statuses and load new chats
   useEffect(() => {
     const unsubscribe = navigation.addListener('focus', () => {
       setChats([...MOCK_CHATS]);
@@ -78,6 +73,10 @@ export default function ChatListScreen() {
   };
 
   const handleDelete = (id: string) => {
+    setChats(chats.filter((c) => c.id !== id));
+  };
+
+  const handleArchive = (id: string) => {
     setChats(chats.filter((c) => c.id !== id));
   };
 
@@ -133,7 +132,6 @@ export default function ChatListScreen() {
     }
   };
 
-  // The assistant is pinned on top and never belongs to a category
   const aiChat = activeCategoryId ? undefined : chats.find((c) => c.isAI);
   const filteredChats = chats
     .filter((c) => !c.isAI)
@@ -173,7 +171,6 @@ export default function ChatListScreen() {
           />
         ) : (
           <>
-            {/* Statuses: horizontal row of circles */}
             <StatusCirclesRow
               statuses={statuses}
               onCreate={() => setCreatingStatus(true)}
@@ -220,7 +217,6 @@ export default function ChatListScreen() {
         onClose={() => setCreatingStatus(false)}
       />
 
-      {/* PinLockModal */}
       <PinLockModal
         visible={!!lockedChatId}
         itemName={pinAction?.chat.name}
@@ -264,6 +260,7 @@ export default function ChatListScreen() {
         onToggleMute={() => { if (menuChat) handleMute(menuChat.id); setMenuChat(null); }}
         onAssignCategory={() => { setAssigningChat(menuChat); setMenuChat(null); }}
         onDelete={() => { if (menuChat) handleDelete(menuChat.id); setMenuChat(null); }}
+        onArchive={() => { if (menuChat) handleArchive(menuChat.id); setMenuChat(null); }}
         onClose={() => setMenuChat(null)}
       />
 

@@ -1,6 +1,6 @@
 'use client';
 
-import { Check, CheckCheck, BellOff, Users, Lock, CheckCircle2, MoreVertical, Pin, Tag, Shield, Trash2 } from 'lucide-react';
+import { Check, CheckCheck, BellOff, Users, Lock, CheckCircle2, MoreVertical, Pin, Tag, Shield, Trash2, Archive, Unlock } from 'lucide-react';
 import { ChatItem } from '@/mocks/chats';
 import { CommunityItem } from '@/mocks/communities';
 import { useState, useRef, useEffect } from 'react';
@@ -14,6 +14,7 @@ interface ChatRowProps {
   onDelete?: (id: string) => void;
   onAssignCategory?: (chat: ChatItem) => void;
   onToggleProtection?: (chat: ChatItem) => void;
+  onArchive?: (id: string) => void;
 }
 
 export function ChatRow({
@@ -25,6 +26,7 @@ export function ChatRow({
   onDelete,
   onAssignCategory,
   onToggleProtection,
+  onArchive,
 }: ChatRowProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -39,15 +41,9 @@ export function ChatRow({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const handleContextMenu = (e: React.MouseEvent) => {
-    e.preventDefault();
-    setMenuOpen(true);
-  };
-
   return (
     <div
       onClick={onClick}
-      onContextMenu={handleContextMenu}
       className={`group relative px-5 py-[14px] flex items-center gap-3.5 cursor-pointer bg-white border-b border-neutral-100 hover:bg-neutral-50 transition-colors ${
         isSelected ? 'bg-brand-primary/10 border-l-4 border-brand-primary' : ''
       }`}
@@ -129,24 +125,25 @@ export function ChatRow({
         </div>
       </div>
 
-      {/* Context options trigger button */}
+      {/* Botón de tres puntos siempre visible */}
       <button
         type="button"
         onClick={(e) => {
           e.stopPropagation();
           setMenuOpen(!menuOpen);
         }}
-        className="opacity-0 group-hover:opacity-100 p-1 rounded-lg hover:bg-neutral-200/60 text-neutral-500 transition-opacity shrink-0"
+        className="p-1 rounded-lg text-neutral-400 hover:text-neutral-600 hover:bg-neutral-100 transition-colors shrink-0"
+        title="Opciones de chat"
       >
         <MoreVertical className="w-4 h-4" />
       </button>
 
-      {/* Context Menu Dropdown */}
+      {/* Menú contextual desplegable */}
       {menuOpen && (
         <div
           ref={menuRef}
           onClick={(e) => e.stopPropagation()}
-          className="absolute right-3 top-10 w-48 bg-white border border-neutral-200 rounded-2xl shadow-xl z-30 py-1.5 text-xs text-neutral-800"
+          className="absolute right-3 top-10 w-48 bg-white border border-neutral-200 rounded-xl shadow-xl z-30 py-1.5 text-xs text-neutral-800 select-none animate-in fade-in zoom-in-95 duration-100"
         >
           {onPin && (
             <button
@@ -155,10 +152,10 @@ export function ChatRow({
                 setMenuOpen(false);
                 onPin(chat.id);
               }}
-              className="w-full flex items-center gap-2.5 px-3 py-2 hover:bg-neutral-50 text-left"
+              className="w-full flex items-center gap-2.5 px-3 py-2 hover:bg-neutral-50 text-left font-normal"
             >
               <Pin className="w-3.5 h-3.5 text-neutral-500" />
-              <span>{chat.isPinned ? 'Desfijar' : 'Fijar'}</span>
+              <span>{chat.isPinned ? 'Desfijar chat' : 'Fijar chat'}</span>
             </button>
           )}
 
@@ -169,24 +166,10 @@ export function ChatRow({
                 setMenuOpen(false);
                 onMute(chat.id);
               }}
-              className="w-full flex items-center gap-2.5 px-3 py-2 hover:bg-neutral-50 text-left"
+              className="w-full flex items-center gap-2.5 px-3 py-2 hover:bg-neutral-50 text-left font-normal"
             >
               <BellOff className="w-3.5 h-3.5 text-neutral-500" />
-              <span>{chat.isMuted ? 'Activar' : 'Silenciar'}</span>
-            </button>
-          )}
-
-          {onAssignCategory && (
-            <button
-              type="button"
-              onClick={() => {
-                setMenuOpen(false);
-                onAssignCategory(chat);
-              }}
-              className="w-full flex items-center gap-2.5 px-3 py-2 hover:bg-neutral-50 text-left"
-            >
-              <Tag className="w-3.5 h-3.5 text-neutral-500" />
-              <span>Asignar a categoría</span>
+              <span>{chat.isMuted ? 'Activar notificaciones' : 'Silenciar'}</span>
             </button>
           )}
 
@@ -197,21 +180,57 @@ export function ChatRow({
                 setMenuOpen(false);
                 onToggleProtection(chat);
               }}
-              className="w-full flex items-center gap-2.5 px-3 py-2 hover:bg-neutral-50 text-left"
+              className="w-full flex items-center gap-2.5 px-3 py-2 hover:bg-neutral-50 text-left font-normal"
             >
-              <Shield className="w-3.5 h-3.5 text-neutral-500" />
-              <span>{chat.isProtected ? 'Quitar protección' : 'Proteger chat'}</span>
+              {chat.isProtected ? (
+                <Unlock className="w-3.5 h-3.5 text-brand-primary" />
+              ) : (
+                <Lock className="w-3.5 h-3.5 text-neutral-500" />
+              )}
+              <span>{chat.isProtected ? 'Quitar protección' : 'Proteger con PIN'}</span>
             </button>
           )}
 
-          {onDelete && (
+          {onAssignCategory && (
+            <button
+              type="button"
+              onClick={() => {
+                setMenuOpen(false);
+                onAssignCategory(chat);
+              }}
+              className="w-full flex items-center gap-2.5 px-3 py-2 hover:bg-neutral-50 text-left font-normal"
+            >
+              <Tag className="w-3.5 h-3.5 text-neutral-500" />
+              <span>Asignar a categoría</span>
+            </button>
+          )}
+
+          {!chat.isAI && (
+            <button
+              type="button"
+              onClick={() => {
+                setMenuOpen(false);
+                if (onArchive) {
+                  onArchive(chat.id);
+                } else {
+                  alert('Chat archivado (Mock)');
+                }
+              }}
+              className="w-full flex items-center gap-2.5 px-3 py-2 hover:bg-neutral-50 text-left font-normal"
+            >
+              <Archive className="w-3.5 h-3.5 text-neutral-500" />
+              <span>Archivar</span>
+            </button>
+          )}
+
+          {!chat.isAI && onDelete && (
             <button
               type="button"
               onClick={() => {
                 setMenuOpen(false);
                 onDelete(chat.id);
               }}
-              className="w-full flex items-center gap-2.5 px-3 py-2 hover:bg-red-50 text-red-600 text-left"
+              className="w-full flex items-center gap-2.5 px-3 py-2 hover:bg-red-50 text-red-600 text-left font-normal"
             >
               <Trash2 className="w-3.5 h-3.5" />
               <span>Eliminar</span>

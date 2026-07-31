@@ -1,9 +1,12 @@
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { colors, spacing, radii } from '@beeapp/design-system';
-import { Camera, ShoppingBag, X, Bold, Minus, Plus } from 'lucide-react-native';
+import { Bold, Minus, Plus } from 'lucide-react-native';
 import { STATUS_TEXT_COLORS, STATUS_BG_COLORS, StatusProductLink } from '../../mocks/statuses';
+import StatusToolChips from './status/StatusToolChips';
 
 interface StatusEditorToolbarProps {
+  /** Tipografía: aplica a la capa de texto seleccionada */
+  hasTextSelection: boolean;
   textSize: number;
   onChangeSize: (size: number) => void;
   bold: boolean;
@@ -14,6 +17,14 @@ interface StatusEditorToolbarProps {
   showBackgrounds: boolean;
   bgColor: string;
   onChangeBgColor: (color: string) => void;
+  textCount: number;
+  onAddText: () => void;
+  imageCount: number;
+  onAddImage: () => void;
+  stickerCount: number;
+  onOpenStickers: () => void;
+  hasMusic: boolean;
+  onOpenMusic: () => void;
   hasPhoto: boolean;
   onPickPhoto: () => void;
   onRemovePhoto: () => void;
@@ -28,38 +39,31 @@ const STEP = 2;
 
 /** Text and content controls of the status editor */
 export default function StatusEditorToolbar(props: StatusEditorToolbarProps) {
-  const { textSize, onChangeSize, bold, onToggleBold, textColor, onChangeTextColor } = props;
+  const { hasTextSelection, textSize, onChangeSize, bold, onToggleBold, textColor } = props;
 
   const clamp = (value: number) =>
     Math.min(STATUS_TEXT_SIZE_MAX, Math.max(STATUS_TEXT_SIZE_MIN, value));
 
   return (
     <View style={styles.wrap}>
-      <View style={styles.contentRow}>
-        <TouchableOpacity
-          style={styles.contentBtn}
-          onPress={props.hasPhoto ? props.onRemovePhoto : props.onPickPhoto}
-          activeOpacity={0.7}
-        >
-          <Camera size={17} color={colors.neutral.text} />
-          <Text style={styles.contentBtnText}>{props.hasPhoto ? 'Quitar foto' : 'Foto'}</Text>
-          {props.hasPhoto && <X size={14} color={colors.neutral.gray600} />}
-        </TouchableOpacity>
+      <StatusToolChips
+        textCount={props.textCount}
+        onAddText={props.onAddText}
+        imageCount={props.imageCount}
+        onAddImage={props.onAddImage}
+        stickerCount={props.stickerCount}
+        onOpenStickers={props.onOpenStickers}
+        hasMusic={props.hasMusic}
+        onOpenMusic={props.onOpenMusic}
+        hasPhoto={props.hasPhoto}
+        onPickPhoto={props.onPickPhoto}
+        onRemovePhoto={props.onRemovePhoto}
+        product={props.product}
+        onLinkProduct={props.onLinkProduct}
+        onRemoveProduct={props.onRemoveProduct}
+      />
 
-        <TouchableOpacity
-          style={[styles.contentBtn, styles.contentBtnGrow]}
-          onPress={props.product ? props.onRemoveProduct : props.onLinkProduct}
-          activeOpacity={0.7}
-        >
-          <ShoppingBag size={17} color={colors.brand.primary} />
-          <Text style={styles.contentBtnText} numberOfLines={1}>
-            {props.product ? props.product.name : 'Vincular producto'}
-          </Text>
-          {!!props.product && <X size={14} color={colors.neutral.gray600} />}
-        </TouchableOpacity>
-      </View>
-
-      <View style={styles.textRow}>
+      <View style={[styles.textRow, !hasTextSelection && styles.disabled]} pointerEvents={hasTextSelection ? 'auto' : 'none'}>
         <TouchableOpacity
           style={styles.sizeBtn}
           onPress={() => onChangeSize(clamp(textSize - STEP))}
@@ -100,13 +104,21 @@ export default function StatusEditorToolbar(props: StatusEditorToolbarProps) {
         </TouchableOpacity>
       </View>
 
-      <Text style={styles.rowLabel}>Color del texto</Text>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.swatchRow}>
+      <Text style={styles.rowLabel}>
+        {hasTextSelection ? 'Color del texto' : 'Selecciona un texto para editarlo'}
+      </Text>
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.swatchRow}
+        style={!hasTextSelection && styles.disabled}
+        pointerEvents={hasTextSelection ? 'auto' : 'none'}
+      >
         {STATUS_TEXT_COLORS.map((color) => (
           <TouchableOpacity
             key={color}
             style={[styles.swatch, { backgroundColor: color }, textColor === color && styles.swatchActive]}
-            onPress={() => onChangeTextColor(color)}
+            onPress={() => props.onChangeTextColor(color)}
             activeOpacity={0.8}
           />
         ))}
@@ -143,18 +155,7 @@ const styles = StyleSheet.create({
     paddingBottom: spacing.md,
     gap: spacing.sm,
   },
-  contentRow: { flexDirection: 'row', gap: spacing.sm },
-  contentBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    borderRadius: radii.lg,
-    backgroundColor: colors.neutral.gray100,
-  },
-  contentBtnGrow: { flex: 1 },
-  contentBtnText: { flexShrink: 1, fontSize: 13, fontWeight: '400', color: colors.neutral.text },
+  disabled: { opacity: 0.4 },
   textRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginTop: 4 },
   sizeBtn: { flexDirection: 'row', alignItems: 'center', gap: 2, paddingVertical: 6 },
   sizeSmall: { fontSize: 12, fontWeight: '400', color: colors.neutral.text },

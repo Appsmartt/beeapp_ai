@@ -84,7 +84,7 @@ export default function StatusViewer({
           <div className="absolute inset-0 bg-black/45" />
         </>
       ) : (
-        <div className="absolute inset-0" style={{ backgroundColor: background }} />
+        <div className="absolute inset-0" style={{ background }} />
       )}
 
       {/* Tap navigation zones */}
@@ -147,13 +147,15 @@ export default function StatusViewer({
           )}
 
           <div
-            className="absolute max-w-[86%] text-center transform -translate-x-1/2 -translate-y-1/2 pointer-events-none"
+            className="absolute w-[86%] transform -translate-x-1/2 -translate-y-1/2 pointer-events-none"
             style={{
               top: `${textPos.y}%`,
               left: `${textPos.x}%`,
+              textAlign: status.textAlign ?? 'center',
             }}
           >
             <p
+              className="whitespace-pre-wrap break-words"
               style={{
                 fontSize: `${status.textSize ?? 24}px`,
                 fontWeight: status.textWeight === '700' ? 700 : 400,

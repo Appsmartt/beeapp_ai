@@ -1,7 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { View, StyleSheet, AppState, AppStateStatus, Text, TouchableOpacity } from 'react-native';
-import { colors, spacing } from '@beeapp/design-system';
-import { Lock, Fingerprint, ScanFace } from 'lucide-react-native';
+import { colors } from '@beeapp/design-system';
 import AnimatedLogo from '../AnimatedLogo';
 import AppLockPinPad from './AppLockPinPad';
 import BiometricButton from './BiometricButton';
@@ -23,7 +22,6 @@ export default function AppLockScreen() {
 
   useEffect(() => {
     const handleAppStateChange = (nextAppState: AppStateStatus) => {
-      // Lock app when returning from background
       if (
         appState.current.match(/inactive|background/) &&
         nextAppState === 'active'
@@ -44,7 +42,6 @@ export default function AppLockScreen() {
     };
   }, []);
 
-  // If app lock is not enabled or app is not locked, do not render anything
   if (!locked || !isAppLockEnabled()) {
     return null;
   }
@@ -74,16 +71,13 @@ export default function AppLockScreen() {
     }
   };
 
-  // Determine what UI to show (biometric or PIN)
   const showBiometric = method === 'biometric' && !usePinFallback;
-  const biometricType = method === 'biometric' ? 'fingerprint' : null; // Default fingerprint
 
   return (
-    <View style={StyleSheet.absoluteFill}>
-      <View style={styles.container}>
-        {/* Top Logo */}
+    <View style={styles.overlay}>
+      <View style={styles.card}>
         <View style={styles.logoContainer}>
-          <AnimatedLogo size={80} showText={true} />
+          <AnimatedLogo size={70} showText={true} />
         </View>
 
         {showBiometric ? (
@@ -94,7 +88,6 @@ export default function AppLockScreen() {
               title="Toca para desbloquear BeeApp"
             />
 
-            {/* Mock failure button to test PIN fallback */}
             <TouchableOpacity
               style={styles.failBtn}
               onPress={handleBiometricMockFailure}
@@ -133,15 +126,30 @@ export default function AppLockScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: colors.neutral.white,
+  overlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0, 0, 0, 0.85)',
     justifyContent: 'center',
     alignItems: 'center',
-    paddingHorizontal: 24,
+    padding: 24,
+    zIndex: 999,
+  },
+  card: {
+    backgroundColor: colors.neutral.white,
+    borderRadius: 24,
+    width: '100%',
+    maxWidth: 360,
+    paddingVertical: 28,
+    paddingHorizontal: 20,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.25,
+    shadowRadius: 20,
+    elevation: 10,
   },
   logoContainer: {
-    marginBottom: 40,
+    marginBottom: 24,
   },
   bioContainer: {
     alignItems: 'center',
@@ -151,7 +159,7 @@ const styles = StyleSheet.create({
     width: '100%',
   },
   switchLink: {
-    marginTop: 24,
+    marginTop: 20,
     padding: 8,
   },
   switchLinkText: {
@@ -160,7 +168,7 @@ const styles = StyleSheet.create({
     color: colors.brand.primary,
   },
   failBtn: {
-    marginTop: 20,
+    marginTop: 16,
     paddingVertical: 6,
     paddingHorizontal: 12,
     borderWidth: 1,

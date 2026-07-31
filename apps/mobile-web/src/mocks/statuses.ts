@@ -9,6 +9,8 @@ export interface StatusTextPosition {
   y: number;
 }
 
+export type StatusTextAlign = 'left' | 'center' | 'right';
+
 export interface StatusItem {
   id: string;
   authorId: string;
@@ -24,6 +26,8 @@ export interface StatusItem {
   textSize: number;
   textWeight: '400' | '700';
   textColor: string;
+  /** Alineación del texto sobre el estado. Por defecto, centrado */
+  textAlign?: StatusTextAlign;
   timestamp: string;
   viewed: boolean;
 }
@@ -44,6 +48,20 @@ export const STATUS_BG_COLORS = [
   '#6025d2',
   '#1E3A8A',
   '#14532D',
+  '#0F0E17',
+  '#1F2937',
+  '#FFFFFF',
+];
+
+/**
+ * Fondos del editor de estados: los tres primeros son degradados y el resto
+ * colores planos. Se guardan como valor CSS de `background`, así que sirven
+ * igual para el lienzo del editor, el visor y los círculos del panel.
+ */
+export const STATUS_BACKGROUNDS = [
+  'linear-gradient(160deg, #7C3AED 0%, #4C1D95 100%)',
+  'linear-gradient(160deg, #2563EB 0%, #1E3A8A 100%)',
+  'linear-gradient(160deg, #15803D 0%, #14532D 100%)',
   '#0F0E17',
   '#1F2937',
   '#FFFFFF',

@@ -19,6 +19,41 @@ export interface StatusTextPosition {
   y: number;
 }
 
+/** Capa de texto suelta sobre el estado. x/y son porcentaje del lienzo */
+export interface StatusTextLayer {
+  id: string;
+  content: string;
+  x: number;
+  y: number;
+  fontSize: number;
+  fontWeight: '400' | '700';
+  color: string;
+}
+
+/** Capa de imagen. Mock: un recuadro de color, no una foto real */
+export interface StatusImageLayer {
+  id: string;
+  x: number;
+  y: number;
+  size: number;
+  color: string;
+}
+
+/** Capa de sticker: un ícono de Lucide sobre un círculo de color suave */
+export interface StatusStickerLayer {
+  id: string;
+  stickerId: string;
+  x: number;
+  y: number;
+}
+
+/** Canción de fondo elegida en el editor. Mock: no se reproduce nada */
+export interface StatusMusic {
+  id: string;
+  title: string;
+  artist: string;
+}
+
 export interface StatusItem {
   id: string;
   authorId: string;
@@ -39,6 +74,15 @@ export interface StatusItem {
   textWeight: '400' | '700';
   /** Color elegido por el autor: es dato suyo, no un token del sistema */
   textColor: string;
+  /**
+   * Capas del editor. Los campos sueltos de arriba (`text`, `textPosition`,
+   * `textSize`…) siguen reflejando la primera capa de texto, así que el visor
+   * y los estados mock antiguos funcionan sin cambios.
+   */
+  textLayers?: StatusTextLayer[];
+  imageLayers?: StatusImageLayer[];
+  stickerLayers?: StatusStickerLayer[];
+  music?: StatusMusic | null;
   timestamp: string;
   viewed: boolean;
 }

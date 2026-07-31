@@ -1,6 +1,6 @@
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { colors, spacing } from '@beeapp/design-system';
-import { Bot, Pin, Sparkles, Lock } from 'lucide-react-native';
+import { Bot, Pin, Sparkles, Lock, MoreVertical } from 'lucide-react-native';
 
 interface AiChatListItemProps {
   name: string;
@@ -8,20 +8,21 @@ interface AiChatListItemProps {
   time: string;
   onPress: () => void;
   isProtected?: boolean;
-  onLongPress?: () => void;
+  onMorePress?: () => void;
 }
 
-/**
- * Pinned row of the BeeApp assistant chat. Same anatomy as the other chats but
- * with the app logo as avatar, an "IA" badge and no swipe actions: this chat
- * cannot be deleted, muted or unpinned.
- */
-export default function AiChatListItem({ name, lastMessage, time, onPress, isProtected, onLongPress }: AiChatListItemProps) {
+export default function AiChatListItem({
+  name,
+  lastMessage,
+  time,
+  onPress,
+  isProtected,
+  onMorePress,
+}: AiChatListItemProps) {
   return (
     <TouchableOpacity
       style={styles.row}
       onPress={onPress}
-      onLongPress={onLongPress}
       activeOpacity={0.7}
     >
       <View style={{ position: 'relative' }}>
@@ -62,6 +63,15 @@ export default function AiChatListItem({ name, lastMessage, time, onPress, isPro
           {isProtected ? 'Chat protegido' : lastMessage}
         </Text>
       </View>
+
+      <TouchableOpacity
+        style={styles.moreBtn}
+        onPress={onMorePress}
+        activeOpacity={0.6}
+        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+      >
+        <MoreVertical size={18} color={colors.neutral.gray400} />
+      </TouchableOpacity>
     </TouchableOpacity>
   );
 }
@@ -148,5 +158,10 @@ const styles = StyleSheet.create({
     fontSize: 12.5,
     fontWeight: '400',
     color: colors.neutral.gray600,
+  },
+  moreBtn: {
+    paddingLeft: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
 });

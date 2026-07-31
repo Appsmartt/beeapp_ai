@@ -1,4 +1,3 @@
-
 import { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, Modal, TouchableOpacity, ScrollView } from 'react-native';
 import { colors } from '@beeapp/design-system';
@@ -8,16 +7,11 @@ import { isPinCorrect } from '../../stores/pinStore';
 
 interface PinLockModalProps {
   visible: boolean;
-  /** Name of the element being unlocked, shown as context */
   itemName?: string;
   onClose: () => void;
   onSuccess: () => void;
 }
 
-/**
- * Asks for the global 4-digit PIN before opening a protected element.
- * Validation is mock (compares against the in-memory PIN).
- */
 export default function PinLockModal({ visible, itemName, onClose, onSuccess }: PinLockModalProps) {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
@@ -79,15 +73,23 @@ export default function PinLockModal({ visible, itemName, onClose, onSuccess }: 
 const styles = StyleSheet.create({
   backdrop: {
     flex: 1,
-    backgroundColor: 'rgba(26, 26, 46, 0.45)',
-    justifyContent: 'flex-end',
+    backgroundColor: 'rgba(0, 0, 0, 0.85)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
   },
   sheet: {
-    backgroundColor: colors.neutral.gray50,
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    paddingBottom: 24,
-    maxHeight: '92%',
+    backgroundColor: colors.neutral.white,
+    borderRadius: 24,
+    width: '100%',
+    maxWidth: 360,
+    paddingBottom: 20,
+    maxHeight: '90%',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.25,
+    shadowRadius: 20,
+    elevation: 10,
   },
   sheetHeader: {
     flexDirection: 'row',
@@ -96,7 +98,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 14,
     borderBottomWidth: 1,
-    borderBottomColor: colors.neutral.gray200,
+    borderBottomColor: colors.neutral.gray100,
   },
   sheetTitle: {
     flex: 1,
@@ -109,14 +111,12 @@ const styles = StyleSheet.create({
     width: 30,
     height: 30,
     borderRadius: 10,
-    backgroundColor: colors.neutral.white,
-    borderWidth: 1,
-    borderColor: colors.neutral.gray200,
+    backgroundColor: colors.neutral.gray100,
     alignItems: 'center',
     justifyContent: 'center',
   },
   body: {
-    paddingTop: 20,
+    paddingTop: 16,
   },
   hint: {
     fontSize: 11,

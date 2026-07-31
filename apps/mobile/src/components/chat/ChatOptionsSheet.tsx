@@ -1,10 +1,9 @@
 import { View, Text, StyleSheet, Modal, TouchableOpacity, Platform } from 'react-native';
 import { colors } from '@beeapp/design-system';
-import { Lock, Unlock, Pin, BellOff, Trash2, FolderPlus } from 'lucide-react-native';
+import { Lock, Unlock, Pin, BellOff, Trash2, FolderPlus, Archive } from 'lucide-react-native';
 import { ChatItem } from '../../mocks/chats';
 
 interface ChatOptionsSheetProps {
-  /** The chat whose menu is open, or null when the sheet is closed */
   chat: ChatItem | null;
   isProtected: boolean;
   onToggleProtection: () => void;
@@ -12,10 +11,10 @@ interface ChatOptionsSheetProps {
   onToggleMute: () => void;
   onAssignCategory: () => void;
   onDelete: () => void;
+  onArchive?: () => void;
   onClose: () => void;
 }
 
-/** Long-press menu of a chat row */
 export default function ChatOptionsSheet({
   chat,
   isProtected,
@@ -24,8 +23,18 @@ export default function ChatOptionsSheet({
   onToggleMute,
   onAssignCategory,
   onDelete,
+  onArchive,
   onClose,
 }: ChatOptionsSheetProps) {
+  const handleArchive = () => {
+    onClose();
+    if (onArchive) {
+      onArchive();
+    } else {
+      alert('Chat archivado (Mock)');
+    }
+  };
+
   return (
     <Modal visible={!!chat} transparent animationType="fade" onRequestClose={onClose}>
       <TouchableOpacity style={styles.modalBg} activeOpacity={1} onPress={onClose}>
@@ -34,6 +43,18 @@ export default function ChatOptionsSheet({
 
           {chat && (
             <>
+              <TouchableOpacity style={styles.sheetBtn} onPress={onTogglePin}>
+                <Pin size={18} color={colors.neutral.text} style={styles.sheetIcon} />
+                <Text style={styles.sheetBtnText}>{chat.isPinned ? 'Desfijar chat' : 'Fijar chat'}</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity style={styles.sheetBtn} onPress={onToggleMute}>
+                <BellOff size={18} color={colors.neutral.text} style={styles.sheetIcon} />
+                <Text style={styles.sheetBtnText}>
+                  {chat.isMuted ? 'Activar notificaciones' : 'Silenciar'}
+                </Text>
+              </TouchableOpacity>
+
               <TouchableOpacity style={styles.sheetBtn} onPress={onToggleProtection}>
                 {isProtected ? (
                   <Unlock size={18} color={colors.brand.primary} style={styles.sheetIcon} />
@@ -41,28 +62,21 @@ export default function ChatOptionsSheet({
                   <Lock size={18} color={colors.brand.primary} style={styles.sheetIcon} />
                 )}
                 <Text style={styles.sheetBtnText}>
-                  {isProtected ? 'Quitar protección con PIN' : 'Proteger con PIN'}
+                  {isProtected ? 'Quitar protección' : 'Proteger con PIN'}
                 </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity style={styles.sheetBtn} onPress={onAssignCategory}>
+                <FolderPlus size={18} color={colors.neutral.text} style={styles.sheetIcon} />
+                <Text style={styles.sheetBtnText}>Asignar a categoría</Text>
               </TouchableOpacity>
 
               {!chat.isAI && (
-                <TouchableOpacity style={styles.sheetBtn} onPress={onAssignCategory}>
-                  <FolderPlus size={18} color={colors.neutral.text} style={styles.sheetIcon} />
-                  <Text style={styles.sheetBtnText}>Asignar a categoría</Text>
+                <TouchableOpacity style={styles.sheetBtn} onPress={handleArchive}>
+                  <Archive size={18} color={colors.neutral.text} style={styles.sheetIcon} />
+                  <Text style={styles.sheetBtnText}>Archivar</Text>
                 </TouchableOpacity>
               )}
-
-              <TouchableOpacity style={styles.sheetBtn} onPress={onTogglePin}>
-                <Pin size={18} color={colors.neutral.text} style={styles.sheetIcon} />
-                <Text style={styles.sheetBtnText}>{chat.isPinned ? 'Desfijar' : 'Fijar'}</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity style={styles.sheetBtn} onPress={onToggleMute}>
-                <BellOff size={18} color={colors.neutral.text} style={styles.sheetIcon} />
-                <Text style={styles.sheetBtnText}>
-                  {chat.isMuted ? 'Desactivar silencio' : 'Silenciar'}
-                </Text>
-              </TouchableOpacity>
 
               {!chat.isAI && (
                 <TouchableOpacity style={styles.sheetBtn} onPress={onDelete}>
