@@ -1,28 +1,47 @@
-import FloatingTabBar from '@/components/app/FloatingTabBar';
-import DesktopSidebar from '@/components/app/DesktopSidebar';
+'use client';
+
+import { useEffect, useState } from 'react';
+import AppBottomBar from '@/components/app/AppBottomBar';
+import MobileBlockScreen from '@/components/app/MobileBlockScreen';
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="min-h-screen bg-neutral-100/90 flex flex-col lg:flex-row selection:bg-brand-primary/20 overflow-x-hidden">
-      
-      {/* Permanent Desktop Sidebar (hidden on mobile/tablet) */}
-      <DesktopSidebar />
+  const [isMobileScreen, setIsMobileScreen] = useState(false);
+  const [mounted, setMounted] = useState(false);
 
-      {/* Main Workspace Frame */}
-      <div className="flex-1 flex flex-col min-h-screen lg:h-screen lg:overflow-y-auto relative w-full">
-        
-        {/* Mobile / Tablet Centered Container (Full-width on mobile, max-w-3xl on tablet, 100% on desktop) */}
-        <div className="w-full max-w-full sm:max-w-3xl lg:max-w-7xl mx-auto min-h-screen lg:min-h-0 bg-white sm:shadow-lg lg:shadow-none flex-1 flex flex-col relative pb-20 lg:pb-0">
+  useEffect(() => {
+    setMounted(true);
+    const checkScreen = () => {
+      setIsMobileScreen(window.innerWidth < 768);
+    };
+
+    checkScreen();
+    window.addEventListener('resize', checkScreen);
+    return () => window.removeEventListener('resize', checkScreen);
+  }, []);
+
+  if (!mounted) {
+    return (
+      <div className="min-h-screen bg-neutral-100 flex items-center justify-center">
+        <div className="w-8 h-8 rounded-full border-2 border-brand-primary border-t-transparent animate-spin" />
+      </div>
+    );
+  }
+
+  if (isMobileScreen) {
+    return <MobileBlockScreen />;
+  }
+
+  return (
+    <div className="min-h-screen bg-neutral-100/90 flex flex-col selection:bg-brand-primary/20 overflow-x-hidden">
+      {/* Main Desktop Workspace Frame */}
+      <div className="flex-1 flex flex-col h-screen overflow-y-auto relative w-full">
+        <div className="w-full mx-auto bg-white flex-1 flex flex-col relative">
           {children}
         </div>
-
-        {/* Floating Tab Bar (Mobile and Tablet only, hidden on Desktop lg:) */}
-        <div className="lg:hidden">
-          <FloatingTabBar />
-        </div>
-
       </div>
 
+      {/* Barra flotante inferior: tickers de notificaciones y asistente por voz */}
+      <AppBottomBar />
     </div>
   );
 }

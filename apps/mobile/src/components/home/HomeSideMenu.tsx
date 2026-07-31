@@ -27,6 +27,7 @@ import {
   LogOut,
   Package,
   Bot,
+  Monitor,
 } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { sideMenuStyles as styles, PANEL_WIDTH } from './homeSideMenuStyles';
@@ -121,6 +122,8 @@ export default function HomeSideMenu({ visible, onClose }: HomeSideMenuProps) {
   const accountRows: MenuRow[] = [
     { label: 'Suscripción y Verificación', icon: CreditCard, iconBg: colors.neutral.gray100, iconColor: colors.neutral.gray600, onPress: () => goTo('/(main)/profile/subscription-hub') },
     { label: 'Integraciones Externas', icon: Grid, iconBg: colors.neutral.gray100, iconColor: colors.neutral.gray600, onPress: () => goTo('/(main)/profile/integrations') },
+    // Vincular BeeApp Web escaneando su QR y cerrar sesiones abiertas
+    { label: 'Dispositivos', icon: Monitor, iconBg: colors.neutral.gray100, iconColor: colors.neutral.gray600, onPress: () => goTo('/(main)/profile/devices') },
     { label: 'Seguridad y PIN', icon: ShieldCheck, iconBg: colors.neutral.gray100, iconColor: colors.neutral.gray600, onPress: () => goTo('/(main)/profile/security') },
     // Shortcut to the assistant settings that already live in the chat module
     { label: 'Configuración del Asistente', icon: Bot, iconBg: colors.neutral.gray100, iconColor: colors.neutral.gray600, onPress: () => goTo('/(main)/chat/ai-settings') },

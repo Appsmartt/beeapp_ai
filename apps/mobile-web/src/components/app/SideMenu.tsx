@@ -18,6 +18,7 @@ import {
   LogOut,
 } from 'lucide-react';
 import { CURRENT_USER } from '@/mocks/currentUser';
+import BeeAppLogo from '@/components/BeeAppLogo';
 
 interface SideMenuProps {
   isOpen: boolean;
@@ -36,16 +37,21 @@ export default function SideMenu({ isOpen, onClose }: SideMenuProps) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex justify-end max-w-[430px] mx-auto">
+    <div className="fixed inset-0 z-50 flex justify-end">
       {/* Backdrop */}
       <div
         className="fixed inset-0 bg-neutral-900/40 backdrop-blur-xs transition-opacity"
         onClick={onClose}
       />
 
-      {/* Drawer Content */}
+      {/* Drawer Content — se abre desde la derecha, del lado del sidebar de módulos */}
       <aside className="relative w-full max-w-[340px] bg-white h-full shadow-2xl flex flex-col z-50 overflow-y-auto">
         
+        {/* Marca */}
+        <div className="px-5 pt-5">
+          <BeeAppLogo height={30} />
+        </div>
+
         {/* Header User Area */}
         <div className="p-5 border-b border-neutral-100 flex items-center justify-between bg-neutral-50/50">
           <div className="flex items-center gap-3">

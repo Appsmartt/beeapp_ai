@@ -1,51 +1,177 @@
+export interface StatusProductLink {
+  id: string;
+  name: string;
+  price: number | null;
+}
+
+export interface StatusTextPosition {
+  x: number;
+  y: number;
+}
+
 export interface StatusItem {
   id: string;
-  user: string;
-  avatar?: string;
-  seen: boolean;
+  authorId: string;
+  authorName: string;
+  authorInitials: string;
+  authorColor: string;
+  type: 'photo' | 'text';
+  text: string;
+  photoUrl: string | null;
+  bgColor: string | null;
+  linkedProduct: StatusProductLink | null;
+  textPosition: StatusTextPosition;
+  textSize: number;
+  textWeight: '400' | '700';
+  textColor: string;
   timestamp: string;
-  text?: string;
-  bgColor?: string;
-  imageUrl?: string;
-  productLink?: {
-    title: string;
-    price: string;
-  };
+  viewed: boolean;
 }
+
+export const STATUS_TEXT_COLORS = [
+  '#FFFFFF',
+  '#1A1A2E',
+  '#6025d2',
+  '#E53935',
+  '#1E88E5',
+  '#2E9E5B',
+  '#F4C20D',
+  '#F57C00',
+  '#8A8F98',
+];
+
+export const STATUS_BG_COLORS = [
+  '#6025d2',
+  '#1E3A8A',
+  '#14532D',
+  '#0F0E17',
+  '#1F2937',
+  '#FFFFFF',
+];
 
 export const MOCK_STATUSES: StatusItem[] = [
   {
-    id: 'st-user',
-    user: 'Mi Estado',
-    seen: true,
-    timestamp: 'Agregar estado',
+    id: 's1',
+    authorId: 'c1',
+    authorName: 'Carlos Mendoza',
+    authorInitials: 'CM',
+    authorColor: '#EBF5FF',
+    type: 'photo',
+    text: 'Cerrando la ronda de asesorías del mes con el equipo legal.',
+    photoUrl: 'https://picsum.photos/id/1015/600/800',
+    bgColor: null,
+    linkedProduct: null,
+    textPosition: { x: 50, y: 78 },
+    textSize: 20,
+    textWeight: '400',
+    textColor: '#FFFFFF',
+    timestamp: 'hace 2 h',
+    viewed: false,
   },
   {
-    id: 'st-1',
-    user: 'Laura Restrepo',
-    seen: false,
-    timestamp: 'Hace 15m',
-    text: '¡Nuevo servicio de consultoría de proyectos disponible en mi catálogo!',
-    bgColor: '#6025d2',
-    productLink: {
-      title: 'Consultoría Estratégica',
-      price: '$150 / hr',
-    },
+    id: 's2',
+    authorId: 'c3',
+    authorName: 'María Gómez',
+    authorInitials: 'MG',
+    authorColor: '#ECFDF5',
+    type: 'photo',
+    text: 'Nueva entrega de termos inteligentes lista para despacho.',
+    photoUrl: 'https://picsum.photos/id/1060/600/800',
+    bgColor: null,
+    linkedProduct: { id: 'p2', name: 'Termo Inteligente de Acero Inoxidable', price: 89000 },
+    textPosition: { x: 50, y: 24 },
+    textSize: 26,
+    textWeight: '700',
+    textColor: '#F4C20D',
+    timestamp: 'hace 4 h',
+    viewed: false,
   },
   {
-    id: 'st-2',
-    user: 'Carlos Mendoza',
-    seen: false,
-    timestamp: 'Hace 1h',
-    text: 'Trabajando en las últimas actualizaciones del equipo tech.',
-    bgColor: '#1A1A2E',
+    id: 's3',
+    authorId: 'c2',
+    authorName: 'Eduardo Torres',
+    authorInitials: 'ET',
+    authorColor: '#FEF3C7',
+    type: 'text',
+    text: 'Agenda abierta para consultorías de estrategia esta semana.',
+    photoUrl: null,
+    bgColor: STATUS_BG_COLORS[0],
+    linkedProduct: null,
+    textPosition: { x: 50, y: 50 },
+    textSize: 30,
+    textWeight: '700',
+    textColor: '#FFFFFF',
+    timestamp: 'hace 6 h',
+    viewed: true,
   },
   {
-    id: 'st-3',
-    user: 'María Fernanda Gómez',
-    seen: true,
-    timestamp: 'Hace 4h',
-    text: 'Nuevos diseños publicados para la red empresarial.',
-    bgColor: '#4CAF50',
+    id: 's4',
+    authorId: 'c4',
+    authorName: 'Sofía Castro',
+    authorInitials: 'SC',
+    authorColor: '#F3E8FF',
+    type: 'text',
+    text: 'Gracias a todos los que pasaron por el taller de diseño de marca.',
+    photoUrl: null,
+    bgColor: STATUS_BG_COLORS[5],
+    linkedProduct: null,
+    textPosition: { x: 50, y: 38 },
+    textSize: 24,
+    textWeight: '400',
+    textColor: '#1A1A2E',
+    timestamp: 'hace 8 h',
+    viewed: false,
+  },
+  {
+    id: 's5',
+    authorId: 'c1',
+    authorName: 'Carlos Mendoza',
+    authorInitials: 'CM',
+    authorColor: '#EBF5FF',
+    type: 'photo',
+    text: 'Montaje del stand para la feria de emprendimiento.',
+    photoUrl: 'https://picsum.photos/id/1074/600/800',
+    bgColor: null,
+    linkedProduct: null,
+    textPosition: { x: 50, y: 50 },
+    textSize: 34,
+    textWeight: '700',
+    textColor: '#FFFFFF',
+    timestamp: 'hace 10 h',
+    viewed: false,
+  },
+  {
+    id: 's6',
+    authorId: 'g1',
+    authorName: 'Laura Restrepo',
+    authorInitials: 'LR',
+    authorColor: '#FFEBEE',
+    type: 'text',
+    text: 'Quedan pocos cupos para la mentoría de finanzas del viernes.',
+    photoUrl: null,
+    bgColor: STATUS_BG_COLORS[2],
+    linkedProduct: { id: 'p1', name: 'Teclado Mecánico Inalámbrico RGB', price: 349000 },
+    textPosition: { x: 50, y: 62 },
+    textSize: 22,
+    textWeight: '400',
+    textColor: '#FFFFFF',
+    timestamp: 'hace 12 h',
+    viewed: true,
   },
 ];
+
+export function addStatus(status: Omit<StatusItem, 'id' | 'timestamp' | 'viewed'>): StatusItem {
+  const newStatus: StatusItem = {
+    ...status,
+    id: 'st_' + Date.now().toString(36),
+    timestamp: 'Ahora',
+    viewed: true,
+  };
+  MOCK_STATUSES.unshift(newStatus);
+  return newStatus;
+}
+
+export function markStatusViewed(id: string) {
+  const status = MOCK_STATUSES.find((s) => s.id === id);
+  if (status) status.viewed = true;
+}

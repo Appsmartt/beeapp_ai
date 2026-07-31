@@ -1,93 +1,325 @@
-export interface ChatMessage {
+export const AI_CHAT_ID = 'ai-assistant';
+export const AI_ASSISTANT_NAME = 'Bee';
+
+export interface GroupMember {
   id: string;
-  sender: string;
-  text: string;
-  timestamp: string;
-  isMe: boolean;
-  sentByAi?: boolean;
+  name: string;
+  role: 'admin' | 'member';
+  initials: string;
+  color: string;
+  isCurrentUser?: boolean;
+}
+
+export interface ChatCategory {
+  id: string;
+  name: string;
+  icon: string;
+  color: string;
+}
+
+export const MOCK_CATEGORIES: ChatCategory[] = [
+  { id: 'cat-friends', name: 'Amigos', icon: 'Users', color: '#EBF5FF' },
+  { id: 'cat-work', name: 'Trabajo', icon: 'Briefcase', color: '#F1F3F5' },
+  { id: 'cat-family', name: 'Familia', icon: 'Heart', color: '#FCE7F3' },
+];
+
+export function addCategory(category: Omit<ChatCategory, 'id'>): ChatCategory {
+  const created: ChatCategory = { ...category, id: 'cat_' + Date.now().toString(36) };
+  MOCK_CATEGORIES.push(created);
+  return created;
+}
+
+export function setChatCategories(chatId: string, categoryIds: string[]) {
+  const chat = MOCK_CHATS.find((c) => c.id === chatId);
+  if (chat) chat.categoryIds = categoryIds;
+}
+
+export interface SellerChatProduct {
+  name: string;
+  businessName: string;
 }
 
 export interface ChatItem {
   id: string;
   name: string;
-  preview: string;
-  timestamp: string;
+  lastMessage: string;
+  time: string;
   unreadCount: number;
-  isAi: boolean;
   isGroup: boolean;
-  isProtected: boolean;
-  verified: boolean;
-  avatar?: string;
-  isSellerChat?: boolean;
+  status: 'sent' | 'delivered' | 'read';
+  online?: boolean;
+  isPinned?: boolean;
+  isMuted?: boolean;
+  verified?: boolean;
+  isAI?: boolean;
+  isProtected?: boolean;
+  members?: GroupMember[];
   categoryIds?: string[];
-  messages?: ChatMessage[];
+  isSellerChat?: boolean;
+  linkedProduct?: SellerChatProduct | null;
 }
+
+export const MOCK_GROUP_MEMBERS: GroupMember[] = [
+  { id: 'me', name: 'Santiago Valencia', role: 'admin', initials: 'SV', color: '#F3E8FF', isCurrentUser: true },
+  { id: 'c1', name: 'Carlos Mendoza', role: 'member', initials: 'CM', color: '#EBF5FF' },
+  { id: 'c3', name: 'María Gómez', role: 'member', initials: 'MG', color: '#ECFDF5' },
+  { id: 'g1', name: 'Laura Restrepo', role: 'member', initials: 'LR', color: '#FFEBEE' },
+];
 
 export const MOCK_CHATS: ChatItem[] = [
   {
-    id: 'ai-assistant',
-    name: 'Bee (Asistente IA)',
-    preview: 'Hola Santiago, ¿en qué te puedo ayudar hoy?',
-    timestamp: '11:05 AM',
+    id: AI_CHAT_ID,
+    isAI: true,
+    name: AI_ASSISTANT_NAME,
+    lastMessage: '¡Hola! ¿En qué te puedo ayudar hoy?',
+    time: 'Ahora',
     unreadCount: 0,
-    isAi: true,
     isGroup: false,
+    status: 'read',
+    online: true,
+    isPinned: true,
+    isMuted: false,
     isProtected: false,
-    verified: true,
-    messages: [
-      { id: 'm1', sender: 'Bee', text: 'Hola Santiago, ¿en qué te puedo ayudar hoy con tu negocio?', timestamp: '11:05 AM', isMe: false }
-    ],
   },
   {
-    id: 'ch-1',
-    name: 'Laura Restrepo',
-    preview: '¿Me puedes confirmar el precio del servicio de diseño?',
-    timestamp: '10:48 AM',
+    id: '1',
+    verified: true,
+    name: 'Carlos Mendoza',
+    lastMessage: 'Claro, nos vemos en la tarde para revisar la propuesta de BeeApp.',
+    time: '14:32',
     unreadCount: 2,
-    isAi: false,
     isGroup: false,
-    isProtected: false,
-    verified: true,
-    isSellerChat: true,
-    messages: [
-      { id: 'm1', sender: 'Laura Restrepo', text: 'Hola, vi tu catálogo en BeeServices', timestamp: '10:45 AM', isMe: false },
-      { id: 'm2', sender: 'Laura Restrepo', text: '¿Me puedes confirmar el precio del servicio de diseño?', timestamp: '10:48 AM', isMe: false }
-    ],
-  },
-  {
-    id: 'ch-2',
-    name: 'Equipo de Desarrollo',
-    preview: 'Diego: Ya subimos los cambios del layout web a staging.',
-    timestamp: '09:30 AM',
-    unreadCount: 5,
-    isAi: false,
-    isGroup: true,
-    isProtected: false,
-    verified: false,
-    messages: [
-      { id: 'm1', sender: 'Diego', text: 'Ya subimos los cambios del layout web a staging.', timestamp: '09:30 AM', isMe: false }
-    ],
-  },
-  {
-    id: 'ch-3',
-    name: 'Documentos Confidenciales',
-    preview: 'Chat protegido',
-    timestamp: 'Ayer',
-    unreadCount: 0,
-    isAi: false,
-    isGroup: false,
+    status: 'read',
+    online: true,
+    isPinned: true,
+    isMuted: false,
     isProtected: true,
-    verified: false,
+    categoryIds: ['cat-work', 'cat-friends'],
   },
   {
-    id: 'ch-4',
-    name: 'Camilo Torres',
-    preview: 'Nos vemos a las 3:00 PM para la revisión de contrato.',
-    timestamp: '27 Jul',
-    unreadCount: 0,
-    isAi: false,
-    isGroup: false,
-    isProtected: false,
+    id: '2',
     verified: false,
+    name: 'Equipo de Desarrollo 🐝',
+    lastMessage: 'Santiago: Acabo de subir el patch de expo-router a GitHub.',
+    time: '12:15',
+    unreadCount: 0,
+    isGroup: true,
+    status: 'read',
+    online: false,
+    isPinned: true,
+    isMuted: true,
+    isProtected: true,
+    members: MOCK_GROUP_MEMBERS,
+    categoryIds: ['cat-work'],
+  },
+  {
+    id: '3',
+    verified: true,
+    name: 'Mariana Gómez',
+    lastMessage: '¿Lograste firmar el documento del contrato?',
+    time: 'Ayer',
+    unreadCount: 0,
+    isGroup: false,
+    status: 'delivered',
+    online: false,
+    isPinned: false,
+    isMuted: false,
+    categoryIds: ['cat-family'],
+    isSellerChat: true,
+    linkedProduct: { name: 'Asesoría Legal', businessName: 'Consultores Asociados S.A.S.' },
+  },
+  {
+    id: '4',
+    verified: true,
+    name: 'Alejandro Reyes (Soporte)',
+    lastMessage: 'Tu solicitud #1425 ha sido resuelta con éxito.',
+    time: 'Ayer',
+    unreadCount: 0,
+    isGroup: false,
+    status: 'sent',
+    online: true,
+    isPinned: false,
+    isMuted: false,
+    isSellerChat: true,
+    linkedProduct: { name: 'Laptop HP', businessName: 'TechStore Bogotá' },
+  },
+];
+
+export interface ChatMessage {
+  id: number;
+  senderName?: string;
+  senderVerified?: boolean;
+  isUser: boolean;
+  type: 'text' | 'image' | 'file' | 'audio';
+  text?: string;
+  mediaUrl?: string;
+  fileName?: string;
+  fileSize?: string;
+  audioDuration?: string;
+  status: 'sent' | 'delivered' | 'read';
+  time: string;
+  replyTo?: {
+    sender: string;
+    text: string;
+  };
+  showCatalog?: boolean;
+  sentByAi?: boolean;
+}
+
+export const SELLER_CONVERSATION_MESSAGES: ChatMessage[] = [
+  {
+    id: 1,
+    senderName: 'Cliente',
+    isUser: false,
+    type: 'text',
+    text: 'Hola, buenas tardes. ¿Todavía tienes disponible lo que publicaste en BeeApp?',
+    time: '09:12',
+    status: 'read',
+  },
+  {
+    id: 2,
+    isUser: true,
+    type: 'text',
+    text: 'Hola, gracias por escribir. Sí, sigue disponible. ¿Quieres que te comparta los detalles y el precio?',
+    time: '09:12',
+    status: 'read',
+    sentByAi: true,
+  },
+  {
+    id: 3,
+    senderName: 'Cliente',
+    isUser: false,
+    type: 'text',
+    text: 'Sí, por favor. ¿Y cuánto tardaría la entrega?',
+    time: '09:14',
+    status: 'read',
+  },
+  {
+    id: 4,
+    isUser: true,
+    type: 'text',
+    text: 'La entrega toma entre dos y tres días hábiles en Bogotá. Te paso la cotización formal en un momento.',
+    time: '09:15',
+    status: 'delivered',
+    sentByAi: true,
+  },
+];
+
+export const MOCK_CONVERSATION_MESSAGES: ChatMessage[] = [
+  {
+    id: 1,
+    senderName: 'Carlos Mendoza',
+    senderVerified: true,
+    isUser: false,
+    type: 'text',
+    text: 'Hola Santiago, ¿cómo estás? Te escribo para confirmar la reunión.',
+    time: '12:00',
+    status: 'read',
+  },
+  {
+    id: 2,
+    isUser: true,
+    type: 'text',
+    text: '¡Hola Carlos! Todo bien por aquí. Sí, claro, confírmame la hora.',
+    time: '12:02',
+    status: 'read',
+    replyTo: {
+      sender: 'Carlos Mendoza',
+      text: 'Hola Santiago, ¿cómo estás? Te escribo para confirmar la reunión.',
+    },
+  },
+  {
+    id: 3,
+    senderName: 'Carlos Mendoza',
+    senderVerified: true,
+    isUser: false,
+    type: 'file',
+    fileName: 'Propuesta_Comercial_BeeApp.pdf',
+    fileSize: '1.4 MB',
+    time: '12:05',
+    status: 'read',
+  },
+  {
+    id: 4,
+    isUser: true,
+    type: 'audio',
+    audioDuration: '0:14',
+    time: '12:08',
+    status: 'read',
+  },
+  {
+    id: 5,
+    senderName: 'Carlos Mendoza',
+    senderVerified: true,
+    isUser: false,
+    type: 'image',
+    mediaUrl: 'https://picsum.photos/400/300',
+    text: 'Esta es la captura de los avances del diseño que te comentaba.',
+    time: '12:10',
+    status: 'read',
+  },
+];
+
+export const AI_CONVERSATION_MESSAGES: ChatMessage[] = [
+  {
+    id: 1,
+    senderName: AI_ASSISTANT_NAME,
+    isUser: false,
+    type: 'text',
+    text: '¡Hola Santiago! Soy Bee, tu asistente. Puedo resumirte correos, prepararte reuniones o buscar archivos. ¿En qué te ayudo hoy?',
+    time: '08:40',
+    status: 'read',
+  },
+  {
+    id: 2,
+    isUser: true,
+    type: 'text',
+    text: '¿Qué tengo pendiente para hoy?',
+    time: '08:41',
+    status: 'read',
+  },
+  {
+    id: 3,
+    senderName: AI_ASSISTANT_NAME,
+    isUser: false,
+    type: 'text',
+    text: 'Tienes la sincronización semanal de equipo a las 14:00 (45 min, videollamada) y dos correos sin responder: la cotización del proyecto Q3 y la minuta del equipo legal.',
+    time: '08:41',
+    status: 'read',
+  },
+  {
+    id: 4,
+    isUser: true,
+    type: 'text',
+    text: 'Prepárame un resumen de la cotización antes de la reunión.',
+    time: '08:43',
+    status: 'read',
+  },
+  {
+    id: 5,
+    senderName: AI_ASSISTANT_NAME,
+    isUser: false,
+    type: 'text',
+    text: 'Listo. La junta aprobó el presupuesto del proyecto de consultoría y esperan el contrato de servicios para revisión legal. Te dejo el resumen preparado antes de las 14:00.',
+    time: '08:43',
+    status: 'read',
+  },
+  {
+    id: 6,
+    isUser: true,
+    type: 'text',
+    text: 'Necesito un diseñador gráfico para mi logo',
+    time: '08:45',
+    status: 'read',
+  },
+  {
+    id: 7,
+    senderName: AI_ASSISTANT_NAME,
+    isUser: false,
+    type: 'text',
+    text: 'Encontré 3 opciones para ti:',
+    time: '08:45',
+    status: 'read',
+    showCatalog: true,
   },
 ];

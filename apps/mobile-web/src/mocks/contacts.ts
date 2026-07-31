@@ -1,63 +1,239 @@
 export interface ContactItem {
   id: string;
   name: string;
-  role: string;
-  company: string;
-  phone: string;
-  email: string;
-  verified: boolean;
-  category: 'my_contacts' | 'discover' | 'calls';
+  profession: string;
+  company?: string;
+  activity: string;
+  interests: string[];
+  initials: string;
+  color: string;
+  phone?: string;
+  email?: string;
+  isFavorite?: boolean;
+  verified?: boolean;
+  category?: 'my_contacts' | 'discover' | 'calls';
 }
 
-export const MOCK_CONTACTS: ContactItem[] = [
+export interface CallLogItem {
+  id: string;
+  contactId: string;
+  name: string;
+  initials: string;
+  color: string;
+  type: 'incoming' | 'outgoing' | 'missed';
+  isVideo: boolean;
+  time: string;
+  duration: string;
+  verified?: boolean;
+}
+
+export const MY_CONTACTS: ContactItem[] = [
   {
-    id: 'ct-1',
-    name: 'Laura Restrepo',
-    role: 'Gerente de Proyectos',
-    company: 'Innovatech Ltda',
-    phone: '+57 312 456 7890',
-    email: 'laura.restrepo@innovatech.com',
+    id: 'c1',
     verified: true,
-    category: 'my_contacts',
-  },
-  {
-    id: 'ct-2',
     name: 'Carlos Mendoza',
-    role: 'Director de Tecnología',
-    company: 'TechCorp SA',
-    phone: '+57 301 987 6543',
-    email: 'carlos@techcorp.com',
-    verified: true,
-    category: 'my_contacts',
+    profession: 'Abogado Corporativo',
+    company: 'Mendoza & Asociados',
+    activity: 'Servicios Legales',
+    interests: ['Startups', 'Finanzas', 'Propiedad Intelectual'],
+    initials: 'CM',
+    color: '#EBF5FF',
+    phone: '+57 300 456 7890',
+    email: 'carlos@mendoza-asociados.com',
+    isFavorite: true,
   },
   {
-    id: 'ct-3',
-    name: 'María Fernanda Gómez',
-    role: 'Diseñadora Senior',
-    company: 'Studio Creative',
-    phone: '+57 315 222 3344',
-    email: 'mfgomez@design.co',
+    id: 'c2',
     verified: false,
-    category: 'my_contacts',
+    name: 'Eduardo Torres',
+    profession: 'Director de Ventas',
+    company: 'Tech Solutions',
+    activity: 'Tecnología',
+    interests: ['Ventas B2B', 'SaaS', 'Negociación'],
+    initials: 'ET',
+    color: '#FEF3C7',
+    phone: '+57 312 987 6543',
+    email: 'eduardo@techsolutions.com',
   },
   {
-    id: 'ct-4',
-    name: 'Diego Ramírez',
-    role: 'Desarrollador FullStack',
-    company: 'BeeApp AI Team',
-    phone: '+57 300 555 1234',
-    email: 'diego@beeapp.ai',
+    id: 'c3',
     verified: true,
-    category: 'my_contacts',
+    name: 'María Gómez',
+    profession: 'Contadora Pública',
+    company: 'Gómez Consultores',
+    activity: 'Contabilidad y Auditoría',
+    interests: ['Impuestos', 'Finanzas Corporativas', 'Pymes'],
+    initials: 'MG',
+    color: '#ECFDF5',
+    phone: '+57 315 123 4567',
+    email: 'maria@gomezconsultores.com',
+    isFavorite: true,
   },
   {
-    id: 'ct-5',
-    name: 'Camilo Torres',
-    role: 'Consultor Financiero',
-    company: 'Fiduciaria Global',
-    phone: '+57 318 777 8899',
-    email: 'ctorres@fiduglobal.com',
+    id: 'c4',
     verified: false,
-    category: 'my_contacts',
+    name: 'Sofía Castro',
+    profession: 'Diseñadora UX/UI',
+    company: 'Creative Studio',
+    activity: 'Diseño',
+    interests: ['Figma', 'Mobile Design', 'User Research'],
+    initials: 'SC',
+    color: '#F3E8FF',
+    phone: '+57 320 888 9900',
+    email: 'sofia@creativestudio.com',
   },
 ];
+
+export const MOCK_CONTACTS: ContactItem[] = MY_CONTACTS;
+
+export const DISCOVER_CONTACTS: ContactItem[] = [
+  {
+    id: 'd1',
+    verified: true,
+    name: 'Alejandro Ruiz',
+    profession: 'Desarrollador Mobile',
+    company: 'BeeApp Labs',
+    activity: 'Tecnología e Información (TI)',
+    interests: ['React Native', 'Expo', 'Artificial Intelligence'],
+    initials: 'AR',
+    color: '#E0F2FE',
+  },
+  {
+    id: 'd2',
+    verified: true,
+    name: 'Laura Ramos',
+    profession: 'Consultora de Negocios',
+    company: 'Prime Advisors',
+    activity: 'Consultoría Estratégica',
+    interests: ['Crecimiento', 'Inversión Ángel', 'SaaS'],
+    initials: 'LR',
+    color: '#FEE2E2',
+  },
+];
+
+export const CALL_LOGS: CallLogItem[] = [
+  {
+    id: 'l1',
+    verified: true,
+    contactId: 'c1',
+    name: 'Carlos Mendoza',
+    initials: 'CM',
+    color: '#EBF5FF',
+    type: 'incoming',
+    isVideo: false,
+    time: 'Hoy, 10:15 AM',
+    duration: '5 min 23s',
+  },
+  {
+    id: 'l2',
+    verified: false,
+    contactId: 'c2',
+    name: 'Eduardo Torres',
+    initials: 'ET',
+    color: '#FEF3C7',
+    type: 'missed',
+    isVideo: true,
+    time: 'Hoy, 08:30 AM',
+    duration: '0s',
+  },
+  {
+    id: 'l3',
+    verified: true,
+    contactId: 'c3',
+    name: 'María Gómez',
+    initials: 'MG',
+    color: '#ECFDF5',
+    type: 'outgoing',
+    isVideo: false,
+    time: 'Ayer, 03:45 PM',
+    duration: '12 min 10s',
+  },
+];
+
+export interface ContactDetail {
+  id: string;
+  name: string;
+  profession: string;
+  company: string;
+  activity: string;
+  phone: string;
+  email: string;
+  interests: string[];
+  initials: string;
+  color: string;
+  online: boolean;
+  verified?: boolean;
+}
+
+export const ALL_CONTACT_DETAILS: Record<string, ContactDetail> = {
+  c1: {
+    id: 'c1',
+    verified: true,
+    name: 'Carlos Mendoza',
+    profession: 'Abogado Corporativo',
+    company: 'Mendoza & Asociados',
+    activity: 'Servicios Legales',
+    phone: '+57 300 456 7890',
+    email: 'carlos@mendoza-asociados.com',
+    interests: ['Startups', 'Finanzas', 'Propiedad Intelectual'],
+    initials: 'CM',
+    color: '#EBF5FF',
+    online: true,
+  },
+  c2: {
+    id: 'c2',
+    verified: false,
+    name: 'Eduardo Torres',
+    profession: 'Director de Ventas',
+    company: 'Tech Solutions Ltd.',
+    activity: 'Tecnología e Información',
+    phone: '+57 312 987 6543',
+    email: 'eduardo.torres@techsolutions.com',
+    interests: ['Ventas B2B', 'SaaS', 'Negociación'],
+    initials: 'ET',
+    color: '#FEF3C7',
+    online: false,
+  },
+  c3: {
+    id: 'c3',
+    verified: true,
+    name: 'María Gómez',
+    profession: 'Contadora Pública',
+    company: 'Gómez Consultores',
+    activity: 'Contabilidad y Auditoría',
+    phone: '+57 315 123 4567',
+    email: 'maria.gomez@gomez-consultores.co',
+    interests: ['Impuestos', 'Finanzas Corporativas', 'Pymes'],
+    initials: 'MG',
+    color: '#ECFDF5',
+    online: true,
+  },
+  c4: {
+    id: 'c4',
+    verified: false,
+    name: 'Sofía Castro',
+    profession: 'Diseñadora UX/UI',
+    company: 'Creative Studio',
+    activity: 'Diseño e Interfaces',
+    phone: '+57 320 888 9900',
+    email: 'sofia.castro@creativestudio.design',
+    interests: ['Figma', 'Mobile Design', 'User Research'],
+    initials: 'SC',
+    color: '#F3E8FF',
+    online: false,
+  },
+};
+
+export const CONTACT_CALLS: Record<string, { type: 'incoming' | 'outgoing' | 'missed'; isVideo: boolean; time: string; duration: string }[]> = {
+  c1: [
+    { type: 'incoming', isVideo: false, time: 'Hoy, 10:15 AM', duration: '5 min 23s' },
+    { type: 'missed', isVideo: false, time: '21 Jul, 02:10 PM', duration: '0s' },
+    { type: 'outgoing', isVideo: true, time: '18 Jul, 11:30 AM', duration: '15 min 45s' },
+  ],
+  c2: [
+    { type: 'missed', isVideo: true, time: 'Hoy, 08:30 AM', duration: '0s' },
+  ],
+  c3: [
+    { type: 'outgoing', isVideo: false, time: 'Ayer, 03:45 PM', duration: '12 min 10s' },
+  ],
+};

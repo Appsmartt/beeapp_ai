@@ -1,13 +1,15 @@
 'use client';
 
-import { useState } from 'react';
-import { X, Check } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Check } from 'lucide-react';
+import { ChatCategory } from '@/mocks/chats';
+import { getCategoryIcon } from '../categoryIcons';
 
 interface AssignCategoryModalProps {
   isOpen: boolean;
   onClose: () => void;
-  chatName: string;
-  categories: { id: string; name: string }[];
+  chatName?: string;
+  categories: ChatCategory[];
   currentCategoryIds?: string[];
   onSave: (assignedIds: string[]) => void;
 }
@@ -20,66 +22,80 @@ export default function AssignCategoryModal({
   currentCategoryIds = [],
   onSave,
 }: AssignCategoryModalProps) {
-  const [selectedIds, setSelectedIds] = useState<string[]>(currentCategoryIds);
+  const [selected, setSelected] = useState<string[]>(currentCategoryIds);
+
+  useEffect(() => {
+    if (isOpen) setSelected(currentCategoryIds);
+  }, [isOpen, currentCategoryIds]);
 
   if (!isOpen) return null;
 
-  const toggleCategory = (id: string) => {
-    if (selectedIds.includes(id)) {
-      setSelectedIds(selectedIds.filter((item) => item !== id));
-    } else {
-      setSelectedIds([...selectedIds, id]);
-    }
+  const toggle = (id: string) => {
+    setSelected((ids) => (ids.includes(id) ? ids.filter((x) => x !== id) : [...ids, id]));
   };
 
   const handleSave = () => {
-    onSave(selectedIds);
+    onSave(selected);
     onClose();
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center max-w-[430px] mx-auto">
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center max-w-md mx-auto">
       <div className="fixed inset-0 bg-neutral-900/40 backdrop-blur-xs" onClick={onClose} />
-      <div className="relative w-full bg-white rounded-t-3xl sm:rounded-3xl shadow-2xl z-50 p-5 space-y-4">
-        
-        <div className="flex items-center justify-between border-b border-neutral-100 pb-3">
-          <div>
-            <h2 className="font-semibold text-sm text-neutral-900">Asignar a categoría</h2>
-            <p className="text-xs text-neutral-500 font-normal">{chatName}</p>
-          </div>
-          <button onClick={onClose} className="p-1 text-neutral-400 hover:text-neutral-900">
-            <X className="w-5 h-5" />
+      <div className="relative w-full bg-white rounded-t-3xl sm:rounded-3xl shadow-2xl z-50 p-6 space-y-4 max-h-[75vh] flex flex-col">
+        <div>
+          <h2 className="font-semibold text-base text-neutral-900">Asignar a categoría</h2>
+          {chatName && <p className="text-xs text-neutral-500 font-normal mt-0.5">{chatName}</p>}
+        </div>
+
+        <div className="flex-1 overflow-y-auto divide-y divide-neutral-100">
+          {categories.length === 0 ? (
+            <p className="text-xs text-neutral-500 text-center py-6">
+              Todavía no has creado categorías.
+            </p>
+          ) : (
+            categories.map((category) => {
+              const Icon = getCategoryIcon(category.icon);
+              const isSelected = selected.includes(category.id);
+              return (
+                <div
+                  key={category.id}
+                  onClick={() => toggle(category.id)}
+                  className="py-3 px-2 flex items-center justify-between cursor-pointer hover:bg-neutral-50 rounded-xl transition-colors"
+                >
+                  <div className="flex items-center gap-3">
+                    <div
+                      className="w-9 h-9 rounded-full flex items-center justify-center text-neutral-700"
+                      style={{ backgroundColor: category.color }}
+                    >
+                      <Icon className="w-4 h-4" />
+                    </div>
+                    <span className="text-sm font-normal text-neutral-900">{category.name}</span>
+                  </div>
+
+                  {isSelected && <Check className="w-4.5 h-4.5 text-brand-primary shrink-0" />}
+                </div>
+              );
+            })
+          )}
+        </div>
+
+        <div className="flex gap-3 pt-2">
+          <button
+            type="button"
+            onClick={onClose}
+            className="flex-1 h-12 rounded-xl border border-neutral-300 text-neutral-700 text-sm font-normal hover:bg-neutral-50 transition-colors"
+          >
+            Cancelar
+          </button>
+          <button
+            type="button"
+            onClick={handleSave}
+            className="flex-1 h-12 rounded-xl bg-brand-primary text-white text-sm font-semibold hover:bg-brand-dark transition-colors"
+          >
+            Guardar
           </button>
         </div>
-
-        <div className="divide-y divide-neutral-100 max-h-60 overflow-y-auto">
-          {categories.map((cat) => {
-            const checked = selectedIds.includes(cat.id);
-            return (
-              <div
-                key={cat.id}
-                onClick={() => toggleCategory(cat.id)}
-                className="py-3 flex items-center justify-between cursor-pointer hover:bg-neutral-50 px-2"
-              >
-                <span className="text-xs font-semibold text-neutral-800">{cat.name}</span>
-                <div className={`w-5 h-5 rounded-md border flex items-center justify-center ${
-                  checked ? 'bg-brand-primary border-brand-primary text-white' : 'border-neutral-300'
-                }`}>
-                  {checked && <Check className="w-3.5 h-3.5" />}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-
-        <button
-          type="button"
-          onClick={handleSave}
-          className="w-full h-11 rounded-xl bg-brand-primary text-white text-xs font-semibold hover:bg-brand-dark transition-colors shadow-sm"
-        >
-          Guardar categorías
-        </button>
-
       </div>
     </div>
   );

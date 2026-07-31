@@ -1,114 +1,120 @@
 'use client';
 
-import { useState } from 'react';
-import { X, Users, Briefcase, Heart, Home, Star, GraduationCap, Coffee, Gamepad2, Check } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { ChatCategory } from '@/mocks/chats';
+import {
+  CATEGORY_ICONS,
+  CATEGORY_ICON_NAMES,
+  CATEGORY_COLORS,
+  CategoryIconName,
+} from '../categoryIcons';
 
 interface CreateCategoryModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onCreate: (name: string, iconName: string, color: string) => void;
+  onCreate: (category: Omit<ChatCategory, 'id'>) => void;
 }
 
-const ICONS = [
-  { name: 'Users', icon: Users },
-  { name: 'Briefcase', icon: Briefcase },
-  { name: 'Heart', icon: Heart },
-  { name: 'Home', icon: Home },
-  { name: 'Star', icon: Star },
-  { name: 'GraduationCap', icon: GraduationCap },
-  { name: 'Coffee', icon: Coffee },
-  { name: 'Gamepad2', icon: Gamepad2 },
-];
-
-const COLORS = ['#6025d2', '#2196F3', '#4CAF50', '#FF9800', '#E91E63', '#9C27B0'];
-
-export default function CreateCategoryModal({ isOpen, onClose, onCreate }: CreateCategoryModalProps) {
+export default function CreateCategoryModal({
+  isOpen,
+  onClose,
+  onCreate,
+}: CreateCategoryModalProps) {
   const [name, setName] = useState('');
-  const [selectedIcon, setSelectedIcon] = useState('Briefcase');
-  const [selectedColor, setSelectedColor] = useState('#6025d2');
+  const [icon, setIcon] = useState<CategoryIconName>('Users');
+  const [color, setColor] = useState(CATEGORY_COLORS[0]);
+
+  useEffect(() => {
+    if (isOpen) {
+      setName('');
+      setIcon('Users');
+      setColor(CATEGORY_COLORS[0]);
+    }
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim()) return;
-    onCreate(name, selectedIcon, selectedColor);
-    setName('');
+    onCreate({ name: name.trim(), icon, color });
     onClose();
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center max-w-[430px] mx-auto">
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center max-w-md mx-auto">
       <div className="fixed inset-0 bg-neutral-900/40 backdrop-blur-xs" onClick={onClose} />
-      <div className="relative w-full bg-white rounded-t-3xl sm:rounded-3xl shadow-2xl z-50 p-5 space-y-4">
-        
-        <div className="flex items-center justify-between border-b border-neutral-100 pb-3">
-          <h2 className="font-semibold text-sm text-neutral-900">Nueva Categoría de Chat</h2>
-          <button onClick={onClose} className="p-1 text-neutral-400 hover:text-neutral-900">
-            <X className="w-5 h-5" />
-          </button>
-        </div>
+      <div className="relative w-full bg-white rounded-t-3xl sm:rounded-3xl shadow-2xl z-50 p-6 space-y-4">
+        <h2 className="font-semibold text-base text-neutral-900">Crear categoría</h2>
 
         <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="space-y-1">
-            <label className="text-xs font-medium text-neutral-700">Nombre de la categoría</label>
-            <input
-              type="text"
-              required
-              placeholder="Ej. Clientes VIP"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              className="w-full h-10 px-3 bg-neutral-50 border border-neutral-200 rounded-xl text-xs outline-none focus:border-brand-primary"
-            />
-          </div>
+          <input
+            type="text"
+            required
+            placeholder="Nombre de la categoría"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            className="w-full h-11 px-3 bg-neutral-100 rounded-xl text-sm font-normal text-neutral-900 outline-none focus:ring-2 focus:ring-brand-primary"
+          />
 
-          <div className="space-y-1">
-            <label className="text-xs font-medium text-neutral-700">Ícono</label>
-            <div className="grid grid-cols-4 gap-2">
-              {ICONS.map((item) => {
-                const IconComp = item.icon;
-                const isSel = selectedIcon === item.name;
+          <div className="space-y-2">
+            <label className="text-xs font-normal text-neutral-500">Ícono</label>
+            <div className="flex flex-wrap gap-2">
+              {CATEGORY_ICON_NAMES.map((iconName) => {
+                const Icon = CATEGORY_ICONS[iconName];
+                const isSelected = icon === iconName;
                 return (
                   <button
-                    key={item.name}
+                    key={iconName}
                     type="button"
-                    onClick={() => setSelectedIcon(item.name)}
-                    className={`h-10 rounded-xl border flex items-center justify-center transition-colors ${
-                      isSel ? 'border-brand-primary bg-brand-primary/10 text-brand-primary' : 'border-neutral-200 text-neutral-600'
+                    onClick={() => setIcon(iconName)}
+                    className={`w-10 h-10 rounded-xl border flex items-center justify-center transition-all ${
+                      isSelected
+                        ? 'border-2 border-brand-primary bg-brand-primary/10 text-brand-primary'
+                        : 'border-neutral-200 bg-neutral-100 text-neutral-600 hover:bg-neutral-200'
                     }`}
                   >
-                    <IconComp className="w-5 h-5" />
+                    <Icon className="w-[18px] h-[18px]" />
                   </button>
                 );
               })}
             </div>
           </div>
 
-          <div className="space-y-1">
-            <label className="text-xs font-medium text-neutral-700">Color</label>
-            <div className="flex gap-2">
-              {COLORS.map((c) => (
+          <div className="space-y-2">
+            <label className="text-xs font-normal text-neutral-500">Color del chip</label>
+            <div className="flex flex-wrap gap-2.5">
+              {CATEGORY_COLORS.map((option) => (
                 <button
-                  key={c}
+                  key={option}
                   type="button"
-                  onClick={() => setSelectedColor(c)}
-                  style={{ backgroundColor: c }}
-                  className="w-8 h-8 rounded-full flex items-center justify-center text-white shadow-xs"
-                >
-                  {selectedColor === c && <Check className="w-4 h-4" />}
-                </button>
+                  onClick={() => setColor(option)}
+                  style={{ backgroundColor: option }}
+                  className={`w-8 h-8 rounded-full border border-neutral-300 transition-transform ${
+                    color === option ? 'border-2 border-brand-primary scale-110' : ''
+                  }`}
+                />
               ))}
             </div>
           </div>
 
-          <button
-            type="submit"
-            className="w-full h-11 rounded-xl bg-brand-primary text-white text-xs font-semibold hover:bg-brand-dark transition-colors shadow-sm mt-2"
-          >
-            Crear categoría
-          </button>
+          <div className="flex gap-3 pt-2">
+            <button
+              type="button"
+              onClick={onClose}
+              className="flex-1 h-12 rounded-xl border border-neutral-300 text-neutral-700 text-sm font-normal hover:bg-neutral-50 transition-colors"
+            >
+              Cancelar
+            </button>
+            <button
+              type="submit"
+              disabled={!name.trim()}
+              className="flex-1 h-12 rounded-xl bg-brand-primary text-white text-sm font-semibold hover:bg-brand-dark transition-colors disabled:opacity-50"
+            >
+              Crear
+            </button>
+          </div>
         </form>
-
       </div>
     </div>
   );

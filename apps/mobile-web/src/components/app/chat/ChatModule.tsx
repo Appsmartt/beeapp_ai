@@ -1,18 +1,17 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
-  MessageCircle,
-  Users,
-  SquarePen,
-  Plus,
-  Lock,
-  Megaphone,
-  CheckCircle,
-} from 'lucide-react';
-import { MOCK_CHATS, ChatItem } from '@/mocks/chats';
+  MOCK_CHATS,
+  ChatItem,
+  MOCK_CATEGORIES,
+  ChatCategory,
+  addCategory,
+  setChatCategories,
+} from '@/mocks/chats';
 import { MOCK_COMMUNITIES, CommunityItem } from '@/mocks/communities';
-import { MOCK_STATUSES, StatusItem } from '@/mocks/statuses';
+import { MOCK_STATUSES, StatusItem, addStatus, markStatusViewed } from '@/mocks/statuses';
+import { MOCK_CONTACTS, ContactItem } from '@/mocks/contacts';
 import ChatConversation from './ChatConversation';
 import ChatProfile from './ChatProfile';
 import CommunityScreen from './CommunityScreen';
@@ -20,46 +19,141 @@ import CommunityProfile from './CommunityProfile';
 import StatusViewer from './StatusViewer';
 import CreateStatusModal from './CreateStatusModal';
 import CreateCategoryModal from './modals/CreateCategoryModal';
+import AssignCategoryModal from './modals/AssignCategoryModal';
 import CreateCommunityModal from './modals/CreateCommunityModal';
+import CreateContactModal from '../contacts/CreateContactModal';
+import NewChatModal from './modals/NewChatModal';
+import CreateGroupModal from './modals/CreateGroupModal';
+import PinLockModal from './modals/PinLockModal';
+import ChatEmptyState from './ChatEmptyState';
+import ChatOptionsBar from './ChatOptionsBar';
+import ChatPanelTabs from './ChatPanelTabs';
+import ChatListPanel from './ChatListPanel';
+import ContactsPanel from './ContactsPanel';
+import StatusesPanel from './StatusesPanel';
+import { CommunityRow } from './ChatRow';
+import { ChatSection, ContactsTab } from './chatSections';
 import AiSettingsScreen from './modals/AiSettingsScreen';
-import AiCatalogModal from './modals/AiCatalogModal';
+import ContactDetail from '../contacts/ContactDetail';
 
-export default function ChatModule() {
-  const [activeTab, setActiveTab] = useState<'chats' | 'communities'>('chats');
+interface ChatModuleProps {
+  section: ChatSection;
+  onSectionChange: (section: ChatSection) => void;
+}
+
+const newChatItem = (name: string, isGroup: boolean, verified = false): ChatItem => ({
+  id: `ch-${Date.now()}`,
+  name,
+  lastMessage: isGroup ? 'Grupo creado' : 'Conversación iniciada',
+  time: 'Ahora',
+  unreadCount: 0,
+  isAI: false,
+  isGroup,
+  isProtected: false,
+  status: 'sent',
+  verified,
+});
+
+export default function ChatModule({ section, onSectionChange }: ChatModuleProps) {
   const [chats, setChats] = useState<ChatItem[]>(MOCK_CHATS);
   const [communities, setCommunities] = useState<CommunityItem[]>(MOCK_COMMUNITIES);
-  const [statuses, setStatuses] = useState<StatusItem[]>(MOCK_STATUSES);
-  
-  // Navigation State
+  const [statuses, setStatuses] = useState<StatusItem[]>([...MOCK_STATUSES]);
+  const [contacts, setContacts] = useState<ContactItem[]>(MOCK_CONTACTS);
+
   const [selectedChat, setSelectedChat] = useState<ChatItem | null>(null);
   const [selectedCommunity, setSelectedCommunity] = useState<CommunityItem | null>(null);
+  const [selectedContact, setSelectedContact] = useState<ContactItem | null>(null);
   const [viewingProfile, setViewingProfile] = useState<'chat' | 'community' | null>(null);
-  const [activeStatus, setActiveStatus] = useState<StatusItem | null>(null);
 
-  // Modals & Menus
-  const [createMenuOpen, setCreateMenuOpen] = useState(false);
-  const [createCategoryOpen, setCreateCategoryOpen] = useState(false);
-  const [createCommunityOpen, setCreateCommunityOpen] = useState(false);
-  const [createStatusOpen, setCreateStatusOpen] = useState(false);
+  // Protected PIN lock state
+  const [lockedChat, setLockedChat] = useState<ChatItem | null>(null);
+
+  // Status viewer state
+  const [viewerIndex, setViewerIndex] = useState<number | null>(null);
+  const [creatingStatus, setCreatingStatus] = useState(false);
+
+  // Categories state
+  const [categories, setCategories] = useState<ChatCategory[]>([...MOCK_CATEGORIES]);
+  const [activeCategoryId, setActiveCategoryId] = useState<string | null>(null);
+  const [creatingCategory, setCreatingCategory] = useState(false);
+  const [assigningChat, setAssigningChat] = useState<ChatItem | null>(null);
+
+  // Creation modals
+  const [newChatModalOpen, setNewChatModalOpen] = useState(false);
+  const [createGroupModalOpen, setCreateGroupModalOpen] = useState(false);
+  const [creatingCommunity, setCreatingCommunity] = useState(false);
+  const [creatingContact, setCreatingContact] = useState(false);
   const [aiSettingsOpen, setAiSettingsOpen] = useState(false);
-  const [aiCatalogOpen, setAiCatalogOpen] = useState(false);
 
-  // Filter Categories
-  const [categories, setCategories] = useState<{ id: string; name: string; color: string }[]>([
-    { id: 'cat-1', name: 'Trabajo', color: '#6025d2' },
-    { id: 'cat-2', name: 'Clientes', color: '#2196F3' },
-  ]);
-  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  // AI assistant button from sidebar opens AI chat directly
+  useEffect(() => {
+    if (section !== 'ai') return;
+    const aiChat = chats.find((c) => c.isAI);
+    if (aiChat) setSelectedChat(aiChat);
+    onSectionChange('chats');
+  }, [section, chats, onSectionChange]);
 
-  // Handle Category Creation
-  const handleCreateCategory = (name: string, iconName: string, color: string) => {
-    const newCat = { id: `cat-${Date.now()}`, name, color };
-    setCategories((prev) => [...prev, newCat]);
+  // Contactos, Descubrir red y Llamadas comparten el mismo panel: la sección
+  // activa del sidebar es la única fuente de verdad de la sub-pestaña.
+  const inContacts = section === 'contacts' || section === 'discover' || section === 'calls';
+  const contactsTab: ContactsTab =
+    section === 'calls' ? 'calls' : section === 'discover' ? 'discover' : 'my_contacts';
+
+  const handleChatPress = (chat: ChatItem) => {
+    if (chat.isProtected) {
+      setLockedChat(chat);
+      return;
+    }
+    openChatWith(chat);
   };
 
-  // Handle Community Creation
+  const openChatWith = (chat: ChatItem) => {
+    setChats((prev) => prev.map((c) => (c.id === chat.id ? { ...c, unreadCount: 0 } : c)));
+    setSelectedChat(chat);
+    setSelectedCommunity(null);
+    setSelectedContact(null);
+    setViewingProfile(null);
+  };
+
+  const startChat = (name: string, isGroup: boolean, verified = false) => {
+    const chat = newChatItem(name, isGroup, verified);
+    setChats((prev) => [chat, ...prev]);
+    onSectionChange('chats');
+    openChatWith(chat);
+  };
+
+  const handleSelectContactForNewChat = (contact: ContactItem) => {
+    const existing = chats.find((c) => c.name === contact.name);
+    if (existing) {
+      onSectionChange('chats');
+      openChatWith(existing);
+      return;
+    }
+    startChat(contact.name, false, contact.verified);
+  };
+
+  const handleCreateGroup = (name: string, members: any[]) => {
+    const groupChat: ChatItem = {
+      id: `group_${Date.now()}`,
+      name,
+      lastMessage: 'Grupo creado',
+      time: 'Ahora',
+      unreadCount: 0,
+      isGroup: true,
+      status: 'sent',
+      members,
+    };
+    setChats((prev) => [groupChat, ...prev]);
+    onSectionChange('chats');
+    openChatWith(groupChat);
+  };
+
+  const handleSendMessage = (contact: ContactItem) => {
+    handleSelectContactForNewChat(contact);
+  };
+
   const handleCreateCommunity = (name: string, description: string, category: string) => {
-    const newComm: CommunityItem = {
+    const community: CommunityItem = {
       id: `comm-${Date.now()}`,
       name,
       description,
@@ -69,361 +163,280 @@ export default function ChatModule() {
       category,
       posts: [],
     };
-    setCommunities((prev) => [newComm, ...prev]);
-    setActiveTab('communities');
+    setCommunities((prev) => [community, ...prev]);
+    setCreatingCommunity(false);
+    onSectionChange('communities');
   };
 
-  const filteredChats = chats.filter((c) => {
-    if (selectedCategory) {
-      return c.categoryIds?.includes(selectedCategory);
+  const handleNavigateToSellerChat = (sellerId: string, sellerName: string, initialText: string) => {
+    let existingChat = chats.find((c) => c.name === sellerName);
+    if (!existingChat) {
+      existingChat = {
+        id: `seller_${Date.now()}`,
+        name: sellerName,
+        lastMessage: initialText,
+        time: 'Ahora',
+        unreadCount: 0,
+        isGroup: false,
+        status: 'sent',
+        online: true,
+        verified: true,
+        isSellerChat: true,
+      };
+      setChats((prev) => [existingChat!, ...prev]);
     }
-    return true;
-  });
+    onSectionChange('chats');
+    openChatWith(existingChat);
+  };
 
-  const hasActiveSelection = selectedChat || selectedCommunity || viewingProfile || aiSettingsOpen;
+  const handleOpenStatus = (index: number) => {
+    markStatusViewed(statuses[index].id);
+    setStatuses([...MOCK_STATUSES]);
+    setViewerIndex(index);
+  };
+
+  const handlePin = (id: string) => {
+    setChats((prev) => prev.map((c) => (c.id === id ? { ...c, isPinned: !c.isPinned } : c)));
+  };
+
+  const handleMute = (id: string) => {
+    setChats((prev) => prev.map((c) => (c.id === id ? { ...c, isMuted: !c.isMuted } : c)));
+  };
+
+  const handleDelete = (id: string) => {
+    setChats((prev) => prev.filter((c) => c.id !== id));
+    if (selectedChat?.id === id) setSelectedChat(null);
+  };
+
+  const handleToggleProtection = (chat: ChatItem) => {
+    setChats((prev) =>
+      prev.map((c) => (c.id === chat.id ? { ...c, isProtected: !c.isProtected } : c))
+    );
+  };
+
+  const renderLeftPanel = () => {
+    if (inContacts) {
+      return (
+        <ContactsPanel
+          contacts={contacts}
+          tab={contactsTab}
+          selectedContactId={selectedContact?.id}
+          onSelectContact={setSelectedContact}
+          onCreateContact={() => setCreatingContact(true)}
+        />
+      );
+    }
+
+    if (section === 'statuses') {
+      return (
+        <StatusesPanel
+          statuses={statuses}
+          onOpenStatus={handleOpenStatus}
+          onCreateStatus={() => setCreatingStatus(true)}
+        />
+      );
+    }
+
+    if (section === 'communities') {
+      return (
+        <div className="divide-y divide-neutral-100 flex-1 overflow-y-auto">
+          {communities.map((community) => (
+            <CommunityRow
+              key={community.id}
+              community={community}
+              isSelected={selectedCommunity?.id === community.id}
+              onClick={() => {
+                setSelectedCommunity(community);
+                setSelectedChat(null);
+              }}
+            />
+          ))}
+        </div>
+      );
+    }
+
+    return (
+      <ChatListPanel
+        chats={chats}
+        categories={categories}
+        activeCategoryId={activeCategoryId}
+        selectedChatId={selectedChat?.id}
+        onSelectCategory={setActiveCategoryId}
+        onCreateCategory={() => setCreatingCategory(true)}
+        onSelectChat={handleChatPress}
+        onPinChat={handlePin}
+        onMuteChat={handleMute}
+        onDeleteChat={handleDelete}
+        onAssignCategory={(chat) => setAssigningChat(chat)}
+        onToggleProtection={handleToggleProtection}
+      />
+    );
+  };
+
+  const renderDetail = () => {
+    if (aiSettingsOpen) return <AiSettingsScreen onBack={() => setAiSettingsOpen(false)} />;
+
+    if (inContacts) {
+      if (!selectedContact) return null;
+      return (
+        <ContactDetail
+          contact={selectedContact}
+          onBack={() => setSelectedContact(null)}
+          onSendMessage={() => handleSendMessage(selectedContact)}
+        />
+      );
+    }
+
+    if (viewingProfile === 'chat' && selectedChat) {
+      return <ChatProfile chat={selectedChat} onBack={() => setViewingProfile(null)} />;
+    }
+    if (viewingProfile === 'community' && selectedCommunity) {
+      return (
+        <CommunityProfile community={selectedCommunity} onBack={() => setViewingProfile(null)} />
+      );
+    }
+    if (selectedCommunity) {
+      return (
+        <CommunityScreen
+          community={selectedCommunity}
+          onBack={() => setSelectedCommunity(null)}
+          onOpenProfile={() => setViewingProfile('community')}
+        />
+      );
+    }
+    if (selectedChat) {
+      return (
+        <ChatConversation
+          key={selectedChat.id}
+          chat={selectedChat}
+          onBack={() => setSelectedChat(null)}
+          onOpenProfile={() => setViewingProfile('chat')}
+          onOpenAiSettings={() => setAiSettingsOpen(true)}
+          onNavigateToChat={handleNavigateToSellerChat}
+        />
+      );
+    }
+    return null;
+  };
+
+  const detail = renderDetail();
 
   return (
-    <div className="bg-white min-h-full flex flex-col lg:flex-row pb-24 lg:pb-0 relative">
-      
-      {/* LEFT COLUMN: Chat List / Communities List (Full width on mobile if no selection, lg:w-96 on desktop) */}
-      <div className={`flex-1 lg:w-96 lg:flex-none lg:border-r lg:border-neutral-200 flex flex-col ${
-        hasActiveSelection ? 'hidden lg:flex' : 'flex'
-      }`}>
-        
-        {/* Header & Tabs */}
-        <div className="p-4 border-b border-neutral-100 space-y-3 sticky top-0 bg-white z-20">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-6">
-              <button
-                type="button"
-                onClick={() => { setActiveTab('chats'); setSelectedCommunity(null); }}
-                className={`text-sm font-semibold pb-1 border-b-2 transition-colors ${
-                  activeTab === 'chats' ? 'border-brand-primary text-brand-primary' : 'border-transparent text-neutral-500'
-                }`}
-              >
-                Chats
-              </button>
-              <button
-                type="button"
-                onClick={() => { setActiveTab('communities'); setSelectedChat(null); }}
-                className={`text-sm font-semibold pb-1 border-b-2 transition-colors ${
-                  activeTab === 'communities' ? 'border-brand-primary text-brand-primary' : 'border-transparent text-neutral-500'
-                }`}
-              >
-                Comunidades
-              </button>
-            </div>
+    <div className="bg-white min-h-full flex flex-row relative">
+      {/* BARRA DE OPCIONES DE CHAT (56px, desktop) */}
+      <ChatOptionsBar section={section} onSelectSection={onSectionChange} />
 
-          {/* Header Action Button Dropdown */}
-          <div className="relative">
-            <button
-              type="button"
-              onClick={() => setCreateMenuOpen(!createMenuOpen)}
-              className="w-9 h-9 rounded-full bg-neutral-100 text-neutral-700 flex items-center justify-center hover:bg-neutral-200/70"
-            >
-              <SquarePen className="w-4 h-4" />
-            </button>
-
-            {createMenuOpen && (
-              <>
-                <div className="fixed inset-0 z-30" onClick={() => setCreateMenuOpen(false)} />
-                <div className="absolute top-full right-0 mt-1 w-48 bg-white border border-neutral-200 rounded-2xl shadow-xl z-40 py-1.5 text-xs">
-                  <button
-                    onClick={() => {
-                      setCreateMenuOpen(false);
-                      const newC: ChatItem = {
-                        id: `ch-${Date.now()}`,
-                        name: 'Nuevo Chat',
-                        preview: 'Conversación iniciada',
-                        timestamp: 'Ahora',
-                        unreadCount: 0,
-                        isAi: false,
-                        isGroup: false,
-                        isProtected: false,
-                        verified: false,
-                      };
-                      setChats([newC, ...chats]);
-                      setSelectedChat(newC);
-                    }}
-                    className="w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-neutral-50 text-neutral-800 font-medium"
-                  >
-                    <MessageCircle className="w-4 h-4 text-brand-primary" /> Nuevo chat
-                  </button>
-                  <button
-                    onClick={() => {
-                      setCreateMenuOpen(false);
-                      const newG: ChatItem = {
-                        id: `ch-grp-${Date.now()}`,
-                        name: 'Nuevo Grupo',
-                        preview: 'Grupo creado',
-                        timestamp: 'Ahora',
-                        unreadCount: 0,
-                        isAi: false,
-                        isGroup: true,
-                        isProtected: false,
-                        verified: false,
-                      };
-                      setChats([newG, ...chats]);
-                      setSelectedChat(newG);
-                    }}
-                    className="w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-neutral-50 text-neutral-800 font-medium"
-                  >
-                    <Users className="w-4 h-4 text-brand-primary" /> Nuevo grupo
-                  </button>
-                  <button
-                    onClick={() => {
-                      setCreateMenuOpen(false);
-                      setCreateCommunityOpen(true);
-                    }}
-                    className="w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-neutral-50 text-neutral-800 font-medium"
-                  >
-                    <Megaphone className="w-4 h-4 text-brand-primary" /> Nueva comunidad
-                  </button>
-                </div>
-              </>
-            )}
-          </div>
-        </div>
+      {/* PANEL IZQUIERDO: lista de chats, contactos, llamadas o estados (w-[440px]) */}
+      <div className="w-[440px] shrink-0 border-r border-neutral-200 flex flex-col">
+        <ChatPanelTabs
+          section={section}
+          onSectionChange={onSectionChange}
+          onNewChat={() => setNewChatModalOpen(true)}
+          onNewGroup={() => setCreateGroupModalOpen(true)}
+          onNewCommunity={() => setCreatingCommunity(true)}
+          onNewContact={() => setCreatingContact(true)}
+        />
+        {renderLeftPanel()}
       </div>
 
-      {/* CHATS TAB CONTENT */}
-      {activeTab === 'chats' && (
-        <div className="flex-1 flex flex-col">
-          
-          {/* Stories Circles Row */}
-          <div className="p-4 border-b border-neutral-100 overflow-x-auto no-scrollbar flex items-center gap-3">
-            {statuses.map((st) => (
-              <div
-                key={st.id}
-                onClick={() => {
-                  if (st.id === 'st-user') {
-                    setCreateStatusOpen(true);
-                  } else {
-                    setActiveStatus(st);
-                  }
-                }}
-                className="flex flex-col items-center gap-1 cursor-pointer shrink-0"
-              >
-                <div className={`w-13 h-13 rounded-full p-0.5 border-2 ${
-                  st.id === 'st-user'
-                    ? 'border-dashed border-neutral-300'
-                    : st.seen ? 'border-neutral-300' : 'border-brand-primary'
-                }`}>
-                  <div className="w-full h-full rounded-full bg-neutral-200 flex items-center justify-center font-bold text-xs text-neutral-700 relative">
-                    {st.id === 'st-user' ? '+' : st.user.slice(0, 2).toUpperCase()}
-                  </div>
-                </div>
-                <span className="text-[10px] text-neutral-600 font-normal truncate max-w-[56px] text-center">
-                  {st.user}
-                </span>
-              </div>
-            ))}
-          </div>
-
-          {/* Category Chips Row */}
-          <div className="p-3 border-b border-neutral-100 flex items-center gap-1.5 overflow-x-auto no-scrollbar">
-            <button
-              onClick={() => setSelectedCategory(null)}
-              className={`px-3 py-1 rounded-full text-xs font-semibold shrink-0 ${
-                selectedCategory === null ? 'bg-brand-primary text-white' : 'bg-neutral-100 text-neutral-600'
-              }`}
-            >
-              Todos
-            </button>
-            {categories.map((c) => (
-              <button
-                key={c.id}
-                onClick={() => setSelectedCategory(c.id)}
-                className={`px-3 py-1 rounded-full text-xs font-semibold shrink-0 ${
-                  selectedCategory === c.id ? 'bg-brand-primary text-white' : 'bg-neutral-100 text-neutral-600'
-                }`}
-              >
-                {c.name}
-              </button>
-            ))}
-            <button
-              onClick={() => setCreateCategoryOpen(true)}
-              className="w-7 h-7 rounded-full bg-neutral-100 text-neutral-500 flex items-center justify-center shrink-0 hover:bg-neutral-200"
-            >
-              <Plus className="w-4 h-4" />
-            </button>
-          </div>
-
-          {/* Chat List (Flat Rows) or Communities */}
-          {activeTab === 'chats' ? (
-            <div className="divide-y divide-neutral-100 flex-1">
-              {filteredChats.map((chat) => (
-                <div
-                  key={chat.id}
-                  onClick={() => setSelectedChat(chat)}
-                  className={`p-4 flex items-center gap-3 cursor-pointer hover:bg-neutral-50 transition-colors ${
-                    chat.isAi ? 'bg-brand-primary/5' : ''
-                  } ${selectedChat?.id === chat.id ? 'bg-brand-primary/10 border-l-4 border-brand-primary' : ''}`}
-                >
-                  <div className={`w-11 h-11 rounded-full font-bold text-xs flex items-center justify-center shrink-0 ${
-                    chat.isAi ? 'bg-brand-primary text-white shadow-xs' : 'bg-neutral-200 text-neutral-700'
-                  }`}>
-                    {chat.isAi ? 'IA' : chat.name.slice(0, 2).toUpperCase()}
-                  </div>
-
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center justify-between gap-2">
-                      <div className="flex items-center gap-1.5 min-w-0">
-                        <span className="font-semibold text-xs text-neutral-900 truncate">{chat.name}</span>
-                        {chat.verified && <CheckCircle className="w-3.5 h-3.5 text-brand-primary shrink-0" />}
-                        {chat.isAi && <span className="text-[9px] font-bold bg-brand-primary text-white px-1 rounded">IA</span>}
-                      </div>
-                      <span className="text-[10px] text-neutral-400 font-normal shrink-0">{chat.timestamp}</span>
-                    </div>
-
-                    <p className="text-[11px] text-neutral-500 font-normal truncate mt-0.5">
-                      {chat.isProtected ? (
-                        <span className="flex items-center gap-1 text-neutral-400">
-                          <Lock className="w-3 h-3 text-brand-primary" /> Chat protegido
-                        </span>
-                      ) : (
-                        chat.preview
-                      )}
-                    </p>
-                  </div>
-
-                  {chat.unreadCount > 0 && (
-                    <span className="w-5 h-5 rounded-full bg-brand-primary text-white text-[10px] font-bold flex items-center justify-center shrink-0">
-                      {chat.unreadCount}
-                    </span>
-                  )}
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div className="divide-y divide-neutral-100 flex-1">
-              {communities.map((comm) => (
-                <div
-                  key={comm.id}
-                  onClick={() => setSelectedCommunity(comm)}
-                  className={`p-4 flex items-center gap-3 cursor-pointer hover:bg-neutral-50 transition-colors ${
-                    selectedCommunity?.id === comm.id ? 'bg-brand-primary/10 border-l-4 border-brand-primary' : ''
-                  }`}
-                >
-                  <div className="w-11 h-11 rounded-2xl bg-brand-primary/10 text-brand-primary font-bold text-xs flex items-center justify-center shrink-0">
-                    <Users className="w-5 h-5" />
-                  </div>
-
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center justify-between">
-                      <span className="font-semibold text-xs text-neutral-900 truncate">{comm.name}</span>
-                      {comm.isAdmin && (
-                        <span className="text-[9px] font-bold bg-brand-primary/10 text-brand-primary px-1.5 py-0.5 rounded-full">
-                          Admin
-                        </span>
-                      )}
-                    </div>
-                    <p className="text-[11px] text-neutral-500 font-normal truncate mt-0.5">
-                      {comm.membersCount} miembros • {comm.category}
-                    </p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-
-        </div>
-      )}
-
+      {/* PANEL DERECHO: conversación, comunidad o detalle de contacto */}
+      <div className="flex-1 min-w-0 flex flex-col">
+        {detail ?? <ChatEmptyState inContacts={inContacts} />}
       </div>
 
-      {/* RIGHT COLUMN: Active Chat Conversation or Community or Placeholder */}
-      <div className={`flex-1 flex-col ${hasActiveSelection ? 'flex' : 'hidden lg:flex'}`}>
-        {aiSettingsOpen ? (
-          <AiSettingsScreen onBack={() => setAiSettingsOpen(false)} />
-        ) : viewingProfile === 'chat' && selectedChat ? (
-          <ChatProfile chat={selectedChat} onBack={() => setViewingProfile(null)} />
-        ) : viewingProfile === 'community' && selectedCommunity ? (
-          <CommunityProfile community={selectedCommunity} onBack={() => setViewingProfile(null)} />
-        ) : selectedCommunity ? (
-          <CommunityScreen
-            community={selectedCommunity}
-            onBack={() => setSelectedCommunity(null)}
-            onOpenProfile={() => setViewingProfile('community')}
-          />
-        ) : selectedChat ? (
-          <ChatConversation
-            chat={selectedChat}
-            onBack={() => setSelectedChat(null)}
-            onOpenProfile={() => setViewingProfile('chat')}
-            onOpenAiSettings={() => setAiSettingsOpen(true)}
-          />
-        ) : (
-          <div className="hidden lg:flex flex-1 items-center justify-center p-12 text-center text-neutral-400 bg-neutral-50/50">
-            <div className="space-y-3 max-w-xs">
-              <MessageCircle className="w-12 h-12 mx-auto text-neutral-300" />
-              <h3 className="font-semibold text-sm text-neutral-700">Ningún chat seleccionado</h3>
-              <p className="text-xs text-neutral-500 font-normal">
-                Selecciona una conversación o comunidad de la lista de la izquierda para chatear.
-              </p>
-            </div>
-          </div>
-        )}
-      </div>
+      {/* New Chat Modal */}
+      <NewChatModal
+        isOpen={newChatModalOpen}
+        onClose={() => setNewChatModalOpen(false)}
+        onSelectContact={handleSelectContactForNewChat}
+      />
 
-      {/* Active Status Overlay */}
-      {activeStatus && (
-        <StatusViewer status={activeStatus} onClose={() => setActiveStatus(null)} />
-      )}
+      {/* Create Group Modal */}
+      <CreateGroupModal
+        isOpen={createGroupModalOpen}
+        onClose={() => setCreateGroupModalOpen(false)}
+        onCreateGroup={handleCreateGroup}
+      />
+
+      {/* Status Viewer Fullscreen Modal */}
+      <StatusViewer
+        visible={viewerIndex !== null}
+        statuses={statuses}
+        index={viewerIndex ?? 0}
+        onChangeIndex={handleOpenStatus}
+        onClose={() => setViewerIndex(null)}
+      />
 
       {/* Create Status Modal */}
       <CreateStatusModal
-        isOpen={createStatusOpen}
-        onClose={() => setCreateStatusOpen(false)}
-        onPublish={(text, bgColor) => {
-          const newS: StatusItem = {
-            id: `st-${Date.now()}`,
-            user: 'Mi Estado',
-            seen: true,
-            timestamp: 'Hace un momento',
-            text,
-            bgColor,
-          };
-          setStatuses([MOCK_STATUSES[0], newS, ...statuses.slice(1)]);
+        visible={creatingStatus}
+        onPublish={(statusData) => {
+          addStatus(statusData);
+          setStatuses([...MOCK_STATUSES]);
+          setCreatingStatus(false);
         }}
+        onClose={() => setCreatingStatus(false)}
       />
 
       {/* Create Category Modal */}
       <CreateCategoryModal
-        isOpen={createCategoryOpen}
-        onClose={() => setCreateCategoryOpen(false)}
-        onCreate={handleCreateCategory}
+        isOpen={creatingCategory}
+        onClose={() => setCreatingCategory(false)}
+        onCreate={(catData) => {
+          const created = addCategory(catData);
+          setCategories([...MOCK_CATEGORIES]);
+          setActiveCategoryId(created.id);
+          setCreatingCategory(false);
+        }}
+      />
+
+      {/* Assign Category Modal */}
+      <AssignCategoryModal
+        isOpen={!!assigningChat}
+        chatName={assigningChat?.name}
+        categories={categories}
+        currentCategoryIds={assigningChat?.categoryIds ?? []}
+        onSave={(catIds) => {
+          if (assigningChat) {
+            setChatCategories(assigningChat.id, catIds);
+            setChats([...MOCK_CHATS]);
+          }
+          setAssigningChat(null);
+        }}
+        onClose={() => setAssigningChat(null)}
       />
 
       {/* Create Community Modal */}
       <CreateCommunityModal
-        isOpen={createCommunityOpen}
-        onClose={() => setCreateCommunityOpen(false)}
+        isOpen={creatingCommunity}
+        onClose={() => setCreatingCommunity(false)}
         onCreate={handleCreateCommunity}
       />
 
-      {/* AI Catalog Modal */}
-      <AiCatalogModal
-        isOpen={aiCatalogOpen}
-        onClose={() => setAiCatalogOpen(false)}
-        onContactSeller={(seller, title) => {
-          const sellerChat: ChatItem = {
-            id: `ch-seller-${Date.now()}`,
-            name: seller,
-            preview: `Consulta sobre: ${title}`,
-            timestamp: 'Ahora',
-            unreadCount: 0,
-            isAi: false,
-            isGroup: false,
-            isProtected: false,
-            verified: true,
-            isSellerChat: true,
-          };
-          setChats([sellerChat, ...chats]);
-          setSelectedChat(sellerChat);
+      {/* Create Contact Modal */}
+      <CreateContactModal
+        isOpen={creatingContact}
+        onClose={() => setCreatingContact(false)}
+        onCreate={(contact) => {
+          setContacts((prev) => [contact, ...prev]);
+          setSelectedContact(contact);
+          setCreatingContact(false);
         }}
       />
 
+      {/* Pin Lock Modal for protected chats */}
+      <PinLockModal
+        visible={!!lockedChat}
+        itemName={lockedChat?.name}
+        onClose={() => setLockedChat(null)}
+        onSuccess={() => {
+          if (lockedChat) {
+            const chatToOpen = lockedChat;
+            setLockedChat(null);
+            openChatWith(chatToOpen);
+          }
+        }}
+      />
     </div>
   );
 }

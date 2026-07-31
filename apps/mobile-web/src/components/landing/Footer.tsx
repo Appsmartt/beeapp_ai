@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { Bot } from 'lucide-react';
+import BeeAppLogo from '@/components/BeeAppLogo';
 
 export default function Footer() {
   return (
@@ -8,11 +8,8 @@ export default function Footer() {
         <div className="flex flex-col md:flex-row items-center justify-between gap-6 pb-8 border-b border-neutral-800">
           
           {/* Logo */}
-          <Link href="/" className="flex items-center gap-2 text-white font-bold text-xl tracking-tight">
-            <div className="w-8 h-8 rounded-lg bg-brand-primary flex items-center justify-center text-white">
-              <Bot className="w-5 h-5" />
-            </div>
-            <span className="text-white font-semibold">BeeApp <span className="text-brand-primary">AI</span></span>
+          <Link href="/" className="flex items-center">
+            <BeeAppLogo height={32} inverted />
           </Link>
 
           {/* Links */}

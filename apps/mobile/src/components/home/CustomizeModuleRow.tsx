@@ -1,4 +1,8 @@
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
+// El TouchableOpacity de react-native usa el responder de JS y le roba el
+// toque al pan de DraggableFlatList: dentro de la lista hay que usar el de
+// gesture-handler para que el long press llegue a `drag`.
+import { TouchableOpacity } from 'react-native-gesture-handler';
 import { colors, spacing, radii } from '@beeapp/design-system';
 import { GripVertical } from 'lucide-react-native';
 import { HomeModule } from './homeModules';

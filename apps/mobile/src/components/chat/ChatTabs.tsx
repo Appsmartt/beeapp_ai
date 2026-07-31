@@ -1,11 +1,12 @@
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { colors } from '@beeapp/design-system';
 
-export type ChatTab = 'chats' | 'communities';
+export type ChatTab = 'chats' | 'communities' | 'contacts';
 
 const TABS: { id: ChatTab; label: string }[] = [
   { id: 'chats', label: 'Chats' },
   { id: 'communities', label: 'Comunidades' },
+  { id: 'contacts', label: 'Contactos' },
 ];
 
 interface ChatTabsProps {
@@ -13,7 +14,7 @@ interface ChatTabsProps {
   onChange: (tab: ChatTab) => void;
 }
 
-/** Underline tabs of the chat module: conversations or communities */
+/** Underline tabs of the chat module: conversations, communities or contacts */
 export default function ChatTabs({ activeTab, onChange }: ChatTabsProps) {
   return (
     <View style={styles.row}>

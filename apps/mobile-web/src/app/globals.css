@@ -8,6 +8,8 @@
 
   /* Brand Colors */
   --brand-primary: #6025d2;
+  /* Componentes RGB de --brand-primary, para poder modular su opacidad */
+  --brand-primary-rgb: 96, 37, 210;
   --brand-dark: #5B2CD9;
   --brand-light: rgba(96, 37, 210, 0.15);
 
@@ -41,5 +43,95 @@ body {
 @layer utilities {
   .text-balance {
     text-wrap: balance;
+  }
+}
+
+/* Halo del botón del asistente: "respira" en morado, como el AssistantGlow de la app móvil */
+@keyframes assistant-glow {
+  0%,
+  100% {
+    box-shadow: 0 0 10px 0 rgba(var(--brand-primary-rgb), 0.3);
+  }
+  50% {
+    box-shadow: 0 0 18px 12px rgba(var(--brand-primary-rgb), 0.6);
+  }
+}
+
+.assistant-glow {
+  animation: assistant-glow 2s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .assistant-glow {
+    animation: none;
+    box-shadow: 0 0 14px 4px rgba(var(--brand-primary-rgb), 0.45);
+  }
+}
+
+/* ── Asistente por voz ──────────────────────────────────────────────
+   Equivalentes CSS de las animaciones Animated del VoiceOrb de móvil.
+   La escala y las opacidades del halo se pasan por variables porque
+   cambian según el estado (idle / listening / thinking / speaking).   */
+
+@keyframes voice-orb-pulse {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(var(--orb-scale));
+  }
+}
+
+@keyframes voice-orb-halo {
+  0%,
+  100% {
+    opacity: var(--halo-from);
+    transform: scale(1);
+  }
+  50% {
+    opacity: var(--halo-to);
+    transform: scale(var(--orb-scale));
+  }
+}
+
+@keyframes voice-orb-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes voice-orb-spin-reverse {
+  to {
+    transform: rotate(-360deg);
+  }
+}
+
+/* Entrada del modal: fundido de la pantalla y el orbe creciendo desde 0 */
+@keyframes voice-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes voice-orb-enter {
+  from {
+    opacity: 0;
+    transform: scale(0);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [class*='voice-orb-'],
+  .voice-enter,
+  .voice-leave {
+    animation: none !important;
   }
 }

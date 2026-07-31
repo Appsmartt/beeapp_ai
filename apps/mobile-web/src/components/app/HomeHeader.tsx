@@ -25,7 +25,7 @@ export default function HomeHeader({ onOpenSideMenu }: HomeHeaderProps) {
   return (
     <header className="sticky top-0 z-30 bg-white border-b border-neutral-200/80 px-4 py-3">
       <div className="flex items-center gap-2.5">
-        
+
         {/* Filter Button */}
         <div className="relative">
           <button
@@ -82,7 +82,7 @@ export default function HomeHeader({ onOpenSideMenu }: HomeHeaderProps) {
           />
         </div>
 
-        {/* Hamburger Menu Trigger (Mobile and Tablet only) */}
+        {/* Hamburguesa a la derecha, como en la app móvil. En desktop vive en el sidebar */}
         <button
           type="button"
           onClick={onOpenSideMenu}

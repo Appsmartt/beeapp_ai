@@ -1,8 +1,9 @@
 'use client';
 
 import Link from 'next/link';
-import { Bot, Menu, X } from 'lucide-react';
+import { Menu, X } from 'lucide-react';
 import { useState } from 'react';
+import BeeAppLogo from '@/components/BeeAppLogo';
 
 export default function LandingNavbar() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -11,11 +12,8 @@ export default function LandingNavbar() {
     <header className="sticky top-0 z-50 bg-white/90 backdrop-blur-md border-b border-neutral-200">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
         {/* Brand Logo */}
-        <Link href="/" className="flex items-center gap-2 text-brand-primary font-bold text-xl tracking-tight">
-          <div className="w-9 h-9 rounded-xl bg-brand-primary/10 flex items-center justify-center text-brand-primary">
-            <Bot className="w-5 h-5" />
-          </div>
-          <span className="text-neutral-900 font-semibold">BeeApp <span className="text-brand-primary">AI</span></span>
+        <Link href="/" className="flex items-center">
+          <BeeAppLogo height={34} />
         </Link>
 
         {/* Desktop Navigation */}

@@ -35,12 +35,9 @@ export default function NotesModule() {
   };
 
   return (
-    <div className="bg-white min-h-full flex flex-col lg:flex-row pb-24 lg:pb-0">
-      
-      {/* LEFT COLUMN: Notes List or Grid */}
-      <div className={`flex-1 lg:w-96 lg:flex-none lg:border-r lg:border-neutral-200 flex flex-col ${
-        selectedNote ? 'hidden lg:flex' : 'flex'
-      }`}>
+    <div className="bg-white min-h-full flex flex-row relative">
+      {/* LEFT COLUMN: Notes List or Grid (440px wide) */}
+      <div className="w-[440px] shrink-0 border-r border-neutral-200 flex flex-col">
         {/* Header & Controls */}
         <div className="p-4 border-b border-neutral-100 flex items-center justify-between">
           <h1 className="font-semibold text-base text-neutral-900">Mis Notas</h1>
@@ -90,7 +87,6 @@ export default function NotesModule() {
               <p className="text-xs font-normal">No tienes notas guardadas</p>
             </div>
           ) : viewMode === 'list' ? (
-            /* LIST VIEW (Flat Rows) */
             <div className="divide-y divide-neutral-100 border-t border-b border-neutral-100">
               {notes.map((note) => (
                 <div
@@ -120,8 +116,7 @@ export default function NotesModule() {
               ))}
             </div>
           ) : (
-            /* GRID VIEW (Responsive Columns) */
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-2 xl:grid-cols-3 gap-3">
+            <div className="grid grid-cols-2 gap-3">
               {notes.map((note) => (
                 <div
                   key={note.id}
@@ -151,8 +146,8 @@ export default function NotesModule() {
         </div>
       </div>
 
-      {/* RIGHT COLUMN: Note Editor */}
-      <div className={`flex-1 flex-col ${selectedNote ? 'flex' : 'hidden lg:flex'}`}>
+      {/* RIGHT COLUMN: Note Editor (flex-1) */}
+      <div className="flex-1 min-w-0 flex flex-col">
         {selectedNote ? (
           <NoteEdit
             note={selectedNote}
@@ -161,18 +156,17 @@ export default function NotesModule() {
             onDelete={handleDeleteNote}
           />
         ) : (
-          <div className="hidden lg:flex flex-1 items-center justify-center p-12 text-center text-neutral-400 bg-neutral-50/50">
+          <div className="flex-1 flex items-center justify-center p-12 text-center text-neutral-400 bg-neutral-50/50">
             <div className="space-y-3 max-w-xs">
               <FileText className="w-12 h-12 mx-auto text-neutral-300" />
               <h3 className="font-semibold text-sm text-neutral-700">Ninguna nota seleccionada</h3>
               <p className="text-xs text-neutral-500 font-normal">
-                Selecciona o crea una nota para escribir y editar su contenido a la derecha.
+                Selecciona o crea una nota para escribir y editar su contenido.
               </p>
             </div>
           </div>
         )}
       </div>
-
     </div>
   );
 }

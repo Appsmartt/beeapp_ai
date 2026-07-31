@@ -67,13 +67,9 @@ export default function MailModule() {
   const unreadCount = emails.filter((e) => e.unread).length;
 
   return (
-    <div className="bg-white min-h-full flex flex-col lg:flex-row pb-24 lg:pb-0">
-      
-      {/* LEFT COLUMN: Mail List (Full width on mobile/tablet if no mail selected, w-96 on desktop lg:) */}
-      <div className={`flex-1 lg:w-96 lg:flex-none lg:border-r lg:border-neutral-200 flex flex-col ${
-        selectedEmail ? 'hidden lg:flex' : 'flex'
-      }`}>
-        
+    <div className="bg-white min-h-full flex flex-row relative">
+      {/* LEFT COLUMN: Mail List (440px wide) */}
+      <div className="w-[440px] shrink-0 border-r border-neutral-200 flex flex-col">
         {/* Module Header & Account Selector */}
         <div className="p-4 border-b border-neutral-100 space-y-3">
           <div className="flex items-center justify-between">
@@ -205,12 +201,10 @@ export default function MailModule() {
                   item.unread ? 'bg-brand-primary/5' : ''
                 } ${selectedEmail?.id === item.id ? 'bg-brand-primary/10 border-l-4 border-brand-primary' : ''}`}
               >
-                {/* Avatar */}
                 <div className="w-10 h-10 rounded-full bg-brand-primary/10 text-brand-primary font-bold text-xs flex items-center justify-center shrink-0">
                   {item.sender.slice(0, 2).toUpperCase()}
                 </div>
 
-                {/* Email Summary */}
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between gap-2">
                     <span className={`text-xs truncate ${item.unread ? 'font-semibold text-neutral-900' : 'font-normal text-neutral-800'}`}>
@@ -229,7 +223,6 @@ export default function MailModule() {
                     {item.preview}
                   </p>
 
-                  {/* Badges row */}
                   <div className="flex items-center gap-2 mt-1.5">
                     {item.hasAttachment && (
                       <span className="inline-flex items-center gap-1 text-[10px] text-neutral-500 font-normal bg-neutral-100 px-2 py-0.5 rounded-full">
@@ -239,7 +232,6 @@ export default function MailModule() {
                   </div>
                 </div>
 
-                {/* Star Icon Button */}
                 <button
                   type="button"
                   onClick={(e) => {
@@ -256,8 +248,8 @@ export default function MailModule() {
         </div>
       </div>
 
-      {/* RIGHT COLUMN: Mail Detail (Visible on desktop always, visible on mobile/tablet if email selected) */}
-      <div className={`flex-1 flex-col ${selectedEmail ? 'flex' : 'hidden lg:flex'}`}>
+      {/* RIGHT COLUMN: Mail Detail (flex-1) */}
+      <div className="flex-1 min-w-0 flex flex-col">
         {selectedEmail ? (
           <MailDetail
             email={selectedEmail}
@@ -266,12 +258,12 @@ export default function MailModule() {
             onDelete={handleDelete}
           />
         ) : (
-          <div className="hidden lg:flex flex-1 items-center justify-center p-12 text-center text-neutral-400 bg-neutral-50/50">
+          <div className="flex-1 flex items-center justify-center p-12 text-center text-neutral-400 bg-neutral-50/50">
             <div className="space-y-3 max-w-xs">
               <Mail className="w-12 h-12 mx-auto text-neutral-300" />
               <h3 className="font-semibold text-sm text-neutral-700">Ningún correo seleccionado</h3>
               <p className="text-xs text-neutral-500 font-normal">
-                Selecciona un correo de la lista de la izquierda para leer su contenido.
+                Selecciona un correo de la lista para leer su contenido.
               </p>
             </div>
           </div>
@@ -284,7 +276,6 @@ export default function MailModule() {
         onClose={() => setComposeOpen(false)}
         onSend={handleSendCompose}
       />
-
     </div>
   );
 }

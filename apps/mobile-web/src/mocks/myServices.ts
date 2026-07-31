@@ -110,3 +110,17 @@ export const MOCK_BUSINESSES: BusinessItem[] = [
     ],
   },
 ];
+
+export function formatPrice(price: string | number): string {
+  if (typeof price === 'number') return `$${price.toFixed(2)}`;
+  return price.startsWith('$') ? price : `$${price}`;
+}
+
+export function getMyItems(): (BusinessProduct | BusinessService)[] {
+  const items: (BusinessProduct | BusinessService)[] = [];
+  for (const biz of MOCK_BUSINESSES) {
+    if (biz.products) items.push(...biz.products);
+    if (biz.services) items.push(...biz.services);
+  }
+  return items;
+}

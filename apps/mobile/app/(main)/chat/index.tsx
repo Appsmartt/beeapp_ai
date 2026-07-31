@@ -4,7 +4,7 @@ import ScreenSafeArea from '../../../src/components/layout/ScreenSafeArea';
 import { useModuleNav } from '../../../src/components/embedded/EmbeddedNavContext';
 import { useNavigation } from 'expo-router';
 import { colors } from '@beeapp/design-system';
-import { SquarePen } from 'lucide-react-native';
+import { SquarePen, UserPlus } from 'lucide-react-native';
 import FloatingTabBar from '../../../src/components/FloatingTabBar';
 import ChatListView from '../../../src/components/chat/ChatListView';
 import StatusCirclesRow from '../../../src/components/chat/StatusCirclesRow';
@@ -12,9 +12,9 @@ import StatusViewer from '../../../src/components/chat/StatusViewer';
 import CreateStatusModal from '../../../src/components/chat/CreateStatusModal';
 import ChatTabs, { ChatTab } from '../../../src/components/chat/ChatTabs';
 import ChatCategoryChips from '../../../src/components/chat/ChatCategoryChips';
-import CreateCategoryModal from '../../../src/components/chat/CreateCategoryModal';
-import AssignCategoryModal from '../../../src/components/chat/AssignCategoryModal';
+import ChatCategoryModals from '../../../src/components/chat/ChatCategoryModals';
 import ChatOptionsSheet from '../../../src/components/chat/ChatOptionsSheet';
+import ContactsListView from '../../../src/components/contacts/ContactsListView';
 import CommunitiesTabView from '../../../src/components/chat/CommunitiesTabView';
 import CreateCommunityModal from '../../../src/components/chat/CreateCommunityModal';
 import ChatCreateMenu from '../../../src/components/chat/ChatCreateMenu';
@@ -34,8 +34,10 @@ export default function ChatListScreen() {
   const [pinAction, setPinAction] = useState<{ type: 'open' | 'add' | 'remove'; chat: typeof MOCK_CHATS[0] } | null>(null);
   const [, setTick] = useState(0);
 
-  // Chats or communities
+  // Chats, communities or contacts
   const [activeTab, setActiveTab] = useState<ChatTab>('chats');
+  const [creatingContact, setCreatingContact] = useState(false);
+  const isContactsTab = activeTab === 'contacts';
 
   // Create menu of the header + the communities it can open
   const [createMenuOpen, setCreateMenuOpen] = useState(false);
@@ -145,17 +147,24 @@ export default function ChatListScreen() {
           <Text style={styles.title}>Chats</Text>
           <TouchableOpacity
             style={styles.newChatBtn}
-            onPress={() => setCreateMenuOpen(true)}
+            onPress={() => (isContactsTab ? setCreatingContact(true) : setCreateMenuOpen(true))}
             activeOpacity={0.7}
-            accessibilityLabel="Crear"
+            accessibilityLabel={isContactsTab ? 'Crear contacto' : 'Crear'}
           >
-            <SquarePen size={20} color={colors.neutral.text} />
+            {isContactsTab
+              ? <UserPlus size={20} color={colors.neutral.text} />
+              : <SquarePen size={20} color={colors.neutral.text} />}
           </TouchableOpacity>
         </View>
 
         <ChatTabs activeTab={activeTab} onChange={setActiveTab} />
 
-        {activeTab === 'communities' ? (
+        {isContactsTab ? (
+          <ContactsListView
+            creating={creatingContact}
+            onCloseCreate={() => setCreatingContact(false)}
+          />
+        ) : activeTab === 'communities' ? (
           <CommunitiesTabView
             communities={communities}
             onOpenCommunity={(community) =>
@@ -258,28 +267,23 @@ export default function ChatListScreen() {
         onClose={() => setMenuChat(null)}
       />
 
-      <CreateCategoryModal
-        visible={creatingCategory}
+      <ChatCategoryModals
+        categories={categories}
+        creating={creatingCategory}
         onCreate={(category) => {
           const created = addCategory(category);
           setCategories([...MOCK_CATEGORIES]);
           setActiveCategoryId(created.id);
           setCreatingCategory(false);
         }}
-        onClose={() => setCreatingCategory(false)}
-      />
-
-      <AssignCategoryModal
-        visible={!!assigningChat}
-        chatName={assigningChat?.name}
-        categories={categories}
-        selectedIds={assigningChat?.categoryIds ?? []}
-        onSave={(categoryIds) => {
+        onCloseCreate={() => setCreatingCategory(false)}
+        assigningChat={assigningChat}
+        onSaveAssign={(categoryIds) => {
           if (assigningChat) setChatCategories(assigningChat.id, categoryIds);
           setChats([...MOCK_CHATS]);
           setAssigningChat(null);
         }}
-        onClose={() => setAssigningChat(null)}
+        onCloseAssign={() => setAssigningChat(null)}
       />
 
     </ScreenSafeArea>

@@ -26,13 +26,24 @@ export default function CreateContactModal({ isOpen, onClose, onCreate }: Create
     e.preventDefault();
     if (!firstName.trim()) return;
 
+    const fullName = `${firstName} ${lastName}`.trim();
+    const initials = fullName
+      .split(/\s+/)
+      .slice(0, 2)
+      .map((w) => w[0]?.toUpperCase() ?? '')
+      .join('');
+
     const newC: ContactItem = {
       id: `ct-${Date.now()}`,
-      name: `${firstName} ${lastName}`.trim(),
-      role: role || 'Contacto',
-      company: company || 'Independiente',
+      name: fullName,
+      profession: role.trim() || 'Sin cargo',
+      company: company.trim() || undefined,
       phone: `${country.dialCode} ${phone}`,
-      email,
+      email: email.trim(),
+      activity: company.trim() || 'Contacto personal',
+      interests: [],
+      initials,
+      color: '#F3E8FF',
       verified: false,
       category: 'my_contacts',
     };
@@ -45,13 +56,12 @@ export default function CreateContactModal({ isOpen, onClose, onCreate }: Create
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center max-w-[430px] mx-auto">
       <div className="fixed inset-0 bg-neutral-900/40 backdrop-blur-xs" onClick={onClose} />
       <div className="relative w-full bg-white rounded-t-3xl sm:rounded-3xl shadow-2xl z-50 p-5 space-y-4 max-h-[90vh] overflow-y-auto">
-        
         <div className="flex items-center justify-between border-b border-neutral-100 pb-3">
           <div className="flex items-center gap-2">
             <UserPlus className="w-5 h-5 text-brand-primary" />
             <h2 className="font-semibold text-sm text-neutral-900">Nuevo Contacto</h2>
           </div>
-          <button onClick={onClose} className="p-1 text-neutral-400 hover:text-neutral-900">
+          <button type="button" onClick={onClose} className="p-1 text-neutral-400 hover:text-neutral-900">
             <X className="w-5 h-5" />
           </button>
         </div>
@@ -63,7 +73,7 @@ export default function CreateContactModal({ isOpen, onClose, onCreate }: Create
               <input
                 type="text"
                 required
-                placeholder="Juan"
+                placeholder="Nombre"
                 value={firstName}
                 onChange={(e) => setFirstName(e.target.value)}
                 className="w-full h-10 px-3 bg-neutral-50 border border-neutral-200 rounded-xl text-xs outline-none focus:border-brand-primary"
@@ -73,7 +83,7 @@ export default function CreateContactModal({ isOpen, onClose, onCreate }: Create
               <label className="text-[11px] font-medium text-neutral-700">Apellido</label>
               <input
                 type="text"
-                placeholder="Pérez"
+                placeholder="Apellido"
                 value={lastName}
                 onChange={(e) => setLastName(e.target.value)}
                 className="w-full h-10 px-3 bg-neutral-50 border border-neutral-200 rounded-xl text-xs outline-none focus:border-brand-primary"
@@ -87,7 +97,7 @@ export default function CreateContactModal({ isOpen, onClose, onCreate }: Create
               <CountrySelector selectedCountry={country} onSelectCountry={setCountry} />
               <input
                 type="tel"
-                placeholder="300 123 4567"
+                placeholder="Teléfono"
                 value={phone}
                 onChange={(e) => setPhone(e.target.value)}
                 className="flex-1 h-12 px-3 bg-white border border-l-0 border-neutral-300 rounded-r-xl text-xs outline-none focus:border-brand-primary"
@@ -99,7 +109,7 @@ export default function CreateContactModal({ isOpen, onClose, onCreate }: Create
             <label className="text-[11px] font-medium text-neutral-700">Correo electrónico</label>
             <input
               type="email"
-              placeholder="juan@empresa.com"
+              placeholder="Correo electrónico"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               className="w-full h-10 px-3 bg-neutral-50 border border-neutral-200 rounded-xl text-xs outline-none focus:border-brand-primary"
@@ -111,7 +121,7 @@ export default function CreateContactModal({ isOpen, onClose, onCreate }: Create
               <label className="text-[11px] font-medium text-neutral-700">Empresa</label>
               <input
                 type="text"
-                placeholder="TechCorp"
+                placeholder="Empresa"
                 value={company}
                 onChange={(e) => setCompany(e.target.value)}
                 className="w-full h-10 px-3 bg-neutral-50 border border-neutral-200 rounded-xl text-xs outline-none focus:border-brand-primary"
@@ -121,7 +131,7 @@ export default function CreateContactModal({ isOpen, onClose, onCreate }: Create
               <label className="text-[11px] font-medium text-neutral-700">Cargo</label>
               <input
                 type="text"
-                placeholder="Director"
+                placeholder="Cargo"
                 value={role}
                 onChange={(e) => setRole(e.target.value)}
                 className="w-full h-10 px-3 bg-neutral-50 border border-neutral-200 rounded-xl text-xs outline-none focus:border-brand-primary"
@@ -129,14 +139,23 @@ export default function CreateContactModal({ isOpen, onClose, onCreate }: Create
             </div>
           </div>
 
-          <button
-            type="submit"
-            className="w-full h-11 rounded-xl bg-brand-primary text-white text-xs font-semibold hover:bg-brand-dark transition-colors shadow-sm mt-3"
-          >
-            Guardar contacto
-          </button>
+          <div className="flex items-center gap-3 pt-2">
+            <button
+              type="button"
+              onClick={onClose}
+              className="flex-1 h-11 rounded-xl border border-neutral-300 text-xs font-semibold text-neutral-700 hover:bg-neutral-50"
+            >
+              Cancelar
+            </button>
+            <button
+              type="submit"
+              disabled={!firstName.trim()}
+              className="flex-1 h-11 rounded-xl bg-brand-primary text-white text-xs font-semibold hover:bg-brand-dark transition-colors shadow-sm disabled:opacity-50"
+            >
+              Guardar
+            </button>
+          </div>
         </form>
-
       </div>
     </div>
   );

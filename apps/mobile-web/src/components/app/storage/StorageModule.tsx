@@ -41,16 +41,11 @@ export default function StorageModule() {
   });
 
   return (
-    <div className="bg-white min-h-full flex flex-col lg:flex-row pb-24 lg:pb-0">
-      
-      {/* LEFT COLUMN: Storage File List or Grid */}
-      <div className={`flex-1 lg:w-96 lg:flex-none lg:border-r lg:border-neutral-200 flex flex-col ${
-        selectedItem ? 'hidden lg:flex' : 'flex'
-      }`}>
+    <div className="bg-white min-h-full flex flex-row relative">
+      {/* LEFT COLUMN: Storage File List or Grid (440px wide) */}
+      <div className="w-[440px] shrink-0 border-r border-neutral-200 flex flex-col">
         {/* Header & Controls */}
         <div className="p-4 border-b border-neutral-100 space-y-3">
-          
-          {/* Title & View Toggle */}
           <div className="flex items-center justify-between">
             <h1 className="font-semibold text-base text-neutral-900">Almacenamiento</h1>
 
@@ -128,7 +123,6 @@ export default function StorageModule() {
               );
             })}
           </div>
-
         </div>
 
         {/* Content Area */}
@@ -139,7 +133,6 @@ export default function StorageModule() {
               <p className="text-xs font-normal">No hay archivos en esta categoría</p>
             </div>
           ) : viewMode === 'list' ? (
-            /* LIST VIEW (Flat Rows) */
             <div className="divide-y divide-neutral-100 border-t border-b border-neutral-100">
               {filteredItems.map((item) => (
                 <div
@@ -183,8 +176,7 @@ export default function StorageModule() {
               ))}
             </div>
           ) : (
-            /* GRID VIEW (Responsive Columns) */
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-2 xl:grid-cols-3 gap-3">
+            <div className="grid grid-cols-2 gap-3">
               {filteredItems.map((item) => (
                 <div
                   key={item.id}
@@ -215,23 +207,22 @@ export default function StorageModule() {
         </div>
       </div>
 
-      {/* RIGHT COLUMN: Storage File Preview */}
-      <div className={`flex-1 flex-col ${selectedItem ? 'flex' : 'hidden lg:flex'}`}>
+      {/* RIGHT COLUMN: Storage File Preview (flex-1) */}
+      <div className="flex-1 min-w-0 flex flex-col">
         {selectedItem ? (
           <StoragePreview item={selectedItem} onBack={() => setSelectedItem(null)} />
         ) : (
-          <div className="hidden lg:flex flex-1 items-center justify-center p-12 text-center text-neutral-400 bg-neutral-50/50">
+          <div className="flex-1 flex items-center justify-center p-12 text-center text-neutral-400 bg-neutral-50/50">
             <div className="space-y-3 max-w-xs">
               <FolderOpen className="w-12 h-12 mx-auto text-neutral-300" />
               <h3 className="font-semibold text-sm text-neutral-700">Ningún archivo seleccionado</h3>
               <p className="text-xs text-neutral-500 font-normal">
-                Selecciona un archivo de la lista de la izquierda para ver su previsualización y descargarlo.
+                Selecciona un archivo de la lista para ver su previsualización.
               </p>
             </div>
           </div>
         )}
       </div>
-
     </div>
   );
 }

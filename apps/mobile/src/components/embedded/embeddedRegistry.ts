@@ -18,7 +18,8 @@ import StorageSignScreen from '../../../app/(main)/storage/sign';
 import CalendarScreen from '../../../app/(main)/calendar/index';
 import CalendarDetailScreen from '../../../app/(main)/calendar/detail';
 import CalendarEditScreen from '../../../app/(main)/calendar/edit';
-import ContactsScreen from '../../../app/(main)/contacts/index';
+// Contactos ya no es un módulo: solo su detalle sigue registrado, porque se
+// abre desde la pestaña Contactos del módulo de Chat
 import ContactDetailScreen from '../../../app/(main)/contacts/detail';
 import AllModulesOverview from '../home/AllModulesOverview';
 import { OVERVIEW_MODULE_ID } from '../home/homeModules';
@@ -53,7 +54,6 @@ export const EMBEDDED_SCREENS: Record<string, ComponentType<any>> = {
   '/(main)/calendar': CalendarScreen,
   '/(main)/calendar/detail': CalendarDetailScreen,
   '/(main)/calendar/edit': CalendarEditScreen,
-  '/(main)/contacts': ContactsScreen,
   '/(main)/contacts/detail': ContactDetailScreen,
 };
 
@@ -62,7 +62,6 @@ export const MODULE_ROOTS: Record<string, string> = {
   [OVERVIEW_MODULE_ID]: OVERVIEW_PATH,
   mail: '/(main)/mail',
   notes: '/(main)/notes',
-  contacts: '/(main)/contacts',
   files: '/(main)/storage',
   calendar: '/(main)/calendar',
   chat: '/(main)/chat',

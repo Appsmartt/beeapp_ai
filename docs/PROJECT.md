@@ -163,13 +163,13 @@ beeapp_ai/
 | **Onboarding** `onboarding/` | `index` | Flujo guiado de **3 pasos** (datos personales, tono del asistente y beneficios/permisos) que se ejecuta tras configurar el bloqueo de la app. **No pide información de empresa ni de negocio**: eso se gestiona después desde BeeServices |
 | **Home** `(main)/index` | `index` | Pantalla central "todo en uno" con exactamente tres bloques: (1) barra superior — buscador con filtro por tipo de contenido (disparador **solo ícono**, desplegable en overlay) + botón de menú lateral; (2) fila de **chips**: primero **"Todas"** (fijo, no reordenable) y después **todos los módulos** —ninguno se puede ocultar, la personalización solo cambia su orden—, todos **solo ícono** salvo el seleccionado, + engranaje de personalización, justo debajo de la barra superior; (3) lo que muestra el chip seleccionado, **renderizado embebido** debajo de ellos: la **vista general "Todas"** (por defecto al abrir la app) o el módulo elegido |
 | **BeeServices** `(main)/my-services/` | `index`, `business-detail`, `product-detail`, `service-detail` | Sección accesible desde el menú lateral donde el usuario gestiona sus **negocios** y sus respectivos catálogos de productos y servicios. La pantalla principal (`index`) lista los negocios. Al tocar un negocio, se navega a `business-detail` para visualizar la información del negocio (`BusinessHeader`), editarlo o eliminarlo, filtrar el catálogo (Todos / Productos / Servicios) y ver las ofertas (`CatalogItem`). Un botón flotante `+` abre modales fullscreen (`CreateProductModal` y `CreateServiceModal`) para añadir ítems con imágenes y características dinámicas. Tocar un artículo del catálogo navega a `product-detail` o `service-detail` para ver su ficha completa, editarlo o eliminarlo. |
-| **Chat** `(main)/chat/` | `index`, `conversation`, `chat-profile`, `community`, `community-profile`, `new`, `call`, `ai-settings` | Dos pestañas — **Chats** y **Comunidades** — con la **fila de estados** y los **chips de categoría** arriba de la lista y el **chat fijado del asistente de IA**, conversación con burbujas de mensajes, **perfil del chat**, nuevo chat, llamada y configuración del asistente. Los chats (personales, grupales y de la IA) se pueden proteger con el PIN de 4 dígitos. En la lista, los protegidos ocultan el preview del último mensaje y muestran 'Chat protegido'. Abrir uno pide el PIN vía PinLockModal. Se activa/desactiva desde el menú contextual del chat. |
+| **Chat** `(main)/chat/` | `index`, `conversation`, `chat-profile`, `community`, `community-profile`, `new`, `call`, `ai-settings` | Tres pestañas — **Chats**, **Comunidades** y **Contactos** — con la **fila de estados** y los **chips de categoría** arriba de la lista y el **chat fijado del asistente de IA**, conversación con burbujas de mensajes, **perfil del chat**, nuevo chat, llamada y configuración del asistente. La pestaña *Contactos* renderiza `ContactsListView` (mis contactos, descubrir red y registro de llamadas) y el botón de la cabecera cambia de `SquarePen` a `UserPlus` para crear un contacto en vez de abrir el menú de crear chat. Los chats (personales, grupales y de la IA) se pueden proteger con el PIN de 4 dígitos. En la lista, los protegidos ocultan el preview del último mensaje y muestran 'Chat protegido'. Abrir uno pide el PIN vía PinLockModal. Se activa/desactiva desde el menú contextual del chat. |
 | **Agenda** `(main)/calendar/` | `index`, `detail`, `edit` | Vista compacta por defecto: tira horizontal de la semana (día seleccionado y hoy resaltados, punto en los días con eventos) con flechas laterales para navegar, y debajo la lista de eventos del día. El selector Día/Sem/Mes cambia el paso de las flechas y añade la planificación por horas (Día) o la cuadrícula mensual (Mes). Incluye filtros, creación de reunión/evento, detalle con enlace de videollamada y edición con invitados. La ruta interna sigue siendo `calendar` |
-| **Contacts** `(main)/contacts/` | `index`, `detail` | Mis contactos, descubrir (red empresarial), registro de llamadas y detalle de contacto, más el botón **crear contacto** de la cabecera |
+| **Contacts** `(main)/contacts/` | `index`, `detail` | **Ya no es un módulo del Home**: no tiene chip ni raíz en `MODULE_ROOTS`. La lista (mis contactos, descubrir red y registro de llamadas) vive como **pestaña Contactos dentro de Chat**, y ambas la comparten vía `ContactsListView`. `detail` sigue registrado en `EMBEDDED_SCREENS` para que la ficha del contacto se abra embebida desde esa pestaña; `index` se conserva como ruta pero ya no se enlaza desde el Home |
 | **Mail** `(main)/mail/` | `index`, `detail`, `compose` | Bandeja con multi-cuenta, carpetas con contadores, búsqueda, acciones swipe (leer/archivar/eliminar), detalle y redacción |
 | **Notes** `(main)/notes/` | `index`, `edit` | Lista de notas (el candado indica cuáles están protegidas) y editor, donde se activa o retira la **protección con PIN** de esa nota; abrir una protegida pide el PIN |
 | **Storage** `(main)/storage/` | `index`, `preview`, `sign` | Explorador de archivos y carpetas (lista de una columna, filtros, ordenación, breadcrumbs), vista previa y flujo de firma de documentos; archivos y carpetas pueden **protegerse con el PIN** (candado visible y PIN al abrirlos) |
-| **Profile** `(main)/profile/` | `index`, `edit`, `subscription-hub`, `subscription`, `verification`, `integrations`, `security` | Se accede desde el **menú lateral del Home** (no hay pestaña Perfil). Perfil → Editar: **solo datos personales** — foto, nombre, correo electrónico (con validación de formato) y teléfono (con selector de indicativo de país). No hay campos de empresa, cargo ni tipo de oferta: **toda la información de negocio vive exclusivamente en BeeServices**. **Suscripción y Verificación** (`subscription-hub`, con dos opciones: el plan en `subscription` y **Bee Verify** en `verification`), integraciones y **Seguridad** (gestión del PIN de protección). `index` quedó huérfano — el drawer lo reemplaza |
+| **Profile** `(main)/profile/` | `index`, `edit`, `subscription-hub`, `subscription`, `verification`, `integrations`, `devices`, `security` | Se accede desde el **menú lateral del Home** (no hay pestaña Perfil). **Dispositivos** (`devices`, `DevicesScreen`) vincula **BeeApp Web**: un botón grande "Escanear código QR" abre un simulacro de cámara (rectángulo oscuro con marco de escaneo y el texto "Apunta la cámara al código QR de BeeApp Web" — **no abre la cámara real**), y debajo lista los **dispositivos activos** (mock `src/mocks/devices.ts`: "Chrome - Windows" y "Safari - macOS", con su última conexión) con "Cerrar sesión" en rojo por fila y "Cerrar todas las sesiones" al final; ambos piden confirmación con `Alert` y solo quitan el dispositivo de la lista en memoria. Perfil → Editar: **solo datos personales** — foto, nombre, correo electrónico (con validación de formato) y teléfono (con selector de indicativo de país). No hay campos de empresa, cargo ni tipo de oferta: **toda la información de negocio vive exclusivamente en BeeServices**. **Suscripción y Verificación** (`subscription-hub`, con dos opciones: el plan en `subscription` y **Bee Verify** en `verification`), integraciones y **Seguridad** (gestión del PIN de protección). `index` quedó huérfano — el drawer lo reemplaza |
 | **Explore** `(main)/explore` | `explore` | Catálogo de módulos (absorbido por los chips de módulos del Home; la ruta se conserva pero ya no se enlaza) |
 | **Notifications** `(main)/notifications` | `notifications` | Centro de notificaciones del usuario |
 
@@ -181,13 +181,13 @@ beeapp_ai/
 
 **Listas uniformes estilo Correos:** todos los módulos presentan su contenido en una **lista de una sola columna con filas planas** — sin tarjetas por ítem, sin bordes ni sombras — siguiendo la anatomía del módulo de Correos: avatar o ícono redondo a la izquierda, título en negrita con insignias en línea, subtítulo gris, fecha/hora a la derecha, indicadores sutiles (no leído, candado, estrella, firmado) y una línea de 1 px entre filas.
 
-**Chips del Home:** la fila muestra **siempre todos los módulos** (Todas, Correos, Notas, Contactos, Almacenamiento, Agenda y Chat): ninguno se activa ni se desactiva, y `HomeCustomizeModal` **solo reordena** arrastrando. Los chips son grandes y cómodos de tocar — 46 px de diámetro con el ícono a 28 px; el seleccionado crece a lo ancho para mostrar su nombre sin cambiar de altura. Si todos caben en el ancho de la pantalla se reparten con `space-evenly` sin scroll; si no caben (por ejemplo con el chip expandido) la fila pasa a `ScrollView` horizontal, que nunca deja hueco al final.
+**Chips del Home:** la fila muestra **siempre los seis módulos**, en este orden por defecto: **Todas, Chat, Correos, Notas, Almacenamiento y Agenda** — Chat es el primer módulo después de "Todas", y **Contactos ya no es un módulo** (es una pestaña dentro de Chat). Ninguno se activa ni se desactiva, y `HomeCustomizeModal` **solo reordena** arrastrando los cinco reordenables ("Todas" va siempre primero). Los chips son grandes y cómodos de tocar — 46 px de diámetro con el ícono a 28 px; el seleccionado crece a lo ancho para mostrar su nombre sin cambiar de altura. Si todos caben en el ancho de la pantalla se reparten con `space-evenly` sin scroll; si no caben (por ejemplo con el chip expandido) la fila pasa a `ScrollView` horizontal, que nunca deja hueco al final.
 
 **Vista lista o cuadrícula (Notas y Almacenamiento):** ambos módulos tienen en su cabecera un **conmutador de vista** (`ViewModeToggle`, íconos `List` y `Grid2x2`, el activo en morado de marca). La **lista es la vista por defecto** y es la fila plana descrita arriba. La **cuadrícula es adaptativa**: calcula las columnas con `useWindowDimensions` — **2 columnas** por debajo de 700 px de ancho y **3 columnas** de ahí en adelante (tablet o web). En Notas cada tarjeta tiene alto fijo, borde fino, título en 600, vista previa gris y fecha abajo a la derecha; las notas protegidas muestran "Nota protegida" con candado y sin contenido. En Almacenamiento cada tarjeta lleva el ícono grande del tipo de archivo arriba, el nombre a una línea, el tamaño o el número de elementos, y los indicadores de firmado y protegido. La **tarjeta de espacio disponible y los chips de filtro se quedan arriba** en cualquiera de las dos vistas. El modo elegido vive en `useState` y no persiste entre sesiones.
 
 **Notas protegidas:** una nota protegida con el PIN **oculta su título y su vista previa** en la lista: muestra un candado en el círculo del avatar, el texto genérico "Nota protegida" y "Desbloquea para ver el contenido" (la fecha sí se conserva). Lo mismo ocurre en la sección de Notas de la vista "Todas". El contenido solo aparece tras desbloquear con el PIN (`PinLockModal`), cuyo funcionamiento no cambia.
 
-**Crear contacto:** la cabecera del módulo de Contactos tiene un botón `UserPlus` que abre `CreateContactModal`, un bottom sheet con el formulario básico: nombre, apellido, teléfono con **selector de indicativo de país** (`CountryCodeModal`, con buscador sobre la lista mundial de `mocks/countries.ts`), correo, empresa y cargo. Los campos son filas planas con ícono a la izquierda, sin contenedores. "Guardar" agrega el contacto al principio de `MY_CONTACTS` (mock en memoria) y salta a la pestaña *Mis contactos*; "Cancelar" cierra sin hacer nada.
+**Crear contacto:** en la pestaña *Contactos* del módulo de Chat la cabecera muestra un botón `UserPlus` que abre `CreateContactModal`, un bottom sheet con el formulario básico: nombre, apellido, teléfono con **selector de indicativo de país** (`CountryCodeModal`, con buscador sobre la lista mundial de `mocks/countries.ts`), correo, empresa y cargo. Los campos son filas planas con ícono a la izquierda, sin contenedores. "Guardar" agrega el contacto al principio de `MY_CONTACTS` (mock en memoria) y salta a la pestaña *Mis contactos*; "Cancelar" cierra sin hacer nada.
 
 **Pestañas del módulo de Chat:** bajo el título "Chats" hay dos pestañas de ancho completo con subrayado (`ChatTabs`): la activa va en morado de marca con línea inferior y peso 600, la inactiva en gris y peso 400. **Chats** muestra los estados, los chips de categoría y la lista de conversaciones; **Comunidades** muestra la lista de comunidades. El cambio de pestaña es simple estado local, sin librerías de tabs.
 
@@ -237,59 +237,25 @@ El descubrimiento de productos y servicios **de otros usuarios** no vive aquí: 
 
 **Safe area (barra de estado y notch):** ninguna pantalla se monta debajo de la barra de estado. `SafeAreaProvider` envuelve toda la app en `app/_layout.tsx` y el componente compartido `layout/ScreenSafeArea` (que sustituye al `SafeAreaView` de React Native, inoperante en Android) aplica como `paddingTop` el valor real de `useSafeAreaInsets().top`. El Home aplica el inset en su contenedor y el drawer lateral en su panel, ambos con el valor dinámico; nunca se usan paddings fijos por plataforma. Las pantallas de módulo **embebidas** en el Home reciben inset 0, porque el Home ya empujó el contenido debajo de la barra de estado.
 
-**Bloqueo de la Aplicación (App Lock):** Sistema obligatorio e independiente de seguridad que protege el acceso a BeeApp. El flujo de autenticación inicial es: **Login (teléfono) → OTP → App Lock Setup (configuración) → Onboarding (3 pasos) → Home**.
+**Bloqueo de la Aplicación (App Lock):** Sistema obligatorio e independiente de seguridad que protege el acceso a BeeApp **en la app móvil**. El flujo de autenticación inicial es: **Login (teléfono) → OTP → App Lock Setup (configuración) → Onboarding (3 pasos) → Home**. **No aplica en la web**: allí la sesión se autoriza escaneando el código QR desde el móvil y `/app` entra directo al Home.
 - **Métodos de bloqueo**: El usuario puede configurar **Huella dactilar** (ícono `Fingerprint`), **Face ID** (ícono `ScanFace`) o **Código de acceso** (PIN de 6 dígitos mediante `AppLockPinPad.tsx`).
 - **Overlay global (`AppLockScreen.tsx`)**: Se monta en `app/_layout.tsx`. Escucha el estado de la aplicación (`AppState`). Al regresar de segundo plano (background → active), la app se bloquea de forma inmediata mostrando un overlay blanco con el logotipo de BeeApp y el método configurado. Si se falla la biometría 3 veces, el sistema cae automáticamente al PIN de 6 dígitos como fallback.
-- **Independencia de PINs**: El bloqueo de app y el PIN de 4 dígitos para archivos/notas/chats (`pinStore.ts`) son sistemas completamente separados.
-- **Sección de seguridad**: En Perfil → Seguridad, se integra la sección "Bloqueo de app" en la parte superior, permitiendo cambiar el método de bloqueo (con las mismas 3 opciones) y modificar el código de acceso de 6 dígitos (validando primero el PIN actual). La sección de PIN de 4 dígitos pasa a denominarse "PIN de archivos y chats".
-
-**Verificación de cuentas (Bee Verify):** servicio con el que el equipo de BeeApp revisa la identidad de una cuenta y le otorga la **insignia azul de verificado**. En la app se gestiona desde el menú lateral → **Suscripción y Verificación** (`profile/subscription-hub`), que resume el plan y el estado de verificación y ofrece dos caminos: *Mi plan* (pantalla de planes existente) y *Verificación* (`profile/verification`), donde se explica qué es Bee Verify, para qué sirve, cómo se verá la insignia junto al nombre, los requisitos (mock, con estado cumplido/pendiente) y el botón "Solicitar verificación" — **visual, sin proceso real**. La insignia se dibuja con el componente compartido `VerifiedBadge` y aparece junto al nombre en chats (lista, cabecera de conversación y remitente en grupos), estados, contactos, red y llamadas, correo, el selector de nuevo chat y tus productos y servicios; se muestra solo cuando el dato mock del usuario tiene `verified: true`. En el **panel admin** el estado vive en `verificacionRed` (`verificado` / `pendiente` / `no_solicitado`), el mismo campo que gobierna las acciones de aprobar, rechazar y revocar del detalle de usuario.
-
-**Asistente de IA (solo voz):** el único acceso es el **botón central del menú flotante**, con un **halo animado de brillo** (`AssistantGlow`) porque el asistente es la acción principal de la app. Al tocarlo se abre `VoiceAssistantScreen`, una experiencia **inmersiva a pantalla completa** sobre fondo púrpura profundo con un **visual orgánico animado** (`VoiceOrb`: capas de blobs SVG que rotan a distintas velocidades con pulso de respiración, y que se mueve más al escuchar o responder). La conversación es **solo por voz, sin teclado ni burbujas de chat**: la voz del usuario aparece **transcrita palabra por palabra** en pantalla, el asistente "piensa" un instante y su respuesta se transcribe igual, en un diálogo continuo. Los controles inferiores son mínimos: reiniciar conversación, micrófono (hablar/pausar) y cerrar. Todo es simulación mock — no hay reconocimiento de voz ni IA reales.
-
-**Descubrimiento y Búsqueda por IA (Chat y Asistente):** El usuario puede chatear por texto con el asistente de IA (`ai-assistant`). Al realizar una consulta de búsqueda (ej. pedir un diseñador gráfico), la IA responde y de forma inmediata despliega un bottom sheet modal (`AiCatalogModal`) con los resultados de otros proveedores. El usuario puede tocar 'Ver detalle' para expandir la descripción de cada oferta inline, o 'Contactar' para iniciar/abrir una conversación directamente con el vendedor enviando un mensaje preestablecido. La integración de este catálogo en la experiencia de voz (`VoiceAssistantScreen`) queda pendiente para fases futuras.
-
-### Mobile Web (`apps/mobile-web/`)
-
-| Módulo / Ruta | Componentes principales | Qué hace |
-|---|---|---|
-| **Landing Page** `/` | `LandingNavbar`, `HeroSection`, `FeaturesSection`, `HowItWorksSection`, `SecuritySection`, `CtaSection`, `Footer` | Presentación institucional y de producto de BeeApp AI en 6 secciones con scroll vertical: Hero (título, subtítulo, CTA e ilustración/mockup de la app), 6 Características principales (Chat, BeeServices, Asistente IA, Correo, Seguridad, Red), Proceso en 3 pasos, Sección de Seguridad (biometría, PIN, cifrado), CTA final y Footer. |
-| **Login** `/login` | `LoginForm`, `CountrySelector` | Formulario de inicio de sesión centrado e intuitivo con selector desplegable de país con banderas e indicativos internacionales (+57 Colombia por defecto), input de teléfono y enlaces a términos y privacidad. Navega a `/verify`. |
-| **Verificación OTP** `/verify` | `OtpForm` | Verificación por código de 6 dígitos enviado por SMS. Cuadros independientes de entrada con salto automático entre casillas, temporizador de reenvío de 30 segundos y opción de cambiar número. Al verificar navega a `/app`. |
-| **App Shell & Home** `/app` | `AppLayout`, `FloatingTabBar`, `HomeHeader`, `SideMenu`, `ModuleChipRow`, `AllModulesOverview` | Contenedor centrado de 430px (mobile-first) con fondo gris exterior, barra flotante inferior con notificaciones animadas en ticker e ícono central del asistente, cabecera con filtro desplegable y búsqueda, menú lateral drawer completo, barra deslizable de chips de módulos y vista general "Todas" con feed unificado de 5 ítems por módulo. |
-| **Módulo Correo** `/app` (chip) | `MailModule`, `MailDetail`, `MailCompose` | Gestión de correo con selector multi-cuenta, carpetas (Recibidos, No leídos, Enviados, Borradores), lista plana de mensajes con estrella, adjuntos e indicador de no leído, vista de detalle completa con responder/reenviar y modal de redacción. |
-| **Módulo Notas** `/app` (chip) | `NotesModule`, `NoteEdit` | Notas rápidas con selector de vista (lista o cuadrícula de 2 columnas), creación/edición de notas y protección individual con PIN (oculta título y preview en lista/grid). |
-| **Módulo Almacenamiento** `/app` (chip) | `StorageModule`, `StoragePreview` | Explorador de archivos con tarjeta resumen de espacio disponible (15 GB), chips de filtro (Todos, Recientes, Documentos, Fotos, Firmados), conmutador de vista lista/grid, indicador de documentos firmados/protegidos y vista previa de archivos. |
-| **Módulo Chat** `/app` (chip) | `ChatModule`, `ChatConversation`, `ChatProfile`, `CommunityScreen`, `CommunityProfile`, `StatusViewer`, `CreateStatusModal`, Modales | Módulo completo de comunicación con pestañas *Chats* y *Comunidades*, fila de estados/historias con visor fullscreen y editor, chips de categorías personalizables, chat fijado del asistente IA "Bee", conversaciones con respuestas de vendedor e interruptor de respuesta automática IA, perfiles de chat/grupo con mensajes temporales y gestión de miembros, e interacción en comunidades con publicaciones oficiales del administrador y reacciones. |
-| **Módulo Contactos** `/app` (chip) | `ContactsModule`, `ContactDetail`, `CreateContactModal` | Pestañas (*Mis contactos*, *Descubrir red*, *Llamadas*), creación de contactos con selector de indicativo telefónico internacional, tarjetas de perfil con botones rápidos de llamada, chat y correo. |
-| **Módulo Agenda** `/app` (chip) | `CalendarModule`, `CalendarEventDetail`, `CreateEventModal` | Tira horizontal de la semana con día hoy/seleccionado resaltados, conmutador Día/Semana/Mes, lista de eventos diarios con enlaces a videollamadas Meet y creación/edición de compromisos. |
-| **BeeServices** `/app/beeservices` | `BeeServicesPage`, `BusinessDetailView`, Modales (`CreateBusinessModal`, `CreateProductModal`, `CreateServiceModal`) | Sección completa de gestión de negocios y catálogos. Creación de negocios con categorización y modalidades de oferta, vista de detalle con catálogo filtrable por productos o servicios y modales de carga de ítems. |
-| **Perfil & Ajustes** `/app/profile/edit`, `/app/profile/security`, `/app/profile/subscription`, `/app/profile/integrations`, `/app/profile/ai-settings` | `EditProfilePage`, `SecurityPage`, `SubscriptionPage`, `IntegrationsPage`, `AiSettingsPage` | Rutas completas de gestión de cuenta del usuario final: edición de perfil con selector de indicativo de país, seguridad con opciones de bloqueo de app (PIN 6 dígitos / Huella / Face ID) y PIN de 4 dígitos con recuperación por SMS/Email, plan de suscripción con solicitud de Bee Verify, integraciones externas (Gmail, Outlook, Google Calendar) y configuración del asistente de IA. |
-| **Notificaciones** `/app/notifications` | `NotificationsPage` | Centro de notificaciones del usuario agrupadas por temporalidad (*Hoy*, *Ayer*, *Esta semana*) con estado de lectura e ícono distintivo por tipo de alerta. |
-| **Seguridad de Sesión** `/app` (overlay) | `AppLockScreen`, `CustomizeModal` | Pantalla de bloqueo de app de 6 dígitos mediante teclado numérico o simulación biométrica presentada al iniciar la sesión web, y modal de personalización/reordenamiento de chips de módulos. |
+| **Personalización** `/app` (overlay) | `CustomizeModal` | Modal de personalización/reordenamiento de chips de módulos. **En la web ya no hay App Lock**: entrar a `/app` no pide PIN ni biometría, porque la sesión queda autorizada al escanear el QR desde la app móvil. El componente `AppLockScreen.tsx` sigue en el repositorio pero **no se renderiza en ninguna parte**. |
 
 ---
 
-## 📱 / 💻 Diseño Responsive & Dispositivos Soporte en Web (`apps/mobile-web/`)
+## 💻 Formato & Dispositivos Soportados en Web (`apps/mobile-web/`)
 
-La aplicación web `@beeapp/mobile-web` cuenta con una arquitectura completamente responsive adaptada a 3 breakpoints principales utilizando utilidades nativas de Tailwind CSS:
+La aplicación web `@beeapp/mobile-web` opera con el siguiente modelo de visualización:
 
-1. **Móvil (<640px)**:
-   - Layout de 1 columna full-width con padding lateral de 16px.
-   - Navegación inferior con `FloatingTabBar` fija en la parte inferior de la pantalla.
-   - Menú lateral como overlay deslizable al accionar la hamburguesa.
-   - Navegación maestro/detalle por cambio de vista con botón de retorno.
+1. **Sección de Trabajo (`/app/*`) — Exclusivo Desktop & Tablet (≥ 768px)**:
+   - Funciona únicamente en pantallas con ancho igual o superior a 768px (PC de escritorio, laptops y tablets grandes).
+   - **Bloqueo Móvil**: Si se accede a `/app/*` desde un dispositivo celular (< 768px), se activa automáticamente la pantalla `MobileBlockScreen` con el logo de BeeApp AI, ícono de Smartphone, título *"BeeApp Web no está disponible en este formato"*, subtítulo explicativo, botón principal *"Descargar la app"* y enlace *"Ir al inicio"*.
+   - **Layout Desktop**: Panel amplio full-width con sidebar derecho de módulos (56px) con reordenamiento drag & drop, sidebar izquierdo contextual de Chat (56px + 320px listado) y barra flotante inferior fija con tickers y asistente por voz.
 
-2. **Tablet (640px a 1024px, `sm:` y `md:`)**:
-   - Contenido centrado con ancho máximo de 768px (`max-w-3xl`) sobre fondo neutro elegante.
-   - Grids de 2 a 3 columnas para notas, archivos y vista general de módulos (`AllModulesOverview`).
-   - Muestra `FloatingTabBar` inferior en tablet.
-
-3. **Desktop (≥1024px, `lg:` y `xl:`)**:
-   - Layout de 2 columnas principales (`DesktopSidebar` fijo de 280px a la izquierda + área de trabajo en contenedor hasta 1280px `max-w-7xl`).
-   - Sidebar permanente a la izquierda con identidad de marca, perfil de usuario, visibilidad en la red, navegación directa y cierre de sesión.
-   - Layout **Maestro-Detalle** simultáneo estilo WhatsApp Web / Gmail para todos los módulos de contenido (Correos, Chat, Contactos, Agenda, Almacenamiento, Notas, BeeServices): lista a la izquierda (w-96) y panel de detalle/editor/conversación a la derecha (flex-1).
-   - En desktop la `FloatingTabBar` inferior se oculta automáticamente (`lg:hidden`).
+2. **Rutas Públicas 100 % Responsive**:
+   - **Landing Page (`/`)**: Completamente adaptada y accesible en celulares, tablets y computadores.
+   - **Login QR (`/login`)**: Accesible desde cualquier navegador y resolución para iniciar sesión escaneando el código QR desde la app móvil.
 
 ### Admin Web (`apps/admin-web/src/app/`)
 
@@ -352,7 +318,8 @@ La aplicación web `@beeapp/mobile-web` cuenta con una arquitectura completament
 | `calendar/CalendarHourlyAgenda.tsx` | Agenda del día por horas |
 | `calendar/CalendarEventsList.tsx` | Lista de eventos en filas planas (hora y duración, título, modalidad e invitados) |
 | `calendar/CalendarMenus.tsx` | Menú contextual de evento + menú FAB de creación |
-| `chat/ChatTabs.tsx` | Pestañas subrayadas del módulo de Chat: Chats y Comunidades |
+| `chat/ChatTabs.tsx` | Pestañas subrayadas del módulo de Chat: Chats, Comunidades y Contactos |
+| `chat/ChatCategoryModals.tsx` | Agrupa los modales de crear y de asignar categoría del módulo de Chat |
 | `chat/ChatCategoryChips.tsx` | Chips de filtro por categoría ("Todos" + las del usuario) y chip `Plus` para crear una nueva |
 | `chat/CreateCategoryModal.tsx` | Bottom sheet para crear una categoría: nombre, ícono de Lucide y color del chip |
 | `chat/AssignCategoryModal.tsx` | Bottom sheet para archivar un chat en una o varias categorías |
@@ -387,7 +354,9 @@ La aplicación web `@beeapp/mobile-web` cuenta con una arquitectura completament
 | `home/HomeHeader.tsx` | Buscador con filtro por tipo de contenido (correo/chat/nota/contacto/archivo/evento) + botón de menú lateral; el disparador del filtro es **solo ícono** y mide su posición para anclar el desplegable |
 | `home/SearchFilterMenu.tsx` | Desplegable del filtro en **overlay** (Modal transparente): siempre por encima de los chips y del módulo embebido, anclado bajo el botón, se cierra al tocar fuera o al elegir |
 | `home/searchFilters.ts` | Tipos y catálogo de filtros de contenido del buscador del Home |
-| `home/HomeSideMenu.tsx` | Drawer lateral que reemplaza la pestaña Perfil: tarjeta de perfil (solo nombre y correo, sin cargo ni empresa), **BeeServices** (destacado), suscripción y verificación, **configuración del asistente de IA**, integraciones, seguridad, visibilidad, compartir, soporte, legal y cerrar sesión |
+| `home/HomeSideMenu.tsx` | Drawer lateral que reemplaza la pestaña Perfil: tarjeta de perfil (solo nombre y correo, sin cargo ni empresa), **BeeServices** (destacado), suscripción y verificación, **configuración del asistente de IA**, integraciones, **Dispositivos** (ícono `Monitor`, entre Integraciones Externas y Seguridad y PIN), seguridad, visibilidad, compartir, soporte, legal y cerrar sesión |
+| `profile/DevicesScreen.tsx` | Pantalla de Dispositivos: escaneo simulado del QR de BeeApp Web y gestión de las sesiones vinculadas |
+| `profile/devicesStyles.ts` | Estilos de la pantalla de Dispositivos (separados para mantener archivos <300 líneas) |
 | `home/homeSideMenuStyles.ts` | Estilos del drawer (separados para mantener archivos <300 líneas) |
 | `home/ModuleSwitcherRow.tsx` | Chips horizontales de **todos** los módulos con **"Todas"** siempre primero (elige qué se muestra embebido) + botón de personalización; chips de 46 px con ícono de 28 px, solo ícono salvo el seleccionado, y reparto `space-evenly` o scroll horizontal según quepan |
 | `home/AllModulesOverview.tsx` | Pantalla raíz del chip "Todas": feed de fondo transparente (padding horizontal de 16 px para alinear con la barra superior) con una sección por módulo activo (orden de los chips); abre los detalles dentro de la propia vista |
@@ -403,6 +372,7 @@ La aplicación web `@beeapp/mobile-web` cuenta con una arquitectura completament
 | `layout/ViewModeToggle.tsx` | Conmutador lista/cuadrícula de Notas y Almacenamiento; exporta `useGridColumns()`, que devuelve 2 o 3 columnas según el ancho de pantalla |
 | `contacts/CreateContactModal.tsx` | Formulario de contacto nuevo: nombre, apellido, teléfono con indicativo, correo, empresa y cargo |
 | `contacts/CountryCodeModal.tsx` | Selector con buscador del indicativo telefónico del país |
+| `contacts/ContactsListView.tsx` | Lista de contactos con sus tres pestañas; la comparten la ruta `(main)/contacts` y la pestaña Contactos del módulo de Chat |
 | `contacts/ContactsTabs.tsx` | Selector de las tres pestañas de Contactos (Mis contactos, Descubrir red, Llamadas) |
 | `contacts/contactsStyles.ts` | Estilos de la pantalla de Contactos (separados para mantener archivos <300 líneas) |
 | `notes/NotesGridView.tsx` | Cuadrícula adaptativa de notas: tarjeta con título, vista previa y fecha; las protegidas ocultan su contenido |
@@ -544,6 +514,30 @@ cd apps/mobile && npx expo run:android
 # Admin — servidor de desarrollo
 cd apps/admin-web && npm run dev
 ```
+
+**Build APK standalone (mobile):**
+
+```bash
+# 1. Instalar EAS CLI (una sola vez) y autenticarse en Expo
+npm install -g eas-cli
+eas login
+
+# 2. Generar el APK standalone compilando en la máquina local
+cd apps/mobile
+eas build -p android --profile preview --local
+```
+
+El perfil `preview` de `apps/mobile/eas.json` genera un **APK sin dev-client** (`developmentClient: false`, `android.buildType: "apk"`, `distribution: "internal"`): el bundle de JavaScript queda embebido en el instalador, así que la app corre en cualquier teléfono Android **sin Metro y sin computadora conectada**.
+
+El flag `--local` compila en la máquina local y **no sube nada a la nube de Expo** (requiere el entorno Android de la tabla anterior: JDK 17, `ANDROID_HOME` y el NDK). El APK resultante se puede compartir por cualquier medio e instalar directamente en el teléfono habilitando **"Instalar desde fuentes desconocidas"**. Sin `--local`, el mismo comando compila en los servidores de Expo y devuelve un enlace de descarga.
+
+El perfil `production` genera un **AAB** (Android App Bundle, `android.buildType: "app-bundle"`), que es el formato requerido para publicar en **Google Play Store**:
+
+```bash
+cd apps/mobile && eas build -p android --profile production
+```
+
+La primera ejecución de `eas build` pide vincular el proyecto a una cuenta de Expo y escribe el campo `extra.eas.projectId` en `app.json` automáticamente; no hay que agregarlo a mano.
 
 **Build mobile:** el proceso completo de development builds (local con Android Studio/Xcode, EAS cloud o EAS local) está detallado en `apps/mobile/Build.MD`. La app usa `expo-dev-client`, por lo que no funciona con Expo Go. Existe además `apps/mobile/scripts/patch-expo-router.js` como parche post-install de expo-router.
 

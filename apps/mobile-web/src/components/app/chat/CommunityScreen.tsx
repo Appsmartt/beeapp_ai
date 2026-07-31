@@ -1,8 +1,10 @@
 'use client';
 
 import { useState } from 'react';
-import { ArrowLeft, ThumbsUp, Heart, SmilePlus, Send, Shield } from 'lucide-react';
-import { CommunityItem } from '@/mocks/communities';
+import { ChevronLeft, Shield } from 'lucide-react';
+import { CommunityItem, CommunityPost, ReactionType, CURRENT_USER_ID } from '@/mocks/communities';
+import CommunityPostCard from './CommunityPostCard';
+import WriteBar from './WriteBar';
 
 interface CommunityScreenProps {
   community: CommunityItem;
@@ -10,124 +12,115 @@ interface CommunityScreenProps {
   onOpenProfile: () => void;
 }
 
-export default function CommunityScreen({ community, onBack, onOpenProfile }: CommunityScreenProps) {
-  const [posts, setPosts] = useState(community.posts);
-  const [newPostText, setNewPostText] = useState('');
+export default function CommunityScreen({
+  community,
+  onBack,
+  onOpenProfile,
+}: CommunityScreenProps) {
+  const [posts, setPosts] = useState<CommunityPost[]>(community.posts);
 
-  const toggleReaction = (postId: string, type: 'thumbsUp' | 'heart' | 'smile') => {
-    setPosts((prev) =>
-      prev.map((p) => {
-        if (p.id !== postId) return p;
-        const currentActive = p.userReactions[type];
-        const newCount = currentActive ? p.reactions[type] - 1 : p.reactions[type] + 1;
+  const isAdmin = community.creatorId === CURRENT_USER_ID || community.isAdmin;
+
+  const toggleReaction = (postId: string, type: ReactionType) => {
+    setPosts((list) =>
+      list.map((post) => {
+        if (post.id !== postId) return post;
+        const isMine = post.myReactions.includes(type);
         return {
-          ...p,
-          reactions: { ...p.reactions, [type]: newCount },
-          userReactions: { ...p.userReactions, [type]: !currentActive },
+          ...post,
+          myReactions: isMine
+            ? post.myReactions.filter((r) => r !== type)
+            : [...post.myReactions, type],
+          reactions: { ...post.reactions, [type]: (post.reactions[type] || 0) + (isMine ? -1 : 1) },
         };
       })
     );
   };
 
-  const handleCreatePost = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newPostText.trim()) return;
-    const newP = {
-      id: `p-${Date.now()}`,
-      author: 'Santiago Morales (Admin)',
-      time: 'Ahora',
-      text: newPostText,
-      reactions: { thumbsUp: 0, heart: 0, smile: 0 },
-      userReactions: {},
+  const handlePublish = (text: string) => {
+    const newPost: CommunityPost = {
+      id: 'p_' + Date.now().toString(36),
+      authorId: CURRENT_USER_ID,
+      authorName: 'Santiago Valencia',
+      authorInitials: 'SV',
+      authorColor: '#F3E8FF',
+      text: text.trim(),
+      timestamp: 'Ahora',
+      reactions: { like: 0, love: 0, laugh: 0 },
+      myReactions: [],
     };
-    setPosts([newP, ...posts]);
-    setNewPostText('');
+    setPosts([newPost, ...posts]);
+  };
+
+  const handleSendVoiceNote = () => {
+    handlePublish('📢 Anuncio grabado por nota de voz (Mock)');
+  };
+
+  const handleSendAttachment = (type: string) => {
+    handlePublish(`📍 Adjunto o ubicación compartida en la comunidad (Mock de ${type})`);
   };
 
   return (
-    <div className="bg-neutral-50 min-h-full flex flex-col">
-      {/* Top Header */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-neutral-200/80 bg-white sticky top-0 z-10">
-        <div className="flex items-center gap-3">
-          <button onClick={onBack} className="p-1.5 rounded-full text-neutral-600 hover:bg-neutral-100">
-            <ArrowLeft className="w-5 h-5" />
-          </button>
-          <div onClick={onOpenProfile} className="cursor-pointer">
-            <h1 className="font-semibold text-sm text-neutral-900 leading-none">{community.name}</h1>
-            <p className="text-[10px] text-neutral-500 font-normal mt-0.5">{community.membersCount} miembros</p>
+    <div className="bg-neutral-50 min-h-full flex flex-col relative select-none">
+      {/* Top Header without Phone/Video call buttons */}
+      <div className="flex items-center gap-2 px-3 py-2.5 bg-white border-b border-neutral-200 sticky top-0 z-20">
+        <button
+          type="button"
+          onClick={onBack}
+          className="p-1 rounded-lg text-neutral-700 hover:bg-neutral-100"
+        >
+          <ChevronLeft className="w-6 h-6" />
+        </button>
+
+        <div
+          onClick={onOpenProfile}
+          className="flex items-center gap-2.5 flex-1 min-w-0 cursor-pointer"
+        >
+          <div
+            className="w-9.5 h-9.5 rounded-full flex items-center justify-center font-bold text-sm text-brand-primary shrink-0"
+            style={{ backgroundColor: community.color }}
+          >
+            {community.initials}
+          </div>
+          <div className="min-w-0">
+            <h1 className="font-bold text-sm text-neutral-900 truncate leading-tight">
+              {community.name}
+            </h1>
+            <p className="text-[11px] text-neutral-500 truncate font-normal leading-tight">
+              {community.members?.length || community.membersCount}{' '}
+              {community.membersCount === 1 ? 'miembro' : 'miembros'}
+            </p>
           </div>
         </div>
       </div>
 
-      {/* Posts Feed */}
-      <div className="p-4 space-y-4 flex-1 overflow-y-auto pb-24">
-        {posts.map((post) => (
-          <div key={post.id} className="p-4 rounded-2xl bg-white border border-neutral-200/80 shadow-xs space-y-3">
-            <div className="flex items-center justify-between">
-              <span className="font-semibold text-xs text-neutral-900">{post.author}</span>
-              <span className="text-[10px] text-neutral-400 font-normal">{post.time}</span>
-            </div>
-
-            <p className="text-xs text-neutral-800 font-normal leading-relaxed whitespace-pre-line">
-              {post.text}
-            </p>
-
-            {/* Reactions Row */}
-            <div className="flex items-center gap-2 pt-2 border-t border-neutral-100">
-              <button
-                type="button"
-                onClick={() => toggleReaction(post.id, 'thumbsUp')}
-                className={`px-2.5 py-1 rounded-full text-[11px] font-semibold flex items-center gap-1 transition-colors ${
-                  post.userReactions.thumbsUp ? 'bg-brand-primary/10 text-brand-primary' : 'bg-neutral-100 text-neutral-600 hover:bg-neutral-200/60'
-                }`}
-              >
-                <ThumbsUp className="w-3.5 h-3.5" />
-                <span>{post.reactions.thumbsUp}</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => toggleReaction(post.id, 'heart')}
-                className={`px-2.5 py-1 rounded-full text-[11px] font-semibold flex items-center gap-1 transition-colors ${
-                  post.userReactions.heart ? 'bg-red-50 text-red-600' : 'bg-neutral-100 text-neutral-600 hover:bg-neutral-200/60'
-                }`}
-              >
-                <Heart className="w-3.5 h-3.5" />
-                <span>{post.reactions.heart}</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => toggleReaction(post.id, 'smile')}
-                className={`px-2.5 py-1 rounded-full text-[11px] font-semibold flex items-center gap-1 transition-colors ${
-                  post.userReactions.smile ? 'bg-amber-50 text-amber-600' : 'bg-neutral-100 text-neutral-600 hover:bg-neutral-200/60'
-                }`}
-              >
-                <SmilePlus className="w-3.5 h-3.5" />
-                <span>{post.reactions.smile}</span>
-              </button>
-            </div>
-          </div>
-        ))}
+      {/* Feed area */}
+      <div className="flex-1 overflow-y-auto p-4 pb-36">
+        {posts.length === 0 ? (
+          <p className="text-xs text-neutral-500 text-center py-12 font-normal">
+            Todavía no hay publicaciones en esta comunidad.
+          </p>
+        ) : (
+          posts.map((post) => (
+            <CommunityPostCard
+              key={post.id}
+              post={post}
+              onToggleReaction={(type) => toggleReaction(post.id, type)}
+            />
+          ))
+        )}
       </div>
 
-      {/* Admin Post Input Bar vs Member Notice */}
-      <div className="p-3 bg-white border-t border-neutral-200/80 sticky bottom-0 z-10">
-        {community.isAdmin ? (
-          <form onSubmit={handleCreatePost} className="flex items-center gap-2">
-            <input
-              type="text"
-              placeholder="Escribir aviso oficial en la comunidad..."
-              value={newPostText}
-              onChange={(e) => setNewPostText(e.target.value)}
-              className="flex-1 h-10 px-3.5 bg-neutral-100 border border-neutral-200/60 rounded-full text-xs outline-none focus:border-brand-primary"
-            />
-            <button type="submit" className="w-10 h-10 rounded-full bg-brand-primary text-white flex items-center justify-center shrink-0">
-              <Send className="w-4 h-4" />
-            </button>
-          </form>
+      {/* Bottom bar: Admin WriteBar vs Member notice (positioned sticky bottom-14 directly above AppBottomBar) */}
+      <div className="sticky bottom-14 left-0 right-0 z-20 bg-white">
+        {isAdmin ? (
+          <WriteBar
+            onSendMessage={handlePublish}
+            onSendVoiceNote={handleSendVoiceNote}
+            onSendAttachment={handleSendAttachment}
+          />
         ) : (
-          <div className="text-center py-1.5 text-xs text-neutral-500 font-normal flex items-center justify-center gap-1.5">
+          <div className="py-3 bg-white border-t border-neutral-200 text-center text-xs text-neutral-500 font-normal flex items-center justify-center gap-1.5">
             <Shield className="w-4 h-4 text-neutral-400" />
             <span>Solo el administrador puede publicar</span>
           </div>

@@ -4,7 +4,6 @@ import { OverviewEntry } from './OverviewSection';
 import { MOCK_EMAILS } from '../../mocks/emails';
 import { MOCK_CHATS } from '../../mocks/chats';
 import { MOCK_NOTES } from '../../mocks/notes';
-import { MY_CONTACTS } from '../../mocks/contacts';
 import { getItems, StorageItem } from '../../stores/storageStore';
 import { getEvents, TODAY_STR, TOMORROW_STR } from '../../stores/calendarStore';
 import { isProtected } from '../../stores/pinStore';
@@ -121,19 +120,6 @@ const noteRows = (): OverviewRow[] =>
     };
   });
 
-const contactRows = (): OverviewRow[] =>
-  MY_CONTACTS.slice(0, PREVIEW_COUNT).map((contact) => ({
-    entry: {
-      key: contact.id,
-      initials: contact.initials,
-      avatarColor: contact.color,
-      title: contact.name,
-      subtitle: contact.company ? `${contact.profession} · ${contact.company}` : contact.profession,
-      verified: contact.verified,
-    },
-    target: { pathname: '/(main)/contacts/detail', params: { id: contact.id } },
-  }));
-
 const fileRows = (): OverviewRow[] =>
   getItems()
     .slice(0, PREVIEW_COUNT)
@@ -180,7 +166,6 @@ const BUILDERS: Record<string, () => OverviewRow[]> = {
   mail: mailRows,
   chat: chatRows,
   notes: noteRows,
-  contacts: contactRows,
   files: fileRows,
   calendar: calendarRows,
 };

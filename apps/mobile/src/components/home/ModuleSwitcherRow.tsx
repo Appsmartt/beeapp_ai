@@ -60,7 +60,16 @@ export default function ModuleSwitcherRow({ selectedModuleIds, activeModuleId, o
 
   // Personalization: only changes the order of the chips
   const customizeBtn = (
-    <TouchableOpacity style={styles.customizeChip} onPress={onCustomize} activeOpacity={0.7}>
+    <TouchableOpacity
+      style={styles.customizeChip}
+      onPress={onCustomize}
+      activeOpacity={0.7}
+      // El chip mide 38, por debajo del mínimo táctil de 44: el hitSlop
+      // ensancha el área sensible sin cambiar el diseño
+      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+      accessibilityRole="button"
+      accessibilityLabel="Personalizar accesos"
+    >
       <Settings size={20} color={colors.neutral.gray600} />
     </TouchableOpacity>
   );
