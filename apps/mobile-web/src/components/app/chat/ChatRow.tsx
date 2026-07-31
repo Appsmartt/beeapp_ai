@@ -1,6 +1,6 @@
 'use client';
 
-import { Check, CheckCheck, BellOff, Users, Lock, CheckCircle2, MoreVertical, Pin, Tag, Shield, Trash2, Archive, Unlock } from 'lucide-react';
+import { Check, CheckCheck, BellOff, Users, Lock, CheckCircle2, MoreVertical, Pin, Tag, Trash2, Archive, Unlock } from 'lucide-react';
 import { ChatItem } from '@/mocks/chats';
 import { CommunityItem } from '@/mocks/communities';
 import { useState, useRef, useEffect } from 'react';

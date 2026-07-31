@@ -111,7 +111,7 @@ export default function AddMemberModal({
                     <div className="min-w-0">
                       <p className="text-sm font-normal text-neutral-900 truncate">{contact.name}</p>
                       <p className="text-xs text-neutral-500 truncate font-normal">
-                        {contact.role} — {contact.company}
+                        {contact.phone || contact.email || 'Contacto'}
                       </p>
                     </div>
                   </div>

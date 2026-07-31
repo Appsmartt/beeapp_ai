@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { Bot, Pin, Sparkles, Lock, MoreVertical, BellOff, Tag, Shield, Unlock } from 'lucide-react';
+import { Bot, Pin, Sparkles, Lock, MoreVertical, BellOff, Tag, Unlock } from 'lucide-react';
 import { ChatItem } from '@/mocks/chats';
 
 interface AiChatListItemProps {

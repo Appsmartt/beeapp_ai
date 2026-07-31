@@ -6,10 +6,11 @@ import {
   ChatItem,
   MOCK_CATEGORIES,
   ChatCategory,
+  GroupMember,
   addCategory,
   setChatCategories,
 } from '@/mocks/chats';
-import { MOCK_COMMUNITIES, CommunityItem } from '@/mocks/communities';
+import { MOCK_COMMUNITIES, CommunityItem, CURRENT_USER_ID } from '@/mocks/communities';
 import { MOCK_STATUSES, StatusItem, addStatus, markStatusViewed } from '@/mocks/statuses';
 import { MOCK_CONTACTS, ContactItem } from '@/mocks/contacts';
 import ChatConversation from './ChatConversation';
@@ -85,6 +86,8 @@ export default function ChatModule({ section, onSectionChange }: ChatModuleProps
   const [creatingContact, setCreatingContact] = useState(false);
   const [aiSettingsOpen, setAiSettingsOpen] = useState(false);
 
+  const networkTab: ContactsTab = 'my_contacts';
+
   // AI assistant button from sidebar opens AI chat directly
   useEffect(() => {
     if (section !== 'ai') return;
@@ -93,11 +96,8 @@ export default function ChatModule({ section, onSectionChange }: ChatModuleProps
     onSectionChange('chats');
   }, [section, chats, onSectionChange]);
 
-  // Contactos, Descubrir red y Llamadas comparten el mismo panel: la sección
-  // activa del sidebar es la única fuente de verdad de la sub-pestaña.
-  const inContacts = section === 'contacts' || section === 'discover' || section === 'calls';
-  const contactsTab: ContactsTab =
-    section === 'calls' ? 'calls' : section === 'discover' ? 'discover' : 'my_contacts';
+  const inContacts = section === 'contacts' || section === 'calls';
+  const contactsTab: ContactsTab = section === 'calls' ? 'calls' : networkTab;
 
   const handleChatPress = (chat: ChatItem) => {
     if (chat.isProtected) {
@@ -132,7 +132,7 @@ export default function ChatModule({ section, onSectionChange }: ChatModuleProps
     startChat(contact.name, false, contact.verified);
   };
 
-  const handleCreateGroup = (name: string, members: any[]) => {
+  const handleCreateGroup = (name: string, members: GroupMember[]) => {
     const groupChat: ChatItem = {
       id: `group_${Date.now()}`,
       name,
@@ -157,10 +157,21 @@ export default function ChatModule({ section, onSectionChange }: ChatModuleProps
       id: `comm-${Date.now()}`,
       name,
       description,
+      category,
+      initials: name.slice(0, 2).toUpperCase(),
+      color: '#F3E8FF',
+      creatorId: CURRENT_USER_ID,
       membersCount: 1,
       isAdmin: true,
       unreadCount: 0,
-      category,
+      members: [{
+        id: CURRENT_USER_ID,
+        name: 'Santiago Valencia',
+        role: 'admin',
+        initials: 'SV',
+        color: '#F3E8FF',
+        isCurrentUser: true,
+      }],
       posts: [],
     };
     setCommunities((prev) => [community, ...prev]);

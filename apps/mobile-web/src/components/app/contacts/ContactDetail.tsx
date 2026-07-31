@@ -25,7 +25,7 @@ import { ContactItem, ALL_CONTACT_DETAILS, CONTACT_CALLS } from '@/mocks/contact
 interface ContactDetailProps {
   contact: ContactItem;
   onBack: () => void;
-  onSendMessage: () => void;
+  onSendMessage?: () => void;
 }
 
 export default function ContactDetail({ contact, onBack, onSendMessage }: ContactDetailProps) {

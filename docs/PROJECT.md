@@ -538,6 +538,9 @@ eas login
 cd apps/mobile
 eas build -p android --profile preview --local
 ```
+# 3. Generar el APK standalone compilando en la máquina local
+cd android
+./gradlew assembleRelease
 
 El perfil `preview` de `apps/mobile/eas.json` genera un **APK sin dev-client** (`developmentClient: false`, `android.buildType: "apk"`, `distribution: "internal"`): el bundle de JavaScript queda embebido en el instalador, así que la app corre en cualquier teléfono Android **sin Metro y sin computadora conectada**.
 

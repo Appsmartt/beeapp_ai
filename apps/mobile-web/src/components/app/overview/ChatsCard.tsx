@@ -20,10 +20,10 @@ export default function ChatsCard({ onSeeMore }: ChatsCardProps) {
           >
             <div
               className={`w-9 h-9 rounded-full flex items-center justify-center text-[11px] font-semibold shrink-0 ${
-                chat.isAi ? 'bg-brand-primary text-white' : 'bg-neutral-100 text-neutral-700'
+                chat.isAI ? 'bg-brand-primary text-white' : 'bg-neutral-100 text-neutral-700'
               }`}
             >
-              {chat.isAi ? 'IA' : chat.name.slice(0, 2).toUpperCase()}
+              {chat.isAI ? 'IA' : chat.name.slice(0, 2).toUpperCase()}
             </div>
 
             <div className="flex-1 min-w-0">
@@ -32,7 +32,7 @@ export default function ChatsCard({ onSeeMore }: ChatsCardProps) {
                   <span className="font-semibold text-xs text-neutral-900 truncate">{chat.name}</span>
                   {chat.verified && <CheckCircle className="w-3 h-3 text-brand-primary shrink-0" />}
                 </div>
-                <span className="text-[10px] text-neutral-400 font-normal shrink-0">{chat.timestamp}</span>
+                <span className="text-[10px] text-neutral-400 font-normal shrink-0">{chat.time}</span>
               </div>
 
               <p className="text-[11px] text-neutral-500 font-normal truncate mt-0.5">
@@ -41,7 +41,7 @@ export default function ChatsCard({ onSeeMore }: ChatsCardProps) {
                     <Lock className="w-3 h-3" /> Chat protegido
                   </span>
                 ) : (
-                  chat.preview
+                  chat.lastMessage
                 )}
               </p>
             </div>

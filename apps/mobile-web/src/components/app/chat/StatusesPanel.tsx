@@ -59,7 +59,7 @@ export default function StatusesPanel({
         className="p-4 flex items-center gap-3 cursor-pointer hover:bg-neutral-50 transition-colors border-b border-neutral-100"
       >
         <div className="relative w-11 h-11 rounded-full bg-neutral-200 border border-neutral-300 flex items-center justify-center text-xs font-normal text-neutral-700 shrink-0">
-          <span>{CURRENT_USER.initials}</span>
+          <span>{CURRENT_USER.name.slice(0, 2).toUpperCase()}</span>
           <div className="absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full bg-brand-primary border-2 border-white flex items-center justify-center text-white">
             <Plus className="w-2.5 h-2.5 stroke-[3]" />
           </div>

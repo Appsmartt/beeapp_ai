@@ -102,7 +102,7 @@ export default function ContactsModule() {
                   {contact.verified && <CheckCircle className="w-3.5 h-3.5 text-brand-primary shrink-0" />}
                 </div>
                 <p className="text-[11px] text-neutral-500 font-normal truncate mt-0.5">
-                  {contact.role} — {contact.company}
+                  {contact.phone || contact.email || 'Contacto'}
                 </p>
               </div>
               </div>

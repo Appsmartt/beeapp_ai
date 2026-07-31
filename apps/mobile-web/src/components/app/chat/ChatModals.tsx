@@ -1,24 +1,24 @@
 'use client';
 
 import { ContactItem } from '@/mocks/contacts';
+import { StatusItem } from '@/mocks/statuses';
+import { ChatCategory } from '@/mocks/chats';
 import CreateStatusModal from './CreateStatusModal';
 import CreateCategoryModal from './modals/CreateCategoryModal';
 import CreateCommunityModal from './modals/CreateCommunityModal';
 import CreateContactModal from '../contacts/CreateContactModal';
 
-/** Cuál de los modales de creación está abierto (null si ninguno) */
 export type ChatModalKey = 'status' | 'category' | 'community' | 'contact' | null;
 
 interface ChatModalsProps {
   open: ChatModalKey;
   onClose: () => void;
-  onPublishStatus: (text: string, bgColor: string) => void;
-  onCreateCategory: (name: string, color: string) => void;
+  onPublishStatus: (status: Omit<StatusItem, 'id' | 'timestamp' | 'viewed'>) => void;
+  onCreateCategory: (category: Omit<ChatCategory, 'id'>) => void;
   onCreateCommunity: (name: string, description: string, category: string) => void;
   onCreateContact: (contact: ContactItem) => void;
 }
 
-/** Modales de creación del módulo de Chat, agrupados para no inflar ChatModule */
 export default function ChatModals({
   open,
   onClose,
@@ -30,7 +30,7 @@ export default function ChatModals({
   return (
     <>
       <CreateStatusModal
-        isOpen={open === 'status'}
+        visible={open === 'status'}
         onClose={onClose}
         onPublish={onPublishStatus}
       />
@@ -38,7 +38,7 @@ export default function ChatModals({
       <CreateCategoryModal
         isOpen={open === 'category'}
         onClose={onClose}
-        onCreate={(name, _iconName, color) => onCreateCategory(name, color)}
+        onCreate={onCreateCategory}
       />
 
       <CreateCommunityModal
