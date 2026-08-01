@@ -69,6 +69,8 @@ export interface ChatItem {
   members?: GroupMember[];
   /** Categories the user filed this chat under (the assistant has none) */
   categoryIds?: string[];
+  /** Chat is archived by the user */
+  isArchived?: boolean;
   /** A customer wrote about something the user sells: enables the AI auto-reply banner */
   isSellerChat?: boolean;
   /** What the customer is asking about (only on seller chats) */
@@ -167,6 +169,7 @@ export const MOCK_CHATS: ChatItem[] = [
     online: true,
     isPinned: false,
     isMuted: false,
+    isArchived: true,
     isSellerChat: true,
     linkedProduct: { name: 'Laptop HP', businessName: 'TechStore Bogotá' },
   },
@@ -193,6 +196,9 @@ export interface ChatMessage {
   showCatalog?: boolean;
   /** El asistente contestó por el vendedor: la burbuja lleva el badge "IA" */
   sentByAi?: boolean;
+  isPinned?: boolean;
+  isEdited?: boolean;
+  isDestroyed?: boolean;
 }
 
 /** Hilo mock de un chat de vendedor: el cliente pregunta y la IA contesta */

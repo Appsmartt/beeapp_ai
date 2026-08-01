@@ -135,3 +135,40 @@ body {
     animation: none !important;
   }
 }
+
+/* Editor de notas con formato: Tailwind resetea h1/ul/ol, así que el
+   contenido editable necesita recuperar su jerarquía visual. */
+.note-editor {
+  user-select: text;
+  -webkit-user-select: text;
+}
+.note-editor:empty::before {
+  content: attr(data-placeholder);
+  color: var(--neutral-400, #CED4DA);
+}
+.note-editor h1 {
+  font-size: 1.375rem;
+  font-weight: 600;
+  margin: 0.75rem 0 0.35rem;
+}
+.note-editor h2 {
+  font-size: 1.125rem;
+  font-weight: 600;
+  margin: 0.65rem 0 0.3rem;
+}
+.note-editor h3 {
+  font-size: 1rem;
+  font-weight: 600;
+  margin: 0.5rem 0 0.25rem;
+}
+.note-editor ul,
+.note-editor ol {
+  padding-left: 1.35rem;
+  margin: 0.35rem 0;
+}
+.note-editor ul { list-style: disc; }
+.note-editor ol { list-style: decimal; }
+.note-editor a {
+  color: var(--brand-primary);
+  text-decoration: underline;
+}

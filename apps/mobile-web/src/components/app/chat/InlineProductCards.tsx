@@ -100,14 +100,14 @@ export default function InlineProductCards({
               </div>
             </div>
 
-            {/* Botón Contactar */}
+            {/* Botón Solicitar */}
             <div className="pt-3 border-t border-neutral-100/10 mt-2">
               <button
                 type="button"
                 onClick={() => onContact(item)}
                 className="w-full py-2 rounded-full bg-brand-primary text-white text-xs font-semibold hover:bg-brand-dark transition-colors text-center shadow-xs"
               >
-                Contactar
+                Solicitar
               </button>
             </div>
           </div>

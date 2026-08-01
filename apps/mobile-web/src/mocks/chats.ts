@@ -53,6 +53,7 @@ export interface ChatItem {
   verified?: boolean;
   isAI?: boolean;
   isProtected?: boolean;
+  isArchived?: boolean;
   members?: GroupMember[];
   categoryIds?: string[];
   isSellerChat?: boolean;
@@ -140,6 +141,7 @@ export const MOCK_CHATS: ChatItem[] = [
     online: true,
     isPinned: false,
     isMuted: false,
+    isArchived: true,
     isSellerChat: true,
     linkedProduct: { name: 'Laptop HP', businessName: 'TechStore Bogotá' },
   },
@@ -164,6 +166,9 @@ export interface ChatMessage {
   };
   showCatalog?: boolean;
   sentByAi?: boolean;
+  isPinned?: boolean;
+  isEdited?: boolean;
+  isDestroyed?: boolean;
 }
 
 export const SELLER_CONVERSATION_MESSAGES: ChatMessage[] = [

@@ -7,10 +7,14 @@ interface WriteBarProps {
   onSendMessage: (text: string) => void;
   onSendVoiceNote: (duration: string) => void;
   onSendAttachment: (type: 'photo' | 'camera' | 'file' | 'location' | 'contact') => void;
+  value?: string;
+  onChangeText?: (text: string) => void;
 }
 
-export default function WriteBar({ onSendMessage, onSendVoiceNote, onSendAttachment }: WriteBarProps) {
-  const [text, setText] = useState('');
+export default function WriteBar({ onSendMessage, onSendVoiceNote, onSendAttachment, value, onChangeText }: WriteBarProps) {
+  const [internalText, setInternalText] = useState('');
+  const text = value !== undefined ? value : internalText;
+  const setText = onChangeText || setInternalText;
   const [attachOpen, setAttachOpen] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
   const [recordTime, setRecordTime] = useState(0);

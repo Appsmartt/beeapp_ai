@@ -5,12 +5,6 @@ export interface Invitee {
   status?: 'accepted' | 'pending' | 'declined';
 }
 
-export interface Attachment {
-  id: string;
-  name: string;
-  size: string;
-}
-
 export interface CalendarEventItem {
   id: string;
   title: string;
@@ -22,11 +16,23 @@ export interface CalendarEventItem {
   meetUrl?: string;
   attendeesCount?: number;
   dateStr: string;
+  reminder?: string;
   organizer?: { name: string; initials: string; color: string };
   userResponse?: 'accepted' | 'maybe' | 'declined' | 'pending';
-  attachments?: Attachment[];
   invitees?: Invitee[];
 }
+
+export const REMINDER_OPTIONS = [
+  'Sin recordatorio',
+  '5 minutos antes',
+  '15 minutos antes',
+  '30 minutos antes',
+  '1 hora antes',
+  '2 horas antes',
+  '6 horas antes',
+  '1 día antes',
+  '2 días antes',
+] as const;
 
 export const MOCK_CALENDAR_EVENTS: CalendarEventItem[] = [
   {
@@ -40,11 +46,9 @@ export const MOCK_CALENDAR_EVENTS: CalendarEventItem[] = [
     meetUrl: 'https://meet.google.com/abc-defg-hij',
     attendeesCount: 4,
     dateStr: '2026-07-28',
+    reminder: '30 minutos antes',
     organizer: { name: 'Santiago V.', initials: 'SV', color: '#DBEAFE' },
     userResponse: 'pending',
-    attachments: [
-      { id: 'att1', name: 'Orden_del_Dia_Sprint.pdf', size: '1.2 MB' },
-    ],
     invitees: [
       { name: 'Carlos Mendoza', initials: 'CM', color: '#EBF5FF', status: 'accepted' },
       { name: 'Eduardo Torres', initials: 'ET', color: '#FEF3C7', status: 'pending' },
@@ -60,11 +64,9 @@ export const MOCK_CALENDAR_EVENTS: CalendarEventItem[] = [
     description: 'Actualización de ítems y precios en el catálogo de servicios.',
     type: 'task',
     dateStr: '2026-07-28',
+    reminder: '15 minutos antes',
     organizer: { name: 'Sofía Castro', initials: 'SC', color: '#F3E8FF' },
     userResponse: 'accepted',
-    attachments: [
-      { id: 'att2', name: 'Manual_Catalogo_v2.pdf', size: '2.4 MB' },
-    ],
     invitees: [
       { name: 'Sofía Castro', initials: 'SC', color: '#F3E8FF', status: 'accepted' },
     ],
@@ -80,6 +82,7 @@ export const MOCK_CALENDAR_EVENTS: CalendarEventItem[] = [
     meetUrl: 'https://meet.google.com/xyz-uvwx-rst',
     attendeesCount: 6,
     dateStr: '2026-07-28',
+    reminder: '1 hora antes',
     organizer: { name: 'Santiago V.', initials: 'SV', color: '#DBEAFE' },
     userResponse: 'maybe',
     invitees: [
@@ -95,6 +98,7 @@ export const MOCK_CALENDAR_EVENTS: CalendarEventItem[] = [
     description: 'Consolidación de métricas de retención y nuevos registros.',
     type: 'reminder',
     dateStr: '2026-07-28',
+    reminder: 'Sin recordatorio',
   },
   {
     id: 'ev-5',
@@ -107,5 +111,6 @@ export const MOCK_CALENDAR_EVENTS: CalendarEventItem[] = [
     meetUrl: 'https://meet.google.com/prs-tuvw-xyz',
     attendeesCount: 8,
     dateStr: '2026-07-29',
+    reminder: '1 día antes',
   },
 ];

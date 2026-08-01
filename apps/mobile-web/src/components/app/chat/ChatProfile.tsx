@@ -3,6 +3,8 @@
 import { useState } from 'react';
 import { ArrowLeft, Timer, BellOff, Search, Image as ImageIcon, LogOut, ShieldCheck, Camera } from 'lucide-react';
 import { ChatItem, GroupMember } from '@/mocks/chats';
+import { MY_CONTACTS, ALL_CONTACT_DETAILS } from '@/mocks/contacts';
+import SocialNetworksSection from '../SocialNetworksSection';
 import MemberListSection from './MemberListSection';
 import AddMemberModal from './modals/AddMemberModal';
 import DisappearingMessagesModal, { DisappearingInterval, disappearingLabel } from './modals/DisappearingMessagesModal';
@@ -100,6 +102,15 @@ export default function ChatProfile({ chat, onBack }: ChatProfileProps) {
             <p className="text-xs text-neutral-500 font-normal">{meta}</p>
           </div>
         </div>
+
+        {/* Social Links for 1-on-1 chats */}
+        {!isGroup && (() => {
+          const contact = MY_CONTACTS.find((c) => c.name === chat.name);
+          if (!contact) return null;
+          const detail = ALL_CONTACT_DETAILS[contact.id];
+          if (!detail?.socialLinks) return null;
+          return <SocialNetworksSection socialLinks={detail.socialLinks} />;
+        })()}
 
         <div className="h-px bg-neutral-100" />
 

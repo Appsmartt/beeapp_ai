@@ -16,6 +16,7 @@ import StatusSwatchRow from './StatusSwatchRow';
 import StatusTypographyRow from './StatusTypographyRow';
 import StatusMediaSections from './StatusMediaSections';
 import MentionDropdown from './MentionDropdown';
+import StatusPrivacySection, { StatusVisibility } from './StatusPrivacySection';
 import type { StatusSticker } from './stickerCatalog';
 
 interface StatusToolPanelProps {
@@ -49,18 +50,22 @@ interface StatusToolPanelProps {
   product: StatusProductLink | null;
   onLinkProduct: () => void;
   onRemoveProduct: () => void;
+  visibility: StatusVisibility;
+  onChangeVisibility: (v: StatusVisibility) => void;
+  selectedContactIds: string[];
+  onChangeSelectedContacts: (ids: string[]) => void;
+  selectedCategoryId: string | null;
+  onChangeSelectedCategory: (id: string) => void;
   canPublish: boolean;
   onClose: () => void;
   onPublish: () => void;
 }
 
-/** Panel lateral de herramientas del editor de estados, por secciones */
 export default function StatusToolPanel(props: StatusToolPanelProps) {
   const { hasTextSelection } = props;
 
   return (
     <aside className="w-full md:w-[30%] md:max-w-[320px] md:min-w-[288px] shrink-0 bg-white border-t md:border-t-0 md:border-l border-neutral-200 flex flex-col min-h-0">
-      {/* Cabecera */}
       <header className="flex items-center justify-between gap-3 px-4 py-3 border-b border-neutral-100 shrink-0">
         <button
           type="button"
@@ -109,6 +114,17 @@ export default function StatusToolPanel(props: StatusToolPanelProps) {
             <Type className="w-4 h-4" />
             Agregar texto {props.textCount}/{MAX_TEXT_LAYERS}
           </button>
+        </StatusToolSection>
+
+        <StatusToolSection title="Privacidad">
+          <StatusPrivacySection
+            visibility={props.visibility}
+            onChangeVisibility={props.onChangeVisibility}
+            selectedContactIds={props.selectedContactIds}
+            onChangeSelectedContacts={props.onChangeSelectedContacts}
+            selectedCategoryId={props.selectedCategoryId}
+            onChangeSelectedCategory={props.onChangeSelectedCategory}
+          />
         </StatusToolSection>
 
         <StatusToolSection title="Tipografía">

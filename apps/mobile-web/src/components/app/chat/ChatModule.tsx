@@ -6,7 +6,6 @@ import {
   ChatItem,
   MOCK_CATEGORIES,
   ChatCategory,
-  GroupMember,
   addCategory,
   setChatCategories,
 } from '@/mocks/chats';
@@ -32,6 +31,7 @@ import ChatPanelTabs from './ChatPanelTabs';
 import ChatListPanel from './ChatListPanel';
 import ContactsPanel from './ContactsPanel';
 import StatusesPanel from './StatusesPanel';
+import DiscoverPanel from './DiscoverPanel';
 import { CommunityRow } from './ChatRow';
 import { ChatSection, ContactsTab } from './chatSections';
 import AiSettingsScreen from './modals/AiSettingsScreen';
@@ -66,20 +66,17 @@ export default function ChatModule({ section, onSectionChange }: ChatModuleProps
   const [selectedContact, setSelectedContact] = useState<ContactItem | null>(null);
   const [viewingProfile, setViewingProfile] = useState<'chat' | 'community' | null>(null);
 
-  // Protected PIN lock state
   const [lockedChat, setLockedChat] = useState<ChatItem | null>(null);
 
-  // Status viewer state
+
   const [viewerIndex, setViewerIndex] = useState<number | null>(null);
   const [creatingStatus, setCreatingStatus] = useState(false);
 
-  // Categories state
   const [categories, setCategories] = useState<ChatCategory[]>([...MOCK_CATEGORIES]);
   const [activeCategoryId, setActiveCategoryId] = useState<string | null>(null);
   const [creatingCategory, setCreatingCategory] = useState(false);
   const [assigningChat, setAssigningChat] = useState<ChatItem | null>(null);
 
-  // Creation modals
   const [newChatModalOpen, setNewChatModalOpen] = useState(false);
   const [createGroupModalOpen, setCreateGroupModalOpen] = useState(false);
   const [creatingCommunity, setCreatingCommunity] = useState(false);
@@ -88,7 +85,8 @@ export default function ChatModule({ section, onSectionChange }: ChatModuleProps
 
   const networkTab: ContactsTab = 'my_contacts';
 
-  // AI assistant button from sidebar opens AI chat directly
+
+
   useEffect(() => {
     if (section !== 'ai') return;
     const aiChat = chats.find((c) => c.isAI);
@@ -96,7 +94,7 @@ export default function ChatModule({ section, onSectionChange }: ChatModuleProps
     onSectionChange('chats');
   }, [section, chats, onSectionChange]);
 
-  const inContacts = section === 'contacts' || section === 'calls';
+  const inContacts = section === 'contacts' || section === 'calls' || section === 'discover';
   const contactsTab: ContactsTab = section === 'calls' ? 'calls' : networkTab;
 
   const handleChatPress = (chat: ChatItem) => {
@@ -115,136 +113,32 @@ export default function ChatModule({ section, onSectionChange }: ChatModuleProps
     setViewingProfile(null);
   };
 
-  const startChat = (name: string, isGroup: boolean, verified = false) => {
-    const chat = newChatItem(name, isGroup, verified);
-    setChats((prev) => [chat, ...prev]);
-    onSectionChange('chats');
-    openChatWith(chat);
-  };
-
-  const handleSelectContactForNewChat = (contact: ContactItem) => {
-    const existing = chats.find((c) => c.name === contact.name);
-    if (existing) {
-      onSectionChange('chats');
-      openChatWith(existing);
-      return;
-    }
-    startChat(contact.name, false, contact.verified);
-  };
-
-  const handleCreateGroup = (name: string, members: GroupMember[]) => {
-    const groupChat: ChatItem = {
-      id: `group_${Date.now()}`,
-      name,
-      lastMessage: 'Grupo creado',
-      time: 'Ahora',
-      unreadCount: 0,
-      isGroup: true,
-      status: 'sent',
-      members,
-    };
-    setChats((prev) => [groupChat, ...prev]);
-    onSectionChange('chats');
-    openChatWith(groupChat);
-  };
-
-  const handleSendMessage = (contact: ContactItem) => {
-    handleSelectContactForNewChat(contact);
-  };
-
-  const handleCreateCommunity = (name: string, description: string, category: string) => {
-    const community: CommunityItem = {
-      id: `comm-${Date.now()}`,
-      name,
-      description,
-      category,
-      initials: name.slice(0, 2).toUpperCase(),
-      color: '#F3E8FF',
-      creatorId: CURRENT_USER_ID,
-      membersCount: 1,
-      isAdmin: true,
-      unreadCount: 0,
-      members: [{
-        id: CURRENT_USER_ID,
-        name: 'Santiago Valencia',
-        role: 'admin',
-        initials: 'SV',
-        color: '#F3E8FF',
-        isCurrentUser: true,
-      }],
-      posts: [],
-    };
-    setCommunities((prev) => [community, ...prev]);
-    setCreatingCommunity(false);
-    onSectionChange('communities');
-  };
-
-  const handleNavigateToSellerChat = (sellerId: string, sellerName: string, initialText: string) => {
-    let existingChat = chats.find((c) => c.name === sellerName);
-    if (!existingChat) {
-      existingChat = {
-        id: `seller_${Date.now()}`,
-        name: sellerName,
-        lastMessage: initialText,
-        time: 'Ahora',
-        unreadCount: 0,
-        isGroup: false,
-        status: 'sent',
-        online: true,
-        verified: true,
-        isSellerChat: true,
-      };
-      setChats((prev) => [existingChat!, ...prev]);
-    }
-    onSectionChange('chats');
-    openChatWith(existingChat);
-  };
-
-  const handleOpenStatus = (index: number) => {
-    markStatusViewed(statuses[index].id);
-    setStatuses([...MOCK_STATUSES]);
-    setViewerIndex(index);
-  };
-
-  const handlePin = (id: string) => {
-    setChats((prev) => prev.map((c) => (c.id === id ? { ...c, isPinned: !c.isPinned } : c)));
-  };
-
-  const handleMute = (id: string) => {
-    setChats((prev) => prev.map((c) => (c.id === id ? { ...c, isMuted: !c.isMuted } : c)));
-  };
-
-  const handleDelete = (id: string) => {
-    setChats((prev) => prev.filter((c) => c.id !== id));
-    if (selectedChat?.id === id) setSelectedChat(null);
-  };
-
-  const handleToggleProtection = (chat: ChatItem) => {
-    setChats((prev) =>
-      prev.map((c) => (c.id === chat.id ? { ...c, isProtected: !c.isProtected } : c))
-    );
+  const handleArchiveChat = (id: string) => {
+    setChats((prev) => prev.map((c) => (c.id === id ? { ...c, isArchived: true } : c)));
   };
 
   const renderLeftPanel = () => {
+    if (section === 'discover') {
+      return (
+        <DiscoverPanel
+          selectedContactId={selectedContact?.id}
+          onSelectContact={(c) => { setSelectedContact(c); setSelectedChat(null); setSelectedCommunity(null); }}
+        />
+      );
+    }
+
     if (inContacts) {
       return (
         <ContactsPanel
-          contacts={contacts}
-          tab={contactsTab}
-          selectedContactId={selectedContact?.id}
-          onSelectContact={setSelectedContact}
-          onCreateContact={() => setCreatingContact(true)}
+          contacts={contacts} tab={contactsTab} selectedContactId={selectedContact?.id}
+          onSelectContact={setSelectedContact} onCreateContact={() => setCreatingContact(true)}
         />
       );
     }
 
     if (section === 'statuses') {
       return (
-        <StatusesPanel
-          statuses={statuses}
-          onOpenStatus={handleOpenStatus}
-          onCreateStatus={() => setCreatingStatus(true)}
-        />
+        <StatusesPanel statuses={statuses} onOpenStatus={(i) => { markStatusViewed(statuses[i].id); setStatuses([...MOCK_STATUSES]); setViewerIndex(i); }} onCreateStatus={() => setCreatingStatus(true)} />
       );
     }
 
@@ -252,81 +146,47 @@ export default function ChatModule({ section, onSectionChange }: ChatModuleProps
       return (
         <div className="divide-y divide-neutral-100 flex-1 overflow-y-auto">
           {communities.map((community) => (
-            <CommunityRow
-              key={community.id}
-              community={community}
-              isSelected={selectedCommunity?.id === community.id}
-              onClick={() => {
-                setSelectedCommunity(community);
-                setSelectedChat(null);
-              }}
-            />
+            <CommunityRow key={community.id} community={community} isSelected={selectedCommunity?.id === community.id} onClick={() => { setSelectedCommunity(community); setSelectedChat(null); }} />
           ))}
         </div>
       );
     }
 
+    const panelChats = section === 'archived'
+      ? chats.filter((c) => c.isArchived)
+      : section === 'restricted'
+      ? chats.filter((c) => c.isProtected)
+      : chats.filter((c) => !c.isArchived);
+
     return (
       <ChatListPanel
-        chats={chats}
+        chats={panelChats}
         categories={categories}
         activeCategoryId={activeCategoryId}
         selectedChatId={selectedChat?.id}
         onSelectCategory={setActiveCategoryId}
         onCreateCategory={() => setCreatingCategory(true)}
         onSelectChat={handleChatPress}
-        onPinChat={handlePin}
-        onMuteChat={handleMute}
-        onDeleteChat={handleDelete}
-        onAssignCategory={(chat) => setAssigningChat(chat)}
-        onToggleProtection={handleToggleProtection}
+        onPinChat={(id) => setChats((prev) => prev.map((c) => (c.id === id ? { ...c, isPinned: !c.isPinned } : c)))}
+        onMuteChat={(id) => setChats((prev) => prev.map((c) => (c.id === id ? { ...c, isMuted: !c.isMuted } : c)))}
+        onDeleteChat={(id) => { setChats((prev) => prev.filter((c) => c.id !== id)); if (selectedChat?.id === id) setSelectedChat(null); }}
+        onAssignCategory={setAssigningChat}
+        onToggleProtection={(chat) => setChats((prev) => prev.map((c) => (c.id === chat.id ? { ...c, isProtected: !c.isProtected } : c)))}
+        onArchiveChat={handleArchiveChat}
       />
     );
   };
 
   const renderDetail = () => {
     if (aiSettingsOpen) return <AiSettingsScreen onBack={() => setAiSettingsOpen(false)} />;
-
     if (inContacts) {
       if (!selectedContact) return null;
-      return (
-        <ContactDetail
-          contact={selectedContact}
-          onBack={() => setSelectedContact(null)}
-          onSendMessage={() => handleSendMessage(selectedContact)}
-        />
-      );
+      return <ContactDetail contact={selectedContact} onBack={() => setSelectedContact(null)} onSendMessage={() => { const existing = chats.find((c) => c.name === selectedContact.name); if (existing) { onSectionChange('chats'); openChatWith(existing); } else { const chat = newChatItem(selectedContact.name, false, selectedContact.verified); setChats((prev) => [chat, ...prev]); onSectionChange('chats'); openChatWith(chat); } }} />;
     }
-
-    if (viewingProfile === 'chat' && selectedChat) {
-      return <ChatProfile chat={selectedChat} onBack={() => setViewingProfile(null)} />;
-    }
-    if (viewingProfile === 'community' && selectedCommunity) {
-      return (
-        <CommunityProfile community={selectedCommunity} onBack={() => setViewingProfile(null)} />
-      );
-    }
-    if (selectedCommunity) {
-      return (
-        <CommunityScreen
-          community={selectedCommunity}
-          onBack={() => setSelectedCommunity(null)}
-          onOpenProfile={() => setViewingProfile('community')}
-        />
-      );
-    }
-    if (selectedChat) {
-      return (
-        <ChatConversation
-          key={selectedChat.id}
-          chat={selectedChat}
-          onBack={() => setSelectedChat(null)}
-          onOpenProfile={() => setViewingProfile('chat')}
-          onOpenAiSettings={() => setAiSettingsOpen(true)}
-          onNavigateToChat={handleNavigateToSellerChat}
-        />
-      );
-    }
+    if (viewingProfile === 'chat' && selectedChat) return <ChatProfile chat={selectedChat} onBack={() => setViewingProfile(null)} />;
+    if (viewingProfile === 'community' && selectedCommunity) return <CommunityProfile community={selectedCommunity} onBack={() => setViewingProfile(null)} />;
+    if (selectedCommunity) return <CommunityScreen community={selectedCommunity} onBack={() => setSelectedCommunity(null)} onOpenProfile={() => setViewingProfile('community')} />;
+    if (selectedChat) return <ChatConversation key={selectedChat.id} chat={selectedChat} onBack={() => setSelectedChat(null)} onOpenProfile={() => setViewingProfile('chat')} onOpenAiSettings={() => setAiSettingsOpen(true)} onNavigateToChat={() => {}} />;
     return null;
   };
 
@@ -334,120 +194,26 @@ export default function ChatModule({ section, onSectionChange }: ChatModuleProps
 
   return (
     <div className="bg-white min-h-full flex flex-row relative">
-      {/* BARRA DE OPCIONES DE CHAT (56px, desktop) */}
       <ChatOptionsBar section={section} onSelectSection={onSectionChange} />
-
-      {/* PANEL IZQUIERDO: lista de chats, contactos, llamadas o estados (w-[440px]) */}
       <div className="w-[440px] shrink-0 border-r border-neutral-200 flex flex-col">
-        <ChatPanelTabs
-          section={section}
-          onSectionChange={onSectionChange}
-          onNewChat={() => setNewChatModalOpen(true)}
-          onNewGroup={() => setCreateGroupModalOpen(true)}
-          onNewCommunity={() => setCreatingCommunity(true)}
-          onNewContact={() => setCreatingContact(true)}
-        />
+        <ChatPanelTabs section={section} onSectionChange={onSectionChange} onNewChat={() => setNewChatModalOpen(true)} onNewGroup={() => setCreateGroupModalOpen(true)} onNewCommunity={() => setCreatingCommunity(true)} onNewContact={() => setCreatingContact(true)} />
         {renderLeftPanel()}
       </div>
-
-      {/* PANEL DERECHO: conversación, comunidad o detalle de contacto */}
       <div className="flex-1 min-w-0 flex flex-col">
         {detail ?? <ChatEmptyState inContacts={inContacts} />}
       </div>
 
-      {/* New Chat Modal */}
-      <NewChatModal
-        isOpen={newChatModalOpen}
-        onClose={() => setNewChatModalOpen(false)}
-        onSelectContact={handleSelectContactForNewChat}
-      />
+      <NewChatModal isOpen={newChatModalOpen} onClose={() => setNewChatModalOpen(false)} onSelectContact={(contact) => { const existing = chats.find((c) => c.name === contact.name); if (existing) { onSectionChange('chats'); openChatWith(existing); } else { const chat = newChatItem(contact.name, false, contact.verified); setChats((prev) => [chat, ...prev]); onSectionChange('chats'); openChatWith(chat); } }} />
+      <CreateGroupModal isOpen={createGroupModalOpen} onClose={() => setCreateGroupModalOpen(false)} onCreateGroup={(name, members) => { const groupChat: ChatItem = { id: `group_${Date.now()}`, name, lastMessage: 'Grupo creado', time: 'Ahora', unreadCount: 0, isGroup: true, status: 'sent', members }; setChats((prev) => [groupChat, ...prev]); onSectionChange('chats'); openChatWith(groupChat); }} />
+      <StatusViewer visible={viewerIndex !== null} statuses={statuses} index={viewerIndex ?? 0} onChangeIndex={(i) => setViewerIndex(i)} onClose={() => setViewerIndex(null)} />
+      <CreateStatusModal visible={creatingStatus} onPublish={(st) => { addStatus(st); setStatuses([...MOCK_STATUSES]); setCreatingStatus(false); }} onClose={() => setCreatingStatus(false)} />
+      <CreateCategoryModal isOpen={creatingCategory} onClose={() => setCreatingCategory(false)} onCreate={(catData) => { const created = addCategory(catData); setCategories([...MOCK_CATEGORIES]); setActiveCategoryId(created.id); setCreatingCategory(false); }} />
+      <AssignCategoryModal isOpen={!!assigningChat} chatName={assigningChat?.name} categories={categories} currentCategoryIds={assigningChat?.categoryIds ?? []} onSave={(catIds) => { if (assigningChat) { setChatCategories(assigningChat.id, catIds); setChats([...MOCK_CHATS]); } setAssigningChat(null); }} onClose={() => setAssigningChat(null)} />
+      <CreateCommunityModal isOpen={creatingCommunity} onClose={() => setCreatingCommunity(false)} onCreate={(name, description, category) => { const comm: CommunityItem = { id: `comm-${Date.now()}`, name, description, category, initials: name.slice(0, 2).toUpperCase(), color: '#F3E8FF', creatorId: CURRENT_USER_ID, membersCount: 1, isAdmin: true, unreadCount: 0, members: [{ id: CURRENT_USER_ID, name: 'Santiago Valencia', role: 'admin', initials: 'SV', color: '#F3E8FF', isCurrentUser: true }], posts: [] }; setCommunities((prev) => [comm, ...prev]); setCreatingCommunity(false); onSectionChange('communities'); }} />
+      <CreateContactModal isOpen={creatingContact} onClose={() => setCreatingContact(false)} onCreate={(c) => { setContacts((prev) => [c, ...prev]); setSelectedContact(c); setCreatingContact(false); }} />
+      
+      <PinLockModal visible={!!lockedChat} itemName={lockedChat?.name} onClose={() => setLockedChat(null)} onSuccess={() => { if (lockedChat) { const c = lockedChat; setLockedChat(null); openChatWith(c); } }} />
 
-      {/* Create Group Modal */}
-      <CreateGroupModal
-        isOpen={createGroupModalOpen}
-        onClose={() => setCreateGroupModalOpen(false)}
-        onCreateGroup={handleCreateGroup}
-      />
-
-      {/* Status Viewer Fullscreen Modal */}
-      <StatusViewer
-        visible={viewerIndex !== null}
-        statuses={statuses}
-        index={viewerIndex ?? 0}
-        onChangeIndex={handleOpenStatus}
-        onClose={() => setViewerIndex(null)}
-      />
-
-      {/* Create Status Modal */}
-      <CreateStatusModal
-        visible={creatingStatus}
-        onPublish={(statusData) => {
-          addStatus(statusData);
-          setStatuses([...MOCK_STATUSES]);
-          setCreatingStatus(false);
-        }}
-        onClose={() => setCreatingStatus(false)}
-      />
-
-      {/* Create Category Modal */}
-      <CreateCategoryModal
-        isOpen={creatingCategory}
-        onClose={() => setCreatingCategory(false)}
-        onCreate={(catData) => {
-          const created = addCategory(catData);
-          setCategories([...MOCK_CATEGORIES]);
-          setActiveCategoryId(created.id);
-          setCreatingCategory(false);
-        }}
-      />
-
-      {/* Assign Category Modal */}
-      <AssignCategoryModal
-        isOpen={!!assigningChat}
-        chatName={assigningChat?.name}
-        categories={categories}
-        currentCategoryIds={assigningChat?.categoryIds ?? []}
-        onSave={(catIds) => {
-          if (assigningChat) {
-            setChatCategories(assigningChat.id, catIds);
-            setChats([...MOCK_CHATS]);
-          }
-          setAssigningChat(null);
-        }}
-        onClose={() => setAssigningChat(null)}
-      />
-
-      {/* Create Community Modal */}
-      <CreateCommunityModal
-        isOpen={creatingCommunity}
-        onClose={() => setCreatingCommunity(false)}
-        onCreate={handleCreateCommunity}
-      />
-
-      {/* Create Contact Modal */}
-      <CreateContactModal
-        isOpen={creatingContact}
-        onClose={() => setCreatingContact(false)}
-        onCreate={(contact) => {
-          setContacts((prev) => [contact, ...prev]);
-          setSelectedContact(contact);
-          setCreatingContact(false);
-        }}
-      />
-
-      {/* Pin Lock Modal for protected chats */}
-      <PinLockModal
-        visible={!!lockedChat}
-        itemName={lockedChat?.name}
-        onClose={() => setLockedChat(null)}
-        onSuccess={() => {
-          if (lockedChat) {
-            const chatToOpen = lockedChat;
-            setLockedChat(null);
-            openChatWith(chatToOpen);
-          }
-        }}
-      />
     </div>
   );
 }

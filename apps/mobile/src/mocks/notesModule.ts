@@ -16,6 +16,8 @@ export interface NoteItem {
   colorTag: string;
   reminderDate?: string;
   folder: 'notes' | 'trash';
+  /** Categoría a la que pertenece (ver mocks/noteCategories.ts) */
+  categoryId: string;
 }
 
 export const MOCK_MODULE_NOTES: NoteItem[] = [
@@ -28,6 +30,7 @@ export const MOCK_MODULE_NOTES: NoteItem[] = [
       isFavorite: true,
       colorTag: '#A78BFA', // Purple
       folder: 'notes',
+      categoryId: 'idea',
     },
     {
       id: 'n2',
@@ -39,6 +42,7 @@ export const MOCK_MODULE_NOTES: NoteItem[] = [
       colorTag: '#F472B6', // Pink
       reminderDate: '28 Jul • 10:00 AM',
       folder: 'notes',
+      categoryId: 'hogar',
     },
     {
       id: 'n3',
@@ -49,6 +53,7 @@ export const MOCK_MODULE_NOTES: NoteItem[] = [
       isFavorite: true,
       colorTag: '#60A5FA', // Blue
       folder: 'notes',
+      categoryId: 'proyecto',
     },
     {
       id: 'n4',
@@ -59,6 +64,7 @@ export const MOCK_MODULE_NOTES: NoteItem[] = [
       isFavorite: false,
       colorTag: '#FB923C', // Orange
       folder: 'notes',
+      categoryId: 'documento',
     },
     {
       id: 'n5',
@@ -69,5 +75,6 @@ export const MOCK_MODULE_NOTES: NoteItem[] = [
       isFavorite: false,
       colorTag: '#9CA3AF', // Gray
       folder: 'trash',
+      categoryId: 'personal',
     },
 ];

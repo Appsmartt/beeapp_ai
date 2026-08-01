@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { Calendar as CalendarIcon, Plus, ChevronLeft, ChevronRight, ChevronDown } from 'lucide-react';
+import { Calendar as CalendarIcon, Plus, ChevronDown } from 'lucide-react';
 import { MOCK_CALENDAR_EVENTS, CalendarEventItem } from '@/mocks/calendarEvents';
 import CalendarOptionsBar, { CalendarFilter } from './CalendarOptionsBar';
 import CalendarEventRow from './CalendarEventRow';
@@ -9,14 +9,12 @@ import CalendarEventDetail from './CalendarEventDetail';
 import CreateEventModal from './CreateEventModal';
 
 const MONTHS = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
-const SHORT_MONTHS = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
 const YEARS = [2024, 2025, 2026, 2027, 2028];
 const WEEK_DAYS = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
 
 export default function CalendarModule() {
   const [events, setEvents] = useState<CalendarEventItem[]>(MOCK_CALENDAR_EVENTS);
   const [filter, setFilter] = useState<CalendarFilter>('upcoming');
-  const [viewMode, setViewMode] = useState<'day' | 'week' | 'month'>('week');
   const [selectedDayStr, setSelectedDayStr] = useState('2026-07-28');
   const [selectedEvent, setSelectedEvent] = useState<CalendarEventItem | null>(null);
 
@@ -96,41 +94,53 @@ export default function CalendarModule() {
     if (filter === 'meetings') return ev.type === 'meeting';
     if (filter === 'events') return ev.type !== 'meeting';
     return true;
-  });
+  });  const handleUpdateReminder = (eventId: string, reminder: string) => {
+    setEvents((prev) => prev.map((ev) => (ev.id === eventId ? { ...ev, reminder } : ev)));
+    if (selectedEvent?.id === eventId) {
+      setSelectedEvent((prev) => (prev ? { ...prev, reminder } : null));
+    }
+  };
 
   return (
     <div className="bg-white min-h-full flex flex-row relative select-none">
-      {/* 1. BARRA DE OPCIONES DE AGENDA (56px) */}
       <CalendarOptionsBar filter={filter} onSelectFilter={setFilter} />
 
-      {/* 2. PANEL IZQUIERDO: Tira semanal + Lista (40% de ancho, min 380px, max 450px) */}
       <div className="w-[380px] lg:w-[420px] shrink-0 border-r border-neutral-200 flex flex-col bg-white">
-        {/* Cabecera de Agenda */}
         <div className="p-3.5 border-b border-neutral-100 space-y-3">
           <div className="flex items-center justify-between gap-2">
-            <div className="flex items-center gap-1.5 relative">
-              {/* Selector de Mes con Dropdown */}
-              <div ref={monthRef} className="relative">
+            <div className="flex items-center gap-2">
+              <h1 className="font-semibold text-base text-neutral-900">Agenda</h1>
+              <button
+                type="button"
+                onClick={handleToday}
+                className="px-2.5 py-1 rounded-full bg-brand-primary/10 text-brand-primary text-[11px] font-semibold hover:bg-brand-primary/20 transition-colors"
+              >
+                Hoy
+              </button>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <div className="relative" ref={monthRef}>
                 <button
                   type="button"
                   onClick={() => setMonthDropdownOpen(!monthDropdownOpen)}
-                  className="font-semibold text-sm text-neutral-900 flex items-center gap-1 hover:text-brand-primary transition-colors"
+                  className="px-2.5 py-1 rounded-xl bg-neutral-100 hover:bg-neutral-200/80 text-xs font-semibold text-neutral-800 flex items-center gap-1 transition-colors"
                 >
                   <span>{MONTHS[currentMonthIdx]}</span>
-                  <ChevronDown className="w-3.5 h-3.5 text-neutral-400" />
+                  <ChevronDown className="w-3.5 h-3.5 text-neutral-500" />
                 </button>
 
                 {monthDropdownOpen && (
-                  <div className="absolute left-0 top-7 w-52 bg-white border border-neutral-200 rounded-xl shadow-xl z-40 p-2 grid grid-cols-3 gap-1 animate-in fade-in zoom-in-95 duration-100">
-                    {SHORT_MONTHS.map((m, idx) => (
+                  <div className="absolute left-0 top-full mt-1 w-32 bg-white rounded-2xl shadow-xl border border-neutral-100 py-1.5 z-30 max-h-56 overflow-y-auto">
+                    {MONTHS.map((m, idx) => (
                       <button
                         key={m}
                         type="button"
                         onClick={() => handleSelectMonth(idx)}
-                        className={`py-1.5 text-xs rounded-lg transition-colors font-normal ${
+                        className={`w-full px-3 py-1.5 text-left text-xs font-normal transition-colors ${
                           idx === currentMonthIdx
-                            ? 'bg-brand-primary text-white font-semibold'
-                            : 'hover:bg-neutral-100 text-neutral-700'
+                            ? 'bg-brand-primary/10 text-brand-primary font-semibold'
+                            : 'text-neutral-700 hover:bg-neutral-50'
                         }`}
                       >
                         {m}
@@ -140,28 +150,27 @@ export default function CalendarModule() {
                 )}
               </div>
 
-              {/* Selector de Año con Dropdown */}
-              <div ref={yearRef} className="relative">
+              <div className="relative" ref={yearRef}>
                 <button
                   type="button"
                   onClick={() => setYearDropdownOpen(!yearDropdownOpen)}
-                  className="font-normal text-sm text-neutral-500 flex items-center gap-1 hover:text-brand-primary transition-colors"
+                  className="px-2.5 py-1 rounded-xl bg-neutral-100 hover:bg-neutral-200/80 text-xs font-semibold text-neutral-800 flex items-center gap-1 transition-colors"
                 >
                   <span>{currentYearNum}</span>
-                  <ChevronDown className="w-3.5 h-3.5 text-neutral-400" />
+                  <ChevronDown className="w-3.5 h-3.5 text-neutral-500" />
                 </button>
 
                 {yearDropdownOpen && (
-                  <div className="absolute left-0 top-7 w-28 bg-white border border-neutral-200 rounded-xl shadow-xl z-40 p-1 space-y-0.5 animate-in fade-in zoom-in-95 duration-100">
+                  <div className="absolute right-0 top-full mt-1 w-24 bg-white rounded-2xl shadow-xl border border-neutral-100 py-1.5 z-30">
                     {YEARS.map((yr) => (
                       <button
                         key={yr}
                         type="button"
                         onClick={() => handleSelectYear(yr)}
-                        className={`w-full text-left px-3 py-1.5 text-xs rounded-lg transition-colors font-normal ${
+                        className={`w-full px-3 py-1.5 text-left text-xs font-normal transition-colors ${
                           yr === currentYearNum
-                            ? 'bg-brand-primary text-white font-semibold'
-                            : 'hover:bg-neutral-100 text-neutral-700'
+                            ? 'bg-brand-primary/10 text-brand-primary font-semibold'
+                            : 'text-neutral-700 hover:bg-neutral-50'
                         }`}
                       >
                         {yr}
@@ -170,35 +179,7 @@ export default function CalendarModule() {
                   </div>
                 )}
               </div>
-            </div>
 
-            <div className="flex items-center gap-1.5 shrink-0">
-              {/* Botón Hoy */}
-              <button
-                type="button"
-                onClick={handleToday}
-                className="h-8 px-2.5 rounded-full border border-neutral-200 text-xs font-normal text-neutral-700 hover:bg-neutral-50 transition-colors"
-              >
-                Hoy
-              </button>
-
-              {/* Selector Vista Día / Sem / Mes */}
-              <div className="flex items-center bg-neutral-100 p-0.5 rounded-xl border border-neutral-200/60 text-[11px] font-normal">
-                {(['day', 'week', 'month'] as const).map((m) => (
-                  <button
-                    key={m}
-                    type="button"
-                    onClick={() => setViewMode(m)}
-                    className={`px-2 py-0.5 rounded-lg transition-colors ${
-                      viewMode === m ? 'bg-white text-brand-primary shadow-xs font-semibold' : 'text-neutral-500'
-                    }`}
-                  >
-                    {m === 'day' ? 'Día' : m === 'week' ? 'Sem' : 'Mes'}
-                  </button>
-                ))}
-              </div>
-
-              {/* Botón + Nuevo */}
               <button
                 type="button"
                 onClick={() => setCreateModalOpen(true)}
@@ -210,43 +191,33 @@ export default function CalendarModule() {
             </div>
           </div>
 
-          {/* Tira semanal con días */}
-          <div className="flex items-center justify-between gap-1 pt-1">
-            <button type="button" className="p-1 text-neutral-400 hover:text-neutral-800">
-              <ChevronLeft className="w-4 h-4" />
-            </button>
-            <div className="flex-1 flex justify-between gap-1">
-              {weekDays.map((d) => {
-                const isSelected = selectedDayStr === d.isoStr;
-                return (
-                  <button
-                    key={d.isoStr}
-                    type="button"
-                    onClick={() => setSelectedDayStr(d.isoStr)}
-                    className={`flex-1 py-1.5 rounded-xl flex flex-col items-center gap-0.5 transition-colors ${
-                      isSelected
-                        ? 'bg-brand-primary text-white font-semibold shadow-xs'
-                        : d.isToday
-                        ? 'border border-brand-primary text-brand-primary font-semibold'
-                        : 'hover:bg-neutral-100 text-neutral-700 font-normal'
-                    }`}
-                  >
-                    <span className="text-[10px] font-normal opacity-80">{d.name}</span>
-                    <span className="text-xs font-semibold">{d.num}</span>
-                  </button>
-                );
-              })}
-            </div>
-            <button type="button" className="p-1 text-neutral-400 hover:text-neutral-800">
-              <ChevronRight className="w-4 h-4" />
-            </button>
+          <div className="flex items-center justify-between bg-neutral-50 p-1.5 rounded-2xl border border-neutral-200/80">
+            {weekDays.map((d) => {
+              const isSelected = d.isoStr === selectedDayStr;
+              return (
+                <button
+                  key={d.isoStr}
+                  type="button"
+                  onClick={() => setSelectedDayStr(d.isoStr)}
+                  className={`flex-1 py-1.5 rounded-xl flex flex-col items-center gap-0.5 transition-all ${
+                    isSelected
+                      ? 'bg-brand-primary text-white font-semibold shadow-xs'
+                      : d.isToday
+                      ? 'bg-brand-primary/10 text-brand-primary font-semibold'
+                      : 'text-neutral-600 hover:bg-neutral-200/60'
+                  }`}
+                >
+                  <span className="text-[10px] font-normal uppercase opacity-80">{d.name}</span>
+                  <span className="text-xs font-semibold">{d.num}</span>
+                </button>
+              );
+            })}
           </div>
         </div>
 
-        {/* Lista de Eventos */}
-        <div className="flex-1 overflow-y-auto">
+        <div className="flex-1 overflow-y-auto p-3">
           {filteredEvents.length === 0 ? (
-            <div className="p-12 text-center text-neutral-400 space-y-2">
+            <div className="py-16 text-center text-neutral-400 space-y-2">
               <CalendarIcon className="w-10 h-10 mx-auto text-neutral-300" />
               <p className="text-xs font-normal">Sin eventos programados</p>
             </div>
@@ -267,7 +238,6 @@ export default function CalendarModule() {
         </div>
       </div>
 
-      {/* 3. PANEL DERECHO: Detalle del evento (flex-1) */}
       <div className="flex-1 min-w-0 flex flex-col">
         {selectedEvent ? (
           <CalendarEventDetail
@@ -275,6 +245,7 @@ export default function CalendarModule() {
             onBack={() => setSelectedEvent(null)}
             onEdit={() => setCreateModalOpen(true)}
             onDelete={handleDeleteEvent}
+            onUpdateReminder={handleUpdateReminder}
           />
         ) : (
           <div className="flex-1 flex items-center justify-center p-12 text-center text-neutral-400 bg-neutral-50/50">
@@ -289,7 +260,6 @@ export default function CalendarModule() {
         )}
       </div>
 
-      {/* Modal de Creación / Edición */}
       <CreateEventModal
         isOpen={createModalOpen}
         onClose={() => setCreateModalOpen(false)}

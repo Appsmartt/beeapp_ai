@@ -2,6 +2,7 @@
 import { View, Text, StyleSheet, TouchableOpacity, Dimensions } from 'react-native';
 import { colors } from '@beeapp/design-system';
 import { ChevronLeft, ChevronDown, Inbox, Settings, SquarePen } from 'lucide-react-native';
+import ModuleNotificationBell from '../ModuleNotificationBell';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -47,13 +48,16 @@ export default function MailHeader({
           <ChevronDown size={16} color={colors.neutral.gray600} style={{ marginLeft: 6 }} />
         </TouchableOpacity>
 
-        {onCompose ? (
-          <TouchableOpacity onPress={onCompose} style={styles.headerActionBtn} activeOpacity={0.7}>
-            <SquarePen size={18} color={colors.brand.primary} />
-          </TouchableOpacity>
-        ) : (
-          <View style={styles.headerSideSlot} />
-        )}
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+          <ModuleNotificationBell moduleId="mail" />
+          {onCompose ? (
+            <TouchableOpacity onPress={onCompose} style={styles.headerActionBtn} activeOpacity={0.7}>
+              <SquarePen size={18} color={colors.brand.primary} />
+            </TouchableOpacity>
+          ) : (
+            <View style={styles.headerSideSlot} />
+          )}
+        </View>
       </View>
 
       {/* Dropdown Account Selector Menu */}

@@ -10,6 +10,8 @@ export interface NoteItem {
   folder?: 'notes' | 'trash';
   createdAt?: string;
   colorTag?: string;
+  /** Categoría a la que pertenece (ver mocks/noteCategories.ts) */
+  categoryId: string;
 }
 
 export const MOCK_NOTES: NoteItem[] = [
@@ -25,6 +27,7 @@ export const MOCK_NOTES: NoteItem[] = [
     folder: 'notes',
     createdAt: '2026-07-28T09:15:00Z',
     colorTag: '#A78BFA',
+    categoryId: 'proyecto',
   },
   {
     id: 'nt-2',
@@ -37,6 +40,7 @@ export const MOCK_NOTES: NoteItem[] = [
     folder: 'notes',
     createdAt: '2026-07-27T14:30:00Z',
     colorTag: '#FB923C',
+    categoryId: 'documento',
   },
   {
     id: 'nt-3',
@@ -49,6 +53,7 @@ export const MOCK_NOTES: NoteItem[] = [
     folder: 'notes',
     createdAt: '2026-07-26T11:00:00Z',
     colorTag: '#34D399',
+    categoryId: 'hogar',
   },
   {
     id: 'nt-4',
@@ -62,6 +67,7 @@ export const MOCK_NOTES: NoteItem[] = [
     folder: 'notes',
     createdAt: '2026-07-22T16:00:00Z',
     colorTag: '#60A5FA',
+    categoryId: 'idea',
   },
   {
     id: 'nt-5',
@@ -74,5 +80,6 @@ export const MOCK_NOTES: NoteItem[] = [
     folder: 'notes',
     createdAt: '2026-07-18T08:00:00Z',
     colorTag: '#F472B6',
+    categoryId: 'presupuesto',
   },
 ];

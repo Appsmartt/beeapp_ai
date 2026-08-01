@@ -4,6 +4,7 @@ import { colors } from '@beeapp/design-system';
 import { ChevronLeft, ArrowUpDown, Plus } from 'lucide-react-native';
 import { SortOption } from '../../utils/storageHelpers';
 import ViewModeToggle, { ViewMode } from '../layout/ViewModeToggle';
+import ModuleNotificationBell from '../ModuleNotificationBell';
 
 interface StorageHeaderProps {
   /** Omitted when there is nothing to go back to (root of an embedded module) */
@@ -32,6 +33,7 @@ export default function StorageHeader({ onBack, onAction, sortBy, onSortChange, 
 
         {/* Sort & View controls */}
         <View style={styles.headerControls}>
+          <ModuleNotificationBell moduleId="files" />
           <ViewModeToggle mode={viewMode} onChange={onViewModeChange} />
 
           <TouchableOpacity

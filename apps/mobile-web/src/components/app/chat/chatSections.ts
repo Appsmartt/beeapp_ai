@@ -1,10 +1,6 @@
 import type { ElementType } from 'react';
-import { MessageCircle, Megaphone, Users, Globe, Phone, CircleDashed, Bot } from 'lucide-react';
+import { MessageCircle, Megaphone, Users, Globe, Phone, CircleDashed, Bot, Lock, Archive } from 'lucide-react';
 
-/**
- * Qué se muestra en el panel izquierdo del módulo de Chat.
- * En desktop lo controla el sidebar derecho; en móvil, las pestañas del panel.
- */
 export type ChatSection =
   | 'chats'
   | 'communities'
@@ -12,12 +8,12 @@ export type ChatSection =
   | 'discover'
   | 'calls'
   | 'statuses'
-  | 'ai';
+  | 'ai'
+  | 'restricted'
+  | 'archived';
 
-/** Sub-pestañas del panel de contactos dentro de Chat */
 export type ContactsTab = 'my_contacts' | 'discover' | 'calls';
 
-/** Opciones contextuales de Chat en el sidebar derecho (solo desktop) */
 export const CHAT_SECTIONS: { key: ChatSection; label: string; icon: ElementType }[] = [
   { key: 'chats', label: 'Chats', icon: MessageCircle },
   { key: 'communities', label: 'Comunidades', icon: Megaphone },
@@ -26,4 +22,6 @@ export const CHAT_SECTIONS: { key: ChatSection; label: string; icon: ElementType
   { key: 'calls', label: 'Llamadas', icon: Phone },
   { key: 'statuses', label: 'Estados', icon: CircleDashed },
   { key: 'ai', label: 'Asistente IA', icon: Bot },
+  { key: 'restricted', label: 'Chats restringidos', icon: Lock },
+  { key: 'archived', label: 'Chats archivados', icon: Archive },
 ];

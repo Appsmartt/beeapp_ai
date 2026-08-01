@@ -11,7 +11,21 @@ export interface StorageItem {
   signerName?: string;
   signedAt?: string;
   isProtected?: boolean;
+  categoryIds?: string[];
 }
+
+export interface StorageCategory {
+  id: string;
+  name: string;
+  icon: string;
+  color: string;
+}
+
+export const MOCK_STORAGE_CATEGORIES: StorageCategory[] = [
+  { id: 'scat-personal', name: 'Personal', icon: 'User', color: '#EBF5FF' },
+  { id: 'scat-work', name: 'Trabajo', icon: 'Briefcase', color: '#F1F3F5' },
+  { id: 'scat-important', name: 'Importante', icon: 'Star', color: '#FEF3C7' },
+];
 
 export const MOCK_STORAGE_ITEMS: StorageItem[] = [
   // Carpetas Principales (Root)
@@ -23,6 +37,7 @@ export const MOCK_STORAGE_ITEMS: StorageItem[] = [
     date: '20 Jul',
     parentId: null,
     isProtected: false,
+    categoryIds: ['scat-work'],
   },
   {
     id: 'f-imagenes',
@@ -32,6 +47,7 @@ export const MOCK_STORAGE_ITEMS: StorageItem[] = [
     date: 'Hoy, 09:00 AM',
     parentId: null,
     isProtected: false,
+    categoryIds: ['scat-work'],
   },
   {
     id: 'f-videos',
@@ -63,6 +79,7 @@ export const MOCK_STORAGE_ITEMS: StorageItem[] = [
     isSigned: true,
     signerName: 'Santiago Valencia',
     signedAt: 'Hoy, 11:31 AM',
+    categoryIds: ['scat-work', 'scat-important'],
   },
   {
     id: 'precios-doc',
@@ -71,6 +88,7 @@ export const MOCK_STORAGE_ITEMS: StorageItem[] = [
     size: '850 KB',
     date: 'Ayer, 04:20 PM',
     parentId: null,
+    categoryIds: ['scat-work'],
   },
   {
     id: 'finanzas-sheet',

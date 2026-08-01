@@ -14,24 +14,30 @@ import {
 import ScreenSafeArea from '../../../src/components/layout/ScreenSafeArea';
 import { useRouter } from 'expo-router';
 import { colors } from '@beeapp/design-system';
-import { ChevronLeft, Camera, Mail } from 'lucide-react-native';
+import {
+  ChevronLeft, Camera, Mail, Instagram, Facebook, Linkedin, Music2, Youtube, AtSign, Globe, Briefcase, Video,
+} from 'lucide-react-native';
 import FloatingTabBar from '../../../src/components/FloatingTabBar';
 import { COUNTRIES, Country } from '../../../src/mocks/countries';
 
 export default function EditProfileScreen() {
   const router = useRouter();
 
-  // Initial Mock Profile State
   const [name, setName] = useState('Santiago Valencia');
   const [email, setEmail] = useState('santiago@appsmartt.com');
   const [phone, setPhone] = useState('3001234567');
-  const [selectedCountry, setSelectedCountry] = useState<Country>(COUNTRIES[0]); // Colombia by default
+  const [selectedCountry, setSelectedCountry] = useState<Country>(COUNTRIES[0]);
 
-  // Modal / Country search states
+  const [instagram, setInstagram] = useState('https://instagram.com/santiagovalencia');
+  const [facebook, setFacebook] = useState('');
+  const [linkedin, setLinkedin] = useState('https://linkedin.com/in/santiagovalencia');
+  const [tiktok, setTiktok] = useState('');
+  const [youtube, setYoutube] = useState('');
+  const [threads, setThreads] = useState('');
+
   const [modalVisible, setModalVisible] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
 
-  // Email format validation (requires @ and .)
   const isEmailValid = email.trim() === '' || (email.includes('@') && email.includes('.'));
 
   const filteredCountries = useMemo(() => {
@@ -50,10 +56,18 @@ export default function EditProfileScreen() {
     router.back();
   };
 
+  const socialFields = [
+    { label: 'Instagram', icon: Instagram || Camera, value: instagram, onChange: setInstagram, placeholder: 'https://instagram.com/usuario' },
+    { label: 'Facebook', icon: Facebook || Globe, value: facebook, onChange: setFacebook, placeholder: 'https://facebook.com/usuario' },
+    { label: 'LinkedIn', icon: Linkedin || Briefcase, value: linkedin, onChange: setLinkedin, placeholder: 'https://linkedin.com/in/usuario' },
+    { label: 'TikTok', icon: Music2 || Camera, value: tiktok, onChange: setTiktok, placeholder: 'https://tiktok.com/@usuario' },
+    { label: 'YouTube', icon: Youtube || Video, value: youtube, onChange: setYoutube, placeholder: 'https://youtube.com/@usuario' },
+    { label: 'Threads', icon: AtSign || Globe, value: threads, onChange: setThreads, placeholder: 'https://threads.net/@usuario' },
+  ];
+
   return (
     <ScreenSafeArea style={styles.safeArea}>
       <View style={styles.container}>
-        {/* Header */}
         <View style={styles.header}>
           <TouchableOpacity onPress={() => router.back()} style={styles.backBtn} activeOpacity={0.7}>
             <ChevronLeft size={24} color={colors.neutral.text} />
@@ -63,7 +77,6 @@ export default function EditProfileScreen() {
         </View>
 
         <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
-          {/* Avatar Setup */}
           <View style={styles.avatarSection}>
             <View style={styles.avatarCircleBig}>
               <Text style={styles.avatarTextBig}>SV</Text>
@@ -74,66 +87,56 @@ export default function EditProfileScreen() {
             <Text style={styles.avatarTip}>Cambiar foto de perfil</Text>
           </View>
 
-          {/* Form: Mi Perfil */}
           <Text style={styles.sectionTitle}>Datos Personales</Text>
-          
+
           <View style={styles.inputGroup}>
             <Text style={styles.inputLabel}>Nombre Completo *</Text>
-            <TextInput
-              style={styles.inputField}
-              placeholder="Ingresa tu nombre..."
-              placeholderTextColor={colors.neutral.gray500}
-              value={name}
-              onChangeText={setName}
-            />
+            <TextInput style={styles.inputField} placeholder="Ingresa tu nombre..." placeholderTextColor={colors.neutral.gray500} value={name} onChangeText={setName} />
           </View>
 
-          {/* Email Field with Validation */}
           <View style={styles.inputGroup}>
             <Text style={styles.inputLabel}>Correo electrónico *</Text>
             <View style={[styles.inputFieldRow, !isEmailValid && styles.inputError]}>
               <Mail size={16} color={colors.neutral.gray500} style={{ marginRight: 8 }} />
-              <TextInput
-                style={styles.inputFieldText}
-                placeholder="correo@ejemplo.com"
-                placeholderTextColor={colors.neutral.gray500}
-                keyboardType="email-address"
-                autoCapitalize="none"
-                autoCorrect={false}
-                value={email}
-                onChangeText={setEmail}
-              />
+              <TextInput style={styles.inputFieldText} placeholder="correo@ejemplo.com" placeholderTextColor={colors.neutral.gray500} keyboardType="email-address" autoCapitalize="none" value={email} onChangeText={setEmail} />
             </View>
             {!isEmailValid && <Text style={styles.errorText}>Ingresa un correo válido</Text>}
           </View>
 
-          {/* Phone Field with Country Selector */}
           <View style={styles.inputGroup}>
             <Text style={styles.inputLabel}>Número de Teléfono *</Text>
             <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-              <TouchableOpacity
-                style={styles.prefixBadge}
-                activeOpacity={0.7}
-                onPress={() => {
-                  setSearchQuery('');
-                  setModalVisible(true);
-                }}
-              >
+              <TouchableOpacity style={styles.prefixBadge} activeOpacity={0.7} onPress={() => { setSearchQuery(''); setModalVisible(true); }}>
                 <Text style={styles.flag}>{selectedCountry.flag}</Text>
                 <Text style={styles.prefixText}>{selectedCountry.dialCode}</Text>
               </TouchableOpacity>
-              <TextInput
-                style={[styles.inputField, { flex: 1 }]}
-                placeholder="300 000 0000"
-                placeholderTextColor={colors.neutral.gray500}
-                keyboardType="phone-pad"
-                value={phone}
-                onChangeText={(text) => setPhone(text.replace(/\D/g, ''))}
-              />
+              <TextInput style={[styles.inputField, { flex: 1 }]} placeholder="300 000 0000" placeholderTextColor={colors.neutral.gray500} keyboardType="phone-pad" value={phone} onChangeText={(t) => setPhone(t.replace(/\D/g, ''))} />
             </View>
           </View>
 
-          {/* Action buttons */}
+          {/* Redes Sociales Section */}
+          <Text style={[styles.sectionTitle, { marginTop: 16 }]}>Redes Sociales</Text>
+          {socialFields.map((sf, idx) => {
+            const Icon = sf.icon || Globe;
+            return (
+              <View key={idx} style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>{sf.label}</Text>
+                <View style={styles.inputFieldRow}>
+                  <Icon size={16} color={colors.neutral.gray500} style={{ marginRight: 8 }} />
+                  <TextInput
+                    style={styles.inputFieldText}
+                    placeholder={sf.placeholder}
+                    placeholderTextColor={colors.neutral.gray500}
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                    value={sf.value}
+                    onChangeText={sf.onChange}
+                  />
+                </View>
+              </View>
+            );
+          })}
+
           <View style={styles.actionsBar}>
             <TouchableOpacity style={styles.discardBtn} onPress={() => router.back()} activeOpacity={0.7}>
               <Text style={styles.discardBtnText}>Descartar</Text>
@@ -149,7 +152,6 @@ export default function EditProfileScreen() {
         <FloatingTabBar />
       </View>
 
-      {/* Country Selector Modal */}
       <Modal animationType="slide" transparent={true} visible={modalVisible} onRequestClose={() => setModalVisible(false)}>
         <TouchableWithoutFeedback onPress={() => setModalVisible(false)}>
           <View style={styles.modalOverlay}>
@@ -161,26 +163,13 @@ export default function EditProfileScreen() {
                     <Text style={styles.closeButtonText}>Cerrar</Text>
                   </TouchableOpacity>
                 </View>
-                <TextInput
-                  style={styles.searchBar}
-                  placeholder="Buscar país o indicativo..."
-                  placeholderTextColor={colors.neutral.gray500}
-                  value={searchQuery}
-                  onChangeText={setSearchQuery}
-                />
+                <TextInput style={styles.searchBar} placeholder="Buscar país o indicativo..." placeholderTextColor={colors.neutral.gray500} value={searchQuery} onChangeText={setSearchQuery} />
                 <FlatList
                   data={filteredCountries}
                   keyExtractor={(item) => item.code}
                   keyboardShouldPersistTaps="handled"
                   renderItem={({ item }) => (
-                    <TouchableOpacity
-                      style={styles.countryRow}
-                      activeOpacity={0.7}
-                      onPress={() => {
-                        setSelectedCountry(item);
-                        setModalVisible(false);
-                      }}
-                    >
+                    <TouchableOpacity style={styles.countryRow} activeOpacity={0.7} onPress={() => { setSelectedCountry(item); setModalVisible(false); }}>
                       <Text style={styles.countryFlag}>{item.flag}</Text>
                       <Text style={styles.countryName}>{item.name}</Text>
                       <Text style={styles.countryDialCode}>{item.dialCode}</Text>

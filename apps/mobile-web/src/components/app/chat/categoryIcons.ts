@@ -1,4 +1,5 @@
 import {
+  User,
   Users,
   Briefcase,
   Heart,
@@ -17,6 +18,7 @@ import {
 } from 'lucide-react';
 
 export const CATEGORY_ICONS: Record<string, LucideIcon> = {
+  User,
   Users,
   Briefcase,
   Heart,

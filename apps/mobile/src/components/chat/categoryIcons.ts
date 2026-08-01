@@ -1,8 +1,9 @@
-import { Users, Briefcase, Heart, Home, Star, GraduationCap, Coffee, Gamepad2 } from 'lucide-react-native';
+import { User, Users, Briefcase, Heart, Home, Star, GraduationCap, Coffee, Gamepad2 } from 'lucide-react-native';
 import { colors } from '@beeapp/design-system';
 
 /** Icons a category can wear, in the order the create sheet shows them */
 export const CATEGORY_ICONS = {
+  User,
   Users,
   Briefcase,
   Heart,

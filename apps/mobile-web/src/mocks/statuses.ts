@@ -47,6 +47,12 @@ export interface StatusMusic {
   artist: string;
 }
 
+export interface StatusViewedBy {
+  contactId: string;
+  contactName: string;
+  viewedAt: string;
+}
+
 export interface StatusItem {
   id: string;
   authorId: string;
@@ -75,6 +81,10 @@ export interface StatusItem {
   music?: StatusMusic | null;
   timestamp: string;
   viewed: boolean;
+  visibility?: 'all' | 'selected' | 'category';
+  selectedContactIds?: string[];
+  selectedCategoryId?: string;
+  viewedBy?: StatusViewedBy[];
 }
 
 export const STATUS_TEXT_COLORS = [
@@ -113,6 +123,29 @@ export const STATUS_BACKGROUNDS = [
 ];
 
 export const MOCK_STATUSES: StatusItem[] = [
+  {
+    id: 's_my_1',
+    authorId: 'me',
+    authorName: 'Santiago Valencia',
+    authorInitials: 'SV',
+    authorColor: '#F3E8FF',
+    type: 'text',
+    text: 'Probando las nuevas funciones de privacidad de BeeApp AI.',
+    photoUrl: null,
+    bgColor: STATUS_BG_COLORS[0],
+    linkedProduct: null,
+    textPosition: { x: 50, y: 50 },
+    textSize: 24,
+    textWeight: '700',
+    textColor: '#FFFFFF',
+    timestamp: 'hace 1 h',
+    viewed: true,
+    viewedBy: [
+      { contactId: 'c1', contactName: 'Carlos Mendoza', viewedAt: 'hace 45 min' },
+      { contactId: 'c3', contactName: 'María Gómez', viewedAt: 'hace 30 min' },
+      { contactId: 'c2', contactName: 'Eduardo Torres', viewedAt: 'hace 10 min' },
+    ],
+  },
   {
     id: 's1',
     authorId: 'c1',

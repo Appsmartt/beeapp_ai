@@ -1,14 +1,12 @@
 'use client';
 
-import { X, Mic, Pause, RotateCcw, Keyboard } from 'lucide-react';
+import { X, Mic, Pause, RotateCcw } from 'lucide-react';
 
 interface VoiceControlsProps {
   /** true mientras se escucha o se responde: el micrófono pasa a pausa */
   isTalking: boolean;
-  textMode: boolean;
   onRestart: () => void;
   onToggleMic: () => void;
-  onToggleTextMode: () => void;
   onClose: () => void;
 }
 
@@ -17,13 +15,11 @@ const SECONDARY =
   'w-[46px] h-[46px] rounded-full bg-[rgba(237,233,254,0.12)] hover:bg-[rgba(237,233,254,0.2)] ' +
   'text-[#EDE9FE] flex items-center justify-center transition-colors shrink-0';
 
-/** Controles de voz: reiniciar · micrófono · teclado · cerrar */
+/** Controles de voz: reiniciar · micrófono · cerrar */
 export default function VoiceControls({
   isTalking,
-  textMode,
   onRestart,
   onToggleMic,
-  onToggleTextMode,
   onClose,
 }: VoiceControlsProps) {
   return (
@@ -42,15 +38,6 @@ export default function VoiceControls({
         }`}
       >
         {isTalking ? <Pause className="w-7 h-7" /> : <Mic className="w-[30px] h-[30px]" />}
-      </button>
-
-      <button
-        type="button"
-        onClick={onToggleTextMode}
-        aria-label={textMode ? 'Volver a voz' : 'Escribir'}
-        className={`${SECONDARY} ${textMode ? 'ring-2 ring-[#A78BFA]' : ''}`}
-      >
-        <Keyboard className="w-5 h-5" />
       </button>
 
       <button type="button" onClick={onClose} aria-label="Cerrar" className={SECONDARY}>

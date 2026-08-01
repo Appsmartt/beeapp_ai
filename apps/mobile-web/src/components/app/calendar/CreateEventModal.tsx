@@ -1,8 +1,8 @@
 'use client';
 
-import { useState } from 'react';
-import { X, Calendar as CalendarIcon, Video, MapPin } from 'lucide-react';
-import { CalendarEventItem } from '@/mocks/calendarEvents';
+import { useState, useRef, useEffect } from 'react';
+import { X, Calendar as CalendarIcon, Video, MapPin, Bell, Check } from 'lucide-react';
+import { CalendarEventItem, REMINDER_OPTIONS } from '@/mocks/calendarEvents';
 
 interface CreateEventModalProps {
   isOpen: boolean;
@@ -18,6 +18,19 @@ export default function CreateEventModal({ isOpen, onClose, onCreate }: CreateEv
   const [description, setDescription] = useState('');
   const [meetUrl, setMeetUrl] = useState('');
   const [type, setType] = useState<'meeting' | 'task' | 'reminder'>('meeting');
+  const [reminder, setReminder] = useState<string>('30 minutos antes');
+  const [reminderOpen, setReminderOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+        setReminderOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   if (!isOpen) return null;
 
@@ -35,6 +48,7 @@ export default function CreateEventModal({ isOpen, onClose, onCreate }: CreateEv
       meetUrl: type === 'meeting' ? (meetUrl || 'https://meet.google.com/new-meeting') : undefined,
       dateStr,
       duration: '45 min',
+      reminder,
       invitees: [
         { name: 'Carlos Mendoza', initials: 'CM', color: '#EBF5FF' },
         { name: 'María Gómez', initials: 'MG', color: '#ECFDF5' },
@@ -48,9 +62,8 @@ export default function CreateEventModal({ isOpen, onClose, onCreate }: CreateEv
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 select-none">
       <div className="fixed inset-0 bg-black/60 backdrop-blur-xl" onClick={onClose} />
-      <div className="relative w-full max-w-md bg-white rounded-3xl shadow-xl z-50 p-6 space-y-4 border border-neutral-100 animate-in fade-in zoom-in-95 duration-150">
-        
-        <div className="flex items-center justify-between border-b border-neutral-100 pb-3">
+      <div className="relative w-full max-w-md bg-white rounded-3xl shadow-xl z-50 p-6 space-y-4 border border-neutral-100 animate-in fade-in zoom-in-95 duration-150 max-h-[90vh] flex flex-col">
+        <div className="flex items-center justify-between border-b border-neutral-100 pb-3 shrink-0">
           <div className="flex items-center gap-2">
             <div className="w-8 h-8 rounded-xl bg-brand-primary/10 text-brand-primary flex items-center justify-center">
               <CalendarIcon className="w-4 h-4" />
@@ -62,7 +75,7 @@ export default function CreateEventModal({ isOpen, onClose, onCreate }: CreateEv
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-3">
+        <form onSubmit={handleSubmit} className="space-y-3 overflow-y-auto flex-1 pr-1">
           <div>
             <label className="text-[11px] font-normal text-neutral-600">Título del evento</label>
             <input
@@ -117,6 +130,40 @@ export default function CreateEventModal({ isOpen, onClose, onCreate }: CreateEv
             </div>
           </div>
 
+          {/* Recordatorio Dropdown */}
+          <div className="relative" ref={dropdownRef}>
+            <label className="text-[11px] font-normal text-neutral-600">Recordatorio</label>
+            <button
+              type="button"
+              onClick={() => setReminderOpen(!reminderOpen)}
+              className="w-full h-9 px-3 border border-neutral-200 rounded-xl text-xs font-normal text-neutral-900 bg-white flex items-center justify-between hover:bg-neutral-50"
+            >
+              <div className="flex items-center gap-2">
+                <Bell className="w-3.5 h-3.5 text-brand-primary shrink-0" />
+                <span>{reminder}</span>
+              </div>
+            </button>
+
+            {reminderOpen && (
+              <div className="absolute left-0 right-0 top-full mt-1 bg-white rounded-xl shadow-lg border border-neutral-200 py-1 z-30 max-h-48 overflow-y-auto">
+                {REMINDER_OPTIONS.map((opt) => (
+                  <button
+                    key={opt}
+                    type="button"
+                    onClick={() => {
+                      setReminder(opt);
+                      setReminderOpen(false);
+                    }}
+                    className="w-full px-3 py-2 text-left text-xs font-normal text-neutral-800 hover:bg-neutral-50 flex items-center justify-between transition-colors"
+                  >
+                    <span>{opt}</span>
+                    {reminder === opt && <Check className="w-3.5 h-3.5 text-brand-primary shrink-0" />}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
           {type === 'meeting' ? (
             <div>
               <label className="text-[11px] font-normal text-neutral-600">Enlace de Videollamada (opcional)</label>
@@ -158,7 +205,7 @@ export default function CreateEventModal({ isOpen, onClose, onCreate }: CreateEv
             />
           </div>
 
-          <div className="flex gap-2 pt-2">
+          <div className="flex gap-2 pt-2 shrink-0">
             <button type="button" onClick={onClose} className="flex-1 h-9 rounded-full border border-neutral-200 text-xs font-normal text-neutral-700 hover:bg-neutral-50">
               Cancelar
             </button>

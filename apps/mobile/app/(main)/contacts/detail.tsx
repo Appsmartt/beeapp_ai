@@ -30,6 +30,7 @@ import {
 } from 'lucide-react-native';
 import VerifiedBadge from '../../../src/components/VerifiedBadge';
 import { ALL_CONTACT_DETAILS, CONTACT_CALLS } from '../../../src/mocks/contacts';
+import SocialNetworksSection from '../../../src/components/profile/SocialNetworksSection';
 
 
 
@@ -194,6 +195,10 @@ export default function ContactDetailScreen() {
           </View>
 
           {/* Call History specific to this contact */}
+
+          {/* Redes sociales */}
+          <SocialNetworksSection socialLinks={contact.socialLinks} />
+
           <Text style={styles.sectionHeader}>Historial de Llamadas</Text>
           <View style={styles.callsSummaryCard}>
             {/* Quick Metrics */}

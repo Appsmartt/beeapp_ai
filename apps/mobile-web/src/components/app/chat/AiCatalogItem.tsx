@@ -77,7 +77,7 @@ export default function AiCatalogItem({ item, onContact }: AiCatalogItemProps) {
           className="flex items-center gap-1.5 px-3.5 py-1.5 bg-brand-primary text-white text-xs font-semibold rounded-full hover:bg-brand-dark transition-colors"
         >
           <MessageSquare className="w-3.5 h-3.5" />
-          <span>Contactar</span>
+          <span>Solicitar</span>
         </button>
       </div>
     </div>

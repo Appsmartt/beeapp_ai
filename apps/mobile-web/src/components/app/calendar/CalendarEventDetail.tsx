@@ -1,18 +1,65 @@
-import { useState } from 'react';
-import { ArrowLeft, Video, Trash2, Calendar as CalendarIcon, ExternalLink, Users, Pencil, CheckCircle, HelpCircle, XCircle, Paperclip } from 'lucide-react';
-import { CalendarEventItem } from '@/mocks/calendarEvents';
+'use client';
+
+import { useState, useRef, useEffect } from 'react';
+import {
+  ArrowLeft,
+  Video,
+  Trash2,
+  Calendar as CalendarIcon,
+  ExternalLink,
+  Users,
+  Pencil,
+  CheckCircle,
+  HelpCircle,
+  XCircle,
+  Bell,
+  Check,
+} from 'lucide-react';
+import { CalendarEventItem, REMINDER_OPTIONS } from '@/mocks/calendarEvents';
 
 interface CalendarEventDetailProps {
   event: CalendarEventItem;
   onBack: () => void;
   onEdit: (event: CalendarEventItem) => void;
   onDelete: (id: string) => void;
+  onUpdateReminder?: (eventId: string, reminder: string) => void;
 }
 
-export default function CalendarEventDetail({ event, onBack, onEdit, onDelete }: CalendarEventDetailProps) {
+export default function CalendarEventDetail({
+  event,
+  onBack,
+  onEdit,
+  onDelete,
+  onUpdateReminder,
+}: CalendarEventDetailProps) {
   const [userResponse, setUserResponse] = useState<'accepted' | 'maybe' | 'declined' | 'pending'>(
     event.userResponse || 'pending'
   );
+  const [reminder, setReminder] = useState<string>(event.reminder || '30 minutos antes');
+  const [reminderDropdownOpen, setReminderDropdownOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    setReminder(event.reminder || '30 minutos antes');
+  }, [event]);
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+        setReminderDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const handleSelectReminder = (opt: string) => {
+    setReminder(opt);
+    setReminderDropdownOpen(false);
+    if (onUpdateReminder) {
+      onUpdateReminder(event.id, opt);
+    }
+  };
 
   return (
     <div className="bg-white min-h-full flex flex-col select-none">
@@ -119,6 +166,40 @@ export default function CalendarEventDetail({ event, onBack, onEdit, onDelete }:
           </div>
         )}
 
+        {/* Recordatorio */}
+        <div className="space-y-1.5 pt-2 border-t border-neutral-100 relative" ref={dropdownRef}>
+          <span className="text-[11px] font-semibold text-neutral-400 uppercase tracking-wider">Recordatorio</span>
+          <button
+            type="button"
+            onClick={() => setReminderDropdownOpen(!reminderDropdownOpen)}
+            className="w-full flex items-center justify-between p-2.5 rounded-xl bg-neutral-50 border border-neutral-200/80 hover:bg-neutral-100/80 transition-colors text-left"
+          >
+            <div className="flex items-center gap-2">
+              <Bell className="w-4 h-4 text-brand-primary" />
+              <span className="text-xs text-neutral-800 font-normal">{reminder}</span>
+            </div>
+          </button>
+
+          {reminderDropdownOpen && (
+            <div className="absolute left-0 right-0 top-full mt-1 bg-white rounded-xl shadow-lg border border-neutral-200 py-1.5 z-30 max-h-56 overflow-y-auto">
+              {REMINDER_OPTIONS.map((opt) => {
+                const isSelected = reminder === opt;
+                return (
+                  <button
+                    key={opt}
+                    type="button"
+                    onClick={() => handleSelectReminder(opt)}
+                    className="w-full px-3 py-2 text-left text-xs font-normal text-neutral-800 hover:bg-neutral-50 flex items-center justify-between transition-colors"
+                  >
+                    <span>{opt}</span>
+                    {isSelected && <Check className="w-4 h-4 text-brand-primary shrink-0" />}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
         {/* Organizador */}
         <div className="space-y-1.5 pt-2 border-t border-neutral-100">
           <span className="text-[11px] font-semibold text-neutral-400 uppercase tracking-wider">Organizador</span>
@@ -147,23 +228,6 @@ export default function CalendarEventDetail({ event, onBack, onEdit, onDelete }:
             <p className="text-xs text-neutral-700 font-normal leading-relaxed">{event.description}</p>
           </div>
         )}
-
-        {/* Archivos Adjuntos */}
-        <div className="space-y-2 pt-2 border-t border-neutral-100">
-          <div className="flex items-center gap-1.5 text-xs font-semibold text-neutral-900">
-            <Paperclip className="w-4 h-4 text-neutral-500" />
-            <span>Archivos Adjuntos ({event.attachments?.length || 1})</span>
-          </div>
-
-          <div className="space-y-1.5">
-            {(event.attachments || [{ id: 'att1', name: 'Orden_del_Dia_Reunion.pdf', size: '1.2 MB' }]).map((att) => (
-              <div key={att.id} className="flex items-center justify-between p-2.5 rounded-xl bg-neutral-50 border border-neutral-100 text-xs font-normal">
-                <span className="text-neutral-800 truncate">{att.name}</span>
-                <span className="text-neutral-400 text-[10px] shrink-0 ml-2">{att.size}</span>
-              </div>
-            ))}
-          </div>
-        </div>
 
         {/* Participantes */}
         <div className="space-y-2 pt-2 border-t border-neutral-100">
@@ -209,4 +273,3 @@ export default function CalendarEventDetail({ event, onBack, onEdit, onDelete }:
     </div>
   );
 }
-

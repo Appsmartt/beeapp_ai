@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { X, Send } from 'lucide-react';
+import { X } from 'lucide-react';
 import { VOICE_CONVERSATION } from '@/mocks/voiceAssistant';
 import VoiceOrb, { OrbState } from './VoiceOrb';
 import VoiceControls from './VoiceControls';
@@ -35,8 +35,6 @@ export default function VoiceAssistantModal({ isOpen, onClose, onContactSeller }
   const [turnIndex, setTurnIndex] = useState(0);
   const [history, setHistory] = useState<Line[]>([]);
   const [current, setCurrent] = useState<Line | null>(null);
-  const [textMode, setTextMode] = useState(false);
-  const [draft, setDraft] = useState('');
   const [showProducts, setShowProducts] = useState(false);
   const transcriptRef = useRef<HTMLDivElement>(null);
 
@@ -50,8 +48,6 @@ export default function VoiceAssistantModal({ isOpen, onClose, onContactSeller }
     setTurnIndex(0);
     setHistory([]);
     setCurrent(null);
-    setTextMode(false);
-    setDraft('');
     setShowProducts(false);
   }, [isOpen]);
 
@@ -109,7 +105,6 @@ export default function VoiceAssistantModal({ isOpen, onClose, onContactSeller }
   const isTalking = phase === 'listening' || phase === 'speaking';
 
   const handleMic = () => {
-    setTextMode(false);
     if (phase === 'idle') {
       setPhase('listening');
       return;
@@ -123,16 +118,8 @@ export default function VoiceAssistantModal({ isOpen, onClose, onContactSeller }
     setHistory([]);
     setCurrent(null);
     setTurnIndex(0);
-    setTextMode(false);
     setShowProducts(false);
     setPhase('listening');
-  };
-
-  const sendDraft = () => {
-    if (!draft.trim()) return;
-    setHistory((h) => [...h, { speaker: 'user', text: draft.trim() }]);
-    setDraft('');
-    setPhase('thinking');
   };
 
   const handleContactCard = (result: AiSearchResult) => {
@@ -140,7 +127,7 @@ export default function VoiceAssistantModal({ isOpen, onClose, onContactSeller }
     if (onContactSeller) {
       onContactSeller(result);
     } else {
-      alert(`Contactando a ${result.sellerName} por ${result.productName}`);
+      alert(`Solicitando a ${result.sellerName} por ${result.productName}`);
     }
   };
 
@@ -170,35 +157,13 @@ export default function VoiceAssistantModal({ isOpen, onClose, onContactSeller }
         </button>
       </div>
 
-      {/* Orbe o campo de texto */}
+      {/* Orbe de voz */}
       <div className="flex flex-col items-center mt-4 shrink-0 px-6">
-        {textMode ? (
-          <div className="w-full max-w-md flex items-center gap-2 rounded-2xl bg-[rgba(237,233,254,0.12)] px-4 h-14">
-            <input
-              autoFocus
-              value={draft}
-              onChange={(event) => setDraft(event.target.value)}
-              onKeyDown={(event) => event.key === 'Enter' && sendDraft()}
-              placeholder="Escribe lo que necesitas..."
-              className="flex-1 bg-transparent text-sm text-white font-normal outline-none placeholder:text-[rgba(237,233,254,0.45)]"
-            />
-            <button
-              type="button"
-              onClick={sendDraft}
-              aria-label="Enviar"
-              className="text-[#A78BFA] hover:text-white transition-colors"
-            >
-              <Send className="w-5 h-5" />
-            </button>
-          </div>
-        ) : (
-          <div style={{ animation: 'voice-orb-enter 300ms ease-out' }}>
-            <VoiceOrb state={phase} />
-          </div>
-        )}
-
+        <div style={{ animation: 'voice-orb-enter 300ms ease-out' }}>
+          <VoiceOrb state={phase} />
+        </div>
         <p className="mt-1.5 text-[13px] font-semibold text-[#C4B5FD] tracking-[0.4px]">
-          {textMode ? 'Modo texto' : STATE_LABEL[phase]}
+          {STATE_LABEL[phase]}
         </p>
       </div>
 
@@ -222,10 +187,8 @@ export default function VoiceAssistantModal({ isOpen, onClose, onContactSeller }
 
       <VoiceControls
         isTalking={isTalking}
-        textMode={textMode}
         onRestart={handleRestart}
         onToggleMic={handleMic}
-        onToggleTextMode={() => setTextMode((mode) => !mode)}
         onClose={onClose}
       />
 

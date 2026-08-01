@@ -4,26 +4,35 @@ import ScreenSafeArea from '../../../src/components/layout/ScreenSafeArea';
 import { useNavigation } from 'expo-router';
 import { useModuleNav } from '../../../src/components/embedded/EmbeddedNavContext';
 import { colors } from '@beeapp/design-system';
-import { ChevronLeft, Plus, FolderOpen, ArrowUpDown } from 'lucide-react-native';
+import { ChevronLeft, Plus, FolderPlus } from 'lucide-react-native';
 import FloatingTabBar from '../../../src/components/FloatingTabBar';
-import NoteListRow from '../../../src/components/notes/NoteListRow';
-import NotesGridView from '../../../src/components/notes/NotesGridView';
 import ViewModeToggle, { ViewMode } from '../../../src/components/layout/ViewModeToggle';
+import ModuleNotificationBell from '../../../src/components/ModuleNotificationBell';
+import NoteCategoryGrid from '../../../src/components/notes/NoteCategoryGrid';
+import CreateNoteCategoryModal from '../../../src/components/notes/CreateNoteCategoryModal';
+import NotesListView, { NotesFilter } from '../../../src/components/notes/NotesListView';
 import { notesListStyles as styles } from '../../../src/components/notes/notesListStyles';
 import { MOCK_MODULE_NOTES, NoteItem } from '../../../src/mocks/notesModule';
+import {
+  FIXED_NOTE_CATEGORIES,
+  MOCK_NOTE_CATEGORIES,
+  NoteCategory,
+} from '../../../src/mocks/noteCategories';
 import PinLockModal from '../../../src/components/security/PinLockModal';
 import { getProtectedIds, isProtected } from '../../../src/stores/pinStore';
 
 export default function NotesListScreen() {
   const router = useModuleNav();
 
-  // Layout states
-  const [activeFilter, setActiveFilter] = useState<'all' | 'recent' | 'reminder' | 'favorite' | 'trash'>('all');
-  // Search moved to the global Home search bar: the module keeps the filter dormant
-  const [searchQuery] = useState('');
-  const [sortOption, setSortOption] = useState<'updated' | 'created' | 'alpha'>('updated');
-  const [swipeActiveId, setSwipeActiveId] = useState<string | null>(null);
-  // List by default; the grid is an adaptive 2/3-column layout
+  // Vista principal: null = cuadrícula de categorías; con valor = lista filtrada
+  const [category, setCategory] = useState<NoteCategory | null>(null);
+  const [categories, setCategories] = useState<NoteCategory[]>([
+    ...FIXED_NOTE_CATEGORIES,
+    ...MOCK_NOTE_CATEGORIES,
+  ]);
+  const [creatingCategory, setCreatingCategory] = useState(false);
+
+  const [activeFilter, setActiveFilter] = useState<NotesFilter>('all');
   const [viewMode, setViewMode] = useState<ViewMode>('list');
 
   // PIN protection (mock, global store)
@@ -32,94 +41,48 @@ export default function NotesListScreen() {
 
   // Protection is toggled inside the note: refresh the indicators on return
   useEffect(() => {
-    const unsubscribe = navigation.addListener('focus', () => setProtectedIds([...getProtectedIds()]));
+    const unsubscribe = navigation.addListener('focus', () =>
+      setProtectedIds([...getProtectedIds()])
+    );
     return unsubscribe;
   }, [navigation]);
   const [lockedNoteId, setLockedNoteId] = useState<string | null>(null);
 
-  // Mock Notes list data
   const [notes, setNotes] = useState<NoteItem[]>(MOCK_MODULE_NOTES);
 
   const handleToggleFavorite = (id: string, e: any) => {
     e.stopPropagation();
-    setNotes(
-      notes.map((note) =>
-        note.id === id ? { ...note, isFavorite: !note.isFavorite } : note
-      )
-    );
+    setNotes(notes.map((note) => (note.id === id ? { ...note, isFavorite: !note.isFavorite } : note)));
   };
 
-  const handleDeleteNote = (id: string, e: any) => {
-    e.stopPropagation();
-    setNotes(
-      notes.map((note) =>
-        note.id === id ? { ...note, folder: 'trash' } : note
-      )
-    );
-    setSwipeActiveId(null);
-    alert('Nota movida a la Papelera.');
-  };
+  /** Notas que pertenecen a una categoría, sin aplicar todavía los chips */
+  const notesOf = (target: NoteCategory) =>
+    notes.filter((note) => {
+      if (target.id === 'all') return note.folder === 'notes';
+      if (target.id === 'protected') return protectedIds.includes(note.id);
+      return note.categoryId === target.id && note.folder === 'notes';
+    });
 
-  const handlePermanentDelete = (id: string, e: any) => {
-    e.stopPropagation();
-    setNotes(notes.filter((n) => n.id !== id));
-    setSwipeActiveId(null);
-    alert('Nota eliminada permanentemente.');
-  };
+  const filteredNotes = category
+    ? notesOf(category).filter((note) => {
+        if (activeFilter === 'trash') return note.folder === 'trash';
+        if (note.folder !== 'notes') return false;
+        if (activeFilter === 'favorite') return note.isFavorite;
+        if (activeFilter === 'reminder') return !!note.reminderDate;
+        if (activeFilter === 'recent') {
+          const limit = new Date();
+          limit.setDate(limit.getDate() - 2);
+          return new Date(note.updatedAt) >= limit;
+        }
+        return true;
+      })
+    : [];
 
-  // Filter application
-  const filteredNotes = notes.filter((note) => {
-    // 1. Search Query
-    if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase();
-      if (!note.title.toLowerCase().includes(q) && !note.content.toLowerCase().includes(q)) {
-        return false;
-      }
-    }
+  // Más recientes primero, por fecha de modificación
+  const sortedNotes = [...filteredNotes].sort(
+    (a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+  );
 
-    // 2. Folder/Filter Toggles
-    if (activeFilter === 'trash') {
-      return note.folder === 'trash';
-    } else {
-      if (note.folder !== 'notes') return false;
-      
-      if (activeFilter === 'favorite') return note.isFavorite;
-      if (activeFilter === 'reminder') return !!note.reminderDate;
-      if (activeFilter === 'recent') {
-        // Assume notes updated in the last 2 days
-        const limitDate = new Date();
-        limitDate.setDate(limitDate.getDate() - 2);
-        return new Date(note.updatedAt) >= limitDate;
-      }
-    }
-
-    return true;
-  });
-
-  // Sort application
-  const sortedNotes = [...filteredNotes].sort((a, b) => {
-    if (sortOption === 'alpha') {
-      return a.title.localeCompare(b.title);
-    }
-    if (sortOption === 'created') {
-      return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
-    }
-    return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
-  });
-
-  const handleSelectSort = () => {
-    const options: Array<typeof sortOption> = ['updated', 'created', 'alpha'];
-    const nextIdx = (options.indexOf(sortOption) + 1) % options.length;
-    setSortOption(options[nextIdx]);
-  };
-
-  const getSortLabel = () => {
-    if (sortOption === 'alpha') return 'A-Z';
-    if (sortOption === 'created') return 'Creado';
-    return 'Modificado';
-  };
-
-  // Open a note, asking for the PIN when it is protected
   const openNote = (noteId: string) => {
     router.push({ pathname: '/(main)/notes/edit', params: { id: noteId } });
   };
@@ -132,31 +95,43 @@ export default function NotesListScreen() {
     openNote(noteId);
   };
 
-  const hasNotes = sortedNotes.length > 0;
+  const goBack = () => {
+    if (category) {
+      setCategory(null);
+      setActiveFilter('all');
+      return;
+    }
+    router.back();
+  };
 
   return (
     <ScreenSafeArea style={styles.safeArea}>
       <View style={styles.container}>
-        {/* Header toolbar */}
         <View style={styles.header}>
           <View style={styles.headerLeftCol}>
-            {router.canGoBack && (
-              <TouchableOpacity onPress={() => router.back()} style={styles.backBtn} activeOpacity={0.7}>
+            {(category || router.canGoBack) && (
+              <TouchableOpacity onPress={goBack} style={styles.backBtn} activeOpacity={0.7}>
                 <ChevronLeft size={24} color={colors.neutral.text} />
               </TouchableOpacity>
             )}
-            <Text style={styles.headerTitle}>Mis Notas</Text>
+            <Text style={styles.headerTitle}>{category ? category.name : 'Mis Notas'}</Text>
           </View>
 
           <View style={styles.headerRightCol}>
-            <ViewModeToggle mode={viewMode} onChange={setViewMode} />
+            <ModuleNotificationBell moduleId="notes" />
 
-            <TouchableOpacity onPress={handleSelectSort} style={styles.sortToggleBtn} activeOpacity={0.7}>
-              <ArrowUpDown size={16} color={colors.brand.primary} style={{ marginRight: 4 }} />
-              <Text style={styles.sortToggleText}>{getSortLabel()}</Text>
-            </TouchableOpacity>
+            {category ? (
+              <ViewModeToggle mode={viewMode} onChange={setViewMode} />
+            ) : (
+              <TouchableOpacity
+                onPress={() => setCreatingCategory(true)}
+                style={styles.backBtn}
+                activeOpacity={0.7}
+              >
+                <FolderPlus size={20} color={colors.neutral.text} />
+              </TouchableOpacity>
+            )}
 
-            {/* Create action in the header while embedded (instead of a FAB) */}
             {router.embedded && (
               <TouchableOpacity
                 onPress={() => router.push('/(main)/notes/edit')}
@@ -169,69 +144,31 @@ export default function NotesListScreen() {
           </View>
         </View>
 
-        {/* Horizontal Navigation filter chips */}
-        <View style={styles.filtersContainer}>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filtersScroll}>
-            {[
-              { id: 'all', label: 'Todas' },
-              { id: 'recent', label: 'Recientes' },
-              { id: 'reminder', label: 'Con recordatorio' },
-              { id: 'favorite', label: 'Favoritas' },
-              { id: 'trash', label: 'Papelera' },
-            ].map((chip) => {
-              const isActive = activeFilter === chip.id;
-              return (
-                <TouchableOpacity
-                  key={chip.id}
-                  style={[styles.filterChip, isActive && styles.filterChipActive]}
-                  onPress={() => {
-                    setActiveFilter(chip.id as any);
-                    setSwipeActiveId(null);
-                  }}
-                  activeOpacity={0.7}
-                >
-                  <Text style={[styles.filterChipText, isActive && styles.filterChipTextActive]}>
-                    {chip.label}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
-          </ScrollView>
-        </View>
-
-        {/* Notes listing area */}
-        {hasNotes ? (
+        {category ? (
+          <NotesListView
+            notes={sortedNotes}
+            protectedIds={protectedIds}
+            viewMode={viewMode}
+            activeFilter={activeFilter}
+            onChangeFilter={setActiveFilter}
+            onOpen={handleOpenNote}
+            onToggleFavorite={handleToggleFavorite}
+          />
+        ) : (
           <ScrollView style={styles.scrollContainer} showsVerticalScrollIndicator={false}>
-            {viewMode === 'grid' ? (
-              <NotesGridView notes={sortedNotes} protectedIds={protectedIds} onOpen={handleOpenNote} />
-            ) : (
-              sortedNotes.map((note, index) => (
-                <NoteListRow
-                  key={note.id}
-                  note={note}
-                  isProtected={protectedIds.includes(note.id)}
-                  showSeparator={index < sortedNotes.length - 1}
-                  onPress={() => handleOpenNote(note.id)}
-                  onToggleFavorite={(e) => handleToggleFavorite(note.id, e)}
-                />
-              ))
-            )}
+            <NoteCategoryGrid
+              categories={categories}
+              countOf={(item) => notesOf(item).length}
+              onOpen={(item) => {
+                setCategory(item);
+                setActiveFilter('all');
+              }}
+              onRemove={(id) => setCategories(categories.filter((item) => item.id !== id))}
+            />
             <View style={{ height: 120 }} />
           </ScrollView>
-        ) : (
-          // Empty State Layout
-          <View style={styles.emptyContainer}>
-            <View style={styles.emptyIconBg}>
-              <FolderOpen size={40} color={colors.neutral.gray500} />
-            </View>
-            <Text style={styles.emptyTitle}>Sin Notas</Text>
-            <Text style={styles.emptyDesc}>
-              No hay notas en esta carpeta. Haz clic en el botón flotante para escribir una nota nueva.
-            </Text>
-          </View>
         )}
 
-        {/* Create Note FAB - standalone only: embedded it lives in the header */}
         {!router.embedded && (
           <TouchableOpacity
             style={styles.createFab}
@@ -243,7 +180,15 @@ export default function NotesListScreen() {
           </TouchableOpacity>
         )}
 
-        {/* PIN required to open a protected note */}
+        <CreateNoteCategoryModal
+          visible={creatingCategory}
+          onCreate={(draft) => {
+            setCategories([...categories, { ...draft, id: `cat_${Date.now().toString(36)}` }]);
+            setCreatingCategory(false);
+          }}
+          onClose={() => setCreatingCategory(false)}
+        />
+
         <PinLockModal
           visible={!!lockedNoteId}
           itemName={notes.find((n) => n.id === lockedNoteId)?.title}
@@ -255,7 +200,6 @@ export default function NotesListScreen() {
           }}
         />
 
-        {/* Tab Menu navigation */}
         {!router.embedded && <FloatingTabBar activeTab="home" />}
       </View>
     </ScreenSafeArea>

@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import HomeHeader from '@/components/app/HomeHeader';
-import SideMenu from '@/components/app/SideMenu';
+import SideMenu, { MenuOption } from '@/components/app/SideMenu';
 import { ModuleKey, REORDERABLE_MODULE_KEYS } from '@/components/app/modules';
 import ModuleSidebar from '@/components/app/ModuleSidebar';
 import AllModulesOverview from '@/components/app/AllModulesOverview';
@@ -15,6 +15,7 @@ import { ChatSection } from '@/components/app/chat/chatSections';
 
 export default function HomePage() {
   const [sideMenuOpen, setSideMenuOpen] = useState(false);
+  const [sideMenuOption, setSideMenuOption] = useState<MenuOption>(null);
   const [activeModule, setActiveModule] = useState<ModuleKey>('overview');
   const [chatSection, setChatSection] = useState<ChatSection>('chats');
   const [moduleOrder, setModuleOrder] = useState<ModuleKey[]>(REORDERABLE_MODULE_KEYS);
@@ -24,10 +25,20 @@ export default function HomePage() {
     setActiveModule(key);
   };
 
+  const handleOpenSideMenuWithOption = (option: MenuOption = null) => {
+    setSideMenuOption(option);
+    setSideMenuOpen(true);
+  };
+
   const renderModuleContent = () => {
     switch (activeModule) {
       case 'overview':
-        return <AllModulesOverview onSelectModule={handleSelectModule} />;
+        return (
+          <AllModulesOverview
+            onSelectModule={handleSelectModule}
+            onOpenSideMenuOption={(opt) => handleOpenSideMenuWithOption(opt as MenuOption)}
+          />
+        );
       case 'mail':
         return <MailModule />;
       case 'notes':
@@ -45,23 +56,24 @@ export default function HomePage() {
 
   return (
     <div className="min-h-full bg-white flex">
-      {/* Columna central */}
       <div className="flex-1 min-w-0 flex flex-col">
-        <HomeHeader onOpenSideMenu={() => setSideMenuOpen(true)} />
+        <HomeHeader onOpenSideMenu={() => handleOpenSideMenuWithOption(null)} />
         <main className="flex-1 min-w-0">{renderModuleContent()}</main>
       </div>
 
-      {/* Sidebar derecho de módulos: desktop */}
       <ModuleSidebar
         activeModule={activeModule}
         onSelectModule={handleSelectModule}
-        onOpenSideMenu={() => setSideMenuOpen(true)}
+        onOpenSideMenu={() => handleOpenSideMenuWithOption(null)}
         moduleOrder={moduleOrder}
         onReorderModules={setModuleOrder}
       />
 
-      {/* Menú lateral */}
-      <SideMenu isOpen={sideMenuOpen} onClose={() => setSideMenuOpen(false)} />
+      <SideMenu
+        isOpen={sideMenuOpen}
+        initialOption={sideMenuOption}
+        onClose={() => { setSideMenuOpen(false); setSideMenuOption(null); }}
+      />
     </div>
   );
 }

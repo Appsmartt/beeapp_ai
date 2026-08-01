@@ -1,7 +1,9 @@
 'use client';
 
 import { useState, FormEvent, useMemo } from 'react';
-import { Camera, UserCheck, Mail, Check, AlertCircle } from 'lucide-react';
+import {
+  Camera, UserCheck, Mail, Check, AlertCircle, Instagram, Facebook, Linkedin, Music2, Youtube, AtSign, Globe, Briefcase, Video,
+} from 'lucide-react';
 import { CURRENT_USER } from '@/mocks/currentUser';
 import CountrySelector, { COUNTRIES, Country } from '@/components/auth/CountrySelector';
 
@@ -10,9 +12,16 @@ export function EditProfilePanel() {
   const [email, setEmail] = useState(CURRENT_USER.email);
   const [phone, setPhone] = useState('300 123 4567');
   const [country, setCountry] = useState<Country>(COUNTRIES[0]);
+
+  const [instagram, setInstagram] = useState('https://instagram.com/santiagovalencia');
+  const [facebook, setFacebook] = useState('');
+  const [linkedin, setLinkedin] = useState('https://linkedin.com/in/santiagovalencia');
+  const [tiktok, setTiktok] = useState('');
+  const [youtube, setYoutube] = useState('');
+  const [threads, setThreads] = useState('');
+
   const [saved, setSaved] = useState(false);
 
-  // Email format validation (requires @ and .)
   const isEmailValid = useMemo(() => {
     if (!email.trim()) return false;
     return email.includes('@') && email.includes('.');
@@ -26,9 +35,17 @@ export function EditProfilePanel() {
     setTimeout(() => setSaved(false), 2500);
   };
 
+  const socialFields = [
+    { label: 'Instagram', icon: Instagram || Camera, value: instagram, onChange: setInstagram, placeholder: 'https://instagram.com/usuario' },
+    { label: 'Facebook', icon: Facebook || Globe, value: facebook, onChange: setFacebook, placeholder: 'https://facebook.com/usuario' },
+    { label: 'LinkedIn', icon: Linkedin || Briefcase, value: linkedin, onChange: setLinkedin, placeholder: 'https://linkedin.com/in/usuario' },
+    { label: 'TikTok', icon: Music2 || Camera, value: tiktok, onChange: setTiktok, placeholder: 'https://tiktok.com/@usuario' },
+    { label: 'YouTube', icon: Youtube || Video, value: youtube, onChange: setYoutube, placeholder: 'https://youtube.com/@usuario' },
+    { label: 'Threads', icon: AtSign || Globe, value: threads, onChange: setThreads, placeholder: 'https://threads.net/@usuario' },
+  ];
+
   return (
     <form onSubmit={handleSubmit} className="space-y-6 select-none">
-      {/* Avatar Section */}
       <div className="flex flex-col items-center space-y-2">
         <div className="relative">
           <div className="w-20 h-20 rounded-full bg-brand-primary text-white font-bold text-xl flex items-center justify-center shadow-md">
@@ -49,13 +66,11 @@ export function EditProfilePanel() {
         </div>
       </div>
 
-      {/* Datos Personales */}
       <div className="space-y-4">
         <span className="text-[11px] font-semibold text-neutral-400 uppercase tracking-wider">
           Datos Personales
         </span>
 
-        {/* Nombre completo */}
         <div className="space-y-1">
           <label className="text-xs font-semibold text-neutral-700">Nombre completo *</label>
           <input
@@ -68,7 +83,6 @@ export function EditProfilePanel() {
           />
         </div>
 
-        {/* Correo electrónico con validación visual */}
         <div className="space-y-1">
           <label className="text-xs font-semibold text-neutral-700">Correo electrónico *</label>
           <div className="relative flex items-center">
@@ -94,7 +108,6 @@ export function EditProfilePanel() {
           )}
         </div>
 
-        {/* Teléfono con selector de indicativo de país */}
         <div className="space-y-1">
           <label className="text-xs font-semibold text-neutral-700">Número de Teléfono *</label>
           <div className="flex items-center">
@@ -108,9 +121,33 @@ export function EditProfilePanel() {
             />
           </div>
         </div>
+
+        {/* Redes Sociales Section */}
+        <div className="pt-2 space-y-3">
+          <span className="text-[11px] font-semibold text-neutral-400 uppercase tracking-wider">
+            Redes Sociales
+          </span>
+          {socialFields.map((sf, idx) => {
+            const Icon = sf.icon || Globe;
+            return (
+              <div key={idx} className="space-y-1">
+                <label className="text-xs font-semibold text-neutral-700">{sf.label}</label>
+                <div className="relative flex items-center">
+                  <Icon className="w-4 h-4 text-neutral-400 absolute left-3.5 pointer-events-none" />
+                  <input
+                    type="text"
+                    value={sf.value}
+                    onChange={(e) => sf.onChange(e.target.value)}
+                    placeholder={sf.placeholder}
+                    className="w-full h-10 pl-10 pr-3.5 bg-neutral-50 border border-neutral-200 rounded-xl text-xs font-normal text-neutral-900 outline-none focus:border-brand-primary transition-colors"
+                  />
+                </div>
+              </div>
+            );
+          })}
+        </div>
       </div>
 
-      {/* Acciones */}
       <div className="flex gap-3 pt-2">
         <button
           type="button"

@@ -12,6 +12,8 @@ export interface ContactItem {
   isFavorite?: boolean;
   verified?: boolean;
   category?: 'my_contacts' | 'discover' | 'calls';
+  isDiscovery?: boolean;
+  isConnected?: boolean;
 }
 
 export interface CallLogItem {
@@ -97,6 +99,9 @@ export const DISCOVER_CONTACTS: ContactItem[] = [
     interests: ['React Native', 'Expo', 'Artificial Intelligence'],
     initials: 'AR',
     color: '#E0F2FE',
+    isDiscovery: true,
+    phone: '+57 301 234 5678',
+    email: 'alejandro@beeapp.ai',
   },
   {
     id: 'd2',
@@ -108,6 +113,51 @@ export const DISCOVER_CONTACTS: ContactItem[] = [
     interests: ['Crecimiento', 'Inversión Ángel', 'SaaS'],
     initials: 'LR',
     color: '#FEE2E2',
+    isDiscovery: true,
+    phone: '+57 302 345 6789',
+    email: 'laura@primeadvisors.com',
+  },
+  {
+    id: 'd3',
+    verified: true,
+    name: 'Felipe Morales',
+    profession: 'Gerente de Producto',
+    company: 'Fintech Latam',
+    activity: 'Finanzas & Tecnología',
+    interests: ['Product Strategy', 'Fintech', 'Open Banking'],
+    initials: 'FM',
+    color: '#E0E7FF',
+    isDiscovery: true,
+    phone: '+57 303 456 7890',
+    email: 'felipe@fintechlatam.com',
+  },
+  {
+    id: 'd4',
+    verified: false,
+    name: 'Camila Osorio',
+    profession: 'Especialista en Marketing',
+    company: 'Digital Growth',
+    activity: 'Marketing Digital',
+    interests: ['Growth Hacking', 'SEO', 'Content Strategy'],
+    initials: 'CO',
+    color: '#FCE7F3',
+    isDiscovery: true,
+    phone: '+57 304 567 8901',
+    email: 'camila@digitalgrowth.com',
+  },
+  {
+    id: 'd5',
+    verified: true,
+    name: 'Gabriel Silva',
+    profession: 'Arquitecto de Software',
+    company: 'Cloud Enterprise',
+    activity: 'Tecnología',
+    interests: ['AWS', 'Kubernetes', 'Microservicios'],
+    initials: 'GS',
+    color: '#FEF3C7',
+    isDiscovery: true,
+    phone: '+57 305 678 9012',
+    email: 'gabriel@cloudenterprise.com',
   },
 ];
 
@@ -163,6 +213,7 @@ export interface ContactDetail {
   color: string;
   online: boolean;
   verified?: boolean;
+  socialLinks?: Record<string, string>;
 }
 
 export const ALL_CONTACT_DETAILS: Record<string, ContactDetail> = {
@@ -179,6 +230,10 @@ export const ALL_CONTACT_DETAILS: Record<string, ContactDetail> = {
     initials: 'CM',
     color: '#EBF5FF',
     online: true,
+    socialLinks: {
+      instagram: 'https://instagram.com/carlosmendoza_legal',
+      linkedin: 'https://linkedin.com/in/carlosmendozalegal',
+    },
   },
   c2: {
     id: 'c2',
@@ -207,6 +262,10 @@ export const ALL_CONTACT_DETAILS: Record<string, ContactDetail> = {
     initials: 'MG',
     color: '#ECFDF5',
     online: true,
+    socialLinks: {
+      instagram: 'https://instagram.com/mariagomez_finanzas',
+      linkedin: 'https://linkedin.com/in/mariagomezconsultora',
+    },
   },
   c4: {
     id: 'c4',
@@ -221,6 +280,10 @@ export const ALL_CONTACT_DETAILS: Record<string, ContactDetail> = {
     initials: 'SC',
     color: '#F3E8FF',
     online: false,
+    socialLinks: {
+      instagram: 'https://instagram.com/sofiacastro_ux',
+      youtube: 'https://youtube.com/@sofiacastro',
+    },
   },
 };
 

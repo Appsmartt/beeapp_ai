@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { X, PenTool, Check, RotateCcw, ShieldCheck } from 'lucide-react';
+import { X, PenTool, Check, RotateCcw, ShieldCheck, ImagePlus } from 'lucide-react';
 import { StorageItem } from '@/mocks/storageItems';
 
 interface SignatureModalProps {
@@ -12,8 +12,9 @@ interface SignatureModalProps {
 }
 
 export default function SignatureModal({ visible, item, onClose, onConfirmSign }: SignatureModalProps) {
-  const [signatureMode, setSignatureMode] = useState<'draw' | 'saved'>('draw');
+  const [signatureMode, setSignatureMode] = useState<'draw' | 'saved' | 'upload'>('draw');
   const [isDrawn, setIsDrawn] = useState(false);
+  const [uploadedImage, setUploadedImage] = useState<string | null>(null);
   const [signerName, setSignerName] = useState('Santiago Valencia');
 
   if (!visible || !item) return null;
@@ -26,11 +27,19 @@ export default function SignatureModal({ visible, item, onClose, onConfirmSign }
     setIsDrawn(false);
   };
 
+  const handleMockUpload = () => {
+    setUploadedImage('firma_subida.png');
+  };
+
   const handleConfirm = () => {
     if (signatureMode === 'draw' && !isDrawn) return;
+    if (signatureMode === 'upload' && !uploadedImage) return;
     onConfirmSign(item.id, signerName);
     onClose();
   };
+
+  const isSignDisabled =
+    (signatureMode === 'draw' && !isDrawn) || (signatureMode === 'upload' && !uploadedImage);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 select-none">
@@ -60,7 +69,7 @@ export default function SignatureModal({ visible, item, onClose, onConfirmSign }
         </div>
 
         {/* Mode Selector Tabs */}
-        <div className="flex bg-neutral-100 p-1 rounded-xl text-xs">
+        <div className="flex bg-neutral-100 p-1 rounded-xl text-xs gap-1">
           <button
             type="button"
             onClick={() => {
@@ -85,10 +94,21 @@ export default function SignatureModal({ visible, item, onClose, onConfirmSign }
           >
             Firma guardada
           </button>
+          <button
+            type="button"
+            onClick={() => {
+              setSignatureMode('upload');
+            }}
+            className={`flex-1 py-1.5 rounded-lg font-medium transition-colors ${
+              signatureMode === 'upload' ? 'bg-white text-brand-primary shadow-xs font-semibold' : 'text-neutral-600'
+            }`}
+          >
+            Subir imagen
+          </button>
         </div>
 
         {/* Signature Area */}
-        {signatureMode === 'draw' ? (
+        {signatureMode === 'draw' && (
           <div className="relative h-40 border-2 border-dashed border-neutral-300 rounded-2xl bg-neutral-50 flex items-center justify-center overflow-hidden">
             {isDrawn ? (
               <div className="text-center space-y-1">
@@ -119,13 +139,49 @@ export default function SignatureModal({ visible, item, onClose, onConfirmSign }
               </button>
             )}
           </div>
-        ) : (
+        )}
+
+        {signatureMode === 'saved' && (
           <div className="h-40 border border-purple-200 rounded-2xl bg-purple-50/60 p-4 flex flex-col items-center justify-center text-center space-y-2">
             <span className="text-[10px] font-semibold text-purple-700 uppercase tracking-wider">Firma Registrada</span>
             <span className="font-serif italic text-2xl text-blue-900 font-bold -rotate-3 inline-block">
               Santiago Valencia
             </span>
             <span className="text-[10px] text-neutral-500 font-normal">Sincronizada con BeeServices • Válida para contratos</span>
+          </div>
+        )}
+
+        {signatureMode === 'upload' && (
+          <div className="relative h-40 border-2 border-dashed border-neutral-300 rounded-2xl bg-neutral-50 flex items-center justify-center overflow-hidden">
+            {uploadedImage ? (
+              <div className="w-full h-full bg-neutral-100 rounded-2xl p-4 flex flex-col items-center justify-center relative">
+                <div className="flex items-center gap-2">
+                  <div className="w-6 h-6 rounded-full bg-emerald-50 border border-emerald-200 flex items-center justify-center">
+                    <Check className="w-3.5 h-3.5 text-emerald-600" />
+                  </div>
+                  <span className="text-xs font-normal text-neutral-800">{uploadedImage}</span>
+                </div>
+                <p className="text-[10px] text-emerald-600 font-normal mt-1">Imagen de firma cargada con éxito</p>
+                <button
+                  type="button"
+                  onClick={() => setUploadedImage(null)}
+                  className="absolute top-2 right-2 p-1.5 rounded-full text-neutral-400 hover:text-neutral-600 hover:bg-neutral-200 transition-colors"
+                  title="Quitar imagen"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={handleMockUpload}
+                className="flex flex-col items-center justify-center gap-1.5 text-neutral-400 hover:text-brand-primary transition-colors cursor-pointer p-4 w-full h-full"
+              >
+                <ImagePlus className="w-8 h-8 stroke-[1.5] text-neutral-400" />
+                <span className="text-xs font-normal text-neutral-500">Toca para subir la imagen de tu firma</span>
+                <span className="text-[10px] font-normal text-neutral-400">Formatos: PNG, JPG. Máximo 2 MB</span>
+              </button>
+            )}
           </div>
         )}
 
@@ -151,10 +207,10 @@ export default function SignatureModal({ visible, item, onClose, onConfirmSign }
           </button>
           <button
             type="button"
-            disabled={signatureMode === 'draw' && !isDrawn}
+            disabled={isSignDisabled}
             onClick={handleConfirm}
             className={`flex-1 h-10 rounded-full text-white text-xs font-semibold flex items-center justify-center gap-1.5 shadow-sm transition-colors ${
-              signatureMode === 'draw' && !isDrawn
+              isSignDisabled
                 ? 'bg-neutral-300 cursor-not-allowed'
                 : 'bg-brand-primary hover:bg-brand-dark'
             }`}

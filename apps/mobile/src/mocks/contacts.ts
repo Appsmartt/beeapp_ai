@@ -190,6 +190,7 @@ export interface ContactDetail {
   initials: string;
   color: string;
   online: boolean;
+  socialLinks?: Record<string, string>;
   /** Mock: shows the verified badge next to the name (Bee Verify) */
   verified?: boolean;
 }
@@ -208,6 +209,10 @@ export const ALL_CONTACT_DETAILS: Record<string, ContactDetail> = {
     initials: 'CM',
     color: '#EBF5FF',
     online: true,
+    socialLinks: {
+      instagram: 'https://instagram.com/carlosmendoza_legal',
+      linkedin: 'https://linkedin.com/in/carlosmendoza-abogado',
+    },
   },
   c2: {
     id: 'c2',
@@ -236,6 +241,11 @@ export const ALL_CONTACT_DETAILS: Record<string, ContactDetail> = {
     initials: 'MG',
     color: '#ECFDF5',
     online: true,
+    socialLinks: {
+      instagram: 'https://instagram.com/mariagomez_finanzas',
+      linkedin: 'https://linkedin.com/in/mariagomezconsultora',
+      tiktok: 'https://tiktok.com/@mariagomez',
+    },
   },
   c4: {
     id: 'c4',
@@ -250,6 +260,10 @@ export const ALL_CONTACT_DETAILS: Record<string, ContactDetail> = {
     initials: 'SC',
     color: '#F3E8FF',
     online: false,
+    socialLinks: {
+      instagram: 'https://instagram.com/sofiacastro_ux',
+      youtube: 'https://youtube.com/@sofiacastro',
+    },
   },
 };
 

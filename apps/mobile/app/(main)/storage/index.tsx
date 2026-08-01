@@ -6,12 +6,12 @@ import { useModuleNav } from '../../../src/components/embedded/EmbeddedNavContex
 import { colors } from '@beeapp/design-system';
 import FloatingTabBar from '../../../src/components/FloatingTabBar';
 import StorageHeader from '../../../src/components/storage/StorageHeader';
-import { getItems, setItems, StorageItem } from '../../../src/stores/storageStore';
 import {
-  getFilteredItems,
-  buildMockUploadFile,
-  SortOption,
-  StorageFilter,
+  getItems, setItems, StorageItem,
+  MOCK_STORAGE_CATEGORIES, StorageCategory, addStorageCategory, setItemCategories,
+} from '../../../src/stores/storageStore';
+import {
+  getFilteredItems, buildMockUploadFile, SortOption, StorageFilter,
 } from '../../../src/utils/storageHelpers';
 import StorageItemsView from '../../../src/components/storage/StorageItemsView';
 import { ViewMode } from '../../../src/components/layout/ViewModeToggle';
@@ -21,10 +21,10 @@ import StorageFabMenu from '../../../src/components/storage/StorageFabMenu';
 import PinLockModal from '../../../src/components/security/PinLockModal';
 import { getProtectedIds, hasPin, isProtected, setProtected } from '../../../src/stores/pinStore';
 import {
-  StorageSummaryCard,
-  StorageFilterChips,
-  StorageBreadcrumbs,
+  StorageSummaryCard, StorageFilterChips, StorageBreadcrumbs,
 } from '../../../src/components/storage/StorageSummaryFilters';
+import StorageCategoryChips from '../../../src/components/storage/StorageCategoryChips';
+import StorageCategoryModals from '../../../src/components/storage/StorageCategoryModals';
 
 export default function StorageIndexScreen() {
   const router = useModuleNav();
@@ -37,19 +37,18 @@ export default function StorageIndexScreen() {
     { id: null, name: 'Inicio' },
   ]);
 
-  // UI States
-  // Search moved to the global Home search bar: the module keeps the filter dormant
   const [searchQuery] = useState('');
   const [sortBy, setSortBy] = useState<SortOption>('name');
-  // List by default; the grid is an adaptive 2/3-column layout
   const [viewMode, setViewMode] = useState<ViewMode>('list');
   const [activeFilter, setActiveFilter] = useState<StorageFilter>('all');
-
-  // Modals & Menu States
   const [activeItem, setActiveItem] = useState<StorageItem | null>(null);
   const [contextMenuVisible, setContextMenuVisible] = useState(false);
-
-  // PIN protection (mock, global store)
+  // Category
+  const [storageCategories, setStorageCategories] = useState<StorageCategory[]>([...MOCK_STORAGE_CATEGORIES]);
+  const [activeCategoryId, setActiveCategoryId] = useState<string | null>(null);
+  const [createCategoryVisible, setCreateCategoryVisible] = useState(false);
+  const [assignCategoryVisible, setAssignCategoryVisible] = useState(false);
+  // PIN / modals
   const [protectedIds, setProtectedIds] = useState<string[]>(getProtectedIds());
   const [lockedItem, setLockedItem] = useState<StorageItem | null>(null);
   const [folderModalVisible, setFolderModalVisible] = useState(false);
@@ -58,138 +57,99 @@ export default function StorageIndexScreen() {
   const [moveModalVisible, setMoveModalVisible] = useState(false);
   const [fabMenuVisible, setFabMenuVisible] = useState(false);
 
-  // Load items from memory store on mount / focus
   useEffect(() => {
     setLocalItems(getItems());
-    // Refocus listener to keep items synchronized
-    const unsubscribe = navigation.addListener('focus', () => {
-      setLocalItems(getItems());
-    });
+    const unsubscribe = navigation.addListener('focus', () => setLocalItems(getItems()));
     return unsubscribe;
   }, [navigation]);
+  const syncStore = (n: StorageItem[]) => { setLocalItems(n); setItems(n); };
 
-  // Sync back local state to store
-  const syncStore = (newItems: StorageItem[]) => {
-    setLocalItems(newItems);
-    setItems(newItems);
-  };
-
-  // Breadcrumbs click
   const handleBreadcrumbPress = (index: number) => {
     const newStack = pathStack.slice(0, index + 1);
     setPathStack(newStack);
     setCurrentFolderId(newStack[newStack.length - 1].id);
     setFabMenuVisible(false);
   };
-
-  // Folder click
   const handleFolderPress = (folder: StorageItem) => {
     setPathStack([...pathStack, { id: folder.id, name: folder.name }]);
     setCurrentFolderId(folder.id);
     setFabMenuVisible(false);
   };
-
-  // Open folder or preview file, asking for the PIN when protected
   const handleOpenItem = (item: StorageItem) => {
-    if (isProtected(item.id)) {
-      setLockedItem(item);
-      return;
-    }
+    if (isProtected(item.id)) { setLockedItem(item); return; }
     openItemContent(item);
   };
-
   const openItemContent = (item: StorageItem) => {
-    if (item.type === 'folder') {
-      handleFolderPress(item);
-    } else {
-      router.push({
-        pathname: '/(main)/storage/preview',
-        params: { id: item.id },
-      });
-    }
+    if (item.type === 'folder') handleFolderPress(item);
+    else router.push({ pathname: '/(main)/storage/preview', params: { id: item.id } });
   };
-
-  // Protect / unprotect with the global PIN
   const handleToggleProtect = (item: StorageItem) => {
-    if (!hasPin()) {
-      alert('Primero crea tu PIN de protección en Perfil → Seguridad.');
-      return;
-    }
-    const wasProtected = isProtected(item.id);
-    setProtectedIds([...setProtected(item.id, !wasProtected)]);
-    alert(wasProtected ? 'Protección retirada.' : 'Elemento protegido con tu PIN.');
+    if (!hasPin()) { alert('Primero crea tu PIN de protección en Perfil → Seguridad.'); return; }
+    const was = isProtected(item.id);
+    setProtectedIds([...setProtected(item.id, !was)]);
+    alert(was ? 'Protección retirada.' : 'Elemento protegido con tu PIN.');
   };
-
-  // Folder CRUD Operations
   const handleCreateFolder = () => {
     if (!folderNameInput.trim()) return;
-    const newFolder: StorageItem = {
-      id: `f-${Date.now()}`,
-      name: folderNameInput.trim(),
-      type: 'folder',
+    syncStore([...items, {
+      id: `f-${Date.now()}`, name: folderNameInput.trim(), type: 'folder',
       parentId: currentFolderId,
       updatedAt: 'Hoy, ' + new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       itemCount: 0,
-    };
-    syncStore([...items, newFolder]);
-    setFolderModalVisible(false);
-    setFolderNameInput('');
+    }]);
+    setFolderModalVisible(false); setFolderNameInput('');
   };
 
   const handleRenameItem = () => {
     if (!activeItem || !folderNameInput.trim()) return;
-    const updated = items.map((item) =>
-      item.id === activeItem.id ? { ...item, name: folderNameInput.trim() } : item
-    );
-    syncStore(updated);
-    setFolderModalVisible(false);
-    setFolderNameInput('');
-    setActiveItem(null);
+    syncStore(items.map((i) => i.id === activeItem.id ? { ...i, name: folderNameInput.trim() } : i));
+    setFolderModalVisible(false); setFolderNameInput(''); setActiveItem(null);
   };
 
   const handleDeleteItem = (item: StorageItem) => {
-    const updated = items.filter((i) => i.id !== item.id);
-    syncStore(updated);
+    syncStore(items.filter((i) => i.id !== item.id));
     alert(`${item.type === 'folder' ? 'Carpeta' : 'Archivo'} eliminado.`);
-    setContextMenuVisible(false);
-    setActiveItem(null);
+    setContextMenuVisible(false); setActiveItem(null);
   };
 
   const handleMoveItem = (targetFolderId: string | null) => {
     if (!activeItem) return;
-    const updated = items.map((i) =>
-      i.id === activeItem.id ? { ...i, parentId: targetFolderId } : i
-    );
-    syncStore(updated);
-    alert(`Elemento movido con éxito.`);
-    setMoveModalVisible(false);
-    setContextMenuVisible(false);
-    setActiveItem(null);
+    syncStore(items.map((i) => i.id === activeItem.id ? { ...i, parentId: targetFolderId } : i));
+    alert('Elemento movido con éxito.');
+    setMoveModalVisible(false); setContextMenuVisible(false); setActiveItem(null);
   };
-
-  // Mock Uploads
   const triggerMockUpload = (type: 'pdf' | 'image' | 'video' | 'doc', customName?: string) => {
-    const newFile = buildMockUploadFile(type, currentFolderId, customName);
-    syncStore([...items, newFile]);
-    setFabMenuVisible(false);
-    alert(`Subido con éxito: ${newFile.name}`);
+    const f = buildMockUploadFile(type, currentFolderId, customName);
+    syncStore([...items, f]); setFabMenuVisible(false); alert(`Subido con éxito: ${f.name}`);
   };
 
-  // Context Menu triggers
-  const openContextMenu = (item: StorageItem) => {
-    setActiveItem(item);
-    setContextMenuVisible(true);
-  };
-
+  const openContextMenu = (item: StorageItem) => { setActiveItem(item); setContextMenuVisible(true); };
   const triggerRenameFlow = () => {
     if (!activeItem) return;
-    setFolderModalMode('rename');
-    setFolderNameInput(activeItem.name);
-    setContextMenuVisible(false);
-    setFolderModalVisible(true);
+    setFolderModalMode('rename'); setFolderNameInput(activeItem.name);
+    setContextMenuVisible(false); setFolderModalVisible(true);
   };
 
-  const filteredItems = getFilteredItems(items, searchQuery, currentFolderId, activeFilter, sortBy);
+  const filteredItems = getFilteredItems(items, searchQuery, currentFolderId, activeFilter, sortBy)
+    .filter((item) => {
+      if (!activeCategoryId) return true;
+      return item.categoryIds?.includes(activeCategoryId);
+    });
+
+  const handleCreateCategory = (data: Omit<StorageCategory, 'id'>) => {
+    const created = addStorageCategory(data);
+    setStorageCategories([...MOCK_STORAGE_CATEGORIES]);
+    setActiveCategoryId(created.id);
+    setCreateCategoryVisible(false);
+  };
+
+  const handleAssignCategories = (categoryIds: string[]) => {
+    if (!activeItem) return;
+    setItemCategories(activeItem.id, categoryIds);
+    syncStore(getItems());
+    setAssignCategoryVisible(false);
+    setActiveItem(null);
+  };
 
   return (
     <ScreenSafeArea style={styles.safeArea}>
@@ -207,6 +167,13 @@ export default function StorageIndexScreen() {
           <StorageSummaryCard />
 
           <StorageFilterChips activeFilter={activeFilter} onChange={setActiveFilter} />
+
+          <StorageCategoryChips
+            categories={storageCategories}
+            activeCategoryId={activeCategoryId}
+            onChange={setActiveCategoryId}
+            onCreate={() => setCreateCategoryVisible(true)}
+          />
 
           {/* Breadcrumbs (only when not searching) */}
           {!searchQuery && (
@@ -242,6 +209,11 @@ export default function StorageIndexScreen() {
             });
           }}
           onDelete={handleDeleteItem}
+          onAssignCategory={(item) => {
+            setActiveItem(item);
+            setContextMenuVisible(false);
+            setAssignCategoryVisible(true);
+          }}
         />
 
         <MoveFolderModal
@@ -290,6 +262,18 @@ export default function StorageIndexScreen() {
 
         {/* Tab Menu bar */}
         {!router.embedded && <FloatingTabBar activeTab="explore" />}
+
+        <StorageCategoryModals
+          createVisible={createCategoryVisible}
+          onCreate={handleCreateCategory}
+          onCloseCreate={() => setCreateCategoryVisible(false)}
+          assignVisible={assignCategoryVisible}
+          itemName={activeItem?.name}
+          categories={storageCategories}
+          selectedIds={activeItem?.categoryIds ?? []}
+          onSave={handleAssignCategories}
+          onCloseAssign={() => setAssignCategoryVisible(false)}
+        />
       </View>
     </ScreenSafeArea>
   );

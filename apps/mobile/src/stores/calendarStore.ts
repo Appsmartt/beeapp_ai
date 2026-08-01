@@ -6,12 +6,6 @@ export interface Invitee {
   status: 'accepted' | 'pending' | 'declined';
 }
 
-export interface Attachment {
-  id: string;
-  name: string;
-  size: string;
-}
-
 export interface CalendarEvent {
   id: string;
   title: string;
@@ -24,13 +18,24 @@ export interface CalendarEvent {
   videoUrl?: string;
   location?: string;
   description: string;
-  reminder: '10m' | '30m' | '1h' | '1d';
+  reminder: string;
   repeat: 'none' | 'daily' | 'weekly' | 'monthly';
   organizer?: { name: string; initials: string; color: string };
   userResponse?: 'accepted' | 'maybe' | 'declined' | 'pending';
-  attachments?: Attachment[];
   invitees: Invitee[];
 }
+
+export const REMINDER_OPTIONS = [
+  'Sin recordatorio',
+  '5 minutos antes',
+  '15 minutos antes',
+  '30 minutos antes',
+  '1 hora antes',
+  '2 horas antes',
+  '6 horas antes',
+  '1 día antes',
+  '2 días antes',
+] as const;
 
 export const MOCK_CONTACTS: Omit<Invitee, 'status'>[] = [
   { id: 'c1', name: 'Carlos Mendoza', initials: 'CM', color: '#EBF5FF' },
@@ -41,7 +46,6 @@ export const MOCK_CONTACTS: Omit<Invitee, 'status'>[] = [
   { id: 'd2', name: 'Laura Ramos', initials: 'LR', color: '#FEE2E2' },
 ];
 
-// Helper to get formatted date string for today and tomorrow
 const todayObj = new Date();
 const tomorrowObj = new Date(todayObj);
 tomorrowObj.setDate(todayObj.getDate() + 1);
@@ -68,13 +72,10 @@ export let initialEvents: CalendarEvent[] = [
     isVirtual: true,
     videoUrl: 'https://video.beeapp.ai/meet/m-sem-team',
     description: 'Revisión semanal de los sprints activos, cuellos de botella y metas comerciales.',
-    reminder: '10m',
+    reminder: '30 minutos antes',
     repeat: 'weekly',
     organizer: { name: 'Santiago V.', initials: 'SV', color: '#DBEAFE' },
     userResponse: 'pending',
-    attachments: [
-      { id: 'att1', name: 'Orden_del_Dia_Sprint.pdf', size: '1.2 MB' },
-    ],
     invitees: [
       { id: 'c1', name: 'Carlos Mendoza', initials: 'CM', color: '#EBF5FF', status: 'accepted' },
       { id: 'c2', name: 'Eduardo Torres', initials: 'ET', color: '#FEF3C7', status: 'pending' },
@@ -92,13 +93,10 @@ export let initialEvents: CalendarEvent[] = [
     isVirtual: false,
     location: 'Oficina Principal',
     description: 'Presentación de resultados financieros y operativos correspondientes al segundo trimestre.',
-    reminder: '1h',
+    reminder: '1 hora antes',
     repeat: 'none',
     organizer: { name: 'Sofía Castro', initials: 'SC', color: '#F3E8FF' },
     userResponse: 'accepted',
-    attachments: [
-      { id: 'att2', name: 'Presentacion_Q2_Resultados.pptx', size: '4.5 MB' },
-    ],
     invitees: [
       { id: 'c1', name: 'Carlos Mendoza', initials: 'CM', color: '#EBF5FF', status: 'accepted' },
       { id: 'c3', name: 'María Gómez', initials: 'MG', color: '#ECFDF5', status: 'accepted' },

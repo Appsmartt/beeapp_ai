@@ -2,6 +2,7 @@
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
 import { colors } from '@beeapp/design-system';
 import { ChevronLeft, Plus } from 'lucide-react-native';
+import ModuleNotificationBell from '../ModuleNotificationBell';
 
 export type ViewMode = 'day' | 'week' | 'month';
 export type FilterChip = 'upcoming' | 'past' | 'meetings' | 'events';
@@ -32,6 +33,7 @@ export function CalendarHeader({ onBack, onAction, onToday, currentView, onViewC
 
         {/* Today and View triggers */}
         <View style={styles.headerActions}>
+          <ModuleNotificationBell moduleId="calendar" />
           <TouchableOpacity onPress={onToday} style={styles.todayBtn} activeOpacity={0.7}>
             <Text style={styles.todayBtnText}>Hoy</Text>
           </TouchableOpacity>

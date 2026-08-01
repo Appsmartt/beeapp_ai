@@ -1,8 +1,8 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import AppBottomBar from '@/components/app/AppBottomBar';
 import MobileBlockScreen from '@/components/app/MobileBlockScreen';
+import VoiceAssistantFab from '@/components/app/VoiceAssistantFab';
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const [isMobileScreen, setIsMobileScreen] = useState(false);
@@ -40,8 +40,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         </div>
       </div>
 
-      {/* Barra flotante inferior: tickers de notificaciones y asistente por voz */}
-      <AppBottomBar />
+      {/* Botón flotante del Asistente de IA por Voz (Esquina Inferior Izquierda) */}
+      <VoiceAssistantFab />
     </div>
   );
 }

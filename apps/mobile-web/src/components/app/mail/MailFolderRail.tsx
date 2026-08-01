@@ -2,6 +2,7 @@
 
 import type { EmailItem, MailFolder } from '@/mocks/emails';
 import IconRailButton from '../IconRailButton';
+import ModuleNotificationBell from '../ModuleNotificationBell';
 import { MAIL_FOLDERS, unreadIn } from './mailFolders';
 
 interface MailFolderRailProps {
@@ -12,10 +13,6 @@ interface MailFolderRailProps {
   account: string | null;
 }
 
-/**
- * Barra vertical de 56px pegada al borde izquierdo del módulo de Correo,
- * con la misma anatomía que la de Chat. Solo en desktop.
- */
 export default function MailFolderRail({
   folder,
   onSelectFolder,
@@ -23,22 +20,28 @@ export default function MailFolderRail({
   account,
 }: MailFolderRailProps) {
   return (
-    <nav className="hidden lg:flex w-14 shrink-0 bg-white border-r border-neutral-200 flex-col items-center py-3 gap-1">
-      {MAIL_FOLDERS.map((option) => (
-        <IconRailButton
-          key={option.key}
-          label={option.label}
-          icon={option.icon}
-          tooltipSide="right"
-          isActive={folder === option.key}
-          badge={
-            option.key === 'inbox' || option.key === 'unread'
-              ? unreadIn(emails, option.key, account)
-              : undefined
-          }
-          onClick={() => onSelectFolder(option.key)}
-        />
-      ))}
+    <nav className="hidden lg:flex w-14 shrink-0 bg-white border-r border-neutral-200 flex-col items-center py-3 gap-1 justify-between">
+      <div className="flex flex-col items-center gap-1 w-full">
+        {MAIL_FOLDERS.map((option) => (
+          <IconRailButton
+            key={option.key}
+            label={option.label}
+            icon={option.icon}
+            tooltipSide="right"
+            isActive={folder === option.key}
+            badge={
+              option.key === 'inbox' || option.key === 'unread'
+                ? unreadIn(emails, option.key, account)
+                : undefined
+            }
+            onClick={() => onSelectFolder(option.key)}
+          />
+        ))}
+      </div>
+
+      <div className="mt-auto pt-2">
+        <ModuleNotificationBell moduleId="mail" />
+      </div>
     </nav>
   );
 }

@@ -11,6 +11,7 @@ import { CURRENT_USER } from '@/mocks/currentUser';
 import type { ContactItem } from '@/mocks/contacts';
 import StatusPreviewStage from './status/StatusPreviewStage';
 import StatusToolPanel from './status/StatusToolPanel';
+import { StatusVisibility } from './status/StatusPrivacySection';
 import { useStatusLayers } from './status/useStatusLayers';
 import ProductLinkSelector from './ProductLinkSelector';
 
@@ -31,10 +32,6 @@ interface CreateStatusModalProps {
   onClose: () => void;
 }
 
-/**
- * Editor de estados a pantalla completa: a la izquierda el lienzo 9:16 con
- * las capas, a la derecha el panel de herramientas por secciones.
- */
 export default function CreateStatusModal({
   visible,
   onPublish,
@@ -47,6 +44,10 @@ export default function CreateStatusModal({
   const [selectorVisible, setSelectorVisible] = useState(false);
   const [mentionQuery, setMentionQuery] = useState<string | null>(null);
 
+  const [visibility, setVisibility] = useState<StatusVisibility>('all');
+  const [selectedContactIds, setSelectedContactIds] = useState<string[]>([]);
+  const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
+
   const layers = useStatusLayers(lastTextColor);
   const { texts, images, stickers, music, selection, selectedText } = layers;
 
@@ -58,14 +59,15 @@ export default function CreateStatusModal({
     setProduct(null);
     setSelectorVisible(false);
     setMentionQuery(null);
+    setVisibility('all');
+    setSelectedContactIds([]);
+    setSelectedCategoryId(null);
     layers.reset(STATUS_TEXT_COLORS[0]);
-    // `layers` es estable salvo por reset, que no cambia entre renders
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visible]);
 
   if (!visible) return null;
 
-  /** Al escribir, abre la lista de contactos si hay una "@" a medias */
   const handleTextChange = (content: string) => {
     if (!selectedText) return;
     layers.patchText(selectedText.id, { content });
@@ -114,6 +116,9 @@ export default function CreateStatusModal({
       imageLayers: images,
       stickerLayers: stickers,
       music,
+      visibility,
+      selectedContactIds,
+      selectedCategoryId: selectedCategoryId || undefined,
     });
   };
 
@@ -175,6 +180,12 @@ export default function CreateStatusModal({
         product={product}
         onLinkProduct={() => setSelectorVisible(true)}
         onRemoveProduct={() => setProduct(null)}
+        visibility={visibility}
+        onChangeVisibility={setVisibility}
+        selectedContactIds={selectedContactIds}
+        onChangeSelectedContacts={setSelectedContactIds}
+        selectedCategoryId={selectedCategoryId}
+        onChangeSelectedCategory={setSelectedCategoryId}
         canPublish={canPublish}
         onClose={onClose}
         onPublish={handlePublish}

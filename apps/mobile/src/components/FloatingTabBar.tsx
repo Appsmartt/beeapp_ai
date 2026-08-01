@@ -48,7 +48,7 @@ const getIconForModule = (module: string | undefined, kind: string | undefined, 
 };
 
 export default function FloatingTabBar({ onOpenNotificationTarget }: FloatingTabBarProps) {
-  const router = useRouter();
+  return null;
   const [voiceVisible, setVoiceVisible] = useState(false);
   const [popover, setPopover] = useState<'general' | 'chats' | null>(null);
   const [readIds, setReadIds] = useState<string[]>([]);

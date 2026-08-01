@@ -91,7 +91,7 @@ export default function AiCatalogItem({ item, onContact }: AiCatalogItemProps) {
 
         <TouchableOpacity style={styles.contactBtn} onPress={onContact} activeOpacity={0.8}>
           <MessageSquare size={14} color={colors.neutral.white} style={{ marginRight: 6 }} />
-          <Text style={styles.contactBtnText}>Contactar</Text>
+          <Text style={styles.contactBtnText}>Solicitar</Text>
         </TouchableOpacity>
       </View>
     </View>

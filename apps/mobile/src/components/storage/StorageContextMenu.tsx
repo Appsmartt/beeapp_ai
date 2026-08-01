@@ -1,7 +1,7 @@
 
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Modal } from 'react-native';
 import { colors } from '@beeapp/design-system';
-import { Eye, Edit2, Move, Share2, Download, Trash2, ShieldCheck, Lock, LockOpen } from 'lucide-react-native';
+import { Eye, Edit2, Move, Share2, Download, Trash2, ShieldCheck, Lock, LockOpen, Tag } from 'lucide-react-native';
 import { StorageItem } from '../../stores/storageStore';
 
 interface StorageContextMenuProps {
@@ -18,6 +18,7 @@ interface StorageContextMenuProps {
   /** Whether the item is currently PIN-protected */
   isProtected: boolean;
   onToggleProtect: (item: StorageItem) => void;
+  onAssignCategory: (item: StorageItem) => void;
 }
 
 export default function StorageContextMenu({
@@ -33,6 +34,7 @@ export default function StorageContextMenu({
   onDelete,
   isProtected,
   onToggleProtect,
+  onAssignCategory,
 }: StorageContextMenuProps) {
   return (
     <Modal transparent visible={visible} animationType="slide">
@@ -75,6 +77,19 @@ export default function StorageContextMenu({
                 <TouchableOpacity style={styles.menuRow} onPress={onDownload}>
                   <Download size={18} color={colors.neutral.text} />
                   <Text style={styles.menuRowText}>Descargar</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.menuRow}
+                  onPress={() => {
+                    onClose();
+                    onAssignCategory(item);
+                  }}
+                >
+                  <Tag size={18} color={colors.brand.primary} />
+                  <Text style={[styles.menuRowText, { color: colors.brand.primary, fontWeight: '400' }]}>
+                    Asignar a categoría
+                  </Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity

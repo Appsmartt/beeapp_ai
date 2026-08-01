@@ -18,6 +18,7 @@ import {
   Eye,
   Pencil,
   FolderInput,
+  Tag,
 } from 'lucide-react';
 import { StorageItem } from '@/mocks/storageItems';
 
@@ -33,6 +34,7 @@ interface StorageRowProps {
   onDownload: (item: StorageItem) => void;
   onToggleProtection: (item: StorageItem) => void;
   onDelete: (item: StorageItem) => void;
+  onAssignCategory?: (item: StorageItem) => void;
 }
 
 export function renderStorageIcon(type: StorageItem['type'], isProtected?: boolean) {
@@ -65,6 +67,7 @@ export default function StorageRow({
   onDownload,
   onToggleProtection,
   onDelete,
+  onAssignCategory,
 }: StorageRowProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -134,6 +137,17 @@ export default function StorageRow({
         <Download className="w-3.5 h-3.5 text-neutral-500" />
         <span>Descargar</span>
       </button>
+
+      {onAssignCategory && (
+        <button
+          type="button"
+          onClick={() => { setMenuOpen(false); onAssignCategory(item); }}
+          className="w-full flex items-center gap-2.5 px-3 py-2 hover:bg-neutral-50 text-left font-normal transition-colors"
+        >
+          <Tag className="w-3.5 h-3.5 text-brand-primary" />
+          <span className="text-brand-primary font-normal">Asignar a categoría</span>
+        </button>
+      )}
 
       <button
         type="button"

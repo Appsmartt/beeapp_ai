@@ -1,12 +1,17 @@
 import { View, StyleSheet, ScrollView } from 'react-native';
 import ChatListItem from './ChatListItem';
 import AiChatListItem from './AiChatListItem';
+import RestrictedAndArchivedRows from './RestrictedAndArchivedRows';
 import { ChatItem } from '../../mocks/chats';
 import { isProtected } from '../../stores/pinStore';
 
 interface ChatListViewProps {
   aiChat?: ChatItem;
   chats: ChatItem[];
+  protectedCount?: number;
+  archivedCount?: number;
+  onPressRestricted?: () => void;
+  onPressArchived?: () => void;
   onOpenChat: (chat: ChatItem) => void;
   onOpenMenu: (chat: ChatItem) => void;
   onPin: (id: string) => void;
@@ -17,11 +22,24 @@ interface ChatListViewProps {
 export default function ChatListView({
   aiChat,
   chats,
+  protectedCount = 0,
+  archivedCount = 0,
+  onPressRestricted,
+  onPressArchived,
   onOpenChat,
   onOpenMenu,
 }: ChatListViewProps) {
   return (
     <ScrollView style={styles.scroll} showsVerticalScrollIndicator={false}>
+      {onPressRestricted && onPressArchived && (
+        <RestrictedAndArchivedRows
+          protectedCount={protectedCount}
+          archivedCount={archivedCount}
+          onPressRestricted={onPressRestricted}
+          onPressArchived={onPressArchived}
+        />
+      )}
+
       {aiChat && (
         <AiChatListItem
           name={aiChat.name}

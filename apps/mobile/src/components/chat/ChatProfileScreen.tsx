@@ -10,7 +10,8 @@ import MemberListSection from './MemberListSection';
 import AddMemberModal from './AddMemberModal';
 import DisappearingMessagesModal, { DisappearingInterval, disappearingLabel } from './DisappearingMessagesModal';
 import { MOCK_CHATS, GroupMember } from '../../mocks/chats';
-import { MY_CONTACTS } from '../../mocks/contacts';
+import { MY_CONTACTS, ALL_CONTACT_DETAILS } from '../../mocks/contacts';
+import SocialNetworksSection from '../profile/SocialNetworksSection';
 
 const initialsOf = (name: string) =>
   name
@@ -111,6 +112,17 @@ export default function ChatProfileScreen() {
             />
           </>
         )}
+
+        <View style={styles.divider} />
+
+        {/* Social Links for 1-on-1 */}
+        {!isGroup && contact && (() => {
+          const detail = ALL_CONTACT_DETAILS[contact.id];
+          if (detail?.socialLinks) {
+            return <SocialNetworksSection socialLinks={detail.socialLinks} />;
+          }
+          return null;
+        })()}
 
         <View style={styles.divider} />
 
