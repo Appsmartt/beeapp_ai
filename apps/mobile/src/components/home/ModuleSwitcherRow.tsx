@@ -1,7 +1,18 @@
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, useWindowDimensions } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  TouchableOpacity,
+  useWindowDimensions,
+} from 'react-native';
 import { colors, spacing, radii } from '@beeapp/design-system';
 import { Settings } from 'lucide-react-native';
-import { MODULES_POOL, OVERVIEW_MODULE_ID, HomeModule } from './homeModules';
+import {
+  MODULES_POOL,
+  OVERVIEW_MODULE_ID,
+  HomeModule,
+} from './homeModules';
 
 const CHIP_SIZE = 38;
 const ICON_SIZE = 20;
@@ -9,63 +20,106 @@ const GAP = spacing.sm;
 const EDGE = 12;
 
 interface ModuleSwitcherRowProps {
-  /** Order of the user modules; the overview chip is always prepended */
   selectedModuleIds: string[];
   activeModuleId: string | null;
+
+  /**
+   * Oculta el botón "Todas" únicamente cuando el usuario ya está
+   * en el overview principal de cards.
+   */
+  hideOverview?: boolean;
+
   onSelect: (id: string) => void;
   onCustomize: () => void;
 }
 
-/** Rough width of the expanded chip, used to decide if the row needs scroll */
 const activeChipWidth = (name: string) => CHIP_SIZE + name.length * 7.5;
 
-/**
- * Horizontal chips of every module: picks which one is shown embedded right
- * below. All modules are always present — personalization only reorders them.
- * Only the selected chip shows its name; the rest stay icon-only.
- */
-export default function ModuleSwitcherRow({ selectedModuleIds, activeModuleId, onSelect, onCustomize }: ModuleSwitcherRowProps) {
+export default function ModuleSwitcherRow({
+  selectedModuleIds,
+  activeModuleId,
+  hideOverview = false,
+  onSelect,
+  onCustomize,
+}: ModuleSwitcherRowProps) {
   const { width } = useWindowDimensions();
 
-  // "Todas" is always the first chip and cannot be reordered
-  const ordered = selectedModuleIds.filter((id) => id !== OVERVIEW_MODULE_ID);
-  const rest = MODULES_POOL.filter((m) => !m.isOverview && !ordered.includes(m.id)).map((m) => m.id);
-  const chips = [OVERVIEW_MODULE_ID, ...ordered, ...rest]
-    .map((id) => MODULES_POOL.find((m) => m.id === id))
+  // Se mantiene el orden personalizado del usuario, excluyendo "Todas".
+  const orderedModuleIds = selectedModuleIds.filter(
+    (id) => id !== OVERVIEW_MODULE_ID,
+  );
+
+  // Incluye módulos nuevos que aún no estén en el orden personalizado.
+  const remainingModuleIds = MODULES_POOL
+    .filter(
+      (module) =>
+        !module.isOverview && !orderedModuleIds.includes(module.id),
+    )
+    .map((module) => module.id);
+
+  const moduleIds = [...orderedModuleIds, ...remainingModuleIds];
+
+  /**
+   * En Home / overview: no renderiza "Todas".
+   * Dentro de otro módulo: agrega "Todas" como primer chip para volver
+   * a la pantalla principal de cards.
+   */
+  const chipIds = hideOverview
+    ? moduleIds
+    : [OVERVIEW_MODULE_ID, ...moduleIds];
+
+  const chips = chipIds
+    .map((id) => MODULES_POOL.find((module) => module.id === id))
     .filter((item): item is HomeModule => !!item);
 
-  // They all fit only when the expanded chip still leaves room for the rest
-  const activeName = chips.find((item) => item.id === activeModuleId)?.name ?? '';
-  const needed =
+  const activeName =
+    chips.find((item) => item.id === activeModuleId)?.name ?? '';
+
+  const neededWidth =
     (chips.length + 1) * (CHIP_SIZE + GAP) +
     (activeName ? activeChipWidth(activeName) - CHIP_SIZE : 0) +
     EDGE * 2;
-  const fits = needed <= width;
+
+  const fitsWithoutScroll = neededWidth <= width;
 
   const renderChip = (item: HomeModule) => {
     const isActive = item.id === activeModuleId;
-    const IconComp = item.icon;
+    const IconComponent = item.icon;
+
     return (
       <TouchableOpacity
         key={item.id}
-        style={[styles.chip, isActive ? styles.chipActive : styles.chipIconOnly]}
+        style={[
+          styles.chip,
+          isActive ? styles.chipActive : styles.chipIconOnly,
+        ]}
         onPress={() => onSelect(item.id)}
         activeOpacity={0.7}
+        accessibilityRole="button"
+        accessibilityLabel={`Abrir ${item.name}`}
+        accessibilityState={{ selected: isActive }}
       >
-        <IconComp size={ICON_SIZE} color={isActive ? colors.brand.primary : colors.neutral.gray600} />
-        {isActive && <Text style={styles.chipTextActive}>{item.name}</Text>}
+        <IconComponent
+          size={ICON_SIZE}
+          color={
+            isActive
+              ? colors.brand.primary
+              : colors.neutral.gray600
+          }
+        />
+
+        {isActive && (
+          <Text style={styles.chipTextActive}>{item.name}</Text>
+        )}
       </TouchableOpacity>
     );
   };
 
-  // Personalization: only changes the order of the chips
-  const customizeBtn = (
+  const customizeButton = (
     <TouchableOpacity
       style={styles.customizeChip}
       onPress={onCustomize}
       activeOpacity={0.7}
-      // El chip mide 38, por debajo del mínimo táctil de 44: el hitSlop
-      // ensancha el área sensible sin cambiar el diseño
       hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
       accessibilityRole="button"
       accessibilityLabel="Personalizar accesos"
@@ -74,21 +128,24 @@ export default function ModuleSwitcherRow({ selectedModuleIds, activeModuleId, o
     </TouchableOpacity>
   );
 
-  // Enough room: spread the chips across the whole width, no scroll
-  if (fits) {
+  if (fitsWithoutScroll) {
     return (
       <View style={[styles.wrap, styles.row]}>
         {chips.map(renderChip)}
-        {customizeBtn}
+        {customizeButton}
       </View>
     );
   }
 
   return (
     <View style={styles.wrap}>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.scroll}>
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.scroll}
+      >
         {chips.map(renderChip)}
-        {customizeBtn}
+        {customizeButton}
       </ScrollView>
     </View>
   );
