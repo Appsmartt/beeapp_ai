@@ -12,7 +12,7 @@ export const styles = StyleSheet.create({
     paddingBottom: spacing.xl,
   },
 
-  /* BeeServices Hero Card (Full Width Top - Solid Purple Accent) */
+  /* BeeServices Hero Card (arriba) */
   beeServicesCard: {
     backgroundColor: '#FAF5FF',
     borderRadius: 20,
@@ -20,7 +20,7 @@ export const styles = StyleSheet.create({
     borderColor: 'rgba(124, 58, 237, 0.40)',
     padding: 16,
     marginBottom: 16,
-    shadowColor: colors.brand.primary,
+    shadowColor: 'rgba(124, 58, 237, 1)',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.15,
     shadowRadius: 12,
@@ -96,33 +96,99 @@ export const styles = StyleSheet.create({
     color: colors.neutral.gray700,
   },
 
-  /* Grid 2 Columnas - Modulos Equilibrados */
+  /* Grid 2 columnas */
   gridContainer: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     justifyContent: 'space-between',
     gap: 12,
   },
+
+  /* Card base para Chat / Correos / Agenda / Notas / Archivos / IA */
   gridCard: {
     width: '48%',
-    backgroundColor: colors.neutral.white,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: colors.neutral.gray200,
-    padding: 14,
-    minHeight: 170,
+    minHeight: 190,
     justifyContent: 'space-between',
-  },
-  fullWidthGridCard: {
-    width: '100%',
-    backgroundColor: colors.neutral.white,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: colors.neutral.gray200,
     padding: 14,
-    minHeight: 180,
-    justifyContent: 'space-between',
+    borderRadius: 16,
+
+    backgroundColor: '#F9F5FF', // lila pastel
+    borderWidth: 1,
+    borderColor: 'rgba(216, 180, 254, 0.7)',
+
+    shadowColor: 'rgba(109, 40, 217, 1)',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.16,
+    shadowRadius: 16,
+    elevation: 4,
   },
+
+  /* Estilos específicos para IA (dentro de gridCard) */
+  aiHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  aiStatusRow: {
+    marginTop: 4,
+  },
+  aiTitle: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: colors.neutral.gray900,
+  },
+  aiSubtitle: {
+    fontSize: 11,
+    fontWeight: '400',
+    color: colors.neutral.gray600,
+    marginTop: 4,
+  },
+  aiStatusBadge: {
+    alignSelf: 'flex-start',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 999,
+    backgroundColor: 'rgba(124, 58, 237, 0.10)',
+    borderWidth: 1,
+    borderColor: 'rgba(124, 58, 237, 0.45)',
+  },
+  aiStatusText: {
+    fontSize: 10,
+    fontWeight: '500',
+    color: '#7C3AED',
+  },
+  aiDescription: {
+    fontSize: 11,
+    fontWeight: '400',
+    color: colors.neutral.gray700,
+    marginTop: 10,
+  },
+  aiFooterRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(124, 58, 237, 0.18)',
+    marginTop: 10,
+  },
+  aiFooterText: {
+    fontSize: 11,
+    fontWeight: '400',
+    color: colors.neutral.gray700,
+    flex: 1,
+    marginRight: 8,
+  },
+  aiBotCircle: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: '#EDE9FE',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(124, 58, 237, 0.60)',
+  },
+
   cardHeaderRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -135,7 +201,6 @@ export const styles = StyleSheet.create({
     marginTop: 8,
   },
 
-  /* Métricas Normales (Fondo gray100, Texto gray700) */
   badgePill: {
     backgroundColor: colors.neutral.gray100,
     paddingHorizontal: 7,
@@ -158,8 +223,6 @@ export const styles = StyleSheet.create({
     fontWeight: '400',
     color: colors.neutral.gray700,
   },
-
-  /* Métricas Urgentes / Atención (Fondo Rojo Opacidad Baja, Texto Rojo Suave) */
   badgePillRed: {
     backgroundColor: '#FEF2F2',
     paddingHorizontal: 7,

@@ -16,6 +16,8 @@ import {
   Search,
   TrendingUp,
   Video,
+  Sparkles,
+  Bot,
 } from 'lucide-react-native';
 import { useModuleNav, useScreenParams } from '../embedded/EmbeddedNavContext';
 import { styles } from './allModulesOverviewStyles';
@@ -25,7 +27,6 @@ const MOCK_AVATARS = [
   { initials: 'MA', bg: '#FEF3C7', text: '#92400E' },
   { initials: 'JP', bg: '#ECFDF5', text: '#065F46' },
 ];
-
 
 export default function AllModulesOverview() {
   const router = useModuleNav();
@@ -39,8 +40,12 @@ export default function AllModulesOverview() {
   };
 
   return (
-    <ScrollView style={styles.scroll} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-      {/* 1. TARJETA BEESERVICES (ARRIBA DE TODO - RESALTADA EN MORADO SÓLIDO) */}
+    <ScrollView
+      style={styles.scroll}
+      contentContainerStyle={styles.content}
+      showsVerticalScrollIndicator={false}
+    >
+      {/* 1. TARJETA BEESERVICES (ARRIBA DE TODO - RESALTADA EN MORADO) */}
       <TouchableOpacity
         style={styles.beeServicesCard}
         activeOpacity={0.85}
@@ -58,10 +63,10 @@ export default function AllModulesOverview() {
         </View>
 
         <Text style={styles.beeServicesDescText}>
-          Crea tu negocio, publica productos y servicios. Los clientes te encontrarán a través del asistente de IA.
+          Crea tu negocio, publica productos y servicios. Los clientes te encontrarán a través del
+          asistente de IA.
         </Text>
 
-        {/* Badges de métricas en Morado */}
         <View style={styles.beeServicesMetricsRow}>
           <View style={styles.beeMetricBadge}>
             <Text style={styles.beeMetricText}>2 Negocios</Text>
@@ -77,7 +82,6 @@ export default function AllModulesOverview() {
           </View>
         </View>
 
-        {/* 3 Características destacadas */}
         <View style={styles.beeServicesHighlightsRow}>
           <View style={styles.beeHighlightItem}>
             <Search size={14} color={colors.brand.primary} />
@@ -94,11 +98,60 @@ export default function AllModulesOverview() {
         </View>
       </TouchableOpacity>
 
-      {/* 2. GRID DE MÓDULOS DE 2 COLUMNAS (ÍCONOS MORADOS 70% OPACIDAD, BADGES EQUILIBRADOS) */}
+      {/* 2. GRID DE MÓDULOS (todas las cards del mismo tamaño) */}
       <View style={styles.gridContainer}>
-        {/* Fila 1: Chat & Correos */}
+        {/* ASISTENTE IA */}
+        <TouchableOpacity
+          style={styles.gridCard}
+          activeOpacity={0.85}
+          onPress={() => handleOpenModule('chat')} // o módulo de IA en el futuro
+        >
+          <View>
+            {/* Línea 1: icono + título */}
+            <View style={styles.aiHeaderRow}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                {/* Icono sin fondo */}
+                <Sparkles size={18} color="#7C3AED" />
+                <Text style={styles.aiTitle}>Asistente IA</Text>
+              </View>
+            </View>
 
-        {/* Tarjeta CHAT */}
+            {/* Línea 2: badge "En línea" */}
+            <View style={styles.aiStatusRow}>
+              <View style={styles.aiStatusBadge}>
+                <Text style={styles.aiStatusText}>En línea</Text>
+              </View>
+            </View>
+
+            {/* Línea 3: subtítulo */}
+            <Text style={styles.aiSubtitle}>Siempre aquí para ayudarte</Text>
+
+            <Text style={styles.aiDescription} numberOfLines={2}>
+              Pídeme que resuma tus correos, prepare reuniones o busque oportunidades para tu
+              negocio.
+            </Text>
+
+            <View style={styles.badgesContainer}>
+              <View style={styles.badgePill}>
+                <Text style={styles.badgeText}>Último: resumen de correos</Text>
+              </View>
+              <View style={styles.badgePillGray}>
+                <Text style={styles.badgeTextGray}>3 tareas sugeridas</Text>
+              </View>
+            </View>
+          </View>
+
+          <View style={styles.aiFooterRow}>
+            <Text style={styles.aiFooterText} numberOfLines={1}>
+              ¿En qué te ayudo hoy?
+            </Text>
+            <View style={styles.aiBotCircle}>
+              <Bot size={16} color="#7C3AED" />
+            </View>
+          </View>
+        </TouchableOpacity>
+
+        {/* CHAT */}
         <TouchableOpacity
           style={styles.gridCard}
           activeOpacity={0.8}
@@ -106,7 +159,7 @@ export default function AllModulesOverview() {
         >
           <View>
             <View style={styles.cardHeaderRow}>
-              <MessageCircle size={26} color="#000000ff" />
+              <MessageCircle size={26} color="#7C3AED" />
             </View>
 
             <Text style={styles.cardTitle}>Chat</Text>
@@ -141,12 +194,14 @@ export default function AllModulesOverview() {
                   </View>
                 ))}
               </View>
-              <Text style={styles.avatarsLabel} numberOfLines={1}>Carlos, María y 1 más</Text>
+              <Text style={styles.avatarsLabel} numberOfLines={1}>
+                Carlos, María y 1 más
+              </Text>
             </View>
           </View>
         </TouchableOpacity>
 
-        {/* Tarjeta CORREOS */}
+        {/* CORREOS */}
         <TouchableOpacity
           style={styles.gridCard}
           activeOpacity={0.8}
@@ -154,7 +209,7 @@ export default function AllModulesOverview() {
         >
           <View>
             <View style={styles.cardHeaderRow}>
-              <Mail size={26} color="#000000ff" />
+              <Mail size={26} color="#4F46E5" />
             </View>
 
             <Text style={styles.cardTitle}>Correos</Text>
@@ -180,9 +235,7 @@ export default function AllModulesOverview() {
           </View>
         </TouchableOpacity>
 
-        {/* Fila 2: Agenda & Notas */}
-
-        {/* Tarjeta AGENDA */}
+        {/* AGENDA */}
         <TouchableOpacity
           style={styles.gridCard}
           activeOpacity={0.8}
@@ -190,7 +243,7 @@ export default function AllModulesOverview() {
         >
           <View>
             <View style={styles.cardHeaderRow}>
-              <Calendar size={26} color="#000000ff" />
+              <Calendar size={26} color="#4F46E5" />
             </View>
 
             <Text style={styles.cardTitle}>Agenda</Text>
@@ -216,7 +269,7 @@ export default function AllModulesOverview() {
           </View>
         </TouchableOpacity>
 
-        {/* Tarjeta NOTAS */}
+        {/* NOTAS */}
         <TouchableOpacity
           style={styles.gridCard}
           activeOpacity={0.8}
@@ -224,7 +277,7 @@ export default function AllModulesOverview() {
         >
           <View>
             <View style={styles.cardHeaderRow}>
-              <FileText size={26} color="#000000ff" />
+              <FileText size={26} color="#7C3AED" />
             </View>
 
             <Text style={styles.cardTitle}>Notas</Text>
@@ -250,23 +303,15 @@ export default function AllModulesOverview() {
           </View>
         </TouchableOpacity>
 
-        {/* Fila 3: Archivos (Almacenamiento - Ancho Completo) */}
+        {/* ARCHIVOS (misma anatomía de gridCard) */}
         <TouchableOpacity
-          style={styles.fullWidthGridCard}
+          style={styles.gridCard}
           activeOpacity={0.8}
-          onPress={() => handleOpenModule('files')}
+          onPress={() => handleOpenModule('storage')}
         >
           <View>
             <View style={styles.cardHeaderRow}>
-              <FolderOpen size={26} color="#000000ff" />
-              <View style={{ flexDirection: 'row', gap: 6 }}>
-                <View style={styles.badgePill}>
-                  <Text style={styles.badgeText}>57% usado</Text>
-                </View>
-                <View style={styles.badgePillGray}>
-                  <Text style={styles.badgeTextGray}>8.5 GB de 15 GB</Text>
-                </View>
-              </View>
+              <FolderOpen size={26} color="#4F46E5" />
             </View>
 
             <Text style={styles.cardTitle}>Archivos</Text>
@@ -279,11 +324,15 @@ export default function AllModulesOverview() {
 
           <View style={styles.cardFooterBox}>
             <View style={styles.fileMiniRow}>
-              <Text style={styles.fileNameText} numberOfLines={1}>• Contrato_Cliente_Q3.pdf</Text>
+              <Text style={styles.fileNameText} numberOfLines={1}>
+                • Contrato_Cliente_Q3.pdf
+              </Text>
               <Text style={styles.fileSizeText}>2.4 MB</Text>
             </View>
             <View style={styles.fileMiniRow}>
-              <Text style={styles.fileNameText} numberOfLines={1}>• Presentación_Ventas.pdf</Text>
+              <Text style={styles.fileNameText} numberOfLines={1}>
+                • Presentación_Ventas.pdf
+              </Text>
               <Text style={styles.fileSizeText}>5.1 MB</Text>
             </View>
           </View>
