@@ -166,82 +166,92 @@ export default function VoiceAssistantModal({
 
   return (
     <div
-      className="fixed inset-y-0 left-0 z-[60] flex w-[35vw] min-w-[360px] max-w-[620px] flex-col bg-[#1B0B3A] pt-9 pb-7 shadow-[12px_0_35px_rgba(15,5,35,0.45)]"
-      style={{ animation: 'voice-fade-in 300ms ease-out' }}
+      className="fixed inset-0 z-[60] bg-black/20"
+      onClick={onClose}
+      role="presentation"
     >
-      {/* Barra superior */}
-      <div className="flex shrink-0 items-center justify-between px-5">
-        <div className="flex items-center gap-2">
-          <span
-            className={`h-2 w-2 rounded-full ${
-              isTalking ? 'bg-semantic-success' : 'bg-[#7C6BA8]'
-            }`}
-          />
+      <div
+        className="fixed inset-y-0 left-0 flex w-[35vw] min-w-[360px] max-w-[620px] flex-col bg-[#1B0B3A] pt-9 pb-7 shadow-[12px_0_35px_rgba(15,5,35,0.45)]"
+        style={{ animation: 'voice-fade-in 300ms ease-out' }}
+        onClick={(event) => event.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+        aria-label="Asistente BeeAI"
+      >
+        {/* Barra superior */}
+        <div className="flex shrink-0 items-center justify-between px-5">
+          <div className="flex items-center gap-2">
+            <span
+              className={`h-2 w-2 rounded-full ${
+                isTalking ? 'bg-semantic-success' : 'bg-[#7C6BA8]'
+              }`}
+            />
 
-          <span className="text-[13px] font-semibold tracking-[0.3px] text-[#EDE9FE]">
-            Asistente BeeAI
-          </span>
+            <span className="text-[13px] font-semibold tracking-[0.3px] text-[#EDE9FE]">
+              Asistente BeeAI
+            </span>
+          </div>
+
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Cerrar asistente de voz"
+            className="flex h-9 w-9 items-center justify-center rounded-xl bg-[rgba(237,233,254,0.12)] text-[#EDE9FE] transition-colors hover:bg-[rgba(237,233,254,0.2)]"
+          >
+            <X className="h-5 w-5" />
+          </button>
         </div>
 
-        <button
-          type="button"
-          onClick={onClose}
-          aria-label="Cerrar asistente de voz"
-          className="flex h-9 w-9 items-center justify-center rounded-xl bg-[rgba(237,233,254,0.12)] text-[#EDE9FE] transition-colors hover:bg-[rgba(237,233,254,0.2)]"
+        {/* Orbe de voz */}
+        <div className="mt-4 flex shrink-0 flex-col items-center px-6">
+          <div style={{ animation: 'voice-orb-enter 300ms ease-out' }}>
+            <VoiceOrb state={phase} />
+          </div>
+
+          <p className="mt-1.5 text-[13px] font-semibold tracking-[0.4px] text-[#C4B5FD]">
+            {STATE_LABEL[phase]}
+          </p>
+        </div>
+
+        {/* Conversación transcrita */}
+        <div
+          ref={transcriptRef}
+          className="mt-3 min-h-0 flex-1 overflow-y-auto px-7 pb-3"
         >
-          <X className="h-5 w-5" />
-        </button>
-      </div>
+          <div className="mx-auto max-w-2xl">
+            {history.map((line, index) => (
+              <Transcript key={index} line={line} />
+            ))}
 
-      {/* Orbe de voz */}
-      <div className="mt-4 flex shrink-0 flex-col items-center px-6">
-        <div style={{ animation: 'voice-orb-enter 300ms ease-out' }}>
-          <VoiceOrb state={phase} />
+            {current && <Transcript line={current} live />}
+
+            {(showProducts || phase === 'speaking') && (
+              <div className="mt-3 animate-in fade-in slide-in-from-bottom-4 transition-all duration-300">
+                <p className="mb-1 text-xs font-semibold text-[#C4B5FD]">
+                  Encontré 3 opciones para ti:
+                </p>
+
+                <InlineProductCards
+                  darkTheme
+                  onContact={handleContactCard}
+                />
+              </div>
+            )}
+          </div>
         </div>
 
-        <p className="mt-1.5 text-[13px] font-semibold tracking-[0.4px] text-[#C4B5FD]">
-          {STATE_LABEL[phase]}
+        {/* Controles inferiores */}
+        <VoiceControls
+          isTalking={isTalking}
+          onRestart={handleRestart}
+          onToggleMic={handleMic}
+          onClose={onClose}
+        />
+
+        <p className="mt-3.5 text-center text-[11px] font-normal text-[rgba(237,233,254,0.45)]">
+          Experiencia de voz simulada
         </p>
       </div>
-
-      {/* Conversación transcrita */}
-      <div
-        ref={transcriptRef}
-        className="mt-3 min-h-0 flex-1 overflow-y-auto px-7 pb-3"
-      >
-        <div className="mx-auto max-w-2xl">
-          {history.map((line, index) => (
-            <Transcript key={index} line={line} />
-          ))}
-
-          {current && <Transcript line={current} live />}
-
-          {(showProducts || phase === 'speaking') && (
-            <div className="mt-3 animate-in fade-in slide-in-from-bottom-4 transition-all duration-300">
-              <p className="mb-1 text-xs font-semibold text-[#C4B5FD]">
-                Encontré 3 opciones para ti:
-              </p>
-
-              <InlineProductCards
-                darkTheme
-                onContact={handleContactCard}
-              />
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Controles inferiores */}
-      <VoiceControls
-        isTalking={isTalking}
-        onRestart={handleRestart}
-        onToggleMic={handleMic}
-        onClose={onClose}
-      />
-
-      <p className="mt-3.5 text-center text-[11px] font-normal text-[rgba(237,233,254,0.45)]">
-        Experiencia de voz simulada
-      </p>
     </div>
   );
 }
