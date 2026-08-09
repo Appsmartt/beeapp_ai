@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { View, StyleSheet } from 'react-native';
+import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, spacing } from '@beeapp/design-system';
 import VoiceAssistantFab from '../../src/components/VoiceAssistantFab';
@@ -17,6 +18,8 @@ const DEFAULT_MODULE_IDS = CUSTOMIZABLE_MODULES.map((module) => module.id);
 
 export default function HomeScreen() {
   const insets = useSafeAreaInsets();
+  const router = useRouter();
+
   const [sideMenuVisible, setSideMenuVisible] = useState(false);
 
   const [selectedModuleIds, setSelectedModuleIds] = useState<string[]>(
@@ -36,7 +39,6 @@ export default function HomeScreen() {
   } | null>(null);
   const [openSeq, setOpenSeq] = useState(0);
 
-  // Oculta el header y los chips al abrir un detalle interno de un módulo.
   const [isDetailView, setIsDetailView] = useState(false);
 
   const openModule = (
@@ -46,6 +48,11 @@ export default function HomeScreen() {
       params?: Record<string, string>;
     },
   ) => {
+    if (id === 'beeservices') {
+      router.push('/(main)/beeservices');
+      return;
+    }
+
     setActiveModuleId(id);
     setModuleTarget(target ?? null);
     setOpenSeq((sequence) => sequence + 1);
@@ -78,7 +85,7 @@ export default function HomeScreen() {
             selectedModuleIds={selectedModuleIds}
             activeModuleId={activeModuleId}
             hideOverview={activeModuleId === OVERVIEW_MODULE_ID}
-            onSelect={(id) => openModule(id)}
+            onSelect={openModule}
             onCustomize={openCustomize}
           />
         </>
@@ -93,7 +100,7 @@ export default function HomeScreen() {
           activeModuleId === OVERVIEW_MODULE_ID
             ? {
                 moduleIds: selectedModuleIds,
-                onOpenModule: (id: string) => openModule(id),
+                onOpenModule: openModule,
               }
             : undefined
         }

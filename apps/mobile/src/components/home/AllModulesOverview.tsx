@@ -19,7 +19,10 @@ import {
   Sparkles,
   Bot,
 } from 'lucide-react-native';
-import { useModuleNav, useScreenParams } from '../embedded/EmbeddedNavContext';
+import {
+  useModuleNav,
+  useScreenParams,
+} from '../embedded/EmbeddedNavContext';
 import { styles } from './allModulesOverviewStyles';
 
 const MOCK_AVATARS = [
@@ -31,12 +34,22 @@ const MOCK_AVATARS = [
 export default function AllModulesOverview() {
   const router = useModuleNav();
   const params = useScreenParams();
-  const onOpenModule = params.onOpenModule as ((id: string) => void) | undefined;
+  const onOpenModule = params.onOpenModule as
+    | ((id: string) => void)
+    | undefined;
 
   const handleOpenModule = (id: string) => {
     if (onOpenModule) {
       onOpenModule(id);
+      return;
     }
+
+    if (id === 'beeservices') {
+      router.push('/(main)/beeservices');
+      return;
+    }
+
+    router.push(`/(main)/${id}`);
   };
 
   return (
@@ -45,7 +58,6 @@ export default function AllModulesOverview() {
       contentContainerStyle={styles.content}
       showsVerticalScrollIndicator={false}
     >
-      {/* 1. TARJETA BEESERVICES (ARRIBA DE TODO - RESALTADA EN MORADO) */}
       <TouchableOpacity
         style={styles.beeServicesCard}
         activeOpacity={0.85}
@@ -55,28 +67,35 @@ export default function AllModulesOverview() {
           <View style={styles.beeServicesIconWrap}>
             <ShoppingBag size={32} color={colors.brand.primary} />
           </View>
+
           <View style={styles.beeServicesTextCol}>
             <Text style={styles.beeServicesTitle}>BeeServices</Text>
-            <Text style={styles.beeServicesSubtitle}>Tus negocios y catálogo comercial</Text>
+            <Text style={styles.beeServicesSubtitle}>
+              Tus negocios y catálogo comercial
+            </Text>
           </View>
+
           <ChevronRight size={24} color={colors.brand.primary} />
         </View>
 
         <Text style={styles.beeServicesDescText}>
-          Crea tu negocio, publica productos y servicios. Los clientes te encontrarán a través del
-          asistente de IA.
+          Crea tu negocio, publica productos y servicios. Los clientes te
+          encontrarán a través del asistente de IA.
         </Text>
 
         <View style={styles.beeServicesMetricsRow}>
           <View style={styles.beeMetricBadge}>
             <Text style={styles.beeMetricText}>2 Negocios</Text>
           </View>
+
           <View style={styles.beeMetricBadge}>
             <Text style={styles.beeMetricText}>4 Productos</Text>
           </View>
+
           <View style={styles.beeMetricBadge}>
             <Text style={styles.beeMetricText}>3 Servicios</Text>
           </View>
+
           <View style={styles.beeMetricBadge}>
             <Text style={styles.beeMetricText}>12 Consultas recibidas</Text>
           </View>
@@ -85,56 +104,69 @@ export default function AllModulesOverview() {
         <View style={styles.beeServicesHighlightsRow}>
           <View style={styles.beeHighlightItem}>
             <Search size={14} color={colors.brand.primary} />
-            <Text style={styles.beeHighlightText}>Los clientes te encuentran vía IA</Text>
+            <Text style={styles.beeHighlightText}>
+              Los clientes te encuentran vía IA
+            </Text>
           </View>
+
           <View style={styles.beeHighlightItem}>
             <MessageCircle size={14} color={colors.brand.primary} />
-            <Text style={styles.beeHighlightText}>Chat directo con compradores</Text>
+            <Text style={styles.beeHighlightText}>
+              Chat directo con compradores
+            </Text>
           </View>
+
           <View style={styles.beeHighlightItem}>
             <TrendingUp size={14} color={colors.brand.primary} />
-            <Text style={styles.beeHighlightText}>Visibilidad en la red empresarial</Text>
+            <Text style={styles.beeHighlightText}>
+              Visibilidad en la red empresarial
+            </Text>
           </View>
         </View>
       </TouchableOpacity>
 
-      {/* 2. GRID DE MÓDULOS (todas las cards del mismo tamaño) */}
       <View style={styles.gridContainer}>
-        {/* ASISTENTE IA */}
         <TouchableOpacity
           style={styles.gridCard}
           activeOpacity={0.85}
-          onPress={() => handleOpenModule('chat')} // o módulo de IA en el futuro
+          onPress={() => handleOpenModule('chat')}
         >
           <View>
-            {/* Línea 1: icono + título */}
             <View style={styles.aiHeaderRow}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                {/* Icono sin fondo */}
+              <View
+                style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  gap: 8,
+                }}
+              >
                 <Sparkles size={18} color="#7C3AED" />
                 <Text style={styles.aiTitle}>Asistente IA</Text>
               </View>
             </View>
 
-            {/* Línea 2: badge "En línea" */}
             <View style={styles.aiStatusRow}>
               <View style={styles.aiStatusBadge}>
                 <Text style={styles.aiStatusText}>En línea</Text>
               </View>
             </View>
 
-            {/* Línea 3: subtítulo */}
-            <Text style={styles.aiSubtitle}>Siempre aquí para ayudarte</Text>
+            <Text style={styles.aiSubtitle}>
+              Siempre aquí para ayudarte
+            </Text>
 
             <Text style={styles.aiDescription} numberOfLines={2}>
-              Pídeme que resuma tus correos, prepare reuniones o busque oportunidades para tu
-              negocio.
+              Pídeme que resuma tus correos, prepare reuniones o busque
+              oportunidades para tu negocio.
             </Text>
 
             <View style={styles.badgesContainer}>
               <View style={styles.badgePill}>
-                <Text style={styles.badgeText}>Último: resumen de correos</Text>
+                <Text style={styles.badgeText}>
+                  Último: resumen de correos
+                </Text>
               </View>
+
               <View style={styles.badgePillGray}>
                 <Text style={styles.badgeTextGray}>3 tareas sugeridas</Text>
               </View>
@@ -145,13 +177,13 @@ export default function AllModulesOverview() {
             <Text style={styles.aiFooterText} numberOfLines={1}>
               ¿En qué te ayudo hoy?
             </Text>
+
             <View style={styles.aiBotCircle}>
               <Bot size={16} color="#7C3AED" />
             </View>
           </View>
         </TouchableOpacity>
 
-        {/* CHAT */}
         <TouchableOpacity
           style={styles.gridCard}
           activeOpacity={0.8}
@@ -169,9 +201,11 @@ export default function AllModulesOverview() {
               <View style={styles.badgePill}>
                 <Text style={styles.badgeText}>3 Nuevos</Text>
               </View>
+
               <View style={styles.badgePillRed}>
                 <Text style={styles.badgeTextRed}>1 Llamada perdida</Text>
               </View>
+
               <View style={styles.badgePillGray}>
                 <Text style={styles.badgeTextGray}>2 Grupos activos</Text>
               </View>
@@ -181,19 +215,27 @@ export default function AllModulesOverview() {
           <View style={styles.cardFooterBox}>
             <View style={styles.avatarsFooterRow}>
               <View style={styles.avatarsOverlap}>
-                {MOCK_AVATARS.map((av, idx) => (
+                {MOCK_AVATARS.map((avatar, index) => (
                   <View
-                    key={idx}
+                    key={avatar.initials}
                     style={[
                       styles.avatarCircle,
-                      { backgroundColor: av.bg },
-                      idx > 0 && { marginLeft: -6 },
+                      { backgroundColor: avatar.bg },
+                      index > 0 && { marginLeft: -6 },
                     ]}
                   >
-                    <Text style={[styles.avatarText, { color: av.text }]}>{av.initials}</Text>
+                    <Text
+                      style={[
+                        styles.avatarText,
+                        { color: avatar.text },
+                      ]}
+                    >
+                      {avatar.initials}
+                    </Text>
                   </View>
                 ))}
               </View>
+
               <Text style={styles.avatarsLabel} numberOfLines={1}>
                 Carlos, María y 1 más
               </Text>
@@ -201,7 +243,6 @@ export default function AllModulesOverview() {
           </View>
         </TouchableOpacity>
 
-        {/* CORREOS */}
         <TouchableOpacity
           style={styles.gridCard}
           activeOpacity={0.8}
@@ -219,9 +260,11 @@ export default function AllModulesOverview() {
               <View style={styles.badgePill}>
                 <Text style={styles.badgeText}>5 Sin leer</Text>
               </View>
+
               <View style={styles.badgePillGray}>
                 <Text style={styles.badgeTextGray}>2 Con adjuntos</Text>
               </View>
+
               <View style={styles.badgePillOrange}>
                 <Text style={styles.badgeTextOrange}>1 Importante</Text>
               </View>
@@ -235,7 +278,6 @@ export default function AllModulesOverview() {
           </View>
         </TouchableOpacity>
 
-        {/* AGENDA */}
         <TouchableOpacity
           style={styles.gridCard}
           activeOpacity={0.8}
@@ -253,8 +295,11 @@ export default function AllModulesOverview() {
               <View style={styles.badgePill}>
                 <Text style={styles.badgeText}>3 Hoy</Text>
               </View>
+
               <View style={styles.badgePillOrange}>
-                <Text style={styles.badgeTextOrange}>1 Reunión en 45 min</Text>
+                <Text style={styles.badgeTextOrange}>
+                  1 Reunión en 45 min
+                </Text>
               </View>
             </View>
           </View>
@@ -269,7 +314,6 @@ export default function AllModulesOverview() {
           </View>
         </TouchableOpacity>
 
-        {/* NOTAS */}
         <TouchableOpacity
           style={styles.gridCard}
           activeOpacity={0.8}
@@ -287,9 +331,11 @@ export default function AllModulesOverview() {
               <View style={styles.badgePill}>
                 <Text style={styles.badgeText}>3 Nuevas</Text>
               </View>
+
               <View style={styles.badgePillGray}>
                 <Text style={styles.badgeTextGray}>2 Protegidas</Text>
               </View>
+
               <View style={styles.badgePillGray}>
                 <Text style={styles.badgeTextGray}>1 Recordatorio</Text>
               </View>
@@ -303,7 +349,6 @@ export default function AllModulesOverview() {
           </View>
         </TouchableOpacity>
 
-        {/* ARCHIVOS (misma anatomía de gridCard) */}
         <TouchableOpacity
           style={styles.gridCard}
           activeOpacity={0.8}
@@ -329,6 +374,7 @@ export default function AllModulesOverview() {
               </Text>
               <Text style={styles.fileSizeText}>2.4 MB</Text>
             </View>
+
             <View style={styles.fileMiniRow}>
               <Text style={styles.fileNameText} numberOfLines={1}>
                 • Presentación_Ventas.pdf
