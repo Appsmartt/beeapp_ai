@@ -1,5 +1,7 @@
+import { useState } from 'react';
 import { ScrollView, Text, View } from 'react-native';
 import ScreenSafeArea from '../../../src/components/layout/ScreenSafeArea';
+import HomeSideMenu from '../../../src/components/home/HomeSideMenu';
 import BeeServicesHeader from '../../../src/components/beeservices/BeeServicesHeader';
 import BeeServicesAiSearchCard from '../../../src/components/beeservices/BeeServicesAiSearchCard';
 import BeeServicesBusinessCard from '../../../src/components/beeservices/BeeServicesBusinessCard';
@@ -8,6 +10,8 @@ import BeeServicesCategoryGrid from '../../../src/components/beeservices/BeeServ
 import { styles } from '../../../src/components/beeservices/beeServicesStyles';
 
 export default function BeeServicesScreen() {
+    const [sideMenuVisible, setSideMenuVisible] = useState(false);
+
     return (
         <ScreenSafeArea style={styles.safeArea}>
         <View style={styles.container}>
@@ -15,7 +19,9 @@ export default function BeeServicesScreen() {
             contentContainerStyle={styles.content}
             showsVerticalScrollIndicator={false}
             >
-            <BeeServicesHeader />
+            <BeeServicesHeader
+                onMenuPress={() => setSideMenuVisible(true)}
+            />
 
             <BeeServicesAiSearchCard
                 onPressSearch={() => {
@@ -48,6 +54,11 @@ export default function BeeServicesScreen() {
                 <View style={styles.footerLine} />
             </View>
             </ScrollView>
+
+            <HomeSideMenu
+            visible={sideMenuVisible}
+            onClose={() => setSideMenuVisible(false)}
+            />
         </View>
         </ScreenSafeArea>
     );

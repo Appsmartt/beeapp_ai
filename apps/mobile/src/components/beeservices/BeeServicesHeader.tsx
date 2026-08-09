@@ -1,26 +1,44 @@
-import { View, Text } from 'react-native';
-import { BEE_SERVICES_USER } from '../../mocks/beeServicesExplore';
+import { View, Text, TouchableOpacity } from 'react-native';
+import { Menu } from 'lucide-react-native';
+import { colors } from '@beeapp/design-system';
 import { styles } from './beeServicesStyles';
 
 interface BeeServicesHeaderProps {
-    initials?: string;
+    onMenuPress: () => void;
 }
 
 export default function BeeServicesHeader({
-    initials = BEE_SERVICES_USER.initials,
+    onMenuPress,
     }: BeeServicesHeaderProps) {
     return (
         <View style={styles.header}>
         <View style={styles.headerTextColumn}>
             <Text style={styles.headerTitle}>BeeServices</Text>
+
             <Text style={styles.headerSubtitle}>
             Conecta necesidades con soluciones
             </Text>
         </View>
 
-        <View style={styles.avatar}>
-            <Text style={styles.avatarText}>{initials}</Text>
-        </View>
+        <TouchableOpacity
+            onPress={onMenuPress}
+            activeOpacity={0.7}
+            accessibilityRole="button"
+            accessibilityLabel="Abrir menú"
+            hitSlop={10}
+            style={{
+            width: 42,
+            height: 42,
+            alignItems: 'center',
+            justifyContent: 'center',
+            }}
+        >
+            <Menu
+            size={27}
+            color={colors.neutral.text}
+            strokeWidth={2.2}
+            />
+        </TouchableOpacity>
         </View>
     );
 }
