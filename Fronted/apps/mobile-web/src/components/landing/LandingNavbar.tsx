@@ -33,12 +33,19 @@ export default function LandingNavbar() {
         </nav>
 
         {/* Desktop CTA */}
-        <div className="hidden md:flex items-center gap-4">
+        <div className="hidden md:flex items-center gap-3">
           <Link
             href="/login"
-            className="px-5 py-2 rounded-full bg-brand-primary text-white text-sm font-medium hover:bg-brand-dark transition-colors shadow-sm"
+            className="px-4 py-2 text-sm font-medium text-neutral-600 transition-colors hover:text-brand-primary"
           >
             Ingresar
+          </Link>
+
+          <Link
+            href="/register"
+            className="px-5 py-2 rounded-full bg-brand-primary text-white text-sm font-medium hover:bg-brand-dark transition-colors shadow-sm"
+          >
+            Crear cuenta
           </Link>
         </div>
 
@@ -83,13 +90,21 @@ export default function LandingNavbar() {
           >
             Contacto
           </a>
-          <div className="pt-2">
+          <div className="pt-2 space-y-2">
             <Link
               href="/login"
               onClick={() => setMobileMenuOpen(false)}
-              className="block w-full text-center py-2.5 rounded-full bg-brand-primary text-white text-base font-medium shadow-sm"
+              className="block w-full rounded-full border border-neutral-300 py-2.5 text-center text-base font-medium text-neutral-700 transition-colors hover:bg-neutral-50"
             >
               Ingresar
+            </Link>
+
+            <Link
+              href="/register"
+              onClick={() => setMobileMenuOpen(false)}
+              className="block w-full rounded-full bg-brand-primary py-2.5 text-center text-base font-medium text-white shadow-sm transition-colors hover:bg-brand-dark"
+            >
+              Crear cuenta
             </Link>
           </div>
         </div>

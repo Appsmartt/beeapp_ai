@@ -20,7 +20,7 @@ export default function CtaSection() {
 
           <div className="pt-4 flex justify-center relative z-10">
             <Link
-              href="/login"
+              href="/register"
               className="px-8 py-4 rounded-full bg-brand-primary text-white text-base font-semibold hover:bg-brand-dark transition-all shadow-lg hover:shadow-brand-primary/30 flex items-center justify-center gap-2 group"
             >
               <span>Crear cuenta gratis</span>

@@ -24,7 +24,7 @@ export default function HeroSection() {
 
             <div className="pt-2 flex flex-col sm:flex-row items-center justify-center lg:justify-start gap-4">
               <Link
-                href="/login"
+                href="/register"
                 className="w-full sm:w-auto px-8 py-4 rounded-full bg-brand-primary text-white text-base font-semibold hover:bg-brand-dark transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-2 group"
               >
                 <span>Comenzar ahora</span>
