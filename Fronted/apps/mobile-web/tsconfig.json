@@ -19,7 +19,8 @@
     ],
     "paths": {
       "@/*": ["./src/*"],
-      "@beeapp/api-client": ["../../packages/api-client/src"]
+      "@beeapp/api-client": ["../../packages/api-client/src"],
+      "@beeapp/shared-types": ["../../packages/shared-types/src"]
     }
   },
   "include": [

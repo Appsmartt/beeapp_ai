@@ -1,7 +1,4 @@
-/**
- * Shared TypeScript types across mobile app and admin web panel.
- * Placeholder type definitions to be expanded during development phases.
- */
+
 
 export type UserRole = 'USER' | 'ADMIN' | 'SUPER_ADMIN';
 
@@ -28,4 +25,29 @@ export interface ApiResponse<T> {
   data: T;
   message?: string;
   timestamp: string;
+}
+
+export interface RegisterUserPayload {
+  first_name: string;
+  last_name: string;
+  email: string;
+  password: string;
+  phone_dial_code: string;
+  phone_number: string;
+}
+
+export interface RegisteredUser {
+  id: string;
+  email: string;
+  phone: string | null;
+  first_name: string;
+  last_name: string;
+  phone_dial_code: string;
+  phone_number: string;
+  role: UserRole;
+}
+
+export interface RegisterUserResponse {
+  message: string;
+  user: RegisteredUser;
 }
