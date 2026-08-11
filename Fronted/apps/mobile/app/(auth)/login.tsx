@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import {
+  ActivityIndicator,
   FlatList,
   Keyboard,
   KeyboardAvoidingView,
@@ -22,9 +23,13 @@ import {
   Phone,
 } from 'lucide-react-native';
 import { colors } from '@beeapp/design-system';
+import { loginUser } from '@beeapp/api-client';
 
 import AnimatedLogo from '../../src/components/AnimatedLogo';
 import ScreenSafeArea from '../../src/components/layout/ScreenSafeArea';
+import {
+  saveAuthSession,
+} from '../../src/services/authSession';
 import { COUNTRIES, type Country } from '../../src/mocks/countries';
 
 type LoginMethod = 'otp' | 'password';
@@ -56,6 +61,7 @@ export default function LoginScreen() {
   const [countrySearch, setCountrySearch] = useState('');
   const [errors, setErrors] = useState<FormErrors>({});
   const [formMessage, setFormMessage] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const filteredCountries = useMemo(() => {
     const normalizedQuery = countrySearch.trim().toLowerCase();
@@ -108,7 +114,7 @@ export default function LoginScreen() {
     );
   };
 
-  const handlePasswordContinue = () => {
+  const handlePasswordContinue = async () => {
     const nextErrors: FormErrors = {};
 
     if (!email.trim()) {
@@ -129,10 +135,31 @@ export default function LoginScreen() {
       return;
     }
 
-    setErrors({});
-    setFormMessage(
-      'El inicio de sesión con correo estará disponible en la siguiente integración.',
-    );
+    try {
+      setIsSubmitting(true);
+      setErrors({});
+      setFormMessage('');
+
+      const response = await loginUser({
+        email: email.trim().toLowerCase(),
+        password,
+      });
+
+      await saveAuthSession({
+        session: response.session,
+        user: response.user,
+      });
+
+      router.replace('/(auth)/app-lock-setup');
+    } catch (error) {
+      setFormMessage(
+        error instanceof Error
+          ? error.message
+          : 'No fue posible iniciar sesión. Inténtalo nuevamente.',
+      );
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const openCountryModal = () => {
@@ -406,7 +433,9 @@ export default function LoginScreen() {
                           style={styles.visibilityButton}
                           activeOpacity={0.7}
                           onPress={() => {
-                            setIsPasswordVisible((currentValue) => !currentValue);
+                            setIsPasswordVisible(
+                              (currentValue) => !currentValue,
+                            );
                           }}
                         >
                           {isPasswordVisible ? (
@@ -445,18 +474,28 @@ export default function LoginScreen() {
                     </TouchableOpacity>
 
                     <TouchableOpacity
-                      style={styles.primaryButton}
+                      style={[
+                        styles.primaryButton,
+                        isSubmitting && styles.primaryButtonDisabled,
+                      ]}
                       activeOpacity={0.8}
+                      disabled={isSubmitting}
                       onPress={handlePasswordContinue}
                     >
-                      <Text style={styles.primaryButtonText}>
-                        Iniciar sesión
-                      </Text>
+                      {isSubmitting ? (
+                        <ActivityIndicator color={colors.neutral.white} />
+                      ) : (
+                        <>
+                          <Text style={styles.primaryButtonText}>
+                            Iniciar sesión
+                          </Text>
 
-                      <Mail
-                        size={18}
-                        color={colors.neutral.white}
-                      />
+                          <Mail
+                            size={18}
+                            color={colors.neutral.white}
+                          />
+                        </>
+                      )}
                     </TouchableOpacity>
                   </>
                 )}
@@ -797,6 +836,9 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.22,
     shadowRadius: 9,
   },
+  primaryButtonDisabled: {
+    opacity: 0.7,
+  },
   primaryButtonText: {
     color: colors.neutral.white,
     fontSize: 15,
@@ -804,15 +846,15 @@ const styles = StyleSheet.create({
     marginRight: 8,
   },
   formMessage: {
-    backgroundColor: '#F0EAFF',
-    borderColor: '#D9CAFF',
+    backgroundColor: '#FEF2F2',
+    borderColor: '#FECACA',
     borderRadius: 10,
     borderWidth: 1,
     marginTop: 14,
     padding: 11,
   },
   formMessageText: {
-    color: colors.brand.primary,
+    color: colors.semantic.error,
     fontSize: 11,
     lineHeight: 16,
     textAlign: 'center',

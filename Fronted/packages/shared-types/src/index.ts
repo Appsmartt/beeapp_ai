@@ -1,8 +1,10 @@
-
-
 export type UserRole = 'USER' | 'ADMIN' | 'SUPER_ADMIN';
 
-export type UserStatus = 'ACTIVE' | 'INACTIVE' | 'SUSPENDED' | 'PENDING';
+export type UserStatus =
+  | 'ACTIVE'
+  | 'INACTIVE'
+  | 'SUSPENDED'
+  | 'PENDING';
 
 export interface BaseUser {
   id: string;
@@ -50,4 +52,29 @@ export interface RegisteredUser {
 export interface RegisterUserResponse {
   message: string;
   user: RegisteredUser;
+}
+
+export interface LoginUserPayload {
+  email: string;
+  password: string;
+}
+
+export interface AuthSession {
+  access_token: string;
+  refresh_token: string;
+  expires_at: number | null;
+  expires_in: number | null;
+  token_type: string;
+}
+
+export interface AuthenticatedUser {
+  id: string;
+  email: string | null;
+  phone: string | null;
+}
+
+export interface LoginUserResponse {
+  message: string;
+  session: AuthSession;
+  user: AuthenticatedUser;
 }
