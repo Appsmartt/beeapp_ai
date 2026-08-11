@@ -9,6 +9,7 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@beeapp/api-client": "*",
     "@beeapp/design-system": "*",
     "lucide-react": "^0.370.0",
     "next": "14.2.35",
