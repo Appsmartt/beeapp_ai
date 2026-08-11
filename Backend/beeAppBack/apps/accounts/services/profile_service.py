@@ -1,6 +1,7 @@
 from beeAppBack.core.supabase_client import get_supabase_admin_client
 
 from apps.accounts.exceptions import (
+    AssistantSettingsUpdateError,
     ProfileCreationError,
     ProfileLookupError,
     ProfileUpdateError,
@@ -58,7 +59,8 @@ def get_profile(*, auth_user_id: str) -> dict:
             .select(
                 (
                     "id,first_name,last_name,phone_dial_code,"
-                    "phone_number,role,occupation,location"
+                    "phone_number,role,occupation,location,"
+                    "assistant_name,assistant_tone"
                 )
             )
             .eq("id", auth_user_id)
@@ -116,4 +118,41 @@ def update_onboarding_profile(
     except Exception as error:
         raise ProfileUpdateError(
             "Could not update the BeeApp profile."
+        ) from error
+
+
+def update_assistant_settings(
+    *,
+    auth_user_id: str,
+    assistant_name: str,
+    assistant_tone: str,
+) -> dict:
+    try:
+        supabase = get_supabase_admin_client()
+
+        response = (
+            supabase.table("profile")
+            .update(
+                {
+                    "assistant_name": assistant_name,
+                    "assistant_tone": assistant_tone,
+                }
+            )
+            .eq("id", auth_user_id)
+            .execute()
+        )
+
+        if not response.data:
+            raise AssistantSettingsUpdateError(
+                "Supabase did not return updated assistant settings."
+            )
+
+        return response.data[0]
+
+    except AssistantSettingsUpdateError:
+        raise
+
+    except Exception as error:
+        raise AssistantSettingsUpdateError(
+            "Could not update assistant settings."
         ) from error

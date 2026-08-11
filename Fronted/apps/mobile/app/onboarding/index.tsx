@@ -15,6 +15,7 @@ import { useRouter } from 'expo-router';
 import { colors } from '@beeapp/design-system';
 import {
   getCurrentProfile,
+  updateAssistantSettings,
   updateOnboardingProfile,
 } from '@beeapp/api-client';
 import type { UserProfile } from '@beeapp/shared-types';
@@ -25,10 +26,10 @@ import AssistantSection, {
 } from '../../src/components/onboarding/AssistantSection';
 import FeaturesSection from '../../src/components/onboarding/FeaturesSection';
 import { sharedStyles } from '../../src/components/onboarding/onboardingShared';
+import ScreenSafeArea from '../../src/components/layout/ScreenSafeArea';
 import {
   getAuthSession,
 } from '../../src/services/authSession';
-import ScreenSafeArea from '../../src/components/layout/ScreenSafeArea';
 
 type OnboardingStep = 'profile' | 'assistant' | 'features';
 
@@ -44,20 +45,46 @@ function isProfileComplete(profile: UserProfile): boolean {
   );
 }
 
+function isAssistantConfigured(profile: UserProfile): boolean {
+  return Boolean(
+    profile.assistant_name?.trim() &&
+      profile.assistant_tone?.trim(),
+  );
+}
+
+function getSupportedTone(
+  tone: string | null,
+): AssistantTone {
+  if (
+    tone === 'friendly' ||
+    tone === 'professional' ||
+    tone === 'direct'
+  ) {
+    return tone;
+  }
+
+  return 'friendly';
+}
+
 export default function OnboardingScreen() {
   const router = useRouter();
 
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [currentStep, setCurrentStep] =
     useState<OnboardingStep>('assistant');
+
   const [occupation, setOccupation] = useState('');
   const [location, setLocation] = useState('');
   const [profileErrors, setProfileErrors] =
     useState<ProfileErrors>({});
+
   const [assistantName, setAssistantName] = useState('BeeAI');
   const [tone, setTone] = useState<AssistantTone>('friendly');
+
   const [isLoading, setIsLoading] = useState(true);
   const [isSavingProfile, setIsSavingProfile] = useState(false);
+  const [isSavingAssistant, setIsSavingAssistant] =
+    useState(false);
   const [loadError, setLoadError] = useState('');
 
   const profileRequired = useMemo(
@@ -65,26 +92,28 @@ export default function OnboardingScreen() {
     [profile],
   );
 
-  const totalSteps = profileRequired ? 3 : 2;
+  const assistantRequired = useMemo(
+    () => (profile ? !isAssistantConfigured(profile) : false),
+    [profile],
+  );
+
+  const totalSteps = useMemo(() => {
+    const profileSteps = profileRequired ? 1 : 0;
+    const assistantSteps = assistantRequired ? 2 : 0;
+
+    return Math.max(profileSteps + assistantSteps, 1);
+  }, [assistantRequired, profileRequired]);
 
   const currentStepNumber = useMemo(() => {
-    if (profileRequired) {
-      if (currentStep === 'profile') {
-        return 1;
-      }
-
-      if (currentStep === 'assistant') {
-        return 2;
-      }
-
-      return 3;
-    }
-
-    if (currentStep === 'assistant') {
+    if (currentStep === 'profile') {
       return 1;
     }
 
-    return 2;
+    if (currentStep === 'assistant') {
+      return profileRequired ? 2 : 1;
+    }
+
+    return profileRequired ? 3 : 2;
   }, [currentStep, profileRequired]);
 
   const loadProfile = useCallback(async () => {
@@ -108,6 +137,16 @@ export default function OnboardingScreen() {
       setProfile(currentProfile);
       setOccupation(currentProfile.occupation ?? '');
       setLocation(currentProfile.location ?? '');
+      setAssistantName(currentProfile.assistant_name ?? 'BeeAI');
+      setTone(getSupportedTone(currentProfile.assistant_tone));
+
+      if (
+        isProfileComplete(currentProfile) &&
+        isAssistantConfigured(currentProfile)
+      ) {
+        router.replace('/(main)');
+        return;
+      }
 
       setCurrentStep(
         isProfileComplete(currentProfile)
@@ -190,6 +229,7 @@ export default function OnboardingScreen() {
     try {
       setIsSavingProfile(true);
       setProfileErrors({});
+      setLoadError('');
 
       const response = await updateOnboardingProfile(
         authSession.session.access_token,
@@ -199,7 +239,15 @@ export default function OnboardingScreen() {
         },
       );
 
-      setProfile(response.profile);
+      const updatedProfile = response.profile;
+
+      setProfile(updatedProfile);
+
+      if (isAssistantConfigured(updatedProfile)) {
+        router.replace('/(main)');
+        return;
+      }
+
       setCurrentStep('assistant');
     } catch (error) {
       setLoadError(
@@ -212,6 +260,46 @@ export default function OnboardingScreen() {
     }
   };
 
+  const handleAssistantContinue = async () => {
+    if (!assistantName.trim()) {
+      setLoadError(
+        'Ingresa un nombre para tu asistente antes de continuar.',
+      );
+      return;
+    }
+
+    const authSession = await getAuthSession();
+
+    if (!authSession) {
+      router.replace('/(auth)/login');
+      return;
+    }
+
+    try {
+      setIsSavingAssistant(true);
+      setLoadError('');
+
+      const response = await updateAssistantSettings(
+        authSession.session.access_token,
+        {
+          assistant_name: assistantName.trim(),
+          assistant_tone: tone,
+        },
+      );
+
+      setProfile(response.profile);
+      setCurrentStep('features');
+    } catch (error) {
+      setLoadError(
+        error instanceof Error
+          ? error.message
+          : 'No fue posible guardar la configuración del asistente.',
+      );
+    } finally {
+      setIsSavingAssistant(false);
+    }
+  };
+
   const handleNext = () => {
     if (currentStep === 'profile') {
       void handleProfileContinue();
@@ -219,15 +307,7 @@ export default function OnboardingScreen() {
     }
 
     if (currentStep === 'assistant') {
-      if (!assistantName.trim()) {
-        setLoadError(
-          'Ingresa un nombre para tu asistente antes de continuar.',
-        );
-        return;
-      }
-
-      setLoadError('');
-      setCurrentStep('features');
+      void handleAssistantContinue();
       return;
     }
 
@@ -393,13 +473,14 @@ export default function OnboardingScreen() {
               <TouchableOpacity
                 style={[
                   styles.primaryButton,
-                  isSavingProfile && styles.primaryButtonDisabled,
+                  (isSavingProfile || isSavingAssistant) &&
+                    styles.primaryButtonDisabled,
                 ]}
                 activeOpacity={0.8}
-                disabled={isSavingProfile}
+                disabled={isSavingProfile || isSavingAssistant}
                 onPress={handleNext}
               >
-                {isSavingProfile ? (
+                {isSavingProfile || isSavingAssistant ? (
                   <ActivityIndicator color={colors.neutral.white} />
                 ) : (
                   <Text style={styles.primaryButtonText}>
@@ -452,7 +533,9 @@ function ScreenState({
             activeOpacity={0.8}
             onPress={onActionPress}
           >
-            <Text style={styles.stateButtonText}>{actionLabel}</Text>
+            <Text style={styles.stateButtonText}>
+              {actionLabel}
+            </Text>
           </TouchableOpacity>
         ) : null}
       </View>

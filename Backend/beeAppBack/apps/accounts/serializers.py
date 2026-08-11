@@ -97,3 +97,34 @@ class UpdateOnboardingProfileSerializer(serializers.Serializer):
             )
 
         return normalized_value
+
+
+class UpdateAssistantSettingsSerializer(serializers.Serializer):
+    assistant_name = serializers.CharField(
+        max_length=80,
+        trim_whitespace=True,
+    )
+    assistant_tone = serializers.CharField(
+        max_length=50,
+        trim_whitespace=True,
+    )
+
+    def validate_assistant_name(self, value: str) -> str:
+        normalized_value = value.strip()
+
+        if not normalized_value:
+            raise serializers.ValidationError(
+                "Assistant name cannot be empty."
+            )
+
+        return normalized_value
+
+    def validate_assistant_tone(self, value: str) -> str:
+        normalized_value = value.strip()
+
+        if not normalized_value:
+            raise serializers.ValidationError(
+                "Assistant tone cannot be empty."
+            )
+
+        return normalized_value

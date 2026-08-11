@@ -4,6 +4,8 @@ import type {
     LoginUserResponse,
     RegisterUserPayload,
     RegisterUserResponse,
+    UpdateAssistantSettingsPayload,
+    UpdateAssistantSettingsResponse,
     UpdateOnboardingProfilePayload,
     UpdateOnboardingProfileResponse,
     } from '@beeapp/shared-types';
@@ -45,6 +47,19 @@ export function updateOnboardingProfile(
     ): Promise<UpdateOnboardingProfileResponse> {
     return api.patch<UpdateOnboardingProfileResponse>(
         '/accounts/me/profile/',
+        payload,
+        {
+        token: accessToken,
+        },
+    );
+}
+
+export function updateAssistantSettings(
+    accessToken: string,
+    payload: UpdateAssistantSettingsPayload,
+    ): Promise<UpdateAssistantSettingsResponse> {
+    return api.patch<UpdateAssistantSettingsResponse>(
+        '/accounts/me/assistant/',
         payload,
         {
         token: accessToken,

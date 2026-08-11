@@ -88,6 +88,8 @@ export interface UserProfile {
   role: UserRole;
   occupation: string | null;
   location: string | null;
+  assistant_name: string | null;
+  assistant_tone: string | null;
 }
 
 export interface GetCurrentProfileResponse {
@@ -100,6 +102,16 @@ export interface UpdateOnboardingProfilePayload {
 }
 
 export interface UpdateOnboardingProfileResponse {
+  message: string;
+  profile: UserProfile;
+}
+
+export interface UpdateAssistantSettingsPayload {
+  assistant_name: string;
+  assistant_tone: string;
+}
+
+export interface UpdateAssistantSettingsResponse {
   message: string;
   profile: UserProfile;
 }

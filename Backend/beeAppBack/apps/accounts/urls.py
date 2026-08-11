@@ -4,6 +4,7 @@ from apps.accounts.views import (
     CurrentProfileView,
     LoginUserView,
     RegisterUserView,
+    UpdateAssistantSettingsView,
     UpdateOnboardingProfileView,
 )
 
@@ -16,5 +17,10 @@ urlpatterns = [
         "me/profile/",
         UpdateOnboardingProfileView.as_view(),
         name="update-onboarding-profile",
+    ),
+    path(
+        "me/assistant/",
+        UpdateAssistantSettingsView.as_view(),
+        name="update-assistant-settings",
     ),
 ]
