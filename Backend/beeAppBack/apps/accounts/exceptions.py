@@ -16,3 +16,15 @@ class ProfileCreationError(AccountRegistrationError):
 
 class AccountLoginError(AccountError):
     """Raised when email and password authentication fails."""
+
+
+class AccountAuthenticationError(AccountError):
+    """Raised when access token authentication fails."""
+
+
+class ProfileLookupError(AccountError):
+    """Raised when a profile cannot be retrieved."""
+
+
+class ProfileUpdateError(AccountError):
+    """Raised when a profile cannot be updated."""

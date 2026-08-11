@@ -44,6 +44,7 @@ def create_auth_user(
 def delete_auth_user(*, auth_user_id: str) -> None:
     try:
         supabase = get_supabase_admin_client()
+
         supabase.auth.admin.delete_user(auth_user_id)
 
     except Exception:

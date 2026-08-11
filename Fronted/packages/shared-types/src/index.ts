@@ -78,3 +78,28 @@ export interface LoginUserResponse {
   session: AuthSession;
   user: AuthenticatedUser;
 }
+
+export interface UserProfile {
+  id: string;
+  first_name: string;
+  last_name: string;
+  phone_dial_code: string;
+  phone_number: string;
+  role: UserRole;
+  occupation: string | null;
+  location: string | null;
+}
+
+export interface GetCurrentProfileResponse {
+  profile: UserProfile;
+}
+
+export interface UpdateOnboardingProfilePayload {
+  occupation: string;
+  location: string;
+}
+
+export interface UpdateOnboardingProfileResponse {
+  message: string;
+  profile: UserProfile;
+}

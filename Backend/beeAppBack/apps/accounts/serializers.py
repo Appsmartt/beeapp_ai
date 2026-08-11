@@ -66,3 +66,34 @@ class LoginUserSerializer(serializers.Serializer):
 
     def validate_email(self, value: str) -> str:
         return value.strip().lower()
+
+
+class UpdateOnboardingProfileSerializer(serializers.Serializer):
+    occupation = serializers.CharField(
+        max_length=120,
+        trim_whitespace=True,
+    )
+    location = serializers.CharField(
+        max_length=255,
+        trim_whitespace=True,
+    )
+
+    def validate_occupation(self, value: str) -> str:
+        normalized_value = value.strip()
+
+        if not normalized_value:
+            raise serializers.ValidationError(
+                "Occupation cannot be empty."
+            )
+
+        return normalized_value
+
+    def validate_location(self, value: str) -> str:
+        normalized_value = value.strip()
+
+        if not normalized_value:
+            raise serializers.ValidationError(
+                "Location cannot be empty."
+            )
+
+        return normalized_value

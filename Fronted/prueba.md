@@ -1,144 +1,488 @@
-~/Git/beeapp_ai/Fronted/apps/mobile/app/(auth)/login.tsx
-import { useMemo, useState } from 'react';
+~/Git/beeapp_ai/Backend/beeAppBack/apps/accounts/views.py
+from rest_framework import status
+from rest_framework.permissions import AllowAny
+from rest_framework.response import Response
+from rest_framework.views import APIView
+
+from apps.accounts.exceptions import (
+    AccountLoginError,
+    AccountRegistrationError,
+)
+from apps.accounts.serializers import (
+    LoginUserSerializer,
+    RegisterUserSerializer,
+)
+from apps.accounts.services.login_service import (
+    login_with_email_password,
+)
+from apps.accounts.services.registration_service import (
+    create_complete_user,
+)
+
+
+class RegisterUserView(APIView):
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        serializer = RegisterUserSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        try:
+            created_user = create_complete_user(
+                **serializer.validated_data
+            )
+
+        except AccountRegistrationError:
+            return Response(
+                {
+                    "detail": (
+                        "Could not create the account. "
+                        "The email or phone number may already be registered."
+                    )
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        return Response(
+            {
+                "message": "BeeApp account created successfully.",
+                "user": {
+                    "id": created_user["auth_user_id"],
+                    "email": created_user["email"],
+                    "phone": created_user["phone"],
+                    "first_name": created_user["profile"]["first_name"],
+                    "last_name": created_user["profile"]["last_name"],
+                    "phone_dial_code": created_user["profile"][
+                        "phone_dial_code"
+                    ],
+                    "phone_number": created_user["profile"][
+                        "phone_number"
+                    ],
+                    "role": created_user["profile"]["role"],
+                },
+            },
+            status=status.HTTP_201_CREATED,
+        )
+
+
+class LoginUserView(APIView):
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        serializer = LoginUserSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        try:
+            authenticated_user = login_with_email_password(
+                **serializer.validated_data
+            )
+
+        except AccountLoginError:
+            return Response(
+                {
+                    "detail": "Invalid email or password.",
+                },
+                status=status.HTTP_401_UNAUTHORIZED,
+            )
+
+        return Response(
+            {
+                "message": "Login successful.",
+                "session": authenticated_user["session"],
+                "user": authenticated_user["user"],
+            },
+            status=status.HTTP_200_OK,
+        )
+
+~/Git/beeapp_ai/Backend/beeAppBack/apps/accounts/serializers.py
+from rest_framework import serializers
+
+
+class RegisterUserSerializer(serializers.Serializer):
+    first_name = serializers.CharField(
+        max_length=100,
+        trim_whitespace=True,
+    )
+    last_name = serializers.CharField(
+        max_length=100,
+        trim_whitespace=True,
+    )
+    email = serializers.EmailField()
+    password = serializers.CharField(
+        min_length=8,
+        max_length=128,
+        write_only=True,
+        trim_whitespace=False,
+    )
+    phone_dial_code = serializers.CharField(
+        max_length=10,
+        trim_whitespace=True,
+    )
+    phone_number = serializers.CharField(
+        max_length=20,
+        trim_whitespace=True,
+    )
+
+    def validate_email(self, value: str) -> str:
+        return value.strip().lower()
+
+    def validate_phone_dial_code(self, value: str) -> str:
+        normalized_value = value.replace("+", "").replace(" ", "")
+
+        if not normalized_value.isdigit():
+            raise serializers.ValidationError(
+                "Phone dial code must contain only digits."
+            )
+
+        return normalized_value
+
+    def validate_phone_number(self, value: str) -> str:
+        normalized_value = (
+            value.replace(" ", "")
+            .replace("-", "")
+            .replace("(", "")
+            .replace(")", "")
+        )
+
+        if not normalized_value.isdigit():
+            raise serializers.ValidationError(
+                "Phone number must contain only digits."
+            )
+
+        return normalized_value
+
+
+class LoginUserSerializer(serializers.Serializer):
+    email = serializers.EmailField()
+    password = serializers.CharField(
+        min_length=8,
+        max_length=128,
+        write_only=True,
+        trim_whitespace=False,
+    )
+
+    def validate_email(self, value: str) -> str:
+        return value.strip().lower()
+
+~/Git/beeapp_ai/Backend/beeAppBack/apps/accounts/urls.py
+from django.urls import path
+
+from apps.accounts.views import (
+    LoginUserView,
+    RegisterUserView,
+)
+
+
+urlpatterns = [
+    path("register/", RegisterUserView.as_view(), name="register-user"),
+    path("login/", LoginUserView.as_view(), name="login-user"),
+]
+
+~/Git/beeapp_ai/Backend/beeAppBack/apps/accounts/exceptions.py
+class AccountError(Exception):
+    """Base exception for account domain errors."""
+
+
+class AccountRegistrationError(AccountError):
+    """Raised when account registration fails."""
+
+
+class AuthUserCreationError(AccountRegistrationError):
+    """Raised when Supabase Auth user creation fails."""
+
+
+class ProfileCreationError(AccountRegistrationError):
+    """Raised when BeeApp profile creation fails."""
+
+
+class AccountLoginError(AccountError):
+    """Raised when email and password authentication fails."""
+
+~/Git/beeapp_ai/Backend/beeAppBack/apps/accounts/services/profile_service.py
+from beeAppBack.core.supabase_client import get_supabase_admin_client
+
+from apps.accounts.exceptions import ProfileCreationError
+
+
+def create_profile(
+    *,
+    auth_user_id: str,
+    first_name: str,
+    last_name: str,
+    phone_dial_code: str,
+    phone_number: str,
+):
+    try:
+        supabase = get_supabase_admin_client()
+
+        response = (
+            supabase.table("profile")
+            .insert(
+                {
+                    "id": auth_user_id,
+                    "first_name": first_name,
+                    "last_name": last_name,
+                    "phone_dial_code": phone_dial_code,
+                    "phone_number": phone_number,
+                    "role": "USER",
+                }
+            )
+            .execute()
+        )
+
+        if not response.data:
+            raise ProfileCreationError(
+                "Supabase did not return the created profile."
+            )
+
+        return response.data[0]
+
+    except ProfileCreationError:
+        raise
+
+    except Exception as error:
+        raise ProfileCreationError(
+            "Could not create the BeeApp profile."
+        ) from error
+
+
+~/Git/beeapp_ai/Backend/beeAppBack/apps/accounts/services/login_service.py
+from beeAppBack.core.supabase_client import get_supabase_publishable_client
+
+from apps.accounts.exceptions import AccountLoginError
+
+
+def login_with_email_password(
+    *,
+    email: str,
+    password: str,
+) -> dict:
+    try:
+        supabase = get_supabase_publishable_client()
+
+        response = supabase.auth.sign_in_with_password(
+            {
+                "email": email,
+                "password": password,
+            }
+        )
+
+        if not response.user or not response.session:
+            raise AccountLoginError(
+                "Supabase did not return an authenticated session."
+            )
+
+        session = response.session
+        user = response.user
+
+        if not session.access_token or not session.refresh_token:
+            raise AccountLoginError(
+                "Supabase did not return valid session tokens."
+            )
+
+        return {
+            "session": {
+                "access_token": session.access_token,
+                "refresh_token": session.refresh_token,
+                "expires_at": session.expires_at,
+                "expires_in": session.expires_in,
+                "token_type": session.token_type,
+            },
+            "user": {
+                "id": str(user.id),
+                "email": user.email,
+                "phone": user.phone,
+            },
+        }
+
+    except AccountLoginError:
+        raise
+
+    except Exception as error:
+        raise AccountLoginError(
+            "Email and password authentication failed."
+        ) from error
+
+~/Git/beeapp_ai/Backend/beeAppBack/apps/accounts/services/auth_user_service.py
+from beeAppBack.core.supabase_client import get_supabase_admin_client
+
+from apps.accounts.exceptions import AuthUserCreationError
+
+
+def create_auth_user(
+    *,
+    email: str,
+    password: str,
+    phone_dial_code: str,
+    phone_number: str,
+):
+    phone = f"+{phone_dial_code}{phone_number}"
+
+    try:
+        supabase = get_supabase_admin_client()
+
+        response = supabase.auth.admin.create_user(
+            {
+                "email": email,
+                "password": password,
+                "phone": phone,
+                "email_confirm": True,
+                "phone_confirm": True,
+            }
+        )
+
+        if not response.user:
+            raise AuthUserCreationError(
+                "Supabase did not return the created user."
+            )
+
+        return response.user
+
+    except AuthUserCreationError:
+        raise
+
+    except Exception as error:
+        raise AuthUserCreationError(
+            "Could not create the authentication user."
+        ) from error
+
+
+def delete_auth_user(*, auth_user_id: str) -> None:
+    try:
+        supabase = get_supabase_admin_client()
+        supabase.auth.admin.delete_user(auth_user_id)
+
+    except Exception:
+        pass
+
+
+
+~/Git/beeapp_ai/Backend/beeAppBack/beeAppBack/core/supabase_client.py
+import os
+from functools import lru_cache
+from pathlib import Path
+
+from dotenv import load_dotenv
+from supabase import Client, create_client
+
+
+BASE_DIR = Path(__file__).resolve().parents[2]
+
+load_dotenv(BASE_DIR / ".env")
+
+
+def _get_required_env(name: str) -> str:
+    value = os.getenv(name)
+
+    if not value:
+        raise RuntimeError(
+            f"Missing required environment variable: {name}"
+        )
+
+    return value
+
+
+@lru_cache
+def get_supabase_publishable_client() -> Client:
+    return create_client(
+        _get_required_env("SUPABASE_URL"),
+        _get_required_env("SUPABASE_PUBLISHABLE_KEY"),
+    )
+
+
+@lru_cache
+def get_supabase_admin_client() -> Client:
+    return create_client(
+        _get_required_env("SUPABASE_URL"),
+        _get_required_env("SUPABASE_SECRET_KEY"),
+    )
+
+
+
+
+fronted 
+
+~/Git/beeapp_ai/Fronted/apps/mobile/app/onboarding/index.tsx
+import React, { useState } from 'react';
 import {
-  FlatList,
-  Keyboard,
-  KeyboardAvoidingView,
-  Modal,
-  Platform,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  TouchableWithoutFeedback,
   View,
+  Text,
+  TouchableOpacity,
+  ScrollView,
+  StyleSheet,
+  KeyboardAvoidingView,
+  Platform,
+  TouchableWithoutFeedback,
+  Keyboard,
 } from 'react-native';
-import { useRouter } from 'expo-router';
-import {
-  Eye,
-  EyeOff,
-  LockKeyhole,
-  Mail,
-  MessageSquare,
-  Phone,
-} from 'lucide-react-native';
-import { colors } from '@beeapp/design-system';
-
-import AnimatedLogo from '../../src/components/AnimatedLogo';
 import ScreenSafeArea from '../../src/components/layout/ScreenSafeArea';
-import { COUNTRIES, type Country } from '../../src/mocks/countries';
+import { useRouter } from 'expo-router';
+import { colors } from '@beeapp/design-system';
+import AboutYouSection from '../../src/components/onboarding/AboutYouSection';
+import AssistantSection, { AssistantTone } from '../../src/components/onboarding/AssistantSection';
+import FeaturesSection from '../../src/components/onboarding/FeaturesSection';
+import { sharedStyles } from '../../src/components/onboarding/onboardingShared';
 
-type LoginMethod = 'otp' | 'password';
-
-type FormErrors = {
-  email?: string;
-  password?: string;
-  phoneNumber?: string;
-};
-
-const MIN_PASSWORD_LENGTH = 8;
-
-function isValidEmail(value: string): boolean {
-  return /^\S+@\S+\.\S+$/.test(value);
-}
-
-export default function LoginScreen() {
+export default function OnboardingScreen() {
   const router = useRouter();
+  const [step, setStep] = useState(1);
 
-  const [loginMethod, setLoginMethod] = useState<LoginMethod>('otp');
-  const [selectedCountry, setSelectedCountry] = useState<Country>(
-    COUNTRIES[0],
-  );
-  const [phoneNumber, setPhoneNumber] = useState('');
+  // Step 1 States - About You
+  const [name, setName] = useState('');
   const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [isPasswordVisible, setIsPasswordVisible] = useState(false);
-  const [isCountryModalVisible, setIsCountryModalVisible] = useState(false);
-  const [countrySearch, setCountrySearch] = useState('');
-  const [errors, setErrors] = useState<FormErrors>({});
-  const [formMessage, setFormMessage] = useState('');
+  const [occupation, setOccupation] = useState('');
+  const [address, setAddress] = useState('');
+  const [hasPhoto, setHasPhoto] = useState(false);
 
-  const filteredCountries = useMemo(() => {
-    const normalizedQuery = countrySearch.trim().toLowerCase();
+  // Step 2 States - Assistant Customization
+  const [assistantName, setAssistantName] = useState('BeeAI');
+  const [tone, setTone] = useState<AssistantTone>('friendly');
 
-    if (!normalizedQuery) {
-      return COUNTRIES;
-    }
-
-    return COUNTRIES.filter(
-      (country) =>
-        country.name.toLowerCase().includes(normalizedQuery) ||
-        country.dialCode.includes(normalizedQuery),
-    );
-  }, [countrySearch]);
-
-  const clearFieldError = (field: keyof FormErrors) => {
-    setErrors((currentErrors) => ({
-      ...currentErrors,
-      [field]: undefined,
-    }));
-
-    if (formMessage) {
-      setFormMessage('');
+  const handleNext = () => {
+    if (step === 1) {
+      if (!name.trim()) {
+        alert('Por favor ingresa tu nombre completo para continuar.');
+        return;
+      }
+      if (!email.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        alert('Por favor ingresa un correo electrónico válido.');
+        return;
+      }
+      setStep(2);
+    } else if (step === 2) {
+      if (!assistantName.trim()) {
+        alert('Por favor ingresa un nombre para tu asistente.');
+        return;
+      }
+      setStep(3);
+    } else if (step === 3) {
+      router.replace('/(main)');
     }
   };
 
-  const changeLoginMethod = (nextMethod: LoginMethod) => {
-    setLoginMethod(nextMethod);
-    setErrors({});
-    setFormMessage('');
-    Keyboard.dismiss();
+  const handleBack = () => {
+    if (step === 2) {
+      setStep(1);
+    } else if (step === 3) {
+      setStep(2);
+    } else {
+      router.replace('/(auth)/login');
+    }
   };
 
-  const handleOtpContinue = () => {
-    const normalizedPhoneNumber = phoneNumber.replace(/\D/g, '');
+  // Assistant preview text generator
+  const getAssistantPreviewText = () => {
+    const userName = name.trim() ? name.split(' ')[0] : 'Usuario';
+    const assName = assistantName.trim() ? assistantName : 'BeeAI';
 
-    if (
-      normalizedPhoneNumber.length < 7 ||
-      normalizedPhoneNumber.length > 15
-    ) {
-      setErrors({
-        phoneNumber: 'Ingresa un número de celular válido.',
-      });
-      return;
+    switch (tone) {
+      case 'friendly':
+        return `¡Hola, ${userName}! Qué gusto saludarte hoy. Soy ${assName}, tu asistente personal de confianza. ¿En qué te puedo colaborar el día de hoy?`;
+      case 'professional':
+        return `Estimado ${userName}, le saluda ${assName}. Quedo a su completa disposición para colaborar y optimizar sus actividades profesionales el día de hoy.`;
+      case 'direct':
+        return `${userName}. Le habla ${assName}. Indique la instrucción o consulta a ejecutar de inmediato para empezar a trabajar.`;
     }
-
-    setErrors({});
-    setFormMessage(
-      'El acceso por SMS estará disponible cuando configuremos el proveedor OTP.',
-    );
-  };
-
-  const handlePasswordContinue = () => {
-    const nextErrors: FormErrors = {};
-
-    if (!email.trim()) {
-      nextErrors.email = 'Ingresa tu correo electrónico.';
-    } else if (!isValidEmail(email.trim())) {
-      nextErrors.email = 'Ingresa un correo electrónico válido.';
-    }
-
-    if (!password) {
-      nextErrors.password = 'Ingresa tu contraseña.';
-    } else if (password.length < MIN_PASSWORD_LENGTH) {
-      nextErrors.password =
-        'La contraseña debe tener al menos 8 caracteres.';
-    }
-
-    if (Object.keys(nextErrors).length > 0) {
-      setErrors(nextErrors);
-      return;
-    }
-
-    setErrors({});
-    setFormMessage(
-      'El inicio de sesión con correo estará disponible en la siguiente integración.',
-    );
-  };
-
-  const openCountryModal = () => {
-    setCountrySearch('');
-    setIsCountryModalVisible(true);
   };
 
   return (
@@ -149,432 +493,95 @@ export default function LoginScreen() {
       >
         <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
           <View style={styles.innerContainer}>
-            <View style={styles.contentContainer}>
-              <View style={styles.logoContainer}>
-                <AnimatedLogo
-                  size={76}
-                  showText={false}
-                  autoStopAfter={2500}
+            {/* Top Navigation & Progress */}
+            <View style={styles.progressHeader}>
+              <TouchableOpacity onPress={handleBack} style={styles.backNavButton}>
+                <Text style={styles.backNavText}>← Atrás</Text>
+              </TouchableOpacity>
+              <Text style={styles.progressText}>Paso {step} de 3</Text>
+              <View style={styles.progressTrack}>
+                <View
+                  style={[
+                    styles.progressBar,
+                    { width: step === 1 ? '33%' : step === 2 ? '66%' : '100%' },
+                  ]}
                 />
-              </View>
-
-              <Text style={styles.title}>Inicia sesión</Text>
-
-              <Text style={styles.subtitle}>
-                Elige cómo quieres acceder a tu cuenta de BeeApp AI.
-              </Text>
-
-              <View style={styles.methodSwitcher}>
-                <TouchableOpacity
-                  style={[
-                    styles.methodButton,
-                    loginMethod === 'otp' && styles.methodButtonActive,
-                  ]}
-                  activeOpacity={0.8}
-                  onPress={() => changeLoginMethod('otp')}
-                >
-                  <MessageSquare
-                    size={16}
-                    color={
-                      loginMethod === 'otp'
-                        ? colors.neutral.white
-                        : colors.neutral.gray600
-                    }
-                  />
-
-                  <Text
-                    style={[
-                      styles.methodButtonText,
-                      loginMethod === 'otp' &&
-                        styles.methodButtonTextActive,
-                    ]}
-                  >
-                    Mensaje SMS
-                  </Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={[
-                    styles.methodButton,
-                    loginMethod === 'password' &&
-                      styles.methodButtonActive,
-                  ]}
-                  activeOpacity={0.8}
-                  onPress={() => changeLoginMethod('password')}
-                >
-                  <Mail
-                    size={16}
-                    color={
-                      loginMethod === 'password'
-                        ? colors.neutral.white
-                        : colors.neutral.gray600
-                    }
-                  />
-
-                  <Text
-                    style={[
-                      styles.methodButtonText,
-                      loginMethod === 'password' &&
-                        styles.methodButtonTextActive,
-                    ]}
-                  >
-                    Correo
-                  </Text>
-                </TouchableOpacity>
-              </View>
-
-              <View style={styles.inputCard}>
-                {loginMethod === 'otp' ? (
-                  <>
-                    <View style={styles.cardHeader}>
-                      <View style={styles.cardIcon}>
-                        <Phone
-                          size={18}
-                          color={colors.brand.primary}
-                        />
-                      </View>
-
-                      <View style={styles.cardHeaderContent}>
-                        <Text style={styles.inputLabel}>
-                          Acceso por mensaje
-                        </Text>
-
-                        <Text style={styles.inputDescription}>
-                          Recibirás un código de verificación por SMS.
-                        </Text>
-                      </View>
-                    </View>
-
-                    <Text style={styles.fieldLabel}>
-                      Número de celular
-                    </Text>
-
-                    <View
-                      style={[
-                        styles.phoneInputContainer,
-                        errors.phoneNumber && styles.inputContainerError,
-                      ]}
-                    >
-                      <TouchableOpacity
-                        style={styles.prefixBadge}
-                        activeOpacity={0.7}
-                        onPress={openCountryModal}
-                      >
-                        <Text style={styles.flag}>
-                          {selectedCountry.flag}
-                        </Text>
-
-                        <Text style={styles.prefixText}>
-                          {selectedCountry.dialCode}
-                        </Text>
-                      </TouchableOpacity>
-
-                      <View style={styles.phoneDivider} />
-
-                      <Phone
-                        size={17}
-                        color={colors.neutral.gray500}
-                      />
-
-                      <TextInput
-                        style={styles.phoneInput}
-                        placeholder="300 000 0000"
-                        placeholderTextColor={colors.neutral.gray500}
-                        keyboardType="number-pad"
-                        maxLength={15}
-                        value={phoneNumber}
-                        onChangeText={(value) => {
-                          setPhoneNumber(value.replace(/\D/g, ''));
-                          clearFieldError('phoneNumber');
-                        }}
-                      />
-                    </View>
-
-                    {errors.phoneNumber ? (
-                      <Text style={styles.errorText}>
-                        {errors.phoneNumber}
-                      </Text>
-                    ) : (
-                      <Text style={styles.helperText}>
-                        Podrás usar este método cuando el servicio SMS esté
-                        habilitado.
-                      </Text>
-                    )}
-
-                    <TouchableOpacity
-                      style={styles.primaryButton}
-                      activeOpacity={0.8}
-                      onPress={handleOtpContinue}
-                    >
-                      <Text style={styles.primaryButtonText}>
-                        Continuar con SMS
-                      </Text>
-
-                      <MessageSquare
-                        size={18}
-                        color={colors.neutral.white}
-                      />
-                    </TouchableOpacity>
-                  </>
-                ) : (
-                  <>
-                    <View style={styles.cardHeader}>
-                      <View style={styles.cardIcon}>
-                        <Mail
-                          size={18}
-                          color={colors.brand.primary}
-                        />
-                      </View>
-
-                      <View style={styles.cardHeaderContent}>
-                        <Text style={styles.inputLabel}>
-                          Acceso con correo
-                        </Text>
-
-                        <Text style={styles.inputDescription}>
-                          Usa el correo y contraseña de tu cuenta.
-                        </Text>
-                      </View>
-                    </View>
-
-                    <View style={styles.fieldGroup}>
-                      <Text style={styles.fieldLabel}>
-                        Correo electrónico
-                      </Text>
-
-                      <View
-                        style={[
-                          styles.textInputContainer,
-                          errors.email && styles.inputContainerError,
-                        ]}
-                      >
-                        <Mail
-                          size={17}
-                          color={colors.neutral.gray500}
-                        />
-
-                        <TextInput
-                          style={styles.textInput}
-                          placeholder="tu@correo.com"
-                          placeholderTextColor={colors.neutral.gray500}
-                          keyboardType="email-address"
-                          autoCapitalize="none"
-                          autoComplete="email"
-                          value={email}
-                          onChangeText={(value) => {
-                            setEmail(value);
-                            clearFieldError('email');
-                          }}
-                        />
-                      </View>
-
-                      {errors.email ? (
-                        <Text style={styles.errorText}>
-                          {errors.email}
-                        </Text>
-                      ) : null}
-                    </View>
-
-                    <View style={styles.passwordGroup}>
-                      <Text style={styles.fieldLabel}>Contraseña</Text>
-
-                      <View
-                        style={[
-                          styles.textInputContainer,
-                          errors.password && styles.inputContainerError,
-                        ]}
-                      >
-                        <LockKeyhole
-                          size={17}
-                          color={colors.neutral.gray500}
-                        />
-
-                        <TextInput
-                          style={styles.textInput}
-                          placeholder="Ingresa tu contraseña"
-                          placeholderTextColor={colors.neutral.gray500}
-                          autoCapitalize="none"
-                          autoComplete="password"
-                          secureTextEntry={!isPasswordVisible}
-                          value={password}
-                          onChangeText={(value) => {
-                            setPassword(value);
-                            clearFieldError('password');
-                          }}
-                        />
-
-                        <TouchableOpacity
-                          style={styles.visibilityButton}
-                          activeOpacity={0.7}
-                          onPress={() => {
-                            setIsPasswordVisible((currentValue) => !currentValue);
-                          }}
-                        >
-                          {isPasswordVisible ? (
-                            <EyeOff
-                              size={18}
-                              color={colors.neutral.gray500}
-                            />
-                          ) : (
-                            <Eye
-                              size={18}
-                              color={colors.neutral.gray500}
-                            />
-                          )}
-                        </TouchableOpacity>
-                      </View>
-
-                      {errors.password ? (
-                        <Text style={styles.errorText}>
-                          {errors.password}
-                        </Text>
-                      ) : null}
-                    </View>
-
-                    <TouchableOpacity
-                      style={styles.forgotPasswordButton}
-                      activeOpacity={0.7}
-                      onPress={() => {
-                        setFormMessage(
-                          'La recuperación de contraseña estará disponible próximamente.',
-                        );
-                      }}
-                    >
-                      <Text style={styles.forgotPasswordText}>
-                        ¿Olvidaste tu contraseña?
-                      </Text>
-                    </TouchableOpacity>
-
-                    <TouchableOpacity
-                      style={styles.primaryButton}
-                      activeOpacity={0.8}
-                      onPress={handlePasswordContinue}
-                    >
-                      <Text style={styles.primaryButtonText}>
-                        Iniciar sesión
-                      </Text>
-
-                      <Mail
-                        size={18}
-                        color={colors.neutral.white}
-                      />
-                    </TouchableOpacity>
-                  </>
-                )}
-
-                {formMessage ? (
-                  <View style={styles.formMessage}>
-                    <Text style={styles.formMessageText}>
-                      {formMessage}
-                    </Text>
-                  </View>
-                ) : null}
-              </View>
-
-              <View style={styles.registerRow}>
-                <Text style={styles.registerText}>
-                  ¿No tienes una cuenta?
-                </Text>
-
-                <TouchableOpacity
-                  activeOpacity={0.7}
-                  onPress={() => router.push('/(auth)/register')}
-                >
-                  <Text style={styles.registerLink}>Regístrate</Text>
-                </TouchableOpacity>
               </View>
             </View>
 
-            <View style={styles.footer}>
-              <Text style={styles.footerNotice}>
-                Al continuar, aceptas nuestros
-              </Text>
-
-              <View style={styles.footerLinksRow}>
-                <TouchableOpacity
-                  onPress={() => router.push('/(auth)/terms')}
-                >
-                  <Text style={styles.footerLink}>
-                    Términos y Condiciones
+            {/* Step Content */}
+            <ScrollView
+              style={styles.scrollView}
+              contentContainerStyle={styles.scrollContent}
+              showsVerticalScrollIndicator={false}
+            >
+              {step === 1 && (
+                <View style={sharedStyles.stepWrapper}>
+                  <Text style={sharedStyles.title}>Vamos a conocerte</Text>
+                  <Text style={sharedStyles.subtitle}>
+                    Queremos conocerte para personalizar tu experiencia.
                   </Text>
-                </TouchableOpacity>
 
-                <Text style={styles.footerDot}> • </Text>
+                  <AboutYouSection
+                    name={name}
+                    onNameChange={setName}
+                    email={email}
+                    onEmailChange={setEmail}
+                    occupation={occupation}
+                    onOccupationChange={setOccupation}
+                    address={address}
+                    onAddressChange={setAddress}
+                    hasPhoto={hasPhoto}
+                    onTogglePhoto={() => setHasPhoto(!hasPhoto)}
+                  />
 
-                <TouchableOpacity
-                  onPress={() => router.push('/(auth)/privacy')}
-                >
-                  <Text style={styles.footerLink}>
-                    Política de Privacidad
+                </View>
+              )}
+
+              {step === 2 && (
+                <View style={sharedStyles.stepWrapper}>
+                  <Text style={sharedStyles.title}>Personaliza tu asistente</Text>
+                  <Text style={sharedStyles.subtitle}>
+                    BeeApp AI incluye tu propio asistente inteligente para automatizar tus tareas diarias.
                   </Text>
-                </TouchableOpacity>
-              </View>
+
+                  <AssistantSection
+                    assistantName={assistantName}
+                    onAssistantNameChange={setAssistantName}
+                    tone={tone}
+                    onToneChange={setTone}
+                    previewText={getAssistantPreviewText() ?? ''}
+                  />
+                </View>
+              )}
+
+              {step === 3 && (
+                <View style={sharedStyles.stepWrapper}>
+                  <Text style={sharedStyles.title}>Todo lo que puedes hacer aquí</Text>
+                  <Text style={sharedStyles.subtitle}>
+                    Familiarízate con las herramientas que potenciarán tu productividad.
+                  </Text>
+
+                  <FeaturesSection />
+                </View>
+              )}
+            </ScrollView>
+
+            {/* Bottom Actions */}
+            <View style={styles.footerRow}>
+              <TouchableOpacity
+                style={styles.primaryButton}
+                activeOpacity={0.8}
+                onPress={handleNext}
+              >
+                <Text style={styles.primaryButtonText}>
+                  {step === 3 ? 'Comenzar' : 'Continuar'}
+                </Text>
+              </TouchableOpacity>
             </View>
           </View>
         </TouchableWithoutFeedback>
       </KeyboardAvoidingView>
-
-      <Modal
-        animationType="slide"
-        transparent
-        visible={isCountryModalVisible}
-        onRequestClose={() => setIsCountryModalVisible(false)}
-      >
-        <TouchableWithoutFeedback
-          onPress={() => setIsCountryModalVisible(false)}
-        >
-          <View style={styles.modalOverlay}>
-            <TouchableWithoutFeedback>
-              <View style={styles.modalContent}>
-                <View style={styles.modalHeader}>
-                  <Text style={styles.modalTitle}>Selecciona un país</Text>
-
-                  <TouchableOpacity
-                    style={styles.closeButton}
-                    onPress={() => setIsCountryModalVisible(false)}
-                  >
-                    <Text style={styles.closeButtonText}>Cerrar</Text>
-                  </TouchableOpacity>
-                </View>
-
-                <TextInput
-                  style={styles.searchBar}
-                  placeholder="Buscar país o indicativo..."
-                  placeholderTextColor={colors.neutral.gray500}
-                  value={countrySearch}
-                  onChangeText={setCountrySearch}
-                />
-
-                <FlatList
-                  data={filteredCountries}
-                  keyExtractor={(item) => item.code}
-                  keyboardShouldPersistTaps="handled"
-                  renderItem={({ item }) => (
-                    <TouchableOpacity
-                      style={styles.countryRow}
-                      activeOpacity={0.7}
-                      onPress={() => {
-                        setSelectedCountry(item);
-                        setIsCountryModalVisible(false);
-                        clearFieldError('phoneNumber');
-                      }}
-                    >
-                      <Text style={styles.countryFlag}>{item.flag}</Text>
-
-                      <Text style={styles.countryName}>{item.name}</Text>
-
-                      <Text style={styles.countryDialCode}>
-                        {item.dialCode}
-                      </Text>
-                    </TouchableOpacity>
-                  )}
-                  style={styles.countryList}
-                />
-              </View>
-            </TouchableWithoutFeedback>
-          </View>
-        </TouchableWithoutFeedback>
-      </Modal>
     </ScreenSafeArea>
   );
 }
@@ -590,345 +597,684 @@ const styles = StyleSheet.create({
   innerContainer: {
     flex: 1,
     justifyContent: 'space-between',
+  },
+  progressHeader: {
+    paddingHorizontal: 24,
+    paddingTop: 16,
+    paddingBottom: 8,
+    backgroundColor: colors.neutral.white,
+    borderBottomWidth: 1,
+    borderColor: colors.neutral.gray200,
+  },
+  backNavButton: {
+    alignSelf: 'flex-start',
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    backgroundColor: colors.neutral.gray100,
+    borderRadius: 8,
+    marginBottom: 8,
+  },
+  backNavText: {
+    fontSize: 12,
+    fontWeight: '400',
+    color: colors.neutral.gray700,
+  },
+  progressText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: colors.brand.primary,
+    marginBottom: 6,
+  },
+  progressTrack: {
+    height: 6,
+    backgroundColor: colors.neutral.gray200,
+    borderRadius: 3,
+    overflow: 'hidden',
+  },
+  progressBar: {
+    height: '100%',
+    backgroundColor: colors.brand.primary,
+    borderRadius: 3,
+  },
+  scrollView: {
+    flex: 1,
+  },
+  scrollContent: {
+    paddingHorizontal: 24,
+    paddingTop: 24,
+    paddingBottom: 40,
+  },
+  footerRow: {
     paddingHorizontal: 24,
     paddingVertical: 16,
-  },
-  contentContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    marginVertical: 16,
-  },
-  logoContainer: {
-    alignItems: 'center',
-    marginBottom: 16,
-    marginTop: Platform.OS === 'ios' ? 34 : 18,
-  },
-  title: {
-    color: colors.neutral.text,
-    fontSize: 26,
-    fontWeight: '600',
-    marginBottom: 8,
-    textAlign: 'center',
-  },
-  subtitle: {
-    color: colors.neutral.gray600,
-    fontSize: 14,
-    lineHeight: 20,
-    marginBottom: 22,
-    paddingHorizontal: 12,
-    textAlign: 'center',
-  },
-  methodSwitcher: {
-    backgroundColor: colors.neutral.gray100,
-    borderRadius: 14,
-    flexDirection: 'row',
-    marginBottom: 16,
-    padding: 4,
-  },
-  methodButton: {
-    alignItems: 'center',
-    borderRadius: 10,
-    flex: 1,
-    flexDirection: 'row',
-    justifyContent: 'center',
-    minHeight: 42,
-  },
-  methodButtonActive: {
-    backgroundColor: colors.brand.primary,
-    elevation: 2,
-    shadowColor: colors.brand.primary,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.18,
-    shadowRadius: 5,
-  },
-  methodButtonText: {
-    color: colors.neutral.gray600,
-    fontSize: 13,
-    fontWeight: '600',
-    marginLeft: 7,
-  },
-  methodButtonTextActive: {
-    color: colors.neutral.white,
-  },
-  inputCard: {
     backgroundColor: colors.neutral.white,
+    borderTopWidth: 1,
     borderColor: colors.neutral.gray200,
-    borderRadius: 18,
-    borderWidth: 1,
-    elevation: 2,
-    padding: 16,
-    shadowColor: colors.brand.primary,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.05,
-    shadowRadius: 12,
-  },
-  cardHeader: {
-    alignItems: 'center',
-    flexDirection: 'row',
-    marginBottom: 20,
-  },
-  cardIcon: {
-    alignItems: 'center',
-    backgroundColor: '#F0EAFF',
-    borderRadius: 12,
-    height: 38,
-    justifyContent: 'center',
-    marginRight: 11,
-    width: 38,
-  },
-  cardHeaderContent: {
-    flex: 1,
-  },
-  inputLabel: {
-    color: colors.neutral.text,
-    fontSize: 13,
-    fontWeight: '700',
-    marginBottom: 2,
-  },
-  inputDescription: {
-    color: colors.neutral.gray600,
-    fontSize: 11,
-    lineHeight: 16,
-  },
-  fieldLabel: {
-    color: colors.neutral.gray700,
-    fontSize: 12,
-    fontWeight: '600',
-    marginBottom: 7,
-  },
-  fieldGroup: {
-    marginBottom: 15,
-  },
-  passwordGroup: {
-    marginBottom: 4,
-  },
-  phoneInputContainer: {
-    alignItems: 'center',
-    backgroundColor: colors.neutral.white,
-    borderColor: colors.neutral.gray200,
-    borderRadius: 12,
-    borderWidth: 1,
-    flexDirection: 'row',
-    height: 50,
-    marginBottom: 1,
-    paddingRight: 12,
-  },
-  prefixBadge: {
-    alignItems: 'center',
-    flexDirection: 'row',
-    paddingHorizontal: 11,
-  },
-  flag: {
-    fontSize: 17,
-    marginRight: 5,
-  },
-  prefixText: {
-    color: colors.neutral.text,
-    fontSize: 13,
-    fontWeight: '600',
-  },
-  phoneDivider: {
-    backgroundColor: colors.neutral.gray200,
-    height: 24,
-    marginRight: 10,
-    width: 1,
-  },
-  phoneInput: {
-    color: colors.neutral.text,
-    flex: 1,
-    fontSize: 14,
-    marginLeft: 9,
-    paddingVertical: 0,
-  },
-  textInputContainer: {
-    alignItems: 'center',
-    backgroundColor: colors.neutral.white,
-    borderColor: colors.neutral.gray200,
-    borderRadius: 12,
-    borderWidth: 1,
-    flexDirection: 'row',
-    height: 50,
-    paddingHorizontal: 13,
-  },
-  inputContainerError: {
-    borderColor: colors.semantic.error,
-  },
-  textInput: {
-    color: colors.neutral.text,
-    flex: 1,
-    fontSize: 14,
-    marginLeft: 9,
-    paddingVertical: 0,
-  },
-  visibilityButton: {
-    padding: 4,
-  },
-  helperText: {
-    color: colors.neutral.gray500,
-    fontSize: 11,
-    lineHeight: 16,
-    marginTop: 6,
-  },
-  errorText: {
-    color: colors.semantic.error,
-    fontSize: 11,
-    lineHeight: 16,
-    marginTop: 6,
-  },
-  forgotPasswordButton: {
-    alignSelf: 'flex-end',
-    marginBottom: 18,
-    marginTop: 9,
-  },
-  forgotPasswordText: {
-    color: colors.brand.primary,
-    fontSize: 12,
-    fontWeight: '600',
   },
   primaryButton: {
-    alignItems: 'center',
     backgroundColor: colors.brand.primary,
-    borderRadius: 13,
-    elevation: 4,
-    flexDirection: 'row',
-    height: 50,
-    justifyContent: 'center',
+    borderRadius: 14,
+    paddingVertical: 16,
+    alignItems: 'center',
     shadowColor: colors.brand.primary,
-    shadowOffset: { width: 0, height: 5 },
-    shadowOpacity: 0.22,
-    shadowRadius: 9,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.25,
+    shadowRadius: 10,
+    elevation: 4,
   },
   primaryButtonText: {
     color: colors.neutral.white,
-    fontSize: 15,
-    fontWeight: '700',
-    marginRight: 8,
+    fontSize: 16,
+    fontWeight: '600',
+    letterSpacing: 0.5,
   },
-  formMessage: {
-    backgroundColor: '#F0EAFF',
-    borderColor: '#D9CAFF',
+});
+
+
+~/Git/beeapp_ai/Fronted/apps/mobile/src/components/onboarding/AboutYouSection.tsx
+import { View, Text, TextInput, TouchableOpacity } from 'react-native';
+import { colors } from '@beeapp/design-system';
+import { Camera } from 'lucide-react-native';
+import { sharedStyles as styles, getInitials } from './onboardingShared';
+
+interface AboutYouSectionProps {
+  name: string;
+  onNameChange: (value: string) => void;
+  email: string;
+  onEmailChange: (value: string) => void;
+  occupation: string;
+  onOccupationChange: (value: string) => void;
+  address: string;
+  onAddressChange: (value: string) => void;
+  hasPhoto: boolean;
+  onTogglePhoto: () => void;
+}
+
+export default function AboutYouSection({
+  name,
+  onNameChange,
+  email,
+  onEmailChange,
+  occupation,
+  onOccupationChange,
+  address,
+  onAddressChange,
+  hasPhoto,
+  onTogglePhoto,
+}: AboutYouSectionProps) {
+  // Validate email format in UI
+  const isEmailValid = email.trim() === '' || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+
+  return (
+    <View style={styles.sectionCard}>
+      <Text style={styles.sectionHeader}>Sobre Ti</Text>
+
+      {/* Avatar selection mock */}
+      <View style={styles.avatarRow}>
+        <TouchableOpacity style={styles.avatarButton} activeOpacity={0.8} onPress={onTogglePhoto}>
+          {hasPhoto ? (
+            <View style={[styles.avatarCircle, styles.avatarActive]}>
+              <Text style={styles.avatarText}>{getInitials(name) || 'YO'}</Text>
+              <View style={styles.avatarCheckBadge}>
+                <Text style={styles.avatarCheckText}>✓</Text>
+              </View>
+            </View>
+          ) : (
+            <View style={styles.avatarCircle}>
+              <Camera size={24} color={colors.neutral.gray600} />
+            </View>
+          )}
+        </TouchableOpacity>
+        <View style={styles.avatarInfo}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 2 }}>
+            <Text style={styles.avatarInfoTitle}>Foto de Perfil</Text>
+            <View style={{ backgroundColor: colors.neutral.gray200, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4, marginLeft: 6 }}>
+              <Text style={{ fontSize: 9, fontWeight: '700', color: colors.neutral.gray600, textTransform: 'uppercase' }}>Opcional</Text>
+            </View>
+          </View>
+          <Text style={styles.avatarInfoDesc}>
+            {hasPhoto ? 'Foto cargada (Simulado)' : 'Toca para cargar'}
+          </Text>
+        </View>
+      </View>
+
+      {/* Inputs */}
+      <View style={styles.inputGroup}>
+        <Text style={styles.inputLabel}>Nombre Completo *</Text>
+        <TextInput
+          style={styles.inputField}
+          placeholder="Ingresa tu nombre y apellido"
+          placeholderTextColor={colors.neutral.gray500}
+          value={name}
+          onChangeText={onNameChange}
+        />
+      </View>
+
+      {/* New Email Field */}
+      <View style={styles.inputGroup}>
+        <Text style={styles.inputLabel}>Correo Electrónico *</Text>
+        <TextInput
+          style={[
+            styles.inputField,
+            !isEmailValid && { borderColor: colors.semantic.error, borderWidth: 1 }
+          ]}
+          placeholder="Ingresa tu correo electrónico"
+          placeholderTextColor={colors.neutral.gray500}
+          keyboardType="email-address"
+          autoCapitalize="none"
+          autoCorrect={false}
+          value={email}
+          onChangeText={onEmailChange}
+        />
+        {!isEmailValid && (
+          <Text style={{ color: colors.semantic.error, fontSize: 11, marginTop: 4 }}>
+            Ingresa un formato de correo válido.
+          </Text>
+        )}
+      </View>
+
+      <View style={styles.inputGroup}>
+        <Text style={styles.inputLabel}>¿A qué te dedicas?</Text>
+        <TextInput
+          style={styles.inputField}
+          placeholder="Ej. Desarrollador, Gerente, Diseñador"
+          placeholderTextColor={colors.neutral.gray500}
+          value={occupation}
+          onChangeText={onOccupationChange}
+        />
+      </View>
+
+      <View style={styles.inputGroup}>
+        <Text style={styles.inputLabel}>Ciudad o Dirección</Text>
+        <TextInput
+          style={styles.inputField}
+          placeholder="Ej. Bogotá, Colombia"
+          placeholderTextColor={colors.neutral.gray500}
+          value={address}
+          onChangeText={onAddressChange}
+        />
+      </View>
+    </View>
+  );
+}
+
+
+~/Git/beeapp_ai/Fronted/apps/mobile/src/components/onboarding/onboardingShared.ts
+import { StyleSheet } from 'react-native';
+import { colors } from '@beeapp/design-system';
+
+// Helper to get initials for avatar mock
+export const getInitials = (text: string) => {
+  if (!text) return '';
+  return text
+    .trim()
+    .split(/\s+/)
+    .map((w) => w[0])
+    .slice(0, 2)
+    .join('')
+    .toUpperCase();
+};
+
+// Estilos compartidos entre los pasos del onboarding
+export const sharedStyles = StyleSheet.create({
+  stepWrapper: {
+    width: '100%',
+  },
+  title: {
+    fontSize: 24,
+    fontWeight: '600',
+    color: colors.neutral.text,
+    marginBottom: 6,
+  },
+  subtitle: {
+    fontSize: 14,
+    color: colors.neutral.gray600,
+    lineHeight: 20,
+    marginBottom: 24,
+  },
+  sectionCard: {
+    backgroundColor: colors.neutral.white,
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: colors.neutral.gray200,
+    shadowColor: colors.brand.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.03,
+    shadowRadius: 10,
+    elevation: 1,
+  },
+  sectionHeader: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: colors.neutral.text,
+    marginBottom: 16,
+  },
+  sectionSubtitle: {
+    fontSize: 12,
+    color: colors.neutral.gray600,
+    marginTop: -12,
+    marginBottom: 16,
+  },
+  inputGroup: {
+    marginBottom: 16,
+  },
+  inputLabel: {
+    fontSize: 12,
+    fontWeight: '400',
+    color: colors.neutral.gray700,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginBottom: 8,
+  },
+  inputField: {
+    backgroundColor: colors.neutral.gray50,
     borderRadius: 10,
     borderWidth: 1,
-    marginTop: 14,
-    padding: 11,
-  },
-  formMessageText: {
-    color: colors.brand.primary,
-    fontSize: 11,
-    lineHeight: 16,
-    textAlign: 'center',
-  },
-  registerRow: {
-    alignItems: 'center',
-    flexDirection: 'row',
-    justifyContent: 'center',
-    marginTop: 20,
-  },
-  registerText: {
-    color: colors.neutral.gray600,
-    fontSize: 13,
-    marginRight: 5,
-  },
-  registerLink: {
-    color: colors.brand.primary,
-    fontSize: 13,
-    fontWeight: '700',
-  },
-  footer: {
-    alignItems: 'center',
-    paddingBottom: 12,
-    paddingTop: 20,
-  },
-  footerNotice: {
-    color: colors.neutral.gray500,
-    fontSize: 12,
-    marginBottom: 4,
-  },
-  footerLinksRow: {
-    alignItems: 'center',
-    flexDirection: 'row',
-  },
-  footerLink: {
-    color: colors.brand.primary,
-    fontSize: 12,
-    fontWeight: '400',
-  },
-  footerDot: {
-    color: colors.neutral.gray500,
-    fontSize: 12,
-  },
-  modalOverlay: {
-    backgroundColor: 'rgba(26, 26, 46, 0.4)',
-    flex: 1,
-    justifyContent: 'flex-end',
-  },
-  modalContent: {
-    backgroundColor: colors.neutral.white,
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    maxHeight: '80%',
-    padding: 24,
-    paddingBottom: Platform.OS === 'ios' ? 40 : 24,
-  },
-  modalHeader: {
-    alignItems: 'center',
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 16,
-  },
-  modalTitle: {
-    color: colors.neutral.text,
-    fontSize: 18,
-    fontWeight: '600',
-  },
-  closeButton: {
-    backgroundColor: colors.neutral.gray100,
-    borderRadius: 8,
+    borderColor: colors.neutral.gray200,
     paddingHorizontal: 12,
-    paddingVertical: 6,
-  },
-  closeButtonText: {
-    color: colors.neutral.gray700,
-    fontSize: 13,
+    paddingVertical: 10,
+    fontSize: 15,
+    color: colors.neutral.text,
     fontWeight: '400',
   },
-  searchBar: {
+  avatarRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  avatarButton: {
+    marginRight: 16,
+  },
+  avatarCircle: {
+    width: 70,
+    height: 70,
+    borderRadius: 35,
     backgroundColor: colors.neutral.gray100,
+    borderWidth: 2,
+    borderColor: colors.neutral.gray300,
+    justifyContent: 'center',
+    alignItems: 'center',
+    overflow: 'hidden',
+  },
+  avatarActive: {
+    backgroundColor: colors.brand.primary,
+    borderColor: colors.brand.primary,
+  },
+  avatarText: {
+    fontSize: 22,
+    fontWeight: '400',
+    color: colors.neutral.white,
+  },
+  avatarCheckBadge: {
+    position: 'absolute',
+    bottom: -2,
+    right: -2,
+    backgroundColor: colors.semantic.success,
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    borderWidth: 1.5,
+    borderColor: colors.neutral.white,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  avatarCheckText: {
+    color: colors.neutral.white,
+    fontSize: 10,
+    fontWeight: '400',
+  },
+  avatarPlaceholderText: {
+    fontSize: 9,
+    fontWeight: '400',
+    color: colors.neutral.gray600,
+    textTransform: 'uppercase',
+  },
+  avatarInfo: {
+    flex: 1,
+  },
+  avatarInfoTitle: {
+    fontSize: 14,
+    fontWeight: '400',
+    color: colors.neutral.text,
+    marginBottom: 2,
+  },
+  avatarInfoDesc: {
+    fontSize: 12,
+    color: colors.neutral.gray600,
+  },
+});
+
+
+~/Git/beeapp_ai/Fronted/apps/mobile/src/components/onboarding/AssistantSection.tsx
+
+import { View, Text, TextInput, TouchableOpacity, StyleSheet } from 'react-native';
+import { colors } from '@beeapp/design-system';
+import { Smile, Briefcase, Zap, Bot } from 'lucide-react-native';
+import { sharedStyles } from './onboardingShared';
+
+export type AssistantTone = 'friendly' | 'professional' | 'direct';
+
+interface AssistantSectionProps {
+  assistantName: string;
+  onAssistantNameChange: (value: string) => void;
+  tone: AssistantTone;
+  onToneChange: (value: AssistantTone) => void;
+  previewText: string;
+}
+
+export default function AssistantSection({
+  assistantName,
+  onAssistantNameChange,
+  tone,
+  onToneChange,
+  previewText,
+}: AssistantSectionProps) {
+  return (
+    <>
+      {/* Assistant custom Card */}
+      <View style={sharedStyles.sectionCard}>
+        <View style={sharedStyles.inputGroup}>
+          <Text style={sharedStyles.inputLabel}>Nombre del Asistente *</Text>
+          <TextInput
+            style={sharedStyles.inputField}
+            placeholder="Ej. BeeAI, Colmena, Asistente..."
+            placeholderTextColor={colors.neutral.gray500}
+            value={assistantName}
+            onChangeText={onAssistantNameChange}
+          />
+        </View>
+
+        {/* Tone Selectors */}
+        <View style={sharedStyles.inputGroup}>
+          <Text style={sharedStyles.inputLabel}>Tono de Trato del Asistente</Text>
+
+          <TouchableOpacity
+            style={[styles.toneCard, tone === 'friendly' && styles.toneCardActive]}
+            onPress={() => onToneChange('friendly')}
+            activeOpacity={0.8}
+          >
+            <View style={styles.toneIconWrap}>
+              <Smile size={20} color={colors.brand.primary} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.toneTitle, tone === 'friendly' && styles.toneTitleActive]}>Amable</Text>
+              <Text style={styles.toneDesc}>Trato empático, cercano y con calidez en sus saludos.</Text>
+            </View>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.toneCard, tone === 'professional' && styles.toneCardActive]}
+            onPress={() => onToneChange('professional')}
+            activeOpacity={0.8}
+          >
+            <View style={styles.toneIconWrap}>
+              <Briefcase size={20} color={colors.brand.primary} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.toneTitle, tone === 'professional' && styles.toneTitleActive]}>Serio</Text>
+              <Text style={styles.toneDesc}>Trato formal, profesional y enfocado en tareas empresariales.</Text>
+            </View>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.toneCard, tone === 'direct' && styles.toneCardActive]}
+            onPress={() => onToneChange('direct')}
+            activeOpacity={0.8}
+          >
+            <View style={styles.toneIconWrap}>
+              <Zap size={20} color={colors.brand.primary} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.toneTitle, tone === 'direct' && styles.toneTitleActive]}>Directo</Text>
+              <Text style={styles.toneDesc}>Trato conciso, al grano, optimizando la velocidad y respuestas.</Text>
+            </View>
+          </TouchableOpacity>
+        </View>
+      </View>
+
+      {/* Realtime Chat Preview Bubble */}
+      <View style={styles.previewBox}>
+        <Text style={styles.previewBoxLabel}>Vista previa del trato del asistente</Text>
+        <View style={styles.chatBubbleContainer}>
+          <View style={styles.botIcon}>
+            <Bot size={18} color={colors.neutral.gray600} />
+          </View>
+          <View style={styles.chatBubble}>
+            <Text style={styles.chatBubbleText}>{previewText}</Text>
+          </View>
+        </View>
+      </View>
+    </>
+  );
+}
+
+const styles = StyleSheet.create({
+  toneCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 14,
+    backgroundColor: colors.neutral.gray50,
+    borderWidth: 1.5,
     borderColor: colors.neutral.gray200,
     borderRadius: 12,
-    borderWidth: 1,
-    color: colors.neutral.text,
-    fontSize: 14,
-    marginBottom: 16,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
+    marginBottom: 10,
   },
-  countryList: {
-    maxHeight: 300,
+  toneCardActive: {
+    borderColor: colors.brand.primary,
+    backgroundColor: colors.neutral.white,
+    shadowColor: colors.brand.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 1,
   },
-  countryRow: {
+  toneIconWrap: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: colors.neutral.gray100,
+    justifyContent: 'center',
     alignItems: 'center',
-    borderBottomColor: colors.neutral.gray100,
-    borderBottomWidth: 1,
-    flexDirection: 'row',
-    paddingVertical: 14,
-  },
-  countryFlag: {
-    fontSize: 20,
     marginRight: 14,
   },
-  countryName: {
-    color: colors.neutral.text,
-    flex: 1,
-    fontSize: 15,
+  toneTitle: {
+    fontSize: 14,
     fontWeight: '400',
+    color: colors.neutral.text,
+    marginBottom: 2,
   },
-  countryDialCode: {
+  toneTitleActive: {
     color: colors.brand.primary,
-    fontSize: 15,
+    fontWeight: '600',
+  },
+  toneDesc: {
+    fontSize: 11,
+    color: colors.neutral.gray600,
+    lineHeight: 15,
+  },
+  previewBox: {
+    backgroundColor: colors.neutral.white,
+    borderRadius: 16,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: colors.neutral.gray200,
+  },
+  previewBoxLabel: {
+    fontSize: 11,
+    fontWeight: '400',
+    color: colors.neutral.gray600,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginBottom: 12,
+  },
+  chatBubbleContainer: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+  },
+  botIcon: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: colors.neutral.gray100,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 8,
+  },
+  chatBubble: {
+    flex: 1,
+    backgroundColor: colors.brand.primary + '15',
+    borderRadius: 14,
+    borderBottomLeftRadius: 2,
+    padding: 12,
+  },
+  chatBubbleText: {
+    fontSize: 13,
+    color: colors.neutral.text,
+    lineHeight: 18,
     fontWeight: '400',
   },
 });
+
+
+~/Git/beeapp_ai/Fronted/apps/mobile/src/components/onboarding/FeaturesSection.tsx
+
+import { View, Text, StyleSheet } from 'react-native';
+import { colors } from '@beeapp/design-system';
+import {
+  Mail,
+  MessageCircle,
+  FileText,
+  Folder,
+  Calendar,
+  Sparkles,
+  Bell,
+  MapPin,
+  Camera,
+  Mic,
+  HardDrive,
+} from 'lucide-react-native';
+
+const BENEFITS = [
+  { icon: Mail, title: 'Correo unificado', desc: 'Conecta Gmail y Outlook en un solo buzón inteligente.' },
+  { icon: MessageCircle, title: 'Chats y llamadas', desc: 'Conversa, llama y haz videollamadas con tus equipos de trabajo.' },
+  { icon: FileText, title: 'Notas', desc: 'Guarda, edita y organiza tus ideas y recordatorios diarios.' },
+  { icon: Folder, title: 'Archivos', desc: 'Almacena, organiza y firma digitalmente todos tus documentos.' },
+  { icon: Calendar, title: 'Agenda', desc: 'Programa y administra reuniones corporativas en segundos.' },
+  { icon: Sparkles, title: 'Asistente de IA', desc: 'Agiliza envíos de mails, notas y búsquedas con comandos de voz.' },
+];
+
+const PERMISSIONS = [
+  { icon: Bell, title: 'Notificaciones', desc: 'Te avisa sobre nuevos mensajes, llamadas entrantes o recordatorios de reuniones.' },
+  { icon: MapPin, title: 'Ubicación', desc: 'Sirve para autocompletar tu dirección laboral o compartir ubicación real en chats.' },
+  { icon: Camera, title: 'Cámara', desc: 'Para tomar fotos de perfil, realizar videollamadas y escanear tus documentos físicos.' },
+  { icon: Mic, title: 'Micrófono', desc: 'Habilita las llamadas de voz, grabación de audios de chat y dictado por voz al asistente.' },
+  { icon: HardDrive, title: 'Almacenamiento', desc: 'Para descargar archivos compartidos y adjuntar documentos desde tu dispositivo móvil.' },
+];
+
+export default function FeaturesSection() {
+  return (
+    <>
+      {/* List of Benefits */}
+      <Text style={styles.groupHeader}>Beneficios Clave</Text>
+      <View style={styles.listCard}>
+        {BENEFITS.map((benefit) => (
+          <View key={benefit.title} style={styles.listItem}>
+            <benefit.icon size={22} color={colors.brand.primary} style={styles.listIcon} />
+            <View style={{ flex: 1 }}>
+              <Text style={styles.listItemTitle}>{benefit.title}</Text>
+              <Text style={styles.listItemDesc}>{benefit.desc}</Text>
+            </View>
+          </View>
+        ))}
+      </View>
+
+      {/* Explanation of System Permissions (No systems prompts triggered here) */}
+      <Text style={styles.groupHeader}>Accesos Informativos (Opcionales)</Text>
+      <Text style={styles.permissionsNotice}>
+        Para habilitar todas las funciones, te explicamos qué accesos utilizaremos en la app y por qué:
+      </Text>
+
+      <View style={styles.listCard}>
+        {PERMISSIONS.map((permission) => (
+          <View key={permission.title} style={styles.permissionItem}>
+            <permission.icon size={18} color={colors.brand.primary} style={styles.listIcon} />
+            <View style={{ flex: 1 }}>
+              <Text style={styles.permissionTitle}>{permission.title}</Text>
+              <Text style={styles.permissionDesc}>{permission.desc}</Text>
+            </View>
+          </View>
+        ))}
+      </View>
+    </>
+  );
+}
+
+const styles = StyleSheet.create({
+  groupHeader: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: colors.neutral.text,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginTop: 12,
+    marginBottom: 8,
+  },
+  listCard: {
+    backgroundColor: colors.neutral.white,
+    borderRadius: 16,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: colors.neutral.gray200,
+    marginBottom: 20,
+  },
+  listItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.neutral.gray100,
+  },
+  listIcon: {
+    marginRight: 14,
+  },
+  listItemTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: colors.neutral.text,
+    marginBottom: 2,
+  },
+  listItemDesc: {
+    fontSize: 12,
+    color: colors.neutral.gray600,
+  },
+  permissionsNotice: {
+    fontSize: 13,
+    color: colors.neutral.gray600,
+    lineHeight: 18,
+    marginBottom: 12,
+  },
+  permissionItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.neutral.gray100,
+  },
+  permissionTitle: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: colors.neutral.text,
+    marginBottom: 2,
+  },
+  permissionDesc: {
+    fontSize: 11,
+    color: colors.neutral.gray600,
+    lineHeight: 15,
+  },
+});
+
 
 ~/Git/beeapp_ai/Fronted/apps/mobile/app/(auth)/app-lock-setup.tsx
 import React from 'react';
@@ -960,387 +1306,76 @@ const styles = StyleSheet.create({
 });
 
 
-~/Git/beeapp_ai/Fronted/apps/mobile/app/_layout.tsx
-import { Stack } from 'expo-router';
-import { GestureHandlerRootView } from 'react-native-gesture-handler';
-import { SafeAreaProvider } from 'react-native-safe-area-context';
-import AppLockScreen from '../src/components/security/AppLockScreen';
+~/Git/beeapp_ai/Fronted/apps/mobile/src/services/authSession.ts
+import * as SecureStore from 'expo-secure-store';
+import type {
+    AuthenticatedUser,
+    AuthSession,
+    } from '@beeapp/shared-types';
 
-export default function RootLayout() {
-  return (
-    // Root for gesture-driven UI (e.g. drag & drop in the Home customizer)
-    <GestureHandlerRootView style={{ flex: 1 }}>
-      {/* Provides the device insets (status bar, notch) to every screen */}
-      <SafeAreaProvider>
-        <Stack
-          screenOptions={{
-            headerShown: false,
-            contentStyle: { backgroundColor: '#6025d2' },
-          }}
-        />
-        <AppLockScreen />
-      </SafeAreaProvider>
-    </GestureHandlerRootView>
-  );
+const AUTH_SESSION_KEY = 'beeapp.auth.session';
+
+export interface PersistedAuthSession {
+    session: AuthSession;
+    user: AuthenticatedUser;
 }
 
-
-~/Git/beeapp_ai/Fronted/apps/mobile/app/index.tsx
-import { useEffect, useRef } from 'react';
-import { View, Text, ActivityIndicator, StyleSheet, Animated, Easing, Dimensions } from 'react-native';
-import { useRouter } from 'expo-router';
-import { colors } from '@beeapp/design-system';
-import Svg, { Path } from 'react-native-svg';
-import AnimatedLogo from '../src/components/AnimatedLogo';
-
-const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
-
-// Generates an SVG path representing a periodic curved line (sinusoidal-like) over 3 * width
-const getLinePath = (w: number, startY: number, amp: number) => {
-  return `M 0,${startY} Q ${w * 0.25},${startY - amp} ${w * 0.5},${startY} T ${w},${startY} T ${w * 1.5},${startY} T ${w * 2},${startY} T ${w * 2.5},${startY} T ${w * 3},${startY}`;
-};
-
-export default function SplashScreen() {
-  const router = useRouter();
-
-  // Fade-in animation for logo, spinner, and text
-  const fadeAnim = useRef(new Animated.Value(0)).current;
-
-  // Animation values for horizontal wave movements
-  const wave1Anim = useRef(new Animated.Value(0)).current;
-  const wave2Anim = useRef(new Animated.Value(0)).current;
-  const wave3Anim = useRef(new Animated.Value(0)).current;
-  const wave4Anim = useRef(new Animated.Value(0)).current;
-
-  useEffect(() => {
-    // Fade-in content
-    Animated.timing(fadeAnim, {
-      toValue: 1,
-      duration: 800,
-      useNativeDriver: true,
-    }).start();
-
-    // Loop Wave 1 (moving left)
-    Animated.loop(
-      Animated.timing(wave1Anim, {
-        toValue: 1,
-        duration: 16000,
-        easing: Easing.linear,
-        useNativeDriver: true,
-      })
-    ).start();
-
-    // Loop Wave 2 (moving right)
-    Animated.loop(
-      Animated.timing(wave2Anim, {
-        toValue: 1,
-        duration: 22000,
-        easing: Easing.linear,
-        useNativeDriver: true,
-      })
-    ).start();
-
-    // Loop Wave 3 (moving left)
-    Animated.loop(
-      Animated.timing(wave3Anim, {
-        toValue: 1,
-        duration: 18000,
-        easing: Easing.linear,
-        useNativeDriver: true,
-      })
-    ).start();
-
-    // Loop Wave 4 (moving right)
-    Animated.loop(
-      Animated.timing(wave4Anim, {
-        toValue: 1,
-        duration: 26000,
-        easing: Easing.linear,
-        useNativeDriver: true,
-      })
-    ).start();
-
-    // Transition to login after 2.5 seconds
-    const timer = setTimeout(() => {
-      router.replace('/(auth)/login');
-    }, 2500);
-
-    return () => clearTimeout(timer);
-  }, [fadeAnim, wave1Anim, wave2Anim, wave3Anim, wave4Anim, router]);
-
-  // Interpolating translations to achieve seamless infinite loops
-  const wave1TranslateX = wave1Anim.interpolate({
-    inputRange: [0, 1],
-    outputRange: [0, -SCREEN_WIDTH],
-  });
-
-  const wave2TranslateX = wave2Anim.interpolate({
-    inputRange: [0, 1],
-    outputRange: [-SCREEN_WIDTH, 0],
-  });
-
-  const wave3TranslateX = wave3Anim.interpolate({
-    inputRange: [0, 1],
-    outputRange: [0, -SCREEN_WIDTH],
-  });
-
-  const wave4TranslateX = wave4Anim.interpolate({
-    inputRange: [0, 1],
-    outputRange: [-SCREEN_WIDTH, 0],
-  });
-
-  return (
-    <View style={styles.container}>
-      {/* ── Background: Flowing Trajectory Paths (Background Paths style) ── */}
-      <View style={StyleSheet.absoluteFill}>
-        {/* Layer 1 (Top third, rotating diagonal flow) */}
-        <Animated.View
-          style={[
-            styles.animatedPathWrapper,
-            {
-              top: SCREEN_HEIGHT * 0.1,
-              height: 120,
-              transform: [
-                { rotate: '-10deg' },
-                { translateX: wave1TranslateX },
-              ],
-            },
-          ]}
-        >
-          <Svg width={SCREEN_WIDTH * 3} height={120}>
-            <Path
-              d={getLinePath(SCREEN_WIDTH, 60, 30)}
-              fill="none"
-              stroke={colors.brand.primary}
-              strokeWidth={1.5}
-              opacity={0.07}
-            />
-          </Svg>
-        </Animated.View>
-
-        {/* Layer 2 (Upper-middle, flowing opposite) */}
-        <Animated.View
-          style={[
-            styles.animatedPathWrapper,
-            {
-              top: SCREEN_HEIGHT * 0.32,
-              height: 160,
-              transform: [
-                { rotate: '12deg' },
-                { translateX: wave2TranslateX },
-              ],
-            },
-          ]}
-        >
-          <Svg width={SCREEN_WIDTH * 3} height={160}>
-            <Path
-              d={getLinePath(SCREEN_WIDTH, 80, 45)}
-              fill="none"
-              stroke={colors.brand.dark}
-              strokeWidth={2}
-              opacity={0.08}
-            />
-          </Svg>
-        </Animated.View>
-
-        {/* Layer 3 (Lower-middle) */}
-        <Animated.View
-          style={[
-            styles.animatedPathWrapper,
-            {
-              top: SCREEN_HEIGHT * 0.55,
-              height: 140,
-              transform: [
-                { rotate: '-8deg' },
-                { translateX: wave3TranslateX },
-              ],
-            },
-          ]}
-        >
-          <Svg width={SCREEN_WIDTH * 3} height={140}>
-            <Path
-              d={getLinePath(SCREEN_WIDTH, 70, 35)}
-              fill="none"
-              stroke={colors.brand.primary}
-              strokeWidth={2.5}
-              opacity={0.06}
-            />
-          </Svg>
-        </Animated.View>
-
-        {/* Layer 4 (Bottom, thin line) */}
-        <Animated.View
-          style={[
-            styles.animatedPathWrapper,
-            {
-              top: SCREEN_HEIGHT * 0.76,
-              height: 120,
-              transform: [
-                { rotate: '15deg' },
-                { translateX: wave4TranslateX },
-              ],
-            },
-          ]}
-        >
-          <Svg width={SCREEN_WIDTH * 3} height={120}>
-            <Path
-              d={getLinePath(SCREEN_WIDTH, 60, 25)}
-              fill="none"
-              stroke={colors.brand.dark}
-              strokeWidth={1}
-              opacity={0.11}
-            />
-          </Svg>
-        </Animated.View>
-      </View>
-
-      {/* ── Content Foreground ── */}
-      <Animated.View style={[styles.content, { opacity: fadeAnim }]}>
-        {/* Animated Logo (rotating wings visible behind, size 100, real text) */}
-        <AnimatedLogo size={100} showText={true} />
-
-        {/* Brand-colored spinner */}
-        <ActivityIndicator size="large" color={colors.brand.primary} style={styles.spinner} />
-
-        {/* Loading messages */}
-        <Text style={styles.title}>Iniciando tu espacio seguro...</Text>
-        <Text style={styles.subtitle}>Todo lo importante, en un solo lugar.</Text>
-      </Animated.View>
-    </View>
-  );
+export async function saveAuthSession(
+    authSession: PersistedAuthSession,
+    ): Promise<void> {
+    await SecureStore.setItemAsync(
+        AUTH_SESSION_KEY,
+        JSON.stringify(authSession),
+    );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#FFFFFF', // Pure white background
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: 24,
-    overflow: 'hidden',
-  },
-  animatedPathWrapper: {
-    position: 'absolute',
-    left: -SCREEN_WIDTH, // Center the wide path canvas to ensure no cutoff on translation
-    width: SCREEN_WIDTH * 3,
-  },
-  content: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    width: '100%',
-    zIndex: 10,
-  },
-  spinner: {
-    marginVertical: 32,
-  },
-  title: {
-    color: colors.brand.primary, // Brand purple for contrast
-    fontSize: 16,
-    fontWeight: '700',
-    textAlign: 'center',
-    marginBottom: 8,
-  },
-  subtitle: {
-    color: colors.neutral.gray600, // Medium gray for contrast
-    fontSize: 13,
-    fontWeight: '500',
-    textAlign: 'center',
-  },
-});
+export async function getAuthSession(): Promise<PersistedAuthSession | null> {
+    const storedSession = await SecureStore.getItemAsync(
+        AUTH_SESSION_KEY,
+    );
 
-
-~/Git/beeapp_ai/Fronted/apps/mobile/package.json
-{
-  "name": "@beeapp/mobile",
-  "version": "0.1.0",
-  "private": true,
-  "main": "index.js",
-  "scripts": {
-    "start": "expo start --dev-client",
-    "android": "expo run:android",
-    "ios": "expo run:ios",
-    "web": "expo start --web",
-    "type-check": "tsc --noEmit",
-    "postinstall": "node scripts/patch-expo-router.js"
-  },
-  "dependencies": {
-    "@beeapp/api-client": "*",
-    "@beeapp/design-system": "*",
-    "@beeapp/shared-types": "*",
-    "expo": "~51.0.0",
-    "expo-dev-client": "~4.0.26",
-    "expo-router": "~3.5.24",
-    "expo-status-bar": "~1.12.1",
-    "lucide-react-native": "^1.25.0",
-    "react": "18.2.0",
-    "react-dom": "18.2.0",
-    "react-native": "0.74.5",
-    "react-native-draggable-flatlist": "^4.0.3",
-    "react-native-gesture-handler": "~2.16.1",
-    "react-native-reanimated": "~3.10.1",
-    "react-native-safe-area-context": "4.10.5",
-    "react-native-screens": "3.31.1",
-    "react-native-svg": "15.2.0",
-    "react-native-web": "~0.19.10"
-  },
-  "devDependencies": {
-    "@babel/core": "^7.20.0",
-    "@beeapp/config": "*",
-    "@types/react": "~18.2.45",
-    "typescript": "^5.4.0"
-  }
-}
-
-~/Git/beeapp_ai/Fronted/apps/mobile/tsconfig.json
-{
-  "extends": "../../packages/config/tsconfig.base.json",
-  "compilerOptions": {
-    "jsx": "react-jsx",
-    "paths": {
-      "@/*": ["./src/*"],
-      "@beeapp/api-client": ["../../packages/api-client/src"],
-      "@beeapp/design-system": ["../../packages/design-system"],
-      "@beeapp/shared-types": ["../../packages/shared-types"]
+    if (!storedSession) {
+        return null;
     }
-  },
-  "include": ["**/*.ts", "**/*.tsx"]
+
+    try {
+        return JSON.parse(storedSession) as PersistedAuthSession;
+    } catch {
+        await clearAuthSession();
+        return null;
+    }
 }
 
-~/Git/beeapp_ai/Fronted/apps/mobile/app.json
-{
-  "expo": {
-    "name": "BeeApp AI",
-    "slug": "beeapp",
-    "version": "1.0.0",
-    "orientation": "portrait",
-    "icon": "./src/assets/logo.png",
-    "scheme": "beeapp",
-    "userInterfaceStyle": "light",
-    "splash": {
-      "image": "./src/assets/logo.png",
-      "resizeMode": "contain",
-      "backgroundColor": "#6025d2"
-    },
-    "ios": {
-      "supportsTablet": true,
-      "bundleIdentifier": "com.beeapp.mobile"
-    },
-    "android": {
-      "adaptiveIcon": {
-        "foregroundImage": "./src/assets/logo.png",
-        "backgroundColor": "#6025d2"
-      },
-      "package": "com.beeapp.mobile"
-    },
-    "web": {
-      "bundler": "metro"
-    },
-    "plugins": [
-      "expo-router",
-      "expo-dev-client",
-      "./withMonorepoSettings.js"
-    ]
-  }
+export async function clearAuthSession(): Promise<void> {
+    await SecureStore.deleteItemAsync(AUTH_SESSION_KEY);
+}
+
+~/Git/beeapp_ai/Fronted/packages/api-client/src/accounts.ts
+import type {
+    LoginUserPayload,
+    LoginUserResponse,
+    RegisterUserPayload,
+    RegisterUserResponse,
+    } from '@beeapp/shared-types';
+
+import { api } from './client';
+
+export function registerUser(
+    payload: RegisterUserPayload,
+    ): Promise<RegisterUserResponse> {
+    return api.post<RegisterUserResponse>(
+        '/accounts/register/',
+        payload,
+    );
+}
+
+export function loginUser(
+    payload: LoginUserPayload,
+    ): Promise<LoginUserResponse> {
+    return api.post<LoginUserResponse>(
+        '/accounts/login/',
+        payload,
+    );
 }
 
 ~/Git/beeapp_ai/Fronted/packages/api-client/src/client.ts
@@ -1488,33 +1523,20 @@ export function getApiUrl(endpoint: string): string {
     return buildUrl(endpoint);
 }
 
-~/Git/beeapp_ai/Fronted/packages/api-client/src/accounts.ts
-import type {
-    RegisterUserPayload,
-    RegisterUserResponse,
-} from '@beeapp/shared-types';
-
-import { api } from './client';
-
-export function registerUser(
-    payload: RegisterUserPayload,
-    ): Promise<RegisterUserResponse> {
-    return api.post<RegisterUserResponse>(
-        '/accounts/register/',
-        payload,
-    );
-}
-
 ~/Git/beeapp_ai/Fronted/packages/api-client/src/index.ts
 export * from './client';
 export * from './accounts';
 
-~/Git/beeapp_ai/Fronted/packages/shared-types/src/index.ts
 
+~/Git/beeapp_ai/Fronted/packages/shared-types/src/index.ts
 
 export type UserRole = 'USER' | 'ADMIN' | 'SUPER_ADMIN';
 
-export type UserStatus = 'ACTIVE' | 'INACTIVE' | 'SUSPENDED' | 'PENDING';
+export type UserStatus =
+  | 'ACTIVE'
+  | 'INACTIVE'
+  | 'SUSPENDED'
+  | 'PENDING';
 
 export interface BaseUser {
   id: string;
@@ -1564,35 +1586,27 @@ export interface RegisterUserResponse {
   user: RegisteredUser;
 }
 
+export interface LoginUserPayload {
+  email: string;
+  password: string;
+}
 
+export interface AuthSession {
+  access_token: string;
+  refresh_token: string;
+  expires_at: number | null;
+  expires_in: number | null;
+  token_type: string;
+}
 
+export interface AuthenticatedUser {
+  id: string;
+  email: string | null;
+  phone: string | null;
+}
 
-
-
-andres-mendoza@gordosaurioPc:~/Git/beeapp_ai/Fronted/apps/mobile$ cd ~/Git/beeapp_ai/Fronted/apps/mobile
-
-tree src/stores -L 3
-tree src/services -L 3
-tree src/lib -L 3
-src/stores
-├── appLockStore.ts
-├── calendarStore.ts
-├── pinStore.ts
-└── storageStore.ts
-
-1 directory, 4 files
-src/services
-
-0 directories, 0 files
-src/lib
-
-0 directories, 0 files
-
-
-
-andres-mendoza@gordosaurioPc:~/Git/beeapp_ai/Fronted/apps/mobile$ cd ~/Git/beeapp_ai/Fronted
-
-grep -RInE \
-'AsyncStorage|SecureStore|expo-secure-store|access_token|refresh_token|session|authStore|logout' \
-apps/mobile/src apps/mobile/app packages \
---exclude-dir=node_modules
+export interface LoginUserResponse {
+  message: string;
+  session: AuthSession;
+  user: AuthenticatedUser;
+}
