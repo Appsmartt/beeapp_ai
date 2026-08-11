@@ -8,25 +8,14 @@
       }
     ],
     "paths": {
-      "@/*": [
-        "./src/*"
-      ],
-      "@beeapp/design-system": [
-        "../../packages/design-system"
-      ],
-      "@beeapp/shared-types": [
-        "../../packages/shared-types"
-      ]
+      "@/*": ["./src/*"],
+      "@beeapp/design-system": ["../../packages/design-system"],
+      "@beeapp/shared-types": ["../../packages/shared-types"],
+      "@beeapp/api-client": ["../../packages/api-client/src"]
     },
     "allowJs": true,
     "noEmit": true
   },
-  "include": [
-    "**/*.ts",
-    "**/*.tsx",
-    ".next/types/**/*.ts"
-  ],
-  "exclude": [
-    "node_modules"
-  ]
+  "include": ["**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],
+  "exclude": ["node_modules"]
 }
