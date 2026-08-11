@@ -4,6 +4,7 @@
     "jsx": "react-jsx",
     "paths": {
       "@/*": ["./src/*"],
+      "@beeapp/api-client": ["../../packages/api-client/src"],
       "@beeapp/design-system": ["../../packages/design-system"],
       "@beeapp/shared-types": ["../../packages/shared-types"]
     }

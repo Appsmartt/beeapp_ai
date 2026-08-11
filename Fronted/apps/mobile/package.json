@@ -12,6 +12,7 @@
     "postinstall": "node scripts/patch-expo-router.js"
   },
   "dependencies": {
+    "@beeapp/api-client": "*",
     "@beeapp/design-system": "*",
     "@beeapp/shared-types": "*",
     "expo": "~51.0.0",

@@ -14,7 +14,7 @@ const getLinePath = (w: number, startY: number, amp: number) => {
 
 export default function SplashScreen() {
   const router = useRouter();
-  
+
   // Fade-in animation for logo, spinner, and text
   const fadeAnim = useRef(new Animated.Value(0)).current;
 
