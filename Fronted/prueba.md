@@ -1,82 +1,78 @@
 ~/Git/beeapp_ai/Fronted/apps/mobile/app/(auth)/login.tsx
-import { useState, useRef } from 'react';
+import { useMemo, useState } from 'react';
 import {
-  View,
+  FlatList,
+  Keyboard,
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
+  StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
-  StyleSheet,
-  KeyboardAvoidingView,
-  Platform,
   TouchableWithoutFeedback,
-  Keyboard,
-  Modal,
-  FlatList,
+  View,
 } from 'react-native';
-import ScreenSafeArea from '../../src/components/layout/ScreenSafeArea';
 import { useRouter } from 'expo-router';
 import { colors } from '@beeapp/design-system';
-import AnimatedLogo from '../../src/components/AnimatedLogo';
 
-import { COUNTRIES, Country } from '../../src/mocks/countries';
+import AnimatedLogo from '../../src/components/AnimatedLogo';
+import ScreenSafeArea from '../../src/components/layout/ScreenSafeArea';
+import { COUNTRIES, type Country } from '../../src/mocks/countries';
 
 export default function LoginScreen() {
   const router = useRouter();
+
   const [phoneNumber, setPhoneNumber] = useState('');
   const [error, setError] = useState('');
-  const [selectedCountry, setSelectedCountry] = useState<Country>(COUNTRIES[0]);
-  const [modalVisible, setModalVisible] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedCountry, setSelectedCountry] = useState<Country>(
+    COUNTRIES[0],
+  );
+  const [isCountryModalVisible, setIsCountryModalVisible] = useState(false);
+  const [countrySearch, setCountrySearch] = useState('');
+
+  const filteredCountries = useMemo(() => {
+    const normalizedQuery = countrySearch.trim().toLowerCase();
+
+    if (!normalizedQuery) {
+      return COUNTRIES;
+    }
+
+    return COUNTRIES.filter(
+      (country) =>
+        country.name.toLowerCase().includes(normalizedQuery) ||
+        country.dialCode.includes(normalizedQuery),
+    );
+  }, [countrySearch]);
 
   const handleContinue = () => {
-    const cleaned = phoneNumber.replace(/\D/g, '');
-    if (cleaned.length < 7 || cleaned.length > 15) {
-      setError('Ingresa un número celular válido.');
+    const normalizedPhoneNumber = phoneNumber.replace(/\D/g, '');
+
+    if (
+      normalizedPhoneNumber.length < 7 ||
+      normalizedPhoneNumber.length > 15
+    ) {
+      setError('Ingresa un número de celular válido.');
       return;
     }
+
     setError('');
+
     router.push({
       pathname: '/(auth)/verify',
-      params: { 
-        from: 'login', 
-        phone: cleaned,
+      params: {
+        from: 'login',
+        phone: normalizedPhoneNumber,
         dialCode: selectedCountry.dialCode,
-        flag: selectedCountry.flag
+        flag: selectedCountry.flag,
       },
     });
   };
 
-  // TEMPORAL DEVELOPMENT BYPASS: Double tap skips OTP & Onboarding directly to main dashboard
-  const lastTap = useRef<number>(0);
-  const tapTimeout = useRef<NodeJS.Timeout | null>(null);
-
-  const handlePress = () => {
-    const now = Date.now();
-    const DOUBLE_TAP_DELAY = 300;
-
-    if (now - lastTap.current < DOUBLE_TAP_DELAY) {
-      if (tapTimeout.current) {
-        clearTimeout(tapTimeout.current);
-        tapTimeout.current = null;
-      }
-      router.replace('/(main)');
-    } else {
-      if (tapTimeout.current) {
-        clearTimeout(tapTimeout.current);
-      }
-      tapTimeout.current = setTimeout(() => {
-        handleContinue();
-        tapTimeout.current = null;
-      }, DOUBLE_TAP_DELAY);
-    }
-    lastTap.current = now;
+  const openCountryModal = () => {
+    setCountrySearch('');
+    setIsCountryModalVisible(true);
   };
-
-  const filteredCountries = COUNTRIES.filter(
-    (c) =>
-      c.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      c.dialCode.includes(searchQuery)
-  );
 
   return (
     <ScreenSafeArea style={styles.safeArea}>
@@ -86,36 +82,37 @@ export default function LoginScreen() {
       >
         <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
           <View style={styles.innerContainer}>
-            {/* Main Content Container */}
             <View style={styles.contentContainer}>
-              {/* Animated Logo (without text, autoStopAfter 2.5s) */}
               <View style={styles.logoContainer}>
-                <AnimatedLogo size={80} showText={false} autoStopAfter={2500} />
+                <AnimatedLogo
+                  size={80}
+                  showText={false}
+                  autoStopAfter={2500}
+                />
               </View>
 
-              <Text style={styles.title}>Inicia Sesión</Text>
+              <Text style={styles.title}>Inicia sesión</Text>
+
               <Text style={styles.subtitle}>
-                Ingresa tu número celular para continuar.
+                Ingresa tu número de celular para continuar.
               </Text>
 
-              {/* Phone Input Box */}
               <View style={styles.inputCard}>
-                <Text style={styles.inputLabel}>Número Telefónico</Text>
+                <Text style={styles.inputLabel}>Número telefónico</Text>
+
                 <View style={styles.phoneInputContainer}>
-                  {/* Selectable Prefix with Flag */}
                   <TouchableOpacity
                     style={styles.prefixBadge}
                     activeOpacity={0.7}
-                    onPress={() => {
-                      setSearchQuery('');
-                      setModalVisible(true);
-                    }}
+                    onPress={openCountryModal}
                   >
                     <Text style={styles.flag}>{selectedCountry.flag}</Text>
-                    <Text style={styles.prefixText}>{selectedCountry.dialCode}</Text>
+
+                    <Text style={styles.prefixText}>
+                      {selectedCountry.dialCode}
+                    </Text>
                   </TouchableOpacity>
 
-                  {/* Editable Phone Field */}
                   <TextInput
                     style={styles.phoneInput}
                     placeholder="300 000 0000"
@@ -123,37 +120,65 @@ export default function LoginScreen() {
                     keyboardType="number-pad"
                     maxLength={15}
                     value={phoneNumber}
-                    onChangeText={(text) => {
-                      setPhoneNumber(text.replace(/\D/g, ''));
-                      if (error) setError('');
+                    onChangeText={(value) => {
+                      setPhoneNumber(value.replace(/\D/g, ''));
+
+                      if (error) {
+                        setError('');
+                      }
                     }}
                   />
                 </View>
-                {error ? <Text style={styles.errorText}>{error}</Text> : null}
+
+                {error ? (
+                  <Text style={styles.errorText}>{error}</Text>
+                ) : null}
               </View>
 
-              {/* Continue Button */}
               <TouchableOpacity
                 style={styles.primaryButton}
                 activeOpacity={0.8}
-                onPress={handlePress}
+                onPress={handleContinue}
               >
                 <Text style={styles.primaryButtonText}>Continuar</Text>
               </TouchableOpacity>
+
+              <View style={styles.registerRow}>
+                <Text style={styles.registerText}>
+                  ¿No tienes una cuenta?
+                </Text>
+
+                <TouchableOpacity
+                  activeOpacity={0.7}
+                  onPress={() => router.push('/(auth)/register')}
+                >
+                  <Text style={styles.registerLink}>Regístrate</Text>
+                </TouchableOpacity>
+              </View>
             </View>
 
-            {/* Legal Footer */}
             <View style={styles.footer}>
               <Text style={styles.footerNotice}>
-                Al continuar, aceptas nuestros{' '}
+                Al continuar, aceptas nuestros
               </Text>
+
               <View style={styles.footerLinksRow}>
-                <TouchableOpacity onPress={() => router.push('/(auth)/terms')}>
-                  <Text style={styles.footerLink}>Términos y Condiciones</Text>
+                <TouchableOpacity
+                  onPress={() => router.push('/(auth)/terms')}
+                >
+                  <Text style={styles.footerLink}>
+                    Términos y Condiciones
+                  </Text>
                 </TouchableOpacity>
+
                 <Text style={styles.footerDot}> • </Text>
-                <TouchableOpacity onPress={() => router.push('/(auth)/privacy')}>
-                  <Text style={styles.footerLink}>Política de Privacidad</Text>
+
+                <TouchableOpacity
+                  onPress={() => router.push('/(auth)/privacy')}
+                >
+                  <Text style={styles.footerLink}>
+                    Política de Privacidad
+                  </Text>
                 </TouchableOpacity>
               </View>
             </View>
@@ -161,34 +186,35 @@ export default function LoginScreen() {
         </TouchableWithoutFeedback>
       </KeyboardAvoidingView>
 
-      {/* Country Selector Modal */}
       <Modal
         animationType="slide"
-        transparent={true}
-        visible={modalVisible}
-        onRequestClose={() => setModalVisible(false)}
+        transparent
+        visible={isCountryModalVisible}
+        onRequestClose={() => setIsCountryModalVisible(false)}
       >
-        <TouchableWithoutFeedback onPress={() => setModalVisible(false)}>
+        <TouchableWithoutFeedback
+          onPress={() => setIsCountryModalVisible(false)}
+        >
           <View style={styles.modalOverlay}>
             <TouchableWithoutFeedback>
               <View style={styles.modalContent}>
                 <View style={styles.modalHeader}>
-                  <Text style={styles.modalTitle}>Selecciona un País</Text>
+                  <Text style={styles.modalTitle}>Selecciona un país</Text>
+
                   <TouchableOpacity
                     style={styles.closeButton}
-                    onPress={() => setModalVisible(false)}
+                    onPress={() => setIsCountryModalVisible(false)}
                   >
                     <Text style={styles.closeButtonText}>Cerrar</Text>
                   </TouchableOpacity>
                 </View>
 
-                {/* Country Search Bar */}
                 <TextInput
                   style={styles.searchBar}
                   placeholder="Buscar país o indicativo..."
                   placeholderTextColor={colors.neutral.gray500}
-                  value={searchQuery}
-                  onChangeText={setSearchQuery}
+                  value={countrySearch}
+                  onChangeText={setCountrySearch}
                 />
 
                 <FlatList
@@ -201,15 +227,19 @@ export default function LoginScreen() {
                       activeOpacity={0.7}
                       onPress={() => {
                         setSelectedCountry(item);
-                        setModalVisible(false);
+                        setIsCountryModalVisible(false);
                       }}
                     >
                       <Text style={styles.countryFlag}>{item.flag}</Text>
+
                       <Text style={styles.countryName}>{item.name}</Text>
-                      <Text style={styles.countryDialCode}>{item.dialCode}</Text>
+
+                      <Text style={styles.countryDialCode}>
+                        {item.dialCode}
+                      </Text>
                     </TouchableOpacity>
                   )}
-                  style={{ maxHeight: 300 }}
+                  style={styles.countryList}
                 />
               </View>
             </TouchableWithoutFeedback>
@@ -230,85 +260,85 @@ const styles = StyleSheet.create({
   },
   innerContainer: {
     flex: 1,
-    paddingHorizontal: 24,
     justifyContent: 'space-between',
+    paddingHorizontal: 24,
     paddingVertical: 16,
-  },
-  logoContainer: {
-    alignItems: 'center',
-    marginBottom: 20,
-    marginTop: Platform.OS === 'ios' ? 40 : 20,
   },
   contentContainer: {
     flex: 1,
     justifyContent: 'center',
     marginVertical: 16,
   },
+  logoContainer: {
+    alignItems: 'center',
+    marginTop: Platform.OS === 'ios' ? 40 : 20,
+    marginBottom: 20,
+  },
   title: {
+    color: colors.neutral.text,
     fontSize: 26,
     fontWeight: '600',
-    color: colors.neutral.text,
-    textAlign: 'center',
     marginBottom: 8,
+    textAlign: 'center',
   },
   subtitle: {
-    fontSize: 14,
     color: colors.neutral.gray600,
-    textAlign: 'center',
-    marginBottom: 32,
+    fontSize: 14,
     lineHeight: 20,
+    marginBottom: 32,
     paddingHorizontal: 12,
+    textAlign: 'center',
   },
   inputCard: {
     backgroundColor: colors.neutral.white,
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 20,
-    borderWidth: 1,
     borderColor: colors.neutral.gray200,
+    borderRadius: 16,
+    borderWidth: 1,
+    elevation: 2,
+    marginBottom: 20,
+    padding: 16,
     shadowColor: colors.brand.primary,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.05,
     shadowRadius: 12,
-    elevation: 2,
   },
   inputLabel: {
+    color: colors.neutral.gray700,
     fontSize: 12,
     fontWeight: '400',
-    color: colors.neutral.gray700,
-    textTransform: 'uppercase',
     letterSpacing: 0.5,
     marginBottom: 10,
+    textTransform: 'uppercase',
   },
   phoneInputContainer: {
-    flexDirection: 'row',
     alignItems: 'center',
+    flexDirection: 'row',
   },
   prefixBadge: {
-    flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: colors.neutral.gray100,
+    borderRadius: 10,
+    flexDirection: 'row',
+    marginRight: 10,
     paddingHorizontal: 12,
     paddingVertical: 10,
-    borderRadius: 10,
-    marginRight: 10,
   },
   flag: {
     fontSize: 16,
     marginRight: 6,
   },
   prefixText: {
+    color: colors.neutral.text,
     fontSize: 15,
     fontWeight: '400',
-    color: colors.neutral.text,
   },
   phoneInput: {
+    color: colors.neutral.text,
     flex: 1,
     fontSize: 18,
     fontWeight: '400',
-    color: colors.neutral.text,
-    paddingVertical: 8,
     letterSpacing: 1,
+    paddingVertical: 8,
   },
   errorText: {
     color: colors.semantic.error,
@@ -316,16 +346,16 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   primaryButton: {
+    alignItems: 'center',
     backgroundColor: colors.brand.primary,
     borderRadius: 14,
+    elevation: 4,
+    marginBottom: 16,
     paddingVertical: 16,
-    alignItems: 'center',
     shadowColor: colors.brand.primary,
     shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.25,
     shadowRadius: 10,
-    elevation: 4,
-    marginBottom: 20,
   },
   primaryButtonText: {
     color: colors.neutral.white,
@@ -333,32 +363,46 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     letterSpacing: 0.5,
   },
+  registerRow: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'center',
+  },
+  registerText: {
+    color: colors.neutral.gray600,
+    fontSize: 13,
+    marginRight: 5,
+  },
+  registerLink: {
+    color: colors.brand.primary,
+    fontSize: 13,
+    fontWeight: '600',
+  },
   footer: {
     alignItems: 'center',
     paddingBottom: 12,
   },
   footerNotice: {
-    fontSize: 12,
     color: colors.neutral.gray500,
+    fontSize: 12,
     marginBottom: 4,
   },
   footerLinksRow: {
-    flexDirection: 'row',
     alignItems: 'center',
+    flexDirection: 'row',
   },
   footerLink: {
+    color: colors.brand.primary,
     fontSize: 12,
     fontWeight: '400',
-    color: colors.brand.primary,
   },
   footerDot: {
-    fontSize: 12,
     color: colors.neutral.gray500,
+    fontSize: 12,
   },
-  // Modal Styles
   modalOverlay: {
-    flex: 1,
     backgroundColor: 'rgba(26, 26, 46, 0.4)',
+    flex: 1,
     justifyContent: 'flex-end',
   },
   modalContent: {
@@ -370,63 +414,64 @@ const styles = StyleSheet.create({
     paddingBottom: Platform.OS === 'ios' ? 40 : 24,
   },
   modalHeader: {
+    alignItems: 'center',
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
     marginBottom: 16,
   },
   modalTitle: {
+    color: colors.neutral.text,
     fontSize: 18,
     fontWeight: '600',
-    color: colors.neutral.text,
   },
   closeButton: {
-    paddingVertical: 6,
-    paddingHorizontal: 12,
     backgroundColor: colors.neutral.gray100,
     borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
   },
   closeButtonText: {
+    color: colors.neutral.gray700,
     fontSize: 13,
     fontWeight: '400',
-    color: colors.neutral.gray700,
   },
   searchBar: {
     backgroundColor: colors.neutral.gray100,
+    borderColor: colors.neutral.gray200,
     borderRadius: 12,
+    borderWidth: 1,
+    color: colors.neutral.text,
+    fontSize: 14,
+    marginBottom: 16,
     paddingHorizontal: 16,
     paddingVertical: 10,
-    fontSize: 14,
-    color: colors.neutral.text,
-    marginBottom: 16,
-    borderWidth: 1,
-    borderColor: colors.neutral.gray200,
+  },
+  countryList: {
+    maxHeight: 300,
   },
   countryRow: {
-    flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 14,
-    borderBottomWidth: 1,
     borderBottomColor: colors.neutral.gray100,
+    borderBottomWidth: 1,
+    flexDirection: 'row',
+    paddingVertical: 14,
   },
   countryFlag: {
     fontSize: 20,
     marginRight: 14,
   },
   countryName: {
+    color: colors.neutral.text,
     flex: 1,
     fontSize: 15,
     fontWeight: '400',
-    color: colors.neutral.text,
   },
   countryDialCode: {
+    color: colors.brand.primary,
     fontSize: 15,
     fontWeight: '400',
-    color: colors.brand.primary,
   },
 });
-
-
 
 ~/Git/beeapp_ai/Fronted/apps/mobile/app/(auth)/verify.tsx
 import { useState, useEffect, useRef } from 'react';
@@ -751,474 +796,839 @@ const styles = StyleSheet.create({
 });
 
 
-
-~/Git/beeapp_ai/Fronted/apps/mobile/app/_layout.tsx
-import { Stack } from 'expo-router';
-import { GestureHandlerRootView } from 'react-native-gesture-handler';
-import { SafeAreaProvider } from 'react-native-safe-area-context';
-import AppLockScreen from '../src/components/security/AppLockScreen';
-
-export default function RootLayout() {
-  return (
-    // Root for gesture-driven UI (e.g. drag & drop in the Home customizer)
-    <GestureHandlerRootView style={{ flex: 1 }}>
-      {/* Provides the device insets (status bar, notch) to every screen */}
-      <SafeAreaProvider>
-        <Stack
-          screenOptions={{
-            headerShown: false,
-            contentStyle: { backgroundColor: '#6025d2' },
-          }}
-        />
-        <AppLockScreen />
-      </SafeAreaProvider>
-    </GestureHandlerRootView>
-  );
-}
-
-
-
-~/Git/beeapp_ai/Fronted/apps/mobile/app/index.tsx
-import { useEffect, useRef } from 'react';
-import { View, Text, ActivityIndicator, StyleSheet, Animated, Easing, Dimensions } from 'react-native';
+~/Git/beeapp_ai/Fronted/apps/mobile/app/(auth)/register.tsx
+import { useMemo, useState } from 'react';
+import {
+    ActivityIndicator,
+    Alert,
+    Keyboard,
+    KeyboardAvoidingView,
+    Modal,
+    Platform,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    TouchableWithoutFeedback,
+    View,
+    } from 'react-native';
 import { useRouter } from 'expo-router';
+import {
+    Check,
+    ChevronLeft,
+    Eye,
+    EyeOff,
+    LockKeyhole,
+    Mail,
+    Phone,
+    User,
+    UserPlus,
+    } from 'lucide-react-native';
 import { colors } from '@beeapp/design-system';
-import Svg, { Path } from 'react-native-svg';
-import AnimatedLogo from '../src/components/AnimatedLogo';
+import { registerUser } from '@beeapp/api-client';
+import type { RegisterUserPayload } from '@beeapp/shared-types';
 
-const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
+import AnimatedLogo from '../../src/components/AnimatedLogo';
+import CountryCodeModal from '../../src/components/contacts/CountryCodeModal';
+import ScreenSafeArea from '../../src/components/layout/ScreenSafeArea';
+import { COUNTRIES, type Country } from '../../src/mocks/countries';
 
-// Generates an SVG path representing a periodic curved line (sinusoidal-like) over 3 * width
-const getLinePath = (w: number, startY: number, amp: number) => {
-  return `M 0,${startY} Q ${w * 0.25},${startY - amp} ${w * 0.5},${startY} T ${w},${startY} T ${w * 1.5},${startY} T ${w * 2},${startY} T ${w * 2.5},${startY} T ${w * 3},${startY}`;
+type FormErrors = {
+    firstName?: string;
+    lastName?: string;
+    email?: string;
+    phoneNumber?: string;
+    password?: string;
+    confirmPassword?: string;
 };
 
-export default function SplashScreen() {
-  const router = useRouter();
+const MIN_PASSWORD_LENGTH = 8;
 
-  // Fade-in animation for logo, spinner, and text
-  const fadeAnim = useRef(new Animated.Value(0)).current;
+function normalizePhoneNumber(value: string): string {
+    return value.replace(/\D/g, '');
+}
 
-  // Animation values for horizontal wave movements
-  const wave1Anim = useRef(new Animated.Value(0)).current;
-  const wave2Anim = useRef(new Animated.Value(0)).current;
-  const wave3Anim = useRef(new Animated.Value(0)).current;
-  const wave4Anim = useRef(new Animated.Value(0)).current;
+function isValidEmail(value: string): boolean {
+    return /^\S+@\S+\.\S+$/.test(value);
+}
 
-  useEffect(() => {
-    // Fade-in content
-    Animated.timing(fadeAnim, {
-      toValue: 1,
-      duration: 800,
-      useNativeDriver: true,
-    }).start();
+export default function RegisterScreen() {
+    const router = useRouter();
 
-    // Loop Wave 1 (moving left)
-    Animated.loop(
-      Animated.timing(wave1Anim, {
-        toValue: 1,
-        duration: 16000,
-        easing: Easing.linear,
-        useNativeDriver: true,
-      })
-    ).start();
+    const [firstName, setFirstName] = useState('');
+    const [lastName, setLastName] = useState('');
+    const [email, setEmail] = useState('');
+    const [phoneNumber, setPhoneNumber] = useState('');
+    const [password, setPassword] = useState('');
+    const [confirmPassword, setConfirmPassword] = useState('');
+    const [acceptedTerms, setAcceptedTerms] = useState(false);
+    const [selectedCountry, setSelectedCountry] = useState<Country>(
+        COUNTRIES[0],
+    );
 
-    // Loop Wave 2 (moving right)
-    Animated.loop(
-      Animated.timing(wave2Anim, {
-        toValue: 1,
-        duration: 22000,
-        easing: Easing.linear,
-        useNativeDriver: true,
-      })
-    ).start();
+    const [errors, setErrors] = useState<FormErrors>({});
+    const [formError, setFormError] = useState('');
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    const [isCountryModalVisible, setIsCountryModalVisible] = useState(false);
+    const [isPasswordVisible, setIsPasswordVisible] = useState(false);
+    const [isConfirmPasswordVisible, setIsConfirmPasswordVisible] =
+        useState(false);
 
-    // Loop Wave 3 (moving left)
-    Animated.loop(
-      Animated.timing(wave3Anim, {
-        toValue: 1,
-        duration: 18000,
-        easing: Easing.linear,
-        useNativeDriver: true,
-      })
-    ).start();
+    const passwordStrengthLabel = useMemo(() => {
+        if (!password) {
+        return 'Use at least 8 characters.';
+        }
 
-    // Loop Wave 4 (moving right)
-    Animated.loop(
-      Animated.timing(wave4Anim, {
-        toValue: 1,
-        duration: 26000,
-        easing: Easing.linear,
-        useNativeDriver: true,
-      })
-    ).start();
+        if (password.length < MIN_PASSWORD_LENGTH) {
+        return `${MIN_PASSWORD_LENGTH - password.length} more characters required.`;
+        }
 
-    // Transition to login after 2.5 seconds
-    const timer = setTimeout(() => {
-      router.replace('/(auth)/login');
-    }, 2500);
+        return 'Password length is valid.';
+    }, [password]);
 
-    return () => clearTimeout(timer);
-  }, [fadeAnim, wave1Anim, wave2Anim, wave3Anim, wave4Anim, router]);
+    const clearFieldError = (field: keyof FormErrors) => {
+        setErrors((currentErrors) => ({
+        ...currentErrors,
+        [field]: undefined,
+        }));
 
-  // Interpolating translations to achieve seamless infinite loops
-  const wave1TranslateX = wave1Anim.interpolate({
-    inputRange: [0, 1],
-    outputRange: [0, -SCREEN_WIDTH],
-  });
+        if (formError) {
+        setFormError('');
+        }
+    };
 
-  const wave2TranslateX = wave2Anim.interpolate({
-    inputRange: [0, 1],
-    outputRange: [-SCREEN_WIDTH, 0],
-  });
+    const validateForm = (): boolean => {
+        const nextErrors: FormErrors = {};
+        const normalizedPhoneNumber = normalizePhoneNumber(phoneNumber);
 
-  const wave3TranslateX = wave3Anim.interpolate({
-    inputRange: [0, 1],
-    outputRange: [0, -SCREEN_WIDTH],
-  });
+        if (!firstName.trim()) {
+        nextErrors.firstName = 'Ingresa tu nombre.';
+        }
 
-  const wave4TranslateX = wave4Anim.interpolate({
-    inputRange: [0, 1],
-    outputRange: [-SCREEN_WIDTH, 0],
-  });
+        if (!lastName.trim()) {
+        nextErrors.lastName = 'Ingresa tu apellido.';
+        }
 
-  return (
-    <View style={styles.container}>
-      {/* ── Background: Flowing Trajectory Paths (Background Paths style) ── */}
-      <View style={StyleSheet.absoluteFill}>
-        {/* Layer 1 (Top third, rotating diagonal flow) */}
-        <Animated.View
-          style={[
-            styles.animatedPathWrapper,
+        if (!email.trim()) {
+        nextErrors.email = 'Ingresa tu correo electrónico.';
+        } else if (!isValidEmail(email.trim())) {
+        nextErrors.email = 'Ingresa un correo electrónico válido.';
+        }
+
+        if (!normalizedPhoneNumber) {
+        nextErrors.phoneNumber = 'Ingresa tu número de celular.';
+        } else if (normalizedPhoneNumber.length < 7) {
+        nextErrors.phoneNumber = 'Ingresa un número de celular válido.';
+        }
+
+        if (password.length < MIN_PASSWORD_LENGTH) {
+        nextErrors.password =
+            'La contraseña debe tener al menos 8 caracteres.';
+        }
+
+        if (password !== confirmPassword) {
+        nextErrors.confirmPassword = 'Las contraseñas no coinciden.';
+        }
+
+        if (!acceptedTerms) {
+        setFormError(
+            'Debes aceptar los Términos y Condiciones para crear una cuenta.',
+        );
+        } else {
+        setFormError('');
+        }
+
+        setErrors(nextErrors);
+
+        return Object.keys(nextErrors).length === 0 && acceptedTerms;
+    };
+
+    const handleRegister = async () => {
+        if (!validateForm()) {
+        return;
+        }
+
+        const payload: RegisterUserPayload = {
+        first_name: firstName.trim(),
+        last_name: lastName.trim(),
+        email: email.trim().toLowerCase(),
+        password,
+        phone_dial_code: selectedCountry.dialCode.replace('+', ''),
+        phone_number: normalizePhoneNumber(phoneNumber),
+        };
+
+        try {
+        setIsSubmitting(true);
+        setFormError('');
+
+        const response = await registerUser(payload);
+
+        Alert.alert(
+            'Cuenta creada',
+            `Bienvenido a BeeApp AI, ${response.user.first_name}. Tu cuenta y perfil fueron creados correctamente.`,
+            [
             {
-              top: SCREEN_HEIGHT * 0.1,
-              height: 120,
-              transform: [
-                { rotate: '-10deg' },
-                { translateX: wave1TranslateX },
-              ],
+                text: 'Ir a iniciar sesión',
+                onPress: () => router.replace('/(auth)/login'),
             },
-          ]}
+            ],
+        );
+        } catch (error) {
+        setFormError(
+            error instanceof Error
+            ? error.message
+            : 'No fue posible crear la cuenta. Inténtalo nuevamente.',
+        );
+        } finally {
+        setIsSubmitting(false);
+        }
+    };
+
+    return (
+        <ScreenSafeArea style={styles.safeArea}>
+        <KeyboardAvoidingView
+            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+            style={styles.container}
         >
-          <Svg width={SCREEN_WIDTH * 3} height={120}>
-            <Path
-              d={getLinePath(SCREEN_WIDTH, 60, 30)}
-              fill="none"
-              stroke={colors.brand.primary}
-              strokeWidth={1.5}
-              opacity={0.07}
+            <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+            <ScrollView
+                contentContainerStyle={styles.scrollContent}
+                keyboardShouldPersistTaps="handled"
+                showsVerticalScrollIndicator={false}
+            >
+                <TouchableOpacity
+                style={styles.backButton}
+                activeOpacity={0.7}
+                onPress={() => router.back()}
+                >
+                <ChevronLeft
+                    size={20}
+                    color={colors.neutral.gray700}
+                />
+
+                <Text style={styles.backButtonText}>Volver</Text>
+                </TouchableOpacity>
+
+                <View style={styles.logoContainer}>
+                <AnimatedLogo
+                    size={64}
+                    showText={false}
+                    autoStopAfter={2500}
+                />
+                </View>
+
+                <View style={styles.header}>
+                <View style={styles.headerIcon}>
+                    <UserPlus
+                    size={20}
+                    color={colors.brand.primary}
+                    />
+                </View>
+
+                <Text style={styles.title}>Crea tu cuenta</Text>
+
+                <Text style={styles.subtitle}>
+                    Completa tus datos para crear tu usuario y perfil en BeeApp AI.
+                </Text>
+                </View>
+
+                {formError ? (
+                <View style={styles.formErrorBox}>
+                    <Text style={styles.formErrorText}>{formError}</Text>
+                </View>
+                ) : null}
+
+                <View style={styles.formCard}>
+                <Text style={styles.sectionTitle}>Datos personales</Text>
+
+                <View style={styles.row}>
+                    <Field
+                    containerStyle={styles.halfField}
+                    label="Nombre"
+                    value={firstName}
+                    placeholder="Tu nombre"
+                    autoComplete="given-name"
+                    icon={<User size={17} color={colors.neutral.gray500} />}
+                    error={errors.firstName}
+                    onChangeText={(value) => {
+                        setFirstName(value);
+                        clearFieldError('firstName');
+                    }}
+                    />
+
+                    <Field
+                    containerStyle={styles.halfField}
+                    label="Apellido"
+                    value={lastName}
+                    placeholder="Tu apellido"
+                    autoComplete="family-name"
+                    icon={<User size={17} color={colors.neutral.gray500} />}
+                    error={errors.lastName}
+                    onChangeText={(value) => {
+                        setLastName(value);
+                        clearFieldError('lastName');
+                    }}
+                    />
+                </View>
+
+                <Field
+                    label="Correo electrónico"
+                    value={email}
+                    placeholder="tu@correo.com"
+                    autoComplete="email"
+                    keyboardType="email-address"
+                    autoCapitalize="none"
+                    icon={<Mail size={17} color={colors.neutral.gray500} />}
+                    error={errors.email}
+                    onChangeText={(value) => {
+                    setEmail(value);
+                    clearFieldError('email');
+                    }}
+                />
+
+                <View style={styles.fieldContainer}>
+                    <Text style={styles.label}>Número de celular</Text>
+
+                    <View
+                    style={[
+                        styles.phoneContainer,
+                        errors.phoneNumber && styles.inputError,
+                    ]}
+                    >
+                    <TouchableOpacity
+                        style={styles.countryButton}
+                        activeOpacity={0.7}
+                        onPress={() => setIsCountryModalVisible(true)}
+                    >
+                        <Text style={styles.countryFlag}>
+                        {selectedCountry.flag}
+                        </Text>
+
+                        <Text style={styles.countryCode}>
+                        {selectedCountry.dialCode}
+                        </Text>
+                    </TouchableOpacity>
+
+                    <View style={styles.phoneDivider} />
+
+                    <Phone
+                        size={17}
+                        color={colors.neutral.gray500}
+                    />
+
+                    <TextInput
+                        style={styles.phoneInput}
+                        placeholder="300 000 0000"
+                        placeholderTextColor={colors.neutral.gray500}
+                        keyboardType="number-pad"
+                        maxLength={15}
+                        value={phoneNumber}
+                        onChangeText={(value) => {
+                        setPhoneNumber(value.replace(/\D/g, ''));
+                        clearFieldError('phoneNumber');
+                        }}
+                    />
+                    </View>
+
+                    {errors.phoneNumber ? (
+                    <Text style={styles.errorText}>
+                        {errors.phoneNumber}
+                    </Text>
+                    ) : (
+                    <Text style={styles.helperText}>
+                        Usaremos este número para asociar tu cuenta.
+                    </Text>
+                    )}
+                </View>
+
+                <Text style={styles.sectionTitle}>Seguridad</Text>
+
+                <PasswordField
+                    label="Contraseña"
+                    value={password}
+                    visible={isPasswordVisible}
+                    error={errors.password}
+                    helperText={passwordStrengthLabel}
+                    onToggleVisibility={() => {
+                    setIsPasswordVisible((currentValue) => !currentValue);
+                    }}
+                    onChangeText={(value) => {
+                    setPassword(value);
+                    clearFieldError('password');
+                    }}
+                />
+
+                <PasswordField
+                    label="Confirmar contraseña"
+                    value={confirmPassword}
+                    visible={isConfirmPasswordVisible}
+                    error={errors.confirmPassword}
+                    onToggleVisibility={() => {
+                    setIsConfirmPasswordVisible(
+                        (currentValue) => !currentValue,
+                    );
+                    }}
+                    onChangeText={(value) => {
+                    setConfirmPassword(value);
+                    clearFieldError('confirmPassword');
+                    }}
+                />
+
+                <TouchableOpacity
+                    style={styles.termsRow}
+                    activeOpacity={0.7}
+                    onPress={() => setAcceptedTerms((currentValue) => !currentValue)}
+                >
+                    <View
+                    style={[
+                        styles.checkbox,
+                        acceptedTerms && styles.checkboxSelected,
+                    ]}
+                    >
+                    {acceptedTerms ? (
+                        <Check
+                        size={13}
+                        color={colors.neutral.white}
+                        strokeWidth={3}
+                        />
+                    ) : null}
+                    </View>
+
+                    <Text style={styles.termsText}>
+                    Acepto los{' '}
+
+                    <Text
+                        style={styles.termsLink}
+                        onPress={() => router.push('/(auth)/terms')}
+                    >
+                        Términos y Condiciones
+                    </Text>
+
+                    {' '}y la{' '}
+
+                    <Text
+                        style={styles.termsLink}
+                        onPress={() => router.push('/(auth)/privacy')}
+                    >
+                        Política de Privacidad
+                    </Text>
+
+                    {' '}de BeeApp AI.
+                    </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                    style={[
+                    styles.registerButton,
+                    isSubmitting && styles.registerButtonDisabled,
+                    ]}
+                    activeOpacity={0.8}
+                    disabled={isSubmitting}
+                    onPress={handleRegister}
+                >
+                    {isSubmitting ? (
+                    <ActivityIndicator color={colors.neutral.white} />
+                    ) : (
+                    <>
+                        <Text style={styles.registerButtonText}>
+                        Crear cuenta
+                        </Text>
+
+                        <UserPlus
+                        size={18}
+                        color={colors.neutral.white}
+                        />
+                    </>
+                    )}
+                </TouchableOpacity>
+                </View>
+
+                <View style={styles.loginRow}>
+                <Text style={styles.loginText}>¿Ya tienes una cuenta?</Text>
+
+                <TouchableOpacity
+                    activeOpacity={0.7}
+                    onPress={() => router.replace('/(auth)/login')}
+                >
+                    <Text style={styles.loginLink}>Inicia sesión</Text>
+                </TouchableOpacity>
+                </View>
+            </ScrollView>
+            </TouchableWithoutFeedback>
+        </KeyboardAvoidingView>
+
+        <CountryCodeModal
+            visible={isCountryModalVisible}
+            onClose={() => setIsCountryModalVisible(false)}
+            onSelect={(country) => {
+            setSelectedCountry(country);
+            setIsCountryModalVisible(false);
+            clearFieldError('phoneNumber');
+            }}
+        />
+        </ScreenSafeArea>
+    );
+}
+
+interface FieldProps {
+    label: string;
+    value: string;
+    placeholder: string;
+    autoComplete: 'given-name' | 'family-name' | 'email';
+    icon: React.ReactNode;
+    error?: string;
+    containerStyle?: object;
+    keyboardType?: 'default' | 'email-address';
+    autoCapitalize?: 'none' | 'sentences' | 'words';
+    onChangeText: (value: string) => void;
+}
+
+function Field({
+    label,
+    value,
+    placeholder,
+    autoComplete,
+    icon,
+    error,
+    containerStyle,
+    keyboardType = 'default',
+    autoCapitalize = 'words',
+    onChangeText,
+    }: FieldProps) {
+    return (
+        <View style={[styles.fieldContainer, containerStyle]}>
+        <Text style={styles.label}>{label}</Text>
+
+        <View style={[styles.input, error && styles.inputError]}>
+            {icon}
+
+            <TextInput
+            style={styles.textInput}
+            value={value}
+            placeholder={placeholder}
+            placeholderTextColor={colors.neutral.gray500}
+            autoComplete={autoComplete}
+            autoCapitalize={autoCapitalize}
+            keyboardType={keyboardType}
+            onChangeText={onChangeText}
             />
-          </Svg>
-        </Animated.View>
+        </View>
 
-        {/* Layer 2 (Upper-middle, flowing opposite) */}
-        <Animated.View
-          style={[
-            styles.animatedPathWrapper,
-            {
-              top: SCREEN_HEIGHT * 0.32,
-              height: 160,
-              transform: [
-                { rotate: '12deg' },
-                { translateX: wave2TranslateX },
-              ],
-            },
-          ]}
-        >
-          <Svg width={SCREEN_WIDTH * 3} height={160}>
-            <Path
-              d={getLinePath(SCREEN_WIDTH, 80, 45)}
-              fill="none"
-              stroke={colors.brand.dark}
-              strokeWidth={2}
-              opacity={0.08}
+        {error ? <Text style={styles.errorText}>{error}</Text> : null}
+        </View>
+    );
+}
+
+interface PasswordFieldProps {
+    label: string;
+    value: string;
+    visible: boolean;
+    error?: string;
+    helperText?: string;
+    onToggleVisibility: () => void;
+    onChangeText: (value: string) => void;
+}
+
+function PasswordField({
+    label,
+    value,
+    visible,
+    error,
+    helperText,
+    onToggleVisibility,
+    onChangeText,
+    }: PasswordFieldProps) {
+    return (
+        <View style={styles.fieldContainer}>
+        <Text style={styles.label}>{label}</Text>
+
+        <View style={[styles.input, error && styles.inputError]}>
+            <LockKeyhole size={17} color={colors.neutral.gray500} />
+
+            <TextInput
+            style={styles.textInput}
+            value={value}
+            placeholder="Mínimo 8 caracteres"
+            placeholderTextColor={colors.neutral.gray500}
+            autoComplete="new-password"
+            autoCapitalize="none"
+            secureTextEntry={!visible}
+            onChangeText={onChangeText}
             />
-          </Svg>
-        </Animated.View>
 
-        {/* Layer 3 (Lower-middle) */}
-        <Animated.View
-          style={[
-            styles.animatedPathWrapper,
-            {
-              top: SCREEN_HEIGHT * 0.55,
-              height: 140,
-              transform: [
-                { rotate: '-8deg' },
-                { translateX: wave3TranslateX },
-              ],
-            },
-          ]}
-        >
-          <Svg width={SCREEN_WIDTH * 3} height={140}>
-            <Path
-              d={getLinePath(SCREEN_WIDTH, 70, 35)}
-              fill="none"
-              stroke={colors.brand.primary}
-              strokeWidth={2.5}
-              opacity={0.06}
-            />
-          </Svg>
-        </Animated.View>
+            <TouchableOpacity
+            style={styles.visibilityButton}
+            activeOpacity={0.7}
+            onPress={onToggleVisibility}
+            >
+            {visible ? (
+                <EyeOff size={18} color={colors.neutral.gray500} />
+            ) : (
+                <Eye size={18} color={colors.neutral.gray500} />
+            )}
+            </TouchableOpacity>
+        </View>
 
-        {/* Layer 4 (Bottom, thin line) */}
-        <Animated.View
-          style={[
-            styles.animatedPathWrapper,
-            {
-              top: SCREEN_HEIGHT * 0.76,
-              height: 120,
-              transform: [
-                { rotate: '15deg' },
-                { translateX: wave4TranslateX },
-              ],
-            },
-          ]}
-        >
-          <Svg width={SCREEN_WIDTH * 3} height={120}>
-            <Path
-              d={getLinePath(SCREEN_WIDTH, 60, 25)}
-              fill="none"
-              stroke={colors.brand.dark}
-              strokeWidth={1}
-              opacity={0.11}
-            />
-          </Svg>
-        </Animated.View>
-      </View>
-
-      {/* ── Content Foreground ── */}
-      <Animated.View style={[styles.content, { opacity: fadeAnim }]}>
-        {/* Animated Logo (rotating wings visible behind, size 100, real text) */}
-        <AnimatedLogo size={100} showText={true} />
-
-        {/* Brand-colored spinner */}
-        <ActivityIndicator size="large" color={colors.brand.primary} style={styles.spinner} />
-
-        {/* Loading messages */}
-        <Text style={styles.title}>Iniciando tu espacio seguro...</Text>
-        <Text style={styles.subtitle}>Todo lo importante, en un solo lugar.</Text>
-      </Animated.View>
-    </View>
-  );
+        {error ? (
+            <Text style={styles.errorText}>{error}</Text>
+        ) : helperText ? (
+            <Text style={styles.helperText}>{helperText}</Text>
+        ) : null}
+        </View>
+    );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#FFFFFF', // Pure white background
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: 24,
-    overflow: 'hidden',
-  },
-  animatedPathWrapper: {
-    position: 'absolute',
-    left: -SCREEN_WIDTH, // Center the wide path canvas to ensure no cutoff on translation
-    width: SCREEN_WIDTH * 3,
-  },
-  content: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    width: '100%',
-    zIndex: 10,
-  },
-  spinner: {
-    marginVertical: 32,
-  },
-  title: {
-    color: colors.brand.primary, // Brand purple for contrast
-    fontSize: 16,
-    fontWeight: '700',
-    textAlign: 'center',
-    marginBottom: 8,
-  },
-  subtitle: {
-    color: colors.neutral.gray600, // Medium gray for contrast
-    fontSize: 13,
-    fontWeight: '500',
-    textAlign: 'center',
-  },
+    safeArea: {
+        flex: 1,
+        backgroundColor: colors.neutral.gray50,
+    },
+    container: {
+        flex: 1,
+    },
+    scrollContent: {
+        flexGrow: 1,
+        paddingHorizontal: 20,
+        paddingTop: 12,
+        paddingBottom: 32,
+    },
+    backButton: {
+        alignItems: 'center',
+        alignSelf: 'flex-start',
+        flexDirection: 'row',
+        marginBottom: 12,
+        paddingVertical: 6,
+    },
+    backButtonText: {
+        color: colors.neutral.gray700,
+        fontSize: 13,
+        fontWeight: '500',
+        marginLeft: 2,
+    },
+    logoContainer: {
+        alignItems: 'center',
+        marginBottom: 12,
+    },
+    header: {
+        alignItems: 'center',
+        marginBottom: 22,
+    },
+    headerIcon: {
+        alignItems: 'center',
+        backgroundColor: '#F0EAFF',
+        borderRadius: 14,
+        height: 42,
+        justifyContent: 'center',
+        marginBottom: 10,
+        width: 42,
+    },
+    title: {
+        color: colors.neutral.text,
+        fontSize: 25,
+        fontWeight: '700',
+        marginBottom: 8,
+        textAlign: 'center',
+    },
+    subtitle: {
+        color: colors.neutral.gray600,
+        fontSize: 13,
+        lineHeight: 19,
+        maxWidth: 320,
+        textAlign: 'center',
+    },
+    formErrorBox: {
+        backgroundColor: '#FEF2F2',
+        borderColor: '#FECACA',
+        borderRadius: 12,
+        borderWidth: 1,
+        marginBottom: 14,
+        padding: 12,
+    },
+    formErrorText: {
+        color: colors.semantic.error,
+        fontSize: 12,
+        lineHeight: 18,
+    },
+    formCard: {
+        backgroundColor: colors.neutral.white,
+        borderColor: colors.neutral.gray200,
+        borderRadius: 20,
+        borderWidth: 1,
+        elevation: 2,
+        padding: 16,
+        shadowColor: colors.brand.primary,
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.05,
+        shadowRadius: 12,
+    },
+    sectionTitle: {
+        color: colors.neutral.gray700,
+        fontSize: 11,
+        fontWeight: '700',
+        letterSpacing: 0.7,
+        marginBottom: 14,
+        marginTop: 4,
+        textTransform: 'uppercase',
+    },
+    row: {
+        flexDirection: 'row',
+        gap: 10,
+    },
+    halfField: {
+        flex: 1,
+    },
+    fieldContainer: {
+        marginBottom: 15,
+    },
+    label: {
+        color: colors.neutral.gray700,
+        fontSize: 12,
+        fontWeight: '600',
+        marginBottom: 7,
+    },
+    input: {
+        alignItems: 'center',
+        backgroundColor: colors.neutral.white,
+        borderColor: colors.neutral.gray200,
+        borderRadius: 12,
+        borderWidth: 1,
+        flexDirection: 'row',
+        height: 48,
+        paddingHorizontal: 13,
+    },
+    inputError: {
+        borderColor: colors.semantic.error,
+    },
+    textInput: {
+        color: colors.neutral.text,
+        flex: 1,
+        fontSize: 14,
+        marginLeft: 9,
+        paddingVertical: 0,
+    },
+    visibilityButton: {
+        padding: 4,
+    },
+    phoneContainer: {
+        alignItems: 'center',
+        backgroundColor: colors.neutral.white,
+        borderColor: colors.neutral.gray200,
+        borderRadius: 12,
+        borderWidth: 1,
+        flexDirection: 'row',
+        height: 48,
+        paddingRight: 13,
+    },
+    countryButton: {
+        alignItems: 'center',
+        flexDirection: 'row',
+        paddingHorizontal: 11,
+    },
+    countryFlag: {
+        fontSize: 17,
+        marginRight: 5,
+    },
+    countryCode: {
+        color: colors.neutral.text,
+        fontSize: 13,
+        fontWeight: '600',
+    },
+    phoneDivider: {
+        backgroundColor: colors.neutral.gray200,
+        height: 24,
+        marginRight: 10,
+        width: 1,
+    },
+    phoneInput: {
+        color: colors.neutral.text,
+        flex: 1,
+        fontSize: 14,
+        marginLeft: 9,
+        paddingVertical: 0,
+    },
+    helperText: {
+        color: colors.neutral.gray500,
+        fontSize: 11,
+        lineHeight: 16,
+        marginTop: 5,
+    },
+    errorText: {
+        color: colors.semantic.error,
+        fontSize: 11,
+        lineHeight: 16,
+        marginTop: 5,
+    },
+    termsRow: {
+        alignItems: 'flex-start',
+        flexDirection: 'row',
+        marginBottom: 20,
+        marginTop: 2,
+    },
+    checkbox: {
+        alignItems: 'center',
+        borderColor: colors.neutral.gray300,
+        borderRadius: 5,
+        borderWidth: 1.5,
+        height: 18,
+        justifyContent: 'center',
+        marginRight: 9,
+        marginTop: 1,
+        width: 18,
+    },
+    checkboxSelected: {
+        backgroundColor: colors.brand.primary,
+        borderColor: colors.brand.primary,
+    },
+    termsText: {
+        color: colors.neutral.gray600,
+        flex: 1,
+        fontSize: 11,
+        lineHeight: 17,
+    },
+    termsLink: {
+        color: colors.brand.primary,
+        fontWeight: '600',
+    },
+    registerButton: {
+        alignItems: 'center',
+        backgroundColor: colors.brand.primary,
+        borderRadius: 13,
+        elevation: 4,
+        flexDirection: 'row',
+        height: 50,
+        justifyContent: 'center',
+        shadowColor: colors.brand.primary,
+        shadowOffset: { width: 0, height: 5 },
+        shadowOpacity: 0.22,
+        shadowRadius: 9,
+    },
+    registerButtonDisabled: {
+        opacity: 0.7,
+    },
+    registerButtonText: {
+        color: colors.neutral.white,
+        fontSize: 15,
+        fontWeight: '700',
+        marginRight: 8,
+    },
+    loginRow: {
+        alignItems: 'center',
+        flexDirection: 'row',
+        justifyContent: 'center',
+        marginTop: 22,
+    },
+    loginText: {
+        color: colors.neutral.gray600,
+        fontSize: 13,
+        marginRight: 5,
+    },
+    loginLink: {
+        color: colors.brand.primary,
+        fontSize: 13,
+        fontWeight: '700',
+    },
 });
-
-
-~/Git/beeapp_ai/Fronted/apps/mobile/package.json
-{
-  "name": "@beeapp/mobile",
-  "version": "0.1.0",
-  "private": true,
-  "main": "index.js",
-  "scripts": {
-    "start": "expo start --dev-client",
-    "android": "expo run:android",
-    "ios": "expo run:ios",
-    "web": "expo start --web",
-    "type-check": "tsc --noEmit",
-    "postinstall": "node scripts/patch-expo-router.js"
-  },
-  "dependencies": {
-    "@beeapp/api-client": "*",
-    "@beeapp/design-system": "*",
-    "@beeapp/shared-types": "*",
-    "expo": "~51.0.0",
-    "expo-dev-client": "~4.0.26",
-    "expo-router": "~3.5.24",
-    "expo-status-bar": "~1.12.1",
-    "lucide-react-native": "^1.25.0",
-    "react": "18.2.0",
-    "react-dom": "18.2.0",
-    "react-native": "0.74.5",
-    "react-native-draggable-flatlist": "^4.0.3",
-    "react-native-gesture-handler": "~2.16.1",
-    "react-native-reanimated": "~3.10.1",
-    "react-native-safe-area-context": "4.10.5",
-    "react-native-screens": "3.31.1",
-    "react-native-svg": "15.2.0",
-    "react-native-web": "~0.19.10"
-  },
-  "devDependencies": {
-    "@babel/core": "^7.20.0",
-    "@beeapp/config": "*",
-    "@types/react": "~18.2.45",
-    "typescript": "^5.4.0"
-  }
-}
-
-~/Git/beeapp_ai/Fronted/apps/mobile/app.json
-{
-  "expo": {
-    "name": "BeeApp AI",
-    "slug": "beeapp",
-    "version": "1.0.0",
-    "orientation": "portrait",
-    "icon": "./src/assets/logo.png",
-    "scheme": "beeapp",
-    "userInterfaceStyle": "light",
-    "splash": {
-      "image": "./src/assets/logo.png",
-      "resizeMode": "contain",
-      "backgroundColor": "#6025d2"
-    },
-    "ios": {
-      "supportsTablet": true,
-      "bundleIdentifier": "com.beeapp.mobile"
-    },
-    "android": {
-      "adaptiveIcon": {
-        "foregroundImage": "./src/assets/logo.png",
-        "backgroundColor": "#6025d2"
-      },
-      "package": "com.beeapp.mobile"
-    },
-    "web": {
-      "bundler": "metro"
-    },
-    "plugins": [
-      "expo-router",
-      "expo-dev-client",
-      "./withMonorepoSettings.js"
-    ]
-  }
-}
-
-~/Git/beeapp_ai/Fronted/apps/mobile/babel.config.js
-const path = require('path');
-
-module.exports = function (api) {
-  api.cache(true);
-  
-  // Use absolute path to guarantee Babel finds the app directory regardless of hoisting
-  process.env.EXPO_ROUTER_APP_ROOT = path.resolve(__dirname, 'app');
-  
-  return {
-    presets: ['babel-preset-expo'],
-    // Required by react-native-reanimated (drag & drop); must stay last
-    plugins: ['react-native-reanimated/plugin'],
-  };
-};
-
-
-~/Git/beeapp_ai/Fronted/apps/mobile/metro.config.js
-const { getDefaultConfig } = require('expo/metro-config');
-const path = require('path');
-
-const projectRoot = __dirname;
-const workspaceRoot = path.resolve(projectRoot, '../..');
-
-const config = getDefaultConfig(projectRoot);
-
-// 1. Only watch source directories — NOT node_modules.
-//    Metro can RESOLVE modules from nodeModulesPaths without watching them.
-//    Watching all of node_modules causes EMFILE (too many open files) on macOS.
-config.watchFolders = [
-  // Watch shared packages source code so edits trigger hot reload
-  path.resolve(workspaceRoot, 'packages'),
-  // The projectRoot (apps/mobile) is always watched automatically
-];
-
-// 2. Tell Metro where to find modules for resolution (separate from watching)
-config.resolver.nodeModulesPaths = [
-  path.resolve(projectRoot, 'node_modules'),
-  path.resolve(workspaceRoot, 'node_modules'),
-];
-
-// 3. Allow hierarchical lookup so Metro reliably resolves hoisted packages
-config.resolver.disableHierarchicalLookup = false;
-
-module.exports = config;
-
-
-~/Git/beeapp_ai/Fronted/apps/mobile/tsconfig.json
-{
-  "extends": "../../packages/config/tsconfig.base.json",
-  "compilerOptions": {
-    "jsx": "react-jsx",
-    "paths": {
-      "@/*": ["./src/*"],
-      "@beeapp/api-client": ["../../packages/api-client/src"],
-      "@beeapp/design-system": ["../../packages/design-system"],
-      "@beeapp/shared-types": ["../../packages/shared-types"]
-    }
-  },
-  "include": ["**/*.ts", "**/*.tsx"]
-}
-
-~/Git/beeapp_ai/Fronted/apps/mobile/withMonorepoSettings.js
-const { withSettingsGradle, withGradleProperties } = require('@expo/config-plugins');
-
-module.exports = function withMonorepoSettings(config) {
-  config = withSettingsGradle(config, (config) => {
-    if (config.modResults.contents.includes('useExpoModules()')) {
-      config.modResults.contents = config.modResults.contents.replace(
-        'useExpoModules()',
-        `useExpoModules([
-  searchPaths: [
-    new File(rootDir, "../../../node_modules").absolutePath
-  ]
-])`
-      );
-    }
-    return config;
-  });
-
-  // Increase Gradle Daemon memory to prevent Java heap space errors during Hermes Jetifier transformation
-  config = withGradleProperties(config, (config) => {
-    const jvmArgsIndex = config.modResults.findIndex(item => item.key === 'org.gradle.jvmargs');
-    if (jvmArgsIndex !== -1) {
-      config.modResults[jvmArgsIndex].value = '-Xmx4096m -XX:MaxMetaspaceSize=1024m';
-    } else {
-      config.modResults.push({
-        type: 'property',
-        key: 'org.gradle.jvmargs',
-        value: '-Xmx4096m -XX:MaxMetaspaceSize=1024m'
-      });
-    }
-    return config;
-  });
-
-  return config;
-};
-
 
 ~/Git/beeapp_ai/Fronted/apps/mobile/src/components/AnimatedLogo.tsx
 import { useEffect, useRef } from 'react';
@@ -1426,107 +1836,6 @@ export default function ScreenSafeArea({ style, children, ...rest }: ViewProps) 
     </View>
   );
 }
-
-
-~/Git/beeapp_ai/Fronted/apps/mobile/src/components/contacts/CountryCodeModal.tsx
-import { useState } from 'react';
-import { View, Text, StyleSheet, Modal, ScrollView, TextInput, TouchableOpacity } from 'react-native';
-import { colors, spacing, radii } from '@beeapp/design-system';
-import { Search } from 'lucide-react-native';
-import { COUNTRIES, Country } from '../../mocks/countries';
-
-interface CountryCodeModalProps {
-  visible: boolean;
-  onSelect: (country: Country) => void;
-  onClose: () => void;
-}
-
-/** Country dial-code picker of the new contact form */
-export default function CountryCodeModal({ visible, onSelect, onClose }: CountryCodeModalProps) {
-  const [query, setQuery] = useState('');
-
-  const text = query.trim().toLowerCase();
-  const results = COUNTRIES.filter(
-    (country) => country.name.toLowerCase().includes(text) || country.dialCode.includes(text)
-  );
-
-  return (
-    <Modal transparent visible={visible} animationType="slide" onRequestClose={onClose}>
-      <View style={styles.backdrop}>
-        <TouchableOpacity style={styles.backdropTouch} onPress={onClose} activeOpacity={1} />
-
-        <View style={styles.sheet}>
-          <Text style={styles.title}>Indicativo del país</Text>
-
-          <View style={styles.searchBar}>
-            <Search size={16} color={colors.neutral.gray500} />
-            <TextInput
-              style={styles.searchInput}
-              value={query}
-              onChangeText={setQuery}
-              placeholder="Buscar país"
-              placeholderTextColor={colors.neutral.gray500}
-            />
-          </View>
-
-          <ScrollView style={styles.list} showsVerticalScrollIndicator={false}>
-            {results.map((country) => (
-              <TouchableOpacity
-                key={`${country.code}-${country.dialCode}`}
-                style={styles.row}
-                onPress={() => onSelect(country)}
-                activeOpacity={0.7}
-              >
-                <Text style={styles.rowName} numberOfLines={1}>
-                  {country.name}
-                </Text>
-                <Text style={styles.rowCode}>{country.dialCode}</Text>
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
-        </View>
-      </View>
-    </Modal>
-  );
-}
-
-const styles = StyleSheet.create({
-  backdrop: { flex: 1, backgroundColor: 'rgba(26, 26, 46, 0.4)', justifyContent: 'flex-end' },
-  backdropTouch: { flex: 1 },
-  sheet: {
-    backgroundColor: colors.neutral.white,
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    paddingHorizontal: spacing.lg,
-    paddingTop: spacing.lg,
-    paddingBottom: spacing.xl,
-    maxHeight: '80%',
-  },
-  title: { fontSize: 16, fontWeight: '600', color: colors.neutral.text },
-  searchBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-    backgroundColor: colors.neutral.gray100,
-    borderRadius: radii.lg,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    marginTop: spacing.md,
-  },
-  searchInput: { flex: 1, fontSize: 14, fontWeight: '400', color: colors.neutral.text, padding: 0 },
-  list: { marginTop: spacing.sm },
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: spacing.sm,
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.neutral.gray100,
-  },
-  rowName: { flex: 1, fontSize: 14, fontWeight: '400', color: colors.neutral.text },
-  rowCode: { fontSize: 13, fontWeight: '400', color: colors.neutral.gray600 },
-});
 
 
 ~/Git/beeapp_ai/Fronted/apps/mobile/src/mocks/countries.ts
@@ -1741,5 +2050,31 @@ const ALL_OTHER_COUNTRIES: Country[] = [
 export const COUNTRIES: Country[] = [...SUGGESTED_COUNTRIES, ...ALL_OTHER_COUNTRIES];
 
 
-~/Git/beeapp_ai/Fronted/apps/mobile/src/constants/.gitkeep
-vacio 
+~/Git/beeapp_ai/Fronted/apps/mobile/app/(auth)/app-lock-setup.tsx
+import React from 'react';
+import ScreenSafeArea from '../../src/components/layout/ScreenSafeArea';
+import { useRouter } from 'expo-router';
+import { colors } from '@beeapp/design-system';
+import { View, StyleSheet } from 'react-native';
+import AppLockSetupScreen from '../../src/components/security/AppLockSetupScreen';
+
+export default function AppLockSetupRoute() {
+  const router = useRouter();
+
+  const handleComplete = () => {
+    router.replace('/onboarding');
+  };
+
+  return (
+    <ScreenSafeArea style={styles.safeArea}>
+      <View style={styles.container}>
+        <AppLockSetupScreen onComplete={handleComplete} />
+      </View>
+    </ScreenSafeArea>
+  );
+}
+
+const styles = StyleSheet.create({
+  safeArea: { flex: 1, backgroundColor: colors.neutral.gray50 },
+  container: { flex: 1 },
+});

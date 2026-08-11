@@ -13,22 +13,49 @@ import {
   View,
 } from 'react-native';
 import { useRouter } from 'expo-router';
+import {
+  Eye,
+  EyeOff,
+  LockKeyhole,
+  Mail,
+  MessageSquare,
+  Phone,
+} from 'lucide-react-native';
 import { colors } from '@beeapp/design-system';
 
 import AnimatedLogo from '../../src/components/AnimatedLogo';
 import ScreenSafeArea from '../../src/components/layout/ScreenSafeArea';
 import { COUNTRIES, type Country } from '../../src/mocks/countries';
 
+type LoginMethod = 'otp' | 'password';
+
+type FormErrors = {
+  email?: string;
+  password?: string;
+  phoneNumber?: string;
+};
+
+const MIN_PASSWORD_LENGTH = 8;
+
+function isValidEmail(value: string): boolean {
+  return /^\S+@\S+\.\S+$/.test(value);
+}
+
 export default function LoginScreen() {
   const router = useRouter();
 
-  const [phoneNumber, setPhoneNumber] = useState('');
-  const [error, setError] = useState('');
+  const [loginMethod, setLoginMethod] = useState<LoginMethod>('otp');
   const [selectedCountry, setSelectedCountry] = useState<Country>(
     COUNTRIES[0],
   );
+  const [phoneNumber, setPhoneNumber] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [isPasswordVisible, setIsPasswordVisible] = useState(false);
   const [isCountryModalVisible, setIsCountryModalVisible] = useState(false);
   const [countrySearch, setCountrySearch] = useState('');
+  const [errors, setErrors] = useState<FormErrors>({});
+  const [formMessage, setFormMessage] = useState('');
 
   const filteredCountries = useMemo(() => {
     const normalizedQuery = countrySearch.trim().toLowerCase();
@@ -44,28 +71,68 @@ export default function LoginScreen() {
     );
   }, [countrySearch]);
 
-  const handleContinue = () => {
+  const clearFieldError = (field: keyof FormErrors) => {
+    setErrors((currentErrors) => ({
+      ...currentErrors,
+      [field]: undefined,
+    }));
+
+    if (formMessage) {
+      setFormMessage('');
+    }
+  };
+
+  const changeLoginMethod = (nextMethod: LoginMethod) => {
+    setLoginMethod(nextMethod);
+    setErrors({});
+    setFormMessage('');
+    Keyboard.dismiss();
+  };
+
+  const handleOtpContinue = () => {
     const normalizedPhoneNumber = phoneNumber.replace(/\D/g, '');
 
     if (
       normalizedPhoneNumber.length < 7 ||
       normalizedPhoneNumber.length > 15
     ) {
-      setError('Ingresa un número de celular válido.');
+      setErrors({
+        phoneNumber: 'Ingresa un número de celular válido.',
+      });
       return;
     }
 
-    setError('');
+    setErrors({});
+    setFormMessage(
+      'El acceso por SMS estará disponible cuando configuremos el proveedor OTP.',
+    );
+  };
 
-    router.push({
-      pathname: '/(auth)/verify',
-      params: {
-        from: 'login',
-        phone: normalizedPhoneNumber,
-        dialCode: selectedCountry.dialCode,
-        flag: selectedCountry.flag,
-      },
-    });
+  const handlePasswordContinue = () => {
+    const nextErrors: FormErrors = {};
+
+    if (!email.trim()) {
+      nextErrors.email = 'Ingresa tu correo electrónico.';
+    } else if (!isValidEmail(email.trim())) {
+      nextErrors.email = 'Ingresa un correo electrónico válido.';
+    }
+
+    if (!password) {
+      nextErrors.password = 'Ingresa tu contraseña.';
+    } else if (password.length < MIN_PASSWORD_LENGTH) {
+      nextErrors.password =
+        'La contraseña debe tener al menos 8 caracteres.';
+    }
+
+    if (Object.keys(nextErrors).length > 0) {
+      setErrors(nextErrors);
+      return;
+    }
+
+    setErrors({});
+    setFormMessage(
+      'El inicio de sesión con correo estará disponible en la siguiente integración.',
+    );
   };
 
   const openCountryModal = () => {
@@ -84,7 +151,7 @@ export default function LoginScreen() {
             <View style={styles.contentContainer}>
               <View style={styles.logoContainer}>
                 <AnimatedLogo
-                  size={80}
+                  size={76}
                   showText={false}
                   autoStopAfter={2500}
                 />
@@ -93,54 +160,315 @@ export default function LoginScreen() {
               <Text style={styles.title}>Inicia sesión</Text>
 
               <Text style={styles.subtitle}>
-                Ingresa tu número de celular para continuar.
+                Elige cómo quieres acceder a tu cuenta de BeeApp AI.
               </Text>
 
-              <View style={styles.inputCard}>
-                <Text style={styles.inputLabel}>Número telefónico</Text>
-
-                <View style={styles.phoneInputContainer}>
-                  <TouchableOpacity
-                    style={styles.prefixBadge}
-                    activeOpacity={0.7}
-                    onPress={openCountryModal}
-                  >
-                    <Text style={styles.flag}>{selectedCountry.flag}</Text>
-
-                    <Text style={styles.prefixText}>
-                      {selectedCountry.dialCode}
-                    </Text>
-                  </TouchableOpacity>
-
-                  <TextInput
-                    style={styles.phoneInput}
-                    placeholder="300 000 0000"
-                    placeholderTextColor={colors.neutral.gray500}
-                    keyboardType="number-pad"
-                    maxLength={15}
-                    value={phoneNumber}
-                    onChangeText={(value) => {
-                      setPhoneNumber(value.replace(/\D/g, ''));
-
-                      if (error) {
-                        setError('');
-                      }
-                    }}
+              <View style={styles.methodSwitcher}>
+                <TouchableOpacity
+                  style={[
+                    styles.methodButton,
+                    loginMethod === 'otp' && styles.methodButtonActive,
+                  ]}
+                  activeOpacity={0.8}
+                  onPress={() => changeLoginMethod('otp')}
+                >
+                  <MessageSquare
+                    size={16}
+                    color={
+                      loginMethod === 'otp'
+                        ? colors.neutral.white
+                        : colors.neutral.gray600
+                    }
                   />
-                </View>
 
-                {error ? (
-                  <Text style={styles.errorText}>{error}</Text>
-                ) : null}
+                  <Text
+                    style={[
+                      styles.methodButtonText,
+                      loginMethod === 'otp' &&
+                        styles.methodButtonTextActive,
+                    ]}
+                  >
+                    Mensaje SMS
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[
+                    styles.methodButton,
+                    loginMethod === 'password' &&
+                      styles.methodButtonActive,
+                  ]}
+                  activeOpacity={0.8}
+                  onPress={() => changeLoginMethod('password')}
+                >
+                  <Mail
+                    size={16}
+                    color={
+                      loginMethod === 'password'
+                        ? colors.neutral.white
+                        : colors.neutral.gray600
+                    }
+                  />
+
+                  <Text
+                    style={[
+                      styles.methodButtonText,
+                      loginMethod === 'password' &&
+                        styles.methodButtonTextActive,
+                    ]}
+                  >
+                    Correo
+                  </Text>
+                </TouchableOpacity>
               </View>
 
-              <TouchableOpacity
-                style={styles.primaryButton}
-                activeOpacity={0.8}
-                onPress={handleContinue}
-              >
-                <Text style={styles.primaryButtonText}>Continuar</Text>
-              </TouchableOpacity>
+              <View style={styles.inputCard}>
+                {loginMethod === 'otp' ? (
+                  <>
+                    <View style={styles.cardHeader}>
+                      <View style={styles.cardIcon}>
+                        <Phone
+                          size={18}
+                          color={colors.brand.primary}
+                        />
+                      </View>
+
+                      <View style={styles.cardHeaderContent}>
+                        <Text style={styles.inputLabel}>
+                          Acceso por mensaje
+                        </Text>
+
+                        <Text style={styles.inputDescription}>
+                          Recibirás un código de verificación por SMS.
+                        </Text>
+                      </View>
+                    </View>
+
+                    <Text style={styles.fieldLabel}>
+                      Número de celular
+                    </Text>
+
+                    <View
+                      style={[
+                        styles.phoneInputContainer,
+                        errors.phoneNumber && styles.inputContainerError,
+                      ]}
+                    >
+                      <TouchableOpacity
+                        style={styles.prefixBadge}
+                        activeOpacity={0.7}
+                        onPress={openCountryModal}
+                      >
+                        <Text style={styles.flag}>
+                          {selectedCountry.flag}
+                        </Text>
+
+                        <Text style={styles.prefixText}>
+                          {selectedCountry.dialCode}
+                        </Text>
+                      </TouchableOpacity>
+
+                      <View style={styles.phoneDivider} />
+
+                      <Phone
+                        size={17}
+                        color={colors.neutral.gray500}
+                      />
+
+                      <TextInput
+                        style={styles.phoneInput}
+                        placeholder="300 000 0000"
+                        placeholderTextColor={colors.neutral.gray500}
+                        keyboardType="number-pad"
+                        maxLength={15}
+                        value={phoneNumber}
+                        onChangeText={(value) => {
+                          setPhoneNumber(value.replace(/\D/g, ''));
+                          clearFieldError('phoneNumber');
+                        }}
+                      />
+                    </View>
+
+                    {errors.phoneNumber ? (
+                      <Text style={styles.errorText}>
+                        {errors.phoneNumber}
+                      </Text>
+                    ) : (
+                      <Text style={styles.helperText}>
+                        Podrás usar este método cuando el servicio SMS esté
+                        habilitado.
+                      </Text>
+                    )}
+
+                    <TouchableOpacity
+                      style={styles.primaryButton}
+                      activeOpacity={0.8}
+                      onPress={handleOtpContinue}
+                    >
+                      <Text style={styles.primaryButtonText}>
+                        Continuar con SMS
+                      </Text>
+
+                      <MessageSquare
+                        size={18}
+                        color={colors.neutral.white}
+                      />
+                    </TouchableOpacity>
+                  </>
+                ) : (
+                  <>
+                    <View style={styles.cardHeader}>
+                      <View style={styles.cardIcon}>
+                        <Mail
+                          size={18}
+                          color={colors.brand.primary}
+                        />
+                      </View>
+
+                      <View style={styles.cardHeaderContent}>
+                        <Text style={styles.inputLabel}>
+                          Acceso con correo
+                        </Text>
+
+                        <Text style={styles.inputDescription}>
+                          Usa el correo y contraseña de tu cuenta.
+                        </Text>
+                      </View>
+                    </View>
+
+                    <View style={styles.fieldGroup}>
+                      <Text style={styles.fieldLabel}>
+                        Correo electrónico
+                      </Text>
+
+                      <View
+                        style={[
+                          styles.textInputContainer,
+                          errors.email && styles.inputContainerError,
+                        ]}
+                      >
+                        <Mail
+                          size={17}
+                          color={colors.neutral.gray500}
+                        />
+
+                        <TextInput
+                          style={styles.textInput}
+                          placeholder="tu@correo.com"
+                          placeholderTextColor={colors.neutral.gray500}
+                          keyboardType="email-address"
+                          autoCapitalize="none"
+                          autoComplete="email"
+                          value={email}
+                          onChangeText={(value) => {
+                            setEmail(value);
+                            clearFieldError('email');
+                          }}
+                        />
+                      </View>
+
+                      {errors.email ? (
+                        <Text style={styles.errorText}>
+                          {errors.email}
+                        </Text>
+                      ) : null}
+                    </View>
+
+                    <View style={styles.passwordGroup}>
+                      <Text style={styles.fieldLabel}>Contraseña</Text>
+
+                      <View
+                        style={[
+                          styles.textInputContainer,
+                          errors.password && styles.inputContainerError,
+                        ]}
+                      >
+                        <LockKeyhole
+                          size={17}
+                          color={colors.neutral.gray500}
+                        />
+
+                        <TextInput
+                          style={styles.textInput}
+                          placeholder="Ingresa tu contraseña"
+                          placeholderTextColor={colors.neutral.gray500}
+                          autoCapitalize="none"
+                          autoComplete="password"
+                          secureTextEntry={!isPasswordVisible}
+                          value={password}
+                          onChangeText={(value) => {
+                            setPassword(value);
+                            clearFieldError('password');
+                          }}
+                        />
+
+                        <TouchableOpacity
+                          style={styles.visibilityButton}
+                          activeOpacity={0.7}
+                          onPress={() => {
+                            setIsPasswordVisible((currentValue) => !currentValue);
+                          }}
+                        >
+                          {isPasswordVisible ? (
+                            <EyeOff
+                              size={18}
+                              color={colors.neutral.gray500}
+                            />
+                          ) : (
+                            <Eye
+                              size={18}
+                              color={colors.neutral.gray500}
+                            />
+                          )}
+                        </TouchableOpacity>
+                      </View>
+
+                      {errors.password ? (
+                        <Text style={styles.errorText}>
+                          {errors.password}
+                        </Text>
+                      ) : null}
+                    </View>
+
+                    <TouchableOpacity
+                      style={styles.forgotPasswordButton}
+                      activeOpacity={0.7}
+                      onPress={() => {
+                        setFormMessage(
+                          'La recuperación de contraseña estará disponible próximamente.',
+                        );
+                      }}
+                    >
+                      <Text style={styles.forgotPasswordText}>
+                        ¿Olvidaste tu contraseña?
+                      </Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      style={styles.primaryButton}
+                      activeOpacity={0.8}
+                      onPress={handlePasswordContinue}
+                    >
+                      <Text style={styles.primaryButtonText}>
+                        Iniciar sesión
+                      </Text>
+
+                      <Mail
+                        size={18}
+                        color={colors.neutral.white}
+                      />
+                    </TouchableOpacity>
+                  </>
+                )}
+
+                {formMessage ? (
+                  <View style={styles.formMessage}>
+                    <Text style={styles.formMessageText}>
+                      {formMessage}
+                    </Text>
+                  </View>
+                ) : null}
+              </View>
 
               <View style={styles.registerRow}>
                 <Text style={styles.registerText}>
@@ -227,6 +555,7 @@ export default function LoginScreen() {
                       onPress={() => {
                         setSelectedCountry(item);
                         setIsCountryModalVisible(false);
+                        clearFieldError('phoneNumber');
                       }}
                     >
                       <Text style={styles.countryFlag}>{item.flag}</Text>
@@ -270,8 +599,8 @@ const styles = StyleSheet.create({
   },
   logoContainer: {
     alignItems: 'center',
-    marginTop: Platform.OS === 'ios' ? 40 : 20,
-    marginBottom: 20,
+    marginBottom: 16,
+    marginTop: Platform.OS === 'ios' ? 34 : 18,
   },
   title: {
     color: colors.neutral.text,
@@ -284,88 +613,215 @@ const styles = StyleSheet.create({
     color: colors.neutral.gray600,
     fontSize: 14,
     lineHeight: 20,
-    marginBottom: 32,
+    marginBottom: 22,
     paddingHorizontal: 12,
     textAlign: 'center',
+  },
+  methodSwitcher: {
+    backgroundColor: colors.neutral.gray100,
+    borderRadius: 14,
+    flexDirection: 'row',
+    marginBottom: 16,
+    padding: 4,
+  },
+  methodButton: {
+    alignItems: 'center',
+    borderRadius: 10,
+    flex: 1,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    minHeight: 42,
+  },
+  methodButtonActive: {
+    backgroundColor: colors.brand.primary,
+    elevation: 2,
+    shadowColor: colors.brand.primary,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.18,
+    shadowRadius: 5,
+  },
+  methodButtonText: {
+    color: colors.neutral.gray600,
+    fontSize: 13,
+    fontWeight: '600',
+    marginLeft: 7,
+  },
+  methodButtonTextActive: {
+    color: colors.neutral.white,
   },
   inputCard: {
     backgroundColor: colors.neutral.white,
     borderColor: colors.neutral.gray200,
-    borderRadius: 16,
+    borderRadius: 18,
     borderWidth: 1,
     elevation: 2,
-    marginBottom: 20,
     padding: 16,
     shadowColor: colors.brand.primary,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.05,
     shadowRadius: 12,
   },
+  cardHeader: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    marginBottom: 20,
+  },
+  cardIcon: {
+    alignItems: 'center',
+    backgroundColor: '#F0EAFF',
+    borderRadius: 12,
+    height: 38,
+    justifyContent: 'center',
+    marginRight: 11,
+    width: 38,
+  },
+  cardHeaderContent: {
+    flex: 1,
+  },
   inputLabel: {
+    color: colors.neutral.text,
+    fontSize: 13,
+    fontWeight: '700',
+    marginBottom: 2,
+  },
+  inputDescription: {
+    color: colors.neutral.gray600,
+    fontSize: 11,
+    lineHeight: 16,
+  },
+  fieldLabel: {
     color: colors.neutral.gray700,
     fontSize: 12,
-    fontWeight: '400',
-    letterSpacing: 0.5,
-    marginBottom: 10,
-    textTransform: 'uppercase',
+    fontWeight: '600',
+    marginBottom: 7,
+  },
+  fieldGroup: {
+    marginBottom: 15,
+  },
+  passwordGroup: {
+    marginBottom: 4,
   },
   phoneInputContainer: {
     alignItems: 'center',
+    backgroundColor: colors.neutral.white,
+    borderColor: colors.neutral.gray200,
+    borderRadius: 12,
+    borderWidth: 1,
     flexDirection: 'row',
+    height: 50,
+    marginBottom: 1,
+    paddingRight: 12,
   },
   prefixBadge: {
     alignItems: 'center',
-    backgroundColor: colors.neutral.gray100,
-    borderRadius: 10,
     flexDirection: 'row',
-    marginRight: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
+    paddingHorizontal: 11,
   },
   flag: {
-    fontSize: 16,
-    marginRight: 6,
+    fontSize: 17,
+    marginRight: 5,
   },
   prefixText: {
     color: colors.neutral.text,
-    fontSize: 15,
-    fontWeight: '400',
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  phoneDivider: {
+    backgroundColor: colors.neutral.gray200,
+    height: 24,
+    marginRight: 10,
+    width: 1,
   },
   phoneInput: {
     color: colors.neutral.text,
     flex: 1,
-    fontSize: 18,
-    fontWeight: '400',
-    letterSpacing: 1,
-    paddingVertical: 8,
+    fontSize: 14,
+    marginLeft: 9,
+    paddingVertical: 0,
+  },
+  textInputContainer: {
+    alignItems: 'center',
+    backgroundColor: colors.neutral.white,
+    borderColor: colors.neutral.gray200,
+    borderRadius: 12,
+    borderWidth: 1,
+    flexDirection: 'row',
+    height: 50,
+    paddingHorizontal: 13,
+  },
+  inputContainerError: {
+    borderColor: colors.semantic.error,
+  },
+  textInput: {
+    color: colors.neutral.text,
+    flex: 1,
+    fontSize: 14,
+    marginLeft: 9,
+    paddingVertical: 0,
+  },
+  visibilityButton: {
+    padding: 4,
+  },
+  helperText: {
+    color: colors.neutral.gray500,
+    fontSize: 11,
+    lineHeight: 16,
+    marginTop: 6,
   },
   errorText: {
     color: colors.semantic.error,
+    fontSize: 11,
+    lineHeight: 16,
+    marginTop: 6,
+  },
+  forgotPasswordButton: {
+    alignSelf: 'flex-end',
+    marginBottom: 18,
+    marginTop: 9,
+  },
+  forgotPasswordText: {
+    color: colors.brand.primary,
     fontSize: 12,
-    marginTop: 8,
+    fontWeight: '600',
   },
   primaryButton: {
     alignItems: 'center',
     backgroundColor: colors.brand.primary,
-    borderRadius: 14,
+    borderRadius: 13,
     elevation: 4,
-    marginBottom: 16,
-    paddingVertical: 16,
+    flexDirection: 'row',
+    height: 50,
+    justifyContent: 'center',
     shadowColor: colors.brand.primary,
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.25,
-    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 5 },
+    shadowOpacity: 0.22,
+    shadowRadius: 9,
   },
   primaryButtonText: {
     color: colors.neutral.white,
-    fontSize: 16,
-    fontWeight: '600',
-    letterSpacing: 0.5,
+    fontSize: 15,
+    fontWeight: '700',
+    marginRight: 8,
+  },
+  formMessage: {
+    backgroundColor: '#F0EAFF',
+    borderColor: '#D9CAFF',
+    borderRadius: 10,
+    borderWidth: 1,
+    marginTop: 14,
+    padding: 11,
+  },
+  formMessageText: {
+    color: colors.brand.primary,
+    fontSize: 11,
+    lineHeight: 16,
+    textAlign: 'center',
   },
   registerRow: {
     alignItems: 'center',
     flexDirection: 'row',
     justifyContent: 'center',
+    marginTop: 20,
   },
   registerText: {
     color: colors.neutral.gray600,
@@ -375,11 +831,12 @@ const styles = StyleSheet.create({
   registerLink: {
     color: colors.brand.primary,
     fontSize: 13,
-    fontWeight: '600',
+    fontWeight: '700',
   },
   footer: {
     alignItems: 'center',
     paddingBottom: 12,
+    paddingTop: 20,
   },
   footerNotice: {
     color: colors.neutral.gray500,
