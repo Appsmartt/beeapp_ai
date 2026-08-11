@@ -1,5 +1,9 @@
-class AccountRegistrationError(Exception):
-    """Base exception for account registration errors."""
+class AccountError(Exception):
+    """Base exception for account domain errors."""
+
+
+class AccountRegistrationError(AccountError):
+    """Raised when account registration fails."""
 
 
 class AuthUserCreationError(AccountRegistrationError):
@@ -8,3 +12,7 @@ class AuthUserCreationError(AccountRegistrationError):
 
 class ProfileCreationError(AccountRegistrationError):
     """Raised when BeeApp profile creation fails."""
+
+
+class AccountLoginError(AccountError):
+    """Raised when email and password authentication fails."""

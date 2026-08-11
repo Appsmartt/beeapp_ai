@@ -3,8 +3,17 @@ from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from apps.accounts.exceptions import AccountRegistrationError
-from apps.accounts.serializers import RegisterUserSerializer
+from apps.accounts.exceptions import (
+    AccountLoginError,
+    AccountRegistrationError,
+)
+from apps.accounts.serializers import (
+    LoginUserSerializer,
+    RegisterUserSerializer,
+)
+from apps.accounts.services.login_service import (
+    login_with_email_password,
+)
 from apps.accounts.services.registration_service import (
     create_complete_user,
 )
@@ -52,4 +61,34 @@ class RegisterUserView(APIView):
                 },
             },
             status=status.HTTP_201_CREATED,
+        )
+
+
+class LoginUserView(APIView):
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        serializer = LoginUserSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        try:
+            authenticated_user = login_with_email_password(
+                **serializer.validated_data
+            )
+
+        except AccountLoginError:
+            return Response(
+                {
+                    "detail": "Invalid email or password.",
+                },
+                status=status.HTTP_401_UNAUTHORIZED,
+            )
+
+        return Response(
+            {
+                "message": "Login successful.",
+                "session": authenticated_user["session"],
+                "user": authenticated_user["user"],
+            },
+            status=status.HTTP_200_OK,
         )
