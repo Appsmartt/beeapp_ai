@@ -16,6 +16,7 @@
     "@beeapp/design-system": "*",
     "@beeapp/shared-types": "*",
     "expo": "~51.0.0",
+    "expo-camera": "~15.0.16",
     "expo-dev-client": "~4.0.26",
     "expo-router": "~3.5.24",
     "expo-secure-store": "~13.0.2",
