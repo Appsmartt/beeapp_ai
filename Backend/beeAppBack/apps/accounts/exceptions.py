@@ -32,3 +32,11 @@ class ProfileUpdateError(AccountError):
 
 class AssistantSettingsUpdateError(AccountError):
     """Raised when assistant settings cannot be updated."""
+
+
+class DeviceSessionError(AccountError):
+    """Raised when a device session cannot be created or accessed."""
+
+
+class QrLoginError(AccountError):
+    """Raised when a QR login challenge is invalid or expired."""

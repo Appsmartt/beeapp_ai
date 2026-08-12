@@ -133,13 +133,14 @@ STATIC_URL = "static/"
 
 MAILERS = {
     "default": {
-        "BACKEND": "django.core.mail.backends.console.EmailBackend",
+        "BACKEND": (
+            "django.core.mail.backends.console.EmailBackend"
+        ),
     },
 }
 
 
-# Orígenes de los frontends permitidos durante desarrollo.
-# mobile nativo no usa CORS, pero mobile-web y admin-web sí.
+# Orígenes permitidos para mobile-web y admin-web.
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:3000",
     "http://127.0.0.1:3000",
@@ -150,4 +151,16 @@ CORS_ALLOWED_ORIGINS = [
     "http://localhost:8081",
     "http://127.0.0.1:8081",
     "http://192.168.1.5:8081",
+]
+
+
+# Necesario para que BeeApp Web pueda recibir y enviar
+# la cookie HttpOnly de sesión web.
+CORS_ALLOW_CREDENTIALS = True
+
+
+CSRF_TRUSTED_ORIGINS = [
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+    "http://192.168.1.5:3000",
 ]

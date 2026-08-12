@@ -6,6 +6,7 @@ export type UserStatus =
   | 'SUSPENDED'
   | 'PENDING';
 
+
 export interface BaseUser {
   id: string;
   email: string;
@@ -16,11 +17,13 @@ export interface BaseUser {
   updatedAt: string;
 }
 
+
 export interface PaginationParams {
   page: number;
   limit: number;
   search?: string;
 }
+
 
 export interface ApiResponse<T> {
   success: boolean;
@@ -28,6 +31,7 @@ export interface ApiResponse<T> {
   message?: string;
   timestamp: string;
 }
+
 
 export interface RegisterUserPayload {
   first_name: string;
@@ -37,6 +41,7 @@ export interface RegisterUserPayload {
   phone_dial_code: string;
   phone_number: string;
 }
+
 
 export interface RegisteredUser {
   id: string;
@@ -49,15 +54,18 @@ export interface RegisteredUser {
   role: UserRole;
 }
 
+
 export interface RegisterUserResponse {
   message: string;
   user: RegisteredUser;
 }
 
+
 export interface LoginUserPayload {
   email: string;
   password: string;
 }
+
 
 export interface AuthSession {
   access_token: string;
@@ -67,17 +75,20 @@ export interface AuthSession {
   token_type: string;
 }
 
+
 export interface AuthenticatedUser {
   id: string;
   email: string | null;
   phone: string | null;
 }
 
+
 export interface LoginUserResponse {
   message: string;
   session: AuthSession;
   user: AuthenticatedUser;
 }
+
 
 export interface UserProfile {
   id: string;
@@ -92,28 +103,90 @@ export interface UserProfile {
   assistant_tone: string | null;
 }
 
+
 export interface CurrentUserProfile extends UserProfile {
   email: string | null;
 }
 
+
 export interface GetCurrentProfileResponse {
   profile: CurrentUserProfile;
 }
+
+
+export type DeviceType = 'WEB' | 'MOBILE' | 'DESKTOP';
+
+
+export interface DeviceSession {
+  id: string;
+  device_name: string;
+  device_type: DeviceType;
+  platform: string | null;
+  browser: string | null;
+  last_seen_at: string;
+  created_at: string;
+}
+
+
+export interface GetDeviceSessionsResponse {
+  devices: DeviceSession[];
+}
+
+
+export interface QrLoginChallengeResponse {
+  challenge_token: string;
+  expires_at: string;
+}
+
+
+export interface QrLoginChallengeStatusResponse {
+  status:
+    | 'PENDING'
+    | 'APPROVED'
+    | 'CONSUMED'
+    | 'EXPIRED'
+    | 'CANCELLED';
+  expires_at: string;
+}
+
+
+export interface ScanQrLoginPayload {
+  challenge_token: string;
+}
+
+
+export interface ScanQrLoginResponse {
+  message: string;
+  device: DeviceSession;
+}
+
+
+export interface WebSessionProfileResponse {
+  user: {
+    id: string;
+    first_name: string;
+    last_name: string;
+  };
+}
+
 
 export interface UpdateOnboardingProfilePayload {
   occupation: string;
   location: string;
 }
 
+
 export interface UpdateOnboardingProfileResponse {
   message: string;
   profile: UserProfile;
 }
 
+
 export interface UpdateAssistantSettingsPayload {
   assistant_name: string;
   assistant_tone: string;
 }
+
 
 export interface UpdateAssistantSettingsResponse {
   message: string;

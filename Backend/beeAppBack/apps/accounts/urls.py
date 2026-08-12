@@ -2,17 +2,38 @@ from django.urls import path
 
 from apps.accounts.views import (
     CurrentProfileView,
+    DeviceSessionDetailView,
+    DeviceSessionListView,
     LoginUserView,
+    QrLoginChallengeDetailView,
+    QrLoginChallengeView,
+    QrLoginScanView,
     RegisterUserView,
+    RevokeAllDeviceSessionsView,
     UpdateAssistantSettingsView,
     UpdateOnboardingProfileView,
+    WebSessionActivateView,
+    WebSessionLogoutView,
+    WebSessionProfileView,
 )
 
 
 urlpatterns = [
-    path("register/", RegisterUserView.as_view(), name="register-user"),
-    path("login/", LoginUserView.as_view(), name="login-user"),
-    path("me/", CurrentProfileView.as_view(), name="current-profile"),
+    path(
+        "register/",
+        RegisterUserView.as_view(),
+        name="register-user",
+    ),
+    path(
+        "login/",
+        LoginUserView.as_view(),
+        name="login-user",
+    ),
+    path(
+        "me/",
+        CurrentProfileView.as_view(),
+        name="current-profile",
+    ),
     path(
         "me/profile/",
         UpdateOnboardingProfileView.as_view(),
@@ -22,5 +43,50 @@ urlpatterns = [
         "me/assistant/",
         UpdateAssistantSettingsView.as_view(),
         name="update-assistant-settings",
+    ),
+    path(
+        "me/devices/",
+        DeviceSessionListView.as_view(),
+        name="device-sessions",
+    ),
+    path(
+        "me/devices/others/",
+        RevokeAllDeviceSessionsView.as_view(),
+        name="revoke-all-device-sessions",
+    ),
+    path(
+        "me/devices/<uuid:device_id>/",
+        DeviceSessionDetailView.as_view(),
+        name="device-session-detail",
+    ),
+    path(
+        "qr-login/challenges/",
+        QrLoginChallengeView.as_view(),
+        name="qr-login-challenge",
+    ),
+    path(
+        "qr-login/challenges/<str:challenge_token>/",
+        QrLoginChallengeDetailView.as_view(),
+        name="qr-login-challenge-detail",
+    ),
+    path(
+        "qr-login/scan/",
+        QrLoginScanView.as_view(),
+        name="qr-login-scan",
+    ),
+    path(
+        "web-session/activate/",
+        WebSessionActivateView.as_view(),
+        name="web-session-activate",
+    ),
+    path(
+        "web-session/me/",
+        WebSessionProfileView.as_view(),
+        name="web-session-profile",
+    ),
+    path(
+        "web-session/logout/",
+        WebSessionLogoutView.as_view(),
+        name="web-session-logout",
     ),
 ]

@@ -1,25 +1,74 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { api } from '@beeapp/api-client';
 import MobileBlockScreen from '@/components/app/MobileBlockScreen';
 import VoiceAssistantFab from '@/components/app/VoiceAssistantFab';
 
-export default function AppLayout({ children }: { children: React.ReactNode }) {
+type WebSessionProfileResponse = {
+  user: {
+    id: string;
+    first_name: string;
+    last_name: string;
+  };
+};
+
+export default function AppLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  const router = useRouter();
+
   const [isMobileScreen, setIsMobileScreen] = useState(false);
-  const [mounted, setMounted] = useState(false);
+
+  const [isCheckingSession, setIsCheckingSession] = useState(true);
+
+  const [isAuthorized, setIsAuthorized] = useState(false);
 
   useEffect(() => {
-    setMounted(true);
-    const checkScreen = () => {
+    const checkScreenSize = () => {
       setIsMobileScreen(window.innerWidth < 768);
     };
 
-    checkScreen();
-    window.addEventListener('resize', checkScreen);
-    return () => window.removeEventListener('resize', checkScreen);
-  }, []);
+    const validateWebSession = async () => {
+      try {
+        await api.get<WebSessionProfileResponse>(
+          '/accounts/web-session/me/',
+          {
+            credentials: 'include',
+          },
+        );
 
-  if (!mounted) {
+        setIsAuthorized(true);
+      } catch {
+        router.replace('/login');
+      } finally {
+        setIsCheckingSession(false);
+      }
+    };
+
+    checkScreenSize();
+
+    window.addEventListener('resize', checkScreenSize);
+
+    void validateWebSession();
+
+    const validationInterval = window.setInterval(
+      () => {
+        void validateWebSession();
+      },
+      30000,
+    );
+
+    return () => {
+      window.removeEventListener('resize', checkScreenSize);
+      window.clearInterval(validationInterval);
+    };
+  }, [router]);
+
+  if (isCheckingSession || !isAuthorized) {
     return (
       <div className="min-h-screen bg-neutral-100 flex items-center justify-center">
         <div className="w-8 h-8 rounded-full border-2 border-brand-primary border-t-transparent animate-spin" />
@@ -33,14 +82,12 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="min-h-screen bg-neutral-100/90 flex flex-col selection:bg-brand-primary/20 overflow-x-hidden">
-      {/* Main Desktop Workspace Frame */}
       <div className="flex-1 flex flex-col h-screen overflow-y-auto relative w-full">
         <div className="w-full mx-auto bg-white flex-1 flex flex-col relative">
           {children}
         </div>
       </div>
 
-      {/* Botón flotante del Asistente de IA por Voz (Esquina Inferior Izquierda) */}
       <VoiceAssistantFab />
     </div>
   );

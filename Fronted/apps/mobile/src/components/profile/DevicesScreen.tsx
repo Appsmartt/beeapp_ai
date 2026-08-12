@@ -1,49 +1,264 @@
-import { useState } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, Alert } from 'react-native';
+import { useEffect, useState } from 'react';
+import {
+  Alert,
+  ScrollView,
+  Text,
+  TouchableOpacity,
+  View,
+} from 'react-native';
+import {
+  CameraView,
+  useCameraPermissions,
+} from 'expo-camera';
+import {
+  ChevronLeft,
+  Monitor,
+  QrCode,
+} from 'lucide-react-native';
+import { colors } from '@beeapp/design-system';
+import {
+  getDeviceSessions,
+  revokeAllDeviceSessions,
+  revokeDeviceSession,
+  scanQrLogin,
+} from '@beeapp/api-client';
+import type { DeviceSession } from '@beeapp/shared-types';
+
 import ScreenSafeArea from '../layout/ScreenSafeArea';
 import { useModuleNav } from '../embedded/EmbeddedNavContext';
-import { colors } from '@beeapp/design-system';
-import { ChevronLeft, QrCode, Monitor } from 'lucide-react-native';
-import { LINKED_DEVICES, LinkedDevice } from '../../mocks/devices';
+import { getAuthSession } from '../../services/authSession';
 import { devicesStyles as styles } from './devicesStyles';
 
-/**
- * Dispositivos: vincula BeeApp Web escaneando su código QR y lista las
- * sesiones abiertas. Todo es mock — no abre la cámara real ni cierra sesiones
- * de verdad.
- */
+
+function formatLastSeen(value: string): string {
+  return new Intl.DateTimeFormat('es-CO', {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+  }).format(new Date(value));
+}
+
+
+function getChallengeToken(scannedValue: string): string | null {
+  const match = scannedValue.match(
+    /^beeapp:\/\/web-login\?token=([^&]+)$/,
+  );
+
+  if (!match) {
+    return null;
+  }
+
+  return decodeURIComponent(match[1]);
+}
+
+
 export default function DevicesScreen() {
   const router = useModuleNav();
-  const [scanning, setScanning] = useState(false);
-  const [devices, setDevices] = useState<LinkedDevice[]>([...LINKED_DEVICES]);
 
-  const confirmSignOut = (device: LinkedDevice) => {
-    Alert.alert('Cerrar sesión', '¿Cerrar sesión en este dispositivo?', [
-      { text: 'Cancelar', style: 'cancel' },
-      {
-        text: 'Cerrar sesión',
-        style: 'destructive',
-        onPress: () => setDevices((prev) => prev.filter((d) => d.id !== device.id)),
-      },
-    ]);
+  const [cameraPermission, requestCameraPermission] =
+    useCameraPermissions();
+
+  const [isScanning, setIsScanning] = useState(false);
+
+  const [isSubmittingScan, setIsSubmittingScan] =
+    useState(false);
+
+  const [isLoadingDevices, setIsLoadingDevices] =
+    useState(true);
+
+  const [devices, setDevices] = useState<DeviceSession[]>(
+    [],
+  );
+
+  const getAccessToken = async (): Promise<string> => {
+    const authSession = await getAuthSession();
+
+    if (!authSession?.session.access_token) {
+      throw new Error(
+        'Tu sesión móvil no está disponible. Inicia sesión nuevamente.',
+      );
+    }
+
+    return authSession.session.access_token;
+  };
+
+  const loadDevices = async () => {
+    try {
+      setIsLoadingDevices(true);
+
+      const accessToken = await getAccessToken();
+
+      const response = await getDeviceSessions(accessToken);
+
+      setDevices(response.devices);
+    } catch (error) {
+      Alert.alert(
+        'Error',
+        error instanceof Error
+          ? error.message
+          : 'No fue posible cargar los dispositivos.',
+      );
+    } finally {
+      setIsLoadingDevices(false);
+    }
+  };
+
+  useEffect(() => {
+    void loadDevices();
+  }, []);
+
+  const startScanning = async () => {
+    if (!cameraPermission?.granted) {
+      const permissionResult =
+        await requestCameraPermission();
+
+      if (!permissionResult.granted) {
+        Alert.alert(
+          'Permiso requerido',
+          'Debes permitir el uso de la cámara para escanear el código QR.',
+        );
+
+        return;
+      }
+    }
+
+    setIsScanning(true);
+  };
+
+  const handleBarcodeScanned = async ({
+    data,
+  }: {
+    data: string;
+  }) => {
+    if (isSubmittingScan) {
+      return;
+    }
+
+    const challengeToken = getChallengeToken(data);
+
+    if (!challengeToken) {
+      Alert.alert(
+        'Código no válido',
+        'Escanea el código QR mostrado por BeeApp Web.',
+      );
+
+      return;
+    }
+
+    try {
+      setIsSubmittingScan(true);
+
+      const accessToken = await getAccessToken();
+
+      const response = await scanQrLogin(accessToken, {
+        challenge_token: challengeToken,
+      });
+
+      setIsScanning(false);
+
+      await loadDevices();
+
+      Alert.alert(
+        'Sesión iniciada',
+        `Se inició sesión en ${response.device.device_name}.`,
+      );
+    } catch (error) {
+      Alert.alert(
+        'No se pudo iniciar sesión',
+        error instanceof Error
+          ? error.message
+          : 'El código QR venció, es inválido o ya fue utilizado.',
+      );
+    } finally {
+      setIsSubmittingScan(false);
+    }
+  };
+
+  const confirmSignOut = (device: DeviceSession) => {
+    Alert.alert(
+      'Cerrar sesión',
+      `¿Cerrar sesión en ${device.device_name}?`,
+      [
+        {
+          text: 'Cancelar',
+          style: 'cancel',
+        },
+        {
+          text: 'Cerrar sesión',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              const accessToken = await getAccessToken();
+
+              await revokeDeviceSession(
+                accessToken,
+                device.id,
+              );
+
+              await loadDevices();
+            } catch (error) {
+              Alert.alert(
+                'Error',
+                error instanceof Error
+                  ? error.message
+                  : 'No fue posible cerrar la sesión.',
+              );
+            }
+          },
+        },
+      ],
+    );
   };
 
   const confirmSignOutAll = () => {
-    Alert.alert('Cerrar todas las sesiones', '¿Cerrar sesión en todos los dispositivos vinculados?', [
-      { text: 'Cancelar', style: 'cancel' },
-      { text: 'Cerrar todas', style: 'destructive', onPress: () => setDevices([]) },
-    ]);
+    Alert.alert(
+      'Cerrar todas las sesiones',
+      'Se cerrarán todas las sesiones web vinculadas a tu cuenta.',
+      [
+        {
+          text: 'Cancelar',
+          style: 'cancel',
+        },
+        {
+          text: 'Cerrar todas',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              const accessToken = await getAccessToken();
+
+              await revokeAllDeviceSessions(accessToken);
+
+              await loadDevices();
+            } catch (error) {
+              Alert.alert(
+                'Error',
+                error instanceof Error
+                  ? error.message
+                  : 'No fue posible cerrar las sesiones.',
+              );
+            }
+          },
+        },
+      ],
+    );
   };
 
   return (
     <ScreenSafeArea style={styles.safeArea}>
       <View style={styles.container}>
         <View style={styles.header}>
-          {router.canGoBack && (
-            <TouchableOpacity onPress={() => router.back()} style={styles.backBtn} activeOpacity={0.7}>
-              <ChevronLeft size={24} color={colors.neutral.text} />
+          {router.canGoBack ? (
+            <TouchableOpacity
+              onPress={() => router.back()}
+              style={styles.backBtn}
+              activeOpacity={0.7}
+            >
+              <ChevronLeft
+                size={24}
+                color={colors.neutral.text}
+              />
             </TouchableOpacity>
-          )}
+          ) : null}
+
           <Text style={styles.headerTitle}>Dispositivos</Text>
         </View>
 
@@ -52,84 +267,136 @@ export default function DevicesScreen() {
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
         >
-          {/* SECCIÓN 1 — Escanear código QR */}
           <View style={styles.section}>
-            {scanning ? (
+            {isScanning ? (
               <>
-                <View style={styles.scanner}>
+                <CameraView
+                  style={styles.scanner}
+                  facing="back"
+                  onBarcodeScanned={
+                    isSubmittingScan
+                      ? undefined
+                      : handleBarcodeScanned
+                  }
+                  barcodeScannerSettings={{
+                    barcodeTypes: ['qr'],
+                  }}
+                >
                   <View style={styles.scanFrame} />
+
                   <Text style={styles.scannerText}>
-                    Apunta la cámara al código QR de BeeApp Web
+                    {isSubmittingScan
+                      ? 'Iniciando sesión...'
+                      : 'Apunta la cámara al código QR de BeeApp Web'}
                   </Text>
-                </View>
+                </CameraView>
+
                 <TouchableOpacity
                   style={styles.cancelScanBtn}
-                  onPress={() => setScanning(false)}
+                  onPress={() => setIsScanning(false)}
                   activeOpacity={0.7}
+                  disabled={isSubmittingScan}
                 >
-                  <Text style={styles.cancelScanText}>Cancelar</Text>
+                  <Text style={styles.cancelScanText}>
+                    Cancelar
+                  </Text>
                 </TouchableOpacity>
               </>
             ) : (
               <>
                 <TouchableOpacity
                   style={styles.scanBtn}
-                  onPress={() => setScanning(true)}
+                  onPress={startScanning}
                   activeOpacity={0.8}
                   accessibilityLabel="Escanear código QR"
                 >
-                  <QrCode size={20} color={colors.neutral.white} />
-                  <Text style={styles.scanBtnText}>Escanear código QR</Text>
+                  <QrCode
+                    size={20}
+                    color={colors.neutral.white}
+                  />
+
+                  <Text style={styles.scanBtnText}>
+                    Escanear código QR
+                  </Text>
                 </TouchableOpacity>
 
                 <Text style={styles.scanHint}>
-                  Escanea el código QR que aparece en la pantalla de BeeApp Web para vincular tu cuenta.
+                  Escanea el código QR que aparece en BeeApp Web
+                  para vincular tu cuenta.
                 </Text>
               </>
             )}
           </View>
 
-          {/* SECCIÓN 2 — Dispositivos vinculados */}
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Dispositivos activos</Text>
+            <Text style={styles.sectionTitle}>
+              Dispositivos activos
+            </Text>
 
-            {devices.length === 0 ? (
-              <Text style={styles.emptyText}>No hay dispositivos vinculados a tu cuenta.</Text>
-            ) : (
-              devices.map((device, index) => (
-                <View
-                  key={device.id}
-                  style={[styles.deviceRow, index < devices.length - 1 && styles.rowSeparator]}
-                >
-                  <View style={styles.deviceIcon}>
-                    <Monitor size={20} color={colors.neutral.gray600} />
-                  </View>
+            {isLoadingDevices ? (
+              <Text style={styles.emptyText}>
+                Cargando dispositivos...
+              </Text>
+            ) : null}
 
-                  <View style={styles.deviceInfo}>
-                    <Text style={styles.deviceName}>{device.name}</Text>
-                    <Text style={styles.deviceMeta}>{device.lastSeen}</Text>
-                  </View>
+            {!isLoadingDevices && devices.length === 0 ? (
+              <Text style={styles.emptyText}>
+                No hay dispositivos vinculados a tu cuenta.
+              </Text>
+            ) : null}
 
-                  <TouchableOpacity
-                    style={styles.signOutBtn}
-                    onPress={() => confirmSignOut(device)}
-                    activeOpacity={0.7}
+            {!isLoadingDevices
+              ? devices.map((device, index) => (
+                  <View
+                    key={device.id}
+                    style={[
+                      styles.deviceRow,
+                      index < devices.length - 1 &&
+                        styles.rowSeparator,
+                    ]}
                   >
-                    <Text style={styles.signOutText}>Cerrar sesión</Text>
-                  </TouchableOpacity>
-                </View>
-              ))
-            )}
+                    <View style={styles.deviceIcon}>
+                      <Monitor
+                        size={20}
+                        color={colors.neutral.gray600}
+                      />
+                    </View>
 
-            {devices.length > 0 && (
+                    <View style={styles.deviceInfo}>
+                      <Text style={styles.deviceName}>
+                        {device.device_name}
+                      </Text>
+
+                      <Text style={styles.deviceMeta}>
+                        Última actividad:{' '}
+                        {formatLastSeen(device.last_seen_at)}
+                      </Text>
+                    </View>
+
+                    <TouchableOpacity
+                      style={styles.signOutBtn}
+                      onPress={() => confirmSignOut(device)}
+                      activeOpacity={0.7}
+                    >
+                      <Text style={styles.signOutText}>
+                        Cerrar sesión
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                ))
+              : null}
+
+            {!isLoadingDevices && devices.length > 0 ? (
               <TouchableOpacity
                 style={styles.signOutAllBtn}
                 onPress={confirmSignOutAll}
                 activeOpacity={0.8}
               >
-                <Text style={styles.signOutAllText}>Cerrar todas las sesiones</Text>
+                <Text style={styles.signOutAllText}>
+                  Cerrar todas las sesiones
+                </Text>
               </TouchableOpacity>
-            )}
+            ) : null}
           </View>
         </ScrollView>
       </View>
