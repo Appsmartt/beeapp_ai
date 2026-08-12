@@ -1,3 +1,5 @@
+import re
+
 from rest_framework import serializers
 
 
@@ -66,6 +68,46 @@ class LoginUserSerializer(serializers.Serializer):
 
     def validate_email(self, value: str) -> str:
         return value.strip().lower()
+
+
+class RequestPhoneOtpSerializer(serializers.Serializer):
+    phone = serializers.CharField(
+        min_length=8,
+        max_length=16,
+        trim_whitespace=True,
+    )
+
+    def validate_phone(self, value: str) -> str:
+        normalized_value = value.strip()
+
+        if not re.fullmatch(
+            r"\+[1-9]\d{7,14}",
+            normalized_value,
+        ):
+            raise serializers.ValidationError(
+                "Phone must use E.164 format, "
+                "for example +573001234567."
+            )
+
+        return normalized_value
+
+
+class VerifyPhoneOtpSerializer(RequestPhoneOtpSerializer):
+    code = serializers.CharField(
+        min_length=6,
+        max_length=6,
+        trim_whitespace=True,
+    )
+
+    def validate_code(self, value: str) -> str:
+        normalized_value = value.strip()
+
+        if not re.fullmatch(r"\d{6}", normalized_value):
+            raise serializers.ValidationError(
+                "Code must contain exactly 6 digits."
+            )
+
+        return normalized_value
 
 
 class UpdateOnboardingProfileSerializer(serializers.Serializer):

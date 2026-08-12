@@ -1,3 +1,5 @@
+import secrets
+
 from rest_framework import status
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
@@ -10,15 +12,19 @@ from apps.accounts.exceptions import (
     AssistantSettingsUpdateError,
     AuthUserLookupError,
     DeviceSessionError,
+    PhoneOtpRequestError,
+    PhoneOtpVerificationError,
     ProfileLookupError,
     ProfileUpdateError,
     QrLoginError,
 )
 from apps.accounts.serializers import (
     LoginUserSerializer,
+    RequestPhoneOtpSerializer,
     RegisterUserSerializer,
     UpdateAssistantSettingsSerializer,
     UpdateOnboardingProfileSerializer,
+    VerifyPhoneOtpSerializer,
 )
 from apps.accounts.services.auth_session_service import (
     get_authenticated_user,
@@ -27,6 +33,7 @@ from apps.accounts.services.auth_user_service import (
     get_auth_user,
 )
 from apps.accounts.services.device_session_service import (
+    create_web_device_session,
     get_active_session_by_token,
     get_user_device_sessions,
     revoke_all_user_device_sessions,
@@ -35,6 +42,10 @@ from apps.accounts.services.device_session_service import (
 )
 from apps.accounts.services.login_service import (
     login_with_email_password,
+)
+from apps.accounts.services.phone_otp_service import (
+    request_phone_otp,
+    verify_phone_otp,
 )
 from apps.accounts.services.profile_service import (
     get_profile,
@@ -48,6 +59,10 @@ from apps.accounts.services.qr_login_service import (
 )
 from apps.accounts.services.registration_service import (
     create_complete_user,
+)
+from apps.accounts.throttles import (
+    PhoneOtpRequestThrottle,
+    PhoneOtpVerificationThrottle,
 )
 
 
@@ -67,12 +82,41 @@ class AuthenticatedAPIView(APIView):
             " "
         )
 
-        if scheme.lower() != "bearer" or not access_token:
-            raise AccountAuthenticationError(
-                "Missing bearer access token."
+        if scheme.lower() == "bearer" and access_token:
+            return get_authenticated_user(
+                access_token=access_token,
             )
 
-        return get_authenticated_user(access_token=access_token)
+        session_token = request.COOKIES.get(
+            WEB_SESSION_COOKIE_NAME
+        )
+
+        if not session_token:
+            raise AccountAuthenticationError(
+                "Missing authentication credentials."
+            )
+
+        try:
+            device_session = get_active_session_by_token(
+                session_token=session_token,
+            )
+
+            update_web_device_metadata(
+                device_id=device_session["id"],
+                request=request,
+            )
+
+            return get_auth_user(
+                auth_user_id=device_session["user_id"],
+            )
+
+        except (
+            AuthUserLookupError,
+            DeviceSessionError,
+        ) as error:
+            raise AccountAuthenticationError(
+                "Web session authentication failed."
+            ) from error
 
 
 class RegisterUserView(APIView):
@@ -153,6 +197,123 @@ class LoginUserView(APIView):
             },
             status=status.HTTP_200_OK,
         )
+
+
+class PhoneOtpRequestView(APIView):
+    permission_classes = [AllowAny]
+    throttle_classes = [PhoneOtpRequestThrottle]
+
+    def post(self, request):
+        serializer = RequestPhoneOtpSerializer(
+            data=request.data,
+        )
+        serializer.is_valid(raise_exception=True)
+
+        try:
+            request_phone_otp(
+                **serializer.validated_data
+            )
+
+        except PhoneOtpRequestError:
+            pass
+
+        return Response(
+            {
+                "message": (
+                    "If the phone number is eligible, a verification "
+                    "code has been sent."
+                )
+            },
+            status=status.HTTP_200_OK,
+        )
+
+
+class PhoneOtpVerifyView(APIView):
+    permission_classes = [AllowAny]
+    throttle_classes = [PhoneOtpVerificationThrottle]
+
+    def post(self, request):
+        serializer = VerifyPhoneOtpSerializer(
+            data=request.data,
+        )
+        serializer.is_valid(raise_exception=True)
+
+        try:
+            authenticated_user = verify_phone_otp(
+                **serializer.validated_data
+            )
+
+            profile = get_profile(
+                auth_user_id=str(authenticated_user.id),
+            )
+
+            session_token = secrets.token_urlsafe(48)
+
+            device_session = create_web_device_session(
+                user_id=str(authenticated_user.id),
+                session_token=session_token,
+            )
+
+            update_web_device_metadata(
+                device_id=device_session["id"],
+                request=request,
+            )
+
+        except (
+            PhoneOtpVerificationError,
+            ProfileLookupError,
+        ):
+            return Response(
+                {
+                    "detail": (
+                        "Invalid, expired, or unavailable code."
+                    ),
+                },
+                status=status.HTTP_401_UNAUTHORIZED,
+            )
+
+        except DeviceSessionError:
+            return Response(
+                {
+                    "detail": "Could not create the web session.",
+                },
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+        response = Response(
+            {
+                "message": "Login successful.",
+                "user": {
+                    "id": str(authenticated_user.id),
+                    "email": authenticated_user.email,
+                    "phone": authenticated_user.phone,
+                    "first_name": profile["first_name"],
+                    "last_name": profile["last_name"],
+                    "role": profile["role"],
+                },
+            },
+            status=status.HTTP_200_OK,
+        )
+
+        is_local_development = request.get_host().startswith(
+            (
+                "localhost",
+                "127.0.0.1",
+                "192.168.",
+            )
+        )
+
+        response.set_cookie(
+            WEB_SESSION_COOKIE_NAME,
+            session_token,
+            httponly=True,
+            secure=not is_local_development,
+            samesite="Strict",
+            max_age=60 * 60 * 24 * 30,
+            path="/",
+        )
+
+        return response
 
 
 class CurrentProfileView(AuthenticatedAPIView):
@@ -519,7 +680,7 @@ class WebSessionActivateView(APIView):
             challenge_token,
             httponly=True,
             secure=not is_local_development,
-            samesite="Lax",
+            samesite="Strict",
             max_age=60 * 60 * 24 * 30,
             path="/",
         )

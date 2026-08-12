@@ -22,6 +22,14 @@ class AccountLoginError(AccountError):
     """Raised when email and password authentication fails."""
 
 
+class PhoneOtpRequestError(AccountError):
+    """Raised when a phone OTP cannot be requested."""
+
+
+class PhoneOtpVerificationError(AccountError):
+    """Raised when a phone OTP cannot be verified."""
+
+
 class AccountAuthenticationError(AccountError):
     """Raised when access token authentication fails."""
 
