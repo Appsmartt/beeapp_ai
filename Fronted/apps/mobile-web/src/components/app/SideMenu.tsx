@@ -4,7 +4,6 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   X,
-  UserCheck,
   Store,
   CreditCard,
   Link as LinkIcon,
@@ -17,8 +16,9 @@ import {
   Shield,
   LogOut,
   Smartphone,
+  UserCheck,
 } from 'lucide-react';
-import { CURRENT_USER } from '@/mocks/currentUser';
+import { api } from '@beeapp/api-client';
 import BeeAppLogo from '@/components/BeeAppLogo';
 import { EditProfilePanel } from './EditProfilePanel';
 import { SubscriptionPanel } from './SubscriptionPanel';
@@ -28,6 +28,7 @@ import { AiSettingsPanel } from './AiSettingsPanel';
 import { DevicesPanel } from './DevicesPanel';
 import { TermsPanel, PrivacyPanel } from './LegalPanels';
 import { SupportPanel } from './SupportPanel';
+
 
 export type MenuOption =
   | 'edit'
@@ -43,6 +44,27 @@ export type MenuOption =
 
 type PanelOption = Exclude<MenuOption, null>;
 
+type WebSessionProfileResponse = {
+  user: {
+    id: string;
+    email: string | null;
+    first_name: string;
+    last_name: string;
+  };
+};
+
+type MenuUser = {
+  name: string;
+  email: string;
+  initials: string;
+};
+
+const INITIAL_MENU_USER: MenuUser = {
+  name: 'Cargando perfil...',
+  email: '',
+  initials: '?',
+};
+
 const PANEL_TITLES: Record<PanelOption, string> = {
   edit: 'Editar Perfil',
   subscription: 'Suscripción y Verificación',
@@ -55,11 +77,42 @@ const PANEL_TITLES: Record<PanelOption, string> = {
   support: 'Contactar a Soporte',
 };
 
+
 interface SideMenuProps {
   isOpen: boolean;
   onClose: () => void;
   initialOption?: MenuOption;
 }
+
+
+function getFullName(
+  firstName: string | null | undefined,
+  lastName: string | null | undefined,
+): string {
+  const fullName = [firstName, lastName]
+    .filter(
+      (name): name is string =>
+        typeof name === 'string' && name.trim().length > 0,
+    )
+    .join(' ');
+
+  return fullName || 'Usuario BeeApp';
+}
+
+
+function getInitials(
+  firstName: string | null | undefined,
+  lastName: string | null | undefined,
+): string {
+  const firstInitial =
+    firstName?.trim().charAt(0).toUpperCase() ?? '';
+
+  const lastInitial =
+    lastName?.trim().charAt(0).toUpperCase() ?? '';
+
+  return `${firstInitial}${lastInitial}` || '?';
+}
+
 
 export default function SideMenu({
   isOpen,
@@ -68,12 +121,17 @@ export default function SideMenu({
 }: SideMenuProps) {
   const router = useRouter();
 
-  const [networkVisibility, setNetworkVisibility] = useState(
-    CURRENT_USER.networkVisibility,
-  );
+  const [networkVisibility, setNetworkVisibility] =
+    useState(true);
+
   const [selectedOption, setSelectedOption] =
     useState<MenuOption>(initialOption ?? null);
+
   const [toastVisible, setToastVisible] = useState(false);
+
+  const [menuUser, setMenuUser] = useState<MenuUser>(
+    INITIAL_MENU_USER,
+  );
 
   useEffect(() => {
     if (isOpen && initialOption !== undefined) {
@@ -81,11 +139,73 @@ export default function SideMenu({
     }
   }, [isOpen, initialOption]);
 
-  if (!isOpen) return null;
+  useEffect(() => {
+    if (!isOpen) {
+      return;
+    }
 
-  const handleLogout = () => {
-    onClose();
-    router.push('/login');
+    let isMounted = true;
+
+    const loadCurrentUser = async () => {
+      try {
+        const response =
+          await api.get<WebSessionProfileResponse>(
+            '/accounts/web-session/me/',
+            {
+              credentials: 'include',
+            },
+          );
+
+        if (!isMounted) {
+          return;
+        }
+
+        setMenuUser({
+          name: getFullName(
+            response.user.first_name,
+            response.user.last_name,
+          ),
+          email: response.user.email ?? '',
+          initials: getInitials(
+            response.user.first_name,
+            response.user.last_name,
+          ),
+        });
+      } catch {
+        if (!isMounted) {
+          return;
+        }
+
+        setMenuUser({
+          name: 'No fue posible cargar el perfil',
+          email: '',
+          initials: '?',
+        });
+      }
+    };
+
+    void loadCurrentUser();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [isOpen]);
+
+  const handleLogout = async () => {
+    try {
+      await api.post(
+        '/accounts/web-session/logout/',
+        undefined,
+        {
+          credentials: 'include',
+        },
+      );
+    } catch {
+      // Navigation continues even when the remote session is unavailable.
+    } finally {
+      onClose();
+      router.replace('/login');
+    }
   };
 
   const handleClose = () => {
@@ -126,6 +246,10 @@ export default function SideMenu({
     </button>
   );
 
+  if (!isOpen) {
+    return null;
+  }
+
   return (
     <div className="fixed inset-0 z-50 flex justify-end">
       <button
@@ -136,7 +260,7 @@ export default function SideMenu({
       />
 
       <div className="relative z-50 flex h-full overflow-hidden rounded-l-3xl bg-white shadow-2xl">
-        {selectedOption && (
+        {selectedOption ? (
           <div
             className="h-full w-[480px] max-w-[calc(100vw-340px)] flex flex-col overflow-hidden border-r border-neutral-100/50 bg-white"
             style={{
@@ -159,24 +283,44 @@ export default function SideMenu({
             </div>
 
             <div className="flex-1 overflow-y-auto p-6">
-              {selectedOption === 'edit' && <EditProfilePanel />}
-              {selectedOption === 'subscription' && (
+              {selectedOption === 'edit' ? (
+                <EditProfilePanel />
+              ) : null}
+
+              {selectedOption === 'subscription' ? (
                 <SubscriptionPanel />
-              )}
-              {selectedOption === 'integrations' && (
+              ) : null}
+
+              {selectedOption === 'integrations' ? (
                 <IntegrationsPanel />
-              )}
-              {selectedOption === 'security' && <SecurityPanel />}
-              {selectedOption === 'ai-settings' && (
+              ) : null}
+
+              {selectedOption === 'security' ? (
+                <SecurityPanel />
+              ) : null}
+
+              {selectedOption === 'ai-settings' ? (
                 <AiSettingsPanel />
-              )}
-              {selectedOption === 'devices' && <DevicesPanel />}
-              {selectedOption === 'terms' && <TermsPanel />}
-              {selectedOption === 'privacy' && <PrivacyPanel />}
-              {selectedOption === 'support' && <SupportPanel />}
+              ) : null}
+
+              {selectedOption === 'devices' ? (
+                <DevicesPanel />
+              ) : null}
+
+              {selectedOption === 'terms' ? (
+                <TermsPanel />
+              ) : null}
+
+              {selectedOption === 'privacy' ? (
+                <PrivacyPanel />
+              ) : null}
+
+              {selectedOption === 'support' ? (
+                <SupportPanel />
+              ) : null}
             </div>
           </div>
-        )}
+        ) : null}
 
         <aside className="h-full w-[340px] flex flex-col overflow-y-auto bg-white">
           <div className="px-5 pt-5">
@@ -186,21 +330,21 @@ export default function SideMenu({
           <div className="flex items-center justify-between border-b border-neutral-100 bg-neutral-50/50 p-5">
             <div className="flex items-center gap-3">
               <div className="flex h-12 w-12 items-center justify-center rounded-full bg-brand-primary text-base font-bold text-white shadow-sm">
-                {CURRENT_USER.name.slice(0, 2).toUpperCase()}
+                {menuUser.initials}
               </div>
 
               <div className="space-y-0.5">
                 <div className="flex items-center gap-1.5 text-sm font-semibold text-neutral-900">
-                  <span>{CURRENT_USER.name}</span>
+                  <span>{menuUser.name}</span>
 
-                  {CURRENT_USER.verified && (
-                    <UserCheck className="h-4 w-4 shrink-0 text-brand-primary" />
-                  )}
+                  <UserCheck className="h-4 w-4 shrink-0 text-brand-primary" />
                 </div>
 
-                <p className="text-xs font-normal text-neutral-500">
-                  {CURRENT_USER.email}
-                </p>
+                {menuUser.email ? (
+                  <p className="text-xs font-normal text-neutral-500">
+                    {menuUser.email}
+                  </p>
+                ) : null}
               </div>
             </div>
 
@@ -343,7 +487,9 @@ export default function SideMenu({
           <div className="border-t border-neutral-100 p-4">
             <button
               type="button"
-              onClick={handleLogout}
+              onClick={() => {
+                void handleLogout();
+              }}
               className="w-full flex items-center justify-center gap-2 rounded-xl bg-red-50 py-3 text-sm font-medium text-red-600 transition-colors hover:bg-red-100"
             >
               <LogOut className="h-4 w-4" />
@@ -353,11 +499,11 @@ export default function SideMenu({
         </aside>
       </div>
 
-      {toastVisible && (
+      {toastVisible ? (
         <div className="fixed bottom-6 left-1/2 z-[60] -translate-x-1/2 rounded-full bg-neutral-900 px-4 py-2 text-xs font-semibold text-white shadow-lg">
           Enlace copiado
         </div>
-      )}
+      ) : null}
 
       <style jsx>{`
         @keyframes sideMenuSlideIn {

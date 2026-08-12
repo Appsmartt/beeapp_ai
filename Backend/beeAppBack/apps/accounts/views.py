@@ -8,6 +8,7 @@ from apps.accounts.exceptions import (
     AccountLoginError,
     AccountRegistrationError,
     AssistantSettingsUpdateError,
+    AuthUserLookupError,
     DeviceSessionError,
     ProfileLookupError,
     ProfileUpdateError,
@@ -21,6 +22,9 @@ from apps.accounts.serializers import (
 )
 from apps.accounts.services.auth_session_service import (
     get_authenticated_user,
+)
+from apps.accounts.services.auth_user_service import (
+    get_auth_user,
 )
 from apps.accounts.services.device_session_service import (
     get_active_session_by_token,
@@ -553,7 +557,15 @@ class WebSessionProfileView(APIView):
                 auth_user_id=device_session["user_id"],
             )
 
-        except (DeviceSessionError, ProfileLookupError):
+            auth_user = get_auth_user(
+                auth_user_id=device_session["user_id"],
+            )
+
+        except (
+            AuthUserLookupError,
+            DeviceSessionError,
+            ProfileLookupError,
+        ):
             return Response(
                 {
                     "detail": "Web session is invalid.",
@@ -565,6 +577,7 @@ class WebSessionProfileView(APIView):
             {
                 "user": {
                     "id": device_session["user_id"],
+                    "email": auth_user.email,
                     "first_name": profile["first_name"],
                     "last_name": profile["last_name"],
                 },

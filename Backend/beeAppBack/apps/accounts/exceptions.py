@@ -10,6 +10,10 @@ class AuthUserCreationError(AccountRegistrationError):
     """Raised when Supabase Auth user creation fails."""
 
 
+class AuthUserLookupError(AccountError):
+    """Raised when a Supabase Auth user cannot be retrieved."""
+
+
 class ProfileCreationError(AccountRegistrationError):
     """Raised when BeeApp profile creation fails."""
 
