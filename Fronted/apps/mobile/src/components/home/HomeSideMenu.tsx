@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { colors } from '@beeapp/design-system';
+import { getCurrentProfile } from '@beeapp/api-client';
 import {
   X,
   ChevronRight,
@@ -33,7 +34,10 @@ import {
   sideMenuStyles as styles,
   PANEL_WIDTH,
 } from './homeSideMenuStyles';
-import { CURRENT_USER } from '../../mocks/currentUser';
+import {
+  clearAuthSession,
+  getAuthSession,
+} from '../../services/authSession';
 
 interface HomeSideMenuProps {
   visible: boolean;
@@ -48,6 +52,42 @@ interface MenuRow {
   onPress: () => void;
 }
 
+interface SideMenuUserProfile {
+  name: string;
+  email: string;
+  initials: string;
+}
+
+const INITIAL_USER_PROFILE: SideMenuUserProfile = {
+  name: 'Cargando perfil...',
+  email: '',
+  initials: '?',
+};
+
+function getUserInitials(
+  firstName: string | null | undefined,
+  lastName: string | null | undefined,
+): string {
+  const firstInitial = firstName?.trim().charAt(0).toUpperCase() ?? '';
+  const lastInitial = lastName?.trim().charAt(0).toUpperCase() ?? '';
+
+  return `${firstInitial}${lastInitial}` || '?';
+}
+
+function getFullName(
+  firstName: string | null | undefined,
+  lastName: string | null | undefined,
+): string {
+  const fullName = [firstName, lastName]
+    .filter(
+      (name): name is string =>
+        typeof name === 'string' && name.trim().length > 0,
+    )
+    .join(' ');
+
+  return fullName || 'Usuario BeeApp';
+}
+
 export default function HomeSideMenu({
   visible,
   onClose,
@@ -56,6 +96,9 @@ export default function HomeSideMenu({
   const router = useRouter();
   const [isVisibleInNetwork, setIsVisibleInNetwork] = useState(true);
   const [rendered, setRendered] = useState(visible);
+  const [userProfile, setUserProfile] = useState<SideMenuUserProfile>(
+    INITIAL_USER_PROFILE,
+  );
   const slideAnim = useRef(new Animated.Value(PANEL_WIDTH)).current;
 
   useEffect(() => {
@@ -76,11 +119,59 @@ export default function HomeSideMenu({
     }
   }, [visible, rendered, slideAnim]);
 
-  const userProfile = {
-    name: CURRENT_USER.name,
-    email: CURRENT_USER.email,
-    initials: CURRENT_USER.initials,
-  };
+  useEffect(() => {
+    if (!visible) {
+      return;
+    }
+
+    let isMounted = true;
+
+    const loadCurrentUserProfile = async () => {
+      try {
+        const authSession = await getAuthSession();
+
+        if (!authSession?.session.access_token) {
+          throw new Error('No active session was found.');
+        }
+
+        const response = await getCurrentProfile(
+          authSession.session.access_token,
+        );
+
+        if (!isMounted) {
+          return;
+        }
+
+        setUserProfile({
+          name: getFullName(
+            response.profile.first_name,
+            response.profile.last_name,
+          ),
+          email: response.profile.email ?? '',
+          initials: getUserInitials(
+            response.profile.first_name,
+            response.profile.last_name,
+          ),
+        });
+      } catch {
+        if (!isMounted) {
+          return;
+        }
+
+        setUserProfile({
+          name: 'No fue posible cargar el perfil',
+          email: '',
+          initials: '?',
+        });
+      }
+    };
+
+    void loadCurrentUserProfile();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [visible]);
 
   const goTo = (path: string) => {
     onClose();
@@ -126,11 +217,15 @@ export default function HomeSideMenu({
       'Cerrar Sesión',
       '¿Estás seguro de que deseas cerrar sesión en BeeApp?',
       [
-        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Cancelar',
+          style: 'cancel',
+        },
         {
           text: 'Cerrar Sesión',
           style: 'destructive',
-          onPress: () => {
+          onPress: async () => {
+            await clearAuthSession();
             onClose();
             router.replace('/(auth)/login');
           },
@@ -221,7 +316,9 @@ export default function HomeSideMenu({
             key={row.label}
             style={[
               styles.optionRow,
-              index === rows.length - 1 && { borderBottomWidth: 0 },
+              index === rows.length - 1 && {
+                borderBottomWidth: 0,
+              },
             ]}
             onPress={row.onPress}
             activeOpacity={0.7}
@@ -229,7 +326,9 @@ export default function HomeSideMenu({
             <View
               style={[
                 styles.optionIconWrap,
-                { backgroundColor: row.iconBg },
+                {
+                  backgroundColor: row.iconBg,
+                },
               ]}
             >
               <RowIcon size={18} color={row.iconColor} />
@@ -244,7 +343,9 @@ export default function HomeSideMenu({
     </View>
   );
 
-  if (!rendered) return null;
+  if (!rendered) {
+    return null;
+  }
 
   return (
     <Modal transparent visible animationType="none" onRequestClose={onClose}>
@@ -284,7 +385,12 @@ export default function HomeSideMenu({
               </View>
 
               <Text style={styles.profileName}>{userProfile.name}</Text>
-              <Text style={styles.profileOccupation}>{userProfile.email}</Text>
+
+              {userProfile.email ? (
+                <Text style={styles.profileOccupation}>
+                  {userProfile.email}
+                </Text>
+              ) : null}
 
               <TouchableOpacity
                 style={styles.editProfileBtn}
@@ -306,7 +412,9 @@ export default function HomeSideMenu({
                 <View
                   style={[
                     styles.optionIconWrap,
-                    { backgroundColor: colors.neutral.gray100 },
+                    {
+                      backgroundColor: colors.neutral.gray100,
+                    },
                   ]}
                 >
                   <Package size={18} color={colors.neutral.gray600} />
@@ -327,7 +435,9 @@ export default function HomeSideMenu({
                 <View
                   style={[
                     styles.optionIconWrap,
-                    { backgroundColor: colors.neutral.gray100 },
+                    {
+                      backgroundColor: colors.neutral.gray100,
+                    },
                   ]}
                 >
                   <Shield size={18} color={colors.neutral.gray600} />
@@ -376,6 +486,7 @@ export default function HomeSideMenu({
                 color={colors.semantic.error}
                 style={{ marginRight: 8 }}
               />
+
               <Text style={styles.signOutBtnText}>Cerrar Sesión</Text>
             </TouchableOpacity>
 

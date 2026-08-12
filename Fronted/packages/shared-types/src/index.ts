@@ -83,8 +83,8 @@ export interface UserProfile {
   id: string;
   first_name: string;
   last_name: string;
-  phone_dial_code: string;
-  phone_number: string;
+  phone_dial_code: string | null;
+  phone_number: string | null;
   role: UserRole;
   occupation: string | null;
   location: string | null;
@@ -92,8 +92,12 @@ export interface UserProfile {
   assistant_tone: string | null;
 }
 
+export interface CurrentUserProfile extends UserProfile {
+  email: string | null;
+}
+
 export interface GetCurrentProfileResponse {
-  profile: UserProfile;
+  profile: CurrentUserProfile;
 }
 
 export interface UpdateOnboardingProfilePayload {

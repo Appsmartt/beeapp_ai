@@ -152,6 +152,8 @@ class CurrentProfileView(AuthenticatedAPIView):
                 status=status.HTTP_404_NOT_FOUND,
             )
 
+        profile["email"] = authenticated_user.email
+
         return Response(
             {
                 "profile": profile,
