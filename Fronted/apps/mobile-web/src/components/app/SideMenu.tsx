@@ -1,6 +1,10 @@
 'use client';
 
-import { useEffect, useState, type ReactNode } from 'react';
+import {
+  useEffect,
+  useState,
+  type ReactNode,
+} from 'react';
 import { useRouter } from 'next/navigation';
 import {
   X,
@@ -18,7 +22,14 @@ import {
   Smartphone,
   UserCheck,
 } from 'lucide-react';
-import { api } from '@beeapp/api-client';
+import {
+  getCurrentWebProfile,
+  logoutWebSession,
+} from '@beeapp/api-client';
+import type {
+  CurrentUserProfile,
+} from '@beeapp/shared-types';
+
 import BeeAppLogo from '@/components/BeeAppLogo';
 import { EditProfilePanel } from './EditProfilePanel';
 import { SubscriptionPanel } from './SubscriptionPanel';
@@ -26,9 +37,11 @@ import { IntegrationsPanel } from './IntegrationsPanel';
 import { SecurityPanel } from './SecurityPanel';
 import { AiSettingsPanel } from './AiSettingsPanel';
 import { DevicesPanel } from './DevicesPanel';
-import { TermsPanel, PrivacyPanel } from './LegalPanels';
+import {
+  TermsPanel,
+  PrivacyPanel,
+} from './LegalPanels';
 import { SupportPanel } from './SupportPanel';
-
 
 export type MenuOption =
   | 'edit'
@@ -43,15 +56,6 @@ export type MenuOption =
   | null;
 
 type PanelOption = Exclude<MenuOption, null>;
-
-type WebSessionProfileResponse = {
-  user: {
-    id: string;
-    email: string | null;
-    first_name: string;
-    last_name: string;
-  };
-};
 
 type MenuUser = {
   name: string;
@@ -77,13 +81,11 @@ const PANEL_TITLES: Record<PanelOption, string> = {
   support: 'Contactar a Soporte',
 };
 
-
 interface SideMenuProps {
   isOpen: boolean;
   onClose: () => void;
   initialOption?: MenuOption;
 }
-
 
 function getFullName(
   firstName: string | null | undefined,
@@ -91,14 +93,15 @@ function getFullName(
 ): string {
   const fullName = [firstName, lastName]
     .filter(
-      (name): name is string =>
-        typeof name === 'string' && name.trim().length > 0,
+      (name): name is string => (
+        typeof name === 'string'
+        && name.trim().length > 0
+      ),
     )
     .join(' ');
 
   return fullName || 'Usuario BeeApp';
 }
-
 
 function getInitials(
   firstName: string | null | undefined,
@@ -113,6 +116,19 @@ function getInitials(
   return `${firstInitial}${lastInitial}` || '?';
 }
 
+function getMenuUser(profile: CurrentUserProfile): MenuUser {
+  return {
+    name: getFullName(
+      profile.first_name,
+      profile.last_name,
+    ),
+    email: profile.email ?? '',
+    initials: getInitials(
+      profile.first_name,
+      profile.last_name,
+    ),
+  };
+}
 
 export default function SideMenu({
   isOpen,
@@ -146,31 +162,15 @@ export default function SideMenu({
 
     let isMounted = true;
 
-    const loadCurrentUser = async () => {
+    const loadProfile = async () => {
       try {
-        const response =
-          await api.get<WebSessionProfileResponse>(
-            '/accounts/web-session/me/',
-            {
-              credentials: 'include',
-            },
-          );
+        const response = await getCurrentWebProfile();
 
         if (!isMounted) {
           return;
         }
 
-        setMenuUser({
-          name: getFullName(
-            response.user.first_name,
-            response.user.last_name,
-          ),
-          email: response.user.email ?? '',
-          initials: getInitials(
-            response.user.first_name,
-            response.user.last_name,
-          ),
-        });
+        setMenuUser(getMenuUser(response.profile));
       } catch {
         if (!isMounted) {
           return;
@@ -184,7 +184,7 @@ export default function SideMenu({
       }
     };
 
-    void loadCurrentUser();
+    void loadProfile();
 
     return () => {
       isMounted = false;
@@ -193,15 +193,10 @@ export default function SideMenu({
 
   const handleLogout = async () => {
     try {
-      await api.post(
-        '/accounts/web-session/logout/',
-        undefined,
-        {
-          credentials: 'include',
-        },
-      );
+      await logoutWebSession();
     } catch {
-      // Navigation continues even when the remote session is unavailable.
+      // Continúa cerrando la interfaz incluso si el backend
+      // no está disponible en ese instante.
     } finally {
       onClose();
       router.replace('/login');
@@ -225,6 +220,12 @@ export default function SideMenu({
     setSelectedOption(null);
     onClose();
     router.push('/app/beeservices');
+  };
+
+  const handleProfileUpdated = (
+    profile: CurrentUserProfile,
+  ) => {
+    setMenuUser(getMenuUser(profile));
   };
 
   const menuBtn = (
@@ -284,7 +285,9 @@ export default function SideMenu({
 
             <div className="flex-1 overflow-y-auto p-6">
               {selectedOption === 'edit' ? (
-                <EditProfilePanel />
+                <EditProfilePanel
+                  onProfileUpdated={handleProfileUpdated}
+                />
               ) : null}
 
               {selectedOption === 'subscription' ? (
@@ -423,11 +426,11 @@ export default function SideMenu({
 
                 <button
                   type="button"
-                  onClick={() =>
-                    setNetworkVisibility((visible) => !visible)
-                  }
+                  onClick={() => {
+                    setNetworkVisibility((visible) => !visible);
+                  }}
                   aria-label="Cambiar visibilidad en la red"
-                  className={`relative w-10 h-6 rounded-full p-0.5 transition-colors ${
+                  className={`relative h-6 w-10 rounded-full p-0.5 transition-colors ${
                     networkVisibility
                       ? 'bg-brand-primary'
                       : 'bg-neutral-300'

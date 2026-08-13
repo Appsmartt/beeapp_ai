@@ -116,6 +116,15 @@ export function getCurrentProfile(
     );
 }
 
+export function getCurrentWebProfile(): Promise<GetCurrentProfileResponse> {
+    return api.get<GetCurrentProfileResponse>(
+        '/accounts/me/',
+        {
+        credentials: 'include',
+        },
+    );
+}
+
 export function updateProfile(
     auth: AuthCredentials,
     payload: UpdateProfilePayload,
@@ -125,6 +134,18 @@ export function updateProfile(
         payload,
         {
         auth,
+        },
+    );
+}
+
+export function updateCurrentWebProfile(
+    payload: UpdateProfilePayload,
+    ): Promise<UpdateProfileResponse> {
+    return api.patch<UpdateProfileResponse>(
+        '/accounts/me/profile/',
+        payload,
+        {
+        credentials: 'include',
         },
     );
 }

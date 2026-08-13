@@ -1,177 +1,614 @@
 'use client';
 
-import { useState, FormEvent, useMemo } from 'react';
 import {
-  Camera, UserCheck, Mail, Check, AlertCircle, Instagram, Facebook, Linkedin, Music2, Youtube, AtSign, Globe, Briefcase, Video,
+  FormEvent,
+  useEffect,
+  useMemo,
+  useState,
+} from 'react';
+import {
+  AlertCircle,
+  AtSign,
+  Briefcase,
+  Check,
+  Globe,
+  Loader2,
+  Mail,
+  MapPin,
+  Music2,
+  UserCheck,
+  UserRound,
+  Video,
 } from 'lucide-react';
-import { CURRENT_USER } from '@/mocks/currentUser';
-import CountrySelector, { COUNTRIES, Country } from '@/components/auth/CountrySelector';
+import {
+  getCurrentWebProfile,
+  updateCurrentWebProfile,
+} from '@beeapp/api-client';
+import type {
+  CurrentUserProfile,
+  SocialPlatform,
+} from '@beeapp/shared-types';
 
-export function EditProfilePanel() {
-  const [name, setName] = useState(CURRENT_USER.name);
-  const [email, setEmail] = useState(CURRENT_USER.email);
-  const [phone, setPhone] = useState('300 123 4567');
-  const [country, setCountry] = useState<Country>(COUNTRIES[0]);
+import CountrySelector, {
+  COUNTRIES,
+  Country,
+} from '@/components/auth/CountrySelector';
 
-  const [instagram, setInstagram] = useState('https://instagram.com/santiagovalencia');
-  const [facebook, setFacebook] = useState('');
-  const [linkedin, setLinkedin] = useState('https://linkedin.com/in/santiagovalencia');
-  const [tiktok, setTiktok] = useState('');
-  const [youtube, setYoutube] = useState('');
-  const [threads, setThreads] = useState('');
+type SocialField = {
+  platform: SocialPlatform;
+  label: string;
+  placeholder: string;
+  icon: React.ElementType;
+};
 
-  const [saved, setSaved] = useState(false);
+interface EditProfilePanelProps {
+  onProfileUpdated?: (
+    profile: CurrentUserProfile,
+  ) => void;
+}
 
-  const isEmailValid = useMemo(() => {
-    if (!email.trim()) return false;
-    return email.includes('@') && email.includes('.');
-  }, [email]);
+const SOCIAL_FIELDS: SocialField[] = [
+  {
+    platform: 'instagram',
+    label: 'Instagram',
+    placeholder: 'https://instagram.com/usuario',
+    icon: AtSign,
+  },
+  {
+    platform: 'facebook',
+    label: 'Facebook',
+    placeholder: 'https://facebook.com/usuario',
+    icon: Globe,
+  },
+  {
+    platform: 'linkedin',
+    label: 'LinkedIn',
+    placeholder: 'https://linkedin.com/in/usuario',
+    icon: Briefcase,
+  },
+  {
+    platform: 'tiktok',
+    label: 'TikTok',
+    placeholder: 'https://tiktok.com/@usuario',
+    icon: Music2,
+  },
+  {
+    platform: 'youtube',
+    label: 'YouTube',
+    placeholder: 'https://youtube.com/@usuario',
+    icon: Video,
+  },
+  {
+    platform: 'threads',
+    label: 'Threads',
+    placeholder: 'https://threads.net/@usuario',
+    icon: AtSign,
+  },
+  {
+    platform: 'website',
+    label: 'Sitio web',
+    placeholder: 'https://tusitio.com',
+    icon: Globe,
+  },
+];
 
-  const handleSubmit = (e: FormEvent) => {
-    e.preventDefault();
-    if (!name.trim()) return;
-    if (!isEmailValid) return;
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2500);
-  };
+function getInitials(
+  firstName: string,
+  lastName: string,
+): string {
+  const firstInitial = firstName.trim().charAt(0);
+  const lastInitial = lastName.trim().charAt(0);
 
-  const socialFields = [
-    { label: 'Instagram', icon: Instagram || Camera, value: instagram, onChange: setInstagram, placeholder: 'https://instagram.com/usuario' },
-    { label: 'Facebook', icon: Facebook || Globe, value: facebook, onChange: setFacebook, placeholder: 'https://facebook.com/usuario' },
-    { label: 'LinkedIn', icon: Linkedin || Briefcase, value: linkedin, onChange: setLinkedin, placeholder: 'https://linkedin.com/in/usuario' },
-    { label: 'TikTok', icon: Music2 || Camera, value: tiktok, onChange: setTiktok, placeholder: 'https://tiktok.com/@usuario' },
-    { label: 'YouTube', icon: Youtube || Video, value: youtube, onChange: setYoutube, placeholder: 'https://youtube.com/@usuario' },
-    { label: 'Threads', icon: AtSign || Globe, value: threads, onChange: setThreads, placeholder: 'https://threads.net/@usuario' },
-  ];
+  return `${firstInitial}${lastInitial}`.toUpperCase() || '?';
+}
+
+function getCountryByDialCode(
+  dialCode: string | null,
+): Country {
+  const normalizedDialCode = dialCode
+    ? `+${dialCode.replace('+', '')}`
+    : '';
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-6 select-none">
-      <div className="flex flex-col items-center space-y-2">
-        <div className="relative">
-          <div className="w-20 h-20 rounded-full bg-brand-primary text-white font-bold text-xl flex items-center justify-center shadow-md">
-            {name.slice(0, 2).toUpperCase()}
-          </div>
-          <button
-            type="button"
-            onClick={() => alert('Selector de foto de perfil (simulado)')}
-            className="absolute bottom-0 right-0 w-7 h-7 rounded-full bg-neutral-900 text-white flex items-center justify-center shadow-sm hover:bg-neutral-800 transition-colors"
-            title="Cambiar foto"
-          >
-            <Camera className="w-4 h-4" />
-          </button>
+    COUNTRIES.find(
+      (country) => country.dialCode === normalizedDialCode,
+    ) || COUNTRIES[0]
+  );
+}
+
+function createEmptySocialLinks(): Record<SocialPlatform, string> {
+  return {
+    instagram: '',
+    facebook: '',
+    linkedin: '',
+    tiktok: '',
+    youtube: '',
+    threads: '',
+    website: '',
+  };
+}
+
+function isValidUrl(value: string): boolean {
+  try {
+    const url = new URL(value);
+
+    return (
+      url.protocol === 'http:'
+      || url.protocol === 'https:'
+    );
+  } catch {
+    return false;
+  }
+}
+
+export function EditProfilePanel({
+  onProfileUpdated,
+}: EditProfilePanelProps) {
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
+  const [email, setEmail] = useState('');
+  const [phone, setPhone] = useState('');
+  const [occupation, setOccupation] = useState('');
+  const [location, setLocation] = useState('');
+  const [country, setCountry] = useState<Country>(COUNTRIES[0]);
+
+  const [socialLinks, setSocialLinks] = useState<
+    Record<SocialPlatform, string>
+  >(createEmptySocialLinks());
+
+  const [initialProfile, setInitialProfile] =
+    useState<CurrentUserProfile | null>(null);
+
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [requestError, setRequestError] = useState('');
+
+  const isEmailValid = useMemo(() => {
+    if (!email.trim()) {
+      return false;
+    }
+
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(
+      email.trim(),
+    );
+  }, [email]);
+
+  const initials = useMemo(
+    () => getInitials(firstName, lastName),
+    [firstName, lastName],
+  );
+
+  const applyProfile = (profile: CurrentUserProfile) => {
+    setInitialProfile(profile);
+    setFirstName(profile.first_name || '');
+    setLastName(profile.last_name || '');
+    setEmail(profile.email || '');
+    setPhone(profile.phone_number || '');
+    setOccupation(profile.occupation || '');
+    setLocation(profile.location || '');
+
+    setCountry(
+      getCountryByDialCode(profile.phone_dial_code),
+    );
+
+    const nextSocialLinks = createEmptySocialLinks();
+
+    profile.social_links.forEach((socialLink) => {
+      nextSocialLinks[socialLink.platform] = socialLink.url;
+    });
+
+    setSocialLinks(nextSocialLinks);
+  };
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadProfile = async () => {
+      try {
+        setIsLoading(true);
+        setRequestError('');
+
+        const response = await getCurrentWebProfile();
+
+        if (!isMounted) {
+          return;
+        }
+
+        applyProfile(response.profile);
+      } catch (error) {
+        if (!isMounted) {
+          return;
+        }
+
+        setRequestError(
+          error instanceof Error
+            ? error.message
+            : 'No fue posible cargar tu perfil.',
+        );
+      } finally {
+        if (isMounted) {
+          setIsLoading(false);
+        }
+      }
+    };
+
+    void loadProfile();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  const updateSocialLink = (
+    platform: SocialPlatform,
+    value: string,
+  ) => {
+    setSocialLinks((currentSocialLinks) => ({
+      ...currentSocialLinks,
+      [platform]: value,
+    }));
+  };
+
+  const validateForm = (): string | null => {
+    if (!firstName.trim()) {
+      return 'Ingresa tu nombre.';
+    }
+
+    if (!lastName.trim()) {
+      return 'Ingresa tu apellido.';
+    }
+
+    if (!isEmailValid) {
+      return 'Ingresa un correo electrónico válido.';
+    }
+
+    if (!phone.trim()) {
+      return 'Ingresa tu número de teléfono.';
+    }
+
+    const invalidSocialField = SOCIAL_FIELDS.find((field) => {
+      const url = socialLinks[field.platform].trim();
+
+      return url && !isValidUrl(url);
+    });
+
+    if (invalidSocialField) {
+      return (
+        'Ingresa una URL completa y válida para '
+        + `${invalidSocialField.label}.`
+      );
+    }
+
+    return null;
+  };
+
+  const handleSubmit = async (event: FormEvent) => {
+    event.preventDefault();
+
+    const validationError = validateForm();
+
+    if (validationError) {
+      setRequestError(validationError);
+
+      return;
+    }
+
+    try {
+      setIsSaving(true);
+      setSaved(false);
+      setRequestError('');
+
+      const payloadSocialLinks = SOCIAL_FIELDS
+        .map((field) => ({
+          platform: field.platform,
+          url: socialLinks[field.platform].trim(),
+        }))
+        .filter((socialLink) => Boolean(socialLink.url));
+
+      const response = await updateCurrentWebProfile({
+        first_name: firstName.trim(),
+        last_name: lastName.trim(),
+        email: email.trim().toLowerCase(),
+        phone_dial_code: country.dialCode.replace('+', ''),
+        phone_number: phone.replace(/\D/g, ''),
+        occupation: occupation.trim() || null,
+        location: location.trim() || null,
+        social_links: payloadSocialLinks,
+      });
+
+      applyProfile(response.profile);
+      onProfileUpdated?.(response.profile);
+      setSaved(true);
+
+      window.setTimeout(() => {
+        setSaved(false);
+      }, 2500);
+    } catch (error) {
+      setRequestError(
+        error instanceof Error
+          ? error.message
+          : 'No fue posible guardar los cambios.',
+      );
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleDiscard = () => {
+    if (initialProfile) {
+      applyProfile(initialProfile);
+    }
+
+    setRequestError('');
+    setSaved(false);
+  };
+
+  if (isLoading) {
+    return (
+      <div className="flex min-h-[360px] items-center justify-center">
+        <div className="flex items-center gap-2 text-sm font-medium text-neutral-500">
+          <Loader2 className="h-5 w-5 animate-spin text-brand-primary" />
+          <span>Cargando perfil...</span>
         </div>
-        <div className="flex items-center gap-1 text-xs text-brand-primary font-semibold">
-          <UserCheck className="w-4 h-4" />
+      </div>
+    );
+  }
+
+  return (
+    <form
+      onSubmit={handleSubmit}
+      className="space-y-6 select-none"
+    >
+      <div className="flex flex-col items-center space-y-2">
+        <div className="flex h-20 w-20 items-center justify-center rounded-full bg-brand-primary text-xl font-bold text-white shadow-md">
+          {initials}
+        </div>
+
+        <div className="flex items-center gap-1 text-xs font-semibold text-brand-primary">
+          <UserCheck className="h-4 w-4" />
           <span>Cuenta Verificada</span>
         </div>
       </div>
 
+      {requestError ? (
+        <div className="flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 px-3 py-2.5 text-xs text-red-600">
+          <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+          <span>{requestError}</span>
+        </div>
+      ) : null}
+
       <div className="space-y-4">
-        <span className="text-[11px] font-semibold text-neutral-400 uppercase tracking-wider">
-          Datos Personales
+        <span className="text-[11px] font-semibold uppercase tracking-wider text-neutral-400">
+          Datos personales
         </span>
 
         <div className="space-y-1">
-          <label className="text-xs font-semibold text-neutral-700">Nombre completo *</label>
-          <input
-            type="text"
-            required
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder="Ingresa tu nombre completo..."
-            className="w-full h-11 px-3.5 bg-neutral-50 border border-neutral-200 rounded-xl text-xs font-normal text-neutral-900 outline-none focus:border-brand-primary transition-colors"
-          />
+          <label className="text-xs font-semibold text-neutral-700">
+            Nombre *
+          </label>
+
+          <div className="relative flex items-center">
+            <UserRound className="pointer-events-none absolute left-3.5 h-4 w-4 text-neutral-400" />
+
+            <input
+              type="text"
+              required
+              value={firstName}
+              onChange={(event) => {
+                setFirstName(event.target.value);
+              }}
+              placeholder="Ingresa tu nombre"
+              disabled={isSaving}
+              className="h-11 w-full rounded-xl border border-neutral-200 bg-neutral-50 py-0 pl-10 pr-3.5 text-xs font-normal text-neutral-900 outline-none transition-colors focus:border-brand-primary disabled:cursor-not-allowed disabled:opacity-60"
+            />
+          </div>
         </div>
 
         <div className="space-y-1">
-          <label className="text-xs font-semibold text-neutral-700">Correo electrónico *</label>
+          <label className="text-xs font-semibold text-neutral-700">
+            Apellido *
+          </label>
+
           <div className="relative flex items-center">
-            <Mail className="w-4 h-4 text-neutral-400 absolute left-3.5 pointer-events-none" />
+            <UserRound className="pointer-events-none absolute left-3.5 h-4 w-4 text-neutral-400" />
+
+            <input
+              type="text"
+              required
+              value={lastName}
+              onChange={(event) => {
+                setLastName(event.target.value);
+              }}
+              placeholder="Ingresa tu apellido"
+              disabled={isSaving}
+              className="h-11 w-full rounded-xl border border-neutral-200 bg-neutral-50 py-0 pl-10 pr-3.5 text-xs font-normal text-neutral-900 outline-none transition-colors focus:border-brand-primary disabled:cursor-not-allowed disabled:opacity-60"
+            />
+          </div>
+        </div>
+
+        <div className="space-y-1">
+          <label className="text-xs font-semibold text-neutral-700">
+            Correo electrónico *
+          </label>
+
+          <div className="relative flex items-center">
+            <Mail className="pointer-events-none absolute left-3.5 h-4 w-4 text-neutral-400" />
+
             <input
               type="email"
               required
               value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              onChange={(event) => {
+                setEmail(event.target.value);
+              }}
               placeholder="correo@ejemplo.com"
-              className={`w-full h-11 pl-10 pr-3.5 bg-neutral-50 border rounded-xl text-xs font-normal text-neutral-900 outline-none transition-colors ${
+              disabled={isSaving}
+              className={`h-11 w-full rounded-xl border py-0 pl-10 pr-3.5 text-xs font-normal text-neutral-900 outline-none transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${
                 !isEmailValid && email.length > 0
-                  ? 'border-red-400 focus:border-red-500 bg-red-50/20'
-                  : 'border-neutral-200 focus:border-brand-primary'
+                  ? 'border-red-400 bg-red-50/20 focus:border-red-500'
+                  : 'border-neutral-200 bg-neutral-50 focus:border-brand-primary'
               }`}
             />
           </div>
-          {!isEmailValid && email.length > 0 && (
-            <div className="flex items-center gap-1 text-[11px] text-red-500 font-normal mt-1">
-              <AlertCircle className="w-3 h-3 shrink-0" />
-              <span>Ingresa un correo electrónico válido (ejemplo@dominio.com)</span>
+
+          {!isEmailValid && email.length > 0 ? (
+            <div className="mt-1 flex items-center gap-1 text-[11px] font-normal text-red-500">
+              <AlertCircle className="h-3 w-3 shrink-0" />
+              <span>
+                Ingresa un correo electrónico válido.
+              </span>
             </div>
-          )}
+          ) : null}
         </div>
 
         <div className="space-y-1">
-          <label className="text-xs font-semibold text-neutral-700">Número de Teléfono *</label>
+          <label className="text-xs font-semibold text-neutral-700">
+            Número de teléfono *
+          </label>
+
           <div className="flex items-center">
-            <CountrySelector selectedCountry={country} onSelectCountry={setCountry} />
+            <CountrySelector
+              selectedCountry={country}
+              onSelectCountry={setCountry}
+            />
+
             <input
               type="tel"
+              required
               value={phone}
-              onChange={(e) => setPhone(e.target.value.replace(/\D/g, ''))}
+              onChange={(event) => {
+                setPhone(
+                  event.target.value.replace(/\D/g, ''),
+                );
+              }}
               placeholder="300 000 0000"
-              className="flex-1 h-12 px-3.5 bg-white border border-l-0 border-neutral-300 rounded-r-xl text-xs font-normal text-neutral-900 outline-none focus:border-brand-primary transition-colors"
+              disabled={isSaving}
+              className="h-12 flex-1 rounded-r-xl border border-l-0 border-neutral-300 bg-white px-3.5 text-xs font-normal text-neutral-900 outline-none transition-colors focus:border-brand-primary disabled:cursor-not-allowed disabled:opacity-60"
+            />
+          </div>
+        </div>
+      </div>
+
+      <div className="space-y-4">
+        <span className="text-[11px] font-semibold uppercase tracking-wider text-neutral-400">
+          Información profesional
+        </span>
+
+        <div className="space-y-1">
+          <label className="text-xs font-semibold text-neutral-700">
+            Ocupación
+          </label>
+
+          <div className="relative flex items-center">
+            <Briefcase className="pointer-events-none absolute left-3.5 h-4 w-4 text-neutral-400" />
+
+            <input
+              type="text"
+              value={occupation}
+              onChange={(event) => {
+                setOccupation(event.target.value);
+              }}
+              placeholder="Ej. Desarrollador de software"
+              disabled={isSaving}
+              className="h-11 w-full rounded-xl border border-neutral-200 bg-neutral-50 py-0 pl-10 pr-3.5 text-xs font-normal text-neutral-900 outline-none transition-colors focus:border-brand-primary disabled:cursor-not-allowed disabled:opacity-60"
             />
           </div>
         </div>
 
-        {/* Redes Sociales Section */}
-        <div className="pt-2 space-y-3">
-          <span className="text-[11px] font-semibold text-neutral-400 uppercase tracking-wider">
-            Redes Sociales
-          </span>
-          {socialFields.map((sf, idx) => {
-            const Icon = sf.icon || Globe;
-            return (
-              <div key={idx} className="space-y-1">
-                <label className="text-xs font-semibold text-neutral-700">{sf.label}</label>
-                <div className="relative flex items-center">
-                  <Icon className="w-4 h-4 text-neutral-400 absolute left-3.5 pointer-events-none" />
-                  <input
-                    type="text"
-                    value={sf.value}
-                    onChange={(e) => sf.onChange(e.target.value)}
-                    placeholder={sf.placeholder}
-                    className="w-full h-10 pl-10 pr-3.5 bg-neutral-50 border border-neutral-200 rounded-xl text-xs font-normal text-neutral-900 outline-none focus:border-brand-primary transition-colors"
-                  />
-                </div>
-              </div>
-            );
-          })}
+        <div className="space-y-1">
+          <label className="text-xs font-semibold text-neutral-700">
+            Ubicación
+          </label>
+
+          <div className="relative flex items-center">
+            <MapPin className="pointer-events-none absolute left-3.5 h-4 w-4 text-neutral-400" />
+
+            <input
+              type="text"
+              value={location}
+              onChange={(event) => {
+                setLocation(event.target.value);
+              }}
+              placeholder="Ej. Bogotá, Colombia"
+              disabled={isSaving}
+              className="h-11 w-full rounded-xl border border-neutral-200 bg-neutral-50 py-0 pl-10 pr-3.5 text-xs font-normal text-neutral-900 outline-none transition-colors focus:border-brand-primary disabled:cursor-not-allowed disabled:opacity-60"
+            />
+          </div>
         </div>
+      </div>
+
+      <div className="space-y-3 pt-2">
+        <span className="text-[11px] font-semibold uppercase tracking-wider text-neutral-400">
+          Redes sociales
+        </span>
+
+        {SOCIAL_FIELDS.map((field) => {
+          const Icon = field.icon;
+
+          return (
+            <div
+              key={field.platform}
+              className="space-y-1"
+            >
+              <label className="text-xs font-semibold text-neutral-700">
+                {field.label}
+              </label>
+
+              <div className="relative flex items-center">
+                <Icon className="pointer-events-none absolute left-3.5 h-4 w-4 text-neutral-400" />
+
+                <input
+                  type="url"
+                  value={socialLinks[field.platform]}
+                  onChange={(event) => {
+                    updateSocialLink(
+                      field.platform,
+                      event.target.value,
+                    );
+                  }}
+                  placeholder={field.placeholder}
+                  disabled={isSaving}
+                  className="h-10 w-full rounded-xl border border-neutral-200 bg-neutral-50 py-0 pl-10 pr-3.5 text-xs font-normal text-neutral-900 outline-none transition-colors focus:border-brand-primary disabled:cursor-not-allowed disabled:opacity-60"
+                />
+              </div>
+            </div>
+          );
+        })}
       </div>
 
       <div className="flex gap-3 pt-2">
         <button
           type="button"
-          onClick={() => {
-            setName(CURRENT_USER.name);
-            setEmail(CURRENT_USER.email);
-            setPhone('300 123 4567');
-          }}
-          className="flex-1 h-11 rounded-xl border border-neutral-200 text-xs font-medium text-neutral-600 hover:bg-neutral-50 transition-colors"
+          onClick={handleDiscard}
+          disabled={isSaving}
+          className="h-11 flex-1 rounded-xl border border-neutral-200 text-xs font-medium text-neutral-600 transition-colors hover:bg-neutral-50 disabled:cursor-not-allowed disabled:opacity-60"
         >
           Descartar
         </button>
+
         <button
           type="submit"
-          disabled={!name.trim() || !isEmailValid}
-          className="flex-1 h-11 rounded-xl bg-brand-primary text-white text-xs font-semibold hover:bg-brand-dark transition-colors disabled:opacity-50 flex items-center justify-center gap-1.5 shadow-xs"
+          disabled={
+            isSaving
+            || !firstName.trim()
+            || !lastName.trim()
+            || !isEmailValid
+          }
+          className="flex h-11 flex-1 items-center justify-center gap-1.5 rounded-xl bg-brand-primary text-xs font-semibold text-white shadow-xs transition-colors hover:bg-brand-dark disabled:cursor-not-allowed disabled:opacity-50"
         >
-          {saved ? (
+          {isSaving ? (
             <>
-              <Check className="w-4 h-4" />
+              <Loader2 className="h-4 w-4 animate-spin" />
+              <span>Guardando...</span>
+            </>
+          ) : saved ? (
+            <>
+              <Check className="h-4 w-4" />
               <span>Cambios guardados</span>
             </>
           ) : (
-            <span>Guardar Cambios</span>
+            <span>Guardar cambios</span>
           )}
         </button>
       </div>
