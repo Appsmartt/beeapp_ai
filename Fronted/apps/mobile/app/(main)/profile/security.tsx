@@ -6,7 +6,6 @@ import { colors } from '@beeapp/design-system';
 import { ChevronLeft, ShieldCheck, KeyRound, Lock, MessageSquare, Smartphone, Mail } from 'lucide-react-native';
 import PinPad from '../../../src/components/security/PinPad';
 import FloatingTabBar from '../../../src/components/FloatingTabBar';
-import AppLockSettingsSection from '../../../src/components/security/AppLockSettingsSection';
 import {
   hasPin,
   isPinCorrect,
@@ -92,9 +91,6 @@ export default function SecurityScreen() {
           {stage === 'menu' && (
             <View style={styles.menuWrap}>
               {/* App Lock Configuration */}
-              <AppLockSettingsSection />
-
-              <View style={styles.separator} />
 
               <Text style={styles.sectionHeaderLabel}>PIN de archivos y chats</Text>
 
@@ -240,11 +236,6 @@ const styles = StyleSheet.create({
   methodDesc: { fontSize: 12, fontWeight: '400', color: colors.neutral.gray500 },
   primaryButton: { backgroundColor: colors.brand.primary, borderRadius: 14, paddingVertical: 15, alignItems: 'center', marginTop: 20, shadowColor: colors.brand.primary, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.15, shadowRadius: 8, elevation: 3 },
   primaryButtonText: { color: colors.neutral.white, fontSize: 14, fontWeight: '600' },
-  separator: {
-    height: 1,
-    backgroundColor: colors.neutral.gray200,
-    marginVertical: 20,
-  },
   sectionHeaderLabel: {
     fontSize: 13,
     fontWeight: '600',

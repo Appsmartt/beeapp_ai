@@ -5,15 +5,16 @@ import type {
     AuthenticatedUser,
     } from '@beeapp/shared-types';
 
+import {
+    clearAppLockConfig,
+    } from '../stores/appLockStore';
 
 const AUTH_SESSION_KEY = 'beeapp.auth.session';
-
 
 export interface PersistedAuthSession {
     session: AuthSession;
     user: AuthenticatedUser;
 }
-
 
 export async function saveAuthSession(
     authSession: PersistedAuthSession,
@@ -23,7 +24,6 @@ export async function saveAuthSession(
         JSON.stringify(authSession),
     );
 }
-
 
 export async function getAuthSession(): Promise<PersistedAuthSession | null> {
     const storedSession = await SecureStore.getItemAsync(
@@ -35,18 +35,21 @@ export async function getAuthSession(): Promise<PersistedAuthSession | null> {
     }
 
     try {
-        return JSON.parse(storedSession) as PersistedAuthSession;
+        return JSON.parse(
+        storedSession,
+        ) as PersistedAuthSession;
     } catch {
         await clearAuthSession();
         return null;
     }
 }
 
-
 export async function clearAuthSession(): Promise<void> {
-    await SecureStore.deleteItemAsync(AUTH_SESSION_KEY);
+    await Promise.all([
+        SecureStore.deleteItemAsync(AUTH_SESSION_KEY),
+        clearAppLockConfig(),
+    ]);
 }
-
 
 export function getSessionCredentials(
     authSession: PersistedAuthSession,

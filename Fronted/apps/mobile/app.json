@@ -44,6 +44,12 @@
           "cameraPermission": "BeeApp necesita acceso a la cámara para escanear códigos QR de inicio de sesión."
         }
       ],
+      [
+        "expo-local-authentication",
+        {
+          "faceIDPermission": "BeeApp necesita usar Face ID para proteger el acceso a tu cuenta."
+        }
+      ],
       "./withMonorepoSettings.js"
     ]
   }

@@ -207,7 +207,7 @@ export default function LoginScreen() {
         user: response.user,
       });
 
-      router.replace('/(auth)/app-lock-setup');
+      router.replace('/');
     } catch (error) {
       setFormMessage(
         error instanceof Error

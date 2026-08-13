@@ -1,36 +1,251 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert } from 'react-native';
-import { colors, spacing } from '@beeapp/design-system';
-import { Fingerprint, ScanFace, KeyRound, CheckCircle2 } from 'lucide-react-native';
-import AppLockPinPad from './AppLockPinPad';
-import { enableAppLock } from '../../stores/appLockStore';
+import {
+  useEffect,
+  useState,
+} from 'react';
+import {
+  ActivityIndicator,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from 'react-native';
+import {
+  CheckCircle2,
+  Fingerprint,
+  KeyRound,
+  ScanFace,
+} from 'lucide-react-native';
+import { colors } from '@beeapp/design-system';
 
-interface AppLockSetupScreenProps {
+import AppLockPinPad from './AppLockPinPad';
+import {
+  authenticateWithBiometrics,
+  getBiometricAvailability,
+  type BiometricAvailability,
+} from '../../services/biometricService';
+import {
+  enableAppLock,
+  type AppLockMethod,
+} from '../../stores/appLockStore';
+
+type AppLockSetupScreenProps = {
   onComplete: () => void;
+};
+
+type SetupMode =
+  | 'loading'
+  | 'select'
+  | 'pin-create'
+  | 'pin-confirm'
+  | 'success';
+
+type LockMethodOption =
+  | 'fingerprint'
+  | 'faceid'
+  | 'pin';
+
+type OptionCardProps = {
+  method: LockMethodOption;
+  title: string;
+  subtitle: string;
+  disabled?: boolean;
+  loading?: boolean;
+  onPress: () => void;
+};
+
+function OptionCard({
+  method,
+  title,
+  subtitle,
+  disabled = false,
+  loading = false,
+  onPress,
+}: OptionCardProps) {
+  const Icon =
+    method === 'fingerprint'
+      ? Fingerprint
+      : method === 'faceid'
+        ? ScanFace
+        : KeyRound;
+
+  return (
+    <TouchableOpacity
+      style={[
+        styles.card,
+        disabled && styles.cardDisabled,
+      ]}
+      onPress={onPress}
+      activeOpacity={0.7}
+      disabled={disabled || loading}
+    >
+      <View
+        style={[
+          styles.cardIconCircle,
+          disabled && styles.cardIconCircleDisabled,
+        ]}
+      >
+        {loading ? (
+          <ActivityIndicator
+            size="small"
+            color={colors.brand.primary}
+          />
+        ) : (
+          <Icon
+            size={24}
+            color={
+              disabled
+                ? colors.neutral.gray400
+                : colors.brand.primary
+            }
+          />
+        )}
+      </View>
+
+      <View style={styles.cardTexts}>
+        <Text
+          style={[
+            styles.cardTitle,
+            disabled && styles.cardTitleDisabled,
+          ]}
+        >
+          {title}
+        </Text>
+
+        <Text
+          style={[
+            styles.cardSubtitle,
+            disabled && styles.cardSubtitleDisabled,
+          ]}
+        >
+          {subtitle}
+        </Text>
+      </View>
+    </TouchableOpacity>
+  );
 }
 
-type Mode = 'select' | 'pin-create' | 'pin-confirm' | 'success';
-type LockMethodOption = 'fingerprint' | 'faceid' | 'pin';
+function getUnavailableText(
+  availability: BiometricAvailability,
+  supported: boolean,
+): string {
+  if (!availability.hardwareAvailable) {
+    return 'No disponible en este dispositivo.';
+  }
 
-export default function AppLockSetupScreen({ onComplete }: AppLockSetupScreenProps) {
-  const [mode, setMode] = useState<Mode>('select');
-  const [selectedMethod, setSelectedMethod] = useState<LockMethodOption | null>(null);
+  if (!availability.enrolled) {
+    return 'Configúrala en los ajustes del dispositivo.';
+  }
+
+  if (!supported) {
+    return 'No disponible en este dispositivo.';
+  }
+
+  return 'No disponible.';
+}
+
+export default function AppLockSetupScreen({
+  onComplete,
+}: AppLockSetupScreenProps) {
+  const [mode, setMode] =
+    useState<SetupMode>('loading');
+
+  const [availability, setAvailability] =
+    useState<BiometricAvailability | null>(null);
+
+  const [selectedMethod, setSelectedMethod] =
+    useState<LockMethodOption | null>(null);
+
   const [draftPin, setDraftPin] = useState('');
-  const [pinError, setPinError] = useState<string | null>(null);
+  const [pinError, setPinError] =
+    useState<string | null>(null);
 
-  const handleSelectMethod = (method: LockMethodOption) => {
+  const [biometricError, setBiometricError] =
+    useState('');
+
+  const [isAuthenticating, setIsAuthenticating] =
+    useState(false);
+
+  useEffect(() => {
+    const loadAvailability = async () => {
+      try {
+        const result =
+          await getBiometricAvailability();
+
+        setAvailability(result);
+      } catch {
+        setAvailability({
+          fingerprint: false,
+          faceid: false,
+          hardwareAvailable: false,
+          enrolled: false,
+        });
+      } finally {
+        setMode('select');
+      }
+    };
+
+    void loadAvailability();
+  }, []);
+
+  const completeSetup = (
+    method: LockMethodOption,
+  ) => {
     setSelectedMethod(method);
+    setMode('success');
 
-    if (method === 'fingerprint' || method === 'faceid') {
-      setMode('success');
-      // Simulate biometric check
-      setTimeout(() => {
-        enableAppLock('biometric');
-        onComplete();
-      }, 1200);
-    } else {
-      setMode('pin-create');
+    setTimeout(() => {
+      onComplete();
+    }, 900);
+  };
+
+  const handleBiometricSelection = async (
+    method: Extract<
+      AppLockMethod,
+      'fingerprint' | 'faceid'
+    >,
+  ) => {
+    setSelectedMethod(method);
+    setBiometricError('');
+    setIsAuthenticating(true);
+
+    try {
+      const result =
+        await authenticateWithBiometrics(method);
+
+      if (!result.success) {
+        if (!result.cancelled) {
+          setBiometricError(
+            'No fue posible verificar tu identidad. Inténtalo nuevamente.',
+          );
+        }
+
+        return;
+      }
+
+      await enableAppLock(method);
+      completeSetup(method);
+    } catch {
+      setBiometricError(
+        'No fue posible configurar la autenticación biométrica.',
+      );
+    } finally {
+      setIsAuthenticating(false);
     }
+  };
+
+  const handleSelectMethod = (
+    method: LockMethodOption,
+  ) => {
+    if (method === 'pin') {
+      setSelectedMethod(method);
+      setPinError(null);
+      setDraftPin('');
+      setMode('pin-create');
+      return;
+    }
+
+    void handleBiometricSelection(method);
   };
 
   const handlePinCreate = (pin: string) => {
@@ -39,157 +254,291 @@ export default function AppLockSetupScreen({ onComplete }: AppLockSetupScreenPro
     setMode('pin-confirm');
   };
 
-  const handlePinConfirm = (pin: string) => {
+  const handlePinConfirm = async (pin: string) => {
     if (pin !== draftPin) {
-      setPinError('Los códigos no coinciden. Inténtalo de nuevo.');
+      setPinError(
+        'Los códigos no coinciden. Inténtalo de nuevo.',
+      );
       setDraftPin('');
       setMode('pin-create');
       return;
     }
 
-    setPinError(null);
-    enableAppLock('pin', pin);
-    setMode('success');
-    setTimeout(() => {
-      onComplete();
-    }, 1000);
+    try {
+      await enableAppLock('pin', pin);
+      completeSetup('pin');
+    } catch {
+      setPinError(
+        'No fue posible guardar el código de acceso.',
+      );
+    }
   };
 
-  return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      {mode === 'select' && (
-        <View style={styles.viewWrap}>
-          <Text style={styles.title}>Protege tu cuenta</Text>
-          <Text style={styles.subtitle}>
-            Elige cómo proteger el acceso a tu cuenta cada vez que abras BeeApp
-          </Text>
+  if (mode === 'loading' || !availability) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator
+          size="large"
+          color={colors.brand.primary}
+        />
 
-          <OptionCard
-            icon={Fingerprint}
-            title="Huella dactilar"
-            subtitle="Usa tu huella para desbloquear"
-            onPress={() => handleSelectMethod('fingerprint')}
-          />
+        <Text style={styles.loadingText}>
+          Revisando la seguridad de tu dispositivo...
+        </Text>
+      </View>
+    );
+  }
 
-          <OptionCard
-            icon={ScanFace}
-            title="Face ID"
-            subtitle="Usa reconocimiento facial para desbloquear"
-            onPress={() => handleSelectMethod('faceid')}
-          />
-
-          <OptionCard
-            icon={KeyRound}
-            title="Código de acceso"
-            subtitle="Crea un PIN de 6 dígitos para desbloquear"
-            onPress={() => handleSelectMethod('pin')}
-          />
-        </View>
-      )}
-
-      {mode === 'pin-create' && (
+  if (mode === 'pin-create') {
+    return (
+      <View style={styles.pinContainer}>
         <AppLockPinPad
           title="Crea tu código de acceso"
-          subtitle="Elige 6 dígitos para proteger el acceso a la app."
+          subtitle="Elige 6 dígitos para proteger el acceso a BeeApp."
           onComplete={handlePinCreate}
           error={pinError}
         />
-      )}
+      </View>
+    );
+  }
 
-      {mode === 'pin-confirm' && (
+  if (mode === 'pin-confirm') {
+    return (
+      <View style={styles.pinContainer}>
         <AppLockPinPad
-          title="Confirma tu código de acceso"
-          subtitle="Escribe el código de nuevo para confirmar."
-          onComplete={handlePinConfirm}
+          title="Confirma tu código"
+          subtitle="Escribe nuevamente los 6 dígitos para continuar."
+          onComplete={(pin) => {
+            void handlePinConfirm(pin);
+          }}
+          error={pinError}
         />
-      )}
+      </View>
+    );
+  }
 
-      {mode === 'success' && (
-        <View style={styles.successContainer}>
-          <CheckCircle2 size={64} color={colors.semantic.success} />
-          <Text style={styles.successTitle}>Seguridad configurada</Text>
-          <Text style={styles.successSubtitle}>
-            {selectedMethod === 'pin'
-              ? 'Código de acceso establecido correctamente.'
-              : 'Autenticación biométrica habilitada correctamente.'}
+  if (mode === 'success') {
+    const methodText = selectedMethod === 'pin'
+      ? 'Código de acceso configurado correctamente.'
+      : 'Autenticación biométrica configurada correctamente.';
+
+    return (
+      <View style={styles.successContainer}>
+        <CheckCircle2
+          size={64}
+          color={colors.semantic.success}
+        />
+
+        <Text style={styles.successTitle}>
+          Seguridad configurada
+        </Text>
+
+        <Text style={styles.successSubtitle}>
+          {methodText}
+        </Text>
+      </View>
+    );
+  }
+
+  const fingerprintDisabled =
+    !availability.fingerprint || isAuthenticating;
+
+  const faceIdDisabled =
+    !availability.faceid || isAuthenticating;
+
+  return (
+    <ScrollView
+      style={styles.container}
+      contentContainerStyle={styles.content}
+      showsVerticalScrollIndicator={false}
+    >
+      <View style={styles.viewWrap}>
+        <Text style={styles.title}>
+          Protege tu cuenta
+        </Text>
+
+        <Text style={styles.subtitle}>
+          Elige cómo proteger el acceso a tu cuenta cada vez que
+          abras BeeApp.
+        </Text>
+
+        <OptionCard
+          method="fingerprint"
+          title="Huella dactilar"
+          subtitle={
+            availability.fingerprint
+              ? 'Usa tu huella para desbloquear.'
+              : getUnavailableText(
+                availability,
+                availability.fingerprint,
+              )
+          }
+          disabled={fingerprintDisabled}
+          loading={
+            isAuthenticating
+            && selectedMethod === 'fingerprint'
+          }
+          onPress={() => handleSelectMethod('fingerprint')}
+        />
+
+        <OptionCard
+          method="faceid"
+          title="Face ID"
+          subtitle={
+            availability.faceid
+              ? 'Usa reconocimiento facial para desbloquear.'
+              : getUnavailableText(
+                availability,
+                availability.faceid,
+              )
+          }
+          disabled={faceIdDisabled}
+          loading={
+            isAuthenticating
+            && selectedMethod === 'faceid'
+          }
+          onPress={() => handleSelectMethod('faceid')}
+        />
+
+        <OptionCard
+          method="pin"
+          title="Código de acceso"
+          subtitle="Crea un PIN de 6 dígitos para desbloquear."
+          disabled={isAuthenticating}
+          onPress={() => handleSelectMethod('pin')}
+        />
+
+        {biometricError ? (
+          <Text style={styles.errorText}>
+            {biometricError}
           </Text>
-        </View>
-      )}
+        ) : null}
+      </View>
     </ScrollView>
   );
 }
 
-// ─── Sub-components ──────────────────────────────────────────────────────────
-
-interface OptionCardProps {
-  icon: typeof Fingerprint;
-  title: string;
-  subtitle: string;
-  onPress: () => void;
-}
-
-function OptionCard({ icon: Icon, title, subtitle, onPress }: OptionCardProps) {
-  return (
-    <TouchableOpacity style={styles.card} onPress={onPress} activeOpacity={0.7}>
-      <View style={styles.cardIconCircle}>
-        <Icon size={24} color={colors.brand.primary} />
-      </View>
-      <View style={styles.cardTexts}>
-        <Text style={styles.cardTitle}>{title}</Text>
-        <Text style={styles.cardSubtitle}>{subtitle}</Text>
-      </View>
-    </TouchableOpacity>
-  );
-}
-
-// ─── Styles ──────────────────────────────────────────────────────────────────
-
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.neutral.gray50 },
-  content: { paddingVertical: 40, paddingHorizontal: 24, justifyContent: 'center' },
-  viewWrap: { width: '100%' },
+  container: {
+    backgroundColor: colors.neutral.gray50,
+    flex: 1,
+  },
+  content: {
+    flexGrow: 1,
+    justifyContent: 'center',
+    paddingHorizontal: 24,
+    paddingVertical: 40,
+  },
+  viewWrap: {
+    width: '100%',
+  },
+  loadingContainer: {
+    alignItems: 'center',
+    backgroundColor: colors.neutral.gray50,
+    flex: 1,
+    justifyContent: 'center',
+    paddingHorizontal: 24,
+  },
+  loadingText: {
+    color: colors.neutral.gray600,
+    fontSize: 14,
+    marginTop: 16,
+    textAlign: 'center',
+  },
   title: {
+    color: colors.neutral.text,
     fontSize: 24,
     fontWeight: '600',
-    color: colors.neutral.text,
-    textAlign: 'center',
     marginBottom: 8,
+    textAlign: 'center',
   },
   subtitle: {
+    color: colors.neutral.gray600,
     fontSize: 14,
     fontWeight: '400',
-    color: colors.neutral.gray600,
-    textAlign: 'center',
-    marginBottom: 32,
     lineHeight: 20,
+    marginBottom: 32,
+    textAlign: 'center',
   },
-
-  // Card styles
   card: {
-    flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: colors.neutral.white,
-    borderWidth: 1.5,
     borderColor: colors.neutral.gray200,
     borderRadius: 16,
-    padding: 20,
+    borderWidth: 1.5,
+    flexDirection: 'row',
     marginBottom: 16,
+    padding: 20,
+  },
+  cardDisabled: {
+    backgroundColor: colors.neutral.gray100,
+    borderColor: colors.neutral.gray200,
+    opacity: 0.7,
   },
   cardIconCircle: {
-    width: 44,
-    height: 44,
-    borderRadius: 12,
-    backgroundColor: colors.brand.primary + '10',
     alignItems: 'center',
+    backgroundColor: `${colors.brand.primary}10`,
+    borderRadius: 12,
+    height: 44,
     justifyContent: 'center',
     marginRight: 16,
+    width: 44,
   },
-  cardTexts: { flex: 1 },
-  cardTitle: { fontSize: 16, fontWeight: '400', color: colors.neutral.text },
-  cardSubtitle: { fontSize: 12, fontWeight: '400', color: colors.neutral.gray500, marginTop: 2 },
-
-  // Success styles
-  successContainer: { alignItems: 'center', justifyContent: 'center', paddingVertical: 60 },
-  successTitle: { fontSize: 20, fontWeight: '600', color: colors.neutral.text, marginTop: 20, marginBottom: 8 },
-  successSubtitle: { fontSize: 14, fontWeight: '400', color: colors.neutral.gray600, textAlign: 'center' },
+  cardIconCircleDisabled: {
+    backgroundColor: colors.neutral.gray200,
+  },
+  cardTexts: {
+    flex: 1,
+  },
+  cardTitle: {
+    color: colors.neutral.text,
+    fontSize: 16,
+    fontWeight: '400',
+  },
+  cardTitleDisabled: {
+    color: colors.neutral.gray500,
+  },
+  cardSubtitle: {
+    color: colors.neutral.gray500,
+    fontSize: 12,
+    fontWeight: '400',
+    lineHeight: 17,
+    marginTop: 2,
+  },
+  cardSubtitleDisabled: {
+    color: colors.neutral.gray500,
+  },
+  pinContainer: {
+    backgroundColor: colors.neutral.gray50,
+    flex: 1,
+    justifyContent: 'center',
+  },
+  successContainer: {
+    alignItems: 'center',
+    backgroundColor: colors.neutral.gray50,
+    flex: 1,
+    justifyContent: 'center',
+    paddingHorizontal: 24,
+    paddingVertical: 60,
+  },
+  successTitle: {
+    color: colors.neutral.text,
+    fontSize: 20,
+    fontWeight: '600',
+    marginBottom: 8,
+    marginTop: 20,
+  },
+  successSubtitle: {
+    color: colors.neutral.gray600,
+    fontSize: 14,
+    fontWeight: '400',
+    textAlign: 'center',
+  },
+  errorText: {
+    color: colors.semantic.error,
+    fontSize: 12,
+    lineHeight: 18,
+    marginTop: 4,
+    textAlign: 'center',
+  },
 });

@@ -226,7 +226,7 @@ export default function VerifyScreen() {
         user: response.user,
       });
 
-      router.replace('/(main)');
+      router.replace('/');
     } catch (requestError) {
       setCode(createEmptyCode());
 
