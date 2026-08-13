@@ -157,6 +157,7 @@ export default function AppLockSetupScreen({
     useState<LockMethodOption | null>(null);
 
   const [draftPin, setDraftPin] = useState('');
+
   const [pinError, setPinError] =
     useState<string | null>(null);
 
@@ -293,6 +294,7 @@ export default function AppLockSetupScreen({
     return (
       <View style={styles.pinContainer}>
         <AppLockPinPad
+          key="app-lock-pin-create"
           title="Crea tu código de acceso"
           subtitle="Elige 6 dígitos para proteger el acceso a BeeApp."
           onComplete={handlePinCreate}
@@ -306,6 +308,7 @@ export default function AppLockSetupScreen({
     return (
       <View style={styles.pinContainer}>
         <AppLockPinPad
+          key="app-lock-pin-confirm"
           title="Confirma tu código"
           subtitle="Escribe nuevamente los 6 dígitos para continuar."
           onComplete={(pin) => {
