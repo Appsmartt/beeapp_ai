@@ -28,6 +28,7 @@ from apps.accounts.serializers import (
     PasswordResetConfirmSerializer,
     PasswordResetRequestSerializer,
     PasswordResetVerifySerializer,
+    RefreshSessionSerializer,
     RequestPhoneOtpSerializer,
     RegisterUserSerializer,
     UpdateAssistantSettingsSerializer,
@@ -45,12 +46,16 @@ from apps.accounts.services.device_session_service import (
     create_web_device_session,
     get_active_session_by_token,
     get_user_device_sessions,
+    refresh_mobile_device_session,
     revoke_all_user_device_sessions,
     revoke_device_session_by_id,
     update_device_metadata,
 )
 from apps.accounts.services.login_service import (
     login_with_email_password,
+)
+from apps.accounts.services.session_refresh_service import (
+    refresh_supabase_session,
 )
 from apps.accounts.services.password_reset_service import (
     confirm_password_reset,
@@ -238,6 +243,51 @@ class LoginUserView(APIView):
             status=status.HTTP_200_OK,
         )
 
+class SessionRefreshView(APIView):
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        serializer = RefreshSessionSerializer(
+            data=request.data,
+        )
+        serializer.is_valid(raise_exception=True)
+
+        try:
+            refresh_token = serializer.validated_data.get(
+                "refresh_token"
+            )
+
+            if refresh_token:
+                session = refresh_supabase_session(
+                    refresh_token=refresh_token,
+                )
+            else:
+                session = refresh_mobile_device_session(
+                    session_token=serializer.validated_data[
+                        "session_token"
+                    ],
+                )
+
+        except (
+            AccountAuthenticationError,
+            DeviceSessionError,
+        ):
+            return Response(
+                {
+                    "detail": (
+                        "Session is invalid, expired, "
+                        "or has been revoked."
+                    ),
+                },
+                status=status.HTTP_401_UNAUTHORIZED,
+            )
+
+        return Response(
+            {
+                "session": session,
+            },
+            status=status.HTTP_200_OK,
+        )
 
 class PhoneOtpRequestView(APIView):
     permission_classes = [AllowAny]

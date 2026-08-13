@@ -25,6 +25,8 @@ import type {
     VerifyPhoneOtpMobileResponse,
     VerifyPhoneOtpPayload,
     WebSessionProfileResponse,
+    RefreshSessionPayload,
+    RefreshSessionResponse,
     } from '@beeapp/shared-types';
 
 import { api } from './client';
@@ -45,6 +47,15 @@ export function loginUser(
     ): Promise<LoginUserResponse> {
     return api.post<LoginUserResponse>(
         '/accounts/login/',
+        payload,
+    );
+}
+
+export function refreshSession(
+    payload: RefreshSessionPayload,
+    ): Promise<RefreshSessionResponse> {
+    return api.post<RefreshSessionResponse>(
+        '/accounts/session/refresh/',
         payload,
     );
 }

@@ -1,4 +1,5 @@
 import hashlib
+import secrets
 from datetime import datetime, timedelta
 
 from django.utils import timezone
@@ -222,6 +223,63 @@ def get_active_session_by_token(
     except Exception as error:
         raise DeviceSessionError(
             "Could not validate session."
+        ) from error
+
+
+def refresh_mobile_device_session(
+    *,
+    session_token: str,
+) -> dict:
+    """
+    Valida una sesión móvil activa, rota su token y extiende su
+    vencimiento por otros 30 días desde el momento de la renovación.
+    """
+    try:
+        device_session = get_active_session_by_token(
+            session_token=session_token,
+        )
+
+        if device_session["device_type"] != "MOBILE":
+            raise DeviceSessionError(
+                "Only mobile sessions can be refreshed here."
+            )
+
+        new_session_token = secrets.token_urlsafe(48)
+        new_expires_at = (
+            timezone.now()
+            + timedelta(days=SESSION_DURATION_DAYS)
+        )
+
+        supabase = get_supabase_admin_client()
+
+        (
+            supabase.table("device_sessions")
+            .update(
+                {
+                    "session_token_hash": hash_token(
+                        new_session_token
+                    ),
+                    "expires_at": new_expires_at.isoformat(),
+                    "last_seen_at": timezone.now().isoformat(),
+                }
+            )
+            .eq("id", device_session["id"])
+            .eq("is_active", True)
+            .is_("revoked_at", "null")
+            .execute()
+        )
+
+        return {
+            "token": new_session_token,
+            "expires_at": new_expires_at.isoformat(),
+        }
+
+    except DeviceSessionError:
+        raise
+
+    except Exception as error:
+        raise DeviceSessionError(
+            "Could not refresh mobile session."
         ) from error
 
 

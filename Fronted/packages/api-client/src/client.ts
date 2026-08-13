@@ -3,27 +3,45 @@ import type {
     AuthScheme,
     } from '@beeapp/shared-types';
 
+    const expoApiBaseUrl =
+    process.env.EXPO_PUBLIC_API_BASE_URL;
 
-const expoApiBaseUrl = process.env.EXPO_PUBLIC_API_BASE_URL;
-const nextApiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL;
+    const nextApiBaseUrl =
+    process.env.NEXT_PUBLIC_API_BASE_URL;
 
-const configuredApiBaseUrl = expoApiBaseUrl || nextApiBaseUrl;
+    const configuredApiBaseUrl =
+    expoApiBaseUrl || nextApiBaseUrl;
 
-if (!configuredApiBaseUrl) {
+    if (!configuredApiBaseUrl) {
     throw new Error(
-        `Backend URL is missing. EXPO_PUBLIC_API_BASE_URL=${String(
-        expoApiBaseUrl,
-        )}, NEXT_PUBLIC_API_BASE_URL=${String(nextApiBaseUrl)}`,
+        'Backend URL is missing. '
+        + 'EXPO_PUBLIC_API_BASE_URL or '
+        + 'NEXT_PUBLIC_API_BASE_URL must be defined.',
     );
 }
 
-export const API_BASE_URL: string = configuredApiBaseUrl;
+export const API_BASE_URL: string =
+    configuredApiBaseUrl;
 
 export interface ApiErrorResponse {
     detail?: string;
     message?: string;
     error?: string;
     [key: string]: unknown;
+}
+
+export class ApiRequestError extends Error {
+    readonly status: number;
+
+    constructor(
+        message: string,
+        status: number,
+    ) {
+        super(message);
+
+        this.name = 'ApiRequestError';
+        this.status = status;
+    }
 }
 
 export interface ApiRequestOptions
@@ -35,9 +53,11 @@ export interface ApiRequestOptions
 }
 
 function buildUrl(endpoint: string): string {
-    const normalizedBaseUrl = API_BASE_URL.replace(/\/+$/, '');
+    const normalizedBaseUrl =
+        API_BASE_URL.replace(/\/$/, '');
 
-    const normalizedEndpoint = endpoint.startsWith('/')
+    const normalizedEndpoint =
+        endpoint.startsWith('/')
         ? endpoint
         : `/${endpoint}`;
 
@@ -80,14 +100,17 @@ async function request<T>(
         headers: {
         Accept: 'application/json',
         ...(body !== undefined
-            ? { 'Content-Type': 'application/json' }
+            ? {
+                'Content-Type': 'application/json',
+            }
             : {}),
         ...getAuthorizationHeader(token, auth),
         ...headers,
         },
-        body: body !== undefined
-        ? JSON.stringify(body)
-        : undefined,
+        body:
+        body !== undefined
+            ? JSON.stringify(body)
+            : undefined,
     });
 
     if (!response.ok) {
@@ -95,18 +118,21 @@ async function request<T>(
         `Error ${response.status}: backend request failed.`;
 
         try {
-        const errorData: ApiErrorResponse = await response.json();
+        const errorData =
+            await response.json() as ApiErrorResponse;
 
         errorMessage =
-            errorData.detail ||
-            errorData.message ||
-            errorData.error ||
-            errorMessage;
+            errorData.detail
+            || errorData.message
+            || errorData.error
+            || errorMessage;
         } catch {
-        // Keep the default message if the backend did not return JSON.
         }
 
-        throw new Error(errorMessage);
+        throw new ApiRequestError(
+        errorMessage,
+        response.status,
+        );
     }
 
     if (response.status === 204) {
@@ -119,7 +145,10 @@ async function request<T>(
 export const api = {
     get<T>(
         endpoint: string,
-        options: Omit<ApiRequestOptions, 'method'> = {},
+        options: Omit<
+        ApiRequestOptions,
+        'method'
+        > = {},
     ): Promise<T> {
         return request<T>(endpoint, {
         ...options,
@@ -130,7 +159,10 @@ export const api = {
     post<T>(
         endpoint: string,
         body?: unknown,
-        options: Omit<ApiRequestOptions, 'method' | 'body'> = {},
+        options: Omit<
+        ApiRequestOptions,
+        'method' | 'body'
+        > = {},
     ): Promise<T> {
         return request<T>(endpoint, {
         ...options,
@@ -142,7 +174,10 @@ export const api = {
     put<T>(
         endpoint: string,
         body?: unknown,
-        options: Omit<ApiRequestOptions, 'method' | 'body'> = {},
+        options: Omit<
+        ApiRequestOptions,
+        'method' | 'body'
+        > = {},
     ): Promise<T> {
         return request<T>(endpoint, {
         ...options,
@@ -154,7 +189,10 @@ export const api = {
     patch<T>(
         endpoint: string,
         body?: unknown,
-        options: Omit<ApiRequestOptions, 'method' | 'body'> = {},
+        options: Omit<
+        ApiRequestOptions,
+        'method' | 'body'
+        > = {},
     ): Promise<T> {
         return request<T>(endpoint, {
         ...options,
@@ -165,7 +203,10 @@ export const api = {
 
     delete<T>(
         endpoint: string,
-        options: Omit<ApiRequestOptions, 'method'> = {},
+        options: Omit<
+        ApiRequestOptions,
+        'method'
+        > = {},
     ): Promise<T> {
         return request<T>(endpoint, {
         ...options,

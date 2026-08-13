@@ -70,6 +70,33 @@ class LoginUserSerializer(serializers.Serializer):
         return value.strip().lower()
 
 
+class RefreshSessionSerializer(serializers.Serializer):
+    refresh_token = serializers.CharField(
+        required=False,
+        min_length=20,
+        write_only=True,
+        trim_whitespace=True,
+    )
+
+    session_token = serializers.CharField(
+        required=False,
+        min_length=20,
+        write_only=True,
+        trim_whitespace=True,
+    )
+
+    def validate(self, attrs: dict) -> dict:
+        refresh_token = attrs.get("refresh_token")
+        session_token = attrs.get("session_token")
+
+        if bool(refresh_token) == bool(session_token):
+            raise serializers.ValidationError(
+                "Provide exactly one session token."
+            )
+
+        return attrs
+
+
 class RequestPhoneOtpSerializer(serializers.Serializer):
     phone = serializers.CharField(
         min_length=8,

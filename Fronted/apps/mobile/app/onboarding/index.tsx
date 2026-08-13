@@ -36,10 +36,9 @@ import FeaturesSection from '../../src/components/onboarding/FeaturesSection';
 import { sharedStyles } from '../../src/components/onboarding/onboardingShared';
 import ScreenSafeArea from '../../src/components/layout/ScreenSafeArea';
 import {
-  getAuthSession,
-  getSessionCredentials,
-} from '../../src/services/authSession';
-
+    clearAuthSession,
+    getValidSessionCredentials,
+  } from '../../src/services/authSession';
 
 type OnboardingStep =
   | 'profile'
@@ -149,14 +148,15 @@ export default function OnboardingScreen() {
 
   const getCredentials = useCallback(
     async (): Promise<AuthCredentials | null> => {
-      const authSession = await getAuthSession();
+      const credentials =
+        await getValidSessionCredentials();
 
-      if (!authSession) {
+      if (!credentials) {
         router.replace('/(auth)/login');
         return null;
       }
 
-      return getSessionCredentials(authSession);
+      return credentials;
     },
     [router],
   );
@@ -389,6 +389,12 @@ export default function OnboardingScreen() {
     void loadProfile();
   };
 
+  const handleSignOut = async () => {
+    await clearAuthSession();
+
+    router.replace('/(auth)/login');
+  };
+
   if (isLoading) {
     return (
       <ScreenState
@@ -406,6 +412,10 @@ export default function OnboardingScreen() {
         description={loadError}
         actionLabel="Reintentar"
         onActionPress={handleRetry}
+        secondaryActionLabel="Cerrar sesión e iniciar nuevamente"
+        onSecondaryActionPress={() => {
+          void handleSignOut();
+        }}
       />
     );
   }
@@ -568,7 +578,10 @@ interface ScreenStateProps {
   loading?: boolean;
   actionLabel?: string;
   onActionPress?: () => void;
+  secondaryActionLabel?: string;
+  onSecondaryActionPress?: () => void;
 }
+
 
 
 function ScreenState({
@@ -577,6 +590,8 @@ function ScreenState({
   loading = false,
   actionLabel,
   onActionPress,
+  secondaryActionLabel,
+  onSecondaryActionPress,
 }: ScreenStateProps) {
   return (
     <ScreenSafeArea style={styles.safeArea}>
@@ -602,6 +617,17 @@ function ScreenState({
           >
             <Text style={styles.stateButtonText}>
               {actionLabel}
+            </Text>
+          </TouchableOpacity>
+        ) : null}
+        {secondaryActionLabel && onSecondaryActionPress ? (
+          <TouchableOpacity
+            style={styles.stateSecondaryButton}
+            activeOpacity={0.8}
+            onPress={onSecondaryActionPress}
+          >
+            <Text style={styles.stateSecondaryButtonText}>
+              {secondaryActionLabel}
             </Text>
           </TouchableOpacity>
         ) : null}
@@ -742,6 +768,20 @@ const styles = StyleSheet.create({
   },
   stateButtonText: {
     color: colors.neutral.white,
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  stateSecondaryButton: {
+    alignItems: 'center',
+    borderColor: colors.neutral.gray300,
+    borderRadius: 12,
+    borderWidth: 1,
+    marginTop: 12,
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+  },
+  stateSecondaryButtonText: {
+    color: colors.neutral.gray700,
     fontSize: 14,
     fontWeight: '600',
   },

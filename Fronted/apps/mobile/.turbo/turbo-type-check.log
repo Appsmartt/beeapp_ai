@@ -1,0 +1,129 @@
+
+> @beeapp/mobile@0.1.0 type-check
+> tsc --noEmit
+
+app/(auth)/privacy.tsx(1,1): error TS6133: 'React' is declared but its value is never read.
+app/(auth)/register.tsx(7,5): error TS6133: 'Modal' is declared but its value is never read.
+app/(auth)/register.tsx(297,25): error TS2769: No overload matches this call.
+  Overload 1 of 2, '(props: ViewProps): View', gave the following error.
+    Type '"" | { borderColor: string; } | undefined' is not assignable to type 'ViewStyle | Falsy | RegisteredStyle<ViewStyle> | RecursiveArray<ViewStyle | Falsy | RegisteredStyle<ViewStyle>> | readonly (ViewStyle | ... 1 more ... | RegisteredStyle<...>)[]'.
+      Type '""' is not assignable to type 'ViewStyle | Falsy | RegisteredStyle<ViewStyle> | RecursiveArray<ViewStyle | Falsy | RegisteredStyle<ViewStyle>> | readonly (ViewStyle | ... 1 more ... | RegisteredStyle<...>)[]'.
+  Overload 2 of 2, '(props: ViewProps, context: any): View', gave the following error.
+    Type '"" | { borderColor: string; } | undefined' is not assignable to type 'ViewStyle | Falsy | RegisteredStyle<ViewStyle> | RecursiveArray<ViewStyle | Falsy | RegisteredStyle<ViewStyle>> | readonly (ViewStyle | ... 1 more ... | RegisteredStyle<...>)[]'.
+      Type '""' is not assignable to type 'ViewStyle | Falsy | RegisteredStyle<ViewStyle> | RecursiveArray<ViewStyle | Falsy | RegisteredStyle<ViewStyle>> | readonly (ViewStyle | ... 1 more ... | RegisteredStyle<...>)[]'.
+app/(auth)/register.tsx(504,37): error TS2769: No overload matches this call.
+  Overload 1 of 2, '(props: ViewProps): View', gave the following error.
+    Type '"" | { borderColor: string; } | undefined' is not assignable to type 'ViewStyle | Falsy | RegisteredStyle<ViewStyle> | RecursiveArray<ViewStyle | Falsy | RegisteredStyle<ViewStyle>> | readonly (ViewStyle | ... 1 more ... | RegisteredStyle<...>)[]'.
+      Type '""' is not assignable to type 'ViewStyle | Falsy | RegisteredStyle<ViewStyle> | RecursiveArray<ViewStyle | Falsy | RegisteredStyle<ViewStyle>> | readonly (ViewStyle | ... 1 more ... | RegisteredStyle<...>)[]'.
+  Overload 2 of 2, '(props: ViewProps, context: any): View', gave the following error.
+    Type '"" | { borderColor: string; } | undefined' is not assignable to type 'ViewStyle | Falsy | RegisteredStyle<ViewStyle> | RecursiveArray<ViewStyle | Falsy | RegisteredStyle<ViewStyle>> | readonly (ViewStyle | ... 1 more ... | RegisteredStyle<...>)[]'.
+      Type '""' is not assignable to type 'ViewStyle | Falsy | RegisteredStyle<ViewStyle> | RecursiveArray<ViewStyle | Falsy | RegisteredStyle<ViewStyle>> | readonly (ViewStyle | ... 1 more ... | RegisteredStyle<...>)[]'.
+app/(auth)/register.tsx(547,37): error TS2769: No overload matches this call.
+  Overload 1 of 2, '(props: ViewProps): View', gave the following error.
+    Type '"" | { borderColor: string; } | undefined' is not assignable to type 'ViewStyle | Falsy | RegisteredStyle<ViewStyle> | RecursiveArray<ViewStyle | Falsy | RegisteredStyle<ViewStyle>> | readonly (ViewStyle | ... 1 more ... | RegisteredStyle<...>)[]'.
+      Type '""' is not assignable to type 'ViewStyle | Falsy | RegisteredStyle<ViewStyle> | RecursiveArray<ViewStyle | Falsy | RegisteredStyle<ViewStyle>> | readonly (ViewStyle | ... 1 more ... | RegisteredStyle<...>)[]'.
+  Overload 2 of 2, '(props: ViewProps, context: any): View', gave the following error.
+    Type '"" | { borderColor: string; } | undefined' is not assignable to type 'ViewStyle | Falsy | RegisteredStyle<ViewStyle> | RecursiveArray<ViewStyle | Falsy | RegisteredStyle<ViewStyle>> | readonly (ViewStyle | ... 1 more ... | RegisteredStyle<...>)[]'.
+      Type '""' is not assignable to type 'ViewStyle | Falsy | RegisteredStyle<ViewStyle> | RecursiveArray<ViewStyle | Falsy | RegisteredStyle<ViewStyle>> | readonly (ViewStyle | ... 1 more ... | RegisteredStyle<...>)[]'.
+app/(auth)/terms.tsx(1,1): error TS6133: 'React' is declared but its value is never read.
+app/(main)/calendar/detail.tsx(1,8): error TS6133: 'React' is declared but its value is never read.
+app/(main)/calendar/detail.tsx(166,84): error TS2345: Argument of type '{ safeArea: { flex: number; backgroundColor: string; }; container: { flex: number; }; header: { flexDirection: "row"; alignItems: "center"; justifyContent: "space-between"; paddingHorizontal: number; paddingVertical: number; backgroundColor: string; borderBottomWidth: number; borderColor: string; }; ... 20 more ...;...' is not assignable to parameter of type '{ safeArea: { flex: number; backgroundColor: string; }; container: { flex: number; }; header: { flexDirection: "row"; alignItems: "center"; justifyContent: "space-between"; paddingHorizontal: number; paddingVertical: number; backgroundColor: string; borderBottomWidth: number; borderColor: string; }; ... 20 more ...;...'.
+  Property 'sectionHeader' is incompatible with index signature.
+    Object literal may only specify known properties, and 'uppercase' does not exist in type 'ViewStyle | TextStyle | ImageStyle'.
+app/(main)/calendar/edit.tsx(1,8): error TS6133: 'React' is declared but its value is never read.
+app/(main)/calendar/index.tsx(1,8): error TS6133: 'React' is declared but its value is never read.
+app/(main)/chat/call.tsx(1,8): error TS6133: 'React' is declared but its value is never read.
+app/(main)/chat/call.tsx(1,38): error TS6133: 'useRef' is declared but its value is never read.
+app/(main)/chat/call.tsx(11,3): error TS6133: 'VolumeX' is declared but its value is never read.
+app/(main)/chat/call.tsx(14,3): error TS6133: 'Camera' is declared but its value is never read.
+app/(main)/chat/conversation.tsx(1,8): error TS6133: 'React' is declared but its value is never read.
+app/(main)/chat/new.tsx(1,8): error TS6133: 'React' is declared but its value is never read.
+app/(main)/chat/new.tsx(17,7): error TS6133: 'SCREEN_WIDTH' is declared but its value is never read.
+app/(main)/contacts/detail.tsx(1,8): error TS6133: 'React' is declared but its value is never read.
+app/(main)/explore.tsx(1,8): error TS6133: 'React' is declared but its value is never read.
+app/(main)/mail/compose.tsx(1,8): error TS6133: 'React' is declared but its value is never read.
+app/(main)/mail/detail.tsx(1,8): error TS6133: 'React' is declared but its value is never read.
+app/(main)/mail/index.tsx(1,8): error TS6133: 'React' is declared but its value is never read.
+app/(main)/notes/index.tsx(1,8): error TS6133: 'React' is declared but its value is never read.
+app/(main)/notifications.tsx(1,8): error TS6133: 'React' is declared but its value is never read.
+app/(main)/notifications.tsx(171,25): error TS6133: 'type' is declared but its value is never read.
+app/(main)/profile/edit.tsx(18,30): error TS2305: Module '"lucide-react-native"' has no exported member 'Instagram'.
+app/(main)/profile/edit.tsx(18,41): error TS2305: Module '"lucide-react-native"' has no exported member 'Facebook'.
+app/(main)/profile/edit.tsx(18,51): error TS2305: Module '"lucide-react-native"' has no exported member 'Linkedin'.
+app/(main)/profile/edit.tsx(18,69): error TS2305: Module '"lucide-react-native"' has no exported member 'Youtube'.
+app/(main)/profile/index.tsx(1,8): error TS6133: 'React' is declared but its value is never read.
+app/(main)/profile/index.tsx(17,3): error TS6133: 'User' is declared but its value is never read.
+app/(main)/profile/integrations.tsx(1,8): error TS6133: 'React' is declared but its value is never read.
+app/(main)/profile/integrations.tsx(10,3): error TS6133: 'Platform' is declared but its value is never read.
+app/(main)/profile/integrations.tsx(18,16): error TS6133: 'SCREEN_WIDTH' is declared but its value is never read.
+app/(main)/profile/subscription.tsx(1,8): error TS6133: 'React' is declared but its value is never read.
+app/(main)/storage/index.tsx(1,8): error TS6133: 'React' is declared but its value is never read.
+app/(main)/storage/preview.tsx(1,8): error TS6133: 'React' is declared but its value is never read.
+app/(main)/storage/sign.tsx(1,8): error TS6133: 'React' is declared but its value is never read.
+src/components/FloatingTabBar.tsx(3,1): error TS6133: 'useRouter' is declared but its value is never read.
+src/components/FloatingTabBar.tsx(81,7): error TS2304: Cannot find name 'router'.
+src/components/FloatingTabBar.tsx(86,63): error TS18047: 'currentLeftItem' is possibly 'null'.
+src/components/FloatingTabBar.tsx(90,60): error TS18047: 'currentRightItem' is possibly 'null'.
+src/components/VoiceAssistantFab.tsx(1,8): error TS6133: 'React' is declared but its value is never read.
+src/components/VoiceAssistantFab.tsx(3,3): error TS6133: 'View' is declared but its value is never read.
+src/components/assistant/VoiceAssistantScreen.tsx(3,22): error TS6133: 'StyleSheet' is declared but its value is never read.
+src/components/calendar/CalendarDetailSections.tsx(1,1): error TS6133: 'React' is declared but its value is never read.
+src/components/calendar/CalendarDetailSections.tsx(6,37): error TS6133: 'Users' is declared but its value is never read.
+src/components/calendar/CalendarDetailSections.tsx(155,84): error TS2345: Argument of type '{ mainDetailsCard: { backgroundColor: string; borderBottomWidth: number; borderColor: string; padding: number; }; typeBadge: { alignSelf: "flex-start"; borderRadius: number; paddingHorizontal: number; paddingVertical: number; marginBottom: number; borderWidth: number; }; ... 31 more ...; inviteeStatusLabel: { ...; }...' is not assignable to parameter of type '{ mainDetailsCard: { backgroundColor: string; borderBottomWidth: number; borderColor: string; padding: number; }; typeBadge: { alignSelf: "flex-start"; borderRadius: number; paddingHorizontal: number; paddingVertical: number; marginBottom: number; borderWidth: number; }; ... 31 more ...; inviteeStatusLabel: { ...; }...'.
+  Property 'sectionHeader' is incompatible with index signature.
+    Object literal may only specify known properties, and 'uppercase' does not exist in type 'ViewStyle | TextStyle | ImageStyle'.
+src/components/calendar/CalendarEditFields.tsx(1,1): error TS6133: 'React' is declared but its value is never read.
+src/components/calendar/CalendarEditFields.tsx(154,84): error TS2345: Argument of type '{ sectionHeader: { fontSize: number; fontWeight: "400"; color: string; uppercase: true; letterSpacing: number; marginTop: number; marginBottom: number; }; typeSelectorRow: { flexDirection: "row"; gap: number; }; ... 26 more ...; checkCircleSelected: { ...; }; }' is not assignable to parameter of type '{ sectionHeader: { fontSize: number; fontWeight: "400"; color: string; uppercase: boolean; letterSpacing: number; marginTop: number; marginBottom: number; }; typeSelectorRow: { flexDirection: "row"; gap: number; }; ... 26 more ...; checkCircleSelected: { ...; }; } & NamedStyles<...>'.
+  Property 'sectionHeader' is incompatible with index signature.
+    Object literal may only specify known properties, and 'uppercase' does not exist in type 'ViewStyle | TextStyle | ImageStyle'.
+src/components/calendar/CalendarPickerModals.tsx(1,1): error TS6133: 'React' is declared but its value is never read.
+src/components/calendar/CalendarPickerModals.tsx(5,21): error TS6133: 'formatDate' is declared but its value is never read.
+src/components/calendar/CalendarWeekStrip.tsx(6,46): error TS6133: 'periodLabel' is declared but its value is never read.
+src/components/calendar/ReminderBottomSheet.tsx(1,1): error TS6133: 'React' is declared but its value is never read.
+src/components/calendar/ReminderBottomSheet.tsx(3,27): error TS6133: 'radii' is declared but its value is never read.
+src/components/chat/AiCatalogCards.tsx(1,8): error TS6133: 'React' is declared but its value is never read.
+src/components/chat/AiCatalogCards.tsx(4,16): error TS6133: 'MapPin' is declared but its value is never read.
+src/components/chat/AiCatalogItem.tsx(1,8): error TS6133: 'React' is declared but its value is never read.
+src/components/chat/AiCatalogModal.tsx(1,1): error TS6133: 'React' is declared but its value is never read.
+src/components/chat/ChatListItem.tsx(1,1): error TS6133: 'React' is declared but its value is never read.
+src/components/chat/ChatMessageMenuModal.tsx(1,1): error TS6133: 'React' is declared but its value is never read.
+src/components/chat/CommunitiesTabView.tsx(2,18): error TS6133: 'spacing' is declared but its value is never read.
+src/components/chat/ConversationHeader.tsx(1,1): error TS6133: 'React' is declared but its value is never read.
+src/components/chat/ConversationOverlayMenu.tsx(1,1): error TS6133: 'React' is declared but its value is never read.
+src/components/chat/ForwardMessageModal.tsx(1,8): error TS6133: 'React' is declared but its value is never read.
+src/components/chat/ForwardMessageModal.tsx(12,30): error TS6133: 'Check' is declared but its value is never read.
+src/components/chat/MessageBubble.tsx(1,8): error TS6133: 'React' is declared but its value is never read.
+src/components/chat/PinnedMessageBanner.tsx(1,1): error TS6133: 'React' is declared but its value is never read.
+src/components/chat/RestrictedAndArchivedRows.tsx(1,1): error TS6133: 'React' is declared but its value is never read.
+src/components/chat/StatusViewersSheet.tsx(1,1): error TS6133: 'React' is declared but its value is never read.
+src/components/chat/WriteBar.tsx(1,8): error TS6133: 'React' is declared but its value is never read.
+src/components/chat/status/StatusPrivacySelector.tsx(1,8): error TS6133: 'React' is declared but its value is never read.
+src/components/contacts/ContactsListView.tsx(6,3): error TS6133: 'Globe' is declared but its value is never read.
+src/components/home/OverviewSection.tsx(28,3): error TS6133: 'color' is declared but its value is never read.
+src/components/onboarding/AboutYouSection.tsx(37,13): error TS2769: No overload matches this call.
+  Overload 1 of 2, '(props: TextInputProps): TextInput', gave the following error.
+    Type '"" | { borderColor: string; } | undefined' is not assignable to type 'TextStyle | Falsy | RegisteredStyle<TextStyle> | RecursiveArray<TextStyle | Falsy | RegisteredStyle<TextStyle>> | readonly (TextStyle | ... 1 more ... | RegisteredStyle<...>)[]'.
+      Type '""' is not assignable to type 'TextStyle | Falsy | RegisteredStyle<TextStyle> | RecursiveArray<TextStyle | Falsy | RegisteredStyle<TextStyle>> | readonly (TextStyle | ... 1 more ... | RegisteredStyle<...>)[]'.
+  Overload 2 of 2, '(props: TextInputProps, context: any): TextInput', gave the following error.
+    Type '"" | { borderColor: string; } | undefined' is not assignable to type 'TextStyle | Falsy | RegisteredStyle<TextStyle> | RecursiveArray<TextStyle | Falsy | RegisteredStyle<TextStyle>> | readonly (TextStyle | ... 1 more ... | RegisteredStyle<...>)[]'.
+      Type '""' is not assignable to type 'TextStyle | Falsy | RegisteredStyle<TextStyle> | RecursiveArray<TextStyle | Falsy | RegisteredStyle<TextStyle>> | readonly (TextStyle | ... 1 more ... | RegisteredStyle<...>)[]'.
+src/components/onboarding/AboutYouSection.tsx(57,13): error TS2769: No overload matches this call.
+  Overload 1 of 2, '(props: TextInputProps): TextInput', gave the following error.
+    Type '"" | { borderColor: string; } | undefined' is not assignable to type 'TextStyle | Falsy | RegisteredStyle<TextStyle> | RecursiveArray<TextStyle | Falsy | RegisteredStyle<TextStyle>> | readonly (TextStyle | ... 1 more ... | RegisteredStyle<...>)[]'.
+      Type '""' is not assignable to type 'TextStyle | Falsy | RegisteredStyle<TextStyle> | RecursiveArray<TextStyle | Falsy | RegisteredStyle<TextStyle>> | readonly (TextStyle | ... 1 more ... | RegisteredStyle<...>)[]'.
+  Overload 2 of 2, '(props: TextInputProps, context: any): TextInput', gave the following error.
+    Type '"" | { borderColor: string; } | undefined' is not assignable to type 'TextStyle | Falsy | RegisteredStyle<TextStyle> | RecursiveArray<TextStyle | Falsy | RegisteredStyle<TextStyle>> | readonly (TextStyle | ... 1 more ... | RegisteredStyle<...>)[]'.
+      Type '""' is not assignable to type 'TextStyle | Falsy | RegisteredStyle<TextStyle> | RecursiveArray<TextStyle | Falsy | RegisteredStyle<TextStyle>> | readonly (TextStyle | ... 1 more ... | RegisteredStyle<...>)[]'.
+src/components/profile/SocialNetworksSection.tsx(5,3): error TS2305: Module '"lucide-react-native"' has no exported member 'Instagram'.
+src/components/profile/SocialNetworksSection.tsx(5,14): error TS2305: Module '"lucide-react-native"' has no exported member 'Facebook'.
+src/components/profile/SocialNetworksSection.tsx(5,24): error TS2305: Module '"lucide-react-native"' has no exported member 'Linkedin'.
+src/components/profile/SocialNetworksSection.tsx(5,42): error TS2305: Module '"lucide-react-native"' has no exported member 'Youtube'.
+src/components/storage/SignatureCreatorCard.tsx(1,1): error TS6133: 'React' is declared but its value is never read.
+src/components/storage/SignatureDocPreview.tsx(1,1): error TS6133: 'React' is declared but its value is never read.
+npm error Lifecycle script `type-check` failed with error:
+npm error code 2
+npm error path /home/andres-mendoza/Git/beeapp_ai/Fronted/apps/mobile
+npm error workspace @beeapp/mobile@0.1.0
+npm error location /home/andres-mendoza/Git/beeapp_ai/Fronted/apps/mobile
+npm error command failed
+npm error command sh -c tsc --noEmit

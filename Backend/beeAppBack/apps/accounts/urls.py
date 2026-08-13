@@ -16,6 +16,7 @@ from apps.accounts.views import (
     QrLoginScanView,
     RegisterUserView,
     RevokeAllDeviceSessionsView,
+    SessionRefreshView,
     UpdateAssistantSettingsView,
     UpdateOnboardingProfileView,
     WebSessionActivateView,
@@ -34,6 +35,11 @@ urlpatterns = [
         "login/",
         LoginUserView.as_view(),
         name="login-user",
+    ),
+    path(
+        "session/refresh/",
+        SessionRefreshView.as_view(),
+        name="refresh-session",
     ),
     path(
         "login/phone/request-otp/",

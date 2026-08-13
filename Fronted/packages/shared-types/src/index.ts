@@ -78,6 +78,15 @@ export type AuthSession =
   | SupabaseAuthSession
   | MobileAuthSession;
 
+export interface RefreshSessionPayload {
+  refresh_token?: string;
+  session_token?: string;
+}
+
+export interface RefreshSessionResponse {
+  session: AuthSession;
+}
+
 export interface AuthenticatedUser {
   id: string;
   email: string | null;
