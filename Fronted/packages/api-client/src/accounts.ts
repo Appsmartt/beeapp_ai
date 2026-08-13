@@ -4,6 +4,12 @@ import type {
     GetDeviceSessionsResponse,
     LoginUserPayload,
     LoginUserResponse,
+    PasswordResetConfirmPayload,
+    PasswordResetConfirmResponse,
+    PasswordResetRequestPayload,
+    PasswordResetRequestResponse,
+    PasswordResetVerifyPayload,
+    PasswordResetVerifyResponse,
     QrLoginChallengeResponse,
     QrLoginChallengeStatusResponse,
     RegisterUserPayload,
@@ -33,6 +39,7 @@ export function registerUser(
     );
 }
 
+
 export function loginUser(
     payload: LoginUserPayload,
     ): Promise<LoginUserResponse> {
@@ -41,6 +48,7 @@ export function loginUser(
         payload,
     );
 }
+
 
 export function requestPhoneOtp(
     payload: RequestPhoneOtpPayload,
@@ -51,6 +59,7 @@ export function requestPhoneOtp(
     );
 }
 
+
 export function verifyPhoneOtpMobile(
     payload: VerifyPhoneOtpPayload,
     ): Promise<VerifyPhoneOtpMobileResponse> {
@@ -59,6 +68,37 @@ export function verifyPhoneOtpMobile(
         payload,
     );
 }
+
+
+export function requestPasswordReset(
+    payload: PasswordResetRequestPayload,
+    ): Promise<PasswordResetRequestResponse> {
+    return api.post<PasswordResetRequestResponse>(
+        '/accounts/password-reset/request/',
+        payload,
+    );
+}
+
+
+export function verifyPasswordReset(
+    payload: PasswordResetVerifyPayload,
+    ): Promise<PasswordResetVerifyResponse> {
+    return api.post<PasswordResetVerifyResponse>(
+        '/accounts/password-reset/verify/',
+        payload,
+    );
+}
+
+
+export function confirmPasswordReset(
+    payload: PasswordResetConfirmPayload,
+    ): Promise<PasswordResetConfirmResponse> {
+    return api.post<PasswordResetConfirmResponse>(
+        '/accounts/password-reset/confirm/',
+        payload,
+    );
+}
+
 
 export function getCurrentProfile(
     auth: AuthCredentials,
@@ -70,6 +110,7 @@ export function getCurrentProfile(
         },
     );
 }
+
 
 export function updateOnboardingProfile(
     auth: AuthCredentials,
@@ -84,6 +125,7 @@ export function updateOnboardingProfile(
     );
 }
 
+
 export function updateAssistantSettings(
     auth: AuthCredentials,
     payload: UpdateAssistantSettingsPayload,
@@ -97,11 +139,13 @@ export function updateAssistantSettings(
     );
 }
 
+
 export function createQrLoginChallenge(): Promise<QrLoginChallengeResponse> {
     return api.post<QrLoginChallengeResponse>(
         '/accounts/qr-login/challenges/',
     );
 }
+
 
 export function getQrLoginChallengeStatus(
     challengeToken: string,
@@ -112,6 +156,7 @@ export function getQrLoginChallengeStatus(
         )}/`,
     );
 }
+
 
 export function scanQrLogin(
     auth: AuthCredentials,
@@ -126,6 +171,7 @@ export function scanQrLogin(
     );
 }
 
+
 export function getDeviceSessions(
     auth: AuthCredentials,
     ): Promise<GetDeviceSessionsResponse> {
@@ -136,6 +182,7 @@ export function getDeviceSessions(
         },
     );
 }
+
 
 export async function revokeDeviceSession(
     auth: AuthCredentials,
@@ -149,6 +196,7 @@ export async function revokeDeviceSession(
     );
 }
 
+
 export async function revokeAllDeviceSessions(
     auth: AuthCredentials,
     ): Promise<void> {
@@ -159,6 +207,7 @@ export async function revokeAllDeviceSessions(
         },
     );
 }
+
 
 export async function activateWebSession(
     challengeToken: string,
@@ -174,6 +223,7 @@ export async function activateWebSession(
     );
 }
 
+
 export function getWebSessionProfile(): Promise<WebSessionProfileResponse> {
     return api.get<WebSessionProfileResponse>(
         '/accounts/web-session/me/',
@@ -182,6 +232,7 @@ export function getWebSessionProfile(): Promise<WebSessionProfileResponse> {
         },
     );
 }
+
 
 export async function logoutWebSession(): Promise<void> {
     await api.post<void>(

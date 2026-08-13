@@ -1,9 +1,19 @@
-from beeAppBack.core.supabase_client import get_supabase_admin_client
+from beeAppBack.core.supabase_client import (
+    get_supabase_admin_client,
+)
 
 from apps.accounts.exceptions import (
     AuthUserCreationError,
     AuthUserLookupError,
+    AuthUserPasswordUpdateError,
 )
+
+
+def normalize_phone(phone: str | None) -> str | None:
+    if not phone:
+        return None
+
+    return phone if phone.startswith("+") else f"+{phone}"
 
 
 def create_auth_user(
@@ -65,6 +75,76 @@ def get_auth_user(*, auth_user_id: str):
     except Exception as error:
         raise AuthUserLookupError(
             "Could not retrieve the authentication user."
+        ) from error
+
+
+def get_auth_user_by_phone(*, phone: str):
+    normalized_phone = normalize_phone(phone)
+
+    try:
+        supabase = get_supabase_admin_client()
+        page = 1
+        per_page = 1000
+
+        while True:
+            users = supabase.auth.admin.list_users(
+                page=page,
+                per_page=per_page,
+            )
+
+            if not isinstance(users, list):
+                users = getattr(users, "users", [])
+
+            for user in users:
+                if normalize_phone(user.phone) == normalized_phone:
+                    return user
+
+            if len(users) < per_page:
+                break
+
+            page += 1
+
+        raise AuthUserLookupError(
+            "Could not find an authentication user by phone."
+        )
+
+    except AuthUserLookupError:
+        raise
+
+    except Exception as error:
+        raise AuthUserLookupError(
+            "Could not retrieve the authentication user by phone."
+        ) from error
+
+
+def update_auth_user_password(
+    *,
+    auth_user_id: str,
+    new_password: str,
+):
+    try:
+        supabase = get_supabase_admin_client()
+
+        response = supabase.auth.admin.update_user_by_id(
+            auth_user_id,
+            {
+                "password": new_password,
+            },
+        )
+
+        if not response.user:
+            raise AuthUserPasswordUpdateError(
+                "Supabase did not return the updated user."
+            )
+
+        return response.user
+
+    except AuthUserPasswordUpdateError:
+        raise
+
+    except Exception as error:
+        raise AuthUserPasswordUpdateError(
+            "Could not update the authentication password."
         ) from error
 
 

@@ -1,9 +1,11 @@
 import secrets
 
+
 from rest_framework import status
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.views import APIView
+
 
 from apps.accounts.exceptions import (
     AccountAuthenticationError,
@@ -12,6 +14,9 @@ from apps.accounts.exceptions import (
     AssistantSettingsUpdateError,
     AuthUserLookupError,
     DeviceSessionError,
+    PasswordResetConfirmationError,
+    PasswordResetRequestError,
+    PasswordResetVerificationError,
     PhoneOtpRequestError,
     PhoneOtpVerificationError,
     ProfileLookupError,
@@ -20,6 +25,9 @@ from apps.accounts.exceptions import (
 )
 from apps.accounts.serializers import (
     LoginUserSerializer,
+    PasswordResetConfirmSerializer,
+    PasswordResetRequestSerializer,
+    PasswordResetVerifySerializer,
     RequestPhoneOtpSerializer,
     RegisterUserSerializer,
     UpdateAssistantSettingsSerializer,
@@ -44,6 +52,11 @@ from apps.accounts.services.device_session_service import (
 from apps.accounts.services.login_service import (
     login_with_email_password,
 )
+from apps.accounts.services.password_reset_service import (
+    confirm_password_reset,
+    request_password_reset,
+    verify_password_reset_otp,
+)
 from apps.accounts.services.phone_otp_service import (
     request_phone_otp,
     verify_phone_otp,
@@ -62,6 +75,9 @@ from apps.accounts.services.registration_service import (
     create_complete_user,
 )
 from apps.accounts.throttles import (
+    PasswordResetConfirmationThrottle,
+    PasswordResetRequestThrottle,
+    PasswordResetVerificationThrottle,
     PhoneOtpRequestThrottle,
     PhoneOtpVerificationThrottle,
 )
@@ -411,6 +427,118 @@ class PhoneOtpMobileVerifyView(APIView):
                     "last_name": profile["last_name"],
                     "role": profile["role"],
                 },
+            },
+            status=status.HTTP_200_OK,
+        )
+
+
+class PasswordResetRequestView(APIView):
+    permission_classes = [AllowAny]
+    throttle_classes = [PasswordResetRequestThrottle]
+
+    def post(self, request):
+        serializer = PasswordResetRequestSerializer(
+            data=request.data,
+        )
+        serializer.is_valid(raise_exception=True)
+
+        try:
+            request_password_reset(
+                phone=serializer.validated_data["phone"],
+            )
+
+        except PasswordResetRequestError:
+            # Mantiene una respuesta neutral para no revelar si el
+            # teléfono pertenece a una cuenta de BeeApp.
+            pass
+
+        return Response(
+            {
+                "message": (
+                    "If the phone number is registered, "
+                    "a verification code has been sent."
+                )
+            },
+            status=status.HTTP_200_OK,
+        )
+
+
+class PasswordResetVerifyView(APIView):
+    permission_classes = [AllowAny]
+    throttle_classes = [PasswordResetVerificationThrottle]
+
+    def post(self, request):
+        serializer = PasswordResetVerifySerializer(
+            data=request.data,
+        )
+        serializer.is_valid(raise_exception=True)
+
+        try:
+            reset_token = verify_password_reset_otp(
+                phone=serializer.validated_data["phone"],
+                code=serializer.validated_data["code"],
+            )
+
+        except PasswordResetVerificationError:
+            return Response(
+                {
+                    "detail": (
+                        "Invalid, expired, or unavailable "
+                        "verification code."
+                    )
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        return Response(
+            {
+                "message": (
+                    "Verification successful. "
+                    "You can now set a new password."
+                ),
+                "reset_token": reset_token,
+            },
+            status=status.HTTP_200_OK,
+        )
+
+
+class PasswordResetConfirmView(APIView):
+    permission_classes = [AllowAny]
+    throttle_classes = [PasswordResetConfirmationThrottle]
+
+    def post(self, request):
+        serializer = PasswordResetConfirmSerializer(
+            data=request.data,
+        )
+        serializer.is_valid(raise_exception=True)
+
+        try:
+            confirm_password_reset(
+                reset_token=serializer.validated_data[
+                    "reset_token"
+                ],
+                new_password=serializer.validated_data[
+                    "new_password"
+                ],
+            )
+
+        except PasswordResetConfirmationError:
+            return Response(
+                {
+                    "detail": (
+                        "The password reset token is invalid, "
+                        "expired, or has already been used."
+                    )
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        return Response(
+            {
+                "message": (
+                    "Password updated successfully. "
+                    "Please sign in again."
+                )
             },
             status=status.HTTP_200_OK,
         )

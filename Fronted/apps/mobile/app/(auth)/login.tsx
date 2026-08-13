@@ -552,10 +552,11 @@ export default function LoginScreen() {
                     <TouchableOpacity
                       style={styles.forgotPasswordButton}
                       activeOpacity={0.7}
+                      disabled={isSubmitting}
                       onPress={() => {
-                        setFormMessage(
-                          'La recuperación de contraseña estará disponible próximamente.',
-                        );
+                        setErrors({});
+                        setFormMessage('');
+                        router.push('/(auth)/forgot-password');
                       }}
                     >
                       <Text style={styles.forgotPasswordText}>

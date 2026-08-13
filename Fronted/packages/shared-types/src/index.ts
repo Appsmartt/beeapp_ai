@@ -209,3 +209,37 @@ export interface UpdateAssistantSettingsResponse {
   message: string;
   profile: UserProfile;
 }
+
+
+export interface PasswordResetRequestPayload {
+  phone: string;
+}
+
+
+export interface PasswordResetRequestResponse {
+  message: string;
+}
+
+
+export interface PasswordResetVerifyPayload {
+  phone: string;
+  code: string;
+}
+
+
+export interface PasswordResetVerifyResponse {
+  message: string;
+  reset_token: string;
+}
+
+
+export interface PasswordResetConfirmPayload {
+  reset_token: string;
+  new_password: string;
+  confirm_password: string;
+}
+
+
+export interface PasswordResetConfirmResponse {
+  message: string;
+}

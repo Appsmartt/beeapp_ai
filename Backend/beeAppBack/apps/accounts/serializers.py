@@ -110,6 +110,57 @@ class VerifyPhoneOtpSerializer(RequestPhoneOtpSerializer):
         return normalized_value
 
 
+class PasswordResetRequestSerializer(RequestPhoneOtpSerializer):
+    """Validates the phone used to request a password reset."""
+
+
+class PasswordResetVerifySerializer(VerifyPhoneOtpSerializer):
+    """Validates a password reset phone and OTP code."""
+
+
+class PasswordResetConfirmSerializer(serializers.Serializer):
+    reset_token = serializers.CharField(
+        min_length=32,
+        max_length=128,
+        write_only=True,
+        trim_whitespace=True,
+    )
+    new_password = serializers.CharField(
+        min_length=8,
+        max_length=128,
+        write_only=True,
+        trim_whitespace=False,
+    )
+    confirm_password = serializers.CharField(
+        min_length=8,
+        max_length=128,
+        write_only=True,
+        trim_whitespace=False,
+    )
+
+    def validate_reset_token(self, value: str) -> str:
+        normalized_value = value.strip()
+
+        if not normalized_value:
+            raise serializers.ValidationError(
+                "Reset token is required."
+            )
+
+        return normalized_value
+
+    def validate(self, attrs: dict) -> dict:
+        if attrs["new_password"] != attrs["confirm_password"]:
+            raise serializers.ValidationError(
+                {
+                    "confirm_password": (
+                        "Passwords do not match."
+                    )
+                }
+            )
+
+        return attrs
+
+
 class UpdateOnboardingProfileSerializer(serializers.Serializer):
     occupation = serializers.CharField(
         max_length=120,

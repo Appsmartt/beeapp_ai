@@ -14,6 +14,10 @@ class AuthUserLookupError(AccountError):
     """Raised when a Supabase Auth user cannot be retrieved."""
 
 
+class AuthUserPasswordUpdateError(AccountError):
+    """Raised when a Supabase Auth password update fails."""
+
+
 class ProfileCreationError(AccountRegistrationError):
     """Raised when BeeApp profile creation fails."""
 
@@ -28,6 +32,22 @@ class PhoneOtpRequestError(AccountError):
 
 class PhoneOtpVerificationError(AccountError):
     """Raised when a phone OTP cannot be verified."""
+
+
+class PasswordResetRequestError(AccountError):
+    """Raised when a password reset OTP cannot be requested."""
+
+
+class PasswordResetVerificationError(AccountError):
+    """Raised when a password reset OTP cannot be verified."""
+
+
+class PasswordResetTokenError(AccountError):
+    """Raised when a password reset token is invalid or expired."""
+
+
+class PasswordResetConfirmationError(AccountError):
+    """Raised when a password reset cannot be completed."""
 
 
 class AccountAuthenticationError(AccountError):
