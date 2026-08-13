@@ -22,6 +22,8 @@ import type {
     UpdateAssistantSettingsResponse,
     UpdateOnboardingProfilePayload,
     UpdateOnboardingProfileResponse,
+    UpdateProfilePayload,
+    UpdateProfileResponse,
     VerifyPhoneOtpMobileResponse,
     VerifyPhoneOtpPayload,
     WebSessionProfileResponse,
@@ -31,7 +33,6 @@ import type {
 
 import { api } from './client';
 
-
 export function registerUser(
     payload: RegisterUserPayload,
     ): Promise<RegisterUserResponse> {
@@ -40,7 +41,6 @@ export function registerUser(
         payload,
     );
 }
-
 
 export function loginUser(
     payload: LoginUserPayload,
@@ -60,7 +60,6 @@ export function refreshSession(
     );
 }
 
-
 export function requestPhoneOtp(
     payload: RequestPhoneOtpPayload,
     ): Promise<RequestPhoneOtpResponse> {
@@ -69,7 +68,6 @@ export function requestPhoneOtp(
         payload,
     );
 }
-
 
 export function verifyPhoneOtpMobile(
     payload: VerifyPhoneOtpPayload,
@@ -80,7 +78,6 @@ export function verifyPhoneOtpMobile(
     );
 }
 
-
 export function requestPasswordReset(
     payload: PasswordResetRequestPayload,
     ): Promise<PasswordResetRequestResponse> {
@@ -89,7 +86,6 @@ export function requestPasswordReset(
         payload,
     );
 }
-
 
 export function verifyPasswordReset(
     payload: PasswordResetVerifyPayload,
@@ -100,7 +96,6 @@ export function verifyPasswordReset(
     );
 }
 
-
 export function confirmPasswordReset(
     payload: PasswordResetConfirmPayload,
     ): Promise<PasswordResetConfirmResponse> {
@@ -109,7 +104,6 @@ export function confirmPasswordReset(
         payload,
     );
 }
-
 
 export function getCurrentProfile(
     auth: AuthCredentials,
@@ -122,6 +116,18 @@ export function getCurrentProfile(
     );
 }
 
+export function updateProfile(
+    auth: AuthCredentials,
+    payload: UpdateProfilePayload,
+    ): Promise<UpdateProfileResponse> {
+    return api.patch<UpdateProfileResponse>(
+        '/accounts/me/profile/',
+        payload,
+        {
+        auth,
+        },
+    );
+}
 
 export function updateOnboardingProfile(
     auth: AuthCredentials,
@@ -136,7 +142,6 @@ export function updateOnboardingProfile(
     );
 }
 
-
 export function updateAssistantSettings(
     auth: AuthCredentials,
     payload: UpdateAssistantSettingsPayload,
@@ -150,13 +155,11 @@ export function updateAssistantSettings(
     );
 }
 
-
 export function createQrLoginChallenge(): Promise<QrLoginChallengeResponse> {
     return api.post<QrLoginChallengeResponse>(
         '/accounts/qr-login/challenges/',
     );
 }
-
 
 export function getQrLoginChallengeStatus(
     challengeToken: string,
@@ -167,7 +170,6 @@ export function getQrLoginChallengeStatus(
         )}/`,
     );
 }
-
 
 export function scanQrLogin(
     auth: AuthCredentials,
@@ -182,7 +184,6 @@ export function scanQrLogin(
     );
 }
 
-
 export function getDeviceSessions(
     auth: AuthCredentials,
     ): Promise<GetDeviceSessionsResponse> {
@@ -193,7 +194,6 @@ export function getDeviceSessions(
         },
     );
 }
-
 
 export async function revokeDeviceSession(
     auth: AuthCredentials,
@@ -207,7 +207,6 @@ export async function revokeDeviceSession(
     );
 }
 
-
 export async function revokeAllDeviceSessions(
     auth: AuthCredentials,
     ): Promise<void> {
@@ -218,7 +217,6 @@ export async function revokeAllDeviceSessions(
         },
     );
 }
-
 
 export async function activateWebSession(
     challengeToken: string,
@@ -234,7 +232,6 @@ export async function activateWebSession(
     );
 }
 
-
 export function getWebSessionProfile(): Promise<WebSessionProfileResponse> {
     return api.get<WebSessionProfileResponse>(
         '/accounts/web-session/me/',
@@ -243,7 +240,6 @@ export function getWebSessionProfile(): Promise<WebSessionProfileResponse> {
         },
     );
 }
-
 
 export async function logoutWebSession(): Promise<void> {
     await api.post<void>(

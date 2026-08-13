@@ -1,6 +1,18 @@
 import re
+from urllib.parse import urlparse
 
 from rest_framework import serializers
+
+
+SOCIAL_PLATFORMS = (
+    "instagram",
+    "facebook",
+    "linkedin",
+    "tiktok",
+    "youtube",
+    "threads",
+    "website",
+)
 
 
 class RegisterUserSerializer(serializers.Serializer):
@@ -77,7 +89,6 @@ class RefreshSessionSerializer(serializers.Serializer):
         write_only=True,
         trim_whitespace=True,
     )
-
     session_token = serializers.CharField(
         required=False,
         min_length=20,
@@ -179,9 +190,7 @@ class PasswordResetConfirmSerializer(serializers.Serializer):
         if attrs["new_password"] != attrs["confirm_password"]:
             raise serializers.ValidationError(
                 {
-                    "confirm_password": (
-                        "Passwords do not match."
-                    )
+                    "confirm_password": "Passwords do not match.",
                 }
             )
 
@@ -217,6 +226,124 @@ class UpdateOnboardingProfileSerializer(serializers.Serializer):
             )
 
         return normalized_value
+
+
+class ProfileSocialLinkSerializer(serializers.Serializer):
+    platform = serializers.ChoiceField(
+        choices=SOCIAL_PLATFORMS,
+    )
+    url = serializers.URLField(
+        max_length=2048,
+        trim_whitespace=True,
+    )
+
+    def validate_url(self, value: str) -> str:
+        normalized_value = value.strip()
+
+        parsed_url = urlparse(normalized_value)
+
+        if parsed_url.scheme not in ("http", "https") or not parsed_url.netloc:
+            raise serializers.ValidationError(
+                "A complete HTTP or HTTPS URL is required."
+            )
+
+        return normalized_value
+
+
+class UpdateProfileSerializer(serializers.Serializer):
+    first_name = serializers.CharField(
+        max_length=100,
+        trim_whitespace=True,
+    )
+    last_name = serializers.CharField(
+        max_length=100,
+        trim_whitespace=True,
+    )
+    email = serializers.EmailField()
+    phone_dial_code = serializers.CharField(
+        max_length=10,
+        trim_whitespace=True,
+    )
+    phone_number = serializers.CharField(
+        max_length=20,
+        trim_whitespace=True,
+    )
+    occupation = serializers.CharField(
+        required=False,
+        allow_blank=True,
+        allow_null=True,
+        max_length=120,
+        trim_whitespace=True,
+    )
+    location = serializers.CharField(
+        required=False,
+        allow_blank=True,
+        allow_null=True,
+        max_length=255,
+        trim_whitespace=True,
+    )
+    social_links = ProfileSocialLinkSerializer(
+        many=True,
+        required=False,
+    )
+
+    def validate_email(self, value: str) -> str:
+        return value.strip().lower()
+
+    def validate_first_name(self, value: str) -> str:
+        normalized_value = value.strip()
+
+        if not normalized_value:
+            raise serializers.ValidationError(
+                "First name cannot be empty."
+            )
+
+        return normalized_value
+
+    def validate_last_name(self, value: str) -> str:
+        normalized_value = value.strip()
+
+        if not normalized_value:
+            raise serializers.ValidationError(
+                "Last name cannot be empty."
+            )
+
+        return normalized_value
+
+    def validate_phone_dial_code(self, value: str) -> str:
+        normalized_value = value.replace("+", "").replace(" ", "")
+
+        if not normalized_value.isdigit():
+            raise serializers.ValidationError(
+                "Phone dial code must contain only digits."
+            )
+
+        return normalized_value
+
+    def validate_phone_number(self, value: str) -> str:
+        normalized_value = (
+            value.replace(" ", "")
+            .replace("-", "")
+            .replace("(", "")
+            .replace(")", "")
+        )
+
+        if not normalized_value.isdigit():
+            raise serializers.ValidationError(
+                "Phone number must contain only digits."
+            )
+
+        return normalized_value
+
+    def validate_social_links(self, value: list[dict]) -> list[dict]:
+        platforms = [link["platform"] for link in value]
+
+        if len(platforms) != len(set(platforms)):
+            raise serializers.ValidationError(
+                "Only one URL is allowed for each platform."
+            )
+
+        return value
 
 
 class UpdateAssistantSettingsSerializer(serializers.Serializer):

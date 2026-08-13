@@ -1,11 +1,9 @@
 import secrets
 
-
 from rest_framework import status
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.views import APIView
-
 
 from apps.accounts.exceptions import (
     AccountAuthenticationError,
@@ -33,6 +31,7 @@ from apps.accounts.serializers import (
     RegisterUserSerializer,
     UpdateAssistantSettingsSerializer,
     UpdateOnboardingProfileSerializer,
+    UpdateProfileSerializer,
     VerifyPhoneOtpSerializer,
 )
 from apps.accounts.services.auth_session_service import (
@@ -40,6 +39,7 @@ from apps.accounts.services.auth_session_service import (
 )
 from apps.accounts.services.auth_user_service import (
     get_auth_user,
+    update_auth_user_email,
 )
 from apps.accounts.services.device_session_service import (
     create_mobile_device_session,
@@ -54,9 +54,6 @@ from apps.accounts.services.device_session_service import (
 from apps.accounts.services.login_service import (
     login_with_email_password,
 )
-from apps.accounts.services.session_refresh_service import (
-    refresh_supabase_session,
-)
 from apps.accounts.services.password_reset_service import (
     confirm_password_reset,
     request_password_reset,
@@ -70,6 +67,7 @@ from apps.accounts.services.profile_service import (
     get_profile,
     update_assistant_settings,
     update_onboarding_profile,
+    update_profile,
 )
 from apps.accounts.services.qr_login_service import (
     approve_qr_login_challenge,
@@ -78,6 +76,9 @@ from apps.accounts.services.qr_login_service import (
 )
 from apps.accounts.services.registration_service import (
     create_complete_user,
+)
+from apps.accounts.services.session_refresh_service import (
+    refresh_supabase_session,
 )
 from apps.accounts.throttles import (
     PasswordResetConfirmationThrottle,
@@ -243,6 +244,7 @@ class LoginUserView(APIView):
             status=status.HTTP_200_OK,
         )
 
+
 class SessionRefreshView(APIView):
     permission_classes = [AllowAny]
 
@@ -288,6 +290,7 @@ class SessionRefreshView(APIView):
             },
             status=status.HTTP_200_OK,
         )
+
 
 class PhoneOtpRequestView(APIView):
     permission_classes = [AllowAny]
@@ -498,8 +501,6 @@ class PasswordResetRequestView(APIView):
             )
 
         except PasswordResetRequestError:
-            # Mantiene una respuesta neutral para no revelar si el
-            # teléfono pertenece a una cuenta de BeeApp.
             pass
 
         return Response(
@@ -633,9 +634,7 @@ class CurrentProfileView(AuthenticatedAPIView):
 
 class UpdateOnboardingProfileView(AuthenticatedAPIView):
     def patch(self, request):
-        serializer = UpdateOnboardingProfileSerializer(
-            data=request.data,
-        )
+        serializer = UpdateProfileSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
         try:
@@ -643,10 +642,35 @@ class UpdateOnboardingProfileView(AuthenticatedAPIView):
                 request
             )
 
-            profile = update_onboarding_profile(
-                auth_user_id=str(authenticated_user.id),
-                **serializer.validated_data,
+            user_id = str(authenticated_user.id)
+            email = serializer.validated_data["email"]
+
+            if email != authenticated_user.email:
+                update_auth_user_email(
+                    auth_user_id=user_id,
+                    email=email,
+                )
+
+            profile = update_profile(
+                auth_user_id=user_id,
+                first_name=serializer.validated_data["first_name"],
+                last_name=serializer.validated_data["last_name"],
+                phone_dial_code=serializer.validated_data[
+                    "phone_dial_code"
+                ],
+                phone_number=serializer.validated_data[
+                    "phone_number"
+                ],
+                occupation=serializer.validated_data.get(
+                    "occupation"
+                ),
+                location=serializer.validated_data.get("location"),
+                social_links=serializer.validated_data.get(
+                    "social_links"
+                ),
             )
+
+            profile["email"] = email
 
         except AccountAuthenticationError:
             return Response(
@@ -656,7 +680,10 @@ class UpdateOnboardingProfileView(AuthenticatedAPIView):
                 status=status.HTTP_401_UNAUTHORIZED,
             )
 
-        except ProfileUpdateError:
+        except (
+            AuthUserLookupError,
+            ProfileUpdateError,
+        ):
             return Response(
                 {
                     "detail": "Profile could not be updated.",

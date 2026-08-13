@@ -8,6 +8,20 @@ export type UserStatus =
 
 export type AuthScheme = 'Bearer' | 'Session';
 
+export type SocialPlatform =
+  | 'instagram'
+  | 'facebook'
+  | 'linkedin'
+  | 'tiktok'
+  | 'youtube'
+  | 'threads'
+  | 'website';
+
+export interface ProfileSocialLink {
+  platform: SocialPlatform;
+  url: string;
+}
+
 export interface BaseUser {
   id: string;
   email: string;
@@ -141,6 +155,7 @@ export interface UserProfile {
   location: string | null;
   assistant_name: string | null;
   assistant_tone: string | null;
+  social_links: ProfileSocialLink[];
 }
 
 export interface CurrentUserProfile extends UserProfile {
@@ -148,6 +163,22 @@ export interface CurrentUserProfile extends UserProfile {
 }
 
 export interface GetCurrentProfileResponse {
+  profile: CurrentUserProfile;
+}
+
+export interface UpdateProfilePayload {
+  first_name: string;
+  last_name: string;
+  email: string;
+  phone_dial_code: string;
+  phone_number: string;
+  occupation?: string | null;
+  location?: string | null;
+  social_links: ProfileSocialLink[];
+}
+
+export interface UpdateProfileResponse {
+  message: string;
   profile: CurrentUserProfile;
 }
 
@@ -219,35 +250,29 @@ export interface UpdateAssistantSettingsResponse {
   profile: UserProfile;
 }
 
-
 export interface PasswordResetRequestPayload {
   phone: string;
 }
 
-
 export interface PasswordResetRequestResponse {
   message: string;
 }
-
 
 export interface PasswordResetVerifyPayload {
   phone: string;
   code: string;
 }
 
-
 export interface PasswordResetVerifyResponse {
   message: string;
   reset_token: string;
 }
-
 
 export interface PasswordResetConfirmPayload {
   reset_token: string;
   new_password: string;
   confirm_password: string;
 }
-
 
 export interface PasswordResetConfirmResponse {
   message: string;

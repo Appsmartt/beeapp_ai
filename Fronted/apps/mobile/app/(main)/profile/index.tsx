@@ -1,48 +1,116 @@
-import React, { useState } from 'react';
 import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
-  Share,
-  Linking,
+  useCallback,
+  useState,
+} from 'react';
+import {
+  ActivityIndicator,
   Alert,
+  Linking,
+  ScrollView,
+  Share,
+  StyleSheet,
   Switch,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native';
-import ScreenSafeArea from '../../../src/components/layout/ScreenSafeArea';
-import { useRouter } from 'expo-router';
-import { colors } from '@beeapp/design-system';
 import {
-  User,
-  ChevronRight,
-  Shield,
+  useFocusEffect,
+  useRouter,
+} from 'expo-router';
+import {
   CreditCard,
-  Grid,
-  ShieldCheck,
-  Share2,
-  HelpCircle,
   FileText,
+  Grid,
+  HelpCircle,
   LogOut,
+  Share2,
+  Shield,
+  ShieldCheck,
+  ChevronRight,
 } from 'lucide-react-native';
+import { colors } from '@beeapp/design-system';
+import { getCurrentProfile } from '@beeapp/api-client';
+import type {
+  AuthCredentials,
+  CurrentUserProfile,
+} from '@beeapp/shared-types';
+
+import ScreenSafeArea from '../../../src/components/layout/ScreenSafeArea';
 import FloatingTabBar from '../../../src/components/FloatingTabBar';
-import { CURRENT_USER } from '../../../src/mocks/currentUser';
+import {
+  getValidSessionCredentials,
+} from '../../../src/services/authSession';
+
+function getInitials(
+  firstName: string,
+  lastName: string,
+): string {
+  const firstInitial = firstName.trim().charAt(0);
+  const lastInitial = lastName.trim().charAt(0);
+
+  return `${firstInitial}${lastInitial}`.toUpperCase() || '?';
+}
 
 export default function ProfileMainScreen() {
   const router = useRouter();
-  const [isVisibleInNetwork, setIsVisibleInNetwork] = useState(true);
 
-  // Mock User profile info: personal data only, no company
-  const userProfile = {
-    name: CURRENT_USER.name,
-    email: CURRENT_USER.email,
-    initials: CURRENT_USER.initials,
+  const [isVisibleInNetwork, setIsVisibleInNetwork] =
+    useState(true);
+
+  const [profile, setProfile] =
+    useState<CurrentUserProfile | null>(null);
+
+  const [isLoading, setIsLoading] = useState(true);
+
+  const getCredentials = async (): Promise<AuthCredentials> => {
+    const credentials = await getValidSessionCredentials();
+
+    if (!credentials) {
+      throw new Error(
+        'Tu sesión no está disponible. '
+        + 'Inicia sesión nuevamente.',
+      );
+    }
+
+    return credentials;
   };
+
+  const loadProfile = useCallback(async () => {
+    try {
+      setIsLoading(true);
+
+      const credentials = await getCredentials();
+
+      const response = await getCurrentProfile(credentials);
+
+      setProfile(response.profile);
+    } catch (error) {
+      Alert.alert(
+        'No fue posible cargar tu perfil',
+        error instanceof Error
+          ? error.message
+          : 'Inténtalo nuevamente.',
+      );
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      void loadProfile();
+    }, [loadProfile]),
+  );
 
   const handleShareApp = async () => {
     try {
       await Share.share({
-        message: '¡Descarga BeeApp AI! La plataforma definitiva para optimizar tus correos, notas, archivos y automatizar tu negocio con IA. Descárgala aquí: https://beeapp.ai',
+        message: (
+          '¡Descarga BeeApp AI! La plataforma definitiva para '
+          + 'optimizar tus correos, notas, archivos y automatizar '
+          + 'tu negocio con IA. Descárgala aquí: https://beeapp.ai'
+        ),
       });
     } catch (error) {
       console.log('Error compartiendo la app:', error);
@@ -50,24 +118,39 @@ export default function ProfileMainScreen() {
   };
 
   const handleContactSupport = () => {
-    const supportPhone = '573001234567'; // Colombian mock support number
-    const message = 'Hola soporte de BeeApp, necesito ayuda con mi cuenta.';
-    const url = `https://wa.me/${supportPhone}?text=${encodeURIComponent(message)}`;
-    
+    const supportPhone = '573001234567';
+    const message =
+      'Hola soporte de BeeApp, necesito ayuda con mi cuenta.';
+
+    const url = (
+      `https://wa.me/${supportPhone}?text=`
+      + encodeURIComponent(message)
+    );
+
     Linking.canOpenURL(url)
       .then((supported) => {
         if (supported) {
-          Linking.openURL(url);
-        } else {
-          Alert.alert('Error', 'No se pudo abrir WhatsApp en este dispositivo.');
+          return Linking.openURL(url);
         }
+
+        Alert.alert(
+          'Error',
+          'No se pudo abrir WhatsApp en este dispositivo.',
+        );
+
+        return undefined;
       })
-      .catch((err) => console.error('An error occurred', err));
+      .catch((error) => {
+        console.error(
+          'No fue posible abrir WhatsApp:',
+          error,
+        );
+      });
   };
 
   const handleSignOut = () => {
     Alert.alert(
-      'Cerrar Sesión',
+      'Cerrar sesión',
       '¿Estás seguro de que deseas cerrar sesión en BeeApp?',
       [
         {
@@ -75,14 +158,13 @@ export default function ProfileMainScreen() {
           style: 'cancel',
         },
         {
-          text: 'Cerrar Sesión',
+          text: 'Cerrar sesión',
           style: 'destructive',
           onPress: () => {
-            // Replace navigation to auth login
             router.replace('/(auth)/login');
           },
         },
-      ]
+      ],
     );
   };
 
@@ -90,138 +172,357 @@ export default function ProfileMainScreen() {
     router.push(path);
   };
 
+  const fullName = profile
+    ? `${profile.first_name} ${profile.last_name}`.trim()
+    : '';
+
+  const initials = profile
+    ? getInitials(profile.first_name, profile.last_name)
+    : '?';
+
+  const email = profile?.email || '';
+
   return (
     <ScreenSafeArea style={styles.safeArea}>
       <View style={styles.container}>
-        {/* Header Title */}
         <View style={styles.headerBar}>
-          <Text style={styles.headerTitle}>Mi Perfil</Text>
+          <Text style={styles.headerTitle}>
+            Mi Perfil
+          </Text>
         </View>
 
-        <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
-          {/* Profile Card Header */}
-          <View style={styles.profileCard}>
-            <View style={styles.avatarWrap}>
-              <Text style={styles.avatarText}>{userProfile.initials}</Text>
-              <View style={styles.onlineBadge} />
+        {isLoading ? (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator
+              size="large"
+              color={colors.brand.primary}
+            />
+
+            <Text style={styles.loadingText}>
+              Cargando perfil...
+            </Text>
+          </View>
+        ) : (
+          <ScrollView
+            style={styles.scrollView}
+            showsVerticalScrollIndicator={false}
+          >
+            <View style={styles.profileCard}>
+              <View style={styles.avatarWrap}>
+                <Text style={styles.avatarText}>
+                  {initials}
+                </Text>
+
+                <View style={styles.onlineBadge} />
+              </View>
+
+              <Text style={styles.profileName}>
+                {fullName || 'Usuario BeeApp'}
+              </Text>
+
+              <Text style={styles.profileOccupation}>
+                {email || 'Sin correo registrado'}
+              </Text>
+
+              <TouchableOpacity
+                style={styles.editProfileBtn}
+                onPress={() => {
+                  navigateTo('/(main)/profile/edit');
+                }}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.editProfileBtnText}>
+                  Editar Perfil
+                </Text>
+              </TouchableOpacity>
             </View>
-            <Text style={styles.profileName}>{userProfile.name}</Text>
-            <Text style={styles.profileOccupation}>{userProfile.email}</Text>
+
+            <Text style={styles.groupHeader}>
+              Mi cuenta
+            </Text>
+
+            <View style={styles.optionsCard}>
+              <TouchableOpacity
+                style={styles.optionRow}
+                onPress={() => {
+                  navigateTo('/(main)/profile/subscription');
+                }}
+                activeOpacity={0.7}
+              >
+                <View
+                  style={[
+                    styles.optionIconWrap,
+                    styles.subscriptionIcon,
+                  ]}
+                >
+                  <CreditCard
+                    size={18}
+                    color="#D97706"
+                  />
+                </View>
+
+                <Text style={styles.optionLabel}>
+                  Suscripción y Almacenamiento
+                </Text>
+
+                <ChevronRight
+                  size={16}
+                  color={colors.neutral.gray500}
+                />
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.optionRow}
+                onPress={() => {
+                  navigateTo('/(main)/profile/integrations');
+                }}
+                activeOpacity={0.7}
+              >
+                <View
+                  style={[
+                    styles.optionIconWrap,
+                    styles.integrationsIcon,
+                  ]}
+                >
+                  <Grid
+                    size={18}
+                    color="#1E88E5"
+                  />
+                </View>
+
+                <Text style={styles.optionLabel}>
+                  Integraciones Externas
+                </Text>
+
+                <ChevronRight
+                  size={16}
+                  color={colors.neutral.gray500}
+                />
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.optionRow}
+                onPress={() => {
+                  navigateTo('/(main)/profile/security');
+                }}
+                activeOpacity={0.7}
+              >
+                <View
+                  style={[
+                    styles.optionIconWrap,
+                    styles.securityIcon,
+                  ]}
+                >
+                  <ShieldCheck
+                    size={18}
+                    color="#2E7D32"
+                  />
+                </View>
+
+                <Text style={styles.optionLabel}>
+                  Seguridad y PIN
+                </Text>
+
+                <ChevronRight
+                  size={16}
+                  color={colors.neutral.gray500}
+                />
+              </TouchableOpacity>
+
+              <View style={styles.switchOptionRow}>
+                <View
+                  style={[
+                    styles.optionIconWrap,
+                    styles.visibilityIcon,
+                  ]}
+                >
+                  <Shield
+                    size={18}
+                    color={colors.brand.primary}
+                  />
+                </View>
+
+                <View style={styles.switchTextCol}>
+                  <Text style={styles.optionLabel}>
+                    Visibilidad en la red
+                  </Text>
+
+                  <Text style={styles.switchDesc}>
+                    Permite que otros usuarios te encuentren según tu
+                    profesión, empresa e intereses registrados.
+                  </Text>
+                </View>
+
+                <Switch
+                  value={isVisibleInNetwork}
+                  onValueChange={setIsVisibleInNetwork}
+                  trackColor={{
+                    false: colors.neutral.gray300,
+                    true: `${colors.brand.primary}80`,
+                  }}
+                  thumbColor={
+                    isVisibleInNetwork
+                      ? colors.brand.primary
+                      : colors.neutral.gray400
+                  }
+                />
+              </View>
+            </View>
+
+            <Text style={styles.groupHeader}>
+              Aplicación
+            </Text>
+
+            <View style={styles.optionsCard}>
+              <TouchableOpacity
+                style={styles.optionRow}
+                onPress={handleShareApp}
+                activeOpacity={0.7}
+              >
+                <View
+                  style={[
+                    styles.optionIconWrap,
+                    styles.shareIcon,
+                  ]}
+                >
+                  <Share2
+                    size={18}
+                    color="#2E7D32"
+                  />
+                </View>
+
+                <Text style={styles.optionLabel}>
+                  Compartir Aplicación
+                </Text>
+
+                <ChevronRight
+                  size={16}
+                  color={colors.neutral.gray500}
+                />
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[
+                  styles.optionRow,
+                  styles.lastOptionRow,
+                ]}
+                onPress={handleContactSupport}
+                activeOpacity={0.7}
+              >
+                <View
+                  style={[
+                    styles.optionIconWrap,
+                    styles.supportIcon,
+                  ]}
+                >
+                  <HelpCircle
+                    size={18}
+                    color="#0284C7"
+                  />
+                </View>
+
+                <Text style={styles.optionLabel}>
+                  Contactar a Soporte
+                </Text>
+
+                <ChevronRight
+                  size={16}
+                  color={colors.neutral.gray500}
+                />
+              </TouchableOpacity>
+            </View>
+
+            <Text style={styles.groupHeader}>
+              Legal
+            </Text>
+
+            <View style={styles.optionsCard}>
+              <TouchableOpacity
+                style={styles.optionRow}
+                onPress={() => {
+                  navigateTo('/(auth)/terms');
+                }}
+                activeOpacity={0.7}
+              >
+                <View
+                  style={[
+                    styles.optionIconWrap,
+                    styles.legalIcon,
+                  ]}
+                >
+                  <FileText
+                    size={18}
+                    color={colors.brand.primary}
+                  />
+                </View>
+
+                <Text style={styles.optionLabel}>
+                  Términos y Condiciones
+                </Text>
+
+                <ChevronRight
+                  size={16}
+                  color={colors.neutral.gray500}
+                />
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[
+                  styles.optionRow,
+                  styles.lastOptionRow,
+                ]}
+                onPress={() => {
+                  navigateTo('/(auth)/privacy');
+                }}
+                activeOpacity={0.7}
+              >
+                <View
+                  style={[
+                    styles.optionIconWrap,
+                    styles.legalIcon,
+                  ]}
+                >
+                  <Shield
+                    size={18}
+                    color={colors.brand.primary}
+                  />
+                </View>
+
+                <Text style={styles.optionLabel}>
+                  Política de Privacidad
+                </Text>
+
+                <ChevronRight
+                  size={16}
+                  color={colors.neutral.gray500}
+                />
+              </TouchableOpacity>
+            </View>
 
             <TouchableOpacity
-              style={styles.editProfileBtn}
-              onPress={() => navigateTo('/(main)/profile/edit')}
+              style={styles.signOutBtn}
+              onPress={handleSignOut}
               activeOpacity={0.7}
             >
-              <Text style={styles.editProfileBtnText}>Editar Perfil</Text>
-            </TouchableOpacity>
-          </View>
-
-          {/* Group 1: Mi Cuenta - AJUSTE 2: Removed "Información de Perfil" list item to avoid duplication */}
-          <Text style={styles.groupHeader}>Mi Cuenta</Text>
-          <View style={styles.optionsCard}>
-            <TouchableOpacity style={styles.optionRow} onPress={() => navigateTo('/(main)/profile/subscription')} activeOpacity={0.7}>
-              <View style={[styles.optionIconWrap, { backgroundColor: '#FEF3C7' }]}>
-                <CreditCard size={18} color="#D97706" />
-              </View>
-              <Text style={styles.optionLabel}>Suscripción y Almacenamiento</Text>
-              <ChevronRight size={16} color={colors.neutral.gray500} />
-            </TouchableOpacity>
-
-            <TouchableOpacity style={styles.optionRow} onPress={() => navigateTo('/(main)/profile/integrations')} activeOpacity={0.7}>
-              <View style={[styles.optionIconWrap, { backgroundColor: '#EBF5FF' }]}>
-                <Grid size={18} color="#1E88E5" />
-              </View>
-              <Text style={styles.optionLabel}>Integraciones Externas</Text>
-              <ChevronRight size={16} color={colors.neutral.gray500} />
-            </TouchableOpacity>
-
-            <TouchableOpacity style={styles.optionRow} onPress={() => navigateTo('/(main)/profile/security')} activeOpacity={0.7}>
-              <View style={[styles.optionIconWrap, { backgroundColor: '#DCFCE7' }]}>
-                <ShieldCheck size={18} color="#2E7D32" />
-              </View>
-              <Text style={styles.optionLabel}>Seguridad y PIN</Text>
-              <ChevronRight size={16} color={colors.neutral.gray500} />
-            </TouchableOpacity>
-
-            {/* Visibility toggle switch */}
-            <View style={styles.switchOptionRow}>
-              <View style={[styles.optionIconWrap, { backgroundColor: '#F3E8FF' }]}>
-                <Shield size={18} color={colors.brand.primary} />
-              </View>
-              <View style={styles.switchTextCol}>
-                <Text style={styles.optionLabel}>Visibilidad en la red</Text>
-                <Text style={styles.switchDesc}>
-                  Permite que otros usuarios te encuentren según tu profesión, empresa e intereses registrados.
-                </Text>
-              </View>
-              <Switch
-                value={isVisibleInNetwork}
-                onValueChange={setIsVisibleInNetwork}
-                trackColor={{ false: colors.neutral.gray300, true: colors.brand.primary + '80' }}
-                thumbColor={isVisibleInNetwork ? colors.brand.primary : colors.neutral.gray400}
+              <LogOut
+                size={18}
+                color={colors.semantic.error}
+                style={styles.signOutIcon}
               />
-            </View>
-          </View>
 
-          {/* Group 2: Aplicación */}
-          <Text style={styles.groupHeader}>Aplicación</Text>
-          <View style={styles.optionsCard}>
-            <TouchableOpacity style={styles.optionRow} onPress={handleShareApp} activeOpacity={0.7}>
-              <View style={[styles.optionIconWrap, { backgroundColor: '#E8F5E9' }]}>
-                <Share2 size={18} color="#2E7D32" />
-              </View>
-              <Text style={styles.optionLabel}>Compartir Aplicación</Text>
-              <ChevronRight size={16} color={colors.neutral.gray500} />
+              <Text style={styles.signOutBtnText}>
+                Cerrar Sesión
+              </Text>
             </TouchableOpacity>
 
-            <TouchableOpacity style={[styles.optionRow, { borderBottomWidth: 0 }]} onPress={handleContactSupport} activeOpacity={0.7}>
-              <View style={[styles.optionIconWrap, { backgroundColor: '#E0F2FE' }]}>
-                <HelpCircle size={18} color="#0284C7" />
-              </View>
-              <Text style={styles.optionLabel}>Contactar a Soporte</Text>
-              <ChevronRight size={16} color={colors.neutral.gray500} />
-            </TouchableOpacity>
-          </View>
+            <Text style={styles.versionText}>
+              BeeApp AI v1.0.0 (Build 1425)
+            </Text>
 
-          {/* Group 3: Legal */}
-          <Text style={styles.groupHeader}>Legal</Text>
-          <View style={styles.optionsCard}>
-            <TouchableOpacity style={styles.optionRow} onPress={() => navigateTo('/(auth)/terms')} activeOpacity={0.7}>
-              <View style={[styles.optionIconWrap, { backgroundColor: '#F3E8FF' }]}>
-                <FileText size={18} color={colors.brand.primary} />
-              </View>
-              <Text style={styles.optionLabel}>Términos y Condiciones</Text>
-              <ChevronRight size={16} color={colors.neutral.gray500} />
-            </TouchableOpacity>
+            <View style={styles.bottomSpacing} />
+          </ScrollView>
+        )}
 
-            <TouchableOpacity style={[styles.optionRow, { borderBottomWidth: 0 }]} onPress={() => navigateTo('/(auth)/privacy')} activeOpacity={0.7}>
-              <View style={[styles.optionIconWrap, { backgroundColor: '#F3E8FF' }]}>
-                <Shield size={18} color={colors.brand.primary} />
-              </View>
-              <Text style={styles.optionLabel}>Política de Privacidad</Text>
-              <ChevronRight size={16} color={colors.neutral.gray500} />
-            </TouchableOpacity>
-          </View>
-
-          {/* Sign Out Button */}
-          <TouchableOpacity
-            style={styles.signOutBtn}
-            onPress={handleSignOut}
-            activeOpacity={0.7}
-          >
-            <LogOut size={18} color={colors.semantic.error} style={{ marginRight: 8 }} />
-            <Text style={styles.signOutBtnText}>Cerrar Sesión</Text>
-          </TouchableOpacity>
-
-          {/* Version text */}
-          <Text style={styles.versionText}>BeeApp AI v1.0.0 (Build 1425)</Text>
-
-          {/* Extra spacing for tab bar */}
-          <View style={{ height: 100 }} />
-        </ScrollView>
-
-        {/* Tab Bar navigation */}
         <FloatingTabBar activeTab="profile" />
       </View>
     </ScreenSafeArea>
@@ -249,6 +550,17 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     color: colors.neutral.text,
   },
+  loadingContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 12,
+  },
+  loadingText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: colors.neutral.gray600,
+  },
   scrollView: {
     flex: 1,
   },
@@ -264,7 +576,10 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.neutral.gray200,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
     shadowOpacity: 0.02,
     shadowRadius: 10,
     elevation: 2,
@@ -346,6 +661,9 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: colors.neutral.gray100,
   },
+  lastOptionRow: {
+    borderBottomWidth: 0,
+  },
   optionIconWrap: {
     width: 32,
     height: 32,
@@ -354,35 +672,32 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginRight: 12,
   },
+  subscriptionIcon: {
+    backgroundColor: '#FEF3C7',
+  },
+  integrationsIcon: {
+    backgroundColor: '#EBF5FF',
+  },
+  securityIcon: {
+    backgroundColor: '#DCFCE7',
+  },
+  visibilityIcon: {
+    backgroundColor: '#F3E8FF',
+  },
+  shareIcon: {
+    backgroundColor: '#E8F5E9',
+  },
+  supportIcon: {
+    backgroundColor: '#E0F2FE',
+  },
+  legalIcon: {
+    backgroundColor: '#F3E8FF',
+  },
   optionLabel: {
     fontSize: 14,
     fontWeight: '600',
     color: colors.neutral.text,
     flex: 1,
-  },
-  signOutBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#FEE2E2',
-    borderWidth: 1,
-    borderColor: '#FEE2E2',
-    borderRadius: 16,
-    paddingVertical: 16,
-    marginHorizontal: 20,
-    marginTop: 32,
-    marginBottom: 16,
-  },
-  signOutBtnText: {
-    color: colors.semantic.error,
-    fontSize: 15,
-    fontWeight: '700',
-  },
-  versionText: {
-    fontSize: 11,
-    color: colors.neutral.gray500,
-    textAlign: 'center',
-    fontWeight: '500',
   },
   switchOptionRow: {
     flexDirection: 'row',
@@ -400,5 +715,35 @@ const styles = StyleSheet.create({
     marginTop: 2,
     lineHeight: 14,
     fontWeight: '500',
+  },
+  signOutBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#FEE2E2',
+    borderWidth: 1,
+    borderColor: '#FEE2E2',
+    borderRadius: 16,
+    paddingVertical: 16,
+    marginHorizontal: 20,
+    marginTop: 32,
+    marginBottom: 16,
+  },
+  signOutIcon: {
+    marginRight: 8,
+  },
+  signOutBtnText: {
+    color: colors.semantic.error,
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  versionText: {
+    fontSize: 11,
+    color: colors.neutral.gray500,
+    textAlign: 'center',
+    fontWeight: '500',
+  },
+  bottomSpacing: {
+    height: 100,
   },
 });

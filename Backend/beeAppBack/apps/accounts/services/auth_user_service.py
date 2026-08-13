@@ -117,6 +117,38 @@ def get_auth_user_by_phone(*, phone: str):
         ) from error
 
 
+def update_auth_user_email(
+    *,
+    auth_user_id: str,
+    email: str,
+):
+    try:
+        supabase = get_supabase_admin_client()
+
+        response = supabase.auth.admin.update_user_by_id(
+            auth_user_id,
+            {
+                "email": email,
+                "email_confirm": True,
+            },
+        )
+
+        if not response.user:
+            raise AuthUserLookupError(
+                "Supabase did not return the updated user."
+            )
+
+        return response.user
+
+    except AuthUserLookupError:
+        raise
+
+    except Exception as error:
+        raise AuthUserLookupError(
+            "Could not update the authentication email."
+        ) from error
+
+
 def update_auth_user_password(
     *,
     auth_user_id: str,

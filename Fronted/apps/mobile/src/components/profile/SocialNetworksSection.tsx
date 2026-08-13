@@ -1,57 +1,137 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Alert } from 'react-native';
-import { colors } from '@beeapp/design-system';
 import {
-  Instagram, Facebook, Linkedin, Music2, Youtube, AtSign, ExternalLink, Globe, Camera, Briefcase, Video,
+  Alert,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from 'react-native';
+import {
+  AtSign,
+  Briefcase,
+  ExternalLink,
+  Globe,
+  Music2,
+  Video,
 } from 'lucide-react-native';
+import { colors } from '@beeapp/design-system';
 
 interface SocialNetworksSectionProps {
   socialLinks?: Record<string, string>;
 }
 
-const SOCIAL_CONFIG: Record<string, { label: string; icon: React.ElementType }> = {
-  instagram: { label: 'Instagram', icon: Instagram || Camera },
-  facebook: { label: 'Facebook', icon: Facebook || Globe },
-  linkedin: { label: 'LinkedIn', icon: Linkedin || Briefcase },
-  tiktok: { label: 'TikTok', icon: Music2 || Camera },
-  youtube: { label: 'YouTube', icon: Youtube || Video },
-  threads: { label: 'Threads', icon: AtSign || Globe },
+const SOCIAL_CONFIG: Record<
+  string,
+  {
+    label: string;
+    icon: React.ElementType;
+  }
+> = {
+  instagram: {
+    label: 'Instagram',
+    icon: AtSign,
+  },
+  facebook: {
+    label: 'Facebook',
+    icon: Globe,
+  },
+  linkedin: {
+    label: 'LinkedIn',
+    icon: Briefcase,
+  },
+  tiktok: {
+    label: 'TikTok',
+    icon: Music2,
+  },
+  youtube: {
+    label: 'YouTube',
+    icon: Video,
+  },
+  threads: {
+    label: 'Threads',
+    icon: AtSign,
+  },
+  website: {
+    label: 'Sitio web',
+    icon: Globe,
+  },
 };
 
-export default function SocialNetworksSection({ socialLinks }: SocialNetworksSectionProps) {
-  if (!socialLinks) return null;
+export default function SocialNetworksSection({
+  socialLinks,
+}: SocialNetworksSectionProps) {
+  if (!socialLinks) {
+    return null;
+  }
 
-  const activeLinks = Object.entries(socialLinks).filter(([, url]) => !!url?.trim());
-  if (activeLinks.length === 0) return null;
+  const activeLinks = Object.entries(socialLinks).filter(
+    ([, url]) => Boolean(url?.trim()),
+  );
 
-  const handleOpenLink = (key: string, url: string) => {
-    Alert.alert('Abriendo enlace', `Abriendo enlace de ${key}: ${url}`);
+  if (activeLinks.length === 0) {
+    return null;
+  }
+
+  const handleOpenLink = (
+    label: string,
+    url: string,
+  ) => {
+    Alert.alert(
+      'Abriendo enlace',
+      `Abriendo enlace de ${label}: ${url}`,
+    );
   };
 
   return (
     <View style={styles.container}>
-      <Text style={styles.sectionHeader}>Redes Sociales</Text>
+      <Text style={styles.sectionHeader}>
+        Redes Sociales
+      </Text>
+
       <View style={styles.card}>
-        {activeLinks.map(([key, url], idx) => {
-          const config = SOCIAL_CONFIG[key] || { label: key, icon: ExternalLink };
-          const IconComponent = config.icon || Globe;
-          const isLast = idx === activeLinks.length - 1;
+        {activeLinks.map(([key, url], index) => {
+          const config = SOCIAL_CONFIG[key] || {
+            label: key,
+            icon: ExternalLink,
+          };
+
+          const IconComponent = config.icon;
+          const isLast = index === activeLinks.length - 1;
 
           return (
             <TouchableOpacity
               key={key}
-              style={[styles.row, isLast && { borderBottomWidth: 0 }]}
+              style={[
+                styles.row,
+                isLast && styles.lastRow,
+              ]}
               onPress={() => handleOpenLink(config.label, url)}
               activeOpacity={0.7}
             >
               <View style={styles.iconWrap}>
-                <IconComponent size={18} color={colors.brand.primary} />
+                <IconComponent
+                  size={18}
+                  color={colors.brand.primary}
+                />
               </View>
+
               <View style={styles.textCol}>
-                <Text style={styles.label}>{config.label}</Text>
-                <Text style={styles.url} numberOfLines={1}>{url}</Text>
+                <Text style={styles.label}>
+                  {config.label}
+                </Text>
+
+                <Text
+                  style={styles.url}
+                  numberOfLines={1}
+                >
+                  {url}
+                </Text>
               </View>
-              <ExternalLink size={14} color={colors.neutral.gray400} />
+
+              <ExternalLink
+                size={14}
+                color={colors.neutral.gray400}
+              />
             </TouchableOpacity>
           );
         })}
@@ -88,11 +168,14 @@ const styles = StyleSheet.create({
     borderBottomColor: colors.neutral.gray100,
     gap: 12,
   },
+  lastRow: {
+    borderBottomWidth: 0,
+  },
   iconWrap: {
     width: 32,
     height: 32,
     borderRadius: 8,
-    backgroundColor: colors.brand.primary + '12',
+    backgroundColor: `${colors.brand.primary}12`,
     alignItems: 'center',
     justifyContent: 'center',
   },
