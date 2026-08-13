@@ -23,14 +23,21 @@ import {
   Phone,
 } from 'lucide-react-native';
 import { colors } from '@beeapp/design-system';
-import { loginUser } from '@beeapp/api-client';
+import {
+  loginUser,
+  requestPhoneOtp,
+} from '@beeapp/api-client';
 
 import AnimatedLogo from '../../src/components/AnimatedLogo';
 import ScreenSafeArea from '../../src/components/layout/ScreenSafeArea';
 import {
   saveAuthSession,
 } from '../../src/services/authSession';
-import { COUNTRIES, type Country } from '../../src/mocks/countries';
+import {
+  COUNTRIES,
+  type Country,
+} from '../../src/mocks/countries';
+
 
 type LoginMethod = 'otp' | 'password';
 
@@ -46,25 +53,38 @@ function isValidEmail(value: string): boolean {
   return /^\S+@\S+\.\S+$/.test(value);
 }
 
+function normalizePhoneNumber(value: string): string {
+  return value.replace(/\D/g, '');
+}
+
 export default function LoginScreen() {
   const router = useRouter();
 
-  const [loginMethod, setLoginMethod] = useState<LoginMethod>('otp');
-  const [selectedCountry, setSelectedCountry] = useState<Country>(
-    COUNTRIES[0],
-  );
+  const [loginMethod, setLoginMethod] =
+    useState<LoginMethod>('otp');
+
+  const [selectedCountry, setSelectedCountry] =
+    useState<Country>(COUNTRIES[0]);
+
   const [phoneNumber, setPhoneNumber] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [isPasswordVisible, setIsPasswordVisible] = useState(false);
-  const [isCountryModalVisible, setIsCountryModalVisible] = useState(false);
+
+  const [isPasswordVisible, setIsPasswordVisible] =
+    useState(false);
+
+  const [isCountryModalVisible, setIsCountryModalVisible] =
+    useState(false);
+
   const [countrySearch, setCountrySearch] = useState('');
   const [errors, setErrors] = useState<FormErrors>({});
   const [formMessage, setFormMessage] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const filteredCountries = useMemo(() => {
-    const normalizedQuery = countrySearch.trim().toLowerCase();
+    const normalizedQuery = countrySearch
+      .trim()
+      .toLowerCase();
 
     if (!normalizedQuery) {
       return COUNTRIES;
@@ -72,7 +92,9 @@ export default function LoginScreen() {
 
     return COUNTRIES.filter(
       (country) =>
-        country.name.toLowerCase().includes(normalizedQuery) ||
+        country.name
+          .toLowerCase()
+          .includes(normalizedQuery) ||
         country.dialCode.includes(normalizedQuery),
     );
   }, [countrySearch]);
@@ -88,15 +110,19 @@ export default function LoginScreen() {
     }
   };
 
-  const changeLoginMethod = (nextMethod: LoginMethod) => {
+  const changeLoginMethod = (
+    nextMethod: LoginMethod,
+  ) => {
     setLoginMethod(nextMethod);
     setErrors({});
     setFormMessage('');
     Keyboard.dismiss();
   };
 
-  const handleOtpContinue = () => {
-    const normalizedPhoneNumber = phoneNumber.replace(/\D/g, '');
+  const handleOtpContinue = async () => {
+    const normalizedPhoneNumber = normalizePhoneNumber(
+      phoneNumber,
+    );
 
     if (
       normalizedPhoneNumber.length < 7 ||
@@ -108,10 +134,40 @@ export default function LoginScreen() {
       return;
     }
 
-    setErrors({});
-    setFormMessage(
-      'El acceso por SMS estará disponible cuando configuremos el proveedor OTP.',
-    );
+    const phone = (
+      selectedCountry.dialCode + normalizedPhoneNumber
+    ).replace(/\s/g, '');
+
+    try {
+      setIsSubmitting(true);
+      setErrors({});
+      setFormMessage('');
+
+      await requestPhoneOtp({
+        phone,
+      });
+
+      router.push({
+        pathname: '/(auth)/verify',
+        params: {
+          phone,
+          phoneNumber: normalizedPhoneNumber,
+          dialCode: selectedCountry.dialCode,
+          flag: selectedCountry.flag,
+        },
+      });
+    } catch (error) {
+      setFormMessage(
+        error instanceof Error
+          ? error.message
+          : (
+              'No fue posible solicitar el código. '
+              + 'Inténtalo nuevamente.'
+            ),
+      );
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handlePasswordContinue = async () => {
@@ -120,7 +176,8 @@ export default function LoginScreen() {
     if (!email.trim()) {
       nextErrors.email = 'Ingresa tu correo electrónico.';
     } else if (!isValidEmail(email.trim())) {
-      nextErrors.email = 'Ingresa un correo electrónico válido.';
+      nextErrors.email =
+        'Ingresa un correo electrónico válido.';
     }
 
     if (!password) {
@@ -155,7 +212,10 @@ export default function LoginScreen() {
       setFormMessage(
         error instanceof Error
           ? error.message
-          : 'No fue posible iniciar sesión. Inténtalo nuevamente.',
+          : (
+              'No fue posible iniciar sesión. '
+              + 'Inténtalo nuevamente.'
+            ),
       );
     } finally {
       setIsSubmitting(false);
@@ -194,7 +254,8 @@ export default function LoginScreen() {
                 <TouchableOpacity
                   style={[
                     styles.methodButton,
-                    loginMethod === 'otp' && styles.methodButtonActive,
+                    loginMethod === 'otp' &&
+                      styles.methodButtonActive,
                   ]}
                   activeOpacity={0.8}
                   onPress={() => changeLoginMethod('otp')}
@@ -266,7 +327,8 @@ export default function LoginScreen() {
                         </Text>
 
                         <Text style={styles.inputDescription}>
-                          Recibirás un código de verificación por SMS.
+                          Si el número está registrado, recibirás un
+                          código de verificación por SMS.
                         </Text>
                       </View>
                     </View>
@@ -278,13 +340,16 @@ export default function LoginScreen() {
                     <View
                       style={[
                         styles.phoneInputContainer,
-                        errors.phoneNumber && styles.inputContainerError,
+                        errors.phoneNumber
+                          ? styles.inputContainerError
+                          : undefined,
                       ]}
                     >
                       <TouchableOpacity
                         style={styles.prefixBadge}
                         activeOpacity={0.7}
                         onPress={openCountryModal}
+                        disabled={isSubmitting}
                       >
                         <Text style={styles.flag}>
                           {selectedCountry.flag}
@@ -309,8 +374,11 @@ export default function LoginScreen() {
                         keyboardType="number-pad"
                         maxLength={15}
                         value={phoneNumber}
+                        editable={!isSubmitting}
                         onChangeText={(value) => {
-                          setPhoneNumber(value.replace(/\D/g, ''));
+                          setPhoneNumber(
+                            normalizePhoneNumber(value),
+                          );
                           clearFieldError('phoneNumber');
                         }}
                       />
@@ -322,24 +390,37 @@ export default function LoginScreen() {
                       </Text>
                     ) : (
                       <Text style={styles.helperText}>
-                        Podrás usar este método cuando el servicio SMS esté
-                        habilitado.
+                        Si el número existe en BeeApp, enviaremos un
+                        código de seis dígitos.
                       </Text>
                     )}
 
                     <TouchableOpacity
-                      style={styles.primaryButton}
+                      style={[
+                        styles.primaryButton,
+                        isSubmitting &&
+                          styles.primaryButtonDisabled,
+                      ]}
                       activeOpacity={0.8}
+                      disabled={isSubmitting}
                       onPress={handleOtpContinue}
                     >
-                      <Text style={styles.primaryButtonText}>
-                        Continuar con SMS
-                      </Text>
+                      {isSubmitting ? (
+                        <ActivityIndicator
+                          color={colors.neutral.white}
+                        />
+                      ) : (
+                        <>
+                          <Text style={styles.primaryButtonText}>
+                            Continuar con SMS
+                          </Text>
 
-                      <MessageSquare
-                        size={18}
-                        color={colors.neutral.white}
-                      />
+                          <MessageSquare
+                            size={18}
+                            color={colors.neutral.white}
+                          />
+                        </>
+                      )}
                     </TouchableOpacity>
                   </>
                 ) : (
@@ -371,7 +452,9 @@ export default function LoginScreen() {
                       <View
                         style={[
                           styles.textInputContainer,
-                          errors.email && styles.inputContainerError,
+                          errors.email
+                            ? styles.inputContainerError
+                            : undefined,
                         ]}
                       >
                         <Mail
@@ -386,6 +469,7 @@ export default function LoginScreen() {
                           keyboardType="email-address"
                           autoCapitalize="none"
                           autoComplete="email"
+                          editable={!isSubmitting}
                           value={email}
                           onChangeText={(value) => {
                             setEmail(value);
@@ -402,12 +486,16 @@ export default function LoginScreen() {
                     </View>
 
                     <View style={styles.passwordGroup}>
-                      <Text style={styles.fieldLabel}>Contraseña</Text>
+                      <Text style={styles.fieldLabel}>
+                        Contraseña
+                      </Text>
 
                       <View
                         style={[
                           styles.textInputContainer,
-                          errors.password && styles.inputContainerError,
+                          errors.password
+                            ? styles.inputContainerError
+                            : undefined,
                         ]}
                       >
                         <LockKeyhole
@@ -422,6 +510,7 @@ export default function LoginScreen() {
                           autoCapitalize="none"
                           autoComplete="password"
                           secureTextEntry={!isPasswordVisible}
+                          editable={!isSubmitting}
                           value={password}
                           onChangeText={(value) => {
                             setPassword(value);
@@ -437,6 +526,7 @@ export default function LoginScreen() {
                               (currentValue) => !currentValue,
                             );
                           }}
+                          disabled={isSubmitting}
                         >
                           {isPasswordVisible ? (
                             <EyeOff
@@ -476,14 +566,17 @@ export default function LoginScreen() {
                     <TouchableOpacity
                       style={[
                         styles.primaryButton,
-                        isSubmitting && styles.primaryButtonDisabled,
+                        isSubmitting &&
+                          styles.primaryButtonDisabled,
                       ]}
                       activeOpacity={0.8}
                       disabled={isSubmitting}
                       onPress={handlePasswordContinue}
                     >
                       {isSubmitting ? (
-                        <ActivityIndicator color={colors.neutral.white} />
+                        <ActivityIndicator
+                          color={colors.neutral.white}
+                        />
                       ) : (
                         <>
                           <Text style={styles.primaryButtonText}>
@@ -518,7 +611,9 @@ export default function LoginScreen() {
                   activeOpacity={0.7}
                   onPress={() => router.push('/(auth)/register')}
                 >
-                  <Text style={styles.registerLink}>Regístrate</Text>
+                  <Text style={styles.registerLink}>
+                    Regístrate
+                  </Text>
                 </TouchableOpacity>
               </View>
             </View>
@@ -565,13 +660,17 @@ export default function LoginScreen() {
             <TouchableWithoutFeedback>
               <View style={styles.modalContent}>
                 <View style={styles.modalHeader}>
-                  <Text style={styles.modalTitle}>Selecciona un país</Text>
+                  <Text style={styles.modalTitle}>
+                    Selecciona un país
+                  </Text>
 
                   <TouchableOpacity
                     style={styles.closeButton}
                     onPress={() => setIsCountryModalVisible(false)}
                   >
-                    <Text style={styles.closeButtonText}>Cerrar</Text>
+                    <Text style={styles.closeButtonText}>
+                      Cerrar
+                    </Text>
                   </TouchableOpacity>
                 </View>
 
@@ -597,9 +696,13 @@ export default function LoginScreen() {
                         clearFieldError('phoneNumber');
                       }}
                     >
-                      <Text style={styles.countryFlag}>{item.flag}</Text>
+                      <Text style={styles.countryFlag}>
+                        {item.flag}
+                      </Text>
 
-                      <Text style={styles.countryName}>{item.name}</Text>
+                      <Text style={styles.countryName}>
+                        {item.name}
+                      </Text>
 
                       <Text style={styles.countryDialCode}>
                         {item.dialCode}

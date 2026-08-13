@@ -1,4 +1,9 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+} from 'react';
 import {
   ActivityIndicator,
   Keyboard,
@@ -18,7 +23,10 @@ import {
   updateAssistantSettings,
   updateOnboardingProfile,
 } from '@beeapp/api-client';
-import type { UserProfile } from '@beeapp/shared-types';
+import type {
+  AuthCredentials,
+  UserProfile,
+} from '@beeapp/shared-types';
 
 import AboutYouSection from '../../src/components/onboarding/AboutYouSection';
 import AssistantSection, {
@@ -29,28 +37,36 @@ import { sharedStyles } from '../../src/components/onboarding/onboardingShared';
 import ScreenSafeArea from '../../src/components/layout/ScreenSafeArea';
 import {
   getAuthSession,
+  getSessionCredentials,
 } from '../../src/services/authSession';
 
-type OnboardingStep = 'profile' | 'assistant' | 'features';
+
+type OnboardingStep =
+  | 'profile'
+  | 'assistant'
+  | 'features';
 
 type ProfileErrors = {
   occupation?: string;
   location?: string;
 };
 
+
 function isProfileComplete(profile: UserProfile): boolean {
   return Boolean(
     profile.occupation?.trim() &&
-      profile.location?.trim(),
+    profile.location?.trim(),
   );
 }
+
 
 function isAssistantConfigured(profile: UserProfile): boolean {
   return Boolean(
     profile.assistant_name?.trim() &&
-      profile.assistant_tone?.trim(),
+    profile.assistant_tone?.trim(),
   );
 }
+
 
 function getSupportedTone(
   tone: string | null,
@@ -66,25 +82,36 @@ function getSupportedTone(
   return 'friendly';
 }
 
+
 export default function OnboardingScreen() {
   const router = useRouter();
 
-  const [profile, setProfile] = useState<UserProfile | null>(null);
+  const [profile, setProfile] =
+    useState<UserProfile | null>(null);
+
   const [currentStep, setCurrentStep] =
     useState<OnboardingStep>('assistant');
 
   const [occupation, setOccupation] = useState('');
   const [location, setLocation] = useState('');
+
   const [profileErrors, setProfileErrors] =
     useState<ProfileErrors>({});
 
-  const [assistantName, setAssistantName] = useState('BeeAI');
-  const [tone, setTone] = useState<AssistantTone>('friendly');
+  const [assistantName, setAssistantName] =
+    useState('BeeAI');
+
+  const [tone, setTone] =
+    useState<AssistantTone>('friendly');
 
   const [isLoading, setIsLoading] = useState(true);
-  const [isSavingProfile, setIsSavingProfile] = useState(false);
+
+  const [isSavingProfile, setIsSavingProfile] =
+    useState(false);
+
   const [isSavingAssistant, setIsSavingAssistant] =
     useState(false);
+
   const [loadError, setLoadError] = useState('');
 
   const profileRequired = useMemo(
@@ -93,7 +120,11 @@ export default function OnboardingScreen() {
   );
 
   const assistantRequired = useMemo(
-    () => (profile ? !isAssistantConfigured(profile) : false),
+    () => (
+      profile
+        ? !isAssistantConfigured(profile)
+        : false
+    ),
     [profile],
   );
 
@@ -116,20 +147,33 @@ export default function OnboardingScreen() {
     return profileRequired ? 3 : 2;
   }, [currentStep, profileRequired]);
 
+  const getCredentials = useCallback(
+    async (): Promise<AuthCredentials | null> => {
+      const authSession = await getAuthSession();
+
+      if (!authSession) {
+        router.replace('/(auth)/login');
+        return null;
+      }
+
+      return getSessionCredentials(authSession);
+    },
+    [router],
+  );
+
   const loadProfile = useCallback(async () => {
     try {
       setIsLoading(true);
       setLoadError('');
 
-      const authSession = await getAuthSession();
+      const credentials = await getCredentials();
 
-      if (!authSession) {
-        router.replace('/(auth)/login');
+      if (!credentials) {
         return;
       }
 
       const response = await getCurrentProfile(
-        authSession.session.access_token,
+        credentials,
       );
 
       const currentProfile = response.profile;
@@ -137,8 +181,12 @@ export default function OnboardingScreen() {
       setProfile(currentProfile);
       setOccupation(currentProfile.occupation ?? '');
       setLocation(currentProfile.location ?? '');
-      setAssistantName(currentProfile.assistant_name ?? 'BeeAI');
-      setTone(getSupportedTone(currentProfile.assistant_tone));
+      setAssistantName(
+        currentProfile.assistant_name ?? 'BeeAI',
+      );
+      setTone(
+        getSupportedTone(currentProfile.assistant_tone),
+      );
 
       if (
         isProfileComplete(currentProfile) &&
@@ -162,13 +210,15 @@ export default function OnboardingScreen() {
     } finally {
       setIsLoading(false);
     }
-  }, [router]);
+  }, [getCredentials, router]);
 
   useEffect(() => {
     void loadProfile();
   }, [loadProfile]);
 
-  const clearProfileError = (field: keyof ProfileErrors) => {
+  const clearProfileError = (
+    field: keyof ProfileErrors,
+  ) => {
     setProfileErrors((currentErrors) => ({
       ...currentErrors,
       [field]: undefined,
@@ -176,27 +226,33 @@ export default function OnboardingScreen() {
   };
 
   const getAssistantPreviewText = () => {
-    const userName = profile?.first_name?.trim() || 'Usuario';
-    const normalizedAssistantName = assistantName.trim() || 'BeeAI';
+    const userName =
+      profile?.first_name?.trim() || 'Usuario';
+
+    const normalizedAssistantName =
+      assistantName.trim() || 'BeeAI';
 
     switch (tone) {
       case 'friendly':
         return (
-          `¡Hola, ${userName}! Qué gusto saludarte hoy. ` +
-          `Soy ${normalizedAssistantName}, tu asistente personal. ` +
-          '¿En qué te puedo colaborar?'
+          `¡Hola, ${userName}! Qué gusto saludarte hoy. `
+          + `Soy ${normalizedAssistantName}, `
+          + 'tu asistente personal. '
+          + '¿En qué te puedo colaborar?'
         );
 
       case 'professional':
         return (
-          `Estimado ${userName}, le saluda ${normalizedAssistantName}. ` +
-          'Quedo a su disposición para colaborar y optimizar sus actividades.'
+          `Estimado ${userName}, le saluda `
+          + `${normalizedAssistantName}. `
+          + 'Quedo a su disposición para colaborar y '
+          + 'optimizar sus actividades.'
         );
 
       case 'direct':
         return (
-          `${userName}, le habla ${normalizedAssistantName}. ` +
-          'Indique la instrucción o consulta para comenzar.'
+          `${userName}, le habla ${normalizedAssistantName}. `
+          + 'Indique la instrucción o consulta para comenzar.'
         );
     }
   };
@@ -219,10 +275,9 @@ export default function OnboardingScreen() {
       return;
     }
 
-    const authSession = await getAuthSession();
+    const credentials = await getCredentials();
 
-    if (!authSession) {
-      router.replace('/(auth)/login');
+    if (!credentials) {
       return;
     }
 
@@ -232,7 +287,7 @@ export default function OnboardingScreen() {
       setLoadError('');
 
       const response = await updateOnboardingProfile(
-        authSession.session.access_token,
+        credentials,
         {
           occupation: occupation.trim(),
           location: location.trim(),
@@ -268,10 +323,9 @@ export default function OnboardingScreen() {
       return;
     }
 
-    const authSession = await getAuthSession();
+    const credentials = await getCredentials();
 
-    if (!authSession) {
-      router.replace('/(auth)/login');
+    if (!credentials) {
       return;
     }
 
@@ -280,7 +334,7 @@ export default function OnboardingScreen() {
       setLoadError('');
 
       const response = await updateAssistantSettings(
-        authSession.session.access_token,
+        credentials,
         {
           assistant_name: assistantName.trim(),
           assistant_tone: tone,
@@ -293,7 +347,10 @@ export default function OnboardingScreen() {
       setLoadError(
         error instanceof Error
           ? error.message
-          : 'No fue posible guardar la configuración del asistente.',
+          : (
+              'No fue posible guardar la configuración '
+              + 'del asistente.'
+            ),
       );
     } finally {
       setIsSavingAssistant(false);
@@ -366,7 +423,9 @@ export default function OnboardingScreen() {
                 onPress={handleBack}
                 style={styles.backNavButton}
               >
-                <Text style={styles.backNavText}>← Atrás</Text>
+                <Text style={styles.backNavText}>
+                  ← Atrás
+                </Text>
               </TouchableOpacity>
 
               <Text style={styles.progressText}>
@@ -378,10 +437,9 @@ export default function OnboardingScreen() {
                   style={[
                     styles.progressBar,
                     {
-                      width: `${(
-                        (currentStepNumber / totalSteps) *
-                        100
-                      ).toFixed(0)}%`,
+                      width: `${Math.round(
+                        (currentStepNumber / totalSteps) * 100,
+                      )}%` as `${number}%`,
                     },
                   ]}
                 />
@@ -409,7 +467,8 @@ export default function OnboardingScreen() {
                   </Text>
 
                   <Text style={sharedStyles.subtitle}>
-                    Completa esta información para personalizar tu experiencia.
+                    Completa esta información para personalizar tu
+                    experiencia.
                   </Text>
 
                   <AboutYouSection
@@ -436,8 +495,8 @@ export default function OnboardingScreen() {
                   </Text>
 
                   <Text style={sharedStyles.subtitle}>
-                    BeeApp AI incluye tu propio asistente inteligente para
-                    automatizar tus tareas diarias.
+                    BeeApp AI incluye tu propio asistente inteligente
+                    para automatizar tus tareas diarias.
                   </Text>
 
                   <AssistantSection
@@ -460,8 +519,8 @@ export default function OnboardingScreen() {
                   </Text>
 
                   <Text style={sharedStyles.subtitle}>
-                    Familiarízate con las herramientas que potenciarán tu
-                    productividad.
+                    Familiarízate con las herramientas que potenciarán
+                    tu productividad.
                   </Text>
 
                   <FeaturesSection />
@@ -477,11 +536,15 @@ export default function OnboardingScreen() {
                     styles.primaryButtonDisabled,
                 ]}
                 activeOpacity={0.8}
-                disabled={isSavingProfile || isSavingAssistant}
+                disabled={
+                  isSavingProfile || isSavingAssistant
+                }
                 onPress={handleNext}
               >
                 {isSavingProfile || isSavingAssistant ? (
-                  <ActivityIndicator color={colors.neutral.white} />
+                  <ActivityIndicator
+                    color={colors.neutral.white}
+                  />
                 ) : (
                   <Text style={styles.primaryButtonText}>
                     {currentStep === 'features'
@@ -498,6 +561,7 @@ export default function OnboardingScreen() {
   );
 }
 
+
 interface ScreenStateProps {
   title: string;
   description: string;
@@ -505,6 +569,7 @@ interface ScreenStateProps {
   actionLabel?: string;
   onActionPress?: () => void;
 }
+
 
 function ScreenState({
   title,
@@ -525,7 +590,9 @@ function ScreenState({
 
         <Text style={styles.stateTitle}>{title}</Text>
 
-        <Text style={styles.stateDescription}>{description}</Text>
+        <Text style={styles.stateDescription}>
+          {description}
+        </Text>
 
         {actionLabel && onActionPress ? (
           <TouchableOpacity
@@ -542,6 +609,7 @@ function ScreenState({
     </ScreenSafeArea>
   );
 }
+
 
 const styles = StyleSheet.create({
   safeArea: {
@@ -616,7 +684,10 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     minHeight: 52,
     shadowColor: colors.brand.primary,
-    shadowOffset: { width: 0, height: 6 },
+    shadowOffset: {
+      width: 0,
+      height: 6,
+    },
     shadowOpacity: 0.25,
     shadowRadius: 10,
   },

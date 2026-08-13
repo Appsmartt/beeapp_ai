@@ -3,7 +3,9 @@ from datetime import datetime, timedelta
 
 from django.utils import timezone
 
-from beeAppBack.core.supabase_client import get_supabase_admin_client
+from beeAppBack.core.supabase_client import (
+    get_supabase_admin_client,
+)
 
 from apps.accounts.exceptions import DeviceSessionError
 
@@ -46,6 +48,12 @@ def get_browser_name(user_agent: str) -> str | None:
 
 
 def get_platform_name(user_agent: str) -> str | None:
+    if "Android" in user_agent:
+        return "Android"
+
+    if "iPhone" in user_agent or "iPad" in user_agent:
+        return "iOS"
+
     if "Windows" in user_agent:
         return "Windows"
 
@@ -65,6 +73,12 @@ def get_device_name(user_agent: str) -> str:
     if browser and platform:
         return f"{browser} en {platform}"
 
+    if platform == "Android":
+        return "BeeApp Mobile Android"
+
+    if platform == "iOS":
+        return "BeeApp Mobile iPhone"
+
     return "BeeApp Web"
 
 
@@ -74,10 +88,12 @@ def parse_timestamp(value: str) -> datetime:
     )
 
 
-def create_web_device_session(
+def create_device_session(
     *,
     user_id: str,
     session_token: str,
+    device_name: str,
+    device_type: str,
 ) -> dict:
     try:
         supabase = get_supabase_admin_client()
@@ -88,8 +104,8 @@ def create_web_device_session(
             .insert(
                 {
                     "user_id": user_id,
-                    "device_name": "BeeApp Web",
-                    "device_type": "WEB",
+                    "device_name": device_name,
+                    "device_type": device_type,
                     "session_token_hash": hash_token(
                         session_token
                     ),
@@ -121,6 +137,32 @@ def create_web_device_session(
         ) from error
 
 
+def create_web_device_session(
+    *,
+    user_id: str,
+    session_token: str,
+) -> dict:
+    return create_device_session(
+        user_id=user_id,
+        session_token=session_token,
+        device_name="BeeApp Web",
+        device_type="WEB",
+    )
+
+
+def create_mobile_device_session(
+    *,
+    user_id: str,
+    session_token: str,
+) -> dict:
+    return create_device_session(
+        user_id=user_id,
+        session_token=session_token,
+        device_name="BeeApp Mobile",
+        device_type="MOBILE",
+    )
+
+
 def get_active_session_by_token(
     *,
     session_token: str,
@@ -132,7 +174,7 @@ def get_active_session_by_token(
             supabase.table("device_sessions")
             .select(
                 "id,user_id,is_active,revoked_at,"
-                "expires_at"
+                "expires_at,device_type"
             )
             .eq(
                 "session_token_hash",
@@ -146,17 +188,17 @@ def get_active_session_by_token(
 
         if not device_session:
             raise DeviceSessionError(
-                "Web session was not found."
+                "Session was not found."
             )
 
         if not device_session["is_active"]:
             raise DeviceSessionError(
-                "Web session is not active."
+                "Session is not active."
             )
 
         if device_session["revoked_at"]:
             raise DeviceSessionError(
-                "Web session was revoked."
+                "Session was revoked."
             )
 
         expires_at = parse_timestamp(
@@ -169,7 +211,7 @@ def get_active_session_by_token(
             )
 
             raise DeviceSessionError(
-                "Web session has expired."
+                "Session has expired."
             )
 
         return device_session
@@ -179,11 +221,11 @@ def get_active_session_by_token(
 
     except Exception as error:
         raise DeviceSessionError(
-            "Could not validate web session."
+            "Could not validate session."
         ) from error
 
 
-def update_web_device_metadata(
+def update_device_metadata(
     *,
     device_id: str,
     request,
@@ -214,6 +256,17 @@ def update_web_device_metadata(
 
     except Exception:
         return
+
+
+def update_web_device_metadata(
+    *,
+    device_id: str,
+    request,
+) -> None:
+    update_device_metadata(
+        device_id=device_id,
+        request=request,
+    )
 
 
 def get_user_device_sessions(

@@ -1,43 +1,46 @@
 import { useEffect, useRef, useState } from 'react';
 import {
-  View,
-  Text,
-  ScrollView,
-  TouchableOpacity,
-  Modal,
-  Animated,
-  Share,
-  Linking,
   Alert,
+  Animated,
+  Linking,
+  Modal,
+  ScrollView,
+  Share,
   Switch,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { colors } from '@beeapp/design-system';
 import { getCurrentProfile } from '@beeapp/api-client';
 import {
-  X,
-  ChevronRight,
-  Shield,
-  CreditCard,
-  Grid,
-  Share2,
-  HelpCircle,
-  ShieldCheck,
-  FileText,
-  LogOut,
-  Package,
   Bot,
+  ChevronRight,
+  CreditCard,
+  FileText,
+  Grid,
+  HelpCircle,
+  LogOut,
   Monitor,
+  Package,
+  Share2,
+  Shield,
+  ShieldCheck,
+  X,
 } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import {
-  sideMenuStyles as styles,
-  PANEL_WIDTH,
-} from './homeSideMenuStyles';
+
 import {
   clearAuthSession,
   getAuthSession,
+  getSessionCredentials,
 } from '../../services/authSession';
+import {
+  PANEL_WIDTH,
+  sideMenuStyles as styles,
+} from './homeSideMenuStyles';
+
 
 interface HomeSideMenuProps {
   visible: boolean;
@@ -68,8 +71,11 @@ function getUserInitials(
   firstName: string | null | undefined,
   lastName: string | null | undefined,
 ): string {
-  const firstInitial = firstName?.trim().charAt(0).toUpperCase() ?? '';
-  const lastInitial = lastName?.trim().charAt(0).toUpperCase() ?? '';
+  const firstInitial =
+    firstName?.trim().charAt(0).toUpperCase() ?? '';
+
+  const lastInitial =
+    lastName?.trim().charAt(0).toUpperCase() ?? '';
 
   return `${firstInitial}${lastInitial}` || '?';
 }
@@ -81,7 +87,8 @@ function getFullName(
   const fullName = [firstName, lastName]
     .filter(
       (name): name is string =>
-        typeof name === 'string' && name.trim().length > 0,
+        typeof name === 'string' &&
+        name.trim().length > 0,
     )
     .join(' ');
 
@@ -94,12 +101,20 @@ export default function HomeSideMenu({
 }: HomeSideMenuProps) {
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const [isVisibleInNetwork, setIsVisibleInNetwork] = useState(true);
+
+  const [isVisibleInNetwork, setIsVisibleInNetwork] =
+    useState(true);
+
   const [rendered, setRendered] = useState(visible);
-  const [userProfile, setUserProfile] = useState<SideMenuUserProfile>(
-    INITIAL_USER_PROFILE,
-  );
-  const slideAnim = useRef(new Animated.Value(PANEL_WIDTH)).current;
+
+  const [userProfile, setUserProfile] =
+    useState<SideMenuUserProfile>(
+      INITIAL_USER_PROFILE,
+    );
+
+  const slideAnim = useRef(
+    new Animated.Value(PANEL_WIDTH),
+  ).current;
 
   useEffect(() => {
     if (visible) {
@@ -110,7 +125,11 @@ export default function HomeSideMenu({
         duration: 220,
         useNativeDriver: true,
       }).start();
-    } else if (rendered) {
+
+      return;
+    }
+
+    if (rendered) {
       Animated.timing(slideAnim, {
         toValue: PANEL_WIDTH,
         duration: 180,
@@ -130,12 +149,16 @@ export default function HomeSideMenu({
       try {
         const authSession = await getAuthSession();
 
-        if (!authSession?.session.access_token) {
+        if (!authSession) {
           throw new Error('No active session was found.');
         }
 
+        const credentials = getSessionCredentials(
+          authSession,
+        );
+
         const response = await getCurrentProfile(
-          authSession.session.access_token,
+          credentials,
         );
 
         if (!isMounted) {
@@ -186,7 +209,9 @@ export default function HomeSideMenu({
     try {
       await Share.share({
         message:
-          '¡Descarga BeeApp AI! La plataforma definitiva para optimizar tus correos, notas, archivos y automatizar tu negocio con IA. Descárgala aquí: https://beeapp.ai',
+          '¡Descarga BeeApp AI! La plataforma definitiva para '
+          + 'optimizar tus correos, notas, archivos y automatizar '
+          + 'tu negocio con IA. Descárgala aquí: https://beeapp.ai',
       });
     } catch (error) {
       console.log('Error compartiendo la app:', error);
@@ -195,21 +220,30 @@ export default function HomeSideMenu({
 
   const handleContactSupport = () => {
     const supportPhone = '573001234567';
-    const message = 'Hola soporte de BeeApp, necesito ayuda con mi cuenta.';
-    const url = `https://wa.me/${supportPhone}?text=${encodeURIComponent(message)}`;
+
+    const message =
+      'Hola soporte de BeeApp, necesito ayuda con mi cuenta.';
+
+    const url =
+      `https://wa.me/${supportPhone}?text=${encodeURIComponent(
+        message,
+      )}`;
 
     Linking.canOpenURL(url)
       .then((supported) => {
         if (supported) {
           Linking.openURL(url);
-        } else {
-          Alert.alert(
-            'Error',
-            'No se pudo abrir WhatsApp en este dispositivo.',
-          );
+          return;
         }
+
+        Alert.alert(
+          'Error',
+          'No se pudo abrir WhatsApp en este dispositivo.',
+        );
       })
-      .catch((error) => console.error('An error occurred', error));
+      .catch((error) => {
+        console.error('An error occurred', error);
+      });
   };
 
   const handleSignOut = () => {
@@ -240,35 +274,45 @@ export default function HomeSideMenu({
       icon: CreditCard,
       iconBg: colors.neutral.gray100,
       iconColor: colors.neutral.gray600,
-      onPress: () => goTo('/(main)/profile/subscription-hub'),
+      onPress: () => {
+        goTo('/(main)/profile/subscription-hub');
+      },
     },
     {
       label: 'Integraciones Externas',
       icon: Grid,
       iconBg: colors.neutral.gray100,
       iconColor: colors.neutral.gray600,
-      onPress: () => goTo('/(main)/profile/integrations'),
+      onPress: () => {
+        goTo('/(main)/profile/integrations');
+      },
     },
     {
       label: 'Dispositivos',
       icon: Monitor,
       iconBg: colors.neutral.gray100,
       iconColor: colors.neutral.gray600,
-      onPress: () => goTo('/(main)/profile/devices'),
+      onPress: () => {
+        goTo('/(main)/profile/devices');
+      },
     },
     {
       label: 'Seguridad y PIN',
       icon: ShieldCheck,
       iconBg: colors.neutral.gray100,
       iconColor: colors.neutral.gray600,
-      onPress: () => goTo('/(main)/profile/security'),
+      onPress: () => {
+        goTo('/(main)/profile/security');
+      },
     },
     {
       label: 'Configuración del Asistente',
       icon: Bot,
       iconBg: colors.neutral.gray100,
       iconColor: colors.neutral.gray600,
-      onPress: () => goTo('/(main)/chat/ai-settings'),
+      onPress: () => {
+        goTo('/(main)/chat/ai-settings');
+      },
     },
   ];
 
@@ -331,12 +375,20 @@ export default function HomeSideMenu({
                 },
               ]}
             >
-              <RowIcon size={18} color={row.iconColor} />
+              <RowIcon
+                size={18}
+                color={row.iconColor}
+              />
             </View>
 
-            <Text style={styles.optionLabel}>{row.label}</Text>
+            <Text style={styles.optionLabel}>
+              {row.label}
+            </Text>
 
-            <ChevronRight size={16} color={colors.neutral.gray500} />
+            <ChevronRight
+              size={16}
+              color={colors.neutral.gray500}
+            />
           </TouchableOpacity>
         );
       })}
@@ -348,7 +400,12 @@ export default function HomeSideMenu({
   }
 
   return (
-    <Modal transparent visible animationType="none" onRequestClose={onClose}>
+    <Modal
+      transparent
+      visible
+      animationType="none"
+      onRequestClose={onClose}
+    >
       <View style={styles.overlay}>
         <TouchableOpacity
           style={styles.backdrop}
@@ -361,7 +418,11 @@ export default function HomeSideMenu({
             styles.panel,
             {
               paddingTop: insets.top + 12,
-              transform: [{ translateX: slideAnim }],
+              transform: [
+                {
+                  translateX: slideAnim,
+                },
+              ],
             },
           ]}
         >
@@ -373,18 +434,28 @@ export default function HomeSideMenu({
               onPress={onClose}
               activeOpacity={0.7}
             >
-              <X size={20} color={colors.neutral.text} />
+              <X
+                size={20}
+                color={colors.neutral.text}
+              />
             </TouchableOpacity>
           </View>
 
-          <ScrollView showsVerticalScrollIndicator={false}>
+          <ScrollView
+            showsVerticalScrollIndicator={false}
+          >
             <View style={styles.profileCard}>
               <View style={styles.avatarWrap}>
-                <Text style={styles.avatarText}>{userProfile.initials}</Text>
+                <Text style={styles.avatarText}>
+                  {userProfile.initials}
+                </Text>
+
                 <View style={styles.onlineBadge} />
               </View>
 
-              <Text style={styles.profileName}>{userProfile.name}</Text>
+              <Text style={styles.profileName}>
+                {userProfile.name}
+              </Text>
 
               {userProfile.email ? (
                 <Text style={styles.profileOccupation}>
@@ -394,14 +465,20 @@ export default function HomeSideMenu({
 
               <TouchableOpacity
                 style={styles.editProfileBtn}
-                onPress={() => goTo('/(main)/profile/edit')}
+                onPress={() => {
+                  goTo('/(main)/profile/edit');
+                }}
                 activeOpacity={0.7}
               >
-                <Text style={styles.editProfileBtnText}>Editar Perfil</Text>
+                <Text style={styles.editProfileBtnText}>
+                  Editar Perfil
+                </Text>
               </TouchableOpacity>
             </View>
 
-            <Text style={styles.groupHeader}>Mis Negocios</Text>
+            <Text style={styles.groupHeader}>
+              Mis Negocios
+            </Text>
 
             <View style={styles.optionsCard}>
               <TouchableOpacity
@@ -417,20 +494,37 @@ export default function HomeSideMenu({
                     },
                   ]}
                 >
-                  <Package size={18} color={colors.neutral.gray600} />
+                  <Package
+                    size={18}
+                    color={colors.neutral.gray600}
+                  />
                 </View>
 
-                <Text style={styles.optionLabel}>BeeServices</Text>
+                <Text style={styles.optionLabel}>
+                  BeeServices
+                </Text>
 
-                <ChevronRight size={16} color={colors.neutral.gray500} />
+                <ChevronRight
+                  size={16}
+                  color={colors.neutral.gray500}
+                />
               </TouchableOpacity>
             </View>
 
-            <Text style={styles.groupHeader}>Mi Cuenta</Text>
+            <Text style={styles.groupHeader}>
+              Mi Cuenta
+            </Text>
 
             {renderRows(accountRows)}
 
-            <View style={[styles.optionsCard, { marginTop: 8 }]}>
+            <View
+              style={[
+                styles.optionsCard,
+                {
+                  marginTop: 8,
+                },
+              ]}
+            >
               <View style={styles.switchOptionRow}>
                 <View
                   style={[
@@ -440,7 +534,10 @@ export default function HomeSideMenu({
                     },
                   ]}
                 >
-                  <Shield size={18} color={colors.neutral.gray600} />
+                  <Shield
+                    size={18}
+                    color={colors.neutral.gray600}
+                  />
                 </View>
 
                 <View style={styles.switchTextCol}>
@@ -449,8 +546,8 @@ export default function HomeSideMenu({
                   </Text>
 
                   <Text style={styles.switchDesc}>
-                    Permite que otros usuarios te encuentren según tu
-                    profesión, empresa e intereses registrados.
+                    Permite que otros usuarios te encuentren según
+                    tu profesión, empresa e intereses registrados.
                   </Text>
                 </View>
 
@@ -470,10 +567,14 @@ export default function HomeSideMenu({
               </View>
             </View>
 
-            <Text style={styles.groupHeader}>Aplicación</Text>
+            <Text style={styles.groupHeader}>
+              Aplicación
+            </Text>
+
             {renderRows(appRows)}
 
             <Text style={styles.groupHeader}>Legal</Text>
+
             {renderRows(legalRows)}
 
             <TouchableOpacity
@@ -484,17 +585,25 @@ export default function HomeSideMenu({
               <LogOut
                 size={18}
                 color={colors.semantic.error}
-                style={{ marginRight: 8 }}
+                style={{
+                  marginRight: 8,
+                }}
               />
 
-              <Text style={styles.signOutBtnText}>Cerrar Sesión</Text>
+              <Text style={styles.signOutBtnText}>
+                Cerrar Sesión
+              </Text>
             </TouchableOpacity>
 
             <Text style={styles.versionText}>
               BeeApp AI v1.0.0 (Build 1425)
             </Text>
 
-            <View style={{ height: 32 }} />
+            <View
+              style={{
+                height: 32,
+              }}
+            />
           </ScrollView>
         </Animated.View>
       </View>

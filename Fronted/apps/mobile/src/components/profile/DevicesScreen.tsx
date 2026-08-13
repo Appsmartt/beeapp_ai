@@ -1,4 +1,7 @@
-import { useEffect, useState } from 'react';
+import {
+  useEffect,
+  useState,
+} from 'react';
 import {
   Alert,
   ScrollView,
@@ -22,11 +25,17 @@ import {
   revokeDeviceSession,
   scanQrLogin,
 } from '@beeapp/api-client';
-import type { DeviceSession } from '@beeapp/shared-types';
+import type {
+  AuthCredentials,
+  DeviceSession,
+} from '@beeapp/shared-types';
 
 import ScreenSafeArea from '../layout/ScreenSafeArea';
 import { useModuleNav } from '../embedded/EmbeddedNavContext';
-import { getAuthSession } from '../../services/authSession';
+import {
+  getAuthSession,
+  getSessionCredentials,
+} from '../../services/authSession';
 import { devicesStyles as styles } from './devicesStyles';
 
 
@@ -38,7 +47,9 @@ function formatLastSeen(value: string): string {
 }
 
 
-function getChallengeToken(scannedValue: string): string | null {
+function getChallengeToken(
+  scannedValue: string,
+): string | null {
   const match = scannedValue.match(
     /^beeapp:\/\/web-login\?token=([^&]+)$/,
   );
@@ -69,25 +80,28 @@ export default function DevicesScreen() {
     [],
   );
 
-  const getAccessToken = async (): Promise<string> => {
+  const getCredentials = async (): Promise<AuthCredentials> => {
     const authSession = await getAuthSession();
 
-    if (!authSession?.session.access_token) {
+    if (!authSession) {
       throw new Error(
-        'Tu sesión móvil no está disponible. Inicia sesión nuevamente.',
+        'Tu sesión móvil no está disponible. '
+        + 'Inicia sesión nuevamente.',
       );
     }
 
-    return authSession.session.access_token;
+    return getSessionCredentials(authSession);
   };
 
   const loadDevices = async () => {
     try {
       setIsLoadingDevices(true);
 
-      const accessToken = await getAccessToken();
+      const credentials = await getCredentials();
 
-      const response = await getDeviceSessions(accessToken);
+      const response = await getDeviceSessions(
+        credentials,
+      );
 
       setDevices(response.devices);
     } catch (error) {
@@ -114,7 +128,8 @@ export default function DevicesScreen() {
       if (!permissionResult.granted) {
         Alert.alert(
           'Permiso requerido',
-          'Debes permitir el uso de la cámara para escanear el código QR.',
+          'Debes permitir el uso de la cámara para '
+            + 'escanear el código QR.',
         );
 
         return;
@@ -147,11 +162,14 @@ export default function DevicesScreen() {
     try {
       setIsSubmittingScan(true);
 
-      const accessToken = await getAccessToken();
+      const credentials = await getCredentials();
 
-      const response = await scanQrLogin(accessToken, {
-        challenge_token: challengeToken,
-      });
+      const response = await scanQrLogin(
+        credentials,
+        {
+          challenge_token: challengeToken,
+        },
+      );
 
       setIsScanning(false);
 
@@ -166,7 +184,10 @@ export default function DevicesScreen() {
         'No se pudo iniciar sesión',
         error instanceof Error
           ? error.message
-          : 'El código QR venció, es inválido o ya fue utilizado.',
+          : (
+              'El código QR venció, es inválido '
+              + 'o ya fue utilizado.'
+            ),
       );
     } finally {
       setIsSubmittingScan(false);
@@ -187,10 +208,10 @@ export default function DevicesScreen() {
           style: 'destructive',
           onPress: async () => {
             try {
-              const accessToken = await getAccessToken();
+              const credentials = await getCredentials();
 
               await revokeDeviceSession(
-                accessToken,
+                credentials,
                 device.id,
               );
 
@@ -212,7 +233,8 @@ export default function DevicesScreen() {
   const confirmSignOutAll = () => {
     Alert.alert(
       'Cerrar todas las sesiones',
-      'Se cerrarán todas las sesiones web vinculadas a tu cuenta.',
+      'Se cerrarán todas las sesiones vinculadas '
+        + 'a tu cuenta, incluida esta.',
       [
         {
           text: 'Cancelar',
@@ -223,9 +245,9 @@ export default function DevicesScreen() {
           style: 'destructive',
           onPress: async () => {
             try {
-              const accessToken = await getAccessToken();
+              const credentials = await getCredentials();
 
-              await revokeAllDeviceSessions(accessToken);
+              await revokeAllDeviceSessions(credentials);
 
               await loadDevices();
             } catch (error) {
@@ -259,7 +281,9 @@ export default function DevicesScreen() {
             </TouchableOpacity>
           ) : null}
 
-          <Text style={styles.headerTitle}>Dispositivos</Text>
+          <Text style={styles.headerTitle}>
+            Dispositivos
+          </Text>
         </View>
 
         <ScrollView
@@ -287,7 +311,10 @@ export default function DevicesScreen() {
                   <Text style={styles.scannerText}>
                     {isSubmittingScan
                       ? 'Iniciando sesión...'
-                      : 'Apunta la cámara al código QR de BeeApp Web'}
+                      : (
+                          'Apunta la cámara al código QR '
+                          + 'de BeeApp Web'
+                        )}
                   </Text>
                 </CameraView>
 

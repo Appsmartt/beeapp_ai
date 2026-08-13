@@ -33,12 +33,13 @@ from apps.accounts.services.auth_user_service import (
     get_auth_user,
 )
 from apps.accounts.services.device_session_service import (
+    create_mobile_device_session,
     create_web_device_session,
     get_active_session_by_token,
     get_user_device_sessions,
     revoke_all_user_device_sessions,
     revoke_device_session_by_id,
-    update_web_device_metadata,
+    update_device_metadata,
 )
 from apps.accounts.services.login_service import (
     login_with_email_password,
@@ -69,39 +70,31 @@ from apps.accounts.throttles import (
 WEB_SESSION_COOKIE_NAME = "beeapp_web_session"
 
 
+def normalize_phone(phone: str | None) -> str | None:
+    if not phone:
+        return None
+
+    if phone.startswith("+"):
+        return phone
+
+    return f"+{phone}"
+
+
 class AuthenticatedAPIView(APIView):
     permission_classes = [AllowAny]
 
-    def get_authenticated_user(self, request):
-        authorization_header = request.headers.get(
-            "Authorization",
-            "",
-        )
-
-        scheme, _, access_token = authorization_header.partition(
-            " "
-        )
-
-        if scheme.lower() == "bearer" and access_token:
-            return get_authenticated_user(
-                access_token=access_token,
-            )
-
-        session_token = request.COOKIES.get(
-            WEB_SESSION_COOKIE_NAME
-        )
-
-        if not session_token:
-            raise AccountAuthenticationError(
-                "Missing authentication credentials."
-            )
-
+    def get_authenticated_user_from_session(
+        self,
+        *,
+        session_token: str,
+        request,
+    ):
         try:
             device_session = get_active_session_by_token(
                 session_token=session_token,
             )
 
-            update_web_device_metadata(
+            update_device_metadata(
                 device_id=device_session["id"],
                 request=request,
             )
@@ -115,8 +108,39 @@ class AuthenticatedAPIView(APIView):
             DeviceSessionError,
         ) as error:
             raise AccountAuthenticationError(
-                "Web session authentication failed."
+                "Session authentication failed."
             ) from error
+
+    def get_authenticated_user(self, request):
+        authorization_header = request.headers.get(
+            "Authorization",
+            "",
+        )
+
+        scheme, _, token = authorization_header.partition(" ")
+
+        if scheme.lower() == "bearer" and token:
+            return get_authenticated_user(access_token=token)
+
+        if scheme.lower() == "session" and token:
+            return self.get_authenticated_user_from_session(
+                session_token=token,
+                request=request,
+            )
+
+        session_token = request.COOKIES.get(
+            WEB_SESSION_COOKIE_NAME
+        )
+
+        if not session_token:
+            raise AccountAuthenticationError(
+                "Missing authentication credentials."
+            )
+
+        return self.get_authenticated_user_from_session(
+            session_token=session_token,
+            request=request,
+        )
 
 
 class RegisterUserView(APIView):
@@ -254,7 +278,7 @@ class PhoneOtpVerifyView(APIView):
                 session_token=session_token,
             )
 
-            update_web_device_metadata(
+            update_device_metadata(
                 device_id=device_session["id"],
                 request=request,
             )
@@ -286,7 +310,9 @@ class PhoneOtpVerifyView(APIView):
                 "user": {
                     "id": str(authenticated_user.id),
                     "email": authenticated_user.email,
-                    "phone": authenticated_user.phone,
+                    "phone": normalize_phone(
+                        authenticated_user.phone
+                    ),
                     "first_name": profile["first_name"],
                     "last_name": profile["last_name"],
                     "role": profile["role"],
@@ -314,6 +340,80 @@ class PhoneOtpVerifyView(APIView):
         )
 
         return response
+
+
+class PhoneOtpMobileVerifyView(APIView):
+    permission_classes = [AllowAny]
+    throttle_classes = [PhoneOtpVerificationThrottle]
+
+    def post(self, request):
+        serializer = VerifyPhoneOtpSerializer(
+            data=request.data,
+        )
+        serializer.is_valid(raise_exception=True)
+
+        try:
+            authenticated_user = verify_phone_otp(
+                **serializer.validated_data
+            )
+
+            profile = get_profile(
+                auth_user_id=str(authenticated_user.id),
+            )
+
+            session_token = secrets.token_urlsafe(48)
+
+            device_session = create_mobile_device_session(
+                user_id=str(authenticated_user.id),
+                session_token=session_token,
+            )
+
+            update_device_metadata(
+                device_id=device_session["id"],
+                request=request,
+            )
+
+        except (
+            PhoneOtpVerificationError,
+            ProfileLookupError,
+        ):
+            return Response(
+                {
+                    "detail": (
+                        "Invalid, expired, or unavailable code."
+                    ),
+                },
+                status=status.HTTP_401_UNAUTHORIZED,
+            )
+
+        except DeviceSessionError:
+            return Response(
+                {
+                    "detail": "Could not create the mobile session.",
+                },
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+        return Response(
+            {
+                "message": "Login successful.",
+                "session": {
+                    "token": session_token,
+                    "expires_at": device_session["expires_at"],
+                },
+                "user": {
+                    "id": str(authenticated_user.id),
+                    "email": authenticated_user.email,
+                    "phone": normalize_phone(
+                        authenticated_user.phone
+                    ),
+                    "first_name": profile["first_name"],
+                    "last_name": profile["last_name"],
+                    "role": profile["role"],
+                },
+            },
+            status=status.HTTP_200_OK,
+        )
 
 
 class CurrentProfileView(AuthenticatedAPIView):
@@ -652,7 +752,7 @@ class WebSessionActivateView(APIView):
                 session_token=challenge_token,
             )
 
-            update_web_device_metadata(
+            update_device_metadata(
                 device_id=device_session["id"],
                 request=request,
             )
@@ -709,7 +809,7 @@ class WebSessionProfileView(APIView):
                 session_token=session_token,
             )
 
-            update_web_device_metadata(
+            update_device_metadata(
                 device_id=device_session["id"],
                 request=request,
             )

@@ -6,6 +6,7 @@ export type UserStatus =
   | 'SUSPENDED'
   | 'PENDING';
 
+export type AuthScheme = 'Bearer' | 'Session';
 
 export interface BaseUser {
   id: string;
@@ -17,13 +18,11 @@ export interface BaseUser {
   updatedAt: string;
 }
 
-
 export interface PaginationParams {
   page: number;
   limit: number;
   search?: string;
 }
-
 
 export interface ApiResponse<T> {
   success: boolean;
@@ -31,7 +30,6 @@ export interface ApiResponse<T> {
   message?: string;
   timestamp: string;
 }
-
 
 export interface RegisterUserPayload {
   first_name: string;
@@ -41,7 +39,6 @@ export interface RegisterUserPayload {
   phone_dial_code: string;
   phone_number: string;
 }
-
 
 export interface RegisteredUser {
   id: string;
@@ -54,20 +51,17 @@ export interface RegisteredUser {
   role: UserRole;
 }
 
-
 export interface RegisterUserResponse {
   message: string;
   user: RegisteredUser;
 }
-
 
 export interface LoginUserPayload {
   email: string;
   password: string;
 }
 
-
-export interface AuthSession {
+export interface SupabaseAuthSession {
   access_token: string;
   refresh_token: string;
   expires_at: number | null;
@@ -75,6 +69,14 @@ export interface AuthSession {
   token_type: string;
 }
 
+export interface MobileAuthSession {
+  token: string;
+  expires_at: string;
+}
+
+export type AuthSession =
+  | SupabaseAuthSession
+  | MobileAuthSession;
 
 export interface AuthenticatedUser {
   id: string;
@@ -82,13 +84,42 @@ export interface AuthenticatedUser {
   phone: string | null;
 }
 
-
 export interface LoginUserResponse {
   message: string;
-  session: AuthSession;
+  session: SupabaseAuthSession;
   user: AuthenticatedUser;
 }
 
+export interface RequestPhoneOtpPayload {
+  phone: string;
+}
+
+export interface RequestPhoneOtpResponse {
+  message: string;
+}
+
+export interface VerifyPhoneOtpPayload {
+  phone: string;
+  code: string;
+}
+
+export interface MobileAuthenticatedUser
+  extends AuthenticatedUser {
+  first_name: string;
+  last_name: string;
+  role: UserRole;
+}
+
+export interface VerifyPhoneOtpMobileResponse {
+  message: string;
+  session: MobileAuthSession;
+  user: MobileAuthenticatedUser;
+}
+
+export interface AuthCredentials {
+  token: string;
+  scheme: AuthScheme;
+}
 
 export interface UserProfile {
   id: string;
@@ -103,19 +134,15 @@ export interface UserProfile {
   assistant_tone: string | null;
 }
 
-
 export interface CurrentUserProfile extends UserProfile {
   email: string | null;
 }
-
 
 export interface GetCurrentProfileResponse {
   profile: CurrentUserProfile;
 }
 
-
 export type DeviceType = 'WEB' | 'MOBILE' | 'DESKTOP';
-
 
 export interface DeviceSession {
   id: string;
@@ -127,17 +154,14 @@ export interface DeviceSession {
   created_at: string;
 }
 
-
 export interface GetDeviceSessionsResponse {
   devices: DeviceSession[];
 }
-
 
 export interface QrLoginChallengeResponse {
   challenge_token: string;
   expires_at: string;
 }
-
 
 export interface QrLoginChallengeStatusResponse {
   status:
@@ -149,17 +173,14 @@ export interface QrLoginChallengeStatusResponse {
   expires_at: string;
 }
 
-
 export interface ScanQrLoginPayload {
   challenge_token: string;
 }
-
 
 export interface ScanQrLoginResponse {
   message: string;
   device: DeviceSession;
 }
-
 
 export interface WebSessionProfileResponse {
   user: {
@@ -169,24 +190,20 @@ export interface WebSessionProfileResponse {
   };
 }
 
-
 export interface UpdateOnboardingProfilePayload {
   occupation: string;
   location: string;
 }
-
 
 export interface UpdateOnboardingProfileResponse {
   message: string;
   profile: UserProfile;
 }
 
-
 export interface UpdateAssistantSettingsPayload {
   assistant_name: string;
   assistant_tone: string;
 }
-
 
 export interface UpdateAssistantSettingsResponse {
   message: string;

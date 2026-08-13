@@ -1,4 +1,5 @@
 import type {
+    AuthCredentials,
     GetCurrentProfileResponse,
     GetDeviceSessionsResponse,
     LoginUserPayload,
@@ -7,12 +8,16 @@ import type {
     QrLoginChallengeStatusResponse,
     RegisterUserPayload,
     RegisterUserResponse,
+    RequestPhoneOtpPayload,
+    RequestPhoneOtpResponse,
     ScanQrLoginPayload,
     ScanQrLoginResponse,
     UpdateAssistantSettingsPayload,
     UpdateAssistantSettingsResponse,
     UpdateOnboardingProfilePayload,
     UpdateOnboardingProfileResponse,
+    VerifyPhoneOtpMobileResponse,
+    VerifyPhoneOtpPayload,
     WebSessionProfileResponse,
     } from '@beeapp/shared-types';
 
@@ -28,7 +33,6 @@ export function registerUser(
     );
 }
 
-
 export function loginUser(
     payload: LoginUserPayload,
     ): Promise<LoginUserResponse> {
@@ -38,53 +42,66 @@ export function loginUser(
     );
 }
 
+export function requestPhoneOtp(
+    payload: RequestPhoneOtpPayload,
+    ): Promise<RequestPhoneOtpResponse> {
+    return api.post<RequestPhoneOtpResponse>(
+        '/accounts/login/phone/request-otp/',
+        payload,
+    );
+}
+
+export function verifyPhoneOtpMobile(
+    payload: VerifyPhoneOtpPayload,
+    ): Promise<VerifyPhoneOtpMobileResponse> {
+    return api.post<VerifyPhoneOtpMobileResponse>(
+        '/accounts/login/phone/verify-otp/mobile/',
+        payload,
+    );
+}
 
 export function getCurrentProfile(
-    accessToken: string,
+    auth: AuthCredentials,
     ): Promise<GetCurrentProfileResponse> {
     return api.get<GetCurrentProfileResponse>(
         '/accounts/me/',
         {
-        token: accessToken,
+        auth,
         },
     );
 }
 
-
 export function updateOnboardingProfile(
-    accessToken: string,
+    auth: AuthCredentials,
     payload: UpdateOnboardingProfilePayload,
     ): Promise<UpdateOnboardingProfileResponse> {
     return api.patch<UpdateOnboardingProfileResponse>(
         '/accounts/me/profile/',
         payload,
         {
-        token: accessToken,
+        auth,
         },
     );
 }
 
-
 export function updateAssistantSettings(
-    accessToken: string,
+    auth: AuthCredentials,
     payload: UpdateAssistantSettingsPayload,
     ): Promise<UpdateAssistantSettingsResponse> {
     return api.patch<UpdateAssistantSettingsResponse>(
         '/accounts/me/assistant/',
         payload,
         {
-        token: accessToken,
+        auth,
         },
     );
 }
-
 
 export function createQrLoginChallenge(): Promise<QrLoginChallengeResponse> {
     return api.post<QrLoginChallengeResponse>(
         '/accounts/qr-login/challenges/',
     );
 }
-
 
 export function getQrLoginChallengeStatus(
     challengeToken: string,
@@ -96,57 +113,52 @@ export function getQrLoginChallengeStatus(
     );
 }
 
-
 export function scanQrLogin(
-    accessToken: string,
+    auth: AuthCredentials,
     payload: ScanQrLoginPayload,
     ): Promise<ScanQrLoginResponse> {
     return api.post<ScanQrLoginResponse>(
         '/accounts/qr-login/scan/',
         payload,
         {
-        token: accessToken,
+        auth,
         },
     );
 }
 
-
 export function getDeviceSessions(
-    accessToken: string,
+    auth: AuthCredentials,
     ): Promise<GetDeviceSessionsResponse> {
     return api.get<GetDeviceSessionsResponse>(
         '/accounts/me/devices/',
         {
-        token: accessToken,
+        auth,
         },
     );
 }
 
-
 export async function revokeDeviceSession(
-    accessToken: string,
+    auth: AuthCredentials,
     deviceId: string,
     ): Promise<void> {
     await api.delete<void>(
         `/accounts/me/devices/${deviceId}/`,
         {
-        token: accessToken,
+        auth,
         },
     );
 }
 
-
 export async function revokeAllDeviceSessions(
-    accessToken: string,
+    auth: AuthCredentials,
     ): Promise<void> {
     await api.delete<void>(
         '/accounts/me/devices/others/',
         {
-        token: accessToken,
+        auth,
         },
     );
 }
-
 
 export async function activateWebSession(
     challengeToken: string,
@@ -162,7 +174,6 @@ export async function activateWebSession(
     );
 }
 
-
 export function getWebSessionProfile(): Promise<WebSessionProfileResponse> {
     return api.get<WebSessionProfileResponse>(
         '/accounts/web-session/me/',
@@ -171,7 +182,6 @@ export function getWebSessionProfile(): Promise<WebSessionProfileResponse> {
         },
     );
 }
-
 
 export async function logoutWebSession(): Promise<void> {
     await api.post<void>(

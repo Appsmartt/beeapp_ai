@@ -1,3 +1,9 @@
+import type {
+    AuthCredentials,
+    AuthScheme,
+    } from '@beeapp/shared-types';
+
+
 const expoApiBaseUrl = process.env.EXPO_PUBLIC_API_BASE_URL;
 const nextApiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL;
 
@@ -6,8 +12,8 @@ const configuredApiBaseUrl = expoApiBaseUrl || nextApiBaseUrl;
 if (!configuredApiBaseUrl) {
     throw new Error(
         `Backend URL is missing. EXPO_PUBLIC_API_BASE_URL=${String(
-        expoApiBaseUrl
-        )}, NEXT_PUBLIC_API_BASE_URL=${String(nextApiBaseUrl)}`
+        expoApiBaseUrl,
+        )}, NEXT_PUBLIC_API_BASE_URL=${String(nextApiBaseUrl)}`,
     );
 }
 
@@ -21,42 +27,72 @@ export interface ApiErrorResponse {
 }
 
 export interface ApiRequestOptions
-    extends Omit<RequestInit, "body" | "headers"> {
+    extends Omit<RequestInit, 'body' | 'headers'> {
     body?: unknown;
     token?: string | null;
+    auth?: AuthCredentials | null;
     headers?: Record<string, string>;
 }
 
 function buildUrl(endpoint: string): string {
-    const normalizedBaseUrl = API_BASE_URL.replace(/\/+$/, "");
-    const normalizedEndpoint = endpoint.startsWith("/")
+    const normalizedBaseUrl = API_BASE_URL.replace(/\/+$/, '');
+
+    const normalizedEndpoint = endpoint.startsWith('/')
         ? endpoint
         : `/${endpoint}`;
 
     return `${normalizedBaseUrl}${normalizedEndpoint}`;
 }
 
+function getAuthorizationHeader(
+    token?: string | null,
+    auth?: AuthCredentials | null,
+    ): Record<string, string> {
+    if (auth?.token) {
+        return {
+        Authorization: `${auth.scheme} ${auth.token}`,
+        };
+    }
+
+    if (token) {
+        return {
+        Authorization: `Bearer ${token}`,
+        };
+    }
+
+    return {};
+}
+
 async function request<T>(
     endpoint: string,
-    options: ApiRequestOptions = {}
+    options: ApiRequestOptions = {},
     ): Promise<T> {
-    const { body, token, headers, ...fetchOptions } = options;
+    const {
+        body,
+        token,
+        auth,
+        headers,
+        ...fetchOptions
+    } = options;
 
     const response = await fetch(buildUrl(endpoint), {
         ...fetchOptions,
         headers: {
-        Accept: "application/json",
+        Accept: 'application/json',
         ...(body !== undefined
-            ? { "Content-Type": "application/json" }
+            ? { 'Content-Type': 'application/json' }
             : {}),
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        ...headers
+        ...getAuthorizationHeader(token, auth),
+        ...headers,
         },
-        body: body !== undefined ? JSON.stringify(body) : undefined
+        body: body !== undefined
+        ? JSON.stringify(body)
+        : undefined,
     });
 
     if (!response.ok) {
-        let errorMessage = `Error ${response.status}: backend request failed.`;
+        let errorMessage =
+        `Error ${response.status}: backend request failed.`;
 
         try {
         const errorData: ApiErrorResponse = await response.json();
@@ -67,7 +103,7 @@ async function request<T>(
             errorData.error ||
             errorMessage;
         } catch {
-        // Keep the default message when the response is not JSON.
+        // Keep the default message if the backend did not return JSON.
         }
 
         throw new Error(errorMessage);
@@ -83,61 +119,71 @@ async function request<T>(
 export const api = {
     get<T>(
         endpoint: string,
-        options: Omit<ApiRequestOptions, "method"> = {}
+        options: Omit<ApiRequestOptions, 'method'> = {},
     ): Promise<T> {
         return request<T>(endpoint, {
         ...options,
-        method: "GET"
+        method: 'GET',
         });
     },
 
     post<T>(
         endpoint: string,
         body?: unknown,
-        options: Omit<ApiRequestOptions, "method" | "body"> = {}
+        options: Omit<ApiRequestOptions, 'method' | 'body'> = {},
     ): Promise<T> {
         return request<T>(endpoint, {
         ...options,
-        method: "POST",
-        body
+        method: 'POST',
+        body,
         });
     },
 
     put<T>(
         endpoint: string,
         body?: unknown,
-        options: Omit<ApiRequestOptions, "method" | "body"> = {}
+        options: Omit<ApiRequestOptions, 'method' | 'body'> = {},
     ): Promise<T> {
         return request<T>(endpoint, {
         ...options,
-        method: "PUT",
-        body
+        method: 'PUT',
+        body,
         });
     },
 
     patch<T>(
         endpoint: string,
         body?: unknown,
-        options: Omit<ApiRequestOptions, "method" | "body"> = {}
+        options: Omit<ApiRequestOptions, 'method' | 'body'> = {},
     ): Promise<T> {
         return request<T>(endpoint, {
         ...options,
-        method: "PATCH",
-        body
+        method: 'PATCH',
+        body,
         });
     },
 
     delete<T>(
         endpoint: string,
-        options: Omit<ApiRequestOptions, "method"> = {}
+        options: Omit<ApiRequestOptions, 'method'> = {},
     ): Promise<T> {
         return request<T>(endpoint, {
         ...options,
-        method: "DELETE"
+        method: 'DELETE',
         });
-    }
+    },
 };
 
 export function getApiUrl(endpoint: string): string {
     return buildUrl(endpoint);
+}
+
+export function createAuthCredentials(
+    token: string,
+    scheme: AuthScheme = 'Bearer',
+    ): AuthCredentials {
+    return {
+        token,
+        scheme,
+    };
 }

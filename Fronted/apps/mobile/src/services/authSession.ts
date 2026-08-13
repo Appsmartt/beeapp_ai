@@ -1,15 +1,19 @@
 import * as SecureStore from 'expo-secure-store';
 import type {
-    AuthenticatedUser,
+    AuthCredentials,
     AuthSession,
+    AuthenticatedUser,
     } from '@beeapp/shared-types';
 
+
 const AUTH_SESSION_KEY = 'beeapp.auth.session';
+
 
 export interface PersistedAuthSession {
     session: AuthSession;
     user: AuthenticatedUser;
 }
+
 
 export async function saveAuthSession(
     authSession: PersistedAuthSession,
@@ -19,6 +23,7 @@ export async function saveAuthSession(
         JSON.stringify(authSession),
     );
 }
+
 
 export async function getAuthSession(): Promise<PersistedAuthSession | null> {
     const storedSession = await SecureStore.getItemAsync(
@@ -37,6 +42,24 @@ export async function getAuthSession(): Promise<PersistedAuthSession | null> {
     }
 }
 
+
 export async function clearAuthSession(): Promise<void> {
     await SecureStore.deleteItemAsync(AUTH_SESSION_KEY);
+}
+
+
+export function getSessionCredentials(
+    authSession: PersistedAuthSession,
+    ): AuthCredentials {
+    if ('token' in authSession.session) {
+        return {
+        token: authSession.session.token,
+        scheme: 'Session',
+        };
+    }
+
+    return {
+        token: authSession.session.access_token,
+        scheme: 'Bearer',
+    };
 }

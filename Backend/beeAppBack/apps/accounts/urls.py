@@ -5,6 +5,7 @@ from apps.accounts.views import (
     DeviceSessionDetailView,
     DeviceSessionListView,
     LoginUserView,
+    PhoneOtpMobileVerifyView,
     PhoneOtpRequestView,
     PhoneOtpVerifyView,
     QrLoginChallengeDetailView,
@@ -40,6 +41,11 @@ urlpatterns = [
         "login/phone/verify-otp/",
         PhoneOtpVerifyView.as_view(),
         name="verify-phone-otp",
+    ),
+    path(
+        "login/phone/verify-otp/mobile/",
+        PhoneOtpMobileVerifyView.as_view(),
+        name="verify-phone-otp-mobile",
     ),
     path(
         "me/",
