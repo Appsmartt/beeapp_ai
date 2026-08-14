@@ -1,64 +1,153 @@
-
-import { View, Text, StyleSheet, TouchableOpacity, Modal } from 'react-native';
+import {
+  Modal,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from 'react-native';
 import { colors } from '@beeapp/design-system';
-import { Plus, FolderPlus, FilePlus, FileText, Image as ImageIcon, Video as VideoIcon } from 'lucide-react-native';
+import {
+  FilePlus,
+  FolderPlus,
+  Image as ImageIcon,
+  Plus,
+  Video as VideoIcon,
+} from 'lucide-react-native';
 
 export const FAB_BOTTOM_OFFSET = 105;
 
 interface StorageFabMenuProps {
-  /** Embedded in Home: the trigger lives in the header, menu drops from the top */
   embedded?: boolean;
   menuVisible: boolean;
+  uploadDisabled?: boolean;
   onToggleMenu: () => void;
   onCloseMenu: () => void;
   onCreateFolder: () => void;
-  onUpload: (type: 'pdf' | 'image' | 'video' | 'doc', customName?: string) => void;
+  onUpload: (
+    mode: 'document' | 'image' | 'video',
+  ) => void;
 }
 
-export default function StorageFabMenu({ embedded, menuVisible, onToggleMenu, onCloseMenu, onCreateFolder, onUpload }: StorageFabMenuProps) {
+export default function StorageFabMenu({
+  embedded,
+  menuVisible,
+  uploadDisabled = false,
+  onToggleMenu,
+  onCloseMenu,
+  onCreateFolder,
+  onUpload,
+}: StorageFabMenuProps) {
   return (
     <>
-      {/* FAB Submenu overlay */}
       {menuVisible && (
-        <Modal transparent visible={menuVisible} animationType="fade">
-          <TouchableOpacity style={styles.fabBackdrop} activeOpacity={1} onPress={onCloseMenu}>
-            <View style={[styles.fabMenuContainer, embedded ? styles.fabMenuTop : { bottom: FAB_BOTTOM_OFFSET + 65 }]}>
-              <TouchableOpacity style={styles.fabMenuRow} onPress={onCreateFolder} activeOpacity={0.8}>
-                <FolderPlus size={16} color={colors.brand.primary} />
-                <Text style={styles.fabMenuText}>Crear carpeta</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity style={styles.fabMenuRow} onPress={() => onUpload('pdf')} activeOpacity={0.8}>
-                <FilePlus size={16} color={colors.brand.primary} />
-                <Text style={styles.fabMenuText}>Subir archivo (Documento)</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity style={styles.fabMenuRow} onPress={() => onUpload('image')} activeOpacity={0.8}>
-                <ImageIcon size={16} color={colors.brand.primary} />
-                <Text style={styles.fabMenuText}>Subir foto</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity style={styles.fabMenuRow} onPress={() => onUpload('video')} activeOpacity={0.8}>
-                <VideoIcon size={16} color={colors.brand.primary} />
-                <Text style={styles.fabMenuText}>Subir video</Text>
+        <Modal
+          transparent
+          visible={menuVisible}
+          animationType="fade"
+          onRequestClose={onCloseMenu}
+        >
+          <TouchableOpacity
+            style={styles.fabBackdrop}
+            activeOpacity={1}
+            onPress={onCloseMenu}
+          >
+            <View
+              style={[
+                styles.fabMenuContainer,
+                embedded
+                  ? styles.fabMenuTop
+                  : {
+                    bottom: FAB_BOTTOM_OFFSET + 65,
+                  },
+              ]}
+            >
+              <TouchableOpacity
+                style={styles.fabMenuRow}
+                onPress={onCreateFolder}
+                activeOpacity={0.8}
+              >
+                <FolderPlus
+                  size={16}
+                  color={colors.brand.primary}
+                />
+                <Text style={styles.fabMenuText}>
+                  Crear carpeta
+                </Text>
               </TouchableOpacity>
 
               <TouchableOpacity
-                style={[styles.fabMenuRow, { borderBottomWidth: 0 }]}
-                onPress={() => onUpload('pdf', 'Doc_Escaneado_Firma.pdf')}
+                style={styles.fabMenuRow}
+                onPress={() => onUpload('document')}
                 activeOpacity={0.8}
+                disabled={uploadDisabled}
               >
-                <FileText size={16} color={colors.brand.primary} />
-                <Text style={styles.fabMenuText}>Escanear documento</Text>
+                <FilePlus
+                  size={16}
+                  color={colors.brand.primary}
+                />
+                <Text
+                  style={[
+                    styles.fabMenuText,
+                    uploadDisabled && styles.disabledText,
+                  ]}
+                >
+                  Subir archivo
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.fabMenuRow}
+                onPress={() => onUpload('image')}
+                activeOpacity={0.8}
+                disabled={uploadDisabled}
+              >
+                <ImageIcon
+                  size={16}
+                  color={colors.brand.primary}
+                />
+                <Text
+                  style={[
+                    styles.fabMenuText,
+                    uploadDisabled && styles.disabledText,
+                  ]}
+                >
+                  Subir foto
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[
+                  styles.fabMenuRow,
+                  styles.lastMenuRow,
+                ]}
+                onPress={() => onUpload('video')}
+                activeOpacity={0.8}
+                disabled={uploadDisabled}
+              >
+                <VideoIcon
+                  size={16}
+                  color={colors.brand.primary}
+                />
+                <Text
+                  style={[
+                    styles.fabMenuText,
+                    uploadDisabled && styles.disabledText,
+                  ]}
+                >
+                  Subir video
+                </Text>
               </TouchableOpacity>
             </View>
           </TouchableOpacity>
         </Modal>
       )}
 
-      {/* FAB Button - only standalone: embedded, the trigger sits in the header */}
       {!embedded && (
-        <TouchableOpacity style={styles.createFab} onPress={onToggleMenu} activeOpacity={0.8}>
+        <TouchableOpacity
+          style={styles.createFab}
+          onPress={onToggleMenu}
+          activeOpacity={0.8}
+        >
           <Plus size={24} color={colors.neutral.white} />
         </TouchableOpacity>
       )}
@@ -115,9 +204,15 @@ const styles = StyleSheet.create({
     borderBottomColor: colors.neutral.gray100,
     gap: 10,
   },
+  lastMenuRow: {
+    borderBottomWidth: 0,
+  },
   fabMenuText: {
     fontSize: 12,
     fontWeight: '400',
     color: colors.neutral.text,
+  },
+  disabledText: {
+    color: colors.neutral.gray400,
   },
 });

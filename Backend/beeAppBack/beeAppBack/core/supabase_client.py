@@ -36,3 +36,15 @@ def get_supabase_admin_client() -> Client:
         _get_required_env("SUPABASE_URL"),
         _get_required_env("SUPABASE_SECRET_KEY"),
     )
+
+
+def get_supabase_user_client(*, access_token: str) -> Client:
+    client = create_client(
+        _get_required_env("SUPABASE_URL"),
+        _get_required_env("SUPABASE_PUBLISHABLE_KEY"),
+    )
+
+    client.postgrest.auth(access_token)
+    client.storage.set_auth(access_token)
+
+    return client

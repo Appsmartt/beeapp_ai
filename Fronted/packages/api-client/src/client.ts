@@ -3,16 +3,16 @@ import type {
     AuthScheme,
     } from '@beeapp/shared-types';
 
-    const expoApiBaseUrl =
+const expoApiBaseUrl =
     process.env.EXPO_PUBLIC_API_BASE_URL;
 
-    const nextApiBaseUrl =
+const nextApiBaseUrl =
     process.env.NEXT_PUBLIC_API_BASE_URL;
 
-    const configuredApiBaseUrl =
+const configuredApiBaseUrl =
     expoApiBaseUrl || nextApiBaseUrl;
 
-    if (!configuredApiBaseUrl) {
+if (!configuredApiBaseUrl) {
     throw new Error(
         'Backend URL is missing. '
         + 'EXPO_PUBLIC_API_BASE_URL or '
@@ -38,7 +38,6 @@ export class ApiRequestError extends Error {
         status: number,
     ) {
         super(message);
-
         this.name = 'ApiRequestError';
         this.status = status;
     }
@@ -83,36 +82,9 @@ function getAuthorizationHeader(
     return {};
 }
 
-async function request<T>(
-    endpoint: string,
-    options: ApiRequestOptions = {},
+async function parseApiResponse<T>(
+    response: Response,
     ): Promise<T> {
-    const {
-        body,
-        token,
-        auth,
-        headers,
-        ...fetchOptions
-    } = options;
-
-    const response = await fetch(buildUrl(endpoint), {
-        ...fetchOptions,
-        headers: {
-        Accept: 'application/json',
-        ...(body !== undefined
-            ? {
-                'Content-Type': 'application/json',
-            }
-            : {}),
-        ...getAuthorizationHeader(token, auth),
-        ...headers,
-        },
-        body:
-        body !== undefined
-            ? JSON.stringify(body)
-            : undefined,
-    });
-
     if (!response.ok) {
         let errorMessage =
         `Error ${response.status}: backend request failed.`;
@@ -127,6 +99,7 @@ async function request<T>(
             || errorData.error
             || errorMessage;
         } catch {
+        // Response may not contain JSON.
         }
 
         throw new ApiRequestError(
@@ -142,13 +115,69 @@ async function request<T>(
     return response.json() as Promise<T>;
 }
 
+async function request<T>(
+    endpoint: string,
+    options: ApiRequestOptions = {},
+    ): Promise<T> {
+    const {
+        body,
+        token,
+        auth,
+        headers,
+        ...fetchOptions
+    } = options;
+
+    const hasJsonBody = body !== undefined;
+
+    const response = await fetch(buildUrl(endpoint), {
+        ...fetchOptions,
+        headers: {
+        Accept: 'application/json',
+        ...(hasJsonBody
+            ? { 'Content-Type': 'application/json' }
+            : {}),
+        ...getAuthorizationHeader(token, auth),
+        ...headers,
+        },
+        body: hasJsonBody
+        ? JSON.stringify(body)
+        : undefined,
+    });
+
+    return parseApiResponse<T>(response);
+}
+
+async function upload<T>(
+    endpoint: string,
+    formData: FormData,
+    options: Omit<
+        ApiRequestOptions,
+        'method' | 'body' | 'headers'
+    > = {},
+    ): Promise<T> {
+    const {
+        token,
+        auth,
+        ...fetchOptions
+    } = options;
+
+    const response = await fetch(buildUrl(endpoint), {
+        ...fetchOptions,
+        method: 'POST',
+        headers: {
+        Accept: 'application/json',
+        ...getAuthorizationHeader(token, auth),
+        },
+        body: formData,
+    });
+
+    return parseApiResponse<T>(response);
+}
+
 export const api = {
     get<T>(
         endpoint: string,
-        options: Omit<
-        ApiRequestOptions,
-        'method'
-        > = {},
+        options: Omit<ApiRequestOptions, 'method'> = {},
     ): Promise<T> {
         return request<T>(endpoint, {
         ...options,
@@ -203,16 +232,15 @@ export const api = {
 
     delete<T>(
         endpoint: string,
-        options: Omit<
-        ApiRequestOptions,
-        'method'
-        > = {},
+        options: Omit<ApiRequestOptions, 'method'> = {},
     ): Promise<T> {
         return request<T>(endpoint, {
         ...options,
         method: 'DELETE',
         });
     },
+
+    upload,
 };
 
 export function getApiUrl(endpoint: string): string {

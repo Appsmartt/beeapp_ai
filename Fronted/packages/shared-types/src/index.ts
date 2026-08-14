@@ -277,3 +277,113 @@ export interface PasswordResetConfirmPayload {
 export interface PasswordResetConfirmResponse {
   message: string;
 }
+
+export type StorageFileKind =
+  | 'image'
+  | 'video'
+  | 'audio'
+  | 'document'
+  | 'spreadsheet'
+  | 'presentation'
+  | 'archive'
+  | 'other';
+
+export type StorageFileStatus =
+  | 'uploading'
+  | 'ready'
+  | 'failed'
+  | 'trashed';
+
+export interface StorageSummary {
+  quota_bytes: number;
+  used_bytes: number;
+  reserved_bytes: number;
+  available_bytes: number;
+  usage_percentage: number;
+  updated_at: string | null;
+}
+
+export interface StorageFolder {
+  id: string;
+  owner_id: string;
+  parent_id: string | null;
+  name: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface StorageFile {
+  id: string;
+  owner_id?: string;
+  folder_id: string | null;
+  bucket_id?: string;
+  storage_path?: string;
+  original_name: string;
+  display_name: string;
+  extension: string | null;
+  mime_type: string;
+  kind: StorageFileKind;
+  size_bytes: number;
+  status: StorageFileStatus;
+  is_starred: boolean;
+  trashed_at: string | null;
+  purge_after: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface StorageFilesQuery {
+  folder_id?: string | null;
+  status?: 'ready' | 'trashed';
+  kind?: StorageFileKind;
+  search?: string;
+  limit?: number;
+  offset?: number;
+}
+
+export interface StorageFoldersQuery {
+  parent_id?: string | null;
+}
+
+export interface CreateStorageFolderPayload {
+  name: string;
+  parent_id?: string | null;
+}
+
+export interface UpdateStorageFolderPayload {
+  name: string;
+}
+
+export interface GetStorageSummaryResponse {
+  storage: StorageSummary;
+}
+
+export interface GetStorageFilesResponse {
+  files: StorageFile[];
+  count: number;
+  limit: number;
+  offset: number;
+}
+
+export interface GetStorageFoldersResponse {
+  folders: StorageFolder[];
+}
+
+export interface CreateStorageFolderResponse {
+  folder: StorageFolder;
+}
+
+export interface UpdateStorageFolderResponse {
+  folder: StorageFolder;
+}
+
+export interface CreateStorageUploadResponse {
+  file: StorageFile;
+}
+
+export interface GetStorageFileAccessResponse {
+  file: StorageFile;
+  url: string;
+  expires_in_seconds: number;
+  download: boolean;
+}

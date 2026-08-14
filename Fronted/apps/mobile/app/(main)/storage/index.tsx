@@ -1,194 +1,645 @@
-import React, { useState, useEffect } from 'react';
-import { View, StyleSheet, ScrollView } from 'react-native';
-import ScreenSafeArea from '../../../src/components/layout/ScreenSafeArea';
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+} from 'react';
+import {
+  Alert,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  View,
+} from 'react-native';
+import * as DocumentPicker from 'expo-document-picker';
 import { useNavigation } from 'expo-router';
-import { useModuleNav } from '../../../src/components/embedded/EmbeddedNavContext';
+
+import {
+  createStorageFolder,
+  getStorageFiles,
+  getStorageFolders,
+  getStorageSummary,
+  moveStorageFileToTrash,
+  uploadStorageFile,
+} from '@beeapp/api-client';
+import type {
+  StorageFile,
+  StorageFolder,
+  StorageSummary,
+} from '@beeapp/shared-types';
 import { colors } from '@beeapp/design-system';
+
+import ScreenSafeArea from '../../../src/components/layout/ScreenSafeArea';
 import FloatingTabBar from '../../../src/components/FloatingTabBar';
-import StorageHeader from '../../../src/components/storage/StorageHeader';
-import {
-  getItems, setItems, StorageItem,
-  MOCK_STORAGE_CATEGORIES, StorageCategory, addStorageCategory, setItemCategories,
-} from '../../../src/stores/storageStore';
-import {
-  getFilteredItems, buildMockUploadFile, SortOption, StorageFilter,
-} from '../../../src/utils/storageHelpers';
-import StorageItemsView from '../../../src/components/storage/StorageItemsView';
-import { ViewMode } from '../../../src/components/layout/ViewModeToggle';
-import StorageContextMenu from '../../../src/components/storage/StorageContextMenu';
-import { MoveFolderModal, FolderNameDialog } from '../../../src/components/storage/StorageDialogs';
-import StorageFabMenu from '../../../src/components/storage/StorageFabMenu';
-import PinLockModal from '../../../src/components/security/PinLockModal';
-import { getProtectedIds, hasPin, isProtected, setProtected } from '../../../src/stores/pinStore';
-import {
-  StorageSummaryCard, StorageFilterChips, StorageBreadcrumbs,
-} from '../../../src/components/storage/StorageSummaryFilters';
+import { useModuleNav } from '../../../src/components/embedded/EmbeddedNavContext';
 import StorageCategoryChips from '../../../src/components/storage/StorageCategoryChips';
 import StorageCategoryModals from '../../../src/components/storage/StorageCategoryModals';
+import StorageContextMenu from '../../../src/components/storage/StorageContextMenu';
+import {
+  FolderNameDialog,
+  MoveFolderModal,
+} from '../../../src/components/storage/StorageDialogs';
+import StorageFabMenu from '../../../src/components/storage/StorageFabMenu';
+import StorageHeader from '../../../src/components/storage/StorageHeader';
+import StorageItemsView from '../../../src/components/storage/StorageItemsView';
+import {
+  StorageBreadcrumbs,
+  StorageFilterChips,
+  StorageSummaryCard,
+} from '../../../src/components/storage/StorageSummaryFilters';
+import PinLockModal from '../../../src/components/security/PinLockModal';
+import {
+  getProtectedIds,
+  hasPin,
+  isProtected,
+  setProtected,
+} from '../../../src/stores/pinStore';
+import {
+  addStorageCategory,
+  getItems,
+  mapStorageFileToItem,
+  mapStorageFolderToItem,
+  MOCK_STORAGE_CATEGORIES,
+  setItems,
+  setItemCategories,
+  setStorageSummary,
+  StorageCategory,
+  StorageItem,
+} from '../../../src/stores/storageStore';
+import {
+  getFilteredItems,
+  type SortOption,
+  type StorageFilter,
+} from '../../../src/utils/storageHelpers';
+import { getValidSessionCredentials } from '../../../src/services/authSession';
+import type { ViewMode } from '../../../src/components/layout/ViewModeToggle';
+
+const MAX_FILE_SIZE_BYTES = 52_428_800;
+
+function getFolderItemCounts(
+  folders: StorageFolder[],
+  files: StorageFile[],
+): Map<string, number> {
+  const counts = new Map<string, number>();
+
+  folders.forEach((folder) => {
+    counts.set(folder.id, 0);
+  });
+
+  files.forEach((file) => {
+    if (file.folder_id) {
+      counts.set(
+        file.folder_id,
+        (counts.get(file.folder_id) || 0) + 1,
+      );
+    }
+  });
+
+  folders.forEach((folder) => {
+    if (folder.parent_id) {
+      counts.set(
+        folder.parent_id,
+        (counts.get(folder.parent_id) || 0) + 1,
+      );
+    }
+  });
+
+  return counts;
+}
 
 export default function StorageIndexScreen() {
   const router = useModuleNav();
   const navigation = useNavigation();
 
-  // Storage State
-  const [items, setLocalItems] = useState<StorageItem[]>([]);
-  const [currentFolderId, setCurrentFolderId] = useState<string | null>(null);
-  const [pathStack, setPathStack] = useState<{ id: string | null; name: string }[]>([
-    { id: null, name: 'Inicio' },
-  ]);
+  const [items, setLocalItems] = useState<StorageItem[]>(
+    getItems(),
+  );
+  const [summary, setLocalSummary] =
+    useState<StorageSummary | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [uploading, setUploading] = useState(false);
+
+  const [currentFolderId, setCurrentFolderId] =
+    useState<string | null>(null);
+  const [pathStack, setPathStack] = useState<
+    { id: string | null; name: string }[]
+  >([{ id: null, name: 'Inicio' }]);
 
   const [searchQuery] = useState('');
-  const [sortBy, setSortBy] = useState<SortOption>('name');
-  const [viewMode, setViewMode] = useState<ViewMode>('list');
-  const [activeFilter, setActiveFilter] = useState<StorageFilter>('all');
-  const [activeItem, setActiveItem] = useState<StorageItem | null>(null);
-  const [contextMenuVisible, setContextMenuVisible] = useState(false);
-  // Category
-  const [storageCategories, setStorageCategories] = useState<StorageCategory[]>([...MOCK_STORAGE_CATEGORIES]);
-  const [activeCategoryId, setActiveCategoryId] = useState<string | null>(null);
-  const [createCategoryVisible, setCreateCategoryVisible] = useState(false);
-  const [assignCategoryVisible, setAssignCategoryVisible] = useState(false);
-  // PIN / modals
-  const [protectedIds, setProtectedIds] = useState<string[]>(getProtectedIds());
-  const [lockedItem, setLockedItem] = useState<StorageItem | null>(null);
-  const [folderModalVisible, setFolderModalVisible] = useState(false);
-  const [folderModalMode, setFolderModalMode] = useState<'create' | 'rename'>('create');
-  const [folderNameInput, setFolderNameInput] = useState('');
-  const [moveModalVisible, setMoveModalVisible] = useState(false);
-  const [fabMenuVisible, setFabMenuVisible] = useState(false);
+  const [sortBy, setSortBy] =
+    useState<SortOption>('name');
+  const [viewMode, setViewMode] =
+    useState<ViewMode>('list');
+  const [activeFilter, setActiveFilter] =
+    useState<StorageFilter>('all');
+  const [activeItem, setActiveItem] =
+    useState<StorageItem | null>(null);
+  const [contextMenuVisible, setContextMenuVisible] =
+    useState(false);
+
+  const [storageCategories, setStorageCategories] =
+    useState<StorageCategory[]>([
+      ...MOCK_STORAGE_CATEGORIES,
+    ]);
+  const [activeCategoryId, setActiveCategoryId] =
+    useState<string | null>(null);
+  const [createCategoryVisible, setCreateCategoryVisible] =
+    useState(false);
+  const [assignCategoryVisible, setAssignCategoryVisible] =
+    useState(false);
+
+  const [protectedIds, setProtectedIds] = useState<string[]>(
+    getProtectedIds(),
+  );
+  const [lockedItem, setLockedItem] =
+    useState<StorageItem | null>(null);
+
+  const [folderModalVisible, setFolderModalVisible] =
+    useState(false);
+  const [folderModalMode, setFolderModalMode] = useState<
+    'create' | 'rename'
+  >('create');
+  const [folderNameInput, setFolderNameInput] =
+    useState('');
+  const [moveModalVisible, setMoveModalVisible] =
+    useState(false);
+  const [fabMenuVisible, setFabMenuVisible] =
+    useState(false);
+
+  const loadStorage = useCallback(
+    async (showRefresh = false) => {
+      if (showRefresh) {
+        setRefreshing(true);
+      } else {
+        setLoading(true);
+      }
+
+      try {
+        const auth = await getValidSessionCredentials();
+
+        if (!auth) {
+          throw new Error(
+            'Tu sesión expiró. Inicia sesión nuevamente.',
+          );
+        }
+
+        const [
+          summaryResponse,
+          foldersResponse,
+          filesResponse,
+        ] = await Promise.all([
+          getStorageSummary(auth),
+          getStorageFolders(auth, {}),
+          getStorageFiles(auth, {
+            status: 'ready',
+            limit: 100,
+            offset: 0,
+          }),
+        ]);
+
+        const folderCounts = getFolderItemCounts(
+          foldersResponse.folders,
+          filesResponse.files,
+        );
+
+        const nextItems = [
+          ...foldersResponse.folders.map((folder) =>
+            mapStorageFolderToItem(
+              folder,
+              folderCounts.get(folder.id) || 0,
+            ),
+          ),
+          ...filesResponse.files.map(mapStorageFileToItem),
+        ];
+
+        setItems(nextItems);
+        setLocalItems(nextItems);
+        setStorageSummary(summaryResponse.storage);
+        setLocalSummary(summaryResponse.storage);
+      } catch (error) {
+        Alert.alert(
+          'No fue posible cargar archivos',
+          error instanceof Error
+            ? error.message
+            : 'Intenta nuevamente.',
+        );
+      } finally {
+        setLoading(false);
+        setRefreshing(false);
+      }
+    },
+    [],
+  );
 
   useEffect(() => {
-    setLocalItems(getItems());
-    const unsubscribe = navigation.addListener('focus', () => setLocalItems(getItems()));
+    void loadStorage();
+  }, [loadStorage]);
+
+  useEffect(() => {
+    const unsubscribe = navigation.addListener(
+      'focus',
+      () => {
+        void loadStorage(true);
+      },
+    );
+
     return unsubscribe;
-  }, [navigation]);
-  const syncStore = (n: StorageItem[]) => { setLocalItems(n); setItems(n); };
+  }, [loadStorage, navigation]);
+
+  const syncLocalItems = (
+    nextItems: StorageItem[],
+  ) => {
+    setItems(nextItems);
+    setLocalItems(nextItems);
+  };
 
   const handleBreadcrumbPress = (index: number) => {
-    const newStack = pathStack.slice(0, index + 1);
-    setPathStack(newStack);
-    setCurrentFolderId(newStack[newStack.length - 1].id);
+    const nextStack = pathStack.slice(0, index + 1);
+
+    setPathStack(nextStack);
+    setCurrentFolderId(
+      nextStack[nextStack.length - 1].id,
+    );
     setFabMenuVisible(false);
   };
+
   const handleFolderPress = (folder: StorageItem) => {
-    setPathStack([...pathStack, { id: folder.id, name: folder.name }]);
+    setPathStack([
+      ...pathStack,
+      {
+        id: folder.id,
+        name: folder.name,
+      },
+    ]);
     setCurrentFolderId(folder.id);
     setFabMenuVisible(false);
   };
+
+  const openItemContent = (item: StorageItem) => {
+    if (item.type === 'folder') {
+      handleFolderPress(item);
+      return;
+    }
+
+    router.push({
+      pathname: '/(main)/storage/preview',
+      params: { id: item.id },
+    });
+  };
+
   const handleOpenItem = (item: StorageItem) => {
-    if (isProtected(item.id)) { setLockedItem(item); return; }
+    if (isProtected(item.id)) {
+      setLockedItem(item);
+      return;
+    }
+
     openItemContent(item);
   };
-  const openItemContent = (item: StorageItem) => {
-    if (item.type === 'folder') handleFolderPress(item);
-    else router.push({ pathname: '/(main)/storage/preview', params: { id: item.id } });
-  };
+
   const handleToggleProtect = (item: StorageItem) => {
-    if (!hasPin()) { alert('Primero crea tu PIN de protección en Perfil → Seguridad.'); return; }
-    const was = isProtected(item.id);
-    setProtectedIds([...setProtected(item.id, !was)]);
-    alert(was ? 'Protección retirada.' : 'Elemento protegido con tu PIN.');
+    if (!hasPin()) {
+      Alert.alert(
+        'Configura tu PIN',
+        'Primero crea tu PIN de protección en Perfil → Seguridad.',
+      );
+      return;
+    }
+
+    const wasProtected = isProtected(item.id);
+
+    setProtectedIds([
+      ...setProtected(item.id, !wasProtected),
+    ]);
+
+    Alert.alert(
+      wasProtected
+        ? 'Protección retirada'
+        : 'Elemento protegido',
+    );
   };
-  const handleCreateFolder = () => {
-    if (!folderNameInput.trim()) return;
-    syncStore([...items, {
-      id: `f-${Date.now()}`, name: folderNameInput.trim(), type: 'folder',
-      parentId: currentFolderId,
-      updatedAt: 'Hoy, ' + new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      itemCount: 0,
-    }]);
-    setFolderModalVisible(false); setFolderNameInput('');
+
+  const handleCreateFolder = async () => {
+    const name = folderNameInput.trim();
+
+    if (!name) {
+      return;
+    }
+
+    try {
+      const auth = await getValidSessionCredentials();
+
+      if (!auth) {
+        throw new Error(
+          'Tu sesión expiró. Inicia sesión nuevamente.',
+        );
+      }
+
+      await createStorageFolder(auth, {
+        name,
+        parent_id: currentFolderId,
+      });
+
+      setFolderModalVisible(false);
+      setFolderNameInput('');
+      await loadStorage(true);
+    } catch (error) {
+      Alert.alert(
+        'No fue posible crear la carpeta',
+        error instanceof Error
+          ? error.message
+          : 'Intenta nuevamente.',
+      );
+    }
   };
 
   const handleRenameItem = () => {
-    if (!activeItem || !folderNameInput.trim()) return;
-    syncStore(items.map((i) => i.id === activeItem.id ? { ...i, name: folderNameInput.trim() } : i));
-    setFolderModalVisible(false); setFolderNameInput(''); setActiveItem(null);
+    Alert.alert(
+      'Próximamente',
+      'Renombrar carpetas y archivos se conectará en la siguiente fase del backend.',
+    );
+
+    setFolderModalVisible(false);
+    setFolderNameInput('');
+    setActiveItem(null);
   };
 
-  const handleDeleteItem = (item: StorageItem) => {
-    syncStore(items.filter((i) => i.id !== item.id));
-    alert(`${item.type === 'folder' ? 'Carpeta' : 'Archivo'} eliminado.`);
-    setContextMenuVisible(false); setActiveItem(null);
+  const handleDeleteItem = async (
+    item: StorageItem,
+  ) => {
+    if (item.type === 'folder') {
+      Alert.alert(
+        'Próximamente',
+        'La eliminación de carpetas se conectará en una siguiente iteración.',
+      );
+      return;
+    }
+
+    Alert.alert(
+      'Mover a papelera',
+      `¿Deseas mover “${item.name}” a la papelera?`,
+      [
+        {
+          text: 'Cancelar',
+          style: 'cancel',
+        },
+        {
+          text: 'Mover',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              const auth =
+                await getValidSessionCredentials();
+
+              if (!auth) {
+                throw new Error(
+                  'Tu sesión expiró. Inicia sesión nuevamente.',
+                );
+              }
+
+              await moveStorageFileToTrash(
+                auth,
+                item.id,
+              );
+
+              setContextMenuVisible(false);
+              setActiveItem(null);
+              await loadStorage(true);
+            } catch (error) {
+              Alert.alert(
+                'No fue posible mover el archivo',
+                error instanceof Error
+                  ? error.message
+                  : 'Intenta nuevamente.',
+              );
+            }
+          },
+        },
+      ],
+    );
   };
 
-  const handleMoveItem = (targetFolderId: string | null) => {
-    if (!activeItem) return;
-    syncStore(items.map((i) => i.id === activeItem.id ? { ...i, parentId: targetFolderId } : i));
-    alert('Elemento movido con éxito.');
-    setMoveModalVisible(false); setContextMenuVisible(false); setActiveItem(null);
-  };
-  const triggerMockUpload = (type: 'pdf' | 'image' | 'video' | 'doc', customName?: string) => {
-    const f = buildMockUploadFile(type, currentFolderId, customName);
-    syncStore([...items, f]); setFabMenuVisible(false); alert(`Subido con éxito: ${f.name}`);
+  const handleMoveItem = () => {
+    Alert.alert(
+      'Próximamente',
+      'Mover archivos entre carpetas requiere un endpoint backend que agregaremos después.',
+    );
+
+    setMoveModalVisible(false);
+    setContextMenuVisible(false);
+    setActiveItem(null);
   };
 
-  const openContextMenu = (item: StorageItem) => { setActiveItem(item); setContextMenuVisible(true); };
-  const triggerRenameFlow = () => {
-    if (!activeItem) return;
-    setFolderModalMode('rename'); setFolderNameInput(activeItem.name);
-    setContextMenuVisible(false); setFolderModalVisible(true);
-  };
+  const handleUpload = async (
+    mode: 'document' | 'image' | 'video',
+  ) => {
+    setFabMenuVisible(false);
 
-  const filteredItems = getFilteredItems(items, searchQuery, currentFolderId, activeFilter, sortBy)
-    .filter((item) => {
-      if (!activeCategoryId) return true;
-      return item.categoryIds?.includes(activeCategoryId);
+    const type =
+      mode === 'image'
+        ? 'image/*'
+        : mode === 'video'
+          ? 'video/*'
+          : '*/*';
+
+    const result = await DocumentPicker.getDocumentAsync({
+      type,
+      copyToCacheDirectory: true,
+      multiple: false,
     });
 
-  const handleCreateCategory = (data: Omit<StorageCategory, 'id'>) => {
+    if (result.canceled) {
+      return;
+    }
+
+    const asset = result.assets[0];
+
+    if (!asset) {
+      return;
+    }
+
+    if (
+      asset.size !== undefined
+      && asset.size > MAX_FILE_SIZE_BYTES
+    ) {
+      Alert.alert(
+        'Archivo demasiado grande',
+        'El límite actual es de 50 MB por archivo.',
+      );
+      return;
+    }
+
+    try {
+      setUploading(true);
+
+      const auth = await getValidSessionCredentials();
+
+      if (!auth) {
+        throw new Error(
+          'Tu sesión expiró. Inicia sesión nuevamente.',
+        );
+      }
+
+      const formData = new FormData();
+
+      formData.append(
+        'file',
+        {
+          uri: asset.uri,
+          name: asset.name || 'archivo',
+          type: asset.mimeType
+            || 'application/octet-stream',
+        } as unknown as Blob,
+      );
+
+      if (currentFolderId) {
+        formData.append('folder_id', currentFolderId);
+      }
+
+      await uploadStorageFile(auth, formData);
+      await loadStorage(true);
+
+      Alert.alert(
+        'Archivo subido',
+        'Tu archivo se guardó correctamente.',
+      );
+    } catch (error) {
+      Alert.alert(
+        'No fue posible subir el archivo',
+        error instanceof Error
+          ? error.message
+          : 'Intenta nuevamente.',
+      );
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handleCreateCategory = (
+    data: Omit<StorageCategory, 'id'>,
+  ) => {
     const created = addStorageCategory(data);
-    setStorageCategories([...MOCK_STORAGE_CATEGORIES]);
+
+    setStorageCategories([
+      ...MOCK_STORAGE_CATEGORIES,
+    ]);
     setActiveCategoryId(created.id);
     setCreateCategoryVisible(false);
   };
 
-  const handleAssignCategories = (categoryIds: string[]) => {
-    if (!activeItem) return;
+  const handleAssignCategories = (
+    categoryIds: string[],
+  ) => {
+    if (!activeItem) {
+      return;
+    }
+
     setItemCategories(activeItem.id, categoryIds);
-    syncStore(getItems());
+    syncLocalItems(getItems());
+
     setAssignCategoryVisible(false);
     setActiveItem(null);
   };
+
+  const filteredItems = useMemo(
+    () =>
+      getFilteredItems(
+        items,
+        searchQuery,
+        currentFolderId,
+        activeFilter,
+        sortBy,
+      ).filter((item) => {
+        if (!activeCategoryId) {
+          return true;
+        }
+
+        return item.categoryIds?.includes(
+          activeCategoryId,
+        );
+      }),
+    [
+      activeCategoryId,
+      activeFilter,
+      currentFolderId,
+      items,
+      searchQuery,
+      sortBy,
+    ],
+  );
 
   return (
     <ScreenSafeArea style={styles.safeArea}>
       <View style={styles.container}>
         <StorageHeader
-          onBack={router.canGoBack ? () => router.back() : undefined}
-          onAction={router.embedded ? () => setFabMenuVisible(!fabMenuVisible) : undefined}
+          onBack={
+            router.canGoBack
+              ? () => router.back()
+              : undefined
+          }
+          onAction={
+            router.embedded
+              ? () =>
+                setFabMenuVisible(
+                  (visible) => !visible,
+                )
+              : undefined
+          }
           sortBy={sortBy}
           onSortChange={setSortBy}
           viewMode={viewMode}
           onViewModeChange={setViewMode}
         />
 
-        <ScrollView style={styles.scrollList} showsVerticalScrollIndicator={false}>
-          <StorageSummaryCard />
+        <ScrollView
+          style={styles.scrollList}
+          showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={() => loadStorage(true)}
+              tintColor={colors.brand.primary}
+            />
+          }
+        >
+          <StorageSummaryCard
+            summary={summary}
+            loading={loading}
+          />
 
-          <StorageFilterChips activeFilter={activeFilter} onChange={setActiveFilter} />
+          <StorageFilterChips
+            activeFilter={activeFilter}
+            onChange={setActiveFilter}
+          />
 
           <StorageCategoryChips
             categories={storageCategories}
             activeCategoryId={activeCategoryId}
             onChange={setActiveCategoryId}
-            onCreate={() => setCreateCategoryVisible(true)}
+            onCreate={() =>
+              setCreateCategoryVisible(true)
+            }
           />
 
-          {/* Breadcrumbs (only when not searching) */}
           {!searchQuery && (
-            <StorageBreadcrumbs pathStack={pathStack} onPress={handleBreadcrumbPress} />
+            <StorageBreadcrumbs
+              pathStack={pathStack}
+              onPress={handleBreadcrumbPress}
+            />
           )}
 
           <StorageItemsView
             items={filteredItems}
             protectedIds={protectedIds}
             onOpenItem={handleOpenItem}
-            onOpenMenu={openContextMenu}
+            onOpenMenu={(item) => {
+              setActiveItem(item);
+              setContextMenuVisible(true);
+            }}
             viewMode={viewMode}
           />
 
-          <View style={{ height: 160 }} />
+          <View style={styles.bottomSpacer} />
         </ScrollView>
 
         <StorageContextMenu
@@ -196,12 +647,45 @@ export default function StorageIndexScreen() {
           item={activeItem}
           onClose={() => setContextMenuVisible(false)}
           onOpenItem={handleOpenItem}
-          isProtected={activeItem ? protectedIds.includes(activeItem.id) : false}
+          isProtected={
+            activeItem
+              ? protectedIds.includes(activeItem.id)
+              : false
+          }
           onToggleProtect={handleToggleProtect}
-          onRename={triggerRenameFlow}
+          onRename={() => {
+            if (!activeItem) {
+              return;
+            }
+
+            setFolderModalMode('rename');
+            setFolderNameInput(activeItem.name);
+            setContextMenuVisible(false);
+            setFolderModalVisible(true);
+          }}
           onMove={() => setMoveModalVisible(true)}
-          onShare={() => { alert('Compartir enlace generado.'); setContextMenuVisible(false); }}
-          onDownload={() => { alert('Descargando archivo...'); setContextMenuVisible(false); }}
+          onShare={() => {
+            Alert.alert(
+              'Próximamente',
+              'Compartir archivos estará disponible cuando agreguemos los endpoints de invitaciones.',
+            );
+            setContextMenuVisible(false);
+          }}
+          onDownload={() => {
+            if (!activeItem) {
+              return;
+            }
+
+            router.push({
+              pathname: '/(main)/storage/preview',
+              params: {
+                id: activeItem.id,
+                download: 'true',
+              },
+            });
+
+            setContextMenuVisible(false);
+          }}
           onSign={(item) => {
             router.push({
               pathname: '/(main)/storage/sign',
@@ -231,25 +715,35 @@ export default function StorageIndexScreen() {
           value={folderNameInput}
           onChangeText={setFolderNameInput}
           onCancel={() => setFolderModalVisible(false)}
-          onConfirm={folderModalMode === 'create' ? handleCreateFolder : handleRenameItem}
+          onConfirm={
+            folderModalMode === 'create'
+              ? handleCreateFolder
+              : handleRenameItem
+          }
         />
 
-        {/* PIN required to open a protected element */}
         <PinLockModal
           visible={!!lockedItem}
           itemName={lockedItem?.name}
           onClose={() => setLockedItem(null)}
           onSuccess={() => {
             const item = lockedItem;
+
             setLockedItem(null);
-            if (item) openItemContent(item);
+
+            if (item) {
+              openItemContent(item);
+            }
           }}
         />
 
         <StorageFabMenu
           embedded={router.embedded}
           menuVisible={fabMenuVisible}
-          onToggleMenu={() => setFabMenuVisible(!fabMenuVisible)}
+          uploadDisabled={uploading}
+          onToggleMenu={() =>
+            setFabMenuVisible((visible) => !visible)
+          }
           onCloseMenu={() => setFabMenuVisible(false)}
           onCreateFolder={() => {
             setFabMenuVisible(false);
@@ -257,22 +751,27 @@ export default function StorageIndexScreen() {
             setFolderNameInput('');
             setFolderModalVisible(true);
           }}
-          onUpload={triggerMockUpload}
+          onUpload={handleUpload}
         />
 
-        {/* Tab Menu bar */}
-        {!router.embedded && <FloatingTabBar activeTab="explore" />}
+        {!router.embedded && (
+          <FloatingTabBar activeTab="explore" />
+        )}
 
         <StorageCategoryModals
           createVisible={createCategoryVisible}
           onCreate={handleCreateCategory}
-          onCloseCreate={() => setCreateCategoryVisible(false)}
+          onCloseCreate={() =>
+            setCreateCategoryVisible(false)
+          }
           assignVisible={assignCategoryVisible}
           itemName={activeItem?.name}
           categories={storageCategories}
-          selectedIds={activeItem?.categoryIds ?? []}
+          selectedIds={activeItem?.categoryIds || []}
           onSave={handleAssignCategories}
-          onCloseAssign={() => setAssignCategoryVisible(false)}
+          onCloseAssign={() =>
+            setAssignCategoryVisible(false)
+          }
         />
       </View>
     </ScreenSafeArea>
@@ -280,7 +779,17 @@ export default function StorageIndexScreen() {
 }
 
 const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: colors.neutral.gray50 },
-  container: { flex: 1 },
-  scrollList: { flex: 1 },
+  safeArea: {
+    flex: 1,
+    backgroundColor: colors.neutral.gray50,
+  },
+  container: {
+    flex: 1,
+  },
+  scrollList: {
+    flex: 1,
+  },
+  bottomSpacer: {
+    height: 160,
+  },
 });

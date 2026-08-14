@@ -1,8 +1,25 @@
+import type {
+  StorageFile,
+  StorageFolder,
+  StorageSummary,
+} from '@beeapp/shared-types';
+
+export type StorageItemType =
+  | 'folder'
+  | 'pdf'
+  | 'image'
+  | 'video'
+  | 'doc'
+  | 'audio'
+  | 'archive'
+  | 'other';
+
 export interface StorageItem {
   id: string;
   name: string;
-  type: 'folder' | 'pdf' | 'image' | 'video' | 'doc';
+  type: StorageItemType;
   size?: string;
+  sizeBytes?: number;
   updatedAt: string;
   parentId: string | null;
   itemCount?: number;
@@ -11,54 +28,201 @@ export interface StorageItem {
   signedAt?: string;
   isShared?: boolean;
   categoryIds?: string[];
+  mimeType?: string;
+  status?: 'uploading' | 'ready' | 'failed' | 'trashed';
+  createdAt?: string;
 }
 
 export interface StorageCategory {
   id: string;
   name: string;
-  /** Lucide icon name */
   icon: string;
-  /** Chip background color */
   color: string;
 }
 
 export const MOCK_STORAGE_CATEGORIES: StorageCategory[] = [
-  { id: 'scat-personal', name: 'Personal', icon: 'User', color: '#EBF5FF' },
-  { id: 'scat-work', name: 'Trabajo', icon: 'Briefcase', color: '#F1F3F5' },
-  { id: 'scat-important', name: 'Importante', icon: 'Star', color: '#FEF3C7' },
+  {
+    id: 'scat-personal',
+    name: 'Personal',
+    icon: 'User',
+    color: '#EBF5FF',
+  },
+  {
+    id: 'scat-work',
+    name: 'Trabajo',
+    icon: 'Briefcase',
+    color: '#F1F3F5',
+  },
+  {
+    id: 'scat-important',
+    name: 'Importante',
+    icon: 'Star',
+    color: '#FEF3C7',
+  },
 ];
 
-export function addStorageCategory(category: Omit<StorageCategory, 'id'>): StorageCategory {
-  const created: StorageCategory = { ...category, id: 'scat_' + Date.now().toString(36) };
+let storageItems: StorageItem[] = [];
+let storageSummary: StorageSummary | null = null;
+
+export function addStorageCategory(
+  category: Omit<StorageCategory, 'id'>,
+): StorageCategory {
+  const created: StorageCategory = {
+    ...category,
+    id: `scat_${Date.now().toString(36)}`,
+  };
+
   MOCK_STORAGE_CATEGORIES.push(created);
+
   return created;
 }
 
-export function setItemCategories(itemId: string, categoryIds: string[]) {
-  const item = initialItems.find((i) => i.id === itemId);
-  if (item) item.categoryIds = categoryIds;
+export function setItemCategories(
+  itemId: string,
+  categoryIds: string[],
+): void {
+  storageItems = storageItems.map((item) =>
+    item.id === itemId
+      ? { ...item, categoryIds }
+      : item,
+  );
 }
 
-export let initialItems: StorageItem[] = [
-  // Root Folders
-  { id: 'f-contratos', name: 'Contratos Q3', type: 'folder', parentId: null, updatedAt: '20 Jul', itemCount: 3, categoryIds: ['scat-work'] },
-  { id: 'f-imagenes', name: 'Imágenes Producto', type: 'folder', parentId: null, updatedAt: 'Hoy, 09:00 AM', itemCount: 2, categoryIds: ['scat-work'] },
-  { id: 'f-videos', name: 'Videos Demo', type: 'folder', parentId: null, updatedAt: '12 Jul', itemCount: 1 },
-  // Root Files
-  { id: 'nda-pdf', name: 'NDA_Consultor_Asociado.pdf', type: 'pdf', parentId: null, size: '1.2 MB', updatedAt: 'Hoy, 11:30 AM', isSigned: true, signerName: 'Santiago Valencia', signedAt: 'Hoy, 11:31 AM', categoryIds: ['scat-work', 'scat-important'] },
-  { id: 'precios-doc', name: 'Estructura_Precios_BeeApp.doc', type: 'doc', parentId: null, size: '850 KB', updatedAt: 'Ayer, 04:20 PM', isShared: true, categoryIds: ['scat-work'] },
-  // Inside Contratos Q3
-  { id: 'draft-doc', name: 'Acuerdo_Comercial_Draft.doc', type: 'doc', parentId: 'f-contratos', size: '450 KB', updatedAt: '21 Jul' },
-  { id: 'convenio-pdf', name: 'Convenio_Marco_Final.pdf', type: 'pdf', parentId: 'f-contratos', size: '2.4 MB', updatedAt: '20 Jul', isSigned: false, categoryIds: ['scat-important'] },
-  { id: 'anexo-pdf', name: 'Anexo_Seguridad.pdf', type: 'pdf', parentId: 'f-contratos', size: '1.1 MB', updatedAt: '18 Jul', isSigned: false },
-  // Inside Imágenes Producto
-  { id: 'mockup-img', name: 'Mockup_Home.png', type: 'image', parentId: 'f-imagenes', size: '3.4 MB', updatedAt: 'Hoy, 09:00 AM', categoryIds: ['scat-personal'] },
-  { id: 'banner-img', name: 'Banner_Promocional.png', type: 'image', parentId: 'f-imagenes', size: '4.1 MB', updatedAt: '15 Jul' },
-  // Inside Videos Demo
-  { id: 'intro-video', name: 'Presentacion_Elevator.mp4', type: 'video', parentId: 'f-videos', size: '18.5 MB', updatedAt: '12 Jul', categoryIds: ['scat-personal'] },
-];
+export function getItems(): StorageItem[] {
+  return storageItems;
+}
 
-export const getItems = () => initialItems;
-export const setItems = (newItems: StorageItem[]) => {
-  initialItems = newItems;
-};
+export function setItems(
+  items: StorageItem[],
+): void {
+  storageItems = items;
+}
+
+export function getStorageSummary(): StorageSummary | null {
+  return storageSummary;
+}
+
+export function setStorageSummary(
+  summary: StorageSummary | null,
+): void {
+  storageSummary = summary;
+}
+
+export function mapStorageFolderToItem(
+  folder: StorageFolder,
+  itemCount = 0,
+): StorageItem {
+  return {
+    id: folder.id,
+    name: folder.name,
+    type: 'folder',
+    parentId: folder.parent_id,
+    itemCount,
+    updatedAt: formatStorageDate(folder.updated_at),
+    createdAt: folder.created_at,
+  };
+}
+
+export function mapStorageFileToItem(
+  file: StorageFile,
+): StorageItem {
+  return {
+    id: file.id,
+    name: file.display_name,
+    type: mapFileKindToItemType(file),
+    parentId: file.folder_id,
+    size: formatBytes(file.size_bytes),
+    sizeBytes: file.size_bytes,
+    updatedAt: formatStorageDate(file.updated_at),
+    mimeType: file.mime_type,
+    status: file.status,
+    createdAt: file.created_at,
+  };
+}
+
+function mapFileKindToItemType(
+  file: StorageFile,
+): StorageItemType {
+  if (file.kind === 'image') {
+    return 'image';
+  }
+
+  if (file.kind === 'video') {
+    return 'video';
+  }
+
+  if (file.kind === 'audio') {
+    return 'audio';
+  }
+
+  if (file.mime_type === 'application/pdf') {
+    return 'pdf';
+  }
+
+  if (
+    file.kind === 'document'
+    || file.kind === 'spreadsheet'
+    || file.kind === 'presentation'
+  ) {
+    return 'doc';
+  }
+
+  if (file.kind === 'archive') {
+    return 'archive';
+  }
+
+  return 'other';
+}
+
+export function formatBytes(
+  bytes: number,
+): string {
+  if (!Number.isFinite(bytes) || bytes <= 0) {
+    return '0 B';
+  }
+
+  const units = ['B', 'KB', 'MB', 'GB'];
+  const exponent = Math.min(
+    Math.floor(Math.log(bytes) / Math.log(1024)),
+    units.length - 1,
+  );
+
+  const value = bytes / 1024 ** exponent;
+  const decimals = exponent === 0 ? 0 : value >= 10 ? 1 : 2;
+
+  return `${value.toFixed(decimals)} ${units[exponent]}`;
+}
+
+export function formatStorageDate(
+  value: string,
+): string {
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+
+  const today = new Date();
+  const isToday =
+    date.getFullYear() === today.getFullYear()
+    && date.getMonth() === today.getMonth()
+    && date.getDate() === today.getDate();
+
+  if (isToday) {
+    return `Hoy, ${date.toLocaleTimeString(
+      'es-CO',
+      {
+        hour: '2-digit',
+        minute: '2-digit',
+      },
+    )}`;
+  }
+
+  return date.toLocaleDateString(
+    'es-CO',
+    {
+      day: '2-digit',
+      month: 'short',
+    },
+  );
+}

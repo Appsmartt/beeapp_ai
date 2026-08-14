@@ -1,31 +1,81 @@
-
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+import {
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from 'react-native';
 import { colors } from '@beeapp/design-system';
-import { StorageFilter } from '../../utils/storageHelpers';
 
-// Storage breakdown calculations
-const totalSpace = 15; // GB
-const usedSpace = 8.2; // GB
-const progressPercent = (usedSpace / totalSpace) * 100;
+import type { StorageSummary } from '@beeapp/shared-types';
 
-export function StorageSummaryCard() {
+import { formatBytes } from '../../stores/storageStore';
+import type { StorageFilter } from '../../utils/storageHelpers';
+
+interface StorageSummaryCardProps {
+  summary: StorageSummary | null;
+  loading?: boolean;
+}
+
+export function StorageSummaryCard({
+  summary,
+  loading = false,
+}: StorageSummaryCardProps) {
+  const quotaBytes = summary?.quota_bytes || 0;
+  const usedBytes = summary?.used_bytes || 0;
+  const reservedBytes = summary?.reserved_bytes || 0;
+  const occupiedBytes = usedBytes + reservedBytes;
+  const percentage = quotaBytes
+    ? Math.min(
+      100,
+      (occupiedBytes / quotaBytes) * 100,
+    )
+    : 0;
+
   return (
     <View style={styles.summaryCard}>
       <View style={styles.summaryInfo}>
-        <Text style={styles.summaryTitle}>Espacio Disponible</Text>
-        <Text style={styles.summaryStats}>{usedSpace} GB de {totalSpace} GB usados ({progressPercent.toFixed(0)}%)</Text>
+        <Text style={styles.summaryTitle}>
+          Espacio disponible
+        </Text>
+        <Text style={styles.summaryStats}>
+          {loading
+            ? 'Actualizando almacenamiento...'
+            : `${formatBytes(usedBytes)} de ${formatBytes(
+              quotaBytes,
+            )} usados (${percentage.toFixed(0)}%)`}
+        </Text>
       </View>
+
       <View style={styles.progressBarTrack}>
-        <View style={[styles.progressBarFill, { width: `${progressPercent}%` }]} />
+        <View
+          style={[
+            styles.progressBarFill,
+            { width: `${percentage}%` },
+          ]}
+        />
       </View>
+
       <Text style={styles.breakdownText}>
-        Documentos: 3.4 GB | Multimedia: 4.2 GB | Otros: 0.6 GB
+        {reservedBytes > 0
+          ? `${formatBytes(
+            reservedBytes,
+          )} reservados durante una carga`
+          : `${formatBytes(
+            Math.max(
+              0,
+              quotaBytes - occupiedBytes,
+            ),
+          )} disponibles`}
       </Text>
     </View>
   );
 }
 
-const FILTER_CHIPS: { id: StorageFilter; label: string }[] = [
+const FILTER_CHIPS: {
+  id: StorageFilter;
+  label: string;
+}[] = [
   { id: 'all', label: 'Todos' },
   { id: 'recent', label: 'Recientes' },
   { id: 'docs', label: 'Documentos' },
@@ -39,19 +89,38 @@ interface StorageFilterChipsProps {
   onChange: (filter: StorageFilter) => void;
 }
 
-export function StorageFilterChips({ activeFilter, onChange }: StorageFilterChipsProps) {
+export function StorageFilterChips({
+  activeFilter,
+  onChange,
+}: StorageFilterChipsProps) {
   return (
-    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filtersScroll} contentContainerStyle={styles.filtersContent}>
-      {FILTER_CHIPS.map((f) => {
-        const active = activeFilter === f.id;
+    <ScrollView
+      horizontal
+      showsHorizontalScrollIndicator={false}
+      style={styles.filtersScroll}
+      contentContainerStyle={styles.filtersContent}
+    >
+      {FILTER_CHIPS.map((filter) => {
+        const active = activeFilter === filter.id;
+
         return (
           <TouchableOpacity
-            key={f.id}
-            style={[styles.filterChip, active && styles.filterChipActive]}
-            onPress={() => onChange(f.id)}
+            key={filter.id}
+            style={[
+              styles.filterChip,
+              active && styles.filterChipActive,
+            ]}
+            onPress={() => onChange(filter.id)}
             activeOpacity={0.7}
           >
-            <Text style={[styles.filterChipText, active && styles.filterChipTextActive]}>{f.label}</Text>
+            <Text
+              style={[
+                styles.filterChipText,
+                active && styles.filterChipTextActive,
+              ]}
+            >
+              {filter.label}
+            </Text>
           </TouchableOpacity>
         );
       })}
@@ -60,21 +129,39 @@ export function StorageFilterChips({ activeFilter, onChange }: StorageFilterChip
 }
 
 interface StorageBreadcrumbsProps {
-  pathStack: { id: string | null; name: string }[];
+  pathStack: {
+    id: string | null;
+    name: string;
+  }[];
   onPress: (index: number) => void;
 }
 
-export function StorageBreadcrumbs({ pathStack, onPress }: StorageBreadcrumbsProps) {
+export function StorageBreadcrumbs({
+  pathStack,
+  onPress,
+}: StorageBreadcrumbsProps) {
   return (
     <View style={styles.breadcrumbBar}>
-      {pathStack.map((stackItem, idx) => (
-        <View key={idx} style={styles.breadcrumbItemWrap}>
-          {idx > 0 && <Text style={styles.breadcrumbSeparator}>/</Text>}
-          <TouchableOpacity onPress={() => onPress(idx)} activeOpacity={0.7}>
+      {pathStack.map((stackItem, index) => (
+        <View
+          key={`${stackItem.id || 'root'}-${index}`}
+          style={styles.breadcrumbItemWrap}
+        >
+          {index > 0 && (
+            <Text style={styles.breadcrumbSeparator}>
+              /
+            </Text>
+          )}
+
+          <TouchableOpacity
+            onPress={() => onPress(index)}
+            activeOpacity={0.7}
+          >
             <Text
               style={[
                 styles.breadcrumbText,
-                idx === pathStack.length - 1 && styles.breadcrumbTextActive,
+                index === pathStack.length - 1
+                  && styles.breadcrumbTextActive,
               ]}
             >
               {stackItem.name}
@@ -87,7 +174,6 @@ export function StorageBreadcrumbs({ pathStack, onPress }: StorageBreadcrumbsPro
 }
 
 const styles = StyleSheet.create({
-  // Summary block, not a card: no background, border or shadow
   summaryCard: {
     paddingHorizontal: 20,
     paddingTop: 16,
@@ -139,7 +225,7 @@ const styles = StyleSheet.create({
     borderColor: colors.neutral.gray200,
   },
   filterChipActive: {
-    backgroundColor: colors.brand.primary + '15',
+    backgroundColor: `${colors.brand.primary}15`,
     borderColor: colors.brand.primary,
   },
   filterChipText: {

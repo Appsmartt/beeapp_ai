@@ -48,6 +48,25 @@ def create_profile(
                 "Supabase did not return the created profile."
             )
 
+        quota_response = (
+            supabase.table("storage_quotas")
+            .upsert(
+                {
+                    "user_id": auth_user_id,
+                    "quota_bytes": 5368709120,
+                    "used_bytes": 0,
+                    "reserved_bytes": 0,
+                },
+                on_conflict="user_id",
+            )
+            .execute()
+        )
+
+        if quota_response.data is None:
+            raise ProfileCreationError(
+                "Supabase did not return the storage quota."
+            )
+
         return response.data[0]
 
     except ProfileCreationError:
