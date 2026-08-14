@@ -15,23 +15,33 @@ import * as DocumentPicker from 'expo-document-picker';
 import { useNavigation } from 'expo-router';
 
 import {
+  createStorageFileShare,
   createStorageFolder,
+  createStorageTag,
+  getReceivedStorageShares,
   getStorageFiles,
   getStorageFolders,
   getStorageSummary,
+  getStorageTags,
   moveStorageFileToTrash,
-  uploadStorageFile,
+  replaceStorageFileTags,
+  uploadStorageFiles,
 } from '@beeapp/api-client';
 import type {
+  AuthCredentials,
+  FileSharePermission,
   StorageFile,
   StorageFolder,
+  StorageShareRecipient,
   StorageSummary,
 } from '@beeapp/shared-types';
 import { colors } from '@beeapp/design-system';
 
 import ScreenSafeArea from '../../../src/components/layout/ScreenSafeArea';
 import FloatingTabBar from '../../../src/components/FloatingTabBar';
-import { useModuleNav } from '../../../src/components/embedded/EmbeddedNavContext';
+import {
+  useModuleNav,
+} from '../../../src/components/embedded/EmbeddedNavContext';
 import StorageCategoryChips from '../../../src/components/storage/StorageCategoryChips';
 import StorageCategoryModals from '../../../src/components/storage/StorageCategoryModals';
 import StorageContextMenu from '../../../src/components/storage/StorageContextMenu';
@@ -42,6 +52,7 @@ import {
 import StorageFabMenu from '../../../src/components/storage/StorageFabMenu';
 import StorageHeader from '../../../src/components/storage/StorageHeader';
 import StorageItemsView from '../../../src/components/storage/StorageItemsView';
+import StorageShareModal from '../../../src/components/storage/StorageShareModal';
 import {
   StorageBreadcrumbs,
   StorageFilterChips,
@@ -55,26 +66,32 @@ import {
   setProtected,
 } from '../../../src/stores/pinStore';
 import {
-  addStorageCategory,
   getItems,
+  getStorageCategories,
   mapStorageFileToItem,
   mapStorageFolderToItem,
-  MOCK_STORAGE_CATEGORIES,
+  mapStorageTagToCategory,
   setItems,
-  setItemCategories,
+  setStorageCategories,
   setStorageSummary,
-  StorageCategory,
-  StorageItem,
+  type StorageCategory,
+  type StorageItem,
 } from '../../../src/stores/storageStore';
 import {
   getFilteredItems,
   type SortOption,
   type StorageFilter,
 } from '../../../src/utils/storageHelpers';
-import { getValidSessionCredentials } from '../../../src/services/authSession';
-import type { ViewMode } from '../../../src/components/layout/ViewModeToggle';
+import {
+  getValidSessionCredentials,
+} from '../../../src/services/authSession';
+import type {
+  ViewMode,
+} from '../../../src/components/layout/ViewModeToggle';
+
 
 const MAX_FILE_SIZE_BYTES = 52_428_800;
+
 
 function getFolderItemCounts(
   folders: StorageFolder[],
@@ -107,6 +124,7 @@ function getFolderItemCounts(
   return counts;
 }
 
+
 export default function StorageIndexScreen() {
   const router = useModuleNav();
   const navigation = useNavigation();
@@ -114,58 +132,101 @@ export default function StorageIndexScreen() {
   const [items, setLocalItems] = useState<StorageItem[]>(
     getItems(),
   );
+
   const [summary, setLocalSummary] =
     useState<StorageSummary | null>(null);
+
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [uploading, setUploading] = useState(false);
 
   const [currentFolderId, setCurrentFolderId] =
     useState<string | null>(null);
+
   const [pathStack, setPathStack] = useState<
     { id: string | null; name: string }[]
-  >([{ id: null, name: 'Inicio' }]);
+  >([
+    {
+      id: null,
+      name: 'Inicio',
+    },
+  ]);
 
   const [searchQuery] = useState('');
+
   const [sortBy, setSortBy] =
     useState<SortOption>('name');
+
   const [viewMode, setViewMode] =
     useState<ViewMode>('list');
+
   const [activeFilter, setActiveFilter] =
     useState<StorageFilter>('all');
+
   const [activeItem, setActiveItem] =
     useState<StorageItem | null>(null);
+
   const [contextMenuVisible, setContextMenuVisible] =
     useState(false);
 
-  const [storageCategories, setStorageCategories] =
-    useState<StorageCategory[]>([
-      ...MOCK_STORAGE_CATEGORIES,
-    ]);
+  const [storageCategories, setLocalCategories] =
+    useState<StorageCategory[]>(
+      getStorageCategories(),
+    );
+
   const [activeCategoryId, setActiveCategoryId] =
     useState<string | null>(null);
+
   const [createCategoryVisible, setCreateCategoryVisible] =
     useState(false);
+
   const [assignCategoryVisible, setAssignCategoryVisible] =
     useState(false);
 
   const [protectedIds, setProtectedIds] = useState<string[]>(
     getProtectedIds(),
   );
+
   const [lockedItem, setLockedItem] =
     useState<StorageItem | null>(null);
 
   const [folderModalVisible, setFolderModalVisible] =
     useState(false);
+
   const [folderModalMode, setFolderModalMode] = useState<
     'create' | 'rename'
   >('create');
+
   const [folderNameInput, setFolderNameInput] =
     useState('');
+
   const [moveModalVisible, setMoveModalVisible] =
     useState(false);
+
   const [fabMenuVisible, setFabMenuVisible] =
     useState(false);
+
+  const [sharedItems, setSharedItems] = useState<
+    StorageItem[]
+  >([]);
+
+  const [shareModalVisible, setShareModalVisible] =
+    useState(false);
+
+  const [shareAuth, setShareAuth] =
+    useState<AuthCredentials | null>(null);
+
+  const [sharing, setSharing] = useState(false);
+
+
+  const syncLocalItems = useCallback(
+    (nextItems: StorageItem[]) => {
+      setItems(nextItems);
+      setLocalItems(nextItems);
+    },
+    [],
+  );
+
 
   const loadStorage = useCallback(
     async (showRefresh = false) => {
@@ -188,19 +249,26 @@ export default function StorageIndexScreen() {
           summaryResponse,
           foldersResponse,
           filesResponse,
+          tagsResponse,
         ] = await Promise.all([
           getStorageSummary(auth),
           getStorageFolders(auth, {}),
           getStorageFiles(auth, {
             status: 'ready',
+            scope: 'recent',
             limit: 100,
             offset: 0,
           }),
+          getStorageTags(auth),
         ]);
 
         const folderCounts = getFolderItemCounts(
           foldersResponse.folders,
           filesResponse.files,
+        );
+
+        const nextCategories = tagsResponse.tags.map(
+          mapStorageTagToCategory,
         );
 
         const nextItems = [
@@ -210,13 +278,18 @@ export default function StorageIndexScreen() {
               folderCounts.get(folder.id) || 0,
             ),
           ),
-          ...filesResponse.files.map(mapStorageFileToItem),
+          ...filesResponse.files.map((file) =>
+            mapStorageFileToItem(file),
+          ),
         ];
 
-        setItems(nextItems);
-        setLocalItems(nextItems);
+        setStorageCategories(nextCategories);
+        setLocalCategories(nextCategories);
+
         setStorageSummary(summaryResponse.storage);
         setLocalSummary(summaryResponse.storage);
+
+        syncLocalItems(nextItems);
       } catch (error) {
         Alert.alert(
           'No fue posible cargar archivos',
@@ -229,12 +302,46 @@ export default function StorageIndexScreen() {
         setRefreshing(false);
       }
     },
+    [syncLocalItems],
+  );
+
+
+  const loadSharedFiles = useCallback(
+    async () => {
+      const auth = await getValidSessionCredentials();
+
+      if (!auth) {
+        throw new Error(
+          'Tu sesión expiró. Inicia sesión nuevamente.',
+        );
+      }
+
+      const response = await getReceivedStorageShares(
+        auth,
+      );
+
+      const nextSharedItems = response.shares
+        .filter((share) => Boolean(share.file))
+        .map((share) =>
+          mapStorageFileToItem(
+            share.file as StorageFile,
+            {
+              isShared: true,
+              shareId: share.id,
+            },
+          ),
+        );
+
+      setSharedItems(nextSharedItems);
+    },
     [],
   );
+
 
   useEffect(() => {
     void loadStorage();
   }, [loadStorage]);
+
 
   useEffect(() => {
     const unsubscribe = navigation.addListener(
@@ -247,24 +354,42 @@ export default function StorageIndexScreen() {
     return unsubscribe;
   }, [loadStorage, navigation]);
 
-  const syncLocalItems = (
-    nextItems: StorageItem[],
-  ) => {
-    setItems(nextItems);
-    setLocalItems(nextItems);
-  };
 
-  const handleBreadcrumbPress = (index: number) => {
+  useEffect(() => {
+    if (activeFilter !== 'shared') {
+      return;
+    }
+
+    void loadSharedFiles()
+      .catch((error) => {
+        Alert.alert(
+          'No fue posible cargar compartidos',
+          error instanceof Error
+            ? error.message
+            : 'Intenta nuevamente.',
+        );
+      });
+  }, [activeFilter, loadSharedFiles]);
+
+
+  const handleBreadcrumbPress = (
+    index: number,
+  ) => {
     const nextStack = pathStack.slice(0, index + 1);
 
     setPathStack(nextStack);
+
     setCurrentFolderId(
       nextStack[nextStack.length - 1].id,
     );
+
     setFabMenuVisible(false);
   };
 
-  const handleFolderPress = (folder: StorageItem) => {
+
+  const handleFolderPress = (
+    folder: StorageItem,
+  ) => {
     setPathStack([
       ...pathStack,
       {
@@ -272,11 +397,15 @@ export default function StorageIndexScreen() {
         name: folder.name,
       },
     ]);
+
     setCurrentFolderId(folder.id);
     setFabMenuVisible(false);
   };
 
-  const openItemContent = (item: StorageItem) => {
+
+  const openItemContent = (
+    item: StorageItem,
+  ) => {
     if (item.type === 'folder') {
       handleFolderPress(item);
       return;
@@ -284,11 +413,16 @@ export default function StorageIndexScreen() {
 
     router.push({
       pathname: '/(main)/storage/preview',
-      params: { id: item.id },
+      params: {
+        id: item.id,
+      },
     });
   };
 
-  const handleOpenItem = (item: StorageItem) => {
+
+  const handleOpenItem = (
+    item: StorageItem,
+  ) => {
     if (isProtected(item.id)) {
       setLockedItem(item);
       return;
@@ -297,11 +431,17 @@ export default function StorageIndexScreen() {
     openItemContent(item);
   };
 
-  const handleToggleProtect = (item: StorageItem) => {
+
+  const handleToggleProtect = (
+    item: StorageItem,
+  ) => {
     if (!hasPin()) {
       Alert.alert(
         'Configura tu PIN',
-        'Primero crea tu PIN de protección en Perfil → Seguridad.',
+        (
+          'Primero crea tu PIN de protección en '
+          + 'Perfil → Seguridad.'
+        ),
       );
       return;
     }
@@ -318,6 +458,7 @@ export default function StorageIndexScreen() {
         : 'Elemento protegido',
     );
   };
+
 
   const handleCreateFolder = async () => {
     const name = folderNameInput.trim();
@@ -342,6 +483,7 @@ export default function StorageIndexScreen() {
 
       setFolderModalVisible(false);
       setFolderNameInput('');
+
       await loadStorage(true);
     } catch (error) {
       Alert.alert(
@@ -353,10 +495,14 @@ export default function StorageIndexScreen() {
     }
   };
 
+
   const handleRenameItem = () => {
     Alert.alert(
       'Próximamente',
-      'Renombrar carpetas y archivos se conectará en la siguiente fase del backend.',
+      (
+        'Renombrar carpetas y archivos se conectará '
+        + 'cuando el backend exponga esos endpoints.'
+      ),
     );
 
     setFolderModalVisible(false);
@@ -364,13 +510,17 @@ export default function StorageIndexScreen() {
     setActiveItem(null);
   };
 
+
   const handleDeleteItem = async (
     item: StorageItem,
   ) => {
     if (item.type === 'folder') {
       Alert.alert(
         'Próximamente',
-        'La eliminación de carpetas se conectará en una siguiente iteración.',
+        (
+          'La eliminación de carpetas se conectará '
+          + 'en una siguiente iteración.'
+        ),
       );
       return;
     }
@@ -393,7 +543,10 @@ export default function StorageIndexScreen() {
 
               if (!auth) {
                 throw new Error(
-                  'Tu sesión expiró. Inicia sesión nuevamente.',
+                  (
+                    'Tu sesión expiró. '
+                    + 'Inicia sesión nuevamente.'
+                  ),
                 );
               }
 
@@ -404,6 +557,7 @@ export default function StorageIndexScreen() {
 
               setContextMenuVisible(false);
               setActiveItem(null);
+
               await loadStorage(true);
             } catch (error) {
               Alert.alert(
@@ -419,16 +573,21 @@ export default function StorageIndexScreen() {
     );
   };
 
+
   const handleMoveItem = () => {
     Alert.alert(
       'Próximamente',
-      'Mover archivos entre carpetas requiere un endpoint backend que agregaremos después.',
+      (
+        'Mover archivos entre carpetas requiere '
+        + 'un endpoint backend adicional.'
+      ),
     );
 
     setMoveModalVisible(false);
     setContextMenuVisible(false);
     setActiveItem(null);
   };
+
 
   const handleUpload = async (
     mode: 'document' | 'image' | 'video',
@@ -445,26 +604,26 @@ export default function StorageIndexScreen() {
     const result = await DocumentPicker.getDocumentAsync({
       type,
       copyToCacheDirectory: true,
-      multiple: false,
+      multiple: true,
     });
 
-    if (result.canceled) {
+    if (result.canceled || !result.assets.length) {
       return;
     }
 
-    const asset = result.assets[0];
+    const tooLargeAsset = result.assets.find(
+      (asset) =>
+        asset.size !== undefined
+        && asset.size > MAX_FILE_SIZE_BYTES,
+    );
 
-    if (!asset) {
-      return;
-    }
-
-    if (
-      asset.size !== undefined
-      && asset.size > MAX_FILE_SIZE_BYTES
-    ) {
+    if (tooLargeAsset) {
       Alert.alert(
         'Archivo demasiado grande',
-        'El límite actual es de 50 MB por archivo.',
+        (
+          'Cada archivo debe pesar máximo 50 MB. '
+          + `“${tooLargeAsset.name}” supera ese límite.`
+        ),
       );
       return;
     }
@@ -482,30 +641,51 @@ export default function StorageIndexScreen() {
 
       const formData = new FormData();
 
-      formData.append(
-        'file',
-        {
-          uri: asset.uri,
-          name: asset.name || 'archivo',
-          type: asset.mimeType
-            || 'application/octet-stream',
-        } as unknown as Blob,
-      );
+      result.assets.forEach((asset) => {
+        formData.append(
+          'files',
+          {
+            uri: asset.uri,
+            name: asset.name || 'archivo',
+            type: asset.mimeType
+              || 'application/octet-stream',
+          } as unknown as Blob,
+        );
+      });
 
       if (currentFolderId) {
         formData.append('folder_id', currentFolderId);
       }
 
-      await uploadStorageFile(auth, formData);
+      const uploadResponse = await uploadStorageFiles(
+        auth,
+        formData,
+      );
+
       await loadStorage(true);
 
+      if (uploadResponse.failure_count > 0) {
+        Alert.alert(
+          'Carga completada parcialmente',
+          (
+            `${uploadResponse.success_count} archivo(s) `
+            + 'se subieron correctamente. '
+            + `${uploadResponse.failure_count} no pudieron subirse.`
+          ),
+        );
+        return;
+      }
+
       Alert.alert(
-        'Archivo subido',
-        'Tu archivo se guardó correctamente.',
+        'Archivos subidos',
+        (
+          `${uploadResponse.success_count} archivo(s) `
+          + 'se guardaron correctamente.'
+        ),
       );
     } catch (error) {
       Alert.alert(
-        'No fue posible subir el archivo',
+        'No fue posible subir los archivos',
         error instanceof Error
           ? error.message
           : 'Intenta nuevamente.',
@@ -515,58 +695,184 @@ export default function StorageIndexScreen() {
     }
   };
 
-  const handleCreateCategory = (
+
+  const handleCreateCategory = async (
     data: Omit<StorageCategory, 'id'>,
   ) => {
-    const created = addStorageCategory(data);
+    try {
+      const auth = await getValidSessionCredentials();
 
-    setStorageCategories([
-      ...MOCK_STORAGE_CATEGORIES,
-    ]);
-    setActiveCategoryId(created.id);
-    setCreateCategoryVisible(false);
+      if (!auth) {
+        throw new Error(
+          'Tu sesión expiró. Inicia sesión nuevamente.',
+        );
+      }
+
+      await createStorageTag(auth, {
+        name: data.name,
+        icon: data.icon,
+        color: data.color,
+      });
+
+      setCreateCategoryVisible(false);
+
+      await loadStorage(true);
+    } catch (error) {
+      Alert.alert(
+        'No fue posible crear la categoría',
+        error instanceof Error
+          ? error.message
+          : 'Intenta nuevamente.',
+      );
+    }
   };
 
-  const handleAssignCategories = (
+
+  const handleAssignCategories = async (
     categoryIds: string[],
   ) => {
-    if (!activeItem) {
+    if (!activeItem || activeItem.type === 'folder') {
       return;
     }
 
-    setItemCategories(activeItem.id, categoryIds);
-    syncLocalItems(getItems());
+    try {
+      const auth = await getValidSessionCredentials();
 
-    setAssignCategoryVisible(false);
-    setActiveItem(null);
+      if (!auth) {
+        throw new Error(
+          'Tu sesión expiró. Inicia sesión nuevamente.',
+        );
+      }
+
+      await replaceStorageFileTags(
+        auth,
+        activeItem.id,
+        {
+          tag_ids: categoryIds,
+        },
+      );
+
+      setAssignCategoryVisible(false);
+      setActiveItem(null);
+
+      await loadStorage(true);
+    } catch (error) {
+      Alert.alert(
+        'No fue posible actualizar las categorías',
+        error instanceof Error
+          ? error.message
+          : 'Intenta nuevamente.',
+      );
+    }
   };
 
-  const filteredItems = useMemo(
-    () =>
-      getFilteredItems(
-        items,
+
+  const handleOpenShare = async () => {
+    if (!activeItem || activeItem.type === 'folder') {
+      Alert.alert(
+        'No disponible',
+        'Solo puedes compartir archivos.',
+      );
+      return;
+    }
+
+    try {
+      const auth = await getValidSessionCredentials();
+
+      if (!auth) {
+        throw new Error(
+          'Tu sesión expiró. Inicia sesión nuevamente.',
+        );
+      }
+
+      setShareAuth(auth);
+      setContextMenuVisible(false);
+      setShareModalVisible(true);
+    } catch (error) {
+      Alert.alert(
+        'No fue posible preparar el compartido',
+        error instanceof Error
+          ? error.message
+          : 'Intenta nuevamente.',
+      );
+    }
+  };
+
+
+  const handleShare = async (
+    recipient: StorageShareRecipient,
+    permission: FileSharePermission,
+  ) => {
+    if (!activeItem || !shareAuth) {
+      throw new Error(
+        'No fue posible identificar el archivo o la sesión.',
+      );
+    }
+
+    try {
+      setSharing(true);
+
+      await createStorageFileShare(
+        shareAuth,
+        activeItem.id,
+        {
+          recipient_id: recipient.id,
+          permission,
+        },
+      );
+
+      setShareModalVisible(false);
+      setActiveItem(null);
+
+      Alert.alert(
+        'Archivo compartido',
+        (
+          `“${activeItem.name}” fue compartido con `
+          + `${recipient.first_name} ${recipient.last_name}.`
+        ),
+      );
+    } finally {
+      setSharing(false);
+    }
+  };
+
+
+  const visibleItems = useMemo(() => {
+    if (activeFilter === 'shared') {
+      return getFilteredItems(
+        sharedItems,
         searchQuery,
         currentFolderId,
-        activeFilter,
+        'all',
         sortBy,
-      ).filter((item) => {
-        if (!activeCategoryId) {
-          return true;
-        }
+      );
+    }
 
-        return item.categoryIds?.includes(
-          activeCategoryId,
-        );
-      }),
-    [
-      activeCategoryId,
-      activeFilter,
-      currentFolderId,
+    return getFilteredItems(
       items,
       searchQuery,
+      currentFolderId,
+      activeFilter,
       sortBy,
-    ],
-  );
+    ).filter((item) => {
+      if (!activeCategoryId) {
+        return true;
+      }
+
+      return item.categoryIds?.includes(
+        activeCategoryId,
+      );
+    });
+  }, [
+    activeCategoryId,
+    activeFilter,
+    currentFolderId,
+    items,
+    searchQuery,
+    sharedItems,
+    sortBy,
+  ]);
+
 
   return (
     <ScreenSafeArea style={styles.safeArea}>
@@ -621,7 +927,7 @@ export default function StorageIndexScreen() {
             }
           />
 
-          {!searchQuery && (
+          {!searchQuery && activeFilter !== 'shared' && (
             <StorageBreadcrumbs
               pathStack={pathStack}
               onPress={handleBreadcrumbPress}
@@ -629,7 +935,7 @@ export default function StorageIndexScreen() {
           )}
 
           <StorageItemsView
-            items={filteredItems}
+            items={visibleItems}
             protectedIds={protectedIds}
             onOpenItem={handleOpenItem}
             onOpenMenu={(item) => {
@@ -665,11 +971,7 @@ export default function StorageIndexScreen() {
           }}
           onMove={() => setMoveModalVisible(true)}
           onShare={() => {
-            Alert.alert(
-              'Próximamente',
-              'Compartir archivos estará disponible cuando agreguemos los endpoints de invitaciones.',
-            );
-            setContextMenuVisible(false);
+            void handleOpenShare();
           }}
           onDownload={() => {
             if (!activeItem) {
@@ -689,11 +991,21 @@ export default function StorageIndexScreen() {
           onSign={(item) => {
             router.push({
               pathname: '/(main)/storage/sign',
-              params: { id: item.id },
+              params: {
+                id: item.id,
+              },
             });
           }}
           onDelete={handleDeleteItem}
           onAssignCategory={(item) => {
+            if (item.type === 'folder') {
+              Alert.alert(
+                'No disponible',
+                'Las categorías solo se asignan a archivos.',
+              );
+              return;
+            }
+
             setActiveItem(item);
             setContextMenuVisible(false);
             setAssignCategoryVisible(true);
@@ -742,7 +1054,9 @@ export default function StorageIndexScreen() {
           menuVisible={fabMenuVisible}
           uploadDisabled={uploading}
           onToggleMenu={() =>
-            setFabMenuVisible((visible) => !visible)
+            setFabMenuVisible(
+              (visible) => !visible,
+            )
           }
           onCloseMenu={() => setFabMenuVisible(false)}
           onCreateFolder={() => {
@@ -773,10 +1087,26 @@ export default function StorageIndexScreen() {
             setAssignCategoryVisible(false)
           }
         />
+
+        <StorageShareModal
+          visible={shareModalVisible}
+          fileName={activeItem?.name}
+          auth={shareAuth}
+          submitting={sharing}
+          onClose={() => {
+            if (sharing) {
+              return;
+            }
+
+            setShareModalVisible(false);
+          }}
+          onShare={handleShare}
+        />
       </View>
     </ScreenSafeArea>
   );
 }
+
 
 const styles = StyleSheet.create({
   safeArea: {

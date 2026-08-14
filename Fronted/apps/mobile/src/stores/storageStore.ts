@@ -2,7 +2,9 @@ import type {
   StorageFile,
   StorageFolder,
   StorageSummary,
+  StorageTag,
 } from '@beeapp/shared-types';
+
 
 export type StorageItemType =
   | 'folder'
@@ -13,6 +15,7 @@ export type StorageItemType =
   | 'audio'
   | 'archive'
   | 'other';
+
 
 export interface StorageItem {
   id: string;
@@ -27,70 +30,33 @@ export interface StorageItem {
   signerName?: string;
   signedAt?: string;
   isShared?: boolean;
+  shareId?: string;
   categoryIds?: string[];
   mimeType?: string;
   status?: 'uploading' | 'ready' | 'failed' | 'trashed';
   createdAt?: string;
 }
 
+
 export interface StorageCategory {
   id: string;
   name: string;
   icon: string;
   color: string;
+  isDefault?: boolean;
+  sortOrder?: number;
 }
 
-export const MOCK_STORAGE_CATEGORIES: StorageCategory[] = [
-  {
-    id: 'scat-personal',
-    name: 'Personal',
-    icon: 'User',
-    color: '#EBF5FF',
-  },
-  {
-    id: 'scat-work',
-    name: 'Trabajo',
-    icon: 'Briefcase',
-    color: '#F1F3F5',
-  },
-  {
-    id: 'scat-important',
-    name: 'Importante',
-    icon: 'Star',
-    color: '#FEF3C7',
-  },
-];
 
 let storageItems: StorageItem[] = [];
 let storageSummary: StorageSummary | null = null;
+let storageCategories: StorageCategory[] = [];
 
-export function addStorageCategory(
-  category: Omit<StorageCategory, 'id'>,
-): StorageCategory {
-  const created: StorageCategory = {
-    ...category,
-    id: `scat_${Date.now().toString(36)}`,
-  };
-
-  MOCK_STORAGE_CATEGORIES.push(created);
-
-  return created;
-}
-
-export function setItemCategories(
-  itemId: string,
-  categoryIds: string[],
-): void {
-  storageItems = storageItems.map((item) =>
-    item.id === itemId
-      ? { ...item, categoryIds }
-      : item,
-  );
-}
 
 export function getItems(): StorageItem[] {
   return storageItems;
 }
+
 
 export function setItems(
   items: StorageItem[],
@@ -98,15 +64,44 @@ export function setItems(
   storageItems = items;
 }
 
+
 export function getStorageSummary(): StorageSummary | null {
   return storageSummary;
 }
+
 
 export function setStorageSummary(
   summary: StorageSummary | null,
 ): void {
   storageSummary = summary;
 }
+
+
+export function getStorageCategories(): StorageCategory[] {
+  return storageCategories;
+}
+
+
+export function setStorageCategories(
+  categories: StorageCategory[],
+): void {
+  storageCategories = categories;
+}
+
+
+export function mapStorageTagToCategory(
+  tag: StorageTag,
+): StorageCategory {
+  return {
+    id: tag.id,
+    name: tag.name,
+    icon: tag.icon,
+    color: tag.color,
+    isDefault: tag.is_default,
+    sortOrder: tag.sort_order,
+  };
+}
+
 
 export function mapStorageFolderToItem(
   folder: StorageFolder,
@@ -123,8 +118,14 @@ export function mapStorageFolderToItem(
   };
 }
 
+
 export function mapStorageFileToItem(
   file: StorageFile,
+  options: {
+    categoryIds?: string[];
+    isShared?: boolean;
+    shareId?: string;
+  } = {},
 ): StorageItem {
   return {
     id: file.id,
@@ -137,8 +138,12 @@ export function mapStorageFileToItem(
     mimeType: file.mime_type,
     status: file.status,
     createdAt: file.created_at,
+    categoryIds: options.categoryIds || [],
+    isShared: options.isShared || false,
+    shareId: options.shareId,
   };
 }
+
 
 function mapFileKindToItemType(
   file: StorageFile,
@@ -174,6 +179,7 @@ function mapFileKindToItemType(
   return 'other';
 }
 
+
 export function formatBytes(
   bytes: number,
 ): string {
@@ -181,17 +187,29 @@ export function formatBytes(
     return '0 B';
   }
 
-  const units = ['B', 'KB', 'MB', 'GB'];
+  const units = [
+    'B',
+    'KB',
+    'MB',
+    'GB',
+  ];
+
   const exponent = Math.min(
     Math.floor(Math.log(bytes) / Math.log(1024)),
     units.length - 1,
   );
 
   const value = bytes / 1024 ** exponent;
-  const decimals = exponent === 0 ? 0 : value >= 10 ? 1 : 2;
+
+  const decimals = exponent === 0
+    ? 0
+    : value >= 10
+      ? 1
+      : 2;
 
   return `${value.toFixed(decimals)} ${units[exponent]}`;
 }
+
 
 export function formatStorageDate(
   value: string,
@@ -203,6 +221,7 @@ export function formatStorageDate(
   }
 
   const today = new Date();
+
   const isToday =
     date.getFullYear() === today.getFullYear()
     && date.getMonth() === today.getMonth()

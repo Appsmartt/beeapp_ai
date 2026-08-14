@@ -1,19 +1,34 @@
 import type {
     AuthCredentials,
+    CreateFileSharePayload,
+    CreateFileShareResponse,
     CreateStorageFolderPayload,
     CreateStorageFolderResponse,
+    CreateStorageTagPayload,
+    CreateStorageTagResponse,
     CreateStorageUploadResponse,
+    GetReceivedSharesResponse,
     GetStorageFileAccessResponse,
     GetStorageFilesResponse,
+    GetStorageFileTagsResponse,
     GetStorageFoldersResponse,
+    GetStorageShareRecipientsResponse,
     GetStorageSummaryResponse,
+    GetStorageTagsResponse,
+    ReceivedSharesQuery,
+    ReplaceFileTagsPayload,
+    ReplaceFileTagsResponse,
     StorageFilesQuery,
     StorageFoldersQuery,
+    UpdateFileShareResponse,
     UpdateStorageFolderPayload,
     UpdateStorageFolderResponse,
+    UpdateStorageTagPayload,
+    UpdateStorageTagResponse,
     } from '@beeapp/shared-types';
 
 import { api } from './client';
+
 
 function buildQuery(
     params: object,
@@ -35,6 +50,7 @@ function buildQuery(
     return query ? `?${query}` : '';
 }
 
+
 export function getStorageSummary(
     auth: AuthCredentials,
     ): Promise<GetStorageSummaryResponse> {
@@ -43,6 +59,7 @@ export function getStorageSummary(
         { auth },
     );
 }
+
 
 export function getStorageFiles(
     auth: AuthCredentials,
@@ -54,6 +71,7 @@ export function getStorageFiles(
     );
 }
 
+
 export function getStorageFolders(
     auth: AuthCredentials,
     query: StorageFoldersQuery = {},
@@ -63,6 +81,7 @@ export function getStorageFolders(
         { auth },
     );
 }
+
 
 export function createStorageFolder(
     auth: AuthCredentials,
@@ -74,6 +93,7 @@ export function createStorageFolder(
         { auth },
     );
 }
+
 
 export function renameStorageFolder(
     auth: AuthCredentials,
@@ -87,6 +107,7 @@ export function renameStorageFolder(
     );
 }
 
+
 export async function deleteStorageFolder(
     auth: AuthCredentials,
     folderId: string,
@@ -97,7 +118,8 @@ export async function deleteStorageFolder(
     );
 }
 
-export async function uploadStorageFile(
+
+export async function uploadStorageFiles(
     auth: AuthCredentials,
     formData: FormData,
     ): Promise<CreateStorageUploadResponse> {
@@ -107,6 +129,10 @@ export async function uploadStorageFile(
         { auth },
     );
 }
+
+
+export const uploadStorageFile = uploadStorageFiles;
+
 
 export function getStorageFileAccess(
     auth: AuthCredentials,
@@ -121,6 +147,7 @@ export function getStorageFileAccess(
     );
 }
 
+
 export async function moveStorageFileToTrash(
     auth: AuthCredentials,
     fileId: string,
@@ -131,6 +158,7 @@ export async function moveStorageFileToTrash(
         { auth },
     );
 }
+
 
 export async function restoreStorageFile(
     auth: AuthCredentials,
@@ -143,12 +171,146 @@ export async function restoreStorageFile(
     );
 }
 
+
 export async function permanentlyDeleteStorageFile(
     auth: AuthCredentials,
     fileId: string,
     ): Promise<void> {
     await api.delete<void>(
         `/storage/files/${encodeURIComponent(fileId)}/`,
+        { auth },
+    );
+}
+
+
+export function getStorageTags(
+    auth: AuthCredentials,
+    ): Promise<GetStorageTagsResponse> {
+    return api.get<GetStorageTagsResponse>(
+        '/storage/tags/',
+        { auth },
+    );
+}
+
+
+export function createStorageTag(
+    auth: AuthCredentials,
+    payload: CreateStorageTagPayload,
+    ): Promise<CreateStorageTagResponse> {
+    return api.post<CreateStorageTagResponse>(
+        '/storage/tags/',
+        payload,
+        { auth },
+    );
+}
+
+
+export function updateStorageTag(
+    auth: AuthCredentials,
+    tagId: string,
+    payload: UpdateStorageTagPayload,
+    ): Promise<UpdateStorageTagResponse> {
+    return api.patch<UpdateStorageTagResponse>(
+        `/storage/tags/${encodeURIComponent(tagId)}/`,
+        payload,
+        { auth },
+    );
+}
+
+
+export async function deleteStorageTag(
+    auth: AuthCredentials,
+    tagId: string,
+    ): Promise<void> {
+    await api.delete<void>(
+        `/storage/tags/${encodeURIComponent(tagId)}/`,
+        { auth },
+    );
+}
+
+
+export function getStorageFileTags(
+    auth: AuthCredentials,
+    fileId: string,
+    ): Promise<GetStorageFileTagsResponse> {
+    return api.get<GetStorageFileTagsResponse>(
+        `/storage/files/${encodeURIComponent(fileId)}/tags/`,
+        { auth },
+    );
+}
+
+
+export function replaceStorageFileTags(
+    auth: AuthCredentials,
+    fileId: string,
+    payload: ReplaceFileTagsPayload,
+    ): Promise<ReplaceFileTagsResponse> {
+    return api.put<ReplaceFileTagsResponse>(
+        `/storage/files/${encodeURIComponent(fileId)}/tags/`,
+        payload,
+        { auth },
+    );
+}
+
+
+export function searchStorageShareRecipients(
+    auth: AuthCredentials,
+    searchValue: string,
+    limit = 10,
+    ): Promise<GetStorageShareRecipientsResponse> {
+    return api.get<GetStorageShareRecipientsResponse>(
+        `/storage/share-recipients/${buildQuery({
+        q: searchValue,
+        limit,
+        })}`,
+        { auth },
+    );
+}
+
+
+export function createStorageFileShare(
+    auth: AuthCredentials,
+    fileId: string,
+    payload: CreateFileSharePayload,
+    ): Promise<CreateFileShareResponse> {
+    return api.post<CreateFileShareResponse>(
+        `/storage/files/${encodeURIComponent(fileId)}/shares/`,
+        payload,
+        { auth },
+    );
+}
+
+
+export function getReceivedStorageShares(
+    auth: AuthCredentials,
+    query: ReceivedSharesQuery = {},
+    ): Promise<GetReceivedSharesResponse> {
+    return api.get<GetReceivedSharesResponse>(
+        `/storage/shares/received/${buildQuery(query)}`,
+        { auth },
+    );
+}
+
+
+export function hideReceivedStorageShare(
+    auth: AuthCredentials,
+    shareId: string,
+    ): Promise<UpdateFileShareResponse> {
+    return api.post<UpdateFileShareResponse>(
+        `/storage/shares/${encodeURIComponent(shareId)}/hide/`,
+        undefined,
+        { auth },
+    );
+}
+
+
+export function revokeStorageFileShare(
+    auth: AuthCredentials,
+    shareId: string,
+    ): Promise<UpdateFileShareResponse> {
+    return api.post<UpdateFileShareResponse>(
+        `/storage/shares/${encodeURIComponent(shareId)}/revoke/`,
+        undefined,
         { auth },
     );
 }

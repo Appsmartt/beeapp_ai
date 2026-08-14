@@ -1,4 +1,7 @@
-import type { StorageItem } from '../stores/storageStore';
+import type {
+  StorageItem,
+} from '../stores/storageStore';
+
 
 export type SortOption =
   | 'name'
@@ -15,16 +18,23 @@ export type StorageFilter =
   | 'shared'
   | 'trash';
 
+
 export function getSortedItems(
   list: StorageItem[],
   sortBy: SortOption,
 ): StorageItem[] {
   return [...list].sort((first, second) => {
-    if (first.type === 'folder' && second.type !== 'folder') {
+    if (
+      first.type === 'folder'
+      && second.type !== 'folder'
+    ) {
       return -1;
     }
 
-    if (first.type !== 'folder' && second.type === 'folder') {
+    if (
+      first.type !== 'folder'
+      && second.type === 'folder'
+    ) {
       return 1;
     }
 
@@ -37,8 +47,12 @@ export function getSortedItems(
 
     if (sortBy === 'date') {
       return (
-        new Date(second.createdAt || 0).getTime()
-        - new Date(first.createdAt || 0).getTime()
+        new Date(
+          second.createdAt || 0,
+        ).getTime()
+        - new Date(
+          first.createdAt || 0,
+        ).getTime()
       );
     }
 
@@ -52,6 +66,7 @@ export function getSortedItems(
     return first.type.localeCompare(second.type);
   });
 }
+
 
 export function getFilteredItems(
   items: StorageItem[],
@@ -91,11 +106,21 @@ export function getFilteredItems(
   }
 
   if (activeFilter === 'signed') {
-    list = list.filter((item) => item.isSigned);
+    list = list.filter(
+      (item) => item.isSigned,
+    );
   }
 
   if (activeFilter === 'shared') {
-    list = list.filter((item) => item.isShared);
+    list = list.filter(
+      (item) => item.isShared,
+    );
+  }
+
+  if (activeFilter === 'trash') {
+    list = list.filter(
+      (item) => item.status === 'trashed',
+    );
   }
 
   return getSortedItems(list, sortBy);

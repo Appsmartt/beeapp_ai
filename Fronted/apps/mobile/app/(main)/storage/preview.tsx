@@ -18,7 +18,6 @@ import {
   Loader2,
   Trash2,
 } from 'lucide-react-native';
-
 import {
   getStorageFileAccess,
   moveStorageFileToTrash,
@@ -34,16 +33,22 @@ import {
   getItems,
   type StorageItem,
 } from '../../../src/stores/storageStore';
-import { getValidSessionCredentials } from '../../../src/services/authSession';
+import {
+  getValidSessionCredentials,
+} from '../../../src/services/authSession';
+
 
 export default function FilePreviewScreen() {
   const router = useModuleNav();
   const params = useScreenParams();
+
   const fileId = params.id as string;
 
   const [fileItem, setFileItem] =
     useState<StorageItem | null>(null);
+
   const [opening, setOpening] = useState(false);
+
 
   useEffect(() => {
     const item = getItems().find(
@@ -55,11 +60,16 @@ export default function FilePreviewScreen() {
     }
   }, [fileId]);
 
+
   useEffect(() => {
-    if (params.download === 'true' && fileId) {
+    if (
+      params.download === 'true'
+      && fileId
+    ) {
       void handleOpenFile(true);
     }
   }, [fileId, params.download]);
+
 
   const handleOpenFile = async (
     download = false,
@@ -80,6 +90,21 @@ export default function FilePreviewScreen() {
         fileId,
         download,
       );
+
+      if (!fileItem) {
+        setFileItem({
+          id: access.file.id,
+          name: access.file.display_name,
+          type: getItemType(access.file.kind),
+          parentId: access.file.folder_id,
+          size: formatSize(access.file.size_bytes),
+          sizeBytes: access.file.size_bytes,
+          updatedAt: access.file.updated_at,
+          createdAt: access.file.created_at,
+          mimeType: access.file.mime_type,
+          status: access.file.status,
+        });
+      }
 
       const supported = await Linking.canOpenURL(
         access.url,
@@ -104,7 +129,19 @@ export default function FilePreviewScreen() {
     }
   };
 
+
   const handleDelete = () => {
+    if (fileItem?.isShared) {
+      Alert.alert(
+        'Archivo compartido',
+        (
+          'No puedes mover a la papelera un archivo '
+          + 'que otra persona compartió contigo.'
+        ),
+      );
+      return;
+    }
+
     Alert.alert(
       'Mover a papelera',
       'El archivo podrá restaurarse durante 30 días.',
@@ -123,7 +160,10 @@ export default function FilePreviewScreen() {
 
               if (!auth) {
                 throw new Error(
-                  'Tu sesión expiró. Inicia sesión nuevamente.',
+                  (
+                    'Tu sesión expiró. '
+                    + 'Inicia sesión nuevamente.'
+                  ),
                 );
               }
 
@@ -156,6 +196,7 @@ export default function FilePreviewScreen() {
     );
   };
 
+
   if (!fileItem) {
     return (
       <ScreenSafeArea style={styles.safeArea}>
@@ -167,6 +208,7 @@ export default function FilePreviewScreen() {
           <TouchableOpacity
             onPress={() => router.back()}
             style={styles.backLink}
+            activeOpacity={0.7}
           >
             <Text style={styles.backLinkText}>
               Volver
@@ -179,13 +221,14 @@ export default function FilePreviewScreen() {
 
   const isImage = fileItem.type === 'image';
 
+
   return (
     <ScreenSafeArea style={styles.safeArea}>
       <View style={styles.container}>
         <View style={styles.header}>
           <TouchableOpacity
             onPress={() => router.back()}
-            style={styles.backBtn}
+            style={styles.backButton}
             activeOpacity={0.7}
           >
             <ChevronLeft
@@ -211,6 +254,7 @@ export default function FilePreviewScreen() {
                 size={38}
                 color={colors.brand.primary}
               />
+
               <Text style={styles.previewTitle}>
                 Preparando acceso seguro...
               </Text>
@@ -238,8 +282,8 @@ export default function FilePreviewScreen() {
               </Text>
 
               <Text style={styles.previewHint}>
-                Toca “Abrir” para visualizarlo
-                mediante un enlace seguro.
+                Toca “Abrir” para visualizarlo mediante
+                un enlace seguro.
               </Text>
             </View>
           )}
@@ -247,8 +291,10 @@ export default function FilePreviewScreen() {
 
         <View style={styles.bottomBar}>
           <TouchableOpacity
-            style={styles.primaryActionBtn}
-            onPress={() => handleOpenFile(false)}
+            style={styles.primaryActionButton}
+            onPress={() => {
+              void handleOpenFile(false);
+            }}
             activeOpacity={0.8}
             disabled={opening}
           >
@@ -256,14 +302,17 @@ export default function FilePreviewScreen() {
               size={20}
               color={colors.neutral.white}
             />
-            <Text style={styles.primaryActionLabel}>
+
+            <Text style={styles.primaryActionText}>
               Abrir
             </Text>
           </TouchableOpacity>
 
           <TouchableOpacity
-            style={styles.actionBtn}
-            onPress={() => handleOpenFile(true)}
+            style={styles.actionButton}
+            onPress={() => {
+              void handleOpenFile(true);
+            }}
             activeOpacity={0.7}
             disabled={opening}
           >
@@ -271,35 +320,90 @@ export default function FilePreviewScreen() {
               size={20}
               color={colors.neutral.text}
             />
-            <Text style={styles.actionLabel}>
+
+            <Text style={styles.actionText}>
               Descargar
             </Text>
           </TouchableOpacity>
 
-          <TouchableOpacity
-            style={styles.actionBtn}
-            onPress={handleDelete}
-            activeOpacity={0.7}
-            disabled={opening}
-          >
-            <Trash2
-              size={20}
-              color={colors.semantic.error}
-            />
-            <Text
-              style={[
-                styles.actionLabel,
-                styles.deleteLabel,
-              ]}
+          {!fileItem.isShared && (
+            <TouchableOpacity
+              style={styles.actionButton}
+              onPress={handleDelete}
+              activeOpacity={0.7}
+              disabled={opening}
             >
-              Eliminar
-            </Text>
-          </TouchableOpacity>
+              <Trash2
+                size={20}
+                color={colors.semantic.error}
+              />
+
+              <Text
+                style={[
+                  styles.actionText,
+                  styles.deleteText,
+                ]}
+              >
+                Eliminar
+              </Text>
+            </TouchableOpacity>
+          )}
         </View>
       </View>
     </ScreenSafeArea>
   );
 }
+
+
+function getItemType(
+  kind: string,
+): StorageItem['type'] {
+  if (kind === 'image') {
+    return 'image';
+  }
+
+  if (kind === 'video') {
+    return 'video';
+  }
+
+  if (kind === 'audio') {
+    return 'audio';
+  }
+
+  if (kind === 'archive') {
+    return 'archive';
+  }
+
+  return 'doc';
+}
+
+
+function formatSize(
+  bytes: number,
+): string {
+  if (!Number.isFinite(bytes) || bytes <= 0) {
+    return '0 B';
+  }
+
+  const units = [
+    'B',
+    'KB',
+    'MB',
+    'GB',
+  ];
+
+  const exponent = Math.min(
+    Math.floor(Math.log(bytes) / Math.log(1024)),
+    units.length - 1,
+  );
+
+  const value = bytes / 1024 ** exponent;
+
+  return `${value.toFixed(
+    exponent === 0 ? 0 : 1,
+  )} ${units[exponent]}`;
+}
+
 
 const styles = StyleSheet.create({
   safeArea: {
@@ -319,100 +423,100 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderColor: colors.neutral.gray100,
   },
-  backBtn: {
+  backButton: {
     padding: 4,
   },
   headerTitle: {
+    flex: 1,
+    marginHorizontal: 12,
     fontSize: 16,
     fontWeight: '800',
-    color: colors.neutral.text,
-    flex: 1,
     textAlign: 'center',
-    marginHorizontal: 12,
+    color: colors.neutral.text,
   },
   headerSpacer: {
     width: 24,
   },
   previewBox: {
     flex: 1,
-    justifyContent: 'center',
     alignItems: 'center',
+    justifyContent: 'center',
     padding: 24,
   },
   previewContent: {
     width: '100%',
     maxWidth: 360,
     minHeight: 260,
-    backgroundColor: colors.neutral.white,
-    borderRadius: 20,
     alignItems: 'center',
     justifyContent: 'center',
     padding: 28,
     borderWidth: 1,
+    borderRadius: 20,
     borderColor: colors.neutral.gray200,
+    backgroundColor: colors.neutral.white,
   },
   previewTitle: {
+    marginTop: 16,
     fontSize: 16,
     fontWeight: '700',
-    color: colors.neutral.text,
     textAlign: 'center',
-    marginTop: 16,
+    color: colors.neutral.text,
   },
   previewSubtitle: {
+    marginTop: 6,
     fontSize: 12,
     color: colors.neutral.gray600,
-    marginTop: 6,
   },
   previewHint: {
-    fontSize: 12,
-    color: colors.neutral.gray600,
-    textAlign: 'center',
-    lineHeight: 18,
     marginTop: 20,
+    fontSize: 12,
+    lineHeight: 18,
+    textAlign: 'center',
+    color: colors.neutral.gray600,
   },
   bottomBar: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: 8,
+    paddingVertical: 14,
+    paddingHorizontal: 12,
     backgroundColor: colors.neutral.white,
     borderTopWidth: 1,
     borderColor: colors.neutral.gray100,
-    paddingVertical: 14,
-    paddingHorizontal: 12,
-    gap: 8,
   },
-  primaryActionBtn: {
+  primaryActionButton: {
     flex: 1.3,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: colors.brand.primary,
-    borderRadius: 12,
-    paddingVertical: 12,
     gap: 6,
+    paddingVertical: 12,
+    borderRadius: 12,
+    backgroundColor: colors.brand.primary,
   },
-  primaryActionLabel: {
+  primaryActionText: {
     fontSize: 13,
     fontWeight: '700',
     color: colors.neutral.white,
   },
-  actionBtn: {
+  actionButton: {
     flex: 1,
     alignItems: 'center',
     gap: 4,
     paddingVertical: 4,
   },
-  actionLabel: {
+  actionText: {
     fontSize: 11,
     fontWeight: '700',
     color: colors.neutral.text,
   },
-  deleteLabel: {
+  deleteText: {
     color: colors.semantic.error,
   },
   errorContainer: {
     flex: 1,
-    justifyContent: 'center',
     alignItems: 'center',
+    justifyContent: 'center',
   },
   errorText: {
     fontSize: 16,
@@ -424,7 +528,7 @@ const styles = StyleSheet.create({
   },
   backLinkText: {
     fontSize: 14,
-    color: colors.brand.primary,
     fontWeight: '700',
+    color: colors.brand.primary,
   },
 });
