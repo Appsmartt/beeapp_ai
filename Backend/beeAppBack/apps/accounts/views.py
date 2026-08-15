@@ -88,7 +88,6 @@ from apps.accounts.throttles import (
     PhoneOtpVerificationThrottle,
 )
 
-
 WEB_SESSION_COOKIE_NAME = "beeapp_web_session"
 
 
@@ -634,7 +633,9 @@ class CurrentProfileView(AuthenticatedAPIView):
 
 class UpdateOnboardingProfileView(AuthenticatedAPIView):
     def patch(self, request):
-        serializer = UpdateProfileSerializer(data=request.data)
+        serializer = UpdateOnboardingProfileSerializer(
+            data=request.data,
+        )
         serializer.is_valid(raise_exception=True)
 
         try:
@@ -642,35 +643,15 @@ class UpdateOnboardingProfileView(AuthenticatedAPIView):
                 request
             )
 
-            user_id = str(authenticated_user.id)
-            email = serializer.validated_data["email"]
-
-            if email != authenticated_user.email:
-                update_auth_user_email(
-                    auth_user_id=user_id,
-                    email=email,
-                )
-
-            profile = update_profile(
-                auth_user_id=user_id,
-                first_name=serializer.validated_data["first_name"],
-                last_name=serializer.validated_data["last_name"],
-                phone_dial_code=serializer.validated_data[
-                    "phone_dial_code"
-                ],
-                phone_number=serializer.validated_data[
-                    "phone_number"
-                ],
-                occupation=serializer.validated_data.get(
+            profile = update_onboarding_profile(
+                auth_user_id=str(authenticated_user.id),
+                occupation=serializer.validated_data[
                     "occupation"
-                ),
-                location=serializer.validated_data.get("location"),
-                social_links=serializer.validated_data.get(
-                    "social_links"
-                ),
+                ],
+                location=serializer.validated_data[
+                    "location"
+                ],
             )
-
-            profile["email"] = email
 
         except AccountAuthenticationError:
             return Response(
@@ -680,20 +661,21 @@ class UpdateOnboardingProfileView(AuthenticatedAPIView):
                 status=status.HTTP_401_UNAUTHORIZED,
             )
 
-        except (
-            AuthUserLookupError,
-            ProfileUpdateError,
-        ):
+        except ProfileUpdateError:
             return Response(
                 {
-                    "detail": "Profile could not be updated.",
+                    "detail": (
+                        "Onboarding profile could not be updated."
+                    ),
                 },
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
         return Response(
             {
-                "message": "Profile updated successfully.",
+                "message": (
+                    "Onboarding profile updated successfully."
+                ),
                 "profile": profile,
             },
             status=status.HTTP_200_OK,
