@@ -17,6 +17,43 @@ FILE_KINDS = (
 )
 
 
+def validate_display_name(value: str) -> str:
+    normalized_value = value.strip()
+
+    if not normalized_value:
+        raise serializers.ValidationError(
+            "File name cannot be empty."
+        )
+
+    if "/" in normalized_value or "\\" in normalized_value:
+        raise serializers.ValidationError(
+            "File names cannot contain slashes."
+        )
+
+    if len(normalized_value) > 255:
+        raise serializers.ValidationError(
+            "File name cannot be longer than 255 characters."
+        )
+
+    return normalized_value
+
+
+def validate_folder_name(value: str) -> str:
+    normalized_value = value.strip()
+
+    if not normalized_value:
+        raise serializers.ValidationError(
+            "Folder name cannot be empty."
+        )
+
+    if "/" in normalized_value or "\\" in normalized_value:
+        raise serializers.ValidationError(
+            "Folder names cannot contain slashes."
+        )
+
+    return normalized_value
+
+
 class StorageListQuerySerializer(serializers.Serializer):
     folder_id = serializers.UUIDField(
         required=False,
@@ -81,19 +118,7 @@ class CreateStorageFolderSerializer(serializers.Serializer):
     )
 
     def validate_name(self, value: str) -> str:
-        normalized_value = value.strip()
-
-        if not normalized_value:
-            raise serializers.ValidationError(
-                "Folder name cannot be empty."
-            )
-
-        if "/" in normalized_value or "\\" in normalized_value:
-            raise serializers.ValidationError(
-                "Folder names cannot contain slashes."
-            )
-
-        return normalized_value
+        return validate_folder_name(value)
 
 
 class RenameStorageFolderSerializer(serializers.Serializer):
@@ -103,19 +128,31 @@ class RenameStorageFolderSerializer(serializers.Serializer):
     )
 
     def validate_name(self, value: str) -> str:
-        normalized_value = value.strip()
+        return validate_folder_name(value)
 
-        if not normalized_value:
-            raise serializers.ValidationError(
-                "Folder name cannot be empty."
-            )
 
-        if "/" in normalized_value or "\\" in normalized_value:
-            raise serializers.ValidationError(
-                "Folder names cannot contain slashes."
-            )
+class MoveStorageFolderSerializer(serializers.Serializer):
+    parent_id = serializers.UUIDField(
+        required=False,
+        allow_null=True,
+    )
 
-        return normalized_value
+
+class RenameStorageFileSerializer(serializers.Serializer):
+    display_name = serializers.CharField(
+        max_length=255,
+        trim_whitespace=True,
+    )
+
+    def validate_display_name(self, value: str) -> str:
+        return validate_display_name(value)
+
+
+class MoveStorageFileSerializer(serializers.Serializer):
+    folder_id = serializers.UUIDField(
+        required=False,
+        allow_null=True,
+    )
 
 
 class UploadStorageFilesSerializer(serializers.Serializer):

@@ -2,7 +2,9 @@ from __future__ import annotations
 
 from typing import Any
 
-from beeAppBack.core.supabase_client import get_supabase_admin_client
+from beeAppBack.core.supabase_client import (
+    get_supabase_admin_client,
+)
 
 from apps.storage.exceptions import (
     StorageFolderError,
@@ -107,7 +109,11 @@ def rename_folder(
 
         response = (
             supabase.table("storage_folders")
-            .update({"name": name.strip()})
+            .update(
+                {
+                    "name": name.strip(),
+                }
+            )
             .eq("id", folder_id)
             .eq("owner_id", user_id)
             .execute()
@@ -129,6 +135,70 @@ def rename_folder(
     except Exception as error:
         raise StorageFolderError(
             "Could not rename the folder."
+        ) from error
+
+
+def move_folder(
+    *,
+    user_id: str,
+    folder_id: str,
+    parent_id: str | None,
+) -> dict[str, Any]:
+    try:
+        folder = get_owned_folder(
+            user_id=user_id,
+            folder_id=folder_id,
+        )
+
+        if parent_id == folder_id:
+            raise StorageFolderError(
+                "A folder cannot be moved into itself."
+            )
+
+        if parent_id:
+            get_owned_folder(
+                user_id=user_id,
+                folder_id=parent_id,
+            )
+
+            if _is_descendant_folder(
+                user_id=user_id,
+                folder_id=parent_id,
+                ancestor_id=folder_id,
+            ):
+                raise StorageFolderError(
+                    "A folder cannot be moved into one of its descendants."
+                )
+
+        response = (
+            get_supabase_admin_client()
+            .table("storage_folders")
+            .update(
+                {
+                    "parent_id": parent_id,
+                }
+            )
+            .eq("id", folder_id)
+            .eq("owner_id", user_id)
+            .execute()
+        )
+
+        if not response.data:
+            raise StorageFolderError(
+                "Supabase did not return the moved folder."
+            )
+
+        return response.data[0]
+
+    except (
+        StorageFolderError,
+        StorageFolderNotFoundError,
+    ):
+        raise
+
+    except Exception as error:
+        raise StorageFolderError(
+            "Could not move the folder."
         ) from error
 
 
@@ -201,3 +271,33 @@ def get_owned_folder(
         raise StorageFolderNotFoundError(
             "Could not retrieve the requested folder."
         ) from error
+
+
+def _is_descendant_folder(
+    *,
+    user_id: str,
+    folder_id: str,
+    ancestor_id: str,
+) -> bool:
+    current_folder_id: str | None = folder_id
+    visited_ids: set[str] = set()
+
+    while current_folder_id:
+        if current_folder_id == ancestor_id:
+            return True
+
+        if current_folder_id in visited_ids:
+            raise StorageFolderError(
+                "A circular folder hierarchy was detected."
+            )
+
+        visited_ids.add(current_folder_id)
+
+        current_folder = get_owned_folder(
+            user_id=user_id,
+            folder_id=current_folder_id,
+        )
+
+        current_folder_id = current_folder.get("parent_id")
+
+    return False

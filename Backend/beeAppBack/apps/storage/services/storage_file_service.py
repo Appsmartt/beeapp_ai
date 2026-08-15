@@ -592,6 +592,112 @@ def get_accessible_file(
         ) from error
 
 
+def rename_file(
+    *,
+    user_id: str,
+    file_id: str,
+    display_name: str,
+) -> dict[str, Any]:
+    try:
+        get_owned_file(
+            user_id=user_id,
+            file_id=file_id,
+            include_trashed=True,
+        )
+
+        response = (
+            get_supabase_admin_client()
+            .table("files")
+            .update(
+                {
+                    "display_name": display_name.strip(),
+                }
+            )
+            .eq("id", file_id)
+            .eq("owner_id", user_id)
+            .execute()
+        )
+
+        if not response.data:
+            raise StorageFileOperationError(
+                "Supabase did not return the renamed file."
+            )
+
+        return response.data[0]
+
+    except (
+        StorageFileNotFoundError,
+        StorageFileOperationError,
+    ):
+        raise
+
+    except Exception as error:
+        raise StorageFileOperationError(
+            "Could not rename the file."
+        ) from error
+
+
+def move_file(
+    *,
+    user_id: str,
+    file_id: str,
+    folder_id: str | None,
+) -> dict[str, Any]:
+    try:
+        get_owned_file(
+            user_id=user_id,
+            file_id=file_id,
+            include_trashed=True,
+        )
+
+        supabase = get_supabase_admin_client()
+
+        if folder_id:
+            folder_response = (
+                supabase.table("storage_folders")
+                .select("id")
+                .eq("id", folder_id)
+                .eq("owner_id", user_id)
+                .maybe_single()
+                .execute()
+            )
+
+            if not folder_response.data:
+                raise StorageFileOperationError(
+                    "Destination folder was not found."
+                )
+
+        response = (
+            supabase.table("files")
+            .update(
+                {
+                    "folder_id": folder_id,
+                }
+            )
+            .eq("id", file_id)
+            .eq("owner_id", user_id)
+            .execute()
+        )
+
+        if not response.data:
+            raise StorageFileOperationError(
+                "Supabase did not return the moved file."
+            )
+
+        return response.data[0]
+
+    except (
+        StorageFileNotFoundError,
+        StorageFileOperationError,
+    ):
+        raise
+
+    except Exception as error:
+        raise StorageFileOperationError(
+            "Could not move the file."
+        ) from error
+
+
 def move_file_to_trash(
     *,
     user_id: str,
