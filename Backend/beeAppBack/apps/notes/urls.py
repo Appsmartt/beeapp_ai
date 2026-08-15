@@ -1,6 +1,9 @@
 from django.urls import path
 
 from apps.notes.views import (
+    NoteAttachmentDetailView,
+    NoteAttachmentsView,
+    NoteAttachmentUploadView,
     NoteDetailView,
     NoteFolderDetailView,
     NoteFoldersView,
@@ -44,6 +47,21 @@ urlpatterns = [
         "<uuid:note_id>/tags/",
         NoteTagsAssignmentView.as_view(),
         name="note-tags-assignment",
+    ),
+    path(
+        "<uuid:note_id>/attachments/",
+        NoteAttachmentsView.as_view(),
+        name="note-attachments",
+    ),
+    path(
+        "<uuid:note_id>/attachments/upload/",
+        NoteAttachmentUploadView.as_view(),
+        name="note-attachments-upload",
+    ),
+    path(
+        "<uuid:note_id>/attachments/<uuid:attachment_id>/",
+        NoteAttachmentDetailView.as_view(),
+        name="note-attachment-detail",
     ),
     path(
         "folders/",

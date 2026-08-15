@@ -40,3 +40,15 @@ class NoteTagError(NotesError):
 
 class NoteTagNotFoundError(NoteTagError):
     """Raised when a note tag is not found or inaccessible."""
+
+
+class NoteAttachmentError(NotesError):
+    """Raised when a note attachment operation fails."""
+
+
+class NoteAttachmentNotFoundError(NoteAttachmentError):
+    """Raised when a note attachment is not found or inaccessible."""
+
+
+class NoteAttachmentFileNotFoundError(NoteAttachmentError):
+    """Raised when an attachable file is not found or inaccessible."""

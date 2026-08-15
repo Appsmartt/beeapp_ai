@@ -8,6 +8,9 @@ from apps.accounts.views import (
     AuthenticatedAPIView,
 )
 from apps.notes.exceptions import (
+    NoteAttachmentError,
+    NoteAttachmentFileNotFoundError,
+    NoteAttachmentNotFoundError,
     NoteCreateError,
     NoteDeleteError,
     NoteFolderError,
@@ -19,6 +22,7 @@ from apps.notes.exceptions import (
     NoteUpdateError,
 )
 from apps.notes.serializers import (
+    CreateNoteAttachmentSerializer,
     CreateNoteFolderSerializer,
     CreateNoteSerializer,
     CreateNoteTagSerializer,
@@ -28,8 +32,17 @@ from apps.notes.serializers import (
     NoteTemplateListQuerySerializer,
     RenameNoteFolderSerializer,
     ReplaceNoteTagsSerializer,
+    UpdateNoteAttachmentSerializer,
     UpdateNoteSerializer,
     UpdateNoteTagSerializer,
+    UploadNoteAttachmentsSerializer,
+)
+from apps.notes.services.note_attachment_service import (
+    attach_existing_file,
+    list_note_attachments,
+    remove_note_attachment,
+    update_note_attachment,
+    upload_and_attach_files,
 )
 from apps.notes.services.note_folder_service import (
     create_note_folder,
@@ -280,9 +293,7 @@ class NoteDetailView(AuthenticatedAPIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        return Response(
-            status=status.HTTP_204_NO_CONTENT,
-        )
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
 
 class NoteTrashView(AuthenticatedAPIView):
@@ -592,9 +603,7 @@ class NoteFolderDetailView(AuthenticatedAPIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        return Response(
-            status=status.HTTP_204_NO_CONTENT,
-        )
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
 
 class NoteTagsView(AuthenticatedAPIView):
@@ -743,9 +752,7 @@ class NoteTagDetailView(AuthenticatedAPIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        return Response(
-            status=status.HTTP_204_NO_CONTENT,
-        )
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
 
 class NoteTagsAssignmentView(AuthenticatedAPIView):
@@ -843,3 +850,255 @@ class NoteTagsAssignmentView(AuthenticatedAPIView):
             },
             status=status.HTTP_200_OK,
         )
+
+
+class NoteAttachmentsView(AuthenticatedAPIView):
+    def get(self, request, note_id):
+        try:
+            authenticated_user = self.get_authenticated_user(request)
+
+            attachments = list_note_attachments(
+                user_id=str(authenticated_user.id),
+                note_id=str(note_id),
+            )
+
+        except AccountAuthenticationError:
+            return Response(
+                {
+                    "detail": "Invalid or expired access token.",
+                },
+                status=status.HTTP_401_UNAUTHORIZED,
+            )
+
+        except NoteNotFoundError:
+            return Response(
+                {
+                    "detail": "Note was not found.",
+                },
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        except NoteAttachmentError:
+            return Response(
+                {
+                    "detail": "Could not retrieve note attachments.",
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        return Response(
+            {
+                "attachments": attachments,
+            },
+            status=status.HTTP_200_OK,
+        )
+
+    def post(self, request, note_id):
+        serializer = CreateNoteAttachmentSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        try:
+            authenticated_user = self.get_authenticated_user(request)
+
+            attachment = attach_existing_file(
+                user_id=str(authenticated_user.id),
+                note_id=str(note_id),
+                file_id=str(serializer.validated_data["file_id"]),
+                attachment_type=serializer.validated_data[
+                    "attachment_type"
+                ],
+                display_order=serializer.validated_data[
+                    "display_order"
+                ],
+            )
+
+        except AccountAuthenticationError:
+            return Response(
+                {
+                    "detail": "Invalid or expired access token.",
+                },
+                status=status.HTTP_401_UNAUTHORIZED,
+            )
+
+        except NoteNotFoundError:
+            return Response(
+                {
+                    "detail": "Note was not found.",
+                },
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        except NoteAttachmentFileNotFoundError:
+            return Response(
+                {
+                    "detail": "Selected file was not found.",
+                },
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        except NoteAttachmentError as error:
+            return Response(
+                {
+                    "detail": str(error),
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        return Response(
+            {
+                "attachment": attachment,
+            },
+            status=status.HTTP_201_CREATED,
+        )
+
+
+class NoteAttachmentUploadView(AuthenticatedAPIView):
+    def post(self, request, note_id):
+        request_data = request.data.copy()
+
+        uploaded_files = request.FILES.getlist("files")
+        single_file = request.FILES.get("file")
+
+        if uploaded_files:
+            request_data.setlist("files", uploaded_files)
+        elif single_file:
+            request_data["file"] = single_file
+
+        serializer = UploadNoteAttachmentsSerializer(data=request_data)
+        serializer.is_valid(raise_exception=True)
+
+        try:
+            authenticated_user = self.get_authenticated_user(request)
+
+            result = upload_and_attach_files(
+                user_id=str(authenticated_user.id),
+                note_id=str(note_id),
+                uploaded_files=serializer.validated_data["files"],
+                attachment_type=serializer.validated_data[
+                    "attachment_type"
+                ],
+            )
+
+        except AccountAuthenticationError:
+            return Response(
+                {
+                    "detail": "Invalid or expired access token.",
+                },
+                status=status.HTTP_401_UNAUTHORIZED,
+            )
+
+        except NoteNotFoundError:
+            return Response(
+                {
+                    "detail": "Note was not found.",
+                },
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        except NoteAttachmentError as error:
+            return Response(
+                {
+                    "detail": str(error),
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        response_status = (
+            status.HTTP_201_CREATED
+            if result["success_count"] > 0
+            else status.HTTP_400_BAD_REQUEST
+        )
+
+        return Response(
+            result,
+            status=response_status,
+        )
+
+
+class NoteAttachmentDetailView(AuthenticatedAPIView):
+    def patch(self, request, note_id, attachment_id):
+        serializer = UpdateNoteAttachmentSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        try:
+            authenticated_user = self.get_authenticated_user(request)
+
+            attachment = update_note_attachment(
+                user_id=str(authenticated_user.id),
+                note_id=str(note_id),
+                attachment_id=str(attachment_id),
+                payload=serializer.validated_data,
+            )
+
+        except AccountAuthenticationError:
+            return Response(
+                {
+                    "detail": "Invalid or expired access token.",
+                },
+                status=status.HTTP_401_UNAUTHORIZED,
+            )
+
+        except (
+            NoteNotFoundError,
+            NoteAttachmentNotFoundError,
+        ):
+            return Response(
+                {
+                    "detail": "Note attachment was not found.",
+                },
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        except NoteAttachmentError as error:
+            return Response(
+                {
+                    "detail": str(error),
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        return Response(
+            {
+                "attachment": attachment,
+            },
+            status=status.HTTP_200_OK,
+        )
+
+    def delete(self, request, note_id, attachment_id):
+        try:
+            authenticated_user = self.get_authenticated_user(request)
+
+            remove_note_attachment(
+                user_id=str(authenticated_user.id),
+                note_id=str(note_id),
+                attachment_id=str(attachment_id),
+            )
+
+        except AccountAuthenticationError:
+            return Response(
+                {
+                    "detail": "Invalid or expired access token.",
+                },
+                status=status.HTTP_401_UNAUTHORIZED,
+            )
+
+        except (
+            NoteNotFoundError,
+            NoteAttachmentNotFoundError,
+        ):
+            return Response(
+                {
+                    "detail": "Note attachment was not found.",
+                },
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        except NoteAttachmentError as error:
+            return Response(
+                {
+                    "detail": str(error),
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        return Response(status=status.HTTP_204_NO_CONTENT)
