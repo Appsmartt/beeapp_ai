@@ -1,0 +1,68 @@
+from django.urls import path
+
+from apps.notes.views import (
+    NoteDetailView,
+    NoteFolderDetailView,
+    NoteFoldersView,
+    NoteRestoreView,
+    NotesView,
+    NoteTagDetailView,
+    NoteTagsAssignmentView,
+    NoteTagsView,
+    NoteTemplatesView,
+    NoteTrashView,
+)
+
+
+urlpatterns = [
+    path(
+        "templates/",
+        NoteTemplatesView.as_view(),
+        name="note-templates",
+    ),
+    path(
+        "",
+        NotesView.as_view(),
+        name="notes",
+    ),
+    path(
+        "<uuid:note_id>/",
+        NoteDetailView.as_view(),
+        name="note-detail",
+    ),
+    path(
+        "<uuid:note_id>/trash/",
+        NoteTrashView.as_view(),
+        name="note-trash",
+    ),
+    path(
+        "<uuid:note_id>/restore/",
+        NoteRestoreView.as_view(),
+        name="note-restore",
+    ),
+    path(
+        "<uuid:note_id>/tags/",
+        NoteTagsAssignmentView.as_view(),
+        name="note-tags-assignment",
+    ),
+    path(
+        "folders/",
+        NoteFoldersView.as_view(),
+        name="note-folders",
+    ),
+    path(
+        "folders/<uuid:folder_id>/",
+        NoteFolderDetailView.as_view(),
+        name="note-folder-detail",
+    ),
+    path(
+        "tags/",
+        NoteTagsView.as_view(),
+        name="note-tags",
+    ),
+    path(
+        "tags/<uuid:tag_id>/",
+        NoteTagDetailView.as_view(),
+        name="note-tag-detail",
+    ),
+]

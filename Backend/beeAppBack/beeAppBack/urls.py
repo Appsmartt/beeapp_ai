@@ -19,6 +19,7 @@ urlpatterns = [
     path("api/health/", health_check, name="health-check"),
     path("api/accounts/", include("apps.accounts.urls")),
     path("api/storage/", include("apps.storage.urls")),
+    path("api/notes/", include("apps.notes.urls")),
     path(
         "api/notifications/",
         include("apps.notifications.urls"),

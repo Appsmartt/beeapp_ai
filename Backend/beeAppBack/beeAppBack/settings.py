@@ -47,8 +47,10 @@ INSTALLED_APPS = [
     "corsheaders",
     "apps.accounts.apps.AccountsConfig",
     "apps.storage.apps.StorageConfig",
+    "apps.notes.apps.NotesConfig",
     "apps.notifications.apps.NotificationsConfig",
 ]
+
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
@@ -130,9 +132,11 @@ USE_TZ = True
 
 
 STATIC_URL = "static/"
+
 DATA_UPLOAD_MAX_MEMORY_SIZE = 52_428_800
 FILE_UPLOAD_MAX_MEMORY_SIZE = 2_621_440
 DATA_UPLOAD_MAX_NUMBER_FIELDS = 100
+
 
 MAILERS = {
     "default": {

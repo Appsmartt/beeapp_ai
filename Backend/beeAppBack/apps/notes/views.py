@@ -1,0 +1,845 @@
+from rest_framework import status
+from rest_framework.response import Response
+
+from apps.accounts.exceptions import (
+    AccountAuthenticationError,
+)
+from apps.accounts.views import (
+    AuthenticatedAPIView,
+)
+from apps.notes.exceptions import (
+    NoteCreateError,
+    NoteDeleteError,
+    NoteFolderError,
+    NoteFolderNotFoundError,
+    NoteNotFoundError,
+    NoteTagError,
+    NoteTagNotFoundError,
+    NoteTemplateError,
+    NoteUpdateError,
+)
+from apps.notes.serializers import (
+    CreateNoteFolderSerializer,
+    CreateNoteSerializer,
+    CreateNoteTagSerializer,
+    MoveNoteFolderSerializer,
+    NoteFolderQuerySerializer,
+    NoteListQuerySerializer,
+    NoteTemplateListQuerySerializer,
+    RenameNoteFolderSerializer,
+    ReplaceNoteTagsSerializer,
+    UpdateNoteSerializer,
+    UpdateNoteTagSerializer,
+)
+from apps.notes.services.note_folder_service import (
+    create_note_folder,
+    delete_note_folder,
+    list_note_folders,
+    move_note_folder,
+    rename_note_folder,
+)
+from apps.notes.services.note_service import (
+    create_note,
+    get_owned_note,
+    list_owned_notes,
+    move_note_to_trash,
+    permanently_delete_note,
+    restore_note_from_trash,
+    update_owned_note,
+)
+from apps.notes.services.note_tag_service import (
+    create_note_tag,
+    delete_note_tag,
+    list_note_tags,
+    list_note_tags_for_note,
+    replace_note_tags,
+    update_note_tag,
+)
+from apps.notes.services.note_template_service import (
+    list_note_templates,
+)
+
+
+class NoteTemplatesView(AuthenticatedAPIView):
+    def get(self, request):
+        serializer = NoteTemplateListQuerySerializer(
+            data=request.query_params,
+        )
+        serializer.is_valid(raise_exception=True)
+
+        try:
+            self.get_authenticated_user(request)
+
+            templates = list_note_templates(
+                **serializer.validated_data,
+            )
+
+        except AccountAuthenticationError:
+            return Response(
+                {
+                    "detail": "Invalid or expired access token.",
+                },
+                status=status.HTTP_401_UNAUTHORIZED,
+            )
+
+        except NoteTemplateError:
+            return Response(
+                {
+                    "detail": "Could not retrieve note templates.",
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        return Response(
+            {
+                "templates": templates,
+            },
+            status=status.HTTP_200_OK,
+        )
+
+
+class NotesView(AuthenticatedAPIView):
+    def get(self, request):
+        serializer = NoteListQuerySerializer(
+            data=request.query_params,
+        )
+        serializer.is_valid(raise_exception=True)
+
+        try:
+            authenticated_user = self.get_authenticated_user(request)
+
+            notes = list_owned_notes(
+                user_id=str(authenticated_user.id),
+                **serializer.validated_data,
+            )
+
+        except AccountAuthenticationError:
+            return Response(
+                {
+                    "detail": "Invalid or expired access token.",
+                },
+                status=status.HTTP_401_UNAUTHORIZED,
+            )
+
+        except NoteUpdateError as error:
+            return Response(
+                {
+                    "detail": str(error),
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        return Response(
+            notes,
+            status=status.HTTP_200_OK,
+        )
+
+    def post(self, request):
+        serializer = CreateNoteSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        try:
+            authenticated_user = self.get_authenticated_user(request)
+
+            note = create_note(
+                user_id=str(authenticated_user.id),
+                **serializer.validated_data,
+            )
+
+        except AccountAuthenticationError:
+            return Response(
+                {
+                    "detail": "Invalid or expired access token.",
+                },
+                status=status.HTTP_401_UNAUTHORIZED,
+            )
+
+        except NoteCreateError as error:
+            return Response(
+                {
+                    "detail": str(error),
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        return Response(
+            {
+                "note": note,
+            },
+            status=status.HTTP_201_CREATED,
+        )
+
+
+class NoteDetailView(AuthenticatedAPIView):
+    def get(self, request, note_id):
+        try:
+            authenticated_user = self.get_authenticated_user(request)
+
+            note = get_owned_note(
+                user_id=str(authenticated_user.id),
+                note_id=str(note_id),
+            )
+
+        except AccountAuthenticationError:
+            return Response(
+                {
+                    "detail": "Invalid or expired access token.",
+                },
+                status=status.HTTP_401_UNAUTHORIZED,
+            )
+
+        except NoteNotFoundError:
+            return Response(
+                {
+                    "detail": "Note was not found.",
+                },
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        return Response(
+            {
+                "note": note,
+            },
+            status=status.HTTP_200_OK,
+        )
+
+    def patch(self, request, note_id):
+        serializer = UpdateNoteSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        try:
+            authenticated_user = self.get_authenticated_user(request)
+
+            note = update_owned_note(
+                user_id=str(authenticated_user.id),
+                note_id=str(note_id),
+                payload=serializer.validated_data,
+            )
+
+        except AccountAuthenticationError:
+            return Response(
+                {
+                    "detail": "Invalid or expired access token.",
+                },
+                status=status.HTTP_401_UNAUTHORIZED,
+            )
+
+        except NoteNotFoundError:
+            return Response(
+                {
+                    "detail": "Note was not found.",
+                },
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        except NoteUpdateError as error:
+            return Response(
+                {
+                    "detail": str(error),
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        return Response(
+            {
+                "note": note,
+            },
+            status=status.HTTP_200_OK,
+        )
+
+    def delete(self, request, note_id):
+        try:
+            authenticated_user = self.get_authenticated_user(request)
+
+            permanently_delete_note(
+                user_id=str(authenticated_user.id),
+                note_id=str(note_id),
+            )
+
+        except AccountAuthenticationError:
+            return Response(
+                {
+                    "detail": "Invalid or expired access token.",
+                },
+                status=status.HTTP_401_UNAUTHORIZED,
+            )
+
+        except NoteNotFoundError:
+            return Response(
+                {
+                    "detail": "Note was not found.",
+                },
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        except NoteDeleteError as error:
+            return Response(
+                {
+                    "detail": str(error),
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        return Response(
+            status=status.HTTP_204_NO_CONTENT,
+        )
+
+
+class NoteTrashView(AuthenticatedAPIView):
+    def post(self, request, note_id):
+        try:
+            authenticated_user = self.get_authenticated_user(request)
+
+            move_note_to_trash(
+                user_id=str(authenticated_user.id),
+                note_id=str(note_id),
+            )
+
+        except AccountAuthenticationError:
+            return Response(
+                {
+                    "detail": "Invalid or expired access token.",
+                },
+                status=status.HTTP_401_UNAUTHORIZED,
+            )
+
+        except NoteNotFoundError:
+            return Response(
+                {
+                    "detail": "Note was not found.",
+                },
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        except NoteDeleteError as error:
+            return Response(
+                {
+                    "detail": str(error),
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        return Response(
+            {
+                "message": "Note moved to trash.",
+            },
+            status=status.HTTP_200_OK,
+        )
+
+
+class NoteRestoreView(AuthenticatedAPIView):
+    def post(self, request, note_id):
+        try:
+            authenticated_user = self.get_authenticated_user(request)
+
+            note = restore_note_from_trash(
+                user_id=str(authenticated_user.id),
+                note_id=str(note_id),
+            )
+
+        except AccountAuthenticationError:
+            return Response(
+                {
+                    "detail": "Invalid or expired access token.",
+                },
+                status=status.HTTP_401_UNAUTHORIZED,
+            )
+
+        except NoteNotFoundError:
+            return Response(
+                {
+                    "detail": "Note was not found.",
+                },
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        except NoteDeleteError as error:
+            return Response(
+                {
+                    "detail": str(error),
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        return Response(
+            {
+                "note": note,
+            },
+            status=status.HTTP_200_OK,
+        )
+
+
+class NoteFoldersView(AuthenticatedAPIView):
+    def get(self, request):
+        serializer = NoteFolderQuerySerializer(
+            data=request.query_params,
+        )
+        serializer.is_valid(raise_exception=True)
+
+        try:
+            authenticated_user = self.get_authenticated_user(request)
+
+            parent_id = serializer.validated_data.get("parent_id")
+
+            folders = list_note_folders(
+                user_id=str(authenticated_user.id),
+                parent_id=(
+                    str(parent_id)
+                    if parent_id is not None
+                    else None
+                ),
+            )
+
+        except AccountAuthenticationError:
+            return Response(
+                {
+                    "detail": "Invalid or expired access token.",
+                },
+                status=status.HTTP_401_UNAUTHORIZED,
+            )
+
+        except NoteFolderError:
+            return Response(
+                {
+                    "detail": "Could not retrieve note folders.",
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        return Response(
+            {
+                "folders": folders,
+            },
+            status=status.HTTP_200_OK,
+        )
+
+    def post(self, request):
+        serializer = CreateNoteFolderSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        try:
+            authenticated_user = self.get_authenticated_user(request)
+
+            parent_id = serializer.validated_data.get("parent_id")
+
+            folder = create_note_folder(
+                user_id=str(authenticated_user.id),
+                name=serializer.validated_data["name"],
+                parent_id=(
+                    str(parent_id)
+                    if parent_id is not None
+                    else None
+                ),
+            )
+
+        except AccountAuthenticationError:
+            return Response(
+                {
+                    "detail": "Invalid or expired access token.",
+                },
+                status=status.HTTP_401_UNAUTHORIZED,
+            )
+
+        except NoteFolderNotFoundError:
+            return Response(
+                {
+                    "detail": "Parent note folder was not found.",
+                },
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        except NoteFolderError as error:
+            return Response(
+                {
+                    "detail": str(error),
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        return Response(
+            {
+                "folder": folder,
+            },
+            status=status.HTTP_201_CREATED,
+        )
+
+
+class NoteFolderDetailView(AuthenticatedAPIView):
+    def patch(self, request, folder_id):
+        if "name" in request.data:
+            serializer = RenameNoteFolderSerializer(data=request.data)
+            serializer.is_valid(raise_exception=True)
+
+            try:
+                authenticated_user = self.get_authenticated_user(request)
+
+                folder = rename_note_folder(
+                    user_id=str(authenticated_user.id),
+                    folder_id=str(folder_id),
+                    name=serializer.validated_data["name"],
+                )
+
+            except AccountAuthenticationError:
+                return Response(
+                    {
+                        "detail": "Invalid or expired access token.",
+                    },
+                    status=status.HTTP_401_UNAUTHORIZED,
+                )
+
+            except NoteFolderNotFoundError:
+                return Response(
+                    {
+                        "detail": "Note folder was not found.",
+                    },
+                    status=status.HTTP_404_NOT_FOUND,
+                )
+
+            except NoteFolderError as error:
+                return Response(
+                    {
+                        "detail": str(error),
+                    },
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            return Response(
+                {
+                    "folder": folder,
+                },
+                status=status.HTTP_200_OK,
+            )
+
+        serializer = MoveNoteFolderSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        try:
+            authenticated_user = self.get_authenticated_user(request)
+
+            parent_id = serializer.validated_data.get("parent_id")
+
+            folder = move_note_folder(
+                user_id=str(authenticated_user.id),
+                folder_id=str(folder_id),
+                parent_id=(
+                    str(parent_id)
+                    if parent_id is not None
+                    else None
+                ),
+            )
+
+        except AccountAuthenticationError:
+            return Response(
+                {
+                    "detail": "Invalid or expired access token.",
+                },
+                status=status.HTTP_401_UNAUTHORIZED,
+            )
+
+        except NoteFolderNotFoundError:
+            return Response(
+                {
+                    "detail": "Note folder was not found.",
+                },
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        except NoteFolderError as error:
+            return Response(
+                {
+                    "detail": str(error),
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        return Response(
+            {
+                "folder": folder,
+            },
+            status=status.HTTP_200_OK,
+        )
+
+    def delete(self, request, folder_id):
+        try:
+            authenticated_user = self.get_authenticated_user(request)
+
+            delete_note_folder(
+                user_id=str(authenticated_user.id),
+                folder_id=str(folder_id),
+            )
+
+        except AccountAuthenticationError:
+            return Response(
+                {
+                    "detail": "Invalid or expired access token.",
+                },
+                status=status.HTTP_401_UNAUTHORIZED,
+            )
+
+        except NoteFolderNotFoundError:
+            return Response(
+                {
+                    "detail": "Note folder was not found.",
+                },
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        except NoteFolderError as error:
+            return Response(
+                {
+                    "detail": str(error),
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        return Response(
+            status=status.HTTP_204_NO_CONTENT,
+        )
+
+
+class NoteTagsView(AuthenticatedAPIView):
+    def get(self, request):
+        try:
+            authenticated_user = self.get_authenticated_user(request)
+
+            tags = list_note_tags(
+                user_id=str(authenticated_user.id),
+            )
+
+        except AccountAuthenticationError:
+            return Response(
+                {
+                    "detail": "Invalid or expired access token.",
+                },
+                status=status.HTTP_401_UNAUTHORIZED,
+            )
+
+        except NoteTagError:
+            return Response(
+                {
+                    "detail": "Could not retrieve note tags.",
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        return Response(
+            {
+                "tags": tags,
+            },
+            status=status.HTTP_200_OK,
+        )
+
+    def post(self, request):
+        serializer = CreateNoteTagSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        try:
+            authenticated_user = self.get_authenticated_user(request)
+
+            tag = create_note_tag(
+                user_id=str(authenticated_user.id),
+                **serializer.validated_data,
+            )
+
+        except AccountAuthenticationError:
+            return Response(
+                {
+                    "detail": "Invalid or expired access token.",
+                },
+                status=status.HTTP_401_UNAUTHORIZED,
+            )
+
+        except NoteTagError as error:
+            return Response(
+                {
+                    "detail": str(error),
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        return Response(
+            {
+                "tag": tag,
+            },
+            status=status.HTTP_201_CREATED,
+        )
+
+
+class NoteTagDetailView(AuthenticatedAPIView):
+    def patch(self, request, tag_id):
+        serializer = UpdateNoteTagSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        try:
+            authenticated_user = self.get_authenticated_user(request)
+
+            tag = update_note_tag(
+                user_id=str(authenticated_user.id),
+                tag_id=str(tag_id),
+                **serializer.validated_data,
+            )
+
+        except AccountAuthenticationError:
+            return Response(
+                {
+                    "detail": "Invalid or expired access token.",
+                },
+                status=status.HTTP_401_UNAUTHORIZED,
+            )
+
+        except NoteTagNotFoundError:
+            return Response(
+                {
+                    "detail": "Note tag was not found.",
+                },
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        except NoteTagError as error:
+            return Response(
+                {
+                    "detail": str(error),
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        return Response(
+            {
+                "tag": tag,
+            },
+            status=status.HTTP_200_OK,
+        )
+
+    def delete(self, request, tag_id):
+        try:
+            authenticated_user = self.get_authenticated_user(request)
+
+            delete_note_tag(
+                user_id=str(authenticated_user.id),
+                tag_id=str(tag_id),
+            )
+
+        except AccountAuthenticationError:
+            return Response(
+                {
+                    "detail": "Invalid or expired access token.",
+                },
+                status=status.HTTP_401_UNAUTHORIZED,
+            )
+
+        except NoteTagNotFoundError:
+            return Response(
+                {
+                    "detail": "Note tag was not found.",
+                },
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        except NoteTagError as error:
+            return Response(
+                {
+                    "detail": str(error),
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        return Response(
+            status=status.HTTP_204_NO_CONTENT,
+        )
+
+
+class NoteTagsAssignmentView(AuthenticatedAPIView):
+    def get(self, request, note_id):
+        try:
+            authenticated_user = self.get_authenticated_user(request)
+
+            tags = list_note_tags_for_note(
+                user_id=str(authenticated_user.id),
+                note_id=str(note_id),
+            )
+
+        except AccountAuthenticationError:
+            return Response(
+                {
+                    "detail": "Invalid or expired access token.",
+                },
+                status=status.HTTP_401_UNAUTHORIZED,
+            )
+
+        except NoteNotFoundError:
+            return Response(
+                {
+                    "detail": "Note was not found.",
+                },
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        except NoteTagError:
+            return Response(
+                {
+                    "detail": "Could not retrieve note tags.",
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        return Response(
+            {
+                "tags": tags,
+            },
+            status=status.HTTP_200_OK,
+        )
+
+    def put(self, request, note_id):
+        serializer = ReplaceNoteTagsSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        try:
+            authenticated_user = self.get_authenticated_user(request)
+
+            tags = replace_note_tags(
+                user_id=str(authenticated_user.id),
+                note_id=str(note_id),
+                tag_ids=[
+                    str(tag_id)
+                    for tag_id in serializer.validated_data["tag_ids"]
+                ],
+            )
+
+        except AccountAuthenticationError:
+            return Response(
+                {
+                    "detail": "Invalid or expired access token.",
+                },
+                status=status.HTTP_401_UNAUTHORIZED,
+            )
+
+        except NoteNotFoundError:
+            return Response(
+                {
+                    "detail": "Note was not found.",
+                },
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        except NoteTagNotFoundError:
+            return Response(
+                {
+                    "detail": "One or more note tags were not found.",
+                },
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        except NoteTagError as error:
+            return Response(
+                {
+                    "detail": str(error),
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        return Response(
+            {
+                "tags": tags,
+            },
+            status=status.HTTP_200_OK,
+        )
