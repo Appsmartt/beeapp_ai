@@ -23,13 +23,11 @@ import {
   notesListStyles as styles,
 } from './notesListStyles';
 
-
 export type NotesFilter =
   | 'all'
   | 'recent'
   | 'favorite'
   | 'trash';
-
 
 const CHIPS: {
   id: NotesFilter;
@@ -53,19 +51,18 @@ const CHIPS: {
   },
 ];
 
-
 interface NotesListViewProps {
   notes: NoteListItem[];
   viewMode: ViewMode;
   activeFilter: NotesFilter;
   onChangeFilter: (filter: NotesFilter) => void;
   onOpen: (id: string) => void;
+  onLongPress: (note: NoteListItem) => void;
   onToggleFavorite: (
     id: string,
     event: unknown,
   ) => void;
 }
-
 
 /**
  * Lista de notas reales. Sus datos vienen del backend;
@@ -77,6 +74,7 @@ export default function NotesListView({
   activeFilter,
   onChangeFilter,
   onOpen,
+  onLongPress,
   onToggleFavorite,
 }: NotesListViewProps) {
   return (
@@ -128,6 +126,7 @@ export default function NotesListView({
             <NotesGridView
               notes={notes}
               onOpen={onOpen}
+              onLongPress={onLongPress}
             />
           ) : (
             notes.map((note, index) => (
@@ -138,6 +137,7 @@ export default function NotesListView({
                   index < notes.length - 1
                 }
                 onPress={() => onOpen(note.id)}
+                onLongPress={() => onLongPress(note)}
                 onToggleFavorite={(event) =>
                   onToggleFavorite(
                     note.id,

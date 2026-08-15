@@ -1,6 +1,7 @@
 import {
   useCallback,
   useEffect,
+  useMemo,
   useState,
 } from 'react';
 import {
@@ -10,19 +11,20 @@ import {
   View,
 } from 'react-native';
 import {
+  Bell,
   Bot,
   Calendar,
+  ChevronRight,
   FileText,
   FolderOpen,
   Mail,
   MessageCircle,
+  Pencil,
   Search,
   ShoppingBag,
   Sparkles,
   TrendingUp,
   Video,
-  ChevronRight,
-  Bell,
 } from 'lucide-react-native';
 import { colors } from '@beeapp/design-system';
 import {
@@ -45,7 +47,12 @@ import {
 import {
   getValidSessionCredentials,
 } from '../../services/authSession';
-import { MOCK_NOTES } from '../../mocks/notes';
+import {
+  getFixedViewNotes,
+} from '../../services/notesService';
+import {
+  useNotes,
+} from '../../hooks/useNotes';
 import { styles } from './allModulesOverviewStyles';
 
 const STORAGE_NOTIFICATION_MODULE = 'storage';
@@ -90,6 +97,10 @@ export default function AllModulesOverview() {
     | ((id: string) => void)
     | undefined;
 
+  const {
+    notes,
+  } = useNotes();
+
   const [storageSummary, setLocalStorageSummary] =
     useState<StorageSummary | null>(
       getStoredStorageSummary(),
@@ -98,7 +109,10 @@ export default function AllModulesOverview() {
   const [unreadStorageNotifications, setUnreadStorageNotifications] =
     useState(0);
 
-  const totalNotes = MOCK_NOTES.length;
+  const totalNotes = useMemo(
+    () => getFixedViewNotes('all', notes).length,
+    [notes],
+  );
 
   const notesCountLabel = totalNotes === 1
     ? '1 nota'
@@ -568,7 +582,12 @@ export default function AllModulesOverview() {
             </Text>
 
             <View style={styles.badgesContainer}>
-              <View style={styles.badgePill}>
+              <View style={styles.notesCountBadge}>
+                <Pencil
+                  size={11}
+                  color={colors.neutral.gray700}
+                />
+
                 <Text style={styles.badgeText}>
                   {notesCountLabel}
                 </Text>

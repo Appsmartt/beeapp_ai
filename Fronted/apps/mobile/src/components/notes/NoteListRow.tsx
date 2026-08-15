@@ -19,19 +19,17 @@ import type {
   NoteListItem,
 } from '../../services/notesService';
 
-
 export type NoteRowData = NoteListItem;
-
 
 interface NoteListRowProps {
   note: NoteListItem;
   showSeparator: boolean;
   onPress: () => void;
+  onLongPress: () => void;
   onToggleFavorite: (
     event: unknown,
   ) => void;
 }
-
 
 /**
  * Fila de una nota real: título, preview de bloques,
@@ -41,6 +39,7 @@ export default function NoteListRow({
   note,
   showSeparator,
   onPress,
+  onLongPress,
   onToggleFavorite,
 }: NoteListRowProps) {
   const updatedAt = new Date(note.updatedAt);
@@ -65,6 +64,8 @@ export default function NoteListRow({
           showSeparator && styles.rowSeparator,
         ]}
         onPress={onPress}
+        onLongPress={onLongPress}
+        delayLongPress={450}
         activeOpacity={0.7}
       >
         <View
@@ -158,7 +159,6 @@ export default function NoteListRow({
     </View>
   );
 }
-
 
 const styles = StyleSheet.create({
   wrapper: {

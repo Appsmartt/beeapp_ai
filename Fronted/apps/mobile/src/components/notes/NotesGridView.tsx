@@ -22,15 +22,13 @@ import {
   useGridColumns,
 } from '../layout/ViewModeToggle';
 
-
 const GAP = 12;
-
 
 interface NotesGridViewProps {
   notes: NoteListItem[];
   onOpen: (id: string) => void;
+  onLongPress: (note: NoteListItem) => void;
 }
-
 
 /**
  * Tarjetas adaptables para notas reales. El contenido
@@ -39,6 +37,7 @@ interface NotesGridViewProps {
 export default function NotesGridView({
   notes,
   onOpen,
+  onLongPress,
 }: NotesGridViewProps) {
   const columns = useGridColumns();
 
@@ -69,6 +68,8 @@ export default function NotesGridView({
               },
             ]}
             onPress={() => onOpen(note.id)}
+            onLongPress={() => onLongPress(note)}
+            delayLongPress={450}
             activeOpacity={0.8}
           >
             <View style={styles.inner}>
@@ -133,7 +134,6 @@ export default function NotesGridView({
     </View>
   );
 }
-
 
 const styles = StyleSheet.create({
   grid: {

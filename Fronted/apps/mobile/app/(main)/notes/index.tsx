@@ -18,17 +18,20 @@ import {
   useNavigation,
 } from 'expo-router';
 import {
+  Archive,
   ChevronLeft,
+  Edit3,
   FolderInput,
   FolderPlus,
   Plus,
   RefreshCw,
+  Star,
   Tags,
+  Trash2,
   X,
 } from 'lucide-react-native';
 import {
   colors,
-  radii,
   spacing,
 } from '@beeapp/design-system';
 import {
@@ -38,7 +41,9 @@ import {
   deleteNoteTag,
   hideReceivedNoteShare,
   moveNoteFolder,
+  moveNoteToTrash,
   renameNoteFolder,
+  updateNote,
   updateNoteTag,
 } from '@beeapp/api-client';
 import type {
@@ -72,6 +77,7 @@ import {
   getFixedViewNotes,
   getHomeItemNoteCount,
   mapFolderToHomeItem,
+  mapNoteToListItem,
   mapTagToHomeItem,
   mapTemplateToHomeItem,
   sortNotesByUpdatedAt,
@@ -82,12 +88,13 @@ import {
 import {
   useNotes,
 } from '../../../src/hooks/useNotes';
-
+import {
+  upsertNote,
+} from '../../../src/stores/notesStore';
 
 type HomeSection =
   | 'folders'
   | 'tags';
-
 
 type NameModalMode =
   | 'create-folder'
@@ -95,7 +102,6 @@ type NameModalMode =
   | 'rename-folder'
   | 'rename-tag'
   | null;
-
 
 function isFixedView(
   item: NotesHomeItem,
@@ -106,7 +112,6 @@ function isFixedView(
   return item.kind === 'fixed';
 }
 
-
 function getFolderParentId(
   folderId: string,
   folders: NoteFolder[],
@@ -115,7 +120,6 @@ function getFolderParentId(
     (folder) => folder.id === folderId,
   )?.parent_id || null;
 }
-
 
 export default function NotesListScreen() {
   const router = useModuleNav();
@@ -151,6 +155,12 @@ export default function NotesListScreen() {
   const [entityActionsVisible, setEntityActionsVisible] =
     useState(false);
 
+  const [activeNote, setActiveNote] =
+    useState<NoteListItem | null>(null);
+
+  const [noteActionsVisible, setNoteActionsVisible] =
+    useState(false);
+
   const [nameModalMode, setNameModalMode] =
     useState<NameModalMode>(null);
 
@@ -162,7 +172,6 @@ export default function NotesListScreen() {
 
   const [submitting, setSubmitting] = useState(false);
 
-
   useEffect(() => {
     const unsubscribe = navigation.addListener(
       'focus',
@@ -173,7 +182,6 @@ export default function NotesListScreen() {
 
     return unsubscribe;
   }, [loadNotes, navigation]);
-
 
   const fixedItems = useMemo(
     () => getFixedNotesHomeItems(),
@@ -217,7 +225,6 @@ export default function NotesListScreen() {
     [templates],
   );
 
-
   const currentNotes = useMemo(() => {
     if (!selectedItem) {
       return [];
@@ -253,7 +260,6 @@ export default function NotesListScreen() {
     return [];
   }, [notes, selectedItem]);
 
-
   const filteredNotes = useMemo(() => {
     if (!selectedItem) {
       return [];
@@ -288,12 +294,10 @@ export default function NotesListScreen() {
     selectedItem,
   ]);
 
-
   const sortedNotes = useMemo(
     () => sortNotesByUpdatedAt(filteredNotes),
     [filteredNotes],
   );
-
 
   const goBack = () => {
     if (selectedItem?.kind === 'folder') {
@@ -331,7 +335,6 @@ export default function NotesListScreen() {
     router.back();
   };
 
-
   const openNote = (
     note: NoteListItem,
   ) => {
@@ -346,7 +349,6 @@ export default function NotesListScreen() {
       },
     });
   };
-
 
   const handleToggleFavorite = async (
     noteId: string,
@@ -365,11 +367,53 @@ export default function NotesListScreen() {
       (item) => item.id === noteId,
     );
 
-    if (note) {
-      openNote(note);
+    if (!note) {
+      return;
+    }
+
+    if (note.isShared) {
+      handleHideReceivedShare(note);
+      return;
+    }
+
+    try {
+      setSubmitting(true);
+
+      const auth =
+        await getValidSessionCredentials();
+
+      if (!auth) {
+        throw new Error(
+          'Tu sesión expiró. Inicia sesión nuevamente.',
+        );
+      }
+
+      const response = await updateNote(
+        auth,
+        note.id,
+        {
+          is_favorite: !note.isFavorite,
+        },
+      );
+
+      upsertNote(
+        mapNoteToListItem(response.note, {
+          tagIds: note.tagIds,
+        }),
+      );
+
+      await loadNotes(true);
+    } catch (favoriteError) {
+      Alert.alert(
+        'No fue posible actualizar la nota',
+        favoriteError instanceof Error
+          ? favoriteError.message
+          : 'Intenta nuevamente.',
+      );
+    } finally {
+      setSubmitting(false);
     }
   };
-
 
   const handleOpenItem = (
     item: NotesHomeItem,
@@ -401,7 +445,6 @@ export default function NotesListScreen() {
     );
   };
 
-
   const handleOpenEntityActions = (
     entity: NotesHomeItem,
   ) => {
@@ -409,6 +452,109 @@ export default function NotesListScreen() {
     setEntityActionsVisible(true);
   };
 
+  const handleOpenNoteActions = (
+    note: NoteListItem,
+  ) => {
+    setActiveNote(note);
+    setNoteActionsVisible(true);
+  };
+
+  const closeNoteActions = () => {
+    if (submitting) {
+      return;
+    }
+
+    setNoteActionsVisible(false);
+    setActiveNote(null);
+  };
+
+  const handleEditActiveNote = () => {
+    if (!activeNote) {
+      return;
+    }
+
+    const note = activeNote;
+
+    setNoteActionsVisible(false);
+    setActiveNote(null);
+
+    openNote(note);
+  };
+
+  const handleToggleActiveNoteFavorite = () => {
+    if (!activeNote) {
+      return;
+    }
+
+    const note = activeNote;
+
+    setNoteActionsVisible(false);
+    setActiveNote(null);
+
+    void handleToggleFavorite(note.id, null);
+  };
+
+  const handleMoveActiveNoteToTrash = () => {
+    if (!activeNote || activeNote.isShared) {
+      return;
+    }
+
+    const note = activeNote;
+
+    Alert.alert(
+      'Mover a papelera',
+      (
+        'La nota se moverá a la papelera. '
+        + 'Podrás restaurarla más adelante.'
+      ),
+      [
+        {
+          text: 'Cancelar',
+          style: 'cancel',
+        },
+        {
+          text: 'Mover',
+          style: 'destructive',
+          onPress: () => {
+            void confirmMoveActiveNoteToTrash(note);
+          },
+        },
+      ],
+    );
+  };
+
+  const confirmMoveActiveNoteToTrash = async (
+    note: NoteListItem,
+  ) => {
+    try {
+      setSubmitting(true);
+
+      const auth =
+        await getValidSessionCredentials();
+
+      if (!auth) {
+        throw new Error(
+          'Tu sesión expiró. Inicia sesión nuevamente.',
+        );
+      }
+
+      await moveNoteToTrash(auth, note.id);
+
+      setNoteActionsVisible(false);
+      setActiveNote(null);
+
+      await loadNotes(true);
+    } catch (trashError) {
+      Alert.alert(
+        'No fue posible mover la nota',
+        trashError instanceof Error
+          ? trashError.message
+          : 'Intenta nuevamente.',
+      );
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   const handleCreateEntity = async (
     draft: {
@@ -458,7 +604,6 @@ export default function NotesListScreen() {
       setSubmitting(false);
     }
   };
-
 
   const handleRenameEntity = async (
     name: string,
@@ -511,7 +656,6 @@ export default function NotesListScreen() {
     }
   };
 
-
   const handleDeleteEntity = () => {
     if (!activeEntity) {
       return;
@@ -549,7 +693,6 @@ export default function NotesListScreen() {
       ],
     );
   };
-
 
   const confirmDeleteEntity = async (
     entity: NotesHomeItem,
@@ -611,7 +754,6 @@ export default function NotesListScreen() {
     }
   };
 
-
   const handleMoveFolder = async (
     parentId: string | null,
   ) => {
@@ -659,7 +801,6 @@ export default function NotesListScreen() {
     }
   };
 
-
   const handleHideReceivedShare = (
     note: NoteListItem,
   ) => {
@@ -689,7 +830,6 @@ export default function NotesListScreen() {
       ],
     );
   };
-
 
   const confirmHideReceivedShare = async (
     note: NoteListItem,
@@ -724,11 +864,9 @@ export default function NotesListScreen() {
     }
   };
 
-
   const startNewNote = () => {
     setTemplatePickerVisible(true);
   };
-
 
   const renderHomeSection = (
     title: string,
@@ -796,13 +934,11 @@ export default function NotesListScreen() {
     </View>
   );
 
-
   const screenTitle = selectedItem
     ? selectedItem.name
     : currentFolder
       ? currentFolder.name
       : 'Mis Notas';
-
 
   return (
     <ScreenSafeArea style={styles.safeArea}>
@@ -954,6 +1090,7 @@ export default function NotesListScreen() {
                   openNote(note);
                 }
               }}
+              onLongPress={handleOpenNoteActions}
               onToggleFavorite={(noteId, event) => {
                 const note = sortedNotes.find(
                   (item) => item.id === noteId,
@@ -1074,6 +1211,30 @@ export default function NotesListScreen() {
           visible={false}
           onCreate={() => undefined}
           onClose={() => undefined}
+        />
+
+        <NoteActionsModal
+          visible={noteActionsVisible}
+          note={activeNote}
+          submitting={submitting}
+          onClose={closeNoteActions}
+          onEdit={handleEditActiveNote}
+          onToggleFavorite={
+            handleToggleActiveNoteFavorite
+          }
+          onMoveToTrash={handleMoveActiveNoteToTrash}
+          onHideShared={() => {
+            if (!activeNote) {
+              return;
+            }
+
+            const note = activeNote;
+
+            setNoteActionsVisible(false);
+            setActiveNote(null);
+
+            handleHideReceivedShare(note);
+          }}
         />
 
         <NoteEntityActionModal
@@ -1215,6 +1376,227 @@ export default function NotesListScreen() {
   );
 }
 
+function NoteActionsModal({
+  visible,
+  note,
+  submitting,
+  onClose,
+  onEdit,
+  onToggleFavorite,
+  onMoveToTrash,
+  onHideShared,
+}: {
+  visible: boolean;
+  note: NoteListItem | null;
+  submitting: boolean;
+  onClose: () => void;
+  onEdit: () => void;
+  onToggleFavorite: () => void;
+  onMoveToTrash: () => void;
+  onHideShared: () => void;
+}) {
+  if (!note) {
+    return null;
+  }
+
+  return (
+    <Modal
+      visible={visible}
+      transparent
+      animationType="slide"
+      onRequestClose={onClose}
+    >
+      <View style={modalStyles.backdrop}>
+        <TouchableOpacity
+          style={StyleSheet.absoluteFill}
+          onPress={onClose}
+          activeOpacity={1}
+          disabled={submitting}
+        />
+
+        <View style={modalStyles.sheet}>
+          <View style={modalStyles.header}>
+            <View style={modalStyles.headerCopy}>
+              <Text
+                style={modalStyles.title}
+                numberOfLines={1}
+              >
+                {note.title}
+              </Text>
+
+              <Text style={modalStyles.optionDescription}>
+                {note.isShared
+                  ? 'Nota compartida'
+                  : 'Nota'}
+              </Text>
+            </View>
+
+            <TouchableOpacity
+              style={modalStyles.closeButton}
+              onPress={onClose}
+              activeOpacity={0.7}
+              disabled={submitting}
+            >
+              <X
+                size={19}
+                color={colors.neutral.gray600}
+              />
+            </TouchableOpacity>
+          </View>
+
+          <TouchableOpacity
+            style={modalStyles.option}
+            onPress={onEdit}
+            activeOpacity={0.75}
+            disabled={submitting}
+          >
+            <View
+              style={[
+                modalStyles.optionIcon,
+                {
+                  backgroundColor:
+                    colors.brand.primary + '15',
+                },
+              ]}
+            >
+              <Edit3
+                size={18}
+                color={colors.brand.primary}
+              />
+            </View>
+
+            <View style={modalStyles.optionCopy}>
+              <Text style={modalStyles.optionTitle}>
+                {note.isShared
+                  ? 'Abrir nota'
+                  : 'Abrir y editar'}
+              </Text>
+
+              <Text style={modalStyles.optionDescription}>
+                {note.isShared
+                  ? 'Ver el contenido compartido contigo.'
+                  : 'Ver o modificar el contenido de la nota.'}
+              </Text>
+            </View>
+          </TouchableOpacity>
+
+          {!note.isShared && (
+            <TouchableOpacity
+              style={modalStyles.option}
+              onPress={onToggleFavorite}
+              activeOpacity={0.75}
+              disabled={submitting}
+            >
+              <View
+                style={[
+                  modalStyles.optionIcon,
+                  {
+                    backgroundColor: '#FEF3C7',
+                  },
+                ]}
+              >
+                <Star
+                  size={18}
+                  color="#F59E0B"
+                  fill={
+                    note.isFavorite
+                      ? '#F59E0B'
+                      : 'transparent'
+                  }
+                />
+              </View>
+
+              <View style={modalStyles.optionCopy}>
+                <Text style={modalStyles.optionTitle}>
+                  {note.isFavorite
+                    ? 'Quitar de favoritas'
+                    : 'Marcar como favorita'}
+                </Text>
+
+                <Text style={modalStyles.optionDescription}>
+                  Destaca esta nota en tu vista de favoritas.
+                </Text>
+              </View>
+            </TouchableOpacity>
+          )}
+
+          {note.isShared ? (
+            <TouchableOpacity
+              style={modalStyles.option}
+              onPress={onHideShared}
+              activeOpacity={0.75}
+              disabled={submitting}
+            >
+              <View
+                style={[
+                  modalStyles.optionIcon,
+                  {
+                    backgroundColor:
+                      colors.neutral.gray100,
+                  },
+                ]}
+              >
+                <Archive
+                  size={18}
+                  color={colors.neutral.gray700}
+                />
+              </View>
+
+              <View style={modalStyles.optionCopy}>
+                <Text style={modalStyles.optionTitle}>
+                  Ocultar nota compartida
+                </Text>
+
+                <Text style={modalStyles.optionDescription}>
+                  Dejará de aparecer en tus compartidas.
+                </Text>
+              </View>
+            </TouchableOpacity>
+          ) : (
+            <TouchableOpacity
+              style={modalStyles.option}
+              onPress={onMoveToTrash}
+              activeOpacity={0.75}
+              disabled={submitting}
+            >
+              <View
+                style={[
+                  modalStyles.optionIcon,
+                  {
+                    backgroundColor:
+                      colors.semantic.error + '12',
+                  },
+                ]}
+              >
+                <Trash2
+                  size={18}
+                  color={colors.semantic.error}
+                />
+              </View>
+
+              <View style={modalStyles.optionCopy}>
+                <Text
+                  style={[
+                    modalStyles.optionTitle,
+                    {
+                      color: colors.semantic.error,
+                    },
+                  ]}
+                >
+                  Mover a papelera
+                </Text>
+
+                <Text style={modalStyles.optionDescription}>
+                  Podrás restaurarla más adelante.
+                </Text>
+              </View>
+            </TouchableOpacity>
+          )}
+        </View>
+      </View>
+    </Modal>
+  );
+}
 
 function TemplatePickerModal({
   visible,
@@ -1340,7 +1722,6 @@ function TemplatePickerModal({
     </Modal>
   );
 }
-
 
 function MoveFolderPickerModal({
   visible,
@@ -1472,7 +1853,6 @@ function MoveFolderPickerModal({
   );
 }
 
-
 const modalStyles = StyleSheet.create({
   backdrop: {
     flex: 1,
@@ -1494,6 +1874,10 @@ const modalStyles = StyleSheet.create({
     paddingHorizontal: spacing.md,
     borderBottomWidth: 1,
     borderBottomColor: colors.neutral.gray100,
+  },
+  headerCopy: {
+    flex: 1,
+    paddingRight: spacing.sm,
   },
   title: {
     fontSize: 16,

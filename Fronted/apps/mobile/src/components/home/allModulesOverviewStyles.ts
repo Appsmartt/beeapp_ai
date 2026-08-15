@@ -11,7 +11,16 @@ export const styles = StyleSheet.create({
     paddingTop: spacing.md,
     paddingBottom: spacing.xl,
   },
-
+  notesCountBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    alignSelf: 'flex-start',
+    backgroundColor: colors.neutral.gray100,
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: 8,
+  },
   beeServicesCard: {
     backgroundColor: '#FAF5FF',
     borderRadius: 20,
