@@ -419,6 +419,22 @@ export interface UpdateStorageFolderPayload {
   name: string;
 }
 
+export interface MoveStorageFolderPayload {
+  parent_id: string | null;
+}
+
+export interface UpdateStorageFilePayload {
+  display_name: string;
+}
+
+export interface MoveStorageFilePayload {
+  folder_id: string | null;
+}
+
+export interface UpdateStorageFileResponse {
+  file: StorageFile;
+}
+
 export interface CreateStorageTagPayload {
   name: string;
   icon?: string;

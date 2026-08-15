@@ -15,12 +15,16 @@ import type {
     GetStorageShareRecipientsResponse,
     GetStorageSummaryResponse,
     GetStorageTagsResponse,
+    MoveStorageFilePayload,
+    MoveStorageFolderPayload,
     ReceivedSharesQuery,
     ReplaceFileTagsPayload,
     ReplaceFileTagsResponse,
     StorageFilesQuery,
     StorageFoldersQuery,
     UpdateFileShareResponse,
+    UpdateStorageFilePayload,
+    UpdateStorageFileResponse,
     UpdateStorageFolderPayload,
     UpdateStorageFolderResponse,
     UpdateStorageTagPayload,
@@ -28,7 +32,6 @@ import type {
     } from '@beeapp/shared-types';
 
 import { api } from './client';
-
 
 function buildQuery(
     params: object,
@@ -50,7 +53,6 @@ function buildQuery(
     return query ? `?${query}` : '';
 }
 
-
 export function getStorageSummary(
     auth: AuthCredentials,
     ): Promise<GetStorageSummaryResponse> {
@@ -59,7 +61,6 @@ export function getStorageSummary(
         { auth },
     );
 }
-
 
 export function getStorageFiles(
     auth: AuthCredentials,
@@ -71,7 +72,6 @@ export function getStorageFiles(
     );
 }
 
-
 export function getStorageFolders(
     auth: AuthCredentials,
     query: StorageFoldersQuery = {},
@@ -81,7 +81,6 @@ export function getStorageFolders(
         { auth },
     );
 }
-
 
 export function createStorageFolder(
     auth: AuthCredentials,
@@ -93,7 +92,6 @@ export function createStorageFolder(
         { auth },
     );
 }
-
 
 export function renameStorageFolder(
     auth: AuthCredentials,
@@ -107,6 +105,17 @@ export function renameStorageFolder(
     );
 }
 
+export function moveStorageFolder(
+    auth: AuthCredentials,
+    folderId: string,
+    payload: MoveStorageFolderPayload,
+    ): Promise<UpdateStorageFolderResponse> {
+    return api.patch<UpdateStorageFolderResponse>(
+        `/storage/folders/${encodeURIComponent(folderId)}/`,
+        payload,
+        { auth },
+    );
+}
 
 export async function deleteStorageFolder(
     auth: AuthCredentials,
@@ -118,6 +127,29 @@ export async function deleteStorageFolder(
     );
 }
 
+export function renameStorageFile(
+    auth: AuthCredentials,
+    fileId: string,
+    payload: UpdateStorageFilePayload,
+    ): Promise<UpdateStorageFileResponse> {
+    return api.patch<UpdateStorageFileResponse>(
+        `/storage/files/${encodeURIComponent(fileId)}/`,
+        payload,
+        { auth },
+    );
+}
+
+export function moveStorageFile(
+    auth: AuthCredentials,
+    fileId: string,
+    payload: MoveStorageFilePayload,
+    ): Promise<UpdateStorageFileResponse> {
+    return api.patch<UpdateStorageFileResponse>(
+        `/storage/files/${encodeURIComponent(fileId)}/`,
+        payload,
+        { auth },
+    );
+}
 
 export async function uploadStorageFiles(
     auth: AuthCredentials,
@@ -130,9 +162,7 @@ export async function uploadStorageFiles(
     );
 }
 
-
 export const uploadStorageFile = uploadStorageFiles;
-
 
 export function getStorageFileAccess(
     auth: AuthCredentials,
@@ -147,7 +177,6 @@ export function getStorageFileAccess(
     );
 }
 
-
 export async function moveStorageFileToTrash(
     auth: AuthCredentials,
     fileId: string,
@@ -158,7 +187,6 @@ export async function moveStorageFileToTrash(
         { auth },
     );
 }
-
 
 export async function restoreStorageFile(
     auth: AuthCredentials,
@@ -171,7 +199,6 @@ export async function restoreStorageFile(
     );
 }
 
-
 export async function permanentlyDeleteStorageFile(
     auth: AuthCredentials,
     fileId: string,
@@ -182,7 +209,6 @@ export async function permanentlyDeleteStorageFile(
     );
 }
 
-
 export function getStorageTags(
     auth: AuthCredentials,
     ): Promise<GetStorageTagsResponse> {
@@ -191,7 +217,6 @@ export function getStorageTags(
         { auth },
     );
 }
-
 
 export function createStorageTag(
     auth: AuthCredentials,
@@ -203,7 +228,6 @@ export function createStorageTag(
         { auth },
     );
 }
-
 
 export function updateStorageTag(
     auth: AuthCredentials,
@@ -217,7 +241,6 @@ export function updateStorageTag(
     );
 }
 
-
 export async function deleteStorageTag(
     auth: AuthCredentials,
     tagId: string,
@@ -228,7 +251,6 @@ export async function deleteStorageTag(
     );
 }
 
-
 export function getStorageFileTags(
     auth: AuthCredentials,
     fileId: string,
@@ -238,7 +260,6 @@ export function getStorageFileTags(
         { auth },
     );
 }
-
 
 export function replaceStorageFileTags(
     auth: AuthCredentials,
@@ -251,7 +272,6 @@ export function replaceStorageFileTags(
         { auth },
     );
 }
-
 
 export function searchStorageShareRecipients(
     auth: AuthCredentials,
@@ -267,7 +287,6 @@ export function searchStorageShareRecipients(
     );
 }
 
-
 export function createStorageFileShare(
     auth: AuthCredentials,
     fileId: string,
@@ -280,7 +299,6 @@ export function createStorageFileShare(
     );
 }
 
-
 export function getReceivedStorageShares(
     auth: AuthCredentials,
     query: ReceivedSharesQuery = {},
@@ -290,7 +308,6 @@ export function getReceivedStorageShares(
         { auth },
     );
 }
-
 
 export function hideReceivedStorageShare(
     auth: AuthCredentials,
@@ -302,7 +319,6 @@ export function hideReceivedStorageShare(
         { auth },
     );
 }
-
 
 export function revokeStorageFileShare(
     auth: AuthCredentials,
