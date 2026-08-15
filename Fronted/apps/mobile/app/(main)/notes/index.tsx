@@ -11,6 +11,7 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
 } from 'react-native';
@@ -19,8 +20,11 @@ import {
 } from 'expo-router';
 import {
   Archive,
+  ArchiveRestore,
+  Check,
   ChevronLeft,
   Edit3,
+  Folder,
   FolderInput,
   FolderPlus,
   Plus,
@@ -42,7 +46,9 @@ import {
   hideReceivedNoteShare,
   moveNoteFolder,
   moveNoteToTrash,
+  permanentlyDeleteNote,
   renameNoteFolder,
+  restoreNote,
   updateNote,
   updateNoteTag,
 } from '@beeapp/api-client';
@@ -89,6 +95,7 @@ import {
   useNotes,
 } from '../../../src/hooks/useNotes';
 import {
+  removeNote,
   upsertNote,
 } from '../../../src/stores/notesStore';
 
@@ -159,6 +166,12 @@ export default function NotesListScreen() {
     useState<NoteListItem | null>(null);
 
   const [noteActionsVisible, setNoteActionsVisible] =
+    useState(false);
+
+  const [noteRenameVisible, setNoteRenameVisible] =
+    useState(false);
+
+  const [noteMoveVisible, setNoteMoveVisible] =
     useState(false);
 
   const [nameModalMode, setNameModalMode] =
@@ -350,6 +363,19 @@ export default function NotesListScreen() {
     });
   };
 
+  const updateStoredNote = (
+    responseNote: Parameters<
+      typeof mapNoteToListItem
+    >[0],
+    currentNote: NoteListItem,
+  ) => {
+    upsertNote(
+      mapNoteToListItem(responseNote, {
+        tagIds: currentNote.tagIds,
+      }),
+    );
+  };
+
   const handleToggleFavorite = async (
     noteId: string,
     event: unknown,
@@ -396,11 +422,7 @@ export default function NotesListScreen() {
         },
       );
 
-      upsertNote(
-        mapNoteToListItem(response.note, {
-          tagIds: note.tagIds,
-        }),
-      );
+      updateStoredNote(response.note, note);
 
       await loadNotes(true);
     } catch (favoriteError) {
@@ -481,6 +503,128 @@ export default function NotesListScreen() {
     openNote(note);
   };
 
+  const handleStartRenameActiveNote = () => {
+    if (
+      !activeNote
+      || activeNote.isShared
+      || activeNote.deletedAt
+    ) {
+      return;
+    }
+
+    setNoteActionsVisible(false);
+    setNoteRenameVisible(true);
+  };
+
+  const handleRenameActiveNote = async (
+    nextTitle: string,
+  ) => {
+    if (!activeNote) {
+      return;
+    }
+
+    try {
+      setSubmitting(true);
+
+      const auth =
+        await getValidSessionCredentials();
+
+      if (!auth) {
+        throw new Error(
+          'Tu sesión expiró. Inicia sesión nuevamente.',
+        );
+      }
+
+      const response = await updateNote(
+        auth,
+        activeNote.id,
+        {
+          title: nextTitle,
+        },
+      );
+
+      updateStoredNote(
+        response.note,
+        activeNote,
+      );
+
+      setNoteRenameVisible(false);
+      setActiveNote(null);
+
+      await loadNotes(true);
+    } catch (renameError) {
+      Alert.alert(
+        'No fue posible renombrar la nota',
+        renameError instanceof Error
+          ? renameError.message
+          : 'Intenta nuevamente.',
+      );
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleStartMoveActiveNote = () => {
+    if (
+      !activeNote
+      || activeNote.isShared
+      || activeNote.deletedAt
+    ) {
+      return;
+    }
+
+    setNoteActionsVisible(false);
+    setNoteMoveVisible(true);
+  };
+
+  const handleMoveActiveNote = async (
+    folderId: string | null,
+  ) => {
+    if (!activeNote) {
+      return;
+    }
+
+    try {
+      setSubmitting(true);
+
+      const auth =
+        await getValidSessionCredentials();
+
+      if (!auth) {
+        throw new Error(
+          'Tu sesión expiró. Inicia sesión nuevamente.',
+        );
+      }
+
+      const response = await updateNote(
+        auth,
+        activeNote.id,
+        {
+          folder_id: folderId,
+        },
+      );
+
+      updateStoredNote(
+        response.note,
+        activeNote,
+      );
+
+      setNoteMoveVisible(false);
+      setActiveNote(null);
+
+      await loadNotes(true);
+    } catch (moveError) {
+      Alert.alert(
+        'No fue posible mover la nota',
+        moveError instanceof Error
+          ? moveError.message
+          : 'Intenta nuevamente.',
+      );
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   const handleToggleActiveNoteFavorite = () => {
     if (!activeNote) {
       return;
@@ -494,8 +638,61 @@ export default function NotesListScreen() {
     void handleToggleFavorite(note.id, null);
   };
 
+  const handleToggleActiveNoteArchived = async () => {
+    if (
+      !activeNote
+      || activeNote.isShared
+      || activeNote.deletedAt
+    ) {
+      return;
+    }
+
+    const note = activeNote;
+
+    try {
+      setSubmitting(true);
+
+      const auth =
+        await getValidSessionCredentials();
+
+      if (!auth) {
+        throw new Error(
+          'Tu sesión expiró. Inicia sesión nuevamente.',
+        );
+      }
+
+      const response = await updateNote(
+        auth,
+        note.id,
+        {
+          is_archived: !note.isArchived,
+        },
+      );
+
+      updateStoredNote(response.note, note);
+
+      setNoteActionsVisible(false);
+      setActiveNote(null);
+
+      await loadNotes(true);
+    } catch (archiveError) {
+      Alert.alert(
+        'No fue posible actualizar la nota',
+        archiveError instanceof Error
+          ? archiveError.message
+          : 'Intenta nuevamente.',
+      );
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   const handleMoveActiveNoteToTrash = () => {
-    if (!activeNote || activeNote.isShared) {
+    if (
+      !activeNote
+      || activeNote.isShared
+      || activeNote.deletedAt
+    ) {
       return;
     }
 
@@ -549,6 +746,117 @@ export default function NotesListScreen() {
         'No fue posible mover la nota',
         trashError instanceof Error
           ? trashError.message
+          : 'Intenta nuevamente.',
+      );
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleRestoreActiveNote = async () => {
+    if (!activeNote || !activeNote.deletedAt) {
+      return;
+    }
+
+    const note = activeNote;
+
+    try {
+      setSubmitting(true);
+
+      const auth =
+        await getValidSessionCredentials();
+
+      if (!auth) {
+        throw new Error(
+          'Tu sesión expiró. Inicia sesión nuevamente.',
+        );
+      }
+
+      const response = await restoreNote(
+        auth,
+        note.id,
+      );
+
+      updateStoredNote(response.note, note);
+
+      setNoteActionsVisible(false);
+      setActiveNote(null);
+
+      await loadNotes(true);
+    } catch (restoreError) {
+      Alert.alert(
+        'No fue posible restaurar la nota',
+        restoreError instanceof Error
+          ? restoreError.message
+          : 'Intenta nuevamente.',
+      );
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handlePermanentlyDeleteActiveNote = () => {
+    if (!activeNote || !activeNote.deletedAt) {
+      return;
+    }
+
+    const note = activeNote;
+
+    Alert.alert(
+      'Eliminar permanentemente',
+      (
+        'Esta nota se eliminará definitivamente. '
+        + 'Esta acción no se puede deshacer.'
+      ),
+      [
+        {
+          text: 'Cancelar',
+          style: 'cancel',
+        },
+        {
+          text: 'Eliminar definitivamente',
+          style: 'destructive',
+          onPress: () => {
+            void confirmPermanentlyDeleteActiveNote(
+              note,
+            );
+          },
+        },
+      ],
+    );
+  };
+
+  const confirmPermanentlyDeleteActiveNote = async (
+    note: NoteListItem,
+  ) => {
+    try {
+      setSubmitting(true);
+
+      const auth =
+        await getValidSessionCredentials();
+
+      if (!auth) {
+        throw new Error(
+          'Tu sesión expiró. Inicia sesión nuevamente.',
+        );
+      }
+
+      await permanentlyDeleteNote(
+        auth,
+        note.id,
+      );
+
+      removeNote(note.id);
+
+      setNoteActionsVisible(false);
+      setActiveNote(null);
+
+      await loadNotes(true);
+    } catch (deleteError) {
+      Alert.alert(
+        'No fue posible eliminar la nota',
+        deleteError instanceof Error
+          ? deleteError.message
           : 'Intenta nuevamente.',
       );
     } finally {
@@ -1219,10 +1527,19 @@ export default function NotesListScreen() {
           submitting={submitting}
           onClose={closeNoteActions}
           onEdit={handleEditActiveNote}
+          onRename={handleStartRenameActiveNote}
+          onMove={handleStartMoveActiveNote}
           onToggleFavorite={
             handleToggleActiveNoteFavorite
           }
+          onToggleArchived={
+            handleToggleActiveNoteArchived
+          }
           onMoveToTrash={handleMoveActiveNoteToTrash}
+          onRestore={handleRestoreActiveNote}
+          onPermanentlyDelete={
+            handlePermanentlyDeleteActiveNote
+          }
           onHideShared={() => {
             if (!activeNote) {
               return;
@@ -1234,6 +1551,39 @@ export default function NotesListScreen() {
             setActiveNote(null);
 
             handleHideReceivedShare(note);
+          }}
+        />
+
+        <RenameNoteModal
+          visible={noteRenameVisible}
+          note={activeNote}
+          submitting={submitting}
+          onClose={() => {
+            if (!submitting) {
+              setNoteRenameVisible(false);
+              setActiveNote(null);
+            }
+          }}
+          onSubmit={(title) => {
+            void handleRenameActiveNote(title);
+          }}
+        />
+
+        <MoveNotePickerModal
+          visible={noteMoveVisible}
+          folders={folders}
+          selectedFolderId={
+            activeNote?.folderId || null
+          }
+          submitting={submitting}
+          onClose={() => {
+            if (!submitting) {
+              setNoteMoveVisible(false);
+              setActiveNote(null);
+            }
+          }}
+          onSelect={(folderId) => {
+            void handleMoveActiveNote(folderId);
           }}
         />
 
@@ -1382,8 +1732,13 @@ function NoteActionsModal({
   submitting,
   onClose,
   onEdit,
+  onRename,
+  onMove,
   onToggleFavorite,
+  onToggleArchived,
   onMoveToTrash,
+  onRestore,
+  onPermanentlyDelete,
   onHideShared,
 }: {
   visible: boolean;
@@ -1391,13 +1746,20 @@ function NoteActionsModal({
   submitting: boolean;
   onClose: () => void;
   onEdit: () => void;
+  onRename: () => void;
+  onMove: () => void;
   onToggleFavorite: () => void;
+  onToggleArchived: () => void;
   onMoveToTrash: () => void;
+  onRestore: () => void;
+  onPermanentlyDelete: () => void;
   onHideShared: () => void;
 }) {
   if (!note) {
     return null;
   }
+
+  const isTrashed = Boolean(note.deletedAt);
 
   return (
     <Modal
@@ -1425,9 +1787,11 @@ function NoteActionsModal({
               </Text>
 
               <Text style={modalStyles.optionDescription}>
-                {note.isShared
-                  ? 'Nota compartida'
-                  : 'Nota'}
+                {isTrashed
+                  ? 'Nota en papelera'
+                  : note.isShared
+                    ? 'Nota compartida'
+                    : 'Nota'}
               </Text>
             </View>
 
@@ -1444,157 +1808,621 @@ function NoteActionsModal({
             </TouchableOpacity>
           </View>
 
-          <TouchableOpacity
-            style={modalStyles.option}
-            onPress={onEdit}
-            activeOpacity={0.75}
-            disabled={submitting}
-          >
-            <View
-              style={[
-                modalStyles.optionIcon,
-                {
-                  backgroundColor:
-                    colors.brand.primary + '15',
-                },
-              ]}
-            >
-              <Edit3
-                size={18}
-                color={colors.brand.primary}
-              />
-            </View>
-
-            <View style={modalStyles.optionCopy}>
-              <Text style={modalStyles.optionTitle}>
-                {note.isShared
-                  ? 'Abrir nota'
-                  : 'Abrir y editar'}
-              </Text>
-
-              <Text style={modalStyles.optionDescription}>
-                {note.isShared
-                  ? 'Ver el contenido compartido contigo.'
-                  : 'Ver o modificar el contenido de la nota.'}
-              </Text>
-            </View>
-          </TouchableOpacity>
-
-          {!note.isShared && (
-            <TouchableOpacity
-              style={modalStyles.option}
-              onPress={onToggleFavorite}
-              activeOpacity={0.75}
-              disabled={submitting}
-            >
-              <View
-                style={[
-                  modalStyles.optionIcon,
-                  {
-                    backgroundColor: '#FEF3C7',
-                  },
-                ]}
+          {isTrashed ? (
+            <>
+              <TouchableOpacity
+                style={modalStyles.option}
+                onPress={onRestore}
+                activeOpacity={0.75}
+                disabled={submitting}
               >
-                <Star
-                  size={18}
-                  color="#F59E0B"
-                  fill={
-                    note.isFavorite
-                      ? '#F59E0B'
-                      : 'transparent'
-                  }
-                />
-              </View>
-
-              <View style={modalStyles.optionCopy}>
-                <Text style={modalStyles.optionTitle}>
-                  {note.isFavorite
-                    ? 'Quitar de favoritas'
-                    : 'Marcar como favorita'}
-                </Text>
-
-                <Text style={modalStyles.optionDescription}>
-                  Destaca esta nota en tu vista de favoritas.
-                </Text>
-              </View>
-            </TouchableOpacity>
-          )}
-
-          {note.isShared ? (
-            <TouchableOpacity
-              style={modalStyles.option}
-              onPress={onHideShared}
-              activeOpacity={0.75}
-              disabled={submitting}
-            >
-              <View
-                style={[
-                  modalStyles.optionIcon,
-                  {
-                    backgroundColor:
-                      colors.neutral.gray100,
-                  },
-                ]}
-              >
-                <Archive
-                  size={18}
-                  color={colors.neutral.gray700}
-                />
-              </View>
-
-              <View style={modalStyles.optionCopy}>
-                <Text style={modalStyles.optionTitle}>
-                  Ocultar nota compartida
-                </Text>
-
-                <Text style={modalStyles.optionDescription}>
-                  Dejará de aparecer en tus compartidas.
-                </Text>
-              </View>
-            </TouchableOpacity>
-          ) : (
-            <TouchableOpacity
-              style={modalStyles.option}
-              onPress={onMoveToTrash}
-              activeOpacity={0.75}
-              disabled={submitting}
-            >
-              <View
-                style={[
-                  modalStyles.optionIcon,
-                  {
-                    backgroundColor:
-                      colors.semantic.error + '12',
-                  },
-                ]}
-              >
-                <Trash2
-                  size={18}
-                  color={colors.semantic.error}
-                />
-              </View>
-
-              <View style={modalStyles.optionCopy}>
-                <Text
+                <View
                   style={[
-                    modalStyles.optionTitle,
+                    modalStyles.optionIcon,
                     {
-                      color: colors.semantic.error,
+                      backgroundColor:
+                        colors.brand.primary + '15',
                     },
                   ]}
                 >
-                  Mover a papelera
-                </Text>
+                  <ArchiveRestore
+                    size={18}
+                    color={colors.brand.primary}
+                  />
+                </View>
 
-                <Text style={modalStyles.optionDescription}>
-                  Podrás restaurarla más adelante.
-                </Text>
-              </View>
-            </TouchableOpacity>
+                <View style={modalStyles.optionCopy}>
+                  <Text style={modalStyles.optionTitle}>
+                    Restaurar nota
+                  </Text>
+
+                  <Text style={modalStyles.optionDescription}>
+                    La nota volverá a tus notas activas.
+                  </Text>
+                </View>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={modalStyles.option}
+                onPress={onPermanentlyDelete}
+                activeOpacity={0.75}
+                disabled={submitting}
+              >
+                <View
+                  style={[
+                    modalStyles.optionIcon,
+                    {
+                      backgroundColor:
+                        colors.semantic.error + '12',
+                    },
+                  ]}
+                >
+                  <Trash2
+                    size={18}
+                    color={colors.semantic.error}
+                  />
+                </View>
+
+                <View style={modalStyles.optionCopy}>
+                  <Text
+                    style={[
+                      modalStyles.optionTitle,
+                      {
+                        color: colors.semantic.error,
+                      },
+                    ]}
+                  >
+                    Eliminar permanentemente
+                  </Text>
+
+                  <Text style={modalStyles.optionDescription}>
+                    Esta acción no se puede deshacer.
+                  </Text>
+                </View>
+              </TouchableOpacity>
+            </>
+          ) : (
+            <>
+              <TouchableOpacity
+                style={modalStyles.option}
+                onPress={onEdit}
+                activeOpacity={0.75}
+                disabled={submitting}
+              >
+                <View
+                  style={[
+                    modalStyles.optionIcon,
+                    {
+                      backgroundColor:
+                        colors.brand.primary + '15',
+                    },
+                  ]}
+                >
+                  <Edit3
+                    size={18}
+                    color={colors.brand.primary}
+                  />
+                </View>
+
+                <View style={modalStyles.optionCopy}>
+                  <Text style={modalStyles.optionTitle}>
+                    {note.isShared
+                      ? 'Abrir nota'
+                      : 'Abrir y editar'}
+                  </Text>
+
+                  <Text style={modalStyles.optionDescription}>
+                    {note.isShared
+                      ? 'Ver el contenido compartido contigo.'
+                      : 'Ver o modificar el contenido de la nota.'}
+                  </Text>
+                </View>
+              </TouchableOpacity>
+
+              {!note.isShared && (
+                <>
+                  <TouchableOpacity
+                    style={modalStyles.option}
+                    onPress={onRename}
+                    activeOpacity={0.75}
+                    disabled={submitting}
+                  >
+                    <View
+                      style={[
+                        modalStyles.optionIcon,
+                        {
+                          backgroundColor:
+                            colors.neutral.gray100,
+                        },
+                      ]}
+                    >
+                      <Edit3
+                        size={18}
+                        color={colors.neutral.gray700}
+                      />
+                    </View>
+
+                    <View style={modalStyles.optionCopy}>
+                      <Text style={modalStyles.optionTitle}>
+                        Renombrar nota
+                      </Text>
+
+                      <Text
+                        style={modalStyles.optionDescription}
+                      >
+                        Cambiar el título de esta nota.
+                      </Text>
+                    </View>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={modalStyles.option}
+                    onPress={onMove}
+                    activeOpacity={0.75}
+                    disabled={submitting}
+                  >
+                    <View
+                      style={[
+                        modalStyles.optionIcon,
+                        {
+                          backgroundColor: '#F57C001A',
+                        },
+                      ]}
+                    >
+                      <FolderInput
+                        size={18}
+                        color="#F57C00"
+                      />
+                    </View>
+
+                    <View style={modalStyles.optionCopy}>
+                      <Text style={modalStyles.optionTitle}>
+                        Mover a carpeta
+                      </Text>
+
+                      <Text
+                        style={modalStyles.optionDescription}
+                      >
+                        Organiza esta nota en otra carpeta.
+                      </Text>
+                    </View>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={modalStyles.option}
+                    onPress={onToggleArchived}
+                    activeOpacity={0.75}
+                    disabled={submitting}
+                  >
+                    <View
+                      style={[
+                        modalStyles.optionIcon,
+                        {
+                          backgroundColor:
+                            colors.neutral.gray100,
+                        },
+                      ]}
+                    >
+                      <Archive
+                        size={18}
+                        color={colors.neutral.gray700}
+                      />
+                    </View>
+
+                    <View style={modalStyles.optionCopy}>
+                      <Text style={modalStyles.optionTitle}>
+                        {note.isArchived
+                          ? 'Desarchivar nota'
+                          : 'Archivar nota'}
+                      </Text>
+
+                      <Text
+                        style={modalStyles.optionDescription}
+                      >
+                        {note.isArchived
+                          ? (
+                            'La nota volverá a aparecer '
+                            + 'en tus notas activas.'
+                          )
+                          : (
+                            'La nota se ocultará de tus '
+                            + 'notas activas.'
+                          )}
+                      </Text>
+                    </View>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={modalStyles.option}
+                    onPress={onToggleFavorite}
+                    activeOpacity={0.75}
+                    disabled={submitting}
+                  >
+                    <View
+                      style={[
+                        modalStyles.optionIcon,
+                        {
+                          backgroundColor: '#FEF3C7',
+                        },
+                      ]}
+                    >
+                      <Star
+                        size={18}
+                        color="#F59E0B"
+                        fill={
+                          note.isFavorite
+                            ? '#F59E0B'
+                            : 'transparent'
+                        }
+                      />
+                    </View>
+
+                    <View style={modalStyles.optionCopy}>
+                      <Text style={modalStyles.optionTitle}>
+                        {note.isFavorite
+                          ? 'Quitar de favoritas'
+                          : 'Marcar como favorita'}
+                      </Text>
+
+                      <Text
+                        style={modalStyles.optionDescription}
+                      >
+                        Destaca esta nota en tu vista de
+                        favoritas.
+                      </Text>
+                    </View>
+                  </TouchableOpacity>
+                </>
+              )}
+
+              {note.isShared ? (
+                <TouchableOpacity
+                  style={modalStyles.option}
+                  onPress={onHideShared}
+                  activeOpacity={0.75}
+                  disabled={submitting}
+                >
+                  <View
+                    style={[
+                      modalStyles.optionIcon,
+                      {
+                        backgroundColor:
+                          colors.neutral.gray100,
+                      },
+                    ]}
+                  >
+                    <Archive
+                      size={18}
+                      color={colors.neutral.gray700}
+                    />
+                  </View>
+
+                  <View style={modalStyles.optionCopy}>
+                    <Text style={modalStyles.optionTitle}>
+                      Ocultar nota compartida
+                    </Text>
+
+                    <Text
+                      style={modalStyles.optionDescription}
+                    >
+                      Dejará de aparecer en tus compartidas.
+                    </Text>
+                  </View>
+                </TouchableOpacity>
+              ) : (
+                <TouchableOpacity
+                  style={modalStyles.option}
+                  onPress={onMoveToTrash}
+                  activeOpacity={0.75}
+                  disabled={submitting}
+                >
+                  <View
+                    style={[
+                      modalStyles.optionIcon,
+                      {
+                        backgroundColor:
+                          colors.semantic.error + '12',
+                      },
+                    ]}
+                  >
+                    <Trash2
+                      size={18}
+                      color={colors.semantic.error}
+                    />
+                  </View>
+
+                  <View style={modalStyles.optionCopy}>
+                    <Text
+                      style={[
+                        modalStyles.optionTitle,
+                        {
+                          color: colors.semantic.error,
+                        },
+                      ]}
+                    >
+                      Mover a papelera
+                    </Text>
+
+                    <Text
+                      style={modalStyles.optionDescription}
+                    >
+                      Podrás restaurarla más adelante.
+                    </Text>
+                  </View>
+                </TouchableOpacity>
+              )}
+            </>
           )}
         </View>
       </View>
     </Modal>
+  );
+}
+
+function RenameNoteModal({
+  visible,
+  note,
+  submitting,
+  onClose,
+  onSubmit,
+}: {
+  visible: boolean;
+  note: NoteListItem | null;
+  submitting: boolean;
+  onClose: () => void;
+  onSubmit: (title: string) => void;
+}) {
+  const [title, setTitle] = useState(
+    note?.title || '',
+  );
+
+  useEffect(() => {
+    if (visible) {
+      setTitle(note?.title || '');
+    }
+  }, [note?.title, visible]);
+
+  const normalizedTitle = title.trim();
+
+  return (
+    <Modal
+      visible={visible}
+      transparent
+      animationType="slide"
+      onRequestClose={onClose}
+    >
+      <View style={modalStyles.backdrop}>
+        <TouchableOpacity
+          style={StyleSheet.absoluteFill}
+          onPress={onClose}
+          activeOpacity={1}
+          disabled={submitting}
+        />
+
+        <View style={modalStyles.sheet}>
+          <View style={modalStyles.header}>
+            <Text style={modalStyles.title}>
+              Renombrar nota
+            </Text>
+
+            <TouchableOpacity
+              style={modalStyles.closeButton}
+              onPress={onClose}
+              activeOpacity={0.7}
+              disabled={submitting}
+            >
+              <X
+                size={19}
+                color={colors.neutral.gray600}
+              />
+            </TouchableOpacity>
+          </View>
+
+          <View style={modalStyles.renameBody}>
+            <TextInput
+              style={modalStyles.renameInput}
+              value={title}
+              onChangeText={setTitle}
+              placeholder="Título de la nota"
+              placeholderTextColor={
+                colors.neutral.gray500
+              }
+              autoFocus
+              editable={!submitting}
+              maxLength={500}
+              returnKeyType="done"
+              onSubmitEditing={() => {
+                if (normalizedTitle && !submitting) {
+                  onSubmit(normalizedTitle);
+                }
+              }}
+            />
+          </View>
+
+          <TouchableOpacity
+            style={[
+              modalStyles.renameSubmitButton,
+              (
+                !normalizedTitle
+                || submitting
+              ) && modalStyles.renameSubmitButtonDisabled,
+            ]}
+            onPress={() => onSubmit(normalizedTitle)}
+            disabled={
+              !normalizedTitle
+              || submitting
+            }
+            activeOpacity={0.8}
+          >
+            <Check
+              size={18}
+              color={colors.neutral.white}
+            />
+
+            <Text style={modalStyles.renameSubmitText}>
+              {submitting
+                ? 'Guardando...'
+                : 'Guardar'}
+            </Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
+function MoveNotePickerModal({
+  visible,
+  folders,
+  selectedFolderId,
+  submitting,
+  onClose,
+  onSelect,
+}: {
+  visible: boolean;
+  folders: NoteFolder[];
+  selectedFolderId: string | null;
+  submitting: boolean;
+  onClose: () => void;
+  onSelect: (folderId: string | null) => void;
+}) {
+  return (
+    <Modal
+      visible={visible}
+      transparent
+      animationType="slide"
+      onRequestClose={onClose}
+    >
+      <View style={modalStyles.backdrop}>
+        <TouchableOpacity
+          style={StyleSheet.absoluteFill}
+          onPress={onClose}
+          activeOpacity={1}
+          disabled={submitting}
+        />
+
+        <View style={modalStyles.sheet}>
+          <View style={modalStyles.header}>
+            <Text style={modalStyles.title}>
+              Mover nota a carpeta
+            </Text>
+
+            <TouchableOpacity
+              style={modalStyles.closeButton}
+              onPress={onClose}
+              activeOpacity={0.7}
+              disabled={submitting}
+            >
+              <X
+                size={19}
+                color={colors.neutral.gray600}
+              />
+            </TouchableOpacity>
+          </View>
+
+          <ScrollView>
+            <MoveNoteFolderOption
+              label="Sin carpeta"
+              description="Dejar la nota sin carpeta."
+              selected={selectedFolderId === null}
+              onPress={() => onSelect(null)}
+              disabled={submitting}
+              icon={
+                <Folder
+                  size={18}
+                  color={
+                    selectedFolderId === null
+                      ? colors.brand.primary
+                      : colors.neutral.gray700
+                  }
+                />
+              }
+            />
+
+            {folders.map((folder) => (
+              <MoveNoteFolderOption
+                key={folder.id}
+                label={folder.name}
+                description="Mover la nota a esta carpeta."
+                selected={
+                  selectedFolderId === folder.id
+                }
+                onPress={() => onSelect(folder.id)}
+                disabled={submitting}
+                icon={
+                  <Folder
+                    size={18}
+                    color={
+                      selectedFolderId === folder.id
+                        ? colors.brand.primary
+                        : '#F57C00'
+                    }
+                  />
+                }
+              />
+            ))}
+          </ScrollView>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
+function MoveNoteFolderOption({
+  label,
+  description,
+  selected,
+  disabled,
+  icon,
+  onPress,
+}: {
+  label: string;
+  description: string;
+  selected: boolean;
+  disabled: boolean;
+  icon: React.ReactNode;
+  onPress: () => void;
+}) {
+  return (
+    <TouchableOpacity
+      style={modalStyles.option}
+      onPress={onPress}
+      activeOpacity={0.75}
+      disabled={disabled}
+    >
+      <View
+        style={[
+          modalStyles.optionIcon,
+          selected
+            ? modalStyles.optionIconSelected
+            : modalStyles.optionIconFolder,
+        ]}
+      >
+        {icon}
+      </View>
+
+      <View style={modalStyles.optionCopy}>
+        <Text
+          style={[
+            modalStyles.optionTitle,
+            selected && modalStyles.optionTitleSelected,
+          ]}
+        >
+          {label}
+        </Text>
+
+        <Text style={modalStyles.optionDescription}>
+          {description}
+        </Text>
+      </View>
+
+      {selected && (
+        <Check
+          size={18}
+          color={colors.brand.primary}
+        />
+      )}
+    </TouchableOpacity>
   );
 }
 
@@ -1903,6 +2731,12 @@ const modalStyles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  optionIconSelected: {
+    backgroundColor: colors.brand.primary + '15',
+  },
+  optionIconFolder: {
+    backgroundColor: '#F57C001A',
+  },
   optionCopy: {
     flex: 1,
   },
@@ -1911,10 +2745,44 @@ const modalStyles = StyleSheet.create({
     fontWeight: '600',
     color: colors.neutral.text,
   },
+  optionTitleSelected: {
+    color: colors.brand.primary,
+  },
   optionDescription: {
     marginTop: 2,
     fontSize: 11,
     fontWeight: '400',
     color: colors.neutral.gray600,
+  },
+  renameBody: {
+    padding: spacing.md,
+  },
+  renameInput: {
+    borderWidth: 1,
+    borderColor: colors.neutral.gray200,
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 11,
+    fontSize: 14,
+    fontWeight: '400',
+    color: colors.neutral.text,
+  },
+  renameSubmitButton: {
+    minHeight: 46,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 7,
+    marginHorizontal: spacing.md,
+    borderRadius: 12,
+    backgroundColor: colors.brand.primary,
+  },
+  renameSubmitButtonDisabled: {
+    backgroundColor: colors.neutral.gray400,
+  },
+  renameSubmitText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: colors.neutral.white,
   },
 });
