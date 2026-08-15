@@ -1,111 +1,297 @@
 'use client';
 
-import { useState, useMemo, useRef, useEffect } from 'react';
-import { Bell, X, Mail, Calendar, Folder, FileText, MessageCircle, Phone } from 'lucide-react';
-import { LEFT_TAB_NOTIFICATIONS, RIGHT_TAB_NOTIFICATIONS } from '@/mocks/tabNotifications';
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
+import {
+  Bell,
+  FileText,
+  Folder,
+  Info,
+  Share2,
+  Trash2,
+  X,
+} from 'lucide-react';
+import {
+  getCurrentWebNotifications,
+  markAllCurrentWebNotificationsAsRead,
+} from '@beeapp/api-client';
+import type {
+  AppNotification,
+} from '@beeapp/shared-types';
 
 interface ModuleNotificationBellProps {
   moduleId: 'chat' | 'mail' | 'notes' | 'storage' | 'calendar';
 }
 
-const TYPE_ICONS: Record<string, typeof Bell> = {
-  mail: Mail,
-  calendar: Calendar,
-  storage: Folder,
-  notes: FileText,
-  chat: MessageCircle,
-  call: Phone,
-};
+function formatTime(
+  value: string,
+): string {
+  const date = new Date(value);
 
-export default function ModuleNotificationBell({ moduleId }: ModuleNotificationBellProps) {
+  if (Number.isNaN(date.getTime())) {
+    return '';
+  }
+
+  const today = new Date();
+
+  const isToday =
+    date.getFullYear() === today.getFullYear()
+    && date.getMonth() === today.getMonth()
+    && date.getDate() === today.getDate();
+
+  if (isToday) {
+    return date.toLocaleTimeString(
+      'es-CO',
+      {
+        hour: '2-digit',
+        minute: '2-digit',
+      },
+    );
+  }
+
+  return date.toLocaleDateString(
+    'es-CO',
+    {
+      day: '2-digit',
+      month: 'short',
+    },
+  );
+}
+
+function NotificationIcon({
+  notification,
+}: {
+  notification: AppNotification;
+}) {
+  if (
+    notification.type === 'file_shared'
+    || notification.type === 'file_share_revoked'
+  ) {
+    return <Share2 className="h-3.5 w-3.5 text-brand-primary" />;
+  }
+
+  if (
+    notification.type === 'file_trashed'
+    || notification.type === 'file_deleted'
+  ) {
+    return <Trash2 className="h-3.5 w-3.5 text-brand-primary" />;
+  }
+
+  if (
+    notification.type === 'upload_success'
+    || notification.type === 'upload_failed'
+    || notification.type === 'file_restored'
+  ) {
+    return <Folder className="h-3.5 w-3.5 text-brand-primary" />;
+  }
+
+  if (notification.module === 'storage') {
+    return <FileText className="h-3.5 w-3.5 text-brand-primary" />;
+  }
+
+  return <Info className="h-3.5 w-3.5 text-brand-primary" />;
+}
+
+export default function ModuleNotificationBell({
+  moduleId,
+}: ModuleNotificationBellProps) {
   const [open, setOpen] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [notifications, setNotifications] = useState<
+    AppNotification[]
+  >([]);
+  const [unreadCount, setUnreadCount] = useState(0);
+
   const popoverRef = useRef<HTMLDivElement>(null);
 
-  const notifications = useMemo(() => {
-    const all = [...LEFT_TAB_NOTIFICATIONS, ...RIGHT_TAB_NOTIFICATIONS];
-    return all.filter((item) => {
-      if (moduleId === 'chat') return item.type === 'chat' || item.type === 'call';
-      return item.type === moduleId;
-    });
-  }, [moduleId]);
+  const backendModule = useMemo(
+    () => moduleId,
+    [moduleId],
+  );
 
-  const unreadCount = notifications.filter((n) => !n.read).length;
+  const loadUnreadNotifications = useCallback(
+    async () => {
+      try {
+        setLoading(true);
+
+        const response = await getCurrentWebNotifications({
+          module: backendModule,
+          unread_only: true,
+          limit: 20,
+          offset: 0,
+        });
+
+        setNotifications(response.notifications);
+        setUnreadCount(response.unread_count);
+
+        return response.notifications;
+      } catch {
+        setNotifications([]);
+        setUnreadCount(0);
+
+        return [];
+      } finally {
+        setLoading(false);
+      }
+    },
+    [backendModule],
+  );
 
   useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
-      if (popoverRef.current && !popoverRef.current.contains(e.target as Node)) {
+    void loadUnreadNotifications();
+  }, [loadUnreadNotifications]);
+
+  useEffect(() => {
+    const handleClickOutside = (
+      event: MouseEvent,
+    ) => {
+      if (
+        popoverRef.current
+        && !popoverRef.current.contains(
+          event.target as Node,
+        )
+      ) {
         setOpen(false);
       }
     };
+
     if (open) {
-      document.addEventListener('mousedown', handleClickOutside);
+      document.addEventListener(
+        'mousedown',
+        handleClickOutside,
+      );
     }
-    return () => document.removeEventListener('mousedown', handleClickOutside);
+
+    return () => {
+      document.removeEventListener(
+        'mousedown',
+        handleClickOutside,
+      );
+    };
   }, [open]);
 
+  const handleOpen = async () => {
+    setOpen(true);
+
+    try {
+      setLoading(true);
+
+      const response = await getCurrentWebNotifications({
+        module: backendModule,
+        unread_only: true,
+        limit: 20,
+        offset: 0,
+      });
+
+      /*
+       * Conservamos la lista actual mientras se marcan como leídas.
+       * Así el usuario todavía puede revisar las notificaciones en
+       * la apertura actual de la campana.
+       */
+      setNotifications(response.notifications);
+
+      if (response.unread_count > 0) {
+        await markAllCurrentWebNotificationsAsRead(
+          backendModule,
+        );
+      }
+
+      setUnreadCount(0);
+    } catch {
+      setNotifications([]);
+      setUnreadCount(0);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
-    <div className="relative" ref={popoverRef}>
+    <div
+      className="relative"
+      ref={popoverRef}
+    >
       <button
         type="button"
-        onClick={() => setOpen(!open)}
-        className="w-10 h-10 rounded-xl flex items-center justify-center text-neutral-400 hover:text-neutral-700 hover:bg-neutral-100 transition-colors relative cursor-pointer"
+        onClick={() => {
+          if (open) {
+            setOpen(false);
+            return;
+          }
+
+          void handleOpen();
+        }}
+        className="relative flex h-10 w-10 items-center justify-center rounded-xl text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-neutral-700"
         title={`Notificaciones de ${moduleId}`}
       >
-        <Bell className="w-5 h-5" />
+        <Bell className="h-5 w-5" />
+
         {unreadCount > 0 && (
-          <span className="absolute top-1.5 right-1.5 min-w-4 h-4 rounded-full bg-red-500 text-white text-[10px] font-semibold px-1 flex items-center justify-center">
-            {unreadCount}
+          <span className="absolute right-1.5 top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-semibold text-white">
+            {unreadCount > 9
+              ? '9+'
+              : unreadCount}
           </span>
         )}
       </button>
 
       {open && (
-        <div className="absolute left-12 bottom-0 w-80 bg-white rounded-2xl border border-neutral-200 shadow-xl p-4 z-50 animate-in fade-in slide-in-from-left-2 duration-150">
+        <div className="absolute bottom-0 left-12 z-50 w-80 rounded-2xl border border-neutral-200 bg-white p-4 shadow-xl animate-in fade-in slide-in-from-left-2 duration-150">
           <div className="flex items-center justify-between border-b border-neutral-100 pb-3">
             <div className="flex items-center gap-2 text-sm font-semibold text-neutral-900">
-              <Bell className="w-4 h-4 text-brand-primary" />
+              <Bell className="h-4 w-4 text-brand-primary" />
               <span>Notificaciones</span>
             </div>
+
             <button
               type="button"
               onClick={() => setOpen(false)}
-              className="text-neutral-400 hover:text-neutral-600 cursor-pointer"
+              className="cursor-pointer text-neutral-400 hover:text-neutral-600"
             >
-              <X className="w-4 h-4" />
+              <X className="h-4 w-4" />
             </button>
           </div>
 
-          <div className="mt-2 max-h-64 overflow-y-auto space-y-2">
-            {notifications.length === 0 ? (
-              <p className="text-xs text-neutral-400 text-center py-6">Sin notificaciones nuevas</p>
+          <div className="mt-2 max-h-64 space-y-2 overflow-y-auto">
+            {loading ? (
+              <div className="py-6 text-center">
+                <div className="mx-auto h-5 w-5 animate-spin rounded-full border-2 border-brand-primary border-t-transparent" />
+              </div>
+            ) : notifications.length === 0 ? (
+              <p className="py-6 text-center text-xs text-neutral-400">
+                Sin notificaciones nuevas
+              </p>
             ) : (
-              notifications.map((item) => {
-                const Icon = TYPE_ICONS[item.type] || Bell;
-                return (
-                  <div
-                    key={item.id}
-                    onClick={() => setOpen(false)}
-                    className={`p-2.5 rounded-xl border text-xs cursor-pointer transition-colors ${
-                      item.read
-                        ? 'bg-neutral-50 border-neutral-100 text-neutral-600'
-                        : 'bg-brand-primary/5 border-brand-primary/20 text-neutral-900 font-medium'
-                    }`}
-                  >
-                    <div className="flex items-center gap-2 mb-1">
-                      <Icon className="w-3.5 h-3.5 text-brand-primary shrink-0" />
-                      <span className="truncate text-xs font-medium">
-                        {item.title || item.sender || 'Notificación'}
-                      </span>
-                      <span className="text-[10px] text-neutral-400 ml-auto shrink-0">
-                        {item.timestamp}
-                      </span>
-                    </div>
-                    <p className="text-[11px] text-neutral-500 font-normal line-clamp-2">
-                      {item.message}
-                    </p>
+              notifications.map((notification) => (
+                <div
+                  key={notification.id}
+                  className="rounded-xl border border-brand-primary/20 bg-brand-primary/5 p-2.5 text-xs text-neutral-900"
+                >
+                  <div className="mb-1 flex items-center gap-2">
+                    <NotificationIcon
+                      notification={notification}
+                    />
+
+                    <span className="truncate text-xs font-medium">
+                      {notification.title}
+                    </span>
+
+                    <span className="ml-auto shrink-0 text-[10px] text-neutral-400">
+                      {formatTime(
+                        notification.created_at,
+                      )}
+                    </span>
                   </div>
-                );
-              })
+
+                  <p className="line-clamp-2 text-[11px] font-normal text-neutral-500">
+                    {notification.body}
+                  </p>
+                </div>
+              ))
             )}
           </div>
         </div>

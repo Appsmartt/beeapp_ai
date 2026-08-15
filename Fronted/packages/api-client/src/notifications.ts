@@ -10,6 +10,9 @@ import type {
 
 import { api } from './client';
 
+const WEB_OPTIONS = {
+    credentials: 'include' as RequestCredentials,
+};
 
 function buildQuery(
     params: object,
@@ -31,6 +34,7 @@ function buildQuery(
     return query ? `?${query}` : '';
 }
 
+/* Mobile API: explicit token/session authentication. */
 
 export function getNotifications(
     auth: AuthCredentials,
@@ -41,7 +45,6 @@ export function getNotifications(
         { auth },
     );
 }
-
 
 export function markNotificationAsRead(
     auth: AuthCredentials,
@@ -56,7 +59,6 @@ export function markNotificationAsRead(
     );
 }
 
-
 export function markAllNotificationsAsRead(
     auth: AuthCredentials,
     module?: string,
@@ -70,7 +72,6 @@ export function markAllNotificationsAsRead(
     );
 }
 
-
 export function registerPushDevice(
     auth: AuthCredentials,
     payload: RegisterPushDevicePayload,
@@ -79,5 +80,40 @@ export function registerPushDevice(
         '/notifications/push-devices/',
         payload,
         { auth },
+    );
+}
+
+/* Web API: HttpOnly web-session cookie authentication. */
+
+export function getCurrentWebNotifications(
+    query: NotificationsQuery = {},
+    ): Promise<GetNotificationsResponse> {
+    return api.get<GetNotificationsResponse>(
+        `/notifications/${buildQuery(query)}`,
+        WEB_OPTIONS,
+    );
+}
+
+export function markCurrentWebNotificationAsRead(
+    notificationId: string,
+    ): Promise<MarkNotificationReadResponse> {
+    return api.post<MarkNotificationReadResponse>(
+        `/notifications/${encodeURIComponent(
+        notificationId,
+        )}/read/`,
+        undefined,
+        WEB_OPTIONS,
+    );
+}
+
+export function markAllCurrentWebNotificationsAsRead(
+    module?: string,
+    ): Promise<MarkAllNotificationsReadResponse> {
+    return api.post<MarkAllNotificationsReadResponse>(
+        `/notifications/read-all/${buildQuery({
+        module,
+        })}`,
+        undefined,
+        WEB_OPTIONS,
     );
 }

@@ -33,6 +33,10 @@ import type {
 
 import { api } from './client';
 
+const WEB_OPTIONS = {
+    credentials: 'include' as RequestCredentials,
+};
+
 function buildQuery(
     params: object,
     ): string {
@@ -52,6 +56,8 @@ function buildQuery(
 
     return query ? `?${query}` : '';
 }
+
+/* Mobile API: auth is explicit. */
 
 export function getStorageSummary(
     auth: AuthCredentials,
@@ -328,5 +334,179 @@ export function revokeStorageFileShare(
         `/storage/shares/${encodeURIComponent(shareId)}/revoke/`,
         undefined,
         { auth },
+    );
+}
+
+/* Web API: authentication uses the HttpOnly web-session cookie. */
+
+export function getCurrentWebStorageSummary(): Promise<GetStorageSummaryResponse> {
+    return api.get<GetStorageSummaryResponse>(
+        '/storage/summary/',
+        WEB_OPTIONS,
+    );
+}
+
+export function getCurrentWebStorageFiles(
+    query: StorageFilesQuery = {},
+    ): Promise<GetStorageFilesResponse> {
+    return api.get<GetStorageFilesResponse>(
+        `/storage/files/${buildQuery(query)}`,
+        WEB_OPTIONS,
+    );
+}
+
+export function getCurrentWebStorageFolders(
+    query: StorageFoldersQuery = {},
+    ): Promise<GetStorageFoldersResponse> {
+    return api.get<GetStorageFoldersResponse>(
+        `/storage/folders/${buildQuery(query)}`,
+        WEB_OPTIONS,
+    );
+}
+
+export function createCurrentWebStorageFolder(
+    payload: CreateStorageFolderPayload,
+    ): Promise<CreateStorageFolderResponse> {
+    return api.post<CreateStorageFolderResponse>(
+        '/storage/folders/',
+        payload,
+        WEB_OPTIONS,
+    );
+}
+
+export function renameCurrentWebStorageFolder(
+    folderId: string,
+    payload: UpdateStorageFolderPayload,
+    ): Promise<UpdateStorageFolderResponse> {
+    return api.patch<UpdateStorageFolderResponse>(
+        `/storage/folders/${encodeURIComponent(folderId)}/`,
+        payload,
+        WEB_OPTIONS,
+    );
+}
+
+export function moveCurrentWebStorageFolder(
+    folderId: string,
+    payload: MoveStorageFolderPayload,
+    ): Promise<UpdateStorageFolderResponse> {
+    return api.patch<UpdateStorageFolderResponse>(
+        `/storage/folders/${encodeURIComponent(folderId)}/`,
+        payload,
+        WEB_OPTIONS,
+    );
+}
+
+export function renameCurrentWebStorageFile(
+    fileId: string,
+    payload: UpdateStorageFilePayload,
+    ): Promise<UpdateStorageFileResponse> {
+    return api.patch<UpdateStorageFileResponse>(
+        `/storage/files/${encodeURIComponent(fileId)}/`,
+        payload,
+        WEB_OPTIONS,
+    );
+}
+
+export function moveCurrentWebStorageFile(
+    fileId: string,
+    payload: MoveStorageFilePayload,
+    ): Promise<UpdateStorageFileResponse> {
+    return api.patch<UpdateStorageFileResponse>(
+        `/storage/files/${encodeURIComponent(fileId)}/`,
+        payload,
+        WEB_OPTIONS,
+    );
+}
+
+export async function uploadCurrentWebStorageFiles(
+    formData: FormData,
+    ): Promise<CreateStorageUploadResponse> {
+    return api.upload<CreateStorageUploadResponse>(
+        '/storage/uploads/',
+        formData,
+        WEB_OPTIONS,
+    );
+}
+
+export function getCurrentWebStorageFileAccess(
+    fileId: string,
+    download = false,
+    ): Promise<GetStorageFileAccessResponse> {
+    return api.get<GetStorageFileAccessResponse>(
+        `/storage/files/${encodeURIComponent(
+        fileId,
+        )}/access/?download=${download}`,
+        WEB_OPTIONS,
+    );
+}
+
+export async function moveCurrentWebStorageFileToTrash(
+    fileId: string,
+    ): Promise<void> {
+    await api.post<void>(
+        `/storage/files/${encodeURIComponent(fileId)}/trash/`,
+        undefined,
+        WEB_OPTIONS,
+    );
+}
+
+export function getCurrentWebStorageTags(): Promise<GetStorageTagsResponse> {
+    return api.get<GetStorageTagsResponse>(
+        '/storage/tags/',
+        WEB_OPTIONS,
+    );
+}
+
+export function createCurrentWebStorageTag(
+    payload: CreateStorageTagPayload,
+    ): Promise<CreateStorageTagResponse> {
+    return api.post<CreateStorageTagResponse>(
+        '/storage/tags/',
+        payload,
+        WEB_OPTIONS,
+    );
+}
+
+export function getCurrentWebStorageFileTags(
+    fileId: string,
+    ): Promise<GetStorageFileTagsResponse> {
+    return api.get<GetStorageFileTagsResponse>(
+        `/storage/files/${encodeURIComponent(fileId)}/tags/`,
+        WEB_OPTIONS,
+    );
+}
+
+export function replaceCurrentWebStorageFileTags(
+    fileId: string,
+    payload: ReplaceFileTagsPayload,
+    ): Promise<ReplaceFileTagsResponse> {
+    return api.put<ReplaceFileTagsResponse>(
+        `/storage/files/${encodeURIComponent(fileId)}/tags/`,
+        payload,
+        WEB_OPTIONS,
+    );
+}
+
+export function searchCurrentWebStorageShareRecipients(
+    searchValue: string,
+    limit = 10,
+    ): Promise<GetStorageShareRecipientsResponse> {
+    return api.get<GetStorageShareRecipientsResponse>(
+        `/storage/share-recipients/${buildQuery({
+        q: searchValue,
+        limit,
+        })}`,
+        WEB_OPTIONS,
+    );
+}
+
+export function createCurrentWebStorageFileShare(
+    fileId: string,
+    payload: CreateFileSharePayload,
+    ): Promise<CreateFileShareResponse> {
+    return api.post<CreateFileShareResponse>(
+        `/storage/files/${encodeURIComponent(fileId)}/shares/`,
+        payload,
+        WEB_OPTIONS,
     );
 }

@@ -1,54 +1,88 @@
 'use client';
 
-import { FolderOpen, Clock, FileText, Image as ImageIcon, CheckCircle, Lock } from 'lucide-react';
-import ModuleNotificationBell from '../ModuleNotificationBell';
+import {
+  Clock,
+  FileText,
+  FolderOpen,
+  Image as ImageIcon,
+  Lock,
+} from 'lucide-react';
 
-export type StorageFilter = 'all' | 'recent' | 'docs' | 'media' | 'signed' | 'protected';
+export type StorageFilter =
+  | 'all'
+  | 'recent'
+  | 'docs'
+  | 'media'
+  | 'protected';
 
 interface StorageOptionsBarProps {
   filter: StorageFilter;
   onSelectFilter: (filter: StorageFilter) => void;
 }
 
-const NAV_ITEMS: { id: StorageFilter; label: string; icon: React.ElementType }[] = [
-  { id: 'all', label: 'Todos los archivos', icon: FolderOpen },
-  { id: 'recent', label: 'Recientes', icon: Clock },
-  { id: 'docs', label: 'Documentos', icon: FileText },
-  { id: 'media', label: 'Fotos y Videos', icon: ImageIcon },
-  { id: 'signed', label: 'Firmados', icon: CheckCircle },
-  { id: 'protected', label: 'Protegidos con PIN', icon: Lock },
+const NAV_ITEMS: {
+  id: StorageFilter;
+  label: string;
+  icon: React.ElementType;
+}[] = [
+  {
+    id: 'all',
+    label: 'Todos los archivos',
+    icon: FolderOpen,
+  },
+  {
+    id: 'recent',
+    label: 'Recientes',
+    icon: Clock,
+  },
+  {
+    id: 'docs',
+    label: 'Documentos',
+    icon: FileText,
+  },
+  {
+    id: 'media',
+    label: 'Fotos y Videos',
+    icon: ImageIcon,
+  },
+  {
+    id: 'protected',
+    label: 'Protegidos con PIN',
+    icon: Lock,
+  },
 ];
 
-export default function StorageOptionsBar({ filter, onSelectFilter }: StorageOptionsBarProps) {
+export default function StorageOptionsBar({
+  filter,
+  onSelectFilter,
+}: StorageOptionsBarProps) {
   return (
-    <div className="w-[56px] shrink-0 border-r border-neutral-200 bg-white flex flex-col items-center py-4 gap-3 select-none justify-between">
-      <div className="flex flex-col items-center gap-3 w-full">
+    <div className="flex w-[56px] shrink-0 select-none flex-col items-center gap-3 border-r border-neutral-200 bg-white py-4">
+      <div className="flex w-full flex-col items-center gap-3">
         {NAV_ITEMS.map((item) => {
           const Icon = item.icon;
           const isActive = filter === item.id;
+
           return (
             <button
               key={item.id}
               type="button"
               onClick={() => onSelectFilter(item.id)}
               title={item.label}
-              className={`w-10 h-10 rounded-xl flex items-center justify-center transition-colors relative ${
+              className={`relative flex h-10 w-10 items-center justify-center rounded-xl transition-colors ${
                 isActive
-                  ? 'bg-brand-primary/10 text-brand-primary font-semibold'
-                  : 'text-neutral-500 hover:text-neutral-900 hover:bg-neutral-100'
+                  ? 'bg-brand-primary/10 font-semibold text-brand-primary'
+                  : 'text-neutral-500 hover:bg-neutral-100 hover:text-neutral-900'
               }`}
             >
-              <Icon className="w-5 h-5" />
+              <Icon className="h-5 w-5" />
+
               {isActive && (
-                <span className="absolute left-0 top-2 bottom-2 w-1 bg-brand-primary rounded-r-full" />
+                <span className="absolute bottom-2 left-0 top-2 w-1 rounded-r-full bg-brand-primary" />
               )}
             </button>
           );
         })}
-      </div>
-
-      <div className="mt-auto pt-2">
-        <ModuleNotificationBell moduleId="storage" />
       </div>
     </div>
   );
