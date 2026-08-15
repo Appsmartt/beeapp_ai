@@ -1,20 +1,21 @@
 import type {
     Note,
     NoteBlock,
+    NoteChecklistItem,
     NoteContent,
+    NoteDateListItem,
     NoteFolder,
+    NoteNumberListItem,
     NoteShare,
     NoteTag,
     NoteTemplate,
     } from '@beeapp/shared-types';
-
 
 export type NotesHomeItemKind =
     | 'fixed'
     | 'folder'
     | 'tag'
     | 'template';
-
 
 export type NotesFixedViewId =
     | 'all'
@@ -23,7 +24,6 @@ export type NotesFixedViewId =
     | 'archived'
     | 'shared'
     | 'trash';
-
 
 export interface NotesHomeItem {
     id: string;
@@ -36,7 +36,6 @@ export interface NotesHomeItem {
     tagId?: string;
     templateId?: string;
 }
-
 
 export interface NoteListItem {
     id: string;
@@ -60,7 +59,6 @@ export interface NoteListItem {
     sharedByName?: string;
     shareExpiresAt?: string | null;
 }
-
 
 const FIXED_NOTES_HOME_ITEMS: NotesHomeItem[] = [
     {
@@ -113,11 +111,9 @@ const FIXED_NOTES_HOME_ITEMS: NotesHomeItem[] = [
     },
 ];
 
-
 export function getFixedNotesHomeItems(): NotesHomeItem[] {
     return FIXED_NOTES_HOME_ITEMS;
 }
-
 
 export function createLocalId(
     prefix = 'block',
@@ -128,7 +124,6 @@ export function createLocalId(
 
     return `${prefix}-${Date.now().toString(36)}-${randomPart}`;
 }
-
 
 export function createEmptyNoteContent(): NoteContent {
     return {
@@ -143,35 +138,315 @@ export function createEmptyNoteContent(): NoteContent {
     };
 }
 
+function asRecord(
+    value: unknown,
+    ): Record<string, unknown> {
+    if (
+        value
+        && typeof value === 'object'
+        && !Array.isArray(value)
+    ) {
+        return value as Record<string, unknown>;
+    }
+
+    return {};
+}
+
+function asString(
+    value: unknown,
+    fallback = '',
+    ): string {
+    return typeof value === 'string'
+        ? value
+        : fallback;
+}
+
+function asNullableString(
+    value: unknown,
+    ): string | null {
+    return typeof value === 'string'
+        && value.trim().length > 0
+        ? value
+        : null;
+}
+
+function asFiniteNumberOrNull(
+    value: unknown,
+    ): number | null {
+    if (
+        typeof value === 'number'
+        && Number.isFinite(value)
+    ) {
+        return value;
+    }
+
+    return null;
+}
+
+function asArray(
+    value: unknown,
+    ): unknown[] {
+    return Array.isArray(value)
+        ? value
+        : [];
+}
+
+function normalizeChecklistItems(
+    value: unknown,
+    ): NoteChecklistItem[] {
+    return asArray(value).map((rawItem) => {
+        const item = asRecord(rawItem);
+
+        return {
+        id: asString(
+            item.id,
+            createLocalId('check'),
+        ),
+        text: asString(item.text),
+        checked: Boolean(item.checked),
+        };
+    });
+}
+
+function normalizeStringItems(
+    value: unknown,
+    ): string[] {
+    return asArray(value).map((item) =>
+        typeof item === 'string'
+        ? item
+        : '',
+    );
+}
+
+function normalizeDateListItems(
+    value: unknown,
+    ): NoteDateListItem[] {
+    return asArray(value).map((rawItem) => {
+        const item = asRecord(rawItem);
+
+        return {
+        id: asString(
+            item.id,
+            createLocalId('date-item'),
+        ),
+        label: asString(item.label),
+        value: asNullableString(item.value),
+        };
+    });
+}
+
+function normalizeNumberListItems(
+    value: unknown,
+    ): NoteNumberListItem[] {
+    return asArray(value).map((rawItem) => {
+        const item = asRecord(rawItem);
+
+        return {
+        id: asString(
+            item.id,
+            createLocalId('number-item'),
+        ),
+        label: asString(item.label),
+        value: asFiniteNumberOrNull(item.value),
+        };
+    });
+}
+
+function normalizeAttachments(
+    value: unknown,
+    ): Array<{
+    attachment_id?: string;
+    file_id?: string;
+    caption?: string;
+    }> {
+    return asArray(value).map((rawAttachment) => {
+        const attachment = asRecord(rawAttachment);
+
+        return {
+        attachment_id: asString(
+            attachment.attachment_id,
+        ) || undefined,
+        file_id: asString(
+            attachment.file_id,
+        ) || undefined,
+        caption: asString(
+            attachment.caption,
+        ) || undefined,
+        };
+    });
+}
+
+function normalizeNoteBlock(
+    rawBlock: unknown,
+    index: number,
+    ): NoteBlock {
+    const block = asRecord(rawBlock);
+
+    const id = asString(
+        block.id,
+        `block-${index + 1}`,
+    );
+
+    const type = asString(
+        block.type,
+        'textarea',
+    );
+
+    switch (type) {
+        case 'text':
+        return {
+            id,
+            type: 'text',
+            text: asString(
+            block.text ?? block.value,
+            ),
+        };
+
+        case 'textarea':
+        return {
+            id,
+            type: 'textarea',
+            text: asString(
+            block.text ?? block.value,
+            ),
+        };
+
+        case 'heading':
+        return {
+            id,
+            type: 'heading',
+            text: asString(
+            block.text ?? block.value,
+            ),
+            level: block.level === 1 ? 1 : 2,
+        };
+
+        case 'field':
+        return {
+            id,
+            type: 'field',
+            label: asString(block.label),
+            value: asString(block.value),
+        };
+
+        case 'checklist':
+        return {
+            id,
+            type: 'checklist',
+            items: normalizeChecklistItems(block.items),
+        };
+
+        case 'bulleted_list':
+        return {
+            id,
+            type: 'bulleted_list',
+            items: normalizeStringItems(block.items),
+        };
+
+        case 'numbered_list':
+        return {
+            id,
+            type: 'numbered_list',
+            items: normalizeStringItems(block.items),
+        };
+
+        case 'date':
+        return {
+            id,
+            type: 'date',
+            label: asString(block.label),
+            value: asNullableString(block.value),
+        };
+
+        case 'date_list':
+        return {
+            id,
+            type: 'date_list',
+            items: normalizeDateListItems(block.items),
+        };
+
+        case 'number_list':
+        return {
+            id,
+            type: 'number_list',
+            items: normalizeNumberListItems(block.items),
+        };
+
+        case 'divider':
+        return {
+            id,
+            type: 'divider',
+        };
+
+        case 'image':
+        return {
+            id,
+            type: 'image',
+            attachment_id: asString(
+            block.attachment_id,
+            ),
+            file_id: asString(block.file_id),
+            caption: asString(block.caption),
+        };
+
+        case 'file':
+        return {
+            id,
+            type: 'file',
+            attachment_id: asString(
+            block.attachment_id,
+            ),
+            file_id: asString(block.file_id),
+            caption: asString(block.caption),
+        };
+
+        case 'file_list':
+        return {
+            id,
+            type: 'file_list',
+            attachments: normalizeAttachments(
+            block.attachments ?? block.items,
+            ),
+        };
+
+        default:
+        return {
+            id,
+            type: 'textarea',
+            text: asString(
+            block.text ?? block.value,
+            ),
+        };
+    }
+}
 
 export function ensureNoteContent(
     content: NoteContent | null | undefined,
     ): NoteContent {
-    if (
-        !content
-        || !Array.isArray(content.blocks)
-    ) {
+    const rawContent = asRecord(content);
+    const rawBlocks = asArray(rawContent.blocks);
+
+    if (rawBlocks.length === 0) {
         return createEmptyNoteContent();
     }
 
     return {
         version: (
-        Number.isInteger(content.version)
-        && content.version >= 1
+        typeof rawContent.version === 'number'
+        && Number.isInteger(rawContent.version)
+        && rawContent.version >= 1
         )
-        ? content.version
+        ? rawContent.version
         : 1,
-        blocks: content.blocks,
+        blocks: rawBlocks.map(normalizeNoteBlock),
     };
 }
-
 
 export function normalizeNoteTitle(
     title: string | null | undefined,
     ): string {
     return title?.trim() || 'Sin título';
-    }
-
+}
 
 export function getBlockPreviewText(
     block: NoteBlock,
@@ -188,14 +463,18 @@ export function getBlockPreviewText(
             .join(': ');
 
         case 'checklist':
-        return block.items
+        return (Array.isArray(block.items)
+            ? block.items
+            : [])
             .map((item) => item.text)
             .filter(Boolean)
             .join(' ');
 
         case 'bulleted_list':
         case 'numbered_list':
-        return block.items
+        return (Array.isArray(block.items)
+            ? block.items
+            : [])
             .filter(Boolean)
             .join(' ');
 
@@ -208,17 +487,21 @@ export function getBlockPreviewText(
             .join(': ');
 
         case 'date_list':
-        return block.items
+        return (Array.isArray(block.items)
+            ? block.items
+            : [])
             .map((item) =>
             [item.label, item.value]
                 .filter(Boolean)
-                .join(': ')
+                .join(': '),
             )
             .filter(Boolean)
             .join(' ');
 
         case 'number_list':
-        return block.items
+        return (Array.isArray(block.items)
+            ? block.items
+            : [])
             .map((item) =>
             [item.label, item.value]
                 .filter(
@@ -227,7 +510,7 @@ export function getBlockPreviewText(
                     && value !== undefined
                     && value !== '',
                 )
-                .join(': ')
+                .join(': '),
             )
             .filter(Boolean)
             .join(' ');
@@ -238,10 +521,17 @@ export function getBlockPreviewText(
         case 'file':
         return block.caption || 'Archivo adjunto';
 
-        case 'file_list':
-        return block.attachments.length === 1
+        case 'file_list': {
+        const attachments = Array.isArray(
+            block.attachments,
+        )
+            ? block.attachments
+            : [];
+
+        return attachments.length === 1
             ? '1 archivo adjunto'
-            : `${block.attachments.length} archivos adjuntos`;
+            : `${attachments.length} archivos adjuntos`;
+        }
 
         case 'divider':
         return '';
@@ -250,7 +540,6 @@ export function getBlockPreviewText(
         return '';
     }
 }
-
 
 export function getNotePreview(
     content: NoteContent | null | undefined,
@@ -264,7 +553,6 @@ export function getNotePreview(
         .replace(/\s+/g, ' ')
         .trim();
 }
-
 
 export function mapNoteToListItem(
     note: Note,
@@ -302,7 +590,6 @@ export function mapNoteToListItem(
     };
 }
 
-
 export function mapFolderToHomeItem(
     folder: NoteFolder,
     ): NotesHomeItem {
@@ -315,7 +602,6 @@ export function mapFolderToHomeItem(
         folderId: folder.id,
     };
 }
-
 
 export function mapTagToHomeItem(
     tag: NoteTag,
@@ -330,7 +616,6 @@ export function mapTagToHomeItem(
     };
 }
 
-
 export function mapTemplateToHomeItem(
     template: NoteTemplate,
     ): NotesHomeItem {
@@ -343,7 +628,6 @@ export function mapTemplateToHomeItem(
         templateId: template.id,
     };
 }
-
 
 export function getFixedViewNotes(
     viewId: NotesFixedViewId,
@@ -397,7 +681,6 @@ export function getFixedViewNotes(
     }
 }
 
-
 export function getHomeItemNoteCount(
     item: NotesHomeItem,
     notes: NoteListItem[],
@@ -438,7 +721,6 @@ export function getHomeItemNoteCount(
     }
 }
 
-
 export function sortNotesByUpdatedAt(
     notes: NoteListItem[],
     ): NoteListItem[] {
@@ -448,7 +730,6 @@ export function sortNotesByUpdatedAt(
         - new Date(left.updatedAt).getTime(),
     );
 }
-
 
 export function findFolderName(
     folderId: string | null,
@@ -462,7 +743,6 @@ export function findFolderName(
         (folder) => folder.id === folderId,
     )?.name || null;
 }
-
 
 export function getShareDisplayName(
     share: NoteShare,
