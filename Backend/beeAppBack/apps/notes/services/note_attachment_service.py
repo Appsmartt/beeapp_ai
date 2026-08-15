@@ -11,15 +11,20 @@ from apps.notes.exceptions import (
     NoteAttachmentFileNotFoundError,
     NoteAttachmentNotFoundError,
     NoteNotFoundError,
+    NoteShareNotFoundError,
 )
 from apps.notes.services.note_service import (
     get_owned_note,
+)
+from apps.notes.services.note_share_service import (
+    _get_active_received_note_share,
 )
 from apps.storage.exceptions import (
     StorageQuotaExceededError,
     StorageUploadError,
 )
 from apps.storage.services.storage_file_service import (
+    SIGNED_URL_EXPIRES_IN_SECONDS,
     prepare_and_upload_file,
 )
 
@@ -29,9 +34,10 @@ ATTACHMENT_COLUMNS = (
 )
 
 FILE_COLUMNS = (
-    "id,owner_id,folder_id,original_name,display_name,"
-    "extension,mime_type,kind,size_bytes,status,is_starred,"
-    "trashed_at,purge_after,created_at,updated_at"
+    "id,owner_id,folder_id,bucket_id,storage_path,"
+    "original_name,display_name,extension,mime_type,"
+    "kind,size_bytes,status,is_starred,trashed_at,"
+    "purge_after,created_at,updated_at"
 )
 
 
@@ -39,13 +45,20 @@ def list_note_attachments(
     *,
     user_id: str,
     note_id: str,
+    allow_shared: bool = False,
 ) -> list[dict[str, Any]]:
     try:
-        get_owned_note(
-            user_id=user_id,
-            note_id=note_id,
-            include_deleted=True,
-        )
+        if allow_shared:
+            _ensure_note_access(
+                user_id=user_id,
+                note_id=note_id,
+            )
+        else:
+            get_owned_note(
+                user_id=user_id,
+                note_id=note_id,
+                include_deleted=True,
+            )
 
         response = (
             get_supabase_admin_client()
@@ -68,10 +81,7 @@ def list_note_attachments(
             if attachment.get("file_id")
         ]
 
-        files_by_id = _get_owned_files_by_ids(
-            user_id=user_id,
-            file_ids=file_ids,
-        )
+        files_by_id = _get_files_by_ids(file_ids=file_ids)
 
         return [
             {
@@ -82,7 +92,10 @@ def list_note_attachments(
             if attachment.get("file_id") in files_by_id
         ]
 
-    except NoteNotFoundError:
+    except (
+        NoteNotFoundError,
+        NoteShareNotFoundError,
+    ):
         raise
 
     except Exception as error:
@@ -126,20 +139,7 @@ def attach_existing_file(
             .execute()
         )
 
-        attachment_id = response.data
-
-        if isinstance(attachment_id, list):
-            attachment_id = (
-                attachment_id[0]
-                if attachment_id
-                else None
-            )
-
-        if isinstance(attachment_id, dict):
-            attachment_id = (
-                attachment_id.get("attach_file_to_note")
-                or attachment_id.get("id")
-            )
+        attachment_id = _extract_rpc_uuid(response.data)
 
         if not attachment_id:
             raise NoteAttachmentError(
@@ -149,7 +149,7 @@ def attach_existing_file(
         return get_note_attachment(
             user_id=user_id,
             note_id=note_id,
-            attachment_id=str(attachment_id),
+            attachment_id=attachment_id,
         )
 
     except (
@@ -277,22 +277,10 @@ def get_note_attachment(
             include_deleted=True,
         )
 
-        response = (
-            get_supabase_admin_client()
-            .table("note_attachments")
-            .select(ATTACHMENT_COLUMNS)
-            .eq("id", str(attachment_id))
-            .eq("note_id", str(note_id))
-            .maybe_single()
-            .execute()
+        attachment = _get_note_attachment_row(
+            note_id=note_id,
+            attachment_id=attachment_id,
         )
-
-        if not response.data:
-            raise NoteAttachmentNotFoundError(
-                "Note attachment was not found."
-            )
-
-        attachment = response.data
 
         file_record = _get_attachable_owned_file(
             user_id=user_id,
@@ -314,6 +302,98 @@ def get_note_attachment(
     except Exception as error:
         raise NoteAttachmentNotFoundError(
             f"Could not retrieve note attachment: {error}"
+        ) from error
+
+
+def create_note_attachment_access_url(
+    *,
+    user_id: str,
+    note_id: str,
+    attachment_id: str,
+    download: bool = False,
+) -> dict[str, Any]:
+    try:
+        _ensure_note_access(
+            user_id=user_id,
+            note_id=note_id,
+        )
+
+        attachment = _get_note_attachment_row(
+            note_id=note_id,
+            attachment_id=attachment_id,
+        )
+
+        file_response = (
+            get_supabase_admin_client()
+            .table("files")
+            .select(FILE_COLUMNS)
+            .eq("id", attachment["file_id"])
+            .eq("status", "ready")
+            .maybe_single()
+            .execute()
+        )
+
+        if not file_response.data:
+            raise NoteAttachmentNotFoundError(
+                "Attachment file was not found."
+            )
+
+        file_record = file_response.data
+
+        options = (
+            {
+                "download": file_record["display_name"],
+            }
+            if download
+            else {}
+        )
+
+        response = (
+            get_supabase_admin_client()
+            .storage.from_(file_record["bucket_id"])
+            .create_signed_url(
+                file_record["storage_path"],
+                SIGNED_URL_EXPIRES_IN_SECONDS,
+                options,
+            )
+        )
+
+        signed_url = getattr(response, "signed_url", None)
+
+        if not signed_url and isinstance(response, dict):
+            signed_url = (
+                response.get("signedURL")
+                or response.get("signed_url")
+            )
+
+        if not signed_url:
+            raise NoteAttachmentError(
+                "Supabase did not return a signed attachment URL."
+            )
+
+        return {
+            "attachment": {
+                **attachment,
+                "file": file_record,
+            },
+            "url": signed_url,
+            "expires_in_seconds": (
+                SIGNED_URL_EXPIRES_IN_SECONDS
+            ),
+            "download": download,
+        }
+
+    except (
+        NoteAttachmentError,
+        NoteAttachmentNotFoundError,
+        NoteNotFoundError,
+        NoteShareNotFoundError,
+    ):
+        raise
+
+    except Exception as error:
+        raise NoteAttachmentError(
+            f"Could not create attachment access URL: {error}"
         ) from error
 
 
@@ -404,6 +484,52 @@ def remove_note_attachment(
         ) from error
 
 
+def _ensure_note_access(
+    *,
+    user_id: str,
+    note_id: str,
+) -> None:
+    try:
+        get_owned_note(
+            user_id=user_id,
+            note_id=note_id,
+            include_deleted=False,
+        )
+        return
+
+    except NoteNotFoundError:
+        pass
+
+    _get_active_received_note_share(
+        user_id=user_id,
+        note_id=note_id,
+        include_hidden=True,
+    )
+
+
+def _get_note_attachment_row(
+    *,
+    note_id: str,
+    attachment_id: str,
+) -> dict[str, Any]:
+    response = (
+        get_supabase_admin_client()
+        .table("note_attachments")
+        .select(ATTACHMENT_COLUMNS)
+        .eq("id", str(attachment_id))
+        .eq("note_id", str(note_id))
+        .maybe_single()
+        .execute()
+    )
+
+    if not response.data:
+        raise NoteAttachmentNotFoundError(
+            "Note attachment was not found."
+        )
+
+    return response.data
+
+
 def _get_or_create_notes_storage_folder(
     *,
     user_id: str,
@@ -420,23 +546,14 @@ def _get_or_create_notes_storage_folder(
             .execute()
         )
 
-        folder_id = response.data
-
-        if isinstance(folder_id, list):
-            folder_id = folder_id[0] if folder_id else None
-
-        if isinstance(folder_id, dict):
-            folder_id = (
-                folder_id.get("get_or_create_notes_storage_folder")
-                or folder_id.get("id")
-            )
+        folder_id = _extract_rpc_uuid(response.data)
 
         if not folder_id:
             raise NoteAttachmentError(
                 "Notes storage folder could not be created."
             )
 
-        return str(folder_id)
+        return folder_id
 
     except NoteAttachmentError:
         raise
@@ -476,13 +593,12 @@ def _get_attachable_owned_file(
 
     except Exception as error:
         raise NoteAttachmentFileNotFoundError(
-            f"Could not retrieve the selected file: {error}"
+            f"Could not retrieve selected file: {error}"
         ) from error
 
 
-def _get_owned_files_by_ids(
+def _get_files_by_ids(
     *,
-    user_id: str,
     file_ids: list[str],
 ) -> dict[str, dict[str, Any]]:
     if not file_ids:
@@ -492,8 +608,8 @@ def _get_owned_files_by_ids(
         get_supabase_admin_client()
         .table("files")
         .select(FILE_COLUMNS)
-        .eq("owner_id", str(user_id))
         .in_("id", file_ids)
+        .eq("status", "ready")
         .execute()
     )
 
@@ -501,3 +617,24 @@ def _get_owned_files_by_ids(
         file_record["id"]: file_record
         for file_record in (response.data or [])
     }
+
+
+def _extract_rpc_uuid(value: Any) -> str | None:
+    if isinstance(value, str):
+        return value
+
+    if isinstance(value, list):
+        if not value:
+            return None
+
+        return _extract_rpc_uuid(value[0])
+
+    if isinstance(value, dict):
+        return (
+            value.get("get_or_create_notes_storage_folder")
+            or value.get("attach_file_to_note")
+            or value.get("id")
+            or value.get("value")
+        )
+
+    return None

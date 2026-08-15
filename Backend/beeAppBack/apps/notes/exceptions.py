@@ -52,3 +52,15 @@ class NoteAttachmentNotFoundError(NoteAttachmentError):
 
 class NoteAttachmentFileNotFoundError(NoteAttachmentError):
     """Raised when an attachable file is not found or inaccessible."""
+
+
+class NoteShareError(NotesError):
+    """Raised when a note sharing operation fails."""
+
+
+class NoteShareNotFoundError(NoteShareError):
+    """Raised when a note share cannot be found or accessed."""
+
+
+class NoteShareRecipientNotFoundError(NoteShareError):
+    """Raised when a note share recipient cannot be found."""

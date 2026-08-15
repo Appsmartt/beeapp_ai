@@ -1,6 +1,7 @@
 from django.urls import path
 
 from apps.notes.views import (
+    NoteAttachmentAccessView,
     NoteAttachmentDetailView,
     NoteAttachmentsView,
     NoteAttachmentUploadView,
@@ -9,11 +10,16 @@ from apps.notes.views import (
     NoteFoldersView,
     NoteRestoreView,
     NotesView,
+    NoteShareDetailView,
+    NoteShareRecipientsView,
+    NoteSharesView,
     NoteTagDetailView,
     NoteTagsAssignmentView,
     NoteTagsView,
     NoteTemplatesView,
     NoteTrashView,
+    ReceivedNoteSharesView,
+    SharedNoteDetailView,
 )
 
 
@@ -62,6 +68,41 @@ urlpatterns = [
         "<uuid:note_id>/attachments/<uuid:attachment_id>/",
         NoteAttachmentDetailView.as_view(),
         name="note-attachment-detail",
+    ),
+    path(
+        "<uuid:note_id>/attachments/<uuid:attachment_id>/access/",
+        NoteAttachmentAccessView.as_view(),
+        name="note-attachment-access",
+    ),
+    path(
+        "<uuid:note_id>/shares/",
+        NoteSharesView.as_view(),
+        name="note-shares",
+    ),
+    path(
+        "share-recipients/",
+        NoteShareRecipientsView.as_view(),
+        name="note-share-recipient-search",
+    ),
+    path(
+        "shares/received/",
+        ReceivedNoteSharesView.as_view(),
+        name="received-note-shares",
+    ),
+    path(
+        "shared/<uuid:note_id>/",
+        SharedNoteDetailView.as_view(),
+        name="shared-note-detail",
+    ),
+    path(
+        "shares/<uuid:share_id>/revoke/",
+        NoteShareDetailView.as_view(),
+        name="note-share-revoke",
+    ),
+    path(
+        "shares/<uuid:share_id>/hide/",
+        NoteShareDetailView.as_view(),
+        name="note-share-hide",
     ),
     path(
         "folders/",
