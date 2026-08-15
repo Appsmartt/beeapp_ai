@@ -26,7 +26,7 @@ import {
 import { colors } from '@beeapp/design-system';
 import {
   getNotifications,
-  markNotificationAsRead,
+  markAllNotificationsAsRead,
 } from '@beeapp/api-client';
 import type {
   AppNotification,
@@ -39,11 +39,9 @@ import {
   getValidSessionCredentials,
 } from '../services/authSession';
 
-
 interface ModuleNotificationBellProps {
   moduleId: 'chat' | 'mail' | 'notes' | 'files' | 'calendar';
 }
-
 
 function getBackendModule(
   moduleId: ModuleNotificationBellProps['moduleId'],
@@ -54,7 +52,6 @@ function getBackendModule(
 
   return moduleId;
 }
-
 
 function formatTime(
   value: string,
@@ -90,7 +87,6 @@ function formatTime(
     },
   );
 }
-
 
 function NotificationIcon({
   notification,
@@ -131,7 +127,6 @@ function NotificationIcon({
   return <Info {...iconProps} />;
 }
 
-
 export default function ModuleNotificationBell({
   moduleId,
 }: ModuleNotificationBellProps) {
@@ -142,24 +137,14 @@ export default function ModuleNotificationBell({
   const [notifications, setNotifications] = useState<
     AppNotification[]
   >([]);
-
+  const [unreadCount, setUnreadCount] = useState(0);
 
   const backendModule = useMemo(
     () => getBackendModule(moduleId),
     [moduleId],
   );
 
-
-  const unreadCount = useMemo(
-    () =>
-      notifications.filter(
-        (notification) => !notification.read_at,
-      ).length,
-    [notifications],
-  );
-
-
-  const loadNotifications = useCallback(
+  const loadUnreadNotifications = useCallback(
     async () => {
       try {
         setLoading(true);
@@ -167,7 +152,9 @@ export default function ModuleNotificationBell({
         const auth = await getValidSessionCredentials();
 
         if (!auth) {
-          return;
+          setNotifications([]);
+          setUnreadCount(0);
+          return [];
         }
 
         const response = await getNotifications(auth, {
@@ -178,8 +165,13 @@ export default function ModuleNotificationBell({
         });
 
         setNotifications(response.notifications);
+        setUnreadCount(response.unread_count);
+
+        return response.notifications;
       } catch {
         setNotifications([]);
+        setUnreadCount(0);
+        return [];
       } finally {
         setLoading(false);
       }
@@ -187,65 +179,96 @@ export default function ModuleNotificationBell({
     [backendModule],
   );
 
-
   useEffect(() => {
-    void loadNotifications();
-  }, [loadNotifications]);
+    void loadUnreadNotifications();
+  }, [loadUnreadNotifications]);
 
+  const handleOpenModal = async () => {
+    setModalVisible(true);
 
-  const handleOpen = async (
-    notification: AppNotification,
-  ) => {
     try {
+      setLoading(true);
+
       const auth = await getValidSessionCredentials();
 
-      if (auth && !notification.read_at) {
-        const response = await markNotificationAsRead(
+      if (!auth) {
+        setNotifications([]);
+        setUnreadCount(0);
+        return;
+      }
+
+      const response = await getNotifications(auth, {
+        module: backendModule,
+        unread_only: true,
+        limit: 20,
+        offset: 0,
+      });
+
+      /*
+       * Conservamos las notificaciones en el popover actual aunque el
+       * backend las marque como leídas inmediatamente. Así el usuario
+       * puede revisarlas visualmente durante esta apertura.
+       */
+      setNotifications(response.notifications);
+
+      if (response.unread_count > 0) {
+        await markAllNotificationsAsRead(
           auth,
-          notification.id,
-        );
-
-        setNotifications((current) =>
-          current.filter(
-            (item) =>
-              item.id !== response.notification.id,
-          ),
+          backendModule,
         );
       }
 
-      setModalVisible(false);
-
-      const fileId = notification.metadata.file_id;
-
-      if (
-        backendModule === 'storage'
-        && typeof fileId === 'string'
-      ) {
-        router.push({
-          pathname: '/(main)/storage/preview',
-          params: {
-            id: fileId,
-          },
-        });
-      }
+      /*
+       * El badge desaparece al abrir la campana, porque las
+       * notificaciones pendientes ya quedaron marcadas como leídas.
+       */
+      setUnreadCount(0);
     } catch {
-      setModalVisible(false);
+      setNotifications([]);
+      setUnreadCount(0);
+    } finally {
+      setLoading(false);
     }
   };
 
+  const handleCloseModal = () => {
+    setModalVisible(false);
 
-  const handleOpenModal = () => {
-    setModalVisible(true);
-    void loadNotifications();
+    /*
+     * Al cerrar no limpiamos la lista inmediatamente: evita un parpadeo
+     * durante la animación. En la próxima apertura se piden únicamente
+     * las notificaciones nuevas no leídas.
+     */
   };
 
+  const handleOpenNotification = (
+    notification: AppNotification,
+  ) => {
+    setModalVisible(false);
+
+    const fileId = notification.metadata.file_id;
+
+    if (
+      backendModule === 'storage'
+      && typeof fileId === 'string'
+    ) {
+      router.push({
+        pathname: '/(main)/storage/preview',
+        params: {
+          id: fileId,
+        },
+      });
+    }
+  };
 
   return (
     <>
       <TouchableOpacity
         style={styles.bellButton}
         activeOpacity={0.7}
-        onPress={handleOpenModal}
+        onPress={() => {
+          void handleOpenModal();
+        }}
         accessibilityLabel={`Notificaciones de ${moduleId}`}
       >
         <Bell
@@ -268,10 +291,10 @@ export default function ModuleNotificationBell({
         visible={modalVisible}
         transparent
         animationType="fade"
-        onRequestClose={() => setModalVisible(false)}
+        onRequestClose={handleCloseModal}
       >
         <TouchableWithoutFeedback
-          onPress={() => setModalVisible(false)}
+          onPress={handleCloseModal}
         >
           <View style={styles.overlay}>
             <TouchableWithoutFeedback>
@@ -289,9 +312,7 @@ export default function ModuleNotificationBell({
                   </View>
 
                   <TouchableOpacity
-                    onPress={() =>
-                      setModalVisible(false)
-                    }
+                    onPress={handleCloseModal}
                     style={styles.closeButton}
                     activeOpacity={0.7}
                   >
@@ -325,9 +346,11 @@ export default function ModuleNotificationBell({
                         key={notification.id}
                         style={styles.notificationRow}
                         activeOpacity={0.7}
-                        onPress={() => {
-                          void handleOpen(notification);
-                        }}
+                        onPress={() =>
+                          handleOpenNotification(
+                            notification,
+                          )
+                        }
                       >
                         <View style={styles.iconCircle}>
                           <NotificationIcon
@@ -356,8 +379,6 @@ export default function ModuleNotificationBell({
                             )}
                           </Text>
                         </View>
-
-                        <View style={styles.unreadDot} />
                       </TouchableOpacity>
                     ))}
                   </ScrollView>
@@ -370,7 +391,6 @@ export default function ModuleNotificationBell({
     </>
   );
 }
-
 
 const styles = StyleSheet.create({
   bellButton: {
@@ -490,11 +510,5 @@ const styles = StyleSheet.create({
     marginTop: 3,
     fontSize: 10,
     color: colors.neutral.gray500,
-  },
-  unreadDot: {
-    width: 7,
-    height: 7,
-    borderRadius: 4,
-    backgroundColor: colors.brand.primary,
   },
 });
