@@ -2,7 +2,6 @@ import type {
   StorageItem,
 } from '../stores/storageStore';
 
-
 export type SortOption =
   | 'name'
   | 'date'
@@ -14,10 +13,8 @@ export type StorageFilter =
   | 'recent'
   | 'docs'
   | 'media'
-  | 'signed'
   | 'shared'
   | 'trash';
-
 
 export function getSortedItems(
   list: StorageItem[],
@@ -67,7 +64,6 @@ export function getSortedItems(
   });
 }
 
-
 export function getFilteredItems(
   items: StorageItem[],
   searchQuery: string,
@@ -102,12 +98,6 @@ export function getFilteredItems(
         item.type === 'image'
         || item.type === 'video'
         || item.type === 'audio',
-    );
-  }
-
-  if (activeFilter === 'signed') {
-    list = list.filter(
-      (item) => item.isSigned,
     );
   }
 

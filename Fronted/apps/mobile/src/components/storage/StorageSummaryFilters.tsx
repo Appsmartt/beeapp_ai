@@ -6,7 +6,6 @@ import {
   View,
 } from 'react-native';
 import { colors } from '@beeapp/design-system';
-
 import type { StorageSummary } from '@beeapp/shared-types';
 
 import { formatBytes } from '../../stores/storageStore';
@@ -25,6 +24,7 @@ export function StorageSummaryCard({
   const usedBytes = summary?.used_bytes || 0;
   const reservedBytes = summary?.reserved_bytes || 0;
   const occupiedBytes = usedBytes + reservedBytes;
+
   const percentage = quotaBytes
     ? Math.min(
       100,
@@ -38,6 +38,7 @@ export function StorageSummaryCard({
         <Text style={styles.summaryTitle}>
           Espacio disponible
         </Text>
+
         <Text style={styles.summaryStats}>
           {loading
             ? 'Actualizando almacenamiento...'
@@ -80,7 +81,6 @@ const FILTER_CHIPS: {
   { id: 'recent', label: 'Recientes' },
   { id: 'docs', label: 'Documentos' },
   { id: 'media', label: 'Fotos y Videos' },
-  { id: 'signed', label: 'Firmados' },
   { id: 'shared', label: 'Compartidos' },
 ];
 
