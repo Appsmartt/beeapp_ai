@@ -1,107 +1,164 @@
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
-import { colors, spacing } from '@beeapp/design-system';
-import { FileText, Star, Clock, Lock } from 'lucide-react-native';
+import {
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from 'react-native';
+import {
+  colors,
+  spacing,
+} from '@beeapp/design-system';
+import {
+  FileText,
+  Pin,
+  Share2,
+  Star,
+} from 'lucide-react-native';
 
-export interface NoteRowData {
-  id: string;
-  title: string;
-  content: string;
-  updatedAt: string;
-  isFavorite: boolean;
-  colorTag: string;
-  reminderDate?: string;
-}
+import type {
+  NoteListItem,
+} from '../../services/notesService';
+
+
+export type NoteRowData = NoteListItem;
+
 
 interface NoteListRowProps {
-  note: NoteRowData;
-  isProtected: boolean;
+  note: NoteListItem;
   showSeparator: boolean;
   onPress: () => void;
-  onToggleFavorite: (e: any) => void;
+  onToggleFavorite: (
+    event: unknown,
+  ) => void;
 }
 
+
 /**
- * Flat note row for the single-column list: round icon tinted with the note
- * color, title, one-line preview and date — same anatomy as the mail list.
+ * Fila de una nota real: título, preview de bloques,
+ * fecha, favorito, fijada y compartida.
  */
 export default function NoteListRow({
   note,
-  isProtected,
   showSeparator,
   onPress,
   onToggleFavorite,
 }: NoteListRowProps) {
-  const dateLabel = new Date(note.updatedAt).toLocaleDateString('es-ES', { day: 'numeric', month: 'short' });
+  const updatedAt = new Date(note.updatedAt);
+
+  const dateLabel = Number.isNaN(
+    updatedAt.getTime(),
+  )
+    ? ''
+    : updatedAt.toLocaleDateString(
+      'es-CO',
+      {
+        day: 'numeric',
+        month: 'short',
+      },
+    );
 
   return (
     <View style={styles.wrapper}>
       <TouchableOpacity
-        style={[styles.row, showSeparator && styles.rowSeparator]}
+        style={[
+          styles.row,
+          showSeparator && styles.rowSeparator,
+        ]}
         onPress={onPress}
         activeOpacity={0.7}
       >
-        {/* Protected notes reveal nothing: no title, no preview */}
-        {isProtected ? (
-          <>
-            <View style={[styles.iconCircle, styles.iconCircleLocked]}>
-              <Lock size={17} color={colors.neutral.gray600} />
-            </View>
+        <View
+          style={[
+            styles.iconCircle,
+            {
+              backgroundColor: `${note.colorTag}22`,
+            },
+          ]}
+        >
+          <FileText
+            size={17}
+            color={note.colorTag}
+          />
+        </View>
 
-            <View style={styles.details}>
-              <View style={styles.titleRow}>
-                <Text style={styles.titleLocked} numberOfLines={1}>
-                  Nota protegida
-                </Text>
-              </View>
-              <Text style={styles.previewLocked} numberOfLines={1}>
-                Desbloquea para ver el contenido
-              </Text>
-            </View>
-          </>
-        ) : (
-          <>
-            <View style={[styles.iconCircle, { backgroundColor: `${note.colorTag}22` }]}>
-              <FileText size={17} color={note.colorTag} />
-            </View>
+        <View style={styles.details}>
+          <View style={styles.titleRow}>
+            <Text
+              style={styles.title}
+              numberOfLines={1}
+            >
+              {note.title}
+            </Text>
 
-            <View style={styles.details}>
-              <View style={styles.titleRow}>
-                <Text style={styles.title} numberOfLines={1}>
-                  {note.title || 'Sin Título'}
-                </Text>
-              </View>
+            {note.isPinned && (
+              <Pin
+                size={13}
+                color={colors.brand.primary}
+              />
+            )}
 
-              <View style={styles.previewRow}>
-                <Text style={styles.preview} numberOfLines={1}>
-                  {note.content}
-                </Text>
-                {!!note.reminderDate && (
-                  <View style={styles.reminderBadge}>
-                    <Clock size={9} color="#D97706" />
-                    <Text style={styles.reminderText} numberOfLines={1}>
-                      {note.reminderDate.split('•')[0].trim()}
-                    </Text>
-                  </View>
-                )}
-              </View>
-            </View>
-          </>
-        )}
+            {note.isShared && (
+              <Share2
+                size={12}
+                color={colors.neutral.gray500}
+              />
+            )}
+          </View>
+
+          <Text
+            style={styles.preview}
+            numberOfLines={1}
+          >
+            {note.preview || 'Sin contenido'}
+          </Text>
+
+          {note.isShared && note.sharedByName && (
+            <Text
+              style={styles.sharedBy}
+              numberOfLines={1}
+            >
+              Compartida por {note.sharedByName}
+            </Text>
+          )}
+        </View>
 
         <View style={styles.metaCol}>
-          <Text style={styles.dateText}>{dateLabel}</Text>
-          <TouchableOpacity onPress={onToggleFavorite} style={styles.starBtn} activeOpacity={0.7}>
-            <Star
-              size={15}
-              color={note.isFavorite ? '#F59E0B' : colors.neutral.gray400}
-              fill={note.isFavorite ? '#F59E0B' : 'transparent'}
-            />
-          </TouchableOpacity>
+          <Text style={styles.dateText}>
+            {dateLabel}
+          </Text>
+
+          {!note.isShared && (
+            <TouchableOpacity
+              onPress={onToggleFavorite}
+              style={styles.starBtn}
+              activeOpacity={0.7}
+              accessibilityLabel={
+                note.isFavorite
+                  ? 'Quitar de favoritas'
+                  : 'Marcar como favorita'
+              }
+            >
+              <Star
+                size={15}
+                color={
+                  note.isFavorite
+                    ? '#F59E0B'
+                    : colors.neutral.gray400
+                }
+                fill={
+                  note.isFavorite
+                    ? '#F59E0B'
+                    : 'transparent'
+                }
+              />
+            </TouchableOpacity>
+          )}
         </View>
       </TouchableOpacity>
     </View>
   );
 }
+
 
 const styles = StyleSheet.create({
   wrapper: {
@@ -141,46 +198,17 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: colors.neutral.text,
   },
-  iconCircleLocked: {
-    backgroundColor: colors.neutral.gray100,
-  },
-  titleLocked: {
-    flexShrink: 1,
-    fontSize: 13,
-    fontWeight: '600',
-    color: colors.neutral.gray600,
-  },
-  previewLocked: {
-    fontSize: 11.5,
-    fontWeight: '400',
-    color: colors.neutral.gray400,
-    marginTop: 2,
-  },
-  previewRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    marginTop: 2,
-  },
   preview: {
-    flex: 1,
     fontSize: 11.5,
     fontWeight: '400',
     color: colors.neutral.gray600,
+    marginTop: 2,
   },
-  reminderBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 2,
-    backgroundColor: colors.brand.primary + '15',
-    borderRadius: 6,
-    paddingHorizontal: 5,
-    paddingVertical: 1,
-  },
-  reminderText: {
-    fontSize: 9,
+  sharedBy: {
+    fontSize: 10,
     fontWeight: '400',
     color: colors.brand.primary,
+    marginTop: 3,
   },
   metaCol: {
     alignItems: 'flex-end',
@@ -193,31 +221,5 @@ const styles = StyleSheet.create({
   },
   starBtn: {
     padding: 2,
-  },
-  actionsPanel: {
-    flexDirection: 'row',
-    position: 'absolute',
-    right: 0,
-    top: 0,
-    bottom: 0,
-    width: 150,
-  },
-  actionBtn: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 2,
-  },
-  editBtn: {
-    backgroundColor: colors.neutral.gray100,
-  },
-  deleteBtn: {
-    backgroundColor: colors.semantic.error + '15',
-  },
-  actionText: {
-    fontSize: 9,
-    fontWeight: '400',
-    color: colors.neutral.text,
-    textTransform: 'uppercase',
   },
 });

@@ -1,58 +1,117 @@
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
-import { colors, spacing, radii } from '@beeapp/design-system';
-import { X } from 'lucide-react-native';
-import { NoteCategory } from '../../mocks/noteCategories';
-import { getNoteCategoryIcon } from './noteCategoryIcons';
+import {
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from 'react-native';
+import {
+  colors,
+  radii,
+  spacing,
+} from '@beeapp/design-system';
+import {
+  MoreVertical,
+} from 'lucide-react-native';
+
+import type {
+  NotesHomeItem,
+} from '../../services/notesService';
+import {
+  getNoteCategoryIcon,
+} from './noteCategoryIcons';
+
 
 interface NoteCategoryGridProps {
-  categories: NoteCategory[];
-  /** Cuántas notas hay dentro de cada categoría, por id */
-  countOf: (category: NoteCategory) => number;
-  onOpen: (category: NoteCategory) => void;
-  onRemove: (id: string) => void;
+  categories: NotesHomeItem[];
+  countOf: (category: NotesHomeItem) => number;
+  onOpen: (category: NotesHomeItem) => void;
+  onOpenActions?: (category: NotesHomeItem) => void;
 }
 
-/** Cuadrícula de 2 columnas con las categorías de notas */
+
+/**
+ * Cuadrícula para vistas, carpetas, etiquetas y plantillas.
+ * Las entidades editables tienen un menú contextual visible.
+ */
 export default function NoteCategoryGrid({
   categories,
   countOf,
   onOpen,
-  onRemove,
+  onOpenActions,
 }: NoteCategoryGridProps) {
   return (
     <View style={styles.grid}>
       {categories.map((category) => {
-        const Icon = getNoteCategoryIcon(category.iconKey);
+        const Icon = getNoteCategoryIcon(
+          category.iconKey,
+        );
+
         const count = countOf(category);
+
+        const canManage =
+          !category.isFixed
+          && (
+            category.kind === 'folder'
+            || category.kind === 'tag'
+          );
 
         return (
           <TouchableOpacity
             key={category.id}
             style={styles.card}
             onPress={() => onOpen(category)}
+            onLongPress={
+              canManage && onOpenActions
+                ? () => onOpenActions(category)
+                : undefined
+            }
             activeOpacity={0.7}
           >
-            <View style={[styles.iconCircle, { backgroundColor: `${category.color}1A` }]}>
-              <Icon size={18} color={category.color} />
+            <View
+              style={[
+                styles.iconCircle,
+                {
+                  backgroundColor:
+                    `${category.color}1A`,
+                },
+              ]}
+            >
+              <Icon
+                size={18}
+                color={category.color}
+              />
             </View>
 
             <View style={styles.info}>
-              <Text style={styles.name} numberOfLines={1}>
+              <Text
+                style={styles.name}
+                numberOfLines={1}
+              >
                 {category.name}
               </Text>
+
               <Text style={styles.count}>
                 {count} {count === 1 ? 'nota' : 'notas'}
               </Text>
             </View>
 
-            {!category.isFixed && (
+            {canManage && onOpenActions && (
               <TouchableOpacity
-                onPress={() => onRemove(category.id)}
+                onPress={(event) => {
+                  event.stopPropagation();
+                  onOpenActions(category);
+                }}
                 hitSlop={8}
-                style={styles.removeBtn}
+                style={styles.menuButton}
                 activeOpacity={0.7}
+                accessibilityLabel={
+                  `Opciones de ${category.name}`
+                }
               >
-                <X size={13} color={colors.neutral.gray500} />
+                <MoreVertical
+                  size={17}
+                  color={colors.neutral.gray500}
+                />
               </TouchableOpacity>
             )}
           </TouchableOpacity>
@@ -61,6 +120,7 @@ export default function NoteCategoryGrid({
     </View>
   );
 }
+
 
 const styles = StyleSheet.create({
   grid: {
@@ -89,8 +149,22 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  info: { flex: 1, minWidth: 0 },
-  name: { fontSize: 13, fontWeight: '400', color: colors.neutral.text },
-  count: { fontSize: 11, fontWeight: '400', color: colors.neutral.gray600, marginTop: 2 },
-  removeBtn: { padding: 2 },
+  info: {
+    flex: 1,
+    minWidth: 0,
+  },
+  name: {
+    fontSize: 13,
+    fontWeight: '400',
+    color: colors.neutral.text,
+  },
+  count: {
+    fontSize: 11,
+    fontWeight: '400',
+    color: colors.neutral.gray600,
+    marginTop: 2,
+  },
+  menuButton: {
+    padding: 2,
+  },
 });

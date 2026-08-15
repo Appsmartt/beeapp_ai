@@ -1075,7 +1075,7 @@ class NoteAttachmentDetailView(AuthenticatedAPIView):
                 {
                     "detail": str(error),
                 },
-                status=status.HTTP_400_BAD_request,
+                status=status.HTTP_400_BAD_REQUEST,
             )
 
         return Response(

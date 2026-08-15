@@ -604,3 +604,522 @@ export interface PushDevice {
 export interface RegisterPushDeviceResponse {
   device: PushDevice;
 }
+
+export type NoteBlockType =
+  | 'text'
+  | 'heading'
+  | 'field'
+  | 'textarea'
+  | 'checklist'
+  | 'bulleted_list'
+  | 'numbered_list'
+  | 'date'
+  | 'date_list'
+  | 'number_list'
+  | 'image'
+  | 'file'
+  | 'file_list'
+  | 'divider';
+
+
+export interface NoteTextBlock {
+  id: string;
+  type: 'text' | 'textarea';
+  text: string;
+}
+
+
+export interface NoteHeadingBlock {
+  id: string;
+  type: 'heading';
+  text: string;
+  level?: 1 | 2;
+}
+
+
+export interface NoteFieldBlock {
+  id: string;
+  type: 'field';
+  label: string;
+  value: string;
+}
+
+
+export interface NoteChecklistItem {
+  id: string;
+  text: string;
+  checked: boolean;
+}
+
+
+export interface NoteChecklistBlock {
+  id: string;
+  type: 'checklist';
+  items: NoteChecklistItem[];
+}
+
+
+export interface NoteBulletedListBlock {
+  id: string;
+  type: 'bulleted_list';
+  items: string[];
+}
+
+
+export interface NoteNumberedListBlock {
+  id: string;
+  type: 'numbered_list';
+  items: string[];
+}
+
+
+export interface NoteDateBlock {
+  id: string;
+  type: 'date';
+  value: string | null;
+  label?: string;
+}
+
+
+export interface NoteDateListItem {
+  id: string;
+  label: string;
+  value: string | null;
+}
+
+
+export interface NoteDateListBlock {
+  id: string;
+  type: 'date_list';
+  items: NoteDateListItem[];
+}
+
+
+export interface NoteNumberListItem {
+  id: string;
+  label: string;
+  value: number | null;
+}
+
+
+export interface NoteNumberListBlock {
+  id: string;
+  type: 'number_list';
+  items: NoteNumberListItem[];
+}
+
+
+export interface NoteAttachmentReference {
+  attachment_id?: string;
+  file_id?: string;
+  caption?: string;
+}
+
+
+export interface NoteImageBlock
+  extends NoteAttachmentReference {
+  id: string;
+  type: 'image';
+}
+
+
+export interface NoteFileBlock
+  extends NoteAttachmentReference {
+  id: string;
+  type: 'file';
+}
+
+
+export interface NoteFileListBlock {
+  id: string;
+  type: 'file_list';
+  attachments: NoteAttachmentReference[];
+}
+
+
+export interface NoteDividerBlock {
+  id: string;
+  type: 'divider';
+}
+
+
+export type NoteBlock =
+  | NoteTextBlock
+  | NoteHeadingBlock
+  | NoteFieldBlock
+  | NoteChecklistBlock
+  | NoteBulletedListBlock
+  | NoteNumberedListBlock
+  | NoteDateBlock
+  | NoteDateListBlock
+  | NoteNumberListBlock
+  | NoteImageBlock
+  | NoteFileBlock
+  | NoteFileListBlock
+  | NoteDividerBlock;
+
+
+export interface NoteContent {
+  version: number;
+  blocks: NoteBlock[];
+}
+
+
+export interface Note {
+  id: string;
+  owner_id: string;
+  folder_id: string | null;
+  template_id: string | null;
+  title: string | null;
+  content?: NoteContent | null;
+  template_snapshot?: NoteContent | null;
+  color: string | null;
+  is_favorite: boolean;
+  is_pinned: boolean;
+  is_archived: boolean;
+  position: string | number | null;
+  deleted_at: string | null;
+  purge_after: string | null;
+  last_opened_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+
+export interface NoteFolder {
+  id: string;
+  owner_id: string;
+  parent_id: string | null;
+  name: string;
+  created_at: string;
+  updated_at: string;
+}
+
+
+export interface NoteTag {
+  id: string;
+  owner_id: string;
+  name: string;
+  color: string;
+  icon: string;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
+}
+
+
+export interface NoteTemplate {
+  id: string;
+  slug: string;
+  name: string;
+  description: string | null;
+  icon: string;
+  color: string;
+  content: NoteContent;
+  is_active: boolean;
+  display_order: number;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+
+export type NoteAttachmentType =
+  | 'attachment'
+  | 'image'
+  | 'cover';
+
+
+export interface NoteAttachmentFile {
+  id: string;
+  owner_id: string;
+  folder_id: string | null;
+  bucket_id: string;
+  storage_path: string;
+  original_name: string;
+  display_name: string;
+  extension: string | null;
+  mime_type: string;
+  kind: StorageFileKind;
+  size_bytes: number;
+  status: StorageFileStatus;
+  is_starred: boolean;
+  trashed_at: string | null;
+  purge_after: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+
+export interface NoteAttachment {
+  id: string;
+  note_id: string;
+  file_id: string;
+  attachment_type: NoteAttachmentType;
+  display_order: number;
+  created_at: string;
+  file: NoteAttachmentFile;
+}
+
+
+export interface NoteAttachmentUploadFailure {
+  name: string;
+  detail: string;
+  code: 'quota_exceeded' | 'upload_failed';
+}
+
+
+export interface NoteAttachmentAccessResponse {
+  attachment: NoteAttachment;
+  url: string;
+  expires_in_seconds: number;
+  download: boolean;
+}
+
+
+export interface NoteShareRecipient {
+  id: string;
+  email: string | null;
+  first_name: string;
+  last_name: string;
+  phone_dial_code: string | null;
+  phone_number: string | null;
+}
+
+
+export interface NoteShareProfile {
+  id: string;
+  first_name: string;
+  last_name: string;
+  phone_dial_code: string | null;
+  phone_number: string | null;
+}
+
+
+export interface NoteShare {
+  id: string;
+  note_id: string;
+  shared_by_user_id: string;
+  shared_with_user_id: string;
+  permission: string | null;
+  accepted_at: string | null;
+  revoked_at: string | null;
+  expires_at: string | null;
+  hidden_at: string | null;
+  shared_with_displayed_at: string | null;
+  created_at: string;
+  updated_at: string;
+  note?: Note;
+  shared_by?: NoteShareProfile | null;
+}
+
+
+export interface NotesQuery {
+  folder_id?: string | null;
+  template_id?: string;
+  search?: string;
+  is_favorite?: boolean;
+  is_pinned?: boolean;
+  is_archived?: boolean;
+  deleted?: boolean;
+  limit?: number;
+  offset?: number;
+}
+
+
+export interface NoteFoldersQuery {
+  parent_id?: string | null;
+}
+
+
+export interface ReceivedNoteSharesQuery {
+  include_hidden?: boolean;
+  limit?: number;
+  offset?: number;
+}
+
+
+export interface CreateNotePayload {
+  title?: string;
+  template_id?: string | null;
+  folder_id?: string | null;
+}
+
+
+export interface UpdateNotePayload {
+  title?: string;
+  content?: NoteContent;
+  color?: string;
+  folder_id?: string | null;
+  is_favorite?: boolean;
+  is_pinned?: boolean;
+  is_archived?: boolean;
+  position?: string | number;
+  last_opened_at?: string | null;
+}
+
+
+export interface CreateNoteFolderPayload {
+  name: string;
+  parent_id?: string | null;
+}
+
+
+export interface RenameNoteFolderPayload {
+  name: string;
+}
+
+
+export interface MoveNoteFolderPayload {
+  parent_id: string | null;
+}
+
+
+export interface CreateNoteTagPayload {
+  name: string;
+  icon?: string;
+  color?: string;
+  sort_order?: number;
+}
+
+
+export interface UpdateNoteTagPayload {
+  name?: string;
+  icon?: string;
+  color?: string;
+  sort_order?: number;
+}
+
+
+export interface ReplaceNoteTagsPayload {
+  tag_ids: string[];
+}
+
+
+export interface CreateNoteAttachmentPayload {
+  file_id: string;
+  attachment_type?: NoteAttachmentType;
+  display_order?: number;
+}
+
+
+export interface UpdateNoteAttachmentPayload {
+  attachment_type?: NoteAttachmentType;
+  display_order?: number;
+}
+
+
+export interface CreateNoteSharePayload {
+  recipient_id: string;
+  expires_at?: string | null;
+}
+
+
+export interface GetNotesResponse {
+  notes: Note[];
+  count: number;
+  limit: number;
+  offset: number;
+}
+
+
+export interface GetNoteResponse {
+  note: Note;
+}
+
+
+export interface CreateNoteResponse {
+  note: Note;
+}
+
+
+export interface UpdateNoteResponse {
+  note: Note;
+}
+
+
+export interface GetNoteFoldersResponse {
+  folders: NoteFolder[];
+}
+
+
+export interface CreateNoteFolderResponse {
+  folder: NoteFolder;
+}
+
+
+export interface UpdateNoteFolderResponse {
+  folder: NoteFolder;
+}
+
+
+export interface GetNoteTagsResponse {
+  tags: NoteTag[];
+}
+
+
+export interface CreateNoteTagResponse {
+  tag: NoteTag;
+}
+
+
+export interface UpdateNoteTagResponse {
+  tag: NoteTag;
+}
+
+
+export interface GetNoteTemplatesResponse {
+  templates: NoteTemplate[];
+}
+
+
+export interface GetNoteAttachmentsResponse {
+  attachments: NoteAttachment[];
+}
+
+
+export interface CreateNoteAttachmentResponse {
+  attachment: NoteAttachment;
+}
+
+
+export interface UpdateNoteAttachmentResponse {
+  attachment: NoteAttachment;
+}
+
+
+export interface UploadNoteAttachmentsResponse {
+  attachments: NoteAttachment[];
+  failed_files: NoteAttachmentUploadFailure[];
+  success_count: number;
+  failure_count: number;
+}
+
+
+export interface GetNoteShareRecipientsResponse {
+  recipients: NoteShareRecipient[];
+}
+
+
+export interface CreateNoteShareResponse {
+  share: NoteShare;
+}
+
+
+export interface UpdateNoteShareResponse {
+  share: NoteShare;
+}
+
+
+export interface GetReceivedNoteSharesResponse {
+  shares: NoteShare[];
+  count: number;
+  limit: number;
+  offset: number;
+}
+
+
+export interface GetSharedNoteResponse {
+  note: Note;
+  share: NoteShare;
+}

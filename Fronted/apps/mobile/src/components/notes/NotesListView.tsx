@@ -1,36 +1,78 @@
-import { View, Text, ScrollView, TouchableOpacity } from 'react-native';
-import { colors } from '@beeapp/design-system';
-import { FolderOpen } from 'lucide-react-native';
+import {
+  ScrollView,
+  Text,
+  TouchableOpacity,
+  View,
+} from 'react-native';
+import {
+  colors,
+} from '@beeapp/design-system';
+import {
+  FolderOpen,
+} from 'lucide-react-native';
+
+import type {
+  NoteListItem,
+} from '../../services/notesService';
+import type {
+  ViewMode,
+} from '../layout/ViewModeToggle';
 import NoteListRow from './NoteListRow';
 import NotesGridView from './NotesGridView';
-import { notesListStyles as styles } from './notesListStyles';
-import { NoteItem } from '../../mocks/notesModule';
-import { ViewMode } from '../layout/ViewModeToggle';
+import {
+  notesListStyles as styles,
+} from './notesListStyles';
 
-export type NotesFilter = 'all' | 'recent' | 'reminder' | 'favorite' | 'trash';
 
-const CHIPS: { id: NotesFilter; label: string }[] = [
-  { id: 'all', label: 'Todas' },
-  { id: 'recent', label: 'Recientes' },
-  { id: 'reminder', label: 'Con recordatorio' },
-  { id: 'favorite', label: 'Favoritas' },
-  { id: 'trash', label: 'Papelera' },
+export type NotesFilter =
+  | 'all'
+  | 'recent'
+  | 'favorite'
+  | 'trash';
+
+
+const CHIPS: {
+  id: NotesFilter;
+  label: string;
+}[] = [
+  {
+    id: 'all',
+    label: 'Todas',
+  },
+  {
+    id: 'recent',
+    label: 'Recientes',
+  },
+  {
+    id: 'favorite',
+    label: 'Favoritas',
+  },
+  {
+    id: 'trash',
+    label: 'Papelera',
+  },
 ];
 
+
 interface NotesListViewProps {
-  notes: NoteItem[];
-  protectedIds: string[];
+  notes: NoteListItem[];
   viewMode: ViewMode;
   activeFilter: NotesFilter;
   onChangeFilter: (filter: NotesFilter) => void;
   onOpen: (id: string) => void;
-  onToggleFavorite: (id: string, event: any) => void;
+  onToggleFavorite: (
+    id: string,
+    event: unknown,
+  ) => void;
 }
 
-/** Lista de notas de una categoría: chips de filtro y filas o cuadrícula */
+
+/**
+ * Lista de notas reales. Sus datos vienen del backend;
+ * este componente solo se encarga de la presentación.
+ */
 export default function NotesListView({
   notes,
-  protectedIds,
   viewMode,
   activeFilter,
   onChangeFilter,
@@ -46,15 +88,29 @@ export default function NotesListView({
           contentContainerStyle={styles.filtersScroll}
         >
           {CHIPS.map((chip) => {
-            const isActive = activeFilter === chip.id;
+            const isActive =
+              activeFilter === chip.id;
+
             return (
               <TouchableOpacity
                 key={chip.id}
-                style={[styles.filterChip, isActive && styles.filterChipActive]}
-                onPress={() => onChangeFilter(chip.id)}
+                style={[
+                  styles.filterChip,
+                  isActive
+                    && styles.filterChipActive,
+                ]}
+                onPress={() =>
+                  onChangeFilter(chip.id)
+                }
                 activeOpacity={0.7}
               >
-                <Text style={[styles.filterChipText, isActive && styles.filterChipTextActive]}>
+                <Text
+                  style={[
+                    styles.filterChipText,
+                    isActive
+                      && styles.filterChipTextActive,
+                  ]}
+                >
                   {chip.label}
                 </Text>
               </TouchableOpacity>
@@ -64,31 +120,52 @@ export default function NotesListView({
       </View>
 
       {notes.length > 0 ? (
-        <ScrollView style={styles.scrollContainer} showsVerticalScrollIndicator={false}>
+        <ScrollView
+          style={styles.scrollContainer}
+          showsVerticalScrollIndicator={false}
+        >
           {viewMode === 'grid' ? (
-            <NotesGridView notes={notes} protectedIds={protectedIds} onOpen={onOpen} />
+            <NotesGridView
+              notes={notes}
+              onOpen={onOpen}
+            />
           ) : (
             notes.map((note, index) => (
               <NoteListRow
                 key={note.id}
                 note={note}
-                isProtected={protectedIds.includes(note.id)}
-                showSeparator={index < notes.length - 1}
+                showSeparator={
+                  index < notes.length - 1
+                }
                 onPress={() => onOpen(note.id)}
-                onToggleFavorite={(event) => onToggleFavorite(note.id, event)}
+                onToggleFavorite={(event) =>
+                  onToggleFavorite(
+                    note.id,
+                    event,
+                  )
+                }
               />
             ))
           )}
+
           <View style={{ height: 120 }} />
         </ScrollView>
       ) : (
         <View style={styles.emptyContainer}>
           <View style={styles.emptyIconBg}>
-            <FolderOpen size={40} color={colors.neutral.gray500} />
+            <FolderOpen
+              size={40}
+              color={colors.neutral.gray500}
+            />
           </View>
-          <Text style={styles.emptyTitle}>Sin Notas</Text>
+
+          <Text style={styles.emptyTitle}>
+            Sin notas
+          </Text>
+
           <Text style={styles.emptyDesc}>
-            No hay notas en esta categoría. Crea una nota nueva para empezar.
+            No hay notas en esta vista. Crea una
+            nueva nota para empezar.
           </Text>
         </View>
       )}

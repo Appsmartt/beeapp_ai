@@ -45,6 +45,7 @@ import {
 import {
   getValidSessionCredentials,
 } from '../../services/authSession';
+import { MOCK_NOTES } from '../../mocks/notes';
 import { styles } from './allModulesOverviewStyles';
 
 const STORAGE_NOTIFICATION_MODULE = 'storage';
@@ -96,6 +97,12 @@ export default function AllModulesOverview() {
 
   const [unreadStorageNotifications, setUnreadStorageNotifications] =
     useState(0);
+
+  const totalNotes = MOCK_NOTES.length;
+
+  const notesCountLabel = totalNotes === 1
+    ? '1 nota'
+    : `${totalNotes} notas`;
 
   const loadStorageCardData = useCallback(async () => {
     try {
@@ -563,19 +570,7 @@ export default function AllModulesOverview() {
             <View style={styles.badgesContainer}>
               <View style={styles.badgePill}>
                 <Text style={styles.badgeText}>
-                  3 Nuevas
-                </Text>
-              </View>
-
-              <View style={styles.badgePillGray}>
-                <Text style={styles.badgeTextGray}>
-                  2 Protegidas
-                </Text>
-              </View>
-
-              <View style={styles.badgePillGray}>
-                <Text style={styles.badgeTextGray}>
-                  1 Recordatorio
+                  {notesCountLabel}
                 </Text>
               </View>
             </View>
@@ -586,7 +581,9 @@ export default function AllModulesOverview() {
               style={styles.cardPreviewText}
               numberOfLines={1}
             >
-              Estrategia comercial Q3...
+              {totalNotes === 0
+                ? 'Aún no tienes notas'
+                : 'Toca para ver todas tus notas'}
             </Text>
           </View>
         </TouchableOpacity>
