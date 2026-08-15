@@ -12,7 +12,6 @@ export const styles = StyleSheet.create({
     paddingBottom: spacing.xl,
   },
 
-  /* BeeServices Hero Card (arriba) */
   beeServicesCard: {
     backgroundColor: '#FAF5FF',
     borderRadius: 20,
@@ -96,26 +95,21 @@ export const styles = StyleSheet.create({
     color: colors.neutral.gray700,
   },
 
-  /* Grid 2 columnas */
   gridContainer: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     justifyContent: 'space-between',
     gap: 12,
   },
-
-  /* Card base para Chat / Correos / Agenda / Notas / Archivos / IA */
   gridCard: {
     width: '48%',
     minHeight: 190,
     justifyContent: 'space-between',
     padding: 14,
     borderRadius: 16,
-
-    backgroundColor: '#F9F5FF', // lila pastel
+    backgroundColor: '#F9F5FF',
     borderWidth: 1,
     borderColor: 'rgba(216, 180, 254, 0.7)',
-
     shadowColor: 'rgba(109, 40, 217, 1)',
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.16,
@@ -123,7 +117,6 @@ export const styles = StyleSheet.create({
     elevation: 4,
   },
 
-  /* Estilos específicos para IA (dentro de gridCard) */
   aiHeaderRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -200,7 +193,6 @@ export const styles = StyleSheet.create({
     gap: 4,
     marginTop: 8,
   },
-
   badgePill: {
     backgroundColor: colors.neutral.gray100,
     paddingHorizontal: 7,
@@ -315,6 +307,20 @@ export const styles = StyleSheet.create({
     backgroundColor: 'rgba(124, 58, 237, 0.50)',
     borderRadius: 2,
   },
+
+  storageNotificationRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginTop: 6,
+  },
+  storageNotificationText: {
+    flex: 1,
+    fontSize: 10,
+    fontWeight: '400',
+    color: colors.neutral.gray600,
+  },
+
   fileMiniRow: {
     flexDirection: 'row',
     alignItems: 'center',

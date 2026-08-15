@@ -1,29 +1,53 @@
 import {
-  View,
-  Text,
-  ScrollView,
-  TouchableOpacity,
-} from 'react-native';
-import { colors } from '@beeapp/design-system';
+  useCallback,
+  useEffect,
+  useState,
+} from 'react';
 import {
-  MessageCircle,
-  Mail,
+  ScrollView,
+  Text,
+  TouchableOpacity,
+  View,
+} from 'react-native';
+import {
+  Bot,
   Calendar,
   FileText,
   FolderOpen,
-  ShoppingBag,
-  ChevronRight,
+  Mail,
+  MessageCircle,
   Search,
+  ShoppingBag,
+  Sparkles,
   TrendingUp,
   Video,
-  Sparkles,
-  Bot,
+  ChevronRight,
+  Bell,
 } from 'lucide-react-native';
+import { colors } from '@beeapp/design-system';
+import {
+  getNotifications,
+  getStorageSummary,
+} from '@beeapp/api-client';
+import type {
+  StorageSummary,
+} from '@beeapp/shared-types';
+
 import {
   useModuleNav,
   useScreenParams,
 } from '../embedded/EmbeddedNavContext';
+import {
+  formatBytes,
+  getStorageSummary as getStoredStorageSummary,
+  setStorageSummary,
+} from '../../stores/storageStore';
+import {
+  getValidSessionCredentials,
+} from '../../services/authSession';
 import { styles } from './allModulesOverviewStyles';
+
+const STORAGE_NOTIFICATION_MODULE = 'storage';
 
 const MOCK_AVATARS = [
   { initials: 'CM', bg: '#DBEAFE', text: '#1E40AF' },
@@ -31,12 +55,83 @@ const MOCK_AVATARS = [
   { initials: 'JP', bg: '#ECFDF5', text: '#065F46' },
 ];
 
+function getUsagePercentage(
+  usedBytes: number,
+  quotaBytes: number,
+  apiPercentage: number,
+): number {
+  if (
+    Number.isFinite(apiPercentage)
+    && apiPercentage >= 0
+  ) {
+    return Math.min(100, Math.max(0, apiPercentage));
+  }
+
+  if (
+    !Number.isFinite(usedBytes)
+    || !Number.isFinite(quotaBytes)
+    || quotaBytes <= 0
+  ) {
+    return 0;
+  }
+
+  return Math.min(
+    100,
+    Math.max(0, (usedBytes / quotaBytes) * 100),
+  );
+}
+
 export default function AllModulesOverview() {
   const router = useModuleNav();
   const params = useScreenParams();
+
   const onOpenModule = params.onOpenModule as
     | ((id: string) => void)
     | undefined;
+
+  const [storageSummary, setLocalStorageSummary] =
+    useState<StorageSummary | null>(
+      getStoredStorageSummary(),
+    );
+
+  const [unreadStorageNotifications, setUnreadStorageNotifications] =
+    useState(0);
+
+  const loadStorageCardData = useCallback(async () => {
+    try {
+      const auth = await getValidSessionCredentials();
+
+      if (!auth) {
+        return;
+      }
+
+      const [
+        summaryResponse,
+        notificationsResponse,
+      ] = await Promise.all([
+        getStorageSummary(auth),
+        getNotifications(auth, {
+          module: STORAGE_NOTIFICATION_MODULE,
+          unread_only: true,
+          limit: 1,
+          offset: 0,
+        }),
+      ]);
+
+      setStorageSummary(summaryResponse.storage);
+      setLocalStorageSummary(summaryResponse.storage);
+
+      setUnreadStorageNotifications(
+        notificationsResponse.unread_count,
+      );
+    } catch {
+      // Si falla la consulta se conserva el último resumen en memoria.
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadStorageCardData();
+  }, [loadStorageCardData]);
 
   const handleOpenModule = (id: string) => {
     if (onOpenModule) {
@@ -49,8 +144,33 @@ export default function AllModulesOverview() {
       return;
     }
 
+    if (id === 'files') {
+      router.push('/(main)/storage');
+      return;
+    }
+
     router.push(`/(main)/${id}`);
   };
+
+  const usedBytes = storageSummary?.used_bytes ?? 0;
+  const quotaBytes = storageSummary?.quota_bytes ?? 0;
+
+  const storageUsagePercentage = getUsagePercentage(
+    usedBytes,
+    quotaBytes,
+    storageSummary?.usage_percentage ?? 0,
+  );
+
+  const storageUsageLabel = storageSummary
+    ? `${formatBytes(usedBytes)} usados de ${formatBytes(
+      quotaBytes,
+    )}`
+    : 'Cargando almacenamiento...';
+
+  const storageNotificationLabel =
+    unreadStorageNotifications === 1
+      ? '1 notificación sin leer'
+      : `${unreadStorageNotifications} notificaciones sin leer`;
 
   return (
     <ScrollView
@@ -65,17 +185,26 @@ export default function AllModulesOverview() {
       >
         <View style={styles.beeServicesTopRow}>
           <View style={styles.beeServicesIconWrap}>
-            <ShoppingBag size={32} color={colors.brand.primary} />
+            <ShoppingBag
+              size={32}
+              color={colors.brand.primary}
+            />
           </View>
 
           <View style={styles.beeServicesTextCol}>
-            <Text style={styles.beeServicesTitle}>BeeServices</Text>
+            <Text style={styles.beeServicesTitle}>
+              BeeServices
+            </Text>
+
             <Text style={styles.beeServicesSubtitle}>
               Tus negocios y catálogo comercial
             </Text>
           </View>
 
-          <ChevronRight size={24} color={colors.brand.primary} />
+          <ChevronRight
+            size={24}
+            color={colors.brand.primary}
+          />
         </View>
 
         <Text style={styles.beeServicesDescText}>
@@ -85,39 +214,59 @@ export default function AllModulesOverview() {
 
         <View style={styles.beeServicesMetricsRow}>
           <View style={styles.beeMetricBadge}>
-            <Text style={styles.beeMetricText}>2 Negocios</Text>
+            <Text style={styles.beeMetricText}>
+              2 Negocios
+            </Text>
           </View>
 
           <View style={styles.beeMetricBadge}>
-            <Text style={styles.beeMetricText}>4 Productos</Text>
+            <Text style={styles.beeMetricText}>
+              4 Productos
+            </Text>
           </View>
 
           <View style={styles.beeMetricBadge}>
-            <Text style={styles.beeMetricText}>3 Servicios</Text>
+            <Text style={styles.beeMetricText}>
+              3 Servicios
+            </Text>
           </View>
 
           <View style={styles.beeMetricBadge}>
-            <Text style={styles.beeMetricText}>12 Consultas recibidas</Text>
+            <Text style={styles.beeMetricText}>
+              12 Consultas recibidas
+            </Text>
           </View>
         </View>
 
         <View style={styles.beeServicesHighlightsRow}>
           <View style={styles.beeHighlightItem}>
-            <Search size={14} color={colors.brand.primary} />
+            <Search
+              size={14}
+              color={colors.brand.primary}
+            />
+
             <Text style={styles.beeHighlightText}>
               Los clientes te encuentran vía IA
             </Text>
           </View>
 
           <View style={styles.beeHighlightItem}>
-            <MessageCircle size={14} color={colors.brand.primary} />
+            <MessageCircle
+              size={14}
+              color={colors.brand.primary}
+            />
+
             <Text style={styles.beeHighlightText}>
               Chat directo con compradores
             </Text>
           </View>
 
           <View style={styles.beeHighlightItem}>
-            <TrendingUp size={14} color={colors.brand.primary} />
+            <TrendingUp
+              size={14}
+              color={colors.brand.primary}
+            />
+
             <Text style={styles.beeHighlightText}>
               Visibilidad en la red empresarial
             </Text>
@@ -140,14 +289,22 @@ export default function AllModulesOverview() {
                   gap: 8,
                 }}
               >
-                <Sparkles size={18} color="#7C3AED" />
-                <Text style={styles.aiTitle}>Asistente IA</Text>
+                <Sparkles
+                  size={18}
+                  color="#7C3AED"
+                />
+
+                <Text style={styles.aiTitle}>
+                  Asistente IA
+                </Text>
               </View>
             </View>
 
             <View style={styles.aiStatusRow}>
               <View style={styles.aiStatusBadge}>
-                <Text style={styles.aiStatusText}>En línea</Text>
+                <Text style={styles.aiStatusText}>
+                  En línea
+                </Text>
               </View>
             </View>
 
@@ -155,7 +312,10 @@ export default function AllModulesOverview() {
               Siempre aquí para ayudarte
             </Text>
 
-            <Text style={styles.aiDescription} numberOfLines={2}>
+            <Text
+              style={styles.aiDescription}
+              numberOfLines={2}
+            >
               Pídeme que resuma tus correos, prepare reuniones o busque
               oportunidades para tu negocio.
             </Text>
@@ -168,18 +328,26 @@ export default function AllModulesOverview() {
               </View>
 
               <View style={styles.badgePillGray}>
-                <Text style={styles.badgeTextGray}>3 tareas sugeridas</Text>
+                <Text style={styles.badgeTextGray}>
+                  3 tareas sugeridas
+                </Text>
               </View>
             </View>
           </View>
 
           <View style={styles.aiFooterRow}>
-            <Text style={styles.aiFooterText} numberOfLines={1}>
+            <Text
+              style={styles.aiFooterText}
+              numberOfLines={1}
+            >
               ¿En qué te ayudo hoy?
             </Text>
 
             <View style={styles.aiBotCircle}>
-              <Bot size={16} color="#7C3AED" />
+              <Bot
+                size={16}
+                color="#7C3AED"
+              />
             </View>
           </View>
         </TouchableOpacity>
@@ -191,23 +359,37 @@ export default function AllModulesOverview() {
         >
           <View>
             <View style={styles.cardHeaderRow}>
-              <MessageCircle size={26} color="#7C3AED" />
+              <MessageCircle
+                size={26}
+                color="#7C3AED"
+              />
             </View>
 
-            <Text style={styles.cardTitle}>Chat</Text>
-            <Text style={styles.cardSubtitle}>Mensajería</Text>
+            <Text style={styles.cardTitle}>
+              Chat
+            </Text>
+
+            <Text style={styles.cardSubtitle}>
+              Mensajería
+            </Text>
 
             <View style={styles.badgesContainer}>
               <View style={styles.badgePill}>
-                <Text style={styles.badgeText}>3 Nuevos</Text>
+                <Text style={styles.badgeText}>
+                  3 Nuevos
+                </Text>
               </View>
 
               <View style={styles.badgePillRed}>
-                <Text style={styles.badgeTextRed}>1 Llamada perdida</Text>
+                <Text style={styles.badgeTextRed}>
+                  1 Llamada perdida
+                </Text>
               </View>
 
               <View style={styles.badgePillGray}>
-                <Text style={styles.badgeTextGray}>2 Grupos activos</Text>
+                <Text style={styles.badgeTextGray}>
+                  2 Grupos activos
+                </Text>
               </View>
             </View>
           </View>
@@ -220,14 +402,20 @@ export default function AllModulesOverview() {
                     key={avatar.initials}
                     style={[
                       styles.avatarCircle,
-                      { backgroundColor: avatar.bg },
-                      index > 0 && { marginLeft: -6 },
+                      {
+                        backgroundColor: avatar.bg,
+                      },
+                      index > 0 && {
+                        marginLeft: -6,
+                      },
                     ]}
                   >
                     <Text
                       style={[
                         styles.avatarText,
-                        { color: avatar.text },
+                        {
+                          color: avatar.text,
+                        },
                       ]}
                     >
                       {avatar.initials}
@@ -236,7 +424,10 @@ export default function AllModulesOverview() {
                 ))}
               </View>
 
-              <Text style={styles.avatarsLabel} numberOfLines={1}>
+              <Text
+                style={styles.avatarsLabel}
+                numberOfLines={1}
+              >
                 Carlos, María y 1 más
               </Text>
             </View>
@@ -250,29 +441,46 @@ export default function AllModulesOverview() {
         >
           <View>
             <View style={styles.cardHeaderRow}>
-              <Mail size={26} color="#4F46E5" />
+              <Mail
+                size={26}
+                color="#4F46E5"
+              />
             </View>
 
-            <Text style={styles.cardTitle}>Correos</Text>
-            <Text style={styles.cardSubtitle}>Bandeja inteligente</Text>
+            <Text style={styles.cardTitle}>
+              Correos
+            </Text>
+
+            <Text style={styles.cardSubtitle}>
+              Bandeja inteligente
+            </Text>
 
             <View style={styles.badgesContainer}>
               <View style={styles.badgePill}>
-                <Text style={styles.badgeText}>5 Sin leer</Text>
+                <Text style={styles.badgeText}>
+                  5 Sin leer
+                </Text>
               </View>
 
               <View style={styles.badgePillGray}>
-                <Text style={styles.badgeTextGray}>2 Con adjuntos</Text>
+                <Text style={styles.badgeTextGray}>
+                  2 Con adjuntos
+                </Text>
               </View>
 
               <View style={styles.badgePillOrange}>
-                <Text style={styles.badgeTextOrange}>1 Importante</Text>
+                <Text style={styles.badgeTextOrange}>
+                  1 Importante
+                </Text>
               </View>
             </View>
           </View>
 
           <View style={styles.cardFooterBox}>
-            <Text style={styles.cardPreviewText} numberOfLines={1}>
+            <Text
+              style={styles.cardPreviewText}
+              numberOfLines={1}
+            >
               Carlos M. - Avance del proyecto Q3...
             </Text>
           </View>
@@ -285,15 +493,25 @@ export default function AllModulesOverview() {
         >
           <View>
             <View style={styles.cardHeaderRow}>
-              <Calendar size={26} color="#4F46E5" />
+              <Calendar
+                size={26}
+                color="#4F46E5"
+              />
             </View>
 
-            <Text style={styles.cardTitle}>Agenda</Text>
-            <Text style={styles.cardSubtitle}>Calendario</Text>
+            <Text style={styles.cardTitle}>
+              Agenda
+            </Text>
+
+            <Text style={styles.cardSubtitle}>
+              Calendario
+            </Text>
 
             <View style={styles.badgesContainer}>
               <View style={styles.badgePill}>
-                <Text style={styles.badgeText}>3 Hoy</Text>
+                <Text style={styles.badgeText}>
+                  3 Hoy
+                </Text>
               </View>
 
               <View style={styles.badgePillOrange}>
@@ -306,8 +524,15 @@ export default function AllModulesOverview() {
 
           <View style={styles.cardFooterBox}>
             <View style={styles.eventFooterRow}>
-              <Video size={13} color="#6025d2B3" />
-              <Text style={styles.cardPreviewText} numberOfLines={1}>
+              <Video
+                size={13}
+                color="#6025d2B3"
+              />
+
+              <Text
+                style={styles.cardPreviewText}
+                numberOfLines={1}
+              >
                 14:00 - Sincronización semanal
               </Text>
             </View>
@@ -321,29 +546,46 @@ export default function AllModulesOverview() {
         >
           <View>
             <View style={styles.cardHeaderRow}>
-              <FileText size={26} color="#7C3AED" />
+              <FileText
+                size={26}
+                color="#7C3AED"
+              />
             </View>
 
-            <Text style={styles.cardTitle}>Notas</Text>
-            <Text style={styles.cardSubtitle}>Apuntes rápidos</Text>
+            <Text style={styles.cardTitle}>
+              Notas
+            </Text>
+
+            <Text style={styles.cardSubtitle}>
+              Apuntes rápidos
+            </Text>
 
             <View style={styles.badgesContainer}>
               <View style={styles.badgePill}>
-                <Text style={styles.badgeText}>3 Nuevas</Text>
+                <Text style={styles.badgeText}>
+                  3 Nuevas
+                </Text>
               </View>
 
               <View style={styles.badgePillGray}>
-                <Text style={styles.badgeTextGray}>2 Protegidas</Text>
+                <Text style={styles.badgeTextGray}>
+                  2 Protegidas
+                </Text>
               </View>
 
               <View style={styles.badgePillGray}>
-                <Text style={styles.badgeTextGray}>1 Recordatorio</Text>
+                <Text style={styles.badgeTextGray}>
+                  1 Recordatorio
+                </Text>
               </View>
             </View>
           </View>
 
           <View style={styles.cardFooterBox}>
-            <Text style={styles.cardPreviewText} numberOfLines={1}>
+            <Text
+              style={styles.cardPreviewText}
+              numberOfLines={1}
+            >
               Estrategia comercial Q3...
             </Text>
           </View>
@@ -352,35 +594,64 @@ export default function AllModulesOverview() {
         <TouchableOpacity
           style={styles.gridCard}
           activeOpacity={0.8}
-          onPress={() => handleOpenModule('storage')}
+          onPress={() => handleOpenModule('files')}
         >
           <View>
             <View style={styles.cardHeaderRow}>
-              <FolderOpen size={26} color="#4F46E5" />
+              <FolderOpen
+                size={26}
+                color="#4F46E5"
+              />
             </View>
 
-            <Text style={styles.cardTitle}>Archivos</Text>
-            <Text style={styles.cardSubtitle}>Almacenamiento</Text>
+            <Text style={styles.cardTitle}>
+              Archivos
+            </Text>
+
+            <Text style={styles.cardSubtitle}>
+              Almacenamiento
+            </Text>
 
             <View style={styles.progressBarTrack}>
-              <View style={[styles.progressBarFill, { width: '57%' }]} />
+              <View
+                style={[
+                  styles.progressBarFill,
+                  {
+                    width: `${storageUsagePercentage}%`,
+                  },
+                ]}
+              />
+            </View>
+
+            <Text
+              style={styles.cardPreviewText}
+              numberOfLines={1}
+            >
+              {storageUsageLabel}
+            </Text>
+
+            <View style={styles.storageNotificationRow}>
+              <Bell
+                size={12}
+                color={colors.brand.primary}
+              />
+
+              <Text
+                style={styles.storageNotificationText}
+                numberOfLines={1}
+              >
+                {storageNotificationLabel}
+              </Text>
             </View>
           </View>
 
           <View style={styles.cardFooterBox}>
-            <View style={styles.fileMiniRow}>
-              <Text style={styles.fileNameText} numberOfLines={1}>
-                • Contrato_Cliente_Q3.pdf
-              </Text>
-              <Text style={styles.fileSizeText}>2.4 MB</Text>
-            </View>
-
-            <View style={styles.fileMiniRow}>
-              <Text style={styles.fileNameText} numberOfLines={1}>
-                • Presentación_Ventas.pdf
-              </Text>
-              <Text style={styles.fileSizeText}>5.1 MB</Text>
-            </View>
+            <Text
+              style={styles.cardPreviewText}
+              numberOfLines={1}
+            >
+              Toca para ver tus archivos
+            </Text>
           </View>
         </TouchableOpacity>
       </View>
