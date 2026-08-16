@@ -3,6 +3,7 @@
 import {
   useCallback,
   useEffect,
+  useMemo,
   useState,
 } from 'react';
 import {
@@ -13,6 +14,7 @@ import {
   FolderOpen,
   Mail,
   MessageCircle,
+  Pencil,
   Search,
   ShoppingBag,
   Sparkles,
@@ -30,6 +32,7 @@ import type {
 } from '@beeapp/shared-types';
 
 import type { ModuleKey } from './modules';
+import { webNotesApi } from './notes/webNotesApi';
 
 interface AllModulesOverviewProps {
   onSelectModule: (moduleKey: ModuleKey) => void;
@@ -83,6 +86,8 @@ export default function AllModulesOverview({
     setUnreadStorageNotifications,
   ] = useState(0);
 
+  const [totalNotes, setTotalNotes] = useState(0);
+
   const loadStorageOverview = useCallback(async () => {
     try {
       const [
@@ -117,9 +122,28 @@ export default function AllModulesOverview({
     }
   }, []);
 
+  const loadNotesOverview = useCallback(async () => {
+    try {
+      const response = await webNotesApi.getNotes({
+        deleted: false,
+        is_archived: false,
+        limit: 1,
+        offset: 0,
+      });
+
+      setTotalNotes(response.count);
+    } catch {
+      setTotalNotes(0);
+    }
+  }, []);
+
   useEffect(() => {
     void loadStorageOverview();
-  }, [loadStorageOverview]);
+    void loadNotesOverview();
+  }, [
+    loadNotesOverview,
+    loadStorageOverview,
+  ]);
 
   const storageUsagePercentage = storageSummary
     ? Math.min(
@@ -130,6 +154,13 @@ export default function AllModulesOverview({
       ),
     )
     : 0;
+
+  const notesCountLabel = useMemo(
+    () => totalNotes === 1
+      ? '1 nota'
+      : `${totalNotes} notas`,
+    [totalNotes],
+  );
 
   return (
     <div className="mx-auto max-w-7xl space-y-6 p-6 pb-24 select-none">
@@ -383,22 +414,17 @@ export default function AllModulesOverview({
             </p>
 
             <div className="mt-3 flex flex-wrap gap-1.5">
-              <span className="rounded-md bg-white/90 px-2.5 py-0.5 text-[10px] font-normal text-neutral-850">
-                3 Nuevas
-              </span>
-
-              <span className="rounded-md bg-white/90 px-2.5 py-0.5 text-[10px] font-normal text-neutral-850">
-                2 Protegidas
-              </span>
-
-              <span className="rounded-md border border-rose-100 bg-rose-50/95 px-2.5 py-0.5 text-[10px] font-normal text-rose-700">
-                1 Recordatorio
+              <span className="inline-flex items-center gap-1.5 rounded-md bg-white/90 px-2.5 py-0.5 text-[10px] font-normal text-neutral-850">
+                <Pencil className="h-3 w-3 text-rose-700/90" />
+                {notesCountLabel}
               </span>
             </div>
           </div>
 
           <p className="truncate border-t border-white/85 pt-3 text-xs font-normal text-neutral-700">
-            Estrategia comercial Q3...
+            {totalNotes === 0
+              ? 'Aún no tienes notas'
+              : 'Toca para ver todas tus notas'}
           </p>
         </div>
 

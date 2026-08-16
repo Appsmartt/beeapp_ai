@@ -16,6 +16,11 @@ const nextConfig = {
         '@beeapp/design-system',
         '@beeapp/shared-types',
     ],
+    allowedDevOrigins: [
+        'localhost',
+        '127.0.0.1',
+        '192.168.1.5',
+    ],
     env: {
         NEXT_PUBLIC_API_BASE_URL: process.env.EXPO_PUBLIC_API_BASE_URL,
     },
