@@ -6,10 +6,10 @@ import {
   FileText,
   FolderInput,
   MoreVertical,
+  Pencil,
   Pin,
   RotateCcw,
   Star,
-  Tag,
   Trash2,
 } from 'lucide-react';
 import type { Note, NoteFolder, NoteTag } from '@beeapp/shared-types';
@@ -27,6 +27,7 @@ interface NotesListPanelProps {
   tagsByNote: Record<string, NoteTag[]>;
   isTrashView: boolean;
   onSelect: (note: Note) => void;
+  onRename: (note: Note, title: string) => void;
   onToggleFavorite: (note: Note) => void;
   onTogglePinned: (note: Note) => void;
   onToggleArchived: (note: Note) => void;
@@ -44,6 +45,21 @@ interface NoteCardProps {
   tags: NoteTag[];
   isTrashView: boolean;
   onSelect: () => void;
+  onRename: (title: string) => void;
+  onToggleFavorite: () => void;
+  onTogglePinned: () => void;
+  onToggleArchived: () => void;
+  onMoveToFolder: (folderId: string | null) => void;
+  onMoveToTrash: () => void;
+  onRestore: () => void;
+  onPermanentlyDelete: () => void;
+}
+
+interface NoteActionsMenuProps {
+  note: Note;
+  folders: NoteFolder[];
+  isTrashView: boolean;
+  onRename: (title: string) => void;
   onToggleFavorite: () => void;
   onTogglePinned: () => void;
   onToggleArchived: () => void;
@@ -57,6 +73,7 @@ function NoteActionsMenu({
   note,
   folders,
   isTrashView,
+  onRename,
   onToggleFavorite,
   onTogglePinned,
   onToggleArchived,
@@ -64,14 +81,17 @@ function NoteActionsMenu({
   onMoveToTrash,
   onRestore,
   onPermanentlyDelete,
-}: Omit<NoteCardProps, 'isSelected' | 'viewMode' | 'tags' | 'onSelect'>) {
+}: NoteActionsMenuProps) {
   const [open, setOpen] = useState(false);
   const [showFolders, setShowFolders] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const closeIfOutside = (event: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+      if (
+        menuRef.current &&
+        !menuRef.current.contains(event.target as Node)
+      ) {
         setOpen(false);
         setShowFolders(false);
       }
@@ -79,7 +99,9 @@ function NoteActionsMenu({
 
     document.addEventListener('mousedown', closeIfOutside);
 
-    return () => document.removeEventListener('mousedown', closeIfOutside);
+    return () => {
+      document.removeEventListener('mousedown', closeIfOutside);
+    };
   }, []);
 
   const close = () => {
@@ -87,13 +109,32 @@ function NoteActionsMenu({
     setShowFolders(false);
   };
 
+  const handleRename = () => {
+    const title = window.prompt(
+      'Nuevo título de la nota:',
+      note.title || '',
+    );
+
+    const normalizedTitle = title?.trim();
+
+    if (normalizedTitle && normalizedTitle !== note.title) {
+      onRename(normalizedTitle);
+    }
+
+    close();
+  };
+
   return (
-    <div ref={menuRef} className="relative shrink-0">
+    <div
+      ref={menuRef}
+      className="relative shrink-0"
+      onClick={(event) => event.stopPropagation()}
+    >
       <button
         type="button"
         aria-label="Opciones de nota"
-        onClick={(event) => {
-          event.stopPropagation();
+        aria-expanded={open}
+        onClick={() => {
           setOpen((current) => !current);
           setShowFolders(false);
         }}
@@ -103,10 +144,7 @@ function NoteActionsMenu({
       </button>
 
       {open && (
-        <div
-          onClick={(event) => event.stopPropagation()}
-          className="absolute right-0 top-8 z-40 w-52 rounded-xl border border-neutral-200 bg-white py-1.5 shadow-xl text-xs"
-        >
+        <div className="absolute right-0 top-8 z-40 w-52 rounded-xl border border-neutral-200 bg-white py-1.5 shadow-xl text-xs">
           {isTrashView ? (
             <>
               <button
@@ -137,6 +175,15 @@ function NoteActionsMenu({
             <>
               <button
                 type="button"
+                onClick={handleRename}
+                className="w-full flex items-center gap-2.5 px-3 py-2 text-left text-neutral-700 hover:bg-neutral-50"
+              >
+                <Pencil className="w-3.5 h-3.5" />
+                Renombrar
+              </button>
+
+              <button
+                type="button"
                 onClick={() => {
                   close();
                   onToggleFavorite();
@@ -145,7 +192,9 @@ function NoteActionsMenu({
               >
                 <Star
                   className={`w-3.5 h-3.5 ${
-                    note.is_favorite ? 'fill-amber-400 text-amber-400' : ''
+                    note.is_favorite
+                      ? 'fill-amber-400 text-amber-400'
+                      : ''
                   }`}
                 />
                 {note.is_favorite ? 'Quitar favorita' : 'Marcar favorita'}
@@ -159,7 +208,13 @@ function NoteActionsMenu({
                 }}
                 className="w-full flex items-center gap-2.5 px-3 py-2 text-left text-neutral-700 hover:bg-neutral-50"
               >
-                <Pin className={`w-3.5 h-3.5 ${note.is_pinned ? 'fill-brand-primary text-brand-primary' : ''}`} />
+                <Pin
+                  className={`w-3.5 h-3.5 ${
+                    note.is_pinned
+                      ? 'fill-brand-primary text-brand-primary'
+                      : ''
+                  }`}
+                />
                 {note.is_pinned ? 'Quitar fijada' : 'Fijar nota'}
               </button>
 
@@ -172,7 +227,7 @@ function NoteActionsMenu({
                 className="w-full flex items-center gap-2.5 px-3 py-2 text-left text-neutral-700 hover:bg-neutral-50"
               >
                 <Archive className="w-3.5 h-3.5" />
-                {note.is_archived ? 'Desarchivar' : 'Archivar'}
+                {note.is_archived ? 'Desarchivar' : 'Archivar nota'}
               </button>
 
               <div className="relative">
@@ -245,6 +300,7 @@ function NoteCard({
   tags,
   isTrashView,
   onSelect,
+  onRename,
   onToggleFavorite,
   onTogglePinned,
   onToggleArchived,
@@ -262,6 +318,7 @@ function NoteCard({
       note={note}
       folders={folders}
       isTrashView={isTrashView}
+      onRename={onRename}
       onToggleFavorite={onToggleFavorite}
       onTogglePinned={onTogglePinned}
       onToggleArchived={onToggleArchived}
@@ -306,9 +363,11 @@ function NoteCard({
             {note.is_pinned && (
               <Pin className="w-3.5 h-3.5 text-brand-primary fill-brand-primary" />
             )}
+
             {note.is_favorite && (
               <Star className="w-3.5 h-3.5 text-amber-400 fill-amber-400" />
             )}
+
             {tags.slice(0, 2).map((tag) => (
               <span
                 key={tag.id}
@@ -365,9 +424,7 @@ function NoteCard({
           </span>
         </div>
 
-        <p className="mt-1 text-xs text-neutral-500 truncate">
-          {preview}
-        </p>
+        <p className="mt-1 text-xs text-neutral-500 truncate">{preview}</p>
 
         <div className="flex items-center gap-1.5 mt-2 min-w-0">
           {note.is_favorite && (
@@ -402,6 +459,7 @@ export default function NotesListPanel({
   tagsByNote,
   isTrashView,
   onSelect,
+  onRename,
   onToggleFavorite,
   onTogglePinned,
   onToggleArchived,
@@ -436,6 +494,7 @@ export default function NotesListPanel({
       tags={tagsByNote[note.id] ?? []}
       isTrashView={isTrashView}
       onSelect={() => onSelect(note)}
+      onRename={(title) => onRename(note, title)}
       onToggleFavorite={() => onToggleFavorite(note)}
       onTogglePinned={() => onTogglePinned(note)}
       onToggleArchived={() => onToggleArchived(note)}

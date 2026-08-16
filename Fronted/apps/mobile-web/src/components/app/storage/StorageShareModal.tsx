@@ -6,9 +6,6 @@ import {
     useState,
     } from 'react';
 import {
-    ActivityIndicator,
-    } from 'react';
-import {
     Mail,
     Search,
     Share2,
@@ -37,30 +34,25 @@ interface StorageShareModalProps {
 function getRecipientName(
     recipient: StorageShareRecipient,
     ): string {
-    return [
-        recipient.first_name,
-        recipient.last_name,
-    ]
+    return (
+        [recipient.first_name, recipient.last_name]
         .filter(Boolean)
-        .join(' ')
-        || recipient.email
-        || recipient.phone_number
-        || 'Usuario';
-}
+        .join(' ') ||
+        recipient.email ||
+        recipient.phone_number ||
+        'Usuario'
+    );
+    }
 
-function getRecipientContact(
+    function getRecipientContact(
     recipient: StorageShareRecipient,
     ): string {
     if (recipient.email) {
         return recipient.email;
     }
 
-    return [
-        recipient.phone_dial_code
-        ? `+${recipient.phone_dial_code}`
-        : '',
-        recipient.phone_number || '',
-    ]
+    return [recipient.phone_dial_code, recipient.phone_number]
+        .filter(Boolean)
         .join(' ')
         .trim();
 }
@@ -73,18 +65,13 @@ export default function StorageShareModal({
     onShare,
     }: StorageShareModalProps) {
     const [query, setQuery] = useState('');
-    const [results, setResults] = useState<
-        StorageShareRecipient[]
-    >([]);
+    const [results, setResults] = useState<StorageShareRecipient[]>([]);
     const [selectedRecipient, setSelectedRecipient] =
         useState<StorageShareRecipient | null>(null);
-
     const [permission, setPermission] =
         useState<FileSharePermission>('viewer');
-
     const [loading, setLoading] = useState(false);
-    const [errorMessage, setErrorMessage] =
-        useState<string | null>(null);
+    const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
     useEffect(() => {
         if (!visible) {
@@ -104,6 +91,7 @@ export default function StorageShareModal({
         if (!visible || normalizedQuery.length < 2) {
         setResults([]);
         setLoading(false);
+
         return;
         }
 
@@ -113,9 +101,7 @@ export default function StorageShareModal({
         setLoading(true);
         setErrorMessage(null);
 
-        void searchCurrentWebStorageShareRecipients(
-            normalizedQuery,
-        )
+        void searchCurrentWebStorageShareRecipients(normalizedQuery)
             .then((response) => {
             if (!cancelled) {
                 setResults(response.recipients);
@@ -160,11 +146,7 @@ export default function StorageShareModal({
 
         try {
         setErrorMessage(null);
-
-        await onShare(
-            selectedRecipient,
-            permission,
-        );
+        await onShare(selectedRecipient, permission);
         } catch (error) {
         setErrorMessage(
             error instanceof Error
@@ -181,6 +163,7 @@ export default function StorageShareModal({
             aria-label="Cerrar"
             className="fixed inset-0 bg-black/60 backdrop-blur-xl"
             onClick={onClose}
+            disabled={submitting}
         />
 
         <div className="relative z-10 flex w-full max-w-lg flex-col rounded-3xl border border-neutral-100 bg-white p-6 shadow-xl">
@@ -208,6 +191,7 @@ export default function StorageShareModal({
                 onClick={onClose}
                 disabled={submitting}
                 className="rounded-full p-1 text-neutral-400 hover:bg-neutral-100 hover:text-neutral-600 disabled:opacity-50"
+                title="Cerrar"
             >
                 <X className="h-5 w-5" />
             </button>
@@ -222,17 +206,19 @@ export default function StorageShareModal({
 
             <input
                 value={query}
-                onChange={(event) =>
-                setQuery(event.target.value)
-                }
+                onChange={(event) => setQuery(event.target.value)}
                 placeholder="Ej. usuario@correo.com"
                 autoCapitalize="none"
                 autoCorrect="off"
-                className="h-10 flex-1 bg-transparent text-sm text-neutral-900 outline-none"
+                className="h-10 flex-1 bg-transparent text-sm text-neutral-900 outline-none placeholder:text-neutral-400"
             />
 
             {loading && (
-                <div className="h-4 w-4 animate-spin rounded-full border-2 border-brand-primary border-t-transparent" />
+                <div
+                className="h-4 w-4 animate-spin rounded-full border-2 border-brand-primary border-t-transparent"
+                role="status"
+                aria-label="Buscando usuarios"
+                />
             )}
             </div>
 
@@ -254,16 +240,13 @@ export default function StorageShareModal({
             ) : (
                 <div className="space-y-2">
                 {results.map((recipient) => {
-                    const isSelected =
-                    selectedRecipient?.id === recipient.id;
+                    const isSelected = selectedRecipient?.id === recipient.id;
 
                     return (
                     <button
                         key={recipient.id}
                         type="button"
-                        onClick={() =>
-                        setSelectedRecipient(recipient)
-                        }
+                        onClick={() => setSelectedRecipient(recipient)}
                         className={`flex w-full items-center gap-3 rounded-xl border p-3 text-left transition-colors ${
                         isSelected
                             ? 'border-brand-primary bg-brand-primary/10'
@@ -281,7 +264,6 @@ export default function StorageShareModal({
 
                         <div className="mt-1 flex items-center gap-1.5">
                             <Mail className="h-3 w-3 text-neutral-400" />
-
                             <p className="truncate text-xs text-neutral-500">
                             {getRecipientContact(recipient)}
                             </p>
@@ -314,11 +296,13 @@ export default function StorageShareModal({
                     : 'border-neutral-200'
                 }`}
             >
-                <p className={`text-sm font-semibold ${
-                permission === 'viewer'
+                <p
+                className={`text-sm font-semibold ${
+                    permission === 'viewer'
                     ? 'text-brand-primary'
                     : 'text-neutral-900'
-                }`}>
+                }`}
+                >
                 Puede ver
                 </p>
 
@@ -336,11 +320,13 @@ export default function StorageShareModal({
                     : 'border-neutral-200'
                 }`}
             >
-                <p className={`text-sm font-semibold ${
-                permission === 'editor'
+                <p
+                className={`text-sm font-semibold ${
+                    permission === 'editor'
                     ? 'text-brand-primary'
                     : 'text-neutral-900'
-                }`}>
+                }`}
+                >
                 Puede editar
                 </p>
 
@@ -362,15 +348,11 @@ export default function StorageShareModal({
 
             <button
                 type="button"
-                onClick={() => {
-                void handleShare();
-                }}
+                onClick={() => void handleShare()}
                 disabled={!canSubmit}
                 className="h-10 flex-1 rounded-full bg-brand-primary text-sm font-semibold text-white hover:bg-brand-dark disabled:bg-neutral-300"
             >
-                {submitting
-                ? 'Compartiendo...'
-                : 'Compartir'}
+                {submitting ? 'Compartiendo...' : 'Compartir'}
             </button>
             </div>
         </div>

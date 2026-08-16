@@ -1,10 +1,14 @@
 import {
+    attachCurrentWebExistingFileToNote,
     createCurrentWebNote,
     createCurrentWebNoteFolder,
     createCurrentWebNoteTag,
+    deleteCurrentWebNoteAttachment,
     deleteCurrentWebNoteFolder,
     deleteCurrentWebNoteTag,
     getCurrentWebNote,
+    getCurrentWebNoteAttachmentAccess,
+    getCurrentWebNoteAttachments,
     getCurrentWebNoteFolders,
     getCurrentWebNoteTags,
     getCurrentWebNoteTemplates,
@@ -19,16 +23,21 @@ import {
     replaceCurrentWebNoteTags,
     restoreCurrentWebNote,
     updateCurrentWebNote,
+    updateCurrentWebNoteAttachment,
     updateCurrentWebNoteTag,
+    uploadCurrentWebNoteAttachments,
     } from '@beeapp/api-client';
-
 import type {
+    CreateNoteAttachmentPayload,
+    CreateNoteAttachmentResponse,
     CreateNoteFolderPayload,
     CreateNoteFolderResponse,
     CreateNotePayload,
     CreateNoteResponse,
     CreateNoteTagPayload,
     CreateNoteTagResponse,
+    NoteAttachmentAccessResponse,
+    GetNoteAttachmentsResponse,
     GetNoteFoldersResponse,
     GetNoteResponse,
     GetNoteTagsResponse,
@@ -39,29 +48,27 @@ import type {
     NotesQuery,
     RenameNoteFolderPayload,
     ReplaceNoteTagsPayload,
+    UpdateNoteAttachmentPayload,
+    UpdateNoteAttachmentResponse,
     UpdateNoteFolderResponse,
     UpdateNotePayload,
     UpdateNoteResponse,
     UpdateNoteTagPayload,
     UpdateNoteTagResponse,
     UpdateNoteShareResponse,
+    UploadNoteAttachmentsResponse,
     } from '@beeapp/shared-types';
 
-/**
- * Adaptador de la API de notas para la versión web.
+/*
+ * Adaptador de la API de Notas para Web.
  *
- * La autenticación se maneja mediante la cookie HttpOnly de sesión web,
- * por lo que este archivo no recibe ni almacena tokens de autenticación.
- *
- * No realiza transformaciones de respuesta: devuelve directamente los
- * contratos definidos en `@beeapp/shared-types`.
+ * La autenticación usa la cookie HttpOnly de sesión web. No se reciben
+ * ni se almacenan tokens en el navegador.
  */
 export const webNotesApi = {
-    /* -----------------------------------------------------------------------
-    * Notas
-    * --------------------------------------------------------------------- */
+    /* Notas */
 
-    getNotes(query: NotesQuery = {}): Promise<GetNotesResponse> {
+    getNotes(query: NotesQuery): Promise<GetNotesResponse> {
         return getCurrentWebNotes(query);
     },
 
@@ -69,9 +76,7 @@ export const webNotesApi = {
         return getCurrentWebNote(noteId);
     },
 
-    createNote(
-        payload: CreateNotePayload = {},
-    ): Promise<CreateNoteResponse> {
+    createNote(payload: CreateNotePayload): Promise<CreateNoteResponse> {
         return createCurrentWebNote(payload);
     },
 
@@ -82,34 +87,22 @@ export const webNotesApi = {
         return updateCurrentWebNote(noteId, payload);
     },
 
-    /**
-     * Envía la nota a papelera. No la elimina definitivamente.
-     */
     moveToTrash(noteId: string): Promise<void> {
         return moveCurrentWebNoteToTrash(noteId);
     },
 
-    /**
-     * Recupera una nota que estaba en la papelera.
-     */
     restoreNote(noteId: string): Promise<UpdateNoteResponse> {
         return restoreCurrentWebNote(noteId);
     },
 
-    /**
-     * Elimina la nota de manera irreversible.
-     * Úsalo únicamente desde la vista Papelera y tras confirmación del usuario.
-     */
     permanentlyDeleteNote(noteId: string): Promise<void> {
         return permanentlyDeleteCurrentWebNote(noteId);
     },
 
-    /* -----------------------------------------------------------------------
-    * Carpetas
-    * --------------------------------------------------------------------- */
+    /* Carpetas */
 
     getFolders(): Promise<GetNoteFoldersResponse> {
-        return getCurrentWebNoteFolders({});
+        return getCurrentWebNoteFolders();
     },
 
     createFolder(
@@ -125,10 +118,6 @@ export const webNotesApi = {
         return renameCurrentWebNoteFolder(folderId, payload);
     },
 
-    /**
-     * Mueve una carpeta dentro de otra carpeta, o a la raíz si `parent_id`
-     * vale `null`.
-     */
     moveFolder(
         folderId: string,
         payload: MoveNoteFolderPayload,
@@ -136,17 +125,11 @@ export const webNotesApi = {
         return moveCurrentWebNoteFolder(folderId, payload);
     },
 
-    /**
-     * Elimina una carpeta. Las notas no se eliminan: el backend debe dejarlas
-     * sin carpeta o aplicar la regla definida por su endpoint.
-     */
     deleteFolder(folderId: string): Promise<void> {
         return deleteCurrentWebNoteFolder(folderId);
     },
 
-    /* -----------------------------------------------------------------------
-    * Etiquetas
-    * --------------------------------------------------------------------- */
+    /* Etiquetas */
 
     getTags(): Promise<GetNoteTagsResponse> {
         return getCurrentWebNoteTags();
@@ -169,17 +152,10 @@ export const webNotesApi = {
         return deleteCurrentWebNoteTag(tagId);
     },
 
-    /**
-     * Obtiene todas las etiquetas actualmente asociadas a una nota.
-     */
     getTagsForNote(noteId: string): Promise<GetNoteTagsResponse> {
         return getCurrentWebTagsForNote(noteId);
     },
 
-    /**
-     * Reemplaza completamente las etiquetas de una nota con `tag_ids`.
-     * Para quitar todas, envía `{ tag_ids: [] }`.
-     */
     replaceTags(
         noteId: string,
         payload: ReplaceNoteTagsPayload,
@@ -187,21 +163,60 @@ export const webNotesApi = {
         return replaceCurrentWebNoteTags(noteId, payload);
     },
 
-    /* -----------------------------------------------------------------------
-    * Plantillas
-    * --------------------------------------------------------------------- */
+    /* Plantillas */
 
-    /**
-     * Devuelve solo plantillas activas. Deben aparecer exclusivamente en el
-     * modal “Nueva nota”, no como una categoría predeterminada de Mis Notas.
-     */
     getTemplates(): Promise<GetNoteTemplatesResponse> {
         return getCurrentWebNoteTemplates(false);
     },
 
-    /* -----------------------------------------------------------------------
-    * Notas recibidas por compartición
-    * --------------------------------------------------------------------- */
+    /* Adjuntos */
+
+    getAttachments(noteId: string): Promise<GetNoteAttachmentsResponse> {
+        return getCurrentWebNoteAttachments(noteId);
+    },
+
+    attachExistingFile(
+        noteId: string,
+        payload: CreateNoteAttachmentPayload,
+    ): Promise<CreateNoteAttachmentResponse> {
+        return attachCurrentWebExistingFileToNote(noteId, payload);
+    },
+
+    uploadAttachments(
+        noteId: string,
+        formData: FormData,
+    ): Promise<UploadNoteAttachmentsResponse> {
+        return uploadCurrentWebNoteAttachments(noteId, formData);
+    },
+
+    updateAttachment(
+        noteId: string,
+        attachmentId: string,
+        payload: UpdateNoteAttachmentPayload,
+    ): Promise<UpdateNoteAttachmentResponse> {
+        return updateCurrentWebNoteAttachment(noteId, attachmentId, payload);
+    },
+
+    deleteAttachment(
+        noteId: string,
+        attachmentId: string,
+    ): Promise<void> {
+        return deleteCurrentWebNoteAttachment(noteId, attachmentId);
+    },
+
+    getAttachmentAccess(
+        noteId: string,
+        attachmentId: string,
+        download = false,
+    ): Promise<NoteAttachmentAccessResponse> {
+        return getCurrentWebNoteAttachmentAccess(
+        noteId,
+        attachmentId,
+        download,
+        );
+    },
+
+    /* Notas recibidas por compartición */
 
     getReceivedShares(): Promise<GetReceivedNoteSharesResponse> {
         return getCurrentWebReceivedNoteShares({
@@ -211,7 +226,9 @@ export const webNotesApi = {
         });
     },
 
-    hideReceivedShare(shareId: string): Promise<UpdateNoteShareResponse> {
+    hideReceivedShare(
+        shareId: string,
+    ): Promise<UpdateNoteShareResponse> {
         return hideCurrentWebReceivedNoteShare(shareId);
     },
 };

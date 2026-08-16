@@ -14,7 +14,7 @@ import type {
   NoteTag,
   NoteTemplate,
 } from '@beeapp/shared-types';
-import NotesOptionsBar from './NotesOptionsBar';
+import ModuleNotificationBell from '../ModuleNotificationBell';
 import NotesSidebar from './NotesSidebar';
 import NotesListPanel from './NotesListPanel';
 import NoteEdit from './NoteEdit';
@@ -616,8 +616,6 @@ export default function NotesModule() {
 
   return (
     <div className="min-h-full bg-white flex relative">
-      <NotesOptionsBar />
-
       <NotesSidebar
         activeView={activeView}
         folders={folders}
@@ -649,6 +647,8 @@ export default function NotesModule() {
             </div>
 
             <div className="flex items-center gap-1">
+              <ModuleNotificationBell moduleId="notes" placement="header" />
+
               <button
                 type="button"
                 onClick={() => void loadData(true)}
@@ -657,7 +657,9 @@ export default function NotesModule() {
                 className="p-2 rounded-lg text-neutral-400 hover:bg-neutral-100 hover:text-neutral-700 disabled:opacity-50"
               >
                 <RefreshCw
-                  className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`}
+                  className={`w-4 h-4 ${
+                    isRefreshing ? 'animate-spin' : ''
+                  }`}
                 />
               </button>
 
@@ -721,6 +723,11 @@ export default function NotesModule() {
               tagsByNote={tagsByNote}
               isTrashView={isTrashView}
               onSelect={(note) => setSelectedNoteId(note.id)}
+              onRename={(note, noteTitle) =>
+                void handleQuickUpdate(note, {
+                  title: noteTitle,
+                })
+              }
               onToggleFavorite={(note) =>
                 void handleQuickUpdate(note, {
                   is_favorite: !note.is_favorite,

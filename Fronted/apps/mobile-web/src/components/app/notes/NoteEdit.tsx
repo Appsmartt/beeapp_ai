@@ -1,13 +1,18 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Archive,
+  CalendarDays,
   Check,
   ChevronDown,
+  Download,
+  File,
   FileText,
+  Files,
+  FolderInput,
+  Hash,
   Heading1,
-  Heading2,
   Image,
   List,
   ListChecks,
@@ -22,10 +27,13 @@ import {
   Tag,
   Trash2,
   Type,
+  Upload,
   X,
 } from 'lucide-react';
 import type {
   Note,
+  NoteAttachment,
+  NoteAttachmentReference,
   NoteBlock,
   NoteContent,
   NoteFolder,
@@ -37,6 +45,7 @@ import {
   getNoteColor,
   normalizeNoteContent,
 } from './notesWebTypes';
+import { webNotesApi } from './webNotesApi';
 
 interface NoteEditProps {
   note: Note;
@@ -70,6 +79,10 @@ type NewBlockType =
   | 'checklist'
   | 'bulleted_list'
   | 'numbered_list'
+  | 'date_list'
+  | 'number_list'
+  | 'file'
+  | 'file_list'
   | 'divider';
 
 const COLORS = [
@@ -87,6 +100,22 @@ function copyContent(content: NoteContent): NoteContent {
   return JSON.parse(JSON.stringify(content)) as NoteContent;
 }
 
+function createEmptyDateListItem() {
+  return {
+    id: createBlockId(),
+    label: '',
+    value: null,
+  };
+}
+
+function createEmptyNumberListItem() {
+  return {
+    id: createBlockId(),
+    label: '',
+    value: null,
+  };
+}
+
 function createBlock(type: NewBlockType): NoteBlock {
   const id = createBlockId();
 
@@ -98,12 +127,14 @@ function createBlock(type: NewBlockType): NoteBlock {
         text: '',
         level: 2,
       };
+
     case 'textarea':
       return {
         id,
         type: 'textarea',
         text: '',
       };
+
     case 'checklist':
       return {
         id,
@@ -116,23 +147,57 @@ function createBlock(type: NewBlockType): NoteBlock {
           },
         ],
       };
+
     case 'bulleted_list':
       return {
         id,
         type: 'bulleted_list',
         items: [''],
       };
+
     case 'numbered_list':
       return {
         id,
         type: 'numbered_list',
         items: [''],
       };
+
+    case 'date_list':
+      return {
+        id,
+        type: 'date_list',
+        items: [createEmptyDateListItem()],
+      };
+
+    case 'number_list':
+      return {
+        id,
+        type: 'number_list',
+        items: [createEmptyNumberListItem()],
+      };
+
+    case 'file':
+      return {
+        id,
+        type: 'file',
+        attachment_id: undefined,
+        file_id: undefined,
+        caption: '',
+      };
+
+    case 'file_list':
+      return {
+        id,
+        type: 'file_list',
+        attachments: [],
+      };
+
     case 'divider':
       return {
         id,
         type: 'divider',
       };
+
     default:
       return createEmptyTextBlock();
   }
@@ -144,6 +209,32 @@ function updateBlock(
   updater: (block: NoteBlock) => NoteBlock,
 ): NoteBlock[] {
   return blocks.map((block) => (block.id === blockId ? updater(block) : block));
+}
+
+function formatFileSize(sizeBytes: number): string {
+  if (sizeBytes < 1024) {
+    return `${sizeBytes} B`;
+  }
+
+  if (sizeBytes < 1024 * 1024) {
+    return `${(sizeBytes / 1024).toFixed(1)} KB`;
+  }
+
+  if (sizeBytes < 1024 * 1024 * 1024) {
+    return `${(sizeBytes / (1024 * 1024)).toFixed(1)} MB`;
+  }
+
+  return `${(sizeBytes / (1024 * 1024 * 1024)).toFixed(1)} GB`;
+}
+
+function attachmentToReference(
+  attachment: NoteAttachment,
+): NoteAttachmentReference {
+  return {
+    attachment_id: attachment.id,
+    file_id: attachment.file_id,
+    caption: attachment.file.display_name || attachment.file.original_name,
+  };
 }
 
 function BlockActions({
@@ -160,6 +251,131 @@ function BlockActions({
     >
       <X className="w-3.5 h-3.5" />
     </button>
+  );
+}
+
+interface AttachmentRowProps {
+  noteId: string;
+  reference: NoteAttachmentReference;
+  attachment?: NoteAttachment;
+  disabled: boolean;
+  onCaptionChange: (caption: string) => void;
+  onRemove: () => void;
+}
+
+function AttachmentRow({
+  noteId,
+  reference,
+  attachment,
+  disabled,
+  onCaptionChange,
+  onRemove,
+}: AttachmentRowProps) {
+  const [opening, setOpening] = useState(false);
+  const fileName =
+    attachment?.file.display_name ||
+    attachment?.file.original_name ||
+    reference.caption ||
+    'Archivo adjunto';
+
+  const openAttachment = async (download: boolean) => {
+    if (!reference.attachment_id || opening) {
+      return;
+    }
+
+    try {
+      setOpening(true);
+
+      const response = await webNotesApi.getAttachmentAccess(
+        noteId,
+        reference.attachment_id,
+        download,
+      );
+
+      window.open(response.url, '_blank', 'noopener,noreferrer');
+    } catch (error) {
+      console.error('No se pudo abrir el archivo adjunto', error);
+    } finally {
+      setOpening(false);
+    }
+  };
+
+  return (
+    <div className="rounded-xl border border-neutral-200 bg-white p-3">
+      <div className="flex items-start gap-3">
+        <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-brand-primary/10 text-brand-primary">
+          <File className="h-4 w-4" />
+        </div>
+
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-xs font-semibold text-neutral-800">
+            {fileName}
+          </p>
+
+          {attachment && (
+            <p className="mt-0.5 text-[11px] text-neutral-400">
+              {attachment.file.mime_type} · {formatFileSize(attachment.file.size_bytes)}
+            </p>
+          )}
+
+          {!disabled && (
+            <input
+              value={reference.caption || ''}
+              onChange={(event) => onCaptionChange(event.target.value)}
+              placeholder="Descripción del archivo"
+              className="mt-2 h-8 w-full rounded-lg border border-neutral-200 bg-neutral-50 px-2 text-xs text-neutral-700 outline-none focus:border-brand-primary focus:bg-white"
+            />
+          )}
+
+          {!reference.attachment_id && (
+            <p className="mt-2 text-[11px] text-amber-600">
+              Archivo pendiente de cargar.
+            </p>
+          )}
+        </div>
+
+        <div className="flex shrink-0 items-center gap-1">
+          {reference.attachment_id && (
+            <>
+              <button
+                type="button"
+                onClick={() => void openAttachment(false)}
+                disabled={opening}
+                title="Abrir archivo"
+                className="rounded-lg p-1.5 text-neutral-400 hover:bg-neutral-100 hover:text-brand-primary disabled:opacity-50"
+              >
+                {opening ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <Paperclip className="h-3.5 w-3.5" />
+                )}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => void openAttachment(true)}
+                disabled={opening}
+                title="Descargar archivo"
+                className="rounded-lg p-1.5 text-neutral-400 hover:bg-neutral-100 hover:text-brand-primary disabled:opacity-50"
+              >
+                <Download className="h-3.5 w-3.5" />
+              </button>
+            </>
+          )}
+
+          {!disabled && (
+            <button
+              type="button"
+              onClick={onRemove}
+              title="Quitar archivo"
+              className="rounded-lg p-1.5 text-neutral-400 hover:bg-red-50 hover:text-red-600"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -185,6 +401,18 @@ export default function NoteEdit({
   const [tagIds, setTagIds] = useState<string[]>([]);
   const [showMeta, setShowMeta] = useState(false);
   const [showAddBlock, setShowAddBlock] = useState(false);
+  const [attachments, setAttachments] = useState<NoteAttachment[]>([]);
+  const [isLoadingAttachments, setIsLoadingAttachments] = useState(false);
+  const [uploadingBlockId, setUploadingBlockId] = useState<string | null>(null);
+
+  const singleFileInputRef = useRef<HTMLInputElement>(null);
+  const listFileInputRef = useRef<HTMLInputElement>(null);
+  const [targetFileBlockId, setTargetFileBlockId] = useState<string | null>(
+    null,
+  );
+  const [targetFileListBlockId, setTargetFileListBlockId] = useState<
+    string | null
+  >(null);
 
   useEffect(() => {
     setTitle(note.title || '');
@@ -199,6 +427,46 @@ export default function NoteEdit({
     setShowAddBlock(false);
   }, [note.id, noteTags]);
 
+  useEffect(() => {
+    let active = true;
+
+    const loadAttachments = async () => {
+      try {
+        setIsLoadingAttachments(true);
+
+        const response = await webNotesApi.getAttachments(note.id);
+
+        if (active) {
+          setAttachments(response.attachments);
+        }
+      } catch (error) {
+        console.error('No se pudieron cargar los adjuntos de la nota', error);
+
+        if (active) {
+          setAttachments([]);
+        }
+      } finally {
+        if (active) {
+          setIsLoadingAttachments(false);
+        }
+      }
+    };
+
+    void loadAttachments();
+
+    return () => {
+      active = false;
+    };
+  }, [note.id]);
+
+  const attachmentById = useMemo(
+    () =>
+      new Map(
+        attachments.map((attachment) => [attachment.id, attachment]),
+      ),
+    [attachments],
+  );
+
   const selectedTags = useMemo(
     () => tags.filter((tag) => tagIds.includes(tag.id)),
     [tagIds, tags],
@@ -212,13 +480,29 @@ export default function NoteEdit({
           case 'textarea':
           case 'heading':
             return [block.text];
+
           case 'field':
             return [block.label, block.value];
+
           case 'checklist':
             return block.items.map((item) => item.text);
+
           case 'bulleted_list':
           case 'numbered_list':
             return block.items;
+
+          case 'date_list':
+            return block.items.flatMap((item) => [
+              item.label,
+              item.value || '',
+            ]);
+
+          case 'number_list':
+            return block.items.flatMap((item) => [
+              item.label,
+              item.value === null ? '' : String(item.value),
+            ]);
+
           default:
             return [];
         }
@@ -270,8 +554,177 @@ export default function NoteEdit({
     });
   };
 
+  const openSingleFilePicker = (blockId: string) => {
+    setTargetFileBlockId(blockId);
+    setTargetFileListBlockId(null);
+    singleFileInputRef.current?.click();
+  };
+
+  const openFileListPicker = (blockId: string) => {
+    setTargetFileListBlockId(blockId);
+    setTargetFileBlockId(null);
+    listFileInputRef.current?.click();
+  };
+
+  const uploadFilesForBlock = async (
+    event: React.ChangeEvent<HTMLInputElement>,
+  ) => {
+    const files = Array.from(event.target.files || []);
+    const targetBlockId = targetFileBlockId;
+    const targetListBlockId = targetFileListBlockId;
+
+    event.target.value = '';
+
+    if (
+      files.length === 0 ||
+      (!targetBlockId && !targetListBlockId) ||
+      isTrashView
+    ) {
+      return;
+    }
+
+    const activeBlockId = targetBlockId || targetListBlockId;
+
+    if (!activeBlockId) {
+      return;
+    }
+
+    try {
+      setUploadingBlockId(activeBlockId);
+
+      const formData = new FormData();
+
+      files.forEach((file) => {
+        formData.append('files', file);
+      });
+
+      const response = await webNotesApi.uploadAttachments(note.id, formData);
+
+      setAttachments((current) => {
+        const next = new Map(current.map((attachment) => [attachment.id, attachment]));
+
+        response.attachments.forEach((attachment) => {
+          next.set(attachment.id, attachment);
+        });
+
+        return Array.from(next.values());
+      });
+
+      const references = response.attachments.map(attachmentToReference);
+
+      if (targetBlockId) {
+        const firstReference = references[0];
+
+        if (firstReference) {
+          setBlocks(
+            updateBlock(content.blocks, targetBlockId, (block) =>
+              block.type === 'file'
+                ? {
+                    ...block,
+                    attachment_id: firstReference.attachment_id,
+                    file_id: firstReference.file_id,
+                    caption: firstReference.caption,
+                  }
+                : block,
+            ),
+          );
+        }
+      }
+
+      if (targetListBlockId) {
+        setBlocks(
+          updateBlock(content.blocks, targetListBlockId, (block) =>
+            block.type === 'file_list'
+              ? {
+                  ...block,
+                  attachments: [...block.attachments, ...references],
+                }
+              : block,
+          ),
+        );
+      }
+    } catch (error) {
+      console.error('No se pudieron subir los archivos adjuntos', error);
+      window.alert('No fue posible subir uno o más archivos.');
+    } finally {
+      setUploadingBlockId(null);
+      setTargetFileBlockId(null);
+      setTargetFileListBlockId(null);
+    }
+  };
+
+  const removeAttachmentReference = async (
+    blockId: string,
+    attachmentId: string | undefined,
+    mode: 'single' | 'list',
+    listIndex?: number,
+  ) => {
+    if (
+      !window.confirm(
+        '¿Quitar este archivo de la nota? El archivo se desvinculará de esta nota.',
+      )
+    ) {
+      return;
+    }
+
+    try {
+      if (attachmentId) {
+        await webNotesApi.deleteAttachment(note.id, attachmentId);
+        setAttachments((current) =>
+          current.filter((attachment) => attachment.id !== attachmentId),
+        );
+      }
+
+      setBlocks(
+        updateBlock(content.blocks, blockId, (block) => {
+          if (mode === 'single' && block.type === 'file') {
+            return {
+              ...block,
+              attachment_id: undefined,
+              file_id: undefined,
+              caption: '',
+            };
+          }
+
+          if (
+            mode === 'list' &&
+            block.type === 'file_list' &&
+            typeof listIndex === 'number'
+          ) {
+            return {
+              ...block,
+              attachments: block.attachments.filter(
+                (_, index) => index !== listIndex,
+              ),
+            };
+          }
+
+          return block;
+        }),
+      );
+    } catch (error) {
+      console.error('No se pudo eliminar el adjunto de la nota', error);
+      window.alert('No fue posible quitar el archivo de la nota.');
+    }
+  };
+
   return (
     <section className="h-full min-w-0 flex flex-col bg-white">
+      <input
+        ref={singleFileInputRef}
+        type="file"
+        className="hidden"
+        onChange={(event) => void uploadFilesForBlock(event)}
+      />
+
+      <input
+        ref={listFileInputRef}
+        type="file"
+        multiple
+        className="hidden"
+        onChange={(event) => void uploadFilesForBlock(event)}
+      />
+
       <header className="min-h-[57px] px-5 border-b border-neutral-100 flex items-center justify-between gap-3">
         <div className="flex items-center gap-1.5">
           <button
@@ -396,7 +849,11 @@ export default function NoteEdit({
             >
               <MoreHorizontal className="w-4 h-4" />
               Propiedades
-              <ChevronDown className={`w-3.5 h-3.5 transition-transform ${showMeta ? 'rotate-180' : ''}`} />
+              <ChevronDown
+                className={`w-3.5 h-3.5 transition-transform ${
+                  showMeta ? 'rotate-180' : ''
+                }`}
+              />
             </button>
 
             {showMeta && !isTrashView && (
@@ -406,6 +863,7 @@ export default function NoteEdit({
                     <FolderInput className="w-3.5 h-3.5" />
                     Carpeta
                   </span>
+
                   <select
                     value={folderId || ''}
                     onChange={(event) => setFolderId(event.target.value || null)}
@@ -425,6 +883,7 @@ export default function NoteEdit({
                     <Tag className="w-3.5 h-3.5" />
                     Etiquetas
                   </span>
+
                   <div className="flex flex-wrap gap-1.5">
                     {tags.map((tag) => {
                       const selected = tagIds.includes(tag.id);
@@ -435,7 +894,9 @@ export default function NoteEdit({
                           type="button"
                           onClick={() => toggleTag(tag.id)}
                           className={`rounded-full border px-2 py-1 text-[11px] font-medium transition-colors ${
-                            selected ? '' : 'bg-white border-neutral-200 text-neutral-500'
+                            selected
+                              ? ''
+                              : 'bg-white border-neutral-200 text-neutral-500'
                           }`}
                           style={
                             selected
@@ -464,6 +925,7 @@ export default function NoteEdit({
                   <span className="block text-xs font-medium text-neutral-600 mb-2">
                     Color de la nota
                   </span>
+
                   <div className="flex items-center gap-2">
                     {COLORS.map((item) => (
                       <button
@@ -521,7 +983,9 @@ export default function NoteEdit({
                       }
                       className="flex-1 resize-none border-0 bg-transparent p-0 text-[15px] leading-7 text-neutral-800 outline-none placeholder:text-neutral-300 disabled:cursor-default"
                     />
-                    {!isTrashView && <BlockActions onRemove={() => removeBlock(block.id)} />}
+                    {!isTrashView && (
+                      <BlockActions onRemove={() => removeBlock(block.id)} />
+                    )}
                   </div>
                 )}
 
@@ -543,7 +1007,9 @@ export default function NoteEdit({
                       }
                       className="flex-1 resize-y rounded-xl border border-neutral-200 bg-neutral-50 p-3 text-sm leading-6 text-neutral-800 outline-none focus:border-brand-primary focus:bg-white placeholder:text-neutral-300 disabled:cursor-default"
                     />
-                    {!isTrashView && <BlockActions onRemove={() => removeBlock(block.id)} />}
+                    {!isTrashView && (
+                      <BlockActions onRemove={() => removeBlock(block.id)} />
+                    )}
                   </div>
                 )}
 
@@ -566,7 +1032,9 @@ export default function NoteEdit({
                         block.level === 1 ? 'text-2xl' : 'text-xl'
                       }`}
                     />
-                    {!isTrashView && <BlockActions onRemove={() => removeBlock(block.id)} />}
+                    {!isTrashView && (
+                      <BlockActions onRemove={() => removeBlock(block.id)} />
+                    )}
                   </div>
                 )}
 
@@ -694,18 +1162,27 @@ export default function NoteEdit({
                       )}
                     </div>
 
-                    {!isTrashView && <BlockActions onRemove={() => removeBlock(block.id)} />}
+                    {!isTrashView && (
+                      <BlockActions onRemove={() => removeBlock(block.id)} />
+                    )}
                   </div>
                 )}
 
-                {(block.type === 'bulleted_list' || block.type === 'numbered_list') && (
+                {(block.type === 'bulleted_list' ||
+                  block.type === 'numbered_list') && (
                   <div className="flex items-start gap-2">
                     <div className="flex-1 space-y-2">
                       {block.items.map((item, itemIndex) => (
-                        <div key={`${block.id}_${itemIndex}`} className="flex items-center gap-2">
+                        <div
+                          key={`${block.id}_${itemIndex}`}
+                          className="flex items-center gap-2"
+                        >
                           <span className="w-5 text-right text-sm text-neutral-400">
-                            {block.type === 'bulleted_list' ? '•' : `${itemIndex + 1}.`}
+                            {block.type === 'bulleted_list'
+                              ? '•'
+                              : `${itemIndex + 1}.`}
                           </span>
+
                           <input
                             value={item}
                             disabled={isTrashView}
@@ -722,8 +1199,10 @@ export default function NoteEdit({
 
                                   return {
                                     ...current,
-                                    items: current.items.map((entry, index) =>
-                                      index === itemIndex ? event.target.value : entry,
+                                    items: current.items.map((entry, itemPosition) =>
+                                      itemPosition === itemIndex
+                                        ? event.target.value
+                                        : entry,
                                     ),
                                   };
                                 }),
@@ -751,7 +1230,8 @@ export default function NoteEdit({
                                         current.items.length === 1
                                           ? ['']
                                           : current.items.filter(
-                                              (_, index) => index !== itemIndex,
+                                              (_, itemPosition) =>
+                                                itemPosition !== itemIndex,
                                             ),
                                     };
                                   }),
@@ -792,7 +1272,9 @@ export default function NoteEdit({
                       )}
                     </div>
 
-                    {!isTrashView && <BlockActions onRemove={() => removeBlock(block.id)} />}
+                    {!isTrashView && (
+                      <BlockActions onRemove={() => removeBlock(block.id)} />
+                    )}
                   </div>
                 )}
 
@@ -814,6 +1296,7 @@ export default function NoteEdit({
                         }
                         className="border-0 bg-transparent text-xs font-semibold text-neutral-600 outline-none"
                       />
+
                       <input
                         value={block.value}
                         disabled={isTrashView}
@@ -830,7 +1313,10 @@ export default function NoteEdit({
                         className="border-0 bg-transparent text-sm text-neutral-800 outline-none"
                       />
                     </div>
-                    {!isTrashView && <BlockActions onRemove={() => removeBlock(block.id)} />}
+
+                    {!isTrashView && (
+                      <BlockActions onRemove={() => removeBlock(block.id)} />
+                    )}
                   </div>
                 )}
 
@@ -852,6 +1338,7 @@ export default function NoteEdit({
                         }
                         className="flex-1 border-0 bg-transparent text-xs font-semibold text-neutral-600 outline-none"
                       />
+
                       <input
                         type="date"
                         value={block.value || ''}
@@ -871,56 +1358,489 @@ export default function NoteEdit({
                         className="border-0 bg-transparent text-sm text-neutral-800 outline-none"
                       />
                     </div>
-                    {!isTrashView && <BlockActions onRemove={() => removeBlock(block.id)} />}
+
+                    {!isTrashView && (
+                      <BlockActions onRemove={() => removeBlock(block.id)} />
+                    )}
                   </div>
                 )}
 
                 {block.type === 'date_list' && (
                   <div className="flex items-start gap-2">
-                    <div className="flex-1 rounded-xl border border-neutral-200 p-3 text-sm text-neutral-500">
-                      Lista de fechas: este bloque se conserva y puede editarse desde la app móvil.
+                    <div className="flex-1 rounded-2xl border border-neutral-200 bg-neutral-50/70 p-4">
+                      <div className="mb-3 flex items-center gap-2">
+                        <CalendarDays className="h-4 w-4 text-brand-primary" />
+                        <span className="text-sm font-semibold text-neutral-800">
+                          Lista de fechas
+                        </span>
+                      </div>
+
+                      <div className="space-y-2">
+                        {block.items.map((item) => (
+                          <div
+                            key={item.id}
+                            className="flex items-center gap-2 rounded-xl bg-white p-2"
+                          >
+                            <input
+                              value={item.label}
+                              disabled={isTrashView}
+                              placeholder="Etiqueta"
+                              onChange={(event) =>
+                                setBlocks(
+                                  updateBlock(content.blocks, block.id, (current) =>
+                                    current.type === 'date_list'
+                                      ? {
+                                          ...current,
+                                          items: current.items.map((entry) =>
+                                            entry.id === item.id
+                                              ? {
+                                                  ...entry,
+                                                  label: event.target.value,
+                                                }
+                                              : entry,
+                                          ),
+                                        }
+                                      : current,
+                                  ),
+                                )
+                              }
+                              className="min-w-0 flex-1 border-0 bg-transparent px-1 text-sm text-neutral-800 outline-none placeholder:text-neutral-300"
+                            />
+
+                            <input
+                              type="date"
+                              value={item.value || ''}
+                              disabled={isTrashView}
+                              onChange={(event) =>
+                                setBlocks(
+                                  updateBlock(content.blocks, block.id, (current) =>
+                                    current.type === 'date_list'
+                                      ? {
+                                          ...current,
+                                          items: current.items.map((entry) =>
+                                            entry.id === item.id
+                                              ? {
+                                                  ...entry,
+                                                  value:
+                                                    event.target.value || null,
+                                                }
+                                              : entry,
+                                          ),
+                                        }
+                                      : current,
+                                  ),
+                                )
+                              }
+                              className="h-8 rounded-lg border border-neutral-200 bg-white px-2 text-xs text-neutral-700 outline-none focus:border-brand-primary"
+                            />
+
+                            {!isTrashView && (
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setBlocks(
+                                    updateBlock(content.blocks, block.id, (current) =>
+                                      current.type === 'date_list'
+                                        ? {
+                                            ...current,
+                                            items:
+                                              current.items.length === 1
+                                                ? [createEmptyDateListItem()]
+                                                : current.items.filter(
+                                                    (entry) =>
+                                                      entry.id !== item.id,
+                                                  ),
+                                          }
+                                        : current,
+                                    ),
+                                  )
+                                }
+                                title="Eliminar fecha"
+                                className="rounded-lg p-1.5 text-neutral-300 hover:bg-red-50 hover:text-red-600"
+                              >
+                                <X className="h-3.5 w-3.5" />
+                              </button>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+
+                      {!isTrashView && (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setBlocks(
+                              updateBlock(content.blocks, block.id, (current) =>
+                                current.type === 'date_list'
+                                  ? {
+                                      ...current,
+                                      items: [
+                                        ...current.items,
+                                        createEmptyDateListItem(),
+                                      ],
+                                    }
+                                  : current,
+                              ),
+                            )
+                          }
+                          className="mt-3 text-xs font-medium text-brand-primary hover:text-brand-dark"
+                        >
+                          + Agregar fecha
+                        </button>
+                      )}
                     </div>
-                    {!isTrashView && <BlockActions onRemove={() => removeBlock(block.id)} />}
+
+                    {!isTrashView && (
+                      <BlockActions onRemove={() => removeBlock(block.id)} />
+                    )}
                   </div>
                 )}
 
                 {block.type === 'number_list' && (
                   <div className="flex items-start gap-2">
-                    <div className="flex-1 rounded-xl border border-neutral-200 p-3 text-sm text-neutral-500">
-                      Lista numérica: este bloque se conserva y puede editarse desde la app móvil.
+                    <div className="flex-1 rounded-2xl border border-neutral-200 bg-neutral-50/70 p-4">
+                      <div className="mb-3 flex items-center gap-2">
+                        <Hash className="h-4 w-4 text-brand-primary" />
+                        <span className="text-sm font-semibold text-neutral-800">
+                          Lista numérica
+                        </span>
+                      </div>
+
+                      <div className="space-y-2">
+                        {block.items.map((item) => (
+                          <div
+                            key={item.id}
+                            className="flex items-center gap-2 rounded-xl bg-white p-2"
+                          >
+                            <input
+                              value={item.label}
+                              disabled={isTrashView}
+                              placeholder="Etiqueta"
+                              onChange={(event) =>
+                                setBlocks(
+                                  updateBlock(content.blocks, block.id, (current) =>
+                                    current.type === 'number_list'
+                                      ? {
+                                          ...current,
+                                          items: current.items.map((entry) =>
+                                            entry.id === item.id
+                                              ? {
+                                                  ...entry,
+                                                  label: event.target.value,
+                                                }
+                                              : entry,
+                                          ),
+                                        }
+                                      : current,
+                                  ),
+                                )
+                              }
+                              className="min-w-0 flex-1 border-0 bg-transparent px-1 text-sm text-neutral-800 outline-none placeholder:text-neutral-300"
+                            />
+
+                            <input
+                              type="number"
+                              step="any"
+                              value={item.value ?? ''}
+                              disabled={isTrashView}
+                              placeholder="0"
+                              onChange={(event) => {
+                                const rawValue = event.target.value;
+                                const nextValue =
+                                  rawValue === '' ? null : Number(rawValue);
+
+                                setBlocks(
+                                  updateBlock(content.blocks, block.id, (current) =>
+                                    current.type === 'number_list'
+                                      ? {
+                                          ...current,
+                                          items: current.items.map((entry) =>
+                                            entry.id === item.id
+                                              ? {
+                                                  ...entry,
+                                                  value: Number.isNaN(nextValue)
+                                                    ? null
+                                                    : nextValue,
+                                                }
+                                              : entry,
+                                          ),
+                                        }
+                                      : current,
+                                  ),
+                                );
+                              }}
+                              className="h-8 w-28 rounded-lg border border-neutral-200 bg-white px-2 text-right text-xs text-neutral-700 outline-none focus:border-brand-primary"
+                            />
+
+                            {!isTrashView && (
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setBlocks(
+                                    updateBlock(content.blocks, block.id, (current) =>
+                                      current.type === 'number_list'
+                                        ? {
+                                            ...current,
+                                            items:
+                                              current.items.length === 1
+                                                ? [createEmptyNumberListItem()]
+                                                : current.items.filter(
+                                                    (entry) =>
+                                                      entry.id !== item.id,
+                                                  ),
+                                          }
+                                        : current,
+                                    ),
+                                  )
+                                }
+                                title="Eliminar valor"
+                                className="rounded-lg p-1.5 text-neutral-300 hover:bg-red-50 hover:text-red-600"
+                              >
+                                <X className="h-3.5 w-3.5" />
+                              </button>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+
+                      {!isTrashView && (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setBlocks(
+                              updateBlock(content.blocks, block.id, (current) =>
+                                current.type === 'number_list'
+                                  ? {
+                                      ...current,
+                                      items: [
+                                        ...current.items,
+                                        createEmptyNumberListItem(),
+                                      ],
+                                    }
+                                  : current,
+                              ),
+                            )
+                          }
+                          className="mt-3 text-xs font-medium text-brand-primary hover:text-brand-dark"
+                        >
+                          + Agregar valor
+                        </button>
+                      )}
                     </div>
-                    {!isTrashView && <BlockActions onRemove={() => removeBlock(block.id)} />}
+
+                    {!isTrashView && (
+                      <BlockActions onRemove={() => removeBlock(block.id)} />
+                    )}
                   </div>
                 )}
 
-                {(block.type === 'image' ||
-                  block.type === 'file' ||
-                  block.type === 'file_list') && (
+                {block.type === 'image' && (
                   <div className="flex items-start gap-2">
-                    <div className="flex-1 rounded-xl border border-dashed border-neutral-300 bg-neutral-50 p-4 flex items-center gap-3">
-                      {block.type === 'image' ? (
-                        <Image className="w-5 h-5 text-neutral-400" />
-                      ) : (
-                        <Paperclip className="w-5 h-5 text-neutral-400" />
-                      )}
-                      <span className="text-sm text-neutral-500">
-                        Archivo adjunto. La gestión de archivos se conserva para la siguiente fase.
-                      </span>
+                    <div className="flex-1 rounded-2xl border border-dashed border-neutral-300 bg-neutral-50 p-4">
+                      <div className="flex items-start gap-3">
+                        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white text-brand-primary shadow-sm">
+                          <Image className="h-4 w-4" />
+                        </div>
+
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-semibold text-neutral-800">
+                            Imagen adjunta
+                          </p>
+                          <p className="mt-1 text-xs text-neutral-500">
+                            {block.caption || 'Imagen sin descripción'}
+                          </p>
+                        </div>
+                      </div>
                     </div>
-                    {!isTrashView && <BlockActions onRemove={() => removeBlock(block.id)} />}
+
+                    {!isTrashView && (
+                      <BlockActions onRemove={() => removeBlock(block.id)} />
+                    )}
+                  </div>
+                )}
+
+                {block.type === 'file' && (
+                  <div className="flex items-start gap-2">
+                    <div className="flex-1 rounded-2xl border border-neutral-200 bg-neutral-50/70 p-4">
+                      <div className="mb-3 flex items-center justify-between gap-3">
+                        <div className="flex items-center gap-2">
+                          <Paperclip className="h-4 w-4 text-brand-primary" />
+                          <span className="text-sm font-semibold text-neutral-800">
+                            Archivo adjunto
+                          </span>
+                        </div>
+
+                        {!isTrashView && (
+                          <button
+                            type="button"
+                            onClick={() => openSingleFilePicker(block.id)}
+                            disabled={uploadingBlockId === block.id}
+                            className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-brand-primary px-2.5 text-xs font-medium text-white hover:bg-brand-dark disabled:opacity-60"
+                          >
+                            {uploadingBlockId === block.id ? (
+                              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                            ) : (
+                              <Upload className="h-3.5 w-3.5" />
+                            )}
+                            {block.attachment_id ? 'Reemplazar' : 'Subir archivo'}
+                          </button>
+                        )}
+                      </div>
+
+                      {block.attachment_id || block.file_id ? (
+                        <AttachmentRow
+                          noteId={note.id}
+                          reference={{
+                            attachment_id: block.attachment_id,
+                            file_id: block.file_id,
+                            caption: block.caption,
+                          }}
+                          attachment={
+                            block.attachment_id
+                              ? attachmentById.get(block.attachment_id)
+                              : undefined
+                          }
+                          disabled={isTrashView}
+                          onCaptionChange={(caption) =>
+                            setBlocks(
+                              updateBlock(content.blocks, block.id, (current) =>
+                                current.type === 'file'
+                                  ? { ...current, caption }
+                                  : current,
+                              ),
+                            )
+                          }
+                          onRemove={() =>
+                            void removeAttachmentReference(
+                              block.id,
+                              block.attachment_id,
+                              'single',
+                            )
+                          }
+                        />
+                      ) : (
+                        <button
+                          type="button"
+                          disabled={isTrashView}
+                          onClick={() => openSingleFilePicker(block.id)}
+                          className="w-full rounded-xl border border-dashed border-neutral-300 bg-white px-3 py-6 text-center text-xs text-neutral-500 hover:border-brand-primary hover:text-brand-primary disabled:cursor-default"
+                        >
+                          Selecciona un archivo para adjuntarlo a esta nota.
+                        </button>
+                      )}
+                    </div>
+
+                    {!isTrashView && (
+                      <BlockActions onRemove={() => removeBlock(block.id)} />
+                    )}
+                  </div>
+                )}
+
+                {block.type === 'file_list' && (
+                  <div className="flex items-start gap-2">
+                    <div className="flex-1 rounded-2xl border border-neutral-200 bg-neutral-50/70 p-4">
+                      <div className="mb-3 flex items-center justify-between gap-3">
+                        <div className="flex items-center gap-2">
+                          <Files className="h-4 w-4 text-brand-primary" />
+                          <span className="text-sm font-semibold text-neutral-800">
+                            Lista de archivos
+                          </span>
+                        </div>
+
+                        {!isTrashView && (
+                          <button
+                            type="button"
+                            onClick={() => openFileListPicker(block.id)}
+                            disabled={uploadingBlockId === block.id}
+                            className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-brand-primary px-2.5 text-xs font-medium text-white hover:bg-brand-dark disabled:opacity-60"
+                          >
+                            {uploadingBlockId === block.id ? (
+                              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                            ) : (
+                              <Upload className="h-3.5 w-3.5" />
+                            )}
+                            Agregar archivos
+                          </button>
+                        )}
+                      </div>
+
+                      {isLoadingAttachments && block.attachments.length === 0 ? (
+                        <div className="py-4 text-center">
+                          <Loader2 className="mx-auto h-4 w-4 animate-spin text-brand-primary" />
+                        </div>
+                      ) : block.attachments.length === 0 ? (
+                        <button
+                          type="button"
+                          disabled={isTrashView}
+                          onClick={() => openFileListPicker(block.id)}
+                          className="w-full rounded-xl border border-dashed border-neutral-300 bg-white px-3 py-6 text-center text-xs text-neutral-500 hover:border-brand-primary hover:text-brand-primary disabled:cursor-default"
+                        >
+                          Selecciona uno o varios archivos para adjuntarlos.
+                        </button>
+                      ) : (
+                        <div className="space-y-2">
+                          {block.attachments.map((reference, attachmentIndex) => (
+                            <AttachmentRow
+                              key={
+                                reference.attachment_id ||
+                                reference.file_id ||
+                                `${block.id}-${attachmentIndex}`
+                              }
+                              noteId={note.id}
+                              reference={reference}
+                              attachment={
+                                reference.attachment_id
+                                  ? attachmentById.get(reference.attachment_id)
+                                  : undefined
+                              }
+                              disabled={isTrashView}
+                              onCaptionChange={(caption) =>
+                                setBlocks(
+                                  updateBlock(content.blocks, block.id, (current) =>
+                                    current.type === 'file_list'
+                                      ? {
+                                          ...current,
+                                          attachments: current.attachments.map(
+                                            (entry, entryIndex) =>
+                                              entryIndex === attachmentIndex
+                                                ? { ...entry, caption }
+                                                : entry,
+                                          ),
+                                        }
+                                      : current,
+                                  ),
+                                )
+                              }
+                              onRemove={() =>
+                                void removeAttachmentReference(
+                                  block.id,
+                                  reference.attachment_id,
+                                  'list',
+                                  attachmentIndex,
+                                )
+                              }
+                            />
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    {!isTrashView && (
+                      <BlockActions onRemove={() => removeBlock(block.id)} />
+                    )}
                   </div>
                 )}
 
                 {block.type === 'divider' && (
                   <div className="flex items-center gap-2">
                     <hr className="flex-1 border-neutral-200" />
-                    {!isTrashView && <BlockActions onRemove={() => removeBlock(block.id)} />}
+                    {!isTrashView && (
+                      <BlockActions onRemove={() => removeBlock(block.id)} />
+                    )}
                   </div>
                 )}
 
-                {index < content.blocks.length - 1 && (
-                  <div className="h-1" />
-                )}
+                {index < content.blocks.length - 1 && <div className="h-1" />}
               </div>
             ))}
 
@@ -936,15 +1856,59 @@ export default function NoteEdit({
                 </button>
 
                 {showAddBlock && (
-                  <div className="absolute left-0 top-12 z-30 w-56 rounded-2xl border border-neutral-200 bg-white p-1.5 shadow-xl">
+                  <div className="absolute left-0 top-12 z-30 w-60 rounded-2xl border border-neutral-200 bg-white p-1.5 shadow-xl">
                     {[
                       { type: 'text' as const, label: 'Texto', icon: Type },
-                      { type: 'heading' as const, label: 'Encabezado', icon: Heading1 },
-                      { type: 'textarea' as const, label: 'Área de texto', icon: FileText },
-                      { type: 'checklist' as const, label: 'Lista de tareas', icon: ListChecks },
-                      { type: 'bulleted_list' as const, label: 'Lista con viñetas', icon: List },
-                      { type: 'numbered_list' as const, label: 'Lista numerada', icon: ListOrdered },
-                      { type: 'divider' as const, label: 'Separador', icon: Minus },
+                      {
+                        type: 'heading' as const,
+                        label: 'Encabezado',
+                        icon: Heading1,
+                      },
+                      {
+                        type: 'textarea' as const,
+                        label: 'Área de texto',
+                        icon: FileText,
+                      },
+                      {
+                        type: 'checklist' as const,
+                        label: 'Lista de tareas',
+                        icon: ListChecks,
+                      },
+                      {
+                        type: 'bulleted_list' as const,
+                        label: 'Lista con viñetas',
+                        icon: List,
+                      },
+                      {
+                        type: 'numbered_list' as const,
+                        label: 'Lista numerada',
+                        icon: ListOrdered,
+                      },
+                      {
+                        type: 'date_list' as const,
+                        label: 'Lista de fechas',
+                        icon: CalendarDays,
+                      },
+                      {
+                        type: 'number_list' as const,
+                        label: 'Lista numérica',
+                        icon: Hash,
+                      },
+                      {
+                        type: 'file' as const,
+                        label: 'Archivo adjunto',
+                        icon: Paperclip,
+                      },
+                      {
+                        type: 'file_list' as const,
+                        label: 'Lista de archivos',
+                        icon: Files,
+                      },
+                      {
+                        type: 'divider' as const,
+                        label: 'Separador',
+                        icon: Minus,
+                      },
                     ].map((item) => {
                       const Icon = item.icon;
 

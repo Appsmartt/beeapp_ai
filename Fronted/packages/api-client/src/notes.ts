@@ -10,6 +10,7 @@ import type {
     CreateNoteShareResponse,
     CreateNoteTagPayload,
     CreateNoteTagResponse,
+    NoteAttachmentAccessResponse,
     GetNoteAttachmentsResponse,
     GetNoteFoldersResponse,
     GetNoteResponse,
@@ -35,24 +36,17 @@ import type {
     UpdateNoteTagResponse,
     UploadNoteAttachmentsResponse,
     } from '@beeapp/shared-types';
-
-import { api } from './client';
+    import { api } from './client';
 
 const WEB_OPTIONS = {
     credentials: 'include' as RequestCredentials,
 };
 
-function buildQuery(
-    params: object,
-    ): string {
+function buildQuery(params: object): string {
     const searchParams = new URLSearchParams();
 
     Object.entries(params).forEach(([key, value]) => {
-        if (
-        value !== undefined
-        && value !== null
-        && value !== ''
-        ) {
+        if (value !== undefined && value !== null && value !== '') {
         searchParams.set(key, String(value));
         }
     });
@@ -62,59 +56,43 @@ function buildQuery(
     return query ? `?${query}` : '';
 }
 
-function notePath(
-    noteId: string,
-    ): string {
+function notePath(noteId: string): string {
     return `/notes/${encodeURIComponent(noteId)}/`;
 }
 
-function folderPath(
-    folderId: string,
-    ): string {
+function folderPath(folderId: string): string {
     return `/notes/folders/${encodeURIComponent(folderId)}/`;
 }
 
-function tagPath(
-    tagId: string,
-    ): string {
+function tagPath(tagId: string): string {
     return `/notes/tags/${encodeURIComponent(tagId)}/`;
 }
 
-/* =========================================================
-   Mobile API: token/session is passed explicitly.
-   ========================================================= */
+function attachmentPath(noteId: string, attachmentId: string): string {
+    return `${notePath(noteId)}attachments/${encodeURIComponent(attachmentId)}/`;
+}
 
-/* Notes */
+/* Mobile API: explicit token/session authentication. */
 
 export function getNotes(
     auth: AuthCredentials,
     query: NotesQuery = {},
     ): Promise<GetNotesResponse> {
-    return api.get<GetNotesResponse>(
-        `/notes/${buildQuery(query)}`,
-        { auth },
-    );
+    return api.get<GetNotesResponse>(`/notes/${buildQuery(query)}`, { auth });
 }
 
 export function getNote(
     auth: AuthCredentials,
     noteId: string,
     ): Promise<GetNoteResponse> {
-    return api.get<GetNoteResponse>(
-        notePath(noteId),
-        { auth },
-    );
+    return api.get<GetNoteResponse>(notePath(noteId), { auth });
 }
 
 export function createNote(
     auth: AuthCredentials,
-    payload: CreateNotePayload = {},
+    payload: CreateNotePayload,
     ): Promise<CreateNoteResponse> {
-    return api.post<CreateNoteResponse>(
-        '/notes/',
-        payload,
-        { auth },
-    );
+    return api.post<CreateNoteResponse>('/notes/', payload, { auth });
 }
 
 export function updateNote(
@@ -122,22 +100,14 @@ export function updateNote(
     noteId: string,
     payload: UpdateNotePayload,
     ): Promise<UpdateNoteResponse> {
-    return api.patch<UpdateNoteResponse>(
-        notePath(noteId),
-        payload,
-        { auth },
-    );
+    return api.patch<UpdateNoteResponse>(notePath(noteId), payload, { auth });
 }
 
 export async function moveNoteToTrash(
     auth: AuthCredentials,
     noteId: string,
     ): Promise<void> {
-    await api.post<void>(
-        `${notePath(noteId)}trash/`,
-        undefined,
-        { auth },
-    );
+    await api.post<void>(`${notePath(noteId)}trash/`, undefined, { auth });
 }
 
 export function restoreNote(
@@ -155,13 +125,8 @@ export async function permanentlyDeleteNote(
     auth: AuthCredentials,
     noteId: string,
     ): Promise<void> {
-    await api.delete<void>(
-        notePath(noteId),
-        { auth },
-    );
+    await api.delete<void>(notePath(noteId), { auth });
 }
-
-/* Folders */
 
 export function getNoteFolders(
     auth: AuthCredentials,
@@ -177,11 +142,9 @@ export function createNoteFolder(
     auth: AuthCredentials,
     payload: CreateNoteFolderPayload,
     ): Promise<CreateNoteFolderResponse> {
-    return api.post<CreateNoteFolderResponse>(
-        '/notes/folders/',
-        payload,
-        { auth },
-    );
+    return api.post<CreateNoteFolderResponse>('/notes/folders/', payload, {
+        auth,
+    });
 }
 
 export function renameNoteFolder(
@@ -189,11 +152,9 @@ export function renameNoteFolder(
     folderId: string,
     payload: RenameNoteFolderPayload,
     ): Promise<UpdateNoteFolderResponse> {
-    return api.patch<UpdateNoteFolderResponse>(
-        folderPath(folderId),
-        payload,
-        { auth },
-    );
+    return api.patch<UpdateNoteFolderResponse>(folderPath(folderId), payload, {
+        auth,
+    });
 }
 
 export function moveNoteFolder(
@@ -201,43 +162,29 @@ export function moveNoteFolder(
     folderId: string,
     payload: MoveNoteFolderPayload,
     ): Promise<UpdateNoteFolderResponse> {
-    return api.patch<UpdateNoteFolderResponse>(
-        folderPath(folderId),
-        payload,
-        { auth },
-    );
+    return api.patch<UpdateNoteFolderResponse>(folderPath(folderId), payload, {
+        auth,
+    });
 }
 
 export async function deleteNoteFolder(
     auth: AuthCredentials,
     folderId: string,
     ): Promise<void> {
-    await api.delete<void>(
-        folderPath(folderId),
-        { auth },
-    );
+    await api.delete<void>(folderPath(folderId), { auth });
 }
-
-/* Tags */
 
 export function getNoteTags(
     auth: AuthCredentials,
     ): Promise<GetNoteTagsResponse> {
-    return api.get<GetNoteTagsResponse>(
-        '/notes/tags/',
-        { auth },
-    );
+    return api.get<GetNoteTagsResponse>('/notes/tags/', { auth });
 }
 
 export function createNoteTag(
     auth: AuthCredentials,
     payload: CreateNoteTagPayload,
     ): Promise<CreateNoteTagResponse> {
-    return api.post<CreateNoteTagResponse>(
-        '/notes/tags/',
-        payload,
-        { auth },
-    );
+    return api.post<CreateNoteTagResponse>('/notes/tags/', payload, { auth });
 }
 
 export function updateNoteTag(
@@ -245,31 +192,21 @@ export function updateNoteTag(
     tagId: string,
     payload: UpdateNoteTagPayload,
     ): Promise<UpdateNoteTagResponse> {
-    return api.patch<UpdateNoteTagResponse>(
-        tagPath(tagId),
-        payload,
-        { auth },
-    );
+    return api.patch<UpdateNoteTagResponse>(tagPath(tagId), payload, { auth });
 }
 
 export async function deleteNoteTag(
     auth: AuthCredentials,
     tagId: string,
     ): Promise<void> {
-    await api.delete<void>(
-        tagPath(tagId),
-        { auth },
-    );
+    await api.delete<void>(tagPath(tagId), { auth });
 }
 
 export function getTagsForNote(
     auth: AuthCredentials,
     noteId: string,
     ): Promise<GetNoteTagsResponse> {
-    return api.get<GetNoteTagsResponse>(
-        `${notePath(noteId)}tags/`,
-        { auth },
-    );
+    return api.get<GetNoteTagsResponse>(`${notePath(noteId)}tags/`, { auth });
 }
 
 export function replaceNoteTags(
@@ -277,14 +214,10 @@ export function replaceNoteTags(
     noteId: string,
     payload: ReplaceNoteTagsPayload,
     ): Promise<GetNoteTagsResponse> {
-    return api.put<GetNoteTagsResponse>(
-        `${notePath(noteId)}tags/`,
-        payload,
-        { auth },
-    );
+    return api.put<GetNoteTagsResponse>(`${notePath(noteId)}tags/`, payload, {
+        auth,
+    });
 }
-
-/* Templates */
 
 export function getNoteTemplates(
     auth: AuthCredentials,
@@ -297,8 +230,6 @@ export function getNoteTemplates(
         { auth },
     );
 }
-
-/* Attachments */
 
 export function getNoteAttachments(
     auth: AuthCredentials,
@@ -341,9 +272,7 @@ export function updateNoteAttachment(
     payload: UpdateNoteAttachmentPayload,
     ): Promise<UpdateNoteAttachmentResponse> {
     return api.patch<UpdateNoteAttachmentResponse>(
-        `${notePath(noteId)}attachments/${encodeURIComponent(
-        attachmentId,
-        )}/`,
+        attachmentPath(noteId, attachmentId),
         payload,
         { auth },
     );
@@ -354,12 +283,7 @@ export async function deleteNoteAttachment(
     noteId: string,
     attachmentId: string,
     ): Promise<void> {
-    await api.delete<void>(
-        `${notePath(noteId)}attachments/${encodeURIComponent(
-        attachmentId,
-        )}/`,
-        { auth },
-    );
+    await api.delete<void>(attachmentPath(noteId, attachmentId), { auth });
 }
 
 export function getNoteAttachmentAccess(
@@ -367,32 +291,21 @@ export function getNoteAttachmentAccess(
     noteId: string,
     attachmentId: string,
     download = false,
-    ): Promise<{
-    attachment: import('@beeapp/shared-types').NoteAttachment;
-    url: string;
-    expires_in_seconds: number;
-    download: boolean;
-    }> {
-    return api.get(
-        `${notePath(noteId)}attachments/${encodeURIComponent(
-        attachmentId,
-        )}/access/?download=${download}`,
+    ): Promise<NoteAttachmentAccessResponse> {
+    return api.get<NoteAttachmentAccessResponse>(
+        `${attachmentPath(noteId, attachmentId)}access/${buildQuery({
+        download,
+        })}`,
         { auth },
     );
 }
 
-/* Sharing */
-
-export function searchNoteShareRecipients(
+export function getNoteShareRecipients(
     auth: AuthCredentials,
-    searchValue: string,
-    limit = 10,
+    query: { q?: string; limit?: number } = {},
     ): Promise<GetNoteShareRecipientsResponse> {
     return api.get<GetNoteShareRecipientsResponse>(
-        `/notes/share-recipients/${buildQuery({
-        q: searchValue,
-        limit,
-        })}`,
+        `/notes/shares/recipients/${buildQuery(query)}`,
         { auth },
     );
 }
@@ -423,10 +336,9 @@ export function getSharedNote(
     auth: AuthCredentials,
     noteId: string,
     ): Promise<GetSharedNoteResponse> {
-    return api.get<GetSharedNoteResponse>(
-        `/notes/shared/${encodeURIComponent(noteId)}/`,
-        { auth },
-    );
+    return api.get<GetSharedNoteResponse>(`${notePath(noteId)}shared/`, {
+        auth,
+    });
 }
 
 export function revokeNoteShare(
@@ -451,49 +363,31 @@ export function hideReceivedNoteShare(
     );
 }
 
-/* =========================================================
-   Web API: authentication uses the HttpOnly web-session cookie.
-   ========================================================= */
-
-/* Notes */
+/* Web API: HttpOnly web-session cookie authentication. */
 
 export function getCurrentWebNotes(
     query: NotesQuery = {},
     ): Promise<GetNotesResponse> {
-    return api.get<GetNotesResponse>(
-        `/notes/${buildQuery(query)}`,
-        WEB_OPTIONS,
-    );
+    return api.get<GetNotesResponse>(`/notes/${buildQuery(query)}`, WEB_OPTIONS);
 }
 
 export function getCurrentWebNote(
     noteId: string,
     ): Promise<GetNoteResponse> {
-    return api.get<GetNoteResponse>(
-        notePath(noteId),
-        WEB_OPTIONS,
-    );
+    return api.get<GetNoteResponse>(notePath(noteId), WEB_OPTIONS);
 }
 
 export function createCurrentWebNote(
-    payload: CreateNotePayload = {},
+    payload: CreateNotePayload,
     ): Promise<CreateNoteResponse> {
-    return api.post<CreateNoteResponse>(
-        '/notes/',
-        payload,
-        WEB_OPTIONS,
-    );
+    return api.post<CreateNoteResponse>('/notes/', payload, WEB_OPTIONS);
 }
 
 export function updateCurrentWebNote(
     noteId: string,
     payload: UpdateNotePayload,
     ): Promise<UpdateNoteResponse> {
-    return api.patch<UpdateNoteResponse>(
-        notePath(noteId),
-        payload,
-        WEB_OPTIONS,
-    );
+    return api.patch<UpdateNoteResponse>(notePath(noteId), payload, WEB_OPTIONS);
 }
 
 export async function moveCurrentWebNoteToTrash(
@@ -519,13 +413,8 @@ export function restoreCurrentWebNote(
 export async function permanentlyDeleteCurrentWebNote(
     noteId: string,
     ): Promise<void> {
-    await api.delete<void>(
-        notePath(noteId),
-        WEB_OPTIONS,
-    );
+    await api.delete<void>(notePath(noteId), WEB_OPTIONS);
 }
-
-/* Folders */
 
 export function getCurrentWebNoteFolders(
     query: NoteFoldersQuery = {},
@@ -571,19 +460,11 @@ export function moveCurrentWebNoteFolder(
 export async function deleteCurrentWebNoteFolder(
     folderId: string,
     ): Promise<void> {
-    await api.delete<void>(
-        folderPath(folderId),
-        WEB_OPTIONS,
-    );
+    await api.delete<void>(folderPath(folderId), WEB_OPTIONS);
 }
 
-/* Tags */
-
 export function getCurrentWebNoteTags(): Promise<GetNoteTagsResponse> {
-    return api.get<GetNoteTagsResponse>(
-        '/notes/tags/',
-        WEB_OPTIONS,
-    );
+    return api.get<GetNoteTagsResponse>('/notes/tags/', WEB_OPTIONS);
 }
 
 export function createCurrentWebNoteTag(
@@ -610,10 +491,7 @@ export function updateCurrentWebNoteTag(
 export async function deleteCurrentWebNoteTag(
     tagId: string,
     ): Promise<void> {
-    await api.delete<void>(
-        tagPath(tagId),
-        WEB_OPTIONS,
-    );
+    await api.delete<void>(tagPath(tagId), WEB_OPTIONS);
 }
 
 export function getCurrentWebTagsForNote(
@@ -636,8 +514,6 @@ export function replaceCurrentWebNoteTags(
     );
 }
 
-/* Templates */
-
 export function getCurrentWebNoteTemplates(
     includeInactive = false,
     ): Promise<GetNoteTemplatesResponse> {
@@ -648,8 +524,6 @@ export function getCurrentWebNoteTemplates(
         WEB_OPTIONS,
     );
 }
-
-/* Attachments */
 
 export function getCurrentWebNoteAttachments(
     noteId: string,
@@ -688,9 +562,7 @@ export function updateCurrentWebNoteAttachment(
     payload: UpdateNoteAttachmentPayload,
     ): Promise<UpdateNoteAttachmentResponse> {
     return api.patch<UpdateNoteAttachmentResponse>(
-        `${notePath(noteId)}attachments/${encodeURIComponent(
-        attachmentId,
-        )}/`,
+        attachmentPath(noteId, attachmentId),
         payload,
         WEB_OPTIONS,
     );
@@ -701,9 +573,7 @@ export async function deleteCurrentWebNoteAttachment(
     attachmentId: string,
     ): Promise<void> {
     await api.delete<void>(
-        `${notePath(noteId)}attachments/${encodeURIComponent(
-        attachmentId,
-        )}/`,
+        attachmentPath(noteId, attachmentId),
         WEB_OPTIONS,
     );
 }
@@ -712,31 +582,20 @@ export function getCurrentWebNoteAttachmentAccess(
     noteId: string,
     attachmentId: string,
     download = false,
-    ): Promise<{
-    attachment: import('@beeapp/shared-types').NoteAttachment;
-    url: string;
-    expires_in_seconds: number;
-    download: boolean;
-    }> {
-    return api.get(
-        `${notePath(noteId)}attachments/${encodeURIComponent(
-        attachmentId,
-        )}/access/?download=${download}`,
+    ): Promise<NoteAttachmentAccessResponse> {
+    return api.get<NoteAttachmentAccessResponse>(
+        `${attachmentPath(noteId, attachmentId)}access/${buildQuery({
+        download,
+        })}`,
         WEB_OPTIONS,
     );
 }
 
-/* Sharing */
-
-export function searchCurrentWebNoteShareRecipients(
-    searchValue: string,
-    limit = 10,
+export function getCurrentWebNoteShareRecipients(
+    query: { q?: string; limit?: number } = {},
     ): Promise<GetNoteShareRecipientsResponse> {
     return api.get<GetNoteShareRecipientsResponse>(
-        `/notes/share-recipients/${buildQuery({
-        q: searchValue,
-        limit,
-        })}`,
+        `/notes/shares/recipients/${buildQuery(query)}`,
         WEB_OPTIONS,
     );
 }
@@ -765,7 +624,7 @@ export function getCurrentWebSharedNote(
     noteId: string,
     ): Promise<GetSharedNoteResponse> {
     return api.get<GetSharedNoteResponse>(
-        `/notes/shared/${encodeURIComponent(noteId)}/`,
+        `${notePath(noteId)}shared/`,
         WEB_OPTIONS,
     );
 }

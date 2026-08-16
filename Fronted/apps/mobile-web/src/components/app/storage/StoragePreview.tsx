@@ -19,7 +19,6 @@ import {
 import {
   getCurrentWebStorageFileAccess,
 } from '@beeapp/api-client';
-
 import type {
   WebStorageItem,
 } from './StorageModals';
@@ -29,7 +28,6 @@ interface StoragePreviewProps {
   onBack: () => void;
   onDownload: (item: WebStorageItem) => void;
   onShare: (item: WebStorageItem) => void;
-  onOpenSignModal: (item: WebStorageItem) => void;
   onDelete: (item: WebStorageItem) => void;
 }
 
@@ -40,15 +38,9 @@ export default function StoragePreview({
   onShare,
   onDelete,
 }: StoragePreviewProps) {
-  const [accessUrl, setAccessUrl] =
-    useState<string | null>(null);
-
-  const [loading, setLoading] = useState(
-    item.type !== 'folder',
-  );
-
-  const [errorMessage, setErrorMessage] =
-    useState<string | null>(null);
+  const [accessUrl, setAccessUrl] = useState<string | null>(null);
+  const [loading, setLoading] = useState(item.type !== 'folder');
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -57,6 +49,7 @@ export default function StoragePreview({
       setAccessUrl(null);
       setLoading(false);
       setErrorMessage(null);
+
       return () => {
         cancelled = true;
       };
@@ -66,10 +59,7 @@ export default function StoragePreview({
     setErrorMessage(null);
     setAccessUrl(null);
 
-    void getCurrentWebStorageFileAccess(
-      item.id,
-      false,
-    )
+    void getCurrentWebStorageFileAccess(item.id, false)
       .then((response) => {
         if (!cancelled) {
           setAccessUrl(response.url);
@@ -137,8 +127,7 @@ export default function StoragePreview({
           </h2>
 
           <p className="text-xs font-normal text-neutral-500">
-            {errorMessage
-              || 'Puedes descargar el archivo para verlo.'}
+            {errorMessage || 'Puedes descargar el archivo para verlo.'}
           </p>
 
           <button
