@@ -49,6 +49,7 @@ INSTALLED_APPS = [
     "apps.storage.apps.StorageConfig",
     "apps.notes.apps.NotesConfig",
     "apps.notifications.apps.NotificationsConfig",
+    "apps.calendar.apps.CalendarConfig",
 ]
 
 

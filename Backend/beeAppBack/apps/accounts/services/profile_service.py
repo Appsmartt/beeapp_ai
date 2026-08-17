@@ -9,9 +9,10 @@ from apps.accounts.exceptions import (
 
 
 PROFILE_COLUMNS = (
-    "id,first_name,last_name,phone_dial_code,"
-    "phone_number,role,occupation,location,"
-    "assistant_name,assistant_tone"
+    "id,email,first_name,last_name,phone_dial_code,"
+    "phone_number,normalized_phone,timezone,role,"
+    "occupation,location,assistant_name,assistant_tone,"
+    "updated_at"
 )
 
 SOCIAL_LINK_COLUMNS = "platform,url"
@@ -20,10 +21,12 @@ SOCIAL_LINK_COLUMNS = "platform,url"
 def create_profile(
     *,
     auth_user_id: str,
+    email: str,
     first_name: str,
     last_name: str,
     phone_dial_code: str,
     phone_number: str,
+    timezone: str = "America/Bogota",
 ):
     try:
         supabase = get_supabase_admin_client()
@@ -33,10 +36,12 @@ def create_profile(
             .insert(
                 {
                     "id": auth_user_id,
+                    "email": email.strip().lower(),
                     "first_name": first_name,
                     "last_name": last_name,
                     "phone_dial_code": phone_dial_code,
                     "phone_number": phone_number,
+                    "timezone": timezone,
                     "role": "USER",
                 }
             )

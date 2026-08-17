@@ -557,3 +557,152 @@ def _send_storage_push(
 
     except Exception:
         return
+
+def create_calendar_notification(
+    *,
+    recipient_id: str,
+    notification_type: str,
+    title: str,
+    body: str,
+    metadata: dict[str, Any] | None = None,
+    send_push: bool = True,
+) -> dict[str, Any]:
+    return create_module_notification(
+        recipient_id=recipient_id,
+        module="calendar",
+        notification_type=notification_type,
+        title=title,
+        body=body,
+        metadata=metadata,
+        send_push=send_push,
+    )
+
+
+def create_module_notification(
+    *,
+    recipient_id: str,
+    module: str,
+    notification_type: str,
+    title: str,
+    body: str,
+    metadata: dict[str, Any] | None = None,
+    send_push: bool = True,
+) -> dict[str, Any]:
+    try:
+        supabase = get_supabase_admin_client()
+
+        response = (
+            supabase.table("notifications")
+            .insert(
+                {
+                    "recipient_id": recipient_id,
+                    "module": module,
+                    "type": notification_type,
+                    "title": title,
+                    "body": body,
+                    "metadata": metadata or {},
+                }
+            )
+            .execute()
+        )
+
+        if not response.data:
+            raise NotificationUpdateError(
+                "Supabase did not return the created notification."
+            )
+
+        notification = response.data[0]
+
+        if send_push:
+            _send_module_push(
+                recipient_id=recipient_id,
+                notification=notification,
+            )
+
+        return notification
+
+    except NotificationUpdateError:
+        raise
+
+    except Exception as error:
+        raise NotificationUpdateError(
+            f"Could not create {module} notification."
+        ) from error
+
+
+def _send_module_push(
+    *,
+    recipient_id: str,
+    notification: dict[str, Any],
+) -> None:
+    try:
+        supabase = get_supabase_admin_client()
+
+        devices_response = (
+            supabase.table("push_devices")
+            .select("id,expo_push_token")
+            .eq("user_id", recipient_id)
+            .eq("is_active", True)
+            .execute()
+        )
+
+        tokens = [
+            device["expo_push_token"]
+            for device in (devices_response.data or [])
+        ]
+
+        if not tokens:
+            return
+
+        result = send_expo_push_notifications(
+            tokens=tokens,
+            title=notification["title"],
+            body=notification["body"],
+            data={
+                "notification_id": notification["id"],
+                "module": notification["module"],
+                **(notification.get("metadata") or {}),
+            },
+        )
+
+        if result["sent_tokens"]:
+            (
+                supabase.table("notifications")
+                .update(
+                    {
+                        "push_sent_at": "now()",
+                        "push_error": None,
+                    }
+                )
+                .eq("id", notification["id"])
+                .execute()
+            )
+
+        for failed_token, error_message in (
+            result["failed_tokens"].items()
+        ):
+            (
+                supabase.table("push_devices")
+                .update(
+                    {
+                        "is_active": False,
+                        "last_seen_at": "now()",
+                    }
+                )
+                .eq("expo_push_token", failed_token)
+                .execute()
+            )
+
+            (
+                supabase.table("notifications")
+                .update(
+                    {
+                        "push_error": error_message,
+                    }
+                )
+                .eq("id", notification["id"])
+                .execute()
+            )
+
+    except Exception:
+        return

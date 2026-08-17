@@ -24,6 +24,7 @@ def create_complete_user(
     try:
         profile = create_profile(
             auth_user_id=str(auth_user.id),
+            email=auth_user.email or email,
             first_name=first_name,
             last_name=last_name,
             phone_dial_code=phone_dial_code,
