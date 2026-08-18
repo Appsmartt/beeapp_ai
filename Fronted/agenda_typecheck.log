@@ -1,0 +1,87 @@
+apps/mobile/app/(auth)/privacy.tsx(1,1): error TS6133: 'React' is declared but its value is never read.
+apps/mobile/app/(auth)/register.tsx(7,5): error TS6133: 'Modal' is declared but its value is never read.
+apps/mobile/app/(auth)/register.tsx(297,25): error TS2769: No overload matches this call.
+  Overload 1 of 2, '(props: ViewProps): View', gave the following error.
+    Type '"" | { borderColor: string; } | undefined' is not assignable to type 'ViewStyle | Falsy | RegisteredStyle<ViewStyle> | RecursiveArray<ViewStyle | Falsy | RegisteredStyle<ViewStyle>> | readonly (ViewStyle | ... 1 more ... | RegisteredStyle<...>)[]'.
+      Type '""' is not assignable to type 'ViewStyle | Falsy | RegisteredStyle<ViewStyle> | RecursiveArray<ViewStyle | Falsy | RegisteredStyle<ViewStyle>> | readonly (ViewStyle | ... 1 more ... | RegisteredStyle<...>)[]'.
+  Overload 2 of 2, '(props: ViewProps, context: any): View', gave the following error.
+    Type '"" | { borderColor: string; } | undefined' is not assignable to type 'ViewStyle | Falsy | RegisteredStyle<ViewStyle> | RecursiveArray<ViewStyle | Falsy | RegisteredStyle<ViewStyle>> | readonly (ViewStyle | ... 1 more ... | RegisteredStyle<...>)[]'.
+      Type '""' is not assignable to type 'ViewStyle | Falsy | RegisteredStyle<ViewStyle> | RecursiveArray<ViewStyle | Falsy | RegisteredStyle<ViewStyle>> | readonly (ViewStyle | ... 1 more ... | RegisteredStyle<...>)[]'.
+apps/mobile/app/(auth)/register.tsx(504,37): error TS2769: No overload matches this call.
+  Overload 1 of 2, '(props: ViewProps): View', gave the following error.
+    Type '"" | { borderColor: string; } | undefined' is not assignable to type 'ViewStyle | Falsy | RegisteredStyle<ViewStyle> | RecursiveArray<ViewStyle | Falsy | RegisteredStyle<ViewStyle>> | readonly (ViewStyle | ... 1 more ... | RegisteredStyle<...>)[]'.
+      Type '""' is not assignable to type 'ViewStyle | Falsy | RegisteredStyle<ViewStyle> | RecursiveArray<ViewStyle | Falsy | RegisteredStyle<ViewStyle>> | readonly (ViewStyle | ... 1 more ... | RegisteredStyle<...>)[]'.
+  Overload 2 of 2, '(props: ViewProps, context: any): View', gave the following error.
+    Type '"" | { borderColor: string; } | undefined' is not assignable to type 'ViewStyle | Falsy | RegisteredStyle<ViewStyle> | RecursiveArray<ViewStyle | Falsy | RegisteredStyle<ViewStyle>> | readonly (ViewStyle | ... 1 more ... | RegisteredStyle<...>)[]'.
+      Type '""' is not assignable to type 'ViewStyle | Falsy | RegisteredStyle<ViewStyle> | RecursiveArray<ViewStyle | Falsy | RegisteredStyle<ViewStyle>> | readonly (ViewStyle | ... 1 more ... | RegisteredStyle<...>)[]'.
+apps/mobile/app/(auth)/register.tsx(547,37): error TS2769: No overload matches this call.
+  Overload 1 of 2, '(props: ViewProps): View', gave the following error.
+    Type '"" | { borderColor: string; } | undefined' is not assignable to type 'ViewStyle | Falsy | RegisteredStyle<ViewStyle> | RecursiveArray<ViewStyle | Falsy | RegisteredStyle<ViewStyle>> | readonly (ViewStyle | ... 1 more ... | RegisteredStyle<...>)[]'.
+      Type '""' is not assignable to type 'ViewStyle | Falsy | RegisteredStyle<ViewStyle> | RecursiveArray<ViewStyle | Falsy | RegisteredStyle<ViewStyle>> | readonly (ViewStyle | ... 1 more ... | RegisteredStyle<...>)[]'.
+  Overload 2 of 2, '(props: ViewProps, context: any): View', gave the following error.
+    Type '"" | { borderColor: string; } | undefined' is not assignable to type 'ViewStyle | Falsy | RegisteredStyle<ViewStyle> | RecursiveArray<ViewStyle | Falsy | RegisteredStyle<ViewStyle>> | readonly (ViewStyle | ... 1 more ... | RegisteredStyle<...>)[]'.
+      Type '""' is not assignable to type 'ViewStyle | Falsy | RegisteredStyle<ViewStyle> | RecursiveArray<ViewStyle | Falsy | RegisteredStyle<ViewStyle>> | readonly (ViewStyle | ... 1 more ... | RegisteredStyle<...>)[]'.
+apps/mobile/app/(auth)/terms.tsx(1,1): error TS6133: 'React' is declared but its value is never read.
+apps/mobile/app/(main)/chat/call.tsx(1,8): error TS6133: 'React' is declared but its value is never read.
+apps/mobile/app/(main)/chat/call.tsx(1,38): error TS6133: 'useRef' is declared but its value is never read.
+apps/mobile/app/(main)/chat/call.tsx(11,3): error TS6133: 'VolumeX' is declared but its value is never read.
+apps/mobile/app/(main)/chat/call.tsx(14,3): error TS6133: 'Camera' is declared but its value is never read.
+apps/mobile/app/(main)/chat/conversation.tsx(1,8): error TS6133: 'React' is declared but its value is never read.
+apps/mobile/app/(main)/chat/new.tsx(1,8): error TS6133: 'React' is declared but its value is never read.
+apps/mobile/app/(main)/chat/new.tsx(17,7): error TS6133: 'SCREEN_WIDTH' is declared but its value is never read.
+apps/mobile/app/(main)/contacts/detail.tsx(1,8): error TS6133: 'React' is declared but its value is never read.
+apps/mobile/app/(main)/explore.tsx(1,8): error TS6133: 'React' is declared but its value is never read.
+apps/mobile/app/(main)/mail/compose.tsx(1,8): error TS6133: 'React' is declared but its value is never read.
+apps/mobile/app/(main)/mail/detail.tsx(1,8): error TS6133: 'React' is declared but its value is never read.
+apps/mobile/app/(main)/mail/index.tsx(1,8): error TS6133: 'React' is declared but its value is never read.
+apps/mobile/app/(main)/profile/integrations.tsx(1,8): error TS6133: 'React' is declared but its value is never read.
+apps/mobile/app/(main)/profile/integrations.tsx(10,3): error TS6133: 'Platform' is declared but its value is never read.
+apps/mobile/app/(main)/profile/integrations.tsx(18,16): error TS6133: 'SCREEN_WIDTH' is declared but its value is never read.
+apps/mobile/app/(main)/profile/subscription.tsx(1,8): error TS6133: 'React' is declared but its value is never read.
+apps/mobile/app/(main)/storage/sign.tsx(1,8): error TS6133: 'React' is declared but its value is never read.
+apps/mobile/src/components/FloatingTabBar.tsx(3,1): error TS6133: 'useRouter' is declared but its value is never read.
+apps/mobile/src/components/FloatingTabBar.tsx(81,7): error TS2304: Cannot find name 'router'.
+apps/mobile/src/components/FloatingTabBar.tsx(86,63): error TS18047: 'currentLeftItem' is possibly 'null'.
+apps/mobile/src/components/FloatingTabBar.tsx(90,60): error TS18047: 'currentRightItem' is possibly 'null'.
+apps/mobile/src/components/VoiceAssistantFab.tsx(1,8): error TS6133: 'React' is declared but its value is never read.
+apps/mobile/src/components/VoiceAssistantFab.tsx(3,3): error TS6133: 'View' is declared but its value is never read.
+apps/mobile/src/components/assistant/VoiceAssistantScreen.tsx(3,22): error TS6133: 'StyleSheet' is declared but its value is never read.
+apps/mobile/src/components/calendar/CalendarEditFields.tsx(14,3): error TS6133: 'Link' is declared but its value is never read.
+apps/mobile/src/components/chat/AiCatalogCards.tsx(1,8): error TS6133: 'React' is declared but its value is never read.
+apps/mobile/src/components/chat/AiCatalogCards.tsx(4,16): error TS6133: 'MapPin' is declared but its value is never read.
+apps/mobile/src/components/chat/AiCatalogItem.tsx(1,8): error TS6133: 'React' is declared but its value is never read.
+apps/mobile/src/components/chat/AiCatalogModal.tsx(1,1): error TS6133: 'React' is declared but its value is never read.
+apps/mobile/src/components/chat/ChatListItem.tsx(1,1): error TS6133: 'React' is declared but its value is never read.
+apps/mobile/src/components/chat/ChatMessageMenuModal.tsx(1,1): error TS6133: 'React' is declared but its value is never read.
+apps/mobile/src/components/chat/CommunitiesTabView.tsx(2,18): error TS6133: 'spacing' is declared but its value is never read.
+apps/mobile/src/components/chat/ConversationHeader.tsx(1,1): error TS6133: 'React' is declared but its value is never read.
+apps/mobile/src/components/chat/ConversationOverlayMenu.tsx(1,1): error TS6133: 'React' is declared but its value is never read.
+apps/mobile/src/components/chat/ForwardMessageModal.tsx(1,8): error TS6133: 'React' is declared but its value is never read.
+apps/mobile/src/components/chat/ForwardMessageModal.tsx(12,30): error TS6133: 'Check' is declared but its value is never read.
+apps/mobile/src/components/chat/MessageBubble.tsx(1,8): error TS6133: 'React' is declared but its value is never read.
+apps/mobile/src/components/chat/PinnedMessageBanner.tsx(1,1): error TS6133: 'React' is declared but its value is never read.
+apps/mobile/src/components/chat/RestrictedAndArchivedRows.tsx(1,1): error TS6133: 'React' is declared but its value is never read.
+apps/mobile/src/components/chat/StatusViewersSheet.tsx(1,1): error TS6133: 'React' is declared but its value is never read.
+apps/mobile/src/components/chat/WriteBar.tsx(1,8): error TS6133: 'React' is declared but its value is never read.
+apps/mobile/src/components/chat/status/StatusPrivacySelector.tsx(1,8): error TS6133: 'React' is declared but its value is never read.
+apps/mobile/src/components/contacts/ContactsListView.tsx(6,3): error TS6133: 'Globe' is declared but its value is never read.
+apps/mobile/src/components/home/OverviewSection.tsx(28,3): error TS6133: 'color' is declared but its value is never read.
+apps/mobile/src/components/notes/NoteEntityActionModal.tsx(16,5): error TS6133: 'radii' is declared but its value is never read.
+apps/mobile/src/components/notes/NoteShareModal.tsx(31,5): error TS2724: '"@beeapp/api-client"' has no exported member named 'searchNoteShareRecipients'. Did you mean 'searchStorageShareRecipients'?
+apps/mobile/src/components/notes/NoteShareModal.tsx(34,5): error TS6196: 'AuthCredentials' is declared but never used.
+apps/mobile/src/components/onboarding/AboutYouSection.tsx(37,13): error TS2769: No overload matches this call.
+  Overload 1 of 2, '(props: TextInputProps): TextInput', gave the following error.
+    Type '"" | { borderColor: string; } | undefined' is not assignable to type 'TextStyle | Falsy | RegisteredStyle<TextStyle> | RecursiveArray<TextStyle | Falsy | RegisteredStyle<TextStyle>> | readonly (TextStyle | ... 1 more ... | RegisteredStyle<...>)[]'.
+      Type '""' is not assignable to type 'TextStyle | Falsy | RegisteredStyle<TextStyle> | RecursiveArray<TextStyle | Falsy | RegisteredStyle<TextStyle>> | readonly (TextStyle | ... 1 more ... | RegisteredStyle<...>)[]'.
+  Overload 2 of 2, '(props: TextInputProps, context: any): TextInput', gave the following error.
+    Type '"" | { borderColor: string; } | undefined' is not assignable to type 'TextStyle | Falsy | RegisteredStyle<TextStyle> | RecursiveArray<TextStyle | Falsy | RegisteredStyle<TextStyle>> | readonly (TextStyle | ... 1 more ... | RegisteredStyle<...>)[]'.
+      Type '""' is not assignable to type 'TextStyle | Falsy | RegisteredStyle<TextStyle> | RecursiveArray<TextStyle | Falsy | RegisteredStyle<TextStyle>> | readonly (TextStyle | ... 1 more ... | RegisteredStyle<...>)[]'.
+apps/mobile/src/components/onboarding/AboutYouSection.tsx(57,13): error TS2769: No overload matches this call.
+  Overload 1 of 2, '(props: TextInputProps): TextInput', gave the following error.
+    Type '"" | { borderColor: string; } | undefined' is not assignable to type 'TextStyle | Falsy | RegisteredStyle<TextStyle> | RecursiveArray<TextStyle | Falsy | RegisteredStyle<TextStyle>> | readonly (TextStyle | ... 1 more ... | RegisteredStyle<...>)[]'.
+      Type '""' is not assignable to type 'TextStyle | Falsy | RegisteredStyle<TextStyle> | RecursiveArray<TextStyle | Falsy | RegisteredStyle<TextStyle>> | readonly (TextStyle | ... 1 more ... | RegisteredStyle<...>)[]'.
+  Overload 2 of 2, '(props: TextInputProps, context: any): TextInput', gave the following error.
+    Type '"" | { borderColor: string; } | undefined' is not assignable to type 'TextStyle | Falsy | RegisteredStyle<TextStyle> | RecursiveArray<TextStyle | Falsy | RegisteredStyle<TextStyle>> | readonly (TextStyle | ... 1 more ... | RegisteredStyle<...>)[]'.
+      Type '""' is not assignable to type 'TextStyle | Falsy | RegisteredStyle<TextStyle> | RecursiveArray<TextStyle | Falsy | RegisteredStyle<TextStyle>> | readonly (TextStyle | ... 1 more ... | RegisteredStyle<...>)[]'.
+apps/mobile/src/components/storage/SignatureCreatorCard.tsx(1,1): error TS6133: 'React' is declared but its value is never read.
+apps/mobile/src/components/storage/SignatureDocPreview.tsx(1,1): error TS6133: 'React' is declared but its value is never read.

@@ -1,8 +1,24 @@
-import React from 'react';
-import { View, Text, StyleSheet, Modal, ScrollView, TouchableOpacity } from 'react-native';
-import { colors, spacing, radii } from '@beeapp/design-system';
-import { Check, X } from 'lucide-react-native';
-import { REMINDER_OPTIONS } from '../../stores/calendarStore';
+import {
+  Modal,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from 'react-native';
+import {
+  Check,
+  X,
+} from 'lucide-react-native';
+import {
+  colors,
+  spacing,
+} from '@beeapp/design-system';
+
+import {
+  REMINDER_OPTIONS,
+} from '../../stores/calendarStore';
+
 
 interface ReminderBottomSheetProps {
   visible: boolean;
@@ -11,7 +27,7 @@ interface ReminderBottomSheetProps {
   onClose: () => void;
 }
 
-/** Bottom sheet for selecting event reminder intervals in mobile */
+
 export default function ReminderBottomSheet({
   visible,
   selectedReminder,
@@ -19,21 +35,49 @@ export default function ReminderBottomSheet({
   onClose,
 }: ReminderBottomSheetProps) {
   return (
-    <Modal transparent visible={visible} animationType="slide" onRequestClose={onClose}>
+    <Modal
+      transparent
+      visible={visible}
+      animationType="slide"
+      onRequestClose={onClose}
+    >
       <View style={styles.backdrop}>
-        <TouchableOpacity style={styles.backdropTouch} onPress={onClose} activeOpacity={1} />
+        <TouchableOpacity
+          style={styles.backdropTouch}
+          onPress={onClose}
+          activeOpacity={1}
+        />
+
 
         <View style={styles.sheet}>
           <View style={styles.header}>
-            <Text style={styles.title}>Recordatorio</Text>
-            <TouchableOpacity onPress={onClose} style={styles.closeBtn} activeOpacity={0.7}>
-              <X size={20} color={colors.neutral.text} />
+            <Text style={styles.title}>
+              Recordatorio
+            </Text>
+
+
+            <TouchableOpacity
+              onPress={onClose}
+              style={styles.closeBtn}
+              activeOpacity={0.7}
+            >
+              <X
+                size={20}
+                color={colors.neutral.text}
+              />
             </TouchableOpacity>
           </View>
 
-          <ScrollView style={styles.list} showsVerticalScrollIndicator={false}>
+
+          <ScrollView
+            style={styles.list}
+            showsVerticalScrollIndicator={false}
+          >
             {REMINDER_OPTIONS.map((option) => {
-              const isSelected = selectedReminder === option;
+              const isSelected =
+                selectedReminder === option;
+
+
               return (
                 <TouchableOpacity
                   key={option}
@@ -44,10 +88,23 @@ export default function ReminderBottomSheet({
                   }}
                   activeOpacity={0.7}
                 >
-                  <Text style={[styles.rowText, isSelected && styles.rowTextSelected]}>
+                  <Text
+                    style={[
+                      styles.rowText,
+                      isSelected
+                        && styles.rowTextSelected,
+                    ]}
+                  >
                     {option}
                   </Text>
-                  {isSelected && <Check size={18} color={colors.brand.primary} />}
+
+
+                  {isSelected && (
+                    <Check
+                      size={18}
+                      color={colors.brand.primary}
+                    />
+                  )}
                 </TouchableOpacity>
               );
             })}
@@ -57,6 +114,7 @@ export default function ReminderBottomSheet({
     </Modal>
   );
 }
+
 
 const styles = StyleSheet.create({
   backdrop: {

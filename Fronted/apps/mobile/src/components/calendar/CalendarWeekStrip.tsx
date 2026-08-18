@@ -1,27 +1,54 @@
+import {
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from 'react-native';
+import {
+  ChevronLeft,
+  ChevronRight,
+} from 'lucide-react-native';
+import {
+  colors,
+} from '@beeapp/design-system';
 
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
-import { colors } from '@beeapp/design-system';
-import { ChevronLeft, ChevronRight } from 'lucide-react-native';
-import { CalendarEvent, TODAY_STR } from '../../stores/calendarStore';
-import { parseDate, formatDate, startOfWeek, periodLabel } from '../../utils/dateHelpers';
+import type {
+  CalendarEvent,
+} from '../../stores/calendarStore';
+import {
+  formatDate,
+  parseDate,
+  startOfWeek,
+} from '../../utils/dateHelpers';
 
-const WEEK_LABELS = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
+
+const WEEK_LABELS = [
+  'Lun',
+  'Mar',
+  'Mié',
+  'Jue',
+  'Vie',
+  'Sáb',
+  'Dom',
+];
+
 
 interface CalendarWeekStripProps {
   events: CalendarEvent[];
   selectedDate: string;
-  onSelectDate: (dateStr: string) => void;
+  onSelectDate: (date: string) => void;
   onShift: (direction: -1 | 1) => void;
-  /** Label of the period being navigated (week range or month) */
   label: string;
   onOpenMonthPicker?: () => void;
   onOpenYearPicker?: () => void;
 }
 
-/**
- * Compact horizontal day strip: one visible week in a row, with side arrows
- * to move through time. Replaces the full month grid as the default view.
- */
+
+function getTodayString(): string {
+  return formatDate(new Date());
+}
+
+
 export default function CalendarWeekStrip({
   events,
   selectedDate,
@@ -31,59 +58,165 @@ export default function CalendarWeekStrip({
   onOpenMonthPicker,
   onOpenYearPicker,
 }: CalendarWeekStripProps) {
-  const start = startOfWeek(parseDate(selectedDate));
-  const days = Array.from({ length: 7 }, (_, i) => {
-    const d = new Date(start);
-    d.setDate(start.getDate() + i);
-    return { date: d, str: formatDate(d) };
-  });
+  const start = startOfWeek(
+    parseDate(selectedDate),
+  );
+
+
+  const days = Array.from(
+    {
+      length: 7,
+    },
+    (_, index) => {
+      const date = new Date(start);
+      date.setDate(
+        start.getDate() + index,
+      );
+
+
+      return {
+        date,
+        dateString: formatDate(date),
+      };
+    },
+  );
+
+
+  const eventsByDate = events.reduce(
+    (accumulator, event) => {
+      const existingEvents = accumulator.get(
+        event.date,
+      ) || [];
+
+
+      accumulator.set(
+        event.date,
+        [
+          ...existingEvents,
+          event,
+        ],
+      );
+
+
+      return accumulator;
+    },
+    new Map<string, CalendarEvent[]>(),
+  );
+
+
+  const todayString = getTodayString();
+
 
   return (
     <View style={styles.wrap}>
-      {/* Period navigation */}
       <View style={styles.navRow}>
-        <TouchableOpacity style={styles.navBtn} onPress={() => onShift(-1)} activeOpacity={0.7}>
-          <ChevronLeft size={18} color={colors.brand.primary} />
+        <TouchableOpacity
+          style={styles.navBtn}
+          onPress={() => onShift(-1)}
+          activeOpacity={0.7}
+        >
+          <ChevronLeft
+            size={18}
+            color={colors.brand.primary}
+          />
         </TouchableOpacity>
+
+
         <View style={styles.labelContainer}>
-          <TouchableOpacity onPress={onOpenMonthPicker} activeOpacity={0.7}>
-            <Text style={styles.navLabel}>{label}</Text>
+          <TouchableOpacity
+            onPress={onOpenMonthPicker}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.navLabel}>
+              {label}
+            </Text>
           </TouchableOpacity>
-          <TouchableOpacity onPress={onOpenYearPicker} activeOpacity={0.7} style={{ marginLeft: 6 }}>
-            <Text style={[styles.navLabel, { color: colors.brand.primary }]}>
+
+
+          <TouchableOpacity
+            onPress={onOpenYearPicker}
+            activeOpacity={0.7}
+            style={styles.yearTrigger}
+          >
+            <Text style={styles.yearLabel}>
               {parseDate(selectedDate).getFullYear()}
             </Text>
           </TouchableOpacity>
         </View>
-        <TouchableOpacity style={styles.navBtn} onPress={() => onShift(1)} activeOpacity={0.7}>
-          <ChevronRight size={18} color={colors.brand.primary} />
+
+
+        <TouchableOpacity
+          style={styles.navBtn}
+          onPress={() => onShift(1)}
+          activeOpacity={0.7}
+        >
+          <ChevronRight
+            size={18}
+            color={colors.brand.primary}
+          />
         </TouchableOpacity>
       </View>
 
-      {/* Days of the visible week */}
+
       <View style={styles.daysRow}>
-        {days.map((day, idx) => {
-          const isSelected = day.str === selectedDate;
-          const isToday = day.str === TODAY_STR;
-          const hasEvents = events.some((e) => e.date === day.str);
+        {days.map((day, index) => {
+          const isSelected =
+            day.dateString === selectedDate;
+          const isToday =
+            day.dateString === todayString;
+          const dayEvents = eventsByDate.get(
+            day.dateString,
+          ) || [];
+          const primaryColor = dayEvents[0]?.color
+            || colors.brand.primary;
+
+
           return (
             <TouchableOpacity
-              key={day.str}
-              style={[styles.dayCell, isSelected && styles.dayCellSelected]}
-              onPress={() => onSelectDate(day.str)}
+              key={day.dateString}
+              style={[
+                styles.dayCell,
+                isSelected && styles.dayCellSelected,
+              ]}
+              onPress={() =>
+                onSelectDate(day.dateString)
+              }
               activeOpacity={0.7}
             >
-              <Text style={[styles.dayLabel, isSelected && styles.dayLabelSelected]}>
-                {WEEK_LABELS[idx]}
+              <Text
+                style={[
+                  styles.dayLabel,
+                  isSelected
+                    && styles.dayLabelSelected,
+                ]}
+              >
+                {WEEK_LABELS[index]}
               </Text>
-              <Text style={[styles.dayNumber, isSelected && styles.dayNumberSelected, !isSelected && isToday && styles.dayNumberToday]}>
+
+
+              <Text
+                style={[
+                  styles.dayNumber,
+                  isSelected
+                    && styles.dayNumberSelected,
+                  !isSelected
+                    && isToday
+                    && styles.dayNumberToday,
+                ]}
+              >
                 {day.date.getDate()}
               </Text>
+
+
               <View
                 style={[
                   styles.eventDot,
-                  hasEvents && styles.eventDotVisible,
-                  hasEvents && isSelected && styles.eventDotSelected,
+                  dayEvents.length > 0
+                    && {
+                      backgroundColor: isSelected
+                        ? colors.neutral.white
+                        : primaryColor,
+                    },
                 ]}
               />
             </TouchableOpacity>
@@ -93,6 +226,7 @@ export default function CalendarWeekStrip({
     </View>
   );
 }
+
 
 const styles = StyleSheet.create({
   wrap: {
@@ -131,6 +265,14 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '600',
     color: colors.neutral.text,
+  },
+  yearTrigger: {
+    marginLeft: 6,
+  },
+  yearLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: colors.brand.primary,
   },
   daysRow: {
     flexDirection: 'row',
@@ -174,11 +316,5 @@ const styles = StyleSheet.create({
     borderRadius: 2,
     marginTop: 4,
     backgroundColor: 'transparent',
-  },
-  eventDotVisible: {
-    backgroundColor: colors.brand.primary,
-  },
-  eventDotSelected: {
-    backgroundColor: colors.neutral.white,
   },
 });

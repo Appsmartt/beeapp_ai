@@ -1,173 +1,707 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+} from 'react';
+import {
+  ActivityIndicator,
+  Alert,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from 'react-native';
+import {
+  useNavigation,
+} from 'expo-router';
+import {
+  ChevronLeft,
+  ChevronRight,
+  Plus,
+} from 'lucide-react-native';
+import {
+  colors,
+} from '@beeapp/design-system';
+
 import ScreenSafeArea from '../../../src/components/layout/ScreenSafeArea';
-import { useNavigation } from 'expo-router';
-import { useModuleNav } from '../../../src/components/embedded/EmbeddedNavContext';
-import { colors } from '@beeapp/design-system';
-import { Plus, ChevronLeft, ChevronRight } from 'lucide-react-native';
+import {
+  useModuleNav,
+} from '../../../src/components/embedded/EmbeddedNavContext';
 import FloatingTabBar from '../../../src/components/FloatingTabBar';
-import { getEvents, setEvents, CalendarEvent, TODAY_STR } from '../../../src/stores/calendarStore';
 import CalendarMonthGrid from '../../../src/components/calendar/CalendarMonthGrid';
 import CalendarWeekStrip from '../../../src/components/calendar/CalendarWeekStrip';
 import CalendarHourlyAgenda from '../../../src/components/calendar/CalendarHourlyAgenda';
 import CalendarEventsList from '../../../src/components/calendar/CalendarEventsList';
-import { CalendarContextMenu, CalendarFabMenu, FAB_BOTTOM_OFFSET } from '../../../src/components/calendar/CalendarMenus';
-import { CalendarHeader, CalendarFilterChips, ViewMode, FilterChip } from '../../../src/components/calendar/CalendarHeader';
-import { MonthPickerModal, YearPickerModal } from '../../../src/components/calendar/CalendarPickerModals';
-import { addDays, addMonths, periodLabel, parseDate, monthName, formatDate } from '../../../src/utils/dateHelpers';
+import {
+  CalendarContextMenu,
+  CalendarFabMenu,
+  FAB_BOTTOM_OFFSET,
+} from '../../../src/components/calendar/CalendarMenus';
+import {
+  CalendarFilterChips,
+  CalendarHeader,
+  type FilterChip,
+  type ViewMode,
+} from '../../../src/components/calendar/CalendarHeader';
+import {
+  MonthPickerModal,
+  YearPickerModal,
+} from '../../../src/components/calendar/CalendarPickerModals';
+import {
+  addDays,
+  addMonths,
+  formatDate,
+  monthName,
+  parseDate,
+  periodLabel,
+  startOfWeek,
+} from '../../../src/utils/dateHelpers';
+import {
+  useCalendar,
+} from '../../../src/hooks/useCalendar';
+import {
+  TODAY_STR,
+  type CalendarEvent,
+} from '../../../src/stores/calendarStore';
+import {
+  addDaysToDateString,
+  createDateTimeWithOffset,
+} from '../../../src/services/calendarService';
+
+
+function getMonthRange(
+  selectedDate: string,
+): {
+  rangeStart: string;
+  rangeEnd: string;
+} {
+  const date = parseDate(selectedDate);
+  const year = date.getFullYear();
+  const month = date.getMonth();
+
+
+  const firstDay = new Date(
+    year,
+    month,
+    1,
+  );
+
+
+  const firstDayOfNextMonth = new Date(
+    year,
+    month + 1,
+    1,
+  );
+
+
+  return {
+    rangeStart: createDateTimeWithOffset(
+      formatDate(firstDay),
+      '00:00',
+    ),
+    rangeEnd: createDateTimeWithOffset(
+      formatDate(firstDayOfNextMonth),
+      '00:00',
+    ),
+  };
+}
+
+
+function getWeekRange(
+  selectedDate: string,
+): {
+  rangeStart: string;
+  rangeEnd: string;
+} {
+  const weekStart = startOfWeek(
+    parseDate(selectedDate),
+  );
+
+
+  const weekEnd = new Date(weekStart);
+  weekEnd.setDate(
+    weekEnd.getDate() + 7,
+  );
+
+
+  return {
+    rangeStart: createDateTimeWithOffset(
+      formatDate(weekStart),
+      '00:00',
+    ),
+    rangeEnd: createDateTimeWithOffset(
+      formatDate(weekEnd),
+      '00:00',
+    ),
+  };
+}
+
+
+function getDayRange(
+  selectedDate: string,
+): {
+  rangeStart: string;
+  rangeEnd: string;
+} {
+  return {
+    rangeStart: createDateTimeWithOffset(
+      selectedDate,
+      '00:00',
+    ),
+    rangeEnd: createDateTimeWithOffset(
+      addDaysToDateString(
+        selectedDate,
+        1,
+      ),
+      '00:00',
+    ),
+  };
+}
+
+
+function getVisibleRange(
+  selectedDate: string,
+  currentView: ViewMode,
+): {
+  rangeStart: string;
+  rangeEnd: string;
+} {
+  if (currentView === 'month') {
+    return getMonthRange(selectedDate);
+  }
+
+
+  if (currentView === 'day') {
+    return getDayRange(selectedDate);
+  }
+
+
+  return getWeekRange(selectedDate);
+}
+
+
+function getFilteredEvents(
+  events: CalendarEvent[],
+  selectedDate: string,
+  activeFilter: FilterChip,
+): CalendarEvent[] {
+  const todayTimestamp = parseDate(
+    TODAY_STR,
+  ).getTime();
+
+
+  return events
+    .filter((event) =>
+      event.date === selectedDate,
+    )
+    .filter((event) => {
+      if (activeFilter === 'meetings') {
+        return event.type === 'meeting';
+      }
+
+
+      if (activeFilter === 'events') {
+        return event.type === 'event';
+      }
+
+
+      if (activeFilter === 'past') {
+        return parseDate(
+          event.date,
+        ).getTime() < todayTimestamp;
+      }
+
+
+      if (activeFilter === 'upcoming') {
+        return parseDate(
+          event.date,
+        ).getTime() >= todayTimestamp;
+      }
+
+
+      return true;
+    })
+    .sort((left, right) => {
+      if (left.isAllDay && !right.isAllDay) {
+        return -1;
+      }
+
+
+      if (!left.isAllDay && right.isAllDay) {
+        return 1;
+      }
+
+
+      return left.timeStart.localeCompare(
+        right.timeStart,
+      );
+    });
+}
+
 
 export default function CalendarIndexScreen() {
   const router = useModuleNav();
   const navigation = useNavigation();
 
-  // Calendar States
-  const [events, setLocalEvents] = useState<CalendarEvent[]>([]);
-  const [selectedDate, setSelectedDate] = useState<string>(TODAY_STR);
-  const [currentView, setCurrentView] = useState<ViewMode>('week');
-  // Search moved to the global Home search bar: the module keeps the filter dormant
-  const [searchQuery] = useState('');
-  const [activeFilter, setActiveFilter] = useState<FilterChip>('upcoming');
 
-  // Menu / Modal states
-  const [activeEvent, setActiveEvent] = useState<CalendarEvent | null>(null);
-  const [contextMenuVisible, setContextMenuVisible] = useState(false);
-  const [fabMenuVisible, setFabMenuVisible] = useState(false);
-  const [monthPickerVisible, setMonthPickerVisible] = useState(false);
-  const [yearPickerVisible, setYearPickerVisible] = useState(false);
+  const {
+    events,
+    loading,
+    refreshing,
+    error,
+    loadCalendar,
+    deleteEvent,
+    duplicateEvent,
+  } = useCalendar();
 
-  const handleSelectMonth = (monthIdx: number) => {
-    const cur = parseDate(selectedDate);
-    const updated = new Date(cur.getFullYear(), monthIdx, Math.min(cur.getDate(), 28));
-    setSelectedDate(formatDate(updated));
-  };
 
-  const handleSelectYear = (year: number) => {
-    const cur = parseDate(selectedDate);
-    const updated = new Date(year, cur.getMonth(), Math.min(cur.getDate(), 28));
-    setSelectedDate(formatDate(updated));
-  };
+  const [selectedDate, setSelectedDate] = useState(
+    TODAY_STR,
+  );
 
-  // Load events
+
+  const [currentView, setCurrentView] = useState<ViewMode>(
+    'week',
+  );
+
+
+  const [activeFilter, setActiveFilter] = useState<FilterChip>(
+    'upcoming',
+  );
+
+
+  const [activeEvent, setActiveEvent] =
+    useState<CalendarEvent | null>(null);
+
+
+  const [contextMenuVisible, setContextMenuVisible] =
+    useState(false);
+
+
+  const [fabMenuVisible, setFabMenuVisible] =
+    useState(false);
+
+
+  const [monthPickerVisible, setMonthPickerVisible] =
+    useState(false);
+
+
+  const [yearPickerVisible, setYearPickerVisible] =
+    useState(false);
+
+
+  const visibleRange = useMemo(
+    () => getVisibleRange(
+      selectedDate,
+      currentView,
+    ),
+    [
+      currentView,
+      selectedDate,
+    ],
+  );
+
+
+  const filteredEvents = useMemo(
+    () => getFilteredEvents(
+      events,
+      selectedDate,
+      activeFilter,
+    ),
+    [
+      activeFilter,
+      events,
+      selectedDate,
+    ],
+  );
+
+
+  const loadVisibleRange = useCallback((
+    showRefresh = false,
+  ) => {
+    return loadCalendar(
+      visibleRange,
+      showRefresh,
+    );
+  }, [
+    loadCalendar,
+    visibleRange,
+  ]);
+
+
   useEffect(() => {
-    setLocalEvents(getEvents());
-    const unsubscribe = navigation.addListener('focus', () => {
-      setLocalEvents(getEvents());
-    });
+    void loadVisibleRange();
+  }, [loadVisibleRange]);
+
+
+  useEffect(() => {
+    const unsubscribe = navigation.addListener(
+      'focus',
+      () => {
+        void loadVisibleRange(true);
+      },
+    );
+
+
     return unsubscribe;
-  }, [navigation]);
+  }, [
+    loadVisibleRange,
+    navigation,
+  ]);
 
-  const syncEvents = (newEvents: CalendarEvent[]) => {
-    setLocalEvents(newEvents);
-    setEvents(newEvents);
+
+  const handleSelectMonth = (
+    monthIndex: number,
+  ) => {
+    const currentDate = parseDate(selectedDate);
+    const nextDate = new Date(
+      currentDate.getFullYear(),
+      monthIndex,
+      Math.min(
+        currentDate.getDate(),
+        28,
+      ),
+    );
+
+
+    setSelectedDate(
+      formatDate(nextDate),
+    );
   };
 
-  // Delete event
-  const handleDeleteEvent = (event: CalendarEvent) => {
-    const updated = events.filter((e) => e.id !== event.id);
-    syncEvents(updated);
-    alert('Reunión/Evento eliminado.');
-    setContextMenuVisible(false);
-    setActiveEvent(null);
+
+  const handleSelectYear = (
+    year: number,
+  ) => {
+    const currentDate = parseDate(selectedDate);
+    const nextDate = new Date(
+      year,
+      currentDate.getMonth(),
+      Math.min(
+        currentDate.getDate(),
+        28,
+      ),
+    );
+
+
+    setSelectedDate(
+      formatDate(nextDate),
+    );
   };
 
-  // Duplicate event
-  const handleDuplicateEvent = (event: CalendarEvent) => {
-    const duplicated: CalendarEvent = {
-      ...event,
-      id: `e-dup-${Date.now()}`,
-      title: `${event.title} (Copia)`,
-      date: TODAY_STR,
-    };
-    syncEvents([...events, duplicated]);
-    alert('Elemento duplicado para Hoy.');
-    setContextMenuVisible(false);
-    setActiveEvent(null);
-  };
 
-  // Filter events logic
-  const getFilteredEvents = () => {
-    let list = events;
-
-    // 1. Search Query
-    if (searchQuery) {
-      list = list.filter((e) => e.title.toLowerCase().includes(searchQuery.toLowerCase()));
-    } else {
-      // If not searching, filter by selected date
-      list = list.filter((e) => e.date === selectedDate);
-    }
-
-    // 2. Filter chips
-    const todayNum = new Date(TODAY_STR).getTime();
-    if (activeFilter === 'upcoming') {
-      list = list.filter((e) => new Date(e.date).getTime() >= todayNum);
-    } else if (activeFilter === 'past') {
-      list = list.filter((e) => new Date(e.date).getTime() < todayNum);
-    } else if (activeFilter === 'meetings') {
-      list = list.filter((e) => e.type === 'meeting');
-    } else if (activeFilter === 'events') {
-      list = list.filter((e) => e.type === 'event');
-    }
-
-    return list.sort((a, b) => a.timeStart.localeCompare(b.timeStart));
-  };
-
-  // Side arrows: move a day / a week / a month depending on the active view
-  const shiftPeriod = (direction: -1 | 1) => {
+  const shiftPeriod = (
+    direction: -1 | 1,
+  ) => {
     if (currentView === 'month') {
-      setSelectedDate(addMonths(selectedDate, direction));
-    } else {
-      setSelectedDate(addDays(selectedDate, currentView === 'day' ? direction : direction * 7));
+      setSelectedDate(
+        addMonths(
+          selectedDate,
+          direction,
+        ),
+      );
+
+
+      return;
     }
+
+
+    setSelectedDate(
+      addDays(
+        selectedDate,
+        currentView === 'day'
+          ? direction
+          : direction * 7,
+      ),
+    );
   };
 
-  const handleFabAction = (type: 'meeting' | 'event') => {
+
+  const handleFabAction = (
+    type: 'meeting' | 'event',
+  ) => {
     setFabMenuVisible(false);
+
+
     router.push({
       pathname: '/(main)/calendar/edit',
-      params: { type, date: selectedDate },
+      params: {
+        type,
+        date: selectedDate,
+      },
     });
   };
 
-  const openContextMenu = (event: CalendarEvent) => {
+
+  const openContextMenu = (
+    event: CalendarEvent,
+  ) => {
     setActiveEvent(event);
     setContextMenuVisible(true);
   };
 
-  const goToDetail = (event: CalendarEvent) => {
+
+  const closeContextMenu = () => {
+    setContextMenuVisible(false);
+    setActiveEvent(null);
+  };
+
+
+  const goToDetail = (
+    event: CalendarEvent,
+  ) => {
+    closeContextMenu();
+
+
     router.push({
       pathname: '/(main)/calendar/detail',
-      params: { id: event.id },
+      params: {
+        id: event.id,
+      },
     });
   };
 
-  const filteredEvents = getFilteredEvents();
+
+  const handleEditEvent = (
+    event: CalendarEvent,
+  ) => {
+    closeContextMenu();
+
+
+    router.push({
+      pathname: '/(main)/calendar/edit',
+      params: {
+        id: event.id,
+        type: event.type,
+      },
+    });
+  };
+
+
+  const handleDeleteEvent = (
+    event: CalendarEvent,
+  ) => {
+    Alert.alert(
+      'Eliminar evento',
+      (
+        `¿Estás seguro de eliminar `
+        + `“${event.title}”?`
+      ),
+      [
+        {
+          text: 'Cancelar',
+          style: 'cancel',
+        },
+        {
+          text: 'Eliminar',
+          style: 'destructive',
+          onPress: () => {
+            void confirmDeleteEvent(event);
+          },
+        },
+      ],
+    );
+  };
+
+
+  const confirmDeleteEvent = async (
+    event: CalendarEvent,
+  ) => {
+    try {
+      await deleteEvent(event.id);
+      closeContextMenu();
+
+
+      Alert.alert(
+        'Evento eliminado',
+        'El evento fue eliminado de tu agenda.',
+      );
+
+
+      await loadVisibleRange(true);
+    } catch (deleteError) {
+      Alert.alert(
+        'No fue posible eliminar el evento',
+        deleteError instanceof Error
+          ? deleteError.message
+          : 'Intenta nuevamente.',
+      );
+    }
+  };
+
+
+  const handleDuplicateEvent = (
+    event: CalendarEvent,
+  ) => {
+    Alert.alert(
+      'Duplicar evento',
+      (
+        `Se creará una copia de “${event.title}” `
+        + `para el ${selectedDate}.`
+      ),
+      [
+        {
+          text: 'Cancelar',
+          style: 'cancel',
+        },
+        {
+          text: 'Duplicar',
+          onPress: () => {
+            void confirmDuplicateEvent(event);
+          },
+        },
+      ],
+    );
+  };
+
+
+  const confirmDuplicateEvent = async (
+    event: CalendarEvent,
+  ) => {
+    try {
+      if (event.isAllDay) {
+        await duplicateEvent(
+          event.id,
+          {
+            starts_on: selectedDate,
+            ends_on: addDaysToDateString(
+              selectedDate,
+              1,
+            ),
+            include_attendees: false,
+            include_reminders: true,
+            include_recurrence: false,
+          },
+        );
+      } else {
+        await duplicateEvent(
+          event.id,
+          {
+            starts_at: createDateTimeWithOffset(
+              selectedDate,
+              event.timeStart,
+            ),
+            ends_at: createDateTimeWithOffset(
+              selectedDate,
+              event.timeEnd,
+            ),
+            include_attendees: false,
+            include_reminders: true,
+            include_recurrence: false,
+          },
+        );
+      }
+
+
+      closeContextMenu();
+
+
+      Alert.alert(
+        'Evento duplicado',
+        (
+          `Se creó una copia para el `
+          + `${selectedDate}.`
+        ),
+      );
+
+
+      await loadVisibleRange(true);
+    } catch (duplicateError) {
+      Alert.alert(
+        'No fue posible duplicar el evento',
+        duplicateError instanceof Error
+          ? duplicateError.message
+          : 'Intenta nuevamente.',
+      );
+    }
+  };
+
+
+  const selectedDateLabel = useMemo(() => {
+    const date = parseDate(selectedDate);
+
+
+    return (
+      `Eventos del ${date.getDate()} `
+      + `de ${monthName(date)}`
+    );
+  }, [selectedDate]);
+
 
   return (
     <ScreenSafeArea style={styles.safeArea}>
       <View style={styles.container}>
         <CalendarHeader
-          onBack={router.canGoBack ? () => router.back() : undefined}
-          onAction={router.embedded ? () => setFabMenuVisible(!fabMenuVisible) : undefined}
+          onBack={
+            router.canGoBack
+              ? () => router.back()
+              : undefined
+          }
+          onAction={
+            router.embedded
+              ? () =>
+                setFabMenuVisible(
+                  (visible) => !visible,
+                )
+              : undefined
+          }
           onToday={() => setSelectedDate(TODAY_STR)}
           currentView={currentView}
           onViewChange={setCurrentView}
         />
 
-        {/* Compact day strip (default) or the full month grid under "Mes" */}
+
         {currentView === 'month' ? (
           <View style={styles.monthViewport}>
             <View style={styles.navRow}>
-              <TouchableOpacity style={styles.navBtn} onPress={() => shiftPeriod(-1)} activeOpacity={0.7}>
-                <ChevronLeft size={18} color={colors.brand.primary} />
+              <TouchableOpacity
+                style={styles.navBtn}
+                onPress={() => shiftPeriod(-1)}
+                activeOpacity={0.7}
+              >
+                <ChevronLeft
+                  size={18}
+                  color={colors.brand.primary}
+                />
               </TouchableOpacity>
-              <TouchableOpacity onPress={() => setMonthPickerVisible(true)} activeOpacity={0.7}>
-                <Text style={styles.navLabel}>{periodLabel(selectedDate, 'month')}</Text>
+
+
+              <TouchableOpacity
+                onPress={() =>
+                  setMonthPickerVisible(true)
+                }
+                activeOpacity={0.7}
+              >
+                <Text style={styles.navLabel}>
+                  {periodLabel(
+                    selectedDate,
+                    'month',
+                  )}
+                </Text>
               </TouchableOpacity>
-              <TouchableOpacity style={styles.navBtn} onPress={() => shiftPeriod(1)} activeOpacity={0.7}>
-                <ChevronRight size={18} color={colors.brand.primary} />
+
+
+              <TouchableOpacity
+                style={styles.navBtn}
+                onPress={() => shiftPeriod(1)}
+                activeOpacity={0.7}
+              >
+                <ChevronRight
+                  size={18}
+                  color={colors.brand.primary}
+                />
               </TouchableOpacity>
             </View>
-            <CalendarMonthGrid events={events} selectedDate={selectedDate} onSelectDate={setSelectedDate} />
+
+
+            <CalendarMonthGrid
+              events={events}
+              selectedDate={selectedDate}
+              onSelectDate={setSelectedDate}
+            />
           </View>
         ) : (
           <CalendarWeekStrip
@@ -175,73 +709,146 @@ export default function CalendarIndexScreen() {
             selectedDate={selectedDate}
             onSelectDate={setSelectedDate}
             onShift={shiftPeriod}
-            label={periodLabel(selectedDate, currentView)}
-            onOpenMonthPicker={() => setMonthPickerVisible(true)}
-            onOpenYearPicker={() => setYearPickerVisible(true)}
+            label={periodLabel(
+              selectedDate,
+              currentView,
+            )}
+            onOpenMonthPicker={() =>
+              setMonthPickerVisible(true)
+            }
+            onOpenYearPicker={() =>
+              setYearPickerVisible(true)
+            }
           />
         )}
 
-        <ScrollView style={styles.mainScroll} showsVerticalScrollIndicator={false}>
-          {/* Filter Chips */}
-          <CalendarFilterChips activeFilter={activeFilter} onChange={setActiveFilter} />
 
-          {/* Day planner (only in "Día") */}
-          {currentView === 'day' && (
-            <View style={styles.plannerContainer}>
-              <Text style={styles.plannerSelectedDay}>Planificación por horas</Text>
-              <CalendarHourlyAgenda
-                events={events}
-                selectedDate={selectedDate}
+        <ScrollView
+          style={styles.mainScroll}
+          showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={() => {
+                void loadVisibleRange(true);
+              }}
+              tintColor={colors.brand.primary}
+            />
+          }
+        >
+          <CalendarFilterChips
+            activeFilter={activeFilter}
+            onChange={setActiveFilter}
+          />
+
+
+          {loading && events.length === 0 ? (
+            <View style={styles.initialLoading}>
+              <ActivityIndicator
+                size="large"
+                color={colors.brand.primary}
+              />
+
+
+              <Text style={styles.initialLoadingText}>
+                Cargando tu agenda...
+              </Text>
+            </View>
+          ) : (
+            <>
+              {error && (
+                <View style={styles.errorCard}>
+                  <Text style={styles.errorTitle}>
+                    No fue posible cargar Agenda
+                  </Text>
+
+
+                  <Text style={styles.errorText}>
+                    {error}
+                  </Text>
+
+
+                  <TouchableOpacity
+                    style={styles.retryButton}
+                    onPress={() => {
+                      void loadVisibleRange(true);
+                    }}
+                    activeOpacity={0.8}
+                  >
+                    <Text style={styles.retryButtonText}>
+                      Reintentar
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+
+
+              {currentView === 'day' && (
+                <View style={styles.plannerContainer}>
+                  <Text style={styles.plannerSelectedDay}>
+                    Planificación por horas
+                  </Text>
+
+
+                  <CalendarHourlyAgenda
+                    events={events}
+                    selectedDate={selectedDate}
+                    onEventPress={goToDetail}
+                    onEventLongPress={openContextMenu}
+                  />
+                </View>
+              )}
+
+
+              <Text style={styles.sectionTitle}>
+                {selectedDateLabel}
+              </Text>
+
+
+              <CalendarEventsList
+                events={filteredEvents}
                 onEventPress={goToDetail}
                 onEventLongPress={openContextMenu}
               />
-            </View>
+            </>
           )}
 
-          {/* Events of the selected day */}
-          <Text style={styles.sectionTitle}>
-            {`Eventos del ${parseDate(selectedDate).getDate()} de ${monthName(parseDate(selectedDate))}`}
-          </Text>
-          <CalendarEventsList
-            events={filteredEvents}
-            onEventPress={goToDetail}
-            onEventLongPress={openContextMenu}
-          />
 
-          <View style={{ height: 120 }} />
+          <View style={styles.bottomSpacer} />
         </ScrollView>
 
-        {/* Month and Year Pickers */}
+
         <MonthPickerModal
           visible={monthPickerVisible}
           selectedDate={selectedDate}
-          onClose={() => setMonthPickerVisible(false)}
+          onClose={() =>
+            setMonthPickerVisible(false)
+          }
           onSelectMonth={handleSelectMonth}
         />
+
+
         <YearPickerModal
           visible={yearPickerVisible}
           selectedDate={selectedDate}
-          onClose={() => setYearPickerVisible(false)}
+          onClose={() =>
+            setYearPickerVisible(false)
+          }
           onSelectYear={handleSelectYear}
         />
 
-        {/* Options Context Menu Overlay */}
+
         <CalendarContextMenu
           visible={contextMenuVisible}
           event={activeEvent}
-          onClose={() => setContextMenuVisible(false)}
+          onClose={closeContextMenu}
           onViewDetail={goToDetail}
-          onEdit={(event) =>
-            router.push({
-              pathname: '/(main)/calendar/edit',
-              params: { id: event.id, type: event.type },
-            })
-          }
+          onEdit={handleEditEvent}
           onDuplicate={handleDuplicateEvent}
           onDelete={handleDeleteEvent}
         />
 
-        {/* FAB Menu Selection Drawer */}
+
         <CalendarFabMenu
           embedded={router.embedded}
           visible={fabMenuVisible}
@@ -249,23 +856,33 @@ export default function CalendarIndexScreen() {
           onAction={handleFabAction}
         />
 
-        {/* FAB (+) Trigger - standalone only: embedded it lives in the header */}
+
         {!router.embedded && (
           <TouchableOpacity
             style={styles.createFab}
-            onPress={() => setFabMenuVisible(!fabMenuVisible)}
+            onPress={() =>
+              setFabMenuVisible(
+                (visible) => !visible,
+              )
+            }
             activeOpacity={0.8}
           >
-            <Plus size={24} color={colors.neutral.white} />
+            <Plus
+              size={24}
+              color={colors.neutral.white}
+            />
           </TouchableOpacity>
         )}
 
-        {/* Tab Menu bar */}
-        {!router.embedded && <FloatingTabBar activeTab="explore" />}
+
+        {!router.embedded && (
+          <FloatingTabBar activeTab="explore" />
+        )}
       </View>
     </ScreenSafeArea>
   );
 }
+
 
 const styles = StyleSheet.create({
   safeArea: {
@@ -326,6 +943,52 @@ const styles = StyleSheet.create({
     marginHorizontal: 20,
     marginBottom: 10,
   },
+  initialLoading: {
+    minHeight: 260,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 28,
+    gap: 12,
+  },
+  initialLoadingText: {
+    fontSize: 14,
+    fontWeight: '400',
+    color: colors.neutral.gray600,
+  },
+  errorCard: {
+    marginHorizontal: 20,
+    marginBottom: 20,
+    padding: 16,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: colors.semantic.error + '40',
+    backgroundColor: colors.semantic.error + '12',
+  },
+  errorTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: colors.semantic.error,
+    marginBottom: 4,
+  },
+  errorText: {
+    fontSize: 12,
+    fontWeight: '400',
+    color: colors.neutral.gray700,
+    lineHeight: 18,
+  },
+  retryButton: {
+    alignSelf: 'flex-start',
+    marginTop: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 9,
+    borderRadius: 10,
+    backgroundColor: colors.brand.primary,
+  },
+  retryButtonText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: colors.neutral.white,
+  },
   createFab: {
     position: 'absolute',
     bottom: FAB_BOTTOM_OFFSET,
@@ -337,9 +1000,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     shadowColor: colors.brand.primary,
-    shadowOffset: { width: 0, height: 4 },
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
     shadowOpacity: 0.25,
     shadowRadius: 8,
     elevation: 5,
+  },
+  bottomSpacer: {
+    height: 130,
   },
 });

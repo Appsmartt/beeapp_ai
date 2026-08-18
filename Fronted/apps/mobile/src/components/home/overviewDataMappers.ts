@@ -9,43 +9,63 @@ import {
   Lock,
   Video,
 } from 'lucide-react-native';
-import { colors } from '@beeapp/design-system';
-
-import { OverviewEntry } from './OverviewSection';
-import { MOCK_CHATS } from '../../mocks/chats';
-import { MOCK_EMAILS } from '../../mocks/emails';
-import { MOCK_NOTES } from '../../mocks/notes';
 import {
-  getEvents,
+  colors,
+} from '@beeapp/design-system';
+
+import {
+  type OverviewEntry,
+} from './OverviewSection';
+import {
+  MOCK_CHATS,
+} from '../../mocks/chats';
+import {
+  MOCK_EMAILS,
+} from '../../mocks/emails';
+import {
+  MOCK_NOTES,
+} from '../../mocks/notes';
+import {
+  getCalendarEvents,
   TODAY_STR,
-  TOMORROW_STR,
 } from '../../stores/calendarStore';
 import {
   getItems,
-  StorageItem,
+  type StorageItem,
 } from '../../stores/storageStore';
-import { isProtected } from '../../stores/pinStore';
+import {
+  isProtected,
+} from '../../stores/pinStore';
+
 
 export interface OverviewTarget {
   pathname: string;
   params?: Record<string, string>;
 }
 
+
 export interface OverviewRow {
   entry: OverviewEntry;
   target: OverviewTarget;
 }
 
+
 const PREVIEW_COUNT = 5;
 
-const initialsOf = (name: string) =>
+
+const initialsOf = (
+  name: string,
+): string =>
   name
     .replace(/[^\p{L}\p{N}\s]/gu, '')
     .trim()
     .split(/\s+/)
     .slice(0, 2)
-    .map((word) => word.charAt(0).toUpperCase())
+    .map((word) =>
+      word.charAt(0).toUpperCase(),
+    )
     .join('');
+
 
 const FILE_ICONS: Record<
   StorageItem['type'],
@@ -61,6 +81,7 @@ const FILE_ICONS: Record<
   other: File,
 };
 
+
 const FILE_LABELS: Record<
   StorageItem['type'],
   string
@@ -74,6 +95,7 @@ const FILE_LABELS: Record<
   archive: 'Archivo comprimido',
   other: 'Archivo',
 };
+
 
 const MONTHS = [
   'Ene',
@@ -90,21 +112,66 @@ const MONTHS = [
   'Dic',
 ];
 
-const eventDayLabel = (date: string) => {
+
+function addDaysToDateString(
+  value: string,
+  days: number,
+): string {
+  const [year, month, day] = value
+    .split('-')
+    .map(Number);
+
+
+  const date = new Date(
+    year,
+    month - 1,
+    day,
+  );
+
+
+  date.setDate(date.getDate() + days);
+
+
+  const nextYear = date.getFullYear();
+  const nextMonth = String(
+    date.getMonth() + 1,
+  ).padStart(2, '0');
+  const nextDay = String(
+    date.getDate(),
+  ).padStart(2, '0');
+
+
+  return `${nextYear}-${nextMonth}-${nextDay}`;
+}
+
+
+const eventDayLabel = (
+  date: string,
+): string => {
   if (date === TODAY_STR) {
     return 'Hoy';
   }
 
-  if (date === TOMORROW_STR) {
+
+  const tomorrow = addDaysToDateString(
+    TODAY_STR,
+    1,
+  );
+
+
+  if (date === tomorrow) {
     return 'Mañana';
   }
 
+
   const [, month, day] = date.split('-');
+
 
   return `${Number(day)} ${
     MONTHS[Number(month) - 1] ?? ''
   }`.trim();
 };
+
 
 const mailRows = (): OverviewRow[] =>
   MOCK_EMAILS.slice(0, PREVIEW_COUNT).map(
@@ -123,22 +190,28 @@ const mailRows = (): OverviewRow[] =>
       },
       target: {
         pathname: '/(main)/mail/detail',
-        params: { id: email.id },
+        params: {
+          id: email.id,
+        },
       },
     }),
   );
+
 
 const chatRows = (): OverviewRow[] =>
   MOCK_CHATS.slice(0, PREVIEW_COUNT).map(
     (chat) => {
       const chatLocked = isProtected(chat.id);
 
+
       return {
         entry: {
           initials: chat.isAI
             ? undefined
             : initialsOf(chat.name),
-          icon: chat.isAI ? Bot : undefined,
+          icon: chat.isAI
+            ? Bot
+            : undefined,
           iconColor: chat.isAI
             ? colors.brand.primary
             : colors.neutral.gray600,
@@ -168,16 +241,21 @@ const chatRows = (): OverviewRow[] =>
     },
   );
 
+
 const noteRows = (): OverviewRow[] =>
   MOCK_NOTES.slice(0, PREVIEW_COUNT).map(
     (note) => {
       const locked =
-        note.isProtected || isProtected(note.id);
+        note.isProtected
+        || isProtected(note.id);
+
 
       return {
         entry: {
           key: note.id,
-          icon: locked ? Lock : FileText,
+          icon: locked
+            ? Lock
+            : FileText,
           iconColor: colors.neutral.gray600,
           avatarColor: colors.neutral.gray100,
           title: locked
@@ -190,11 +268,14 @@ const noteRows = (): OverviewRow[] =>
         },
         target: {
           pathname: '/(main)/notes/edit',
-          params: { id: note.id },
+          params: {
+            id: note.id,
+          },
         },
       };
     },
   );
+
 
 const fileRows = (): OverviewRow[] =>
   getItems()
@@ -225,46 +306,77 @@ const fileRows = (): OverviewRow[] =>
       },
       target:
         item.type === 'folder'
-          ? { pathname: '/(main)/storage' }
+          ? {
+            pathname: '/(main)/storage',
+          }
           : {
             pathname: '/(main)/storage/preview',
-            params: { id: item.id },
+            params: {
+              id: item.id,
+            },
           },
     }));
 
+
 const calendarRows = (): OverviewRow[] =>
-  getEvents()
-    .filter((event) => event.date >= TODAY_STR)
-    .sort((first, second) =>
-      (
-        first.date
-        + first.timeStart
-      ).localeCompare(
-        second.date + second.timeStart,
-      ),
+  getCalendarEvents()
+    .filter((event) =>
+      event.date >= TODAY_STR,
     )
+    .sort((first, second) => {
+      if (first.date !== second.date) {
+        return first.date.localeCompare(
+          second.date,
+        );
+      }
+
+
+      if (first.isAllDay && !second.isAllDay) {
+        return -1;
+      }
+
+
+      if (!first.isAllDay && second.isAllDay) {
+        return 1;
+      }
+
+
+      return first.timeStart.localeCompare(
+        second.timeStart,
+      );
+    })
     .slice(0, PREVIEW_COUNT)
     .map((event) => ({
       entry: {
         key: event.id,
-        icon: event.isVirtual ? Video : Calendar,
-        iconColor: colors.neutral.gray600,
-        avatarColor: colors.neutral.gray100,
+        icon: event.isVirtual
+          ? Video
+          : Calendar,
+        iconColor: event.color
+          || colors.neutral.gray600,
+        avatarColor: event.color
+          ? `${event.color}18`
+          : colors.neutral.gray100,
         title: event.title,
-        subtitle: `${event.timeStart} - ${
-          event.timeEnd
-        } · ${
-          event.isVirtual
-            ? 'Virtual'
-            : event.location ?? 'Presencial'
-        }`,
+        subtitle: event.isAllDay
+          ? 'Todo el día'
+          : (
+            `${event.timeStart} · ${
+              event.isVirtual
+                ? 'Virtual'
+                : event.location || 'Presencial'
+            }`
+          ),
         timestamp: eventDayLabel(event.date),
       },
       target: {
         pathname: '/(main)/calendar/detail',
-        params: { id: event.id },
+        params: {
+          id: event.id,
+        },
       },
     }));
+
 
 const BUILDERS: Record<
   string,
@@ -276,6 +388,7 @@ const BUILDERS: Record<
   files: fileRows,
   calendar: calendarRows,
 };
+
 
 export const getOverviewRows = (
   moduleId: string,

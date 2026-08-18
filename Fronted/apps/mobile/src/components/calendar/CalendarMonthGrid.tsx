@@ -1,58 +1,159 @@
+import {
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from 'react-native';
+import {
+  colors,
+} from '@beeapp/design-system';
 
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
-import { colors } from '@beeapp/design-system';
-import { CalendarEvent, TODAY_STR } from '../../stores/calendarStore';
-import { parseDate, formatDate } from '../../utils/dateHelpers';
+import type {
+  CalendarEvent,
+} from '../../stores/calendarStore';
+import {
+  formatDate,
+  parseDate,
+} from '../../utils/dateHelpers';
+
 
 interface CalendarMonthGridProps {
   events: CalendarEvent[];
   selectedDate: string;
-  onSelectDate: (dateStr: string) => void;
+  onSelectDate: (date: string) => void;
 }
 
-export default function CalendarMonthGrid({ events, selectedDate, onSelectDate }: CalendarMonthGridProps) {
-  // Check if date has events
-  const dateHasEvents = (dateStr: string) => {
-    return events.some((e) => e.date === dateStr);
-  };
 
-  // Grid of the month the selected date belongs to (weeks start on Monday)
+function getTodayString(): string {
+  const today = new Date();
+
+
+  return formatDate(today);
+}
+
+
+export default function CalendarMonthGrid({
+  events,
+  selectedDate,
+  onSelectDate,
+}: CalendarMonthGridProps) {
   const selected = parseDate(selectedDate);
   const year = selected.getFullYear();
   const month = selected.getMonth();
-  const totalDays = new Date(year, month + 1, 0).getDate();
-  const firstWeekday = (new Date(year, month, 1).getDay() + 6) % 7; // 0 = Monday
-  const prefixes = Array.from({ length: firstWeekday });
-  const monthDays = Array.from({ length: totalDays }, (_, i) => {
-    const date = new Date(year, month, i + 1);
-    return { dayNum: i + 1, dateStr: formatDate(date) };
+
+
+  const totalDays = new Date(
+    year,
+    month + 1,
+    0,
+  ).getDate();
+
+
+  const firstWeekday = (
+    new Date(year, month, 1).getDay() + 6
+  ) % 7;
+
+
+  const prefixes = Array.from({
+    length: firstWeekday,
   });
+
+
+  const monthDays = Array.from(
+    {
+      length: totalDays,
+    },
+    (_, index) => {
+      const date = new Date(
+        year,
+        month,
+        index + 1,
+      );
+
+
+      return {
+        dayNumber: index + 1,
+        dateString: formatDate(date),
+      };
+    },
+  );
+
+
+  const eventsByDate = events.reduce(
+    (accumulator, event) => {
+      const existingEvents = accumulator.get(
+        event.date,
+      ) || [];
+
+
+      accumulator.set(
+        event.date,
+        [
+          ...existingEvents,
+          event,
+        ],
+      );
+
+
+      return accumulator;
+    },
+    new Map<string, CalendarEvent[]>(),
+  );
+
+
+  const todayString = getTodayString();
+
 
   return (
     <View style={styles.monthGrid}>
-      {/* Days of Week Header */}
-      {['LUN', 'MAR', 'MIÉ', 'JUE', 'VIE', 'SÁB', 'DOM'].map((day) => (
-        <Text key={day} style={styles.gridDayHeader}>{day}</Text>
+      {[
+        'LUN',
+        'MAR',
+        'MIÉ',
+        'JUE',
+        'VIE',
+        'SÁB',
+        'DOM',
+      ].map((day) => (
+        <Text
+          key={day}
+          style={styles.gridDayHeader}
+        >
+          {day}
+        </Text>
       ))}
 
-      {prefixes.map((_, i) => (
-        <View key={`pre-${i}`} style={styles.gridDayBoxEmpty} />
+
+      {prefixes.map((_, index) => (
+        <View
+          key={`pre-${index}`}
+          style={styles.gridDayBoxEmpty}
+        />
       ))}
 
-      {monthDays.map(({ dayNum, dateStr }) => {
-        const isToday = dateStr === TODAY_STR;
-        const isSelected = dateStr === selectedDate;
-        const hasEvent = dateHasEvents(dateStr);
+
+      {monthDays.map(({
+        dayNumber,
+        dateString,
+      }) => {
+        const isToday = dateString === todayString;
+        const isSelected = dateString === selectedDate;
+        const dayEvents = eventsByDate.get(
+          dateString,
+        ) || [];
+        const primaryColor = dayEvents[0]?.color
+          || colors.brand.primary;
+
 
         return (
           <TouchableOpacity
-            key={dateStr}
+            key={dateString}
             style={[
               styles.gridDayBox,
               isToday && styles.gridDayBoxToday,
               isSelected && styles.gridDayBoxSelected,
             ]}
-            onPress={() => onSelectDate(dateStr)}
+            onPress={() => onSelectDate(dateString)}
             activeOpacity={0.8}
           >
             <Text
@@ -62,15 +163,34 @@ export default function CalendarMonthGrid({ events, selectedDate, onSelectDate }
                 isSelected && styles.gridDayTextSelected,
               ]}
             >
-              {dayNum}
+              {dayNumber}
             </Text>
-            {hasEvent && (
+
+
+            {dayEvents.length > 0 && (
               <View
                 style={[
                   styles.gridEventDot,
-                  isSelected && { backgroundColor: colors.neutral.white },
+                  {
+                    backgroundColor: isSelected
+                      ? colors.neutral.white
+                      : primaryColor,
+                  },
                 ]}
               />
+            )}
+
+
+            {dayEvents.length > 1 && (
+              <Text
+                style={[
+                  styles.eventCount,
+                  isSelected
+                    && styles.eventCountSelected,
+                ]}
+              >
+                {dayEvents.length}
+              </Text>
             )}
           </TouchableOpacity>
         );
@@ -78,6 +198,7 @@ export default function CalendarMonthGrid({ events, selectedDate, onSelectDate }
     </View>
   );
 }
+
 
 const styles = StyleSheet.create({
   monthGrid: {
@@ -89,7 +210,7 @@ const styles = StyleSheet.create({
     width: '14.28%',
     textAlign: 'center',
     fontSize: 9,
-    fontWeight: '400',
+    fontWeight: '500',
     color: colors.neutral.gray600,
     marginBottom: 8,
   },
@@ -130,8 +251,18 @@ const styles = StyleSheet.create({
     width: 4,
     height: 4,
     borderRadius: 2,
-    backgroundColor: colors.brand.primary,
     position: 'absolute',
     bottom: 6,
+  },
+  eventCount: {
+    position: 'absolute',
+    top: 3,
+    right: 5,
+    fontSize: 8,
+    fontWeight: '600',
+    color: colors.neutral.gray600,
+  },
+  eventCountSelected: {
+    color: colors.neutral.white,
   },
 });

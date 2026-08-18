@@ -1,29 +1,82 @@
+import type {
+  Calendar,
+  CalendarPreferences,
+} from '@beeapp/shared-types';
+
+
+export type CalendarEventType =
+  | 'meeting'
+  | 'event';
+
+
+export type CalendarRepeat =
+  | 'none'
+  | 'daily'
+  | 'weekly'
+  | 'monthly'
+  | 'yearly'
+  | 'custom';
+
+
 export interface Invitee {
   id: string;
+  userId: string | null;
   name: string;
   initials: string;
   color: string;
   status: 'accepted' | 'pending' | 'declined';
+  isOrganizer?: boolean;
 }
+
 
 export interface CalendarEvent {
   id: string;
+  calendarId: string;
+  organizerId: string;
   title: string;
-  type: 'meeting' | 'event';
-  date: string; // YYYY-MM-DD format
-  timeStart: string; // HH:MM format
-  timeEnd: string; // HH:MM format
-  duration: string; // e.g. "45 min", "1 hora"
+  type: CalendarEventType;
+  backendKind: 'virtual' | 'in_person' | 'hybrid';
+  color: string;
+  date: string;
+  timeStart: string;
+  timeEnd: string;
+  duration: string;
+  isAllDay: boolean;
   isVirtual: boolean;
   videoUrl?: string;
   location?: string;
+  locationAddress?: string;
+  locationMapsUrl?: string;
   description: string;
   reminder: string;
-  repeat: 'none' | 'daily' | 'weekly' | 'monthly';
-  organizer?: { name: string; initials: string; color: string };
-  userResponse?: 'accepted' | 'maybe' | 'declined' | 'pending';
+  reminderMinutes: number | null;
+  repeat: CalendarRepeat;
+  recurrenceRule?: string;
+  organizer?: {
+    id: string;
+    name: string;
+    initials: string;
+    color: string;
+  };
+  userResponse?: 'accepted' | 'declined' | 'pending';
+  canManage: boolean;
+  isPrivate: boolean;
+  notificationsEnabled: boolean;
+  timezone: string;
   invitees: Invitee[];
+  createdAt: string;
+  updatedAt: string;
 }
+
+
+export interface CalendarCache {
+  events: CalendarEvent[];
+  calendars: Calendar[];
+  preferences: CalendarPreferences | null;
+  rangeStart: string | null;
+  rangeEnd: string | null;
+}
+
 
 export const REMINDER_OPTIONS = [
   'Sin recordatorio',
@@ -37,75 +90,136 @@ export const REMINDER_OPTIONS = [
   '2 días antes',
 ] as const;
 
-export const MOCK_CONTACTS: Omit<Invitee, 'status'>[] = [
-  { id: 'c1', name: 'Carlos Mendoza', initials: 'CM', color: '#EBF5FF' },
-  { id: 'c2', name: 'Eduardo Torres', initials: 'ET', color: '#FEF3C7' },
-  { id: 'c3', name: 'María Gómez', initials: 'MG', color: '#ECFDF5' },
-  { id: 'c4', name: 'Sofía Castro', initials: 'SC', color: '#F3E8FF' },
-  { id: 'd1', name: 'Alejandro Ruiz', initials: 'AR', color: '#E0F2FE' },
-  { id: 'd2', name: 'Laura Ramos', initials: 'LR', color: '#FEE2E2' },
-];
 
-const todayObj = new Date();
-const tomorrowObj = new Date(todayObj);
-tomorrowObj.setDate(todayObj.getDate() + 1);
+const today = new Date();
 
-const formatDate = (date: Date) => {
-  const yyyy = date.getFullYear();
-  const mm = String(date.getMonth() + 1).padStart(2, '0');
-  const dd = String(date.getDate()).padStart(2, '0');
-  return `${yyyy}-${mm}-${dd}`;
+
+function formatDate(
+  date: Date,
+): string {
+  const year = date.getFullYear();
+  const month = String(
+    date.getMonth() + 1,
+  ).padStart(2, '0');
+  const day = String(
+    date.getDate(),
+  ).padStart(2, '0');
+
+
+  return `${year}-${month}-${day}`;
+}
+
+
+export const TODAY_STR = formatDate(today);
+
+
+let cache: CalendarCache = {
+  events: [],
+  calendars: [],
+  preferences: null,
+  rangeStart: null,
+  rangeEnd: null,
 };
 
-export const TODAY_STR = formatDate(todayObj);
-export const TOMORROW_STR = formatDate(tomorrowObj);
 
-export let initialEvents: CalendarEvent[] = [
-  {
-    id: 'e1',
-    title: 'Sincronización semanal de equipo',
-    type: 'meeting',
-    date: TODAY_STR,
-    timeStart: '14:00',
-    timeEnd: '14:45',
-    duration: '45 min',
-    isVirtual: true,
-    videoUrl: 'https://video.beeapp.ai/meet/m-sem-team',
-    description: 'Revisión semanal de los sprints activos, cuellos de botella y metas comerciales.',
-    reminder: '30 minutos antes',
-    repeat: 'weekly',
-    organizer: { name: 'Santiago V.', initials: 'SV', color: '#DBEAFE' },
-    userResponse: 'pending',
-    invitees: [
-      { id: 'c1', name: 'Carlos Mendoza', initials: 'CM', color: '#EBF5FF', status: 'accepted' },
-      { id: 'c2', name: 'Eduardo Torres', initials: 'ET', color: '#FEF3C7', status: 'pending' },
-      { id: 'c3', name: 'María Gómez', initials: 'MG', color: '#ECFDF5', status: 'accepted' },
-    ],
-  },
-  {
-    id: 'e2',
-    title: 'Presentación de resultados Q2',
-    type: 'event',
-    date: TOMORROW_STR,
-    timeStart: '10:00',
-    timeEnd: '11:00',
-    duration: '1 hora',
-    isVirtual: false,
-    location: 'Oficina Principal',
-    description: 'Presentación de resultados financieros y operativos correspondientes al segundo trimestre.',
-    reminder: '1 hora antes',
-    repeat: 'none',
-    organizer: { name: 'Sofía Castro', initials: 'SC', color: '#F3E8FF' },
-    userResponse: 'accepted',
-    invitees: [
-      { id: 'c1', name: 'Carlos Mendoza', initials: 'CM', color: '#EBF5FF', status: 'accepted' },
-      { id: 'c3', name: 'María Gómez', initials: 'MG', color: '#ECFDF5', status: 'accepted' },
-      { id: 'c4', name: 'Sofía Castro', initials: 'SC', color: '#F3E8FF', status: 'pending' },
-    ],
-  },
-];
+export function getCalendarEvents(): CalendarEvent[] {
+  return cache.events;
+}
 
-export const getEvents = () => initialEvents;
-export const setEvents = (newEvents: CalendarEvent[]) => {
-  initialEvents = newEvents;
-};
+
+export function setCalendarEvents(
+  events: CalendarEvent[],
+): void {
+  cache = {
+    ...cache,
+    events,
+  };
+}
+
+
+export function getCalendarCache(): CalendarCache {
+  return cache;
+}
+
+
+export function setCalendarCache(
+  nextCache: CalendarCache,
+): void {
+  cache = nextCache;
+}
+
+
+export function getCalendarEventById(
+  eventId: string,
+): CalendarEvent | undefined {
+  return cache.events.find(
+    (event) => event.id === eventId,
+  );
+}
+
+
+export function upsertCalendarEvent(
+  nextEvent: CalendarEvent,
+): void {
+  const currentIndex = cache.events.findIndex(
+    (event) => event.id === nextEvent.id,
+  );
+
+
+  if (currentIndex === -1) {
+    cache = {
+      ...cache,
+      events: [
+        nextEvent,
+        ...cache.events,
+      ],
+    };
+
+
+    return;
+  }
+
+
+  cache = {
+    ...cache,
+    events: cache.events.map((event) =>
+      event.id === nextEvent.id
+        ? nextEvent
+        : event,
+    ),
+  };
+}
+
+
+export function removeCalendarEvent(
+  eventId: string,
+): void {
+  cache = {
+    ...cache,
+    events: cache.events.filter(
+      (event) => event.id !== eventId,
+    ),
+  };
+}
+
+
+export function getPreferredCalendar(): Calendar | null {
+  if (cache.calendars.length === 0) {
+    return null;
+  }
+
+
+  return (
+    cache.calendars.find(
+      (calendar) =>
+        calendar.is_default
+        && calendar.share_permission === 'owner',
+    )
+    || cache.calendars.find(
+      (calendar) =>
+        calendar.share_permission === 'owner',
+    )
+    || cache.calendars[0]
+    || null
+  );
+}

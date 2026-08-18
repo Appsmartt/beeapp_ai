@@ -1,99 +1,216 @@
+import {
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from 'react-native';
+import {
+  ChevronLeft,
+  Plus,
+} from 'lucide-react-native';
+import {
+  colors,
+} from '@beeapp/design-system';
 
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
-import { colors } from '@beeapp/design-system';
-import { ChevronLeft, Plus } from 'lucide-react-native';
 import ModuleNotificationBell from '../ModuleNotificationBell';
 
-export type ViewMode = 'day' | 'week' | 'month';
-export type FilterChip = 'upcoming' | 'past' | 'meetings' | 'events';
+
+export type ViewMode =
+  | 'day'
+  | 'week'
+  | 'month';
+
+
+export type FilterChip =
+  | 'upcoming'
+  | 'past'
+  | 'meetings'
+  | 'events';
+
 
 interface CalendarHeaderProps {
-  /** Omitted when there is nothing to go back to (root of an embedded module) */
   onBack?: () => void;
-  /** Create action shown in the header while embedded (instead of a FAB) */
   onAction?: () => void;
   onToday: () => void;
   currentView: ViewMode;
   onViewChange: (view: ViewMode) => void;
 }
 
-export function CalendarHeader({ onBack, onAction, onToday, currentView, onViewChange }: CalendarHeaderProps) {
+
+export function CalendarHeader({
+  onBack,
+  onAction,
+  onToday,
+  currentView,
+  onViewChange,
+}: CalendarHeaderProps) {
   return (
-    <>
-      {/* Header */}
-      <View style={styles.header}>
-        <View style={styles.headerLeftCol}>
-          {onBack && (
-            <TouchableOpacity onPress={onBack} style={styles.backBtn} activeOpacity={0.7}>
-              <ChevronLeft size={24} color={colors.neutral.text} />
-            </TouchableOpacity>
-          )}
-          <Text style={styles.headerTitle}>Agenda</Text>
-        </View>
-
-        {/* Today and View triggers */}
-        <View style={styles.headerActions}>
-          <ModuleNotificationBell moduleId="calendar" />
-          <TouchableOpacity onPress={onToday} style={styles.todayBtn} activeOpacity={0.7}>
-            <Text style={styles.todayBtnText}>Hoy</Text>
+    <View style={styles.header}>
+      <View style={styles.headerLeftCol}>
+        {onBack && (
+          <TouchableOpacity
+            onPress={onBack}
+            style={styles.backBtn}
+            activeOpacity={0.7}
+          >
+            <ChevronLeft
+              size={24}
+              color={colors.neutral.text}
+            />
           </TouchableOpacity>
+        )}
 
-          <View style={styles.viewSegment}>
-            {(['day', 'week', 'month'] as ViewMode[]).map((v) => (
+
+        <Text style={styles.headerTitle}>
+          Agenda
+        </Text>
+      </View>
+
+
+      <View style={styles.headerActions}>
+        <ModuleNotificationBell moduleId="calendar" />
+
+
+        <TouchableOpacity
+          onPress={onToday}
+          style={styles.todayBtn}
+          activeOpacity={0.7}
+        >
+          <Text style={styles.todayBtnText}>
+            Hoy
+          </Text>
+        </TouchableOpacity>
+
+
+        <View style={styles.viewSegment}>
+          {([
+            'day',
+            'week',
+            'month',
+          ] as ViewMode[]).map((view) => {
+            const isActive = currentView === view;
+
+
+            return (
               <TouchableOpacity
-                key={v}
-                style={[styles.segmentBtn, currentView === v && styles.segmentBtnActive]}
-                onPress={() => onViewChange(v)}
+                key={view}
+                style={[
+                  styles.segmentBtn,
+                  isActive
+                    && styles.segmentBtnActive,
+                ]}
+                onPress={() => onViewChange(view)}
+                activeOpacity={0.7}
               >
-                <Text style={[styles.segmentText, currentView === v && styles.segmentTextActive]}>
-                  {v === 'day' ? 'Día' : v === 'week' ? 'Sem' : 'Mes'}
+                <Text
+                  style={[
+                    styles.segmentText,
+                    isActive
+                      && styles.segmentTextActive,
+                  ]}
+                >
+                  {view === 'day'
+                    ? 'Día'
+                    : view === 'week'
+                      ? 'Sem'
+                      : 'Mes'}
                 </Text>
               </TouchableOpacity>
-            ))}
-          </View>
-
-          {onAction && (
-            <TouchableOpacity onPress={onAction} style={styles.headerActionBtn} activeOpacity={0.8}>
-              <Plus size={18} color={colors.neutral.white} />
-            </TouchableOpacity>
-          )}
+            );
+          })}
         </View>
+
+
+        {onAction && (
+          <TouchableOpacity
+            onPress={onAction}
+            style={styles.headerActionBtn}
+            activeOpacity={0.8}
+            accessibilityLabel="Crear evento"
+          >
+            <Plus
+              size={18}
+              color={colors.neutral.white}
+            />
+          </TouchableOpacity>
+        )}
       </View>
-    </>
+    </View>
   );
 }
 
-const FILTER_CHIPS: { id: FilterChip; label: string }[] = [
-  { id: 'upcoming', label: 'Próximos' },
-  { id: 'past', label: 'Pasados' },
-  { id: 'meetings', label: 'Reuniones' },
-  { id: 'events', label: 'Eventos' },
+
+const FILTER_CHIPS: Array<{
+  id: FilterChip;
+  label: string;
+}> = [
+  {
+    id: 'upcoming',
+    label: 'Próximos',
+  },
+  {
+    id: 'past',
+    label: 'Pasados',
+  },
+  {
+    id: 'meetings',
+    label: 'Reuniones',
+  },
+  {
+    id: 'events',
+    label: 'Eventos',
+  },
 ];
+
 
 interface CalendarFilterChipsProps {
   activeFilter: FilterChip;
   onChange: (filter: FilterChip) => void;
 }
 
-export function CalendarFilterChips({ activeFilter, onChange }: CalendarFilterChipsProps) {
+
+export function CalendarFilterChips({
+  activeFilter,
+  onChange,
+}: CalendarFilterChipsProps) {
   return (
-    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filtersScroll} contentContainerStyle={styles.filtersContent}>
-      {FILTER_CHIPS.map((f) => {
-        const active = activeFilter === f.id;
+    <ScrollView
+      horizontal
+      showsHorizontalScrollIndicator={false}
+      style={styles.filtersScroll}
+      contentContainerStyle={styles.filtersContent}
+    >
+      {FILTER_CHIPS.map((filter) => {
+        const isActive = activeFilter === filter.id;
+
+
         return (
           <TouchableOpacity
-            key={f.id}
-            style={[styles.filterChip, active && styles.filterChipActive]}
-            onPress={() => onChange(f.id)}
+            key={filter.id}
+            style={[
+              styles.filterChip,
+              isActive && styles.filterChipActive,
+            ]}
+            onPress={() => onChange(filter.id)}
             activeOpacity={0.7}
           >
-            <Text style={[styles.filterChipText, active && styles.filterChipTextActive]}>{f.label}</Text>
+            <Text
+              style={[
+                styles.filterChipText,
+                isActive
+                  && styles.filterChipTextActive,
+              ]}
+            >
+              {filter.label}
+            </Text>
           </TouchableOpacity>
         );
       })}
     </ScrollView>
   );
 }
+
 
 const styles = StyleSheet.create({
   header: {
@@ -134,7 +251,7 @@ const styles = StyleSheet.create({
   },
   todayBtnText: {
     fontSize: 11,
-    fontWeight: '400',
+    fontWeight: '500',
     color: colors.brand.primary,
   },
   viewSegment: {
@@ -153,7 +270,10 @@ const styles = StyleSheet.create({
   segmentBtnActive: {
     backgroundColor: colors.neutral.white,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
+    shadowOffset: {
+      width: 0,
+      height: 1,
+    },
     shadowOpacity: 0.1,
     shadowRadius: 2,
     elevation: 2,

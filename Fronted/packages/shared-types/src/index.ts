@@ -1123,3 +1123,385 @@ export interface GetSharedNoteResponse {
   note: Note;
   share: NoteShare;
 }
+
+
+export type CalendarEventKind =
+  | 'virtual'
+  | 'in_person'
+  | 'hybrid';
+
+
+export type CalendarEventSource =
+  | 'beeapp'
+  | 'google'
+  | 'microsoft'
+  | 'detached';
+
+
+export type CalendarEventStatus =
+  | 'confirmed'
+  | 'cancelled';
+
+
+export type CalendarSharePermission =
+  | 'owner'
+  | 'viewer'
+  | 'editor';
+
+
+export type CalendarAttendeeResponseStatus =
+  | 'pending'
+  | 'accepted'
+  | 'declined'
+  | 'removed';
+
+
+export type CalendarReminderChannel =
+  | 'push'
+  | 'in_app';
+
+
+export type CalendarRecurrenceFrequency =
+  | 'daily'
+  | 'weekly'
+  | 'monthly'
+  | 'yearly'
+  | 'custom';
+
+
+export type CalendarDefaultView =
+  | 'day'
+  | 'week'
+  | 'month'
+  | 'agenda';
+
+
+export interface Calendar {
+  id: string;
+  owner_id: string;
+  name: string;
+  description: string | null;
+  color: string;
+  visibility: string;
+  is_default: boolean;
+  is_archived: boolean;
+  timezone: string;
+  created_at: string;
+  updated_at: string;
+  share_permission: CalendarSharePermission;
+}
+
+
+export interface CalendarTag {
+  id: string;
+  owner_id: string;
+  name: string;
+  color: string;
+  created_at: string;
+  updated_at: string;
+}
+
+
+export interface CalendarConference {
+  id?: string;
+  event_id?: string;
+  provider:
+    | 'agora'
+    | 'external'
+    | 'google_meet'
+    | 'microsoft_teams';
+  label: string | null;
+  join_url: string;
+  external_conference_id?: string | null;
+  status?: string;
+  is_primary: boolean;
+  metadata?: Record<string, unknown> | null;
+  created_at?: string;
+  updated_at?: string;
+}
+
+
+export interface CalendarReminder {
+  id?: string;
+  event_id?: string;
+  recipient_id?: string;
+  channel: CalendarReminderChannel;
+  offset_minutes: number;
+  all_day_reminder_time?: string | null;
+  status?: string;
+  scheduled_for?: string | null;
+  sent_at?: string | null;
+  cancelled_at?: string | null;
+  failure_reason?: string | null;
+  created_at?: string;
+  updated_at?: string;
+}
+
+
+export interface CalendarRecurrence {
+  id?: string;
+  event_id?: string;
+  rrule: string;
+  frequency: CalendarRecurrenceFrequency;
+  interval_count: number;
+  week_days?: number[] | null;
+  month_day?: number | null;
+  nth_weekday?: number | null;
+  until_at?: string | null;
+  occurrence_count?: number | null;
+  timezone?: string;
+  created_at?: string;
+  updated_at?: string;
+}
+
+
+export interface CalendarEventAttendee {
+  id: string;
+  event_id: string;
+  attendee_kind: string;
+  attendee_user_id: string | null;
+  external_email: string | null;
+  external_display_name: string | null;
+  is_organizer: boolean;
+  response_status: CalendarAttendeeResponseStatus;
+  responded_at: string | null;
+  invitation_sent_at: string | null;
+  invitation_read_at: string | null;
+  hidden_at: string | null;
+  external_attendee_id: string | null;
+  metadata: Record<string, unknown> | null;
+  created_at: string;
+  updated_at: string;
+}
+
+
+export interface CalendarEvent {
+  id: string;
+  calendar_id: string;
+  organizer_id: string;
+  source: CalendarEventSource;
+  status: CalendarEventStatus;
+  event_kind: CalendarEventKind;
+  custom_type_name: string | null;
+  title: string;
+  description: string | null;
+  color: string;
+  is_all_day: boolean;
+  starts_at: string | null;
+  ends_at: string | null;
+  starts_on: string | null;
+  ends_on: string | null;
+  timezone: string;
+  location_name: string | null;
+  location_address: string | null;
+  location_maps_url: string | null;
+  is_private: boolean;
+  notifications_enabled: boolean;
+  metadata?: Record<string, unknown> | null;
+  created_at: string;
+  updated_at: string;
+  attendees?: CalendarEventAttendee[];
+  conferences?: CalendarConference[];
+  reminders?: CalendarReminder[];
+  tags?: CalendarTag[];
+  recurrence?: CalendarRecurrence | null;
+}
+
+
+export interface CalendarPreferences {
+  user_id: string;
+  timezone: string;
+  week_starts_on: 0 | 1;
+  show_weekends: boolean;
+  default_view: CalendarDefaultView;
+  default_event_color: string;
+  default_event_kind: CalendarEventKind;
+  default_reminders: CalendarReminder[];
+  show_declined_events: boolean;
+  notify_invitations: boolean;
+  notify_rsvp_updates: boolean;
+  notify_event_changes: boolean;
+  notify_reminders: boolean;
+  notify_sync_errors: boolean;
+  notify_conflicts: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+
+export interface CalendarUserSearchResult {
+  user_id: string;
+  email: string | null;
+  first_name: string;
+  last_name: string;
+  phone_dial_code?: string | null;
+  phone_number?: string | null;
+}
+
+
+export interface CalendarEventsQuery {
+  range_start: string;
+  range_end: string;
+  calendar_ids?: string[];
+  source?: CalendarEventSource;
+  event_kind?: CalendarEventKind;
+  tag_ids?: string[];
+  include_cancelled?: boolean;
+  include_declined?: boolean;
+  search?: string;
+  limit?: number;
+}
+
+
+export interface CreateCalendarPayload {
+  name: string;
+  description?: string | null;
+  color?: string;
+  timezone?: string;
+}
+
+
+export interface CreateCalendarEventPayload {
+  calendar_id: string;
+  title: string;
+  description?: string | null;
+  event_kind?: CalendarEventKind;
+  custom_type_name?: string | null;
+  color?: string;
+  is_all_day?: boolean;
+  starts_at?: string | null;
+  ends_at?: string | null;
+  starts_on?: string | null;
+  ends_on?: string | null;
+  timezone?: string;
+  location_name?: string | null;
+  location_address?: string | null;
+  location_maps_url?: string | null;
+  is_private?: boolean;
+  notifications_enabled?: boolean;
+  tag_ids?: string[];
+  conferences?: CalendarConference[];
+  attendee_ids?: string[];
+  reminders?: CalendarReminder[];
+  recurrence?: CalendarRecurrence | null;
+}
+
+
+export interface UpdateCalendarEventPayload {
+  calendar_id?: string;
+  title?: string;
+  description?: string | null;
+  event_kind?: CalendarEventKind;
+  custom_type_name?: string | null;
+  color?: string;
+  is_all_day?: boolean;
+  starts_at?: string | null;
+  ends_at?: string | null;
+  starts_on?: string | null;
+  ends_on?: string | null;
+  timezone?: string;
+  location_name?: string | null;
+  location_address?: string | null;
+  location_maps_url?: string | null;
+  is_private?: boolean;
+  notifications_enabled?: boolean;
+  tag_ids?: string[];
+  conferences?: CalendarConference[];
+  attendee_ids?: string[];
+  reminders?: CalendarReminder[];
+  recurrence?: CalendarRecurrence | null;
+}
+
+
+export interface DuplicateCalendarEventPayload {
+  calendar_id?: string;
+  starts_at?: string | null;
+  ends_at?: string | null;
+  starts_on?: string | null;
+  ends_on?: string | null;
+  include_attendees?: boolean;
+  include_reminders?: boolean;
+  include_recurrence?: boolean;
+}
+
+
+export interface CalendarConflictQuery {
+  is_all_day: boolean;
+  starts_at?: string | null;
+  ends_at?: string | null;
+  starts_on?: string | null;
+  ends_on?: string | null;
+  exclude_event_id?: string;
+}
+
+
+export interface CalendarConflict {
+  event_id: string;
+  calendar_id: string;
+  calendar_name: string;
+  calendar_color: string;
+  source: CalendarEventSource;
+  event_kind: CalendarEventKind;
+  is_all_day: boolean;
+  starts_at: string | null;
+  ends_at: string | null;
+  starts_on: string | null;
+  ends_on: string | null;
+  details_hidden: boolean;
+}
+
+
+export interface GetCalendarBootstrapResponse {
+  preferences: CalendarPreferences;
+  calendars: Calendar[];
+  tags: CalendarTag[];
+  events: CalendarEvent[];
+  count: number;
+  range_start: string;
+  range_end: string;
+}
+
+
+export interface GetCalendarEventsResponse {
+  events: CalendarEvent[];
+  count: number;
+  range_start: string;
+  range_end: string;
+}
+
+
+export interface GetCalendarEventResponse {
+  event: CalendarEvent;
+}
+
+
+export interface CreateCalendarResponse {
+  calendar: Calendar;
+}
+
+
+export interface CreateCalendarEventResponse {
+  event: CalendarEvent;
+}
+
+
+export interface UpdateCalendarEventResponse {
+  event: CalendarEvent;
+}
+
+
+export interface SearchCalendarUsersResponse {
+  users: CalendarUserSearchResult[];
+}
+
+
+export interface RespondToCalendarEventResponse {
+  attendee: CalendarEventAttendee;
+}
+
+
+export interface GetCalendarConflictsResponse {
+  has_conflicts: boolean;
+  conflicts: CalendarConflict[];
+  count: number;
+}

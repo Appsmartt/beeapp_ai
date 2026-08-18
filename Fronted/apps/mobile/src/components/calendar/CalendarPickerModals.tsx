@@ -1,11 +1,38 @@
-import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Modal, ScrollView } from 'react-native';
-import { colors } from '@beeapp/design-system';
-import { X } from 'lucide-react-native';
-import { parseDate, formatDate } from '../../utils/dateHelpers';
+import {
+  Modal,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from 'react-native';
+import {
+  X,
+} from 'lucide-react-native';
+import {
+  colors,
+} from '@beeapp/design-system';
 
-const SHORT_MONTHS = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
-const YEARS = [2024, 2025, 2026, 2027, 2028];
+import {
+  parseDate,
+} from '../../utils/dateHelpers';
+
+
+const SHORT_MONTHS = [
+  'Ene',
+  'Feb',
+  'Mar',
+  'Abr',
+  'May',
+  'Jun',
+  'Jul',
+  'Ago',
+  'Sep',
+  'Oct',
+  'Nov',
+  'Dic',
+];
+
 
 interface MonthPickerModalProps {
   visible: boolean;
@@ -14,35 +41,82 @@ interface MonthPickerModalProps {
   onSelectMonth: (monthIndex: number) => void;
 }
 
-export function MonthPickerModal({ visible, selectedDate, onClose, onSelectMonth }: MonthPickerModalProps) {
-  const currentMonth = parseDate(selectedDate).getMonth();
+
+export function MonthPickerModal({
+  visible,
+  selectedDate,
+  onClose,
+  onSelectMonth,
+}: MonthPickerModalProps) {
+  const currentMonth = parseDate(
+    selectedDate,
+  ).getMonth();
+
 
   return (
-    <Modal transparent visible={visible} animationType="fade" onRequestClose={onClose}>
+    <Modal
+      transparent
+      visible={visible}
+      animationType="fade"
+      onRequestClose={onClose}
+    >
       <View style={styles.overlay}>
-        <TouchableOpacity style={styles.backdrop} onPress={onClose} activeOpacity={1} />
+        <TouchableOpacity
+          style={styles.backdrop}
+          onPress={onClose}
+          activeOpacity={1}
+        />
+
+
         <View style={styles.card}>
           <View style={styles.header}>
-            <Text style={styles.title}>Seleccionar Mes</Text>
-            <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
-              <X size={18} color={colors.neutral.text} />
+            <Text style={styles.title}>
+              Seleccionar mes
+            </Text>
+
+
+            <TouchableOpacity
+              onPress={onClose}
+              style={styles.closeBtn}
+              activeOpacity={0.7}
+            >
+              <X
+                size={18}
+                color={colors.neutral.text}
+              />
             </TouchableOpacity>
           </View>
 
+
           <View style={styles.grid}>
-            {SHORT_MONTHS.map((name, idx) => {
-              const isSelected = idx === currentMonth;
+            {SHORT_MONTHS.map((monthName, index) => {
+              const isSelected =
+                index === currentMonth;
+
+
               return (
                 <TouchableOpacity
-                  key={name}
-                  style={[styles.monthCell, isSelected && styles.monthCellSelected]}
+                  key={monthName}
+                  style={[
+                    styles.monthCell,
+                    isSelected
+                      && styles.monthCellSelected,
+                  ]}
                   onPress={() => {
-                    onSelectMonth(idx);
+                    onSelectMonth(index);
                     onClose();
                   }}
                   activeOpacity={0.7}
                 >
-                  <Text style={[styles.monthText, isSelected && styles.monthTextSelected]}>{name}</Text>
+                  <Text
+                    style={[
+                      styles.monthText,
+                      isSelected
+                        && styles.monthTextSelected,
+                    ]}
+                  >
+                    {monthName}
+                  </Text>
                 </TouchableOpacity>
               );
             })}
@@ -53,6 +127,7 @@ export function MonthPickerModal({ visible, selectedDate, onClose, onSelectMonth
   );
 }
 
+
 interface YearPickerModalProps {
   visible: boolean;
   selectedDate: string;
@@ -60,36 +135,109 @@ interface YearPickerModalProps {
   onSelectYear: (year: number) => void;
 }
 
-export function YearPickerModal({ visible, selectedDate, onClose, onSelectYear }: YearPickerModalProps) {
-  const currentYear = parseDate(selectedDate).getFullYear();
+
+export function YearPickerModal({
+  visible,
+  selectedDate,
+  onClose,
+  onSelectYear,
+}: YearPickerModalProps) {
+  const selectedYear = parseDate(
+    selectedDate,
+  ).getFullYear();
+
+
+  const currentYear = new Date().getFullYear();
+
+
+  const firstYear = Math.min(
+    selectedYear - 20,
+    currentYear - 20,
+  );
+
+
+  const lastYear = Math.max(
+    selectedYear + 20,
+    currentYear + 20,
+  );
+
+
+  const years = Array.from(
+    {
+      length: lastYear - firstYear + 1,
+    },
+    (_, index) => firstYear + index,
+  ).reverse();
+
 
   return (
-    <Modal transparent visible={visible} animationType="fade" onRequestClose={onClose}>
+    <Modal
+      transparent
+      visible={visible}
+      animationType="fade"
+      onRequestClose={onClose}
+    >
       <View style={styles.overlay}>
-        <TouchableOpacity style={styles.backdrop} onPress={onClose} activeOpacity={1} />
+        <TouchableOpacity
+          style={styles.backdrop}
+          onPress={onClose}
+          activeOpacity={1}
+        />
+
+
         <View style={styles.card}>
           <View style={styles.header}>
-            <Text style={styles.title}>Seleccionar Año</Text>
-            <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
-              <X size={18} color={colors.neutral.text} />
+            <Text style={styles.title}>
+              Seleccionar año
+            </Text>
+
+
+            <TouchableOpacity
+              onPress={onClose}
+              style={styles.closeBtn}
+              activeOpacity={0.7}
+            >
+              <X
+                size={18}
+                color={colors.neutral.text}
+              />
             </TouchableOpacity>
           </View>
 
-          <ScrollView style={{ maxHeight: 240 }} showsVerticalScrollIndicator={false}>
+
+          <ScrollView
+            style={styles.yearScroll}
+            showsVerticalScrollIndicator={false}
+          >
             <View style={styles.yearList}>
-              {YEARS.map((y) => {
-                const isSelected = y === currentYear;
+              {years.map((year) => {
+                const isSelected =
+                  year === selectedYear;
+
+
                 return (
                   <TouchableOpacity
-                    key={y}
-                    style={[styles.yearRow, isSelected && styles.yearRowSelected]}
+                    key={year}
+                    style={[
+                      styles.yearRow,
+                      isSelected
+                        && styles.yearRowSelected,
+                    ]}
                     onPress={() => {
-                      onSelectYear(y);
+                      onSelectYear(year);
                       onClose();
                     }}
                     activeOpacity={0.7}
                   >
-                    <Text style={[styles.yearText, isSelected && styles.yearTextSelected]}>{y}</Text>
+                    <Text
+                      style={[
+                        styles.yearText,
+                        isSelected
+                          && styles.yearTextSelected,
+                      ]}
+                    >
+                      {year}
+                    </Text>
                   </TouchableOpacity>
                 );
               })}
@@ -100,6 +248,7 @@ export function YearPickerModal({ visible, selectedDate, onClose, onSelectYear }
     </Modal>
   );
 }
+
 
 const styles = StyleSheet.create({
   overlay: {
@@ -119,7 +268,10 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     padding: 20,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
     shadowOpacity: 0.15,
     shadowRadius: 10,
     elevation: 8,
@@ -164,6 +316,9 @@ const styles = StyleSheet.create({
   monthTextSelected: {
     color: colors.neutral.white,
     fontWeight: '600',
+  },
+  yearScroll: {
+    maxHeight: 300,
   },
   yearList: {
     gap: 8,
