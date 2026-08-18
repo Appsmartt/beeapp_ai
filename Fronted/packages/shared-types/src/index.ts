@@ -1505,3 +1505,84 @@ export interface GetCalendarConflictsResponse {
   conflicts: CalendarConflict[];
   count: number;
 }
+
+export type IntegrationProvider =
+  | 'google'
+  | 'microsoft'
+  | 'slack'
+  | 'meta'
+  | 'dropbox'
+  | 'notion'
+  | 'other';
+
+export type IntegrationConnectionStatus =
+  | 'pending'
+  | 'connected'
+  | 'reauth_required'
+  | 'revoked'
+  | 'error'
+  | 'disconnected';
+
+export type IntegrationCapability =
+  | 'calendar'
+  | 'mail'
+  | 'contacts'
+  | 'storage'
+  | 'messaging'
+  | 'tasks'
+  | 'crm'
+  | 'analytics'
+  | 'other';
+
+export interface IntegrationConnection {
+  id: string;
+  user_id: string;
+  provider: IntegrationProvider;
+  provider_account_id: string;
+  provider_tenant_id: string | null;
+  provider_email: string | null;
+  provider_display_name: string | null;
+  provider_avatar_url: string | null;
+  status: IntegrationConnectionStatus;
+  granted_scopes: string[];
+  capabilities: IntegrationCapability[];
+  token_expires_at: string | null;
+  last_token_refresh_at: string | null;
+  last_successful_auth_at: string | null;
+  reauth_required_at: string | null;
+  disconnected_at: string | null;
+  last_error_code: string | null;
+  last_error_message: string | null;
+  metadata: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface IntegrationProviderCatalogItem {
+  id: IntegrationProvider;
+  name: string;
+  status: 'available' | 'coming_soon';
+  capabilities: IntegrationCapability[];
+}
+
+export interface GetIntegrationCatalogResponse {
+  providers: IntegrationProviderCatalogItem[];
+}
+
+export interface GetIntegrationConnectionsResponse {
+  connections: IntegrationConnection[];
+}
+
+export interface GetIntegrationConnectionResponse {
+  connection: IntegrationConnection;
+}
+
+export interface StartIntegrationAuthorizationPayload {
+  capabilities?: IntegrationCapability[];
+}
+
+export interface StartIntegrationAuthorizationResponse {
+  request_id: string;
+  authorization_url: string;
+  expires_at: string;
+}

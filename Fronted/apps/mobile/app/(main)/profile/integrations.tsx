@@ -1,296 +1,819 @@
-import React, { useState } from 'react';
 import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
+  useCallback,
+  useMemo,
+  useState,
+} from 'react';
+import {
+  ActivityIndicator,
+  Alert,
   Modal,
-  Dimensions,
-  Platform,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native';
-import ScreenSafeArea from '../../../src/components/layout/ScreenSafeArea';
-import { useRouter } from 'expo-router';
+import {
+  useFocusEffect,
+  useRouter,
+} from 'expo-router';
+import * as WebBrowser from 'expo-web-browser';
+import {
+  AlertTriangle,
+  ArrowRight,
+  ChevronLeft,
+  ChevronRight,
+  Link2,
+  Plus,
+  RefreshCw,
+  ShieldCheck,
+  Trash2,
+  Unlink,
+  X,
+} from 'lucide-react-native';
 import { colors } from '@beeapp/design-system';
-import { ChevronLeft, Check, AlertTriangle, Key, ArrowRight, Sparkles } from 'lucide-react-native';
+
 import FloatingTabBar from '../../../src/components/FloatingTabBar';
+import ScreenSafeArea from '../../../src/components/layout/ScreenSafeArea';
+import { useIntegrations } from '../../../src/hooks/useIntegrations';
+import {
+  buildConnectionPresentations,
+  isReconnectable,
+  PROVIDER_OPTIONS,
+  type IntegrationConnectionPresentation,
+  type ProviderOption,
+} from '../../../src/services/integrationsService';
 
-const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
-interface IntegrationItem {
-  id: string;
-  name: string;
-  desc: string;
-  connected: boolean;
-  email: string;
-  syncDetails: string[];
-  iconColor: string;
-  scopes: string[];
+function getErrorMessage(
+  error: unknown,
+): string {
+  return error instanceof Error
+    ? error.message
+    : 'Inténtalo nuevamente.';
 }
+
 
 export default function IntegrationsScreen() {
   const router = useRouter();
 
-  // Local state for interactive connection toggling
-  const [integrations, setIntegrations] = useState<IntegrationItem[]>([
-    {
-      id: 'gmail',
-      name: 'Gmail',
-      desc: 'Sincroniza tus correos entrantes, respuestas inteligentes y borradores.',
-      connected: true,
-      email: 'santiago.valencia@consultores.com',
-      syncDetails: ['Correos recibidos', 'Borradores automáticos', 'Etiquetas de negocio'],
-      iconColor: '#EA4335',
-      scopes: [
-        'Ver y gestionar correos electrónicos en Gmail',
-        'Redactar y enviar correos mediante BeeAI asistente',
-        'Acceso de solo lectura a contactos de Google',
-      ],
-    },
-    {
-      id: 'google_calendar',
-      name: 'Google Calendar',
-      desc: 'Sincroniza tus eventos, agendas de reuniones y recordatorios de tareas.',
-      connected: true,
-      email: 'santiago.valencia@consultores.com',
-      syncDetails: ['Eventos del calendario', 'Reservas de clientes', 'Recordatorios'],
-      iconColor: '#4285F4',
-      scopes: [
-        'Ver tus calendarios de Google',
-        'Crear, editar y eliminar eventos en tus calendarios',
-      ],
-    },
-    {
-      id: 'outlook',
-      name: 'Outlook Mail',
-      desc: 'Sincroniza correos de Office 365 e integraciones de Outlook unificado.',
-      connected: false,
-      email: '',
-      syncDetails: ['Correos recibidos', 'Contactos corporativos'],
-      iconColor: '#0078D4',
-      scopes: [
-        'Acceso total a correos corporativos de Microsoft',
-        'Crear borradores automatizados con IA',
-      ],
-    },
-    {
-      id: 'outlook_calendar',
-      name: 'Outlook Calendar',
-      desc: 'Agenda reuniones corporativas en Teams y sincroniza con tu Office 365.',
-      connected: false,
-      email: '',
-      syncDetails: ['Eventos de Outlook', 'Reuniones de Microsoft Teams'],
-      iconColor: '#107C41',
-      scopes: [
-        'Ver y actualizar citas de calendario corporativo',
-        'Generar links de Teams automáticos',
-      ],
-    },
-  ]);
+  const {
+    connections,
+    loading,
+    refreshing,
+    error,
+    loadIntegrations,
+    startAuthorization,
+    reauthorize,
+    disconnect,
+    removeConnectionRecord,
+  } = useIntegrations();
 
-  const [consentActiveId, setConsentActiveId] = useState<string | null>(null);
+  const [isProviderModalVisible, setIsProviderModalVisible] =
+    useState(false);
 
-  const handleConnectRequest = (id: string) => {
-    setConsentActiveId(id);
-  };
+  const [selectedConnection, setSelectedConnection] =
+    useState<IntegrationConnectionPresentation | null>(
+      null,
+    );
 
-  const handleAuthorize = () => {
-    if (consentActiveId) {
-      setIntegrations(
-        integrations.map((item) =>
-          item.id === consentActiveId
-            ? { ...item, connected: true, email: 'santiago.valencia@empresa.com' }
-            : item
-        )
+  const [actionId, setActionId] = useState<string | null>(
+    null,
+  );
+
+  const connectionItems = useMemo(
+    () => buildConnectionPresentations(connections),
+    [connections],
+  );
+
+  useFocusEffect(
+    useCallback(() => {
+      void loadIntegrations(true);
+    }, [loadIntegrations]),
+  );
+
+  const openAuthorizationUrl = async (
+    authorizationUrl: string,
+  ) => {
+    try {
+      await WebBrowser.openBrowserAsync(
+        authorizationUrl,
+        {
+          showTitle: true,
+          enableBarCollapsing: true,
+        },
       );
-      setConsentActiveId(null);
-      alert('Integración conectada con éxito.');
+    } catch (browserError) {
+      Alert.alert(
+        'No fue posible abrir el proveedor',
+        getErrorMessage(browserError),
+      );
+    } finally {
+      setIsProviderModalVisible(false);
+      setSelectedConnection(null);
+      await loadIntegrations(true);
     }
   };
 
-  const handleDisconnect = (id: string) => {
-    setIntegrations(
-      integrations.map((item) =>
-        item.id === id ? { ...item, connected: false, email: '' } : item
-      )
-    );
-    alert('Integración desconectada.');
+  const handleProviderPress = async (
+    provider: ProviderOption,
+  ) => {
+    if (provider.availability !== 'available') {
+      Alert.alert(
+        'Próximamente',
+        'Esta integración todavía no está disponible.',
+      );
+      return;
+    }
+
+    try {
+      setActionId(`provider:${provider.provider}`);
+
+      const authorizationUrl = await startAuthorization(
+        provider.provider,
+        [],
+      );
+
+      await openAuthorizationUrl(authorizationUrl);
+    } catch (connectError) {
+      Alert.alert(
+        'No fue posible iniciar la conexión',
+        getErrorMessage(connectError),
+      );
+    } finally {
+      setActionId(null);
+    }
   };
 
-  const activeConsentItem = integrations.find((i) => i.id === consentActiveId);
+  const handleReauthorize = async (
+    item: IntegrationConnectionPresentation,
+  ) => {
+    try {
+      setActionId(item.id);
+
+      const authorizationUrl = await reauthorize(
+        item.connection.id,
+        item.connection.capabilities,
+      );
+
+      await openAuthorizationUrl(authorizationUrl);
+    } catch (reauthorizeError) {
+      Alert.alert(
+        'No fue posible iniciar la reconexión',
+        getErrorMessage(reauthorizeError),
+      );
+    } finally {
+      setActionId(null);
+    }
+  };
+
+  const handleDisconnect = (
+    item: IntegrationConnectionPresentation,
+  ) => {
+    Alert.alert(
+      `Desconectar ${item.providerName}`,
+      (
+        `Se eliminará la autorización de ${item.accountLabel} `
+        + 'guardada en BeeApp. Podrás vincularla nuevamente '
+        + 'cuando quieras.'
+      ),
+      [
+        {
+          text: 'Cancelar',
+          style: 'cancel',
+        },
+        {
+          text: 'Desconectar',
+          style: 'destructive',
+          onPress: () => {
+            void (async () => {
+              try {
+                setActionId(item.id);
+
+                await disconnect(item.connection.id);
+
+                setSelectedConnection(null);
+              } catch (disconnectError) {
+                Alert.alert(
+                  'No fue posible desconectar',
+                  getErrorMessage(disconnectError),
+                );
+              } finally {
+                setActionId(null);
+              }
+            })();
+          },
+        },
+      ],
+    );
+  };
+
+  const handleDeleteRecord = (
+    item: IntegrationConnectionPresentation,
+  ) => {
+    Alert.alert(
+      'Eliminar cuenta de la lista',
+      (
+        `${item.accountLabel} dejará de aparecer en BeeApp. `
+        + 'La cuenta ya está desconectada y sus credenciales '
+        + 'no se conservan.'
+      ),
+      [
+        {
+          text: 'Cancelar',
+          style: 'cancel',
+        },
+        {
+          text: 'Eliminar',
+          style: 'destructive',
+          onPress: () => {
+            void (async () => {
+              try {
+                setActionId(item.id);
+
+                await removeConnectionRecord(
+                  item.connection.id,
+                );
+
+                setSelectedConnection(null);
+              } catch (deleteError) {
+                Alert.alert(
+                  'No fue posible eliminar la cuenta',
+                  getErrorMessage(deleteError),
+                );
+              } finally {
+                setActionId(null);
+              }
+            })();
+          },
+        },
+      ],
+    );
+  };
+
+  const renderConnectionItem = (
+    item: IntegrationConnectionPresentation,
+  ) => {
+    const isActing = actionId === item.id;
+
+    return (
+      <TouchableOpacity
+        key={item.id}
+        style={styles.connectionCard}
+        onPress={() => setSelectedConnection(item)}
+        activeOpacity={0.75}
+      >
+        <View
+          style={[
+            styles.providerAvatar,
+            {
+              backgroundColor: item.providerIconColor,
+            },
+          ]}
+        >
+          <Text style={styles.providerAvatarText}>
+            {item.providerIconLetter}
+          </Text>
+        </View>
+
+        <View style={styles.connectionInfo}>
+          <Text
+            style={styles.connectionAccount}
+            numberOfLines={1}
+          >
+            {item.accountLabel}
+          </Text>
+
+          <View style={styles.connectionMetaRow}>
+            <Text style={styles.connectionProvider}>
+              {item.providerName}
+            </Text>
+
+            <View
+              style={[
+                styles.statusDot,
+                {
+                  backgroundColor: item.statusColor,
+                },
+              ]}
+            />
+
+            <Text
+              style={[
+                styles.connectionStatus,
+                {
+                  color: item.statusColor,
+                },
+              ]}
+              numberOfLines={1}
+            >
+              {isActing
+                ? 'Actualizando...'
+                : item.statusLabel}
+            </Text>
+          </View>
+
+          <Text
+            style={styles.connectionHelper}
+            numberOfLines={1}
+          >
+            {item.helperText}
+          </Text>
+        </View>
+
+        <ChevronRight
+          size={20}
+          color={colors.neutral.gray400}
+        />
+      </TouchableOpacity>
+    );
+  };
+
+  const selectedConnectionIsConnected = (
+    selectedConnection?.status === 'connected'
+  );
+
+  const selectedConnectionCanReconnect = selectedConnection
+    ? isReconnectable(selectedConnection.status)
+    : false;
+
+  const selectedConnectionCanDelete = selectedConnection
+    ? selectedConnection.status !== 'connected'
+    : false;
 
   return (
     <ScreenSafeArea style={styles.safeArea}>
       <View style={styles.container}>
-        {/* Header */}
         <View style={styles.header}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.backBtn} activeOpacity={0.7}>
-            <ChevronLeft size={24} color={colors.neutral.text} />
+          <TouchableOpacity
+            style={styles.headerIconButton}
+            onPress={() => router.back()}
+            activeOpacity={0.7}
+          >
+            <ChevronLeft
+              size={24}
+              color={colors.neutral.text}
+            />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Integraciones Externas</Text>
-          <View style={{ width: 32 }} />
-        </View>
 
-        <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
-          <Text style={styles.subtitleText}>
-            Conecta tus herramientas de trabajo externas para permitir que el asistente BeeAI automatice tus tareas en segundo plano.
+          <Text style={styles.headerTitle}>
+            Integraciones Externas
           </Text>
 
-          {/* Integrations Listing */}
-          <View style={styles.listCol}>
-            {integrations.map((item) => (
-              <View key={item.id} style={styles.card}>
-                {/* Header Row */}
-                <View style={styles.cardHeader}>
-                  <View style={[styles.serviceLogoMock, { backgroundColor: item.iconColor }]}>
-                    <Text style={styles.serviceLogoText}>{item.name[0].toUpperCase()}</Text>
-                  </View>
-                  <View style={styles.headerDetailsCol}>
-                    <Text style={styles.serviceName}>{item.name}</Text>
-                    <View style={styles.statusRow}>
-                      <View style={[styles.statusDot, { backgroundColor: item.connected ? colors.semantic.success : colors.neutral.gray500 }]} />
-                      <Text style={[styles.statusText, { color: item.connected ? colors.semantic.success : colors.neutral.gray600 }]}>
-                        {item.connected ? 'Conectado' : 'No conectado'}
-                      </Text>
-                    </View>
-                  </View>
-                </View>
+          <TouchableOpacity
+            style={styles.headerIconButton}
+            onPress={() => {
+              void loadIntegrations(true);
+            }}
+            disabled={refreshing}
+            activeOpacity={0.7}
+          >
+            {refreshing ? (
+              <ActivityIndicator
+                size="small"
+                color={colors.brand.primary}
+              />
+            ) : (
+              <RefreshCw
+                size={19}
+                color={colors.brand.primary}
+              />
+            )}
+          </TouchableOpacity>
+        </View>
 
-                {/* Description */}
-                <Text style={styles.serviceDesc}>{item.desc}</Text>
+        {loading ? (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator
+              size="large"
+              color={colors.brand.primary}
+            />
 
-                {/* Sync Details Panel */}
-                <View style={styles.syncDetailsBox}>
-                  <Text style={styles.syncBoxTitle}>Datos sincronizados:</Text>
-                  {item.syncDetails.map((detail, idx) => (
-                    <View key={idx} style={styles.syncRow}>
-                      <Check size={12} color={colors.brand.primary} style={{ marginRight: 6 }} />
-                      <Text style={styles.syncText}>{detail}</Text>
-                    </View>
-                  ))}
-                </View>
+            <Text style={styles.loadingText}>
+              Cargando integraciones...
+            </Text>
+          </View>
+        ) : (
+          <ScrollView
+            style={styles.scrollView}
+            contentContainerStyle={styles.scrollContent}
+            showsVerticalScrollIndicator={false}
+            refreshControl={(
+              <RefreshControl
+                refreshing={refreshing}
+                onRefresh={() => {
+                  void loadIntegrations(true);
+                }}
+                tintColor={colors.brand.primary}
+              />
+            )}
+          >
+            <Text style={styles.subtitle}>
+              Vincula cuentas externas para usar sus permisos
+              de forma segura en BeeApp. Nunca guardamos tu
+              contraseña.
+            </Text>
 
-                {/* Button Action */}
-                {item.connected ? (
-                  <View style={styles.connectedFooterRow}>
-                    <Text style={styles.linkedEmailText} numberOfLines={1}>
-                      {item.email}
-                    </Text>
-                    <TouchableOpacity
-                      onPress={() => handleDisconnect(item.id)}
-                      style={styles.disconnectBtn}
-                      activeOpacity={0.7}
-                    >
-                      <Text style={styles.disconnectBtnText}>Desconectar</Text>
-                    </TouchableOpacity>
-                  </View>
-                ) : (
-                  <TouchableOpacity
-                    onPress={() => handleConnectRequest(item.id)}
-                    style={styles.connectBtn}
-                    activeOpacity={0.8}
-                  >
-                    <Text style={styles.connectBtnText}>Conectar Servicio</Text>
-                  </TouchableOpacity>
-                )}
+            <TouchableOpacity
+              style={styles.linkAccountButton}
+              onPress={() => setIsProviderModalVisible(true)}
+              activeOpacity={0.8}
+            >
+              <View style={styles.linkAccountIcon}>
+                <Plus
+                  size={20}
+                  color={colors.neutral.white}
+                />
               </View>
-            ))}
 
-            {/* Future Integrations Placeholder */}
-            <View style={[styles.card, styles.futureCard]}>
-              <Sparkles size={24} color={colors.neutral.gray500} style={{ marginBottom: 8 }} />
-              <Text style={styles.futureTitle}>Próximas Integraciones</Text>
-              <Text style={styles.futureDesc}>
-                WhatsApp Business, Slack, Trello, Salesforce y más herramientas corporativas llegarán pronto.
+              <View style={styles.linkAccountTextColumn}>
+                <Text style={styles.linkAccountTitle}>
+                  Vincular cuenta
+                </Text>
+
+                <Text style={styles.linkAccountDescription}>
+                  Conecta Google, Microsoft y más proveedores.
+                </Text>
+              </View>
+
+              <ArrowRight
+                size={20}
+                color={colors.neutral.white}
+              />
+            </TouchableOpacity>
+
+            {error ? (
+              <View style={styles.errorBox}>
+                <AlertTriangle
+                  size={18}
+                  color="#B45309"
+                />
+
+                <View style={styles.errorContent}>
+                  <Text style={styles.errorTitle}>
+                    No fue posible actualizar
+                  </Text>
+
+                  <Text style={styles.errorText}>
+                    {error}
+                  </Text>
+                </View>
+              </View>
+            ) : null}
+
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>
+                Cuentas vinculadas
+              </Text>
+
+              <Text style={styles.sectionCount}>
+                {connectionItems.length}
               </Text>
             </View>
-          </View>
-          {/* Clearance for the floating menu */}
-          <View style={{ height: 100 }} />
-        </ScrollView>
 
-        {/* Assistant always within reach */}
-        <FloatingTabBar />
+            {connectionItems.length > 0 ? (
+              <View style={styles.connectionList}>
+                {connectionItems.map(renderConnectionItem)}
+              </View>
+            ) : (
+              <View style={styles.emptyCard}>
+                <View style={styles.emptyIconWrap}>
+                  <Link2
+                    size={24}
+                    color={colors.brand.primary}
+                  />
+                </View>
 
-        {/* OAuth Consent Screen Simulation Modal */}
-        {activeConsentItem && (
-          <Modal transparent visible={consentActiveId !== null} animationType="slide">
-            <View style={styles.modalBackdrop}>
-              <View style={styles.consentSheet}>
-                
-                {/* Sheet Header */}
-                <View style={styles.consentHeader}>
-                  <View style={styles.shieldWrap}>
-                    <Key size={20} color={colors.brand.primary} />
-                  </View>
-                  <Text style={styles.consentTitle}>Solicitud de Autorización</Text>
-                  <Text style={styles.consentSub}>
-                    BeeApp solicita vincular tu cuenta para automatizar operaciones.
+                <Text style={styles.emptyTitle}>
+                  Aún no tienes cuentas vinculadas
+                </Text>
+
+                <Text style={styles.emptyDescription}>
+                  Vincula una cuenta para permitir que BeeApp
+                  use sus permisos cuando los necesites.
+                </Text>
+              </View>
+            )}
+
+            <View style={styles.securityBox}>
+              <ShieldCheck
+                size={21}
+                color={colors.brand.primary}
+              />
+
+              <View style={styles.securityContent}>
+                <Text style={styles.securityTitle}>
+                  Autorizaciones protegidas
+                </Text>
+
+                <Text style={styles.securityText}>
+                  Las credenciales se guardan cifradas y puedes
+                  gestionar cada cuenta individualmente.
+                </Text>
+              </View>
+            </View>
+
+            <View style={styles.bottomSpacing} />
+          </ScrollView>
+        )}
+
+        <FloatingTabBar activeTab="profile" />
+
+        <Modal
+          transparent
+          visible={isProviderModalVisible}
+          animationType="slide"
+          onRequestClose={() => setIsProviderModalVisible(false)}
+        >
+          <View style={styles.modalBackdrop}>
+            <View style={styles.providerSheet}>
+              <View style={styles.sheetHeader}>
+                <View>
+                  <Text style={styles.sheetTitle}>
+                    Vincular una cuenta
+                  </Text>
+
+                  <Text style={styles.sheetSubtitle}>
+                    Elige el proveedor que deseas conectar.
                   </Text>
                 </View>
 
-                {/* Simulated Connection Diagram */}
-                <View style={styles.diagramRow}>
-                  <View style={styles.appCircle}>
-                    <Text style={styles.appCircleText}>🐝</Text>
-                  </View>
-                  <ArrowRight size={18} color={colors.neutral.gray500} />
-                  <View style={[styles.serviceCircle, { backgroundColor: activeConsentItem.iconColor }]}>
-                    <Text style={styles.serviceCircleText}>{activeConsentItem.name[0]}</Text>
-                  </View>
-                </View>
+                <TouchableOpacity
+                  style={styles.closeButton}
+                  onPress={() => setIsProviderModalVisible(false)}
+                  activeOpacity={0.7}
+                >
+                  <X
+                    size={20}
+                    color={colors.neutral.gray600}
+                  />
+                </TouchableOpacity>
+              </View>
 
-                {/* Consent Email select */}
-                <View style={styles.accountBox}>
-                  <Text style={styles.accountBoxLabel}>Iniciar sesión con:</Text>
-                  <Text style={styles.accountBoxEmail}>santiago.valencia@consultores.com</Text>
-                  <Text style={styles.accountBoxMeta}>Cuenta sugerida del sistema</Text>
-                </View>
+              <View style={styles.providerOptions}>
+                {PROVIDER_OPTIONS.map((provider) => {
+                  const isAvailable =
+                    provider.availability === 'available';
 
-                {/* Consent Permissions Scopes List */}
-                <Text style={styles.permissionsLabel}>Permisos solicitados:</Text>
-                <ScrollView style={styles.permissionsScroll} showsVerticalScrollIndicator={false}>
-                  {activeConsentItem.scopes.map((scope, idx) => (
-                    <View key={idx} style={styles.permissionItem}>
-                      <View style={styles.permissionDot} />
-                      <Text style={styles.permissionText}>{scope}</Text>
-                    </View>
-                  ))}
-                  <View style={styles.warningBox}>
-                    <AlertTriangle size={16} color="#D97706" style={{ marginRight: 8, marginTop: 2 }} />
-                    <Text style={styles.warningText}>
-                      BeeApp solo utilizará estos permisos para coordinar las peticiones indicadas por ti en tu chat privado. Tus claves no se guardarán.
-                    </Text>
-                  </View>
-                </ScrollView>
+                  const isActing = (
+                    actionId
+                    === `provider:${provider.provider}`
+                  );
 
-                {/* Consent Buttons Bar */}
-                <View style={styles.consentButtonsRow}>
-                  <TouchableOpacity
-                    style={styles.cancelConsentBtn}
-                    onPress={() => setConsentActiveId(null)}
-                    activeOpacity={0.7}
-                  >
-                    <Text style={styles.cancelConsentBtnText}>Cancelar</Text>
-                  </TouchableOpacity>
+                  return (
+                    <TouchableOpacity
+                      key={provider.provider}
+                      style={[
+                        styles.providerOption,
+                        !isAvailable
+                          && styles.providerOptionDisabled,
+                      ]}
+                      onPress={() => {
+                        void handleProviderPress(provider);
+                      }}
+                      disabled={!isAvailable || isActing}
+                      activeOpacity={0.75}
+                    >
+                      <View
+                        style={[
+                          styles.providerOptionIcon,
+                          {
+                            backgroundColor: provider.iconColor,
+                          },
+                        ]}
+                      >
+                        <Text style={styles.providerOptionIconText}>
+                          {provider.iconLetter}
+                        </Text>
+                      </View>
 
-                  <TouchableOpacity
-                    style={styles.authorizeBtn}
-                    onPress={handleAuthorize}
-                    activeOpacity={0.8}
-                  >
-                    <Text style={styles.authorizeBtnText}>Autorizar Acceso</Text>
-                  </TouchableOpacity>
-                </View>
+                      <View style={styles.providerOptionText}>
+                        <View style={styles.providerNameRow}>
+                          <Text style={styles.providerOptionName}>
+                            {provider.name}
+                          </Text>
 
+                          {!isAvailable ? (
+                            <Text style={styles.comingSoonTag}>
+                              Próximamente
+                            </Text>
+                          ) : null}
+                        </View>
+
+                        <Text style={styles.providerOptionDescription}>
+                          {provider.capabilitiesLabel}
+                        </Text>
+                      </View>
+
+                      {isActing ? (
+                        <ActivityIndicator
+                          size="small"
+                          color={colors.brand.primary}
+                        />
+                      ) : (
+                        <ChevronRight
+                          size={20}
+                          color={
+                            isAvailable
+                              ? colors.brand.primary
+                              : colors.neutral.gray400
+                          }
+                        />
+                      )}
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+
+              <View style={styles.providerSecurityNote}>
+                <ShieldCheck
+                  size={17}
+                  color="#166534"
+                />
+
+                <Text style={styles.providerSecurityText}>
+                  Iniciarás sesión directamente con el proveedor.
+                  BeeApp nunca recibe tu contraseña.
+                </Text>
               </View>
             </View>
-          </Modal>
-        )}
+          </View>
+        </Modal>
+
+        <Modal
+          transparent
+          visible={Boolean(selectedConnection)}
+          animationType="slide"
+          onRequestClose={() => setSelectedConnection(null)}
+        >
+          <View style={styles.modalBackdrop}>
+            <View style={styles.detailsSheet}>
+              <View style={styles.sheetHeader}>
+                <View>
+                  <Text style={styles.sheetTitle}>
+                    Cuenta vinculada
+                  </Text>
+
+                  <Text style={styles.sheetSubtitle}>
+                    Gestiona la autorización de esta cuenta.
+                  </Text>
+                </View>
+
+                <TouchableOpacity
+                  style={styles.closeButton}
+                  onPress={() => setSelectedConnection(null)}
+                  activeOpacity={0.7}
+                >
+                  <X
+                    size={20}
+                    color={colors.neutral.gray600}
+                  />
+                </TouchableOpacity>
+              </View>
+
+              {selectedConnection ? (
+                <>
+                  <View style={styles.accountDetailCard}>
+                    <View
+                      style={[
+                        styles.detailProviderAvatar,
+                        {
+                          backgroundColor: (
+                            selectedConnection.providerIconColor
+                          ),
+                        },
+                      ]}
+                    >
+                      <Text style={styles.providerAvatarText}>
+                        {selectedConnection.providerIconLetter}
+                      </Text>
+                    </View>
+
+                    <View style={styles.accountDetailText}>
+                      <Text
+                        style={styles.accountDetailName}
+                        numberOfLines={1}
+                      >
+                        {selectedConnection.accountLabel}
+                      </Text>
+
+                      <Text style={styles.accountDetailProvider}>
+                        {selectedConnection.providerName}
+                      </Text>
+
+                      <View style={styles.detailStatusRow}>
+                        <View
+                          style={[
+                            styles.statusDot,
+                            {
+                              backgroundColor: (
+                                selectedConnection.statusColor
+                              ),
+                            },
+                          ]}
+                        />
+
+                        <Text
+                          style={[
+                            styles.detailStatusText,
+                            {
+                              color: selectedConnection.statusColor,
+                            },
+                          ]}
+                        >
+                          {selectedConnection.statusLabel}
+                        </Text>
+                      </View>
+                    </View>
+                  </View>
+
+                  <View style={styles.detailInfoBox}>
+                    <Text style={styles.detailInfoTitle}>
+                      Estado de la autorización
+                    </Text>
+
+                    <Text style={styles.detailInfoText}>
+                      {selectedConnection.helperText}
+                    </Text>
+                  </View>
+
+                  {selectedConnectionCanReconnect ? (
+                    <TouchableOpacity
+                      style={styles.reconnectButton}
+                      onPress={() => {
+                        void handleReauthorize(selectedConnection);
+                      }}
+                      disabled={actionId === selectedConnection.id}
+                      activeOpacity={0.8}
+                    >
+                      {actionId === selectedConnection.id ? (
+                        <ActivityIndicator
+                          size="small"
+                          color={colors.neutral.white}
+                        />
+                      ) : (
+                        <RefreshCw
+                          size={17}
+                          color={colors.neutral.white}
+                        />
+                      )}
+
+                      <Text style={styles.reconnectButtonText}>
+                        Reconectar cuenta
+                      </Text>
+                    </TouchableOpacity>
+                  ) : null}
+
+                  {selectedConnectionIsConnected ? (
+                    <TouchableOpacity
+                      style={styles.unlinkButton}
+                      onPress={() => handleDisconnect(
+                        selectedConnection,
+                      )}
+                      disabled={actionId === selectedConnection.id}
+                      activeOpacity={0.8}
+                    >
+                      <Unlink
+                        size={17}
+                        color={colors.semantic.error}
+                      />
+
+                      <Text style={styles.unlinkButtonText}>
+                        Desconectar cuenta
+                      </Text>
+                    </TouchableOpacity>
+                  ) : null}
+
+                  {selectedConnectionCanDelete ? (
+                    <TouchableOpacity
+                      style={styles.deleteButton}
+                      onPress={() => handleDeleteRecord(
+                        selectedConnection,
+                      )}
+                      disabled={actionId === selectedConnection.id}
+                      activeOpacity={0.8}
+                    >
+                      <Trash2
+                        size={17}
+                        color={colors.semantic.error}
+                      />
+
+                      <Text style={styles.deleteButtonText}>
+                        Eliminar de la lista
+                      </Text>
+                    </TouchableOpacity>
+                  ) : null}
+                </>
+              ) : null}
+            </View>
+          </View>
+        </Modal>
       </View>
     </ScreenSafeArea>
   );
 }
+
 
 const styles = StyleSheet.create({
   safeArea: {
@@ -303,352 +826,492 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
     paddingHorizontal: 16,
     paddingVertical: 12,
     backgroundColor: colors.neutral.white,
     borderBottomWidth: 1,
-    borderColor: colors.neutral.gray100,
+    borderBottomColor: colors.neutral.gray100,
   },
-  backBtn: {
-    padding: 4,
+  headerIconButton: {
+    width: 36,
+    height: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   headerTitle: {
+    flex: 1,
+    textAlign: 'center',
     fontSize: 16,
     fontWeight: '800',
     color: colors.neutral.text,
+  },
+  loadingContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 12,
+  },
+  loadingText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: colors.neutral.gray600,
   },
   scrollView: {
     flex: 1,
   },
   scrollContent: {
     paddingHorizontal: 20,
-    paddingVertical: 20,
+    paddingTop: 20,
   },
-  subtitleText: {
+  subtitle: {
     fontSize: 13,
-    color: colors.neutral.gray600,
-    lineHeight: 18,
-    marginBottom: 24,
     fontWeight: '500',
+    lineHeight: 19,
+    color: colors.neutral.gray600,
+    marginBottom: 18,
   },
-  listCol: {
-    gap: 20,
-  },
-  card: {
-    backgroundColor: colors.neutral.white,
-    borderRadius: 20,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: colors.neutral.gray200,
-  },
-  cardHeader: {
+  linkAccountButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 12,
+    minHeight: 74,
+    backgroundColor: colors.brand.primary,
+    borderRadius: 19,
+    paddingHorizontal: 16,
+    marginBottom: 22,
+    shadowColor: colors.brand.primary,
+    shadowOffset: {
+      width: 0,
+      height: 5,
+    },
+    shadowOpacity: 0.18,
+    shadowRadius: 10,
+    elevation: 4,
   },
-  serviceLogoMock: {
-    width: 38,
-    height: 38,
+  linkAccountIcon: {
+    width: 39,
+    height: 39,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    marginRight: 12,
+  },
+  linkAccountTextColumn: {
+    flex: 1,
+  },
+  linkAccountTitle: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: colors.neutral.white,
+    marginBottom: 3,
+  },
+  linkAccountDescription: {
+    fontSize: 11,
+    fontWeight: '500',
+    color: 'rgba(255, 255, 255, 0.84)',
+  },
+  errorBox: {
+    flexDirection: 'row',
+    gap: 10,
+    backgroundColor: '#FFFBEB',
+    borderWidth: 1,
+    borderColor: '#FDE68A',
+    borderRadius: 14,
+    padding: 13,
+    marginBottom: 18,
+  },
+  errorContent: {
+    flex: 1,
+  },
+  errorTitle: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#92400E',
+    marginBottom: 2,
+  },
+  errorText: {
+    fontSize: 12,
+    lineHeight: 17,
+    fontWeight: '500',
+    color: '#B45309',
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 9,
+  },
+  sectionTitle: {
+    flex: 1,
+    fontSize: 11,
+    fontWeight: '800',
+    textTransform: 'uppercase',
+    letterSpacing: 0.6,
+    color: colors.neutral.gray600,
+  },
+  sectionCount: {
+    minWidth: 23,
+    height: 20,
     borderRadius: 10,
+    overflow: 'hidden',
+    textAlign: 'center',
+    lineHeight: 20,
+    fontSize: 11,
+    fontWeight: '800',
+    color: colors.brand.primary,
+    backgroundColor: '#F3E8FF',
+  },
+  connectionList: {
+    gap: 10,
+  },
+  connectionCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.neutral.white,
+    borderRadius: 17,
+    borderWidth: 1,
+    borderColor: colors.neutral.gray200,
+    padding: 13,
+  },
+  providerAvatar: {
+    width: 43,
+    height: 43,
+    borderRadius: 13,
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 12,
   },
-  serviceLogoText: {
-    color: colors.neutral.white,
-    fontSize: 18,
+  providerAvatarText: {
+    fontSize: 19,
     fontWeight: '800',
+    color: colors.neutral.white,
   },
-  headerDetailsCol: {
-    justifyContent: 'center',
+  connectionInfo: {
+    flex: 1,
+    minWidth: 0,
   },
-  serviceName: {
-    fontSize: 15,
-    fontWeight: '700',
+  connectionAccount: {
+    fontSize: 13,
+    fontWeight: '800',
     color: colors.neutral.text,
-    marginBottom: 2,
+    marginBottom: 4,
   },
-  statusRow: {
+  connectionMetaRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: 6,
+    marginBottom: 3,
+  },
+  connectionProvider: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: colors.neutral.gray600,
   },
   statusDot: {
     width: 6,
     height: 6,
     borderRadius: 3,
-    marginRight: 6,
   },
-  statusText: {
-    fontSize: 11,
-    fontWeight: '600',
-  },
-  serviceDesc: {
-    fontSize: 13,
-    color: colors.neutral.gray600,
-    lineHeight: 18,
-    marginBottom: 14,
-  },
-  syncDetailsBox: {
-    backgroundColor: colors.neutral.gray50,
-    borderRadius: 12,
-    padding: 12,
-    borderWidth: 1,
-    borderColor: colors.neutral.gray200,
-    marginBottom: 16,
-  },
-  syncBoxTitle: {
+  connectionStatus: {
+    flex: 1,
     fontSize: 11,
     fontWeight: '700',
-    color: colors.neutral.gray700,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-    marginBottom: 8,
   },
-  syncRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 6,
-  },
-  syncText: {
-    fontSize: 12,
-    color: colors.neutral.text,
+  connectionHelper: {
+    fontSize: 10,
     fontWeight: '500',
+    color: colors.neutral.gray500,
   },
-  connectBtn: {
-    backgroundColor: '#F3E8FF',
-    borderRadius: 12,
-    paddingVertical: 12,
+  emptyCard: {
     alignItems: 'center',
+    backgroundColor: colors.neutral.white,
+    borderWidth: 1.5,
+    borderStyle: 'dashed',
+    borderColor: colors.neutral.gray300,
+    borderRadius: 19,
+    paddingHorizontal: 24,
+    paddingVertical: 28,
+  },
+  emptyIconWrap: {
+    width: 48,
+    height: 48,
+    borderRadius: 15,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#F3E8FF',
+    marginBottom: 12,
+  },
+  emptyTitle: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: colors.neutral.text,
+    marginBottom: 5,
+  },
+  emptyDescription: {
+    fontSize: 12,
+    lineHeight: 17,
+    fontWeight: '500',
+    textAlign: 'center',
+    color: colors.neutral.gray600,
+  },
+  securityBox: {
+    flexDirection: 'row',
+    gap: 11,
+    backgroundColor: '#F3E8FF',
     borderWidth: 1,
     borderColor: '#DDD6FE',
+    borderRadius: 16,
+    padding: 14,
+    marginTop: 20,
   },
-  connectBtnText: {
-    color: colors.brand.primary,
-    fontSize: 13,
-    fontWeight: '700',
-  },
-  connectedFooterRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 12,
-  },
-  linkedEmailText: {
-    fontSize: 12,
-    color: colors.neutral.gray600,
-    fontWeight: '600',
+  securityContent: {
     flex: 1,
   },
-  disconnectBtn: {
-    paddingVertical: 8,
-    paddingHorizontal: 14,
-    borderRadius: 10,
-    backgroundColor: '#FEE2E2',
-    borderWidth: 1,
-    borderColor: '#FEE2E2',
+  securityTitle: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: colors.neutral.text,
+    marginBottom: 3,
   },
-  disconnectBtnText: {
-    color: colors.semantic.error,
-    fontSize: 12,
-    fontWeight: '700',
-  },
-  futureCard: {
-    backgroundColor: colors.neutral.gray50,
-    borderStyle: 'dashed',
-    borderWidth: 1.5,
-    borderColor: colors.neutral.gray300,
-    alignItems: 'center',
-    paddingVertical: 24,
-    paddingHorizontal: 20,
-  },
-  futureTitle: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: colors.neutral.gray700,
-    marginBottom: 4,
-  },
-  futureDesc: {
-    fontSize: 12,
-    color: colors.neutral.gray600,
-    textAlign: 'center',
+  securityText: {
+    fontSize: 11,
     lineHeight: 16,
+    fontWeight: '500',
+    color: colors.neutral.gray600,
+  },
+  bottomSpacing: {
+    height: 110,
   },
   modalBackdrop: {
     flex: 1,
-    backgroundColor: 'rgba(26, 26, 46, 0.4)',
     justifyContent: 'flex-end',
+    backgroundColor: 'rgba(15, 23, 42, 0.45)',
   },
-  consentSheet: {
+  providerSheet: {
     backgroundColor: colors.neutral.white,
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    padding: 24,
-    height: SCREEN_HEIGHT * 0.75,
-    justifyContent: 'space-between',
-  },
-  consentHeader: {
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  shieldWrap: {
-    width: 44,
-    height: 44,
-    borderRadius: 14,
-    backgroundColor: '#F3E8FF',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 12,
-  },
-  consentTitle: {
-    fontSize: 18,
-    fontWeight: '800',
-    color: colors.neutral.text,
-    marginBottom: 6,
-  },
-  consentSub: {
-    fontSize: 12,
-    color: colors.neutral.gray600,
-    textAlign: 'center',
+    borderTopLeftRadius: 27,
+    borderTopRightRadius: 27,
     paddingHorizontal: 20,
+    paddingTop: 23,
+    paddingBottom: 30,
   },
-  diagramRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 16,
-    marginVertical: 14,
+  detailsSheet: {
+    backgroundColor: colors.neutral.white,
+    borderTopLeftRadius: 27,
+    borderTopRightRadius: 27,
+    paddingHorizontal: 20,
+    paddingTop: 23,
+    paddingBottom: 30,
   },
-  appCircle: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: colors.neutral.gray100,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: colors.neutral.gray200,
-  },
-  appCircleText: {
-    fontSize: 22,
-  },
-  serviceCircle: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  serviceCircleText: {
-    color: colors.neutral.white,
-    fontSize: 22,
-    fontWeight: '800',
-  },
-  accountBox: {
-    backgroundColor: colors.neutral.gray50,
-    borderRadius: 14,
-    padding: 14,
-    borderWidth: 1,
-    borderColor: colors.neutral.gray200,
-    marginBottom: 16,
-  },
-  accountBoxLabel: {
-    fontSize: 11,
-    color: colors.neutral.gray600,
-    fontWeight: '700',
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-    marginBottom: 4,
-  },
-  accountBoxEmail: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: colors.neutral.text,
-    marginBottom: 2,
-  },
-  accountBoxMeta: {
-    fontSize: 11,
-    color: colors.brand.primary,
-    fontWeight: '600',
-  },
-  permissionsLabel: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: colors.neutral.gray700,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-    marginBottom: 8,
-  },
-  permissionsScroll: {
-    flex: 1,
-    marginBottom: 20,
-  },
-  permissionItem: {
+  sheetHeader: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    marginBottom: 10,
-    paddingRight: 10,
+    justifyContent: 'space-between',
+    marginBottom: 20,
   },
-  permissionDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: colors.brand.primary,
-    marginTop: 6,
-    marginRight: 10,
-  },
-  permissionText: {
-    fontSize: 12,
+  sheetTitle: {
+    fontSize: 19,
+    fontWeight: '800',
     color: colors.neutral.text,
-    lineHeight: 16,
-    fontWeight: '500',
+    marginBottom: 5,
   },
-  warningBox: {
+  sheetSubtitle: {
+    fontSize: 12,
+    fontWeight: '500',
+    color: colors.neutral.gray600,
+    lineHeight: 17,
+  },
+  closeButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.neutral.gray100,
+  },
+  providerOptions: {
+    gap: 11,
+  },
+  providerOption: {
     flexDirection: 'row',
-    backgroundColor: '#FFFBEB',
-    borderRadius: 10,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: colors.neutral.gray200,
+    backgroundColor: colors.neutral.white,
+    borderRadius: 16,
+    padding: 13,
+  },
+  providerOptionDisabled: {
+    backgroundColor: colors.neutral.gray50,
+  },
+  providerOptionIcon: {
+    width: 42,
+    height: 42,
+    borderRadius: 13,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  providerOptionIconText: {
+    fontSize: 19,
+    fontWeight: '800',
+    color: colors.neutral.white,
+  },
+  providerOptionText: {
+    flex: 1,
+  },
+  providerNameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
+    marginBottom: 3,
+  },
+  providerOptionName: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: colors.neutral.text,
+  },
+  comingSoonTag: {
+    fontSize: 9,
+    fontWeight: '800',
+    color: colors.neutral.gray600,
+    backgroundColor: colors.neutral.gray200,
+    paddingHorizontal: 7,
+    paddingVertical: 3,
+    borderRadius: 7,
+    overflow: 'hidden',
+  },
+  providerOptionDescription: {
+    fontSize: 11,
+    fontWeight: '500',
+    color: colors.neutral.gray600,
+  },
+  providerSecurityNote: {
+    flexDirection: 'row',
+    gap: 9,
+    backgroundColor: '#F0FDF4',
+    borderWidth: 1,
+    borderColor: '#BBF7D0',
+    borderRadius: 13,
     padding: 12,
+    marginTop: 16,
+  },
+  providerSecurityText: {
+    flex: 1,
+    fontSize: 11,
+    lineHeight: 16,
+    fontWeight: '600',
+    color: '#166534',
+  },
+  accountDetailCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.neutral.gray50,
+    borderRadius: 17,
+    borderWidth: 1,
+    borderColor: colors.neutral.gray200,
+    padding: 14,
+    marginBottom: 14,
+  },
+  detailProviderAvatar: {
+    width: 51,
+    height: 51,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 13,
+  },
+  accountDetailText: {
+    flex: 1,
+    minWidth: 0,
+  },
+  accountDetailName: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: colors.neutral.text,
+    marginBottom: 3,
+  },
+  accountDetailProvider: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: colors.neutral.gray600,
+    marginBottom: 5,
+  },
+  detailStatusRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  detailStatusText: {
+    fontSize: 11,
+    fontWeight: '800',
+  },
+  detailInfoBox: {
+    backgroundColor: '#FFFBEB',
     borderWidth: 1,
     borderColor: '#FDE68A',
-    marginTop: 12,
+    borderRadius: 14,
+    padding: 13,
+    marginBottom: 14,
   },
-  warningText: {
+  detailInfoTitle: {
     fontSize: 11,
+    fontWeight: '800',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    color: '#92400E',
+    marginBottom: 5,
+  },
+  detailInfoText: {
+    fontSize: 12,
+    lineHeight: 17,
+    fontWeight: '500',
     color: '#B45309',
-    lineHeight: 15,
-    fontWeight: '600',
-    flex: 1,
   },
-  consentButtonsRow: {
+  reconnectButton: {
+    minHeight: 47,
     flexDirection: 'row',
-    gap: 12,
-    paddingTop: 10,
-    borderTopWidth: 1,
-    borderTopColor: colors.neutral.gray200,
-  },
-  cancelConsentBtn: {
-    flex: 1,
-    borderWidth: 1,
-    borderColor: colors.neutral.gray300,
-    borderRadius: 14,
-    paddingVertical: 14,
     alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: '#D97706',
+    borderRadius: 13,
+    marginBottom: 10,
   },
-  cancelConsentBtnText: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: colors.neutral.gray700,
-  },
-  authorizeBtn: {
-    flex: 1.5,
-    backgroundColor: colors.brand.primary,
-    borderRadius: 14,
-    paddingVertical: 14,
-    alignItems: 'center',
-  },
-  authorizeBtnText: {
+  reconnectButtonText: {
+    fontSize: 13,
+    fontWeight: '800',
     color: colors.neutral.white,
-    fontSize: 14,
-    fontWeight: '700',
+  },
+  unlinkButton: {
+    minHeight: 47,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: '#FEE2E2',
+    borderWidth: 1,
+    borderColor: '#FECACA',
+    borderRadius: 13,
+  },
+  unlinkButtonText: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: colors.semantic.error,
+  },
+  deleteButton: {
+    minHeight: 47,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: '#FEE2E2',
+    borderWidth: 1,
+    borderColor: '#FECACA',
+    borderRadius: 13,
+  },
+  deleteButtonText: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: colors.semantic.error,
   },
 });

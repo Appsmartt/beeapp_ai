@@ -454,7 +454,8 @@ def get_valid_google_access_token(
         credentials = getattr(
             credentials_response,
             "data",
-            None)
+            None,
+        )
 
         if not credentials:
             raise IntegrationCredentialError(
@@ -626,4 +627,59 @@ def disconnect_user_connection(
     except Exception as error:
         raise IntegrationCredentialError(
             "Could not disconnect integration."
+        ) from error
+
+
+def delete_inactive_user_connection(
+    *,
+    user_id: str,
+    connection_id: str,
+) -> None:
+    """
+    Removes a previously disconnected/inactive connection from the
+    user's visible integration list.
+
+    Active connections cannot be removed through this endpoint. They
+    must be disconnected first so their credentials are deleted.
+    """
+    connection = get_user_connection(
+        user_id=user_id,
+        connection_id=connection_id,
+    )
+
+    if connection["status"] == "connected":
+        raise IntegrationCredentialError(
+            "Disconnect the integration before removing it."
+        )
+
+    try:
+        (
+            _supabase()
+            .table("integration_credentials")
+            .delete()
+            .eq("connection_id", connection_id)
+            .execute()
+        )
+
+        _record_event(
+            connection_id=connection_id,
+            user_id=user_id,
+            provider=connection["provider"],
+            event_type="integration_record_deleted",
+            metadata={
+                "previous_status": connection["status"],
+            },
+        )
+
+        (
+            _supabase()
+            .table("integration_connections")
+            .delete()
+            .eq("id", connection_id)
+            .eq("user_id", user_id)
+            .execute()
+        )
+    except Exception as error:
+        raise IntegrationCredentialError(
+            "Could not remove integration from the list."
         ) from error

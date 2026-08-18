@@ -26,6 +26,7 @@ from apps.integrations.services.google_oauth_service import (
     get_google_user_info,
 )
 from apps.integrations.services.integration_connection_service import (
+    delete_inactive_user_connection,
     disconnect_user_connection,
     get_user_connection,
     list_user_connections,
@@ -405,6 +406,44 @@ class IntegrationConnectionDetailView(
                     "detail": (
                         "No fue posible desconectar la integración."
                     )
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        return Response(
+            status=status.HTTP_204_NO_CONTENT,
+        )
+
+
+class DeleteIntegrationConnectionRecordView(
+    AuthenticatedAPIView,
+):
+    def delete(self, request, connection_id):
+        try:
+            authenticated_user = self.get_authenticated_user(
+                request
+            )
+
+            delete_inactive_user_connection(
+                user_id=str(authenticated_user.id),
+                connection_id=str(connection_id),
+            )
+
+        except AccountAuthenticationError:
+            return unauthorized_response()
+
+        except IntegrationConnectionNotFoundError:
+            return Response(
+                {
+                    "detail": "La integración no fue encontrada.",
+                },
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        except IntegrationCredentialError as error:
+            return Response(
+                {
+                    "detail": str(error),
                 },
                 status=status.HTTP_400_BAD_REQUEST,
             )

@@ -1,6 +1,7 @@
 from django.urls import path
 
 from apps.integrations.views import (
+    DeleteIntegrationConnectionRecordView,
     GoogleOAuthCallbackView,
     IntegrationCatalogView,
     IntegrationConnectionDetailView,
@@ -35,6 +36,11 @@ urlpatterns = [
         "connections/<uuid:connection_id>/",
         IntegrationConnectionDetailView.as_view(),
         name="integration-connection-detail",
+    ),
+    path(
+        "connections/<uuid:connection_id>/record/",
+        DeleteIntegrationConnectionRecordView.as_view(),
+        name="integration-connection-record-delete",
     ),
     path(
         "connections/<uuid:connection_id>/reauthorize/",
