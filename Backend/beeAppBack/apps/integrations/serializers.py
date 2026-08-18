@@ -3,6 +3,7 @@ from rest_framework import serializers
 
 SUPPORTED_PROVIDERS = (
     "google",
+    "microsoft",
 )
 
 

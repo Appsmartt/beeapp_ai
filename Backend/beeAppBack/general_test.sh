@@ -1,15 +1,20 @@
 #!/usr/bin/env bash
-# BeeApp — Suite E2E combinada: Agenda + Integraciones
+# BeeApp — Suite E2E combinada: Agenda + Integraciones Google/Microsoft
 # Ejecuta primero las pruebas de Agenda y después las de Integraciones.
 # Requiere: bash, curl, python3 (o python), mktemp y realpath.
+# Para OAuth real, requiere Django y Cloudflare Tunnel activos.
+#
 # Uso:
 #   chmod +x beeapp_e2e_combinado.sh
 #   ./beeapp_e2e_combinado.sh
+#
 # Variables opcionales:
 #   BEEAPP_API=http://127.0.0.1:8000
 #   BEEAPP_USER_A_EMAIL=usuario-a@ejemplo.com
 #   BEEAPP_USER_B_EMAIL=usuario-b@ejemplo.com
 #   BEEAPP_USER_EMAIL=usuario-integraciones@ejemplo.com
+#   OAUTH_TIMEOUT_SECONDS=180
+#   OAUTH_POLL_SECONDS=3
 
 set -u
 set -o pipefail
@@ -18,6 +23,8 @@ API_BASE="${BEEAPP_API:-http://127.0.0.1:8000}"
 USER_A_EMAIL="${BEEAPP_USER_A_EMAIL:-andres.santa-fe@hotmail.com}"
 USER_B_EMAIL="${BEEAPP_USER_B_EMAIL:-andresFelipeMendozaSilva@hotmail.com}"
 INTEGRATIONS_USER_EMAIL="${BEEAPP_USER_EMAIL:-$USER_A_EMAIL}"
+OAUTH_TIMEOUT_SECONDS="${OAUTH_TIMEOUT_SECONDS:-180}"
+OAUTH_POLL_SECONDS="${OAUTH_POLL_SECONDS:-3}"
 
 REPORT="beeapp_e2e_combined_report.txt"
 SUMMARY="beeapp_e2e_combined_summary.txt"
@@ -31,6 +38,7 @@ RANGE_END="2026-09-10T00:00:00-05:00"
 
 require_command() {
   local command_name="$1"
+
   if ! command -v "$command_name" >/dev/null 2>&1; then
     echo "ERROR: Falta el comando requerido: $command_name" >&2
     exit 1
@@ -56,6 +64,7 @@ json_pretty() {
 
 json_value() {
   local expression="$1"
+
   "$PYTHON_BIN" -c "
 import json
 import sys
@@ -125,7 +134,8 @@ record_assertion() {
     echo "detail: $detail"
   } >> "$REPORT"
 
-  printf '%-8s | %s%s\n' "$result" "$label" "${detail:+ — $detail}" >> "$SUMMARY"
+  printf '%-8s | %s%s\n' \
+    "$result" "$label" "${detail:+ — $detail}" >> "$SUMMARY"
 }
 
 api_request() {
@@ -195,10 +205,12 @@ api_request_any_status() {
 assert_nonempty() {
   local label="$1"
   local value="$2"
+
   if [[ -n "$value" ]]; then
     record_assertion "$label" "PASS"
     return 0
   fi
+
   record_assertion "$label" "FAIL" "Valor vacío"
   return 1
 }
@@ -207,10 +219,12 @@ assert_equals() {
   local label="$1"
   local expected="$2"
   local actual="$3"
+
   if [[ "$expected" == "$actual" ]]; then
     record_assertion "$label" "PASS" "$actual"
     return 0
   fi
+
   record_assertion "$label" "FAIL" "Esperado=$expected; recibido=$actual"
   return 1
 }
@@ -257,6 +271,7 @@ login() {
   local email="$1"
   local password="$2"
   local payload
+
   payload="$(EMAIL="$email" PASSWORD="$password" "$PYTHON_BIN" -c "
 import json
 import os
@@ -272,6 +287,7 @@ print(json.dumps({'email': os.environ['EMAIL'], 'password': os.environ['PASSWORD
 cleanup_event() {
   local token="$1" event_id="$2" label="$3"
   [[ -z "$event_id" ]] && return
+
   api_request_any_status "Cleanup event: $label" "204 404" \
     -X DELETE "$API_BASE/api/calendar/events/$event_id/" \
     -H "Authorization: Bearer $token" >/dev/null
@@ -280,6 +296,7 @@ cleanup_event() {
 cleanup_calendar() {
   local token="$1" calendar_id="$2" label="$3"
   [[ -z "$calendar_id" ]] && return
+
   api_request_any_status "Cleanup calendar: $label" "204 404" \
     -X DELETE "$API_BASE/api/calendar/calendars/$calendar_id/" \
     -H "Authorization: Bearer $token" >/dev/null
@@ -288,17 +305,88 @@ cleanup_calendar() {
 cleanup_tag() {
   local token="$1" tag_id="$2" label="$3"
   [[ -z "$tag_id" ]] && return
+
   api_request_any_status "Cleanup tag: $label" "204 404" \
     -X DELETE "$API_BASE/api/calendar/tags/$tag_id/" \
     -H "Authorization: Bearer $token" >/dev/null
 }
 
-json_payload() {
-  "$PYTHON_BIN" - "$@" <<'PY'
-import json
-import sys
-print(json.dumps(json.load(sys.stdin)))
-PY
+open_oauth_url() {
+  local provider_name="$1"
+  local url="$2"
+  local opener=""
+  local open_result=1
+
+  if [[ -z "$url" ]]; then
+    record_assertion \
+      "Integrations: ${provider_name} OAuth URL available" \
+      "FAIL" \
+      "La URL OAuth está vacía."
+    return 1
+  fi
+
+  echo
+  echo "================================================================"
+  echo "URL ${provider_name^^} OAUTH"
+  echo "================================================================"
+  printf '%s\n' "$url"
+  echo "================================================================"
+  echo
+
+  if command -v google-chrome >/dev/null 2>&1; then
+    opener="google-chrome"
+  elif command -v google-chrome-stable >/dev/null 2>&1; then
+    opener="google-chrome-stable"
+  elif command -v chromium >/dev/null 2>&1; then
+    opener="chromium"
+  elif command -v chromium-browser >/dev/null 2>&1; then
+    opener="chromium-browser"
+  elif command -v xdg-open >/dev/null 2>&1; then
+    opener="xdg-open"
+  fi
+
+  if [[ -z "$opener" ]]; then
+    record_assertion \
+      "Integrations: abrir ${provider_name} OAuth automáticamente" \
+      "SKIP" \
+      "No se encontró navegador ni xdg-open."
+    echo "Copia la URL anterior y pégala manualmente en Chrome."
+    return 1
+  fi
+
+  echo "Intentando abrir OAuth con: $opener"
+  "$opener" "$url" >/dev/null 2>&1 &
+  open_result=$?
+
+  if [[ "$open_result" -eq 0 ]]; then
+    record_assertion \
+      "Integrations: abrir ${provider_name} OAuth automáticamente" \
+      "PASS" \
+      "$opener"
+    return 0
+  fi
+
+  record_assertion \
+    "Integrations: abrir ${provider_name} OAuth automáticamente" \
+    "SKIP" \
+    "Falló $opener; abre la URL manualmente."
+  echo "Copia la URL anterior y pégala manualmente en Chrome."
+  return 1
+}
+
+find_connected_connection_id() {
+  local provider="$1"
+  local response="$2"
+
+  printf '%s' "$response" | json_value \
+    "next((
+        item.get('id', '')
+        for item in data.get('connections', [])
+        if (
+            item.get('provider') == '$provider'
+            and item.get('status') == 'connected'
+        )
+    ), '')"
 }
 
 run_agenda_tests() {
@@ -509,131 +597,424 @@ run_agenda_tests() {
 }
 
 run_integrations_tests() {
-  local login_response catalog_response connections_response google_auth_response
-  local google_status google_auth_url google_request_id google_expires_at
-  local connection_id detail_response reauth_response disconnected_detail_response
-  local detail_provider detail_status detail_email reauth_url disconnected_status
+  local login_response catalog_response connections_response
+  local google_auth_response microsoft_auth_response
+  local google_status microsoft_status
+  local google_auth_url google_request_id google_expires_at
+  local microsoft_auth_url microsoft_request_id microsoft_expires_at
+  local google_connection_id microsoft_connection_id
+  local detail_response reauth_response disconnected_detail_response
+  local detail_provider detail_status detail_email reauth_url
+  local disconnected_status run_google_oauth run_microsoft_oauth
+  local required_scope elapsed_seconds provider_name connection_id
 
   echo
   echo "============================================================"
   echo "BLOQUE 2/2 — BEEAPP INTEGRACIONES E2E"
   echo "============================================================"
 
-  echo "[Integraciones 1/9] Health check"
-  HEALTH_RESPONSE="$(api_request "Integrations: health check" "200" "$API_BASE/api/health/")"
-  HEALTH_STATUS="$(printf '%s' "$HEALTH_RESPONSE" | json_value "data.get('status', '')")"
-  assert_equals "Integrations: health payload status" "ok" "$HEALTH_STATUS"
+  echo "[Integraciones 1/12] Health check"
+  HEALTH_RESPONSE="$(api_request \
+    "Integrations: health check" \
+    "200" \
+    "$API_BASE/api/health/"
+  )"
+  HEALTH_STATUS="$(printf '%s' "$HEALTH_RESPONSE" | \
+    json_value "data.get('status', '')"
+  )"
+  assert_equals \
+    "Integrations: health payload status" \
+    "ok" \
+    "$HEALTH_STATUS"
 
-  echo "[Integraciones 2/9] Login"
-  login_response="$(login "$INTEGRATIONS_USER_EMAIL" "$INTEGRATIONS_USER_PASSWORD")"
-  INTEGRATIONS_ACCESS_TOKEN="$(printf '%s' "$login_response" | json_value "data.get('session', {}).get('access_token', '')")"
-  assert_nonempty "Integrations: access token extracted" "$INTEGRATIONS_ACCESS_TOKEN" || return 1
+  echo "[Integraciones 2/12] Login"
+  login_response="$(login \
+    "$INTEGRATIONS_USER_EMAIL" \
+    "$INTEGRATIONS_USER_PASSWORD"
+  )"
+  INTEGRATIONS_ACCESS_TOKEN="$(printf '%s' "$login_response" | \
+    json_value "data.get('session', {}).get('access_token', '')"
+  )"
+  assert_nonempty \
+    "Integrations: access token extracted" \
+    "$INTEGRATIONS_ACCESS_TOKEN" || return 1
 
-  echo "[Integraciones 3/9] Seguridad sin credenciales"
-  api_request "Integrations: catalog without credentials" "401" "$API_BASE/api/integrations/catalog/" >/dev/null
-  api_request "Integrations: connections without credentials" "401" "$API_BASE/api/integrations/connections/" >/dev/null
-  api_request "Integrations: Google authorization without credentials" "401" \
-    -X POST "$API_BASE/api/integrations/connections/google/authorize/" \
-    -H "Content-Type: application/json" -d '{"capabilities":[]}' >/dev/null
-
-  echo "[Integraciones 4/9] Catálogo"
-  catalog_response="$(api_request "Integrations: integration catalog" "200" "$API_BASE/api/integrations/catalog/" -H "Authorization: Bearer $INTEGRATIONS_ACCESS_TOKEN")"
-  google_status="$(printf '%s' "$catalog_response" | json_value "next((item.get('status', '') for item in data.get('providers', []) if item.get('id') == 'google'), '')")"
-  assert_equals "Integrations: Google appears as available" "available" "$google_status"
-  assert_no_sensitive_keys "Integrations: catalog does not expose secrets" "$catalog_response"
-
-  echo "[Integraciones 5/9] Lista segura de conexiones"
-  connections_response="$(api_request "Integrations: connection list" "200" "$API_BASE/api/integrations/connections/" -H "Authorization: Bearer $INTEGRATIONS_ACCESS_TOKEN")"
-  assert_no_sensitive_keys "Integrations: connection list does not expose tokens" "$connections_response"
-
-  echo "[Integraciones 6/9] Validaciones"
-  api_request "Integrations: Microsoft authorization unavailable" "400" \
-    -X POST "$API_BASE/api/integrations/connections/microsoft/authorize/" \
-    -H "Authorization: Bearer $INTEGRATIONS_ACCESS_TOKEN" -H "Content-Type: application/json" \
+  echo "[Integraciones 3/12] Seguridad sin credenciales"
+  api_request \
+    "Integrations: catalog without credentials" \
+    "401" \
+    "$API_BASE/api/integrations/catalog/" >/dev/null
+  api_request \
+    "Integrations: connections without credentials" \
+    "401" \
+    "$API_BASE/api/integrations/connections/" >/dev/null
+  api_request \
+    "Integrations: Google authorization without credentials" \
+    "401" \
+    -X POST \
+    "$API_BASE/api/integrations/connections/google/authorize/" \
+    -H "Content-Type: application/json" \
     -d '{"capabilities":[]}' >/dev/null
-  api_request "Integrations: Google capabilities must be an array" "400" \
-    -X POST "$API_BASE/api/integrations/connections/google/authorize/" \
-    -H "Authorization: Bearer $INTEGRATIONS_ACCESS_TOKEN" -H "Content-Type: application/json" \
+  api_request \
+    "Integrations: Microsoft authorization without credentials" \
+    "401" \
+    -X POST \
+    "$API_BASE/api/integrations/connections/microsoft/authorize/" \
+    -H "Content-Type: application/json" \
+    -d '{"capabilities":[]}' >/dev/null
+
+  echo "[Integraciones 4/12] Catálogo Google y Microsoft"
+  catalog_response="$(api_request \
+    "Integrations: integration catalog" \
+    "200" \
+    "$API_BASE/api/integrations/catalog/" \
+    -H "Authorization: Bearer $INTEGRATIONS_ACCESS_TOKEN"
+  )"
+  google_status="$(printf '%s' "$catalog_response" | \
+    json_value "next((item.get('status', '') for item in data.get('providers', []) if item.get('id') == 'google'), '')"
+  )"
+  microsoft_status="$(printf '%s' "$catalog_response" | \
+    json_value "next((item.get('status', '') for item in data.get('providers', []) if item.get('id') == 'microsoft'), '')"
+  )"
+  assert_equals \
+    "Integrations: Google appears as available" \
+    "available" \
+    "$google_status"
+  assert_equals \
+    "Integrations: Microsoft appears as available" \
+    "available" \
+    "$microsoft_status"
+  assert_no_sensitive_keys \
+    "Integrations: catalog does not expose secrets" \
+    "$catalog_response"
+
+  echo "[Integraciones 5/12] Lista segura de conexiones"
+  connections_response="$(api_request \
+    "Integrations: connection list" \
+    "200" \
+    "$API_BASE/api/integrations/connections/" \
+    -H "Authorization: Bearer $INTEGRATIONS_ACCESS_TOKEN"
+  )"
+  assert_no_sensitive_keys \
+    "Integrations: connection list does not expose tokens" \
+    "$connections_response"
+
+  echo "[Integraciones 6/12] Validaciones de payload"
+  api_request \
+    "Integrations: Google capabilities must be an array" \
+    "400" \
+    -X POST \
+    "$API_BASE/api/integrations/connections/google/authorize/" \
+    -H "Authorization: Bearer $INTEGRATIONS_ACCESS_TOKEN" \
+    -H "Content-Type: application/json" \
     -d '{"capabilities":"calendar"}' >/dev/null
+  api_request \
+    "Integrations: Microsoft capabilities must be an array" \
+    "400" \
+    -X POST \
+    "$API_BASE/api/integrations/connections/microsoft/authorize/" \
+    -H "Authorization: Bearer $INTEGRATIONS_ACCESS_TOKEN" \
+    -H "Content-Type: application/json" \
+    -d '{"capabilities":"mail"}' >/dev/null
 
-  echo "[Integraciones 7/9] Inicio OAuth Google"
-  google_auth_response="$(api_request "Integrations: start Google OAuth authorization" "201" \
-    -X POST "$API_BASE/api/integrations/connections/google/authorize/" \
-    -H "Authorization: Bearer $INTEGRATIONS_ACCESS_TOKEN" -H "Content-Type: application/json" \
-    -d '{"capabilities":[]}')"
-  google_auth_url="$(printf '%s' "$google_auth_response" | json_value "data.get('authorization_url', '')")"
-  google_request_id="$(printf '%s' "$google_auth_response" | json_value "data.get('request_id', '')")"
-  google_expires_at="$(printf '%s' "$google_auth_response" | json_value "data.get('expires_at', '')")"
-  assert_nonempty "Integrations: Google authorization URL extracted" "$google_auth_url"
-  assert_nonempty "Integrations: Google OAuth request ID extracted" "$google_request_id"
-  assert_nonempty "Integrations: Google OAuth expiration extracted" "$google_expires_at"
+  echo "[Integraciones 7/12] Inicio OAuth Google"
+  google_auth_response="$(api_request \
+    "Integrations: start Google OAuth authorization" \
+    "201" \
+    -X POST \
+    "$API_BASE/api/integrations/connections/google/authorize/" \
+    -H "Authorization: Bearer $INTEGRATIONS_ACCESS_TOKEN" \
+    -H "Content-Type: application/json" \
+    -d '{"capabilities":[]}'
+  )"
+  google_auth_url="$(printf '%s' "$google_auth_response" | \
+    json_value "data.get('authorization_url', '')"
+  )"
+  google_request_id="$(printf '%s' "$google_auth_response" | \
+    json_value "data.get('request_id', '')"
+  )"
+  google_expires_at="$(printf '%s' "$google_auth_response" | \
+    json_value "data.get('expires_at', '')"
+  )"
+  assert_nonempty \
+    "Integrations: Google authorization URL extracted" \
+    "$google_auth_url"
+  assert_nonempty \
+    "Integrations: Google OAuth request ID extracted" \
+    "$google_request_id"
+  assert_nonempty \
+    "Integrations: Google OAuth expiration extracted" \
+    "$google_expires_at"
   if [[ "$google_auth_url" == https://accounts.google.com/* ]]; then
-    record_assertion "Integrations: Google authorization endpoint is official" "PASS"
+    record_assertion \
+      "Integrations: Google authorization endpoint is official" \
+      "PASS"
   else
-    record_assertion "Integrations: Google authorization endpoint is official" "FAIL" "Expected https://accounts.google.com/"
+    record_assertion \
+      "Integrations: Google authorization endpoint is official" \
+      "FAIL" \
+      "Expected https://accounts.google.com/"
   fi
 
-  echo "[Integraciones 8/9] Callback OAuth inválido"
-  api_request_any_status "Integrations: callback without parameters redirects safely" "301 302" "$API_BASE/api/integrations/oauth/callback/google/" >/dev/null
-  api_request_any_status "Integrations: callback invalid state redirects safely" "301 302" "$API_BASE/api/integrations/oauth/callback/google/?code=fake-code&state=invalid-state" >/dev/null
-
-  echo "[Integraciones 9/9] OAuth real, detalle, reautorización y desconexión"
-  echo "Para comprobar el guardado real de tokens, debes autorizar Google."
-  read -r -p "¿Abrir Google OAuth ahora? [y/N]: " RUN_GOOGLE_OAUTH
-
-  connection_id=""
-  if [[ "$RUN_GOOGLE_OAUTH" =~ ^[Yy]$ ]]; then
-    echo "Abriendo navegador. Inicia sesión con un Test user de Google."
-    if command -v xdg-open >/dev/null 2>&1; then
-      xdg-open "$google_auth_url" >/dev/null 2>&1 || record_assertion "Integrations: open Google OAuth automatically" "SKIP" "No fue posible abrir el navegador; abre la URL manualmente."
+  echo "[Integraciones 8/12] Inicio OAuth Microsoft"
+  microsoft_auth_response="$(api_request \
+    "Integrations: start Microsoft OAuth authorization" \
+    "201" \
+    -X POST \
+    "$API_BASE/api/integrations/connections/microsoft/authorize/" \
+    -H "Authorization: Bearer $INTEGRATIONS_ACCESS_TOKEN" \
+    -H "Content-Type: application/json" \
+    -d '{"capabilities":[]}'
+  )"
+  microsoft_auth_url="$(printf '%s' "$microsoft_auth_response" | \
+    json_value "data.get('authorization_url', '')"
+  )"
+  microsoft_request_id="$(printf '%s' "$microsoft_auth_response" | \
+    json_value "data.get('request_id', '')"
+  )"
+  microsoft_expires_at="$(printf '%s' "$microsoft_auth_response" | \
+    json_value "data.get('expires_at', '')"
+  )"
+  assert_nonempty \
+    "Integrations: Microsoft authorization URL extracted" \
+    "$microsoft_auth_url"
+  assert_nonempty \
+    "Integrations: Microsoft OAuth request ID extracted" \
+    "$microsoft_request_id"
+  assert_nonempty \
+    "Integrations: Microsoft OAuth expiration extracted" \
+    "$microsoft_expires_at"
+  if [[ "$microsoft_auth_url" == https://login.microsoftonline.com/* ]]; then
+    record_assertion \
+      "Integrations: Microsoft authorization endpoint is official" \
+      "PASS"
+  else
+    record_assertion \
+      "Integrations: Microsoft authorization endpoint is official" \
+      "FAIL" \
+      "Expected https://login.microsoftonline.com/"
+  fi
+  for required_scope in \
+    "openid" \
+    "profile" \
+    "email" \
+    "offline_access" \
+    "User.Read"
+  do
+    if [[ "$microsoft_auth_url" == *"$required_scope"* ]]; then
+      record_assertion \
+        "Integrations: Microsoft OAuth includes $required_scope" \
+        "PASS"
     else
-      record_assertion "Integrations: open Google OAuth automatically" "SKIP" "xdg-open no está instalado; abre la URL manualmente."
-      echo "URL OAuth: $google_auth_url"
+      record_assertion \
+        "Integrations: Microsoft OAuth includes $required_scope" \
+        "FAIL"
     fi
+  done
 
-    read -r -p "Después de completar Google OAuth, presiona Enter... " _
-    connections_response="$(api_request "Integrations: list connections after Google OAuth" "200" "$API_BASE/api/integrations/connections/" -H "Authorization: Bearer $INTEGRATIONS_ACCESS_TOKEN")"
-    connection_id="$(printf '%s' "$connections_response" | json_value "next((item.get('id', '') for item in data.get('connections', []) if item.get('provider') == 'google' and item.get('status') == 'connected'), '')")"
-    assert_nonempty "Integrations: connected Google connection ID exists" "$connection_id"
-    assert_no_sensitive_keys "Integrations: connections after OAuth do not expose tokens" "$connections_response"
+  echo "[Integraciones 9/12] Callbacks OAuth inválidos y seguros"
+  api_request_any_status \
+    "Integrations: Google callback without parameters redirects safely" \
+    "301 302" \
+    "$API_BASE/api/integrations/oauth/callback/google/" >/dev/null
+  api_request_any_status \
+    "Integrations: Google callback invalid state redirects safely" \
+    "301 302" \
+    "$API_BASE/api/integrations/oauth/callback/google/?code=fake-code&state=invalid-state" >/dev/null
+  api_request_any_status \
+    "Integrations: Microsoft callback without parameters redirects safely" \
+    "301 302" \
+    "$API_BASE/api/integrations/oauth/callback/microsoft/" >/dev/null
+  api_request_any_status \
+    "Integrations: Microsoft callback invalid state redirects safely" \
+    "301 302" \
+    "$API_BASE/api/integrations/oauth/callback/microsoft/?code=fake-code&state=invalid-state" >/dev/null
 
-    if [[ -n "$connection_id" ]]; then
-      detail_response="$(api_request "Integrations: Google connection detail" "200" "$API_BASE/api/integrations/connections/$connection_id/" -H "Authorization: Bearer $INTEGRATIONS_ACCESS_TOKEN")"
-      detail_provider="$(printf '%s' "$detail_response" | json_value "data.get('connection', {}).get('provider', '')")"
-      detail_status="$(printf '%s' "$detail_response" | json_value "data.get('connection', {}).get('status', '')")"
-      detail_email="$(printf '%s' "$detail_response" | json_value "data.get('connection', {}).get('provider_email', '')")"
-      assert_equals "Integrations: connected provider is Google" "google" "$detail_provider"
-      assert_equals "Integrations: connected status is persisted" "connected" "$detail_status"
-      assert_nonempty "Integrations: Google account email is persisted" "$detail_email"
-      assert_no_sensitive_keys "Integrations: connection detail does not expose tokens" "$detail_response"
+  echo "[Integraciones 10/12] OAuth real Google opcional"
+  read -r -p "¿Abrir Google OAuth ahora? [y/N]: " run_google_oauth
+  google_connection_id=""
 
-      reauth_response="$(api_request "Integrations: start Google reauthorization" "201" \
-        -X POST "$API_BASE/api/integrations/connections/$connection_id/reauthorize/" \
-        -H "Authorization: Bearer $INTEGRATIONS_ACCESS_TOKEN" -H "Content-Type: application/json" \
-        -d '{"capabilities":[]}')"
-      reauth_url="$(printf '%s' "$reauth_response" | json_value "data.get('authorization_url', '')")"
-      assert_nonempty "Integrations: reauthorization URL extracted" "$reauth_url"
-      if [[ "$reauth_url" == https://accounts.google.com/* ]]; then
-        record_assertion "Integrations: reauthorization endpoint is official Google" "PASS"
-      else
-        record_assertion "Integrations: reauthorization endpoint is official Google" "FAIL"
-      fi
+  if [[ "$run_google_oauth" =~ ^[Yy]$ ]]; then
+    echo "Completa el login y consentimiento Google en el navegador."
+    open_oauth_url "Google" "$google_auth_url" || true
+    read -r -p "Cuando termines Google OAuth, presiona Enter para verificar... " _
 
-      read -r -p "¿Deseas desconectar la cuenta Google de prueba? [y/N]: " RUN_DISCONNECT
-      if [[ "$RUN_DISCONNECT" =~ ^[Yy]$ ]]; then
-        api_request "Integrations: disconnect Google connection" "204" \
-          -X DELETE "$API_BASE/api/integrations/connections/$connection_id/" \
-          -H "Authorization: Bearer $INTEGRATIONS_ACCESS_TOKEN" >/dev/null
-        disconnected_detail_response="$(api_request "Integrations: get disconnected detail" "200" "$API_BASE/api/integrations/connections/$connection_id/" -H "Authorization: Bearer $INTEGRATIONS_ACCESS_TOKEN")"
-        disconnected_status="$(printf '%s' "$disconnected_detail_response" | json_value "data.get('connection', {}).get('status', '')")"
-        assert_equals "Integrations: disconnected status is persisted" "disconnected" "$disconnected_status"
-      else
-        record_assertion "Integrations: disconnect endpoint" "SKIP" "La conexión se conserva para pruebas posteriores"
-      fi
-    fi
+    connections_response="$(api_request \
+      "Integrations: list connections after Google OAuth" \
+      "200" \
+      "$API_BASE/api/integrations/connections/" \
+      -H "Authorization: Bearer $INTEGRATIONS_ACCESS_TOKEN"
+    )"
+    google_connection_id="$(find_connected_connection_id \
+      "google" \
+      "$connections_response"
+    )"
+    assert_nonempty \
+      "Integrations: connected Google connection ID exists" \
+      "$google_connection_id"
+    assert_no_sensitive_keys \
+      "Integrations: Google connections after OAuth do not expose tokens" \
+      "$connections_response"
   else
-    record_assertion "Integrations: OAuth real, persisted tokens, detail and reauthorization" "SKIP" "El usuario eligió no iniciar Google OAuth"
+    record_assertion \
+      "Integrations: real Google OAuth" \
+      "SKIP" \
+      "El usuario eligió no iniciar Google OAuth."
   fi
+
+  echo "[Integraciones 11/12] OAuth real Microsoft opcional"
+  read -r -p "¿Abrir Microsoft OAuth ahora? [y/N]: " run_microsoft_oauth
+  microsoft_connection_id=""
+
+  if [[ "$run_microsoft_oauth" =~ ^[Yy]$ ]]; then
+    echo "Completa el login y consentimiento Microsoft en el navegador."
+    open_oauth_url "Microsoft" "$microsoft_auth_url" || true
+    read -r -p "Cuando termines Microsoft OAuth, presiona Enter para verificar... " _
+
+    elapsed_seconds=0
+    while [[ "$elapsed_seconds" -lt "$OAUTH_TIMEOUT_SECONDS" ]]; do
+      connections_response="$(api_request \
+        "Integrations: poll connections after Microsoft OAuth" \
+        "200" \
+        "$API_BASE/api/integrations/connections/" \
+        -H "Authorization: Bearer $INTEGRATIONS_ACCESS_TOKEN"
+      )"
+      microsoft_connection_id="$(find_connected_connection_id \
+        "microsoft" \
+        "$connections_response"
+      )"
+
+      if [[ -n "$microsoft_connection_id" ]]; then
+        break
+      fi
+
+      sleep "$OAUTH_POLL_SECONDS"
+      elapsed_seconds=$((elapsed_seconds + OAUTH_POLL_SECONDS))
+      printf '\rEsperando conexión Microsoft... %ss/%ss' \
+        "$elapsed_seconds" \
+        "$OAUTH_TIMEOUT_SECONDS"
+    done
+
+    echo
+    assert_nonempty \
+      "Integrations: connected Microsoft connection ID exists" \
+      "$microsoft_connection_id"
+    assert_no_sensitive_keys \
+      "Integrations: Microsoft connections after OAuth do not expose tokens" \
+      "$connections_response"
+  else
+    record_assertion \
+      "Integrations: real Microsoft OAuth" \
+      "SKIP" \
+      "El usuario eligió no iniciar Microsoft OAuth."
+  fi
+
+  echo "[Integraciones 12/12] Detalle, reautorización y desconexión"
+  for provider_connection in \
+    "google:$google_connection_id" \
+    "microsoft:$microsoft_connection_id"
+  do
+    provider_name="${provider_connection%%:*}"
+    connection_id="${provider_connection#*:}"
+    [[ -z "$connection_id" ]] && continue
+
+    detail_response="$(api_request \
+      "Integrations: ${provider_name} connection detail" \
+      "200" \
+      "$API_BASE/api/integrations/connections/$connection_id/" \
+      -H "Authorization: Bearer $INTEGRATIONS_ACCESS_TOKEN"
+    )"
+    detail_provider="$(printf '%s' "$detail_response" | \
+      json_value "data.get('connection', {}).get('provider', '')"
+    )"
+    detail_status="$(printf '%s' "$detail_response" | \
+      json_value "data.get('connection', {}).get('status', '')"
+    )"
+    detail_email="$(printf '%s' "$detail_response" | \
+      json_value "data.get('connection', {}).get('provider_email', '')"
+    )"
+
+    assert_equals \
+      "Integrations: ${provider_name} provider is persisted" \
+      "$provider_name" \
+      "$detail_provider"
+    assert_equals \
+      "Integrations: ${provider_name} status is persisted" \
+      "connected" \
+      "$detail_status"
+    assert_nonempty \
+      "Integrations: ${provider_name} account email is persisted" \
+      "$detail_email"
+    assert_no_sensitive_keys \
+      "Integrations: ${provider_name} detail does not expose tokens" \
+      "$detail_response"
+
+    reauth_response="$(api_request \
+      "Integrations: start ${provider_name} reauthorization" \
+      "201" \
+      -X POST \
+      "$API_BASE/api/integrations/connections/$connection_id/reauthorize/" \
+      -H "Authorization: Bearer $INTEGRATIONS_ACCESS_TOKEN" \
+      -H "Content-Type: application/json" \
+      -d '{"capabilities":[]}'
+    )"
+    reauth_url="$(printf '%s' "$reauth_response" | \
+      json_value "data.get('authorization_url', '')"
+    )"
+    assert_nonempty \
+      "Integrations: ${provider_name} reauthorization URL extracted" \
+      "$reauth_url"
+
+    if [[ "$provider_name" == "google" ]] \
+      && [[ "$reauth_url" == https://accounts.google.com/* ]]
+    then
+      record_assertion \
+        "Integrations: Google reauthorization endpoint is official" \
+        "PASS"
+    elif [[ "$provider_name" == "microsoft" ]] \
+      && [[ "$reauth_url" == https://login.microsoftonline.com/* ]]
+    then
+      record_assertion \
+        "Integrations: Microsoft reauthorization endpoint is official" \
+        "PASS"
+    else
+      record_assertion \
+        "Integrations: ${provider_name} reauthorization endpoint is official" \
+        "FAIL"
+    fi
+
+    read -r -p "¿Deseas desconectar ${provider_name} de prueba? [y/N]: " \
+      RUN_DISCONNECT
+
+    if [[ "$RUN_DISCONNECT" =~ ^[Yy]$ ]]; then
+      api_request \
+        "Integrations: disconnect ${provider_name} connection" \
+        "204" \
+        -X DELETE \
+        "$API_BASE/api/integrations/connections/$connection_id/" \
+        -H "Authorization: Bearer $INTEGRATIONS_ACCESS_TOKEN" >/dev/null
+
+      disconnected_detail_response="$(api_request \
+        "Integrations: get disconnected ${provider_name} detail" \
+        "200" \
+        "$API_BASE/api/integrations/connections/$connection_id/" \
+        -H "Authorization: Bearer $INTEGRATIONS_ACCESS_TOKEN"
+      )"
+      disconnected_status="$(printf '%s' \
+        "$disconnected_detail_response" | \
+        json_value "data.get('connection', {}).get('status', '')"
+      )"
+      assert_equals \
+        "Integrations: ${provider_name} disconnected status is persisted" \
+        "disconnected" \
+        "$disconnected_status"
+    else
+      record_assertion \
+        "Integrations: ${provider_name} disconnect endpoint" \
+        "SKIP" \
+        "La conexión se conserva para pruebas posteriores."
+    fi
+  done
 }
 
 write_final_summary() {
@@ -676,7 +1057,7 @@ write_final_summary() {
 echo "============================================================"
 echo "BEEAPP — SUITE E2E COMBINADA"
 echo "API: $API_BASE"
-echo "Orden: Agenda -> Integraciones"
+echo "Orden: Agenda -> Integraciones (Google + Microsoft)"
 echo "============================================================"
 
 echo
