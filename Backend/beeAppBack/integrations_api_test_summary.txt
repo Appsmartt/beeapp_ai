@@ -1,0 +1,43 @@
+BEEAPP — INTEGRATIONS E2E API TEST SUMMARY
+Generated: 2026-08-18 14:45:42 -0500
+================================================================
+PASS     | expected=200            | actual=200      | Health check
+PASS     | Health payload status — ok
+PASS     | expected=200            | actual=200      | Login BeeApp: andres.santa-fe@hotmail.com
+PASS     | BeeApp access token extracted
+PASS     | expected=401            | actual=401      | Catalog without credentials
+PASS     | expected=401            | actual=401      | Connections without credentials
+PASS     | expected=401            | actual=401      | Google authorization without credentials
+PASS     | expected=200            | actual=200      | Integration catalog
+PASS     | Google appears as available — available
+PASS     | Catalog does not expose secrets
+PASS     | expected=200            | actual=200      | Integration connection list
+PASS     | Connection list does not expose tokens
+PASS     | expected=400            | actual=400      | Microsoft authorization unavailable
+PASS     | expected=400            | actual=400      | Google capabilities must be an array
+PASS     | expected=201            | actual=201      | Start Google OAuth authorization
+PASS     | Google authorization URL extracted
+PASS     | Google OAuth request ID extracted
+PASS     | Google OAuth expiration extracted
+PASS     | Google authorization endpoint is official
+PASS     | expected=one-of(301 302) | actual=302      | Callback without parameters redirects safely
+PASS     | expected=one-of(301 302) | actual=302      | Callback invalid state redirects safely
+PASS     | expected=200            | actual=200      | List connections after Google OAuth
+PASS     | Connected Google connection ID exists
+PASS     | Connections after OAuth do not expose tokens
+PASS     | expected=200            | actual=200      | Google integration detail
+PASS     | Connected provider is Google — google
+PASS     | Connected status is persisted — connected
+PASS     | Google account email is persisted
+PASS     | Connection detail does not expose tokens
+PASS     | expected=201            | actual=201      | Start Google reauthorization
+PASS     | Reauthorization URL extracted
+PASS     | Reauthorization endpoint is official Google
+PASS     | expected=204            | actual=204      | Disconnect Google connection
+PASS     | expected=200            | actual=200      | Get disconnected connection detail
+PASS     | Disconnected status is persisted — disconnected
+================================================================
+FINAL COUNTS
+PASS: 26
+FAIL: 0
+SKIP: 0

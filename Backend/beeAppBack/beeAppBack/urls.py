@@ -28,4 +28,8 @@ urlpatterns = [
         "api/calendar/",
         include("apps.calendar.urls"),
     ),
+    path(
+        "api/integrations/",
+        include("apps.integrations.urls"),
+    ),
 ]
