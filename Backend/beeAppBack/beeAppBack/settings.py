@@ -15,26 +15,26 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 load_dotenv(BASE_DIR / ".env")
 
 
-SECRET_KEY = os.getenv("SECRET_KEY")
+def get_required_env(name: str) -> str:
+    value = os.getenv(name)
 
-if not SECRET_KEY:
-    raise RuntimeError(
-        "Missing required environment variable: SECRET_KEY"
-    )
+    if not value:
+        raise RuntimeError(
+            f"Missing required environment variable: {name}"
+        )
+
+    return value
 
 
-# Solo para desarrollo local.
+SECRET_KEY = get_required_env("SECRET_KEY")
+
 DEBUG = True
 
-
-# Permite acceder a Django desde tu PC y desde tu teléfono
-# usando la IP local de tu computador.
 ALLOWED_HOSTS = [
     "127.0.0.1",
     "localhost",
     "192.168.1.5",
 ]
-
 
 INSTALLED_APPS = [
     "django.contrib.admin",
@@ -50,8 +50,8 @@ INSTALLED_APPS = [
     "apps.notes.apps.NotesConfig",
     "apps.notifications.apps.NotificationsConfig",
     "apps.calendar.apps.CalendarConfig",
+    "apps.integrations.apps.IntegrationsConfig",
 ]
-
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
@@ -64,13 +64,13 @@ MIDDLEWARE = [
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
 
-
 ROOT_URLCONF = "beeAppBack.urls"
-
 
 TEMPLATES = [
     {
-        "BACKEND": "django.template.backends.django.DjangoTemplates",
+        "BACKEND": (
+            "django.template.backends.django.DjangoTemplates"
+        ),
         "DIRS": [],
         "APP_DIRS": True,
         "OPTIONS": {
@@ -83,9 +83,7 @@ TEMPLATES = [
     },
 ]
 
-
 WSGI_APPLICATION = "beeAppBack.wsgi.application"
-
 
 DATABASES = {
     "default": {
@@ -93,7 +91,6 @@ DATABASES = {
         "NAME": BASE_DIR / "db.sqlite3",
     }
 }
-
 
 AUTH_PASSWORD_VALIDATORS = [
     {
@@ -122,7 +119,6 @@ AUTH_PASSWORD_VALIDATORS = [
     },
 ]
 
-
 LANGUAGE_CODE = "en-us"
 
 TIME_ZONE = "UTC"
@@ -131,13 +127,11 @@ USE_I18N = True
 
 USE_TZ = True
 
-
 STATIC_URL = "static/"
 
 DATA_UPLOAD_MAX_MEMORY_SIZE = 52_428_800
 FILE_UPLOAD_MAX_MEMORY_SIZE = 2_621_440
 DATA_UPLOAD_MAX_NUMBER_FIELDS = 100
-
 
 MAILERS = {
     "default": {
@@ -147,8 +141,6 @@ MAILERS = {
     },
 }
 
-
-# Orígenes permitidos para mobile-web y admin-web.
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:3000",
     "http://127.0.0.1:3000",
@@ -161,14 +153,34 @@ CORS_ALLOWED_ORIGINS = [
     "http://192.168.1.5:8081",
 ]
 
-
-# Necesario para que BeeApp Web pueda recibir y enviar
-# la cookie HttpOnly de sesión web.
 CORS_ALLOW_CREDENTIALS = True
-
 
 CSRF_TRUSTED_ORIGINS = [
     "http://localhost:3000",
-    "http://127.0.0.1:3000",
+    "http://127.0.0.0.1:3000",
     "http://192.168.1.5:3000",
 ]
+
+GOOGLE_OAUTH_CLIENT_ID = get_required_env(
+    "GOOGLE_OAUTH_CLIENT_ID"
+)
+
+GOOGLE_OAUTH_CLIENT_SECRET = get_required_env(
+    "GOOGLE_OAUTH_CLIENT_SECRET"
+)
+
+GOOGLE_OAUTH_REDIRECT_URI = get_required_env(
+    "GOOGLE_OAUTH_REDIRECT_URI"
+)
+
+INTEGRATION_TOKEN_ENCRYPTION_KEY = get_required_env(
+    "INTEGRATION_TOKEN_ENCRYPTION_KEY"
+)
+
+INTEGRATION_MOBILE_SUCCESS_REDIRECT = get_required_env(
+    "INTEGRATION_MOBILE_SUCCESS_REDIRECT"
+)
+
+INTEGRATION_MOBILE_FAILURE_REDIRECT = get_required_env(
+    "INTEGRATION_MOBILE_FAILURE_REDIRECT"
+)

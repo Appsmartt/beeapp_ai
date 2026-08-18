@@ -1,0 +1,458 @@
+BEEAPP — INTEGRATIONS E2E API TEST REPORT
+Generated: 2026-08-18 14:45:42 -0500
+API_BASE: http://127.0.0.1:8000
+User: andres.santa-fe@hotmail.com
+Passwords, tokens, OAuth codes and states are not recorded.
+
+================================================================
+TEST: Health check
+================================================================
+expected_status: 200
+actual_status: 200
+result: PASS
+response:
+{
+    "status": "ok",
+    "service": "beeapp-backend"
+}
+
+================================================================
+ASSERTION: Health payload status
+================================================================
+result: PASS
+detail: ok
+
+================================================================
+TEST: Login BeeApp: andres.santa-fe@hotmail.com
+================================================================
+expected_status: 200
+actual_status: 200
+result: PASS
+response:
+{
+    "message": "Login successful.",
+    "session": {
+        "access_token": "eyJhbGciOiJFUzI1NiIsImtpZCI6IjQ3YjI2YTJlLTI3ZTItNDg5My04OTA0LTJjMDk4NDMxNjcxOSIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJodHRwczovL2Vsd25tbXpubHFpaHJ1dmVxbHllLnN1cGFiYXNlLmNvL2F1dGgvdjEiLCJzdWIiOiI2OTBjYmM1OS0zNThkLTQ0MzItYjJkZS1mOTgyNWE3ODk4NzUiLCJhdWQiOiJhdXRoZW50aWNhdGVkIiwiZXhwIjoxNzg3MDg1OTQzLCJpYXQiOjE3ODcwODIzNDMsImVtYWlsIjoiYW5kcmVzLnNhbnRhLWZlQGhvdG1haWwuY29tIiwicGhvbmUiOiI1NzMwNTgxNTU0OTkiLCJhcHBfbWV0YWRhdGEiOnsicHJvdmlkZXIiOiJlbWFpbCIsInByb3ZpZGVycyI6WyJlbWFpbCIsInBob25lIl19LCJ1c2VyX21ldGFkYXRhIjp7ImVtYWlsX3ZlcmlmaWVkIjp0cnVlfSwicm9sZSI6ImF1dGhlbnRpY2F0ZWQiLCJhYWwiOiJhYWwxIiwiYW1yIjpbeyJtZXRob2QiOiJwYXNzd29yZCIsInRpbWVzdGFtcCI6MTc4NzA4MjM0M31dLCJzZXNzaW9uX2lkIjoiOTNhNjc2MjYtN2JmMy00MmQ4LTljZGEtZmU5ODNhN2RlNTVlIiwiaXNfYW5vbnltb3VzIjpmYWxzZX0.tTQVpt_y4YWFX2BthsOaqrrsOK-KP842kNg_oEzOVe4iJokYZcH6iJ3V-UEt5JHKrkyfCPMQP-6FnM7uuElLwg",
+        "refresh_token": "sakkxzvjexro",
+        "expires_at": 1787085943,
+        "expires_in": 3600,
+        "token_type": "bearer"
+    },
+    "user": {
+        "id": "690cbc59-358d-4432-b2de-f9825a789875",
+        "email": "andres.santa-fe@hotmail.com",
+        "phone": "573058155499"
+    }
+}
+
+================================================================
+ASSERTION: BeeApp access token extracted
+================================================================
+result: PASS
+detail: 
+
+================================================================
+TEST: Catalog without credentials
+================================================================
+expected_status: 401
+actual_status: 401
+result: PASS
+response:
+{
+    "detail": "Invalid or expired access token."
+}
+
+================================================================
+TEST: Connections without credentials
+================================================================
+expected_status: 401
+actual_status: 401
+result: PASS
+response:
+{
+    "detail": "Invalid or expired access token."
+}
+
+================================================================
+TEST: Google authorization without credentials
+================================================================
+expected_status: 401
+actual_status: 401
+result: PASS
+response:
+{
+    "detail": "Invalid or expired access token."
+}
+
+================================================================
+TEST: Integration catalog
+================================================================
+expected_status: 200
+actual_status: 200
+result: PASS
+response:
+{
+    "providers": [
+        {
+            "id": "google",
+            "name": "Google",
+            "status": "available",
+            "capabilities": [
+                "calendar",
+                "mail",
+                "contacts",
+                "storage"
+            ]
+        },
+        {
+            "id": "microsoft",
+            "name": "Microsoft",
+            "status": "coming_soon",
+            "capabilities": [
+                "calendar",
+                "mail",
+                "contacts",
+                "storage"
+            ]
+        }
+    ]
+}
+
+================================================================
+ASSERTION: Google appears as available
+================================================================
+result: PASS
+detail: available
+
+================================================================
+ASSERTION: Catalog does not expose secrets
+================================================================
+result: PASS
+detail: 
+
+================================================================
+TEST: Integration connection list
+================================================================
+expected_status: 200
+actual_status: 200
+result: PASS
+response:
+{
+    "connections": [
+        {
+            "id": "b5712d8b-5dce-4b4c-b834-c1bf5cc8bee3",
+            "user_id": "690cbc59-358d-4432-b2de-f9825a789875",
+            "provider": "google",
+            "provider_account_id": "106390532723319902917",
+            "provider_tenant_id": null,
+            "provider_email": "andres.santa-fe@hotmail.com",
+            "provider_display_name": "andres mendoza",
+            "provider_avatar_url": "https://lh3.googleusercontent.com/a/ACg8ocI90vg4nbT8XxRP9JTg8pmVMHjmsLAC1e4w64-aKc-8a40nAg=s96-c",
+            "status": "connected",
+            "granted_scopes": [
+                "https://www.googleapis.com/auth/userinfo.email",
+                "openid",
+                "https://www.googleapis.com/auth/userinfo.profile"
+            ],
+            "capabilities": [],
+            "token_expires_at": "2026-08-18T20:44:19.503654+00:00",
+            "last_token_refresh_at": null,
+            "last_successful_auth_at": "2026-08-18T19:44:20.50366+00:00",
+            "reauth_required_at": null,
+            "disconnected_at": null,
+            "last_error_code": null,
+            "last_error_message": null,
+            "metadata": {
+                "email_verified": true
+            },
+            "created_at": "2026-08-18T19:35:30.905729+00:00",
+            "updated_at": "2026-08-18T19:44:20.839346+00:00"
+        }
+    ]
+}
+
+================================================================
+ASSERTION: Connection list does not expose tokens
+================================================================
+result: PASS
+detail: 
+
+================================================================
+TEST: Microsoft authorization unavailable
+================================================================
+expected_status: 400
+actual_status: 400
+result: PASS
+response:
+{
+    "provider": [
+        "\"microsoft\" is not a valid choice."
+    ]
+}
+
+================================================================
+TEST: Google capabilities must be an array
+================================================================
+expected_status: 400
+actual_status: 400
+result: PASS
+response:
+{
+    "capabilities": [
+        "Expected a list of items but got type \"str\"."
+    ]
+}
+
+================================================================
+TEST: Start Google OAuth authorization
+================================================================
+expected_status: 201
+actual_status: 201
+result: PASS
+response:
+{
+    "request_id": "3b608d58-2f87-4700-a0ba-2c42601abcf7",
+    "authorization_url": "https://accounts.google.com/o/oauth2/v2/auth?client_id=932841624603-66b5k2ualb4qdmaehrm4eq5nd475gs9h.apps.googleusercontent.com&redirect_uri=http%3A%2F%2Flocalhost%3A8000%2Fapi%2Fintegrations%2Foauth%2Fcallback%2Fgoogle%2F&response_type=code&scope=openid+email+profile&state=P-sUU83nnFZQLgk8yzV4ZkYaYWqztPfoYDZVd8S5YIeT_2RUOeQQnc4_IDZ1d6ZK&code_challenge=kOVomx2bXYXuVjLqZGNzoysPRUxf8-s3zRMEZ7pXk7g&code_challenge_method=S256&access_type=offline&prompt=consent&include_granted_scopes=true",
+    "expires_at": "2026-08-18T19:55:44.354524+00:00"
+}
+
+================================================================
+ASSERTION: Google authorization URL extracted
+================================================================
+result: PASS
+detail: 
+
+================================================================
+ASSERTION: Google OAuth request ID extracted
+================================================================
+result: PASS
+detail: 
+
+================================================================
+ASSERTION: Google OAuth expiration extracted
+================================================================
+result: PASS
+detail: 
+
+================================================================
+ASSERTION: Google authorization endpoint is official
+================================================================
+result: PASS
+detail: 
+
+================================================================
+TEST: Callback without parameters redirects safely
+================================================================
+expected_status: one-of(301 302)
+actual_status: 302
+result: PASS
+response:
+
+================================================================
+TEST: Callback invalid state redirects safely
+================================================================
+expected_status: one-of(301 302)
+actual_status: 302
+result: PASS
+response:
+
+================================================================
+TEST: List connections after Google OAuth
+================================================================
+expected_status: 200
+actual_status: 200
+result: PASS
+response:
+{
+    "connections": [
+        {
+            "id": "b5712d8b-5dce-4b4c-b834-c1bf5cc8bee3",
+            "user_id": "690cbc59-358d-4432-b2de-f9825a789875",
+            "provider": "google",
+            "provider_account_id": "106390532723319902917",
+            "provider_tenant_id": null,
+            "provider_email": "andres.santa-fe@hotmail.com",
+            "provider_display_name": "andres mendoza",
+            "provider_avatar_url": "https://lh3.googleusercontent.com/a/ACg8ocI90vg4nbT8XxRP9JTg8pmVMHjmsLAC1e4w64-aKc-8a40nAg=s96-c",
+            "status": "connected",
+            "granted_scopes": [
+                "https://www.googleapis.com/auth/userinfo.email",
+                "openid",
+                "https://www.googleapis.com/auth/userinfo.profile"
+            ],
+            "capabilities": [],
+            "token_expires_at": "2026-08-18T20:45:53.905309+00:00",
+            "last_token_refresh_at": null,
+            "last_successful_auth_at": "2026-08-18T19:45:55.905316+00:00",
+            "reauth_required_at": null,
+            "disconnected_at": null,
+            "last_error_code": null,
+            "last_error_message": null,
+            "metadata": {
+                "email_verified": true
+            },
+            "created_at": "2026-08-18T19:35:30.905729+00:00",
+            "updated_at": "2026-08-18T19:45:56.416443+00:00"
+        }
+    ]
+}
+
+================================================================
+ASSERTION: Connected Google connection ID exists
+================================================================
+result: PASS
+detail: 
+
+================================================================
+ASSERTION: Connections after OAuth do not expose tokens
+================================================================
+result: PASS
+detail: 
+
+================================================================
+TEST: Google integration detail
+================================================================
+expected_status: 200
+actual_status: 200
+result: PASS
+response:
+{
+    "connection": {
+        "id": "b5712d8b-5dce-4b4c-b834-c1bf5cc8bee3",
+        "user_id": "690cbc59-358d-4432-b2de-f9825a789875",
+        "provider": "google",
+        "provider_account_id": "106390532723319902917",
+        "provider_tenant_id": null,
+        "provider_email": "andres.santa-fe@hotmail.com",
+        "provider_display_name": "andres mendoza",
+        "provider_avatar_url": "https://lh3.googleusercontent.com/a/ACg8ocI90vg4nbT8XxRP9JTg8pmVMHjmsLAC1e4w64-aKc-8a40nAg=s96-c",
+        "status": "connected",
+        "granted_scopes": [
+            "https://www.googleapis.com/auth/userinfo.email",
+            "openid",
+            "https://www.googleapis.com/auth/userinfo.profile"
+        ],
+        "capabilities": [],
+        "token_expires_at": "2026-08-18T20:45:53.905309+00:00",
+        "last_token_refresh_at": null,
+        "last_successful_auth_at": "2026-08-18T19:45:55.905316+00:00",
+        "reauth_required_at": null,
+        "disconnected_at": null,
+        "last_error_code": null,
+        "last_error_message": null,
+        "metadata": {
+            "email_verified": true
+        },
+        "created_at": "2026-08-18T19:35:30.905729+00:00",
+        "updated_at": "2026-08-18T19:45:56.416443+00:00"
+    }
+}
+
+================================================================
+ASSERTION: Connected provider is Google
+================================================================
+result: PASS
+detail: google
+
+================================================================
+ASSERTION: Connected status is persisted
+================================================================
+result: PASS
+detail: connected
+
+================================================================
+ASSERTION: Google account email is persisted
+================================================================
+result: PASS
+detail: 
+
+================================================================
+ASSERTION: Connection detail does not expose tokens
+================================================================
+result: PASS
+detail: 
+
+================================================================
+TEST: Start Google reauthorization
+================================================================
+expected_status: 201
+actual_status: 201
+result: PASS
+response:
+{
+    "request_id": "6e425e93-7036-49d8-ac69-98c611c5cf77",
+    "authorization_url": "https://accounts.google.com/o/oauth2/v2/auth?client_id=932841624603-66b5k2ualb4qdmaehrm4eq5nd475gs9h.apps.googleusercontent.com&redirect_uri=http%3A%2F%2Flocalhost%3A8000%2Fapi%2Fintegrations%2Foauth%2Fcallback%2Fgoogle%2F&response_type=code&scope=openid+email+profile&state=FzfTtx6oIL6f2N8mlSfeVqerxntikTv-SCfqALB3K9d1w1iYl60RU3LXgR3kff0S&code_challenge=TeDp0c7yad09qz2s7k1xQ300f_I472MHF_jf8EHjLTg&code_challenge_method=S256&access_type=offline&prompt=consent&include_granted_scopes=true",
+    "expires_at": "2026-08-18T19:56:07.5983+00:00"
+}
+
+================================================================
+ASSERTION: Reauthorization URL extracted
+================================================================
+result: PASS
+detail: 
+
+================================================================
+ASSERTION: Reauthorization endpoint is official Google
+================================================================
+result: PASS
+detail: 
+
+================================================================
+TEST: Disconnect Google connection
+================================================================
+expected_status: 204
+actual_status: 204
+result: PASS
+response:
+
+================================================================
+TEST: Get disconnected connection detail
+================================================================
+expected_status: 200
+actual_status: 200
+result: PASS
+response:
+{
+    "connection": {
+        "id": "b5712d8b-5dce-4b4c-b834-c1bf5cc8bee3",
+        "user_id": "690cbc59-358d-4432-b2de-f9825a789875",
+        "provider": "google",
+        "provider_account_id": "106390532723319902917",
+        "provider_tenant_id": null,
+        "provider_email": "andres.santa-fe@hotmail.com",
+        "provider_display_name": "andres mendoza",
+        "provider_avatar_url": "https://lh3.googleusercontent.com/a/ACg8ocI90vg4nbT8XxRP9JTg8pmVMHjmsLAC1e4w64-aKc-8a40nAg=s96-c",
+        "status": "disconnected",
+        "granted_scopes": [
+            "https://www.googleapis.com/auth/userinfo.email",
+            "openid",
+            "https://www.googleapis.com/auth/userinfo.profile"
+        ],
+        "capabilities": [],
+        "token_expires_at": null,
+        "last_token_refresh_at": null,
+        "last_successful_auth_at": "2026-08-18T19:45:55.905316+00:00",
+        "reauth_required_at": null,
+        "disconnected_at": "2026-08-18T19:46:10.126069+00:00",
+        "last_error_code": null,
+        "last_error_message": null,
+        "metadata": {
+            "email_verified": true
+        },
+        "created_at": "2026-08-18T19:35:30.905729+00:00",
+        "updated_at": "2026-08-18T19:46:10.465047+00:00"
+    }
+}
+
+================================================================
+ASSERTION: Disconnected status is persisted
+================================================================
+result: PASS
+detail: disconnected
+
+================================================================
+FINAL COUNTS
+================================================================
+PASS: 26
+FAIL: 0
+SKIP: 0
