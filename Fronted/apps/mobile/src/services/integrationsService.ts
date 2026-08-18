@@ -55,7 +55,7 @@ export const PROVIDER_OPTIONS: ProviderOption[] = [
         ),
         iconLetter: 'M',
         iconColor: '#0078D4',
-        availability: 'coming_soon',
+        availability: 'available',
         capabilitiesLabel: 'Outlook y Microsoft 365',
     },
 ];
