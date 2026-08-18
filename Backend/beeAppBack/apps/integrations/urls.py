@@ -6,6 +6,7 @@ from apps.integrations.views import (
     IntegrationCatalogView,
     IntegrationConnectionDetailView,
     IntegrationConnectionListView,
+    MicrosoftOAuthCallbackView,
     ReauthorizeIntegrationConnectionView,
     StartIntegrationAuthorizationView,
 )
@@ -31,6 +32,11 @@ urlpatterns = [
         "oauth/callback/google/",
         GoogleOAuthCallbackView.as_view(),
         name="google-oauth-callback",
+    ),
+    path(
+        "oauth/callback/microsoft/",
+        MicrosoftOAuthCallbackView.as_view(),
+        name="microsoft-oauth-callback",
     ),
     path(
         "connections/<uuid:connection_id>/",

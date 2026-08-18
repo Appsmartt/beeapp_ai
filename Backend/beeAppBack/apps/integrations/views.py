@@ -31,6 +31,11 @@ from apps.integrations.services.integration_connection_service import (
     get_user_connection,
     list_user_connections,
     upsert_google_connection,
+    upsert_microsoft_connection,
+)
+from apps.integrations.services.microsoft_oauth_service import (
+    exchange_microsoft_authorization_code,
+    get_microsoft_user_info,
 )
 from apps.integrations.services.oauth_request_service import (
     consume_oauth_request,
@@ -47,14 +52,16 @@ GOOGLE_IDENTITY_SCOPES = [
     "profile",
 ]
 
+MICROSOFT_IDENTITY_SCOPES = [
+    "openid",
+    "profile",
+    "email",
+    "offline_access",
+    "User.Read",
+]
+
 
 class BeeAppRedirectResponse(HttpResponseRedirect):
-    """
-    Django only permits http, https, and ftp redirects by default.
-    BeeApp uses a fixed custom URL scheme to return from browser OAuth
-    to the installed mobile application.
-    """
-
     allowed_schemes = [
         "http",
         "https",
@@ -95,6 +102,40 @@ def unauthorized_response() -> Response:
     )
 
 
+def get_identity_scopes(
+    provider: str,
+) -> list[str]:
+    if provider == "google":
+        return GOOGLE_IDENTITY_SCOPES
+
+    if provider == "microsoft":
+        return MICROSOFT_IDENTITY_SCOPES
+
+    raise IntegrationConfigurationError(
+        f"Unsupported integration provider: {provider}"
+    )
+
+
+def build_callback_failure_response(
+    *,
+    provider_name: str,
+    detail: str,
+) -> BeeAppRedirectResponse:
+    failure_redirect = getattr(
+        settings,
+        "INTEGRATION_MOBILE_FAILURE_REDIRECT",
+        "",
+    )
+
+    return BeeAppRedirectResponse(
+        build_mobile_redirect(
+            base_url=failure_redirect,
+            outcome="failure",
+            detail=f"{provider_name}: {detail}",
+        )
+    )
+
+
 class IntegrationCatalogView(AuthenticatedAPIView):
     def get(self, request):
         try:
@@ -119,7 +160,7 @@ class IntegrationCatalogView(AuthenticatedAPIView):
                     {
                         "id": "microsoft",
                         "name": "Microsoft",
-                        "status": "coming_soon",
+                        "status": "available",
                         "capabilities": [
                             "calendar",
                             "mail",
@@ -193,11 +234,14 @@ class StartIntegrationAuthorizationView(
             authenticated_user = self.get_authenticated_user(
                 request
             )
+            requested_scopes = get_identity_scopes(
+                serializer.validated_data["provider"]
+            )
 
             oauth_request = create_oauth_request(
                 user_id=str(authenticated_user.id),
                 provider=serializer.validated_data["provider"],
-                requested_scopes=GOOGLE_IDENTITY_SCOPES,
+                requested_scopes=requested_scopes,
                 requested_capabilities=serializer.validated_data[
                     "capabilities"
                 ],
@@ -207,7 +251,7 @@ class StartIntegrationAuthorizationView(
                 provider=serializer.validated_data["provider"],
                 state=oauth_request["state"],
                 code_challenge=oauth_request["code_challenge"],
-                requested_scopes=GOOGLE_IDENTITY_SCOPES,
+                requested_scopes=requested_scopes,
             )
 
         except AccountAuthenticationError:
@@ -273,31 +317,19 @@ class GoogleOAuthCallbackView(APIView):
             "",
         )
 
-        failure_redirect = getattr(
-            settings,
-            "INTEGRATION_MOBILE_FAILURE_REDIRECT",
-            "",
-        )
-
         if provider_error:
-            return BeeAppRedirectResponse(
-                build_mobile_redirect(
-                    base_url=failure_redirect,
-                    outcome="failure",
-                    detail=(
-                        provider_error_description
-                        or provider_error
-                    ),
-                )
+            return build_callback_failure_response(
+                provider_name="Google",
+                detail=(
+                    provider_error_description
+                    or provider_error
+                ),
             )
 
         if not authorization_code or not state_value:
-            return BeeAppRedirectResponse(
-                build_mobile_redirect(
-                    base_url=failure_redirect,
-                    outcome="failure",
-                    detail="Respuesta de Google incompleta.",
-                )
+            return build_callback_failure_response(
+                provider_name="Google",
+                detail="Respuesta de Google incompleta.",
             )
 
         try:
@@ -337,12 +369,96 @@ class GoogleOAuthCallbackView(APIView):
             IntegrationCredentialError,
             IntegrationProviderError,
         ) as error:
+            return build_callback_failure_response(
+                provider_name="Google",
+                detail=str(error),
+            )
+
+
+class MicrosoftOAuthCallbackView(APIView):
+    permission_classes = []
+
+    def get(self, request):
+        authorization_code = str(
+            request.query_params.get("code", "")
+        ).strip()
+
+        state_value = str(
+            request.query_params.get("state", "")
+        ).strip()
+
+        provider_error = str(
+            request.query_params.get("error", "")
+        ).strip()
+
+        provider_error_description = str(
+            request.query_params.get(
+                "error_description",
+                "",
+            )
+        ).strip()
+
+        success_redirect = getattr(
+            settings,
+            "INTEGRATION_MOBILE_SUCCESS_REDIRECT",
+            "",
+        )
+
+        if provider_error:
+            return build_callback_failure_response(
+                provider_name="Microsoft",
+                detail=(
+                    provider_error_description
+                    or provider_error
+                ),
+            )
+
+        if not authorization_code or not state_value:
+            return build_callback_failure_response(
+                provider_name="Microsoft",
+                detail="Respuesta de Microsoft incompleta.",
+            )
+
+        try:
+            oauth_request = consume_oauth_request(
+                provider="microsoft",
+                state=state_value,
+            )
+
+            token_data = exchange_microsoft_authorization_code(
+                authorization_code=authorization_code,
+                code_verifier=oauth_request["code_verifier"],
+            )
+
+            user_info = get_microsoft_user_info(
+                access_token=token_data["access_token"],
+            )
+
+            connection = upsert_microsoft_connection(
+                user_id=oauth_request["user_id"],
+                oauth_request=oauth_request,
+                token_data=token_data,
+                user_info=user_info,
+            )
+
             return BeeAppRedirectResponse(
                 build_mobile_redirect(
-                    base_url=failure_redirect,
-                    outcome="failure",
-                    detail=str(error),
+                    base_url=success_redirect,
+                    outcome="success",
+                    request_id=oauth_request["id"],
+                    detail=connection["id"],
                 )
+            )
+
+        except (
+            IntegrationAuthorizationError,
+            IntegrationConfigurationError,
+            IntegrationCredentialError,
+            IntegrationProviderError,
+        ) as error:
+            return build_callback_failure_response(
+                provider_name="Microsoft",
+                detail=str(error),
             )
 
 
@@ -471,22 +587,13 @@ class ReauthorizeIntegrationConnectionView(
                 user_id=str(authenticated_user.id),
                 connection_id=str(connection_id),
             )
-
-            if connection["provider"] != "google":
-                return Response(
-                    {
-                        "detail": (
-                            "Este proveedor todavía no está "
-                            "disponible."
-                        )
-                    },
-                    status=status.HTTP_400_BAD_REQUEST,
-                )
+            provider = connection["provider"]
+            requested_scopes = get_identity_scopes(provider)
 
             oauth_request = create_oauth_request(
                 user_id=str(authenticated_user.id),
-                provider="google",
-                requested_scopes=GOOGLE_IDENTITY_SCOPES,
+                provider=provider,
+                requested_scopes=requested_scopes,
                 requested_capabilities=(
                     serializer.validated_data["capabilities"]
                     or connection["capabilities"]
@@ -495,10 +602,10 @@ class ReauthorizeIntegrationConnectionView(
             )
 
             authorization_url = build_provider_authorization_url(
-                provider="google",
+                provider=provider,
                 state=oauth_request["state"],
                 code_challenge=oauth_request["code_challenge"],
-                requested_scopes=GOOGLE_IDENTITY_SCOPES,
+                requested_scopes=requested_scopes,
             )
 
         except AccountAuthenticationError:

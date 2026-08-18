@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
-from typing import Any
+from typing import Any, Callable
 
 from beeAppBack.core.supabase_client import (
     get_supabase_admin_client,
@@ -10,17 +10,22 @@ from beeAppBack.core.supabase_client import (
 from apps.integrations.exceptions import (
     IntegrationConnectionNotFoundError,
     IntegrationCredentialError,
+    IntegrationReauthorizationRequiredError,
 )
 from apps.integrations.services.credential_crypto_service import (
     decrypt_integration_secret,
     encrypt_integration_secret,
 )
 from apps.integrations.services.google_oauth_service import (
-    calculate_token_expiration,
+    calculate_token_expiration as calculate_google_token_expiration,
     refresh_google_access_token,
 )
 from apps.integrations.services.integration_notification_service import (
     create_reauthorization_notification,
+)
+from apps.integrations.services.microsoft_oauth_service import (
+    calculate_token_expiration as calculate_microsoft_token_expiration,
+    refresh_microsoft_access_token,
 )
 
 
@@ -170,51 +175,65 @@ def get_user_connection(
         ) from error
 
 
-def upsert_google_connection(
+def _find_existing_connection(
     *,
     user_id: str,
-    oauth_request: dict[str, Any],
+    provider: str,
+    provider_account_id: str,
+    provider_tenant_id: str | None,
+) -> dict[str, Any] | None:
+    query = (
+        _supabase()
+        .table("integration_connections")
+        .select("*")
+        .eq("user_id", user_id)
+        .eq("provider", provider)
+        .eq("provider_account_id", provider_account_id)
+    )
+
+    if provider_tenant_id is None:
+        query = query.is_("provider_tenant_id", "null")
+    else:
+        query = query.eq(
+            "provider_tenant_id",
+            provider_tenant_id,
+        )
+
+    response = query.maybe_single().execute()
+
+    return getattr(response, "data", None)
+
+
+def _upsert_connection(
+    *,
+    user_id: str,
+    provider: str,
+    provider_account_id: str,
+    provider_tenant_id: str | None,
+    provider_email: str | None,
+    provider_display_name: str | None,
+    provider_avatar_url: str | None,
+    granted_scopes: list[str],
+    requested_capabilities: list[str],
     token_data: dict[str, Any],
-    user_info: dict[str, Any],
+    token_expires_at: datetime | None,
+    metadata: dict[str, Any],
 ) -> dict[str, Any]:
-    provider = "google"
-    provider_account_id = str(user_info["sub"])
-    provider_email = user_info.get("email")
-    provider_display_name = user_info.get("name")
-    provider_avatar_url = user_info.get("picture")
-    granted_scopes = _normalize_string_list(
-        str(token_data.get("scope", "")).split()
-    )
-    requested_capabilities = _normalize_string_list(
-        oauth_request.get("requested_capabilities")
-    )
-    token_expires_at = calculate_token_expiration(token_data)
-    now = _utc_now_iso()
-
     try:
-        existing_response = (
-            _supabase()
-            .table("integration_connections")
-            .select("*")
-            .eq("user_id", user_id)
-            .eq("provider", provider)
-            .eq("provider_account_id", provider_account_id)
-            .is_("provider_tenant_id", "null")
-            .maybe_single()
-            .execute()
+        existing_connection = _find_existing_connection(
+            user_id=user_id,
+            provider=provider,
+            provider_account_id=provider_account_id,
+            provider_tenant_id=provider_tenant_id,
         )
 
-        existing_connection = getattr(
-            existing_response,
-            "data",
-            None,
-        )
+        now = _utc_now_iso()
 
         connection_payload = {
             "user_id": user_id,
             "provider": provider,
             "provider_account_id": provider_account_id,
-            "provider_tenant_id": None,
+            "provider_tenant_id": provider_tenant_id,
             "provider_email": provider_email,
             "provider_display_name": provider_display_name,
             "provider_avatar_url": provider_avatar_url,
@@ -251,11 +270,7 @@ def upsert_google_connection(
             "disconnected_at": None,
             "last_error_code": None,
             "last_error_message": None,
-            "metadata": {
-                "email_verified": bool(
-                    user_info.get("email_verified")
-                ),
-            },
+            "metadata": metadata,
         }
 
         if existing_connection:
@@ -360,8 +375,80 @@ def upsert_google_connection(
         raise
     except Exception as error:
         raise IntegrationCredentialError(
-            "Could not persist Google authorization."
+            f"Could not persist {provider} authorization."
         ) from error
+
+
+def upsert_google_connection(
+    *,
+    user_id: str,
+    oauth_request: dict[str, Any],
+    token_data: dict[str, Any],
+    user_info: dict[str, Any],
+) -> dict[str, Any]:
+    return _upsert_connection(
+        user_id=user_id,
+        provider="google",
+        provider_account_id=str(user_info["sub"]),
+        provider_tenant_id=None,
+        provider_email=user_info.get("email"),
+        provider_display_name=user_info.get("name"),
+        provider_avatar_url=user_info.get("picture"),
+        granted_scopes=_normalize_string_list(
+            str(token_data.get("scope", "")).split()
+        ),
+        requested_capabilities=_normalize_string_list(
+            oauth_request.get("requested_capabilities")
+        ),
+        token_data=token_data,
+        token_expires_at=calculate_google_token_expiration(
+            token_data
+        ),
+        metadata={
+            "email_verified": bool(
+                user_info.get("email_verified")
+            ),
+        },
+    )
+
+
+def upsert_microsoft_connection(
+    *,
+    user_id: str,
+    oauth_request: dict[str, Any],
+    token_data: dict[str, Any],
+    user_info: dict[str, Any],
+) -> dict[str, Any]:
+    provider_email = (
+        user_info.get("mail")
+        or user_info.get("userPrincipalName")
+    )
+
+    return _upsert_connection(
+        user_id=user_id,
+        provider="microsoft",
+        provider_account_id=str(user_info["id"]),
+        provider_tenant_id=None,
+        provider_email=provider_email,
+        provider_display_name=user_info.get("displayName"),
+        provider_avatar_url=None,
+        granted_scopes=_normalize_string_list(
+            str(token_data.get("scope", "")).split()
+        ),
+        requested_capabilities=_normalize_string_list(
+            oauth_request.get("requested_capabilities")
+        ),
+        token_data=token_data,
+        token_expires_at=calculate_microsoft_token_expiration(
+            token_data
+        ),
+        metadata={
+            "user_type": user_info.get("userType"),
+            "user_principal_name": user_info.get(
+                "userPrincipalName"
+            ),
+        },
+    )
 
 
 def mark_connection_reauth_required(
@@ -421,24 +508,33 @@ def mark_connection_reauth_required(
         return
 
 
-def get_valid_google_access_token(
+def _get_valid_provider_access_token(
     *,
     user_id: str,
     connection_id: str,
+    expected_provider: str,
+    refresh_token_function: Callable[
+        ...,
+        dict[str, Any],
+    ],
+    calculate_expiration_function: Callable[
+        [dict[str, Any]],
+        datetime | None,
+    ],
 ) -> str:
     connection = get_user_connection(
         user_id=user_id,
         connection_id=connection_id,
     )
 
-    if connection["provider"] != "google":
+    if connection["provider"] != expected_provider:
         raise IntegrationCredentialError(
-            "Requested connection is not a Google connection."
+            "Requested connection belongs to another provider."
         )
 
     if connection["status"] != "connected":
         raise IntegrationCredentialError(
-            "Google connection is not active."
+            f"{expected_provider.title()} connection is not active."
         )
 
     try:
@@ -459,7 +555,10 @@ def get_valid_google_access_token(
 
         if not credentials:
             raise IntegrationCredentialError(
-                "Google credentials are unavailable."
+                (
+                    f"{expected_provider.title()} credentials "
+                    "are unavailable."
+                )
             )
 
         access_token = decrypt_integration_secret(
@@ -488,13 +587,19 @@ def get_valid_google_access_token(
         if not refresh_token:
             mark_connection_reauth_required(
                 connection_id=connection_id,
-                reason="Google did not provide a refresh token.",
+                reason=(
+                    f"{expected_provider.title()} did not provide "
+                    "a refresh token."
+                ),
             )
             raise IntegrationCredentialError(
-                "Google connection requires reauthorization."
+                (
+                    f"{expected_provider.title()} connection "
+                    "requires reauthorization."
+                )
             )
 
-        refreshed_token_data = refresh_google_access_token(
+        refreshed_token_data = refresh_token_function(
             refresh_token=refresh_token,
         )
 
@@ -505,7 +610,7 @@ def get_valid_google_access_token(
             refreshed_token_data.get("refresh_token")
             or refresh_token
         )
-        token_expires_at = calculate_token_expiration(
+        token_expires_at = calculate_expiration_function(
             refreshed_token_data
         )
         now = _utc_now_iso()
@@ -561,21 +666,69 @@ def get_valid_google_access_token(
         _record_event(
             connection_id=connection_id,
             user_id=user_id,
-            provider="google",
+            provider=expected_provider,
             event_type="token_refreshed",
         )
 
         return refreshed_access_token
     except IntegrationCredentialError:
         raise
+    except IntegrationReauthorizationRequiredError as error:
+        mark_connection_reauth_required(
+            connection_id=connection_id,
+            reason=str(error),
+        )
+        raise IntegrationCredentialError(
+            (
+                f"{expected_provider.title()} connection requires "
+                "reauthorization."
+            )
+        ) from error
     except Exception as error:
         mark_connection_reauth_required(
             connection_id=connection_id,
-            reason="Google token refresh failed.",
+            reason=(
+                f"{expected_provider.title()} token refresh failed."
+            ),
         )
         raise IntegrationCredentialError(
-            "Could not obtain valid Google credentials."
+            (
+                f"Could not obtain valid "
+                f"{expected_provider.title()} credentials."
+            )
         ) from error
+
+
+def get_valid_google_access_token(
+    *,
+    user_id: str,
+    connection_id: str,
+) -> str:
+    return _get_valid_provider_access_token(
+        user_id=user_id,
+        connection_id=connection_id,
+        expected_provider="google",
+        refresh_token_function=refresh_google_access_token,
+        calculate_expiration_function=(
+            calculate_google_token_expiration
+        ),
+    )
+
+
+def get_valid_microsoft_access_token(
+    *,
+    user_id: str,
+    connection_id: str,
+) -> str:
+    return _get_valid_provider_access_token(
+        user_id=user_id,
+        connection_id=connection_id,
+        expected_provider="microsoft",
+        refresh_token_function=refresh_microsoft_access_token,
+        calculate_expiration_function=(
+            calculate_microsoft_token_expiration
+        ),
+    )
 
 
 def disconnect_user_connection(
@@ -635,13 +788,6 @@ def delete_inactive_user_connection(
     user_id: str,
     connection_id: str,
 ) -> None:
-    """
-    Removes a previously disconnected/inactive connection from the
-    user's visible integration list.
-
-    Active connections cannot be removed through this endpoint. They
-    must be disconnected first so their credentials are deleted.
-    """
     connection = get_user_connection(
         user_id=user_id,
         connection_id=connection_id,
