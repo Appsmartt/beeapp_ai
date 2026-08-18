@@ -92,7 +92,7 @@ def build_google_authorization_url(
             "code_challenge": code_challenge,
             "code_challenge_method": "S256",
             "access_type": "offline",
-            "prompt": "consent",
+            "prompt": "select_account consent",
             "include_granted_scopes": "true",
         }
     )
