@@ -1591,3 +1591,148 @@ export interface StartIntegrationAuthorizationResponse {
   authorization_url: string;
   expires_at: string;
 }
+
+export type CalendarIntegrationStatus =
+  | 'active'
+  | 'reauth_required'
+  | 'disconnected'
+  | 'error'
+  | 'pending'
+  | 'inactive'
+  | string;
+
+export type CalendarIntegrationSyncStatus =
+  | 'ready'
+  | 'reauthorize'
+  | 'unavailable'
+  | string;
+
+export type ExternalCalendarVisibility =
+  | 'visible'
+  | 'hidden';
+
+export type ExternalCalendarAccessLevel =
+  | 'read'
+  | 'read_write'
+  | 'owner'
+  | 'free_busy'
+  | string;
+
+export interface CalendarIntegrationOAuthConnection {
+  id: string;
+  user_id: string;
+  provider: IntegrationProvider;
+  provider_account_id: string;
+  provider_tenant_id: string | null;
+  provider_email: string | null;
+  provider_display_name: string | null;
+  provider_avatar_url: string | null;
+  status: IntegrationConnectionStatus;
+  granted_scopes: string[];
+  capabilities: IntegrationCapability[];
+  token_expires_at: string | null;
+  last_token_refresh_at: string | null;
+  last_successful_auth_at: string | null;
+  reauth_required_at: string | null;
+  disconnected_at: string | null;
+  last_error_code: string | null;
+  last_error_message: string | null;
+  metadata: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CalendarIntegration {
+  id: string;
+  user_id: string;
+  provider: IntegrationProvider;
+  provider_account_id: string;
+  provider_email: string | null;
+  provider_display_name: string | null;
+  granted_scopes: string[];
+  token_expires_at: string | null;
+  status: CalendarIntegrationStatus;
+  connected_at: string | null;
+  last_successful_sync_at: string | null;
+  last_attempted_sync_at: string | null;
+  next_sync_at: string | null;
+  reauth_required_at: string | null;
+  disconnected_at: string | null;
+  last_error_code: string | null;
+  last_error_message: string | null;
+  metadata: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+  integration_connection_id: string | null;
+  integration_connection: CalendarIntegrationOAuthConnection | null;
+  sync_status: CalendarIntegrationSyncStatus;
+  can_sync: boolean;
+  requires_reauthorization: boolean;
+  status_reason: string | null;
+}
+
+export interface ExternalCalendarBeeAppCalendar {
+  id: string;
+  owner_id: string;
+  name: string;
+  description: string | null;
+  color: string;
+  visibility: string;
+  is_default: boolean;
+  is_archived: boolean;
+  timezone: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ExternalCalendar {
+  id: string;
+  integration_id: string;
+  provider_calendar_id: string;
+  name: string;
+  description: string | null;
+  timezone: string | null;
+  provider_color: string | null;
+  display_color: string | null;
+  access_level: ExternalCalendarAccessLevel;
+  is_primary: boolean;
+  is_selected: boolean;
+  is_visible: ExternalCalendarVisibility;
+  sync_cursor: string | null;
+  last_successful_sync_at: string | null;
+  last_attempted_sync_at: string | null;
+  metadata: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+  beeapp_calendar?: ExternalCalendarBeeAppCalendar;
+  account_color?: string;
+}
+
+export interface UpdateExternalCalendarPreferencesPayload {
+  is_selected?: boolean;
+  is_visible?: ExternalCalendarVisibility;
+}
+
+export interface GetCalendarIntegrationsResponse {
+  integrations: CalendarIntegration[];
+}
+
+export interface GetCalendarIntegrationResponse {
+  integration: CalendarIntegration;
+}
+
+export interface GetExternalCalendarsResponse {
+  external_calendars: ExternalCalendar[];
+}
+
+export interface DiscoverExternalCalendarsResponse {
+  integration_id: string;
+  provider: IntegrationProvider;
+  account_color: string;
+  discovered_count: number;
+  external_calendars: ExternalCalendar[];
+}
+
+export interface UpdateExternalCalendarPreferencesResponse {
+  external_calendar: ExternalCalendar;
+}

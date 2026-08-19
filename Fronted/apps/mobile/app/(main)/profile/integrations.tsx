@@ -22,6 +22,7 @@ import * as WebBrowser from 'expo-web-browser';
 import {
   AlertTriangle,
   ArrowRight,
+  CalendarDays,
   ChevronLeft,
   ChevronRight,
   Link2,
@@ -33,6 +34,7 @@ import {
   X,
 } from 'lucide-react-native';
 import { colors } from '@beeapp/design-system';
+
 
 import FloatingTabBar from '../../../src/components/FloatingTabBar';
 import ScreenSafeArea from '../../../src/components/layout/ScreenSafeArea';
@@ -462,6 +464,39 @@ export default function IntegrationsScreen() {
               </View>
             ) : null}
 
+            <TouchableOpacity
+              style={styles.calendarSettingsCard}
+              onPress={() => {
+                router.push(
+                  '/(main)/calendar/external-calendars',
+                );
+              }}
+              activeOpacity={0.8}
+            >
+              <View style={styles.calendarSettingsIcon}>
+                <CalendarDays
+                  size={21}
+                  color={colors.brand.primary}
+                />
+              </View>
+
+              <View style={styles.calendarSettingsContent}>
+                <Text style={styles.calendarSettingsTitle}>
+                  Calendarios externos
+                </Text>
+
+                <Text style={styles.calendarSettingsDescription}>
+                  Elige qué calendarios de Google o Microsoft se
+                  muestran en tu Agenda.
+                </Text>
+              </View>
+
+              <ChevronRight
+                size={21}
+                color={colors.brand.primary}
+              />
+            </TouchableOpacity>
+
             <View style={styles.sectionHeader}>
               <Text style={styles.sectionTitle}>
                 Cuentas vinculadas
@@ -553,8 +588,9 @@ export default function IntegrationsScreen() {
 
               <View style={styles.providerOptions}>
                 {PROVIDER_OPTIONS.map((provider) => {
-                  const isAvailable =
-                    provider.availability === 'available';
+                  const isAvailable = (
+                    provider.availability === 'available'
+                  );
 
                   const isActing = (
                     actionId
@@ -583,7 +619,9 @@ export default function IntegrationsScreen() {
                           },
                         ]}
                       >
-                        <Text style={styles.providerOptionIconText}>
+                        <Text
+                          style={styles.providerOptionIconText}
+                        >
                           {provider.iconLetter}
                         </Text>
                       </View>
@@ -601,7 +639,9 @@ export default function IntegrationsScreen() {
                           ) : null}
                         </View>
 
-                        <Text style={styles.providerOptionDescription}>
+                        <Text
+                          style={styles.providerOptionDescription}
+                        >
                           {provider.capabilitiesLabel}
                         </Text>
                       </View>
@@ -768,9 +808,9 @@ export default function IntegrationsScreen() {
                   {selectedConnectionIsConnected ? (
                     <TouchableOpacity
                       style={styles.unlinkButton}
-                      onPress={() => handleDisconnect(
-                        selectedConnection,
-                      )}
+                      onPress={() => {
+                        handleDisconnect(selectedConnection);
+                      }}
                       disabled={actionId === selectedConnection.id}
                       activeOpacity={0.8}
                     >
@@ -788,9 +828,9 @@ export default function IntegrationsScreen() {
                   {selectedConnectionCanDelete ? (
                     <TouchableOpacity
                       style={styles.deleteButton}
-                      onPress={() => handleDeleteRecord(
-                        selectedConnection,
-                      )}
+                      onPress={() => {
+                        handleDeleteRecord(selectedConnection);
+                      }}
                       disabled={actionId === selectedConnection.id}
                       activeOpacity={0.8}
                     >
@@ -934,6 +974,41 @@ const styles = StyleSheet.create({
     lineHeight: 17,
     fontWeight: '500',
     color: '#B45309',
+  },
+  calendarSettingsCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F3E8FF',
+    borderWidth: 1,
+    borderColor: '#DDD6FE',
+    borderRadius: 17,
+    padding: 14,
+    marginBottom: 20,
+  },
+  calendarSettingsIcon: {
+    width: 43,
+    height: 43,
+    borderRadius: 13,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.neutral.white,
+    marginRight: 12,
+  },
+  calendarSettingsContent: {
+    flex: 1,
+    minWidth: 0,
+  },
+  calendarSettingsTitle: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: colors.neutral.text,
+    marginBottom: 3,
+  },
+  calendarSettingsDescription: {
+    fontSize: 11,
+    lineHeight: 16,
+    fontWeight: '500',
+    color: colors.neutral.gray600,
   },
   sectionHeader: {
     flexDirection: 'row',

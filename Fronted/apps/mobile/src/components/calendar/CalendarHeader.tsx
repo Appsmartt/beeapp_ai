@@ -8,10 +8,12 @@ import {
 import {
   ChevronLeft,
   Plus,
+  Settings2,
 } from 'lucide-react-native';
 import {
   colors,
 } from '@beeapp/design-system';
+
 
 import ModuleNotificationBell from '../ModuleNotificationBell';
 
@@ -32,6 +34,7 @@ export type FilterChip =
 interface CalendarHeaderProps {
   onBack?: () => void;
   onAction?: () => void;
+  onOpenExternalCalendars?: () => void;
   onToday: () => void;
   currentView: ViewMode;
   onViewChange: (view: ViewMode) => void;
@@ -41,6 +44,7 @@ interface CalendarHeaderProps {
 export function CalendarHeader({
   onBack,
   onAction,
+  onOpenExternalCalendars,
   onToday,
   currentView,
   onViewChange,
@@ -48,40 +52,52 @@ export function CalendarHeader({
   return (
     <View style={styles.header}>
       <View style={styles.headerLeftCol}>
-        {onBack && (
+        {onBack ? (
           <TouchableOpacity
             onPress={onBack}
             style={styles.backBtn}
             activeOpacity={0.7}
+            accessibilityLabel="Volver"
           >
             <ChevronLeft
               size={24}
               color={colors.neutral.text}
             />
           </TouchableOpacity>
-        )}
-
+        ) : null}
 
         <Text style={styles.headerTitle}>
           Agenda
         </Text>
       </View>
 
-
       <View style={styles.headerActions}>
         <ModuleNotificationBell moduleId="calendar" />
 
+        {onOpenExternalCalendars ? (
+          <TouchableOpacity
+            onPress={onOpenExternalCalendars}
+            style={styles.externalCalendarsBtn}
+            activeOpacity={0.7}
+            accessibilityLabel="Configurar calendarios externos"
+          >
+            <Settings2
+              size={18}
+              color={colors.brand.primary}
+            />
+          </TouchableOpacity>
+        ) : null}
 
         <TouchableOpacity
           onPress={onToday}
           style={styles.todayBtn}
           activeOpacity={0.7}
+          accessibilityLabel="Ir a hoy"
         >
           <Text style={styles.todayBtnText}>
             Hoy
           </Text>
         </TouchableOpacity>
-
 
         <View style={styles.viewSegment}>
           {([
@@ -91,23 +107,31 @@ export function CalendarHeader({
           ] as ViewMode[]).map((view) => {
             const isActive = currentView === view;
 
-
             return (
               <TouchableOpacity
                 key={view}
                 style={[
                   styles.segmentBtn,
                   isActive
-                    && styles.segmentBtnActive,
+                    ? styles.segmentBtnActive
+                    : undefined,
                 ]}
                 onPress={() => onViewChange(view)}
                 activeOpacity={0.7}
+                accessibilityLabel={`Ver agenda por ${
+                  view === 'day'
+                    ? 'día'
+                    : view === 'week'
+                      ? 'semana'
+                      : 'mes'
+                }`}
               >
                 <Text
                   style={[
                     styles.segmentText,
                     isActive
-                      && styles.segmentTextActive,
+                      ? styles.segmentTextActive
+                      : undefined,
                   ]}
                 >
                   {view === 'day'
@@ -121,8 +145,7 @@ export function CalendarHeader({
           })}
         </View>
 
-
-        {onAction && (
+        {onAction ? (
           <TouchableOpacity
             onPress={onAction}
             style={styles.headerActionBtn}
@@ -134,7 +157,7 @@ export function CalendarHeader({
               color={colors.neutral.white}
             />
           </TouchableOpacity>
-        )}
+        ) : null}
       </View>
     </View>
   );
@@ -184,13 +207,14 @@ export function CalendarFilterChips({
       {FILTER_CHIPS.map((filter) => {
         const isActive = activeFilter === filter.id;
 
-
         return (
           <TouchableOpacity
             key={filter.id}
             style={[
               styles.filterChip,
-              isActive && styles.filterChipActive,
+              isActive
+                ? styles.filterChipActive
+                : undefined,
             ]}
             onPress={() => onChange(filter.id)}
             activeOpacity={0.7}
@@ -199,7 +223,8 @@ export function CalendarFilterChips({
               style={[
                 styles.filterChipText,
                 isActive
-                  && styles.filterChipTextActive,
+                  ? styles.filterChipTextActive
+                  : undefined,
               ]}
             >
               {filter.label}
@@ -240,6 +265,16 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
+  },
+  externalCalendarsBtn: {
+    width: 30,
+    height: 30,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: colors.neutral.gray200,
+    backgroundColor: colors.neutral.gray50,
   },
   todayBtn: {
     paddingHorizontal: 12,
