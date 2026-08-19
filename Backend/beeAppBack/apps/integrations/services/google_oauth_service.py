@@ -35,6 +35,10 @@ GOOGLE_IDENTITY_SCOPES = (
     "profile",
 )
 
+GOOGLE_CALENDAR_SCOPES = (
+    "https://www.googleapis.com/auth/calendar",
+)
+
 HTTP_TIMEOUT_SECONDS = 15.0
 
 

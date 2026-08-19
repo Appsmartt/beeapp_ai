@@ -10,6 +10,11 @@ from apps.calendar.views import (
     CalendarEventInviteeRequestsView,
     CalendarEventRsvpView,
     CalendarEventsView,
+    CalendarExternalCalendarDetailView,
+    CalendarIntegrationDetailView,
+    CalendarIntegrationDiscoverCalendarsView,
+    CalendarIntegrationExternalCalendarsView,
+    CalendarIntegrationsView,
     CalendarInviteeRequestDetailView,
     CalendarPreferencesView,
     CalendarShareAcceptView,
@@ -43,6 +48,37 @@ urlpatterns = [
         "preferences/",
         CalendarPreferencesView.as_view(),
         name="calendar-preferences",
+    ),
+    path(
+        "integrations/",
+        CalendarIntegrationsView.as_view(),
+        name="calendar-integrations",
+    ),
+    path(
+        "integrations/<uuid:integration_id>/",
+        CalendarIntegrationDetailView.as_view(),
+        name="calendar-integration-detail",
+    ),
+    path(
+        (
+            "integrations/<uuid:integration_id>/"
+            "external-calendars/"
+        ),
+        CalendarIntegrationExternalCalendarsView.as_view(),
+        name="calendar-integration-external-calendars",
+    ),
+    path(
+        (
+            "integrations/<uuid:integration_id>/"
+            "discover-calendars/"
+        ),
+        CalendarIntegrationDiscoverCalendarsView.as_view(),
+        name="calendar-integration-discover-calendars",
+    ),
+    path(
+        "external-calendars/<uuid:external_calendar_id>/",
+        CalendarExternalCalendarDetailView.as_view(),
+        name="calendar-external-calendar-detail",
     ),
     path(
         "calendars/",

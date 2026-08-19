@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from typing import Any
+from uuid import UUID
 
 from rest_framework import serializers
 
@@ -23,6 +24,13 @@ EVENT_KINDS = (
     "virtual",
     "in_person",
     "hybrid",
+)
+
+EVENT_SOURCES = (
+    "beeapp",
+    "google",
+    "microsoft",
+    "detached",
 )
 
 RECURRENCE_FREQUENCIES = (
@@ -53,6 +61,25 @@ class UUIDListField(serializers.ListField):
         kwargs.setdefault("required", False)
         kwargs.setdefault("allow_empty", True)
         super().__init__(**kwargs)
+
+    def to_internal_value(
+        self,
+        data: Any,
+    ) -> list[UUID]:
+        values = super().to_internal_value(data)
+        normalized_values: list[UUID] = []
+        seen_values: set[str] = set()
+
+        for value in values:
+            normalized_value = str(value)
+
+            if normalized_value in seen_values:
+                continue
+
+            seen_values.add(normalized_value)
+            normalized_values.append(value)
+
+        return normalized_values
 
 
 class CalendarListQuerySerializer(serializers.Serializer):
@@ -96,6 +123,16 @@ class CreateCalendarSerializer(serializers.Serializer):
 
         return normalized
 
+    def validate_timezone(self, value: str) -> str:
+        normalized = value.strip()
+
+        if not normalized:
+            raise serializers.ValidationError(
+                "Timezone cannot be empty."
+            )
+
+        return normalized
+
 
 class UpdateCalendarSerializer(serializers.Serializer):
     name = serializers.CharField(
@@ -128,6 +165,16 @@ class UpdateCalendarSerializer(serializers.Serializer):
         if not normalized:
             raise serializers.ValidationError(
                 "Calendar name cannot be empty."
+            )
+
+        return normalized
+
+    def validate_timezone(self, value: str) -> str:
+        normalized = value.strip()
+
+        if not normalized:
+            raise serializers.ValidationError(
+                "Timezone cannot be empty."
             )
 
         return normalized
@@ -198,7 +245,7 @@ class CalendarEventListQuerySerializer(serializers.Serializer):
     range_end = serializers.DateTimeField()
     calendar_ids = UUIDListField(required=False)
     source = serializers.ChoiceField(
-        choices=("beeapp", "google", "microsoft", "detached"),
+        choices=EVENT_SOURCES,
         required=False,
     )
     event_kind = serializers.ChoiceField(
@@ -260,6 +307,16 @@ class ConferenceSerializer(serializers.Serializer):
         required=False,
         default=False,
     )
+
+    def validate_label(
+        self,
+        value: str | None,
+    ) -> str | None:
+        if value is None:
+            return None
+
+        normalized = value.strip()
+        return normalized or None
 
 
 class ReminderSerializer(serializers.Serializer):
@@ -337,13 +394,33 @@ class RecurrenceSerializer(serializers.Serializer):
 
         return normalized
 
+    def validate_timezone(
+        self,
+        value: str,
+    ) -> str:
+        normalized = value.strip()
+
+        if not normalized:
+            raise serializers.ValidationError(
+                "Recurrence timezone cannot be empty."
+            )
+
+        return normalized
+
+    def validate_week_days(
+        self,
+        value: list[int],
+    ) -> list[int]:
+        return list(dict.fromkeys(value))
+
     def validate(self, attrs: dict[str, Any]) -> dict[str, Any]:
         if (
             attrs.get("until_at") is not None
             and attrs.get("occurrence_count") is not None
         ):
             raise serializers.ValidationError(
-                "Use either until_at or occurrence_count, not both."
+                "Use either until_at or occurrence_count, "
+                "not both."
             )
 
         return attrs
@@ -463,7 +540,37 @@ class BaseCalendarEventSerializer(serializers.Serializer):
 
         return normalized
 
+    def validate_timezone(self, value: str) -> str:
+        normalized = value.strip()
+
+        if not normalized:
+            raise serializers.ValidationError(
+                "Timezone cannot be empty."
+            )
+
+        return normalized
+
     def validate_custom_type_name(
+        self,
+        value: str | None,
+    ) -> str | None:
+        if value is None:
+            return None
+
+        normalized = value.strip()
+        return normalized or None
+
+    def validate_location_name(
+        self,
+        value: str | None,
+    ) -> str | None:
+        if value is None:
+            return None
+
+        normalized = value.strip()
+        return normalized or None
+
+    def validate_location_address(
         self,
         value: str | None,
     ) -> str | None:
@@ -489,8 +596,8 @@ class BaseCalendarEventSerializer(serializers.Serializer):
                 or ends_at is not None
             ):
                 raise serializers.ValidationError(
-                    "All-day events require starts_on and ends_on "
-                    "only."
+                    "All-day events require starts_on and "
+                    "ends_on only."
                 )
 
             if starts_on >= ends_on:
@@ -505,7 +612,8 @@ class BaseCalendarEventSerializer(serializers.Serializer):
                 or ends_on is not None
             ):
                 raise serializers.ValidationError(
-                    "Timed events require starts_at and ends_at only."
+                    "Timed events require starts_at and "
+                    "ends_at only."
                 )
 
             if starts_at >= ends_at:
@@ -514,6 +622,7 @@ class BaseCalendarEventSerializer(serializers.Serializer):
                 )
 
         conferences = attrs.get("conferences") or []
+
         primary_count = sum(
             1
             for conference in conferences
@@ -524,10 +633,34 @@ class BaseCalendarEventSerializer(serializers.Serializer):
             raise serializers.ValidationError(
                 {
                     "conferences": (
-                        "Only one active conference can be primary."
+                        "Only one active conference can be "
+                        "primary."
                     )
                 }
             )
+
+        reminder_keys: set[tuple[Any, ...]] = set()
+
+        for reminder in attrs.get("reminders") or []:
+            reminder_key = (
+                reminder["channel"],
+                reminder["offset_minutes"],
+                str(
+                    reminder.get("all_day_reminder_time")
+                    or ""
+                ),
+            )
+
+            if reminder_key in reminder_keys:
+                raise serializers.ValidationError(
+                    {
+                        "reminders": (
+                            "Duplicate reminders are not allowed."
+                        )
+                    }
+                )
+
+            reminder_keys.add(reminder_key)
 
         return attrs
 
@@ -540,9 +673,9 @@ class UpdateCalendarEventSerializer(serializers.Serializer):
     """
     Serializer exclusivo para PATCH.
 
-    No hereda de BaseCalendarEventSerializer porque el serializer
-    de creación contiene defaults. En una actualización parcial,
-    defaults no enviados no deben sobrescribir valores existentes.
+    Los defaults del serializer de creación no se aplican aquí:
+    un campo no enviado en PATCH no debe sobrescribir un valor
+    existente.
     """
 
     calendar_id = serializers.UUIDField(required=False)
@@ -647,7 +780,37 @@ class UpdateCalendarEventSerializer(serializers.Serializer):
 
         return normalized
 
+    def validate_timezone(self, value: str) -> str:
+        normalized = value.strip()
+
+        if not normalized:
+            raise serializers.ValidationError(
+                "Timezone cannot be empty."
+            )
+
+        return normalized
+
     def validate_custom_type_name(
+        self,
+        value: str | None,
+    ) -> str | None:
+        if value is None:
+            return None
+
+        normalized = value.strip()
+        return normalized or None
+
+    def validate_location_name(
+        self,
+        value: str | None,
+    ) -> str | None:
+        if value is None:
+            return None
+
+        normalized = value.strip()
+        return normalized or None
+
+    def validate_location_address(
         self,
         value: str | None,
     ) -> str | None:
@@ -673,55 +836,98 @@ class UpdateCalendarEventSerializer(serializers.Serializer):
 
         provided_time_fields = time_fields.intersection(attrs)
 
-        if not provided_time_fields:
-            return attrs
-
-        if provided_time_fields != time_fields:
-            raise serializers.ValidationError(
-                "When changing event timing, provide "
-                "is_all_day, starts_at, ends_at, starts_on and "
-                "ends_on together."
-            )
-
-        is_all_day = attrs["is_all_day"]
-        starts_at = attrs["starts_at"]
-        ends_at = attrs["ends_at"]
-        starts_on = attrs["starts_on"]
-        ends_on = attrs["ends_on"]
-
-        if is_all_day:
-            if (
-                starts_on is None
-                or ends_on is None
-                or starts_at is not None
-                or ends_at is not None
-            ):
+        if provided_time_fields:
+            if provided_time_fields != time_fields:
                 raise serializers.ValidationError(
-                    "All-day events require starts_on and ends_on "
-                    "only."
+                    "When changing event timing, provide "
+                    "is_all_day, starts_at, ends_at, starts_on "
+                    "and ends_on together."
                 )
 
-            if starts_on >= ends_on:
+            is_all_day = attrs["is_all_day"]
+            starts_at = attrs["starts_at"]
+            ends_at = attrs["ends_at"]
+            starts_on = attrs["starts_on"]
+            ends_on = attrs["ends_on"]
+
+            if is_all_day:
+                if (
+                    starts_on is None
+                    or ends_on is None
+                    or starts_at is not None
+                    or ends_at is not None
+                ):
+                    raise serializers.ValidationError(
+                        "All-day events require starts_on and "
+                        "ends_on only."
+                    )
+
+                if starts_on >= ends_on:
+                    raise serializers.ValidationError(
+                        "ends_on must be after starts_on."
+                    )
+            else:
+                if (
+                    starts_at is None
+                    or ends_at is None
+                    or starts_on is not None
+                    or ends_on is not None
+                ):
+                    raise serializers.ValidationError(
+                        "Timed events require starts_at and "
+                        "ends_at only."
+                    )
+
+                if starts_at >= ends_at:
+                    raise serializers.ValidationError(
+                        "ends_at must be after starts_at."
+                    )
+
+        conferences = attrs.get("conferences")
+
+        if conferences is not None:
+            primary_count = sum(
+                1
+                for conference in conferences
+                if conference.get("is_primary")
+            )
+
+            if primary_count > 1:
                 raise serializers.ValidationError(
-                    "ends_on must be after starts_on."
+                    {
+                        "conferences": (
+                            "Only one active conference can be "
+                            "primary."
+                        )
+                    }
                 )
 
-            return attrs
+        reminders = attrs.get("reminders")
 
-        if (
-            starts_at is None
-            or ends_at is None
-            or starts_on is not None
-            or ends_on is not None
-        ):
-            raise serializers.ValidationError(
-                "Timed events require starts_at and ends_at only."
-            )
+        if reminders is not None:
+            reminder_keys: set[tuple[Any, ...]] = set()
 
-        if starts_at >= ends_at:
-            raise serializers.ValidationError(
-                "ends_at must be after starts_at."
-            )
+            for reminder in reminders:
+                reminder_key = (
+                    reminder["channel"],
+                    reminder["offset_minutes"],
+                    str(
+                        reminder.get("all_day_reminder_time")
+                        or ""
+                    ),
+                )
+
+                if reminder_key in reminder_keys:
+                    raise serializers.ValidationError(
+                        {
+                            "reminders": (
+                                "Duplicate reminders are not "
+                                "allowed."
+                            )
+                        }
+                    )
+
+                reminder_keys.add(reminder_key)
 
         return attrs
 
@@ -756,6 +962,60 @@ class DuplicateCalendarEventSerializer(serializers.Serializer):
         required=False,
         default=False,
     )
+
+    def validate(self, attrs: dict[str, Any]) -> dict[str, Any]:
+        timed_fields = {
+            "starts_at",
+            "ends_at",
+        }
+        all_day_fields = {
+            "starts_on",
+            "ends_on",
+        }
+
+        provided_timed = timed_fields.intersection(attrs)
+        provided_all_day = all_day_fields.intersection(attrs)
+
+        if provided_timed and provided_timed != timed_fields:
+            raise serializers.ValidationError(
+                "Provide starts_at and ends_at together."
+            )
+
+        if provided_all_day and provided_all_day != all_day_fields:
+            raise serializers.ValidationError(
+                "Provide starts_on and ends_on together."
+            )
+
+        if provided_timed and provided_all_day:
+            raise serializers.ValidationError(
+                "Use either timed or all-day fields, not both."
+            )
+
+        starts_at = attrs.get("starts_at")
+        ends_at = attrs.get("ends_at")
+
+        if (
+            starts_at is not None
+            and ends_at is not None
+            and starts_at >= ends_at
+        ):
+            raise serializers.ValidationError(
+                "ends_at must be after starts_at."
+            )
+
+        starts_on = attrs.get("starts_on")
+        ends_on = attrs.get("ends_on")
+
+        if (
+            starts_on is not None
+            and ends_on is not None
+            and starts_on >= ends_on
+        ):
+            raise serializers.ValidationError(
+                "ends_on must be after starts_on."
+            )
+
+        return attrs
 
 
 class UpdateCalendarPreferencesSerializer(serializers.Serializer):
@@ -793,11 +1053,48 @@ class UpdateCalendarPreferencesSerializer(serializers.Serializer):
     notify_sync_errors = serializers.BooleanField(required=False)
     notify_conflicts = serializers.BooleanField(required=False)
 
+    def validate_timezone(self, value: str) -> str:
+        normalized = value.strip()
+
+        if not normalized:
+            raise serializers.ValidationError(
+                "Timezone cannot be empty."
+            )
+
+        return normalized
+
     def validate(self, attrs: dict[str, Any]) -> dict[str, Any]:
         if not attrs:
             raise serializers.ValidationError(
                 "At least one field must be provided."
             )
+
+        default_reminders = attrs.get("default_reminders")
+
+        if default_reminders is not None:
+            reminder_keys: set[tuple[Any, ...]] = set()
+
+            for reminder in default_reminders:
+                reminder_key = (
+                    reminder["channel"],
+                    reminder["offset_minutes"],
+                    str(
+                        reminder.get("all_day_reminder_time")
+                        or ""
+                    ),
+                )
+
+                if reminder_key in reminder_keys:
+                    raise serializers.ValidationError(
+                        {
+                            "default_reminders": (
+                                "Duplicate reminders are not "
+                                "allowed."
+                            )
+                        }
+                    )
+
+                reminder_keys.add(reminder_key)
 
         return attrs
 
@@ -820,7 +1117,8 @@ class CalendarUserSearchQuerySerializer(serializers.Serializer):
 
         if len(normalized) < 3:
             raise serializers.ValidationError(
-                "Search query must contain at least 3 characters."
+                "Search query must contain at least "
+                "3 characters."
             )
 
         return normalized
@@ -850,7 +1148,10 @@ class CreateInviteeRequestSerializer(serializers.Serializer):
         trim_whitespace=True,
     )
 
-    def validate_note(self, value: str | None) -> str | None:
+    def validate_note(
+        self,
+        value: str | None,
+    ) -> str | None:
         if value is None:
             return None
 
@@ -906,7 +1207,8 @@ class CalendarConflictQuerySerializer(serializers.Serializer):
                 or attrs.get("ends_at") is not None
             ):
                 raise serializers.ValidationError(
-                    "All-day conflicts require starts_on and ends_on."
+                    "All-day conflicts require starts_on and "
+                    "ends_on."
                 )
 
             if attrs["starts_on"] >= attrs["ends_on"]:
@@ -929,6 +1231,48 @@ class CalendarConflictQuerySerializer(serializers.Serializer):
         if attrs["starts_at"] >= attrs["ends_at"]:
             raise serializers.ValidationError(
                 "ends_at must be after starts_at."
+            )
+
+        return attrs
+
+
+class CalendarIntegrationListQuerySerializer(serializers.Serializer):
+    provider = serializers.ChoiceField(
+        choices=("google", "microsoft"),
+        required=False,
+    )
+
+
+class CalendarIntegrationSyncRequestSerializer(
+    serializers.Serializer,
+):
+    """
+    Reservado para el bloque de sincronización.
+
+    Se crea desde ahora para mantener estable el contrato de
+    integración. Todavía no expone un endpoint que ejecute sync.
+    """
+
+    force_full_sync = serializers.BooleanField(
+        required=False,
+        default=False,
+    )
+
+
+class UpdateExternalCalendarPreferencesSerializer(
+    serializers.Serializer,
+):
+    is_selected = serializers.BooleanField(required=False)
+
+    is_visible = serializers.ChoiceField(
+        choices=("visible", "hidden"),
+        required=False,
+    )
+
+    def validate(self, attrs: dict[str, Any]) -> dict[str, Any]:
+        if not attrs:
+            raise serializers.ValidationError(
+                "At least one field must be provided."
             )
 
         return attrs

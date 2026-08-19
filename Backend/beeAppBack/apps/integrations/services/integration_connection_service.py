@@ -12,6 +12,9 @@ from apps.integrations.exceptions import (
     IntegrationCredentialError,
     IntegrationReauthorizationRequiredError,
 )
+from apps.integrations.services.calendar_integration_link_service import (
+    sync_calendar_integration_from_connection,
+)
 from apps.integrations.services.credential_crypto_service import (
     decrypt_integration_secret,
     encrypt_integration_secret,
@@ -45,6 +48,9 @@ def _supabase():
 
 
 def _extract_single(response) -> dict[str, Any] | None:
+    if response is None:
+        return None
+
     data = getattr(response, "data", None)
 
     if isinstance(data, list):
@@ -88,6 +94,17 @@ def _merge_string_lists(
                 merged.append(value)
 
     return merged
+
+
+def _token_granted_scopes(
+    token_data: dict[str, Any],
+) -> list[str]:
+    raw_scopes = token_data.get("scope")
+
+    if not isinstance(raw_scopes, str):
+        return []
+
+    return _normalize_string_list(raw_scopes.split())
 
 
 def _record_event(
@@ -159,7 +176,7 @@ def get_user_connection(
             .execute()
         )
 
-        connection = getattr(response, "data", None)
+        connection = _extract_single(response)
 
         if not connection:
             raise IntegrationConnectionNotFoundError(
@@ -201,7 +218,7 @@ def _find_existing_connection(
 
     response = query.maybe_single().execute()
 
-    return getattr(response, "data", None)
+    return _extract_single(response)
 
 
 def _upsert_connection(
@@ -229,6 +246,23 @@ def _upsert_connection(
 
         now = _utc_now_iso()
 
+        existing_capabilities = (
+            existing_connection.get("capabilities", [])
+            if existing_connection
+            else []
+        )
+
+        merged_capabilities = _merge_string_lists(
+            existing_capabilities,
+            requested_capabilities,
+        )
+
+        # Los scopes vienen exclusivamente de la respuesta OAuth
+        # más reciente. No se deben inferir desde capabilities.
+        effective_granted_scopes = _normalize_string_list(
+            granted_scopes
+        )
+
         connection_payload = {
             "user_id": user_id,
             "provider": provider,
@@ -238,28 +272,8 @@ def _upsert_connection(
             "provider_display_name": provider_display_name,
             "provider_avatar_url": provider_avatar_url,
             "status": "connected",
-            "granted_scopes": _merge_string_lists(
-                (
-                    existing_connection.get(
-                        "granted_scopes",
-                        [],
-                    )
-                    if existing_connection
-                    else []
-                ),
-                granted_scopes,
-            ),
-            "capabilities": _merge_string_lists(
-                (
-                    existing_connection.get(
-                        "capabilities",
-                        [],
-                    )
-                    if existing_connection
-                    else []
-                ),
-                requested_capabilities,
-            ),
+            "granted_scopes": effective_granted_scopes,
+            "capabilities": merged_capabilities,
             "token_expires_at": (
                 token_expires_at.isoformat()
                 if token_expires_at
@@ -308,10 +322,8 @@ def _upsert_connection(
                 .execute()
             )
 
-            existing_credentials = getattr(
-                credentials_response,
-                "data",
-                None,
+            existing_credentials = _extract_single(
+                credentials_response
             )
 
             if existing_credentials:
@@ -357,13 +369,18 @@ def _upsert_connection(
                 "Could not save integration credentials."
             )
 
+        sync_calendar_integration_from_connection(
+            connection_id=connection["id"],
+        )
+
         _record_event(
             connection_id=connection["id"],
             user_id=user_id,
             provider=provider,
             event_type="authorization_succeeded",
             metadata={
-                "capabilities": requested_capabilities,
+                "capabilities": merged_capabilities,
+                "granted_scopes": effective_granted_scopes,
             },
         )
 
@@ -371,8 +388,10 @@ def _upsert_connection(
             user_id=user_id,
             connection_id=connection["id"],
         )
+
     except IntegrationCredentialError:
         raise
+
     except Exception as error:
         raise IntegrationCredentialError(
             f"Could not persist {provider} authorization."
@@ -394,9 +413,7 @@ def upsert_google_connection(
         provider_email=user_info.get("email"),
         provider_display_name=user_info.get("name"),
         provider_avatar_url=user_info.get("picture"),
-        granted_scopes=_normalize_string_list(
-            str(token_data.get("scope", "")).split()
-        ),
+        granted_scopes=_token_granted_scopes(token_data),
         requested_capabilities=_normalize_string_list(
             oauth_request.get("requested_capabilities")
         ),
@@ -432,9 +449,7 @@ def upsert_microsoft_connection(
         provider_email=provider_email,
         provider_display_name=user_info.get("displayName"),
         provider_avatar_url=None,
-        granted_scopes=_normalize_string_list(
-            str(token_data.get("scope", "")).split()
-        ),
+        granted_scopes=_token_granted_scopes(token_data),
         requested_capabilities=_normalize_string_list(
             oauth_request.get("requested_capabilities")
         ),
@@ -466,7 +481,7 @@ def mark_connection_reauth_required(
             .execute()
         )
 
-        connection = getattr(response, "data", None)
+        connection = _extract_single(response)
 
         if not connection:
             return
@@ -488,6 +503,10 @@ def mark_connection_reauth_required(
             )
             .eq("id", connection_id)
             .execute()
+        )
+
+        sync_calendar_integration_from_connection(
+            connection_id=connection_id,
         )
 
         _record_event(
@@ -547,18 +566,12 @@ def _get_valid_provider_access_token(
             .execute()
         )
 
-        credentials = getattr(
-            credentials_response,
-            "data",
-            None,
-        )
+        credentials = _extract_single(credentials_response)
 
         if not credentials:
             raise IntegrationCredentialError(
-                (
-                    f"{expected_provider.title()} credentials "
-                    "are unavailable."
-                )
+                f"{expected_provider.title()} credentials "
+                "are unavailable."
             )
 
         access_token = decrypt_integration_secret(
@@ -593,10 +606,8 @@ def _get_valid_provider_access_token(
                 ),
             )
             raise IntegrationCredentialError(
-                (
-                    f"{expected_provider.title()} connection "
-                    "requires reauthorization."
-                )
+                f"{expected_provider.title()} connection "
+                "requires reauthorization."
             )
 
         refreshed_token_data = refresh_token_function(
@@ -663,6 +674,10 @@ def _get_valid_provider_access_token(
             .execute()
         )
 
+        sync_calendar_integration_from_connection(
+            connection_id=connection_id,
+        )
+
         _record_event(
             connection_id=connection_id,
             user_id=user_id,
@@ -671,19 +686,20 @@ def _get_valid_provider_access_token(
         )
 
         return refreshed_access_token
+
     except IntegrationCredentialError:
         raise
+
     except IntegrationReauthorizationRequiredError as error:
         mark_connection_reauth_required(
             connection_id=connection_id,
             reason=str(error),
         )
         raise IntegrationCredentialError(
-            (
-                f"{expected_provider.title()} connection requires "
-                "reauthorization."
-            )
+            f"{expected_provider.title()} connection "
+            "requires reauthorization."
         ) from error
+
     except Exception as error:
         mark_connection_reauth_required(
             connection_id=connection_id,
@@ -692,10 +708,8 @@ def _get_valid_provider_access_token(
             ),
         )
         raise IntegrationCredentialError(
-            (
-                f"Could not obtain valid "
-                f"{expected_provider.title()} credentials."
-            )
+            "Could not obtain valid "
+            f"{expected_provider.title()} credentials."
         ) from error
 
 
@@ -769,6 +783,10 @@ def disconnect_user_connection(
             .eq("id", connection_id)
             .eq("user_id", user_id)
             .execute()
+        )
+
+        sync_calendar_integration_from_connection(
+            connection_id=connection_id,
         )
 
         _record_event(
