@@ -34,6 +34,7 @@ from apps.integrations.services.integration_connection_service import (
     upsert_microsoft_connection,
 )
 from apps.integrations.services.microsoft_oauth_service import (
+    MICROSOFT_IDENTITY_SCOPES,
     exchange_microsoft_authorization_code,
     get_microsoft_user_info,
 )
@@ -50,14 +51,6 @@ GOOGLE_IDENTITY_SCOPES = [
     "openid",
     "email",
     "profile",
-]
-
-MICROSOFT_IDENTITY_SCOPES = [
-    "openid",
-    "profile",
-    "email",
-    "offline_access",
-    "User.Read",
 ]
 
 

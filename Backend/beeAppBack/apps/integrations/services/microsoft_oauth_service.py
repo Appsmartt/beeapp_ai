@@ -26,12 +26,17 @@ MICROSOFT_GRAPH_ME_ENDPOINT = (
     "https://graph.microsoft.com/v1.0/me"
 )
 
+# Permisos delegados de Microsoft Graph para la cuenta
+# que inició sesión. No usar Application permissions.
 MICROSOFT_IDENTITY_SCOPES = (
     "openid",
     "profile",
     "email",
     "offline_access",
     "User.Read",
+    "Mail.ReadWrite",
+    "Mail.Send",
+    "Calendars.ReadWrite",
 )
 
 HTTP_TIMEOUT_SECONDS = 15.0
