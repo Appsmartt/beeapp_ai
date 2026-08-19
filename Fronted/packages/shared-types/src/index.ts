@@ -1577,8 +1577,13 @@ export interface GetIntegrationConnectionResponse {
   connection: IntegrationConnection;
 }
 
+export type IntegrationOAuthClientChannel =
+  | 'mobile'
+  | 'web';
+
 export interface StartIntegrationAuthorizationPayload {
   capabilities?: IntegrationCapability[];
+  client_channel?: IntegrationOAuthClientChannel;
 }
 
 export interface StartIntegrationAuthorizationResponse {

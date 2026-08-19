@@ -1,9 +1,12 @@
+'use client';
+
 import {
     useCallback,
     useEffect,
     useState,
     } from 'react';
 import {
+    ApiRequestError,
     deleteIntegrationConnectionRecord,
     disconnectIntegrationConnection,
     getIntegrationConnections,
@@ -16,11 +19,7 @@ import type {
     IntegrationProvider,
     } from '@beeapp/shared-types';
 
-import {
-    getValidSessionCredentials,
-    } from '../services/authSession';
-
-export interface UseIntegrationsResult {
+export interface UseWebIntegrationsResult {
     connections: IntegrationConnection[];
     loading: boolean;
     refreshing: boolean;
@@ -44,19 +43,22 @@ export interface UseIntegrationsResult {
     ) => Promise<void>;
 }
 
-async function getAuthCredentials() {
-    const credentials = await getValidSessionCredentials();
-
-    if (!credentials) {
-        throw new Error(
-        'Tu sesión expiró. Inicia sesión nuevamente.',
-        );
+function getErrorMessage(error: unknown): string {
+    if (
+        error instanceof ApiRequestError
+        && error.status === 401
+    ) {
+        return 'Tu sesión expiró. Inicia sesión nuevamente.';
     }
 
-    return credentials;
+    if (error instanceof Error) {
+        return error.message;
+    }
+
+    return 'No fue posible completar la operación.';
 }
 
-export function useIntegrations(): UseIntegrationsResult {
+export function useIntegrations(): UseWebIntegrationsResult {
     const [connections, setConnections] = useState<
         IntegrationConnection[]
     >([]);
@@ -76,19 +78,11 @@ export function useIntegrations(): UseIntegrationsResult {
         setError(null);
 
         try {
-        const auth = await getAuthCredentials();
-
-        const response = await getIntegrationConnections(
-            auth,
-        );
+        const response = await getIntegrationConnections();
 
         setConnections(response.connections);
         } catch (loadError) {
-        setError(
-            loadError instanceof Error
-            ? loadError.message
-            : 'No fue posible cargar las integraciones.',
-        );
+        setError(getErrorMessage(loadError));
         } finally {
         setLoading(false);
         setRefreshing(false);
@@ -103,15 +97,12 @@ export function useIntegrations(): UseIntegrationsResult {
         provider: IntegrationProvider,
         capabilities: IntegrationCapability[] = [],
     ) => {
-        const auth = await getAuthCredentials();
-
         const response = await startIntegrationAuthorization(
         provider,
         {
             capabilities,
-            client_channel: 'mobile',
+            client_channel: 'web',
         },
-        auth,
         );
 
         return response.authorization_url;
@@ -121,13 +112,10 @@ export function useIntegrations(): UseIntegrationsResult {
         connectionId: string,
         capabilities: IntegrationCapability[] = [],
     ) => {
-        const auth = await getAuthCredentials();
-
         const response = await reauthorizeIntegrationConnection(
-            connectionId,
-            capabilities,
-            'mobile',
-            auth,
+        connectionId,
+        capabilities,
+        'web',
         );
 
         return response.authorization_url;
@@ -136,12 +124,7 @@ export function useIntegrations(): UseIntegrationsResult {
     const disconnect = useCallback(async (
         connectionId: string,
     ) => {
-        const auth = await getAuthCredentials();
-
-        await disconnectIntegrationConnection(
-        connectionId,
-        auth,
-        );
+        await disconnectIntegrationConnection(connectionId);
 
         await loadIntegrations(true);
     }, [loadIntegrations]);
@@ -149,12 +132,7 @@ export function useIntegrations(): UseIntegrationsResult {
     const removeConnectionRecord = useCallback(async (
         connectionId: string,
     ) => {
-        const auth = await getAuthCredentials();
-
-        await deleteIntegrationConnectionRecord(
-        connectionId,
-        auth,
-        );
+        await deleteIntegrationConnectionRecord(connectionId);
 
         await loadIntegrations(true);
     }, [loadIntegrations]);

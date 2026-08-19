@@ -4,6 +4,7 @@ import type {
     GetIntegrationConnectionResponse,
     GetIntegrationConnectionsResponse,
     IntegrationCapability,
+    IntegrationOAuthClientChannel,
     IntegrationProvider,
     StartIntegrationAuthorizationPayload,
     StartIntegrationAuthorizationResponse,
@@ -11,6 +12,7 @@ import type {
 
 import { api } from './client';
 
+type IntegrationApiAuth = AuthCredentials | null;
 
 function connectionPath(
     connectionId: string,
@@ -21,49 +23,50 @@ function connectionPath(
     );
 }
 
-
 function connectionRecordPath(
     connectionId: string,
     ): string {
     return `${connectionPath(connectionId)}record/`;
 }
 
+function buildAuthOptions(
+    auth?: IntegrationApiAuth,
+    ): { auth?: AuthCredentials } {
+    return auth ? { auth } : {};
+}
 
 export function getIntegrationCatalog(
-    auth: AuthCredentials,
+    auth?: IntegrationApiAuth,
     ): Promise<GetIntegrationCatalogResponse> {
     return api.get<GetIntegrationCatalogResponse>(
         '/integrations/catalog/',
-        { auth },
+        buildAuthOptions(auth),
     );
 }
 
-
 export function getIntegrationConnections(
-    auth: AuthCredentials,
+    auth?: IntegrationApiAuth,
     ): Promise<GetIntegrationConnectionsResponse> {
     return api.get<GetIntegrationConnectionsResponse>(
         '/integrations/connections/',
-        { auth },
+        buildAuthOptions(auth),
     );
 }
 
-
 export function getIntegrationConnection(
-    auth: AuthCredentials,
     connectionId: string,
+    auth?: IntegrationApiAuth,
     ): Promise<GetIntegrationConnectionResponse> {
     return api.get<GetIntegrationConnectionResponse>(
         connectionPath(connectionId),
-        { auth },
+        buildAuthOptions(auth),
     );
 }
 
-
 export function startIntegrationAuthorization(
-    auth: AuthCredentials,
     provider: IntegrationProvider,
     payload: StartIntegrationAuthorizationPayload = {},
+    auth?: IntegrationApiAuth,
     ): Promise<StartIntegrationAuthorizationResponse> {
     return api.post<StartIntegrationAuthorizationResponse>(
         (
@@ -71,41 +74,42 @@ export function startIntegrationAuthorization(
         + `${encodeURIComponent(provider)}/authorize/`
         ),
         payload,
-        { auth },
+        buildAuthOptions(auth),
     );
 }
 
-
 export function reauthorizeIntegrationConnection(
-    auth: AuthCredentials,
     connectionId: string,
     capabilities: IntegrationCapability[] = [],
+    clientChannel: IntegrationOAuthClientChannel = 'mobile',
+    auth?: IntegrationApiAuth,
     ): Promise<StartIntegrationAuthorizationResponse> {
     return api.post<StartIntegrationAuthorizationResponse>(
         `${connectionPath(connectionId)}reauthorize/`,
-        { capabilities },
-        { auth },
+        {
+        capabilities,
+        client_channel: clientChannel,
+        },
+        buildAuthOptions(auth),
     );
 }
 
-
 export async function disconnectIntegrationConnection(
-    auth: AuthCredentials,
     connectionId: string,
+    auth?: IntegrationApiAuth,
     ): Promise<void> {
     await api.delete<void>(
         connectionPath(connectionId),
-        { auth },
+        buildAuthOptions(auth),
     );
 }
 
-
 export async function deleteIntegrationConnectionRecord(
-    auth: AuthCredentials,
     connectionId: string,
+    auth?: IntegrationApiAuth,
     ): Promise<void> {
     await api.delete<void>(
         connectionRecordPath(connectionId),
-        { auth },
+        buildAuthOptions(auth),
     );
 }

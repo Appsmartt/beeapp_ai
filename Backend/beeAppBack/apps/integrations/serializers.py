@@ -6,6 +6,11 @@ SUPPORTED_PROVIDERS = (
     "microsoft",
 )
 
+SUPPORTED_CLIENT_CHANNELS = (
+    "mobile",
+    "web",
+)
+
 
 class StartIntegrationAuthorizationSerializer(
     serializers.Serializer,
@@ -13,6 +18,13 @@ class StartIntegrationAuthorizationSerializer(
     provider = serializers.ChoiceField(
         choices=SUPPORTED_PROVIDERS,
     )
+
+    client_channel = serializers.ChoiceField(
+        choices=SUPPORTED_CLIENT_CHANNELS,
+        required=False,
+        default="mobile",
+    )
+
     capabilities = serializers.ListField(
         child=serializers.CharField(
             min_length=1,
@@ -46,6 +58,12 @@ class StartIntegrationAuthorizationSerializer(
 
 
 class ReauthorizeIntegrationSerializer(serializers.Serializer):
+    client_channel = serializers.ChoiceField(
+        choices=SUPPORTED_CLIENT_CHANNELS,
+        required=False,
+        default="mobile",
+    )
+
     capabilities = serializers.ListField(
         child=serializers.CharField(
             min_length=1,

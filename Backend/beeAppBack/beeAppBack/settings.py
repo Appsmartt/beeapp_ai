@@ -158,8 +158,11 @@ CORS_ALLOW_CREDENTIALS = True
 
 CSRF_TRUSTED_ORIGINS = [
     "http://localhost:3000",
-    "http://127.0.0.0.1:3000",
+    "http://127.0.0.1:3000",
     "http://192.168.1.5:3000",
+    "http://localhost:3001",
+    "http://127.0.0.1:3001",
+    "http://192.168.1.5:3001",
 ]
 
 GOOGLE_OAUTH_CLIENT_ID = get_required_env(
@@ -178,11 +181,9 @@ MICROSOFT_OAUTH_CLIENT_ID = get_required_env(
     "MICROSOFT_OAUTH_CLIENT_ID"
 )
 
-
 MICROSOFT_OAUTH_CLIENT_SECRET = get_required_env(
     "MICROSOFT_OAUTH_CLIENT_SECRET"
 )
-
 
 MICROSOFT_OAUTH_REDIRECT_URI = get_required_env(
     "MICROSOFT_OAUTH_REDIRECT_URI"
@@ -198,4 +199,8 @@ INTEGRATION_MOBILE_SUCCESS_REDIRECT = get_required_env(
 
 INTEGRATION_MOBILE_FAILURE_REDIRECT = get_required_env(
     "INTEGRATION_MOBILE_FAILURE_REDIRECT"
+)
+
+INTEGRATION_WEB_RESULT_REDIRECT = get_required_env(
+    "INTEGRATION_WEB_RESULT_REDIRECT"
 )

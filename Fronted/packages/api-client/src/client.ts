@@ -82,6 +82,21 @@ function getAuthorizationHeader(
     return {};
 }
 
+function getDefaultCredentials(
+    auth?: AuthCredentials | null,
+    token?: string | null,
+    ): RequestCredentials | undefined {
+    if (auth?.token || token) {
+        return undefined;
+    }
+
+    if (typeof window !== 'undefined') {
+        return 'include';
+    }
+
+    return undefined;
+}
+
 async function parseApiResponse<T>(
     response: Response,
     ): Promise<T> {
@@ -99,7 +114,7 @@ async function parseApiResponse<T>(
             || errorData.error
             || errorMessage;
         } catch {
-        // Response may not contain JSON.
+        // The response may not contain JSON.
         }
 
         throw new ApiRequestError(
@@ -124,6 +139,7 @@ async function request<T>(
         token,
         auth,
         headers,
+        credentials,
         ...fetchOptions
     } = options;
 
@@ -131,6 +147,10 @@ async function request<T>(
 
     const response = await fetch(buildUrl(endpoint), {
         ...fetchOptions,
+        credentials: (
+        credentials
+        ?? getDefaultCredentials(auth, token)
+        ),
         headers: {
         Accept: 'application/json',
         ...(hasJsonBody
@@ -158,12 +178,17 @@ async function upload<T>(
     const {
         token,
         auth,
+        credentials,
         ...fetchOptions
     } = options;
 
     const response = await fetch(buildUrl(endpoint), {
         ...fetchOptions,
         method: 'POST',
+        credentials: (
+        credentials
+        ?? getDefaultCredentials(auth, token)
+        ),
         headers: {
         Accept: 'application/json',
         ...getAuthorizationHeader(token, auth),
