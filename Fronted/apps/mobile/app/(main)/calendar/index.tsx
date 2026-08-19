@@ -26,6 +26,7 @@ import {
   colors,
 } from '@beeapp/design-system';
 
+
 import ScreenSafeArea from '../../../src/components/layout/ScreenSafeArea';
 import {
   useModuleNav,
@@ -82,20 +83,17 @@ function getMonthRange(
   const year = date.getFullYear();
   const month = date.getMonth();
 
-
   const firstDay = new Date(
     year,
     month,
     1,
   );
 
-
   const firstDayOfNextMonth = new Date(
     year,
     month + 1,
     1,
   );
-
 
   return {
     rangeStart: createDateTimeWithOffset(
@@ -120,12 +118,10 @@ function getWeekRange(
     parseDate(selectedDate),
   );
 
-
   const weekEnd = new Date(weekStart);
   weekEnd.setDate(
     weekEnd.getDate() + 7,
   );
-
 
   return {
     rangeStart: createDateTimeWithOffset(
@@ -173,11 +169,9 @@ function getVisibleRange(
     return getMonthRange(selectedDate);
   }
 
-
   if (currentView === 'day') {
     return getDayRange(selectedDate);
   }
-
 
   return getWeekRange(selectedDate);
 }
@@ -192,7 +186,6 @@ function getFilteredEvents(
     TODAY_STR,
   ).getTime();
 
-
   return events
     .filter((event) =>
       event.date === selectedDate,
@@ -202,11 +195,9 @@ function getFilteredEvents(
         return event.type === 'meeting';
       }
 
-
       if (activeFilter === 'events') {
         return event.type === 'event';
       }
-
 
       if (activeFilter === 'past') {
         return parseDate(
@@ -214,13 +205,11 @@ function getFilteredEvents(
         ).getTime() < todayTimestamp;
       }
 
-
       if (activeFilter === 'upcoming') {
         return parseDate(
           event.date,
         ).getTime() >= todayTimestamp;
       }
-
 
       return true;
     })
@@ -229,11 +218,9 @@ function getFilteredEvents(
         return -1;
       }
 
-
       if (!left.isAllDay && right.isAllDay) {
         return 1;
       }
-
 
       return left.timeStart.localeCompare(
         right.timeStart,
@@ -246,7 +233,6 @@ export default function CalendarIndexScreen() {
   const router = useModuleNav();
   const navigation = useNavigation();
 
-
   const {
     events,
     loading,
@@ -257,41 +243,32 @@ export default function CalendarIndexScreen() {
     duplicateEvent,
   } = useCalendar();
 
-
   const [selectedDate, setSelectedDate] = useState(
     TODAY_STR,
   );
-
 
   const [currentView, setCurrentView] = useState<ViewMode>(
     'week',
   );
 
-
   const [activeFilter, setActiveFilter] = useState<FilterChip>(
     'upcoming',
   );
 
-
   const [activeEvent, setActiveEvent] =
     useState<CalendarEvent | null>(null);
-
 
   const [contextMenuVisible, setContextMenuVisible] =
     useState(false);
 
-
   const [fabMenuVisible, setFabMenuVisible] =
     useState(false);
-
 
   const [monthPickerVisible, setMonthPickerVisible] =
     useState(false);
 
-
   const [yearPickerVisible, setYearPickerVisible] =
     useState(false);
-
 
   const visibleRange = useMemo(
     () => getVisibleRange(
@@ -303,7 +280,6 @@ export default function CalendarIndexScreen() {
       selectedDate,
     ],
   );
-
 
   const filteredEvents = useMemo(
     () => getFilteredEvents(
@@ -318,7 +294,6 @@ export default function CalendarIndexScreen() {
     ],
   );
 
-
   const loadVisibleRange = useCallback((
     showRefresh = false,
   ) => {
@@ -331,11 +306,9 @@ export default function CalendarIndexScreen() {
     visibleRange,
   ]);
 
-
   useEffect(() => {
     void loadVisibleRange();
   }, [loadVisibleRange]);
-
 
   useEffect(() => {
     const unsubscribe = navigation.addListener(
@@ -345,13 +318,11 @@ export default function CalendarIndexScreen() {
       },
     );
 
-
     return unsubscribe;
   }, [
     loadVisibleRange,
     navigation,
   ]);
-
 
   const handleSelectMonth = (
     monthIndex: number,
@@ -366,12 +337,10 @@ export default function CalendarIndexScreen() {
       ),
     );
 
-
     setSelectedDate(
       formatDate(nextDate),
     );
   };
-
 
   const handleSelectYear = (
     year: number,
@@ -386,12 +355,10 @@ export default function CalendarIndexScreen() {
       ),
     );
 
-
     setSelectedDate(
       formatDate(nextDate),
     );
   };
-
 
   const shiftPeriod = (
     direction: -1 | 1,
@@ -404,10 +371,8 @@ export default function CalendarIndexScreen() {
         ),
       );
 
-
       return;
     }
-
 
     setSelectedDate(
       addDays(
@@ -419,12 +384,10 @@ export default function CalendarIndexScreen() {
     );
   };
 
-
   const handleFabAction = (
     type: 'meeting' | 'event',
   ) => {
     setFabMenuVisible(false);
-
 
     router.push({
       pathname: '/(main)/calendar/edit',
@@ -435,6 +398,11 @@ export default function CalendarIndexScreen() {
     });
   };
 
+  const handleOpenExternalCalendars = () => {
+    router.push(
+      '/(main)/calendar/external-calendars',
+    );
+  };
 
   const openContextMenu = (
     event: CalendarEvent,
@@ -443,18 +411,15 @@ export default function CalendarIndexScreen() {
     setContextMenuVisible(true);
   };
 
-
   const closeContextMenu = () => {
     setContextMenuVisible(false);
     setActiveEvent(null);
   };
 
-
   const goToDetail = (
     event: CalendarEvent,
   ) => {
     closeContextMenu();
-
 
     router.push({
       pathname: '/(main)/calendar/detail',
@@ -464,12 +429,10 @@ export default function CalendarIndexScreen() {
     });
   };
 
-
   const handleEditEvent = (
     event: CalendarEvent,
   ) => {
     closeContextMenu();
-
 
     router.push({
       pathname: '/(main)/calendar/edit',
@@ -479,7 +442,6 @@ export default function CalendarIndexScreen() {
       },
     });
   };
-
 
   const handleDeleteEvent = (
     event: CalendarEvent,
@@ -506,7 +468,6 @@ export default function CalendarIndexScreen() {
     );
   };
 
-
   const confirmDeleteEvent = async (
     event: CalendarEvent,
   ) => {
@@ -514,12 +475,10 @@ export default function CalendarIndexScreen() {
       await deleteEvent(event.id);
       closeContextMenu();
 
-
       Alert.alert(
         'Evento eliminado',
         'El evento fue eliminado de tu agenda.',
       );
-
 
       await loadVisibleRange(true);
     } catch (deleteError) {
@@ -531,7 +490,6 @@ export default function CalendarIndexScreen() {
       );
     }
   };
-
 
   const handleDuplicateEvent = (
     event: CalendarEvent,
@@ -556,7 +514,6 @@ export default function CalendarIndexScreen() {
       ],
     );
   };
-
 
   const confirmDuplicateEvent = async (
     event: CalendarEvent,
@@ -595,9 +552,7 @@ export default function CalendarIndexScreen() {
         );
       }
 
-
       closeContextMenu();
-
 
       Alert.alert(
         'Evento duplicado',
@@ -606,7 +561,6 @@ export default function CalendarIndexScreen() {
           + `${selectedDate}.`
         ),
       );
-
 
       await loadVisibleRange(true);
     } catch (duplicateError) {
@@ -619,17 +573,14 @@ export default function CalendarIndexScreen() {
     }
   };
 
-
   const selectedDateLabel = useMemo(() => {
     const date = parseDate(selectedDate);
-
 
     return (
       `Eventos del ${date.getDate()} `
       + `de ${monthName(date)}`
     );
   }, [selectedDate]);
-
 
   return (
     <ScreenSafeArea style={styles.safeArea}>
@@ -648,11 +599,15 @@ export default function CalendarIndexScreen() {
                 )
               : undefined
           }
+          onOpenExternalCalendars={
+            router.embedded
+              ? undefined
+              : handleOpenExternalCalendars
+          }
           onToday={() => setSelectedDate(TODAY_STR)}
           currentView={currentView}
           onViewChange={setCurrentView}
         />
-
 
         {currentView === 'month' ? (
           <View style={styles.monthViewport}>
@@ -668,7 +623,6 @@ export default function CalendarIndexScreen() {
                 />
               </TouchableOpacity>
 
-
               <TouchableOpacity
                 onPress={() =>
                   setMonthPickerVisible(true)
@@ -683,7 +637,6 @@ export default function CalendarIndexScreen() {
                 </Text>
               </TouchableOpacity>
 
-
               <TouchableOpacity
                 style={styles.navBtn}
                 onPress={() => shiftPeriod(1)}
@@ -695,7 +648,6 @@ export default function CalendarIndexScreen() {
                 />
               </TouchableOpacity>
             </View>
-
 
             <CalendarMonthGrid
               events={events}
@@ -722,7 +674,6 @@ export default function CalendarIndexScreen() {
           />
         )}
 
-
         <ScrollView
           style={styles.mainScroll}
           showsVerticalScrollIndicator={false}
@@ -741,7 +692,6 @@ export default function CalendarIndexScreen() {
             onChange={setActiveFilter}
           />
 
-
           {loading && events.length === 0 ? (
             <View style={styles.initialLoading}>
               <ActivityIndicator
@@ -749,24 +699,21 @@ export default function CalendarIndexScreen() {
                 color={colors.brand.primary}
               />
 
-
               <Text style={styles.initialLoadingText}>
                 Cargando tu agenda...
               </Text>
             </View>
           ) : (
             <>
-              {error && (
+              {error ? (
                 <View style={styles.errorCard}>
                   <Text style={styles.errorTitle}>
                     No fue posible cargar Agenda
                   </Text>
 
-
                   <Text style={styles.errorText}>
                     {error}
                   </Text>
-
 
                   <TouchableOpacity
                     style={styles.retryButton}
@@ -780,15 +727,13 @@ export default function CalendarIndexScreen() {
                     </Text>
                   </TouchableOpacity>
                 </View>
-              )}
+              ) : null}
 
-
-              {currentView === 'day' && (
+              {currentView === 'day' ? (
                 <View style={styles.plannerContainer}>
                   <Text style={styles.plannerSelectedDay}>
                     Planificación por horas
                   </Text>
-
 
                   <CalendarHourlyAgenda
                     events={events}
@@ -797,13 +742,11 @@ export default function CalendarIndexScreen() {
                     onEventLongPress={openContextMenu}
                   />
                 </View>
-              )}
-
+              ) : null}
 
               <Text style={styles.sectionTitle}>
                 {selectedDateLabel}
               </Text>
-
 
               <CalendarEventsList
                 events={filteredEvents}
@@ -813,10 +756,8 @@ export default function CalendarIndexScreen() {
             </>
           )}
 
-
           <View style={styles.bottomSpacer} />
         </ScrollView>
-
 
         <MonthPickerModal
           visible={monthPickerVisible}
@@ -827,7 +768,6 @@ export default function CalendarIndexScreen() {
           onSelectMonth={handleSelectMonth}
         />
 
-
         <YearPickerModal
           visible={yearPickerVisible}
           selectedDate={selectedDate}
@@ -836,7 +776,6 @@ export default function CalendarIndexScreen() {
           }
           onSelectYear={handleSelectYear}
         />
-
 
         <CalendarContextMenu
           visible={contextMenuVisible}
@@ -848,7 +787,6 @@ export default function CalendarIndexScreen() {
           onDelete={handleDeleteEvent}
         />
 
-
         <CalendarFabMenu
           embedded={router.embedded}
           visible={fabMenuVisible}
@@ -856,8 +794,7 @@ export default function CalendarIndexScreen() {
           onAction={handleFabAction}
         />
 
-
-        {!router.embedded && (
+        {!router.embedded ? (
           <TouchableOpacity
             style={styles.createFab}
             onPress={() =>
@@ -872,12 +809,11 @@ export default function CalendarIndexScreen() {
               color={colors.neutral.white}
             />
           </TouchableOpacity>
-        )}
+        ) : null}
 
-
-        {!router.embedded && (
+        {!router.embedded ? (
           <FloatingTabBar activeTab="explore" />
-        )}
+        ) : null}
       </View>
     </ScreenSafeArea>
   );
