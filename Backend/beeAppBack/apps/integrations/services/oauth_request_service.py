@@ -25,6 +25,9 @@ from apps.integrations.services.google_oauth_service import (
 
 OAUTH_REQUEST_TTL_MINUTES = 10
 
+MOBILE_RETURN_PATH = "/(main)/profile/integrations"
+WEB_RETURN_PATH = "/app/profile/integrations/result"
+
 
 def _supabase():
     return get_supabase_admin_client()
@@ -48,12 +51,27 @@ def _extract_single(response) -> dict[str, Any] | None:
     return None
 
 
+def _get_return_path(
+    client_channel: str,
+) -> str:
+    if client_channel == "web":
+        return WEB_RETURN_PATH
+
+    if client_channel == "mobile":
+        return MOBILE_RETURN_PATH
+
+    raise IntegrationAuthorizationError(
+        "Unsupported OAuth client channel."
+    )
+
+
 def create_oauth_request(
     *,
     user_id: str,
     provider: str,
     requested_scopes: list[str],
     requested_capabilities: list[str],
+    client_channel: str,
     existing_connection_id: str | None = None,
 ) -> dict[str, str]:
     state = secrets.token_urlsafe(48)
@@ -61,6 +79,8 @@ def create_oauth_request(
     expires_at = timezone.now() + timedelta(
         minutes=OAUTH_REQUEST_TTL_MINUTES
     )
+
+    return_path = _get_return_path(client_channel)
 
     payload = {
         "user_id": user_id,
@@ -72,7 +92,7 @@ def create_oauth_request(
             verifier
         ),
         "existing_connection_id": existing_connection_id,
-        "return_path": "/(main)/profile/integrations",
+        "return_path": return_path,
         "expires_at": expires_at.isoformat(),
     }
 

@@ -53,6 +53,9 @@ GOOGLE_IDENTITY_SCOPES = [
     "profile",
 ]
 
+MOBILE_RETURN_PATH = "/(main)/profile/integrations"
+WEB_RETURN_PATH = "/app/profile/integrations/result"
+
 
 class BeeAppRedirectResponse(HttpResponseRedirect):
     allowed_schemes = [
@@ -62,7 +65,7 @@ class BeeAppRedirectResponse(HttpResponseRedirect):
     ]
 
 
-def build_mobile_redirect(
+def build_redirect_url(
     *,
     base_url: str,
     outcome: str,
@@ -86,6 +89,77 @@ def build_mobile_redirect(
     )
 
 
+def get_web_result_redirect_url() -> str:
+    return getattr(
+        settings,
+        "INTEGRATION_WEB_RESULT_REDIRECT",
+        "",
+    ).strip()
+
+
+def get_mobile_result_redirect_url(
+    *,
+    outcome: str,
+) -> str:
+    if outcome == "success":
+        return getattr(
+            settings,
+            "INTEGRATION_MOBILE_SUCCESS_REDIRECT",
+            "",
+        ).strip()
+
+    return getattr(
+        settings,
+        "INTEGRATION_MOBILE_FAILURE_REDIRECT",
+        "",
+    ).strip()
+
+
+def get_callback_redirect_base_url(
+    *,
+    return_path: str | None,
+    outcome: str,
+) -> str:
+    if return_path == WEB_RETURN_PATH:
+        return get_web_result_redirect_url()
+
+    if return_path == MOBILE_RETURN_PATH:
+        return get_mobile_result_redirect_url(
+            outcome=outcome,
+        )
+
+    return get_mobile_result_redirect_url(
+        outcome=outcome,
+    )
+
+
+def build_callback_redirect_response(
+    *,
+    outcome: str,
+    request_id: str | None = None,
+    detail: str | None = None,
+    return_path: str | None = None,
+) -> BeeAppRedirectResponse:
+    base_url = get_callback_redirect_base_url(
+        return_path=return_path,
+        outcome=outcome,
+    )
+
+    if not base_url:
+        raise IntegrationConfigurationError(
+            "Integration callback redirect is not configured."
+        )
+
+    return BeeAppRedirectResponse(
+        build_redirect_url(
+            base_url=base_url,
+            outcome=outcome,
+            request_id=request_id,
+            detail=detail,
+        )
+    )
+
+
 def unauthorized_response() -> Response:
     return Response(
         {
@@ -102,7 +176,7 @@ def get_identity_scopes(
         return GOOGLE_IDENTITY_SCOPES
 
     if provider == "microsoft":
-        return MICROSOFT_IDENTITY_SCOPES
+        return list(MICROSOFT_IDENTITY_SCOPES)
 
     raise IntegrationConfigurationError(
         f"Unsupported integration provider: {provider}"
@@ -113,20 +187,44 @@ def build_callback_failure_response(
     *,
     provider_name: str,
     detail: str,
+    return_path: str | None = None,
+    request_id: str | None = None,
 ) -> BeeAppRedirectResponse:
-    failure_redirect = getattr(
-        settings,
-        "INTEGRATION_MOBILE_FAILURE_REDIRECT",
-        "",
-    )
-
-    return BeeAppRedirectResponse(
-        build_mobile_redirect(
-            base_url=failure_redirect,
+    try:
+        return build_callback_redirect_response(
             outcome="failure",
+            request_id=request_id,
             detail=f"{provider_name}: {detail}",
+            return_path=return_path,
         )
-    )
+    except IntegrationConfigurationError:
+        return BeeAppRedirectResponse(
+            "beeapp://integrations/result?outcome=failure"
+        )
+
+
+def get_callback_request_context(
+    *,
+    provider: str,
+    state_value: str,
+) -> tuple[dict | None, BeeAppRedirectResponse | None]:
+    try:
+        oauth_request = consume_oauth_request(
+            provider=provider,
+            state=state_value,
+        )
+
+        return oauth_request, None
+    except (
+        IntegrationAuthorizationError,
+        IntegrationConfigurationError,
+        IntegrationCredentialError,
+        IntegrationProviderError,
+    ) as error:
+        return None, build_callback_failure_response(
+            provider_name=provider.title(),
+            detail=str(error),
+        )
 
 
 class IntegrationCatalogView(AuthenticatedAPIView):
@@ -179,10 +277,8 @@ class IntegrationConnectionListView(
             connections = list_user_connections(
                 user_id=str(authenticated_user.id),
             )
-
         except AccountAuthenticationError:
             return unauthorized_response()
-
         except IntegrationConnectionNotFoundError:
             return Response(
                 {
@@ -192,7 +288,6 @@ class IntegrationConnectionListView(
                 },
                 status=status.HTTP_400_BAD_REQUEST,
             )
-
         except Exception:
             return Response(
                 {
@@ -227,29 +322,35 @@ class StartIntegrationAuthorizationView(
             authenticated_user = self.get_authenticated_user(
                 request
             )
-            requested_scopes = get_identity_scopes(
+
+            normalized_provider = (
                 serializer.validated_data["provider"]
+            )
+
+            requested_scopes = get_identity_scopes(
+                normalized_provider
             )
 
             oauth_request = create_oauth_request(
                 user_id=str(authenticated_user.id),
-                provider=serializer.validated_data["provider"],
+                provider=normalized_provider,
                 requested_scopes=requested_scopes,
                 requested_capabilities=serializer.validated_data[
                     "capabilities"
                 ],
+                client_channel=serializer.validated_data[
+                    "client_channel"
+                ],
             )
 
             authorization_url = build_provider_authorization_url(
-                provider=serializer.validated_data["provider"],
+                provider=normalized_provider,
                 state=oauth_request["state"],
                 code_challenge=oauth_request["code_challenge"],
                 requested_scopes=requested_scopes,
             )
-
         except AccountAuthenticationError:
             return unauthorized_response()
-
         except IntegrationConfigurationError:
             return Response(
                 {
@@ -260,7 +361,6 @@ class StartIntegrationAuthorizationView(
                 },
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
-
         except IntegrationAuthorizationError:
             return Response(
                 {
@@ -304,11 +404,30 @@ class GoogleOAuthCallbackView(APIView):
             )
         ).strip()
 
-        success_redirect = getattr(
-            settings,
-            "INTEGRATION_MOBILE_SUCCESS_REDIRECT",
-            "",
+        if not state_value:
+            return build_callback_failure_response(
+                provider_name="Google",
+                detail="Respuesta de Google incompleta.",
+            )
+
+        oauth_request, failure_response = (
+            get_callback_request_context(
+                provider="google",
+                state_value=state_value,
+            )
         )
+
+        if failure_response:
+            return failure_response
+
+        if not oauth_request:
+            return build_callback_failure_response(
+                provider_name="Google",
+                detail="Solicitud de autorización inválida.",
+            )
+
+        return_path = oauth_request.get("return_path")
+        request_id = oauth_request.get("id")
 
         if provider_error:
             return build_callback_failure_response(
@@ -317,20 +436,19 @@ class GoogleOAuthCallbackView(APIView):
                     provider_error_description
                     or provider_error
                 ),
+                return_path=return_path,
+                request_id=request_id,
             )
 
-        if not authorization_code or not state_value:
+        if not authorization_code:
             return build_callback_failure_response(
                 provider_name="Google",
                 detail="Respuesta de Google incompleta.",
+                return_path=return_path,
+                request_id=request_id,
             )
 
         try:
-            oauth_request = consume_oauth_request(
-                provider="google",
-                state=state_value,
-            )
-
             token_data = exchange_google_authorization_code(
                 authorization_code=authorization_code,
                 code_verifier=oauth_request["code_verifier"],
@@ -347,15 +465,12 @@ class GoogleOAuthCallbackView(APIView):
                 user_info=user_info,
             )
 
-            return BeeAppRedirectResponse(
-                build_mobile_redirect(
-                    base_url=success_redirect,
-                    outcome="success",
-                    request_id=oauth_request["id"],
-                    detail=connection["id"],
-                )
+            return build_callback_redirect_response(
+                outcome="success",
+                request_id=request_id,
+                detail=connection["id"],
+                return_path=return_path,
             )
-
         except (
             IntegrationAuthorizationError,
             IntegrationConfigurationError,
@@ -365,6 +480,8 @@ class GoogleOAuthCallbackView(APIView):
             return build_callback_failure_response(
                 provider_name="Google",
                 detail=str(error),
+                return_path=return_path,
+                request_id=request_id,
             )
 
 
@@ -391,11 +508,30 @@ class MicrosoftOAuthCallbackView(APIView):
             )
         ).strip()
 
-        success_redirect = getattr(
-            settings,
-            "INTEGRATION_MOBILE_SUCCESS_REDIRECT",
-            "",
+        if not state_value:
+            return build_callback_failure_response(
+                provider_name="Microsoft",
+                detail="Respuesta de Microsoft incompleta.",
+            )
+
+        oauth_request, failure_response = (
+            get_callback_request_context(
+                provider="microsoft",
+                state_value=state_value,
+            )
         )
+
+        if failure_response:
+            return failure_response
+
+        if not oauth_request:
+            return build_callback_failure_response(
+                provider_name="Microsoft",
+                detail="Solicitud de autorización inválida.",
+            )
+
+        return_path = oauth_request.get("return_path")
+        request_id = oauth_request.get("id")
 
         if provider_error:
             return build_callback_failure_response(
@@ -404,20 +540,19 @@ class MicrosoftOAuthCallbackView(APIView):
                     provider_error_description
                     or provider_error
                 ),
+                return_path=return_path,
+                request_id=request_id,
             )
 
-        if not authorization_code or not state_value:
+        if not authorization_code:
             return build_callback_failure_response(
                 provider_name="Microsoft",
                 detail="Respuesta de Microsoft incompleta.",
+                return_path=return_path,
+                request_id=request_id,
             )
 
         try:
-            oauth_request = consume_oauth_request(
-                provider="microsoft",
-                state=state_value,
-            )
-
             token_data = exchange_microsoft_authorization_code(
                 authorization_code=authorization_code,
                 code_verifier=oauth_request["code_verifier"],
@@ -434,15 +569,12 @@ class MicrosoftOAuthCallbackView(APIView):
                 user_info=user_info,
             )
 
-            return BeeAppRedirectResponse(
-                build_mobile_redirect(
-                    base_url=success_redirect,
-                    outcome="success",
-                    request_id=oauth_request["id"],
-                    detail=connection["id"],
-                )
+            return build_callback_redirect_response(
+                outcome="success",
+                request_id=request_id,
+                detail=connection["id"],
+                return_path=return_path,
             )
-
         except (
             IntegrationAuthorizationError,
             IntegrationConfigurationError,
@@ -452,6 +584,8 @@ class MicrosoftOAuthCallbackView(APIView):
             return build_callback_failure_response(
                 provider_name="Microsoft",
                 detail=str(error),
+                return_path=return_path,
+                request_id=request_id,
             )
 
 
@@ -468,10 +602,8 @@ class IntegrationConnectionDetailView(
                 user_id=str(authenticated_user.id),
                 connection_id=str(connection_id),
             )
-
         except AccountAuthenticationError:
             return unauthorized_response()
-
         except IntegrationConnectionNotFoundError:
             return Response(
                 {
@@ -497,10 +629,8 @@ class IntegrationConnectionDetailView(
                 user_id=str(authenticated_user.id),
                 connection_id=str(connection_id),
             )
-
         except AccountAuthenticationError:
             return unauthorized_response()
-
         except IntegrationConnectionNotFoundError:
             return Response(
                 {
@@ -508,7 +638,6 @@ class IntegrationConnectionDetailView(
                 },
                 status=status.HTTP_404_NOT_FOUND,
             )
-
         except IntegrationCredentialError:
             return Response(
                 {
@@ -537,10 +666,8 @@ class DeleteIntegrationConnectionRecordView(
                 user_id=str(authenticated_user.id),
                 connection_id=str(connection_id),
             )
-
         except AccountAuthenticationError:
             return unauthorized_response()
-
         except IntegrationConnectionNotFoundError:
             return Response(
                 {
@@ -548,7 +675,6 @@ class DeleteIntegrationConnectionRecordView(
                 },
                 status=status.HTTP_404_NOT_FOUND,
             )
-
         except IntegrationCredentialError as error:
             return Response(
                 {
@@ -580,7 +706,9 @@ class ReauthorizeIntegrationConnectionView(
                 user_id=str(authenticated_user.id),
                 connection_id=str(connection_id),
             )
+
             provider = connection["provider"]
+
             requested_scopes = get_identity_scopes(provider)
 
             oauth_request = create_oauth_request(
@@ -591,6 +719,9 @@ class ReauthorizeIntegrationConnectionView(
                     serializer.validated_data["capabilities"]
                     or connection["capabilities"]
                 ),
+                client_channel=serializer.validated_data[
+                    "client_channel"
+                ],
                 existing_connection_id=str(connection_id),
             )
 
@@ -600,10 +731,8 @@ class ReauthorizeIntegrationConnectionView(
                 code_challenge=oauth_request["code_challenge"],
                 requested_scopes=requested_scopes,
             )
-
         except AccountAuthenticationError:
             return unauthorized_response()
-
         except IntegrationConnectionNotFoundError:
             return Response(
                 {
@@ -611,7 +740,6 @@ class ReauthorizeIntegrationConnectionView(
                 },
                 status=status.HTTP_404_NOT_FOUND,
             )
-
         except (
             IntegrationAuthorizationError,
             IntegrationConfigurationError,

@@ -88,7 +88,9 @@ from apps.accounts.throttles import (
     PhoneOtpVerificationThrottle,
 )
 
+
 WEB_SESSION_COOKIE_NAME = "beeapp_web_session"
+WEB_SESSION_COOKIE_MAX_AGE_SECONDS = 60 * 60 * 24 * 30
 
 
 def normalize_phone(phone: str | None) -> str | None:
@@ -99,6 +101,33 @@ def normalize_phone(phone: str | None) -> str | None:
         return phone
 
     return f"+{phone}"
+
+
+def is_local_development_request(request) -> bool:
+    return request.get_host().startswith(
+        (
+            "localhost",
+            "127.0.0.1",
+            "192.168.",
+        )
+    )
+
+
+def set_web_session_cookie(
+    *,
+    response: Response,
+    request,
+    session_token: str,
+) -> None:
+    response.set_cookie(
+        WEB_SESSION_COOKIE_NAME,
+        session_token,
+        httponly=True,
+        secure=not is_local_development_request(request),
+        samesite="Lax",
+        max_age=WEB_SESSION_COOKIE_MAX_AGE_SECONDS,
+        path="/",
+    )
 
 
 class AuthenticatedAPIView(APIView):
@@ -123,7 +152,6 @@ class AuthenticatedAPIView(APIView):
             return get_auth_user(
                 auth_user_id=device_session["user_id"],
             )
-
         except (
             AuthUserLookupError,
             DeviceSessionError,
@@ -175,7 +203,6 @@ class RegisterUserView(APIView):
             created_user = create_complete_user(
                 **serializer.validated_data
             )
-
         except AccountRegistrationError:
             return Response(
                 {
@@ -225,7 +252,6 @@ class LoginUserView(APIView):
             authenticated_user = login_with_email_password(
                 **serializer.validated_data
             )
-
         except AccountLoginError:
             return Response(
                 {
@@ -268,7 +294,6 @@ class SessionRefreshView(APIView):
                         "session_token"
                     ],
                 )
-
         except (
             AccountAuthenticationError,
             DeviceSessionError,
@@ -305,7 +330,6 @@ class PhoneOtpRequestView(APIView):
             request_phone_otp(
                 **serializer.validated_data
             )
-
         except PhoneOtpRequestError:
             pass
 
@@ -350,7 +374,6 @@ class PhoneOtpVerifyView(APIView):
                 device_id=device_session["id"],
                 request=request,
             )
-
         except (
             PhoneOtpVerificationError,
             ProfileLookupError,
@@ -363,7 +386,6 @@ class PhoneOtpVerifyView(APIView):
                 },
                 status=status.HTTP_401_UNAUTHORIZED,
             )
-
         except DeviceSessionError:
             return Response(
                 {
@@ -389,22 +411,10 @@ class PhoneOtpVerifyView(APIView):
             status=status.HTTP_200_OK,
         )
 
-        is_local_development = request.get_host().startswith(
-            (
-                "localhost",
-                "127.0.0.1",
-                "192.168.",
-            )
-        )
-
-        response.set_cookie(
-            WEB_SESSION_COOKIE_NAME,
-            session_token,
-            httponly=True,
-            secure=not is_local_development,
-            samesite="Strict",
-            max_age=60 * 60 * 24 * 30,
-            path="/",
+        set_web_session_cookie(
+            response=response,
+            request=request,
+            session_token=session_token,
         )
 
         return response
@@ -440,7 +450,6 @@ class PhoneOtpMobileVerifyView(APIView):
                 device_id=device_session["id"],
                 request=request,
             )
-
         except (
             PhoneOtpVerificationError,
             ProfileLookupError,
@@ -453,7 +462,6 @@ class PhoneOtpMobileVerifyView(APIView):
                 },
                 status=status.HTTP_401_UNAUTHORIZED,
             )
-
         except DeviceSessionError:
             return Response(
                 {
@@ -498,7 +506,6 @@ class PasswordResetRequestView(APIView):
             request_password_reset(
                 phone=serializer.validated_data["phone"],
             )
-
         except PasswordResetRequestError:
             pass
 
@@ -528,7 +535,6 @@ class PasswordResetVerifyView(APIView):
                 phone=serializer.validated_data["phone"],
                 code=serializer.validated_data["code"],
             )
-
         except PasswordResetVerificationError:
             return Response(
                 {
@@ -571,7 +577,6 @@ class PasswordResetConfirmView(APIView):
                     "new_password"
                 ],
             )
-
         except PasswordResetConfirmationError:
             return Response(
                 {
@@ -606,7 +611,6 @@ class CurrentProfileView(AuthenticatedAPIView):
             )
 
             profile["email"] = authenticated_user.email
-
         except AccountAuthenticationError:
             return Response(
                 {
@@ -614,7 +618,6 @@ class CurrentProfileView(AuthenticatedAPIView):
                 },
                 status=status.HTTP_401_UNAUTHORIZED,
             )
-
         except ProfileLookupError:
             return Response(
                 {
@@ -652,7 +655,6 @@ class UpdateOnboardingProfileView(AuthenticatedAPIView):
                     "location"
                 ],
             )
-
         except AccountAuthenticationError:
             return Response(
                 {
@@ -660,7 +662,6 @@ class UpdateOnboardingProfileView(AuthenticatedAPIView):
                 },
                 status=status.HTTP_401_UNAUTHORIZED,
             )
-
         except ProfileUpdateError:
             return Response(
                 {
@@ -698,7 +699,6 @@ class UpdateAssistantSettingsView(AuthenticatedAPIView):
                 auth_user_id=str(authenticated_user.id),
                 **serializer.validated_data,
             )
-
         except AccountAuthenticationError:
             return Response(
                 {
@@ -706,13 +706,12 @@ class UpdateAssistantSettingsView(AuthenticatedAPIView):
                 },
                 status=status.HTTP_401_UNAUTHORIZED,
             )
-
         except AssistantSettingsUpdateError:
             return Response(
                 {
                     "detail": (
                         "Assistant settings could not be updated."
-                    ),
+                    )
                 },
                 status=status.HTTP_400_BAD_REQUEST,
             )
@@ -732,7 +731,6 @@ class QrLoginChallengeView(APIView):
     def post(self, request):
         try:
             challenge = create_qr_login_challenge()
-
         except QrLoginError:
             return Response(
                 {
@@ -755,7 +753,6 @@ class QrLoginChallengeDetailView(APIView):
             challenge = get_qr_login_challenge(
                 challenge_token=challenge_token,
             )
-
         except QrLoginError:
             return Response(
                 {
@@ -796,7 +793,6 @@ class QrLoginScanView(AuthenticatedAPIView):
                 challenge_token=challenge_token,
                 user_id=str(authenticated_user.id),
             )
-
         except AccountAuthenticationError:
             return Response(
                 {
@@ -804,7 +800,6 @@ class QrLoginScanView(AuthenticatedAPIView):
                 },
                 status=status.HTTP_401_UNAUTHORIZED,
             )
-
         except QrLoginError as error:
             return Response(
                 {
@@ -832,7 +827,6 @@ class DeviceSessionListView(AuthenticatedAPIView):
             devices = get_user_device_sessions(
                 user_id=str(authenticated_user.id),
             )
-
         except AccountAuthenticationError:
             return Response(
                 {
@@ -840,7 +834,6 @@ class DeviceSessionListView(AuthenticatedAPIView):
                 },
                 status=status.HTTP_401_UNAUTHORIZED,
             )
-
         except DeviceSessionError:
             return Response(
                 {
@@ -868,7 +861,6 @@ class DeviceSessionDetailView(AuthenticatedAPIView):
                 device_id=str(device_id),
                 user_id=str(authenticated_user.id),
             )
-
         except AccountAuthenticationError:
             return Response(
                 {
@@ -876,7 +868,6 @@ class DeviceSessionDetailView(AuthenticatedAPIView):
                 },
                 status=status.HTTP_401_UNAUTHORIZED,
             )
-
         except DeviceSessionError:
             return Response(
                 {
@@ -898,7 +889,6 @@ class RevokeAllDeviceSessionsView(AuthenticatedAPIView):
             revoke_all_user_device_sessions(
                 user_id=str(authenticated_user.id),
             )
-
         except AccountAuthenticationError:
             return Response(
                 {
@@ -906,7 +896,6 @@ class RevokeAllDeviceSessionsView(AuthenticatedAPIView):
                 },
                 status=status.HTTP_401_UNAUTHORIZED,
             )
-
         except DeviceSessionError:
             return Response(
                 {
@@ -943,7 +932,6 @@ class WebSessionActivateView(APIView):
                 device_id=device_session["id"],
                 request=request,
             )
-
         except DeviceSessionError:
             return Response(
                 {
@@ -954,22 +942,10 @@ class WebSessionActivateView(APIView):
 
         response = Response(status=status.HTTP_204_NO_CONTENT)
 
-        is_local_development = request.get_host().startswith(
-            (
-                "localhost",
-                "127.0.0.1",
-                "192.168.",
-            )
-        )
-
-        response.set_cookie(
-            WEB_SESSION_COOKIE_NAME,
-            challenge_token,
-            httponly=True,
-            secure=not is_local_development,
-            samesite="Strict",
-            max_age=60 * 60 * 24 * 30,
-            path="/",
+        set_web_session_cookie(
+            response=response,
+            request=request,
+            session_token=challenge_token,
         )
 
         return response
@@ -1008,7 +984,6 @@ class WebSessionProfileView(APIView):
             auth_user = get_auth_user(
                 auth_user_id=device_session["user_id"],
             )
-
         except (
             AuthUserLookupError,
             DeviceSessionError,
@@ -1051,7 +1026,6 @@ class WebSessionLogoutView(APIView):
                 revoke_device_session_by_id(
                     device_id=device_session["id"],
                 )
-
             except DeviceSessionError:
                 pass
 
