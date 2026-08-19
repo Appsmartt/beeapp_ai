@@ -22,6 +22,8 @@ from apps.integrations.serializers import (
     StartIntegrationAuthorizationSerializer,
 )
 from apps.integrations.services.google_oauth_service import (
+    GOOGLE_CALENDAR_SCOPES,
+    GOOGLE_IDENTITY_SCOPES,
     exchange_google_authorization_code,
     get_google_user_info,
 )
@@ -46,12 +48,6 @@ from apps.integrations.services.provider_registry import (
     build_provider_authorization_url,
 )
 
-
-GOOGLE_IDENTITY_SCOPES = [
-    "openid",
-    "email",
-    "profile",
-]
 
 MOBILE_RETURN_PATH = "/(main)/profile/integrations"
 WEB_RETURN_PATH = "/app/profile/integrations/result"
@@ -84,9 +80,7 @@ def build_redirect_url(
 
     separator = "&" if "?" in base_url else "?"
 
-    return (
-        f"{base_url}{separator}{urlencode(query)}"
-    )
+    return f"{base_url}{separator}{urlencode(query)}"
 
 
 def get_web_result_redirect_url() -> str:
@@ -169,11 +163,37 @@ def unauthorized_response() -> Response:
     )
 
 
+def _normalize_capabilities(
+    capabilities: list[str] | None,
+) -> list[str]:
+    normalized: list[str] = []
+
+    for capability in capabilities or []:
+        value = str(capability).strip().lower()
+
+        if value and value not in normalized:
+            normalized.append(value)
+
+    return normalized
+
+
 def get_identity_scopes(
     provider: str,
+    capabilities: list[str] | None = None,
 ) -> list[str]:
+    normalized_capabilities = _normalize_capabilities(
+        capabilities
+    )
+
     if provider == "google":
-        return GOOGLE_IDENTITY_SCOPES
+        scopes = list(GOOGLE_IDENTITY_SCOPES)
+
+        if "calendar" in normalized_capabilities:
+            for scope in GOOGLE_CALENDAR_SCOPES:
+                if scope not in scopes:
+                    scopes.append(scope)
+
+        return scopes
 
     if provider == "microsoft":
         return list(MICROSOFT_IDENTITY_SCOPES)
@@ -326,18 +346,20 @@ class StartIntegrationAuthorizationView(
             normalized_provider = (
                 serializer.validated_data["provider"]
             )
+            requested_capabilities = (
+                serializer.validated_data["capabilities"]
+            )
 
             requested_scopes = get_identity_scopes(
-                normalized_provider
+                normalized_provider,
+                requested_capabilities,
             )
 
             oauth_request = create_oauth_request(
                 user_id=str(authenticated_user.id),
                 provider=normalized_provider,
                 requested_scopes=requested_scopes,
-                requested_capabilities=serializer.validated_data[
-                    "capabilities"
-                ],
+                requested_capabilities=requested_capabilities,
                 client_channel=serializer.validated_data[
                     "client_channel"
                 ],
@@ -709,16 +731,21 @@ class ReauthorizeIntegrationConnectionView(
 
             provider = connection["provider"]
 
-            requested_scopes = get_identity_scopes(provider)
+            requested_capabilities = _normalize_capabilities(
+                serializer.validated_data["capabilities"]
+                or connection["capabilities"]
+            )
+
+            requested_scopes = get_identity_scopes(
+                provider,
+                requested_capabilities,
+            )
 
             oauth_request = create_oauth_request(
                 user_id=str(authenticated_user.id),
                 provider=provider,
                 requested_scopes=requested_scopes,
-                requested_capabilities=(
-                    serializer.validated_data["capabilities"]
-                    or connection["capabilities"]
-                ),
+                requested_capabilities=requested_capabilities,
                 client_channel=serializer.validated_data[
                     "client_channel"
                 ],

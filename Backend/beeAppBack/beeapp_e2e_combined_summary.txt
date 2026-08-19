@@ -1,0 +1,160 @@
+BEEAPP — COMBINED E2E API TEST SUMMARY
+Generated: 2026-08-19 17:21:05 -0500
+================================================================
+PASS     | expected=200              | actual=200      | Agenda: health check
+PASS     | Agenda: health payload status — ok
+PASS     | expected=200              | actual=200      | Login: andres.santa-fe@hotmail.com
+PASS     | expected=200              | actual=200      | Login: andresFelipeMendozaSilva@hotmail.com
+PASS     | Agenda: User A access token extracted
+PASS     | Agenda: User A ID extracted
+PASS     | Agenda: User B access token extracted
+PASS     | Agenda: User B ID extracted
+PASS     | expected=200              | actual=200      | Agenda: User A profile
+PASS     | expected=200              | actual=200      | Agenda: User B profile
+PASS     | expected=200              | actual=200      | Agenda: User A bootstrap
+PASS     | expected=200              | actual=200      | Agenda: User B bootstrap
+PASS     | Agenda: User A default calendar extracted
+PASS     | Agenda: User B default calendar extracted
+PASS     | expected=200              | actual=200      | Agenda: list User A calendars
+PASS     | expected=200              | actual=200      | Agenda: get User A preferences
+PASS     | expected=200              | actual=200      | Agenda: update User A preferences
+PASS     | expected=200              | actual=200      | Agenda: User A searches User B by email
+PASS     | expected=200              | actual=200      | Agenda: User A searches User B by name
+PASS     | expected=200              | actual=200      | Agenda: User A searches User B by phone suffix
+PASS     | Agenda: search by email returned expected User B — 81b01e47-cb78-4c61-b776-1d881a5b5111
+PASS     | expected=201              | actual=201      | Agenda: create secondary User A calendar
+PASS     | Agenda: secondary calendar ID extracted
+PASS     | expected=200              | actual=200      | Agenda: update secondary calendar
+PASS     | expected=201              | actual=201      | Agenda: create User A tag
+PASS     | Agenda: calendar tag ID extracted
+PASS     | expected=200              | actual=200      | Agenda: list User A tags
+PASS     | expected=200              | actual=200      | Agenda: update User A tag
+PASS     | expected=201              | actual=201      | Agenda: create timed event
+PASS     | Agenda: timed event ID extracted
+PASS     | expected=200              | actual=200      | Agenda: get timed event detail
+PASS     | expected=201              | actual=201      | Agenda: create all-day event
+PASS     | Agenda: all-day event ID extracted
+PASS     | expected=201              | actual=201      | Agenda: create recurring weekly event
+PASS     | Agenda: recurring event ID extracted
+PASS     | expected=200              | actual=200      | Agenda: list User A events by range
+PASS     | expected=200              | actual=200      | Agenda: filter User A events by tag
+PASS     | expected=200              | actual=200      | Agenda: search User A events by title
+PASS     | expected=200              | actual=200      | Agenda: detect conflict with timed event
+PASS     | expected=200              | actual=200      | Agenda: update timed event schedule
+PASS     | expected=200              | actual=200      | Agenda: update all-day event schedule
+PASS     | expected=201              | actual=201      | Agenda: duplicate timed event
+PASS     | Agenda: duplicate event ID extracted
+PASS     | expected=201              | actual=201      | Agenda: create event inviting User B
+PASS     | Agenda: invited event ID extracted
+PASS     | expected=200              | actual=200      | Agenda: User B sees invited event in bootstrap
+PASS     | expected=200              | actual=200      | Agenda: User B declines event invitation
+PASS     | expected=200              | actual=200      | Agenda: User B hides declined event
+PASS     | expected=200              | actual=200      | Agenda: User B restores declined event visibility
+PASS     | expected=201              | actual=201      | Agenda: create second event inviting User B
+PASS     | Agenda: accepted event ID extracted
+PASS     | expected=200              | actual=200      | Agenda: User B accepts second invitation
+PASS     | expected=400              | actual=400      | Agenda: User B requests existing organizer (validation)
+PASS     | expected=200              | actual=200      | Agenda: User A lists invitee requests
+PASS     | expected=200              | actual=200      | Agenda: User A removes User B
+PASS     | expected=201              | actual=201      | Agenda: User A shares secondary calendar
+PASS     | Agenda: calendar share ID extracted
+PASS     | expected=200              | actual=200      | Agenda: User A lists shares
+PASS     | expected=200              | actual=200      | Agenda: User B accepts calendar share
+PASS     | expected=200              | actual=200      | Agenda: User B lists calendars after share
+PASS     | expected=200              | actual=200      | Agenda: User A revokes calendar share
+PASS     | expected=200              | actual=200      | Agenda: list User A calendar notifications
+PASS     | expected=200              | actual=200      | Agenda: list User B calendar notifications
+PASS     | expected=one-of(204 404)  | actual=204      | Cleanup event: RSVP declined event
+PASS     | expected=one-of(204 404)  | actual=204      | Cleanup event: accepted invitation event
+PASS     | expected=one-of(204 404)  | actual=204      | Cleanup event: duplicate event
+PASS     | expected=one-of(204 404)  | actual=204      | Cleanup event: recurring event
+PASS     | expected=one-of(204 404)  | actual=204      | Cleanup event: all-day event
+PASS     | expected=one-of(204 404)  | actual=204      | Cleanup event: timed event
+PASS     | expected=one-of(204 404)  | actual=204      | Cleanup calendar: secondary test calendar
+PASS     | expected=one-of(204 404)  | actual=204      | Cleanup tag: test tag
+PASS     | expected=200              | actual=200      | Integrations: health check
+PASS     | Integrations: health payload status — ok
+PASS     | expected=200              | actual=200      | Login: andres.santa-fe@hotmail.com
+PASS     | Integrations: access token extracted
+PASS     | expected=401              | actual=401      | Integrations: catalog without credentials
+PASS     | expected=401              | actual=401      | Integrations: connections without credentials
+PASS     | expected=401              | actual=401      | Integrations: Google authorization without credentials
+PASS     | expected=401              | actual=401      | Integrations: Microsoft authorization without credentials
+PASS     | expected=200              | actual=200      | Integrations: integration catalog
+PASS     | Integrations: Google appears as available — available
+PASS     | Integrations: Microsoft appears as available — available
+PASS     | Integrations: catalog does not expose secrets
+PASS     | expected=200              | actual=200      | Integrations: connection list
+PASS     | Integrations: connection list does not expose tokens
+PASS     | expected=400              | actual=400      | Integrations: Google capabilities must be an array
+PASS     | expected=400              | actual=400      | Integrations: Microsoft capabilities must be an array
+PASS     | expected=201              | actual=201      | Integrations: start Google OAuth authorization
+PASS     | Integrations: Google authorization URL extracted
+PASS     | Integrations: Google OAuth request ID extracted
+PASS     | Integrations: Google OAuth expiration extracted
+PASS     | Integrations: Google authorization endpoint is official
+PASS     | expected=201              | actual=201      | Integrations: start Microsoft OAuth authorization
+PASS     | Integrations: Microsoft authorization URL extracted
+PASS     | Integrations: Microsoft OAuth request ID extracted
+PASS     | Integrations: Microsoft OAuth expiration extracted
+PASS     | Integrations: Microsoft authorization endpoint is official
+PASS     | Integrations: Microsoft OAuth includes openid
+PASS     | Integrations: Microsoft OAuth includes profile
+PASS     | Integrations: Microsoft OAuth includes email
+PASS     | Integrations: Microsoft OAuth includes offline_access
+PASS     | Integrations: Microsoft OAuth includes User.Read
+PASS     | Integrations: Microsoft OAuth includes Calendars.Read
+PASS     | expected=one-of(301 302)  | actual=302      | Integrations: Google callback without parameters redirects safely
+PASS     | expected=one-of(301 302)  | actual=302      | Integrations: Google callback invalid state redirects safely
+PASS     | expected=one-of(301 302)  | actual=302      | Integrations: Microsoft callback without parameters redirects safely
+PASS     | expected=one-of(301 302)  | actual=302      | Integrations: Microsoft callback invalid state redirects safely
+PASS     | Integrations: abrir Google OAuth automáticamente — google-chrome
+PASS     | expected=200              | actual=200      | Integrations: list connections after Google OAuth
+PASS     | Integrations: connected Google connection ID exists
+PASS     | Integrations: Google connections after OAuth do not expose tokens
+PASS     | Integrations: abrir Microsoft OAuth automáticamente — google-chrome
+PASS     | expected=200              | actual=200      | Integrations: poll connections after Microsoft OAuth
+PASS     | Integrations: connected Microsoft connection ID exists
+PASS     | Integrations: Microsoft connections after OAuth do not expose tokens
+PASS     | Integrations: Microsoft OAuth session completed — Se detectó conexión Microsoft connected: 555f9675-d4df-400a-87f9-3e5dec9fd293.
+PASS     | expected=200              | actual=200      | Integrations: google connection detail
+PASS     | Integrations: google provider is persisted — google
+PASS     | Integrations: google status is persisted — connected
+PASS     | Integrations: google account email is persisted
+PASS     | Integrations: google detail does not expose tokens
+PASS     | expected=201              | actual=201      | Integrations: start google reauthorization
+PASS     | Integrations: google reauthorization URL extracted
+PASS     | Integrations: Google reauthorization endpoint is official
+PASS     | expected=204              | actual=204      | Integrations: disconnect google connection
+PASS     | expected=200              | actual=200      | Integrations: get disconnected google detail
+PASS     | Integrations: google disconnected status is persisted — disconnected
+PASS     | expected=200              | actual=200      | Integrations: microsoft connection detail
+PASS     | Integrations: microsoft provider is persisted — microsoft
+PASS     | Integrations: microsoft status is persisted — connected
+PASS     | Integrations: microsoft account email is persisted
+PASS     | Integrations: microsoft detail does not expose tokens
+PASS     | expected=201              | actual=201      | Integrations: start microsoft reauthorization
+PASS     | Integrations: microsoft reauthorization URL extracted
+PASS     | Integrations: Microsoft reauthorization endpoint is official
+PASS     | expected=204              | actual=204      | Integrations: disconnect microsoft connection
+PASS     | expected=200              | actual=200      | Integrations: get disconnected microsoft detail
+PASS     | Integrations: microsoft disconnected status is persisted — disconnected
+PASS     | expected=401              | actual=401      | External calendars: integrations without credentials
+PASS     | expected=401              | actual=401      | External calendars: list without credentials
+PASS     | expected=401              | actual=401      | External calendars: discovery without credentials
+PASS     | expected=200              | actual=200      | External calendars: calendar integrations list
+PASS     | External calendars: calendar integrations do not expose tokens
+PASS     | External calendars: Microsoft integration is represented in Agenda — status=disconnected
+PASS     | External calendars: Google integration is represented in Agenda — status=reauth_required
+SKIP     | External calendars: list before discovery — No existe conexión Microsoft connected; el listado es por integration_id.
+SKIP     | External calendars: list before discovery does not expose tokens — No existe conexión Microsoft connected.
+SKIP     | External calendars: existing records have required public shape — No existe conexión Microsoft connected.
+SKIP     | External calendars: Microsoft connection prerequisite — No se completó OAuth Microsoft ni hay una conexión Microsoft previa.
+SKIP     | External calendars: Microsoft discovery — No se puede ejecutar sin conexión Microsoft connected.
+SKIP     | External calendars: discovery idempotency — No se puede ejecutar sin conexión Microsoft connected.
+SKIP     | External calendars: discovery does not import events — No se puede ejecutar sin conexión Microsoft connected.
+================================================================
+FINAL COUNTS
+PASS: 113
+FAIL: 0
+SKIP: 7

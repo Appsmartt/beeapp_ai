@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import date, datetime, time
+from datetime import date, datetime, time, timezone
 from typing import Any
 from uuid import UUID
 
@@ -80,6 +80,10 @@ def _supabase():
     return get_supabase_admin_client()
 
 
+def _utc_now_iso() -> str:
+    return datetime.now(timezone.utc).isoformat()
+
+
 def _iso_datetime(value: datetime | str | None) -> str | None:
     if value is None:
         return None
@@ -115,14 +119,16 @@ def _to_string_list(values: list[UUID | str] | None) -> list[str]:
 
 
 def _extract_single(response) -> dict[str, Any] | None:
-    if response is None or not getattr(response, "data", None):
+    if response is None:
         return None
 
-    if isinstance(response.data, list):
-        return response.data[0] if response.data else None
+    data = getattr(response, "data", None)
 
-    if isinstance(response.data, dict):
-        return response.data
+    if isinstance(data, list):
+        return data[0] if data else None
+
+    if isinstance(data, dict):
+        return data
 
     return None
 
@@ -142,9 +148,8 @@ def _response_data(response) -> list[dict[str, Any]]:
     return []
 
 
-def _get_calendar_for_user(
+def _get_calendar_row(
     *,
-    user_id: str,
     calendar_id: str,
 ) -> dict[str, Any]:
     try:
@@ -153,17 +158,18 @@ def _get_calendar_for_user(
             .table("calendars")
             .select(CALENDAR_COLUMNS)
             .eq("id", calendar_id)
-            .eq("owner_id", user_id)
             .maybe_single()
             .execute()
         )
 
-        if not response.data:
+        calendar = _extract_single(response)
+
+        if not calendar:
             raise CalendarNotFoundError(
-                "Calendar was not found or is not owned by you."
+                "Calendar was not found."
             )
 
-        return response.data
+        return calendar
 
     except CalendarNotFoundError:
         raise
@@ -174,13 +180,112 @@ def _get_calendar_for_user(
         ) from error
 
 
-def _get_event_for_user(
+def _get_calendar_share_permission(
+    *,
+    calendar_id: str,
+    user_id: str,
+) -> str | None:
+    try:
+        response = (
+            _supabase()
+            .table("calendar_shares")
+            .select("permission,accepted_at,revoked_at")
+            .eq("calendar_id", calendar_id)
+            .eq("shared_with_user_id", user_id)
+            .not_.is_("accepted_at", "null")
+            .is_("revoked_at", "null")
+            .maybe_single()
+            .execute()
+        )
+
+        share = _extract_single(response)
+
+        if not share:
+            return None
+
+        permission = share.get("permission")
+
+        if permission in ("viewer", "editor"):
+            return permission
+
+        return None
+
+    except Exception:
+        return None
+
+
+def _get_calendar_access(
     *,
     user_id: str,
+    calendar_id: str,
+    require_owner: bool = False,
+    require_editor: bool = False,
+) -> dict[str, Any]:
+    calendar = _get_calendar_row(calendar_id=calendar_id)
+
+    if str(calendar["owner_id"]) == str(user_id):
+        return {
+            "calendar": calendar,
+            "permission": "owner",
+            "is_owner": True,
+            "is_editor": True,
+            "can_view": True,
+            "can_create_events": True,
+        }
+
+    if require_owner:
+        raise CalendarNotFoundError(
+            "Calendar was not found or is not owned by you."
+        )
+
+    if calendar["is_archived"]:
+        raise CalendarNotFoundError(
+            "Calendar is archived or unavailable."
+        )
+
+    share_permission = _get_calendar_share_permission(
+        calendar_id=calendar_id,
+        user_id=user_id,
+    )
+
+    if share_permission is None:
+        raise CalendarNotFoundError(
+            "Calendar was not found or is not accessible."
+        )
+
+    if require_editor and share_permission != "editor":
+        raise CalendarNotFoundError(
+            "Calendar was not found or cannot be edited."
+        )
+
+    return {
+        "calendar": calendar,
+        "permission": share_permission,
+        "is_owner": False,
+        "is_editor": share_permission == "editor",
+        "can_view": True,
+        "can_create_events": share_permission == "editor",
+    }
+
+
+def _get_calendar_for_user(
+    *,
+    user_id: str,
+    calendar_id: str,
+) -> dict[str, Any]:
+    return _get_calendar_access(
+        user_id=user_id,
+        calendar_id=calendar_id,
+        require_owner=True,
+    )["calendar"]
+
+
+def _get_event_row(
+    *,
     event_id: str,
 ) -> dict[str, Any]:
     try:
-        event_response = (
+        response = (
             _supabase()
             .table("calendar_events")
             .select(EVENT_COLUMNS)
@@ -189,63 +294,14 @@ def _get_event_for_user(
             .execute()
         )
 
-        event = event_response.data
+        event = _extract_single(response)
 
         if not event:
             raise CalendarEventNotFoundError(
                 "Event was not found."
             )
 
-        if str(event["organizer_id"]) == str(user_id):
-            return event
-
-        calendar_response = (
-            _supabase()
-            .table("calendars")
-            .select("owner_id")
-            .eq("id", event["calendar_id"])
-            .maybe_single()
-            .execute()
-        )
-
-        if (
-            calendar_response.data
-            and str(calendar_response.data["owner_id"]) == str(user_id)
-        ):
-            return event
-
-        attendee_response = (
-            _supabase()
-            .table("calendar_event_attendees")
-            .select("id,response_status")
-            .eq("event_id", event_id)
-            .eq("attendee_user_id", user_id)
-            .neq("response_status", "removed")
-            .maybe_single()
-            .execute()
-        )
-
-        if attendee_response.data:
-            return event
-
-        share_response = (
-            _supabase()
-            .table("calendar_shares")
-            .select("id,accepted_at,revoked_at")
-            .eq("calendar_id", event["calendar_id"])
-            .eq("shared_with_user_id", user_id)
-            .is_("revoked_at", "null")
-            .not_.is_("accepted_at", "null")
-            .maybe_single()
-            .execute()
-        )
-
-        if share_response.data and not event["is_private"]:
-            return event
-
-        raise CalendarEventNotFoundError(
-            "Event was not found or is not accessible."
-        )
+        return event
 
     except CalendarEventNotFoundError:
         raise
@@ -256,37 +312,213 @@ def _get_event_for_user(
         ) from error
 
 
+def _get_user_attendee_row(
+    *,
+    event_id: str,
+    user_id: str,
+) -> dict[str, Any] | None:
+    try:
+        response = (
+            _supabase()
+            .table("calendar_event_attendees")
+            .select(ATTENDEE_COLUMNS)
+            .eq("event_id", event_id)
+            .eq("attendee_user_id", user_id)
+            .eq("attendee_kind", "beeapp_user")
+            .neq("response_status", "removed")
+            .maybe_single()
+            .execute()
+        )
+
+        return _extract_single(response)
+
+    except Exception:
+        return None
+
+
+def _get_event_access(
+    *,
+    user_id: str,
+    event_id: str,
+) -> dict[str, Any]:
+    event = _get_event_row(event_id=event_id)
+    calendar = _get_calendar_row(
+        calendar_id=event["calendar_id"],
+    )
+
+    is_organizer = (
+        str(event["organizer_id"]) == str(user_id)
+    )
+    is_owner = (
+        str(calendar["owner_id"]) == str(user_id)
+    )
+
+    attendee = None
+
+    if not is_owner and not is_organizer:
+        attendee = _get_user_attendee_row(
+            event_id=event_id,
+            user_id=user_id,
+        )
+
+    share_permission = None
+
+    if not is_owner and not is_organizer and not attendee:
+        share_permission = _get_calendar_share_permission(
+            calendar_id=event["calendar_id"],
+            user_id=user_id,
+        )
+
+    is_attendee = attendee is not None
+    is_editor = (
+        share_permission == "editor"
+        and not event["is_private"]
+    )
+    is_viewer = (
+        share_permission == "viewer"
+        and not event["is_private"]
+    )
+
+    can_view = (
+        is_owner
+        or is_organizer
+        or is_attendee
+        or is_editor
+        or is_viewer
+    )
+
+    if not can_view:
+        raise CalendarEventNotFoundError(
+            "Event was not found or is not accessible."
+        )
+
+    can_edit = is_owner or is_organizer or is_editor
+    can_delete = is_owner or is_organizer
+    can_manage_attendees = is_owner or is_organizer
+
+    return {
+        "event": event,
+        "calendar": calendar,
+        "attendee": attendee,
+        "share_permission": (
+            "owner"
+            if is_owner
+            else (
+                "organizer"
+                if is_organizer
+                else share_permission
+            )
+        ),
+        "is_owner": is_owner,
+        "is_organizer": is_organizer,
+        "is_attendee": is_attendee,
+        "is_editor": is_editor,
+        "can_view": can_view,
+        "can_edit": can_edit,
+        "can_delete": can_delete,
+        "can_manage_attendees": can_manage_attendees,
+    }
+
+
+def _get_event_for_user(
+    *,
+    user_id: str,
+    event_id: str,
+) -> dict[str, Any]:
+    return _get_event_access(
+        user_id=user_id,
+        event_id=event_id,
+    )["event"]
+
+
+def _require_event_editor(
+    *,
+    user_id: str,
+    event_id: str,
+) -> dict[str, Any]:
+    access = _get_event_access(
+        user_id=user_id,
+        event_id=event_id,
+    )
+
+    if not access["can_edit"]:
+        raise CalendarEventNotFoundError(
+            "Event was not found or cannot be modified."
+        )
+
+    return access
+
+
 def _require_event_manager(
     *,
     user_id: str,
     event_id: str,
 ) -> dict[str, Any]:
-    event = _get_event_for_user(
+    access = _get_event_access(
         user_id=user_id,
         event_id=event_id,
     )
 
-    if str(event["organizer_id"]) == str(user_id):
-        return event
+    if not access["can_manage_attendees"]:
+        raise CalendarEventNotFoundError(
+            "Event was not found or cannot be managed."
+        )
 
-    calendar_response = (
-        _supabase()
-        .table("calendars")
-        .select("owner_id")
-        .eq("id", event["calendar_id"])
-        .maybe_single()
-        .execute()
+    return access["event"]
+
+
+def _require_event_deleter(
+    *,
+    user_id: str,
+    event_id: str,
+) -> dict[str, Any]:
+    access = _get_event_access(
+        user_id=user_id,
+        event_id=event_id,
     )
 
-    if (
-        calendar_response.data
-        and str(calendar_response.data["owner_id"]) == str(user_id)
-    ):
-        return event
+    if not access["can_delete"]:
+        raise CalendarEventNotFoundError(
+            "Event was not found or cannot be deleted."
+        )
 
-    raise CalendarEventNotFoundError(
-        "Event was not found or cannot be modified."
+    return access["event"]
+
+
+def _require_editor_can_manage_related_data(
+    *,
+    access: dict[str, Any],
+    payload: dict[str, Any],
+) -> None:
+    if not access["is_editor"]:
+        return
+
+    restricted_fields = {
+        "tag_ids",
+        "conferences",
+        "recurrence",
+        "attendee_ids",
+    }
+
+    attempted_restricted_fields = sorted(
+        restricted_fields.intersection(payload)
     )
+
+    if attempted_restricted_fields:
+        fields_label = ", ".join(
+            attempted_restricted_fields
+        )
+
+        raise CalendarEventUpdateError(
+            "Shared-calendar editors cannot modify "
+            f"{fields_label}."
+        )
+
+    if "reminders" in payload:
+        raise CalendarEventUpdateError(
+            "Shared-calendar editors cannot modify "
+            "another organizer's reminders."
+        )
 
 
 def get_calendar_event_details(
@@ -305,16 +537,19 @@ def _get_event_details(
     user_id: str,
     event_id: str,
 ) -> dict[str, Any]:
-    event = _get_event_for_user(
+    access = _get_event_access(
         user_id=user_id,
         event_id=event_id,
     )
+
+    event = access["event"]
     supabase = _supabase()
 
     attendees_response = (
         supabase.table("calendar_event_attendees")
         .select(ATTENDEE_COLUMNS)
         .eq("event_id", event_id)
+        .neq("response_status", "removed")
         .order("is_organizer", desc=True)
         .order("created_at")
         .execute()
@@ -359,7 +594,7 @@ def _get_event_details(
         .execute()
     )
 
-    tags = []
+    tags: list[dict[str, Any]] = []
 
     for assignment in _response_data(tags_response):
         tag = assignment.get("calendar_tags")
@@ -367,15 +602,25 @@ def _get_event_details(
         if tag:
             tags.append(tag)
 
+    current_user_attendee = access["attendee"]
+
     return {
         **event,
         "attendees": _response_data(attendees_response),
         "conferences": _response_data(conferences_response),
         "reminders": _response_data(reminders_response),
         "tags": tags,
-        "recurrence": (
-            recurrence_response.data
-            if recurrence_response is not None
+        "recurrence": _extract_single(recurrence_response),
+        "viewer_permission": access["share_permission"],
+        "can_edit": access["can_edit"],
+        "can_delete": access["can_delete"],
+        "can_manage_attendees": (
+            access["can_manage_attendees"]
+        ),
+        "current_user_attendee": current_user_attendee,
+        "current_user_response": (
+            current_user_attendee.get("response_status")
+            if current_user_attendee
             else None
         ),
     }
@@ -387,9 +632,10 @@ def list_calendars(
     include_archived: bool = False,
 ) -> list[dict[str, Any]]:
     try:
+        supabase = _supabase()
+
         owned_response = (
-            _supabase()
-            .table("calendars")
+            supabase.table("calendars")
             .select(CALENDAR_COLUMNS)
             .eq("owner_id", user_id)
             .order("is_default", desc=True)
@@ -398,8 +644,7 @@ def list_calendars(
         )
 
         shared_response = (
-            _supabase()
-            .table("calendar_shares")
+            supabase.table("calendar_shares")
             .select(
                 "calendar_id,permission,accepted_at,revoked_at,"
                 "calendars("
@@ -408,8 +653,8 @@ def list_calendars(
                 ")"
             )
             .eq("shared_with_user_id", user_id)
-            .is_("revoked_at", "null")
             .not_.is_("accepted_at", "null")
+            .is_("revoked_at", "null")
             .execute()
         )
 
@@ -419,16 +664,30 @@ def list_calendars(
             calendars_by_id[calendar["id"]] = {
                 **calendar,
                 "share_permission": "owner",
+                "can_create_events": not calendar[
+                    "is_archived"
+                ],
             }
 
         for share in _response_data(shared_response):
             calendar = share.get("calendars")
 
-            if calendar:
-                calendars_by_id[calendar["id"]] = {
-                    **calendar,
-                    "share_permission": share["permission"],
-                }
+            if not calendar:
+                continue
+
+            permission = share.get("permission")
+
+            if permission not in ("viewer", "editor"):
+                continue
+
+            calendars_by_id[calendar["id"]] = {
+                **calendar,
+                "share_permission": permission,
+                "can_create_events": (
+                    permission == "editor"
+                    and not calendar["is_archived"]
+                ),
+            }
 
         calendars = list(calendars_by_id.values())
 
@@ -489,8 +748,11 @@ def create_calendar(
                 "Supabase did not return the created calendar."
             )
 
-        calendar["share_permission"] = "owner"
-        return calendar
+        return {
+            **calendar,
+            "share_permission": "owner",
+            "can_create_events": True,
+        }
 
     except CalendarCreateError:
         raise
@@ -529,8 +791,11 @@ def update_calendar(
                 "Supabase did not return the updated calendar."
             )
 
-        calendar["share_permission"] = "owner"
-        return calendar
+        return {
+            **calendar,
+            "share_permission": "owner",
+            "can_create_events": not calendar["is_archived"],
+        }
 
     except (
         CalendarNotFoundError,
@@ -580,7 +845,10 @@ def delete_calendar(
         ) from error
 
 
-def list_calendar_tags(*, user_id: str) -> list[dict[str, Any]]:
+def list_calendar_tags(
+    *,
+    user_id: str,
+) -> list[dict[str, Any]]:
     try:
         response = (
             _supabase()
@@ -677,13 +945,22 @@ def delete_calendar_tag(
     tag_id: str,
 ) -> None:
     try:
-        _supabase().table("calendar_tags").delete().eq(
-            "id",
-            tag_id,
-        ).eq(
-            "owner_id",
-            user_id,
-        ).execute()
+        response = (
+            _supabase()
+            .table("calendar_tags")
+            .delete()
+            .eq("id", tag_id)
+            .eq("owner_id", user_id)
+            .execute()
+        )
+
+        if not _response_data(response):
+            raise CalendarTagNotFoundError(
+                "Calendar tag was not found."
+            )
+
+    except CalendarTagNotFoundError:
+        raise
 
     except Exception as error:
         raise CalendarTagError(
@@ -691,7 +968,10 @@ def delete_calendar_tag(
         ) from error
 
 
-def get_calendar_preferences(*, user_id: str) -> dict[str, Any]:
+def get_calendar_preferences(
+    *,
+    user_id: str,
+) -> dict[str, Any]:
     try:
         response = (
             _supabase()
@@ -702,8 +982,10 @@ def get_calendar_preferences(*, user_id: str) -> dict[str, Any]:
             .execute()
         )
 
-        if response.data:
-            return response.data
+        preferences = _extract_single(response)
+
+        if preferences:
+            return preferences
 
         profile_response = (
             _supabase()
@@ -714,9 +996,11 @@ def get_calendar_preferences(*, user_id: str) -> dict[str, Any]:
             .execute()
         )
 
+        profile = _extract_single(profile_response)
+
         timezone = (
-            profile_response.data.get("timezone")
-            if profile_response.data
+            profile.get("timezone")
+            if profile
             else "America/Bogota"
         )
 
@@ -764,12 +1048,16 @@ def update_calendar_preferences(
             normalized_payload["default_reminders"] = [
                 {
                     "channel": reminder["channel"],
-                    "offset_minutes": reminder["offset_minutes"],
+                    "offset_minutes": reminder[
+                        "offset_minutes"
+                    ],
                     "all_day_reminder_time": _iso_time(
                         reminder.get("all_day_reminder_time")
                     ),
                 }
-                for reminder in normalized_payload["default_reminders"]
+                for reminder in normalized_payload[
+                    "default_reminders"
+                ]
             ]
 
         response = (
@@ -841,30 +1129,43 @@ def list_calendar_events(
     limit: int = 500,
 ) -> dict[str, Any]:
     try:
+        if range_start >= range_end:
+            raise CalendarError(
+                "range_end must be after range_start."
+            )
+
         supabase = _supabase()
         calendars = list_calendars(
             user_id=user_id,
             include_archived=False,
         )
 
-        calendar_ids_available = {
-            calendar["id"]
+        calendars_by_id = {
+            calendar["id"]: calendar
             for calendar in calendars
         }
 
+        available_calendar_ids = set(calendars_by_id)
+
         if calendar_ids:
-            calendar_ids_requested = set(
+            requested_calendar_ids = set(
                 _to_string_list(calendar_ids)
             )
             selected_calendar_ids = list(
-                calendar_ids_available.intersection(
-                    calendar_ids_requested
+                available_calendar_ids.intersection(
+                    requested_calendar_ids
                 )
             )
         else:
-            selected_calendar_ids = list(calendar_ids_available)
+            selected_calendar_ids = list(
+                available_calendar_ids
+            )
 
         events_by_id: dict[str, dict[str, Any]] = {}
+        attendee_rows_by_event_id: dict[
+            str,
+            dict[str, Any],
+        ] = {}
 
         if selected_calendar_ids:
             timed_query = (
@@ -886,7 +1187,10 @@ def list_calendar_events(
             )
 
             if not include_cancelled:
-                timed_query = timed_query.eq("status", "confirmed")
+                timed_query = timed_query.eq(
+                    "status",
+                    "confirmed",
+                )
                 all_day_query = all_day_query.eq(
                     "status",
                     "confirmed",
@@ -894,7 +1198,10 @@ def list_calendar_events(
 
             if source:
                 timed_query = timed_query.eq("source", source)
-                all_day_query = all_day_query.eq("source", source)
+                all_day_query = all_day_query.eq(
+                    "source",
+                    source,
+                )
 
             if event_kind:
                 timed_query = timed_query.eq(
@@ -922,35 +1229,53 @@ def list_calendar_events(
                 _response_data(timed_response)
                 + _response_data(all_day_response)
             ):
+                calendar = calendars_by_id.get(
+                    event["calendar_id"]
+                )
+
+                if not calendar:
+                    continue
+
+                permission = calendar["share_permission"]
+
                 if (
                     event["is_private"]
+                    and permission != "owner"
                     and str(event["organizer_id"]) != str(user_id)
                 ):
-                    continue
+                    attendee = _get_user_attendee_row(
+                        event_id=event["id"],
+                        user_id=user_id,
+                    )
+
+                    if not attendee:
+                        continue
+
+                    attendee_rows_by_event_id[event["id"]] = (
+                        attendee
+                    )
 
                 events_by_id[event["id"]] = event
 
         attendee_rows_response = (
             supabase.table("calendar_event_attendees")
-            .select("event_id,response_status,hidden_at")
+            .select(
+                "event_id,response_status,hidden_at,"
+                "attendee_kind,attendee_user_id"
+            )
             .eq("attendee_user_id", user_id)
+            .eq("attendee_kind", "beeapp_user")
             .neq("response_status", "removed")
             .execute()
         )
 
-        attendee_rows = _response_data(attendee_rows_response)
+        for row in _response_data(attendee_rows_response):
+            event_id = row.get("event_id")
 
-        attendee_event_ids = [
-            row["event_id"]
-            for row in attendee_rows
-            if row.get("event_id")
-        ]
+            if event_id:
+                attendee_rows_by_event_id[event_id] = row
 
-        attendee_status_by_event_id = {
-            row["event_id"]: row["response_status"]
-            for row in attendee_rows
-            if row.get("event_id")
-        }
+        attendee_event_ids = list(attendee_rows_by_event_id)
 
         if attendee_event_ids:
             attendee_events_response = (
@@ -984,13 +1309,26 @@ def list_calendar_events(
 
         events = list(events_by_id.values())
 
-        if not include_declined:
-            events = [
-                event
-                for event in events
-                if attendee_status_by_event_id.get(event["id"])
-                != "declined"
-            ]
+        visible_events: list[dict[str, Any]] = []
+
+        for event in events:
+            attendee = attendee_rows_by_event_id.get(
+                event["id"]
+            )
+
+            if (
+                attendee
+                and attendee.get("response_status") == "declined"
+            ):
+                if attendee.get("hidden_at") is not None:
+                    continue
+
+                if not include_declined:
+                    continue
+
+            visible_events.append(event)
+
+        events = visible_events
 
         if tag_ids and events:
             requested_tag_ids = set(_to_string_list(tag_ids))
@@ -1008,7 +1346,9 @@ def list_calendar_events(
 
             matching_event_ids = {
                 assignment["event_id"]
-                for assignment in _response_data(assignments_response)
+                for assignment in _response_data(
+                    assignments_response
+                )
             }
 
             events = [
@@ -1062,10 +1402,29 @@ def create_calendar_event(
     try:
         calendar_id = str(payload["calendar_id"])
 
-        _get_calendar_for_user(
+        calendar_access = _get_calendar_access(
             user_id=user_id,
             calendar_id=calendar_id,
         )
+
+        if not calendar_access["can_create_events"]:
+            raise CalendarNotFoundError(
+                "Calendar was not found or cannot receive events."
+            )
+
+        if calendar_access["calendar"]["is_archived"]:
+            raise CalendarEventCreateError(
+                "Cannot create events in an archived calendar."
+            )
+
+        if (
+            calendar_access["is_editor"]
+            and payload.get("is_private", False)
+        ):
+            raise CalendarEventCreateError(
+                "Shared-calendar editors cannot create "
+                "private events."
+            )
 
         event_payload = _build_event_payload(
             user_id=user_id,
@@ -1119,6 +1478,10 @@ def create_calendar_event(
         )
 
         if attendee_ids:
+            _validate_beeapp_users_exist(
+                attendee_ids=attendee_ids,
+            )
+
             _add_event_attendees(
                 organizer_id=user_id,
                 event_id=created_event_id,
@@ -1177,9 +1540,16 @@ def update_calendar_event(
     payload: dict[str, Any],
 ) -> dict[str, Any]:
     try:
-        existing_event = _require_event_manager(
+        access = _require_event_editor(
             user_id=user_id,
             event_id=event_id,
+        )
+
+        existing_event = access["event"]
+
+        _require_editor_can_manage_related_data(
+            access=access,
+            payload=payload,
         )
 
         event_payload = _build_event_update_payload(
@@ -1187,10 +1557,47 @@ def update_calendar_event(
         )
 
         if "calendar_id" in event_payload:
-            _get_calendar_for_user(
+            target_calendar_access = _get_calendar_access(
                 user_id=user_id,
                 calendar_id=event_payload["calendar_id"],
             )
+
+            if not target_calendar_access["can_create_events"]:
+                raise CalendarNotFoundError(
+                    "Target calendar was not found or cannot "
+                    "receive events."
+                )
+
+            if (
+                target_calendar_access["is_editor"]
+                and existing_event["is_private"]
+            ):
+                raise CalendarEventUpdateError(
+                    "A shared-calendar editor cannot move a "
+                    "private event."
+                )
+
+        if access["is_editor"]:
+            forbidden_event_fields = {
+                "calendar_id",
+                "is_private",
+            }
+
+            attempted_forbidden_fields = sorted(
+                forbidden_event_fields.intersection(
+                    event_payload
+                )
+            )
+
+            if attempted_forbidden_fields:
+                fields_label = ", ".join(
+                    attempted_forbidden_fields
+                )
+
+                raise CalendarEventUpdateError(
+                    "Shared-calendar editors cannot modify "
+                    f"{fields_label}."
+                )
 
         if event_payload:
             response = (
@@ -1230,12 +1637,18 @@ def update_calendar_event(
             )
 
         if "attendee_ids" in payload:
+            attendee_ids = _to_string_list(
+                payload["attendee_ids"]
+            )
+
+            _validate_beeapp_users_exist(
+                attendee_ids=attendee_ids,
+            )
+
             _replace_event_attendees(
-                organizer_id=user_id,
+                organizer_id=existing_event["organizer_id"],
                 event_id=event_id,
-                attendee_ids=_to_string_list(
-                    payload["attendee_ids"]
-                ),
+                attendee_ids=attendee_ids,
             )
 
         if "reminders" in payload:
@@ -1255,10 +1668,11 @@ def update_calendar_event(
             event_id=event_id,
         )
 
-        _notify_event_update(
-            organizer_id=user_id,
-            event=updated_event,
-        )
+        if access["can_manage_attendees"]:
+            _notify_event_update(
+                organizer_id=existing_event["organizer_id"],
+                event=updated_event,
+            )
 
         return updated_event
 
@@ -1283,7 +1697,7 @@ def delete_calendar_event(
     event_id: str,
 ) -> None:
     try:
-        event = _require_event_manager(
+        event = _require_event_deleter(
             user_id=user_id,
             event_id=event_id,
         )
@@ -1291,9 +1705,12 @@ def delete_calendar_event(
         attendee_response = (
             _supabase()
             .table("calendar_event_attendees")
-            .select("attendee_user_id,is_organizer")
+            .select(
+                "attendee_user_id,is_organizer,response_status"
+            )
             .eq("event_id", event_id)
             .eq("attendee_kind", "beeapp_user")
+            .neq("response_status", "removed")
             .execute()
         )
 
@@ -1342,19 +1759,37 @@ def duplicate_calendar_event(
     payload: dict[str, Any],
 ) -> dict[str, Any]:
     try:
-        source_event = _require_event_manager(
+        source_access = _require_event_editor(
             user_id=user_id,
             event_id=event_id,
         )
 
+        source_event = source_access["event"]
+
         target_calendar_id = str(
-            payload.get("calendar_id") or source_event["calendar_id"]
+            payload.get("calendar_id")
+            or source_event["calendar_id"]
         )
 
-        _get_calendar_for_user(
+        target_calendar_access = _get_calendar_access(
             user_id=user_id,
             calendar_id=target_calendar_id,
         )
+
+        if not target_calendar_access["can_create_events"]:
+            raise CalendarNotFoundError(
+                "Target calendar was not found or cannot "
+                "receive events."
+            )
+
+        if (
+            target_calendar_access["is_editor"]
+            and source_event["is_private"]
+        ):
+            raise CalendarEventCreateError(
+                "Shared-calendar editors cannot duplicate "
+                "private events."
+            )
 
         source_details = _get_event_details(
             user_id=user_id,
@@ -1383,7 +1818,11 @@ def duplicate_calendar_event(
             "location_maps_url": source_event.get(
                 "location_maps_url"
             ),
-            "is_private": source_event["is_private"],
+            "is_private": (
+                False
+                if target_calendar_access["is_editor"]
+                else source_event["is_private"]
+            ),
             "notifications_enabled": source_event[
                 "notifications_enabled"
             ],
@@ -1427,7 +1866,9 @@ def duplicate_calendar_event(
             duplicate_payload["reminders"] = [
                 {
                     "channel": reminder["channel"],
-                    "offset_minutes": reminder["offset_minutes"],
+                    "offset_minutes": reminder[
+                        "offset_minutes"
+                    ],
                     "all_day_reminder_time": reminder.get(
                         "all_day_reminder_time"
                     ),
@@ -1470,11 +1911,14 @@ def get_calendar_bootstrap(
     preferences = get_calendar_preferences(user_id=user_id)
     calendars = list_calendars(user_id=user_id)
     tags = list_calendar_tags(user_id=user_id)
+
     events = list_calendar_events(
         user_id=user_id,
         range_start=range_start,
         range_end=range_end,
-        include_declined=preferences["show_declined_events"],
+        include_declined=preferences[
+            "show_declined_events"
+        ],
     )
 
     return {
@@ -1566,7 +2010,9 @@ def _build_event_update_payload(
         )
 
     if "ends_on" in payload:
-        event_payload["ends_on"] = _iso_date(payload["ends_on"])
+        event_payload["ends_on"] = _iso_date(
+            payload["ends_on"]
+        )
 
     for field_name in (
         "description",
@@ -1583,13 +2029,56 @@ def _build_event_update_payload(
     return event_payload
 
 
+def _validate_beeapp_users_exist(
+    *,
+    attendee_ids: list[str],
+) -> None:
+    normalized_ids = list(dict.fromkeys(attendee_ids))
+
+    if not normalized_ids:
+        return
+
+    try:
+        response = (
+            _supabase()
+            .table("profile")
+            .select("id")
+            .in_("id", normalized_ids)
+            .execute()
+        )
+
+        found_ids = {
+            str(profile["id"])
+            for profile in _response_data(response)
+        }
+
+        missing_ids = set(normalized_ids).difference(
+            found_ids
+        )
+
+        if missing_ids:
+            raise CalendarEventCreateError(
+                "One or more attendees were not found."
+            )
+
+    except CalendarEventCreateError:
+        raise
+
+    except Exception as error:
+        raise CalendarEventCreateError(
+            "Could not validate event attendees."
+        ) from error
+
+
 def _assign_event_tags(
     *,
     user_id: str,
     event_id: str,
     tag_ids: list[UUID | str],
 ) -> None:
-    normalized_tag_ids = _to_string_list(tag_ids)
+    normalized_tag_ids = list(
+        dict.fromkeys(_to_string_list(tag_ids))
+    )
 
     if not normalized_tag_ids:
         return
@@ -1634,7 +2123,9 @@ def _assign_event_tags(
             .execute()
         )
 
-        if len(_response_data(response)) != len(normalized_tag_ids):
+        if len(_response_data(response)) != len(
+            normalized_tag_ids
+        ):
             raise CalendarTagError(
                 "Could not assign all calendar tags."
             )
@@ -1861,7 +2352,7 @@ def _add_event_attendees(
         dict.fromkeys(
             attendee_id
             for attendee_id in attendee_ids
-            if attendee_id != organizer_id
+            if str(attendee_id) != str(organizer_id)
         )
     )
 
@@ -1869,33 +2360,91 @@ def _add_event_attendees(
         return
 
     try:
-        response = (
-            _supabase()
-            .table("calendar_event_attendees")
-            .insert(
-                [
-                    {
-                        "event_id": event_id,
-                        "attendee_kind": "beeapp_user",
-                        "attendee_user_id": attendee_id,
-                        "is_organizer": False,
-                        "response_status": "pending",
-                        "invitation_sent_at": (
-                            datetime.now().isoformat()
-                        ),
-                    }
-                    for attendee_id in normalized_attendee_ids
-                ]
+        supabase = _supabase()
+
+        existing_response = (
+            supabase.table("calendar_event_attendees")
+            .select(
+                "id,attendee_user_id,response_status,"
+                "is_organizer"
             )
+            .eq("event_id", event_id)
+            .eq("attendee_kind", "beeapp_user")
+            .in_("attendee_user_id", normalized_attendee_ids)
             .execute()
         )
 
-        if len(_response_data(response)) != len(
-            normalized_attendee_ids
-        ):
-            raise CalendarEventCreateError(
-                "Could not add all event attendees."
+        existing_by_user_id = {
+            str(row["attendee_user_id"]): row
+            for row in _response_data(existing_response)
+            if row.get("attendee_user_id")
+        }
+
+        removed_user_ids = [
+            attendee_id
+            for attendee_id in normalized_attendee_ids
+            if (
+                existing_by_user_id.get(attendee_id)
+                and existing_by_user_id[attendee_id].get(
+                    "response_status"
+                )
+                == "removed"
             )
+        ]
+
+        new_user_ids = [
+            attendee_id
+            for attendee_id in normalized_attendee_ids
+            if attendee_id not in existing_by_user_id
+        ]
+
+        if removed_user_ids:
+            supabase.table(
+                "calendar_event_attendees"
+            ).update(
+                {
+                    "response_status": "pending",
+                    "responded_at": None,
+                    "hidden_at": None,
+                    "invitation_sent_at": _utc_now_iso(),
+                    "invitation_read_at": None,
+                }
+            ).eq(
+                "event_id",
+                event_id,
+            ).eq(
+                "attendee_kind",
+                "beeapp_user",
+            ).in_(
+                "attendee_user_id",
+                removed_user_ids,
+            ).execute()
+
+        if new_user_ids:
+            response = (
+                supabase.table("calendar_event_attendees")
+                .insert(
+                    [
+                        {
+                            "event_id": event_id,
+                            "attendee_kind": "beeapp_user",
+                            "attendee_user_id": attendee_id,
+                            "is_organizer": False,
+                            "response_status": "pending",
+                            "invitation_sent_at": _utc_now_iso(),
+                        }
+                        for attendee_id in new_user_ids
+                    ]
+                )
+                .execute()
+            )
+
+            if len(_response_data(response)) != len(
+                new_user_ids
+            ):
+                raise CalendarEventCreateError(
+                    "Could not add all event attendees."
+                )
 
     except CalendarEventCreateError:
         raise
@@ -1919,7 +2468,7 @@ def _replace_event_attendees(
             dict.fromkeys(
                 attendee_id
                 for attendee_id in attendee_ids
-                if attendee_id != organizer_id
+                if str(attendee_id) != str(organizer_id)
             )
         )
 
@@ -1934,17 +2483,23 @@ def _replace_event_attendees(
         )
 
         existing_attendees = {
-            row["attendee_user_id"]: row
+            str(row["attendee_user_id"]): row
             for row in _response_data(existing_response)
             if row.get("attendee_user_id")
             and not row.get("is_organizer")
         }
 
         desired_ids = set(normalized_attendee_ids)
-        existing_ids = set(existing_attendees)
 
-        removed_ids = existing_ids.difference(desired_ids)
-        added_ids = desired_ids.difference(existing_ids)
+        active_existing_ids = {
+            attendee_id
+            for attendee_id, attendee in existing_attendees.items()
+            if attendee.get("response_status") != "removed"
+        }
+
+        removed_ids = active_existing_ids.difference(
+            desired_ids
+        )
 
         if removed_ids:
             supabase.table(
@@ -1952,24 +2507,31 @@ def _replace_event_attendees(
             ).update(
                 {
                     "response_status": "removed",
-                    "hidden_at": datetime.now().isoformat(),
+                    "hidden_at": _utc_now_iso(),
                 }
             ).eq(
                 "event_id",
                 event_id,
+            ).eq(
+                "attendee_kind",
+                "beeapp_user",
             ).in_(
                 "attendee_user_id",
                 list(removed_ids),
             ).execute()
 
-        if added_ids:
-            _add_event_attendees(
-                organizer_id=organizer_id,
-                event_id=event_id,
-                attendee_ids=list(added_ids),
-            )
+        _add_event_attendees(
+            organizer_id=organizer_id,
+            event_id=event_id,
+            attendee_ids=normalized_attendee_ids,
+        )
 
-    except CalendarEventCreateError:
+    except CalendarEventCreateError as error:
+        raise CalendarEventUpdateError(
+            str(error)
+        ) from error
+
+    except CalendarEventUpdateError:
         raise
 
     except Exception as error:
@@ -2070,7 +2632,7 @@ def _replace_user_event_reminders(
         ).update(
             {
                 "status": "cancelled",
-                "cancelled_at": datetime.now().isoformat(),
+                "cancelled_at": _utc_now_iso(),
             }
         ).eq(
             "event_id",
@@ -2105,7 +2667,7 @@ def _notify_new_attendees(
     attendee_ids: list[str],
 ) -> None:
     for attendee_id in attendee_ids:
-        if attendee_id == organizer_id:
+        if str(attendee_id) == str(organizer_id):
             continue
 
         _safe_calendar_notification(
@@ -2136,6 +2698,7 @@ def _notify_event_update(
         )
         .eq("event_id", event["id"])
         .eq("attendee_kind", "beeapp_user")
+        .neq("response_status", "removed")
         .execute()
     )
 
@@ -2144,9 +2707,8 @@ def _notify_event_update(
 
         if (
             not attendee_id
-            or attendee_id == organizer_id
+            or str(attendee_id) == str(organizer_id)
             or attendee.get("is_organizer")
-            or attendee.get("response_status") == "removed"
         ):
             continue
 
@@ -2184,7 +2746,10 @@ def _safe_calendar_notification(
         return
 
 
-def _delete_event_safely(*, event_id: str) -> None:
+def _delete_event_safely(
+    *,
+    event_id: str,
+) -> None:
     try:
         _supabase().table("calendar_events").delete().eq(
             "id",
@@ -2217,6 +2782,7 @@ def _validate_duplicate_payload(
             raise CalendarEventCreateError(
                 "Duplicate ends_on must be after starts_on."
             )
+
         return
 
     starts_at = _as_datetime(payload.get("starts_at"))
@@ -2245,8 +2811,8 @@ def _event_overlaps_range(
     range_end: datetime,
 ) -> bool:
     if event["is_all_day"]:
-        starts_on = _as_date(event["starts_on"])
-        ends_on = _as_date(event["ends_on"])
+        starts_on = _as_date(event.get("starts_on"))
+        ends_on = _as_date(event.get("ends_on"))
 
         if starts_on is None or ends_on is None:
             return False
@@ -2256,8 +2822,8 @@ def _event_overlaps_range(
             and ends_on > range_start.date()
         )
 
-    starts_at = _as_datetime(event["starts_at"])
-    ends_at = _as_datetime(event["ends_at"])
+    starts_at = _as_datetime(event.get("starts_at"))
+    ends_at = _as_datetime(event.get("ends_at"))
 
     if starts_at is None or ends_at is None:
         return False
@@ -2294,7 +2860,9 @@ def _as_datetime(
     if isinstance(value, datetime):
         return value
 
-    return datetime.fromisoformat(value.replace("Z", "+00:00"))
+    return datetime.fromisoformat(
+        value.replace("Z", "+00:00")
+    )
 
 
 def _as_date(
