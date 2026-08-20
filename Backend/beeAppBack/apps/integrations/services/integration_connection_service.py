@@ -755,46 +755,51 @@ def disconnect_user_connection(
         connection_id=connection_id,
     )
 
-    now = _utc_now_iso()
-
     try:
-        (
+        response = (
             _supabase()
-            .table("integration_credentials")
-            .delete()
-            .eq("connection_id", connection_id)
-            .execute()
-        )
-
-        (
-            _supabase()
-            .table("integration_connections")
-            .update(
+            .rpc(
+                "disconnect_integration_and_delete_calendar_data",
                 {
-                    "status": "disconnected",
-                    "disconnected_at": now,
-                    "token_expires_at": None,
-                    "last_token_refresh_at": None,
-                    "reauth_required_at": None,
-                    "last_error_code": None,
-                    "last_error_message": None,
-                }
+                    "p_user_id": user_id,
+                    "p_connection_id": connection_id,
+                },
             )
-            .eq("id", connection_id)
-            .eq("user_id", user_id)
             .execute()
         )
 
-        sync_calendar_integration_from_connection(
-            connection_id=connection_id,
-        )
+        result = _extract_single(response)
+
+        if not result:
+            raise IntegrationCredentialError(
+                "Could not disconnect integration."
+            )
 
         _record_event(
-            connection_id=connection_id,
+            connection_id=None,
             user_id=user_id,
             provider=connection["provider"],
-            event_type="disconnected",
+            event_type=(
+                "disconnected_and_calendar_data_deleted"
+            ),
+            metadata={
+                "deleted_connection_id": str(
+                    result["deleted_connection_id"]
+                ),
+                "deleted_calendar_integration_count": (
+                    result[
+                        "deleted_calendar_integration_count"
+                    ]
+                ),
+                "deleted_calendar_count": (
+                    result["deleted_calendar_count"]
+                ),
+            },
         )
+
+    except IntegrationCredentialError:
+        raise
+
     except Exception as error:
         raise IntegrationCredentialError(
             "Could not disconnect integration."
