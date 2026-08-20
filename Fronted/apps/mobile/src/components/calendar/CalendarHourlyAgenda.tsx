@@ -18,6 +18,7 @@ import {
 } from '../../services/calendarService';
 import type {
   CalendarEvent,
+  CalendarEventSource,
 } from '../../stores/calendarStore';
 
 
@@ -43,11 +44,9 @@ function getEventHour(
     event.timeStart,
   );
 
-
   if (minutes === null) {
     return null;
   }
-
 
   return Math.floor(minutes / 60);
 }
@@ -64,9 +63,27 @@ function sortEvents(
       right.timeStart,
     ) ?? 0;
 
-
     return leftMinutes - rightMinutes;
   });
+}
+
+
+function getSourceLabel(
+  source: CalendarEventSource,
+): string | null {
+  if (source === 'microsoft') {
+    return 'Outlook';
+  }
+
+  if (source === 'google') {
+    return 'Google';
+  }
+
+  if (source === 'external') {
+    return 'Externo';
+  }
+
+  return null;
 }
 
 
@@ -80,11 +97,9 @@ export default function CalendarHourlyAgenda({
     (event) => event.date === selectedDate,
   );
 
-
   const allDayEvents = dayEvents.filter(
     (event) => event.isAllDay,
   );
-
 
   const timedEvents = sortEvents(
     dayEvents.filter(
@@ -92,19 +107,15 @@ export default function CalendarHourlyAgenda({
     ),
   );
 
-
   const eventsByHour = timedEvents.reduce(
     (accumulator, event) => {
       const hour = getEventHour(event);
-
 
       if (hour === null) {
         return accumulator;
       }
 
-
       const existing = accumulator.get(hour) || [];
-
 
       accumulator.set(
         hour,
@@ -114,31 +125,25 @@ export default function CalendarHourlyAgenda({
         ],
       );
 
-
       return accumulator;
     },
     new Map<number, CalendarEvent[]>(),
   );
 
-
   const eventHours = Array.from(
     eventsByHour.keys(),
   );
-
 
   const minEventHour = eventHours.length > 0
     ? Math.min(...eventHours)
     : 6;
 
-
   const maxEventHour = eventHours.length > 0
     ? Math.max(...eventHours)
     : 22;
 
-
   const startHour = Math.min(6, minEventHour);
   const endHour = Math.max(22, maxEventHour);
-
 
   const hours = Array.from(
     {
@@ -146,7 +151,6 @@ export default function CalendarHourlyAgenda({
     },
     (_, index) => startHour + index,
   );
-
 
   return (
     <ScrollView
@@ -162,12 +166,10 @@ export default function CalendarHourlyAgenda({
               color={colors.brand.primary}
             />
 
-
             <Text style={styles.allDayTitle}>
               Todo el día
             </Text>
           </View>
-
 
           <View style={styles.allDayEvents}>
             {allDayEvents.map((event) => (
@@ -183,14 +185,12 @@ export default function CalendarHourlyAgenda({
         </View>
       )}
 
-
       {timedEvents.length === 0 && allDayEvents.length === 0 ? (
         <View style={styles.emptyPlanner}>
           <Clock
             size={28}
             color={colors.neutral.gray400}
           />
-
 
           <Text style={styles.emptyPlannerText}>
             No hay eventos con horario para este día.
@@ -199,7 +199,6 @@ export default function CalendarHourlyAgenda({
       ) : (
         hours.map((hour) => {
           const hourEvents = eventsByHour.get(hour) || [];
-
 
           return (
             <View
@@ -210,9 +209,7 @@ export default function CalendarHourlyAgenda({
                 {getHourLabel(hour)}
               </Text>
 
-
               <View style={styles.hourLine} />
-
 
               <View style={styles.hourBlockContent}>
                 {hourEvents.length > 0
@@ -245,6 +242,8 @@ function EventBlock({
   onLongPress: (event: CalendarEvent) => void;
   compact?: boolean;
 }) {
+  const sourceLabel = getSourceLabel(event.source);
+
   return (
     <TouchableOpacity
       style={[
@@ -263,13 +262,22 @@ function EventBlock({
       delayLongPress={450}
       activeOpacity={0.8}
     >
-      <Text
-        style={styles.hourlyEventTitle}
-        numberOfLines={1}
-      >
-        {event.title}
-      </Text>
+      <View style={styles.hourlyTitleRow}>
+        <Text
+          style={styles.hourlyEventTitle}
+          numberOfLines={1}
+        >
+          {event.title}
+        </Text>
 
+        {sourceLabel ? (
+          <View style={styles.sourceBadge}>
+            <Text style={styles.sourceBadgeText}>
+              {sourceLabel}
+            </Text>
+          </View>
+        ) : null}
+      </View>
 
       {!compact && (
         <Text style={styles.hourlyEventMeta}>
@@ -347,10 +355,28 @@ const styles = StyleSheet.create({
   hourlyEventCardCompact: {
     minHeight: 38,
   },
+  hourlyTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
   hourlyEventTitle: {
+    flex: 1,
+    minWidth: 0,
     fontSize: 11,
     fontWeight: '600',
     color: colors.neutral.text,
+  },
+  sourceBadge: {
+    borderRadius: 5,
+    backgroundColor: '#EAF3FF',
+    paddingHorizontal: 5,
+    paddingVertical: 2,
+  },
+  sourceBadgeText: {
+    fontSize: 7,
+    fontWeight: '800',
+    color: '#0078D4',
   },
   hourlyEventMeta: {
     fontSize: 9,

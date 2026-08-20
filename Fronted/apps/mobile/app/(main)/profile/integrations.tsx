@@ -134,7 +134,7 @@ export default function IntegrationsScreen() {
 
       const authorizationUrl = await startAuthorization(
         provider.provider,
-        [],
+        ['calendar'],
       );
 
       await openAuthorizationUrl(authorizationUrl);

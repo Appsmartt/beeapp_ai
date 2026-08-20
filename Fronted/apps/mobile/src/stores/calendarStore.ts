@@ -9,6 +9,13 @@ export type CalendarEventType =
   | 'event';
 
 
+export type CalendarEventSource =
+  | 'beeapp'
+  | 'google'
+  | 'microsoft'
+  | 'external';
+
+
 export type CalendarRepeat =
   | 'none'
   | 'daily'
@@ -33,6 +40,7 @@ export interface CalendarEvent {
   id: string;
   calendarId: string;
   organizerId: string;
+  source: CalendarEventSource;
   title: string;
   type: CalendarEventType;
   backendKind: 'virtual' | 'in_person' | 'hybrid';
@@ -105,7 +113,6 @@ function formatDate(
     date.getDate(),
   ).padStart(2, '0');
 
-
   return `${year}-${month}-${day}`;
 }
 
@@ -165,7 +172,6 @@ export function upsertCalendarEvent(
     (event) => event.id === nextEvent.id,
   );
 
-
   if (currentIndex === -1) {
     cache = {
       ...cache,
@@ -175,10 +181,8 @@ export function upsertCalendarEvent(
       ],
     };
 
-
     return;
   }
-
 
   cache = {
     ...cache,
@@ -207,7 +211,6 @@ export function getPreferredCalendar(): Calendar | null {
   if (cache.calendars.length === 0) {
     return null;
   }
-
 
   return (
     cache.calendars.find(

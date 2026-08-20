@@ -3,22 +3,24 @@ import {
     useEffect,
     useRef,
     useState,
-    } from 'react';
+} from 'react';
 import {
     discoverExternalCalendars,
     getCalendarIntegrations,
     getExternalCalendars,
+    syncCalendarIntegration,
     updateExternalCalendarPreferences,
-    } from '@beeapp/api-client';
+} from '@beeapp/api-client';
 import type {
     CalendarIntegration,
     ExternalCalendar,
     ExternalCalendarVisibility,
-    } from '@beeapp/shared-types';
+    SyncCalendarIntegrationResponse,
+} from '@beeapp/shared-types';
 
 import {
     getValidSessionCredentials,
-    } from '../services/authSession';
+} from '../services/authSession';
 
 
 export interface UseCalendarIntegrationsResult {
@@ -27,10 +29,15 @@ export interface UseCalendarIntegrationsResult {
         string,
         ExternalCalendar[]
     >;
+    lastSyncResultByIntegrationId: Record<
+        string,
+        SyncCalendarIntegrationResponse
+    >;
     loading: boolean;
     refreshing: boolean;
     loadingExternalIntegrationId: string | null;
     discoveringIntegrationId: string | null;
+    syncingIntegrationId: string | null;
     updatingExternalCalendarId: string | null;
     error: string | null;
     loadCalendarIntegrations: (
@@ -39,17 +46,23 @@ export interface UseCalendarIntegrationsResult {
     loadExternalCalendars: (
         integrationId: string,
         options?: {
-        force?: boolean;
+            force?: boolean;
         },
     ) => Promise<ExternalCalendar[]>;
     discoverCalendars: (
         integrationId: string,
     ) => Promise<ExternalCalendar[]>;
+    syncIntegration: (
+        integrationId: string,
+        options?: {
+            forceFullSync?: boolean;
+        },
+    ) => Promise<SyncCalendarIntegrationResponse>;
     updateExternalCalendar: (
         externalCalendarId: string,
         payload: {
-        is_selected?: boolean;
-        is_visible?: ExternalCalendarVisibility;
+            is_selected?: boolean;
+            is_visible?: ExternalCalendarVisibility;
         },
     ) => Promise<ExternalCalendar>;
     getExternalCalendarsForIntegration: (
@@ -62,7 +75,7 @@ export interface UseCalendarIntegrationsResult {
 function getErrorMessage(
     error: unknown,
     fallback: string,
-    ): string {
+): string {
     if (error instanceof Error && error.message) {
         return error.message;
     }
@@ -74,22 +87,42 @@ function getErrorMessage(
 function replaceExternalCalendar(
     calendars: ExternalCalendar[],
     updatedCalendar: ExternalCalendar,
-    ): ExternalCalendar[] {
+): ExternalCalendar[] {
     const calendarExists = calendars.some(
         (calendar) => calendar.id === updatedCalendar.id,
     );
 
     if (!calendarExists) {
         return [
-        ...calendars,
-        updatedCalendar,
+            ...calendars,
+            updatedCalendar,
         ];
     }
 
     return calendars.map((calendar) => (
         calendar.id === updatedCalendar.id
-        ? updatedCalendar
-        : calendar
+            ? updatedCalendar
+            : calendar
+    ));
+}
+
+
+function replaceIntegration(
+    integrations: CalendarIntegration[],
+    updatedIntegration: CalendarIntegration,
+): CalendarIntegration[] {
+    const integrationExists = integrations.some(
+        (integration) => integration.id === updatedIntegration.id,
+    );
+
+    if (!integrationExists) {
+        return integrations;
+    }
+
+    return integrations.map((integration) => (
+        integration.id === updatedIntegration.id
+            ? updatedIntegration
+            : integration
     ));
 }
 
@@ -101,6 +134,7 @@ function replaceExternalCalendar(
  * - GET   /calendar/integrations/
  * - GET   /calendar/integrations/<integration_id>/external-calendars/
  * - POST  /calendar/integrations/<integration_id>/discover-calendars/
+ * - POST  /calendar/integrations/<integration_id>/sync/
  * - PATCH /calendar/external-calendars/<external_calendar_id>/
  *
  * El cliente móvil solo utiliza la sesión BeeApp. Los tokens OAuth se
@@ -118,8 +152,15 @@ export function useCalendarIntegrations(): UseCalendarIntegrationsResult {
         {},
     );
 
-    const [loading, setLoading] = useState(true);
+    const [
+        lastSyncResultByIntegrationId,
+        setLastSyncResultByIntegrationId,
+    ] = useState<Record<
+        string,
+        SyncCalendarIntegrationResponse
+    >>({});
 
+    const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
 
     const [
@@ -130,6 +171,11 @@ export function useCalendarIntegrations(): UseCalendarIntegrationsResult {
     const [
         discoveringIntegrationId,
         setDiscoveringIntegrationId,
+    ] = useState<string | null>(null);
+
+    const [
+        syncingIntegrationId,
+        setSyncingIntegrationId,
     ] = useState<string | null>(null);
 
     const [
@@ -152,9 +198,9 @@ export function useCalendarIntegrations(): UseCalendarIntegrationsResult {
         const credentials = await getValidSessionCredentials();
 
         if (!credentials) {
-        throw new Error(
-            'Tu sesión expiró. Inicia sesión nuevamente.',
-        );
+            throw new Error(
+                'Tu sesión expiró. Inicia sesión nuevamente.',
+            );
         }
 
         return credentials;
@@ -166,12 +212,12 @@ export function useCalendarIntegrations(): UseCalendarIntegrationsResult {
         calendars: ExternalCalendar[],
     ) => {
         externalCalendarsCacheRef.current = {
-        ...externalCalendarsCacheRef.current,
-        [integrationId]: calendars,
+            ...externalCalendarsCacheRef.current,
+            [integrationId]: calendars,
         };
 
         setExternalCalendarsByIntegrationId(
-        externalCalendarsCacheRef.current,
+            externalCalendarsCacheRef.current,
         );
     }, []);
 
@@ -180,33 +226,33 @@ export function useCalendarIntegrations(): UseCalendarIntegrationsResult {
         showRefresh = false,
     ) => {
         if (showRefresh) {
-        setRefreshing(true);
+            setRefreshing(true);
         } else {
-        setLoading(true);
+            setLoading(true);
         }
 
         setError(null);
 
         try {
-        const auth = await getAuthCredentials();
+            const auth = await getAuthCredentials();
 
-        const response = await getCalendarIntegrations(auth);
+            const response = await getCalendarIntegrations(auth);
 
-        setIntegrations(response.integrations);
+            setIntegrations(response.integrations);
 
-        return response.integrations;
+            return response.integrations;
         } catch (loadError) {
-        const message = getErrorMessage(
-            loadError,
-            'No fue posible cargar las integraciones de Agenda.',
-        );
+            const message = getErrorMessage(
+                loadError,
+                'No fue posible cargar las integraciones de Agenda.',
+            );
 
-        setError(message);
+            setError(message);
 
-        throw loadError;
+            throw loadError;
         } finally {
-        setLoading(false);
-        setRefreshing(false);
+            setLoading(false);
+            setRefreshing(false);
         }
     }, [
         getAuthCredentials,
@@ -216,88 +262,88 @@ export function useCalendarIntegrations(): UseCalendarIntegrationsResult {
     const loadExternalCalendars = useCallback(async (
         integrationId: string,
         options: {
-        force?: boolean;
+            force?: boolean;
         } = {},
     ) => {
         const normalizedIntegrationId = integrationId.trim();
 
         if (!normalizedIntegrationId) {
-        throw new Error(
-            'No fue posible identificar la integración de Agenda.',
-        );
+            throw new Error(
+                'No fue posible identificar la integración de Agenda.',
+            );
         }
 
         const cachedCalendars = (
-        externalCalendarsCacheRef.current[
-            normalizedIntegrationId
-        ]
+            externalCalendarsCacheRef.current[
+                normalizedIntegrationId
+            ]
         );
 
         if (!options.force && cachedCalendars) {
-        return cachedCalendars;
+            return cachedCalendars;
         }
 
         const requestId = (
-        externalCalendarRequestIds.current[
-            normalizedIntegrationId
-        ] || 0
+            externalCalendarRequestIds.current[
+                normalizedIntegrationId
+            ] || 0
         ) + 1;
 
         externalCalendarRequestIds.current[
-        normalizedIntegrationId
+            normalizedIntegrationId
         ] = requestId;
 
         setLoadingExternalIntegrationId(
-        normalizedIntegrationId,
+            normalizedIntegrationId,
         );
 
         setError(null);
 
         try {
-        const auth = await getAuthCredentials();
+            const auth = await getAuthCredentials();
 
-        const response = await getExternalCalendars(
-            auth,
-            normalizedIntegrationId,
-        );
-
-        const fetchedCalendars = response.external_calendars;
-
-        const requestIsCurrent = (
-            externalCalendarRequestIds.current[
-            normalizedIntegrationId
-            ] === requestId
-        );
-
-        if (!requestIsCurrent) {
-            return (
-            externalCalendarsCacheRef.current[
-                normalizedIntegrationId
-            ] || fetchedCalendars
+            const response = await getExternalCalendars(
+                auth,
+                normalizedIntegrationId,
             );
-        }
 
-        setExternalCalendarsForIntegration(
-            normalizedIntegrationId,
-            fetchedCalendars,
-        );
+            const fetchedCalendars = response.external_calendars;
 
-        return fetchedCalendars;
+            const requestIsCurrent = (
+                externalCalendarRequestIds.current[
+                    normalizedIntegrationId
+                ] === requestId
+            );
+
+            if (!requestIsCurrent) {
+                return (
+                    externalCalendarsCacheRef.current[
+                        normalizedIntegrationId
+                    ] || fetchedCalendars
+                );
+            }
+
+            setExternalCalendarsForIntegration(
+                normalizedIntegrationId,
+                fetchedCalendars,
+            );
+
+            return fetchedCalendars;
         } catch (loadError) {
-        const message = getErrorMessage(
-            loadError,
-            'No fue posible cargar los calendarios externos.',
-        );
+            const message = getErrorMessage(
+                loadError,
+                'No fue posible cargar los calendarios externos.',
+            );
 
-        setError(message);
+            setError(message);
 
-        throw loadError;
+            throw loadError;
         } finally {
-        setLoadingExternalIntegrationId((currentId) => (
-            currentId === normalizedIntegrationId
-            ? null
-            : currentId
-        ));
+            setLoadingExternalIntegrationId((currentId) => (
+                currentId === normalizedIntegrationId
+                    ? null
+                    : currentId
+            ));
         }
     }, [
         getAuthCredentials,
@@ -311,48 +357,48 @@ export function useCalendarIntegrations(): UseCalendarIntegrationsResult {
         const normalizedIntegrationId = integrationId.trim();
 
         if (!normalizedIntegrationId) {
-        throw new Error(
-            'No fue posible identificar la integración de Agenda.',
-        );
+            throw new Error(
+                'No fue posible identificar la integración de Agenda.',
+            );
         }
 
         setDiscoveringIntegrationId(normalizedIntegrationId);
         setError(null);
 
         try {
-        const auth = await getAuthCredentials();
+            const auth = await getAuthCredentials();
 
-        const response = await discoverExternalCalendars(
-            auth,
-            normalizedIntegrationId,
-        );
+            const response = await discoverExternalCalendars(
+                auth,
+                normalizedIntegrationId,
+            );
 
-        setExternalCalendarsForIntegration(
-            normalizedIntegrationId,
-            response.external_calendars,
-        );
+            setExternalCalendarsForIntegration(
+                normalizedIntegrationId,
+                response.external_calendars,
+            );
 
-        await loadCalendarIntegrations(true);
+            await loadCalendarIntegrations(true);
 
-        return response.external_calendars;
+            return response.external_calendars;
         } catch (discoveryError) {
-        const message = getErrorMessage(
-            discoveryError,
-            (
-            'No fue posible buscar calendarios en la '
-            + 'cuenta conectada.'
-            ),
-        );
+            const message = getErrorMessage(
+                discoveryError,
+                (
+                    'No fue posible buscar calendarios en la '
+                    + 'cuenta conectada.'
+                ),
+            );
 
-        setError(message);
+            setError(message);
 
-        throw discoveryError;
+            throw discoveryError;
         } finally {
-        setDiscoveringIntegrationId((currentId) => (
-            currentId === normalizedIntegrationId
-            ? null
-            : currentId
-        ));
+            setDiscoveringIntegrationId((currentId) => (
+                currentId === normalizedIntegrationId
+                    ? null
+                    : currentId
+            ));
         }
     }, [
         getAuthCredentials,
@@ -361,78 +407,150 @@ export function useCalendarIntegrations(): UseCalendarIntegrationsResult {
     ]);
 
 
+    const syncIntegration = useCallback(async (
+        integrationId: string,
+        options: {
+            forceFullSync?: boolean;
+        } = {},
+    ) => {
+        const normalizedIntegrationId = integrationId.trim();
+
+        if (!normalizedIntegrationId) {
+            throw new Error(
+                'No fue posible identificar la integración de Agenda.',
+            );
+        }
+
+        setSyncingIntegrationId(normalizedIntegrationId);
+        setError(null);
+
+        try {
+            const auth = await getAuthCredentials();
+
+            const response = await syncCalendarIntegration(
+                auth,
+                normalizedIntegrationId,
+                {
+                    force_full_sync: Boolean(
+                        options.forceFullSync,
+                    ),
+                },
+            );
+
+            setLastSyncResultByIntegrationId((currentResults) => ({
+                ...currentResults,
+                [normalizedIntegrationId]: response,
+            }));
+
+            setIntegrations((currentIntegrations) => (
+                replaceIntegration(
+                    currentIntegrations,
+                    response.integration,
+                )
+            ));
+
+            await loadExternalCalendars(
+                normalizedIntegrationId,
+                {
+                    force: true,
+                },
+            );
+
+            return response;
+        } catch (syncError) {
+            const message = getErrorMessage(
+                syncError,
+                'No fue posible sincronizar los calendarios externos.',
+            );
+
+            setError(message);
+
+            throw syncError;
+        } finally {
+            setSyncingIntegrationId((currentId) => (
+                currentId === normalizedIntegrationId
+                    ? null
+                    : currentId
+            ));
+        }
+    }, [
+        getAuthCredentials,
+        loadExternalCalendars,
+    ]);
+
+
     const updateExternalCalendar = useCallback(async (
         externalCalendarId: string,
         payload: {
-        is_selected?: boolean;
-        is_visible?: ExternalCalendarVisibility;
+            is_selected?: boolean;
+            is_visible?: ExternalCalendarVisibility;
         },
     ) => {
         const normalizedExternalCalendarId = (
-        externalCalendarId.trim()
+            externalCalendarId.trim()
         );
 
         if (!normalizedExternalCalendarId) {
-        throw new Error(
-            'No fue posible identificar el calendario externo.',
-        );
+            throw new Error(
+                'No fue posible identificar el calendario externo.',
+            );
         }
 
         if (
-        payload.is_selected === undefined
-        && payload.is_visible === undefined
+            payload.is_selected === undefined
+            && payload.is_visible === undefined
         ) {
-        throw new Error(
-            'Selecciona una preferencia para actualizar.',
-        );
+            throw new Error(
+                'Selecciona una preferencia para actualizar.',
+            );
         }
 
         setUpdatingExternalCalendarId(
-        normalizedExternalCalendarId,
+            normalizedExternalCalendarId,
         );
 
         setError(null);
 
         try {
-        const auth = await getAuthCredentials();
+            const auth = await getAuthCredentials();
 
-        const response = await updateExternalCalendarPreferences(
-            auth,
-            normalizedExternalCalendarId,
-            payload,
-        );
+            const response = await updateExternalCalendarPreferences(
+                auth,
+                normalizedExternalCalendarId,
+                payload,
+            );
 
-        const updatedCalendar = response.external_calendar;
+            const updatedCalendar = response.external_calendar;
 
-        const currentCalendars = (
-            externalCalendarsCacheRef.current[
-            updatedCalendar.integration_id
-            ] || []
-        );
+            const currentCalendars = (
+                externalCalendarsCacheRef.current[
+                    updatedCalendar.integration_id
+                ] || []
+            );
 
-        setExternalCalendarsForIntegration(
-            updatedCalendar.integration_id,
-            replaceExternalCalendar(
-            currentCalendars,
-            updatedCalendar,
-            ),
-        );
+            setExternalCalendarsForIntegration(
+                updatedCalendar.integration_id,
+                replaceExternalCalendar(
+                    currentCalendars,
+                    updatedCalendar,
+                ),
+            );
 
-        return updatedCalendar;
+            return updatedCalendar;
         } catch (updateError) {
-        const message = getErrorMessage(
-            updateError,
-            (
-            'No fue posible actualizar las preferencias '
-            + 'del calendario.'
-            ),
-        );
+            const message = getErrorMessage(
+                updateError,
+                (
+                    'No fue posible actualizar las preferencias '
+                    + 'del calendario.'
+                ),
+            );
 
-        setError(message);
+            setError(message);
 
-        throw updateError;
+            throw updateError;
         } finally {
-        setUpdatingExternalCalendarId(null);
+            setUpdatingExternalCalendarId(null);
         }
     }, [
         getAuthCredentials,
@@ -444,7 +562,7 @@ export function useCalendarIntegrations(): UseCalendarIntegrationsResult {
         integrationId: string,
     ) => {
         return (
-        externalCalendarsByIntegrationId[integrationId] || []
+            externalCalendarsByIntegrationId[integrationId] || []
         );
     }, [
         externalCalendarsByIntegrationId,
@@ -458,9 +576,9 @@ export function useCalendarIntegrations(): UseCalendarIntegrationsResult {
 
     useEffect(() => {
         void loadCalendarIntegrations()
-        .catch(() => {
-            // El mensaje ya se conserva en el estado error del hook.
-        });
+            .catch(() => {
+                // El mensaje ya se conserva en el estado error del hook.
+            });
     }, [
         loadCalendarIntegrations,
     ]);
@@ -469,15 +587,18 @@ export function useCalendarIntegrations(): UseCalendarIntegrationsResult {
     return {
         integrations,
         externalCalendarsByIntegrationId,
+        lastSyncResultByIntegrationId,
         loading,
         refreshing,
         loadingExternalIntegrationId,
         discoveringIntegrationId,
+        syncingIntegrationId,
         updatingExternalCalendarId,
         error,
         loadCalendarIntegrations,
         loadExternalCalendars,
         discoverCalendars,
+        syncIntegration,
         updateExternalCalendar,
         getExternalCalendarsForIntegration,
         clearError,

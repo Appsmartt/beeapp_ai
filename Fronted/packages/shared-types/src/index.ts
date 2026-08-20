@@ -1736,3 +1736,19 @@ export interface DiscoverExternalCalendarsResponse {
 export interface UpdateExternalCalendarPreferencesResponse {
   external_calendar: ExternalCalendar;
 }
+
+export interface SyncCalendarIntegrationPayload {
+  force_full_sync?: boolean;
+}
+
+export interface SyncCalendarIntegrationResponse {
+  integration_id: string;
+  provider: IntegrationProvider;
+  synced_external_calendar_count: number;
+  fetched_event_count: number;
+  created_event_count: number;
+  updated_event_count: number;
+  skipped_event_count: number;
+  synced_events_count: number;
+  integration: CalendarIntegration;
+}
