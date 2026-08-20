@@ -40,6 +40,7 @@ import type {
   CalendarEventKind,
   CalendarPreferences,
   CreateCalendarEventPayload,
+  UpdateCalendarEventPayload,
 } from '@beeapp/shared-types';
 
 import ModuleNotificationBell from '../ModuleNotificationBell';
@@ -778,13 +779,9 @@ export default function CalendarModule() {
       (calendar) => (
         calendar.is_default
         && !calendar.is_archived
-        && calendar.can_create_events !== false
       ),
     ) || calendars.find(
-      (calendar) => (
-        !calendar.is_archived
-        && calendar.can_create_events !== false
-      ),
+      (calendar) => !calendar.is_archived,
     ) || null,
     [calendars],
   );
@@ -830,12 +827,9 @@ export default function CalendarModule() {
   const openEditModal = (
     event: CalendarEvent,
   ) => {
-    if (
-      event.source !== 'beeapp'
-      || event.can_edit === false
-    ) {
+    if (event.can_edit === false) {
       setErrorMessage(
-        'Los eventos sincronizados o de solo lectura no se pueden editar desde BeeApp.',
+        'No tienes permisos para editar este evento.',
       );
       return;
     }
@@ -945,6 +939,19 @@ export default function CalendarModule() {
       payload.ends_at = endsAt;
     }
 
+    const updatePayload: UpdateCalendarEventPayload = {
+      title: values.title.trim(),
+      description: values.description.trim() || null,
+      is_all_day: values.isAllDay,
+      starts_at: payload.starts_at,
+      ends_at: payload.ends_at,
+      starts_on: payload.starts_on,
+      ends_on: payload.ends_on,
+      timezone: preferences?.timezone || 'America/Bogota',
+      location_name: values.locationName.trim() || null,
+      location_address: values.locationAddress.trim() || null,
+    };
+
     try {
       setSaving(true);
       setConflicts([]);
@@ -964,9 +971,7 @@ export default function CalendarModule() {
       if (editingEvent) {
         await updateCurrentWebCalendarEvent(
           editingEvent.id,
-          {
-            ...payload,
-          },
+          updatePayload,
         );
 
         showSuccess(
@@ -992,12 +997,9 @@ export default function CalendarModule() {
   const handleDelete = async (
     event: CalendarEvent,
   ) => {
-    if (
-      event.source !== 'beeapp'
-      || event.can_delete === false
-    ) {
+    if (event.can_delete === false) {
       setErrorMessage(
-        'Este evento no se puede eliminar desde BeeApp.',
+        'No tienes permisos para eliminar este evento.',
       );
       return;
     }
@@ -1449,10 +1451,7 @@ export default function CalendarModule() {
         <CalendarEventModal
           event={editingEvent}
           calendars={calendars.filter(
-            (calendar) => (
-              !calendar.is_archived
-              && calendar.can_create_events !== false
-            ),
+            (calendar) => !calendar.is_archived,
           )}
           initialValues={
             editingEvent
@@ -1479,6 +1478,7 @@ export default function CalendarModule() {
   );
 }
 
+
 function CalendarEventPanel({
   event,
   saving,
@@ -1497,15 +1497,9 @@ function CalendarEventPanel({
   ) => void;
 }) {
   const meetingUrl = getMeetingUrl(event);
-  const canEdit = (
-    event.source === 'beeapp'
-    && event.can_edit !== false
-  );
+  const canEdit = event.can_edit !== false;
 
-  const canDelete = (
-    event.source === 'beeapp'
-    && event.can_delete !== false
-  );
+  const canDelete = event.can_delete !== false;
 
   const attendeeCount = event.attendees?.filter(
     (attendee) => attendee.response_status !== 'removed',
@@ -1586,18 +1580,6 @@ function CalendarEventPanel({
             </p>
           </div>
         </div>
-
-        {event.source !== 'beeapp' ? (
-          <div className="rounded-xl border border-indigo-100 bg-indigo-50 px-3 py-2 text-xs text-indigo-700">
-            Este evento se sincronizó desde{' '}
-            <span className="font-semibold">
-              {event.source === 'google'
-                ? 'Google Calendar'
-                : 'Microsoft Outlook'}
-            </span>
-            . Los cambios se administran desde la fuente original.
-          </div>
-        ) : null}
 
         {event.current_user_attendee ? (
           <section className="rounded-2xl border border-neutral-200 bg-neutral-50 p-4">
