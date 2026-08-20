@@ -26,7 +26,9 @@ import {
   TrendingUp,
   Video,
 } from 'lucide-react-native';
-import { colors } from '@beeapp/design-system';
+import {
+  colors,
+} from '@beeapp/design-system';
 import {
   getNotifications,
   getStorageSummary,
@@ -53,15 +55,37 @@ import {
 import {
   useNotes,
 } from '../../hooks/useNotes';
-import { styles } from './allModulesOverviewStyles';
+import {
+  getCalendarEvents,
+  TODAY_STR,
+  type CalendarEvent,
+} from '../../stores/calendarStore';
+import {
+  styles,
+} from './allModulesOverviewStyles';
+
 
 const STORAGE_NOTIFICATION_MODULE = 'storage';
 
+
 const MOCK_AVATARS = [
-  { initials: 'CM', bg: '#DBEAFE', text: '#1E40AF' },
-  { initials: 'MA', bg: '#FEF3C7', text: '#92400E' },
-  { initials: 'JP', bg: '#ECFDF5', text: '#065F46' },
+  {
+    initials: 'CM',
+    bg: '#DBEAFE',
+    text: '#1E40AF',
+  },
+  {
+    initials: 'MA',
+    bg: '#FEF3C7',
+    text: '#92400E',
+  },
+  {
+    initials: 'JP',
+    bg: '#ECFDF5',
+    text: '#065F46',
+  },
 ];
+
 
 function getUsagePercentage(
   usedBytes: number,
@@ -72,7 +96,10 @@ function getUsagePercentage(
     Number.isFinite(apiPercentage)
     && apiPercentage >= 0
   ) {
-    return Math.min(100, Math.max(0, apiPercentage));
+    return Math.min(
+      100,
+      Math.max(0, apiPercentage),
+    );
   }
 
   if (
@@ -85,9 +112,117 @@ function getUsagePercentage(
 
   return Math.min(
     100,
-    Math.max(0, (usedBytes / quotaBytes) * 100),
+    Math.max(
+      0,
+      (usedBytes / quotaBytes) * 100,
+    ),
   );
 }
+
+
+function getTomorrowDateString(): string {
+  const [
+    year,
+    month,
+    day,
+  ] = TODAY_STR
+    .split('-')
+    .map(Number);
+
+  const today = new Date(
+    year,
+    month - 1,
+    day,
+  );
+
+  today.setDate(today.getDate() + 1);
+
+  const nextYear = today.getFullYear();
+  const nextMonth = String(
+    today.getMonth() + 1,
+  ).padStart(2, '0');
+  const nextDay = String(
+    today.getDate(),
+  ).padStart(2, '0');
+
+  return `${nextYear}-${nextMonth}-${nextDay}`;
+}
+
+
+function getAgendaDayLabel(
+  eventDate: string,
+): string {
+  if (eventDate === TODAY_STR) {
+    return 'Hoy';
+  }
+
+  if (eventDate === getTomorrowDateString()) {
+    return 'Mañana';
+  }
+
+  const [
+    year,
+    month,
+    day,
+  ] = eventDate
+    .split('-')
+    .map(Number);
+
+  const date = new Date(
+    year,
+    month - 1,
+    day,
+  );
+
+  return date.toLocaleDateString(
+    'es-CO',
+    {
+      day: 'numeric',
+      month: 'short',
+    },
+  );
+}
+
+
+function getAgendaMeta(
+  event: CalendarEvent,
+): string {
+  if (event.isAllDay) {
+    return 'Todo el día';
+  }
+
+  const location = event.isVirtual
+    ? 'Virtual'
+    : event.location || 'Presencial';
+
+  return `${event.timeStart} · ${location}`;
+}
+
+
+function getUpcomingCalendarEvents(): CalendarEvent[] {
+  return getCalendarEvents()
+    .filter((event) => event.date >= TODAY_STR)
+    .sort((first, second) => {
+      if (first.date !== second.date) {
+        return first.date.localeCompare(
+          second.date,
+        );
+      }
+
+      if (first.isAllDay && !second.isAllDay) {
+        return -1;
+      }
+
+      if (!first.isAllDay && second.isAllDay) {
+        return 1;
+      }
+
+      return first.timeStart.localeCompare(
+        second.timeStart,
+      );
+    });
+}
+
 
 export default function AllModulesOverview() {
   const router = useModuleNav();
@@ -106,8 +241,25 @@ export default function AllModulesOverview() {
       getStoredStorageSummary(),
     );
 
-  const [unreadStorageNotifications, setUnreadStorageNotifications] =
-    useState(0);
+  const [
+    unreadStorageNotifications,
+    setUnreadStorageNotifications,
+  ] = useState(0);
+
+  const upcomingCalendarEvents = useMemo(
+    () => getUpcomingCalendarEvents(),
+    [],
+  );
+
+  const todayCalendarEvents = useMemo(
+    () =>
+      upcomingCalendarEvents.filter(
+        (event) => event.date === TODAY_STR,
+      ),
+    [upcomingCalendarEvents],
+  );
+
+  const nextCalendarEvent = upcomingCalendarEvents[0] || null;
 
   const totalNotes = useMemo(
     () => getFixedViewNotes('all', notes).length,
@@ -118,43 +270,51 @@ export default function AllModulesOverview() {
     ? '1 nota'
     : `${totalNotes} notas`;
 
-  const loadStorageCardData = useCallback(async () => {
-    try {
-      const auth = await getValidSessionCredentials();
+  const loadStorageCardData = useCallback(
+    async () => {
+      try {
+        const auth =
+          await getValidSessionCredentials();
 
-      if (!auth) {
-        return;
+        if (!auth) {
+          return;
+        }
+
+        const [
+          summaryResponse,
+          notificationsResponse,
+        ] = await Promise.all([
+          getStorageSummary(auth),
+          getNotifications(auth, {
+            module: STORAGE_NOTIFICATION_MODULE,
+            unread_only: true,
+            limit: 1,
+            offset: 0,
+          }),
+        ]);
+
+        setStorageSummary(summaryResponse.storage);
+        setLocalStorageSummary(
+          summaryResponse.storage,
+        );
+
+        setUnreadStorageNotifications(
+          notificationsResponse.unread_count,
+        );
+      } catch {
+        // Si falla la consulta se conserva el último resumen en memoria.
       }
-
-      const [
-        summaryResponse,
-        notificationsResponse,
-      ] = await Promise.all([
-        getStorageSummary(auth),
-        getNotifications(auth, {
-          module: STORAGE_NOTIFICATION_MODULE,
-          unread_only: true,
-          limit: 1,
-          offset: 0,
-        }),
-      ]);
-
-      setStorageSummary(summaryResponse.storage);
-      setLocalStorageSummary(summaryResponse.storage);
-
-      setUnreadStorageNotifications(
-        notificationsResponse.unread_count,
-      );
-    } catch {
-      // Si falla la consulta se conserva el último resumen en memoria.
-    }
-  }, []);
+    },
+    [],
+  );
 
   useEffect(() => {
     void loadStorageCardData();
   }, [loadStorageCardData]);
 
-  const handleOpenModule = (id: string) => {
+  const handleOpenModule = (
+    id: string,
+  ) => {
     if (onOpenModule) {
       onOpenModule(id);
       return;
@@ -192,6 +352,10 @@ export default function AllModulesOverview() {
     unreadStorageNotifications === 1
       ? '1 notificación sin leer'
       : `${unreadStorageNotifications} notificaciones sin leer`;
+
+  const todayEventsLabel = todayCalendarEvents.length === 1
+    ? '1 hoy'
+    : `${todayCalendarEvents.length} hoy`;
 
   return (
     <ScrollView
@@ -528,35 +692,67 @@ export default function AllModulesOverview() {
               Calendario
             </Text>
 
-            <View style={styles.badgesContainer}>
-              <View style={styles.badgePill}>
-                <Text style={styles.badgeText}>
-                  3 Hoy
-                </Text>
-              </View>
+            {upcomingCalendarEvents.length > 0 ? (
+              <View style={styles.badgesContainer}>
+                <View style={styles.badgePill}>
+                  <Text style={styles.badgeText}>
+                    {todayEventsLabel}
+                  </Text>
+                </View>
 
-              <View style={styles.badgePillOrange}>
-                <Text style={styles.badgeTextOrange}>
-                  1 Reunión en 45 min
-                </Text>
+                <View style={styles.badgePillOrange}>
+                  <Text style={styles.badgeTextOrange}>
+                    Próximo: {getAgendaDayLabel(
+                      nextCalendarEvent?.date || TODAY_STR,
+                    )}
+                  </Text>
+                </View>
               </View>
-            </View>
+            ) : (
+              <View style={styles.badgesContainer}>
+                <View style={styles.badgePillGray}>
+                  <Text style={styles.badgeTextGray}>
+                    Sin eventos próximos
+                  </Text>
+                </View>
+              </View>
+            )}
           </View>
 
           <View style={styles.cardFooterBox}>
-            <View style={styles.eventFooterRow}>
-              <Video
-                size={13}
-                color="#6025d2B3"
-              />
+            {nextCalendarEvent ? (
+              <View style={styles.eventFooterRow}>
+                {nextCalendarEvent.isVirtual ? (
+                  <Video
+                    size={13}
+                    color="#6025D2B3"
+                  />
+                ) : (
+                  <Calendar
+                    size={13}
+                    color="#6025D2B3"
+                  />
+                )}
 
+                <Text
+                  style={styles.cardPreviewText}
+                  numberOfLines={1}
+                >
+                  {`${getAgendaDayLabel(
+                    nextCalendarEvent.date,
+                  )} · ${getAgendaMeta(nextCalendarEvent)} · ${
+                    nextCalendarEvent.title
+                  }`}
+                </Text>
+              </View>
+            ) : (
               <Text
                 style={styles.cardPreviewText}
                 numberOfLines={1}
               >
-                14:00 - Sincronización semanal
+                Toca para abrir tu Agenda
               </Text>
-            </View>
+            )}
           </View>
         </TouchableOpacity>
 
