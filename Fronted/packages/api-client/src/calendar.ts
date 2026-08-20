@@ -23,45 +23,48 @@ import type {
     UpdateCalendarEventResponse,
     UpdateExternalCalendarPreferencesPayload,
     UpdateExternalCalendarPreferencesResponse,
-    } from '@beeapp/shared-types';
+} from '@beeapp/shared-types';
 
 import { api } from './client';
 
+const WEB_OPTIONS = {
+    credentials: 'include' as RequestCredentials,
+};
 
 function buildQuery(
     params: object,
-    ): string {
+): string {
     const searchParams = new URLSearchParams();
 
     Object.entries(params).forEach(([key, value]) => {
         if (
-        value === undefined
-        || value === null
-        || value === ''
+            value === undefined
+            || value === null
+            || value === ''
         ) {
-        return;
+            return;
         }
 
         if (Array.isArray(value)) {
-        value.forEach((item) => {
-            if (
-            item !== undefined
-            && item !== null
-            && item !== ''
-            ) {
-            searchParams.append(
-                key,
-                String(item),
-            );
-            }
-        });
+            value.forEach((item) => {
+                if (
+                    item !== undefined
+                    && item !== null
+                    && item !== ''
+                ) {
+                    searchParams.append(
+                        key,
+                        String(item),
+                    );
+                }
+            });
 
-        return;
+            return;
         }
 
         searchParams.set(
-        key,
-        String(value),
+            key,
+            String(value),
         );
     });
 
@@ -70,63 +73,58 @@ function buildQuery(
     return query ? `?${query}` : '';
 }
 
-
 function eventPath(
     eventId: string,
-    ): string {
+): string {
     return `/calendar/events/${encodeURIComponent(eventId)}/`;
 }
 
-
 function calendarIntegrationPath(
     integrationId: string,
-    ): string {
+): string {
     return (
         '/calendar/integrations/'
         + `${encodeURIComponent(integrationId)}/`
     );
 }
 
-
 function externalCalendarsPath(
     integrationId: string,
-    ): string {
+): string {
     return (
         `${calendarIntegrationPath(integrationId)}`
         + 'external-calendars/'
     );
 }
 
-
 function discoverCalendarsPath(
     integrationId: string,
-    ): string {
+): string {
     return (
         `${calendarIntegrationPath(integrationId)}`
         + 'discover-calendars/'
     );
 }
 
-
 function syncCalendarIntegrationPath(
     integrationId: string,
-    ): string {
+): string {
     return (
         `${calendarIntegrationPath(integrationId)}`
         + 'sync/'
     );
 }
 
-
 function externalCalendarPath(
     externalCalendarId: string,
-    ): string {
+): string {
     return (
         '/calendar/external-calendars/'
         + `${encodeURIComponent(externalCalendarId)}/`
     );
 }
 
+/* Mobile API: explicit token/session authentication. */
 
 export function getCalendarBootstrap(
     auth: AuthCredentials,
@@ -134,40 +132,37 @@ export function getCalendarBootstrap(
         CalendarEventsQuery,
         'range_start' | 'range_end'
     >,
-    ): Promise<GetCalendarBootstrapResponse> {
+): Promise<GetCalendarBootstrapResponse> {
     return api.get<GetCalendarBootstrapResponse>(
         `/calendar/bootstrap/${buildQuery(query)}`,
         { auth },
     );
 }
 
-
 export function getCalendarEvents(
     auth: AuthCredentials,
     query: CalendarEventsQuery,
-    ): Promise<GetCalendarEventsResponse> {
+): Promise<GetCalendarEventsResponse> {
     return api.get<GetCalendarEventsResponse>(
         `/calendar/events/${buildQuery(query)}`,
         { auth },
     );
 }
 
-
 export function getCalendarEvent(
     auth: AuthCredentials,
     eventId: string,
-    ): Promise<GetCalendarEventResponse> {
+): Promise<GetCalendarEventResponse> {
     return api.get<GetCalendarEventResponse>(
         eventPath(eventId),
         { auth },
     );
 }
 
-
 export function createCalendar(
     auth: AuthCredentials,
     payload: CreateCalendarPayload,
-    ): Promise<CreateCalendarResponse> {
+): Promise<CreateCalendarResponse> {
     return api.post<CreateCalendarResponse>(
         '/calendar/calendars/',
         payload,
@@ -175,11 +170,10 @@ export function createCalendar(
     );
 }
 
-
 export function createCalendarEvent(
     auth: AuthCredentials,
     payload: CreateCalendarEventPayload,
-    ): Promise<CreateCalendarEventResponse> {
+): Promise<CreateCalendarEventResponse> {
     return api.post<CreateCalendarEventResponse>(
         '/calendar/events/',
         payload,
@@ -187,12 +181,11 @@ export function createCalendarEvent(
     );
 }
 
-
 export function updateCalendarEvent(
     auth: AuthCredentials,
     eventId: string,
     payload: UpdateCalendarEventPayload,
-    ): Promise<UpdateCalendarEventResponse> {
+): Promise<UpdateCalendarEventResponse> {
     return api.patch<UpdateCalendarEventResponse>(
         eventPath(eventId),
         payload,
@@ -200,23 +193,21 @@ export function updateCalendarEvent(
     );
 }
 
-
 export async function deleteCalendarEvent(
     auth: AuthCredentials,
     eventId: string,
-    ): Promise<void> {
+): Promise<void> {
     await api.delete<void>(
         eventPath(eventId),
         { auth },
     );
 }
 
-
 export function duplicateCalendarEvent(
     auth: AuthCredentials,
     eventId: string,
     payload: DuplicateCalendarEventPayload,
-    ): Promise<CreateCalendarEventResponse> {
+): Promise<CreateCalendarEventResponse> {
     return api.post<CreateCalendarEventResponse>(
         `${eventPath(eventId)}duplicate/`,
         payload,
@@ -224,105 +215,77 @@ export function duplicateCalendarEvent(
     );
 }
 
-
 export function searchCalendarUsers(
     auth: AuthCredentials,
     query: string,
     limit = 20,
-    ): Promise<SearchCalendarUsersResponse> {
+): Promise<SearchCalendarUsersResponse> {
     return api.get<SearchCalendarUsersResponse>(
         `/calendar/users/search/${buildQuery({
-        q: query,
-        limit,
+            q: query,
+            limit,
         })}`,
         { auth },
     );
 }
 
-
 export function respondToCalendarEvent(
     auth: AuthCredentials,
     eventId: string,
     responseStatus: 'accepted' | 'declined',
-    ): Promise<RespondToCalendarEventResponse> {
+): Promise<RespondToCalendarEventResponse> {
     return api.post<RespondToCalendarEventResponse>(
         `${eventPath(eventId)}rsvp/`,
         {
-        response_status: responseStatus,
+            response_status: responseStatus,
         },
         { auth },
     );
 }
 
-
 export function getCalendarConflicts(
     auth: AuthCredentials,
     query: CalendarConflictQuery,
-    ): Promise<GetCalendarConflictsResponse> {
+): Promise<GetCalendarConflictsResponse> {
     return api.get<GetCalendarConflictsResponse>(
         `/calendar/conflicts/${buildQuery(query)}`,
         { auth },
     );
 }
 
-
-/**
- * Obtiene las integraciones externas disponibles dentro del módulo Agenda.
- *
- * Esta respuesta incluye únicamente datos públicos: proveedor, cuenta,
- * estado de sincronización, scopes otorgados y estado de reautorización.
- * Nunca incluye tokens de OAuth.
- */
 export function getCalendarIntegrations(
     auth: AuthCredentials,
-    ): Promise<GetCalendarIntegrationsResponse> {
+): Promise<GetCalendarIntegrationsResponse> {
     return api.get<GetCalendarIntegrationsResponse>(
         '/calendar/integrations/',
         { auth },
     );
 }
 
-
-/**
- * Obtiene una integración específica de Agenda que pertenece al usuario
- * autenticado.
- */
 export function getCalendarIntegration(
     auth: AuthCredentials,
     integrationId: string,
-    ): Promise<GetCalendarIntegrationResponse> {
+): Promise<GetCalendarIntegrationResponse> {
     return api.get<GetCalendarIntegrationResponse>(
         calendarIntegrationPath(integrationId),
         { auth },
     );
 }
 
-
-/**
- * Lista los calendarios externos que ya fueron descubiertos y persistidos
- * para una integración concreta, por ejemplo Google Calendar u Outlook.
- */
 export function getExternalCalendars(
     auth: AuthCredentials,
     integrationId: string,
-    ): Promise<GetExternalCalendarsResponse> {
+): Promise<GetExternalCalendarsResponse> {
     return api.get<GetExternalCalendarsResponse>(
         externalCalendarsPath(integrationId),
         { auth },
     );
 }
 
-
-/**
- * Solicita al backend buscar calendarios del proveedor externo.
- *
- * El backend maneja los tokens OAuth, llama a Google/Microsoft Graph y
- * persiste los calendarios encontrados. Mobile nunca recibe credenciales.
- */
 export function discoverExternalCalendars(
     auth: AuthCredentials,
     integrationId: string,
-    ): Promise<DiscoverExternalCalendarsResponse> {
+): Promise<DiscoverExternalCalendarsResponse> {
     return api.post<DiscoverExternalCalendarsResponse>(
         discoverCalendarsPath(integrationId),
         {},
@@ -330,16 +293,11 @@ export function discoverExternalCalendars(
     );
 }
 
-
-/**
- * Sincroniza manualmente los eventos de los calendarios externos
- * seleccionados para una integración.
- */
 export function syncCalendarIntegration(
     auth: AuthCredentials,
     integrationId: string,
     payload: SyncCalendarIntegrationPayload = {},
-    ): Promise<SyncCalendarIntegrationResponse> {
+): Promise<SyncCalendarIntegrationResponse> {
     return api.post<SyncCalendarIntegrationResponse>(
         syncCalendarIntegrationPath(integrationId),
         payload,
@@ -347,22 +305,189 @@ export function syncCalendarIntegration(
     );
 }
 
-
-/**
- * Actualiza preferencias locales de un calendario externo persistido.
- *
- * Campos permitidos:
- * - is_selected: incluye/excluye el calendario de selección futura.
- * - is_visible: 'visible' o 'hidden'.
- */
 export function updateExternalCalendarPreferences(
     auth: AuthCredentials,
     externalCalendarId: string,
     payload: UpdateExternalCalendarPreferencesPayload,
-    ): Promise<UpdateExternalCalendarPreferencesResponse> {
+): Promise<UpdateExternalCalendarPreferencesResponse> {
     return api.patch<UpdateExternalCalendarPreferencesResponse>(
         externalCalendarPath(externalCalendarId),
         payload,
         { auth },
+    );
+}
+
+/* Web API: HttpOnly web-session cookie authentication. */
+
+export function getCurrentWebCalendarBootstrap(
+    query: Pick<
+        CalendarEventsQuery,
+        'range_start' | 'range_end'
+    >,
+): Promise<GetCalendarBootstrapResponse> {
+    return api.get<GetCalendarBootstrapResponse>(
+        `/calendar/bootstrap/${buildQuery(query)}`,
+        WEB_OPTIONS,
+    );
+}
+
+export function getCurrentWebCalendarEvents(
+    query: CalendarEventsQuery,
+): Promise<GetCalendarEventsResponse> {
+    return api.get<GetCalendarEventsResponse>(
+        `/calendar/events/${buildQuery(query)}`,
+        WEB_OPTIONS,
+    );
+}
+
+export function getCurrentWebCalendarEvent(
+    eventId: string,
+): Promise<GetCalendarEventResponse> {
+    return api.get<GetCalendarEventResponse>(
+        eventPath(eventId),
+        WEB_OPTIONS,
+    );
+}
+
+export function createCurrentWebCalendar(
+    payload: CreateCalendarPayload,
+): Promise<CreateCalendarResponse> {
+    return api.post<CreateCalendarResponse>(
+        '/calendar/calendars/',
+        payload,
+        WEB_OPTIONS,
+    );
+}
+
+export function createCurrentWebCalendarEvent(
+    payload: CreateCalendarEventPayload,
+): Promise<CreateCalendarEventResponse> {
+    return api.post<CreateCalendarEventResponse>(
+        '/calendar/events/',
+        payload,
+        WEB_OPTIONS,
+    );
+}
+
+export function updateCurrentWebCalendarEvent(
+    eventId: string,
+    payload: UpdateCalendarEventPayload,
+): Promise<UpdateCalendarEventResponse> {
+    return api.patch<UpdateCalendarEventResponse>(
+        eventPath(eventId),
+        payload,
+        WEB_OPTIONS,
+    );
+}
+
+export async function deleteCurrentWebCalendarEvent(
+    eventId: string,
+): Promise<void> {
+    await api.delete<void>(
+        eventPath(eventId),
+        WEB_OPTIONS,
+    );
+}
+
+export function duplicateCurrentWebCalendarEvent(
+    eventId: string,
+    payload: DuplicateCalendarEventPayload,
+): Promise<CreateCalendarEventResponse> {
+    return api.post<CreateCalendarEventResponse>(
+        `${eventPath(eventId)}duplicate/`,
+        payload,
+        WEB_OPTIONS,
+    );
+}
+
+export function searchCurrentWebCalendarUsers(
+    query: string,
+    limit = 20,
+): Promise<SearchCalendarUsersResponse> {
+    return api.get<SearchCalendarUsersResponse>(
+        `/calendar/users/search/${buildQuery({
+            q: query,
+            limit,
+        })}`,
+        WEB_OPTIONS,
+    );
+}
+
+export function respondCurrentWebCalendarEvent(
+    eventId: string,
+    responseStatus: 'accepted' | 'declined',
+): Promise<RespondToCalendarEventResponse> {
+    return api.post<RespondToCalendarEventResponse>(
+        `${eventPath(eventId)}rsvp/`,
+        {
+            response_status: responseStatus,
+        },
+        WEB_OPTIONS,
+    );
+}
+
+export function getCurrentWebCalendarConflicts(
+    query: CalendarConflictQuery,
+): Promise<GetCalendarConflictsResponse> {
+    return api.get<GetCalendarConflictsResponse>(
+        `/calendar/conflicts/${buildQuery(query)}`,
+        WEB_OPTIONS,
+    );
+}
+
+export function getCurrentWebCalendarIntegrations(): Promise<GetCalendarIntegrationsResponse> {
+    return api.get<GetCalendarIntegrationsResponse>(
+        '/calendar/integrations/',
+        WEB_OPTIONS,
+    );
+}
+
+export function getCurrentWebCalendarIntegration(
+    integrationId: string,
+): Promise<GetCalendarIntegrationResponse> {
+    return api.get<GetCalendarIntegrationResponse>(
+        calendarIntegrationPath(integrationId),
+        WEB_OPTIONS,
+    );
+}
+
+export function getCurrentWebExternalCalendars(
+    integrationId: string,
+): Promise<GetExternalCalendarsResponse> {
+    return api.get<GetExternalCalendarsResponse>(
+        externalCalendarsPath(integrationId),
+        WEB_OPTIONS,
+    );
+}
+
+export function discoverCurrentWebExternalCalendars(
+    integrationId: string,
+): Promise<DiscoverExternalCalendarsResponse> {
+    return api.post<DiscoverExternalCalendarsResponse>(
+        discoverCalendarsPath(integrationId),
+        {},
+        WEB_OPTIONS,
+    );
+}
+
+export function syncCurrentWebCalendarIntegration(
+    integrationId: string,
+    payload: SyncCalendarIntegrationPayload = {},
+): Promise<SyncCalendarIntegrationResponse> {
+    return api.post<SyncCalendarIntegrationResponse>(
+        syncCalendarIntegrationPath(integrationId),
+        payload,
+        WEB_OPTIONS,
+    );
+}
+
+export function updateCurrentWebExternalCalendarPreferences(
+    externalCalendarId: string,
+    payload: UpdateExternalCalendarPreferencesPayload,
+): Promise<UpdateExternalCalendarPreferencesResponse> {
+    return api.patch<UpdateExternalCalendarPreferencesResponse>(
+        externalCalendarPath(externalCalendarId),
+        payload,
+        WEB_OPTIONS,
     );
 }

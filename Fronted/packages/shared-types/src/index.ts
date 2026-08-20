@@ -1300,11 +1300,25 @@ export interface CalendarEvent {
   metadata?: Record<string, unknown> | null;
   created_at: string;
   updated_at: string;
+
   attendees?: CalendarEventAttendee[];
   conferences?: CalendarConference[];
   reminders?: CalendarReminder[];
   tags?: CalendarTag[];
   recurrence?: CalendarRecurrence | null;
+
+  viewer_permission?: CalendarSharePermission
+    | 'organizer'
+    | null;
+
+  can_edit?: boolean;
+  can_delete?: boolean;
+  can_manage_attendees?: boolean;
+
+  current_user_attendee?: CalendarEventAttendee | null;
+
+  current_user_response?: CalendarAttendeeResponseStatus
+    | null;
 }
 
 
