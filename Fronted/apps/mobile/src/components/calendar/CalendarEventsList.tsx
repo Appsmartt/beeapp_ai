@@ -16,6 +16,7 @@ import {
 
 import type {
   CalendarEvent,
+  CalendarEventSource,
 } from '../../stores/calendarStore';
 
 
@@ -23,6 +24,41 @@ interface CalendarEventsListProps {
   events: CalendarEvent[];
   onEventPress: (event: CalendarEvent) => void;
   onEventLongPress: (event: CalendarEvent) => void;
+}
+
+
+function getSourceBadge(
+  source: CalendarEventSource,
+): {
+  label: string;
+  backgroundColor: string;
+  color: string;
+} | null {
+  if (source === 'microsoft') {
+    return {
+      label: 'Outlook',
+      backgroundColor: '#EAF3FF',
+      color: '#0078D4',
+    };
+  }
+
+  if (source === 'google') {
+    return {
+      label: 'Google',
+      backgroundColor: '#EAF3FF',
+      color: '#2563EB',
+    };
+  }
+
+  if (source === 'external') {
+    return {
+      label: 'Externo',
+      backgroundColor: colors.neutral.gray100,
+      color: colors.neutral.gray600,
+    };
+  }
+
+  return null;
 }
 
 
@@ -39,11 +75,9 @@ export default function CalendarEventsList({
           color={colors.neutral.gray400}
         />
 
-
         <Text style={styles.emptyText}>
           Sin eventos para este día
         </Text>
-
 
         <Text style={styles.emptyHint}>
           Toca el botón + para crear uno.
@@ -52,151 +86,170 @@ export default function CalendarEventsList({
     );
   }
 
-
   return (
     <View style={styles.eventsListContainer}>
-      {events.map((item, index) => (
-        <TouchableOpacity
-          key={item.id}
-          style={[
-            styles.eventRow,
-            index < events.length - 1
-              && styles.rowSeparator,
-          ]}
-          onPress={() => onEventPress(item)}
-          onLongPress={() => onEventLongPress(item)}
-          delayLongPress={450}
-          activeOpacity={0.7}
-        >
-          <View style={styles.cardTimeColumn}>
-            <Text style={styles.cardTimeText}>
-              {item.isAllDay
-                ? 'Todo el día'
-                : item.timeStart}
-            </Text>
+      {events.map((item, index) => {
+        const sourceBadge = getSourceBadge(item.source);
 
-
-            {!item.isAllDay && (
-              <Text style={styles.cardDurationText}>
-                {item.duration}
-              </Text>
-            )}
-          </View>
-
-
-          <View
+        return (
+          <TouchableOpacity
+            key={item.id}
             style={[
-              styles.cardBarIndicator,
-              {
-                backgroundColor: item.color
-                  || colors.brand.primary,
-              },
+              styles.eventRow,
+              index < events.length - 1
+                && styles.rowSeparator,
             ]}
-          />
+            onPress={() => onEventPress(item)}
+            onLongPress={() => onEventLongPress(item)}
+            delayLongPress={450}
+            activeOpacity={0.7}
+          >
+            <View style={styles.cardTimeColumn}>
+              <Text style={styles.cardTimeText}>
+                {item.isAllDay
+                  ? 'Todo el día'
+                  : item.timeStart}
+              </Text>
 
+              {!item.isAllDay && (
+                <Text style={styles.cardDurationText}>
+                  {item.duration}
+                </Text>
+              )}
+            </View>
 
-          <View style={styles.cardDetailsColumn}>
-            <Text
-              style={styles.cardTitle}
-              numberOfLines={2}
-            >
-              {item.title}
-            </Text>
+            <View
+              style={[
+                styles.cardBarIndicator,
+                {
+                  backgroundColor: item.color
+                    || colors.brand.primary,
+                },
+              ]}
+            />
 
+            <View style={styles.cardDetailsColumn}>
+              <View style={styles.cardTitleRow}>
+                <Text
+                  style={styles.cardTitle}
+                  numberOfLines={2}
+                >
+                  {item.title}
+                </Text>
 
-            <View style={styles.cardMetaRow}>
-              {item.isVirtual ? (
-                <View style={styles.metaBadge}>
-                  <Video
-                    size={10}
-                    color={colors.brand.primary}
-                  />
-
-
-                  <Text
+                {sourceBadge ? (
+                  <View
                     style={[
-                      styles.metaBadgeText,
+                      styles.sourceBadge,
                       {
-                        color: colors.brand.primary,
+                        backgroundColor:
+                          sourceBadge.backgroundColor,
                       },
                     ]}
                   >
-                    {item.videoUrl
-                      ? 'Videollamada'
-                      : 'Virtual'}
-                  </Text>
-                </View>
-              ) : (
-                <View style={styles.metaBadge}>
-                  <MapPin
-                    size={10}
-                    color={colors.neutral.gray600}
-                  />
+                    <Text
+                      style={[
+                        styles.sourceBadgeText,
+                        {
+                          color: sourceBadge.color,
+                        },
+                      ]}
+                    >
+                      {sourceBadge.label}
+                    </Text>
+                  </View>
+                ) : null}
+              </View>
 
+              <View style={styles.cardMetaRow}>
+                {item.isVirtual ? (
+                  <View style={styles.metaBadge}>
+                    <Video
+                      size={10}
+                      color={colors.brand.primary}
+                    />
 
-                  <Text
-                    style={[
-                      styles.metaBadgeText,
-                      {
-                        color: colors.neutral.gray600,
-                      },
-                    ]}
-                    numberOfLines={1}
-                  >
-                    {item.location || 'Presencial'}
-                  </Text>
+                    <Text
+                      style={[
+                        styles.metaBadgeText,
+                        {
+                          color: colors.brand.primary,
+                        },
+                      ]}
+                    >
+                      {item.videoUrl
+                        ? 'Videollamada'
+                        : 'Virtual'}
+                    </Text>
+                  </View>
+                ) : (
+                  <View style={styles.metaBadge}>
+                    <MapPin
+                      size={10}
+                      color={colors.neutral.gray600}
+                    />
+
+                    <Text
+                      style={[
+                        styles.metaBadgeText,
+                        {
+                          color: colors.neutral.gray600,
+                        },
+                      ]}
+                      numberOfLines={1}
+                    >
+                      {item.location || 'Presencial'}
+                    </Text>
+                  </View>
+                )}
+              </View>
+
+              {item.invitees.length > 0 && (
+                <View style={styles.avatarsRow}>
+                  {item.invitees
+                    .slice(0, 3)
+                    .map((invitee, inviteeIndex) => (
+                      <View
+                        key={invitee.id}
+                        style={[
+                          styles.avatarCircle,
+                          {
+                            backgroundColor: invitee.color,
+                            marginLeft: inviteeIndex > 0
+                              ? -8
+                              : 0,
+                          },
+                        ]}
+                      >
+                        <Text style={styles.avatarText}>
+                          {invitee.initials}
+                        </Text>
+                      </View>
+                    ))}
+
+                  {item.invitees.length > 3 && (
+                    <Text style={styles.moreAvatars}>
+                      +{item.invitees.length - 3}
+                    </Text>
+                  )}
                 </View>
               )}
             </View>
 
-
-            {item.invitees.length > 0 && (
-              <View style={styles.avatarsRow}>
-                {item.invitees
-                  .slice(0, 3)
-                  .map((invitee, inviteeIndex) => (
-                    <View
-                      key={invitee.id}
-                      style={[
-                        styles.avatarCircle,
-                        {
-                          backgroundColor: invitee.color,
-                          marginLeft: inviteeIndex > 0
-                            ? -8
-                            : 0,
-                        },
-                      ]}
-                    >
-                      <Text style={styles.avatarText}>
-                        {invitee.initials}
-                      </Text>
-                    </View>
-                  ))}
-
-
-                {item.invitees.length > 3 && (
-                  <Text style={styles.moreAvatars}>
-                    +{item.invitees.length - 3}
-                  </Text>
-                )}
-              </View>
-            )}
-          </View>
-
-
-          <TouchableOpacity
-            style={styles.cardMenuTrigger}
-            onPress={() => onEventLongPress(item)}
-            activeOpacity={0.7}
-            accessibilityLabel={`Opciones de ${item.title}`}
-          >
-            <MoreVertical
-              size={18}
-              color={colors.neutral.gray600}
-            />
+            <TouchableOpacity
+              style={styles.cardMenuTrigger}
+              onPress={() => onEventLongPress(item)}
+              activeOpacity={0.7}
+              accessibilityLabel={`Opciones de ${item.title}`}
+            >
+              <MoreVertical
+                size={18}
+                color={colors.neutral.gray600}
+              />
+            </TouchableOpacity>
           </TouchableOpacity>
-        </TouchableOpacity>
-      ))}
+        );
+      })}
     </View>
   );
 }
@@ -243,11 +296,26 @@ const styles = StyleSheet.create({
     flex: 1,
     minWidth: 0,
   },
+  cardTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 6,
+    marginBottom: 4,
+  },
   cardTitle: {
+    flex: 1,
     fontSize: 13,
     fontWeight: '600',
     color: colors.neutral.text,
-    marginBottom: 4,
+  },
+  sourceBadge: {
+    borderRadius: 6,
+    paddingHorizontal: 6,
+    paddingVertical: 3,
+  },
+  sourceBadgeText: {
+    fontSize: 8,
+    fontWeight: '800',
   },
   cardMetaRow: {
     flexDirection: 'row',

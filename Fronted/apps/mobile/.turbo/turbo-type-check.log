@@ -53,28 +53,6 @@
 [7m1[0m import React from 'react';
 [7m [0m [91m~~~~~~~~~~~~~~~~~~~~~~~~~~[0m
 
-[96mapp/(main)/calendar/detail.tsx[0m:[93m1[0m:[93m8[0m - [91merror[0m[90m TS6133: [0m'React' is declared but its value is never read.
-
-[7m1[0m import React, { useState, useEffect } from 'react';
-[7m [0m [91m       ~~~~~[0m
-
-[96mapp/(main)/calendar/detail.tsx[0m:[93m166[0m:[93m84[0m - [91merror[0m[90m TS2345: [0mArgument of type '{ safeArea: { flex: number; backgroundColor: string; }; container: { flex: number; }; header: { flexDirection: "row"; alignItems: "center"; justifyContent: "space-between"; paddingHorizontal: number; paddingVertical: number; backgroundColor: string; borderBottomWidth: number; borderColor: string; }; ... 20 more ...;...' is not assignable to parameter of type '{ safeArea: { flex: number; backgroundColor: string; }; container: { flex: number; }; header: { flexDirection: "row"; alignItems: "center"; justifyContent: "space-between"; paddingHorizontal: number; paddingVertical: number; backgroundColor: string; borderBottomWidth: number; borderColor: string; }; ... 20 more ...;...'.
-  Property 'sectionHeader' is incompatible with index signature.
-    Object literal may only specify known properties, and 'uppercase' does not exist in type 'ViewStyle | TextStyle | ImageStyle'.
-
-[7m166[0m   sectionHeader: { fontSize: 11, fontWeight: '400', color: colors.neutral.gray600, uppercase: true, letterSpacing: 0.5, marginTop: 20, marginBottom: 8 },
-[7m   [0m [91m                                                                                   ~~~~~~~~~[0m
-
-[96mapp/(main)/calendar/edit.tsx[0m:[93m1[0m:[93m8[0m - [91merror[0m[90m TS6133: [0m'React' is declared but its value is never read.
-
-[7m1[0m import React, { useState, useEffect } from 'react';
-[7m [0m [91m       ~~~~~[0m
-
-[96mapp/(main)/calendar/index.tsx[0m:[93m1[0m:[93m8[0m - [91merror[0m[90m TS6133: [0m'React' is declared but its value is never read.
-
-[7m1[0m import React, { useState, useEffect } from 'react';
-[7m [0m [91m       ~~~~~[0m
-
 [96mapp/(main)/chat/call.tsx[0m:[93m1[0m:[93m8[0m - [91merror[0m[90m TS6133: [0m'React' is declared but its value is never read.
 
 [7m1[0m import React, { useState, useEffect, useRef } from 'react';
@@ -135,21 +113,6 @@
 [7m1[0m import React, { useState } from 'react';
 [7m [0m [91m       ~~~~~[0m
 
-[96mapp/(main)/profile/integrations.tsx[0m:[93m1[0m:[93m8[0m - [91merror[0m[90m TS6133: [0m'React' is declared but its value is never read.
-
-[7m1[0m import React, { useState } from 'react';
-[7m [0m [91m       ~~~~~[0m
-
-[96mapp/(main)/profile/integrations.tsx[0m:[93m10[0m:[93m3[0m - [91merror[0m[90m TS6133: [0m'Platform' is declared but its value is never read.
-
-[7m10[0m   Platform,
-[7m  [0m [91m  ~~~~~~~~[0m
-
-[96mapp/(main)/profile/integrations.tsx[0m:[93m18[0m:[93m16[0m - [91merror[0m[90m TS6133: [0m'SCREEN_WIDTH' is declared but its value is never read.
-
-[7m18[0m const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
-[7m  [0m [91m               ~~~~~~~~~~~~[0m
-
 [96mapp/(main)/profile/subscription.tsx[0m:[93m1[0m:[93m8[0m - [91merror[0m[90m TS6133: [0m'React' is declared but its value is never read.
 
 [7m1[0m import React, { useState } from 'react';
@@ -194,60 +157,6 @@
 
 [7m3[0m import { View, Text, StyleSheet, Modal, ScrollView, TouchableOpacity, Platform } from 'react-native';
 [7m [0m [91m                     ~~~~~~~~~~[0m
-
-[96msrc/components/calendar/CalendarDetailSections.tsx[0m:[93m1[0m:[93m1[0m - [91merror[0m[90m TS6133: [0m'React' is declared but its value is never read.
-
-[7m1[0m import React from 'react';
-[7m [0m [91m~~~~~~~~~~~~~~~~~~~~~~~~~~[0m
-
-[96msrc/components/calendar/CalendarDetailSections.tsx[0m:[93m6[0m:[93m37[0m - [91merror[0m[90m TS6133: [0m'Users' is declared but its value is never read.
-
-[7m6[0m   CheckCircle, HelpCircle, XCircle, Users, ChevronRight,
-[7m [0m [91m                                    ~~~~~[0m
-
-[96msrc/components/calendar/CalendarDetailSections.tsx[0m:[93m155[0m:[93m84[0m - [91merror[0m[90m TS2345: [0mArgument of type '{ mainDetailsCard: { backgroundColor: string; borderBottomWidth: number; borderColor: string; padding: number; }; typeBadge: { alignSelf: "flex-start"; borderRadius: number; paddingHorizontal: number; paddingVertical: number; marginBottom: number; borderWidth: number; }; ... 31 more ...; inviteeStatusLabel: { ...; }...' is not assignable to parameter of type '{ mainDetailsCard: { backgroundColor: string; borderBottomWidth: number; borderColor: string; padding: number; }; typeBadge: { alignSelf: "flex-start"; borderRadius: number; paddingHorizontal: number; paddingVertical: number; marginBottom: number; borderWidth: number; }; ... 31 more ...; inviteeStatusLabel: { ...; }...'.
-  Property 'sectionHeader' is incompatible with index signature.
-    Object literal may only specify known properties, and 'uppercase' does not exist in type 'ViewStyle | TextStyle | ImageStyle'.
-
-[7m155[0m   sectionHeader: { fontSize: 11, fontWeight: '400', color: colors.neutral.gray600, uppercase: true, letterSpacing: 0.5, marginTop: 20, marginBottom: 8 },
-[7m   [0m [91m                                                                                   ~~~~~~~~~[0m
-
-[96msrc/components/calendar/CalendarEditFields.tsx[0m:[93m1[0m:[93m1[0m - [91merror[0m[90m TS6133: [0m'React' is declared but its value is never read.
-
-[7m1[0m import React from 'react';
-[7m [0m [91m~~~~~~~~~~~~~~~~~~~~~~~~~~[0m
-
-[96msrc/components/calendar/CalendarEditFields.tsx[0m:[93m154[0m:[93m84[0m - [91merror[0m[90m TS2345: [0mArgument of type '{ sectionHeader: { fontSize: number; fontWeight: "400"; color: string; uppercase: true; letterSpacing: number; marginTop: number; marginBottom: number; }; typeSelectorRow: { flexDirection: "row"; gap: number; }; ... 26 more ...; checkCircleSelected: { ...; }; }' is not assignable to parameter of type '{ sectionHeader: { fontSize: number; fontWeight: "400"; color: string; uppercase: boolean; letterSpacing: number; marginTop: number; marginBottom: number; }; typeSelectorRow: { flexDirection: "row"; gap: number; }; ... 26 more ...; checkCircleSelected: { ...; }; } & NamedStyles<...>'.
-  Property 'sectionHeader' is incompatible with index signature.
-    Object literal may only specify known properties, and 'uppercase' does not exist in type 'ViewStyle | TextStyle | ImageStyle'.
-
-[7m154[0m   sectionHeader: { fontSize: 11, fontWeight: '400', color: colors.neutral.gray600, uppercase: true, letterSpacing: 0.5, marginTop: 20, marginBottom: 8 },
-[7m   [0m [91m                                                                                   ~~~~~~~~~[0m
-
-[96msrc/components/calendar/CalendarPickerModals.tsx[0m:[93m1[0m:[93m1[0m - [91merror[0m[90m TS6133: [0m'React' is declared but its value is never read.
-
-[7m1[0m import React from 'react';
-[7m [0m [91m~~~~~~~~~~~~~~~~~~~~~~~~~~[0m
-
-[96msrc/components/calendar/CalendarPickerModals.tsx[0m:[93m5[0m:[93m21[0m - [91merror[0m[90m TS6133: [0m'formatDate' is declared but its value is never read.
-
-[7m5[0m import { parseDate, formatDate } from '../../utils/dateHelpers';
-[7m [0m [91m                    ~~~~~~~~~~[0m
-
-[96msrc/components/calendar/CalendarWeekStrip.tsx[0m:[93m6[0m:[93m46[0m - [91merror[0m[90m TS6133: [0m'periodLabel' is declared but its value is never read.
-
-[7m6[0m import { parseDate, formatDate, startOfWeek, periodLabel } from '../../utils/dateHelpers';
-[7m [0m [91m                                             ~~~~~~~~~~~[0m
-
-[96msrc/components/calendar/ReminderBottomSheet.tsx[0m:[93m1[0m:[93m1[0m - [91merror[0m[90m TS6133: [0m'React' is declared but its value is never read.
-
-[7m1[0m import React from 'react';
-[7m [0m [91m~~~~~~~~~~~~~~~~~~~~~~~~~~[0m
-
-[96msrc/components/calendar/ReminderBottomSheet.tsx[0m:[93m3[0m:[93m27[0m - [91merror[0m[90m TS6133: [0m'radii' is declared but its value is never read.
-
-[7m3[0m import { colors, spacing, radii } from '@beeapp/design-system';
-[7m [0m [91m                          ~~~~~[0m
 
 [96msrc/components/chat/AiCatalogCards.tsx[0m:[93m1[0m:[93m8[0m - [91merror[0m[90m TS6133: [0m'React' is declared but its value is never read.
 
@@ -398,21 +307,13 @@
 [7m1[0m import React from 'react';
 [7m [0m [91m~~~~~~~~~~~~~~~~~~~~~~~~~~[0m
 
-[96m../../packages/api-client/src/notes.ts[0m:[93m13[0m:[93m5[0m - [91merror[0m[90m TS2724: [0m'"@beeapp/shared-types"' has no exported member named 'GetNoteAttachmentAccessResponse'. Did you mean 'NoteAttachmentAccessResponse'?
 
-[7m13[0m     GetNoteAttachmentAccessResponse,
-[7m  [0m [91m    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~[0m
-
-
-Found 71 errors in 48 files.
+Found 53 errors in 38 files.
 
 Errors  Files
      1  app/(auth)/privacy.tsx[90m:1[0m
      4  app/(auth)/register.tsx[90m:7[0m
      1  app/(auth)/terms.tsx[90m:1[0m
-     2  app/(main)/calendar/detail.tsx[90m:1[0m
-     1  app/(main)/calendar/edit.tsx[90m:1[0m
-     1  app/(main)/calendar/index.tsx[90m:1[0m
      4  app/(main)/chat/call.tsx[90m:1[0m
      1  app/(main)/chat/conversation.tsx[90m:1[0m
      2  app/(main)/chat/new.tsx[90m:1[0m
@@ -421,17 +322,11 @@ Errors  Files
      1  app/(main)/mail/compose.tsx[90m:1[0m
      1  app/(main)/mail/detail.tsx[90m:1[0m
      1  app/(main)/mail/index.tsx[90m:1[0m
-     3  app/(main)/profile/integrations.tsx[90m:1[0m
      1  app/(main)/profile/subscription.tsx[90m:1[0m
      1  app/(main)/storage/sign.tsx[90m:1[0m
      4  src/components/FloatingTabBar.tsx[90m:3[0m
      2  src/components/VoiceAssistantFab.tsx[90m:1[0m
      1  src/components/assistant/VoiceAssistantScreen.tsx[90m:3[0m
-     3  src/components/calendar/CalendarDetailSections.tsx[90m:1[0m
-     2  src/components/calendar/CalendarEditFields.tsx[90m:1[0m
-     2  src/components/calendar/CalendarPickerModals.tsx[90m:1[0m
-     1  src/components/calendar/CalendarWeekStrip.tsx[90m:6[0m
-     2  src/components/calendar/ReminderBottomSheet.tsx[90m:1[0m
      2  src/components/chat/AiCatalogCards.tsx[90m:1[0m
      1  src/components/chat/AiCatalogItem.tsx[90m:1[0m
      1  src/components/chat/AiCatalogModal.tsx[90m:1[0m
@@ -454,7 +349,6 @@ Errors  Files
      2  src/components/onboarding/AboutYouSection.tsx[90m:37[0m
      1  src/components/storage/SignatureCreatorCard.tsx[90m:1[0m
      1  src/components/storage/SignatureDocPreview.tsx[90m:1[0m
-     1  ../../packages/api-client/src/notes.ts[90m:13[0m
 [1G[0K⠙[1G[0K[1mnpm[22m [31merror[39m Lifecycle script `type-check` failed with error:
 [1G[0K⠙[1G[0K[1mnpm[22m [31merror[39m [94mcode[39m [33m2[39m
 [1G[0K⠙[1G[0K[1mnpm[22m [31merror[39m [94mpath[39m /home/andres-mendoza/Git/beeapp_ai/Fronted/apps/mobile

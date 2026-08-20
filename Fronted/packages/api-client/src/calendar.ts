@@ -17,6 +17,8 @@ import type {
     GetExternalCalendarsResponse,
     RespondToCalendarEventResponse,
     SearchCalendarUsersResponse,
+    SyncCalendarIntegrationPayload,
+    SyncCalendarIntegrationResponse,
     UpdateCalendarEventPayload,
     UpdateCalendarEventResponse,
     UpdateExternalCalendarPreferencesPayload,
@@ -102,6 +104,16 @@ function discoverCalendarsPath(
     return (
         `${calendarIntegrationPath(integrationId)}`
         + 'discover-calendars/'
+    );
+}
+
+
+function syncCalendarIntegrationPath(
+    integrationId: string,
+    ): string {
+    return (
+        `${calendarIntegrationPath(integrationId)}`
+        + 'sync/'
     );
 }
 
@@ -314,6 +326,23 @@ export function discoverExternalCalendars(
     return api.post<DiscoverExternalCalendarsResponse>(
         discoverCalendarsPath(integrationId),
         {},
+        { auth },
+    );
+}
+
+
+/**
+ * Sincroniza manualmente los eventos de los calendarios externos
+ * seleccionados para una integración.
+ */
+export function syncCalendarIntegration(
+    auth: AuthCredentials,
+    integrationId: string,
+    payload: SyncCalendarIntegrationPayload = {},
+    ): Promise<SyncCalendarIntegrationResponse> {
+    return api.post<SyncCalendarIntegrationResponse>(
+        syncCalendarIntegrationPath(integrationId),
+        payload,
         { auth },
     );
 }

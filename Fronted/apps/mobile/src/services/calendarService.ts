@@ -12,8 +12,10 @@ import type {
     UpdateCalendarEventPayload,
     } from '@beeapp/shared-types';
 
+
 import type {
     CalendarEvent,
+    CalendarEventSource,
     CalendarEventType,
     CalendarRepeat,
     Invitee,
@@ -559,6 +561,23 @@ function mapAttendee(
     };
 }
 
+function toCalendarEventSource(
+    source: string | null | undefined,
+): CalendarEventSource {
+    if (source === 'google') {
+        return 'google';
+    }
+
+    if (source === 'microsoft') {
+        return 'microsoft';
+    }
+
+    if (source === 'beeapp') {
+        return 'beeapp';
+    }
+
+    return 'external';
+}
 
 export function mapApiEventToCalendarEvent(
     event: ApiCalendarEvent,
@@ -605,6 +624,7 @@ export function mapApiEventToCalendarEvent(
         id: event.id,
         calendarId: event.calendar_id,
         organizerId: event.organizer_id,
+        source: toCalendarEventSource(event.source),
         title: event.title,
         type: toCalendarEventType(event.event_kind),
         backendKind: event.event_kind,

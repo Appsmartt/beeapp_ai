@@ -34,7 +34,7 @@ ALLOWED_HOSTS = [
     "127.0.0.1",
     "localhost",
     "192.168.1.5",
-    "refinance-corps-husband-elevation.trycloudflare.com",
+    "sustained-portland-walt-chi.trycloudflare.com",
 ]
 
 INSTALLED_APPS = [

@@ -3,7 +3,7 @@ import {
     useEffect,
     useMemo,
     useState,
-    } from 'react';
+} from 'react';
 import {
     ActivityIndicator,
     Alert,
@@ -14,7 +14,7 @@ import {
     Text,
     TouchableOpacity,
     View,
-    } from 'react-native';
+} from 'react-native';
 import {
     AlertTriangle,
     CalendarDays,
@@ -25,25 +25,26 @@ import {
     EyeOff,
     Link2,
     RefreshCw,
+    RotateCw,
     Settings2,
     ShieldCheck,
-    } from 'lucide-react-native';
+} from 'lucide-react-native';
 import {
     colors,
-    } from '@beeapp/design-system';
+} from '@beeapp/design-system';
 import type {
     CalendarIntegration,
     ExternalCalendar,
-    } from '@beeapp/shared-types';
-
+    SyncCalendarIntegrationResponse,
+} from '@beeapp/shared-types';
 
 import ScreenSafeArea from '../../../src/components/layout/ScreenSafeArea';
 import {
     useModuleNav,
-    } from '../../../src/components/embedded/EmbeddedNavContext';
+} from '../../../src/components/embedded/EmbeddedNavContext';
 import {
     useCalendarIntegrations,
-    } from '../../../src/hooks/useCalendarIntegrations';
+} from '../../../src/hooks/useCalendarIntegrations';
 
 
 type ProviderPresentation = {
@@ -55,20 +56,20 @@ type ProviderPresentation = {
 
 function getProviderPresentation(
     provider: string,
-    ): ProviderPresentation {
+): ProviderPresentation {
     if (provider === 'google') {
         return {
-        name: 'Google Calendar',
-        initial: 'G',
-        color: '#4285F4',
+            name: 'Google Calendar',
+            initial: 'G',
+            color: '#4285F4',
         };
     }
 
     if (provider === 'microsoft') {
         return {
-        name: 'Microsoft Outlook',
-        initial: 'M',
-        color: '#0078D4',
+            name: 'Microsoft Outlook',
+            initial: 'M',
+            color: '#0078D4',
         };
     }
 
@@ -82,7 +83,7 @@ function getProviderPresentation(
 
 function getIntegrationAccountLabel(
     integration: CalendarIntegration,
-    ): string {
+): string {
     return (
         integration.provider_display_name
         || integration.provider_email
@@ -94,7 +95,7 @@ function getIntegrationAccountLabel(
 
 function getIntegrationStatusLabel(
     integration: CalendarIntegration,
-    ): string {
+): string {
     if (integration.requires_reauthorization) {
         return 'Requiere reconexión';
     }
@@ -129,7 +130,7 @@ function getIntegrationStatusLabel(
 
 function getIntegrationStatusColor(
     integration: CalendarIntegration,
-    ): string {
+): string {
     if (integration.requires_reauthorization) {
         return '#D97706';
     }
@@ -151,7 +152,7 @@ function getIntegrationStatusColor(
 
 function getCalendarColor(
     calendar: ExternalCalendar,
-    ): string {
+): string {
     return (
         calendar.display_color
         || calendar.provider_color
@@ -163,7 +164,7 @@ function getCalendarColor(
 
 function getCalendarSubtitle(
     calendar: ExternalCalendar,
-    ): string {
+): string {
     const details: string[] = [];
 
     if (calendar.is_primary) {
@@ -172,13 +173,13 @@ function getCalendarSubtitle(
 
     if (calendar.access_level) {
         if (calendar.access_level === 'owner') {
-        details.push('Propietario');
+            details.push('Propietario');
         } else if (calendar.access_level === 'read_write') {
-        details.push('Lectura y escritura');
+            details.push('Lectura y escritura');
         } else if (calendar.access_level === 'read') {
-        details.push('Solo lectura');
+            details.push('Solo lectura');
         } else if (calendar.access_level === 'free_busy') {
-        details.push('Disponibilidad');
+            details.push('Disponibilidad');
         }
     }
 
@@ -194,10 +195,53 @@ function getCalendarSubtitle(
 
 function getErrorMessage(
     error: unknown,
-    ): string {
+): string {
     return error instanceof Error
         ? error.message
         : 'Inténtalo nuevamente.';
+}
+
+
+function formatDateTime(
+    value: string | null,
+): string | null {
+    if (!value) {
+        return null;
+    }
+
+    const date = new Date(value);
+
+    if (Number.isNaN(date.getTime())) {
+        return null;
+    }
+
+    return new Intl.DateTimeFormat(
+        'es-CO',
+        {
+            day: 'numeric',
+            month: 'short',
+            hour: 'numeric',
+            minute: '2-digit',
+        },
+    ).format(date);
+}
+
+
+function getSyncSummary(
+    result: SyncCalendarIntegrationResponse,
+): string {
+    const parts = [
+        `${result.created_event_count} nuevos`,
+        `${result.updated_event_count} actualizados`,
+    ];
+
+    if (result.skipped_event_count > 0) {
+        parts.push(
+            `${result.skipped_event_count} omitidos`,
+        );
+    }
+
+    return parts.join(' · ');
 }
 
 
@@ -206,15 +250,18 @@ export default function ExternalCalendarsScreen() {
 
     const {
         integrations,
+        lastSyncResultByIntegrationId,
         loading,
         refreshing,
         loadingExternalIntegrationId,
         discoveringIntegrationId,
+        syncingIntegrationId,
         updatingExternalCalendarId,
         error,
         loadCalendarIntegrations,
         loadExternalCalendars,
         discoverCalendars,
+        syncIntegration,
         updateExternalCalendar,
         getExternalCalendarsForIntegration,
         clearError,
@@ -225,8 +272,8 @@ export default function ExternalCalendarsScreen() {
 
     const activeIntegrations = useMemo(
         () => integrations.filter((integration) => (
-        integration.provider === 'google'
-        || integration.provider === 'microsoft'
+            integration.provider === 'google'
+            || integration.provider === 'microsoft'
         )),
         [integrations],
     );
@@ -234,28 +281,28 @@ export default function ExternalCalendarsScreen() {
 
     const handleRefresh = useCallback(async () => {
         try {
-        const refreshedIntegrations = await loadCalendarIntegrations(
-            true,
-        );
+            const refreshedIntegrations = await loadCalendarIntegrations(
+                true,
+            );
 
-        const expandedIds = expandedIntegrationIds.filter(
-            (integrationId) => refreshedIntegrations.some(
-            (integration) => integration.id === integrationId,
-            ),
-        );
+            const expandedIds = expandedIntegrationIds.filter(
+                (integrationId) => refreshedIntegrations.some(
+                    (integration) => integration.id === integrationId,
+                ),
+            );
 
-        await Promise.all(
-            expandedIds.map((integrationId) =>
-            loadExternalCalendars(
-                integrationId,
-                {
-                force: true,
-                },
-            ),
-            ),
-        );
+            await Promise.all(
+                expandedIds.map((integrationId) =>
+                    loadExternalCalendars(
+                        integrationId,
+                        {
+                            force: true,
+                        },
+                    ),
+                ),
+            );
         } catch {
-        // El hook conserva el error para mostrarlo en la pantalla.
+            // El hook conserva el error para mostrarlo en la pantalla.
         }
     }, [
         expandedIntegrationIds,
@@ -266,26 +313,26 @@ export default function ExternalCalendarsScreen() {
 
     useEffect(() => {
         if (activeIntegrations.length !== 1) {
-        return;
+            return;
         }
 
         const integration = activeIntegrations[0];
 
         setExpandedIntegrationIds((currentIds) => {
-        if (currentIds.includes(integration.id)) {
-            return currentIds;
-        }
+            if (currentIds.includes(integration.id)) {
+                return currentIds;
+            }
 
-        return [
-            ...currentIds,
-            integration.id,
-        ];
+            return [
+                ...currentIds,
+                integration.id,
+            ];
         });
 
         void loadExternalCalendars(integration.id)
-        .catch(() => {
-            // El hook conserva el error.
-        });
+            .catch(() => {
+                // El hook conserva el error.
+            });
     }, [
         activeIntegrations,
         loadExternalCalendars,
@@ -296,29 +343,29 @@ export default function ExternalCalendarsScreen() {
         integration: CalendarIntegration,
     ) => {
         const isExpanded = expandedIntegrationIds.includes(
-        integration.id,
+            integration.id,
         );
 
         if (isExpanded) {
-        setExpandedIntegrationIds((currentIds) =>
-            currentIds.filter(
-            (integrationId) =>
-                integrationId !== integration.id,
-            ),
-        );
+            setExpandedIntegrationIds((currentIds) =>
+                currentIds.filter(
+                    (integrationId) =>
+                        integrationId !== integration.id,
+                ),
+            );
 
-        return;
+            return;
         }
 
         setExpandedIntegrationIds((currentIds) => [
-        ...currentIds,
-        integration.id,
+            ...currentIds,
+            integration.id,
         ]);
 
         try {
-        await loadExternalCalendars(integration.id);
+            await loadExternalCalendars(integration.id);
         } catch {
-        // El hook conserva el error.
+            // El hook conserva el error.
         }
     };
 
@@ -327,57 +374,134 @@ export default function ExternalCalendarsScreen() {
         integration: CalendarIntegration,
     ) => {
         const provider = getProviderPresentation(
-        integration.provider,
+            integration.provider,
         );
 
         Alert.alert(
-        `Buscar calendarios de ${provider.name}`,
-        (
-            'BeeApp consultará los calendarios disponibles en esta '
-            + 'cuenta. No se crearán ni importarán eventos todavía.'
-        ),
-        [
-            {
-            text: 'Cancelar',
-            style: 'cancel',
-            },
-            {
-            text: 'Buscar calendarios',
-            onPress: () => {
-                void (async () => {
-                try {
-                    const calendars = await discoverCalendars(
-                    integration.id,
-                    );
+            `Buscar calendarios de ${provider.name}`,
+            (
+                'BeeApp consultará los calendarios disponibles en esta '
+                + 'cuenta. No se crearán ni importarán eventos todavía.'
+            ),
+            [
+                {
+                    text: 'Cancelar',
+                    style: 'cancel',
+                },
+                {
+                    text: 'Buscar calendarios',
+                    onPress: () => {
+                        void (async () => {
+                            try {
+                                const calendars = await discoverCalendars(
+                                    integration.id,
+                                );
 
-                    setExpandedIntegrationIds((currentIds) => (
-                    currentIds.includes(integration.id)
-                        ? currentIds
-                        : [
-                        ...currentIds,
-                        integration.id,
-                        ]
-                    ));
+                                setExpandedIntegrationIds((currentIds) => (
+                                    currentIds.includes(integration.id)
+                                        ? currentIds
+                                        : [
+                                            ...currentIds,
+                                            integration.id,
+                                        ]
+                                ));
 
-                    Alert.alert(
-                    'Calendarios actualizados',
-                    calendars.length === 1
-                        ? 'Se encontró 1 calendario externo.'
-                        : (
-                        `Se encontraron ${calendars.length} `
-                        + 'calendarios externos.'
-                        ),
-                    );
-                } catch (discoverError) {
-                    Alert.alert(
-                    'No fue posible buscar calendarios',
-                    getErrorMessage(discoverError),
-                    );
-                }
-                })();
-            },
-            },
-        ],
+                                Alert.alert(
+                                    'Calendarios actualizados',
+                                    calendars.length === 1
+                                        ? 'Se encontró 1 calendario externo.'
+                                        : (
+                                            `Se encontraron ${calendars.length} `
+                                            + 'calendarios externos.'
+                                        ),
+                                );
+                            } catch (discoverError) {
+                                Alert.alert(
+                                    'No fue posible buscar calendarios',
+                                    getErrorMessage(discoverError),
+                                );
+                            }
+                        })();
+                    },
+                },
+            ],
+        );
+    };
+
+
+    const handleSyncIntegration = (
+        integration: CalendarIntegration,
+        selectedCalendarCount: number,
+    ) => {
+        if (!integration.can_sync) {
+            Alert.alert(
+                'Sincronización no disponible',
+                (
+                    integration.status_reason
+                    || (
+                        'Reconecta esta cuenta desde Integraciones '
+                        + 'externas para sincronizarla.'
+                    )
+                ),
+            );
+
+            return;
+        }
+
+        if (selectedCalendarCount === 0) {
+            Alert.alert(
+                'Selecciona un calendario',
+                (
+                    'Activa “Usar en Agenda” en al menos un calendario '
+                    + 'antes de sincronizar.'
+                ),
+            );
+
+            return;
+        }
+
+        const provider = getProviderPresentation(
+            integration.provider,
+        );
+
+        Alert.alert(
+            `Sincronizar ${provider.name}`,
+            (
+                'BeeApp consultará los eventos de los calendarios '
+                + 'seleccionados y actualizará tu Agenda.'
+            ),
+            [
+                {
+                    text: 'Cancelar',
+                    style: 'cancel',
+                },
+                {
+                    text: 'Sincronizar ahora',
+                    onPress: () => {
+                        void (async () => {
+                            try {
+                                const result = await syncIntegration(
+                                    integration.id,
+                                );
+
+                                Alert.alert(
+                                    'Sincronización completada',
+                                    (
+                                        `${result.created_event_count} nuevos · `
+                                        + `${result.updated_event_count} actualizados · `
+                                        + `${result.skipped_event_count} omitidos`
+                                    ),
+                                );
+                            } catch (syncError) {
+                                Alert.alert(
+                                    'No fue posible sincronizar',
+                                    getErrorMessage(syncError),
+                                );
+                            }
+                        })();
+                    },
+                },
+            ],
         );
     };
 
@@ -387,19 +511,19 @@ export default function ExternalCalendarsScreen() {
         isSelected: boolean,
     ) => {
         void (async () => {
-        try {
-            await updateExternalCalendar(
-            calendar.id,
-            {
-                is_selected: isSelected,
-            },
-            );
-        } catch (updateError) {
-            Alert.alert(
-            'No fue posible actualizar el calendario',
-            getErrorMessage(updateError),
-            );
-        }
+            try {
+                await updateExternalCalendar(
+                    calendar.id,
+                    {
+                        is_selected: isSelected,
+                    },
+                );
+            } catch (updateError) {
+                Alert.alert(
+                    'No fue posible actualizar el calendario',
+                    getErrorMessage(updateError),
+                );
+            }
         })();
     };
 
@@ -408,23 +532,23 @@ export default function ExternalCalendarsScreen() {
         calendar: ExternalCalendar,
     ) => {
         const nextVisibility = calendar.is_visible === 'visible'
-        ? 'hidden'
-        : 'visible';
+            ? 'hidden'
+            : 'visible';
 
         void (async () => {
-        try {
-            await updateExternalCalendar(
-            calendar.id,
-            {
-                is_visible: nextVisibility,
-            },
-            );
-        } catch (updateError) {
-            Alert.alert(
-            'No fue posible actualizar la visibilidad',
-            getErrorMessage(updateError),
-            );
-        }
+            try {
+                await updateExternalCalendar(
+                    calendar.id,
+                    {
+                        is_visible: nextVisibility,
+                    },
+                );
+            } catch (updateError) {
+                Alert.alert(
+                    'No fue posible actualizar la visibilidad',
+                    getErrorMessage(updateError),
+                );
+            }
         })();
     };
 
@@ -433,137 +557,137 @@ export default function ExternalCalendarsScreen() {
         calendar: ExternalCalendar,
     ) => {
         const isUpdating = (
-        updatingExternalCalendarId === calendar.id
+            updatingExternalCalendarId === calendar.id
         );
 
         const isVisible = calendar.is_visible === 'visible';
 
         return (
-        <View
-            key={calendar.id}
-            style={styles.externalCalendarCard}
-        >
-            <View style={styles.externalCalendarTopRow}>
             <View
-                style={[
-                styles.calendarColorDot,
-                {
-                    backgroundColor: getCalendarColor(calendar),
-                },
-                ]}
-            />
-
-            <View style={styles.externalCalendarInfo}>
-                <Text
-                style={styles.externalCalendarName}
-                numberOfLines={1}
-                >
-                {calendar.name}
-                </Text>
-
-                <Text
-                style={styles.externalCalendarSubtitle}
-                numberOfLines={1}
-                >
-                {getCalendarSubtitle(calendar)}
-                </Text>
-            </View>
-
-            {isUpdating ? (
-                <ActivityIndicator
-                size="small"
-                color={colors.brand.primary}
-                />
-            ) : (
-                <TouchableOpacity
-                style={styles.visibilityButton}
-                onPress={() => handleVisibilityChange(calendar)}
-                activeOpacity={0.7}
-                >
-                {isVisible ? (
-                    <Eye
-                    size={19}
-                    color={colors.brand.primary}
-                    />
-                ) : (
-                    <EyeOff
-                    size={19}
-                    color={colors.neutral.gray500}
-                    />
-                )}
-                </TouchableOpacity>
-            )}
-            </View>
-
-            {calendar.description ? (
-            <Text
-                style={styles.externalCalendarDescription}
-                numberOfLines={2}
+                key={calendar.id}
+                style={styles.externalCalendarCard}
             >
-                {calendar.description}
-            </Text>
-            ) : null}
+                <View style={styles.externalCalendarTopRow}>
+                    <View
+                        style={[
+                            styles.calendarColorDot,
+                            {
+                                backgroundColor: getCalendarColor(calendar),
+                            },
+                        ]}
+                    />
 
-            <View style={styles.externalCalendarPreferences}>
-            <View style={styles.preferenceText}>
-                <Text style={styles.preferenceTitle}>
-                Usar en Agenda
-                </Text>
+                    <View style={styles.externalCalendarInfo}>
+                        <Text
+                            style={styles.externalCalendarName}
+                            numberOfLines={1}
+                        >
+                            {calendar.name}
+                        </Text>
 
-                <Text style={styles.preferenceDescription}>
-                {calendar.is_selected
-                    ? 'Este calendario está disponible en BeeApp.'
-                    : 'Este calendario no se usará en BeeApp.'}
-                </Text>
+                        <Text
+                            style={styles.externalCalendarSubtitle}
+                            numberOfLines={1}
+                        >
+                            {getCalendarSubtitle(calendar)}
+                        </Text>
+                    </View>
+
+                    {isUpdating ? (
+                        <ActivityIndicator
+                            size="small"
+                            color={colors.brand.primary}
+                        />
+                    ) : (
+                        <TouchableOpacity
+                            style={styles.visibilityButton}
+                            onPress={() => handleVisibilityChange(calendar)}
+                            activeOpacity={0.7}
+                        >
+                            {isVisible ? (
+                                <Eye
+                                    size={19}
+                                    color={colors.brand.primary}
+                                />
+                            ) : (
+                                <EyeOff
+                                    size={19}
+                                    color={colors.neutral.gray500}
+                                />
+                            )}
+                        </TouchableOpacity>
+                    )}
+                </View>
+
+                {calendar.description ? (
+                    <Text
+                        style={styles.externalCalendarDescription}
+                        numberOfLines={2}
+                    >
+                        {calendar.description}
+                    </Text>
+                ) : null}
+
+                <View style={styles.externalCalendarPreferences}>
+                    <View style={styles.preferenceText}>
+                        <Text style={styles.preferenceTitle}>
+                            Usar en Agenda
+                        </Text>
+
+                        <Text style={styles.preferenceDescription}>
+                            {calendar.is_selected
+                                ? 'Este calendario está disponible en BeeApp.'
+                                : 'Este calendario no se usará en BeeApp.'}
+                        </Text>
+                    </View>
+
+                    <Switch
+                        value={calendar.is_selected}
+                        onValueChange={(value) => {
+                            handleSelectionChange(calendar, value);
+                        }}
+                        disabled={isUpdating}
+                        trackColor={{
+                            false: colors.neutral.gray300,
+                            true: '#C4B5FD',
+                        }}
+                        thumbColor={
+                            calendar.is_selected
+                                ? colors.brand.primary
+                                : colors.neutral.white
+                        }
+                    />
+                </View>
+
+                <View style={styles.visibilityStatusRow}>
+                    {isVisible ? (
+                        <Eye
+                            size={14}
+                            color="#16A34A"
+                        />
+                    ) : (
+                        <EyeOff
+                            size={14}
+                            color={colors.neutral.gray500}
+                        />
+                    )}
+
+                    <Text
+                        style={[
+                            styles.visibilityStatusText,
+                            {
+                                color: isVisible
+                                    ? '#15803D'
+                                    : colors.neutral.gray600,
+                            },
+                        ]}
+                    >
+                        {isVisible
+                            ? 'Visible en Agenda'
+                            : 'Oculto en Agenda'}
+                    </Text>
+                </View>
             </View>
-
-            <Switch
-                value={calendar.is_selected}
-                onValueChange={(value) => {
-                handleSelectionChange(calendar, value);
-                }}
-                disabled={isUpdating}
-                trackColor={{
-                false: colors.neutral.gray300,
-                true: '#C4B5FD',
-                }}
-                thumbColor={
-                calendar.is_selected
-                    ? colors.brand.primary
-                    : colors.neutral.white
-                }
-            />
-            </View>
-
-            <View style={styles.visibilityStatusRow}>
-            {isVisible ? (
-                <Eye
-                size={14}
-                color="#16A34A"
-                />
-            ) : (
-                <EyeOff
-                size={14}
-                color={colors.neutral.gray500}
-                />
-            )}
-
-            <Text
-                style={[
-                styles.visibilityStatusText,
-                {
-                    color: isVisible
-                    ? '#15803D'
-                    : colors.neutral.gray600,
-                },
-                ]}
-            >
-                {isVisible
-                ? 'Visible en Agenda'
-                : 'Oculto en Agenda'}
-            </Text>
-            </View>
-        </View>
         );
     };
 
@@ -572,412 +696,524 @@ export default function ExternalCalendarsScreen() {
         integration: CalendarIntegration,
     ) => {
         const provider = getProviderPresentation(
-        integration.provider,
+            integration.provider,
         );
 
         const isExpanded = expandedIntegrationIds.includes(
-        integration.id,
+            integration.id,
         );
 
         const isLoadingExternal = (
-        loadingExternalIntegrationId === integration.id
+            loadingExternalIntegrationId === integration.id
         );
 
         const isDiscovering = (
-        discoveringIntegrationId === integration.id
+            discoveringIntegrationId === integration.id
         );
 
+        const isSyncing = syncingIntegrationId === integration.id;
+
         const calendars = getExternalCalendarsForIntegration(
-        integration.id,
+            integration.id,
+        );
+
+        const selectedCalendarCount = calendars.filter(
+            (calendar) => calendar.is_selected,
+        ).length;
+
+        const lastSyncResult = (
+            lastSyncResultByIntegrationId[integration.id]
         );
 
         const statusColor = getIntegrationStatusColor(
-        integration,
+            integration,
+        );
+
+        const isActionDisabled = (
+            !integration.can_sync
+            || isDiscovering
+            || isSyncing
         );
 
         return (
-        <View
-            key={integration.id}
-            style={styles.integrationCard}
-        >
-            <TouchableOpacity
-            style={styles.integrationHeader}
-            onPress={() => {
-                void handleToggleIntegration(integration);
-            }}
-            activeOpacity={0.75}
-            >
             <View
-                style={[
-                styles.providerAvatar,
-                {
-                    backgroundColor: provider.color,
-                },
-                ]}
+                key={integration.id}
+                style={styles.integrationCard}
             >
-                <Text style={styles.providerAvatarText}>
-                {provider.initial}
-                </Text>
-            </View>
-
-            <View style={styles.integrationInfo}>
-                <Text
-                style={styles.integrationProvider}
-                numberOfLines={1}
-                >
-                {provider.name}
-                </Text>
-
-                <Text
-                style={styles.integrationAccount}
-                numberOfLines={1}
-                >
-                {getIntegrationAccountLabel(integration)}
-                </Text>
-
-                <View style={styles.integrationStatusRow}>
-                <View
-                    style={[
-                    styles.statusDot,
-                    {
-                        backgroundColor: statusColor,
-                    },
-                    ]}
-                />
-
-                <Text
-                    style={[
-                    styles.integrationStatus,
-                    {
-                        color: statusColor,
-                    },
-                    ]}
-                    numberOfLines={1}
-                >
-                    {getIntegrationStatusLabel(integration)}
-                </Text>
-                </View>
-            </View>
-
-            {isLoadingExternal ? (
-                <ActivityIndicator
-                size="small"
-                color={colors.brand.primary}
-                />
-            ) : isExpanded ? (
-                <ChevronUp
-                size={21}
-                color={colors.neutral.gray500}
-                />
-            ) : (
-                <ChevronDown
-                size={21}
-                color={colors.neutral.gray500}
-                />
-            )}
-            </TouchableOpacity>
-
-            {isExpanded ? (
-            <View style={styles.integrationExpandedContent}>
-                {integration.status_reason ? (
-                <View style={styles.integrationNotice}>
-                    <AlertTriangle
-                    size={16}
-                    color="#B45309"
-                    />
-
-                    <Text style={styles.integrationNoticeText}>
-                    {integration.status_reason}
-                    </Text>
-                </View>
-                ) : null}
-
-                <View style={styles.discoveryRow}>
-                <View style={styles.discoveryText}>
-                    <Text style={styles.discoveryTitle}>
-                    Calendarios disponibles
-                    </Text>
-
-                    <Text style={styles.discoveryDescription}>
-                    Busca los calendarios de esta cuenta y elige
-                    cuáles deseas usar en tu Agenda.
-                    </Text>
-                </View>
-
                 <TouchableOpacity
-                    style={[
-                    styles.discoveryButton,
-                    (
-                        !integration.can_sync
-                        || isDiscovering
-                    ) && styles.discoveryButtonDisabled,
-                    ]}
+                    style={styles.integrationHeader}
                     onPress={() => {
-                    handleDiscoverCalendars(integration);
+                        void handleToggleIntegration(integration);
                     }}
-                    disabled={
-                    !integration.can_sync
-                    || isDiscovering
-                    }
-                    activeOpacity={0.8}
+                    activeOpacity={0.75}
                 >
-                    {isDiscovering ? (
-                    <ActivityIndicator
-                        size="small"
-                        color={colors.neutral.white}
-                    />
+                    <View
+                        style={[
+                            styles.providerAvatar,
+                            {
+                                backgroundColor: provider.color,
+                            },
+                        ]}
+                    >
+                        <Text style={styles.providerAvatarText}>
+                            {provider.initial}
+                        </Text>
+                    </View>
+
+                    <View style={styles.integrationInfo}>
+                        <Text
+                            style={styles.integrationProvider}
+                            numberOfLines={1}
+                        >
+                            {provider.name}
+                        </Text>
+
+                        <Text
+                            style={styles.integrationAccount}
+                            numberOfLines={1}
+                        >
+                            {getIntegrationAccountLabel(integration)}
+                        </Text>
+
+                        <View style={styles.integrationStatusRow}>
+                            <View
+                                style={[
+                                    styles.statusDot,
+                                    {
+                                        backgroundColor: statusColor,
+                                    },
+                                ]}
+                            />
+
+                            <Text
+                                style={[
+                                    styles.integrationStatus,
+                                    {
+                                        color: statusColor,
+                                    },
+                                ]}
+                                numberOfLines={1}
+                            >
+                                {getIntegrationStatusLabel(integration)}
+                            </Text>
+                        </View>
+                    </View>
+
+                    {isLoadingExternal ? (
+                        <ActivityIndicator
+                            size="small"
+                            color={colors.brand.primary}
+                        />
+                    ) : isExpanded ? (
+                        <ChevronUp
+                            size={21}
+                            color={colors.neutral.gray500}
+                        />
                     ) : (
-                    <RefreshCw
-                        size={16}
-                        color={colors.neutral.white}
-                    />
+                        <ChevronDown
+                            size={21}
+                            color={colors.neutral.gray500}
+                        />
                     )}
-
-                    <Text style={styles.discoveryButtonText}>
-                    {isDiscovering
-                        ? 'Buscando...'
-                        : 'Buscar'}
-                    </Text>
                 </TouchableOpacity>
-                </View>
 
-                {!integration.can_sync ? (
-                <View style={styles.syncUnavailableBox}>
-                    <AlertTriangle
-                    size={17}
-                    color="#B45309"
-                    />
+                {isExpanded ? (
+                    <View style={styles.integrationExpandedContent}>
+                        {integration.status_reason ? (
+                            <View style={styles.integrationNotice}>
+                                <AlertTriangle
+                                    size={16}
+                                    color="#B45309"
+                                />
 
-                    <Text style={styles.syncUnavailableText}>
-                    Esta cuenta no puede sincronizar calendarios
-                    ahora. Reconéctala desde Integraciones externas.
-                    </Text>
-                </View>
+                                <Text style={styles.integrationNoticeText}>
+                                    {integration.status_reason}
+                                </Text>
+                            </View>
+                        ) : null}
+
+                        <View style={styles.actionRow}>
+                            <TouchableOpacity
+                                style={[
+                                    styles.discoveryButton,
+                                    isActionDisabled
+                                        && styles.discoveryButtonDisabled,
+                                ]}
+                                onPress={() => {
+                                    handleDiscoverCalendars(integration);
+                                }}
+                                disabled={isActionDisabled}
+                                activeOpacity={0.8}
+                            >
+                                {isDiscovering ? (
+                                    <ActivityIndicator
+                                        size="small"
+                                        color={colors.neutral.white}
+                                    />
+                                ) : (
+                                    <RefreshCw
+                                        size={16}
+                                        color={colors.neutral.white}
+                                    />
+                                )}
+
+                                <Text style={styles.discoveryButtonText}>
+                                    {isDiscovering
+                                        ? 'Buscando...'
+                                        : 'Buscar'}
+                                </Text>
+                            </TouchableOpacity>
+
+                            <TouchableOpacity
+                                style={[
+                                    styles.syncButton,
+                                    (
+                                        !integration.can_sync
+                                        || selectedCalendarCount === 0
+                                        || isSyncing
+                                        || isDiscovering
+                                    ) && styles.syncButtonDisabled,
+                                ]}
+                                onPress={() => {
+                                    handleSyncIntegration(
+                                        integration,
+                                        selectedCalendarCount,
+                                    );
+                                }}
+                                disabled={
+                                    !integration.can_sync
+                                    || selectedCalendarCount === 0
+                                    || isSyncing
+                                    || isDiscovering
+                                }
+                                activeOpacity={0.8}
+                            >
+                                {isSyncing ? (
+                                    <ActivityIndicator
+                                        size="small"
+                                        color={colors.brand.primary}
+                                    />
+                                ) : (
+                                    <RotateCw
+                                        size={16}
+                                        color={colors.brand.primary}
+                                    />
+                                )}
+
+                                <Text style={styles.syncButtonText}>
+                                    {isSyncing
+                                        ? 'Sincronizando...'
+                                        : 'Sincronizar'}
+                                </Text>
+                            </TouchableOpacity>
+                        </View>
+
+                        <View style={styles.discoveryTextBlock}>
+                            <Text style={styles.discoveryTitle}>
+                                Calendarios disponibles
+                            </Text>
+
+                            <Text style={styles.discoveryDescription}>
+                                Busca los calendarios de esta cuenta y elige
+                                cuáles deseas usar en tu Agenda.
+                            </Text>
+                        </View>
+
+                        {!integration.can_sync ? (
+                            <View style={styles.syncUnavailableBox}>
+                                <AlertTriangle
+                                    size={17}
+                                    color="#B45309"
+                                />
+
+                                <Text style={styles.syncUnavailableText}>
+                                    Esta cuenta no puede sincronizar calendarios
+                                    ahora. Reconéctala desde Integraciones
+                                    externas.
+                                </Text>
+                            </View>
+                        ) : selectedCalendarCount === 0 ? (
+                            <View style={styles.selectionRequiredBox}>
+                                <CalendarDays
+                                    size={17}
+                                    color="#7C3AED"
+                                />
+
+                                <Text style={styles.selectionRequiredText}>
+                                    Selecciona al menos un calendario con
+                                    “Usar en Agenda” antes de sincronizar.
+                                </Text>
+                            </View>
+                        ) : null}
+
+                        {lastSyncResult ? (
+                            <View style={styles.syncSummaryCard}>
+                                <View style={styles.syncSummaryHeader}>
+                                    <RotateCw
+                                        size={16}
+                                        color="#15803D"
+                                    />
+
+                                    <Text style={styles.syncSummaryTitle}>
+                                        Última sincronización en esta sesión
+                                    </Text>
+                                </View>
+
+                                <Text style={styles.syncSummaryText}>
+                                    {getSyncSummary(lastSyncResult)}
+                                </Text>
+
+                                <Text style={styles.syncSummaryDetail}>
+                                    {`${lastSyncResult.fetched_event_count} `
+                                    + 'eventos consultados en '
+                                    + `${lastSyncResult.synced_external_calendar_count} `
+                                    + 'calendario(s).'}
+                                </Text>
+                            </View>
+                        ) : integration.last_successful_sync_at ? (
+                            <View style={styles.lastSyncRow}>
+                                <RotateCw
+                                    size={14}
+                                    color={colors.neutral.gray500}
+                                />
+
+                                <Text style={styles.lastSyncText}>
+                                    Última sincronización: {
+                                        formatDateTime(
+                                            integration.last_successful_sync_at,
+                                        )
+                                        || 'recientemente'
+                                    }
+                                </Text>
+                            </View>
+                        ) : null}
+
+                        {isLoadingExternal ? (
+                            <View style={styles.externalLoading}>
+                                <ActivityIndicator
+                                    size="small"
+                                    color={colors.brand.primary}
+                                />
+
+                                <Text style={styles.externalLoadingText}>
+                                    Cargando calendarios...
+                                </Text>
+                            </View>
+                        ) : calendars.length > 0 ? (
+                            <View style={styles.externalCalendarList}>
+                                {calendars.map(renderExternalCalendar)}
+                            </View>
+                        ) : (
+                            <View style={styles.externalEmptyState}>
+                                <CalendarDays
+                                    size={23}
+                                    color={colors.brand.primary}
+                                />
+
+                                <Text style={styles.externalEmptyTitle}>
+                                    Aún no hay calendarios descubiertos
+                                </Text>
+
+                                <Text style={styles.externalEmptyText}>
+                                    Usa “Buscar” para consultar los calendarios
+                                    de esta cuenta.
+                                </Text>
+                            </View>
+                        )}
+                    </View>
                 ) : null}
-
-                {isLoadingExternal ? (
-                <View style={styles.externalLoading}>
-                    <ActivityIndicator
-                    size="small"
-                    color={colors.brand.primary}
-                    />
-
-                    <Text style={styles.externalLoadingText}>
-                    Cargando calendarios...
-                    </Text>
-                </View>
-                ) : calendars.length > 0 ? (
-                <View style={styles.externalCalendarList}>
-                    {calendars.map(renderExternalCalendar)}
-                </View>
-                ) : (
-                <View style={styles.externalEmptyState}>
-                    <CalendarDays
-                    size={23}
-                    color={colors.brand.primary}
-                    />
-
-                    <Text style={styles.externalEmptyTitle}>
-                    Aún no hay calendarios descubiertos
-                    </Text>
-
-                    <Text style={styles.externalEmptyText}>
-                    Usa “Buscar” para consultar los calendarios de
-                    esta cuenta.
-                    </Text>
-                </View>
-                )}
             </View>
-            ) : null}
-        </View>
         );
     };
 
 
     return (
         <ScreenSafeArea style={styles.safeArea}>
-        <View style={styles.container}>
-            <View style={styles.header}>
-            <TouchableOpacity
-                style={styles.headerButton}
-                onPress={() => router.back()}
-                activeOpacity={0.7}
-            >
-                <ChevronLeft
-                size={24}
-                color={colors.neutral.text}
-                />
-            </TouchableOpacity>
+            <View style={styles.container}>
+                <View style={styles.header}>
+                    <TouchableOpacity
+                        style={styles.headerButton}
+                        onPress={() => router.back()}
+                        activeOpacity={0.7}
+                    >
+                        <ChevronLeft
+                            size={24}
+                            color={colors.neutral.text}
+                        />
+                    </TouchableOpacity>
 
-            <Text style={styles.headerTitle}>
-                Calendarios externos
-            </Text>
-
-            <TouchableOpacity
-                style={styles.headerButton}
-                onPress={() => {
-                void handleRefresh();
-                }}
-                disabled={refreshing}
-                activeOpacity={0.7}
-            >
-                {refreshing ? (
-                <ActivityIndicator
-                    size="small"
-                    color={colors.brand.primary}
-                />
-                ) : (
-                <RefreshCw
-                    size={19}
-                    color={colors.brand.primary}
-                />
-                )}
-            </TouchableOpacity>
-            </View>
-
-            {loading ? (
-            <View style={styles.loadingState}>
-                <ActivityIndicator
-                size="large"
-                color={colors.brand.primary}
-                />
-
-                <Text style={styles.loadingText}>
-                Cargando calendarios externos...
-                </Text>
-            </View>
-            ) : (
-            <ScrollView
-                style={styles.scrollView}
-                contentContainerStyle={styles.scrollContent}
-                showsVerticalScrollIndicator={false}
-                refreshControl={(
-                <RefreshControl
-                    refreshing={refreshing}
-                    onRefresh={() => {
-                    void handleRefresh();
-                    }}
-                    tintColor={colors.brand.primary}
-                />
-                )}
-            >
-                <View style={styles.introCard}>
-                <View style={styles.introIcon}>
-                    <Settings2
-                    size={22}
-                    color={colors.brand.primary}
-                    />
-                </View>
-
-                <View style={styles.introContent}>
-                    <Text style={styles.introTitle}>
-                    Configura tu Agenda
-                    </Text>
-
-                    <Text style={styles.introText}>
-                    Descubre los calendarios de tus cuentas conectadas
-                    y decide cuáles usar o mostrar en BeeApp.
-                    </Text>
-                </View>
-                </View>
-
-                {error ? (
-                <TouchableOpacity
-                    style={styles.errorBox}
-                    onPress={() => {
-                    clearError();
-                    void handleRefresh();
-                    }}
-                    activeOpacity={0.8}
-                >
-                    <AlertTriangle
-                    size={19}
-                    color="#B45309"
-                    />
-
-                    <View style={styles.errorContent}>
-                    <Text style={styles.errorTitle}>
-                        No fue posible actualizar
-                    </Text>
-
-                    <Text style={styles.errorText}>
-                        {error}
-                    </Text>
-                    </View>
-                </TouchableOpacity>
-                ) : null}
-
-                <View style={styles.sectionHeader}>
-                <Text style={styles.sectionTitle}>
-                    Cuentas de calendario
-                </Text>
-
-                <Text style={styles.sectionCount}>
-                    {activeIntegrations.length}
-                </Text>
-                </View>
-
-                {activeIntegrations.length > 0 ? (
-                <View style={styles.integrationList}>
-                    {activeIntegrations.map(renderIntegration)}
-                </View>
-                ) : (
-                <View style={styles.noIntegrationsCard}>
-                    <View style={styles.noIntegrationsIcon}>
-                    <Link2
-                        size={25}
-                        color={colors.brand.primary}
-                    />
-                    </View>
-
-                    <Text style={styles.noIntegrationsTitle}>
-                    No hay cuentas de calendario conectadas
-                    </Text>
-
-                    <Text style={styles.noIntegrationsText}>
-                    Conecta Google o Microsoft desde Integraciones
-                    externas para configurar sus calendarios aquí.
+                    <Text style={styles.headerTitle}>
+                        Calendarios externos
                     </Text>
 
                     <TouchableOpacity
-                    style={styles.goToIntegrationsButton}
-                    onPress={() => {
-                        router.push(
-                        '/(main)/profile/integrations',
-                        );
-                    }}
-                    activeOpacity={0.8}
+                        style={styles.headerButton}
+                        onPress={() => {
+                            void handleRefresh();
+                        }}
+                        disabled={refreshing}
+                        activeOpacity={0.7}
                     >
-                    <Text style={styles.goToIntegrationsButtonText}>
-                        Ir a Integraciones
-                    </Text>
+                        {refreshing ? (
+                            <ActivityIndicator
+                                size="small"
+                                color={colors.brand.primary}
+                            />
+                        ) : (
+                            <RefreshCw
+                                size={19}
+                                color={colors.brand.primary}
+                            />
+                        )}
                     </TouchableOpacity>
                 </View>
+
+                {loading ? (
+                    <View style={styles.loadingState}>
+                        <ActivityIndicator
+                            size="large"
+                            color={colors.brand.primary}
+                        />
+
+                        <Text style={styles.loadingText}>
+                            Cargando calendarios externos...
+                        </Text>
+                    </View>
+                ) : (
+                    <ScrollView
+                        style={styles.scrollView}
+                        contentContainerStyle={styles.scrollContent}
+                        showsVerticalScrollIndicator={false}
+                        refreshControl={(
+                            <RefreshControl
+                                refreshing={refreshing}
+                                onRefresh={() => {
+                                    void handleRefresh();
+                                }}
+                                tintColor={colors.brand.primary}
+                            />
+                        )}
+                    >
+                        <View style={styles.introCard}>
+                            <View style={styles.introIcon}>
+                                <Settings2
+                                    size={22}
+                                    color={colors.brand.primary}
+                                />
+                            </View>
+
+                            <View style={styles.introContent}>
+                                <Text style={styles.introTitle}>
+                                    Configura tu Agenda
+                                </Text>
+
+                                <Text style={styles.introText}>
+                                    Descubre los calendarios de tus cuentas
+                                    conectadas, elige cuáles usar y
+                                    sincronízalos con BeeApp.
+                                </Text>
+                            </View>
+                        </View>
+
+                        {error ? (
+                            <TouchableOpacity
+                                style={styles.errorBox}
+                                onPress={() => {
+                                    clearError();
+                                    void handleRefresh();
+                                }}
+                                activeOpacity={0.8}
+                            >
+                                <AlertTriangle
+                                    size={19}
+                                    color="#B45309"
+                                />
+
+                                <View style={styles.errorContent}>
+                                    <Text style={styles.errorTitle}>
+                                        No fue posible actualizar
+                                    </Text>
+
+                                    <Text style={styles.errorText}>
+                                        {error}
+                                    </Text>
+                                </View>
+                            </TouchableOpacity>
+                        ) : null}
+
+                        <View style={styles.sectionHeader}>
+                            <Text style={styles.sectionTitle}>
+                                Cuentas de calendario
+                            </Text>
+
+                            <Text style={styles.sectionCount}>
+                                {activeIntegrations.length}
+                            </Text>
+                        </View>
+
+                        {activeIntegrations.length > 0 ? (
+                            <View style={styles.integrationList}>
+                                {activeIntegrations.map(renderIntegration)}
+                            </View>
+                        ) : (
+                            <View style={styles.noIntegrationsCard}>
+                                <View style={styles.noIntegrationsIcon}>
+                                    <Link2
+                                        size={25}
+                                        color={colors.brand.primary}
+                                    />
+                                </View>
+
+                                <Text style={styles.noIntegrationsTitle}>
+                                    No hay cuentas de calendario conectadas
+                                </Text>
+
+                                <Text style={styles.noIntegrationsText}>
+                                    Conecta Google o Microsoft desde
+                                    Integraciones externas para configurar sus
+                                    calendarios aquí.
+                                </Text>
+
+                                <TouchableOpacity
+                                    style={styles.goToIntegrationsButton}
+                                    onPress={() => {
+                                        router.push(
+                                            '/(main)/profile/integrations',
+                                        );
+                                    }}
+                                    activeOpacity={0.8}
+                                >
+                                    <Text style={styles.goToIntegrationsButtonText}>
+                                        Ir a Integraciones
+                                    </Text>
+                                </TouchableOpacity>
+                            </View>
+                        )}
+
+                        <View style={styles.securityCard}>
+                            <ShieldCheck
+                                size={21}
+                                color="#15803D"
+                            />
+
+                            <View style={styles.securityContent}>
+                                <Text style={styles.securityTitle}>
+                                    Tus credenciales permanecen protegidas
+                                </Text>
+
+                                <Text style={styles.securityText}>
+                                    BeeApp solo recibe la información necesaria
+                                    para mostrar y sincronizar tus calendarios.
+                                    Las credenciales OAuth no aparecen ni se
+                                    guardan en esta pantalla.
+                                </Text>
+                            </View>
+                        </View>
+
+                        <View style={styles.bottomSpacer} />
+                    </ScrollView>
                 )}
-
-                <View style={styles.securityCard}>
-                <ShieldCheck
-                    size={21}
-                    color="#15803D"
-                />
-
-                <View style={styles.securityContent}>
-                    <Text style={styles.securityTitle}>
-                    Tus credenciales permanecen protegidas
-                    </Text>
-
-                    <Text style={styles.securityText}>
-                    BeeApp solo recibe la información necesaria para
-                    mostrar tus calendarios. Las credenciales OAuth no
-                    aparecen ni se guardan en esta pantalla.
-                    </Text>
-                </View>
-                </View>
-
-                <View style={styles.bottomSpacer} />
-            </ScrollView>
-            )}
-        </View>
+            </View>
         </ScreenSafeArea>
     );
 }
@@ -1197,14 +1433,54 @@ const styles = StyleSheet.create({
         lineHeight: 16,
         color: '#92400E',
     },
-    discoveryRow: {
+    actionRow: {
         flexDirection: 'row',
-        alignItems: 'center',
+        gap: 8,
         marginBottom: 13,
     },
-    discoveryText: {
+    discoveryButton: {
+        minHeight: 40,
         flex: 1,
-        paddingRight: 10,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 6,
+        borderRadius: 12,
+        backgroundColor: colors.brand.primary,
+        paddingHorizontal: 10,
+    },
+    discoveryButtonDisabled: {
+        backgroundColor: colors.neutral.gray400,
+    },
+    discoveryButtonText: {
+        fontSize: 11,
+        fontWeight: '800',
+        color: colors.neutral.white,
+    },
+    syncButton: {
+        minHeight: 40,
+        flex: 1,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 6,
+        borderRadius: 12,
+        borderWidth: 1,
+        borderColor: '#C4B5FD',
+        backgroundColor: '#F3E8FF',
+        paddingHorizontal: 10,
+    },
+    syncButtonDisabled: {
+        borderColor: colors.neutral.gray200,
+        backgroundColor: colors.neutral.gray100,
+    },
+    syncButtonText: {
+        fontSize: 11,
+        fontWeight: '800',
+        color: colors.brand.primary,
+    },
+    discoveryTextBlock: {
+        marginBottom: 12,
     },
     discoveryTitle: {
         fontSize: 13,
@@ -1217,25 +1493,6 @@ const styles = StyleSheet.create({
         fontWeight: '500',
         lineHeight: 16,
         color: colors.neutral.gray600,
-    },
-    discoveryButton: {
-        minWidth: 94,
-        minHeight: 39,
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'center',
-        gap: 6,
-        borderRadius: 12,
-        backgroundColor: colors.brand.primary,
-        paddingHorizontal: 11,
-    },
-    discoveryButtonDisabled: {
-        backgroundColor: colors.neutral.gray400,
-    },
-    discoveryButtonText: {
-        fontSize: 11,
-        fontWeight: '800',
-        color: colors.neutral.white,
     },
     syncUnavailableBox: {
         flexDirection: 'row',
@@ -1253,6 +1510,67 @@ const styles = StyleSheet.create({
         fontWeight: '500',
         lineHeight: 16,
         color: '#92400E',
+    },
+    selectionRequiredBox: {
+        flexDirection: 'row',
+        gap: 8,
+        borderRadius: 12,
+        borderWidth: 1,
+        borderColor: '#DDD6FE',
+        backgroundColor: '#F5F3FF',
+        padding: 11,
+        marginBottom: 12,
+    },
+    selectionRequiredText: {
+        flex: 1,
+        fontSize: 11,
+        fontWeight: '500',
+        lineHeight: 16,
+        color: '#6D28D9',
+    },
+    syncSummaryCard: {
+        borderRadius: 12,
+        borderWidth: 1,
+        borderColor: '#BBF7D0',
+        backgroundColor: '#F0FDF4',
+        padding: 11,
+        marginBottom: 12,
+    },
+    syncSummaryHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 7,
+        marginBottom: 5,
+    },
+    syncSummaryTitle: {
+        flex: 1,
+        fontSize: 11,
+        fontWeight: '800',
+        color: '#166534',
+    },
+    syncSummaryText: {
+        fontSize: 11,
+        fontWeight: '700',
+        color: '#166534',
+        marginBottom: 3,
+    },
+    syncSummaryDetail: {
+        fontSize: 10,
+        fontWeight: '500',
+        lineHeight: 15,
+        color: '#15803D',
+    },
+    lastSyncRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 6,
+        marginBottom: 12,
+    },
+    lastSyncText: {
+        flex: 1,
+        fontSize: 10,
+        fontWeight: '600',
+        color: colors.neutral.gray600,
     },
     externalLoading: {
         flexDirection: 'row',
