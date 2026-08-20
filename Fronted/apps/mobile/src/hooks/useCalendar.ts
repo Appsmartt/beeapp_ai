@@ -16,6 +16,7 @@ import {
     updateCalendarEvent,
     } from '@beeapp/api-client';
 import type {
+    AuthCredentials,
     Calendar as ApiCalendar,
     CalendarEvent as ApiCalendarEvent,
     CalendarPreferences,
@@ -25,6 +26,7 @@ import type {
     } from '@beeapp/shared-types';
 
 import {
+    getValidAuthSession,
     getValidSessionCredentials,
     } from '../services/authSession';
 import {
@@ -91,11 +93,21 @@ export interface UseCalendarResult {
 }
 
 
+interface AuthenticatedCalendarContext {
+    auth: AuthCredentials;
+    currentUserId: string;
+}
+
+
 function mapEvents(
     events: ApiCalendarEvent[],
+    currentUserId?: string | null,
     ): CalendarEvent[] {
     return events.map((event) =>
-        mapApiEventToCalendarEvent(event),
+        mapApiEventToCalendarEvent(
+        event,
+        currentUserId,
+        ),
     );
 }
 
@@ -128,19 +140,42 @@ function delay(
 }
 
 
+async function getAuthenticatedCalendarContext(): Promise<
+    AuthenticatedCalendarContext
+    > {
+    const authSession = await getValidAuthSession();
+
+    if (!authSession) {
+        throw new Error(
+        'Tu sesión expiró. Inicia sesión nuevamente.',
+        );
+    }
+
+    const auth = await getValidSessionCredentials();
+
+    if (!auth) {
+        throw new Error(
+        'Tu sesión expiró. Inicia sesión nuevamente.',
+        );
+    }
+
+    return {
+        auth,
+        currentUserId: authSession.user.id,
+    };
+}
+
+
 export function useCalendar(): UseCalendarResult {
     const initialCache = getCalendarCache();
-
 
     const [events, setEvents] = useState<CalendarEvent[]>(
         initialCache.events,
     );
 
-
     const [calendars, setCalendars] = useState<ApiCalendar[]>(
         initialCache.calendars,
     );
-
 
     const [preferences, setPreferences] = useState<
         CalendarPreferences | null
@@ -148,29 +183,19 @@ export function useCalendar(): UseCalendarResult {
         initialCache.preferences,
     );
 
-
     const [loading, setLoading] = useState(
         initialCache.events.length === 0,
     );
 
-
     const [refreshing, setRefreshing] = useState(false);
-
 
     const [error, setError] = useState<string | null>(null);
 
-
     const latestRequestId = useRef(0);
 
-
-    /*
-    * Prevents duplicate "Mi Agenda" calendar creation when a user opens
-    * Agenda twice before the first bootstrap/create/bootstrap flow finishes.
-    */
     const provisioningPromiseRef = useRef<Promise<void> | null>(
         null,
     );
-
 
     const syncCache = useCallback((
         nextEvents: CalendarEvent[],
@@ -186,25 +211,18 @@ export function useCalendar(): UseCalendarResult {
         rangeEnd: range.rangeEnd,
         });
 
-
         setEvents(nextEvents);
         setCalendars(nextCalendars);
         setPreferences(nextPreferences);
     }, []);
 
-
     const bootstrapWithProvisioning = useCallback(async (
         range: CalendarRange,
     ) => {
-        const auth = await getValidSessionCredentials();
-
-
-        if (!auth) {
-        throw new Error(
-            'Tu sesión expiró. Inicia sesión nuevamente.',
-        );
-        }
-
+        const {
+        auth,
+        currentUserId,
+        } = await getAuthenticatedCalendarContext();
 
         let response = await getCalendarBootstrap(
         auth,
@@ -214,14 +232,13 @@ export function useCalendar(): UseCalendarResult {
         },
         );
 
-
         if (response.calendars.length > 0) {
         return {
             auth,
+            currentUserId,
             response,
         };
         }
-
 
         if (!provisioningPromiseRef.current) {
         provisioningPromiseRef.current = createCalendar(
@@ -243,14 +260,8 @@ export function useCalendar(): UseCalendarResult {
             });
         }
 
-
         await provisioningPromiseRef.current;
 
-
-        /*
-        * The backend insert can take a moment to become visible in a second
-        * read. A small retry avoids an empty Agenda immediately after creation.
-        */
         for (let attempt = 0; attempt < 3; attempt += 1) {
         response = await getCalendarBootstrap(
             auth,
@@ -260,15 +271,12 @@ export function useCalendar(): UseCalendarResult {
             },
         );
 
-
         if (response.calendars.length > 0) {
             break;
         }
 
-
         await delay(250);
         }
-
 
         if (response.calendars.length === 0) {
         throw new Error(
@@ -277,13 +285,12 @@ export function useCalendar(): UseCalendarResult {
         );
         }
 
-
         return {
         auth,
+        currentUserId,
         response,
         };
     }, []);
-
 
     const loadCalendar = useCallback(async (
         range: CalendarRange,
@@ -291,9 +298,7 @@ export function useCalendar(): UseCalendarResult {
     ) => {
         const requestId = latestRequestId.current + 1;
 
-
         latestRequestId.current = requestId;
-
 
         if (showRefresh) {
         setRefreshing(true);
@@ -301,23 +306,22 @@ export function useCalendar(): UseCalendarResult {
         setLoading(true);
         }
 
-
         setError(null);
-
 
         try {
         const {
+            currentUserId,
             response,
         } = await bootstrapWithProvisioning(range);
-
 
         if (requestId !== latestRequestId.current) {
             return;
         }
 
-
-        const nextEvents = mapEvents(response.events);
-
+        const nextEvents = mapEvents(
+            response.events,
+            currentUserId,
+        );
 
         syncCache(
             nextEvents,
@@ -329,7 +333,6 @@ export function useCalendar(): UseCalendarResult {
         if (requestId !== latestRequestId.current) {
             return;
         }
-
 
         setError(
             loadError instanceof Error
@@ -347,10 +350,8 @@ export function useCalendar(): UseCalendarResult {
         syncCache,
     ]);
 
-
     useEffect(() => {
         const cachedRange = getCalendarCache();
-
 
         if (
         cachedRange.rangeStart
@@ -363,7 +364,6 @@ export function useCalendar(): UseCalendarResult {
         }
     }, [loadCalendar]);
 
-
     const getEventById = useCallback(async (
         eventId: string,
         forceRefresh = true,
@@ -372,86 +372,63 @@ export function useCalendar(): UseCalendarResult {
         (event) => event.id === eventId,
         );
 
-
         if (cachedEvent && !forceRefresh) {
         return cachedEvent;
         }
 
-
-        const auth = await getValidSessionCredentials();
-
-
-        if (!auth) {
-        throw new Error(
-            'Tu sesión expiró. Inicia sesión nuevamente.',
-        );
-        }
-
+        const {
+        auth,
+        currentUserId,
+        } = await getAuthenticatedCalendarContext();
 
         const response = await getCalendarEvent(
         auth,
         eventId,
         );
 
-
         const event = mapApiEventToCalendarEvent(
         response.event,
+        currentUserId,
         );
-
 
         upsertCalendarEvent(event);
         setEvents(getCalendarCache().events);
 
-
         return event;
     }, []);
-
 
     const createEvent = useCallback(async (
         payload: CreateCalendarEventPayload,
     ) => {
-        const auth = await getValidSessionCredentials();
-
-
-        if (!auth) {
-        throw new Error(
-            'Tu sesión expiró. Inicia sesión nuevamente.',
-        );
-        }
-
+        const {
+        auth,
+        currentUserId,
+        } = await getAuthenticatedCalendarContext();
 
         const response = await createCalendarEvent(
         auth,
         payload,
         );
 
-
         const event = mapApiEventToCalendarEvent(
         response.event,
+        currentUserId,
         );
-
 
         upsertCalendarEvent(event);
         setEvents(getCalendarCache().events);
 
-
         return event;
     }, []);
-
 
     const updateEvent = useCallback(async (
         eventId: string,
         payload: UpdateCalendarEventPayload,
     ) => {
-        const auth = await getValidSessionCredentials();
-
-
-        if (!auth) {
-        throw new Error(
-            'Tu sesión expiró. Inicia sesión nuevamente.',
-        );
-        }
-
+        const {
+        auth,
+        currentUserId,
+        } = await getAuthenticatedCalendarContext();
 
         const response = await updateCalendarEvent(
         auth,
@@ -459,57 +436,41 @@ export function useCalendar(): UseCalendarResult {
         payload,
         );
 
-
         const event = mapApiEventToCalendarEvent(
         response.event,
+        currentUserId,
         );
-
 
         upsertCalendarEvent(event);
         setEvents(getCalendarCache().events);
 
-
         return event;
     }, []);
-
 
     const deleteEvent = useCallback(async (
         eventId: string,
     ) => {
-        const auth = await getValidSessionCredentials();
-
-
-        if (!auth) {
-        throw new Error(
-            'Tu sesión expiró. Inicia sesión nuevamente.',
-        );
-        }
-
+        const {
+        auth,
+        } = await getAuthenticatedCalendarContext();
 
         await deleteCalendarEvent(
         auth,
         eventId,
         );
 
-
         removeCalendarEvent(eventId);
         setEvents(getCalendarCache().events);
     }, []);
-
 
     const duplicateEvent = useCallback(async (
         eventId: string,
         payload: DuplicateCalendarEventPayload,
     ) => {
-        const auth = await getValidSessionCredentials();
-
-
-        if (!auth) {
-        throw new Error(
-            'Tu sesión expiró. Inicia sesión nuevamente.',
-        );
-        }
-
+        const {
+        auth,
+        currentUserId,
+        } = await getAuthenticatedCalendarContext();
 
         const response = await duplicateCalendarEvent(
         auth,
@@ -517,33 +478,24 @@ export function useCalendar(): UseCalendarResult {
         payload,
         );
 
-
         const event = mapApiEventToCalendarEvent(
         response.event,
+        currentUserId,
         );
-
 
         upsertCalendarEvent(event);
         setEvents(getCalendarCache().events);
 
-
         return event;
     }, []);
-
 
     const respondToInvitation = useCallback(async (
         eventId: string,
         responseStatus: 'accepted' | 'declined',
     ) => {
-        const auth = await getValidSessionCredentials();
-
-
-        if (!auth) {
-        throw new Error(
-            'Tu sesión expiró. Inicia sesión nuevamente.',
-        );
-        }
-
+        const {
+        auth,
+        } = await getAuthenticatedCalendarContext();
 
         await respondToCalendarEvent(
         auth,
@@ -551,55 +503,41 @@ export function useCalendar(): UseCalendarResult {
         responseStatus,
         );
 
-
         await getEventById(eventId, true);
     }, [getEventById]);
-
 
     const searchUsers = useCallback(async (
         query: string,
     ) => {
         const normalizedQuery = query.trim();
 
-
         if (normalizedQuery.length < 3) {
         return [];
         }
 
-
-        const auth = await getValidSessionCredentials();
-
-
-        if (!auth) {
-        throw new Error(
-            'Tu sesión expiró. Inicia sesión nuevamente.',
-        );
-        }
-
+        const {
+        auth,
+        } = await getAuthenticatedCalendarContext();
 
         const response = await searchCalendarUsers(
         auth,
         normalizedQuery,
         );
 
-
         return response.users.map(
         mapCalendarUserToOption,
         );
     }, []);
-
 
     const getDefaultCalendarId = useCallback(
         () => selectDefaultCalendarId(calendars),
         [calendars],
     );
 
-
     const getTimezone = useCallback(
         () => getCalendarTimezone(preferences),
         [preferences],
     );
-
 
     return {
         events,

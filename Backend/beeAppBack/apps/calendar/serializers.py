@@ -1247,10 +1247,7 @@ class CalendarIntegrationSyncRequestSerializer(
     serializers.Serializer,
 ):
     """
-    Reservado para el bloque de sincronización.
-
-    Se crea desde ahora para mantener estable el contrato de
-    integración. Todavía no expone un endpoint que ejecute sync.
+    Valida opciones para sincronizar una integración de calendario.
     """
 
     force_full_sync = serializers.BooleanField(

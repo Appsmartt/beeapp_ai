@@ -595,7 +595,10 @@ export function mapApiEventToCalendarEvent(
         attendees,
         currentUserId,
     );
-    const canManage = event.organizer_id === currentUserId;
+    const canManage = Boolean(
+        currentUserId
+        && event.organizer_id === currentUserId,
+    );
 
 
     return {
