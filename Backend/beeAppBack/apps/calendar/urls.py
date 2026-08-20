@@ -14,6 +14,7 @@ from apps.calendar.views import (
     CalendarIntegrationDetailView,
     CalendarIntegrationDiscoverCalendarsView,
     CalendarIntegrationExternalCalendarsView,
+    CalendarIntegrationSyncView,
     CalendarIntegrationsView,
     CalendarInviteeRequestDetailView,
     CalendarPreferencesView,
@@ -74,6 +75,14 @@ urlpatterns = [
         ),
         CalendarIntegrationDiscoverCalendarsView.as_view(),
         name="calendar-integration-discover-calendars",
+    ),
+    path(
+        (
+            "integrations/<uuid:integration_id>/"
+            "sync/"
+        ),
+        CalendarIntegrationSyncView.as_view(),
+        name="calendar-integration-sync",
     ),
     path(
         "external-calendars/<uuid:external_calendar_id>/",

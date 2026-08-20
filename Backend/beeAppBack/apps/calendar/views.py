@@ -24,12 +24,16 @@ from apps.calendar.services.calendar_integration_service import (
     get_calendar_integration,
     list_calendar_integrations,
 )
+from apps.calendar.services.calendar_sync_service import (
+    sync_calendar_integration,
+)
 from apps.calendar.serializers import (
     CalendarConflictQuerySerializer,
     CalendarEventListQuerySerializer,
     CalendarIntegrationListQuerySerializer,
     CalendarListQuerySerializer,
     CalendarUserSearchQuerySerializer,
+    CalendarIntegrationSyncRequestSerializer,
     CreateCalendarEventSerializer,
     CreateCalendarSerializer,
     CreateCalendarShareSerializer,
@@ -1559,6 +1563,51 @@ class CalendarIntegrationDiscoverCalendarsView(
                 status=(
                     status.HTTP_404_NOT_FOUND
                     if detail == "Calendar integration was not found."
+                    else status.HTTP_400_BAD_REQUEST
+                ),
+            )
+
+        return Response(
+            result,
+            status=status.HTTP_200_OK,
+        )
+
+class CalendarIntegrationSyncView(
+    AuthenticatedAPIView,
+):
+    def post(self, request, integration_id):
+        serializer = CalendarIntegrationSyncRequestSerializer(
+            data=request.data,
+        )
+        serializer.is_valid(raise_exception=True)
+
+        try:
+            authenticated_user = self.get_authenticated_user(
+                request
+            )
+
+            result = sync_calendar_integration(
+                user_id=str(authenticated_user.id),
+                integration_id=str(integration_id),
+                force_full_sync=serializer.validated_data[
+                    "force_full_sync"
+                ],
+            )
+
+        except AccountAuthenticationError:
+            return _unauthorized_response()
+
+        except CalendarError as error:
+            detail = str(error)
+
+            return Response(
+                {
+                    "detail": detail,
+                },
+                status=(
+                    status.HTTP_404_NOT_FOUND
+                    if detail
+                    == "Calendar integration was not found."
                     else status.HTTP_400_BAD_REQUEST
                 ),
             )
