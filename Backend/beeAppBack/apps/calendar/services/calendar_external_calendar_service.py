@@ -350,10 +350,7 @@ def _get_or_create_beeapp_calendar(
         or "America/Bogota"
     )
 
-    color = normalize_hex_color(
-        provider_calendar.get("provider_color"),
-        fallback=account_color,
-    )
+    color = account_color
 
     response = (
         _supabase()
@@ -463,10 +460,7 @@ def _upsert_external_calendar(
         "provider_color": provider_calendar.get(
             "provider_color"
         ),
-        "display_color": normalize_hex_color(
-            provider_calendar.get("provider_color"),
-            fallback=account_color,
-        ),
+        "display_color": account_color,
         "access_level": provider_calendar.get(
             "access_level",
             "read_write",
