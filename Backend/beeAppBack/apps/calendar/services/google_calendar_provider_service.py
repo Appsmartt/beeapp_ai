@@ -59,9 +59,34 @@ class GoogleCalendarProvider:
             ) from error
 
         if response.status_code in (401, 403):
+            try:
+                error_payload = response.json()
+            except ValueError:
+                error_payload = {}
+
+            error_details = (
+                error_payload.get("error")
+                if isinstance(error_payload, dict)
+                else {}
+            )
+
+            error_status = (
+                error_details.get("status")
+                if isinstance(error_details, dict)
+                else None
+            )
+
+            error_message = (
+                error_details.get("message")
+                if isinstance(error_details, dict)
+                else None
+            )
+
             raise CalendarProviderError(
                 "Google Calendar authorization is unavailable "
-                "or insufficient."
+                f"or insufficient. HTTP {response.status_code}; "
+                f"status={error_status or 'unknown'}; "
+                f"message={error_message or 'unknown'}"
             )
 
         if response.status_code >= 400:
