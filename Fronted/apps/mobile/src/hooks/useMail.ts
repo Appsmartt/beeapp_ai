@@ -49,10 +49,10 @@ const EMPTY_PAGINATION: MailMessagesPagination = {
 };
 
 export interface UseMailOptions {
-  accountFilter?: MailAccountFilter;
-  folder?: MailInboxFolder;
-  search?: string;
-  autoLoad?: boolean;
+    accountFilter?: MailAccountFilter;
+    folder?: MailInboxFolder;
+    search?: string;
+    autoLoad?: boolean;
 }
 
 export interface UseMailResult {
@@ -221,9 +221,9 @@ function mergeMailMessages(
     });
 
     return Array.from(messagesById.values());
-}
+    }
 
-async function getAuthCredentials() {
+    async function getAuthCredentials() {
     const credentials = await getValidSessionCredentials();
 
     if (!credentials) {
@@ -503,30 +503,27 @@ export function useMail(
         (message) => message.id === normalizedMessageId,
         );
 
-        if (!targetMessage) {
-        throw new Error(
-            'No fue posible encontrar el correo.',
-        );
-        }
+        setUpdatingMessageId(normalizedMessageId);
+        setError(null);
 
+        if (targetMessage) {
         const optimisticMessages = previousMessages
-        .map((message) => (
+            .map((message) => (
             message.id === normalizedMessageId
-            ? {
+                ? {
                 ...message,
                 ...payload,
-            }
-            : message
-        ))
-        .filter((message) => shouldKeepMessageInCurrentView(
+                }
+                : message
+            ))
+            .filter((message) => shouldKeepMessageInCurrentView(
             message,
             accountFilter,
             folder,
-        ));
+            ));
 
-        setUpdatingMessageId(normalizedMessageId);
-        setError(null);
         setMessages(optimisticMessages);
+        }
 
         try {
         const auth = await getAuthCredentials();
@@ -537,23 +534,27 @@ export function useMail(
             payload,
         );
 
-        const serverMessages = previousMessages
+        if (targetMessage) {
+            const serverMessages = previousMessages
             .map((message) => (
-            message.id === normalizedMessageId
+                message.id === normalizedMessageId
                 ? response.message
                 : message
             ))
             .filter((message) => shouldKeepMessageInCurrentView(
-            message,
-            accountFilter,
-            folder,
+                message,
+                accountFilter,
+                folder,
             ));
 
-        setMessages(serverMessages);
+            setMessages(serverMessages);
+        }
 
         return response.message;
         } catch (updateError) {
-        setMessages(previousMessages);
+        if (targetMessage) {
+            setMessages(previousMessages);
+        }
 
         const message = getErrorMessage(
             updateError,
@@ -807,11 +808,11 @@ export function useMail(
 
     useEffect(() => {
         if (!autoLoad) {
-            return;
+        return;
         }
 
         void loadMail();
-        }, [
+    }, [
         autoLoad,
         loadMail,
     ]);
