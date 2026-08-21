@@ -55,6 +55,40 @@ function getErrorMessage(
     : 'Inténtalo nuevamente.';
 }
 
+function getSyncResultMessage(
+  createdCount: number,
+  updatedCount: number,
+  failedCount: number,
+): string {
+  if (failedCount > 0) {
+    return (
+      `${createdCount} nuevos y ${updatedCount} actualizados. `
+      + `${failedCount} cuenta(s) no pudieron sincronizarse.`
+    );
+  }
+
+  if (createdCount > 0 && updatedCount > 0) {
+    return (
+      `${createdCount} correo(s) nuevo(s) y `
+      + `${updatedCount} actualizado(s).`
+    );
+  }
+
+  if (createdCount > 0) {
+    return (
+      `${createdCount} correo(s) nuevo(s) disponible(s).`
+    );
+  }
+
+  if (updatedCount > 0) {
+    return (
+      `${updatedCount} correo(s) actualizado(s).`
+    );
+  }
+
+  return 'Tus correos recientes ya están al día.';
+}
+
 function getEmptyStateCopy(
   activeFolder: MailFolder,
   activeAccount: MailAccountFilter,
@@ -178,11 +212,16 @@ export default function MailInboxScreen() {
     refreshing,
     loadingMore,
     syncing,
+    updatingMessageId,
     error,
     hasActiveIntegrations,
     refreshMail,
     loadMore,
     syncInbox,
+    toggleMessageRead,
+    toggleMessageStar,
+    archiveMessage,
+    trashMessage,
   } = useMail({
     accountFilter: activeAccount,
     folder: activeFolder,
@@ -306,9 +345,10 @@ export default function MailInboxScreen() {
 
         Alert.alert(
           'Correos actualizados',
-          (
-            `${createdCount} nuevos y ${updatedCount} `
-            + 'actualizados.'
+          getSyncResultMessage(
+            createdCount,
+            updatedCount,
+            result.failed_integration_count,
           ),
         );
       } catch (syncError) {
@@ -324,19 +364,96 @@ export default function MailInboxScreen() {
     syncInbox,
   ]);
 
-  const handleUnavailableAction = useCallback((
-    action: string,
+  const handleToggleStar = useCallback((
+    messageId: string,
   ) => {
-    setSwipeActiveId(null);
+    void (async () => {
+      try {
+        await toggleMessageStar(messageId);
+        setSwipeActiveId(null);
+      } catch (updateError) {
+        Alert.alert(
+          'No fue posible actualizar',
+          getErrorMessage(updateError),
+        );
+      }
+    })();
+  }, [
+    toggleMessageStar,
+  ]);
 
+  const handleToggleRead = useCallback((
+    messageId: string,
+  ) => {
+    void (async () => {
+      try {
+        await toggleMessageRead(messageId);
+        setSwipeActiveId(null);
+      } catch (updateError) {
+        Alert.alert(
+          'No fue posible actualizar',
+          getErrorMessage(updateError),
+        );
+      }
+    })();
+  }, [
+    toggleMessageRead,
+  ]);
+
+  const handleArchive = useCallback((
+    messageId: string,
+  ) => {
+    void (async () => {
+      try {
+        await archiveMessage(messageId);
+        setSwipeActiveId(null);
+      } catch (archiveError) {
+        Alert.alert(
+          'No fue posible archivar',
+          getErrorMessage(archiveError),
+        );
+      }
+    })();
+  }, [
+    archiveMessage,
+  ]);
+
+  const handleTrash = useCallback((
+    messageId: string,
+  ) => {
     Alert.alert(
-      'Próximamente',
+      'Mover a la papelera',
       (
-        `${action} estará disponible cuando terminemos `
-        + 'de habilitar las acciones de correo en el backend.'
+        'El correo se moverá a la papelera de tu cuenta '
+        + 'conectada.'
       ),
+      [
+        {
+          text: 'Cancelar',
+          style: 'cancel',
+        },
+        {
+          text: 'Mover',
+          style: 'destructive',
+          onPress: () => {
+            void (async () => {
+              try {
+                await trashMessage(messageId);
+                setSwipeActiveId(null);
+              } catch (trashError) {
+                Alert.alert(
+                  'No fue posible mover el correo',
+                  getErrorMessage(trashError),
+                );
+              }
+            })();
+          },
+        },
+      ],
     );
-  }, []);
+  }, [
+    trashMessage,
+  ]);
 
   const emptyState = getEmptyStateCopy(
     activeFolder,
@@ -546,6 +663,9 @@ export default function MailInboxScreen() {
                   key={item.id}
                   item={item}
                   isSwipeActive={isSwipeActive}
+                  isUpdating={
+                    updatingMessageId === item.id
+                  }
                   onPress={() => {
                     router.push({
                       pathname: '/(main)/mail/detail',
@@ -562,24 +682,16 @@ export default function MailInboxScreen() {
                     );
                   }}
                   onToggleStar={() => {
-                    handleUnavailableAction(
-                      'Marcar como importante',
-                    );
+                    handleToggleStar(item.id);
                   }}
                   onToggleRead={() => {
-                    handleUnavailableAction(
-                      'Cambiar estado de lectura',
-                    );
+                    handleToggleRead(item.id);
                   }}
                   onArchive={() => {
-                    handleUnavailableAction(
-                      'Archivar correos',
-                    );
+                    handleArchive(item.id);
                   }}
                   onDelete={() => {
-                    handleUnavailableAction(
-                      'Mover correos a la papelera',
-                    );
+                    handleTrash(item.id);
                   }}
                 />
               );

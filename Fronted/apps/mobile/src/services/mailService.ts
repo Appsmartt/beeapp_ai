@@ -24,6 +24,9 @@ export interface MailListItemModel {
     date: string;
     isRead: boolean;
     isStarred: boolean;
+    isArchived: boolean;
+    isSpam: boolean;
+    isTrashed: boolean;
     hasAttachment: boolean;
     attachmentCount: number;
     folder: MailFolder;
@@ -46,6 +49,9 @@ export interface MailDetailModel {
     receivedAt: string | null;
     isRead: boolean;
     isStarred: boolean;
+    isArchived: boolean;
+    isSpam: boolean;
+    isTrashed: boolean;
     folder: MailFolder;
     hasAttachment: boolean;
     attachmentCount: number;
@@ -65,12 +71,24 @@ const AVATAR_COLORS = [
 
 const FALLBACK_ACCOUNT_LABEL = 'Cuenta conectada';
 
+const RECIPIENT_KINDS = [
+    'from',
+    'to',
+    'cc',
+    'bcc',
+    'reply_to',
+    ] as const;
+
 function hashString(
     value: string,
     ): number {
     let hash = 0;
 
-    for (let index = 0; index < value.length; index += 1) {
+    for (
+        let index = 0;
+        index < value.length;
+        index += 1
+    ) {
         hash = (
         (hash << 5)
         - hash
@@ -113,9 +131,9 @@ export function getMailIntegrationMap(
         integration,
         ]),
     );
-}
+    }
 
-export function formatMailDate(
+    export function formatMailDate(
     value: string | null,
     ): {
     date: string;
@@ -226,6 +244,72 @@ export function getMailBodyText(
     );
 }
 
+export function isMailMessageArchived(
+    message: MailMessage,
+    ): boolean {
+    return Boolean(
+        message.is_archived
+        || message.folder === 'archived'
+    );
+}
+
+export function isMailMessageSpam(
+    message: MailMessage,
+    ): boolean {
+    return Boolean(
+        message.is_spam
+        || message.folder === 'spam'
+    );
+}
+
+export function isMailMessageTrashed(
+    message: MailMessage,
+    ): boolean {
+    return Boolean(
+        message.is_trashed
+        || message.folder === 'trash'
+    );
+}
+
+export function getMailMessageRecipients(
+    message: MailMessage,
+    ): MailMessageRecipient[] {
+    const rawRecipients = message.recipients;
+
+    if (!rawRecipients) {
+        return [];
+    }
+
+    if (Array.isArray(rawRecipients)) {
+        return rawRecipients.map((recipient) => ({
+        ...recipient,
+        recipient_type: (
+            recipient.recipient_type
+            || 'to'
+        ),
+        }));
+    }
+
+    const recipients: MailMessageRecipient[] = [];
+
+    RECIPIENT_KINDS.forEach((recipientKind) => {
+        const recipientsByKind = rawRecipients[recipientKind];
+
+        if (!Array.isArray(recipientsByKind)) {
+        return;
+        }
+
+        recipientsByKind.forEach((recipient) => {
+        recipients.push({
+            ...recipient,
+            recipient_type: recipientKind,
+        });
+        });
+    });
+
+    return recipients;
+}
+
 export function mapMailMessageToListItem(
     message: MailMessage,
     integrationsById: Map<string, MailIntegration>,
@@ -260,6 +344,9 @@ export function mapMailMessageToListItem(
         date: dateParts.date,
         isRead: message.is_read,
         isStarred: message.is_starred,
+        isArchived: isMailMessageArchived(message),
+        isSpam: isMailMessageSpam(message),
+        isTrashed: isMailMessageTrashed(message),
         hasAttachment: message.has_attachments,
         attachmentCount: message.attachment_count,
         folder: message.folder,
@@ -290,7 +377,7 @@ export function mapMailMessageToDetail(
         subject: message.subject || '(Sin asunto)',
         senderName: getMailSenderName(message),
         senderEmail: getMailSenderEmail(message),
-        recipients: message.recipients || [],
+        recipients: getMailMessageRecipients(message),
         body: getMailBodyText(message),
         bodyPreview: (
         message.body_preview
@@ -301,6 +388,9 @@ export function mapMailMessageToDetail(
         receivedAt: message.received_at,
         isRead: message.is_read,
         isStarred: message.is_starred,
+        isArchived: isMailMessageArchived(message),
+        isSpam: isMailMessageSpam(message),
+        isTrashed: isMailMessageTrashed(message),
         folder: message.folder,
         hasAttachment: message.has_attachments,
         attachmentCount: message.attachment_count,

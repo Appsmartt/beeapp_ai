@@ -4,13 +4,15 @@ import {
     useMemo,
     useRef,
     useState,
-} from 'react';
+    } from 'react';
 import {
     getMailIntegrations,
     getMailMessage,
     getMailMessages,
+    moveMailMessage,
     syncMail,
-} from '@beeapp/api-client';
+    updateMailMessageState,
+    } from '@beeapp/api-client';
 import type {
     MailFolder,
     MailIntegration,
@@ -21,16 +23,19 @@ import type {
 
 import {
     getValidSessionCredentials,
-} from '../services/authSession';
+    } from '../services/authSession';
 import {
     getMailIntegrationMap,
+    isMailMessageArchived,
+    isMailMessageSpam,
+    isMailMessageTrashed,
     mapMailMessageToDetail,
     mapMailMessageToListItem,
     type MailAccountFilter,
     type MailDetailModel,
     type MailInboxFolder,
     type MailListItemModel,
-} from '../services/mailService';
+    } from '../services/mailService';
 
 const DEFAULT_PAGE_LIMIT = 25;
 
@@ -44,9 +49,10 @@ const EMPTY_PAGINATION: MailMessagesPagination = {
 };
 
 export interface UseMailOptions {
-    accountFilter?: MailAccountFilter;
-    folder?: MailInboxFolder;
-    search?: string;
+  accountFilter?: MailAccountFilter;
+  folder?: MailInboxFolder;
+  search?: string;
+  autoLoad?: boolean;
 }
 
 export interface UseMailResult {
@@ -57,6 +63,7 @@ export interface UseMailResult {
     refreshing: boolean;
     loadingMore: boolean;
     syncing: boolean;
+    updatingMessageId: string | null;
     error: string | null;
     hasActiveIntegrations: boolean;
     loadMail: (
@@ -70,6 +77,32 @@ export interface UseMailResult {
     getMessageById: (
         messageId: string,
     ) => Promise<MailDetailModel>;
+    updateMessageState: (
+        messageId: string,
+        payload: {
+        is_read?: boolean;
+        is_starred?: boolean;
+        },
+    ) => Promise<MailMessage>;
+    moveMessage: (
+        messageId: string,
+        folder: 'inbox' | 'archived' | 'spam' | 'trash',
+    ) => Promise<MailMessage>;
+    toggleMessageRead: (
+        messageId: string,
+    ) => Promise<MailMessage>;
+    toggleMessageStar: (
+        messageId: string,
+    ) => Promise<MailMessage>;
+    archiveMessage: (
+        messageId: string,
+    ) => Promise<MailMessage>;
+    trashMessage: (
+        messageId: string,
+    ) => Promise<MailMessage>;
+    restoreMessage: (
+        messageId: string,
+    ) => Promise<MailMessage>;
     clearError: () => void;
 }
 
@@ -77,7 +110,10 @@ function getErrorMessage(
     error: unknown,
     fallback: string,
     ): string {
-    if (error instanceof Error && error.message) {
+    if (
+        error instanceof Error
+        && error.message
+    ) {
         return error.message;
     }
 
@@ -109,6 +145,84 @@ function normalizeFolderQuery(
     };
 }
 
+function shouldKeepMessageInCurrentView(
+    message: MailMessage,
+    accountFilter: MailAccountFilter,
+    activeFolder: MailInboxFolder,
+    ): boolean {
+    if (
+        accountFilter !== 'all'
+        && message.mail_integration_id !== accountFilter
+    ) {
+        return false;
+    }
+
+    const isArchived = isMailMessageArchived(message);
+    const isSpam = isMailMessageSpam(message);
+    const isTrashed = isMailMessageTrashed(message);
+
+    switch (activeFolder) {
+        case 'unread':
+        return (
+            message.folder === 'inbox'
+            && !message.is_read
+            && !isArchived
+            && !isSpam
+            && !isTrashed
+        );
+
+        case 'starred':
+        return (
+            message.is_starred
+            && !isTrashed
+        );
+
+        case 'inbox':
+        return (
+            message.folder === 'inbox'
+            && !isArchived
+            && !isSpam
+            && !isTrashed
+        );
+
+        case 'archived':
+        return isArchived;
+
+        case 'spam':
+        return isSpam;
+
+        case 'trash':
+        return isTrashed;
+
+        case 'sent':
+        case 'drafts':
+        return (
+            message.folder === activeFolder
+            && !isTrashed
+        );
+
+        default:
+        return message.folder === activeFolder;
+    }
+}
+
+function mergeMailMessages(
+    currentMessages: MailMessage[],
+    incomingMessages: MailMessage[],
+    ): MailMessage[] {
+    const messagesById = new Map<string, MailMessage>();
+
+    currentMessages.forEach((message) => {
+        messagesById.set(message.id, message);
+    });
+
+    incomingMessages.forEach((message) => {
+        messagesById.set(message.id, message);
+    });
+
+    return Array.from(messagesById.values());
+}
+
 async function getAuthCredentials() {
     const credentials = await getValidSessionCredentials();
 
@@ -126,17 +240,23 @@ export function useMail(
         accountFilter = 'all',
         folder = 'inbox',
         search = '',
+        autoLoad = true,
     }: UseMailOptions = {},
     ): UseMailResult {
-    const [integrations, setIntegrations] = useState<
-        MailIntegration[]
-    >([]);
+    const [
+        integrations,
+        setIntegrations,
+    ] = useState<MailIntegration[]>([]);
 
-    const [rawMessages, setRawMessages] = useState<
-        MailMessage[]
-    >([]);
+    const [
+        rawMessages,
+        setRawMessages,
+    ] = useState<MailMessage[]>([]);
 
-    const [pagination, setPagination] = useState(
+    const [
+        pagination,
+        setPagination,
+    ] = useState<MailMessagesPagination>(
         EMPTY_PAGINATION,
     );
 
@@ -144,9 +264,25 @@ export function useMail(
     const [refreshing, setRefreshing] = useState(false);
     const [loadingMore, setLoadingMore] = useState(false);
     const [syncing, setSyncing] = useState(false);
-    const [error, setError] = useState<string | null>(null);
+
+    const [
+        updatingMessageId,
+        setUpdatingMessageId,
+    ] = useState<string | null>(null);
+
+    const [error, setError] = useState<string | null>(
+        null,
+    );
 
     const requestIdRef = useRef(0);
+    const rawMessagesRef = useRef<MailMessage[]>([]);
+
+    const setMessages = useCallback((
+        messages: MailMessage[],
+    ) => {
+        rawMessagesRef.current = messages;
+        setRawMessages(messages);
+    }, []);
 
     const normalizedSearch = search.trim();
 
@@ -206,7 +342,7 @@ export function useMail(
             integrationsResponse.integrations,
         );
 
-        setRawMessages(messagesResponse.messages);
+        setMessages(messagesResponse.messages);
 
         setPagination(
             messagesResponse.pagination,
@@ -232,6 +368,7 @@ export function useMail(
         folder,
         integrationId,
         normalizedSearch,
+        setMessages,
     ]);
 
     const loadMore = useCallback(async () => {
@@ -262,23 +399,12 @@ export function useMail(
             },
         );
 
-        setRawMessages((currentMessages) => {
-            const existingIds = new Set(
-            currentMessages.map(
-                (message) => message.id,
-            ),
-            );
+        const mergedMessages = mergeMailMessages(
+            rawMessagesRef.current,
+            response.messages,
+        );
 
-            const nextMessages = response.messages.filter(
-            (message) => !existingIds.has(message.id),
-            );
-
-            return [
-            ...currentMessages,
-            ...nextMessages,
-            ];
-        });
-
+        setMessages(mergedMessages);
         setPagination(response.pagination);
         } catch (loadMoreError) {
         setError(
@@ -299,6 +425,7 @@ export function useMail(
         pagination.has_more,
         pagination.next_offset,
         refreshing,
+        setMessages,
     ]);
 
     const refreshMail = useCallback(async () => {
@@ -344,6 +471,291 @@ export function useMail(
     }, [
         integrationId,
         loadMail,
+    ]);
+
+    const updateMessageState = useCallback(async (
+        messageId: string,
+        payload: {
+        is_read?: boolean;
+        is_starred?: boolean;
+        },
+    ) => {
+        const normalizedMessageId = messageId.trim();
+
+        if (!normalizedMessageId) {
+        throw new Error(
+            'No fue posible identificar el correo.',
+        );
+        }
+
+        if (
+        payload.is_read === undefined
+        && payload.is_starred === undefined
+        ) {
+        throw new Error(
+            'Selecciona un estado para actualizar.',
+        );
+        }
+
+        const previousMessages = rawMessagesRef.current;
+
+        const targetMessage = previousMessages.find(
+        (message) => message.id === normalizedMessageId,
+        );
+
+        if (!targetMessage) {
+        throw new Error(
+            'No fue posible encontrar el correo.',
+        );
+        }
+
+        const optimisticMessages = previousMessages
+        .map((message) => (
+            message.id === normalizedMessageId
+            ? {
+                ...message,
+                ...payload,
+            }
+            : message
+        ))
+        .filter((message) => shouldKeepMessageInCurrentView(
+            message,
+            accountFilter,
+            folder,
+        ));
+
+        setUpdatingMessageId(normalizedMessageId);
+        setError(null);
+        setMessages(optimisticMessages);
+
+        try {
+        const auth = await getAuthCredentials();
+
+        const response = await updateMailMessageState(
+            auth,
+            normalizedMessageId,
+            payload,
+        );
+
+        const serverMessages = previousMessages
+            .map((message) => (
+            message.id === normalizedMessageId
+                ? response.message
+                : message
+            ))
+            .filter((message) => shouldKeepMessageInCurrentView(
+            message,
+            accountFilter,
+            folder,
+            ));
+
+        setMessages(serverMessages);
+
+        return response.message;
+        } catch (updateError) {
+        setMessages(previousMessages);
+
+        const message = getErrorMessage(
+            updateError,
+            'No fue posible actualizar el correo.',
+        );
+
+        setError(message);
+
+        throw new Error(message);
+        } finally {
+        setUpdatingMessageId((currentMessageId) => (
+            currentMessageId === normalizedMessageId
+            ? null
+            : currentMessageId
+        ));
+        }
+    }, [
+        accountFilter,
+        folder,
+        setMessages,
+    ]);
+
+    const moveMessage = useCallback(async (
+        messageId: string,
+        destinationFolder: (
+        | 'inbox'
+        | 'archived'
+        | 'spam'
+        | 'trash'
+        ),
+    ) => {
+        const normalizedMessageId = messageId.trim();
+
+        if (!normalizedMessageId) {
+        throw new Error(
+            'No fue posible identificar el correo.',
+        );
+        }
+
+        const previousMessages = rawMessagesRef.current;
+
+        const targetMessage = previousMessages.find(
+        (message) => message.id === normalizedMessageId,
+        );
+
+        if (!targetMessage) {
+        throw new Error(
+            'No fue posible encontrar el correo.',
+        );
+        }
+
+        const optimisticTargetMessage: MailMessage = {
+        ...targetMessage,
+        folder: destinationFolder,
+        is_archived: destinationFolder === 'archived',
+        is_spam: destinationFolder === 'spam',
+        is_trashed: destinationFolder === 'trash',
+        };
+
+        const optimisticMessages = previousMessages
+        .map((message) => (
+            message.id === normalizedMessageId
+            ? optimisticTargetMessage
+            : message
+        ))
+        .filter((message) => shouldKeepMessageInCurrentView(
+            message,
+            accountFilter,
+            folder,
+        ));
+
+        setUpdatingMessageId(normalizedMessageId);
+        setError(null);
+        setMessages(optimisticMessages);
+
+        try {
+        const auth = await getAuthCredentials();
+
+        const response = await moveMailMessage(
+            auth,
+            normalizedMessageId,
+            {
+            folder: destinationFolder,
+            },
+        );
+
+        const serverMessages = previousMessages
+            .map((message) => (
+            message.id === normalizedMessageId
+                ? response.message
+                : message
+            ))
+            .filter((message) => shouldKeepMessageInCurrentView(
+            message,
+            accountFilter,
+            folder,
+            ));
+
+        setMessages(serverMessages);
+
+        return response.message;
+        } catch (moveError) {
+        setMessages(previousMessages);
+
+        const message = getErrorMessage(
+            moveError,
+            'No fue posible mover el correo.',
+        );
+
+        setError(message);
+
+        throw new Error(message);
+        } finally {
+        setUpdatingMessageId((currentMessageId) => (
+            currentMessageId === normalizedMessageId
+            ? null
+            : currentMessageId
+        ));
+        }
+    }, [
+        accountFilter,
+        folder,
+        setMessages,
+    ]);
+
+    const toggleMessageRead = useCallback(async (
+        messageId: string,
+    ) => {
+        const message = rawMessagesRef.current.find(
+        (item) => item.id === messageId,
+        );
+
+        if (!message) {
+        throw new Error(
+            'No fue posible encontrar el correo.',
+        );
+        }
+
+        return updateMessageState(
+        messageId,
+        {
+            is_read: !message.is_read,
+        },
+        );
+    }, [
+        updateMessageState,
+    ]);
+
+    const toggleMessageStar = useCallback(async (
+        messageId: string,
+    ) => {
+        const message = rawMessagesRef.current.find(
+        (item) => item.id === messageId,
+        );
+
+        if (!message) {
+        throw new Error(
+            'No fue posible encontrar el correo.',
+        );
+        }
+
+        return updateMessageState(
+        messageId,
+        {
+            is_starred: !message.is_starred,
+        },
+        );
+    }, [
+        updateMessageState,
+    ]);
+
+    const archiveMessage = useCallback(async (
+        messageId: string,
+    ) => {
+        return moveMessage(
+        messageId,
+        'archived',
+        );
+    }, [
+        moveMessage,
+    ]);
+
+    const trashMessage = useCallback(async (
+        messageId: string,
+    ) => {
+        return moveMessage(
+        messageId,
+        'trash',
+        );
+    }, [
+        moveMessage,
+    ]);
+
+    const restoreMessage = useCallback(async (
+        messageId: string,
+    ) => {
+        return moveMessage(
+        messageId,
+        'inbox',
+        );
+    }, [
+        moveMessage,
     ]);
 
     const getMessageById = useCallback(async (
@@ -394,8 +806,15 @@ export function useMail(
     }, [integrations]);
 
     useEffect(() => {
+        if (!autoLoad) {
+            return;
+        }
+
         void loadMail();
-    }, [loadMail]);
+        }, [
+        autoLoad,
+        loadMail,
+    ]);
 
     const integrationsById = useMemo(
         () => getMailIntegrationMap(integrations),
@@ -403,12 +822,12 @@ export function useMail(
     );
 
     const messages = useMemo(
-        () => rawMessages.map((message) =>
+        () => rawMessages.map((message) => (
         mapMailMessageToListItem(
             message,
             integrationsById,
-        ),
-        ),
+        )
+        )),
         [
         integrationsById,
         rawMessages,
@@ -434,6 +853,7 @@ export function useMail(
         refreshing,
         loadingMore,
         syncing,
+        updatingMessageId,
         error,
         hasActiveIntegrations,
         loadMail,
@@ -441,6 +861,13 @@ export function useMail(
         refreshMail,
         syncInbox,
         getMessageById,
+        updateMessageState,
+        moveMessage,
+        toggleMessageRead,
+        toggleMessageStar,
+        archiveMessage,
+        trashMessage,
+        restoreMessage,
         clearError,
     };
 }
