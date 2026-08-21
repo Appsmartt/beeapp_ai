@@ -9,6 +9,7 @@ import {
   ChevronLeft,
   ChevronDown,
   Inbox,
+  Mail,
   RefreshCw,
   Settings,
   SquarePen,
@@ -43,6 +44,7 @@ interface MailHeaderProps {
   onBack?: () => void;
   onCompose?: () => void;
   onConnectAccount: () => void;
+  onManageExternalMail: () => void;
 }
 
 function getProviderColor(
@@ -64,6 +66,7 @@ export default function MailHeader({
   onBack,
   onCompose,
   onConnectAccount,
+  onManageExternalMail,
 }: MailHeaderProps) {
   const activeAccountLabel = activeAccount === 'all'
     ? 'Todas las cuentas'
@@ -227,6 +230,28 @@ export default function MailHeader({
 
           <TouchableOpacity
             style={styles.dropdownItemLink}
+            onPress={onManageExternalMail}
+            activeOpacity={0.7}
+          >
+            <Mail
+              size={14}
+              color={colors.brand.primary}
+              style={styles.settingsIcon}
+            />
+
+            <View style={styles.dropdownLinkContent}>
+              <Text style={styles.dropdownLinkText}>
+                Correo externo
+              </Text>
+
+              <Text style={styles.dropdownLinkDescription}>
+                Revisar cuentas y sincronización
+              </Text>
+            </View>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.dropdownItemLink}
             onPress={onConnectAccount}
             activeOpacity={0.7}
           >
@@ -370,5 +395,14 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '400',
     color: colors.brand.primary,
+  },
+  dropdownLinkContent: {
+    flex: 1,
+  },
+  dropdownLinkDescription: {
+    marginTop: 2,
+    fontSize: 10,
+    fontWeight: '500',
+    color: colors.neutral.gray500,
   },
 });

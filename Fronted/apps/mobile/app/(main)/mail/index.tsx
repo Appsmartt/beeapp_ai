@@ -17,8 +17,10 @@ import {
   useFocusEffect,
 } from 'expo-router';
 import {
+  AlertTriangle,
   Mail,
   RefreshCw,
+  Settings2,
   SquarePen,
 } from 'lucide-react-native';
 import {
@@ -240,6 +242,32 @@ export default function MailInboxScreen() {
     [integrations],
   );
 
+  const selectedIntegration = useMemo(
+    () => (
+      activeAccount === 'all'
+        ? null
+        : (
+          integrations.find(
+            (integration) => integration.id === activeAccount,
+          )
+          || null
+        )
+    ),
+    [
+      activeAccount,
+      integrations,
+    ],
+  );
+
+  const selectedIntegrationNeedsAttention = Boolean(
+    selectedIntegration
+    && (
+      selectedIntegration.requires_reauthorization
+      || selectedIntegration.status !== 'active'
+      || !selectedIntegration.can_sync
+    )
+  );
+
   useFocusEffect(
     useCallback(() => {
       void refreshMail();
@@ -283,13 +311,22 @@ export default function MailInboxScreen() {
     void refreshMail();
   }, [refreshMail]);
 
+  const handleOpenExternalMail = useCallback(() => {
+    setAccountMenuVisible(false);
+
+    router.push(
+      '/(main)/mail/external-mail',
+    );
+  }, [router]);
+
   const handleSync = useCallback(() => {
     if (!hasActiveIntegrations) {
       Alert.alert(
-        'Conecta una cuenta',
+        'Revisa tus cuentas de correo',
         (
-          'Vincula una cuenta de Google o Microsoft con '
-          + 'permiso de correo para actualizar tu bandeja.'
+          'No hay cuentas listas para sincronizar. '
+          + 'Revisa Correo externo para conectar una cuenta '
+          + 'o reconectar una autorización vencida.'
         ),
         [
           {
@@ -297,12 +334,8 @@ export default function MailInboxScreen() {
             style: 'cancel',
           },
           {
-            text: 'Ir a integraciones',
-            onPress: () => {
-              router.push(
-                '/(main)/profile/integrations',
-              );
-            },
+            text: 'Correo externo',
+            onPress: handleOpenExternalMail,
           },
         ],
       );
@@ -336,8 +369,18 @@ export default function MailInboxScreen() {
             'No fue posible actualizar',
             (
               'No se pudo sincronizar ninguna cuenta. '
-              + 'Revisa tus integraciones e inténtalo nuevamente.'
+              + 'Revisa Correo externo e inténtalo nuevamente.'
             ),
+            [
+              {
+                text: 'Cancelar',
+                style: 'cancel',
+              },
+              {
+                text: 'Correo externo',
+                onPress: handleOpenExternalMail,
+              },
+            ],
           );
 
           return;
@@ -355,12 +398,22 @@ export default function MailInboxScreen() {
         Alert.alert(
           'No fue posible actualizar',
           getErrorMessage(syncError),
+          [
+            {
+              text: 'Cerrar',
+              style: 'cancel',
+            },
+            {
+              text: 'Correo externo',
+              onPress: handleOpenExternalMail,
+            },
+          ],
         );
       }
     })();
   }, [
+    handleOpenExternalMail,
     hasActiveIntegrations,
-    router,
     syncInbox,
   ]);
 
@@ -465,9 +518,23 @@ export default function MailInboxScreen() {
     && integrations.length === 0
   );
 
+  const showNoActiveIntegrationState = (
+    !loading
+    && integrations.length > 0
+    && !hasActiveIntegrations
+  );
+
+  const showSelectedIntegrationAttentionState = (
+    !loading
+    && !showNoActiveIntegrationState
+    && selectedIntegrationNeedsAttention
+  );
+
   const showEmptyMessagesState = (
     !loading
     && !showNoConnectionState
+    && !showNoActiveIntegrationState
+    && !showSelectedIntegrationAttentionState
     && messages.length === 0
   );
 
@@ -505,6 +572,7 @@ export default function MailInboxScreen() {
               '/(main)/profile/integrations',
             );
           }}
+          onManageExternalMail={handleOpenExternalMail}
         />
 
         <MailFolderChips
@@ -534,25 +602,118 @@ export default function MailInboxScreen() {
             </View>
 
             <Text style={styles.emptyTitle}>
-              Conecta tu correo
+              Configura tu correo
             </Text>
 
             <Text style={styles.emptyDesc}>
-              Vincula una cuenta de Gmail u Outlook para
-              ver todos tus correos en BeeApp.
+              Conecta una cuenta de Gmail u Outlook para
+              ver y sincronizar tus correos en BeeApp.
             </Text>
 
             <TouchableOpacity
               style={styles.connectButton}
+              onPress={handleOpenExternalMail}
+              activeOpacity={0.8}
+              accessibilityRole="button"
+              accessibilityLabel="Abrir Correo externo"
+            >
+              <Settings2
+                size={17}
+                color={colors.neutral.white}
+              />
+
+              <Text style={styles.connectButtonText}>
+                Abrir Correo externo
+              </Text>
+            </TouchableOpacity>
+          </View>
+        ) : showNoActiveIntegrationState ? (
+          <View style={styles.emptyContainer}>
+            <View style={styles.warningIconBg}>
+              <AlertTriangle
+                size={38}
+                color="#B45309"
+              />
+            </View>
+
+            <Text style={styles.emptyTitle}>
+              Revisa tus cuentas de correo
+            </Text>
+
+            <Text style={styles.emptyDesc}>
+              Tus cuentas conectadas no están disponibles
+              para sincronizar. Reconecta una cuenta o revisa
+              sus permisos desde Correo externo.
+            </Text>
+
+            <TouchableOpacity
+              style={styles.warningActionButton}
+              onPress={handleOpenExternalMail}
+              activeOpacity={0.8}
+              accessibilityRole="button"
+              accessibilityLabel="Revisar Correo externo"
+            >
+              <Settings2
+                size={17}
+                color={colors.neutral.white}
+              />
+
+              <Text style={styles.connectButtonText}>
+                Revisar Correo externo
+              </Text>
+            </TouchableOpacity>
+          </View>
+        ) : showSelectedIntegrationAttentionState ? (
+          <View style={styles.emptyContainer}>
+            <View style={styles.warningIconBg}>
+              <AlertTriangle
+                size={38}
+                color="#B45309"
+              />
+            </View>
+
+            <Text style={styles.emptyTitle}>
+              Esta cuenta requiere atención
+            </Text>
+
+            <Text style={styles.emptyDesc}>
+              {(
+                selectedIntegration?.status_reason
+                || (
+                  'Reconecta esta cuenta o revisa sus permisos '
+                  + 'para volver a consultar sus correos.'
+                )
+              )}
+            </Text>
+
+            <TouchableOpacity
+              style={styles.warningActionButton}
+              onPress={handleOpenExternalMail}
+              activeOpacity={0.8}
+              accessibilityRole="button"
+              accessibilityLabel="Revisar Correo externo"
+            >
+              <Settings2
+                size={17}
+                color={colors.neutral.white}
+              />
+
+              <Text style={styles.connectButtonText}>
+                Revisar Correo externo
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.showAllAccountsButton}
               onPress={() => {
-                router.push(
-                  '/(main)/profile/integrations',
-                );
+                handleSelectAccount('all');
               }}
               activeOpacity={0.8}
+              accessibilityRole="button"
+              accessibilityLabel="Mostrar todas las cuentas"
             >
-              <Text style={styles.connectButtonText}>
-                Conectar cuenta
+              <Text style={styles.showAllAccountsText}>
+                Ver todas las cuentas
               </Text>
             </TouchableOpacity>
           </View>
@@ -579,6 +740,8 @@ export default function MailInboxScreen() {
                 onPress={handleSync}
                 disabled={syncing}
                 activeOpacity={0.8}
+                accessibilityRole="button"
+                accessibilityLabel="Actualizar correos"
               >
                 {syncing ? (
                   <ActivityIndicator
@@ -645,6 +808,8 @@ export default function MailInboxScreen() {
                   onPress={handleRefresh}
                   style={styles.retryButton}
                   activeOpacity={0.8}
+                  accessibilityRole="button"
+                  accessibilityLabel="Reintentar cargar correos"
                 >
                   <Text style={styles.retryButtonText}>
                     Reintentar
@@ -730,6 +895,8 @@ export default function MailInboxScreen() {
               );
             }}
             activeOpacity={0.8}
+            accessibilityRole="button"
+            accessibilityLabel="Redactar correo"
           >
             <SquarePen
               size={20}
@@ -791,6 +958,17 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.neutral.gray200,
   },
+  warningIconBg: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: '#FEF3C7',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: '#FDE68A',
+  },
   emptyTitle: {
     fontSize: 18,
     fontWeight: '800',
@@ -806,8 +984,25 @@ const styles = StyleSheet.create({
   },
   connectButton: {
     marginTop: 20,
+    minHeight: 44,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
     borderRadius: 12,
     backgroundColor: colors.brand.primary,
+    paddingHorizontal: 18,
+    paddingVertical: 12,
+  },
+  warningActionButton: {
+    marginTop: 20,
+    minHeight: 44,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    borderRadius: 12,
+    backgroundColor: '#B45309',
     paddingHorizontal: 18,
     paddingVertical: 12,
   },
@@ -815,6 +1010,16 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '800',
     color: colors.neutral.white,
+  },
+  showAllAccountsButton: {
+    marginTop: 14,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  showAllAccountsText: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: colors.brand.primary,
   },
   refreshEmptyButton: {
     marginTop: 20,
