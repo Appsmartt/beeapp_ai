@@ -36,9 +36,11 @@ logger = logging.getLogger(__name__)
 
 INITIAL_SYNC_LOOKBACK_DAYS = 90
 INITIAL_SYNC_MAX_MESSAGES = 10
+INITIAL_SYNC_MAX_SPAM_MESSAGES = 10
 
 INCREMENTAL_SYNC_LOOKBACK_DAYS = 90
 INCREMENTAL_SYNC_MAX_MESSAGES = 10
+INCREMENTAL_SYNC_MAX_SPAM_MESSAGES = 10
 
 MAIL_INTEGRATION_COLUMNS = (
     "id,user_id,integration_connection_id,provider,"
@@ -800,7 +802,7 @@ def _get_sync_window(
     *,
     integration: dict[str, Any],
     force_full_sync: bool,
-) -> tuple[datetime, int, bool]:
+) -> tuple[datetime, int, int, bool]:
     initial_sync = (
         force_full_sync
         or integration.get("initial_sync_completed_at") is None
@@ -811,6 +813,7 @@ def _get_sync_window(
             _utc_now()
             - timedelta(days=INITIAL_SYNC_LOOKBACK_DAYS),
             INITIAL_SYNC_MAX_MESSAGES,
+            INITIAL_SYNC_MAX_SPAM_MESSAGES,
             True,
         )
 
@@ -818,7 +821,57 @@ def _get_sync_window(
         _utc_now()
         - timedelta(days=INCREMENTAL_SYNC_LOOKBACK_DAYS),
         INCREMENTAL_SYNC_MAX_MESSAGES,
+        INCREMENTAL_SYNC_MAX_SPAM_MESSAGES,
         False,
+    )
+
+
+def _get_provider_message_ids(
+    *,
+    provider: Any,
+    access_token: str,
+    after: datetime,
+    max_messages: int,
+    max_spam_messages: int,
+) -> tuple[list[str], str | None, dict[str, int]]:
+    normal_message_ids, cursor_after = provider.list_message_ids(
+        access_token=access_token,
+        after=after,
+        max_results=max_messages,
+    )
+
+    spam_message_ids = provider.list_spam_message_ids(
+        access_token=access_token,
+        after=after,
+        max_results=max_spam_messages,
+    )
+
+    seen_message_ids: set[str] = set()
+    message_ids: list[str] = []
+
+    for message_id in [
+        *normal_message_ids,
+        *spam_message_ids,
+    ]:
+        normalized_message_id = str(message_id or "").strip()
+
+        if (
+            not normalized_message_id
+            or normalized_message_id in seen_message_ids
+        ):
+            continue
+
+        seen_message_ids.add(normalized_message_id)
+        message_ids.append(normalized_message_id)
+
+    return (
+        message_ids,
+        cursor_after,
+        {
+            "normal_message_count": len(normal_message_ids),
+            "spam_message_count": len(spam_message_ids),
+            "unique_message_count": len(message_ids),
+        },
     )
 
 
@@ -854,7 +907,12 @@ def sync_mail_integration(
         integration_id=integration_id,
     )
 
-    after, max_messages, initial_sync = _get_sync_window(
+    (
+        after,
+        max_messages,
+        max_spam_messages,
+        initial_sync,
+    ) = _get_sync_window(
         integration=integration,
         force_full_sync=force_full_sync,
     )
@@ -878,12 +936,14 @@ def sync_mail_integration(
 
     logger.info(
         "Mail sync started. integration_id=%s provider=%s "
-        "trigger=%s initial_sync=%s max_messages=%s after=%s",
+        "trigger=%s initial_sync=%s max_messages=%s "
+        "max_spam_messages=%s after=%s",
         integration_id,
         integration["provider"],
         trigger,
         initial_sync,
         max_messages,
+        max_spam_messages,
         after.isoformat(),
     )
 
@@ -897,20 +957,26 @@ def sync_mail_integration(
             str(integration["provider"])
         )
 
-        provider_message_ids, cursor_after = (
-            provider.list_message_ids(
-                access_token=access_token,
-                after=after,
-                max_results=max_messages,
-            )
+        (
+            provider_message_ids,
+            cursor_after,
+            source_counts,
+        ) = _get_provider_message_ids(
+            provider=provider,
+            access_token=access_token,
+            after=after,
+            max_messages=max_messages,
+            max_spam_messages=max_spam_messages,
         )
 
         logger.info(
             "Mail sync listed provider messages. "
-            "integration_id=%s provider=%s message_count=%s",
+            "integration_id=%s provider=%s normal=%s spam=%s unique=%s",
             integration_id,
             integration["provider"],
-            len(provider_message_ids),
+            source_counts["normal_message_count"],
+            source_counts["spam_message_count"],
+            source_counts["unique_message_count"],
         )
 
         for index, provider_message_id in enumerate(
@@ -991,7 +1057,17 @@ def sync_mail_integration(
                 "provider": integration["provider"],
                 "after": after.isoformat(),
                 "max_messages": max_messages,
+                "max_spam_messages": max_spam_messages,
                 "initial_sync": initial_sync,
+                "normal_message_id_count": (
+                    source_counts["normal_message_count"]
+                ),
+                "spam_message_id_count": (
+                    source_counts["spam_message_count"]
+                ),
+                "unique_message_id_count": (
+                    source_counts["unique_message_count"]
+                ),
                 "attachment_metadata_loaded": True,
                 "attachment_content_downloaded": False,
             },

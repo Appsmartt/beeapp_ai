@@ -69,10 +69,12 @@ export interface UseMailResult {
     loadMail: (
         options?: {
         refresh?: boolean;
+        reloadIntegrations?: boolean;
         },
     ) => Promise<void>;
     loadMore: () => Promise<void>;
     refreshMail: () => Promise<void>;
+    refreshIntegrations: () => Promise<MailIntegration[]>;
     syncInbox: () => Promise<MailSyncResponse>;
     getMessageById: (
         messageId: string,
@@ -221,9 +223,9 @@ function mergeMailMessages(
     });
 
     return Array.from(messagesById.values());
-    }
+}
 
-    async function getAuthCredentials() {
+async function getAuthCredentials() {
     const credentials = await getValidSessionCredentials();
 
     if (!credentials) {
@@ -276,12 +278,20 @@ export function useMail(
 
     const requestIdRef = useRef(0);
     const rawMessagesRef = useRef<MailMessage[]>([]);
+    const integrationsRef = useRef<MailIntegration[]>([]);
 
     const setMessages = useCallback((
         messages: MailMessage[],
     ) => {
         rawMessagesRef.current = messages;
         setRawMessages(messages);
+    }, []);
+
+    const setMailIntegrations = useCallback((
+        nextIntegrations: MailIntegration[],
+    ) => {
+        integrationsRef.current = nextIntegrations;
+        setIntegrations(nextIntegrations);
     }, []);
 
     const normalizedSearch = search.trim();
@@ -292,9 +302,25 @@ export function useMail(
         : accountFilter
     );
 
+    const refreshIntegrations = useCallback(async () => {
+        const auth = await getAuthCredentials();
+
+        const response = await getMailIntegrations(
+        auth,
+        {
+            include_inactive: true,
+        },
+        );
+
+        setMailIntegrations(response.integrations);
+
+        return response.integrations;
+    }, [setMailIntegrations]);
+
     const loadMail = useCallback(async (
         options: {
         refresh?: boolean;
+        reloadIntegrations?: boolean;
         } = {},
     ) => {
         const requestId = requestIdRef.current + 1;
@@ -312,41 +338,51 @@ export function useMail(
         try {
         const auth = await getAuthCredentials();
 
-        const [
-            integrationsResponse,
-            messagesResponse,
-        ] = await Promise.all([
-            getMailIntegrations(
+        const shouldReloadIntegrations = (
+            Boolean(options.reloadIntegrations)
+            || integrationsRef.current.length === 0
+        );
+
+        const messagesRequest = getMailMessages(
+            auth,
+            {
+            integration_id: integrationId,
+            ...normalizeFolderQuery(folder),
+            search: normalizedSearch || undefined,
+            limit: DEFAULT_PAGE_LIMIT,
+            offset: 0,
+            },
+        );
+
+        const integrationsRequest = shouldReloadIntegrations
+            ? getMailIntegrations(
             auth,
             {
                 include_inactive: true,
             },
-            ),
-            getMailMessages(
-            auth,
-            {
-                integration_id: integrationId,
-                ...normalizeFolderQuery(folder),
-                search: normalizedSearch || undefined,
-                limit: DEFAULT_PAGE_LIMIT,
-                offset: 0,
-            },
-            ),
+            )
+            : Promise.resolve(null);
+
+        const [
+            messagesResponse,
+            integrationsResponse,
+        ] = await Promise.all([
+            messagesRequest,
+            integrationsRequest,
         ]);
 
         if (requestId !== requestIdRef.current) {
             return;
         }
 
-        setIntegrations(
+        if (integrationsResponse) {
+            setMailIntegrations(
             integrationsResponse.integrations,
-        );
+            );
+        }
 
         setMessages(messagesResponse.messages);
-
-        setPagination(
-            messagesResponse.pagination,
-        );
+        setPagination(messagesResponse.pagination);
         } catch (loadError) {
         if (requestId !== requestIdRef.current) {
             return;
@@ -368,6 +404,7 @@ export function useMail(
         folder,
         integrationId,
         normalizedSearch,
+        setMailIntegrations,
         setMessages,
     ]);
 
@@ -431,6 +468,7 @@ export function useMail(
     const refreshMail = useCallback(async () => {
         await loadMail({
         refresh: true,
+        reloadIntegrations: false,
         });
     }, [loadMail]);
 
@@ -453,6 +491,7 @@ export function useMail(
 
         await loadMail({
             refresh: true,
+            reloadIntegrations: true,
         });
 
         return response;
@@ -772,28 +811,30 @@ export function useMail(
 
         const auth = await getAuthCredentials();
 
+        const shouldLoadIntegrations = (
+        integrationsRef.current.length === 0
+        );
+
         const [
-        integrationsResponse,
         messageResponse,
+        integrationsResponse,
         ] = await Promise.all([
-        integrations.length > 0
-            ? Promise.resolve({
-            integrations,
-            })
-            : getMailIntegrations(
-            auth,
-            {
-                include_inactive: true,
-            },
-            ),
         getMailMessage(
             auth,
             normalizedMessageId,
         ),
+        shouldLoadIntegrations
+            ? getMailIntegrations(
+            auth,
+            {
+                include_inactive: true,
+            },
+            )
+            : Promise.resolve(null),
         ]);
 
-        if (integrations.length === 0) {
-        setIntegrations(
+        if (integrationsResponse) {
+        setMailIntegrations(
             integrationsResponse.integrations,
         );
         }
@@ -801,17 +842,20 @@ export function useMail(
         return mapMailMessageToDetail(
         messageResponse.message,
         getMailIntegrationMap(
-            integrationsResponse.integrations,
+            integrationsResponse?.integrations
+            || integrationsRef.current,
         ),
         );
-    }, [integrations]);
+    }, [setMailIntegrations]);
 
     useEffect(() => {
         if (!autoLoad) {
         return;
         }
 
-        void loadMail();
+        void loadMail({
+        reloadIntegrations: integrationsRef.current.length === 0,
+        });
     }, [
         autoLoad,
         loadMail,
@@ -860,6 +904,7 @@ export function useMail(
         loadMail,
         loadMore,
         refreshMail,
+        refreshIntegrations,
         syncInbox,
         getMessageById,
         updateMessageState,

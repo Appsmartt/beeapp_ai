@@ -59,6 +59,11 @@ export interface MailDetailModel {
     initialsColor: string;
 }
 
+interface MailSenderData {
+    email: string;
+    displayName: string;
+}
+
 const AVATAR_COLORS = [
     '#7C3AED',
     '#059669',
@@ -70,6 +75,7 @@ const AVATAR_COLORS = [
 ];
 
 const FALLBACK_ACCOUNT_LABEL = 'Cuenta conectada';
+const FALLBACK_SENDER_NAME = 'Remitente desconocido';
 
 const RECIPIENT_KINDS = [
     'from',
@@ -77,7 +83,7 @@ const RECIPIENT_KINDS = [
     'cc',
     'bcc',
     'reply_to',
-    ] as const;
+] as const;
 
 function hashString(
     value: string,
@@ -97,6 +103,119 @@ function hashString(
     }
 
     return Math.abs(hash);
+}
+
+function normalizeValue(
+    value: string | null | undefined,
+    ): string {
+    return value?.trim() || '';
+}
+
+function getRecipientFromCollection(
+    message: MailMessage,
+    recipientType: (
+        | 'from'
+        | 'reply_to'
+    ),
+    ): MailMessageRecipient | null {
+    const recipients = message.recipients;
+
+    if (!recipients) {
+        return null;
+    }
+
+    if (Array.isArray(recipients)) {
+        return recipients.find((recipient) => (
+        recipient.recipient_type === recipientType
+        && Boolean(normalizeValue(recipient.email))
+        )) || null;
+    }
+
+    const recipientsByType = recipients[recipientType];
+
+    if (!Array.isArray(recipientsByType)) {
+        return null;
+    }
+
+    return recipientsByType.find((recipient) => (
+        Boolean(normalizeValue(recipient.email))
+    )) || null;
+}
+
+function getMailSender(
+    message: MailMessage,
+    ): MailSenderData {
+    const directSenderEmail = normalizeValue(
+        message.sender?.email,
+    );
+
+    const directSenderName = normalizeValue(
+        message.sender?.display_name,
+    );
+
+    if (directSenderEmail || directSenderName) {
+        return {
+        email: directSenderEmail,
+        displayName: (
+            directSenderName
+            || directSenderEmail
+            || FALLBACK_SENDER_NAME
+        ),
+        };
+    }
+
+    const fromRecipient = getRecipientFromCollection(
+        message,
+        'from',
+    );
+
+    const fromEmail = normalizeValue(
+        fromRecipient?.email,
+    );
+
+    const fromDisplayName = normalizeValue(
+        fromRecipient?.display_name,
+    );
+
+    if (fromEmail || fromDisplayName) {
+        return {
+        email: fromEmail,
+        displayName: (
+            fromDisplayName
+            || fromEmail
+            || FALLBACK_SENDER_NAME
+        ),
+        };
+    }
+
+    const replyToRecipient = getRecipientFromCollection(
+        message,
+        'reply_to',
+    );
+
+    const replyToEmail = normalizeValue(
+        replyToRecipient?.email,
+    );
+
+    const replyToDisplayName = normalizeValue(
+        replyToRecipient?.display_name,
+    );
+
+    if (replyToEmail || replyToDisplayName) {
+        return {
+        email: replyToEmail,
+        displayName: (
+            replyToDisplayName
+            || replyToEmail
+            || FALLBACK_SENDER_NAME
+        ),
+        };
+    }
+
+    return {
+        email: '',
+        displayName: FALLBACK_SENDER_NAME,
+    };
 }
 
 export function colorFromMailSeed(
@@ -131,9 +250,9 @@ export function getMailIntegrationMap(
         integration,
         ]),
     );
-    }
+}
 
-    export function formatMailDate(
+export function formatMailDate(
     value: string | null,
     ): {
     date: string;
@@ -220,17 +339,13 @@ export function getMailMessageTimestamp(
 export function getMailSenderName(
     message: MailMessage,
     ): string {
-    return (
-        message.sender?.display_name
-        || message.sender?.email
-        || 'Remitente desconocido'
-    );
+    return getMailSender(message).displayName;
 }
 
 export function getMailSenderEmail(
     message: MailMessage,
     ): string {
-    return message.sender?.email || '';
+    return getMailSender(message).email;
 }
 
 export function getMailBodyText(
@@ -322,8 +437,8 @@ export function mapMailMessageToListItem(
         ? getMailIntegrationLabel(integration)
         : FALLBACK_ACCOUNT_LABEL;
 
-    const senderName = getMailSenderName(message);
-    const senderEmail = getMailSenderEmail(message);
+    const sender = getMailSender(message);
+
     const dateParts = formatMailDate(
         getMailMessageTimestamp(message),
     );
@@ -332,8 +447,8 @@ export function mapMailMessageToListItem(
         id: message.id,
         mailIntegrationId: message.mail_integration_id,
         provider: message.provider,
-        senderName,
-        senderEmail,
+        senderName: sender.displayName,
+        senderEmail: sender.email,
         subject: message.subject || '(Sin asunto)',
         bodyPreview: (
         message.body_preview
@@ -352,7 +467,8 @@ export function mapMailMessageToListItem(
         folder: message.folder,
         accountEmail,
         initialsColor: colorFromMailSeed(
-        senderEmail || senderName,
+        sender.email
+        || sender.displayName,
         ),
     };
 }
@@ -369,14 +485,16 @@ export function mapMailMessageToDetail(
         ? getMailIntegrationLabel(integration)
         : FALLBACK_ACCOUNT_LABEL;
 
+    const sender = getMailSender(message);
+
     return {
         id: message.id,
         mailIntegrationId: message.mail_integration_id,
         provider: message.provider,
         accountEmail,
         subject: message.subject || '(Sin asunto)',
-        senderName: getMailSenderName(message),
-        senderEmail: getMailSenderEmail(message),
+        senderName: sender.displayName,
+        senderEmail: sender.email,
         recipients: getMailMessageRecipients(message),
         body: getMailBodyText(message),
         bodyPreview: (
@@ -396,8 +514,8 @@ export function mapMailMessageToDetail(
         attachmentCount: message.attachment_count,
         attachments: message.attachments || [],
         initialsColor: colorFromMailSeed(
-        getMailSenderEmail(message)
-        || getMailSenderName(message),
+        sender.email
+        || sender.displayName,
         ),
     };
 }
