@@ -24,7 +24,13 @@
         "foregroundImage": "./src/assets/logo.png",
         "backgroundColor": "#6025d2"
       },
-      "package": "com.beeapp.mobile"
+      "package": "com.beeapp.mobile",
+      "permissions": [
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO",
+        "android.permission.USE_BIOMETRIC",
+        "android.permission.USE_FINGERPRINT"
+      ]
     },
     "web": {
       "bundler": "metro"
@@ -50,7 +56,24 @@
           "faceIDPermission": "BeeApp necesita usar Face ID para proteger el acceso a tu cuenta."
         }
       ],
+      [
+        "expo-notifications",
+        {
+          "icon": "./src/assets/logo.png",
+          "color": "#6025d2",
+          "defaultChannel": "default"
+        }
+      ],
       "./withMonorepoSettings.js"
-    ]
+    ],
+    "extra": {
+      "router": {
+        "origin": false
+      },
+      "eas": {
+        "projectId": "c6caf5a7-1c76-4a07-ae51-6307712244be"
+      }
+    },
+    "owner": "gordosaurio"
   }
 }

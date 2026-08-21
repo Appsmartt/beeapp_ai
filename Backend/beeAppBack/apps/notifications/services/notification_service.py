@@ -25,6 +25,10 @@ NOTIFICATION_COLUMNS = (
 UPLOAD_NOTIFICATION_WINDOW_SECONDS = 30
 
 
+def _supabase():
+    return get_supabase_admin_client()
+
+
 def create_storage_notification(
     *,
     recipient_id: str,
@@ -34,46 +38,101 @@ def create_storage_notification(
     metadata: dict[str, Any] | None = None,
     send_push: bool = True,
 ) -> dict[str, Any]:
+    return create_module_notification(
+        recipient_id=recipient_id,
+        module="storage",
+        notification_type=notification_type,
+        title=title,
+        body=body,
+        metadata=metadata,
+        send_push=send_push,
+    )
+
+
+def create_calendar_notification(
+    *,
+    recipient_id: str,
+    notification_type: str,
+    title: str,
+    body: str,
+    metadata: dict[str, Any] | None = None,
+    send_push: bool = True,
+) -> dict[str, Any]:
+    return create_module_notification(
+        recipient_id=recipient_id,
+        module="calendar",
+        notification_type=notification_type,
+        title=title,
+        body=body,
+        metadata=metadata,
+        send_push=send_push,
+    )
+
+
+def create_mail_message_received_notification(
+    *,
+    recipient_id: str,
+    message_id: str,
+    mail_integration_id: str,
+    provider: str,
+    sender_name: str | None,
+    sender_email: str | None,
+    subject: str | None,
+    body_preview: str | None,
+    received_at: str | None,
+) -> dict[str, Any] | None:
+    normalized_message_id = str(message_id or "").strip()
+
+    if not normalized_message_id:
+        return None
+
+    normalized_sender_name = str(sender_name or "").strip()
+    normalized_sender_email = str(sender_email or "").strip()
+    normalized_sender = (
+        normalized_sender_name
+        or normalized_sender_email
+        or "un remitente"
+    )
+
+    normalized_subject = str(subject or "").strip()
+    normalized_preview = str(body_preview or "").strip()
+
+    title = (
+        f"Nuevo correo de {normalized_sender}"
+        if normalized_sender
+        else "Nuevo correo"
+    )
+
+    if normalized_subject:
+        body = normalized_subject[:180]
+    elif normalized_preview:
+        body = normalized_preview[:180]
+    else:
+        body = "Toca para abrir el correo."
+
     try:
-        supabase = get_supabase_admin_client()
-
-        response = (
-            supabase.table("notifications")
-            .insert(
-                {
-                    "recipient_id": recipient_id,
-                    "module": "storage",
-                    "type": notification_type,
-                    "title": title,
-                    "body": body,
-                    "metadata": metadata or {},
-                }
-            )
-            .execute()
+        return create_module_notification(
+            recipient_id=recipient_id,
+            module="mail",
+            notification_type="mail_message_received",
+            title=title[:200],
+            body=body,
+            metadata={
+                "message_id": normalized_message_id,
+                "mail_integration_id": str(
+                    mail_integration_id or ""
+                ).strip(),
+                "provider": str(provider or "").strip().lower(),
+                "sender_name": normalized_sender_name or None,
+                "sender_email": normalized_sender_email or None,
+                "subject": normalized_subject or None,
+                "received_at": received_at,
+                "action": "open_mail_message",
+            },
+            send_push=True,
         )
-
-        if not response.data:
-            raise NotificationUpdateError(
-                "Supabase did not return the created notification."
-            )
-
-        notification = response.data[0]
-
-        if send_push:
-            _send_storage_push(
-                recipient_id=recipient_id,
-                notification=notification,
-            )
-
-        return notification
-
     except NotificationUpdateError:
-        raise
-
-    except Exception as error:
-        raise NotificationUpdateError(
-            "Could not create storage notification."
-        ) from error
+        return None
 
 
 def create_or_update_upload_success_notification(
@@ -87,7 +146,7 @@ def create_or_update_upload_success_notification(
         )
 
     try:
-        supabase = get_supabase_admin_client()
+        supabase = _supabase()
 
         since = (
             datetime.now(timezone.utc)
@@ -233,7 +292,7 @@ def list_notifications(
     offset: int = 0,
 ) -> dict[str, Any]:
     try:
-        supabase = get_supabase_admin_client()
+        supabase = _supabase()
 
         query = (
             supabase.table("notifications")
@@ -273,7 +332,7 @@ def get_unread_notification_count(
     module: str | None = None,
 ) -> int:
     try:
-        supabase = get_supabase_admin_client()
+        supabase = _supabase()
 
         query = (
             supabase.table("notifications")
@@ -304,7 +363,7 @@ def mark_notification_as_read(
     notification_id: str,
 ) -> dict[str, Any]:
     try:
-        supabase = get_supabase_admin_client()
+        supabase = _supabase()
 
         response = (
             supabase.table("notifications")
@@ -353,7 +412,7 @@ def mark_all_notifications_as_read(
     module: str | None = None,
 ) -> int:
     try:
-        supabase = get_supabase_admin_client()
+        supabase = _supabase()
 
         query = (
             supabase.table("notifications")
@@ -388,7 +447,7 @@ def register_push_device(
     app_version: str | None = None,
 ) -> dict[str, Any]:
     try:
-        supabase = get_supabase_admin_client()
+        supabase = _supabase()
 
         existing = (
             supabase.table("push_devices")
@@ -445,7 +504,7 @@ def deactivate_push_device(
 ) -> None:
     try:
         (
-            get_supabase_admin_client()
+            _supabase()
             .table("push_devices")
             .update(
                 {
@@ -481,103 +540,6 @@ def _upload_notification_content(
     )
 
 
-def _send_storage_push(
-    *,
-    recipient_id: str,
-    notification: dict[str, Any],
-) -> None:
-    try:
-        supabase = get_supabase_admin_client()
-
-        devices_response = (
-            supabase.table("push_devices")
-            .select("id,expo_push_token")
-            .eq("user_id", recipient_id)
-            .eq("is_active", True)
-            .execute()
-        )
-
-        tokens = [
-            device["expo_push_token"]
-            for device in (devices_response.data or [])
-        ]
-
-        if not tokens:
-            return
-
-        result = send_expo_push_notifications(
-            tokens=tokens,
-            title=notification["title"],
-            body=notification["body"],
-            data={
-                "notification_id": notification["id"],
-                "module": "storage",
-                **(notification.get("metadata") or {}),
-            },
-        )
-
-        if result["sent_tokens"]:
-            (
-                supabase.table("notifications")
-                .update(
-                    {
-                        "push_sent_at": "now()",
-                        "push_error": None,
-                    }
-                )
-                .eq("id", notification["id"])
-                .execute()
-            )
-
-        for failed_token, error_message in (
-            result["failed_tokens"].items()
-        ):
-            (
-                supabase.table("push_devices")
-                .update(
-                    {
-                        "is_active": False,
-                        "last_seen_at": "now()",
-                    }
-                )
-                .eq("expo_push_token", failed_token)
-                .execute()
-            )
-
-            (
-                supabase.table("notifications")
-                .update(
-                    {
-                        "push_error": error_message,
-                    }
-                )
-                .eq("id", notification["id"])
-                .execute()
-            )
-
-    except Exception:
-        return
-
-def create_calendar_notification(
-    *,
-    recipient_id: str,
-    notification_type: str,
-    title: str,
-    body: str,
-    metadata: dict[str, Any] | None = None,
-    send_push: bool = True,
-) -> dict[str, Any]:
-    return create_module_notification(
-        recipient_id=recipient_id,
-        module="calendar",
-        notification_type=notification_type,
-        title=title,
-        body=body,
-        metadata=metadata,
-        send_push=send_push,
-    )
-
-
 def create_module_notification(
     *,
     recipient_id: str,
@@ -589,7 +551,7 @@ def create_module_notification(
     send_push: bool = True,
 ) -> dict[str, Any]:
     try:
-        supabase = get_supabase_admin_client()
+        supabase = _supabase()
 
         response = (
             supabase.table("notifications")
@@ -636,7 +598,7 @@ def _send_module_push(
     notification: dict[str, Any],
 ) -> None:
     try:
-        supabase = get_supabase_admin_client()
+        supabase = _supabase()
 
         devices_response = (
             supabase.table("push_devices")

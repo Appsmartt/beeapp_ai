@@ -583,7 +583,7 @@ export interface MarkAllNotificationsReadResponse {
 
 export interface RegisterPushDevicePayload {
   expo_push_token: string;
-  platform: 'android' | 'ios' | 'web';
+  platform: 'android' | 'ios';
   device_id?: string;
   app_version?: string;
 }
