@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { View, StyleSheet, TextInput, TouchableOpacity, Text, Platform } from 'react-native';
 import { colors } from '@beeapp/design-system';
 import { Paperclip, Mic, Send, Image, Camera, File, MapPin, User, X } from 'lucide-react-native';

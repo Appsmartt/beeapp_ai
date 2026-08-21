@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import {
   View,
   Text,
@@ -6,15 +6,12 @@ import {
   ScrollView,
   TouchableOpacity,
   TextInput,
-  Dimensions,
 } from 'react-native';
 import ScreenSafeArea from '../../../src/components/layout/ScreenSafeArea';
 import { useModuleNav, useScreenParams } from '../../../src/components/embedded/EmbeddedNavContext';
 import { colors } from '@beeapp/design-system';
 import { ChevronLeft, Search, Users, X, Check, ArrowRight } from 'lucide-react-native';
 import VerifiedBadge from '../../../src/components/VerifiedBadge';
-
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 export default function NewChatScreen() {
   const router = useModuleNav();

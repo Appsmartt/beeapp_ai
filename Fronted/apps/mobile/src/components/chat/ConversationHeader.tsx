@@ -1,4 +1,3 @@
-import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { colors } from '@beeapp/design-system';
 import { ChevronLeft, Phone, Video, MoreVertical, Bot, SlidersHorizontal } from 'lucide-react-native';

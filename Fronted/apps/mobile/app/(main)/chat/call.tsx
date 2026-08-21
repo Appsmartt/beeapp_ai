@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Dimensions, Platform } from 'react-native';
 import ScreenSafeArea from '../../../src/components/layout/ScreenSafeArea';
 import { useModuleNav, useScreenParams } from '../../../src/components/embedded/EmbeddedNavContext';
@@ -8,10 +8,8 @@ import {
   Mic,
   MicOff,
   Volume2,
-  VolumeX,
   Video as VideoIcon,
   VideoOff,
-  Camera,
   RotateCw,
 } from 'lucide-react-native';
 import VerifiedBadge from '../../../src/components/VerifiedBadge';

@@ -25,7 +25,6 @@ interface OverviewSectionProps {
 export default function OverviewSection({
   title,
   icon: Icon,
-  color,
   items,
   onItemPress,
   onVerMasPress,

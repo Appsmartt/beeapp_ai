@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { colors } from '@beeapp/design-system';
 import { Star, MapPin, ChevronDown, ChevronUp, MessageSquare } from 'lucide-react-native';

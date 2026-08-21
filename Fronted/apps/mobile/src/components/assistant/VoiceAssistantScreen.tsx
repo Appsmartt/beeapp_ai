@@ -1,6 +1,6 @@
 
 import { useEffect, useRef, useState } from 'react';
-import { View, Text, StyleSheet, Modal, ScrollView, TouchableOpacity, Platform } from 'react-native';
+import { View, Text, Modal, ScrollView, TouchableOpacity, Platform } from 'react-native';
 import { X, Mic, Pause, RotateCcw } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
 import VoiceOrb, { OrbState } from './VoiceOrb';

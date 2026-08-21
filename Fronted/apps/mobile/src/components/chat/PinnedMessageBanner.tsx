@@ -1,4 +1,3 @@
-import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { Pin, X } from 'lucide-react-native';
 import { colors } from '@beeapp/design-system';
