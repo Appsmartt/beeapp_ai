@@ -32,4 +32,8 @@ urlpatterns = [
         "api/integrations/",
         include("apps.integrations.urls"),
     ),
+    path(
+        "api/mail/",
+        include("apps.mail.urls"),
+    ),
 ]

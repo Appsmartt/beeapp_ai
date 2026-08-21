@@ -24,6 +24,7 @@ from apps.integrations.serializers import (
 from apps.integrations.services.google_oauth_service import (
     GOOGLE_CALENDAR_SCOPES,
     GOOGLE_IDENTITY_SCOPES,
+    GOOGLE_MAIL_SCOPES,
     exchange_google_authorization_code,
     get_google_user_info,
 )
@@ -177,6 +178,17 @@ def _normalize_capabilities(
     return normalized
 
 
+def _append_unique_scopes(
+    scopes: list[str],
+    additional_scopes: tuple[str, ...] | list[str],
+) -> None:
+    for scope in additional_scopes:
+        normalized_scope = str(scope).strip()
+
+        if normalized_scope and normalized_scope not in scopes:
+            scopes.append(normalized_scope)
+
+
 def get_identity_scopes(
     provider: str,
     capabilities: list[str] | None = None,
@@ -189,9 +201,16 @@ def get_identity_scopes(
         scopes = list(GOOGLE_IDENTITY_SCOPES)
 
         if "calendar" in normalized_capabilities:
-            for scope in GOOGLE_CALENDAR_SCOPES:
-                if scope not in scopes:
-                    scopes.append(scope)
+            _append_unique_scopes(
+                scopes,
+                GOOGLE_CALENDAR_SCOPES,
+            )
+
+        if "mail" in normalized_capabilities:
+            _append_unique_scopes(
+                scopes,
+                GOOGLE_MAIL_SCOPES,
+            )
 
         return scopes
 

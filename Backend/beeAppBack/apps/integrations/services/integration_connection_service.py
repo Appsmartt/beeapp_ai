@@ -15,6 +15,9 @@ from apps.integrations.exceptions import (
 from apps.integrations.services.calendar_integration_link_service import (
     sync_calendar_integration_from_connection,
 )
+from apps.mail.services.mail_integration_link_service import (
+    sync_mail_integration_from_connection,
+)
 from apps.integrations.services.credential_crypto_service import (
     decrypt_integration_secret,
     encrypt_integration_secret,
@@ -257,8 +260,6 @@ def _upsert_connection(
             requested_capabilities,
         )
 
-        # Los scopes vienen exclusivamente de la respuesta OAuth
-        # más reciente. No se deben inferir desde capabilities.
         effective_granted_scopes = _normalize_string_list(
             granted_scopes
         )
@@ -370,6 +371,10 @@ def _upsert_connection(
             )
 
         sync_calendar_integration_from_connection(
+            connection_id=connection["id"],
+        )
+
+        sync_mail_integration_from_connection(
             connection_id=connection["id"],
         )
 
@@ -506,6 +511,10 @@ def mark_connection_reauth_required(
         )
 
         sync_calendar_integration_from_connection(
+            connection_id=connection_id,
+        )
+
+        sync_mail_integration_from_connection(
             connection_id=connection_id,
         )
 
@@ -678,6 +687,10 @@ def _get_valid_provider_access_token(
             connection_id=connection_id,
         )
 
+        sync_mail_integration_from_connection(
+            connection_id=connection_id,
+        )
+
         _record_event(
             connection_id=connection_id,
             user_id=user_id,
@@ -759,7 +772,7 @@ def disconnect_user_connection(
         response = (
             _supabase()
             .rpc(
-                "disconnect_integration_and_delete_calendar_data",
+                "disconnect_integration_and_delete_connected_data",
                 {
                     "p_user_id": user_id,
                     "p_connection_id": connection_id,
@@ -780,7 +793,7 @@ def disconnect_user_connection(
             user_id=user_id,
             provider=connection["provider"],
             event_type=(
-                "disconnected_and_calendar_data_deleted"
+                "disconnected_and_connected_data_deleted"
             ),
             metadata={
                 "deleted_connection_id": str(
@@ -793,6 +806,21 @@ def disconnect_user_connection(
                 ),
                 "deleted_calendar_count": (
                     result["deleted_calendar_count"]
+                ),
+                "deleted_mail_integration_count": (
+                    result[
+                        "deleted_mail_integration_count"
+                    ]
+                ),
+                "deleted_mail_message_count": (
+                    result[
+                        "deleted_mail_message_count"
+                    ]
+                ),
+                "deleted_mail_draft_count": (
+                    result[
+                        "deleted_mail_draft_count"
+                    ]
                 ),
             },
         )

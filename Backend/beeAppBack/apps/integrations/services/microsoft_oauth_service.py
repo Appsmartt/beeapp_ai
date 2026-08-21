@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from datetime import datetime, timedelta, timezone
 from typing import Any
 from urllib.parse import urlencode
@@ -14,6 +15,9 @@ from apps.integrations.exceptions import (
 )
 
 
+logger = logging.getLogger(__name__)
+
+
 MICROSOFT_AUTHORIZATION_ENDPOINT = (
     "https://login.microsoftonline.com/common/oauth2/v2.0/authorize"
 )
@@ -26,8 +30,6 @@ MICROSOFT_GRAPH_ME_ENDPOINT = (
     "https://graph.microsoft.com/v1.0/me"
 )
 
-# Permisos delegados de Microsoft Graph para la cuenta
-# que inició sesión. No usar Application permissions.
 MICROSOFT_IDENTITY_SCOPES = (
     "openid",
     "profile",
@@ -51,6 +53,19 @@ def _get_required_setting(name: str) -> str:
         )
 
     return value
+
+
+def _parse_error_response(
+    response: httpx.Response,
+) -> dict[str, Any]:
+    try:
+        data = response.json()
+    except ValueError:
+        return {
+            "raw_body": response.text[:1_000],
+        }
+
+    return data if isinstance(data, dict) else {}
 
 
 def build_microsoft_authorization_url(
@@ -127,6 +142,15 @@ def exchange_microsoft_authorization_code(
         ) from error
 
     if response.status_code >= 400:
+        error_data = _parse_error_response(response)
+
+        logger.warning(
+            "Microsoft authorization-code exchange failed. "
+            "status_code=%s error=%s",
+            response.status_code,
+            error_data,
+        )
+
         raise IntegrationProviderError(
             "Microsoft could not complete the authorization."
         )
@@ -137,6 +161,11 @@ def exchange_microsoft_authorization_code(
         raise IntegrationProviderError(
             "Microsoft returned an invalid token response."
         ) from error
+
+    if not isinstance(token_data, dict):
+        raise IntegrationProviderError(
+            "Microsoft returned an invalid token response."
+        )
 
     if not token_data.get("access_token"):
         raise IntegrationProviderError(
@@ -177,12 +206,17 @@ def refresh_microsoft_access_token(
         ) from error
 
     if response.status_code >= 400:
-        try:
-            error_data = response.json()
-        except ValueError:
-            error_data = {}
+        error_data = _parse_error_response(response)
+        error_code = str(error_data.get("error") or "")
 
-        if error_data.get("error") in {
+        logger.warning(
+            "Microsoft refresh-token exchange failed. "
+            "status_code=%s error=%s",
+            response.status_code,
+            error_data,
+        )
+
+        if error_code in {
             "invalid_grant",
             "invalid_client",
         }:
@@ -200,6 +234,11 @@ def refresh_microsoft_access_token(
         raise IntegrationProviderError(
             "Microsoft returned an invalid refresh response."
         ) from error
+
+    if not isinstance(token_data, dict):
+        raise IntegrationProviderError(
+            "Microsoft returned an invalid refresh response."
+        )
 
     if not token_data.get("access_token"):
         raise IntegrationProviderError(
@@ -233,6 +272,15 @@ def get_microsoft_user_info(
         ) from error
 
     if response.status_code >= 400:
+        error_data = _parse_error_response(response)
+
+        logger.warning(
+            "Microsoft profile request failed. "
+            "status_code=%s error=%s",
+            response.status_code,
+            error_data,
+        )
+
         raise IntegrationProviderError(
             "Microsoft could not return account information."
         )
@@ -243,6 +291,11 @@ def get_microsoft_user_info(
         raise IntegrationProviderError(
             "Microsoft returned invalid account information."
         ) from error
+
+    if not isinstance(user_info, dict):
+        raise IntegrationProviderError(
+            "Microsoft returned invalid account information."
+        )
 
     if not user_info.get("id"):
         raise IntegrationProviderError(
@@ -257,9 +310,11 @@ def calculate_token_expiration(
 ) -> datetime | None:
     expires_in = token_data.get("expires_in")
 
-    if not isinstance(expires_in, int):
+    try:
+        seconds = int(expires_in)
+    except (TypeError, ValueError):
         return None
 
     return datetime.now(timezone.utc) + timedelta(
-        seconds=expires_in
+        seconds=seconds
     )
