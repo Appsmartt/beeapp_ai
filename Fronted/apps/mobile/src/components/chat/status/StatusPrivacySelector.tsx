@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Modal, FlatList } from 'react-native';
 import { colors } from '@beeapp/design-system';
 import { Eye, Globe, UserCheck, Tag, Check, X } from 'lucide-react-native';

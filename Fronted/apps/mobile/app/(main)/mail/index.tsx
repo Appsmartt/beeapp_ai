@@ -271,7 +271,6 @@ export default function MailInboxScreen() {
     messages,
     pagination,
     loading,
-    refreshing,
     loadingMore,
     syncing,
     updatingMessageId,

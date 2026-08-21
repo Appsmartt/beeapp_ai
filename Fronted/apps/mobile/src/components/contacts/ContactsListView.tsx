@@ -3,7 +3,6 @@ import { View, Text, ScrollView, TouchableOpacity } from 'react-native';
 import { colors } from '@beeapp/design-system';
 import {
   Users,
-  Globe,
   Info,
   Phone,
   MessageSquare,

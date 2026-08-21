@@ -4,7 +4,6 @@ import {
     Alert,
     Keyboard,
     KeyboardAvoidingView,
-    Modal,
     Platform,
     ScrollView,
     StyleSheet,

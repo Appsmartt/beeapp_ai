@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { colors } from '@beeapp/design-system';
-import { Star, MapPin, ChevronDown, ChevronUp, MessageSquare } from 'lucide-react-native';
+import { Star, ChevronDown, ChevronUp, MessageSquare } from 'lucide-react-native';
 import { AI_SEARCH_RESULTS, AiSearchResult } from '../../mocks/aiSearchResults';
 import VerifiedBadge from '../VerifiedBadge';
 

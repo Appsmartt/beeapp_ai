@@ -1,4 +1,3 @@
-import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Platform } from 'react-native';
 import { colors } from '@beeapp/design-system';
 import { ShieldCheck } from 'lucide-react-native';

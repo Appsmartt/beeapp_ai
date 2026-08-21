@@ -1,5 +1,4 @@
-import React, { useState } from 'react';
-import {
+import { useState } from 'react';import {
   Modal,
   View,
   Text,
@@ -9,7 +8,7 @@ import {
   StyleSheet,
   TouchableWithoutFeedback,
 } from 'react-native';
-import { Search, X, Forward, Check } from 'lucide-react-native';
+import { Search, X, Forward} from 'lucide-react-native';
 import { colors } from '@beeapp/design-system';
 import { MOCK_CHATS } from '../../mocks/chats';
 

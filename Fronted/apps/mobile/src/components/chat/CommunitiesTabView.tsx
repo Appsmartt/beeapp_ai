@@ -1,5 +1,5 @@
 import { View, StyleSheet, ScrollView } from 'react-native';
-import { colors, spacing } from '@beeapp/design-system';
+import { colors } from '@beeapp/design-system';
 import CommunityListItem from './CommunityListItem';
 import { Community, isCommunityAdmin } from '../../mocks/communities';
 

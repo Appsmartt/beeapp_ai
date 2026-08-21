@@ -1,4 +1,3 @@
-import React from 'react';
 import { View, Text, StyleSheet, Modal, TouchableOpacity, FlatList, TouchableWithoutFeedback } from 'react-native';
 import { colors } from '@beeapp/design-system';
 import { Eye, X } from 'lucide-react-native';

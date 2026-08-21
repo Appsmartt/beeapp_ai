@@ -13,7 +13,6 @@ import {
     } from 'lucide-react-native';
 import {
     colors,
-    radii,
     spacing,
     } from '@beeapp/design-system';
 
