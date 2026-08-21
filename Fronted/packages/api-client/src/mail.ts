@@ -1,5 +1,7 @@
 import type {
     AuthCredentials,
+    CreateMailDraftPayload,
+    CreateMailDraftResponse,
     GetMailIntegrationResponse,
     GetMailIntegrationsResponse,
     GetMailMessageResponse,
@@ -7,9 +9,18 @@ import type {
     MailMessagesQuery,
     MailSyncPayload,
     MailSyncResponse,
+    MoveMailMessagePayload,
+    MoveMailMessageResponse,
+    SendMailDraftResponse,
+    UpdateMailDraftPayload,
+    UpdateMailDraftResponse,
+    UpdateMailMessageStatePayload,
+    UpdateMailMessageStateResponse,
     } from '@beeapp/shared-types';
 
-import { api } from './client';
+import {
+    api,
+} from './client';
 
 function buildQuery(
     params: object,
@@ -43,12 +54,17 @@ function buildQuery(
         return;
         }
 
-        searchParams.set(key, String(value));
+        searchParams.set(
+        key,
+        String(value),
+        );
     });
 
     const query = searchParams.toString();
 
-    return query ? `?${query}` : '';
+    return query
+        ? `?${query}`
+        : '';
 }
 
 function mailIntegrationPath(
@@ -66,6 +82,42 @@ function mailMessagePath(
     return (
         '/mail/messages/'
         + `${encodeURIComponent(messageId)}/`
+    );
+}
+
+function mailMessageStatePath(
+    messageId: string,
+    ): string {
+    return (
+        `${mailMessagePath(messageId)}`
+        + 'state/'
+    );
+}
+
+function mailMessageMovePath(
+    messageId: string,
+    ): string {
+    return (
+        `${mailMessagePath(messageId)}`
+        + 'move/'
+    );
+}
+
+function mailDraftDetailPath(
+    messageId: string,
+    ): string {
+    return (
+        `${mailMessagePath(messageId)}`
+        + 'draft/'
+    );
+}
+
+function mailDraftSendPath(
+    messageId: string,
+    ): string {
+    return (
+        `${mailMessagePath(messageId)}`
+        + 'send/'
     );
 }
 
@@ -111,6 +163,74 @@ export function getMailMessage(
     ): Promise<GetMailMessageResponse> {
     return api.get<GetMailMessageResponse>(
         mailMessagePath(messageId),
+        { auth },
+    );
+}
+
+export function updateMailMessageState(
+    auth: AuthCredentials,
+    messageId: string,
+    payload: UpdateMailMessageStatePayload,
+    ): Promise<UpdateMailMessageStateResponse> {
+    return api.patch<UpdateMailMessageStateResponse>(
+        mailMessageStatePath(messageId),
+        payload,
+        { auth },
+    );
+}
+
+export function moveMailMessage(
+    auth: AuthCredentials,
+    messageId: string,
+    payload: MoveMailMessagePayload,
+    ): Promise<MoveMailMessageResponse> {
+    return api.post<MoveMailMessageResponse>(
+        mailMessageMovePath(messageId),
+        payload,
+        { auth },
+    );
+}
+
+export function createMailDraft(
+    auth: AuthCredentials,
+    payload: CreateMailDraftPayload,
+    ): Promise<CreateMailDraftResponse> {
+    return api.post<CreateMailDraftResponse>(
+        '/mail/drafts/',
+        payload,
+        { auth },
+    );
+}
+
+export function updateMailDraft(
+    auth: AuthCredentials,
+    messageId: string,
+    payload: UpdateMailDraftPayload,
+    ): Promise<UpdateMailDraftResponse> {
+    return api.patch<UpdateMailDraftResponse>(
+        mailDraftDetailPath(messageId),
+        payload,
+        { auth },
+    );
+}
+
+export async function deleteMailDraft(
+    auth: AuthCredentials,
+    messageId: string,
+    ): Promise<void> {
+    await api.delete<void>(
+        mailDraftDetailPath(messageId),
+        { auth },
+    );
+}
+
+export function sendMailDraft(
+    auth: AuthCredentials,
+    messageId: string,
+    ): Promise<SendMailDraftResponse> {
+    return api.post<SendMailDraftResponse>(
+        mailDraftSendPath(messageId),
+        {},
         { auth },
     );
 }

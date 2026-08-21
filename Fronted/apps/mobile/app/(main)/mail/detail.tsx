@@ -1,182 +1,845 @@
-import React, { useState } from 'react';
 import {
-  View,
-  Text,
-  StyleSheet,
+  ActivityIndicator,
+  Alert,
   ScrollView,
+  StyleSheet,
+  Text,
   TouchableOpacity,
+  View,
 } from 'react-native';
-import ScreenSafeArea from '../../../src/components/layout/ScreenSafeArea';
-import { useModuleNav, useScreenParams } from '../../../src/components/embedded/EmbeddedNavContext';
-import { colors } from '@beeapp/design-system';
 import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+} from 'react';
+import {
+  Archive,
   ChevronLeft,
+  CornerUpLeft,
+  CornerUpRight,
+  Download,
+  FileText,
+  Mail,
+  ReplyAll,
   Star,
   Trash2,
-  Archive,
-  CornerUpLeft,
-  ReplyAll,
-  CornerUpRight,
-  FileText,
-  Download,
-  Mail,
 } from 'lucide-react-native';
-import FloatingTabBar from '../../../src/components/FloatingTabBar';
-import VerifiedBadge from '../../../src/components/VerifiedBadge';
-import { MOCK_EMAILS } from '../../../src/mocks/emails';
+import {
+  colors,
+} from '@beeapp/design-system';
 
+import ScreenSafeArea from '../../../src/components/layout/ScreenSafeArea';
+import {
+  useModuleNav,
+  useScreenParams,
+} from '../../../src/components/embedded/EmbeddedNavContext';
+import FloatingTabBar from '../../../src/components/FloatingTabBar';
+import {
+  useMail,
+} from '../../../src/hooks/useMail';
+import type {
+  MailDetailModel,
+} from '../../../src/services/mailService';
+
+function getErrorMessage(
+  error: unknown,
+  fallback = 'Inténtalo nuevamente.',
+): string {
+  return error instanceof Error
+    ? error.message
+    : fallback;
+}
+
+function getInitials(
+  name: string,
+): string {
+  const parts = name
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean);
+
+  if (parts.length >= 2) {
+    return (
+      parts[0][0]
+      + parts[1][0]
+    ).toUpperCase();
+  }
+
+  return name.slice(0, 2).toUpperCase() || '?';
+}
+
+function formatDetailDate(
+  value: string | null,
+): string {
+  if (!value) {
+    return '';
+  }
+
+  const parsedDate = new Date(value);
+
+  if (Number.isNaN(parsedDate.getTime())) {
+    return '';
+  }
+
+  return new Intl.DateTimeFormat(
+    'es-CO',
+    {
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+    },
+  ).format(parsedDate);
+}
+
+function getRecipientLabel(
+  email: MailDetailModel,
+): string {
+  const recipients = email.recipients.filter((recipient) => (
+    recipient.recipient_type === 'to'
+  ));
+
+  if (recipients.length === 0) {
+    return 'Para: mí';
+  }
+
+  const firstRecipient = recipients[0];
+
+  const firstLabel = (
+    firstRecipient.display_name
+    || firstRecipient.email
+    || 'Destinatario'
+  );
+
+  if (recipients.length === 1) {
+    return `Para: ${firstLabel}`;
+  }
+
+  return (
+    `Para: ${firstLabel} y `
+    + `${recipients.length - 1} más`
+  );
+}
+
+function getReplyRecipient(
+  email: MailDetailModel,
+): string {
+  return email.senderEmail.trim();
+}
+
+function getAttachmentDescription(
+  mimeType: string | null,
+  sizeBytes: number | null,
+): string {
+  const typeLabel = mimeType?.trim()
+    ? mimeType
+    : 'Archivo';
+
+  if (
+    sizeBytes === null
+    || sizeBytes === undefined
+    || sizeBytes < 0
+  ) {
+    return typeLabel;
+  }
+
+  if (sizeBytes < 1024) {
+    return `${typeLabel} · ${sizeBytes} B`;
+  }
+
+  if (sizeBytes < 1024 * 1024) {
+    return (
+      `${typeLabel} · `
+      + `${Math.round(sizeBytes / 1024)} KB`
+    );
+  }
+
+  return (
+    `${typeLabel} · `
+    + `${(sizeBytes / (1024 * 1024)).toFixed(1)} MB`
+  );
+}
 
 export default function MailDetailScreen() {
   const router = useModuleNav();
-  const { id } = useScreenParams();
+  const params = useScreenParams();
 
-  // Mock Emails pool
-  const emails = MOCK_EMAILS;
+  const messageId = String(params.id || '').trim();
 
-  const email = emails.find((e) => e.id === id) || emails[0];
-  
-  const [starred, setStarred] = useState(email.isStarred);
+  const [
+    email,
+    setEmail,
+  ] = useState<MailDetailModel | null>(null);
 
-  const getInitials = (name: string) => {
-    const parts = name.split(' ');
-    if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
-    return name.slice(0, 2).toUpperCase();
-  };
+  const [loading, setLoading] = useState(true);
 
-  const handleDownload = (fileName: string) => {
-    alert(`Descargando archivo: ${fileName}`);
-  };
+  const [
+    actionLoading,
+    setActionLoading,
+  ] = useState(false);
 
-  const handleAction = (action: string) => {
-    alert(`Acción simulada: ${action}`);
-    router.back();
-  };
+  const [
+    loadError,
+    setLoadError,
+  ] = useState<string | null>(null);
+
+  const {
+    getMessageById,
+    updateMessageState,
+    archiveMessage,
+    trashMessage,
+    restoreMessage,
+  } = useMail({
+    autoLoad: false,
+  });
+
+  const loadEmail = useCallback(async () => {
+    if (!messageId) {
+      setLoadError(
+        'No fue posible identificar el correo.',
+      );
+      setLoading(false);
+
+      return;
+    }
+
+    setLoading(true);
+    setLoadError(null);
+
+    try {
+      const loadedEmail = await getMessageById(
+        messageId,
+      );
+
+      setEmail(loadedEmail);
+
+      if (!loadedEmail.isRead) {
+        try {
+          const updatedMessage = await updateMessageState(
+            messageId,
+            {
+              is_read: true,
+            },
+          );
+
+          setEmail((currentEmail) => (
+            currentEmail
+              ? {
+                ...currentEmail,
+                isRead: updatedMessage.is_read,
+              }
+              : currentEmail
+          ));
+        } catch {
+          // La lectura del mensaje sigue disponible aunque no se
+          // pueda actualizar el estado remoto de lectura.
+        }
+      }
+    } catch (error) {
+      setLoadError(
+        getErrorMessage(
+          error,
+          'No fue posible cargar el correo.',
+        ),
+      );
+    } finally {
+      setLoading(false);
+    }
+  }, [
+    getMessageById,
+    messageId,
+    updateMessageState,
+  ]);
+
+  useEffect(() => {
+    void loadEmail();
+  }, [loadEmail]);
+
+  const emailDate = useMemo(() => (
+    formatDetailDate(
+      email?.receivedAt
+      || email?.sentAt
+      || null,
+    )
+  ), [
+    email?.receivedAt,
+    email?.sentAt,
+  ]);
+
+  const handleToggleStar = useCallback(() => {
+    if (!email || actionLoading) {
+      return;
+    }
+
+    void (async () => {
+      setActionLoading(true);
+
+      try {
+        const updatedMessage = await updateMessageState(
+          email.id,
+          {
+            is_starred: !email.isStarred,
+          },
+        );
+
+        setEmail((currentEmail) => (
+          currentEmail
+            ? {
+              ...currentEmail,
+              isStarred: updatedMessage.is_starred,
+            }
+            : currentEmail
+        ));
+      } catch (error) {
+        Alert.alert(
+          'No fue posible actualizar',
+          getErrorMessage(error),
+        );
+      } finally {
+        setActionLoading(false);
+      }
+    })();
+  }, [
+    actionLoading,
+    email,
+    updateMessageState,
+  ]);
+
+  const handleArchive = useCallback(() => {
+    if (!email || actionLoading) {
+      return;
+    }
+
+    void (async () => {
+      setActionLoading(true);
+
+      try {
+        await archiveMessage(email.id);
+        router.back();
+      } catch (error) {
+        Alert.alert(
+          'No fue posible archivar',
+          getErrorMessage(error),
+        );
+
+        setActionLoading(false);
+      }
+    })();
+  }, [
+    actionLoading,
+    archiveMessage,
+    email,
+    router,
+  ]);
+
+  const handleTrash = useCallback(() => {
+    if (!email || actionLoading) {
+      return;
+    }
+
+    Alert.alert(
+      'Mover a la papelera',
+      (
+        'El correo se moverá a la papelera de tu cuenta '
+        + 'conectada.'
+      ),
+      [
+        {
+          text: 'Cancelar',
+          style: 'cancel',
+        },
+        {
+          text: 'Mover',
+          style: 'destructive',
+          onPress: () => {
+            void (async () => {
+              setActionLoading(true);
+
+              try {
+                await trashMessage(email.id);
+                router.back();
+              } catch (error) {
+                Alert.alert(
+                  'No fue posible mover el correo',
+                  getErrorMessage(error),
+                );
+
+                setActionLoading(false);
+              }
+            })();
+          },
+        },
+      ],
+    );
+  }, [
+    actionLoading,
+    email,
+    router,
+    trashMessage,
+  ]);
+
+  const handleRestore = useCallback(() => {
+    if (!email || actionLoading) {
+      return;
+    }
+
+    void (async () => {
+      setActionLoading(true);
+
+      try {
+        await restoreMessage(email.id);
+        router.back();
+      } catch (error) {
+        Alert.alert(
+          'No fue posible restaurar',
+          getErrorMessage(error),
+        );
+
+        setActionLoading(false);
+      }
+    })();
+  }, [
+    actionLoading,
+    email,
+    restoreMessage,
+    router,
+  ]);
+
+  const handleDownload = useCallback((
+    fileName: string,
+  ) => {
+    Alert.alert(
+      'Descarga no disponible',
+      (
+        `${fileName} está sincronizado como adjunto, pero `
+        + 'la descarga de contenido se habilitará en el '
+        + 'siguiente bloque de integración de adjuntos.'
+      ),
+    );
+  }, []);
+
+  const handleReply = useCallback((
+    replyType: 'reply' | 'reply_all' | 'forward',
+  ) => {
+    if (!email) {
+      return;
+    }
+
+    const replyRecipient = getReplyRecipient(email);
+
+    if (
+      replyType !== 'forward'
+      && !replyRecipient
+    ) {
+      Alert.alert(
+        'No fue posible responder',
+        'Este correo no tiene una dirección de remitente válida.',
+      );
+
+      return;
+    }
+
+    const subjectPrefix = replyType === 'forward'
+      ? 'Fwd: '
+      : 'Re: ';
+
+    router.push({
+      pathname: '/(main)/mail/compose',
+      params: {
+        to: (
+          replyType === 'forward'
+            ? undefined
+            : replyRecipient
+        ),
+        subject: `${subjectPrefix}${email.subject}`,
+      },
+    });
+  }, [
+    email,
+    router,
+  ]);
+
+  if (loading) {
+    return (
+      <ScreenSafeArea style={styles.safeArea}>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator
+            size="large"
+            color={colors.brand.primary}
+          />
+
+          <Text style={styles.loadingText}>
+            Cargando correo...
+          </Text>
+        </View>
+      </ScreenSafeArea>
+    );
+  }
+
+  if (!email || loadError) {
+    return (
+      <ScreenSafeArea style={styles.safeArea}>
+        <View style={styles.errorContainer}>
+          <View style={styles.errorIconBox}>
+            <Mail
+              size={34}
+              color={colors.neutral.gray500}
+            />
+          </View>
+
+          <Text style={styles.errorTitle}>
+            No fue posible abrir el correo
+          </Text>
+
+          <Text style={styles.errorText}>
+            {loadError || 'El correo no está disponible.'}
+          </Text>
+
+          <TouchableOpacity
+            style={styles.retryButton}
+            onPress={() => {
+              void loadEmail();
+            }}
+            activeOpacity={0.8}
+          >
+            <Text style={styles.retryButtonText}>
+              Reintentar
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.backTextButton}
+            onPress={() => router.back()}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.backTextButtonText}>
+              Volver a correos
+            </Text>
+          </TouchableOpacity>
+        </View>
+      </ScreenSafeArea>
+    );
+  }
+
+  const isInTrash = email.isTrashed;
 
   return (
     <ScreenSafeArea style={styles.safeArea}>
       <View style={styles.container}>
-        {/* Header toolbar */}
         <View style={styles.header}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.backBtn} activeOpacity={0.7}>
-            <ChevronLeft size={24} color={colors.neutral.text} />
+          <TouchableOpacity
+            onPress={() => router.back()}
+            style={styles.backBtn}
+            disabled={actionLoading}
+            activeOpacity={0.7}
+            accessibilityRole="button"
+            accessibilityLabel="Volver a correos"
+          >
+            <ChevronLeft
+              size={24}
+              color={colors.neutral.text}
+            />
           </TouchableOpacity>
 
           <View style={styles.headerRightCol}>
-            <TouchableOpacity onPress={() => setStarred(!starred)} style={styles.toolbarBtn} activeOpacity={0.7}>
+            <TouchableOpacity
+              onPress={handleToggleStar}
+              style={styles.toolbarBtn}
+              disabled={actionLoading}
+              activeOpacity={0.7}
+              accessibilityRole="button"
+              accessibilityLabel={
+                email.isStarred
+                  ? 'Quitar de importantes'
+                  : 'Marcar como importante'
+              }
+            >
               <Star
                 size={20}
-                color={starred ? '#F59E0B' : colors.neutral.text}
-                fill={starred ? '#F59E0B' : 'transparent'}
+                color={
+                  email.isStarred
+                    ? '#F59E0B'
+                    : colors.neutral.text
+                }
+                fill={
+                  email.isStarred
+                    ? '#F59E0B'
+                    : 'transparent'
+                }
               />
             </TouchableOpacity>
 
-            <TouchableOpacity onPress={() => handleAction('Archivar')} style={styles.toolbarBtn} activeOpacity={0.7}>
-              <Archive size={20} color={colors.neutral.text} />
-            </TouchableOpacity>
+            {isInTrash ? (
+              <TouchableOpacity
+                onPress={handleRestore}
+                style={styles.restoreBtn}
+                disabled={actionLoading}
+                activeOpacity={0.7}
+                accessibilityRole="button"
+                accessibilityLabel="Restaurar correo a la bandeja"
+              >
+                <Mail
+                  size={19}
+                  color={colors.brand.primary}
+                />
+              </TouchableOpacity>
+            ) : (
+              <>
+                <TouchableOpacity
+                  onPress={handleArchive}
+                  style={styles.toolbarBtn}
+                  disabled={actionLoading}
+                  activeOpacity={0.7}
+                  accessibilityRole="button"
+                  accessibilityLabel="Archivar correo"
+                >
+                  <Archive
+                    size={20}
+                    color={colors.neutral.text}
+                  />
+                </TouchableOpacity>
 
-            <TouchableOpacity onPress={() => handleAction('Eliminar')} style={styles.toolbarBtn} activeOpacity={0.7}>
-              <Trash2 size={20} color={colors.semantic.error} />
-            </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={handleTrash}
+                  style={styles.toolbarBtn}
+                  disabled={actionLoading}
+                  activeOpacity={0.7}
+                  accessibilityRole="button"
+                  accessibilityLabel="Mover correo a la papelera"
+                >
+                  <Trash2
+                    size={20}
+                    color={colors.semantic.error}
+                  />
+                </TouchableOpacity>
+              </>
+            )}
           </View>
         </View>
 
-        <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
-          {/* Account line info */}
+        <ScrollView
+          style={styles.scrollView}
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={styles.scrollContent}
+        >
+          {actionLoading ? (
+            <View style={styles.actionLoadingRow}>
+              <ActivityIndicator
+                size="small"
+                color={colors.brand.primary}
+              />
+
+              <Text style={styles.actionLoadingText}>
+                Actualizando correo...
+              </Text>
+            </View>
+          ) : null}
+
           <View style={styles.accountHeaderBox}>
-            <Mail size={12} color={colors.neutral.gray600} style={{ marginRight: 6 }} />
-            <Text style={styles.accountHeaderText}>Cuenta: {email.account}</Text>
+            <Mail
+              size={12}
+              color={colors.neutral.gray600}
+              style={styles.accountHeaderIcon}
+            />
+
+            <Text style={styles.accountHeaderText}>
+              Cuenta: {email.accountEmail}
+            </Text>
           </View>
 
-          {/* Subject Line */}
-          <Text style={styles.subjectText}>{email.subject}</Text>
+          <Text style={styles.subjectText}>
+            {email.subject}
+          </Text>
 
-          {/* Sender row metadata */}
           <View style={styles.senderRow}>
-            <View style={[styles.avatarCircle, { backgroundColor: email.initialsColor }]}>
-              <Text style={styles.avatarText}>{getInitials(email.senderName)}</Text>
+            <View
+              style={[
+                styles.avatarCircle,
+                {
+                  backgroundColor: email.initialsColor,
+                },
+              ]}
+            >
+              <Text style={styles.avatarText}>
+                {getInitials(email.senderName)}
+              </Text>
             </View>
+
             <View style={styles.senderDetails}>
               <View style={styles.senderNameRow}>
-                <Text style={styles.senderName}>{email.senderName}</Text>
-                {email.senderVerified && <VerifiedBadge size={14} />}
+                <Text
+                  style={styles.senderName}
+                  numberOfLines={1}
+                >
+                  {email.senderName}
+                </Text>
               </View>
-              <Text style={styles.senderEmail}>De: {email.senderEmail}</Text>
-              <Text style={styles.receiverEmail}>Para: mí</Text>
+
+              {email.senderEmail ? (
+                <Text
+                  style={styles.senderEmail}
+                  numberOfLines={1}
+                >
+                  De: {email.senderEmail}
+                </Text>
+              ) : null}
+
+              <Text
+                style={styles.receiverEmail}
+                numberOfLines={1}
+              >
+                {getRecipientLabel(email)}
+              </Text>
             </View>
-            <Text style={styles.dateText}>{email.date} • {email.time}</Text>
+
+            <Text
+              style={styles.dateText}
+              numberOfLines={2}
+            >
+              {emailDate}
+            </Text>
           </View>
 
           <View style={styles.divider} />
 
-          {/* Email Body */}
-          <Text style={styles.emailBodyText}>{email.body}</Text>
+          <Text style={styles.emailBodyText}>
+            {email.body}
+          </Text>
 
-          <View style={styles.divider} />
+          {email.hasAttachment
+            && email.attachments
+            && email.attachments.length > 0 ? (
+            <>
+              <View style={styles.divider} />
 
-          {/* Attachments Section */}
-          {email.hasAttachment && email.attachments && (
-            <View style={styles.attachmentsBox}>
-              <Text style={styles.attachmentsTitle}>Archivos Adjuntos ({email.attachments.length})</Text>
-              <View style={styles.attachmentsListCol}>
-                {email.attachments.map((file, idx) => (
-                  <View key={idx} style={styles.fileCard}>
-                    <View style={styles.fileIconBox}>
-                      <FileText size={18} color={colors.neutral.gray600} />
-                    </View>
-                    <View style={styles.fileDetails}>
-                      <Text style={styles.fileNameText} numberOfLines={1}>
-                        {file}
-                      </Text>
-                      <Text style={styles.fileSizeText}>Documento PDF (1.2 MB)</Text>
-                    </View>
-                    <TouchableOpacity
-                      onPress={() => handleDownload(file)}
-                      style={styles.downloadBtn}
-                      activeOpacity={0.7}
+              <View style={styles.attachmentsBox}>
+                <Text style={styles.attachmentsTitle}>
+                  Archivos adjuntos (
+                  {email.attachments.length}
+                  )
+                </Text>
+
+                <View style={styles.attachmentsListCol}>
+                  {email.attachments.map((file) => (
+                    <View
+                      key={file.id}
+                      style={styles.fileCard}
                     >
-                      <Download size={16} color={colors.brand.primary} />
-                    </TouchableOpacity>
-                  </View>
-                ))}
+                      <View style={styles.fileIconBox}>
+                        <FileText
+                          size={18}
+                          color={colors.neutral.gray600}
+                        />
+                      </View>
+
+                      <View style={styles.fileDetails}>
+                        <Text
+                          style={styles.fileNameText}
+                          numberOfLines={1}
+                        >
+                          {file.filename}
+                        </Text>
+
+                        <Text style={styles.fileSizeText}>
+                          {getAttachmentDescription(
+                            file.mime_type,
+                            file.size_bytes,
+                          )}
+                        </Text>
+                      </View>
+
+                      <TouchableOpacity
+                        onPress={() => {
+                          handleDownload(file.filename);
+                        }}
+                        style={styles.downloadBtn}
+                        activeOpacity={0.7}
+                        accessibilityRole="button"
+                        accessibilityLabel={
+                          `Descargar ${file.filename}`
+                        }
+                      >
+                        <Download
+                          size={16}
+                          color={colors.brand.primary}
+                        />
+                      </TouchableOpacity>
+                    </View>
+                  ))}
+                </View>
               </View>
+            </>
+          ) : null}
+
+          {!isInTrash ? (
+            <View style={styles.replyActionsRow}>
+              <TouchableOpacity
+                style={styles.replyBtn}
+                onPress={() => {
+                  handleReply('reply');
+                }}
+                disabled={actionLoading}
+                activeOpacity={0.8}
+              >
+                <CornerUpLeft
+                  size={16}
+                  color={colors.neutral.text}
+                  style={styles.replyIcon}
+                />
+
+                <Text style={styles.replyBtnText}>
+                  Responder
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.replyBtn}
+                onPress={() => {
+                  handleReply('reply_all');
+                }}
+                disabled={actionLoading}
+                activeOpacity={0.8}
+              >
+                <ReplyAll
+                  size={16}
+                  color={colors.neutral.text}
+                  style={styles.replyIcon}
+                />
+
+                <Text style={styles.replyBtnText}>
+                  Todos
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.replyBtn}
+                onPress={() => {
+                  handleReply('forward');
+                }}
+                disabled={actionLoading}
+                activeOpacity={0.8}
+              >
+                <CornerUpRight
+                  size={16}
+                  color={colors.neutral.text}
+                  style={styles.replyIcon}
+                />
+
+                <Text style={styles.replyBtnText}>
+                  Reenviar
+                </Text>
+              </TouchableOpacity>
             </View>
-          )}
+          ) : null}
 
-          {/* Reply actions buttons bar */}
-          <View style={styles.replyActionsRow}>
-            <TouchableOpacity
-              style={styles.replyBtn}
-              onPress={() => router.push({ pathname: '/(main)/mail/compose', params: { to: email.senderEmail, subject: `Re: ${email.subject}` } })}
-              activeOpacity={0.8}
-            >
-              <CornerUpLeft size={16} color={colors.neutral.text} style={{ marginRight: 6 }} />
-              <Text style={styles.replyBtnText}>Responder</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.replyBtn}
-              onPress={() => router.push({ pathname: '/(main)/mail/compose', params: { to: email.senderEmail, subject: `Re: ${email.subject}` } })}
-              activeOpacity={0.8}
-            >
-              <ReplyAll size={16} color={colors.neutral.text} style={{ marginRight: 6 }} />
-              <Text style={styles.replyBtnText}>Todos</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.replyBtn}
-              onPress={() => router.push({ pathname: '/(main)/mail/compose', params: { subject: `Fwd: ${email.subject}` } })}
-              activeOpacity={0.8}
-            >
-              <CornerUpRight size={16} color={colors.neutral.text} style={{ marginRight: 6 }} />
-              <Text style={styles.replyBtnText}>Reenviar</Text>
-            </TouchableOpacity>
-          </View>
-
-          <View style={{ height: 100 }} />
+          <View style={styles.listBottomSpacing} />
         </ScrollView>
 
-        {/* Tab Menu bar */}
-        {!router.embedded && <FloatingTabBar activeTab="home" />}
+        {!router.embedded ? (
+          <FloatingTabBar activeTab="home" />
+        ) : null}
       </View>
     </ScreenSafeArea>
   );
@@ -189,6 +852,68 @@ const styles = StyleSheet.create({
   },
   container: {
     flex: 1,
+  },
+  loadingContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 12,
+  },
+  loadingText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: colors.neutral.gray600,
+  },
+  errorContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 36,
+  },
+  errorIconBox: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.neutral.gray100,
+    borderWidth: 1,
+    borderColor: colors.neutral.gray200,
+    marginBottom: 18,
+  },
+  errorTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: colors.neutral.text,
+    textAlign: 'center',
+    marginBottom: 8,
+  },
+  errorText: {
+    fontSize: 13,
+    lineHeight: 19,
+    color: colors.neutral.gray600,
+    textAlign: 'center',
+  },
+  retryButton: {
+    marginTop: 20,
+    borderRadius: 12,
+    backgroundColor: colors.brand.primary,
+    paddingHorizontal: 18,
+    paddingVertical: 11,
+  },
+  retryButtonText: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: colors.neutral.white,
+  },
+  backTextButton: {
+    marginTop: 16,
+    padding: 8,
+  },
+  backTextButtonText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: colors.brand.primary,
   },
   header: {
     flexDirection: 'row',
@@ -205,9 +930,13 @@ const styles = StyleSheet.create({
   },
   headerRightCol: {
     flexDirection: 'row',
+    alignItems: 'center',
     gap: 16,
   },
   toolbarBtn: {
+    padding: 4,
+  },
+  restoreBtn: {
     padding: 4,
   },
   scrollView: {
@@ -216,6 +945,22 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingHorizontal: 20,
     paddingVertical: 16,
+  },
+  actionLoadingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    gap: 8,
+    marginBottom: 14,
+    borderRadius: 10,
+    backgroundColor: `${colors.brand.primary}0D`,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+  },
+  actionLoadingText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: colors.brand.primary,
   },
   accountHeaderBox: {
     flexDirection: 'row',
@@ -226,6 +971,9 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
     alignSelf: 'flex-start',
     marginBottom: 16,
+  },
+  accountHeaderIcon: {
+    marginRight: 6,
   },
   accountHeaderText: {
     fontSize: 11,
@@ -258,11 +1006,11 @@ const styles = StyleSheet.create({
   },
   senderDetails: {
     flex: 1,
+    minWidth: 0,
   },
   senderNameRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
     marginBottom: 2,
   },
   senderName: {
@@ -281,8 +1029,12 @@ const styles = StyleSheet.create({
     marginTop: 1,
   },
   dateText: {
-    fontSize: 11,
+    width: 92,
+    marginLeft: 8,
+    fontSize: 10,
+    lineHeight: 14,
     color: colors.neutral.gray600,
+    textAlign: 'right',
     alignSelf: 'flex-start',
     marginTop: 2,
   },
@@ -331,6 +1083,7 @@ const styles = StyleSheet.create({
   },
   fileDetails: {
     flex: 1,
+    minWidth: 0,
   },
   fileNameText: {
     fontSize: 13,
@@ -366,9 +1119,15 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     paddingVertical: 12,
   },
+  replyIcon: {
+    marginRight: 6,
+  },
   replyBtnText: {
     fontSize: 12,
     fontWeight: '700',
     color: colors.neutral.text,
+  },
+  listBottomSpacing: {
+    height: 100,
   },
 });

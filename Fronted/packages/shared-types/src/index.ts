@@ -1892,6 +1892,14 @@ export interface MailMessageAttachment {
   updated_at?: string;
 }
 
+export interface MailMessageRecipients {
+  from?: MailMessageRecipient[];
+  to?: MailMessageRecipient[];
+  cc?: MailMessageRecipient[];
+  bcc?: MailMessageRecipient[];
+  reply_to?: MailMessageRecipient[];
+}
+
 export interface MailMessage {
   id: string;
   mail_integration_id: string;
@@ -1917,8 +1925,73 @@ export interface MailMessage {
   has_attachments: boolean;
   attachment_count: number;
   sender: MailMessageSender | null;
-  recipients?: MailMessageRecipient[];
+  recipients?: MailMessageRecipients;
   attachments?: MailMessageAttachment[];
+}
+
+
+export interface UpdateMailMessageStatePayload {
+  is_read?: boolean;
+  is_starred?: boolean;
+}
+
+export interface UpdateMailMessageStateResponse {
+  message: MailMessage;
+}
+
+export interface MoveMailMessagePayload {
+  folder:
+    | 'inbox'
+    | 'archived'
+    | 'spam'
+    | 'trash';
+}
+
+export interface MoveMailMessageResponse {
+  message: MailMessage;
+}
+
+export type MailBodyContentType =
+  | 'text'
+  | 'html';
+
+export interface MailDraftRecipientPayload {
+  email: string;
+  display_name?: string | null;
+}
+
+export interface CreateMailDraftPayload {
+  integration_id: string;
+  to?: MailDraftRecipientPayload[];
+  cc?: MailDraftRecipientPayload[];
+  bcc?: MailDraftRecipientPayload[];
+  subject?: string | null;
+  body?: string | null;
+  body_content_type?: MailBodyContentType;
+  file_ids?: string[];
+}
+
+export interface UpdateMailDraftPayload {
+  integration_id?: string;
+  to?: MailDraftRecipientPayload[];
+  cc?: MailDraftRecipientPayload[];
+  bcc?: MailDraftRecipientPayload[];
+  subject?: string | null;
+  body?: string | null;
+  body_content_type?: MailBodyContentType;
+  file_ids?: string[];
+}
+
+export interface CreateMailDraftResponse {
+  message: MailMessage;
+}
+
+export interface UpdateMailDraftResponse {
+  message: MailMessage;
+}
+
+export interface SendMailDraftResponse {
+  message: MailMessage;
 }
 
 export interface MailMessagesQuery {
