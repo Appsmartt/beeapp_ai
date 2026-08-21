@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import base64
 import logging
 from datetime import datetime, timezone
 from typing import Any
@@ -9,8 +10,14 @@ import httpx
 
 from apps.mail.services.mail_provider_service import (
     MailProviderError,
+    normalize_body_content_type,
     normalize_email_address,
+    normalize_mail_folder,
+    normalize_recipients,
     normalize_text,
+    validate_draft_content,
+    validate_mail_attachments,
+    validate_message_state_update,
 )
 
 
@@ -21,19 +28,72 @@ MICROSOFT_GRAPH_BASE_URL = "https://graph.microsoft.com/v1.0"
 MICROSOFT_MESSAGES_ENDPOINT = (
     f"{MICROSOFT_GRAPH_BASE_URL}/me/messages"
 )
+MICROSOFT_MAIL_FOLDERS_ENDPOINT = (
+    f"{MICROSOFT_GRAPH_BASE_URL}/me/mailFolders"
+)
+
+MICROSOFT_WELL_KNOWN_FOLDER_NAMES = {
+    "inbox": "inbox",
+    "drafts": "drafts",
+    "sent": "sentitems",
+    "spam": "junkemail",
+    "trash": "deleteditems",
+}
+
+MICROSOFT_FOLDER_DISPLAY_NAMES = {
+    "inbox": {
+        "inbox",
+        "bandeja de entrada",
+        "inbox folder",
+    },
+    "drafts": {
+        "drafts",
+        "borradores",
+    },
+    "sent": {
+        "sent items",
+        "sent",
+        "elementos enviados",
+        "enviados",
+    },
+    "spam": {
+        "junk email",
+        "junk",
+        "correo no deseado",
+        "spam",
+    },
+    "trash": {
+        "deleted items",
+        "deleted",
+        "elementos eliminados",
+        "papelera",
+    },
+    "archived": {
+        "archive",
+        "archivados",
+        "archivo",
+    },
+}
 
 HTTP_TIMEOUT_SECONDS = 25.0
 MAX_PAGE_SIZE = 250
+MAX_PAGINATION_PAGES = 100
+MAX_ATTACHMENT_PAGES = 20
 
 
 class MicrosoftMailProvider:
     provider = "microsoft"
+
+    def __init__(self) -> None:
+        self._folder_cache: dict[str, str] = {}
+        self._folder_cache_loaded = False
 
     def _headers(
         self,
         access_token: str,
         *,
         prefer_text_body: bool = False,
+        json_body: bool = False,
     ) -> dict[str, str]:
         headers = {
             "Authorization": f"Bearer {access_token}",
@@ -45,6 +105,9 @@ class MicrosoftMailProvider:
                 'outlook.body-content-type="text"'
             )
 
+        if json_body:
+            headers["Content-Type"] = "application/json"
+
         return headers
 
     def _request(
@@ -54,6 +117,7 @@ class MicrosoftMailProvider:
         url: str,
         access_token: str,
         params: dict[str, Any] | None = None,
+        json: dict[str, Any] | None = None,
         prefer_text_body: bool = False,
     ) -> dict[str, Any]:
         try:
@@ -63,10 +127,19 @@ class MicrosoftMailProvider:
                 headers=self._headers(
                     access_token,
                     prefer_text_body=prefer_text_body,
+                    json_body=json is not None,
                 ),
                 params=params,
-                timeout=HTTP_TIMEOUT_SECONDS,
+                json=json,
+                timeout=httpx.Timeout(
+                    HTTP_TIMEOUT_SECONDS,
+                    connect=10.0,
+                ),
             )
+        except httpx.TimeoutException as error:
+            raise MailProviderError(
+                "Microsoft Graph tardó demasiado en responder."
+            ) from error
         except httpx.HTTPError as error:
             raise MailProviderError(
                 "Microsoft Graph no pudo ser contactado."
@@ -121,16 +194,34 @@ class MicrosoftMailProvider:
                     "raw_body": response.text[:1_000],
                 }
 
+            error = error_payload.get("error") or {}
+            error_code = str(error.get("code") or "unknown")
+            error_message = str(
+                error.get("message")
+                or "Microsoft Graph devolvió un error inesperado."
+            ).strip()
+
             logger.warning(
                 "Microsoft Graph request failed. "
-                "status_code=%s response=%s",
+                "status_code=%s error_code=%s response=%s",
                 response.status_code,
+                error_code,
                 error_payload,
             )
 
-            raise MailProviderError(
-                "Microsoft Graph devolvió un error inesperado."
-            )
+            if error_code in {
+                "ErrorItemNotFound",
+                "ErrorInvalidIdMalformed",
+                "ErrorInvalidRequest",
+            }:
+                raise MailProviderError(
+                    "No fue posible actualizar este correo en Microsoft."
+                )
+
+            raise MailProviderError(error_message[:500])
+
+        if response.status_code == 204:
+            return {}
 
         try:
             data = response.json()
@@ -165,14 +256,20 @@ class MicrosoftMailProvider:
                 "id,receivedDateTime,lastModifiedDateTime,"
                 "parentFolderId"
             ),
-            "$filter": (
-                f"receivedDateTime ge {after_utc}"
-            ),
+            "$filter": f"receivedDateTime ge {after_utc}",
             "$orderby": "receivedDateTime desc",
             "$top": min(MAX_PAGE_SIZE, max_results),
         }
 
-        while next_url and len(message_ids) < max_results:
+        page_count = 0
+
+        while (
+            next_url
+            and len(message_ids) < max_results
+            and page_count < MAX_PAGINATION_PAGES
+        ):
+            page_count += 1
+
             data = self._request(
                 method="GET",
                 url=next_url,
@@ -208,6 +305,14 @@ class MicrosoftMailProvider:
                 else None
             )
 
+        if page_count >= MAX_PAGINATION_PAGES and next_url:
+            logger.warning(
+                "Microsoft message pagination stopped at limit. "
+                "max_pages=%s max_results=%s",
+                MAX_PAGINATION_PAGES,
+                max_results,
+            )
+
         return message_ids[:max_results], None
 
     def get_message(
@@ -215,6 +320,7 @@ class MicrosoftMailProvider:
         *,
         access_token: str,
         provider_message_id: str,
+        include_attachments: bool = True,
     ) -> dict[str, Any]:
         encoded_message_id = quote(
             provider_message_id,
@@ -236,21 +342,813 @@ class MicrosoftMailProvider:
                     "body,bodyPreview,from,toRecipients,"
                     "ccRecipients,bccRecipients,replyTo,"
                     "isRead,isDraft,hasAttachments,importance,"
-                    "flag,parentFolderId,internetMessageId,"
+                    "flag,parentFolderId,internetMessageId"
                 ),
             },
             prefer_text_body=True,
         )
 
-        attachments = self._get_attachments(
+        self._cache_mail_folder_ids(
             access_token=access_token,
-            provider_message_id=provider_message_id,
         )
+
+        attachments: list[dict[str, Any]] = []
+
+        if include_attachments and bool(data.get("hasAttachments")):
+            attachments = self._get_attachments(
+                access_token=access_token,
+                provider_message_id=provider_message_id,
+            )
 
         return self._normalize_message(
             data=data,
             attachments=attachments,
+            attachments_loaded=include_attachments,
         )
+
+    def update_message_state(
+        self,
+        *,
+        access_token: str,
+        provider_message_id: str,
+        is_read: bool | None = None,
+        is_starred: bool | None = None,
+    ) -> dict[str, Any]:
+        validate_message_state_update(
+            is_read=is_read,
+            is_starred=is_starred,
+        )
+
+        normalized_message_id = self._required_message_id(
+            provider_message_id
+        )
+        payload: dict[str, Any] = {}
+
+        if is_read is not None:
+            payload["isRead"] = is_read
+
+        if is_starred is not None:
+            payload["flag"] = {
+                "flagStatus": (
+                    "flagged" if is_starred else "notFlagged"
+                ),
+            }
+
+        encoded_message_id = quote(
+            normalized_message_id,
+            safe="",
+        )
+
+        self._request(
+            method="PATCH",
+            url=(
+                f"{MICROSOFT_MESSAGES_ENDPOINT}/"
+                f"{encoded_message_id}"
+            ),
+            access_token=access_token,
+            json=payload,
+        )
+
+        return self.get_message(
+            access_token=access_token,
+            provider_message_id=normalized_message_id,
+            include_attachments=True,
+        )
+
+    def move_message(
+        self,
+        *,
+        access_token: str,
+        provider_message_id: str,
+        folder: str,
+    ) -> dict[str, Any]:
+        normalized_folder = normalize_mail_folder(folder)
+
+        if normalized_folder in {"sent", "drafts"}:
+            raise MailProviderError(
+                "No puedes mover un correo a esa carpeta."
+            )
+
+        normalized_message_id = self._required_message_id(
+            provider_message_id
+        )
+        destination_id = self._get_destination_folder_id(
+            access_token=access_token,
+            folder=normalized_folder,
+        )
+        encoded_message_id = quote(
+            normalized_message_id,
+            safe="",
+        )
+
+        moved_data = self._request(
+            method="POST",
+            url=(
+                f"{MICROSOFT_MESSAGES_ENDPOINT}/"
+                f"{encoded_message_id}/move"
+            ),
+            access_token=access_token,
+            json={
+                "destinationId": destination_id,
+            },
+        )
+
+        moved_message_id = self._normalize_string(
+            moved_data.get("id")
+        )
+
+        if not moved_message_id:
+            raise MailProviderError(
+                "Microsoft no devolvió el correo movido."
+            )
+
+        return self.get_message(
+            access_token=access_token,
+            provider_message_id=moved_message_id,
+            include_attachments=True,
+        )
+
+    def create_draft(
+        self,
+        *,
+        access_token: str,
+        to_recipients: list[dict[str, str | None]],
+        cc_recipients: list[dict[str, str | None]],
+        bcc_recipients: list[dict[str, str | None]],
+        subject: str | None,
+        body: str | None,
+        body_content_type: str,
+        attachments: list[dict[str, Any]],
+    ) -> dict[str, Any]:
+        payload = self._build_draft_payload(
+            to_recipients=to_recipients,
+            cc_recipients=cc_recipients,
+            bcc_recipients=bcc_recipients,
+            subject=subject,
+            body=body,
+            body_content_type=body_content_type,
+        )
+        normalized_attachments = validate_mail_attachments(
+            attachments
+        )
+
+        data = self._request(
+            method="POST",
+            url=MICROSOFT_MESSAGES_ENDPOINT,
+            access_token=access_token,
+            json=payload,
+        )
+
+        provider_message_id = self._required_message_id(
+            self._normalize_string(data.get("id"))
+        )
+
+        self._replace_draft_attachments(
+            access_token=access_token,
+            provider_message_id=provider_message_id,
+            attachments=normalized_attachments,
+        )
+
+        return self.get_message(
+            access_token=access_token,
+            provider_message_id=provider_message_id,
+            include_attachments=True,
+        )
+
+    def update_draft(
+        self,
+        *,
+        access_token: str,
+        provider_message_id: str,
+        provider_draft_id: str | None,
+        to_recipients: list[dict[str, str | None]],
+        cc_recipients: list[dict[str, str | None]],
+        bcc_recipients: list[dict[str, str | None]],
+        subject: str | None,
+        body: str | None,
+        body_content_type: str,
+        attachments: list[dict[str, Any]],
+    ) -> dict[str, Any]:
+        normalized_message_id = self._required_message_id(
+            provider_message_id
+        )
+        payload = self._build_draft_payload(
+            to_recipients=to_recipients,
+            cc_recipients=cc_recipients,
+            bcc_recipients=bcc_recipients,
+            subject=subject,
+            body=body,
+            body_content_type=body_content_type,
+        )
+        normalized_attachments = validate_mail_attachments(
+            attachments
+        )
+        encoded_message_id = quote(
+            normalized_message_id,
+            safe="",
+        )
+
+        self._request(
+            method="PATCH",
+            url=(
+                f"{MICROSOFT_MESSAGES_ENDPOINT}/"
+                f"{encoded_message_id}"
+            ),
+            access_token=access_token,
+            json=payload,
+        )
+
+        self._replace_draft_attachments(
+            access_token=access_token,
+            provider_message_id=normalized_message_id,
+            attachments=normalized_attachments,
+        )
+
+        return self.get_message(
+            access_token=access_token,
+            provider_message_id=normalized_message_id,
+            include_attachments=True,
+        )
+
+    def delete_draft(
+        self,
+        *,
+        access_token: str,
+        provider_message_id: str,
+        provider_draft_id: str | None,
+    ) -> None:
+        normalized_message_id = self._required_message_id(
+            provider_message_id
+        )
+        encoded_message_id = quote(
+            normalized_message_id,
+            safe="",
+        )
+
+        self._request(
+            method="DELETE",
+            url=(
+                f"{MICROSOFT_MESSAGES_ENDPOINT}/"
+                f"{encoded_message_id}"
+            ),
+            access_token=access_token,
+        )
+
+    def send_draft(
+        self,
+        *,
+        access_token: str,
+        provider_message_id: str,
+        provider_draft_id: str | None,
+    ) -> dict[str, Any]:
+        normalized_message_id = self._required_message_id(
+            provider_message_id
+        )
+
+        draft_before_send = self._get_draft_before_send(
+            access_token=access_token,
+            provider_message_id=normalized_message_id,
+        )
+        conversation_id = self._normalize_string(
+            draft_before_send.get("conversationId")
+        )
+        subject_hint = self._normalize_string(
+            draft_before_send.get("subject")
+        )
+
+        encoded_message_id = quote(
+            normalized_message_id,
+            safe="",
+        )
+
+        self._request(
+            method="POST",
+            url=(
+                f"{MICROSOFT_MESSAGES_ENDPOINT}/"
+                f"{encoded_message_id}/send"
+            ),
+            access_token=access_token,
+            json={},
+        )
+
+        sent_messages = self._find_sent_message_after_draft_send(
+            access_token=access_token,
+            conversation_id=conversation_id,
+            subject_hint=subject_hint,
+        )
+
+        if sent_messages:
+            return sent_messages[0]
+
+        return {
+            "provider_message_id": normalized_message_id,
+            "provider_thread_id": conversation_id,
+            "provider_conversation_id": conversation_id,
+            "provider_change_key": None,
+            "provider_etag": None,
+            "provider_web_link": None,
+            "provider_created_at": None,
+            "provider_updated_at": None,
+            "direction": "outbound",
+            "status": "sent",
+            "folder": "sent",
+            "is_read": True,
+            "is_starred": False,
+            "is_archived": False,
+            "is_spam": False,
+            "is_trashed": False,
+            "subject": subject_hint,
+            "body_text": None,
+            "body_html": None,
+            "body_preview": None,
+            "snippet": None,
+            "message_id_header": None,
+            "in_reply_to_header": None,
+            "references_header": None,
+            "sent_at": datetime.now(timezone.utc).isoformat(),
+            "received_at": None,
+            "has_attachments": False,
+            "attachment_count": 0,
+            "recipients": {
+                "from": [],
+                "to": [],
+                "cc": [],
+                "bcc": [],
+                "reply_to": [],
+            },
+            "attachments": [],
+            "metadata": {
+                "microsoft_draft_sent": True,
+            },
+        }
+
+    def _replace_draft_attachments(
+        self,
+        *,
+        access_token: str,
+        provider_message_id: str,
+        attachments: list[dict[str, Any]],
+    ) -> None:
+        self._delete_all_draft_attachments(
+            access_token=access_token,
+            provider_message_id=provider_message_id,
+        )
+
+        for attachment in attachments:
+            self._add_draft_attachment(
+                access_token=access_token,
+                provider_message_id=provider_message_id,
+                attachment=attachment,
+            )
+
+    def _delete_all_draft_attachments(
+        self,
+        *,
+        access_token: str,
+        provider_message_id: str,
+    ) -> None:
+        encoded_message_id = quote(
+            provider_message_id,
+            safe="",
+        )
+        next_url: str | None = (
+            f"{MICROSOFT_MESSAGES_ENDPOINT}/"
+            f"{encoded_message_id}/attachments"
+        )
+        first_params: dict[str, Any] | None = {
+            "$select": "id",
+            "$top": 100,
+        }
+        attachment_ids: list[str] = []
+        page_count = 0
+
+        while next_url and page_count < MAX_ATTACHMENT_PAGES:
+            page_count += 1
+
+            data = self._request(
+                method="GET",
+                url=next_url,
+                access_token=access_token,
+                params=first_params,
+            )
+
+            first_params = None
+
+            values = data.get("value")
+
+            if not isinstance(values, list):
+                values = []
+
+            for item in values:
+                if not isinstance(item, dict):
+                    continue
+
+                attachment_id = self._normalize_string(
+                    item.get("id")
+                )
+
+                if attachment_id:
+                    attachment_ids.append(attachment_id)
+
+            next_link = data.get("@odata.nextLink")
+            next_url = (
+                self._normalize_string(next_link)
+                if next_link
+                else None
+            )
+
+        for attachment_id in attachment_ids:
+            encoded_attachment_id = quote(
+                attachment_id,
+                safe="",
+            )
+
+            self._request(
+                method="DELETE",
+                url=(
+                    f"{MICROSOFT_MESSAGES_ENDPOINT}/"
+                    f"{encoded_message_id}/attachments/"
+                    f"{encoded_attachment_id}"
+                ),
+                access_token=access_token,
+            )
+
+    def _add_draft_attachment(
+        self,
+        *,
+        access_token: str,
+        provider_message_id: str,
+        attachment: dict[str, Any],
+    ) -> None:
+        encoded_message_id = quote(
+            provider_message_id,
+            safe="",
+        )
+
+        content_bytes = attachment["content"]
+
+        self._request(
+            method="POST",
+            url=(
+                f"{MICROSOFT_MESSAGES_ENDPOINT}/"
+                f"{encoded_message_id}/attachments"
+            ),
+            access_token=access_token,
+            json={
+                "@odata.type": "#microsoft.graph.fileAttachment",
+                "name": attachment["filename"],
+                "contentType": attachment["mime_type"],
+                "contentBytes": base64.b64encode(
+                    content_bytes
+                ).decode("ascii"),
+            },
+        )
+
+    def _build_draft_payload(
+        self,
+        *,
+        to_recipients: list[dict[str, str | None]],
+        cc_recipients: list[dict[str, str | None]],
+        bcc_recipients: list[dict[str, str | None]],
+        subject: str | None,
+        body: str | None,
+        body_content_type: str,
+    ) -> dict[str, Any]:
+        normalized_to = normalize_recipients(to_recipients)
+        normalized_cc = normalize_recipients(cc_recipients)
+        normalized_bcc = normalize_recipients(bcc_recipients)
+        normalized_subject = normalize_text(
+            subject,
+            max_length=1000,
+            fallback="",
+        ) or ""
+        normalized_body = normalize_text(
+            body,
+            max_length=200_000,
+            fallback="",
+        ) or ""
+        normalized_content_type = normalize_body_content_type(
+            body_content_type
+        )
+
+        validate_draft_content(
+            to_recipients=normalized_to,
+            cc_recipients=normalized_cc,
+            bcc_recipients=normalized_bcc,
+            subject=normalized_subject,
+            body=normalized_body,
+        )
+
+        return {
+            "subject": normalized_subject,
+            "body": {
+                "contentType": (
+                    "HTML"
+                    if normalized_content_type == "html"
+                    else "Text"
+                ),
+                "content": normalized_body,
+            },
+            "toRecipients": self._serialize_recipients(
+                normalized_to
+            ),
+            "ccRecipients": self._serialize_recipients(
+                normalized_cc
+            ),
+            "bccRecipients": self._serialize_recipients(
+                normalized_bcc
+            ),
+        }
+
+    def _serialize_recipients(
+        self,
+        recipients: list[dict[str, str | None]],
+    ) -> list[dict[str, dict[str, str]]]:
+        return [
+            {
+                "emailAddress": {
+                    "address": recipient["email"],
+                    "name": (
+                        recipient.get("display_name") or ""
+                    ),
+                }
+            }
+            for recipient in recipients
+        ]
+
+    def _get_draft_before_send(
+        self,
+        *,
+        access_token: str,
+        provider_message_id: str,
+    ) -> dict[str, Any]:
+        encoded_message_id = quote(
+            provider_message_id,
+            safe="",
+        )
+
+        return self._request(
+            method="GET",
+            url=(
+                f"{MICROSOFT_MESSAGES_ENDPOINT}/"
+                f"{encoded_message_id}"
+            ),
+            access_token=access_token,
+            params={
+                "$select": "conversationId,subject",
+            },
+        )
+
+    def _find_sent_message_after_draft_send(
+        self,
+        *,
+        access_token: str,
+        conversation_id: str | None,
+        subject_hint: str | None,
+    ) -> list[dict[str, Any]]:
+        self._cache_mail_folder_ids(
+            access_token=access_token,
+        )
+        sent_folder_id = self._folder_cache.get("sent")
+
+        if not sent_folder_id:
+            return []
+
+        try:
+            data = self._request(
+                method="GET",
+                url=(
+                    f"{MICROSOFT_MAIL_FOLDERS_ENDPOINT}/"
+                    f"{quote(sent_folder_id, safe='')}/messages"
+                ),
+                access_token=access_token,
+                params={
+                    "$select": (
+                        "id,conversationId,changeKey,webLink,"
+                        "createdDateTime,lastModifiedDateTime,"
+                        "sentDateTime,receivedDateTime,subject,"
+                        "body,bodyPreview,from,toRecipients,"
+                        "ccRecipients,bccRecipients,replyTo,"
+                        "isRead,isDraft,hasAttachments,importance,"
+                        "flag,parentFolderId,internetMessageId"
+                    ),
+                    "$orderby": "sentDateTime desc",
+                    "$top": 10,
+                },
+                prefer_text_body=True,
+            )
+        except MailProviderError:
+            return []
+
+        values = data.get("value")
+
+        if not isinstance(values, list):
+            return []
+
+        matched_messages: list[dict[str, Any]] = []
+
+        for message in values:
+            if not isinstance(message, dict):
+                continue
+
+            if (
+                conversation_id
+                and self._normalize_string(
+                    message.get("conversationId")
+                )
+                != conversation_id
+            ):
+                continue
+
+            if (
+                subject_hint
+                and self._normalize_string(message.get("subject"))
+                != subject_hint
+            ):
+                continue
+
+            message_id = self._normalize_string(
+                message.get("id")
+            )
+
+            if not message_id:
+                continue
+
+            try:
+                attachments = self._get_attachments(
+                    access_token=access_token,
+                    provider_message_id=message_id,
+                )
+            except MailProviderError:
+                attachments = []
+
+            matched_messages.append(
+                self._normalize_message(
+                    data=message,
+                    attachments=attachments,
+                    attachments_loaded=True,
+                )
+            )
+
+        return matched_messages
+
+    def _cache_mail_folder_ids(
+        self,
+        *,
+        access_token: str,
+    ) -> None:
+        if self._folder_cache_loaded:
+            return
+
+        next_url: str | None = MICROSOFT_MAIL_FOLDERS_ENDPOINT
+        first_params: dict[str, Any] | None = {
+            "$select": "id,displayName",
+            "$top": 100,
+        }
+        page_count = 0
+
+        while next_url and page_count < MAX_PAGINATION_PAGES:
+            page_count += 1
+
+            data = self._request(
+                method="GET",
+                url=next_url,
+                access_token=access_token,
+                params=first_params,
+            )
+
+            first_params = None
+
+            values = data.get("value")
+
+            if not isinstance(values, list):
+                values = []
+
+            for folder in values:
+                if not isinstance(folder, dict):
+                    continue
+
+                folder_id = self._normalize_string(
+                    folder.get("id")
+                )
+                display_name = self._normalize_string(
+                    folder.get("displayName")
+                )
+
+                if not folder_id or not display_name:
+                    continue
+
+                normalized_name = display_name.casefold()
+
+                for folder_key, known_names in (
+                    MICROSOFT_FOLDER_DISPLAY_NAMES.items()
+                ):
+                    if normalized_name in known_names:
+                        self._folder_cache[folder_key] = folder_id
+                        break
+
+            next_link = data.get("@odata.nextLink")
+            next_url = (
+                self._normalize_string(next_link)
+                if next_link
+                else None
+            )
+
+        for folder_key, well_known_name in (
+            MICROSOFT_WELL_KNOWN_FOLDER_NAMES.items()
+        ):
+            if folder_key in self._folder_cache:
+                continue
+
+            try:
+                data = self._request(
+                    method="GET",
+                    url=(
+                        f"{MICROSOFT_MAIL_FOLDERS_ENDPOINT}/"
+                        f"{well_known_name}"
+                    ),
+                    access_token=access_token,
+                    params={
+                        "$select": "id",
+                    },
+                )
+                folder_id = self._normalize_string(
+                    data.get("id")
+                )
+
+                if folder_id:
+                    self._folder_cache[folder_key] = folder_id
+            except MailProviderError:
+                continue
+
+        self._folder_cache_loaded = True
+
+    def _get_destination_folder_id(
+        self,
+        *,
+        access_token: str,
+        folder: str,
+    ) -> str:
+        self._cache_mail_folder_ids(
+            access_token=access_token,
+        )
+
+        folder_id = self._folder_cache.get(folder)
+
+        if folder_id:
+            return folder_id
+
+        if folder == "archived":
+            raise MailProviderError(
+                "No se encontró la carpeta Archivo de Microsoft."
+            )
+
+        well_known_name = MICROSOFT_WELL_KNOWN_FOLDER_NAMES.get(
+            folder
+        )
+
+        if not well_known_name:
+            raise MailProviderError(
+                "La carpeta destino no es compatible."
+            )
+
+        data = self._request(
+            method="GET",
+            url=(
+                f"{MICROSOFT_MAIL_FOLDERS_ENDPOINT}/"
+                f"{well_known_name}"
+            ),
+            access_token=access_token,
+            params={
+                "$select": "id",
+            },
+        )
+
+        folder_id = self._normalize_string(data.get("id"))
+
+        if not folder_id:
+            raise MailProviderError(
+                "Microsoft no devolvió la carpeta destino."
+            )
+
+        self._folder_cache[folder] = folder_id
+
+        return folder_id
+
+    def _required_message_id(
+        self,
+        provider_message_id: str,
+    ) -> str:
+        normalized_message_id = self._normalize_string(
+            provider_message_id
+        )
+
+        if not normalized_message_id:
+            raise MailProviderError(
+                "El identificador del correo de Microsoft es inválido."
+            )
+
+        return normalized_message_id
 
     def _get_attachments(
         self,
@@ -277,8 +1175,11 @@ class MicrosoftMailProvider:
         }
 
         attachments: list[dict[str, Any]] = []
+        page_count = 0
 
-        while next_url:
+        while next_url and page_count < MAX_ATTACHMENT_PAGES:
+            page_count += 1
+
             data = self._request(
                 method="GET",
                 url=next_url,
@@ -357,6 +1258,7 @@ class MicrosoftMailProvider:
         *,
         data: dict[str, Any],
         attachments: list[dict[str, Any]],
+        attachments_loaded: bool,
     ) -> dict[str, Any]:
         provider_message_id = self._normalize_string(
             data.get("id")
@@ -422,7 +1324,7 @@ class MicrosoftMailProvider:
 
         direction = (
             "outbound"
-            if sent_at and not received_at
+            if is_draft or (sent_at and not received_at)
             else "inbound"
         )
 
@@ -435,6 +1337,18 @@ class MicrosoftMailProvider:
             flag.get("flagStatus") or ""
         ).strip().lower()
 
+        parent_folder_id = self._normalize_string(
+            data.get("parentFolderId")
+        )
+        folder = self._map_folder(
+            parent_folder_id=parent_folder_id,
+            is_draft=is_draft,
+        )
+        status = self._map_status(
+            folder=folder,
+            is_draft=is_draft,
+        )
+
         subject = normalize_text(
             data.get("subject"),
             max_length=1000,
@@ -444,8 +1358,7 @@ class MicrosoftMailProvider:
             max_length=1000,
         )
 
-        folder = "drafts" if is_draft else "inbox"
-        status = "draft" if is_draft else "received"
+        has_attachments = bool(data.get("hasAttachments"))
 
         return {
             "provider_message_id": provider_message_id,
@@ -474,9 +1387,10 @@ class MicrosoftMailProvider:
             "status": status,
             "folder": folder,
             "is_read": bool(data.get("isRead")),
-            "is_archived": False,
-            "is_spam": False,
-            "is_trashed": False,
+            "is_starred": flag_status == "flagged",
+            "is_archived": folder == "archived",
+            "is_spam": folder == "spam",
+            "is_trashed": folder == "trash",
             "subject": subject,
             "body_text": body_text,
             "body_html": body_html,
@@ -489,23 +1403,53 @@ class MicrosoftMailProvider:
             "references_header": None,
             "sent_at": sent_at,
             "received_at": received_at,
-            "has_attachments": bool(
-                data.get("hasAttachments")
-            ),
+            "has_attachments": has_attachments,
             "attachment_count": len(attachments),
             "recipients": recipients,
             "attachments": attachments,
             "metadata": {
-                "microsoft_parent_folder_id": (
-                    self._normalize_string(
-                        data.get("parentFolderId")
-                    )
-                ),
+                "microsoft_parent_folder_id": parent_folder_id,
                 "microsoft_importance": data.get("importance"),
                 "microsoft_flag_status": flag_status,
                 "microsoft_body_content_type": body_type,
+                "microsoft_attachments_loaded": (
+                    attachments_loaded
+                ),
             },
         }
+
+    def _map_folder(
+        self,
+        *,
+        parent_folder_id: str | None,
+        is_draft: bool,
+    ) -> str:
+        if is_draft:
+            return "drafts"
+
+        if parent_folder_id:
+            for folder, folder_id in self._folder_cache.items():
+                if parent_folder_id == folder_id:
+                    return folder
+
+        return "inbox"
+
+    def _map_status(
+        self,
+        *,
+        folder: str,
+        is_draft: bool,
+    ) -> str:
+        if is_draft:
+            return "draft"
+
+        if folder == "sent":
+            return "sent"
+
+        if folder == "trash":
+            return "trashed"
+
+        return "received"
 
     def _parse_recipients(
         self,

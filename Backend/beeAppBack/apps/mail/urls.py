@@ -1,10 +1,16 @@
 from django.urls import path
 
 from apps.mail.views import (
+    MailDraftDetailView,
+    MailDraftSendView,
+    MailDraftsView,
     MailIntegrationDetailView,
     MailIntegrationsView,
+    MailMessageActionView,
     MailMessageDetailView,
+    MailMessageMoveView,
     MailMessagesView,
+    MailMessageStateView,
     MailSyncView,
 )
 
@@ -29,6 +35,36 @@ urlpatterns = [
         "messages/<uuid:message_id>/",
         MailMessageDetailView.as_view(),
         name="mail-message-detail",
+    ),
+    path(
+        "messages/<uuid:message_id>/state/",
+        MailMessageStateView.as_view(),
+        name="mail-message-state",
+    ),
+    path(
+        "messages/<uuid:message_id>/move/",
+        MailMessageMoveView.as_view(),
+        name="mail-message-move",
+    ),
+    path(
+        "messages/<uuid:message_id>/action/",
+        MailMessageActionView.as_view(),
+        name="mail-message-action",
+    ),
+    path(
+        "drafts/",
+        MailDraftsView.as_view(),
+        name="mail-drafts",
+    ),
+    path(
+        "messages/<uuid:message_id>/draft/",
+        MailDraftDetailView.as_view(),
+        name="mail-draft-detail",
+    ),
+    path(
+        "messages/<uuid:message_id>/send/",
+        MailDraftSendView.as_view(),
+        name="mail-draft-send",
     ),
     path(
         "sync/",
