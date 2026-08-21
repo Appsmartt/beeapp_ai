@@ -18,6 +18,7 @@ from apps.mail.services.mail_provider_service import (
     validate_draft_content,
     validate_mail_attachments,
     validate_message_state_update,
+    validate_sendable_draft,
 )
 
 
@@ -80,6 +81,8 @@ MAX_PAGE_SIZE = 250
 MAX_PAGINATION_PAGES = 100
 MAX_ATTACHMENT_PAGES = 20
 
+MICROSOFT_IMMUTABLE_ID_PREFER = 'IdType="ImmutableId"'
+
 
 class MicrosoftMailProvider:
     provider = "microsoft"
@@ -95,15 +98,18 @@ class MicrosoftMailProvider:
         prefer_text_body: bool = False,
         json_body: bool = False,
     ) -> dict[str, str]:
+        prefer_values = [MICROSOFT_IMMUTABLE_ID_PREFER]
+
+        if prefer_text_body:
+            prefer_values.append(
+                'outlook.body-content-type="text"'
+            )
+
         headers = {
             "Authorization": f"Bearer {access_token}",
             "Accept": "application/json",
+            "Prefer": ", ".join(prefer_values),
         }
-
-        if prefer_text_body:
-            headers["Prefer"] = (
-                'outlook.body-content-type="text"'
-            )
 
         if json_body:
             headers["Content-Type"] = "application/json"
@@ -119,6 +125,7 @@ class MicrosoftMailProvider:
         params: dict[str, Any] | None = None,
         json: dict[str, Any] | None = None,
         prefer_text_body: bool = False,
+        allow_empty_response: bool = False,
     ) -> dict[str, Any]:
         try:
             response = httpx.request(
@@ -158,7 +165,10 @@ class MicrosoftMailProvider:
 
             logger.warning(
                 "Microsoft Graph request rejected. "
-                "status_code=%s error_code=%s response=%s",
+                "method=%s url=%s status_code=%s error_code=%s "
+                "response=%s",
+                method,
+                url,
                 response.status_code,
                 error_code,
                 error_payload,
@@ -203,7 +213,10 @@ class MicrosoftMailProvider:
 
             logger.warning(
                 "Microsoft Graph request failed. "
-                "status_code=%s error_code=%s response=%s",
+                "method=%s url=%s status_code=%s error_code=%s "
+                "response=%s",
+                method,
+                url,
                 response.status_code,
                 error_code,
                 error_payload,
@@ -212,15 +225,30 @@ class MicrosoftMailProvider:
             if error_code in {
                 "ErrorItemNotFound",
                 "ErrorInvalidIdMalformed",
-                "ErrorInvalidRequest",
             }:
                 raise MailProviderError(
-                    "No fue posible actualizar este correo en Microsoft."
+                    "No fue posible encontrar este correo en Microsoft."
+                )
+
+            if error_code in {
+                "ErrorInvalidRequest",
+                "RequestBodyRead",
+                "BadRequest",
+            }:
+                raise MailProviderError(
+                    "Microsoft rechazó el borrador. Verifica los "
+                    "destinatarios, el contenido y los adjuntos."
                 )
 
             raise MailProviderError(error_message[:500])
 
-        if response.status_code == 204:
+        if response.status_code in (202, 204):
+            return {}
+
+        if (
+            allow_empty_response
+            and not response.content
+        ):
             return {}
 
         try:
@@ -322,8 +350,11 @@ class MicrosoftMailProvider:
         provider_message_id: str,
         include_attachments: bool = True,
     ) -> dict[str, Any]:
+        normalized_message_id = self._required_message_id(
+            provider_message_id
+        )
         encoded_message_id = quote(
-            provider_message_id,
+            normalized_message_id,
             safe="",
         )
 
@@ -357,7 +388,7 @@ class MicrosoftMailProvider:
         if include_attachments and bool(data.get("hasAttachments")):
             attachments = self._get_attachments(
                 access_token=access_token,
-                provider_message_id=provider_message_id,
+                provider_message_id=normalized_message_id,
             )
 
         return self._normalize_message(
@@ -407,6 +438,7 @@ class MicrosoftMailProvider:
             ),
             access_token=access_token,
             json=payload,
+            allow_empty_response=True,
         )
 
         return self.get_message(
@@ -487,6 +519,7 @@ class MicrosoftMailProvider:
             subject=subject,
             body=body,
             body_content_type=body_content_type,
+            attachments=attachments,
         )
         normalized_attachments = validate_mail_attachments(
             attachments
@@ -539,6 +572,7 @@ class MicrosoftMailProvider:
             subject=subject,
             body=body,
             body_content_type=body_content_type,
+            attachments=attachments,
         )
         normalized_attachments = validate_mail_attachments(
             attachments
@@ -556,6 +590,7 @@ class MicrosoftMailProvider:
             ),
             access_token=access_token,
             json=payload,
+            allow_empty_response=True,
         )
 
         self._replace_draft_attachments(
@@ -592,6 +627,7 @@ class MicrosoftMailProvider:
                 f"{encoded_message_id}"
             ),
             access_token=access_token,
+            allow_empty_response=True,
         )
 
     def send_draft(
@@ -600,20 +636,30 @@ class MicrosoftMailProvider:
         access_token: str,
         provider_message_id: str,
         provider_draft_id: str | None,
+        draft_snapshot: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
+        """
+        Sends a Microsoft draft without depending on immediate Sent Items
+        visibility.
+
+        Graph's send endpoint returns 202 Accepted with no Message body.
+        By using Prefer: IdType="ImmutableId", the draft ID remains usable
+        for the Sent Items copy in the same mailbox. However, Microsoft
+        documents that GET can still fail briefly after send, so BeeApp
+        returns a local sent snapshot when the message is not yet readable.
+        """
         normalized_message_id = self._required_message_id(
             provider_message_id
         )
-
-        draft_before_send = self._get_draft_before_send(
-            access_token=access_token,
+        normalized_snapshot = self._normalize_draft_snapshot(
             provider_message_id=normalized_message_id,
+            draft_snapshot=draft_snapshot,
         )
-        conversation_id = self._normalize_string(
-            draft_before_send.get("conversationId")
-        )
-        subject_hint = self._normalize_string(
-            draft_before_send.get("subject")
+
+        validate_sendable_draft(
+            to_recipients=normalized_snapshot["recipients"]["to"],
+            cc_recipients=normalized_snapshot["recipients"]["cc"],
+            bcc_recipients=normalized_snapshot["recipients"]["bcc"],
         )
 
         encoded_message_id = quote(
@@ -629,57 +675,216 @@ class MicrosoftMailProvider:
             ),
             access_token=access_token,
             json={},
+            allow_empty_response=True,
         )
 
-        sent_messages = self._find_sent_message_after_draft_send(
+        sent_message = self._get_sent_message_if_available(
             access_token=access_token,
-            conversation_id=conversation_id,
-            subject_hint=subject_hint,
+            provider_message_id=normalized_message_id,
         )
 
-        if sent_messages:
-            return sent_messages[0]
+        if sent_message:
+            return sent_message
+
+        now = datetime.now(timezone.utc).isoformat()
+        metadata = dict(normalized_snapshot.get("metadata") or {})
+        metadata.update(
+            {
+                "microsoft_draft_sent": True,
+                "microsoft_sent_message_pending_sync": True,
+                "microsoft_immutable_message_id": (
+                    normalized_message_id
+                ),
+                "microsoft_sent_requested_at": now,
+            }
+        )
 
         return {
+            **normalized_snapshot,
             "provider_message_id": normalized_message_id,
-            "provider_thread_id": conversation_id,
-            "provider_conversation_id": conversation_id,
-            "provider_change_key": None,
-            "provider_etag": None,
-            "provider_web_link": None,
-            "provider_created_at": None,
-            "provider_updated_at": None,
+            "provider_updated_at": now,
             "direction": "outbound",
             "status": "sent",
             "folder": "sent",
             "is_read": True,
-            "is_starred": False,
             "is_archived": False,
             "is_spam": False,
             "is_trashed": False,
-            "subject": subject_hint,
-            "body_text": None,
-            "body_html": None,
-            "body_preview": None,
-            "snippet": None,
-            "message_id_header": None,
-            "in_reply_to_header": None,
-            "references_header": None,
-            "sent_at": datetime.now(timezone.utc).isoformat(),
+            "sent_at": (
+                normalized_snapshot.get("sent_at")
+                or now
+            ),
             "received_at": None,
-            "has_attachments": False,
-            "attachment_count": 0,
-            "recipients": {
-                "from": [],
-                "to": [],
-                "cc": [],
-                "bcc": [],
-                "reply_to": [],
-            },
-            "attachments": [],
-            "metadata": {
-                "microsoft_draft_sent": True,
-            },
+            "metadata": metadata,
+        }
+
+    def _get_sent_message_if_available(
+        self,
+        *,
+        access_token: str,
+        provider_message_id: str,
+    ) -> dict[str, Any] | None:
+        """
+        A successful send may take time to appear in Sent Items. This is
+        intentionally best-effort: a 404 immediately after 202 is normal.
+        """
+        try:
+            message = self.get_message(
+                access_token=access_token,
+                provider_message_id=provider_message_id,
+                include_attachments=True,
+            )
+
+            if message.get("status") == "sent":
+                return message
+
+        except MailProviderError as error:
+            logger.info(
+                "Microsoft sent message is not yet readable. "
+                "provider_message_id=%s detail=%s",
+                provider_message_id,
+                str(error),
+            )
+
+        return None
+
+    def _normalize_draft_snapshot(
+        self,
+        *,
+        provider_message_id: str,
+        draft_snapshot: dict[str, Any] | None,
+    ) -> dict[str, Any]:
+        snapshot = (
+            draft_snapshot
+            if isinstance(draft_snapshot, dict)
+            else {}
+        )
+
+        raw_recipients = snapshot.get("recipients")
+        recipients_data = (
+            raw_recipients
+            if isinstance(raw_recipients, dict)
+            else {}
+        )
+
+        recipients = {
+            "from": normalize_recipients(
+                recipients_data.get("from")
+                if isinstance(recipients_data.get("from"), list)
+                else []
+            ),
+            "to": normalize_recipients(
+                recipients_data.get("to")
+                if isinstance(recipients_data.get("to"), list)
+                else []
+            ),
+            "cc": normalize_recipients(
+                recipients_data.get("cc")
+                if isinstance(recipients_data.get("cc"), list)
+                else []
+            ),
+            "bcc": normalize_recipients(
+                recipients_data.get("bcc")
+                if isinstance(recipients_data.get("bcc"), list)
+                else []
+            ),
+            "reply_to": normalize_recipients(
+                recipients_data.get("reply_to")
+                if isinstance(recipients_data.get("reply_to"), list)
+                else []
+            ),
+        }
+
+        raw_attachments = snapshot.get("attachments")
+        attachments = (
+            raw_attachments
+            if isinstance(raw_attachments, list)
+            else []
+        )
+
+        attachment_count = int(
+            snapshot.get("attachment_count")
+            or len(attachments)
+        )
+
+        return {
+            "provider_message_id": provider_message_id,
+            "provider_thread_id": self._normalize_string(
+                snapshot.get("provider_thread_id")
+            ),
+            "provider_conversation_id": self._normalize_string(
+                snapshot.get("provider_conversation_id")
+            ),
+            "provider_change_key": self._normalize_string(
+                snapshot.get("provider_change_key")
+            ),
+            "provider_etag": self._normalize_string(
+                snapshot.get("provider_etag")
+            ),
+            "provider_web_link": self._normalize_string(
+                snapshot.get("provider_web_link")
+            ),
+            "provider_created_at": self._normalize_string(
+                snapshot.get("provider_created_at")
+            ),
+            "provider_updated_at": self._normalize_string(
+                snapshot.get("provider_updated_at")
+            ),
+            "direction": "outbound",
+            "status": "sent",
+            "folder": "sent",
+            "is_read": True,
+            "is_starred": bool(
+                snapshot.get("is_starred")
+            ),
+            "is_archived": False,
+            "is_spam": False,
+            "is_trashed": False,
+            "subject": normalize_text(
+                snapshot.get("subject"),
+                max_length=1000,
+            ),
+            "body_text": normalize_text(
+                snapshot.get("body_text"),
+                max_length=200_000,
+            ),
+            "body_html": normalize_text(
+                snapshot.get("body_html"),
+                max_length=200_000,
+            ),
+            "body_preview": normalize_text(
+                snapshot.get("body_preview"),
+                max_length=1000,
+            ),
+            "snippet": normalize_text(
+                snapshot.get("snippet"),
+                max_length=1000,
+            ),
+            "message_id_header": self._normalize_string(
+                snapshot.get("message_id_header")
+            ),
+            "in_reply_to_header": self._normalize_string(
+                snapshot.get("in_reply_to_header")
+            ),
+            "references_header": self._normalize_string(
+                snapshot.get("references_header")
+            ),
+            "sent_at": self._normalize_string(
+                snapshot.get("sent_at")
+            ),
+            "received_at": None,
+            "has_attachments": bool(
+                snapshot.get("has_attachments")
+                or attachments
+            ),
+            "attachment_count": attachment_count,
+            "recipients": recipients,
+            "attachments": attachments,
+            "metadata": (
+                snapshot.get("metadata")
+                if isinstance(snapshot.get("metadata"), dict)
+                else {}
+            ),
         }
 
     def _replace_draft_attachments(
@@ -771,6 +976,7 @@ class MicrosoftMailProvider:
                     f"{encoded_attachment_id}"
                 ),
                 access_token=access_token,
+                allow_empty_response=True,
             )
 
     def _add_draft_attachment(
@@ -795,7 +1001,9 @@ class MicrosoftMailProvider:
             ),
             access_token=access_token,
             json={
-                "@odata.type": "#microsoft.graph.fileAttachment",
+                "@odata.type": (
+                    "#microsoft.graph.fileAttachment"
+                ),
                 "name": attachment["filename"],
                 "contentType": attachment["mime_type"],
                 "contentBytes": base64.b64encode(
@@ -813,6 +1021,7 @@ class MicrosoftMailProvider:
         subject: str | None,
         body: str | None,
         body_content_type: str,
+        attachments: list[dict[str, Any]],
     ) -> dict[str, Any]:
         normalized_to = normalize_recipients(to_recipients)
         normalized_cc = normalize_recipients(cc_recipients)
@@ -837,6 +1046,7 @@ class MicrosoftMailProvider:
             bcc_recipients=normalized_bcc,
             subject=normalized_subject,
             body=normalized_body,
+            attachments=attachments,
         )
 
         return {
@@ -875,122 +1085,6 @@ class MicrosoftMailProvider:
             }
             for recipient in recipients
         ]
-
-    def _get_draft_before_send(
-        self,
-        *,
-        access_token: str,
-        provider_message_id: str,
-    ) -> dict[str, Any]:
-        encoded_message_id = quote(
-            provider_message_id,
-            safe="",
-        )
-
-        return self._request(
-            method="GET",
-            url=(
-                f"{MICROSOFT_MESSAGES_ENDPOINT}/"
-                f"{encoded_message_id}"
-            ),
-            access_token=access_token,
-            params={
-                "$select": "conversationId,subject",
-            },
-        )
-
-    def _find_sent_message_after_draft_send(
-        self,
-        *,
-        access_token: str,
-        conversation_id: str | None,
-        subject_hint: str | None,
-    ) -> list[dict[str, Any]]:
-        self._cache_mail_folder_ids(
-            access_token=access_token,
-        )
-        sent_folder_id = self._folder_cache.get("sent")
-
-        if not sent_folder_id:
-            return []
-
-        try:
-            data = self._request(
-                method="GET",
-                url=(
-                    f"{MICROSOFT_MAIL_FOLDERS_ENDPOINT}/"
-                    f"{quote(sent_folder_id, safe='')}/messages"
-                ),
-                access_token=access_token,
-                params={
-                    "$select": (
-                        "id,conversationId,changeKey,webLink,"
-                        "createdDateTime,lastModifiedDateTime,"
-                        "sentDateTime,receivedDateTime,subject,"
-                        "body,bodyPreview,from,toRecipients,"
-                        "ccRecipients,bccRecipients,replyTo,"
-                        "isRead,isDraft,hasAttachments,importance,"
-                        "flag,parentFolderId,internetMessageId"
-                    ),
-                    "$orderby": "sentDateTime desc",
-                    "$top": 10,
-                },
-                prefer_text_body=True,
-            )
-        except MailProviderError:
-            return []
-
-        values = data.get("value")
-
-        if not isinstance(values, list):
-            return []
-
-        matched_messages: list[dict[str, Any]] = []
-
-        for message in values:
-            if not isinstance(message, dict):
-                continue
-
-            if (
-                conversation_id
-                and self._normalize_string(
-                    message.get("conversationId")
-                )
-                != conversation_id
-            ):
-                continue
-
-            if (
-                subject_hint
-                and self._normalize_string(message.get("subject"))
-                != subject_hint
-            ):
-                continue
-
-            message_id = self._normalize_string(
-                message.get("id")
-            )
-
-            if not message_id:
-                continue
-
-            try:
-                attachments = self._get_attachments(
-                    access_token=access_token,
-                    provider_message_id=message_id,
-                )
-            except MailProviderError:
-                attachments = []
-
-            matched_messages.append(
-                self._normalize_message(
-                    data=message,
-                    attachments=attachments,
-                    attachments_loaded=True,
-                )
-            )
-
-        return matched_messages
 
     def _cache_mail_folder_ids(
         self,
@@ -1415,6 +1509,7 @@ class MicrosoftMailProvider:
                 "microsoft_attachments_loaded": (
                     attachments_loaded
                 ),
+                "microsoft_uses_immutable_id": True,
             },
         }
 

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import logging
+
 from rest_framework import status
 from rest_framework.response import Response
 
@@ -44,12 +46,34 @@ from apps.mail.services.mail_message_service import (
 )
 
 
+logger = logging.getLogger(__name__)
+
+
 def _unauthorized_response() -> Response:
     return Response(
         {
             "detail": "Invalid or expired access token.",
         },
         status=status.HTTP_401_UNAUTHORIZED,
+    )
+
+
+def _mail_error_response(
+    error: Exception,
+    *,
+    response_status: int = status.HTTP_400_BAD_REQUEST,
+) -> Response:
+    """
+    Serializa errores conocidos del dominio Email para el cliente.
+
+    Nunca incluye tokens, credenciales ni payloads del proveedor.
+    El detalle contiene el mensaje seguro construido por el servicio.
+    """
+    return Response(
+        {
+            "detail": str(error),
+        },
+        status=response_status,
     )
 
 
@@ -113,11 +137,9 @@ class MailIntegrationDetailView(AuthenticatedAPIView):
             return _unauthorized_response()
 
         except MailIntegrationNotFoundError as error:
-            return Response(
-                {
-                    "detail": str(error),
-                },
-                status=status.HTTP_404_NOT_FOUND,
+            return _mail_error_response(
+                error,
+                response_status=status.HTTP_404_NOT_FOUND,
             )
 
         return Response(
@@ -161,12 +183,7 @@ class MailMessagesView(AuthenticatedAPIView):
             return _unauthorized_response()
 
         except MailMessageNotFoundError as error:
-            return Response(
-                {
-                    "detail": str(error),
-                },
-                status=status.HTTP_400_BAD_REQUEST,
-            )
+            return _mail_error_response(error)
 
         return Response(
             result,
@@ -190,11 +207,9 @@ class MailMessageDetailView(AuthenticatedAPIView):
             return _unauthorized_response()
 
         except MailMessageNotFoundError as error:
-            return Response(
-                {
-                    "detail": str(error),
-                },
-                status=status.HTTP_404_NOT_FOUND,
+            return _mail_error_response(
+                error,
+                response_status=status.HTTP_404_NOT_FOUND,
             )
 
         return Response(
@@ -228,12 +243,7 @@ class MailMessageStateView(AuthenticatedAPIView):
             return _unauthorized_response()
 
         except MailMessageNotFoundError as error:
-            return Response(
-                {
-                    "detail": str(error),
-                },
-                status=status.HTTP_400_BAD_REQUEST,
-            )
+            return _mail_error_response(error)
 
         return Response(
             result,
@@ -261,12 +271,7 @@ class MailMessageMoveView(AuthenticatedAPIView):
             return _unauthorized_response()
 
         except MailMessageNotFoundError as error:
-            return Response(
-                {
-                    "detail": str(error),
-                },
-                status=status.HTTP_400_BAD_REQUEST,
-            )
+            return _mail_error_response(error)
 
         return Response(
             result,
@@ -302,12 +307,7 @@ class MailMessageActionView(AuthenticatedAPIView):
             return _unauthorized_response()
 
         except MailMessageNotFoundError as error:
-            return Response(
-                {
-                    "detail": str(error),
-                },
-                status=status.HTTP_400_BAD_REQUEST,
-            )
+            return _mail_error_response(error)
 
         return Response(
             result,
@@ -345,23 +345,20 @@ class MailDraftsView(AuthenticatedAPIView):
             return _unauthorized_response()
 
         except MailIntegrationNotFoundError as error:
-            return Response(
-                {
-                    "detail": str(error),
-                },
-                status=status.HTTP_404_NOT_FOUND,
+            return _mail_error_response(
+                error,
+                response_status=status.HTTP_404_NOT_FOUND,
             )
 
         except (
             MailIntegrationInactiveError,
             MailSyncError,
         ) as error:
-            return Response(
-                {
-                    "detail": str(error),
-                },
-                status=status.HTTP_400_BAD_REQUEST,
+            logger.warning(
+                "Mail draft creation failed. detail=%s",
+                str(error),
             )
+            return _mail_error_response(error)
 
         return Response(
             result,
@@ -407,23 +404,21 @@ class MailDraftDetailView(AuthenticatedAPIView):
             MailIntegrationNotFoundError,
             MailMessageNotFoundError,
         ) as error:
-            return Response(
-                {
-                    "detail": str(error),
-                },
-                status=status.HTTP_404_NOT_FOUND,
+            return _mail_error_response(
+                error,
+                response_status=status.HTTP_404_NOT_FOUND,
             )
 
         except (
             MailIntegrationInactiveError,
             MailSyncError,
         ) as error:
-            return Response(
-                {
-                    "detail": str(error),
-                },
-                status=status.HTTP_400_BAD_REQUEST,
+            logger.warning(
+                "Mail draft update failed. message_id=%s detail=%s",
+                str(message_id),
+                str(error),
             )
+            return _mail_error_response(error)
 
         return Response(
             result,
@@ -448,23 +443,21 @@ class MailDraftDetailView(AuthenticatedAPIView):
             MailIntegrationNotFoundError,
             MailMessageNotFoundError,
         ) as error:
-            return Response(
-                {
-                    "detail": str(error),
-                },
-                status=status.HTTP_404_NOT_FOUND,
+            return _mail_error_response(
+                error,
+                response_status=status.HTTP_404_NOT_FOUND,
             )
 
         except (
             MailIntegrationInactiveError,
             MailSyncError,
         ) as error:
-            return Response(
-                {
-                    "detail": str(error),
-                },
-                status=status.HTTP_400_BAD_REQUEST,
+            logger.warning(
+                "Mail draft deletion failed. message_id=%s detail=%s",
+                str(message_id),
+                str(error),
             )
+            return _mail_error_response(error)
 
         return Response(
             status=status.HTTP_204_NO_CONTENT,
@@ -480,9 +473,16 @@ class MailDraftSendView(AuthenticatedAPIView):
             authenticated_user = self.get_authenticated_user(
                 request
             )
+            user_id = str(authenticated_user.id)
+
+            logger.info(
+                "Mail draft send requested. user_id=%s message_id=%s",
+                user_id,
+                str(message_id),
+            )
 
             result = send_mail_draft(
-                user_id=str(authenticated_user.id),
+                user_id=user_id,
                 message_id=str(message_id),
             )
 
@@ -493,23 +493,55 @@ class MailDraftSendView(AuthenticatedAPIView):
             MailIntegrationNotFoundError,
             MailMessageNotFoundError,
         ) as error:
-            return Response(
-                {
-                    "detail": str(error),
-                },
-                status=status.HTTP_404_NOT_FOUND,
+            logger.warning(
+                "Mail draft send failed because the draft or integration "
+                "was not found. message_id=%s detail=%s",
+                str(message_id),
+                str(error),
+            )
+            return _mail_error_response(
+                error,
+                response_status=status.HTTP_404_NOT_FOUND,
             )
 
-        except (
-            MailIntegrationInactiveError,
-            MailSyncError,
-        ) as error:
+        except MailIntegrationInactiveError as error:
+            logger.warning(
+                "Mail draft send blocked by inactive integration. "
+                "message_id=%s detail=%s",
+                str(message_id),
+                str(error),
+            )
+            return _mail_error_response(error)
+
+        except MailSyncError as error:
+            logger.warning(
+                "Mail draft send provider or persistence failure. "
+                "message_id=%s detail=%s",
+                str(message_id),
+                str(error),
+            )
+            return _mail_error_response(error)
+
+        except Exception:
+            logger.exception(
+                "Unexpected mail draft send failure. message_id=%s",
+                str(message_id),
+            )
             return Response(
                 {
-                    "detail": str(error),
+                    "detail": (
+                        "Ocurrió un error inesperado al enviar el correo. "
+                        "Revisa los logs del servidor e inténtalo de nuevo."
+                    ),
                 },
-                status=status.HTTP_400_BAD_REQUEST,
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
+
+        logger.info(
+            "Mail draft send succeeded. user_id=%s message_id=%s",
+            user_id,
+            str(message_id),
+        )
 
         return Response(
             result,
@@ -548,20 +580,13 @@ class MailSyncView(AuthenticatedAPIView):
             return _unauthorized_response()
 
         except MailIntegrationNotFoundError as error:
-            return Response(
-                {
-                    "detail": str(error),
-                },
-                status=status.HTTP_404_NOT_FOUND,
+            return _mail_error_response(
+                error,
+                response_status=status.HTTP_404_NOT_FOUND,
             )
 
         except MailIntegrationInactiveError as error:
-            return Response(
-                {
-                    "detail": str(error),
-                },
-                status=status.HTTP_400_BAD_REQUEST,
-            )
+            return _mail_error_response(error)
 
         return Response(
             result,

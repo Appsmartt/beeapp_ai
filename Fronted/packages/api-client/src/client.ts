@@ -24,22 +24,29 @@ export const API_BASE_URL: string =
     configuredApiBaseUrl;
 
 export interface ApiErrorResponse {
-    detail?: string;
-    message?: string;
-    error?: string;
+    detail?: unknown;
+    message?: unknown;
+    error?: unknown;
+    non_field_errors?: unknown;
     [key: string]: unknown;
 }
 
 export class ApiRequestError extends Error {
     readonly status: number;
+    readonly endpoint: string;
+    readonly body: ApiErrorResponse | null;
 
     constructor(
         message: string,
         status: number,
+        endpoint: string,
+        body: ApiErrorResponse | null = null,
     ) {
         super(message);
         this.name = 'ApiRequestError';
         this.status = status;
+        this.endpoint = endpoint;
+        this.body = body;
     }
 }
 
@@ -97,29 +104,171 @@ function getDefaultCredentials(
     return undefined;
 }
 
-async function parseApiResponse<T>(
+function normalizeErrorValue(
+    value: unknown,
+    ): string | null {
+    if (typeof value === 'string') {
+        const normalized = value.trim();
+        return normalized || null;
+    }
+
+    if (typeof value === 'number') {
+        return String(value);
+    }
+
+    if (Array.isArray(value)) {
+        const messages = value
+        .map((item) => normalizeErrorValue(item))
+        .filter((
+            item,
+        ): item is string => Boolean(item));
+
+        return messages.length > 0
+        ? messages.join(', ')
+        : null;
+    }
+
+    if (
+        value
+        && typeof value === 'object'
+    ) {
+        const nestedMessages = Object.entries(
+        value as Record<string, unknown>,
+        )
+        .map(([key, nestedValue]) => {
+            const nestedMessage = normalizeErrorValue(
+            nestedValue,
+            );
+
+            return nestedMessage
+            ? `${formatErrorFieldName(key)}: ${nestedMessage}`
+            : null;
+        })
+        .filter((
+            item,
+        ): item is string => Boolean(item));
+
+        return nestedMessages.length > 0
+        ? nestedMessages.join(' · ')
+        : null;
+    }
+
+    return null;
+}
+
+function formatErrorFieldName(
+    fieldName: string,
+    ): string {
+    const labels: Record<string, string> = {
+        to: 'Para',
+        cc: 'CC',
+        bcc: 'CCO',
+        subject: 'Asunto',
+        body: 'Mensaje',
+        file_ids: 'Adjuntos',
+        integration_id: 'Cuenta de correo',
+        non_field_errors: 'Correo',
+        detail: 'Correo',
+    };
+
+    return (
+        labels[fieldName]
+        || fieldName
+        .replace(/_/g, ' ')
+        .replace(/^./, (character) => (
+            character.toUpperCase()
+        ))
+    );
+}
+
+function getErrorMessageFromBody(
+    body: ApiErrorResponse | null,
+    fallback: string,
+    ): string {
+    if (!body) {
+        return fallback;
+    }
+
+    const prioritizedKeys = [
+        'detail',
+        'message',
+        'error',
+        'non_field_errors',
+    ];
+
+    for (const key of prioritizedKeys) {
+        const message = normalizeErrorValue(body[key]);
+
+        if (message) {
+        return message;
+        }
+    }
+
+    const fieldMessages = Object.entries(body)
+        .filter(([key]) => (
+        !prioritizedKeys.includes(key)
+        ))
+        .map(([key, value]) => {
+        const message = normalizeErrorValue(value);
+
+        return message
+            ? `${formatErrorFieldName(key)}: ${message}`
+            : null;
+        })
+        .filter((
+        item,
+        ): item is string => Boolean(item));
+
+    return fieldMessages.length > 0
+        ? fieldMessages.join(' · ')
+        : fallback;
+}
+
+async function getErrorBody(
     response: Response,
-    ): Promise<T> {
-    if (!response.ok) {
-        let errorMessage =
-        `Error ${response.status}: backend request failed.`;
+    ): Promise<ApiErrorResponse | null> {
+    try {
+        const body = await response.json();
 
-        try {
-        const errorData =
-            await response.json() as ApiErrorResponse;
-
-        errorMessage =
-            errorData.detail
-            || errorData.message
-            || errorData.error
-            || errorMessage;
-        } catch {
-        // The response may not contain JSON.
+        if (
+        body
+        && typeof body === 'object'
+        && !Array.isArray(body)
+        ) {
+        return body as ApiErrorResponse;
         }
 
+        if (typeof body === 'string') {
+        return {
+            detail: body,
+        };
+        }
+    } catch {
+        // El backend puede responder sin JSON.
+    }
+
+    return null;
+}
+
+async function parseApiResponse<T>(
+    response: Response,
+    endpoint: string,
+    ): Promise<T> {
+    if (!response.ok) {
+        const fallbackMessage = (
+        `Error ${response.status}: backend request failed.`
+        );
+
+        const errorBody = await getErrorBody(response);
+
         throw new ApiRequestError(
-        errorMessage,
+        getErrorMessageFromBody(
+            errorBody,
+            fallbackMessage,
+        ),
         response.status,
+        endpoint,
+        errorBody,
         );
     }
 
@@ -127,7 +276,16 @@ async function parseApiResponse<T>(
         return undefined as T;
     }
 
-    return response.json() as Promise<T>;
+    try {
+        return await response.json() as T;
+    } catch {
+        throw new ApiRequestError(
+        'El backend respondió correctamente, pero devolvió JSON inválido.',
+        response.status,
+        endpoint,
+        null,
+        );
+    }
 }
 
 async function request<T>(
@@ -154,7 +312,9 @@ async function request<T>(
         headers: {
         Accept: 'application/json',
         ...(hasJsonBody
-            ? { 'Content-Type': 'application/json' }
+            ? {
+            'Content-Type': 'application/json',
+            }
             : {}),
         ...getAuthorizationHeader(token, auth),
         ...headers,
@@ -164,7 +324,10 @@ async function request<T>(
         : undefined,
     });
 
-    return parseApiResponse<T>(response);
+    return parseApiResponse<T>(
+        response,
+        endpoint,
+    );
 }
 
 async function upload<T>(
@@ -196,7 +359,10 @@ async function upload<T>(
         body: formData,
     });
 
-    return parseApiResponse<T>(response);
+    return parseApiResponse<T>(
+        response,
+        endpoint,
+    );
 }
 
 export const api = {
