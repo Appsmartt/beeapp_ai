@@ -29,6 +29,9 @@ from apps.mail.services.mail_provider_service import (
 from apps.mail.services.microsoft_mail_provider_service import (
     MicrosoftMailProvider,
 )
+from apps.notifications.services.notification_service import (
+    create_mail_message_received_notification,
+)
 
 
 logger = logging.getLogger(__name__)
@@ -703,12 +706,98 @@ def _replace_message_attachments(
         ) from error
 
 
+def _get_sender(
+    *,
+    provider_message: dict[str, Any],
+) -> tuple[str | None, str | None]:
+    recipients = provider_message.get("recipients")
+
+    if not isinstance(recipients, dict):
+        return None, None
+
+    from_recipients = recipients.get("from")
+
+    if not isinstance(from_recipients, list):
+        return None, None
+
+    for recipient in from_recipients:
+        if not isinstance(recipient, dict):
+            continue
+
+        sender_email = str(
+            recipient.get("email") or ""
+        ).strip() or None
+
+        sender_name = str(
+            recipient.get("display_name") or ""
+        ).strip() or None
+
+        if sender_name or sender_email:
+            return sender_name, sender_email
+
+    return None, None
+
+
+def _is_notifiable_incoming_message(
+    *,
+    provider_message: dict[str, Any],
+) -> bool:
+    return (
+        str(provider_message.get("direction") or "")
+        .strip()
+        .lower()
+        == "inbound"
+        and str(provider_message.get("folder") or "")
+        .strip()
+        .lower()
+        == "inbox"
+        and not bool(provider_message.get("is_spam"))
+        and not bool(provider_message.get("is_trashed"))
+    )
+
+
+def _create_new_mail_notification(
+    *,
+    user_id: str,
+    integration: dict[str, Any],
+    message_id: str,
+    provider_message: dict[str, Any],
+    initial_sync: bool,
+) -> None:
+    if initial_sync:
+        return
+
+    if not _is_notifiable_incoming_message(
+        provider_message=provider_message,
+    ):
+        return
+
+    sender_name, sender_email = _get_sender(
+        provider_message=provider_message,
+    )
+
+    create_mail_message_received_notification(
+        recipient_id=user_id,
+        message_id=message_id,
+        mail_integration_id=str(integration["id"]),
+        provider=str(integration["provider"]),
+        sender_name=sender_name,
+        sender_email=sender_email,
+        subject=provider_message.get("subject"),
+        body_preview=(
+            provider_message.get("body_preview")
+            or provider_message.get("snippet")
+        ),
+        received_at=provider_message.get("received_at"),
+    )
+
+
 def _upsert_provider_message(
     *,
     user_id: str,
     integration: dict[str, Any],
     provider_message: dict[str, Any],
-) -> tuple[bool, bool]:
+) -> tuple[bool, bool, str | None]:
     provider_message_id = str(
         provider_message.get("provider_message_id") or ""
     ).strip()
@@ -728,7 +817,7 @@ def _upsert_provider_message(
         existing_message=existing_message,
         provider_message=provider_message,
     ):
-        return False, True
+        return False, True, str(existing_message["id"])
 
     payload = _build_message_payload(
         user_id=user_id,
@@ -787,7 +876,7 @@ def _upsert_provider_message(
             ),
         )
 
-        return created, False
+        return created, False, str(message["id"])
 
     except MailSyncError:
         raise
@@ -991,7 +1080,11 @@ def sync_mail_integration(
                     load_attachments=True,
                 )
 
-                created, skipped = _upsert_provider_message(
+                (
+                    created,
+                    skipped,
+                    saved_message_id,
+                ) = _upsert_provider_message(
                     user_id=user_id,
                     integration=integration,
                     provider_message=provider_message,
@@ -1003,6 +1096,15 @@ def sync_mail_integration(
                     counts["skipped"] += 1
                 elif created:
                     counts["created"] += 1
+
+                    if saved_message_id:
+                        _create_new_mail_notification(
+                            user_id=user_id,
+                            integration=integration,
+                            message_id=saved_message_id,
+                            provider_message=provider_message,
+                            initial_sync=initial_sync,
+                        )
                 else:
                     counts["updated"] += 1
 
@@ -1240,40 +1342,20 @@ def persist_provider_mail_message(
     destinatarios y metadatos de adjuntos.
     """
     try:
-        _upsert_provider_message(
+        _, _, message_id = _upsert_provider_message(
             user_id=user_id,
             integration=integration,
             provider_message=provider_message,
         )
 
-        provider_message_id = str(
-            provider_message.get("provider_message_id") or ""
-        ).strip()
-
-        if not provider_message_id:
-            raise MailSyncError(
-                "El proveedor devolvió un correo sin identificador."
-            )
-
-        response = (
-            _supabase()
-            .table("mail_messages")
-            .select("id")
-            .eq("user_id", user_id)
-            .eq("mail_integration_id", integration["id"])
-            .eq("provider_message_id", provider_message_id)
-            .maybe_single()
-            .execute()
-        )
-
-        message = _extract_single(response)
-
-        if not message:
+        if not message_id:
             raise MailSyncError(
                 "No fue posible recuperar el correo guardado."
             )
 
-        return message
+        return {
+            "id": message_id,
+        }
 
     except MailSyncError:
         raise
