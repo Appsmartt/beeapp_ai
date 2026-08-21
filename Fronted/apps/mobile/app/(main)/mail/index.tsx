@@ -1,6 +1,7 @@
 import {
   ActivityIndicator,
   Alert,
+  Animated,
   RefreshControl,
   ScrollView,
   StyleSheet,
@@ -10,7 +11,9 @@ import {
 } from 'react-native';
 import {
   useCallback,
+  useEffect,
   useMemo,
+  useRef,
   useState,
 } from 'react';
 import {
@@ -18,10 +21,12 @@ import {
 } from 'expo-router';
 import {
   AlertTriangle,
+  CheckCircle2,
   Mail,
   RefreshCw,
   Settings2,
   SquarePen,
+  X,
 } from 'lucide-react-native';
 import {
   colors,
@@ -48,6 +53,15 @@ import {
 } from '../../../src/services/mailService';
 
 const FAB_BOTTOM_OFFSET = 105;
+const SYNC_FEEDBACK_DURATION_MS = 4_800;
+
+type SyncFeedbackKind = 'success' | 'warning' | 'error';
+
+interface SyncFeedback {
+  kind: SyncFeedbackKind;
+  title: string;
+  description: string;
+}
 
 function getErrorMessage(
   error: unknown,
@@ -57,38 +71,70 @@ function getErrorMessage(
     : 'Inténtalo nuevamente.';
 }
 
-function getSyncResultMessage(
+function getSyncFeedback(
   createdCount: number,
   updatedCount: number,
   failedCount: number,
-): string {
+): SyncFeedback {
   if (failedCount > 0) {
-    return (
-      `${createdCount} nuevos y ${updatedCount} actualizados. `
-      + `${failedCount} cuenta(s) no pudieron sincronizarse.`
-    );
+    if (createdCount === 0 && updatedCount === 0) {
+      return {
+        kind: 'error',
+        title: 'No fue posible sincronizar',
+        description: (
+          `${failedCount} cuenta(s) requieren atención. `
+          + 'Revisa Correo externo e inténtalo nuevamente.'
+        ),
+      };
+    }
+
+    return {
+      kind: 'warning',
+      title: 'Sincronización parcial',
+      description: (
+        `${createdCount} nuevo(s) · ${updatedCount} actualizado(s). `
+        + `${failedCount} cuenta(s) requieren atención.`
+      ),
+    };
   }
 
   if (createdCount > 0 && updatedCount > 0) {
-    return (
-      `${createdCount} correo(s) nuevo(s) y `
-      + `${updatedCount} actualizado(s).`
-    );
+    return {
+      kind: 'success',
+      title: 'Correos actualizados',
+      description: (
+        `${createdCount} correo(s) nuevo(s) · `
+        + `${updatedCount} actualizado(s).`
+      ),
+    };
   }
 
   if (createdCount > 0) {
-    return (
-      `${createdCount} correo(s) nuevo(s) disponible(s).`
-    );
+    return {
+      kind: 'success',
+      title: 'Correos actualizados',
+      description: (
+        `${createdCount} correo(s) nuevo(s) `
+        + 'ya están disponibles.'
+      ),
+    };
   }
 
   if (updatedCount > 0) {
-    return (
-      `${updatedCount} correo(s) actualizado(s).`
-    );
+    return {
+      kind: 'success',
+      title: 'Correos actualizados',
+      description: (
+        `${updatedCount} correo(s) actualizado(s).`
+      ),
+    };
   }
 
-  return 'Tus correos recientes ya están al día.';
+  return {
+    kind: 'success',
+    title: 'Bandeja al día',
+    description: 'No se encontraron correos nuevos.',
+  };
 }
 
 function getEmptyStateCopy(
@@ -206,6 +252,20 @@ export default function MailInboxScreen() {
     setSwipeActiveId,
   ] = useState<string | null>(null);
 
+  const [
+    syncFeedback,
+    setSyncFeedback,
+  ] = useState<SyncFeedback | null>(null);
+
+  const hasStartedBackgroundSyncRef = useRef(false);
+  const feedbackTimerRef = useRef<ReturnType<
+    typeof setTimeout
+  > | null>(null);
+
+  const feedbackAnimation = useRef(
+    new Animated.Value(0),
+  ).current;
+
   const {
     integrations,
     messages,
@@ -268,11 +328,91 @@ export default function MailInboxScreen() {
     )
   );
 
+  const hideSyncFeedback = useCallback(() => {
+    if (feedbackTimerRef.current) {
+      clearTimeout(feedbackTimerRef.current);
+      feedbackTimerRef.current = null;
+    }
+
+    Animated.timing(
+      feedbackAnimation,
+      {
+        toValue: 0,
+        duration: 180,
+        useNativeDriver: true,
+      },
+    ).start(() => {
+      setSyncFeedback(null);
+    });
+  }, [feedbackAnimation]);
+
+  const showSyncFeedback = useCallback((
+    feedback: SyncFeedback,
+  ) => {
+    if (feedbackTimerRef.current) {
+      clearTimeout(feedbackTimerRef.current);
+      feedbackTimerRef.current = null;
+    }
+
+    setSyncFeedback(feedback);
+
+    Animated.timing(
+      feedbackAnimation,
+      {
+        toValue: 1,
+        duration: 220,
+        useNativeDriver: true,
+      },
+    ).start();
+
+    feedbackTimerRef.current = setTimeout(() => {
+      hideSyncFeedback();
+    }, SYNC_FEEDBACK_DURATION_MS);
+  }, [
+    feedbackAnimation,
+    hideSyncFeedback,
+  ]);
+
+  useEffect(() => {
+    return () => {
+      if (feedbackTimerRef.current) {
+        clearTimeout(feedbackTimerRef.current);
+      }
+    };
+  }, []);
+
   useFocusEffect(
     useCallback(() => {
       void refreshMail();
     }, [refreshMail]),
   );
+
+  useEffect(() => {
+    if (
+      loading
+      || syncing
+      || !hasActiveIntegrations
+      || hasStartedBackgroundSyncRef.current
+    ) {
+      return;
+    }
+
+    hasStartedBackgroundSyncRef.current = true;
+
+    void (async () => {
+      try {
+        await syncInbox();
+      } catch {
+        // La carga local sigue disponible. La sincronización automática
+        // no debe interrumpir al usuario con una alerta.
+      }
+    })();
+  }, [
+    hasActiveIntegrations,
+    loading,
+    syncInbox,
+    syncing,
+  ]);
 
   const getUnreadCount = useCallback((
     folder: string,
@@ -307,10 +447,6 @@ export default function MailInboxScreen() {
     setSwipeActiveId(null);
   }, []);
 
-  const handleRefresh = useCallback(() => {
-    void refreshMail();
-  }, [refreshMail]);
-
   const handleOpenExternalMail = useCallback(() => {
     setAccountMenuVisible(false);
 
@@ -320,6 +456,10 @@ export default function MailInboxScreen() {
   }, [router]);
 
   const handleSync = useCallback(() => {
+    if (syncing) {
+      return;
+    }
+
     if (!hasActiveIntegrations) {
       Alert.alert(
         'Revisa tus cuentas de correo',
@@ -361,60 +501,27 @@ export default function MailInboxScreen() {
           0,
         );
 
-        if (
-          result.failed_integration_count > 0
-          && result.synced_integration_count === 0
-        ) {
-          Alert.alert(
-            'No fue posible actualizar',
-            (
-              'No se pudo sincronizar ninguna cuenta. '
-              + 'Revisa Correo externo e inténtalo nuevamente.'
-            ),
-            [
-              {
-                text: 'Cancelar',
-                style: 'cancel',
-              },
-              {
-                text: 'Correo externo',
-                onPress: handleOpenExternalMail,
-              },
-            ],
-          );
-
-          return;
-        }
-
-        Alert.alert(
-          'Correos actualizados',
-          getSyncResultMessage(
+        showSyncFeedback(
+          getSyncFeedback(
             createdCount,
             updatedCount,
             result.failed_integration_count,
           ),
         );
       } catch (syncError) {
-        Alert.alert(
-          'No fue posible actualizar',
-          getErrorMessage(syncError),
-          [
-            {
-              text: 'Cerrar',
-              style: 'cancel',
-            },
-            {
-              text: 'Correo externo',
-              onPress: handleOpenExternalMail,
-            },
-          ],
-        );
+        showSyncFeedback({
+          kind: 'error',
+          title: 'No fue posible sincronizar',
+          description: getErrorMessage(syncError),
+        });
       }
     })();
   }, [
     handleOpenExternalMail,
     hasActiveIntegrations,
+    showSyncFeedback,
     syncInbox,
+    syncing,
   ]);
 
   const handleToggleStar = useCallback((
@@ -538,6 +645,29 @@ export default function MailInboxScreen() {
     && messages.length === 0
   );
 
+  const feedbackColor = syncFeedback?.kind === 'success'
+    ? '#15803D'
+    : syncFeedback?.kind === 'warning'
+      ? '#B45309'
+      : colors.semantic.error;
+
+  const feedbackBackground = syncFeedback?.kind === 'success'
+    ? '#F0FDF4'
+    : syncFeedback?.kind === 'warning'
+      ? '#FFFBEB'
+      : '#FEF2F2';
+
+  const feedbackBorder = syncFeedback?.kind === 'success'
+    ? '#BBF7D0'
+    : syncFeedback?.kind === 'warning'
+      ? '#FDE68A'
+      : '#FECACA';
+
+  const feedbackTranslateY = feedbackAnimation.interpolate({
+    inputRange: [0, 1],
+    outputRange: [-14, 0],
+  });
+
   return (
     <ScreenSafeArea style={styles.safeArea}>
       <View style={styles.container}>
@@ -580,6 +710,68 @@ export default function MailInboxScreen() {
           onFolderChange={handleFolderChange}
           getUnreadCount={getUnreadCount}
         />
+
+        {syncFeedback ? (
+          <Animated.View
+            style={[
+              styles.syncFeedbackCard,
+              {
+                opacity: feedbackAnimation,
+                transform: [
+                  {
+                    translateY: feedbackTranslateY,
+                  },
+                ],
+                backgroundColor: feedbackBackground,
+                borderColor: feedbackBorder,
+              },
+            ]}
+          >
+            <View style={styles.syncFeedbackIconBox}>
+              {syncFeedback.kind === 'success' ? (
+                <CheckCircle2
+                  size={20}
+                  color={feedbackColor}
+                />
+              ) : (
+                <AlertTriangle
+                  size={20}
+                  color={feedbackColor}
+                />
+              )}
+            </View>
+
+            <View style={styles.syncFeedbackContent}>
+              <Text
+                style={[
+                  styles.syncFeedbackTitle,
+                  {
+                    color: feedbackColor,
+                  },
+                ]}
+              >
+                {syncFeedback.title}
+              </Text>
+
+              <Text style={styles.syncFeedbackDescription}>
+                {syncFeedback.description}
+              </Text>
+            </View>
+
+            <TouchableOpacity
+              style={styles.syncFeedbackCloseButton}
+              onPress={hideSyncFeedback}
+              activeOpacity={0.7}
+              accessibilityRole="button"
+              accessibilityLabel="Cerrar resultado de sincronización"
+            >
+              <X
+                size={16}
+                color={feedbackColor}
+              />
+            </TouchableOpacity>
+          </Animated.View>
+        ) : null}
 
         {loading ? (
           <View style={styles.loadingContainer}>
@@ -741,7 +933,7 @@ export default function MailInboxScreen() {
                 disabled={syncing}
                 activeOpacity={0.8}
                 accessibilityRole="button"
-                accessibilityLabel="Actualizar correos"
+                accessibilityLabel="Sincronizar correos externos"
               >
                 {syncing ? (
                   <ActivityIndicator
@@ -757,7 +949,9 @@ export default function MailInboxScreen() {
                 )}
 
                 <Text style={styles.refreshEmptyText}>
-                  Actualizar correos
+                  {syncing
+                    ? 'Sincronizando correos...'
+                    : 'Actualizar correos'}
                 </Text>
               </TouchableOpacity>
             ) : null}
@@ -768,9 +962,10 @@ export default function MailInboxScreen() {
             showsVerticalScrollIndicator={false}
             refreshControl={(
               <RefreshControl
-                refreshing={refreshing}
-                onRefresh={handleRefresh}
+                refreshing={syncing}
+                onRefresh={handleSync}
                 tintColor={colors.brand.primary}
+                colors={[colors.brand.primary]}
               />
             )}
             onScroll={({ nativeEvent }) => {
@@ -805,14 +1000,14 @@ export default function MailInboxScreen() {
                 </Text>
 
                 <TouchableOpacity
-                  onPress={handleRefresh}
+                  onPress={handleSync}
                   style={styles.retryButton}
                   activeOpacity={0.8}
                   accessibilityRole="button"
-                  accessibilityLabel="Reintentar cargar correos"
+                  accessibilityLabel="Reintentar sincronización de correos"
                 >
                   <Text style={styles.retryButtonText}>
-                    Reintentar
+                    Reintentar sincronización
                   </Text>
                 </TouchableOpacity>
               </View>
@@ -928,6 +1123,59 @@ const styles = StyleSheet.create({
   },
   mailListScroll: {
     flex: 1,
+  },
+  syncFeedbackCard: {
+    position: 'absolute',
+    top: 8,
+    left: 16,
+    right: 16,
+    zIndex: 40,
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderRadius: 16,
+    borderWidth: 1,
+    paddingHorizontal: 12,
+    paddingVertical: 11,
+    shadowColor: '#0F172A',
+    shadowOffset: {
+      width: 0,
+      height: 5,
+    },
+    shadowOpacity: 0.12,
+    shadowRadius: 10,
+    elevation: 8,
+  },
+  syncFeedbackIconBox: {
+    width: 34,
+    height: 34,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.neutral.white,
+    marginRight: 10,
+  },
+  syncFeedbackContent: {
+    flex: 1,
+    minWidth: 0,
+  },
+  syncFeedbackTitle: {
+    fontSize: 13,
+    fontWeight: '800',
+    marginBottom: 2,
+  },
+  syncFeedbackDescription: {
+    fontSize: 11,
+    lineHeight: 16,
+    fontWeight: '500',
+    color: colors.neutral.gray600,
+  },
+  syncFeedbackCloseButton: {
+    width: 30,
+    height: 30,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: 6,
   },
   loadingContainer: {
     flex: 1,

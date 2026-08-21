@@ -272,8 +272,74 @@ class MicrosoftMailProvider:
         after: datetime,
         max_results: int,
     ) -> tuple[list[str], str | None]:
+        return (
+            self._list_message_ids(
+                access_token=access_token,
+                after=after,
+                max_results=max_results,
+                folder_id=None,
+            ),
+            None,
+        )
+
+    def list_spam_message_ids(
+        self,
+        *,
+        access_token: str,
+        after: datetime,
+        max_results: int,
+    ) -> list[str]:
+        normalized_max_results = max(0, int(max_results))
+
+        if normalized_max_results == 0:
+            return []
+
+        self._cache_mail_folder_ids(
+            access_token=access_token,
+        )
+
+        spam_folder_id = self._folder_cache.get("spam")
+
+        if not spam_folder_id:
+            logger.warning(
+                "Microsoft Junk Email folder could not be resolved. "
+                "Skipping spam synchronization."
+            )
+            return []
+
+        return self._list_message_ids(
+            access_token=access_token,
+            after=after,
+            max_results=normalized_max_results,
+            folder_id=spam_folder_id,
+        )
+
+    def _list_message_ids(
+        self,
+        *,
+        access_token: str,
+        after: datetime,
+        max_results: int,
+        folder_id: str | None,
+    ) -> list[str]:
+        normalized_max_results = max(0, int(max_results))
+
+        if normalized_max_results == 0:
+            return []
+
+        if folder_id:
+            encoded_folder_id = quote(
+                folder_id,
+                safe="",
+            )
+            next_url: str | None = (
+                f"{MICROSOFT_MAIL_FOLDERS_ENDPOINT}/"
+                f"{encoded_folder_id}/messages"
+            )
+        else:
+            next_url = MICROSOFT_MESSAGES_ENDPOINT
+
         message_ids: list[str] = []
-        next_url: str | None = MICROSOFT_MESSAGES_ENDPOINT
 
         after_utc = after.astimezone(timezone.utc).strftime(
             "%Y-%m-%dT%H:%M:%SZ"
@@ -286,14 +352,17 @@ class MicrosoftMailProvider:
             ),
             "$filter": f"receivedDateTime ge {after_utc}",
             "$orderby": "receivedDateTime desc",
-            "$top": min(MAX_PAGE_SIZE, max_results),
+            "$top": min(
+                MAX_PAGE_SIZE,
+                normalized_max_results,
+            ),
         }
 
         page_count = 0
 
         while (
             next_url
-            and len(message_ids) < max_results
+            and len(message_ids) < normalized_max_results
             and page_count < MAX_PAGINATION_PAGES
         ):
             page_count += 1
@@ -323,7 +392,7 @@ class MicrosoftMailProvider:
                 if provider_message_id:
                     message_ids.append(provider_message_id)
 
-                if len(message_ids) >= max_results:
+                if len(message_ids) >= normalized_max_results:
                     break
 
             next_link = data.get("@odata.nextLink")
@@ -336,12 +405,13 @@ class MicrosoftMailProvider:
         if page_count >= MAX_PAGINATION_PAGES and next_url:
             logger.warning(
                 "Microsoft message pagination stopped at limit. "
-                "max_pages=%s max_results=%s",
+                "max_pages=%s max_results=%s folder_id=%s",
                 MAX_PAGINATION_PAGES,
-                max_results,
+                normalized_max_results,
+                folder_id,
             )
 
-        return message_ids[:max_results], None
+        return message_ids[:normalized_max_results]
 
     def get_message(
         self,
@@ -638,16 +708,6 @@ class MicrosoftMailProvider:
         provider_draft_id: str | None,
         draft_snapshot: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
-        """
-        Sends a Microsoft draft without depending on immediate Sent Items
-        visibility.
-
-        Graph's send endpoint returns 202 Accepted with no Message body.
-        By using Prefer: IdType="ImmutableId", the draft ID remains usable
-        for the Sent Items copy in the same mailbox. However, Microsoft
-        documents that GET can still fail briefly after send, so BeeApp
-        returns a local sent snapshot when the message is not yet readable.
-        """
         normalized_message_id = self._required_message_id(
             provider_message_id
         )
@@ -724,10 +784,6 @@ class MicrosoftMailProvider:
         access_token: str,
         provider_message_id: str,
     ) -> dict[str, Any] | None:
-        """
-        A successful send may take time to appear in Sent Items. This is
-        intentionally best-effort: a 404 immediately after 202 is normal.
-        """
         try:
             message = self.get_message(
                 access_token=access_token,

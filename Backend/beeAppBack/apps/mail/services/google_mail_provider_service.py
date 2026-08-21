@@ -240,6 +240,51 @@ class GoogleMailProvider:
         after: datetime,
         max_results: int,
     ) -> tuple[list[str], str | None]:
+        message_ids = self._list_message_ids(
+            access_token=access_token,
+            after=after,
+            max_results=max_results,
+            label_ids=None,
+            include_spam_trash=True,
+        )
+
+        history_id = self.get_profile_history_id(
+            access_token=access_token,
+        )
+
+        return message_ids, history_id
+
+    def list_spam_message_ids(
+        self,
+        *,
+        access_token: str,
+        after: datetime,
+        max_results: int,
+    ) -> list[str]:
+        return self._list_message_ids(
+            access_token=access_token,
+            after=after,
+            max_results=max_results,
+            label_ids=[
+                GOOGLE_GMAIL_SYSTEM_LABEL_SPAM,
+            ],
+            include_spam_trash=True,
+        )
+
+    def _list_message_ids(
+        self,
+        *,
+        access_token: str,
+        after: datetime,
+        max_results: int,
+        label_ids: list[str] | None,
+        include_spam_trash: bool,
+    ) -> list[str]:
+        normalized_max_results = max(0, int(max_results))
+
+        if normalized_max_results == 0:
+            return []
+
         message_ids: list[str] = []
         page_token: str | None = None
 
@@ -247,17 +292,20 @@ class GoogleMailProvider:
             after.astimezone(timezone.utc).timestamp()
         )
 
-        while len(message_ids) < max_results:
+        while len(message_ids) < normalized_max_results:
             page_size = min(
                 MAX_PAGE_SIZE,
-                max_results - len(message_ids),
+                normalized_max_results - len(message_ids),
             )
 
             params: dict[str, Any] = {
                 "q": f"after:{after_timestamp}",
                 "maxResults": page_size,
-                "includeSpamTrash": True,
+                "includeSpamTrash": include_spam_trash,
             }
+
+            if label_ids:
+                params["labelIds"] = label_ids
 
             if page_token:
                 params["pageToken"] = page_token
@@ -285,6 +333,9 @@ class GoogleMailProvider:
                 if provider_message_id:
                     message_ids.append(provider_message_id)
 
+                if len(message_ids) >= normalized_max_results:
+                    break
+
             next_page_token = data.get("nextPageToken")
             page_token = (
                 str(next_page_token)
@@ -295,11 +346,7 @@ class GoogleMailProvider:
             if not page_token:
                 break
 
-        history_id = self.get_profile_history_id(
-            access_token=access_token,
-        )
-
-        return message_ids[:max_results], history_id
+        return message_ids[:normalized_max_results]
 
     def get_message(
         self,
@@ -553,14 +600,6 @@ class GoogleMailProvider:
         provider_draft_id: str | None,
         draft_snapshot: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
-        """
-        Gmail sends an existing Draft using its immutable draft resource ID.
-
-        `provider_message_id` belongs to the Message contained by the
-        draft and is intentionally not used as the endpoint identifier.
-        Gmail returns the resulting sent Message, which is normalized and
-        persisted by the Mail domain service.
-        """
         draft_id = self._required_draft_id(
             provider_draft_id
         )
@@ -605,12 +644,6 @@ class GoogleMailProvider:
         *,
         draft_snapshot: dict[str, Any] | None,
     ) -> None:
-        """
-        Validates BeeApp's persisted recipients before the Gmail request.
-
-        A draft created externally might not have a local snapshot. In that
-        case Gmail remains authoritative and performs its own validation.
-        """
         if not isinstance(draft_snapshot, dict):
             return
 
