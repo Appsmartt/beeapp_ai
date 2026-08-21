@@ -1,30 +1,103 @@
+import {
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from 'react-native';
+import {
+  Archive,
+  AlertOctagon,
+  File,
+  Inbox,
+  Mail,
+  Send,
+  Star,
+  Trash2,
+} from 'lucide-react-native';
+import {
+  colors,
+} from '@beeapp/design-system';
 
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
-import { colors } from '@beeapp/design-system';
-import { Inbox, Mail, Send, File, Star, AlertOctagon, Trash2 } from 'lucide-react-native';
+export type MailFolder =
+  | 'inbox'
+  | 'unread'
+  | 'sent'
+  | 'drafts'
+  | 'archived'
+  | 'starred'
+  | 'spam'
+  | 'trash';
 
-export type MailFolder = 'inbox' | 'unread' | 'sent' | 'drafts' | 'starred' | 'spam' | 'trash';
-
-const FOLDERS: { id: MailFolder; label: string; icon: typeof Inbox }[] = [
-  { id: 'inbox', label: 'Recibidos', icon: Inbox },
-  { id: 'unread', label: 'No leídos', icon: Mail },
-  { id: 'sent', label: 'Enviados', icon: Send },
-  { id: 'drafts', label: 'Borradores', icon: File },
-  { id: 'starred', label: 'Importantes', icon: Star },
-  { id: 'spam', label: 'Spam', icon: AlertOctagon },
-  { id: 'trash', label: 'Papelera', icon: Trash2 },
+const FOLDERS: {
+  id: MailFolder;
+  label: string;
+  icon: typeof Inbox;
+}[] = [
+  {
+    id: 'inbox',
+    label: 'Recibidos',
+    icon: Inbox,
+  },
+  {
+    id: 'unread',
+    label: 'No leídos',
+    icon: Mail,
+  },
+  {
+    id: 'sent',
+    label: 'Enviados',
+    icon: Send,
+  },
+  {
+    id: 'drafts',
+    label: 'Borradores',
+    icon: File,
+  },
+  {
+    id: 'archived',
+    label: 'Archivados',
+    icon: Archive,
+  },
+  {
+    id: 'starred',
+    label: 'Importantes',
+    icon: Star,
+  },
+  {
+    id: 'spam',
+    label: 'Spam',
+    icon: AlertOctagon,
+  },
+  {
+    id: 'trash',
+    label: 'Papelera',
+    icon: Trash2,
+  },
 ];
 
 interface MailFolderChipsProps {
   activeFolder: MailFolder;
-  onFolderChange: (folder: MailFolder) => void;
-  getUnreadCount: (folder: string) => number;
+  onFolderChange: (
+    folder: MailFolder,
+  ) => void;
+  getUnreadCount: (
+    folder: string,
+  ) => number;
 }
 
-export default function MailFolderChips({ activeFolder, onFolderChange, getUnreadCount }: MailFolderChipsProps) {
+export default function MailFolderChips({
+  activeFolder,
+  onFolderChange,
+  getUnreadCount,
+}: MailFolderChipsProps) {
   return (
     <View style={styles.foldersContainer}>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.foldersScroll}>
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.foldersScroll}
+      >
         {FOLDERS.map((folder) => {
           const isActive = activeFolder === folder.id;
           const unreadCount = getUnreadCount(folder.id);
@@ -33,21 +106,50 @@ export default function MailFolderChips({ activeFolder, onFolderChange, getUnrea
           return (
             <TouchableOpacity
               key={folder.id}
-              style={[styles.folderChip, isActive && styles.folderChipActive]}
+              style={[
+                styles.folderChip,
+                isActive && styles.folderChipActive,
+              ]}
               onPress={() => onFolderChange(folder.id)}
               activeOpacity={0.7}
             >
-              <IconComp size={12} color={isActive ? colors.brand.primary : colors.neutral.gray600} style={{ marginRight: 6 }} />
-              <Text style={[styles.folderChipText, isActive && styles.folderChipTextActive]}>
+              <IconComp
+                size={12}
+                color={
+                  isActive
+                    ? colors.brand.primary
+                    : colors.neutral.gray600
+                }
+                style={styles.folderIcon}
+              />
+
+              <Text
+                style={[
+                  styles.folderChipText,
+                  isActive && styles.folderChipTextActive,
+                ]}
+              >
                 {folder.label}
               </Text>
-              {unreadCount > 0 && (
-                <View style={[styles.unreadBadge, isActive && styles.unreadBadgeActive]}>
-                  <Text style={[styles.unreadBadgeText, isActive && styles.unreadBadgeTextActive]}>
+
+              {unreadCount > 0 ? (
+                <View
+                  style={[
+                    styles.unreadBadge,
+                    isActive && styles.unreadBadgeActive,
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.unreadBadgeText,
+                      isActive
+                        && styles.unreadBadgeTextActive,
+                    ]}
+                  >
                     {unreadCount}
                   </Text>
                 </View>
-              )}
+              ) : null}
             </TouchableOpacity>
           );
         })}
@@ -78,8 +180,11 @@ const styles = StyleSheet.create({
     borderColor: colors.neutral.gray200,
   },
   folderChipActive: {
-    backgroundColor: colors.brand.primary + '15',
+    backgroundColor: `${colors.brand.primary}15`,
     borderColor: colors.brand.primary,
+  },
+  folderIcon: {
+    marginRight: 6,
   },
   folderChipText: {
     fontSize: 12,
@@ -102,8 +207,8 @@ const styles = StyleSheet.create({
   },
   unreadBadgeText: {
     fontSize: 10,
-    fontWeight: '400',
-    color: colors.neutral.gray700,
+    fontWeight: '600',
+    color: colors.neutral.white,
   },
   unreadBadgeTextActive: {
     color: colors.neutral.white,

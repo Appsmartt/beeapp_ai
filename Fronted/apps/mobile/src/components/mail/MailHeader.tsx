@@ -1,106 +1,247 @@
+import {
+  Dimensions,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from 'react-native';
+import {
+  ChevronLeft,
+  ChevronDown,
+  Inbox,
+  RefreshCw,
+  Settings,
+  SquarePen,
+} from 'lucide-react-native';
+import {
+  colors,
+} from '@beeapp/design-system';
 
-import { View, Text, StyleSheet, TouchableOpacity, Dimensions } from 'react-native';
-import { colors } from '@beeapp/design-system';
-import { ChevronLeft, ChevronDown, Inbox, Settings, SquarePen } from 'lucide-react-native';
 import ModuleNotificationBell from '../ModuleNotificationBell';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
-export type MailAccountFilter = 'all' | 'santiago.valencia@consultores.com' | 'ventas@empresa.com';
+export type MailAccountFilter = 'all' | string;
+
+export interface MailAccountOption {
+  id: string;
+  label: string;
+  provider: 'google' | 'microsoft';
+  isActive: boolean;
+}
 
 interface MailHeaderProps {
   activeAccount: MailAccountFilter;
+  accounts: MailAccountOption[];
   menuVisible: boolean;
+  syncing?: boolean;
   onToggleMenu: () => void;
-  onSelectAccount: (account: MailAccountFilter) => void;
-  /** Omitted when there is nothing to go back to (root of an embedded module) */
+  onSelectAccount: (
+    account: MailAccountFilter,
+  ) => void;
+  onRefresh?: () => void;
   onBack?: () => void;
-  /** Compose action shown in the header while embedded (instead of a floating button) */
   onCompose?: () => void;
   onConnectAccount: () => void;
 }
 
+function getProviderColor(
+  provider: MailAccountOption['provider'],
+): string {
+  return provider === 'google'
+    ? '#4285F4'
+    : '#0078D4';
+}
+
 export default function MailHeader({
   activeAccount,
+  accounts,
   menuVisible,
+  syncing = false,
   onToggleMenu,
   onSelectAccount,
+  onRefresh,
   onBack,
   onCompose,
   onConnectAccount,
 }: MailHeaderProps) {
+  const activeAccountLabel = activeAccount === 'all'
+    ? 'Todas las cuentas'
+    : (
+      accounts.find(
+        (account) => account.id === activeAccount,
+      )?.label
+      || 'Cuenta seleccionada'
+    );
+
   return (
     <>
-      {/* Header with selector */}
       <View style={styles.header}>
         {onBack ? (
-          <TouchableOpacity onPress={onBack} style={styles.backBtn} activeOpacity={0.7}>
-            <ChevronLeft size={24} color={colors.neutral.text} />
+          <TouchableOpacity
+            onPress={onBack}
+            style={styles.backBtn}
+            activeOpacity={0.7}
+          >
+            <ChevronLeft
+              size={24}
+              color={colors.neutral.text}
+            />
           </TouchableOpacity>
         ) : (
           <View style={styles.headerSideSlot} />
         )}
 
-        <TouchableOpacity style={styles.accountSelectorBtn} onPress={onToggleMenu} activeOpacity={0.8}>
-          <Text style={styles.accountNameText} numberOfLines={1}>
-            {activeAccount === 'all' ? 'Todas las cuentas' : activeAccount}
+        <TouchableOpacity
+          style={styles.accountSelectorBtn}
+          onPress={onToggleMenu}
+          activeOpacity={0.8}
+        >
+          <Text
+            style={styles.accountNameText}
+            numberOfLines={1}
+          >
+            {activeAccountLabel}
           </Text>
-          <ChevronDown size={16} color={colors.neutral.gray600} style={{ marginLeft: 6 }} />
+
+          <ChevronDown
+            size={16}
+            color={colors.neutral.gray600}
+            style={styles.accountChevron}
+          />
         </TouchableOpacity>
 
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+        <View style={styles.headerActions}>
           <ModuleNotificationBell moduleId="mail" />
-          {onCompose ? (
-            <TouchableOpacity onPress={onCompose} style={styles.headerActionBtn} activeOpacity={0.7}>
-              <SquarePen size={18} color={colors.brand.primary} />
+
+          {onRefresh ? (
+            <TouchableOpacity
+              onPress={onRefresh}
+              disabled={syncing}
+              style={styles.headerActionBtn}
+              activeOpacity={0.7}
+            >
+              <RefreshCw
+                size={17}
+                color={colors.brand.primary}
+              />
             </TouchableOpacity>
-          ) : (
-            <View style={styles.headerSideSlot} />
-          )}
+          ) : null}
+
+          {onCompose ? (
+            <TouchableOpacity
+              onPress={onCompose}
+              style={styles.headerActionBtn}
+              activeOpacity={0.7}
+            >
+              <SquarePen
+                size={18}
+                color={colors.brand.primary}
+              />
+            </TouchableOpacity>
+          ) : null}
         </View>
       </View>
 
-      {/* Dropdown Account Selector Menu */}
-      {menuVisible && (
+      {menuVisible ? (
         <View style={styles.dropdownMenu}>
           <TouchableOpacity
-            style={[styles.dropdownItem, activeAccount === 'all' && styles.dropdownItemActive]}
+            style={[
+              styles.dropdownItem,
+              activeAccount === 'all'
+                && styles.dropdownItemActive,
+            ]}
             onPress={() => onSelectAccount('all')}
             activeOpacity={0.7}
           >
-            <Inbox size={16} color={activeAccount === 'all' ? colors.brand.primary : colors.neutral.gray600} />
-            <Text style={[styles.dropdownText, activeAccount === 'all' && styles.dropdownTextActive]}>Todas las cuentas</Text>
-          </TouchableOpacity>
+            <Inbox
+              size={16}
+              color={
+                activeAccount === 'all'
+                  ? colors.brand.primary
+                  : colors.neutral.gray600
+              }
+            />
 
-          <TouchableOpacity
-            style={[styles.dropdownItem, activeAccount === 'santiago.valencia@consultores.com' && styles.dropdownItemActive]}
-            onPress={() => onSelectAccount('santiago.valencia@consultores.com')}
-            activeOpacity={0.7}
-          >
-            <View style={[styles.accountDot, { backgroundColor: colors.brand.primary }]} />
-            <Text style={[styles.dropdownText, activeAccount === 'santiago.valencia@consultores.com' && styles.dropdownTextActive]} numberOfLines={1}>
-              santiago.valencia@consultores.com
+            <Text
+              style={[
+                styles.dropdownText,
+                activeAccount === 'all'
+                  && styles.dropdownTextActive,
+              ]}
+            >
+              Todas las cuentas
             </Text>
           </TouchableOpacity>
 
-          <TouchableOpacity
-            style={[styles.dropdownItem, activeAccount === 'ventas@empresa.com' && styles.dropdownItemActive]}
-            onPress={() => onSelectAccount('ventas@empresa.com')}
-            activeOpacity={0.7}
-          >
-            <View style={[styles.accountDot, { backgroundColor: colors.neutral.gray500 }]} />
-            <Text style={[styles.dropdownText, activeAccount === 'ventas@empresa.com' && styles.dropdownTextActive]} numberOfLines={1}>
-              ventas@empresa.com
-            </Text>
-          </TouchableOpacity>
+          {accounts.map((account) => {
+            const isSelected = activeAccount === account.id;
+            const providerColor = getProviderColor(
+              account.provider,
+            );
+
+            return (
+              <TouchableOpacity
+                key={account.id}
+                style={[
+                  styles.dropdownItem,
+                  isSelected
+                    && styles.dropdownItemActive,
+                ]}
+                onPress={() => onSelectAccount(account.id)}
+                activeOpacity={0.7}
+              >
+                <View
+                  style={[
+                    styles.accountDot,
+                    {
+                      backgroundColor: providerColor,
+                      opacity: account.isActive ? 1 : 0.45,
+                    },
+                  ]}
+                />
+
+                <View style={styles.accountTextColumn}>
+                  <Text
+                    style={[
+                      styles.dropdownText,
+                      isSelected
+                        && styles.dropdownTextActive,
+                    ]}
+                    numberOfLines={1}
+                  >
+                    {account.label}
+                  </Text>
+
+                  {!account.isActive ? (
+                    <Text style={styles.inactiveText}>
+                      Requiere reconexión
+                    </Text>
+                  ) : null}
+                </View>
+              </TouchableOpacity>
+            );
+          })}
 
           <View style={styles.dropdownDivider} />
-          <TouchableOpacity style={styles.dropdownItemLink} onPress={onConnectAccount} activeOpacity={0.7}>
-            <Settings size={14} color={colors.brand.primary} style={{ marginRight: 8 }} />
-            <Text style={styles.dropdownLinkText}>Conectar otra cuenta</Text>
+
+          <TouchableOpacity
+            style={styles.dropdownItemLink}
+            onPress={onConnectAccount}
+            activeOpacity={0.7}
+          >
+            <Settings
+              size={14}
+              color={colors.brand.primary}
+              style={styles.settingsIcon}
+            />
+
+            <Text style={styles.dropdownLinkText}>
+              Conectar otra cuenta
+            </Text>
           </TouchableOpacity>
         </View>
-      )}
+      ) : null}
     </>
   );
 }
@@ -122,11 +263,16 @@ const styles = StyleSheet.create({
   headerSideSlot: {
     width: 32,
   },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
   headerActionBtn: {
     width: 32,
     height: 32,
     borderRadius: 10,
-    backgroundColor: colors.brand.primary + '15',
+    backgroundColor: `${colors.brand.primary}15`,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -140,12 +286,15 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     borderWidth: 1,
     borderColor: colors.neutral.gray200,
-    maxWidth: SCREEN_WIDTH * 0.6,
+    maxWidth: SCREEN_WIDTH * 0.52,
   },
   accountNameText: {
     fontSize: 13,
     fontWeight: '600',
     color: colors.neutral.text,
+  },
+  accountChevron: {
+    marginLeft: 6,
   },
   dropdownMenu: {
     position: 'absolute',
@@ -159,7 +308,10 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     zIndex: 999,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
     shadowOpacity: 0.1,
     shadowRadius: 8,
     elevation: 10,
@@ -171,7 +323,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
   },
   dropdownItemActive: {
-    backgroundColor: colors.brand.primary + '15',
+    backgroundColor: `${colors.brand.primary}15`,
   },
   dropdownText: {
     fontSize: 13,
@@ -183,6 +335,17 @@ const styles = StyleSheet.create({
   dropdownTextActive: {
     color: colors.brand.primary,
     fontWeight: '600',
+  },
+  accountTextColumn: {
+    flex: 1,
+    minWidth: 0,
+  },
+  inactiveText: {
+    marginLeft: 12,
+    marginTop: 2,
+    fontSize: 10,
+    fontWeight: '600',
+    color: colors.neutral.gray500,
   },
   accountDot: {
     width: 10,
@@ -199,6 +362,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 10,
     paddingHorizontal: 16,
+  },
+  settingsIcon: {
+    marginRight: 8,
   },
   dropdownLinkText: {
     fontSize: 12,

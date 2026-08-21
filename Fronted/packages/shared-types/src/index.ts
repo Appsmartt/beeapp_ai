@@ -1766,3 +1766,248 @@ export interface SyncCalendarIntegrationResponse {
   synced_events_count: number;
   integration: CalendarIntegration;
 }
+
+export type MailProvider =
+  | 'google'
+  | 'microsoft';
+
+export type MailFolder =
+  | 'inbox'
+  | 'sent'
+  | 'drafts'
+  | 'archived'
+  | 'spam'
+  | 'trash';
+
+export type MailDirection =
+  | 'inbound'
+  | 'outbound'
+  | 'unknown'
+  | string;
+
+export type MailMessageStatus =
+  | 'received'
+  | 'sent'
+  | 'draft'
+  | 'archived'
+  | 'trashed'
+  | string;
+
+export type MailIntegrationStatus =
+  | 'active'
+  | 'reauth_required'
+  | 'disconnected'
+  | 'error'
+  | 'pending'
+  | 'inactive'
+  | string;
+
+export type MailIntegrationSyncStatus =
+  | 'ready'
+  | 'reauthorize'
+  | 'unavailable'
+  | string;
+
+export interface MailIntegrationOAuthConnection {
+  id: string;
+  user_id: string;
+  provider: IntegrationProvider;
+  provider_account_id: string;
+  provider_tenant_id: string | null;
+  provider_email: string | null;
+  provider_display_name: string | null;
+  provider_avatar_url: string | null;
+  status: IntegrationConnectionStatus;
+  granted_scopes: string[];
+  capabilities: IntegrationCapability[];
+  token_expires_at: string | null;
+  last_token_refresh_at: string | null;
+  last_successful_auth_at: string | null;
+  reauth_required_at: string | null;
+  disconnected_at: string | null;
+  last_error_code: string | null;
+  last_error_message: string | null;
+  metadata: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface MailIntegration {
+  id: string;
+  user_id: string;
+  integration_connection_id: string | null;
+  provider: MailProvider;
+  provider_account_id: string;
+  provider_email: string | null;
+  provider_display_name: string | null;
+  status: MailIntegrationStatus;
+  connected_at: string | null;
+  initial_sync_completed_at: string | null;
+  initial_sync_started_at: string | null;
+  last_successful_sync_at: string | null;
+  last_attempted_sync_at: string | null;
+  next_sync_at: string | null;
+  sync_cursor: string | null;
+  sync_cursor_updated_at: string | null;
+  reauth_required_at: string | null;
+  disconnected_at: string | null;
+  last_error_code: string | null;
+  last_error_message: string | null;
+  metadata: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+  integration_connection: MailIntegrationOAuthConnection | null;
+  sync_status: MailIntegrationSyncStatus;
+  can_sync: boolean;
+  requires_reauthorization: boolean;
+  status_reason: string | null;
+}
+
+export interface MailMessageSender {
+  email: string | null;
+  display_name: string | null;
+}
+
+export interface MailMessageRecipient {
+  id?: string;
+  recipient_type?: 'to' | 'cc' | 'bcc' | 'from' | 'reply_to' | string;
+  email: string | null;
+  display_name: string | null;
+}
+
+export interface MailMessageAttachment {
+  id: string;
+  source?: string | null;
+  provider_attachment_id: string | null;
+  provider_message_attachment_id: string | null;
+  filename: string;
+  mime_type: string | null;
+  size_bytes: number | null;
+  content_id: string | null;
+  content_disposition: string | null;
+  is_inline: boolean;
+  checksum_sha256?: string | null;
+  metadata?: Record<string, unknown> | null;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface MailMessage {
+  id: string;
+  mail_integration_id: string;
+  provider: MailProvider;
+  provider_message_id?: string | null;
+  provider_thread_id: string | null;
+  provider_conversation_id: string | null;
+  direction: MailDirection;
+  status: MailMessageStatus;
+  folder: MailFolder;
+  is_read: boolean;
+  is_starred: boolean;
+  is_archived?: boolean;
+  is_spam?: boolean;
+  is_trashed?: boolean;
+  subject: string | null;
+  body_preview: string | null;
+  snippet: string | null;
+  body_text?: string | null;
+  body_html?: string | null;
+  sent_at: string | null;
+  received_at: string | null;
+  has_attachments: boolean;
+  attachment_count: number;
+  sender: MailMessageSender | null;
+  recipients?: MailMessageRecipient[];
+  attachments?: MailMessageAttachment[];
+}
+
+export interface MailMessagesQuery {
+  integration_id?: string;
+  folder?: MailFolder;
+  unread_only?: boolean;
+  starred_only?: boolean;
+  search?: string;
+  limit?: number;
+  offset?: number;
+}
+
+export interface MailMessagesPagination {
+  limit: number;
+  offset: number;
+  count: number;
+  total_count: number;
+  has_more: boolean;
+  next_offset: number | null;
+}
+
+export interface GetMailIntegrationsResponse {
+  integrations: MailIntegration[];
+}
+
+export interface GetMailIntegrationResponse {
+  integration: MailIntegration;
+}
+
+export interface GetMailMessagesResponse {
+  messages: MailMessage[];
+  pagination: MailMessagesPagination;
+}
+
+export interface GetMailMessageResponse {
+  message: MailMessage;
+}
+
+export interface MailSyncPayload {
+  integration_ids?: string[];
+  force_full_sync?: boolean;
+}
+
+export interface MailSyncRun {
+  id: string;
+  user_id?: string;
+  mail_integration_id: string;
+  trigger: string;
+  status: string;
+  is_full_sync: boolean;
+  started_at: string;
+  completed_at: string | null;
+  messages_fetched_count: number;
+  messages_created_count: number;
+  messages_updated_count: number;
+  messages_deleted_count: number;
+  messages_skipped_count: number;
+  cursor_before: string | null;
+  cursor_after: string | null;
+  error_code: string | null;
+  error_message: string | null;
+  metadata: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface MailSyncIntegrationResult {
+  integration_id: string;
+  provider: MailProvider;
+  sync_run: MailSyncRun;
+  fetched_message_count: number;
+  created_message_count: number;
+  updated_message_count: number;
+  skipped_message_count: number;
+  initial_sync: boolean;
+  cursor_after: string | null;
+}
+
+export interface MailSyncFailure {
+  integration_id?: string;
+  provider?: MailProvider;
+  detail?: string;
+  error_code?: string;
+}
+
+export interface MailSyncResponse {
+  requested_integration_count: number;
+  synced_integration_count: number;
+  failed_integration_count: number;
+  results: MailSyncIntegrationResult[];
+  failures: MailSyncFailure[];
+}

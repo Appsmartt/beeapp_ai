@@ -19,6 +19,7 @@ import {
   useRouter,
 } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
+import * as Linking from 'expo-linking';
 import {
   AlertTriangle,
   ArrowRight,
@@ -47,6 +48,10 @@ import {
   type ProviderOption,
 } from '../../../src/services/integrationsService';
 
+const BEEAPP_INTEGRATION_CAPABILITIES = [
+  'calendar',
+  'mail',
+] as const;
 
 function getErrorMessage(
   error: unknown,
@@ -99,12 +104,13 @@ export default function IntegrationsScreen() {
     authorizationUrl: string,
   ) => {
     try {
-      await WebBrowser.openBrowserAsync(
+      const redirectUrl = Linking.createURL(
+        'integrations/result',
+      );
+
+      await WebBrowser.openAuthSessionAsync(
         authorizationUrl,
-        {
-          showTitle: true,
-          enableBarCollapsing: true,
-        },
+        redirectUrl,
       );
     } catch (browserError) {
       Alert.alert(
@@ -134,7 +140,7 @@ export default function IntegrationsScreen() {
 
       const authorizationUrl = await startAuthorization(
         provider.provider,
-        ['calendar'],
+        [...BEEAPP_INTEGRATION_CAPABILITIES],
       );
 
       await openAuthorizationUrl(authorizationUrl);
@@ -154,9 +160,16 @@ export default function IntegrationsScreen() {
     try {
       setActionId(item.id);
 
+      const requestedCapabilities = Array.from(
+        new Set([
+          ...item.connection.capabilities,
+          ...BEEAPP_INTEGRATION_CAPABILITIES,
+        ]),
+      );
+
       const authorizationUrl = await reauthorize(
         item.connection.id,
-        item.connection.capabilities,
+        requestedCapabilities,
       );
 
       await openAuthorizationUrl(authorizationUrl);
@@ -176,9 +189,12 @@ export default function IntegrationsScreen() {
     Alert.alert(
       `Desconectar ${item.providerName}`,
       (
-        `Se eliminará la autorización de ${item.accountLabel} `
-        + 'guardada en BeeApp. Podrás vincularla nuevamente '
-        + 'cuando quieras.'
+        `Se eliminarán de BeeApp la autorización y los datos `
+        + `sincronizados de ${item.accountLabel}, incluidos `
+        + 'correos, borradores, adjuntos y eventos asociados. '
+        + 'Tus datos no se eliminarán de Google, Microsoft ni '
+        + 'del proveedor original. Podrás vincular esta cuenta '
+        + 'nuevamente cuando quieras.'
       ),
       [
         {
