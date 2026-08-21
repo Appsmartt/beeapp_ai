@@ -186,9 +186,67 @@ function formatDateTime(
 }
 
 
+function isSyncWithoutChanges(
+    result: MailSyncIntegrationResult,
+): boolean {
+    return (
+        result.created_message_count === 0
+        && result.updated_message_count === 0
+        && result.skipped_message_count > 0
+    );
+}
+
+
 function getSyncSummary(
     result: MailSyncIntegrationResult,
 ): string {
+    if (isSyncWithoutChanges(result)) {
+        return 'Sin cambios';
+    }
+
+    const parts = [
+        `${result.created_message_count} nuevos`,
+        `${result.updated_message_count} actualizados`,
+    ];
+
+    if (result.skipped_message_count > 0) {
+        parts.push(
+            `${result.skipped_message_count} omitidos`,
+        );
+    }
+
+    return parts.join(' · ');
+}
+
+
+function getSyncDetail(
+    result: MailSyncIntegrationResult,
+): string {
+    if (isSyncWithoutChanges(result)) {
+        return (
+            `${result.fetched_message_count} correos consultados. `
+            + 'Tu cuenta ya está al día.'
+        );
+    }
+
+    return (
+        `${result.fetched_message_count} `
+        + 'correos consultados.'
+    );
+}
+
+
+function getSyncAlertMessage(
+    result: MailSyncIntegrationResult,
+): string {
+    if (isSyncWithoutChanges(result)) {
+        return (
+            'Sin cambios.\n\n'
+            + `${result.fetched_message_count} correos consultados. `
+            + 'Tu cuenta ya está al día.'
+        );
+    }
+
     const parts = [
         `${result.created_message_count} nuevos`,
         `${result.updated_message_count} actualizados`,
@@ -284,11 +342,7 @@ export default function ExternalMailScreen() {
 
                                 Alert.alert(
                                     'Sincronización completada',
-                                    (
-                                        `${result.created_message_count} nuevos · `
-                                        + `${result.updated_message_count} actualizados · `
-                                        + `${result.skipped_message_count} omitidos`
-                                    ),
+                                    getSyncAlertMessage(result),
                                 );
                             } catch (syncError) {
                                 Alert.alert(
@@ -321,11 +375,6 @@ export default function ExternalMailScreen() {
 
         const statusColor = getIntegrationStatusColor(
             integration,
-        );
-
-        const isSyncDisabled = (
-            !integration.can_sync
-            || isSyncing
         );
 
         return (
@@ -401,51 +450,76 @@ export default function ExternalMailScreen() {
                         </View>
                     ) : null}
 
-                    <TouchableOpacity
-                        style={[
-                            styles.syncButton,
-                            isSyncDisabled
-                                && styles.syncButtonDisabled,
-                        ]}
-                        onPress={() => {
-                            handleSyncIntegration(integration);
-                        }}
-                        disabled={isSyncDisabled}
-                        activeOpacity={0.8}
-                    >
-                        {isSyncing ? (
-                            <ActivityIndicator
-                                size="small"
-                                color={colors.neutral.white}
-                            />
-                        ) : (
-                            <RotateCw
-                                size={16}
-                                color={colors.neutral.white}
-                            />
-                        )}
+                    {integration.can_sync ? (
+                        <TouchableOpacity
+                            style={[
+                                styles.syncButton,
+                                isSyncing
+                                    && styles.syncButtonDisabled,
+                            ]}
+                            onPress={() => {
+                                handleSyncIntegration(integration);
+                            }}
+                            disabled={isSyncing}
+                            activeOpacity={0.8}
+                        >
+                            {isSyncing ? (
+                                <ActivityIndicator
+                                    size="small"
+                                    color={colors.neutral.white}
+                                />
+                            ) : (
+                                <RotateCw
+                                    size={16}
+                                    color={colors.neutral.white}
+                                />
+                            )}
 
-                        <Text style={styles.syncButtonText}>
-                            {isSyncing
-                                ? 'Sincronizando...'
-                                : 'Sincronizar correos'}
-                        </Text>
-                    </TouchableOpacity>
-
-                    {!integration.can_sync ? (
-                        <View style={styles.syncUnavailableBox}>
-                            <AlertTriangle
-                                size={17}
-                                color="#B45309"
-                            />
-
-                            <Text style={styles.syncUnavailableText}>
-                                Esta cuenta no puede sincronizar correos
-                                ahora. Reconéctala desde Integraciones
-                                externas.
+                            <Text style={styles.syncButtonText}>
+                                {isSyncing
+                                    ? 'Sincronizando...'
+                                    : 'Sincronizar correos'}
                             </Text>
-                        </View>
-                    ) : null}
+                        </TouchableOpacity>
+                    ) : (
+                        <>
+                            <View style={styles.syncUnavailableBox}>
+                                <AlertTriangle
+                                    size={17}
+                                    color="#B45309"
+                                />
+
+                                <Text style={styles.syncUnavailableText}>
+                                    Esta cuenta no puede sincronizar correos
+                                    ahora. Reconéctala desde Integraciones
+                                    externas.
+                                </Text>
+                            </View>
+
+                            <TouchableOpacity
+                                style={styles.goToIntegrationsButton}
+                                onPress={() => {
+                                    router.push(
+                                        '/(main)/profile/integrations',
+                                    );
+                                }}
+                                activeOpacity={0.8}
+                            >
+                                <Settings2
+                                    size={16}
+                                    color={colors.neutral.white}
+                                />
+
+                                <Text
+                                    style={
+                                        styles.goToIntegrationsButtonText
+                                    }
+                                >
+                                    Ir a Integraciones
+                                </Text>
+                            </TouchableOpacity>
+                        </>
+                    )}
 
                     {lastSyncResult ? (
                         <View style={styles.syncSummaryCard}>
@@ -465,8 +539,7 @@ export default function ExternalMailScreen() {
                             </Text>
 
                             <Text style={styles.syncSummaryDetail}>
-                                {`${lastSyncResult.fetched_message_count} `
-                                + 'correos consultados.'}
+                                {getSyncDetail(lastSyncResult)}
                             </Text>
 
                             {lastSyncResult.initial_sync ? (
@@ -591,9 +664,10 @@ export default function ExternalMailScreen() {
                                 </Text>
 
                                 <Text style={styles.introText}>
-                                    Revisa el estado de tus cuentas
-                                    conectadas y sincroniza los correos
-                                    recientes con BeeApp.
+                                    Revisa el estado de tus cuentas conectadas.
+                                    Cada sincronización consulta correos
+                                    recientes y actualiza solo los elementos
+                                    nuevos o cambiados.
                                 </Text>
                             </View>
                         </View>
@@ -666,6 +740,11 @@ export default function ExternalMailScreen() {
                                     }}
                                     activeOpacity={0.8}
                                 >
+                                    <Settings2
+                                        size={16}
+                                        color={colors.neutral.white}
+                                    />
+
                                     <Text
                                         style={
                                             styles.goToIntegrationsButtonText
@@ -1052,8 +1131,10 @@ const styles = StyleSheet.create({
     },
     goToIntegrationsButton: {
         minHeight: 42,
+        flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'center',
+        gap: 7,
         borderRadius: 12,
         backgroundColor: colors.brand.primary,
         paddingHorizontal: 16,
