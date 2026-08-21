@@ -9,11 +9,24 @@ from apps.mail.exceptions import (
     MailIntegrationInactiveError,
     MailIntegrationNotFoundError,
     MailMessageNotFoundError,
+    MailSyncError,
 )
 from apps.mail.serializers import (
+    MailDraftContentSerializer,
     MailIntegrationListQuerySerializer,
+    MailMessageActionSerializer,
     MailMessageListQuerySerializer,
     MailSyncRequestSerializer,
+    MoveMailMessageSerializer,
+    SendMailDraftSerializer,
+    UpdateMailDraftSerializer,
+    UpdateMailMessageStateSerializer,
+)
+from apps.mail.services.mail_draft_service import (
+    create_mail_draft,
+    delete_mail_draft,
+    send_mail_draft,
+    update_mail_draft,
 )
 from apps.mail.services.mail_integration_link_service import (
     get_mail_integration,
@@ -26,6 +39,8 @@ from apps.mail.services.mail_integration_service import (
 from apps.mail.services.mail_message_service import (
     get_mail_message,
     list_mail_messages,
+    move_mail_message,
+    update_mail_message_state,
 )
 
 
@@ -180,6 +195,320 @@ class MailMessageDetailView(AuthenticatedAPIView):
                     "detail": str(error),
                 },
                 status=status.HTTP_404_NOT_FOUND,
+            )
+
+        return Response(
+            result,
+            status=status.HTTP_200_OK,
+        )
+
+
+class MailMessageStateView(AuthenticatedAPIView):
+    def patch(self, request, message_id):
+        serializer = UpdateMailMessageStateSerializer(
+            data=request.data,
+        )
+        serializer.is_valid(raise_exception=True)
+
+        try:
+            authenticated_user = self.get_authenticated_user(
+                request
+            )
+
+            result = update_mail_message_state(
+                user_id=str(authenticated_user.id),
+                message_id=str(message_id),
+                is_read=serializer.validated_data.get("is_read"),
+                is_starred=serializer.validated_data.get(
+                    "is_starred"
+                ),
+            )
+
+        except AccountAuthenticationError:
+            return _unauthorized_response()
+
+        except MailMessageNotFoundError as error:
+            return Response(
+                {
+                    "detail": str(error),
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        return Response(
+            result,
+            status=status.HTTP_200_OK,
+        )
+
+
+class MailMessageMoveView(AuthenticatedAPIView):
+    def post(self, request, message_id):
+        serializer = MoveMailMessageSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        try:
+            authenticated_user = self.get_authenticated_user(
+                request
+            )
+
+            result = move_mail_message(
+                user_id=str(authenticated_user.id),
+                message_id=str(message_id),
+                folder=serializer.validated_data["folder"],
+            )
+
+        except AccountAuthenticationError:
+            return _unauthorized_response()
+
+        except MailMessageNotFoundError as error:
+            return Response(
+                {
+                    "detail": str(error),
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        return Response(
+            result,
+            status=status.HTTP_200_OK,
+        )
+
+
+class MailMessageActionView(AuthenticatedAPIView):
+    ACTION_FOLDER_MAP = {
+        "archive": "archived",
+        "restore": "inbox",
+        "trash": "trash",
+        "spam": "spam",
+    }
+
+    def post(self, request, message_id):
+        serializer = MailMessageActionSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        try:
+            authenticated_user = self.get_authenticated_user(
+                request
+            )
+            action = serializer.validated_data["action"]
+
+            result = move_mail_message(
+                user_id=str(authenticated_user.id),
+                message_id=str(message_id),
+                folder=self.ACTION_FOLDER_MAP[action],
+            )
+
+        except AccountAuthenticationError:
+            return _unauthorized_response()
+
+        except MailMessageNotFoundError as error:
+            return Response(
+                {
+                    "detail": str(error),
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        return Response(
+            result,
+            status=status.HTTP_200_OK,
+        )
+
+
+class MailDraftsView(AuthenticatedAPIView):
+    def post(self, request):
+        serializer = MailDraftContentSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        try:
+            authenticated_user = self.get_authenticated_user(
+                request
+            )
+            draft = serializer.validated_data
+
+            result = create_mail_draft(
+                user_id=str(authenticated_user.id),
+                integration_id=str(draft["integration_id"]),
+                to_recipients=draft.get("to"),
+                cc_recipients=draft.get("cc"),
+                bcc_recipients=draft.get("bcc"),
+                subject=draft.get("subject"),
+                body=draft.get("body"),
+                body_content_type=draft["body_content_type"],
+                file_ids=[
+                    str(file_id)
+                    for file_id in draft.get("file_ids", [])
+                ],
+            )
+
+        except AccountAuthenticationError:
+            return _unauthorized_response()
+
+        except MailIntegrationNotFoundError as error:
+            return Response(
+                {
+                    "detail": str(error),
+                },
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        except (
+            MailIntegrationInactiveError,
+            MailSyncError,
+        ) as error:
+            return Response(
+                {
+                    "detail": str(error),
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        return Response(
+            result,
+            status=status.HTTP_201_CREATED,
+        )
+
+
+class MailDraftDetailView(AuthenticatedAPIView):
+    def patch(self, request, message_id):
+        serializer = UpdateMailDraftSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        try:
+            authenticated_user = self.get_authenticated_user(
+                request
+            )
+            draft = serializer.validated_data
+
+            result = update_mail_draft(
+                user_id=str(authenticated_user.id),
+                message_id=str(message_id),
+                integration_id=(
+                    str(draft["integration_id"])
+                    if draft.get("integration_id")
+                    else None
+                ),
+                to_recipients=draft.get("to"),
+                cc_recipients=draft.get("cc"),
+                bcc_recipients=draft.get("bcc"),
+                subject=draft.get("subject"),
+                body=draft.get("body"),
+                body_content_type=draft["body_content_type"],
+                file_ids=[
+                    str(file_id)
+                    for file_id in draft.get("file_ids", [])
+                ],
+            )
+
+        except AccountAuthenticationError:
+            return _unauthorized_response()
+
+        except (
+            MailIntegrationNotFoundError,
+            MailMessageNotFoundError,
+        ) as error:
+            return Response(
+                {
+                    "detail": str(error),
+                },
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        except (
+            MailIntegrationInactiveError,
+            MailSyncError,
+        ) as error:
+            return Response(
+                {
+                    "detail": str(error),
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        return Response(
+            result,
+            status=status.HTTP_200_OK,
+        )
+
+    def delete(self, request, message_id):
+        try:
+            authenticated_user = self.get_authenticated_user(
+                request
+            )
+
+            delete_mail_draft(
+                user_id=str(authenticated_user.id),
+                message_id=str(message_id),
+            )
+
+        except AccountAuthenticationError:
+            return _unauthorized_response()
+
+        except (
+            MailIntegrationNotFoundError,
+            MailMessageNotFoundError,
+        ) as error:
+            return Response(
+                {
+                    "detail": str(error),
+                },
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        except (
+            MailIntegrationInactiveError,
+            MailSyncError,
+        ) as error:
+            return Response(
+                {
+                    "detail": str(error),
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        return Response(
+            status=status.HTTP_204_NO_CONTENT,
+        )
+
+
+class MailDraftSendView(AuthenticatedAPIView):
+    def post(self, request, message_id):
+        serializer = SendMailDraftSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        try:
+            authenticated_user = self.get_authenticated_user(
+                request
+            )
+
+            result = send_mail_draft(
+                user_id=str(authenticated_user.id),
+                message_id=str(message_id),
+            )
+
+        except AccountAuthenticationError:
+            return _unauthorized_response()
+
+        except (
+            MailIntegrationNotFoundError,
+            MailMessageNotFoundError,
+        ) as error:
+            return Response(
+                {
+                    "detail": str(error),
+                },
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        except (
+            MailIntegrationInactiveError,
+            MailSyncError,
+        ) as error:
+            return Response(
+                {
+                    "detail": str(error),
+                },
+                status=status.HTTP_400_BAD_REQUEST,
             )
 
         return Response(

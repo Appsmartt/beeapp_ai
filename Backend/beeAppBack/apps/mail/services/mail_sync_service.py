@@ -1,4 +1,5 @@
 from __future__ import annotations
+
 import logging
 from datetime import datetime, timedelta, timezone
 from typing import Any
@@ -29,11 +30,15 @@ from apps.mail.services.microsoft_mail_provider_service import (
     MicrosoftMailProvider,
 )
 
+
 logger = logging.getLogger(__name__)
+
+
 INITIAL_SYNC_LOOKBACK_DAYS = 90
-INITIAL_SYNC_MAX_MESSAGES = 2_000
+INITIAL_SYNC_MAX_MESSAGES = 10
+
 INCREMENTAL_SYNC_LOOKBACK_DAYS = 90
-INCREMENTAL_SYNC_MAX_MESSAGES = 2_000
+INCREMENTAL_SYNC_MAX_MESSAGES = 10
 
 MAIL_INTEGRATION_COLUMNS = (
     "id,user_id,integration_connection_id,provider,"
@@ -140,14 +145,16 @@ def _get_mail_integration(
 def _get_mail_provider(
     provider: str,
 ):
-    if provider == "google":
+    normalized_provider = str(provider or "").strip().lower()
+
+    if normalized_provider == "google":
         return GoogleMailProvider()
 
-    if provider == "microsoft":
+    if normalized_provider == "microsoft":
         return MicrosoftMailProvider()
 
     raise MailSyncError(
-        f"El proveedor {provider} todavía no está implementado."
+        f"El proveedor {normalized_provider} no está implementado."
     )
 
 
@@ -156,10 +163,10 @@ def _get_valid_access_token(
     user_id: str,
     integration: dict[str, Any],
 ) -> str:
-    provider = str(integration["provider"])
+    provider = str(integration["provider"]).strip().lower()
     connection_id = str(
         integration["integration_connection_id"]
-    )
+    ).strip()
 
     try:
         if provider == "google":
@@ -176,11 +183,11 @@ def _get_valid_access_token(
 
     except IntegrationCredentialError as error:
         raise MailIntegrationInactiveError(
-            str(error)
+            "No fue posible obtener acceso a la cuenta de Email."
         ) from error
 
     raise MailSyncError(
-        f"El proveedor {provider} todavía no está implementado."
+        f"El proveedor {provider} no está implementado."
     )
 
 
@@ -383,7 +390,7 @@ def _find_existing_message(
             _supabase()
             .table("mail_messages")
             .select(
-                "id,provider_change_key,metadata,"
+                "id,provider_change_key,provider_etag,metadata,"
                 "is_starred,is_deleted_permanently"
             )
             .eq("user_id", user_id)
@@ -401,6 +408,42 @@ def _find_existing_message(
         ) from error
 
 
+def _provider_message_is_unchanged(
+    *,
+    existing_message: dict[str, Any] | None,
+    provider_message: dict[str, Any],
+) -> bool:
+    if not existing_message:
+        return False
+
+    provider_change_key = str(
+        provider_message.get("provider_change_key") or ""
+    ).strip()
+    existing_change_key = str(
+        existing_message.get("provider_change_key") or ""
+    ).strip()
+
+    if (
+        provider_change_key
+        and existing_change_key
+        and provider_change_key == existing_change_key
+    ):
+        return True
+
+    provider_etag = str(
+        provider_message.get("provider_etag") or ""
+    ).strip()
+    existing_etag = str(
+        existing_message.get("provider_etag") or ""
+    ).strip()
+
+    return bool(
+        provider_etag
+        and existing_etag
+        and provider_etag == existing_etag
+    )
+
+
 def _build_message_payload(
     *,
     user_id: str,
@@ -416,16 +459,15 @@ def _build_message_payload(
         else {}
     )
 
+    existing_metadata = (
+        existing_message.get("metadata")
+        if existing_message
+        and isinstance(existing_message.get("metadata"), dict)
+        else {}
+    )
+
     merged_metadata = {
-        **(
-            existing_message.get("metadata")
-            if existing_message
-            and isinstance(
-                existing_message.get("metadata"),
-                dict,
-            )
-            else {}
-        ),
+        **existing_metadata,
         **normalized_metadata,
         "last_synced_at": _utc_now_iso(),
     }
@@ -461,9 +503,12 @@ def _build_message_payload(
         "folder": provider_message["folder"],
         "is_read": bool(provider_message["is_read"]),
         "is_starred": bool(
-            existing_message.get("is_starred")
-            if existing_message
-            else False
+            provider_message.get(
+                "is_starred",
+                existing_message.get("is_starred")
+                if existing_message
+                else False,
+            )
         ),
         "is_archived": bool(provider_message["is_archived"]),
         "is_spam": bool(provider_message["is_spam"]),
@@ -582,6 +627,7 @@ def _replace_message_attachments(
             .table("mail_message_attachments")
             .delete()
             .eq("message_id", message_id)
+            .eq("source", "provider")
             .execute()
         )
 
@@ -676,6 +722,12 @@ def _upsert_provider_message(
         provider_message_id=provider_message_id,
     )
 
+    if _provider_message_is_unchanged(
+        existing_message=existing_message,
+        provider_message=provider_message,
+    ):
+        return False, True
+
     payload = _build_message_payload(
         user_id=user_id,
         integration=integration,
@@ -693,7 +745,6 @@ def _upsert_provider_message(
                 .execute()
             )
             message = _extract_single(response)
-
             created = False
         else:
             response = (
@@ -703,7 +754,6 @@ def _upsert_provider_message(
                 .execute()
             )
             message = _extract_single(response)
-
             created = True
 
         if not message:
@@ -772,6 +822,26 @@ def _get_sync_window(
     )
 
 
+def _get_provider_message(
+    *,
+    provider: Any,
+    access_token: str,
+    provider_message_id: str,
+    load_attachments: bool,
+) -> dict[str, Any]:
+    if isinstance(provider, MicrosoftMailProvider):
+        return provider.get_message(
+            access_token=access_token,
+            provider_message_id=provider_message_id,
+            include_attachments=load_attachments,
+        )
+
+    return provider.get_message(
+        access_token=access_token,
+        provider_message_id=provider_message_id,
+    )
+
+
 def sync_mail_integration(
     *,
     user_id: str,
@@ -806,6 +876,17 @@ def sync_mail_integration(
         "skipped": 0,
     }
 
+    logger.info(
+        "Mail sync started. integration_id=%s provider=%s "
+        "trigger=%s initial_sync=%s max_messages=%s after=%s",
+        integration_id,
+        integration["provider"],
+        trigger,
+        initial_sync,
+        max_messages,
+        after.isoformat(),
+    )
+
     try:
         access_token = _get_valid_access_token(
             user_id=user_id,
@@ -824,11 +905,24 @@ def sync_mail_integration(
             )
         )
 
-        for provider_message_id in provider_message_ids:
+        logger.info(
+            "Mail sync listed provider messages. "
+            "integration_id=%s provider=%s message_count=%s",
+            integration_id,
+            integration["provider"],
+            len(provider_message_ids),
+        )
+
+        for index, provider_message_id in enumerate(
+            provider_message_ids,
+            start=1,
+        ):
             try:
-                provider_message = provider.get_message(
+                provider_message = _get_provider_message(
+                    provider=provider,
                     access_token=access_token,
                     provider_message_id=provider_message_id,
+                    load_attachments=True,
                 )
 
                 created, skipped = _upsert_provider_message(
@@ -846,22 +940,16 @@ def sync_mail_integration(
                 else:
                     counts["updated"] += 1
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+                logger.info(
+                    "Mail sync progress. integration_id=%s "
+                    "message=%s/%s created=%s updated=%s skipped=%s",
+                    integration_id,
+                    index,
+                    len(provider_message_ids),
+                    counts["created"],
+                    counts["updated"],
+                    counts["skipped"],
+                )
 
             except MailProviderError as error:
                 counts["skipped"] += 1
@@ -878,6 +966,7 @@ def sync_mail_integration(
 
             except MailSyncError as error:
                 counts["skipped"] += 1
+
                 logger.warning(
                     "Mail persistence message skipped. "
                     "provider=%s integration_id=%s "
@@ -903,7 +992,20 @@ def sync_mail_integration(
                 "after": after.isoformat(),
                 "max_messages": max_messages,
                 "initial_sync": initial_sync,
+                "attachment_metadata_loaded": True,
+                "attachment_content_downloaded": False,
             },
+        )
+
+        logger.info(
+            "Mail sync completed. integration_id=%s provider=%s "
+            "fetched=%s created=%s updated=%s skipped=%s",
+            integration_id,
+            integration["provider"],
+            counts["fetched"],
+            counts["created"],
+            counts["updated"],
+            counts["skipped"],
         )
 
         return {
@@ -944,6 +1046,11 @@ def sync_mail_integration(
             error_message=str(error),
         )
 
+        logger.exception(
+            "Mail sync provider failure. integration_id=%s",
+            integration_id,
+        )
+
         raise MailSyncError(str(error)) from error
 
     except MailSyncError as error:
@@ -959,6 +1066,11 @@ def sync_mail_integration(
             error_message=str(error),
         )
 
+        logger.exception(
+            "Mail sync persistence failure. integration_id=%s",
+            integration_id,
+        )
+
         raise
 
     except Exception as error:
@@ -972,6 +1084,11 @@ def sync_mail_integration(
             sync_run_id=sync_run_id,
             error_code="unexpected_sync_error",
             error_message=str(error),
+        )
+
+        logger.exception(
+            "Mail sync unexpected failure. integration_id=%s",
+            integration_id,
         )
 
         raise MailSyncError(
@@ -1032,3 +1149,60 @@ def sync_due_mail_integrations() -> dict[str, int]:
         "failed_integration_count": failed_count,
         "synced_message_count": message_count,
     }
+
+
+def persist_provider_mail_message(
+    *,
+    user_id: str,
+    integration: dict[str, Any],
+    provider_message: dict[str, Any],
+) -> dict[str, Any]:
+    """
+    Persiste un correo ya obtenido desde Google o Microsoft.
+
+    Reutiliza el mismo flujo de persistencia para mensajes,
+    destinatarios y metadatos de adjuntos.
+    """
+    try:
+        _upsert_provider_message(
+            user_id=user_id,
+            integration=integration,
+            provider_message=provider_message,
+        )
+
+        provider_message_id = str(
+            provider_message.get("provider_message_id") or ""
+        ).strip()
+
+        if not provider_message_id:
+            raise MailSyncError(
+                "El proveedor devolvió un correo sin identificador."
+            )
+
+        response = (
+            _supabase()
+            .table("mail_messages")
+            .select("id")
+            .eq("user_id", user_id)
+            .eq("mail_integration_id", integration["id"])
+            .eq("provider_message_id", provider_message_id)
+            .maybe_single()
+            .execute()
+        )
+
+        message = _extract_single(response)
+
+        if not message:
+            raise MailSyncError(
+                "No fue posible recuperar el correo guardado."
+            )
+
+        return message
+
+    except MailSyncError:
+        raise
+
+    except Exception as error:
+        raise MailSyncError(
+            "No fue posible persistir el correo del proveedor."
+        ) from error

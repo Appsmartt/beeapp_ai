@@ -4,7 +4,8 @@ import base64
 import logging
 from datetime import datetime, timezone
 from email.header import decode_header, make_header
-from email.utils import getaddresses, parsedate_to_datetime
+from email.message import EmailMessage
+from email.utils import formataddr, getaddresses, parsedate_to_datetime
 from typing import Any
 from urllib.parse import quote
 
@@ -12,9 +13,16 @@ import httpx
 
 from apps.mail.services.mail_provider_service import (
     MailProviderError,
+    normalize_body_content_type,
     normalize_email_address,
+    normalize_mail_folder,
+    normalize_recipients,
     normalize_text,
+    validate_draft_content,
+    validate_mail_attachments,
+    validate_message_state_update,
 )
+
 
 
 logger = logging.getLogger(__name__)
@@ -24,10 +32,18 @@ GOOGLE_GMAIL_BASE_URL = "https://gmail.googleapis.com/gmail/v1"
 GOOGLE_GMAIL_MESSAGES_ENDPOINT = (
     f"{GOOGLE_GMAIL_BASE_URL}/users/me/messages"
 )
+GOOGLE_GMAIL_DRAFTS_ENDPOINT = (
+    f"{GOOGLE_GMAIL_BASE_URL}/users/me/drafts"
+)
 GOOGLE_GMAIL_PROFILE_ENDPOINT = (
     f"{GOOGLE_GMAIL_BASE_URL}/users/me/profile"
 )
 
+GOOGLE_GMAIL_SYSTEM_LABEL_INBOX = "INBOX"
+GOOGLE_GMAIL_SYSTEM_LABEL_UNREAD = "UNREAD"
+GOOGLE_GMAIL_SYSTEM_LABEL_STARRED = "STARRED"
+GOOGLE_GMAIL_SYSTEM_LABEL_SPAM = "SPAM"
+GOOGLE_GMAIL_SYSTEM_LABEL_TRASH = "TRASH"
 
 HTTP_TIMEOUT_SECONDS = 25.0
 MAX_PAGE_SIZE = 500
@@ -39,11 +55,18 @@ class GoogleMailProvider:
     def _headers(
         self,
         access_token: str,
+        *,
+        json_body: bool = False,
     ) -> dict[str, str]:
-        return {
+        headers = {
             "Authorization": f"Bearer {access_token}",
             "Accept": "application/json",
         }
+
+        if json_body:
+            headers["Content-Type"] = "application/json"
+
+        return headers
 
     def _request(
         self,
@@ -52,13 +75,18 @@ class GoogleMailProvider:
         url: str,
         access_token: str,
         params: dict[str, Any] | None = None,
+        json: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         try:
             response = httpx.request(
                 method,
                 url,
-                headers=self._headers(access_token),
+                headers=self._headers(
+                    access_token,
+                    json_body=json is not None,
+                ),
                 params=params,
+                json=json,
                 timeout=HTTP_TIMEOUT_SECONDS,
             )
         except httpx.HTTPError as error:
@@ -119,9 +147,51 @@ class GoogleMailProvider:
             )
 
         if response.status_code >= 400:
-            raise MailProviderError(
-                "Gmail devolvió un error inesperado."
+            try:
+                error_payload = response.json()
+            except ValueError:
+                error_payload = {
+                    "raw_body": response.text[:1_000],
+                }
+
+            error = error_payload.get("error") or {}
+            errors = error.get("errors") or []
+            primary_error = errors[0] if errors else {}
+
+            reason = (
+                primary_error.get("reason")
+                or error.get("status")
+                or "unknown"
             )
+            message = (
+                primary_error.get("message")
+                or error.get("message")
+                or "Gmail devolvió un error inesperado."
+            )
+
+            logger.warning(
+                "Gmail API request failed. "
+                "status_code=%s reason=%s response=%s",
+                response.status_code,
+                reason,
+                error_payload,
+            )
+
+            if reason in {
+                "invalidArgument",
+                "notFound",
+                "failedPrecondition",
+            }:
+                raise MailProviderError(
+                    "No fue posible actualizar este correo en Gmail."
+                )
+
+            raise MailProviderError(
+                str(message)[:500]
+            )
+
+        if response.status_code == 204:
+            return {}
 
         try:
             data = response.json()
@@ -245,6 +315,433 @@ class GoogleMailProvider:
 
         return self._normalize_message(data)
 
+    def update_message_state(
+        self,
+        *,
+        access_token: str,
+        provider_message_id: str,
+        is_read: bool | None = None,
+        is_starred: bool | None = None,
+    ) -> dict[str, Any]:
+        validate_message_state_update(
+            is_read=is_read,
+            is_starred=is_starred,
+        )
+
+        add_label_ids: list[str] = []
+        remove_label_ids: list[str] = []
+
+        if is_read is True:
+            remove_label_ids.append(
+                GOOGLE_GMAIL_SYSTEM_LABEL_UNREAD
+            )
+        elif is_read is False:
+            add_label_ids.append(
+                GOOGLE_GMAIL_SYSTEM_LABEL_UNREAD
+            )
+
+        if is_starred is True:
+            add_label_ids.append(
+                GOOGLE_GMAIL_SYSTEM_LABEL_STARRED
+            )
+        elif is_starred is False:
+            remove_label_ids.append(
+                GOOGLE_GMAIL_SYSTEM_LABEL_STARRED
+            )
+
+        data = self._modify_message_labels(
+            access_token=access_token,
+            provider_message_id=provider_message_id,
+            add_label_ids=add_label_ids,
+            remove_label_ids=remove_label_ids,
+        )
+
+        return self._normalize_message(data)
+
+    def move_message(
+        self,
+        *,
+        access_token: str,
+        provider_message_id: str,
+        folder: str,
+    ) -> dict[str, Any]:
+        normalized_folder = normalize_mail_folder(folder)
+
+        if normalized_folder in {"sent", "drafts"}:
+            raise MailProviderError(
+                "No puedes mover un correo a esa carpeta."
+            )
+
+        add_label_ids: list[str] = []
+        remove_label_ids: list[str] = []
+
+        if normalized_folder == "inbox":
+            add_label_ids.append(
+                GOOGLE_GMAIL_SYSTEM_LABEL_INBOX
+            )
+            remove_label_ids.extend(
+                [
+                    GOOGLE_GMAIL_SYSTEM_LABEL_SPAM,
+                    GOOGLE_GMAIL_SYSTEM_LABEL_TRASH,
+                ]
+            )
+        elif normalized_folder == "archived":
+            remove_label_ids.extend(
+                [
+                    GOOGLE_GMAIL_SYSTEM_LABEL_INBOX,
+                    GOOGLE_GMAIL_SYSTEM_LABEL_SPAM,
+                    GOOGLE_GMAIL_SYSTEM_LABEL_TRASH,
+                ]
+            )
+        elif normalized_folder == "spam":
+            add_label_ids.append(
+                GOOGLE_GMAIL_SYSTEM_LABEL_SPAM
+            )
+            remove_label_ids.extend(
+                [
+                    GOOGLE_GMAIL_SYSTEM_LABEL_INBOX,
+                    GOOGLE_GMAIL_SYSTEM_LABEL_TRASH,
+                ]
+            )
+        elif normalized_folder == "trash":
+            add_label_ids.append(
+                GOOGLE_GMAIL_SYSTEM_LABEL_TRASH
+            )
+            remove_label_ids.extend(
+                [
+                    GOOGLE_GMAIL_SYSTEM_LABEL_INBOX,
+                    GOOGLE_GMAIL_SYSTEM_LABEL_SPAM,
+                ]
+            )
+        else:
+            raise MailProviderError(
+                "No puedes mover un correo a esa carpeta."
+            )
+
+        data = self._modify_message_labels(
+            access_token=access_token,
+            provider_message_id=provider_message_id,
+            add_label_ids=add_label_ids,
+            remove_label_ids=remove_label_ids,
+        )
+
+        return self._normalize_message(data)
+
+    def create_draft(
+        self,
+        *,
+        access_token: str,
+        to_recipients: list[dict[str, str | None]],
+        cc_recipients: list[dict[str, str | None]],
+        bcc_recipients: list[dict[str, str | None]],
+        subject: str | None,
+        body: str | None,
+        body_content_type: str,
+        attachments: list[dict[str, Any]],
+    ) -> dict[str, Any]:
+        normalized_message = self._build_draft_message(
+            to_recipients=to_recipients,
+            cc_recipients=cc_recipients,
+            bcc_recipients=bcc_recipients,
+            subject=subject,
+            body=body,
+            body_content_type=body_content_type,
+            attachments=attachments,
+        )
+
+        draft_data = self._request(
+            method="POST",
+            url=GOOGLE_GMAIL_DRAFTS_ENDPOINT,
+            access_token=access_token,
+            json={
+                "message": {
+                    "raw": self._encode_raw_message(
+                        normalized_message
+                    ),
+                }
+            },
+        )
+
+        return self._normalize_draft_response(draft_data)
+
+    def update_draft(
+        self,
+        *,
+        access_token: str,
+        provider_message_id: str,
+        provider_draft_id: str | None,
+        to_recipients: list[dict[str, str | None]],
+        cc_recipients: list[dict[str, str | None]],
+        bcc_recipients: list[dict[str, str | None]],
+        subject: str | None,
+        body: str | None,
+        body_content_type: str,
+        attachments: list[dict[str, Any]],
+    ) -> dict[str, Any]:
+        draft_id = self._required_draft_id(
+            provider_draft_id
+        )
+        normalized_message = self._build_draft_message(
+            to_recipients=to_recipients,
+            cc_recipients=cc_recipients,
+            bcc_recipients=bcc_recipients,
+            subject=subject,
+            body=body,
+            body_content_type=body_content_type,
+            attachments=attachments,
+        )
+        encoded_draft_id = quote(draft_id, safe="")
+
+        draft_data = self._request(
+            method="PUT",
+            url=(
+                f"{GOOGLE_GMAIL_DRAFTS_ENDPOINT}/"
+                f"{encoded_draft_id}"
+            ),
+            access_token=access_token,
+            json={
+                "id": draft_id,
+                "message": {
+                    "raw": self._encode_raw_message(
+                        normalized_message
+                    ),
+                },
+            },
+        )
+
+        return self._normalize_draft_response(draft_data)
+
+    def delete_draft(
+        self,
+        *,
+        access_token: str,
+        provider_message_id: str,
+        provider_draft_id: str | None,
+    ) -> None:
+        draft_id = self._required_draft_id(
+            provider_draft_id
+        )
+        encoded_draft_id = quote(draft_id, safe="")
+
+        self._request(
+            method="DELETE",
+            url=(
+                f"{GOOGLE_GMAIL_DRAFTS_ENDPOINT}/"
+                f"{encoded_draft_id}"
+            ),
+            access_token=access_token,
+        )
+
+    def send_draft(
+        self,
+        *,
+        access_token: str,
+        provider_message_id: str,
+        provider_draft_id: str | None,
+    ) -> dict[str, Any]:
+        draft_id = self._required_draft_id(
+            provider_draft_id
+        )
+
+        sent_data = self._request(
+            method="POST",
+            url=f"{GOOGLE_GMAIL_DRAFTS_ENDPOINT}/send",
+            access_token=access_token,
+            json={
+                "id": draft_id,
+            },
+        )
+
+        return self._normalize_message(sent_data)
+
+    def _required_draft_id(
+        self,
+        provider_draft_id: str | None,
+    ) -> str:
+        draft_id = str(provider_draft_id or "").strip()
+
+        if not draft_id:
+            raise MailProviderError(
+                "No se encontró el identificador del borrador Gmail."
+            )
+
+        return draft_id
+
+    def _build_draft_message(
+        self,
+        *,
+        to_recipients: list[dict[str, str | None]],
+        cc_recipients: list[dict[str, str | None]],
+        bcc_recipients: list[dict[str, str | None]],
+        subject: str | None,
+        body: str | None,
+        body_content_type: str,
+        attachments: list[dict[str, Any]],
+    ) -> EmailMessage:
+        normalized_to = normalize_recipients(to_recipients)
+        normalized_cc = normalize_recipients(cc_recipients)
+        normalized_bcc = normalize_recipients(bcc_recipients)
+        normalized_subject = normalize_text(
+            subject,
+            max_length=1000,
+        )
+        normalized_body = normalize_text(
+            body,
+            max_length=200_000,
+            fallback="",
+        ) or ""
+        normalized_content_type = normalize_body_content_type(
+            body_content_type
+        )
+        normalized_attachments = validate_mail_attachments(
+            attachments
+        )
+
+        validate_draft_content(
+            to_recipients=normalized_to,
+            cc_recipients=normalized_cc,
+            bcc_recipients=normalized_bcc,
+            subject=normalized_subject,
+            body=normalized_body,
+        )
+
+        message = EmailMessage()
+
+        if normalized_to:
+            message["To"] = self._format_recipients(
+                normalized_to
+            )
+
+        if normalized_cc:
+            message["Cc"] = self._format_recipients(
+                normalized_cc
+            )
+
+        if normalized_bcc:
+            message["Bcc"] = self._format_recipients(
+                normalized_bcc
+            )
+
+        if normalized_subject:
+            message["Subject"] = normalized_subject
+
+        if normalized_content_type == "html":
+            message.set_content(
+                self._html_to_text(normalized_body) or " ",
+            )
+            message.add_alternative(
+                normalized_body or " ",
+                subtype="html",
+            )
+        else:
+            message.set_content(normalized_body or " ")
+
+        for attachment in normalized_attachments:
+            mime_type = str(
+                attachment["mime_type"]
+            ).split("/", 1)
+
+            maintype = mime_type[0] or "application"
+            subtype = (
+                mime_type[1]
+                if len(mime_type) > 1
+                else "octet-stream"
+            )
+
+            message.add_attachment(
+                attachment["content"],
+                maintype=maintype,
+                subtype=subtype,
+                filename=attachment["filename"],
+            )
+
+        return message
+
+    def _format_recipients(
+        self,
+        recipients: list[dict[str, str | None]],
+    ) -> str:
+        return ", ".join(
+            formataddr(
+                (
+                    recipient.get("display_name") or "",
+                    recipient["email"],
+                )
+            )
+            for recipient in recipients
+        )
+
+    def _encode_raw_message(
+        self,
+        message: EmailMessage,
+    ) -> str:
+        return base64.urlsafe_b64encode(
+            message.as_bytes()
+        ).decode("ascii").rstrip("=")
+
+    def _normalize_draft_response(
+        self,
+        draft_data: dict[str, Any],
+    ) -> dict[str, Any]:
+        draft_id = str(draft_data.get("id") or "").strip()
+        message_data = draft_data.get("message")
+
+        if not draft_id or not isinstance(message_data, dict):
+            raise MailProviderError(
+                "Gmail no devolvió el borrador creado."
+            )
+
+        message = self._normalize_message(message_data)
+        metadata = dict(message.get("metadata") or {})
+        metadata["gmail_draft_id"] = draft_id
+        message["metadata"] = metadata
+
+        return message
+
+    def _modify_message_labels(
+        self,
+        *,
+        access_token: str,
+        provider_message_id: str,
+        add_label_ids: list[str],
+        remove_label_ids: list[str],
+    ) -> dict[str, Any]:
+        normalized_message_id = str(
+            provider_message_id or ""
+        ).strip()
+
+        if not normalized_message_id:
+            raise MailProviderError(
+                "El identificador del correo de Gmail es inválido."
+            )
+
+        if not add_label_ids and not remove_label_ids:
+            raise MailProviderError(
+                "No hay cambios para aplicar al correo."
+            )
+
+        encoded_message_id = quote(
+            normalized_message_id,
+            safe="",
+        )
+
+        return self._request(
+            method="POST",
+            url=(
+                f"{GOOGLE_GMAIL_MESSAGES_ENDPOINT}/"
+                f"{encoded_message_id}/modify"
+            ),
+            access_token=access_token,
+            json={
+                "addLabelIds": list(
+                    dict.fromkeys(add_label_ids)
+                ),
+                "removeLabelIds": list(
+                    dict.fromkeys(remove_label_ids)
+                ),
+            },
+        )
+
     def _normalize_message(
         self,
         data: dict[str, Any],
@@ -350,6 +847,7 @@ class GoogleMailProvider:
             "status": self._map_status(label_ids),
             "folder": folder,
             "is_read": "UNREAD" not in label_ids,
+            "is_starred": "STARRED" in label_ids,
             "is_archived": is_archived,
             "is_spam": is_spam,
             "is_trashed": is_trashed,

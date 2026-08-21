@@ -1,0 +1,2284 @@
+
+============================================================
+BEEAPP_MAIL_BACKEND_SMOKE_TEST
+============================================================
+RUN_ID=20260821T091957Z
+API_BASE_URL=http://127.0.0.1:8000
+MICROSOFT_INTEGRATION_ID=85262509-942c-40b4-b02d-c1cd431d3466
+TEST_RECIPIENT_EMAIL=andres.santa-fe@hotmail.com
+NOTE=Los tokens y enlaces de proveedores se eliminan del reporte.
+
+============================================================
+01_LOGIN
+============================================================
+HTTP_STATUS=200
+{
+  "message": "Login successful.",
+  "user": {
+    "id": "690cbc59-358d-4432-b2de-f9825a789875",
+    "email": "andres.santa-fe@hotmail.com",
+    "phone": "573058155499"
+  }
+}
+OK: sesión iniciada.
+
+============================================================
+02_MAIL_INTEGRATIONS
+============================================================
+HTTP_STATUS=200
+{
+  "integrations": [
+    {
+      "id": "85262509-942c-40b4-b02d-c1cd431d3466",
+      "user_id": "690cbc59-358d-4432-b2de-f9825a789875",
+      "integration_connection_id": "555f9675-d4df-400a-87f9-3e5dec9fd293",
+      "provider": "microsoft",
+      "provider_account_id": "8381a76b8db5f487",
+      "provider_email": "andres.santa-fe@hotmail.com",
+      "provider_display_name": "andres felipe mendoza silva",
+      "status": "active",
+      "connected_at": "2026-08-21T03:15:39.763213+00:00",
+      "initial_sync_completed_at": "2026-08-21T03:56:27.032411+00:00",
+      "initial_sync_started_at": null,
+      "last_successful_sync_at": "2026-08-21T09:19:42.894946+00:00",
+      "last_attempted_sync_at": "2026-08-21T09:19:42.894946+00:00",
+      "next_sync_at": "2026-08-21T09:29:42.894958+00:00",
+      "sync_cursor": null,
+      "sync_cursor_updated_at": null,
+      "reauth_required_at": null,
+      "disconnected_at": null,
+      "last_error_code": null,
+      "last_error_message": null,
+      "metadata": {
+        "mail_scope_ready": true,
+        "connection_status": "connected",
+        "connection_provider": "microsoft",
+        "linked_or_updated_at": "2026-08-21T09:20:14.648975+00:00",
+        "mail_capability_enabled": true,
+        "integration_connection_id": "555f9675-d4df-400a-87f9-3e5dec9fd293"
+      },
+      "created_at": "2026-08-20T20:48:08.36535+00:00",
+      "updated_at": "2026-08-21T09:20:15.03512+00:00",
+      "integration_connection": {
+        "id": "555f9675-d4df-400a-87f9-3e5dec9fd293",
+        "user_id": "690cbc59-358d-4432-b2de-f9825a789875",
+        "provider": "microsoft",
+        "provider_account_id": "8381a76b8db5f487",
+        "provider_tenant_id": null,
+        "provider_email": "andres.santa-fe@hotmail.com",
+        "provider_display_name": "andres felipe mendoza silva",
+        "provider_avatar_url": null,
+        "status": "connected",
+        "granted_scopes": [
+          "openid",
+          "profile",
+          "email",
+          "User.Read",
+          "Mail.ReadWrite",
+          "Mail.Send",
+          "Calendars.ReadWrite"
+        ],
+        "capabilities": [
+          "calendar",
+          "mail"
+        ],
+        "token_expires_at": "2026-08-21T09:31:13.210412+00:00",
+        "last_token_refresh_at": "2026-08-21T08:31:14.210418+00:00",
+        "last_successful_auth_at": "2026-08-21T03:15:39.763213+00:00",
+        "reauth_required_at": null,
+        "disconnected_at": null,
+        "last_error_code": null,
+        "last_error_message": null,
+        "metadata": {
+          "user_type": null,
+          "user_principal_name": "andres.santa-fe@hotmail.com"
+        },
+        "created_at": "2026-08-19T17:53:41.528131+00:00",
+        "updated_at": "2026-08-21T08:31:14.579728+00:00"
+      },
+      "sync_status": "ready",
+      "can_sync": true,
+      "requires_reauthorization": false,
+      "status_reason": null
+    },
+    {
+      "id": "1c5ba733-51d2-4a6e-96fa-18c98a738832",
+      "user_id": "690cbc59-358d-4432-b2de-f9825a789875",
+      "integration_connection_id": "6988df43-19e7-40c3-ab72-7c6f723b35c5",
+      "provider": "google",
+      "provider_account_id": "106390532723319902917",
+      "provider_email": "andres.santa-fe@hotmail.com",
+      "provider_display_name": "andres mendoza",
+      "status": "active",
+      "connected_at": "2026-08-20T21:05:06.508227+00:00",
+      "initial_sync_completed_at": null,
+      "initial_sync_started_at": null,
+      "last_successful_sync_at": null,
+      "last_attempted_sync_at": "2026-08-21T06:53:42.528026+00:00",
+      "next_sync_at": "2026-08-21T07:03:42.528059+00:00",
+      "sync_cursor": null,
+      "sync_cursor_updated_at": null,
+      "reauth_required_at": null,
+      "disconnected_at": null,
+      "last_error_code": null,
+      "last_error_message": null,
+      "metadata": {
+        "mail_scope_ready": true,
+        "connection_status": "connected",
+        "connection_provider": "google",
+        "linked_or_updated_at": "2026-08-21T09:20:16.019784+00:00",
+        "mail_capability_enabled": true,
+        "integration_connection_id": "6988df43-19e7-40c3-ab72-7c6f723b35c5"
+      },
+      "created_at": "2026-08-20T20:48:07.751381+00:00",
+      "updated_at": "2026-08-21T09:20:16.359344+00:00",
+      "integration_connection": {
+        "id": "6988df43-19e7-40c3-ab72-7c6f723b35c5",
+        "user_id": "690cbc59-358d-4432-b2de-f9825a789875",
+        "provider": "google",
+        "provider_account_id": "106390532723319902917",
+        "provider_tenant_id": null,
+        "provider_email": "andres.santa-fe@hotmail.com",
+        "provider_display_name": "andres mendoza",
+        "provider_avatar_url": "https://lh3.googleusercontent.com/a/ACg8ocI90vg4nbT8XxRP9JTg8pmVMHjmsLAC1e4w64-aKc-8a40nAg=s96-c",
+        "status": "connected",
+        "granted_scopes": [
+          "https://www.googleapis.com/auth/gmail.modify",
+          "https://www.googleapis.com/auth/gmail.send",
+          "https://www.googleapis.com/auth/userinfo.email",
+          "https://www.googleapis.com/auth/calendar",
+          "https://www.googleapis.com/auth/userinfo.profile",
+          "openid"
+        ],
+        "capabilities": [
+          "calendar",
+          "mail",
+          "contacts",
+          "storage"
+        ],
+        "token_expires_at": "2026-08-21T10:00:16.156987+00:00",
+        "last_token_refresh_at": "2026-08-21T09:00:17.156993+00:00",
+        "last_successful_auth_at": "2026-08-20T21:05:06.508227+00:00",
+        "reauth_required_at": null,
+        "disconnected_at": null,
+        "last_error_code": null,
+        "last_error_message": null,
+        "metadata": {
+          "email_verified": true
+        },
+        "created_at": "2026-08-20T05:51:25.815614+00:00",
+        "updated_at": "2026-08-21T09:00:17.525798+00:00"
+      },
+      "sync_status": "ready",
+      "can_sync": true,
+      "requires_reauthorization": false,
+      "status_reason": null
+    },
+    {
+      "id": "2142c8ea-fcec-4cd6-9427-01aab42c56e8",
+      "user_id": "690cbc59-358d-4432-b2de-f9825a789875",
+      "integration_connection_id": "addd0314-98a2-446a-8c99-9ce9e26a3160",
+      "provider": "microsoft",
+      "provider_account_id": "a5b4a388100d8dd1",
+      "provider_email": "andressilva0102@outlook.com",
+      "provider_display_name": "Andres Silva",
+      "status": "inactive",
+      "connected_at": "2026-08-20T16:31:47.806379+00:00",
+      "initial_sync_completed_at": null,
+      "initial_sync_started_at": null,
+      "last_successful_sync_at": null,
+      "last_attempted_sync_at": null,
+      "next_sync_at": null,
+      "sync_cursor": null,
+      "sync_cursor_updated_at": null,
+      "reauth_required_at": null,
+      "disconnected_at": null,
+      "last_error_code": "mail_capability_not_enabled",
+      "last_error_message": "La cuenta no tiene habilitada la capacidad de Email.",
+      "metadata": {
+        "mail_scope_ready": true,
+        "connection_status": "connected",
+        "connection_provider": "microsoft",
+        "linked_or_updated_at": "2026-08-21T09:20:16.662022+00:00",
+        "mail_capability_enabled": false,
+        "integration_connection_id": "addd0314-98a2-446a-8c99-9ce9e26a3160"
+      },
+      "created_at": "2026-08-20T20:48:07.146451+00:00",
+      "updated_at": "2026-08-21T09:20:17.010445+00:00",
+      "integration_connection": {
+        "id": "addd0314-98a2-446a-8c99-9ce9e26a3160",
+        "user_id": "690cbc59-358d-4432-b2de-f9825a789875",
+        "provider": "microsoft",
+        "provider_account_id": "a5b4a388100d8dd1",
+        "provider_tenant_id": null,
+        "provider_email": "andressilva0102@outlook.com",
+        "provider_display_name": "Andres Silva",
+        "provider_avatar_url": null,
+        "status": "connected",
+        "granted_scopes": [
+          "openid",
+          "profile",
+          "email",
+          "User.Read",
+          "Mail.ReadWrite",
+          "Mail.Send",
+          "Calendars.ReadWrite"
+        ],
+        "capabilities": [
+          "calendar"
+        ],
+        "token_expires_at": "2026-08-21T10:10:11.595901+00:00",
+        "last_token_refresh_at": "2026-08-21T09:10:12.595907+00:00",
+        "last_successful_auth_at": "2026-08-20T16:31:47.806379+00:00",
+        "reauth_required_at": null,
+        "disconnected_at": null,
+        "last_error_code": null,
+        "last_error_message": null,
+        "metadata": {
+          "user_type": null,
+          "user_principal_name": "andresSilva0102@outlook.com"
+        },
+        "created_at": "2026-08-20T16:31:47.93374+00:00",
+        "updated_at": "2026-08-21T09:10:12.955904+00:00"
+      },
+      "sync_status": "unavailable",
+      "can_sync": false,
+      "requires_reauthorization": false,
+      "status_reason": "La cuenta no tiene habilitada la capacidad de Email."
+    },
+    {
+      "id": "6813a65b-a695-4d4d-aa2a-14705aec09d9",
+      "user_id": "690cbc59-358d-4432-b2de-f9825a789875",
+      "integration_connection_id": "34ff67ac-5f9e-4e8f-8ea0-0c2b9861771f",
+      "provider": "google",
+      "provider_account_id": "107352961119736185610",
+      "provider_email": "mifuturo021202@gmail.com",
+      "provider_display_name": "pepe gutierrez",
+      "status": "inactive",
+      "connected_at": "2026-08-20T16:30:02.866289+00:00",
+      "initial_sync_completed_at": null,
+      "initial_sync_started_at": null,
+      "last_successful_sync_at": null,
+      "last_attempted_sync_at": null,
+      "next_sync_at": null,
+      "sync_cursor": null,
+      "sync_cursor_updated_at": null,
+      "reauth_required_at": null,
+      "disconnected_at": null,
+      "last_error_code": "mail_capability_not_enabled",
+      "last_error_message": "La cuenta no tiene habilitada la capacidad de Email.",
+      "metadata": {
+        "mail_scope_ready": false,
+        "connection_status": "connected",
+        "connection_provider": "google",
+        "linked_or_updated_at": "2026-08-21T09:20:15.348319+00:00",
+        "mail_capability_enabled": false,
+        "integration_connection_id": "34ff67ac-5f9e-4e8f-8ea0-0c2b9861771f"
+      },
+      "created_at": "2026-08-20T20:48:06.414616+00:00",
+      "updated_at": "2026-08-21T09:20:15.715085+00:00",
+      "integration_connection": {
+        "id": "34ff67ac-5f9e-4e8f-8ea0-0c2b9861771f",
+        "user_id": "690cbc59-358d-4432-b2de-f9825a789875",
+        "provider": "google",
+        "provider_account_id": "107352961119736185610",
+        "provider_tenant_id": null,
+        "provider_email": "mifuturo021202@gmail.com",
+        "provider_display_name": "pepe gutierrez",
+        "provider_avatar_url": "https://lh3.googleusercontent.com/a/ACg8ocJjSo21iQEETw85xAdmj0b1j5TtWjDXtDrO_IrUeArfbRR9lto=s96-c",
+        "status": "connected",
+        "granted_scopes": [
+          "https://www.googleapis.com/auth/calendar",
+          "openid",
+          "https://www.googleapis.com/auth/userinfo.profile",
+          "https://www.googleapis.com/auth/userinfo.email"
+        ],
+        "capabilities": [
+          "calendar"
+        ],
+        "token_expires_at": "2026-08-21T09:50:03.357046+00:00",
+        "last_token_refresh_at": "2026-08-21T08:50:04.357052+00:00",
+        "last_successful_auth_at": "2026-08-20T16:30:02.866289+00:00",
+        "reauth_required_at": null,
+        "disconnected_at": null,
+        "last_error_code": null,
+        "last_error_message": null,
+        "metadata": {
+          "email_verified": true
+        },
+        "created_at": "2026-08-20T16:30:02.989082+00:00",
+        "updated_at": "2026-08-21T08:50:04.722671+00:00"
+      },
+      "sync_status": "unavailable",
+      "can_sync": false,
+      "requires_reauthorization": false,
+      "status_reason": "La cuenta no tiene habilitada la capacidad de Email."
+    }
+  ]
+}
+
+============================================================
+03_STORAGE_FILES_BEFORE_UPLOAD
+============================================================
+HTTP_STATUS=200
+{
+  "files": [
+    {
+      "id": "56d01bad-9ecc-4c7b-b36d-9a157890851c",
+      "owner_id": "690cbc59-358d-4432-b2de-f9825a789875",
+      "folder_id": null,
+      "original_name": "beeapp_attachment_20260821T091846Z.txt",
+      "display_name": "beeapp_attachment_20260821T091846Z.txt",
+      "extension": "txt",
+      "mime_type": "text/plain",
+      "kind": "document",
+      "size_bytes": 149,
+      "status": "ready",
+      "is_starred": false,
+      "trashed_at": null,
+      "purge_after": null,
+      "created_at": "2026-08-21T09:19:05.123078+00:00",
+      "updated_at": "2026-08-21T09:19:05.756105+00:00"
+    },
+    {
+      "id": "17593a9b-e7c5-40ca-9fe0-61cba279d9b1",
+      "owner_id": "690cbc59-358d-4432-b2de-f9825a789875",
+      "folder_id": null,
+      "original_name": "beeapp_attachment_20260821T091314Z.txt",
+      "display_name": "beeapp_attachment_20260821T091314Z.txt",
+      "extension": "txt",
+      "mime_type": "text/plain",
+      "kind": "document",
+      "size_bytes": 149,
+      "status": "ready",
+      "is_starred": false,
+      "trashed_at": null,
+      "purge_after": null,
+      "created_at": "2026-08-21T09:13:33.724207+00:00",
+      "updated_at": "2026-08-21T09:13:34.366132+00:00"
+    },
+    {
+      "id": "2c004010-4851-4c64-9095-a65ff87ed873",
+      "owner_id": "690cbc59-358d-4432-b2de-f9825a789875",
+      "folder_id": null,
+      "original_name": "beeapp_attachment_20260821T090848Z.txt",
+      "display_name": "beeapp_attachment_20260821T090848Z.txt",
+      "extension": "txt",
+      "mime_type": "text/plain",
+      "kind": "document",
+      "size_bytes": 149,
+      "status": "ready",
+      "is_starred": false,
+      "trashed_at": null,
+      "purge_after": null,
+      "created_at": "2026-08-21T09:09:17.705904+00:00",
+      "updated_at": "2026-08-21T09:09:18.424638+00:00"
+    },
+    {
+      "id": "1ba6328d-8a0f-4f03-a529-d4b91251a75a",
+      "owner_id": "690cbc59-358d-4432-b2de-f9825a789875",
+      "folder_id": null,
+      "original_name": "beeapp_attachment_20260821T084015Z.txt",
+      "display_name": "beeapp_attachment_20260821T084015Z.txt",
+      "extension": "txt",
+      "mime_type": "text/plain",
+      "kind": "document",
+      "size_bytes": 149,
+      "status": "ready",
+      "is_starred": false,
+      "trashed_at": null,
+      "purge_after": null,
+      "created_at": "2026-08-21T08:40:43.003699+00:00",
+      "updated_at": "2026-08-21T08:40:43.623188+00:00"
+    },
+    {
+      "id": "32252997-1244-4897-97a0-9efe2b26a7e6",
+      "owner_id": "690cbc59-358d-4432-b2de-f9825a789875",
+      "folder_id": null,
+      "original_name": "beeapp_mail_attachment_test.txt",
+      "display_name": "beeapp_mail_attachment_test.txt",
+      "extension": "txt",
+      "mime_type": "text/plain",
+      "kind": "document",
+      "size_bytes": 82,
+      "status": "ready",
+      "is_starred": false,
+      "trashed_at": null,
+      "purge_after": null,
+      "created_at": "2026-08-21T08:29:16.761863+00:00",
+      "updated_at": "2026-08-21T08:29:17.558639+00:00"
+    },
+    {
+      "id": "d9d08c91-8cad-424e-abf1-ed9be7cae0ee",
+      "owner_id": "690cbc59-358d-4432-b2de-f9825a789875",
+      "folder_id": null,
+      "original_name": "beeapp_mail_attachment_test.txt",
+      "display_name": "beeapp_mail_attachment_test.txt",
+      "extension": "txt",
+      "mime_type": "text/plain",
+      "kind": "document",
+      "size_bytes": 128,
+      "status": "ready",
+      "is_starred": false,
+      "trashed_at": null,
+      "purge_after": null,
+      "created_at": "2026-08-21T08:18:53.466542+00:00",
+      "updated_at": "2026-08-21T08:18:54.302346+00:00"
+    },
+    {
+      "id": "3e571040-b6ce-47e4-ae5e-50ac59d8983c",
+      "owner_id": "690cbc59-358d-4432-b2de-f9825a789875",
+      "folder_id": null,
+      "original_name": "textoPruebaSubida.docx",
+      "display_name": "textoPruebaSubida.docx",
+      "extension": "docx",
+      "mime_type": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      "kind": "document",
+      "size_bytes": 12599,
+      "status": "ready",
+      "is_starred": false,
+      "trashed_at": null,
+      "purge_after": null,
+      "created_at": "2026-08-15T01:10:34.329909+00:00",
+      "updated_at": "2026-08-15T01:10:35.046356+00:00"
+    }
+  ],
+  "count": 7,
+  "limit": 20,
+  "offset": 0
+}
+
+============================================================
+04_STORAGE_UPLOAD_TEST_FILE
+============================================================
+HTTP_STATUS=201
+{
+  "files": [
+    {
+      "id": "8d53d952-d9c9-451e-a557-5fb0edbb342a",
+      "owner_id": "690cbc59-358d-4432-b2de-f9825a789875",
+      "folder_id": null,
+      "original_name": "beeapp_attachment_20260821T091957Z.txt",
+      "display_name": "beeapp_attachment_20260821T091957Z.txt",
+      "extension": "txt",
+      "mime_type": "text/plain",
+      "kind": "document",
+      "size_bytes": 149,
+      "status": "ready",
+      "is_starred": false,
+      "trashed_at": null,
+      "purge_after": null,
+      "created_at": "2026-08-21T09:20:18.378872+00:00",
+      "updated_at": "2026-08-21T09:20:18.970092+00:00"
+    }
+  ],
+  "failed_files": [],
+  "success_count": 1,
+  "failure_count": 0
+}
+STORAGE_FILE_ID=8d53d952-d9c9-451e-a557-5fb0edbb342a
+
+============================================================
+05_STORAGE_FILES_AFTER_UPLOAD
+============================================================
+HTTP_STATUS=200
+{
+  "files": [
+    {
+      "id": "8d53d952-d9c9-451e-a557-5fb0edbb342a",
+      "owner_id": "690cbc59-358d-4432-b2de-f9825a789875",
+      "folder_id": null,
+      "original_name": "beeapp_attachment_20260821T091957Z.txt",
+      "display_name": "beeapp_attachment_20260821T091957Z.txt",
+      "extension": "txt",
+      "mime_type": "text/plain",
+      "kind": "document",
+      "size_bytes": 149,
+      "status": "ready",
+      "is_starred": false,
+      "trashed_at": null,
+      "purge_after": null,
+      "created_at": "2026-08-21T09:20:18.378872+00:00",
+      "updated_at": "2026-08-21T09:20:18.970092+00:00"
+    },
+    {
+      "id": "56d01bad-9ecc-4c7b-b36d-9a157890851c",
+      "owner_id": "690cbc59-358d-4432-b2de-f9825a789875",
+      "folder_id": null,
+      "original_name": "beeapp_attachment_20260821T091846Z.txt",
+      "display_name": "beeapp_attachment_20260821T091846Z.txt",
+      "extension": "txt",
+      "mime_type": "text/plain",
+      "kind": "document",
+      "size_bytes": 149,
+      "status": "ready",
+      "is_starred": false,
+      "trashed_at": null,
+      "purge_after": null,
+      "created_at": "2026-08-21T09:19:05.123078+00:00",
+      "updated_at": "2026-08-21T09:19:05.756105+00:00"
+    },
+    {
+      "id": "17593a9b-e7c5-40ca-9fe0-61cba279d9b1",
+      "owner_id": "690cbc59-358d-4432-b2de-f9825a789875",
+      "folder_id": null,
+      "original_name": "beeapp_attachment_20260821T091314Z.txt",
+      "display_name": "beeapp_attachment_20260821T091314Z.txt",
+      "extension": "txt",
+      "mime_type": "text/plain",
+      "kind": "document",
+      "size_bytes": 149,
+      "status": "ready",
+      "is_starred": false,
+      "trashed_at": null,
+      "purge_after": null,
+      "created_at": "2026-08-21T09:13:33.724207+00:00",
+      "updated_at": "2026-08-21T09:13:34.366132+00:00"
+    },
+    {
+      "id": "2c004010-4851-4c64-9095-a65ff87ed873",
+      "owner_id": "690cbc59-358d-4432-b2de-f9825a789875",
+      "folder_id": null,
+      "original_name": "beeapp_attachment_20260821T090848Z.txt",
+      "display_name": "beeapp_attachment_20260821T090848Z.txt",
+      "extension": "txt",
+      "mime_type": "text/plain",
+      "kind": "document",
+      "size_bytes": 149,
+      "status": "ready",
+      "is_starred": false,
+      "trashed_at": null,
+      "purge_after": null,
+      "created_at": "2026-08-21T09:09:17.705904+00:00",
+      "updated_at": "2026-08-21T09:09:18.424638+00:00"
+    },
+    {
+      "id": "1ba6328d-8a0f-4f03-a529-d4b91251a75a",
+      "owner_id": "690cbc59-358d-4432-b2de-f9825a789875",
+      "folder_id": null,
+      "original_name": "beeapp_attachment_20260821T084015Z.txt",
+      "display_name": "beeapp_attachment_20260821T084015Z.txt",
+      "extension": "txt",
+      "mime_type": "text/plain",
+      "kind": "document",
+      "size_bytes": 149,
+      "status": "ready",
+      "is_starred": false,
+      "trashed_at": null,
+      "purge_after": null,
+      "created_at": "2026-08-21T08:40:43.003699+00:00",
+      "updated_at": "2026-08-21T08:40:43.623188+00:00"
+    },
+    {
+      "id": "32252997-1244-4897-97a0-9efe2b26a7e6",
+      "owner_id": "690cbc59-358d-4432-b2de-f9825a789875",
+      "folder_id": null,
+      "original_name": "beeapp_mail_attachment_test.txt",
+      "display_name": "beeapp_mail_attachment_test.txt",
+      "extension": "txt",
+      "mime_type": "text/plain",
+      "kind": "document",
+      "size_bytes": 82,
+      "status": "ready",
+      "is_starred": false,
+      "trashed_at": null,
+      "purge_after": null,
+      "created_at": "2026-08-21T08:29:16.761863+00:00",
+      "updated_at": "2026-08-21T08:29:17.558639+00:00"
+    },
+    {
+      "id": "d9d08c91-8cad-424e-abf1-ed9be7cae0ee",
+      "owner_id": "690cbc59-358d-4432-b2de-f9825a789875",
+      "folder_id": null,
+      "original_name": "beeapp_mail_attachment_test.txt",
+      "display_name": "beeapp_mail_attachment_test.txt",
+      "extension": "txt",
+      "mime_type": "text/plain",
+      "kind": "document",
+      "size_bytes": 128,
+      "status": "ready",
+      "is_starred": false,
+      "trashed_at": null,
+      "purge_after": null,
+      "created_at": "2026-08-21T08:18:53.466542+00:00",
+      "updated_at": "2026-08-21T08:18:54.302346+00:00"
+    },
+    {
+      "id": "3e571040-b6ce-47e4-ae5e-50ac59d8983c",
+      "owner_id": "690cbc59-358d-4432-b2de-f9825a789875",
+      "folder_id": null,
+      "original_name": "textoPruebaSubida.docx",
+      "display_name": "textoPruebaSubida.docx",
+      "extension": "docx",
+      "mime_type": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      "kind": "document",
+      "size_bytes": 12599,
+      "status": "ready",
+      "is_starred": false,
+      "trashed_at": null,
+      "purge_after": null,
+      "created_at": "2026-08-15T01:10:34.329909+00:00",
+      "updated_at": "2026-08-15T01:10:35.046356+00:00"
+    }
+  ],
+  "count": 8,
+  "limit": 20,
+  "offset": 0
+}
+
+============================================================
+06_MAIL_MESSAGES_ALL
+============================================================
+HTTP_STATUS=200
+{
+  "messages": [
+    {
+      "id": "5329d788-7d68-400a-aa3c-368a6e812329",
+      "mail_integration_id": "85262509-942c-40b4-b02d-c1cd431d3466",
+      "provider": "microsoft",
+      "provider_thread_id": "AQQkADAwATYwMAItYjg3MS1iMDdjLTAwAi0wMAoAEAANGOBDalHMQKH1YGwB0cNh",
+      "provider_conversation_id": "AQQkADAwATYwMAItYjg3MS1iMDdjLTAwAi0wMAoAEAANGOBDalHMQKH1YGwB0cNh",
+      "direction": "outbound",
+      "status": "draft",
+      "folder": "drafts",
+      "is_read": true,
+      "is_starred": false,
+      "subject": "BeeApp smoke test sin adjunto 20260821T091846Z",
+      "body_preview": "Borrador automatizado sin archivos. No enviar.",
+      "snippet": "Borrador automatizado sin archivos. No enviar.",
+      "sent_at": "2026-08-21T09:19:28+00:00",
+      "received_at": "2026-08-21T09:19:28+00:00",
+      "has_attachments": false,
+      "attachment_count": 0,
+      "sender": null
+    },
+    {
+      "id": "a5ed2b81-62d2-46f8-ba8a-50b4a8f854b2",
+      "mail_integration_id": "85262509-942c-40b4-b02d-c1cd431d3466",
+      "provider": "microsoft",
+      "provider_thread_id": "AQQkADAwATYwMAItYjg3MS1iMDdjLTAwAi0wMAoAEAD0QxDY0F5ITI7PM31tnNYE",
+      "provider_conversation_id": "AQQkADAwATYwMAItYjg3MS1iMDdjLTAwAi0wMAoAEAD0QxDY0F5ITI7PM31tnNYE",
+      "direction": "outbound",
+      "status": "draft",
+      "folder": "drafts",
+      "is_read": true,
+      "is_starred": false,
+      "subject": "BeeApp smoke test editado 20260821T091846Z",
+      "body_preview": "Borrador editado por el smoke test. No enviar.",
+      "snippet": "Borrador editado por el smoke test. No enviar.",
+      "sent_at": "2026-08-21T09:19:12+00:00",
+      "received_at": "2026-08-21T09:19:12+00:00",
+      "has_attachments": true,
+      "attachment_count": 1,
+      "sender": null
+    },
+    {
+      "id": "b69a29fd-412e-4d5a-90da-ff8817b37d7a",
+      "mail_integration_id": "85262509-942c-40b4-b02d-c1cd431d3466",
+      "provider": "microsoft",
+      "provider_thread_id": "AQQkADAwATYwMAItYjg3MS1iMDdjLTAwAi0wMAoAEAAsgaN3StjET4KDodQo5Djr",
+      "provider_conversation_id": "AQQkADAwATYwMAItYjg3MS1iMDdjLTAwAi0wMAoAEAAsgaN3StjET4KDodQo5Djr",
+      "direction": "outbound",
+      "status": "draft",
+      "folder": "drafts",
+      "is_read": true,
+      "is_starred": false,
+      "subject": "BeeApp smoke test sin adjunto 20260821T090848Z",
+      "body_preview": "Borrador automatizado sin archivos. No enviar.",
+      "snippet": "Borrador automatizado sin archivos. No enviar.",
+      "sent_at": "2026-08-21T09:09:27+00:00",
+      "received_at": "2026-08-21T09:09:27+00:00",
+      "has_attachments": false,
+      "attachment_count": 0,
+      "sender": null
+    },
+    {
+      "id": "b59ce16a-30fc-450a-ab43-8bfdc35be68a",
+      "mail_integration_id": "85262509-942c-40b4-b02d-c1cd431d3466",
+      "provider": "microsoft",
+      "provider_thread_id": "AQQkADAwATYwMAItYjg3MS1iMDdjLTAwAi0wMAoAEADtSuTCoMXxSqDb5hkab_s3",
+      "provider_conversation_id": "AQQkADAwATYwMAItYjg3MS1iMDdjLTAwAi0wMAoAEADtSuTCoMXxSqDb5hkab_s3",
+      "direction": "outbound",
+      "status": "draft",
+      "folder": "drafts",
+      "is_read": true,
+      "is_starred": false,
+      "subject": "BeeApp smoke test con adjunto 20260821T090848Z",
+      "body_preview": "Borrador automatizado de prueba. No enviar.",
+      "snippet": "Borrador automatizado de prueba. No enviar.",
+      "sent_at": "2026-08-21T09:09:24+00:00",
+      "received_at": "2026-08-21T09:09:24+00:00",
+      "has_attachments": true,
+      "attachment_count": 1,
+      "sender": null
+    },
+    {
+      "id": "fa052393-2701-45e7-9c30-90e15303de65",
+      "mail_integration_id": "85262509-942c-40b4-b02d-c1cd431d3466",
+      "provider": "microsoft",
+      "provider_thread_id": "AQQkADAwATYwMAItYjg3MS1iMDdjLTAwAi0wMAoAEAAStV67CehdRZgFeQzK9PtZ",
+      "provider_conversation_id": "AQQkADAwATYwMAItYjg3MS1iMDdjLTAwAi0wMAoAEAAStV67CehdRZgFeQzK9PtZ",
+      "direction": "inbound",
+      "status": "draft",
+      "folder": "drafts",
+      "is_read": true,
+      "is_starred": false,
+      "subject": "Prueba BeeApp Mail - borrador editado",
+      "body_preview": "Contenido actualizado desde curl. Sigue siendo un borrador y no se debe enviar.",
+      "snippet": "Contenido actualizado desde curl. Sigue siendo un borrador y no se debe enviar.",
+      "sent_at": "2026-08-21T08:31:18+00:00",
+      "received_at": "2026-08-21T08:31:18+00:00",
+      "has_attachments": true,
+      "attachment_count": 1,
+      "sender": null
+    },
+    {
+      "id": "98e2a9f2-491f-4f23-be27-1e2973caef6b",
+      "mail_integration_id": "85262509-942c-40b4-b02d-c1cd431d3466",
+      "provider": "microsoft",
+      "provider_thread_id": "AQQkADAwATYwMAItYjg3MS1iMDdjLTAwAi0wMAoAEACzxazhTndQRp3vqIxwUFcC",
+      "provider_conversation_id": "AQQkADAwATYwMAItYjg3MS1iMDdjLTAwAi0wMAoAEACzxazhTndQRp3vqIxwUFcC",
+      "direction": "inbound",
+      "status": "received",
+      "folder": "inbox",
+      "is_read": false,
+      "is_starred": false,
+      "subject": "Alerta de seguridad para mifuturo021202@gmail.com",
+      "body_preview": "Este mensaje es una copia de una alerta de seguridad enviada a mifuturo021202@gmail.com. andres.santa-fe@hotmail.com es el correo de recuperación de esta cuenta. Si no reconoces esta cuenta, quítala.\r\nNuevo inicio de sesión en Linux\r\nmifuturo021202@gmail.",
+      "snippet": "Este mensaje es una copia de una alerta de seguridad enviada a mifuturo021202@gmail.com. andres.santa-fe@hotmail.com es el correo de recuperación de esta cuenta. Si no reconoces esta cuenta, quítala.\r\nNuevo inicio de sesión en Linux\r\nmifuturo021202@gmail.",
+      "sent_at": "2026-08-21T01:34:59+00:00",
+      "received_at": "2026-08-21T01:35:06+00:00",
+      "has_attachments": false,
+      "attachment_count": 0,
+      "sender": {
+        "email": "no-reply@accounts.google.com",
+        "display_name": "Google"
+      }
+    },
+    {
+      "id": "9e745bea-463d-40f7-a719-689cc2c9f924",
+      "mail_integration_id": "85262509-942c-40b4-b02d-c1cd431d3466",
+      "provider": "microsoft",
+      "provider_thread_id": "AQQkADAwATYwMAItYjg3MS1iMDdjLTAwAi0wMAoAEACMuYw9nvPIRrA1HPmSrgSR",
+      "provider_conversation_id": "AQQkADAwATYwMAItYjg3MS1iMDdjLTAwAi0wMAoAEACMuYw9nvPIRrA1HPmSrgSR",
+      "direction": "inbound",
+      "status": "received",
+      "folder": "inbox",
+      "is_read": false,
+      "is_starred": false,
+      "subject": "¡Extiende tu racha de ‎206‎ días!",
+      "body_preview": "¡Queda poco tiempo!  ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌\r\n\r\n\r\n\r\nEMPIEZA UNA LECCIÓN",
+      "snippet": "¡Queda poco tiempo!  ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌\r\n\r\n\r\n\r\nEMPIEZA UNA LECCIÓN",
+      "sent_at": "2026-08-21T01:30:04+00:00",
+      "received_at": "2026-08-21T01:30:09+00:00",
+      "has_attachments": false,
+      "attachment_count": 0,
+      "sender": {
+        "email": "hello@duolingo.com",
+        "display_name": "duolingo"
+      }
+    },
+    {
+      "id": "09a2f2ca-7f4f-4921-a563-c670e13db4a9",
+      "mail_integration_id": "85262509-942c-40b4-b02d-c1cd431d3466",
+      "provider": "microsoft",
+      "provider_thread_id": "AQQkADAwATYwMAItYjg3MS1iMDdjLTAwAi0wMAoAEAASX1Vy-IjXQYON9HXk9FRt",
+      "provider_conversation_id": "AQQkADAwATYwMAItYjg3MS1iMDdjLTAwAi0wMAoAEAASX1Vy-IjXQYON9HXk9FRt",
+      "direction": "inbound",
+      "status": "received",
+      "folder": "inbox",
+      "is_read": false,
+      "is_starred": false,
+      "subject": "\"Me estanqué y me dará una loquera\"",
+      "body_preview": "r/Colombia: Perdí mi estabilidad laboral de +5 años. Primera vez en todo ese tiempo que entro a buscar trabajo otra vez. No encuentro nada, nadie llama, +150 cvs enviadas +30 entrevistas con IA.... Nada. Tengo d...\r\n͏‌ ͏‌ ͏‌ ͏‌ ͏‌ ͏‌ ͏‌ ͏‌ ͏‌ ͏‌ ͏‌ ͏‌ ͏‌",
+      "snippet": "r/Colombia: Perdí mi estabilidad laboral de +5 años. Primera vez en todo ese tiempo que entro a buscar trabajo otra vez. No encuentro nada, nadie llama, +150 cvs enviadas +30 entrevistas con IA.... Nada. Tengo d...\r\n͏‌ ͏‌ ͏‌ ͏‌ ͏‌ ͏‌ ͏‌ ͏‌ ͏‌ ͏‌ ͏‌ ͏‌ ͏‌",
+      "sent_at": "2026-08-21T01:23:46+00:00",
+      "received_at": "2026-08-21T01:23:50+00:00",
+      "has_attachments": false,
+      "attachment_count": 0,
+      "sender": {
+        "email": "noreply@redditmail.com",
+        "display_name": "Reddit"
+      }
+    },
+    {
+      "id": "bb9c9ea2-0938-4488-a331-a1661c9672a7",
+      "mail_integration_id": "85262509-942c-40b4-b02d-c1cd431d3466",
+      "provider": "microsoft",
+      "provider_thread_id": "AQQkADAwATYwMAItYjg3MS1iMDdjLTAwAi0wMAoAEAAyp0Z-NN78TLvdMvxuiM4I",
+      "provider_conversation_id": "AQQkADAwATYwMAItYjg3MS1iMDdjLTAwAi0wMAoAEAAyp0Z-NN78TLvdMvxuiM4I",
+      "direction": "inbound",
+      "status": "received",
+      "folder": "inbox",
+      "is_read": false,
+      "is_starred": false,
+      "subject": "Notificación: #ELEDU Live: El punto de encuentro del emprendimiento dig... jue 20 de ago de 2026 3pm - 3:45pm (COT) (andres mendoza)",
+      "body_preview": "#ELEDU Live: El punto de encuentro del emprendimiento digital universitario\r\nEstimado(a): Buen día. La innovación que nace en las universidades tiene el poder de transformar empresas, impulsar nuevos emprendimientos y generar soluciones para los grandes d",
+      "snippet": "#ELEDU Live: El punto de encuentro del emprendimiento digital universitario\r\nEstimado(a): Buen día. La innovación que nace en las universidades tiene el poder de transformar empresas, impulsar nuevos emprendimientos y generar soluciones para los grandes d",
+      "sent_at": "2026-08-20T19:29:56+00:00",
+      "received_at": "2026-08-20T19:29:59+00:00",
+      "has_attachments": false,
+      "attachment_count": 0,
+      "sender": {
+        "email": "calendar-notification@google.com",
+        "display_name": "Google Calendar"
+      }
+    },
+    {
+      "id": "da86e65c-78dc-4de5-95d3-2a5e7a68a566",
+      "mail_integration_id": "85262509-942c-40b4-b02d-c1cd431d3466",
+      "provider": "microsoft",
+      "provider_thread_id": "AQQkADAwATYwMAItYjg3MS1iMDdjLTAwAi0wMAoAEAAprZexRbH1QrHkWABsSjEZ",
+      "provider_conversation_id": "AQQkADAwATYwMAItYjg3MS1iMDdjLTAwAi0wMAoAEAAprZexRbH1QrHkWABsSjEZ",
+      "direction": "inbound",
+      "status": "received",
+      "folder": "inbox",
+      "is_read": false,
+      "is_starred": false,
+      "subject": "Nuevas aplicaciones conectadas a la cuenta de Microsoft",
+      "body_preview": "Cuenta de Microsoft\r\nNuevas aplicaciones con acceso a los datos\r\nBuddy Integrations se ha conectado a la cuenta de Microsoft an**2@outlook.com.\r\nSi no se ha concedido este acceso, se deben eliminar las aplicaciones de la cuenta.\r\nAdministrar las aplicacio",
+      "snippet": "Cuenta de Microsoft\r\nNuevas aplicaciones con acceso a los datos\r\nBuddy Integrations se ha conectado a la cuenta de Microsoft an**2@outlook.com.\r\nSi no se ha concedido este acceso, se deben eliminar las aplicaciones de la cuenta.\r\nAdministrar las aplicacio",
+      "sent_at": "2026-08-20T16:31:44+00:00",
+      "received_at": "2026-08-20T16:31:48+00:00",
+      "has_attachments": false,
+      "attachment_count": 0,
+      "sender": {
+        "email": "account-security-noreply@accountprotection.microsoft.com",
+        "display_name": "Equipo de cuentas Microsoft"
+      }
+    },
+    {
+      "id": "f1506e1a-a6aa-4c68-9564-b68e91692198",
+      "mail_integration_id": "85262509-942c-40b4-b02d-c1cd431d3466",
+      "provider": "microsoft",
+      "provider_thread_id": "AQQkADAwATYwMAItYjg3MS1iMDdjLTAwAi0wMAoAEABcpR8NZtK5SqRfpwhFvtVH",
+      "provider_conversation_id": "AQQkADAwATYwMAItYjg3MS1iMDdjLTAwAi0wMAoAEABcpR8NZtK5SqRfpwhFvtVH",
+      "direction": "inbound",
+      "status": "received",
+      "folder": "inbox",
+      "is_read": false,
+      "is_starred": false,
+      "subject": "Notificación: prueba google 2 jue 20 de ago de 2026 11:30am - 12:30pm (COT) (andres.santa-fe@hotmail.com)",
+      "body_preview": "prueba google 2\r\nandres mendoza te ha invitado a asistir al evento llamado prueba google 2 el jueves 20 de ago de 2026 ⋅ 11:30am – 12:30pm (Hora estándar de Colombia).\r\n\r\nTienes un evento próximo\r\n\r\nprueba google 2\r\njueves 20 de ago de 2026 ⋅ 11:30am – 12",
+      "snippet": "prueba google 2\r\nandres mendoza te ha invitado a asistir al evento llamado prueba google 2 el jueves 20 de ago de 2026 ⋅ 11:30am – 12:30pm (Hora estándar de Colombia).\r\n\r\nTienes un evento próximo\r\n\r\nprueba google 2\r\njueves 20 de ago de 2026 ⋅ 11:30am – 12",
+      "sent_at": "2026-08-20T15:59:49+00:00",
+      "received_at": "2026-08-20T15:59:53+00:00",
+      "has_attachments": false,
+      "attachment_count": 0,
+      "sender": {
+        "email": "calendar-notification@google.com",
+        "display_name": "Google Calendar"
+      }
+    },
+    {
+      "id": "bf7b09ef-eafe-4100-b5b7-8c7ae9a7f04e",
+      "mail_integration_id": "85262509-942c-40b4-b02d-c1cd431d3466",
+      "provider": "microsoft",
+      "provider_thread_id": "AQQkADAwATYwMAItYjg3MS1iMDdjLTAwAi0wMAoAEAC1V9Po-79vQ6lMfpnm3gHL",
+      "provider_conversation_id": "AQQkADAwATYwMAItYjg3MS1iMDdjLTAwAi0wMAoAEAC1V9Po-79vQ6lMfpnm3gHL",
+      "direction": "inbound",
+      "status": "received",
+      "folder": "spam",
+      "is_read": false,
+      "is_starred": false,
+      "subject": "FastAPI Cloud Is Coming to Amsterdam 🇳🇱",
+      "body_preview": "View in browser\r\n\r\nFastAPI Cloud Is Coming to Amsterdam 🇳🇱\r\n\r\nHello there!\r\n\r\nFastAPI Cloud is coming to Amsterdam! 🇳🇱\r\n\r\nThe team behind FastAPI Cloud is also the team organizing FastAPI Conf 2026, and we're very happy to spend a full day with the co",
+      "snippet": "View in browser\r\n\r\nFastAPI Cloud Is Coming to Amsterdam 🇳🇱\r\n\r\nHello there!\r\n\r\nFastAPI Cloud is coming to Amsterdam! 🇳🇱\r\n\r\nThe team behind FastAPI Cloud is also the team organizing FastAPI Conf 2026, and we're very happy to spend a full day with the co",
+      "sent_at": "2026-08-20T15:13:10+00:00",
+      "received_at": "2026-08-20T15:13:13+00:00",
+      "has_attachments": false,
+      "attachment_count": 0,
+      "sender": {
+        "email": "newsletter@news.fastapicloud.com",
+        "display_name": "FastAPI Cloud"
+      }
+    },
+    {
+      "id": "a3b8ef66-bc2b-499f-b10c-f85bbc962f97",
+      "mail_integration_id": "85262509-942c-40b4-b02d-c1cd431d3466",
+      "provider": "microsoft",
+      "provider_thread_id": "AQQkADAwATYwMAItYjg3MS1iMDdjLTAwAi0wMAoAEACmvDg7vZZMSK4Nt_jaakXB",
+      "provider_conversation_id": "AQQkADAwATYwMAItYjg3MS1iMDdjLTAwAi0wMAoAEACmvDg7vZZMSK4Nt_jaakXB",
+      "direction": "inbound",
+      "status": "received",
+      "folder": "spam",
+      "is_read": false,
+      "is_starred": false,
+      "subject": "nformación Importante",
+      "body_preview": "Si no puede ver correctamente el contenido de este mensaje, haga clic aquí.\r\n\r\n\r\n\r\nInformación Importante\r\n\r\n\r\n\r\nLos invitamos a participar en una breve encuesta que nos permitirá conocer si han visto o escuchado nuestras campañas de Promoción y Prevenció",
+      "snippet": "Si no puede ver correctamente el contenido de este mensaje, haga clic aquí.\r\n\r\n\r\n\r\nInformación Importante\r\n\r\n\r\n\r\nLos invitamos a participar en una breve encuesta que nos permitirá conocer si han visto o escuchado nuestras campañas de Promoción y Prevenció",
+      "sent_at": "2026-08-20T13:42:50+00:00",
+      "received_at": "2026-08-20T13:43:02+00:00",
+      "has_attachments": false,
+      "attachment_count": 0,
+      "sender": {
+        "email": "comunicacionesfamisanar@famisanar.com.co",
+        "display_name": "Comunicaciones EPS Famisanar"
+      }
+    },
+    {
+      "id": "c389d2f4-f268-4e1d-9c30-d4c99332cbc6",
+      "mail_integration_id": "85262509-942c-40b4-b02d-c1cd431d3466",
+      "provider": "microsoft",
+      "provider_thread_id": "AQQkADAwATYwMAItYjg3MS1iMDdjLTAwAi0wMAoAEADw9ozR96OGSagNUWzpk0js",
+      "provider_conversation_id": "AQQkADAwATYwMAItYjg3MS1iMDdjLTAwAi0wMAoAEADw9ozR96OGSagNUWzpk0js",
+      "direction": "inbound",
+      "status": "received",
+      "folder": "inbox",
+      "is_read": false,
+      "is_starred": false,
+      "subject": "\"Mi novia va a ser modelo webcam, no sé qué hacer ni como reaccionar\"",
+      "body_preview": "r/Colombia: Mi novia va a ser modelo webcam, no sé qué hacer ni como reaccionar Conocí a esta chica hace unos 10 meses y pues empezamos una relación formal hace como 6 meses, hace unos meses me había comentado que quería ser modelo webcam, al principio ob",
+      "snippet": "r/Colombia: Mi novia va a ser modelo webcam, no sé qué hacer ni como reaccionar Conocí a esta chica hace unos 10 meses y pues empezamos una relación formal hace como 6 meses, hace unos meses me había comentado que quería ser modelo webcam, al principio ob",
+      "sent_at": "2026-08-20T02:08:19+00:00",
+      "received_at": "2026-08-20T02:08:23+00:00",
+      "has_attachments": false,
+      "attachment_count": 0,
+      "sender": {
+        "email": "noreply@redditmail.com",
+        "display_name": "Reddit"
+      }
+    },
+    {
+      "id": "af0a6e40-8214-4a26-b8af-b30eccdc3497",
+      "mail_integration_id": "85262509-942c-40b4-b02d-c1cd431d3466",
+      "provider": "microsoft",
+      "provider_thread_id": "AQQkADAwATYwMAItYjg3MS1iMDdjLTAwAi0wMAoAEAAI3P1NT0ClRpl5cUs7fjJ3",
+      "provider_conversation_id": "AQQkADAwATYwMAItYjg3MS1iMDdjLTAwAi0wMAoAEAAI3P1NT0ClRpl5cUs7fjJ3",
+      "direction": "inbound",
+      "status": "received",
+      "folder": "inbox",
+      "is_read": false,
+      "is_starred": false,
+      "subject": "🔥¡48H de las mejores ofertas en HP!",
+      "body_preview": "Aprovecha las ofertas especiales en cómputo e impresión.\r\n\r\n\r\n\r\n\r\n🎉 🎊 ¡Descubre todas nuestras categorías! 🎊 🎉\r\n\r\nCelulares\r\n\r\nElectro\r\n\r\nComputadores\r\n\r\nTelevisores\r\n\r\nVideojuegos\r\n\r\nAudio\r\n\r\nElectrohogar\r\n\r\nSmartwatch\r\n\r\nAudífonos\r\n\r\nAccesorios\r\n\r\nC",
+      "snippet": "Aprovecha las ofertas especiales en cómputo e impresión.\r\n\r\n\r\n\r\n\r\n🎉 🎊 ¡Descubre todas nuestras categorías! 🎊 🎉\r\n\r\nCelulares\r\n\r\nElectro\r\n\r\nComputadores\r\n\r\nTelevisores\r\n\r\nVideojuegos\r\n\r\nAudio\r\n\r\nElectrohogar\r\n\r\nSmartwatch\r\n\r\nAudífonos\r\n\r\nAccesorios\r\n\r\nC",
+      "sent_at": "2026-08-19T20:20:47+00:00",
+      "received_at": "2026-08-19T22:47:33+00:00",
+      "has_attachments": false,
+      "attachment_count": 0,
+      "sender": {
+        "email": "boletin@email.alkosto.com",
+        "display_name": "Alkosto"
+      }
+    },
+    {
+      "id": "5dee6a5c-5804-4df0-9ff5-bc728aa46a7a",
+      "mail_integration_id": "85262509-942c-40b4-b02d-c1cd431d3466",
+      "provider": "microsoft",
+      "provider_thread_id": "AQQkADAwATYwMAItYjg3MS1iMDdjLTAwAi0wMAoAEADlcFcuH8DRT7FRGksrFEKG",
+      "provider_conversation_id": "AQQkADAwATYwMAItYjg3MS1iMDdjLTAwAi0wMAoAEADlcFcuH8DRT7FRGksrFEKG",
+      "direction": "inbound",
+      "status": "trashed",
+      "folder": "trash",
+      "is_read": false,
+      "is_starred": false,
+      "subject": "¡Enviaste plata por Bre-B!",
+      "body_preview": "¡Realizaste un envío por Bre-B y todo salió bien!\r\n¡Hola, ANDRES FELIPE MENDOZA SILVA!\r\n\r\nEnviaste de manera exitosa 7.000 a la llave 0092822154 de MONICA CRUZ ORTIZ el 19 de agosto de 2026 a las 3:35 p.m. Revisa el detalle en los movimientos de tu app o",
+      "snippet": "¡Realizaste un envío por Bre-B y todo salió bien!\r\n¡Hola, ANDRES FELIPE MENDOZA SILVA!\r\n\r\nEnviaste de manera exitosa 7.000 a la llave 0092822154 de MONICA CRUZ ORTIZ el 19 de agosto de 2026 a las 3:35 p.m. Revisa el detalle en los movimientos de tu app o",
+      "sent_at": "2026-08-19T20:35:15+00:00",
+      "received_at": "2026-08-19T20:35:16+00:00",
+      "has_attachments": false,
+      "attachment_count": 0,
+      "sender": {
+        "email": "notificaciones@nequi.com.co",
+        "display_name": "notificaciones@nequi.com.co"
+      }
+    },
+    {
+      "id": "70f573f3-6b17-4eeb-9ad1-49a8fbdf5763",
+      "mail_integration_id": "85262509-942c-40b4-b02d-c1cd431d3466",
+      "provider": "microsoft",
+      "provider_thread_id": "AQQkADAwATYwMAItYjg3MS1iMDdjLTAwAi0wMAoAEACNONwsWu6XQ4e8WhlfjRYe",
+      "provider_conversation_id": "AQQkADAwATYwMAItYjg3MS1iMDdjLTAwAi0wMAoAEACNONwsWu6XQ4e8WhlfjRYe",
+      "direction": "inbound",
+      "status": "trashed",
+      "folder": "trash",
+      "is_read": false,
+      "is_starred": false,
+      "subject": "Hola: El emprendimiento digital universitario tiene un punto de encuentro",
+      "body_preview": "Buen día. Conoce #ELEDU Live y descubre cómo universidades y emprendedores pueden conectarse, crecer y abrir nuevas oportunidades gracias a Digital.  Reserva tu cupo sin costo aquí.\r\n\r\n\r\n\r\n\r\nEquipo #ELEDU\r\nemail: eledu@interlat.co\r\nWhatsApp: +57(313) 866",
+      "snippet": "Buen día. Conoce #ELEDU Live y descubre cómo universidades y emprendedores pueden conectarse, crecer y abrir nuevas oportunidades gracias a Digital.  Reserva tu cupo sin costo aquí.\r\n\r\n\r\n\r\n\r\nEquipo #ELEDU\r\nemail: eledu@interlat.co\r\nWhatsApp: +57(313) 866",
+      "sent_at": "2026-08-19T19:20:42+00:00",
+      "received_at": "2026-08-19T19:21:32+00:00",
+      "has_attachments": false,
+      "attachment_count": 1,
+      "sender": {
+        "email": "eledu@interlat.co",
+        "display_name": "#ELEDU Interlat"
+      }
+    },
+    {
+      "id": "d9420b49-f2cb-4a3a-9fad-0f8dbbbe92c5",
+      "mail_integration_id": "85262509-942c-40b4-b02d-c1cd431d3466",
+      "provider": "microsoft",
+      "provider_thread_id": "AQQkADAwATYwMAItYjg3MS1iMDdjLTAwAi0wMAoAEACHqjD941kcQagNLWAnCEID",
+      "provider_conversation_id": "AQQkADAwATYwMAItYjg3MS1iMDdjLTAwAi0wMAoAEACHqjD941kcQagNLWAnCEID",
+      "direction": "inbound",
+      "status": "trashed",
+      "folder": "trash",
+      "is_read": false,
+      "is_starred": false,
+      "subject": "Notificación: prueba google 1 mié 19 de ago de 2026 2:30pm - 3:30pm (COT) (andres.santa-fe@hotmail.com)",
+      "body_preview": "prueba google 1\r\nandres mendoza te ha invitado a asistir al evento llamado prueba google 1 el miércoles 19 de ago de 2026 ⋅ 2:30pm – 3:30pm (Hora estándar de Colombia).\r\n\r\nTienes un evento próximo\r\n\r\nprueba google 1\r\nmiércoles 19 de ago de 2026 ⋅ 2:30pm –",
+      "snippet": "prueba google 1\r\nandres mendoza te ha invitado a asistir al evento llamado prueba google 1 el miércoles 19 de ago de 2026 ⋅ 2:30pm – 3:30pm (Hora estándar de Colombia).\r\n\r\nTienes un evento próximo\r\n\r\nprueba google 1\r\nmiércoles 19 de ago de 2026 ⋅ 2:30pm –",
+      "sent_at": "2026-08-19T18:59:46+00:00",
+      "received_at": "2026-08-19T18:59:48+00:00",
+      "has_attachments": false,
+      "attachment_count": 0,
+      "sender": {
+        "email": "calendar-notification@google.com",
+        "display_name": "Google Calendar"
+      }
+    },
+    {
+      "id": "d34105d3-286c-400b-a9fb-d897ee2b384b",
+      "mail_integration_id": "85262509-942c-40b4-b02d-c1cd431d3466",
+      "provider": "microsoft",
+      "provider_thread_id": "AQQkADAwATYwMAItYjg3MS1iMDdjLTAwAi0wMAoAEAD1_EP4bBZhT6M1tC4ZIWpn",
+      "provider_conversation_id": "AQQkADAwATYwMAItYjg3MS1iMDdjLTAwAi0wMAoAEAD1_EP4bBZhT6M1tC4ZIWpn",
+      "direction": "inbound",
+      "status": "trashed",
+      "folder": "trash",
+      "is_read": false,
+      "is_starred": false,
+      "subject": "Has compartido algunos datos de tu cuenta de Google con refinance-corps-husband-elevation.trycloudflare.com",
+      "body_preview": "Haz un seguimiento de los datos de tu cuenta de Google\r\n\r\n        andres.santa-fe@hotmail.com\r\n \r\n\r\n\r\n\r\nHas recibido este correo porque has usado la función Iniciar sesión con Google para iniciar sesión en refinance-corps-husband-elevation.trycloudflare.c",
+      "snippet": "Haz un seguimiento de los datos de tu cuenta de Google\r\n\r\n        andres.santa-fe@hotmail.com\r\n \r\n\r\n\r\n\r\nHas recibido este correo porque has usado la función Iniciar sesión con Google para iniciar sesión en refinance-corps-husband-elevation.trycloudflare.c",
+      "sent_at": "2026-08-19T17:59:45+00:00",
+      "received_at": "2026-08-19T17:59:49+00:00",
+      "has_attachments": false,
+      "attachment_count": 0,
+      "sender": {
+        "email": "noreply-accounts@google.com",
+        "display_name": "Google"
+      }
+    },
+    {
+      "id": "36914b91-3baf-466c-bfa9-31764ff5c0e4",
+      "mail_integration_id": "85262509-942c-40b4-b02d-c1cd431d3466",
+      "provider": "microsoft",
+      "provider_thread_id": "AQQkADAwATYwMAItYjg3MS1iMDdjLTAwAi0wMAoAEAABEAOvwkBfQJViSRUbrRQ5",
+      "provider_conversation_id": "AQQkADAwATYwMAItYjg3MS1iMDdjLTAwAi0wMAoAEAABEAOvwkBfQJViSRUbrRQ5",
+      "direction": "inbound",
+      "status": "trashed",
+      "folder": "trash",
+      "is_read": true,
+      "is_starred": false,
+      "subject": "Has compartido algunos datos de tu cuenta de Google con refinance-corps-husband-elevation.trycloudflare.com",
+      "body_preview": "Haz un seguimiento de los datos de tu cuenta de Google\r\n\r\n        andres.santa-fe@hotmail.com\r\n \r\n\r\n\r\n\r\nHas recibido este correo porque has usado la función Iniciar sesión con Google para iniciar sesión en refinance-corps-husband-elevation.trycloudflare.c",
+      "snippet": "Haz un seguimiento de los datos de tu cuenta de Google\r\n\r\n        andres.santa-fe@hotmail.com\r\n \r\n\r\n\r\n\r\nHas recibido este correo porque has usado la función Iniciar sesión con Google para iniciar sesión en refinance-corps-husband-elevation.trycloudflare.c",
+      "sent_at": "2026-08-19T17:58:34+00:00",
+      "received_at": "2026-08-19T17:58:36+00:00",
+      "has_attachments": false,
+      "attachment_count": 0,
+      "sender": {
+        "email": "noreply-accounts@google.com",
+        "display_name": "Google"
+      }
+    }
+  ],
+  "pagination": {
+    "limit": 20,
+    "offset": 0,
+    "count": 20,
+    "total_count": 267,
+    "has_more": true,
+    "next_offset": 20
+  }
+}
+
+============================================================
+07_MAIL_MESSAGES_DRAFTS
+============================================================
+HTTP_STATUS=200
+{
+  "messages": [
+    {
+      "id": "5329d788-7d68-400a-aa3c-368a6e812329",
+      "mail_integration_id": "85262509-942c-40b4-b02d-c1cd431d3466",
+      "provider": "microsoft",
+      "provider_thread_id": "AQQkADAwATYwMAItYjg3MS1iMDdjLTAwAi0wMAoAEAANGOBDalHMQKH1YGwB0cNh",
+      "provider_conversation_id": "AQQkADAwATYwMAItYjg3MS1iMDdjLTAwAi0wMAoAEAANGOBDalHMQKH1YGwB0cNh",
+      "direction": "outbound",
+      "status": "draft",
+      "folder": "drafts",
+      "is_read": true,
+      "is_starred": false,
+      "subject": "BeeApp smoke test sin adjunto 20260821T091846Z",
+      "body_preview": "Borrador automatizado sin archivos. No enviar.",
+      "snippet": "Borrador automatizado sin archivos. No enviar.",
+      "sent_at": "2026-08-21T09:19:28+00:00",
+      "received_at": "2026-08-21T09:19:28+00:00",
+      "has_attachments": false,
+      "attachment_count": 0,
+      "sender": null
+    },
+    {
+      "id": "a5ed2b81-62d2-46f8-ba8a-50b4a8f854b2",
+      "mail_integration_id": "85262509-942c-40b4-b02d-c1cd431d3466",
+      "provider": "microsoft",
+      "provider_thread_id": "AQQkADAwATYwMAItYjg3MS1iMDdjLTAwAi0wMAoAEAD0QxDY0F5ITI7PM31tnNYE",
+      "provider_conversation_id": "AQQkADAwATYwMAItYjg3MS1iMDdjLTAwAi0wMAoAEAD0QxDY0F5ITI7PM31tnNYE",
+      "direction": "outbound",
+      "status": "draft",
+      "folder": "drafts",
+      "is_read": true,
+      "is_starred": false,
+      "subject": "BeeApp smoke test editado 20260821T091846Z",
+      "body_preview": "Borrador editado por el smoke test. No enviar.",
+      "snippet": "Borrador editado por el smoke test. No enviar.",
+      "sent_at": "2026-08-21T09:19:12+00:00",
+      "received_at": "2026-08-21T09:19:12+00:00",
+      "has_attachments": true,
+      "attachment_count": 1,
+      "sender": null
+    },
+    {
+      "id": "b69a29fd-412e-4d5a-90da-ff8817b37d7a",
+      "mail_integration_id": "85262509-942c-40b4-b02d-c1cd431d3466",
+      "provider": "microsoft",
+      "provider_thread_id": "AQQkADAwATYwMAItYjg3MS1iMDdjLTAwAi0wMAoAEAAsgaN3StjET4KDodQo5Djr",
+      "provider_conversation_id": "AQQkADAwATYwMAItYjg3MS1iMDdjLTAwAi0wMAoAEAAsgaN3StjET4KDodQo5Djr",
+      "direction": "outbound",
+      "status": "draft",
+      "folder": "drafts",
+      "is_read": true,
+      "is_starred": false,
+      "subject": "BeeApp smoke test sin adjunto 20260821T090848Z",
+      "body_preview": "Borrador automatizado sin archivos. No enviar.",
+      "snippet": "Borrador automatizado sin archivos. No enviar.",
+      "sent_at": "2026-08-21T09:09:27+00:00",
+      "received_at": "2026-08-21T09:09:27+00:00",
+      "has_attachments": false,
+      "attachment_count": 0,
+      "sender": null
+    },
+    {
+      "id": "b59ce16a-30fc-450a-ab43-8bfdc35be68a",
+      "mail_integration_id": "85262509-942c-40b4-b02d-c1cd431d3466",
+      "provider": "microsoft",
+      "provider_thread_id": "AQQkADAwATYwMAItYjg3MS1iMDdjLTAwAi0wMAoAEADtSuTCoMXxSqDb5hkab_s3",
+      "provider_conversation_id": "AQQkADAwATYwMAItYjg3MS1iMDdjLTAwAi0wMAoAEADtSuTCoMXxSqDb5hkab_s3",
+      "direction": "outbound",
+      "status": "draft",
+      "folder": "drafts",
+      "is_read": true,
+      "is_starred": false,
+      "subject": "BeeApp smoke test con adjunto 20260821T090848Z",
+      "body_preview": "Borrador automatizado de prueba. No enviar.",
+      "snippet": "Borrador automatizado de prueba. No enviar.",
+      "sent_at": "2026-08-21T09:09:24+00:00",
+      "received_at": "2026-08-21T09:09:24+00:00",
+      "has_attachments": true,
+      "attachment_count": 1,
+      "sender": null
+    },
+    {
+      "id": "fa052393-2701-45e7-9c30-90e15303de65",
+      "mail_integration_id": "85262509-942c-40b4-b02d-c1cd431d3466",
+      "provider": "microsoft",
+      "provider_thread_id": "AQQkADAwATYwMAItYjg3MS1iMDdjLTAwAi0wMAoAEAAStV67CehdRZgFeQzK9PtZ",
+      "provider_conversation_id": "AQQkADAwATYwMAItYjg3MS1iMDdjLTAwAi0wMAoAEAAStV67CehdRZgFeQzK9PtZ",
+      "direction": "inbound",
+      "status": "draft",
+      "folder": "drafts",
+      "is_read": true,
+      "is_starred": false,
+      "subject": "Prueba BeeApp Mail - borrador editado",
+      "body_preview": "Contenido actualizado desde curl. Sigue siendo un borrador y no se debe enviar.",
+      "snippet": "Contenido actualizado desde curl. Sigue siendo un borrador y no se debe enviar.",
+      "sent_at": "2026-08-21T08:31:18+00:00",
+      "received_at": "2026-08-21T08:31:18+00:00",
+      "has_attachments": true,
+      "attachment_count": 1,
+      "sender": null
+    }
+  ],
+  "pagination": {
+    "limit": 20,
+    "offset": 0,
+    "count": 5,
+    "total_count": 5,
+    "has_more": false,
+    "next_offset": null
+  }
+}
+
+============================================================
+08_MAIL_MESSAGES_INBOX
+============================================================
+HTTP_STATUS=200
+{
+  "messages": [
+    {
+      "id": "98e2a9f2-491f-4f23-be27-1e2973caef6b",
+      "mail_integration_id": "85262509-942c-40b4-b02d-c1cd431d3466",
+      "provider": "microsoft",
+      "provider_thread_id": "AQQkADAwATYwMAItYjg3MS1iMDdjLTAwAi0wMAoAEACzxazhTndQRp3vqIxwUFcC",
+      "provider_conversation_id": "AQQkADAwATYwMAItYjg3MS1iMDdjLTAwAi0wMAoAEACzxazhTndQRp3vqIxwUFcC",
+      "direction": "inbound",
+      "status": "received",
+      "folder": "inbox",
+      "is_read": false,
+      "is_starred": false,
+      "subject": "Alerta de seguridad para mifuturo021202@gmail.com",
+      "body_preview": "Este mensaje es una copia de una alerta de seguridad enviada a mifuturo021202@gmail.com. andres.santa-fe@hotmail.com es el correo de recuperación de esta cuenta. Si no reconoces esta cuenta, quítala.\r\nNuevo inicio de sesión en Linux\r\nmifuturo021202@gmail.",
+      "snippet": "Este mensaje es una copia de una alerta de seguridad enviada a mifuturo021202@gmail.com. andres.santa-fe@hotmail.com es el correo de recuperación de esta cuenta. Si no reconoces esta cuenta, quítala.\r\nNuevo inicio de sesión en Linux\r\nmifuturo021202@gmail.",
+      "sent_at": "2026-08-21T01:34:59+00:00",
+      "received_at": "2026-08-21T01:35:06+00:00",
+      "has_attachments": false,
+      "attachment_count": 0,
+      "sender": {
+        "email": "no-reply@accounts.google.com",
+        "display_name": "Google"
+      }
+    },
+    {
+      "id": "9e745bea-463d-40f7-a719-689cc2c9f924",
+      "mail_integration_id": "85262509-942c-40b4-b02d-c1cd431d3466",
+      "provider": "microsoft",
+      "provider_thread_id": "AQQkADAwATYwMAItYjg3MS1iMDdjLTAwAi0wMAoAEACMuYw9nvPIRrA1HPmSrgSR",
+      "provider_conversation_id": "AQQkADAwATYwMAItYjg3MS1iMDdjLTAwAi0wMAoAEACMuYw9nvPIRrA1HPmSrgSR",
+      "direction": "inbound",
+      "status": "received",
+      "folder": "inbox",
+      "is_read": false,
+      "is_starred": false,
+      "subject": "¡Extiende tu racha de ‎206‎ días!",
+      "body_preview": "¡Queda poco tiempo!  ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌\r\n\r\n\r\n\r\nEMPIEZA UNA LECCIÓN",
+      "snippet": "¡Queda poco tiempo!  ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌\r\n\r\n\r\n\r\nEMPIEZA UNA LECCIÓN",
+      "sent_at": "2026-08-21T01:30:04+00:00",
+      "received_at": "2026-08-21T01:30:09+00:00",
+      "has_attachments": false,
+      "attachment_count": 0,
+      "sender": {
+        "email": "hello@duolingo.com",
+        "display_name": "duolingo"
+      }
+    },
+    {
+      "id": "09a2f2ca-7f4f-4921-a563-c670e13db4a9",
+      "mail_integration_id": "85262509-942c-40b4-b02d-c1cd431d3466",
+      "provider": "microsoft",
+      "provider_thread_id": "AQQkADAwATYwMAItYjg3MS1iMDdjLTAwAi0wMAoAEAASX1Vy-IjXQYON9HXk9FRt",
+      "provider_conversation_id": "AQQkADAwATYwMAItYjg3MS1iMDdjLTAwAi0wMAoAEAASX1Vy-IjXQYON9HXk9FRt",
+      "direction": "inbound",
+      "status": "received",
+      "folder": "inbox",
+      "is_read": false,
+      "is_starred": false,
+      "subject": "\"Me estanqué y me dará una loquera\"",
+      "body_preview": "r/Colombia: Perdí mi estabilidad laboral de +5 años. Primera vez en todo ese tiempo que entro a buscar trabajo otra vez. No encuentro nada, nadie llama, +150 cvs enviadas +30 entrevistas con IA.... Nada. Tengo d...\r\n͏‌ ͏‌ ͏‌ ͏‌ ͏‌ ͏‌ ͏‌ ͏‌ ͏‌ ͏‌ ͏‌ ͏‌ ͏‌",
+      "snippet": "r/Colombia: Perdí mi estabilidad laboral de +5 años. Primera vez en todo ese tiempo que entro a buscar trabajo otra vez. No encuentro nada, nadie llama, +150 cvs enviadas +30 entrevistas con IA.... Nada. Tengo d...\r\n͏‌ ͏‌ ͏‌ ͏‌ ͏‌ ͏‌ ͏‌ ͏‌ ͏‌ ͏‌ ͏‌ ͏‌ ͏‌",
+      "sent_at": "2026-08-21T01:23:46+00:00",
+      "received_at": "2026-08-21T01:23:50+00:00",
+      "has_attachments": false,
+      "attachment_count": 0,
+      "sender": {
+        "email": "noreply@redditmail.com",
+        "display_name": "Reddit"
+      }
+    },
+    {
+      "id": "bb9c9ea2-0938-4488-a331-a1661c9672a7",
+      "mail_integration_id": "85262509-942c-40b4-b02d-c1cd431d3466",
+      "provider": "microsoft",
+      "provider_thread_id": "AQQkADAwATYwMAItYjg3MS1iMDdjLTAwAi0wMAoAEAAyp0Z-NN78TLvdMvxuiM4I",
+      "provider_conversation_id": "AQQkADAwATYwMAItYjg3MS1iMDdjLTAwAi0wMAoAEAAyp0Z-NN78TLvdMvxuiM4I",
+      "direction": "inbound",
+      "status": "received",
+      "folder": "inbox",
+      "is_read": false,
+      "is_starred": false,
+      "subject": "Notificación: #ELEDU Live: El punto de encuentro del emprendimiento dig... jue 20 de ago de 2026 3pm - 3:45pm (COT) (andres mendoza)",
+      "body_preview": "#ELEDU Live: El punto de encuentro del emprendimiento digital universitario\r\nEstimado(a): Buen día. La innovación que nace en las universidades tiene el poder de transformar empresas, impulsar nuevos emprendimientos y generar soluciones para los grandes d",
+      "snippet": "#ELEDU Live: El punto de encuentro del emprendimiento digital universitario\r\nEstimado(a): Buen día. La innovación que nace en las universidades tiene el poder de transformar empresas, impulsar nuevos emprendimientos y generar soluciones para los grandes d",
+      "sent_at": "2026-08-20T19:29:56+00:00",
+      "received_at": "2026-08-20T19:29:59+00:00",
+      "has_attachments": false,
+      "attachment_count": 0,
+      "sender": {
+        "email": "calendar-notification@google.com",
+        "display_name": "Google Calendar"
+      }
+    },
+    {
+      "id": "da86e65c-78dc-4de5-95d3-2a5e7a68a566",
+      "mail_integration_id": "85262509-942c-40b4-b02d-c1cd431d3466",
+      "provider": "microsoft",
+      "provider_thread_id": "AQQkADAwATYwMAItYjg3MS1iMDdjLTAwAi0wMAoAEAAprZexRbH1QrHkWABsSjEZ",
+      "provider_conversation_id": "AQQkADAwATYwMAItYjg3MS1iMDdjLTAwAi0wMAoAEAAprZexRbH1QrHkWABsSjEZ",
+      "direction": "inbound",
+      "status": "received",
+      "folder": "inbox",
+      "is_read": false,
+      "is_starred": false,
+      "subject": "Nuevas aplicaciones conectadas a la cuenta de Microsoft",
+      "body_preview": "Cuenta de Microsoft\r\nNuevas aplicaciones con acceso a los datos\r\nBuddy Integrations se ha conectado a la cuenta de Microsoft an**2@outlook.com.\r\nSi no se ha concedido este acceso, se deben eliminar las aplicaciones de la cuenta.\r\nAdministrar las aplicacio",
+      "snippet": "Cuenta de Microsoft\r\nNuevas aplicaciones con acceso a los datos\r\nBuddy Integrations se ha conectado a la cuenta de Microsoft an**2@outlook.com.\r\nSi no se ha concedido este acceso, se deben eliminar las aplicaciones de la cuenta.\r\nAdministrar las aplicacio",
+      "sent_at": "2026-08-20T16:31:44+00:00",
+      "received_at": "2026-08-20T16:31:48+00:00",
+      "has_attachments": false,
+      "attachment_count": 0,
+      "sender": {
+        "email": "account-security-noreply@accountprotection.microsoft.com",
+        "display_name": "Equipo de cuentas Microsoft"
+      }
+    },
+    {
+      "id": "f1506e1a-a6aa-4c68-9564-b68e91692198",
+      "mail_integration_id": "85262509-942c-40b4-b02d-c1cd431d3466",
+      "provider": "microsoft",
+      "provider_thread_id": "AQQkADAwATYwMAItYjg3MS1iMDdjLTAwAi0wMAoAEABcpR8NZtK5SqRfpwhFvtVH",
+      "provider_conversation_id": "AQQkADAwATYwMAItYjg3MS1iMDdjLTAwAi0wMAoAEABcpR8NZtK5SqRfpwhFvtVH",
+      "direction": "inbound",
+      "status": "received",
+      "folder": "inbox",
+      "is_read": false,
+      "is_starred": false,
+      "subject": "Notificación: prueba google 2 jue 20 de ago de 2026 11:30am - 12:30pm (COT) (andres.santa-fe@hotmail.com)",
+      "body_preview": "prueba google 2\r\nandres mendoza te ha invitado a asistir al evento llamado prueba google 2 el jueves 20 de ago de 2026 ⋅ 11:30am – 12:30pm (Hora estándar de Colombia).\r\n\r\nTienes un evento próximo\r\n\r\nprueba google 2\r\njueves 20 de ago de 2026 ⋅ 11:30am – 12",
+      "snippet": "prueba google 2\r\nandres mendoza te ha invitado a asistir al evento llamado prueba google 2 el jueves 20 de ago de 2026 ⋅ 11:30am – 12:30pm (Hora estándar de Colombia).\r\n\r\nTienes un evento próximo\r\n\r\nprueba google 2\r\njueves 20 de ago de 2026 ⋅ 11:30am – 12",
+      "sent_at": "2026-08-20T15:59:49+00:00",
+      "received_at": "2026-08-20T15:59:53+00:00",
+      "has_attachments": false,
+      "attachment_count": 0,
+      "sender": {
+        "email": "calendar-notification@google.com",
+        "display_name": "Google Calendar"
+      }
+    },
+    {
+      "id": "c389d2f4-f268-4e1d-9c30-d4c99332cbc6",
+      "mail_integration_id": "85262509-942c-40b4-b02d-c1cd431d3466",
+      "provider": "microsoft",
+      "provider_thread_id": "AQQkADAwATYwMAItYjg3MS1iMDdjLTAwAi0wMAoAEADw9ozR96OGSagNUWzpk0js",
+      "provider_conversation_id": "AQQkADAwATYwMAItYjg3MS1iMDdjLTAwAi0wMAoAEADw9ozR96OGSagNUWzpk0js",
+      "direction": "inbound",
+      "status": "received",
+      "folder": "inbox",
+      "is_read": false,
+      "is_starred": false,
+      "subject": "\"Mi novia va a ser modelo webcam, no sé qué hacer ni como reaccionar\"",
+      "body_preview": "r/Colombia: Mi novia va a ser modelo webcam, no sé qué hacer ni como reaccionar Conocí a esta chica hace unos 10 meses y pues empezamos una relación formal hace como 6 meses, hace unos meses me había comentado que quería ser modelo webcam, al principio ob",
+      "snippet": "r/Colombia: Mi novia va a ser modelo webcam, no sé qué hacer ni como reaccionar Conocí a esta chica hace unos 10 meses y pues empezamos una relación formal hace como 6 meses, hace unos meses me había comentado que quería ser modelo webcam, al principio ob",
+      "sent_at": "2026-08-20T02:08:19+00:00",
+      "received_at": "2026-08-20T02:08:23+00:00",
+      "has_attachments": false,
+      "attachment_count": 0,
+      "sender": {
+        "email": "noreply@redditmail.com",
+        "display_name": "Reddit"
+      }
+    },
+    {
+      "id": "af0a6e40-8214-4a26-b8af-b30eccdc3497",
+      "mail_integration_id": "85262509-942c-40b4-b02d-c1cd431d3466",
+      "provider": "microsoft",
+      "provider_thread_id": "AQQkADAwATYwMAItYjg3MS1iMDdjLTAwAi0wMAoAEAAI3P1NT0ClRpl5cUs7fjJ3",
+      "provider_conversation_id": "AQQkADAwATYwMAItYjg3MS1iMDdjLTAwAi0wMAoAEAAI3P1NT0ClRpl5cUs7fjJ3",
+      "direction": "inbound",
+      "status": "received",
+      "folder": "inbox",
+      "is_read": false,
+      "is_starred": false,
+      "subject": "🔥¡48H de las mejores ofertas en HP!",
+      "body_preview": "Aprovecha las ofertas especiales en cómputo e impresión.\r\n\r\n\r\n\r\n\r\n🎉 🎊 ¡Descubre todas nuestras categorías! 🎊 🎉\r\n\r\nCelulares\r\n\r\nElectro\r\n\r\nComputadores\r\n\r\nTelevisores\r\n\r\nVideojuegos\r\n\r\nAudio\r\n\r\nElectrohogar\r\n\r\nSmartwatch\r\n\r\nAudífonos\r\n\r\nAccesorios\r\n\r\nC",
+      "snippet": "Aprovecha las ofertas especiales en cómputo e impresión.\r\n\r\n\r\n\r\n\r\n🎉 🎊 ¡Descubre todas nuestras categorías! 🎊 🎉\r\n\r\nCelulares\r\n\r\nElectro\r\n\r\nComputadores\r\n\r\nTelevisores\r\n\r\nVideojuegos\r\n\r\nAudio\r\n\r\nElectrohogar\r\n\r\nSmartwatch\r\n\r\nAudífonos\r\n\r\nAccesorios\r\n\r\nC",
+      "sent_at": "2026-08-19T20:20:47+00:00",
+      "received_at": "2026-08-19T22:47:33+00:00",
+      "has_attachments": false,
+      "attachment_count": 0,
+      "sender": {
+        "email": "boletin@email.alkosto.com",
+        "display_name": "Alkosto"
+      }
+    },
+    {
+      "id": "d5a4ded1-b198-447e-868b-17fa980684c4",
+      "mail_integration_id": "85262509-942c-40b4-b02d-c1cd431d3466",
+      "provider": "microsoft",
+      "provider_thread_id": "AQQkADAwATYwMAItYjg3MS1iMDdjLTAwAi0wMAoAEADFkYUvMsGuS5r6FnhUvYFP",
+      "provider_conversation_id": "AQQkADAwATYwMAItYjg3MS1iMDdjLTAwAi0wMAoAEADFkYUvMsGuS5r6FnhUvYFP",
+      "direction": "inbound",
+      "status": "received",
+      "folder": "inbox",
+      "is_read": false,
+      "is_starred": false,
+      "subject": "Nuevas aplicaciones conectadas a la cuenta de Microsoft",
+      "body_preview": "Cuenta de Microsoft\r\nNuevas aplicaciones con acceso a los datos\r\nBuddy Integrations se ha conectado a la cuenta de Microsoft an**e@hotmail.com.\r\nSi no se ha concedido este acceso, se deben eliminar las aplicaciones de la cuenta.\r\nAdministrar las aplicacio",
+      "snippet": "Cuenta de Microsoft\r\nNuevas aplicaciones con acceso a los datos\r\nBuddy Integrations se ha conectado a la cuenta de Microsoft an**e@hotmail.com.\r\nSi no se ha concedido este acceso, se deben eliminar las aplicaciones de la cuenta.\r\nAdministrar las aplicacio",
+      "sent_at": "2026-08-19T15:08:12+00:00",
+      "received_at": "2026-08-19T15:08:20+00:00",
+      "has_attachments": false,
+      "attachment_count": 0,
+      "sender": {
+        "email": "account-security-noreply@accountprotection.microsoft.com",
+        "display_name": "Equipo de cuentas Microsoft"
+      }
+    },
+    {
+      "id": "d1babb05-c926-4115-b50c-391064ae70fd",
+      "mail_integration_id": "85262509-942c-40b4-b02d-c1cd431d3466",
+      "provider": "microsoft",
+      "provider_thread_id": "AQQkADAwATYwMAItYjg3MS1iMDdjLTAwAi0wMAoAEABWzciJRzl2QZTHo6S1lv7K",
+      "provider_conversation_id": "AQQkADAwATYwMAItYjg3MS1iMDdjLTAwAi0wMAoAEABWzciJRzl2QZTHo6S1lv7K",
+      "direction": "inbound",
+      "status": "received",
+      "folder": "inbox",
+      "is_read": false,
+      "is_starred": false,
+      "subject": "Has compartido algunos datos de tu cuenta de Google con refinance-corps-husband-elevation.trycloudflare.com",
+      "body_preview": "Haz un seguimiento de los datos de tu cuenta de Google\r\n\r\n        andres.santa-fe@hotmail.com\r\n \r\n\r\n\r\n\r\nHas recibido este correo porque has usado la función Iniciar sesión con Google para iniciar sesión en refinance-corps-husband-elevation.trycloudflare.c",
+      "snippet": "Haz un seguimiento de los datos de tu cuenta de Google\r\n\r\n        andres.santa-fe@hotmail.com\r\n \r\n\r\n\r\n\r\nHas recibido este correo porque has usado la función Iniciar sesión con Google para iniciar sesión en refinance-corps-husband-elevation.trycloudflare.c",
+      "sent_at": "2026-08-19T14:57:23+00:00",
+      "received_at": "2026-08-19T14:57:26+00:00",
+      "has_attachments": false,
+      "attachment_count": 0,
+      "sender": {
+        "email": "noreply-accounts@google.com",
+        "display_name": "Google"
+      }
+    },
+    {
+      "id": "ca33491b-0a44-43a6-a1c7-f08ed1fed990",
+      "mail_integration_id": "85262509-942c-40b4-b02d-c1cd431d3466",
+      "provider": "microsoft",
+      "provider_thread_id": "AQQkADAwATYwMAItYjg3MS1iMDdjLTAwAi0wMAoAEABGRgCpvJBgKk2ocy3ehHxNQg==",
+      "provider_conversation_id": "AQQkADAwATYwMAItYjg3MS1iMDdjLTAwAi0wMAoAEABGRgCpvJBgKk2ocy3ehHxNQg==",
+      "direction": "inbound",
+      "status": "received",
+      "folder": "inbox",
+      "is_read": false,
+      "is_starred": false,
+      "subject": "¡Actualiza tus datos! ✏️",
+      "body_preview": "Si no puede ver correctamente el contenido de este mensaje, haga clic aquí.\r\n\r\n\r\n\r\n\r\nEPS Famisanar SAS como Entidad Promotora de Salud (EPS) del Régimen Contributivo comunica que, el envío de la presente información se hace en estricto cumplimiento a las",
+      "snippet": "Si no puede ver correctamente el contenido de este mensaje, haga clic aquí.\r\n\r\n\r\n\r\n\r\nEPS Famisanar SAS como Entidad Promotora de Salud (EPS) del Régimen Contributivo comunica que, el envío de la presente información se hace en estricto cumplimiento a las",
+      "sent_at": "2026-08-19T14:38:33+00:00",
+      "received_at": "2026-08-19T14:38:41+00:00",
+      "has_attachments": false,
+      "attachment_count": 0,
+      "sender": {
+        "email": "comunicacionesfamisanar@famisanar.com.co",
+        "display_name": "Comunicaciones EPS Famisanar"
+      }
+    },
+    {
+      "id": "4b7315d3-a1e7-4ec6-835a-ff5b761be017",
+      "mail_integration_id": "85262509-942c-40b4-b02d-c1cd431d3466",
+      "provider": "microsoft",
+      "provider_thread_id": "AQQkADAwATYwMAItYjg3MS1iMDdjLTAwAi0wMAoAEADEnLX5lqrgSKWH16eG2CWn",
+      "provider_conversation_id": "AQQkADAwATYwMAItYjg3MS1iMDdjLTAwAi0wMAoAEADEnLX5lqrgSKWH16eG2CWn",
+      "direction": "inbound",
+      "status": "received",
+      "folder": "inbox",
+      "is_read": false,
+      "is_starred": false,
+      "subject": "Protege tu salud hoy",
+      "body_preview": "Publicidad. Si no ve correctamente este email pulsa aquí.\r\n\r\nMás información\r\n\r\nMedicina prepagada al alcance Plan Caobo Integral desde:$129.687 mensuales.\r\n\r\n\r\n\r\nEsta nota informativa se la envía PROEXP SERVICIOS PROMOCIONALES S.L., con la finalidad de m",
+      "snippet": "Publicidad. Si no ve correctamente este email pulsa aquí.\r\n\r\nMás información\r\n\r\nMedicina prepagada al alcance Plan Caobo Integral desde:$129.687 mensuales.\r\n\r\n\r\n\r\nEsta nota informativa se la envía PROEXP SERVICIOS PROMOCIONALES S.L., con la finalidad de m",
+      "sent_at": "2026-08-19T02:48:55+00:00",
+      "received_at": "2026-08-19T02:54:44+00:00",
+      "has_attachments": false,
+      "attachment_count": 0,
+      "sender": {
+        "email": "info@mail.confianzayahorro.co",
+        "display_name": "Colmédica vía KNOWHER"
+      }
+    },
+    {
+      "id": "c792c218-a9bd-4734-a218-5b81a2a477c8",
+      "mail_integration_id": "85262509-942c-40b4-b02d-c1cd431d3466",
+      "provider": "microsoft",
+      "provider_thread_id": "AQQkADAwATYwMAItYjg3MS1iMDdjLTAwAi0wMAoAEADlrA_lvhAHTryauUTKL4Hh",
+      "provider_conversation_id": "AQQkADAwATYwMAItYjg3MS1iMDdjLTAwAi0wMAoAEADlrA_lvhAHTryauUTKL4Hh",
+      "direction": "inbound",
+      "status": "received",
+      "folder": "inbox",
+      "is_read": false,
+      "is_starred": false,
+      "subject": "\"Como hacen que su pareja acabe/ tenga un orgasmo?\"",
+      "body_preview": "r/AskArgentina: Como hacen que su pareja acabe/ tenga un orgasmo? Cada pareja y persona es distinto, ahora les pregunto a lod que tuvieron/tienen pareja y lograron el orgasmo, como hicieron? Tienen alguna forma en especifico? Hacen algo antes? Estoy busca",
+      "snippet": "r/AskArgentina: Como hacen que su pareja acabe/ tenga un orgasmo? Cada pareja y persona es distinto, ahora les pregunto a lod que tuvieron/tienen pareja y lograron el orgasmo, como hicieron? Tienen alguna forma en especifico? Hacen algo antes? Estoy busca",
+      "sent_at": "2026-08-19T02:03:53+00:00",
+      "received_at": "2026-08-19T02:03:56+00:00",
+      "has_attachments": false,
+      "attachment_count": 0,
+      "sender": {
+        "email": "noreply@redditmail.com",
+        "display_name": "Reddit"
+      }
+    },
+    {
+      "id": "47036522-0879-4bd2-a641-2a471a495041",
+      "mail_integration_id": "85262509-942c-40b4-b02d-c1cd431d3466",
+      "provider": "microsoft",
+      "provider_thread_id": "AQQkADAwATYwMAItYjg3MS1iMDdjLTAwAi0wMAoAEACbr1KKD0vHRanZB3AyToyG",
+      "provider_conversation_id": "AQQkADAwATYwMAItYjg3MS1iMDdjLTAwAi0wMAoAEACbr1KKD0vHRanZB3AyToyG",
+      "direction": "inbound",
+      "status": "received",
+      "folder": "inbox",
+      "is_read": false,
+      "is_starred": false,
+      "subject": "Pregunta lo que quieras. Lo que quieras.",
+      "body_preview": "Tú solo pregunta ‌ ‌ ‌ ‌ ‌ ‌  ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌  ‌ ‌ ‌ ‌ ‌ ‌ ‌  ‌ ‌ ‌ ‌ ‌ ‌ ‌  ‌ ‌ ‌ ‌ ‌ ‌ ‌  ‌ ‌ ‌ ‌ ‌ ‌ ‌  ‌ ‌ ‌ ‌ ‌ ‌ ‌  ‌ ‌ ‌ ‌ ‌ ‌ ‌  ‌ ‌ ‌ ‌ ‌ ‌ ‌  ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌  ‌ ‌ ‌ ‌ ‌ ‌ ‌  ‌ ‌ ‌ ‌ ‌ ‌ ‌  ‌ ‌ ‌ ‌ ‌ ‌ ‌  ‌ ‌ ‌ ‌ ‌ ‌ ‌  ‌ ‌ ‌ ‌ ‌ ‌ ‌  ‌ ‌ ‌ ‌ ‌ ‌",
+      "snippet": "Tú solo pregunta ‌ ‌ ‌ ‌ ‌ ‌  ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌  ‌ ‌ ‌ ‌ ‌ ‌ ‌  ‌ ‌ ‌ ‌ ‌ ‌ ‌  ‌ ‌ ‌ ‌ ‌ ‌ ‌  ‌ ‌ ‌ ‌ ‌ ‌ ‌  ‌ ‌ ‌ ‌ ‌ ‌ ‌  ‌ ‌ ‌ ‌ ‌ ‌ ‌  ‌ ‌ ‌ ‌ ‌ ‌ ‌  ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌  ‌ ‌ ‌ ‌ ‌ ‌ ‌  ‌ ‌ ‌ ‌ ‌ ‌ ‌  ‌ ‌ ‌ ‌ ‌ ‌ ‌  ‌ ‌ ‌ ‌ ‌ ‌ ‌  ‌ ‌ ‌ ‌ ‌ ‌ ‌  ‌ ‌ ‌ ‌ ‌ ‌",
+      "sent_at": "2026-08-19T00:56:33+00:00",
+      "received_at": "2026-08-19T00:56:37+00:00",
+      "has_attachments": false,
+      "attachment_count": 0,
+      "sender": {
+        "email": "noreply@email.openai.com",
+        "display_name": "ChatGPT"
+      }
+    },
+    {
+      "id": "f1d06c38-b4cf-49a7-ab4e-514a6d604edb",
+      "mail_integration_id": "85262509-942c-40b4-b02d-c1cd431d3466",
+      "provider": "microsoft",
+      "provider_thread_id": "AQQkADAwATYwMAItYjg3MS1iMDdjLTAwAi0wMAoAEACmMN_FvEcXRJ1AjJRFAgBd",
+      "provider_conversation_id": "AQQkADAwATYwMAItYjg3MS1iMDdjLTAwAi0wMAoAEACmMN_FvEcXRJ1AjJRFAgBd",
+      "direction": "inbound",
+      "status": "received",
+      "folder": "inbox",
+      "is_read": false,
+      "is_starred": false,
+      "subject": "🥹 No vas a abandonar tu racha, ¿no?",
+      "body_preview": "Solo una lección salvará a tu racha  ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌\r\n\r\n\r\n\r\nEMP",
+      "snippet": "Solo una lección salvará a tu racha  ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌ ‌\r\n\r\n\r\n\r\nEMP",
+      "sent_at": "2026-08-19T00:37:26+00:00",
+      "received_at": "2026-08-19T00:37:29+00:00",
+      "has_attachments": false,
+      "attachment_count": 0,
+      "sender": {
+        "email": "hello@duolingo.com",
+        "display_name": "duolingo"
+      }
+    },
+    {
+      "id": "df49669d-548e-4d77-b1f5-ff61713a862d",
+      "mail_integration_id": "85262509-942c-40b4-b02d-c1cd431d3466",
+      "provider": "microsoft",
+      "provider_thread_id": "AQQkADAwATYwMAItYjg3MS1iMDdjLTAwAi0wMAoAEADQR39YtpONRJkAn2Jm7bhL",
+      "provider_conversation_id": "AQQkADAwATYwMAItYjg3MS1iMDdjLTAwAi0wMAoAEADQR39YtpONRJkAn2Jm7bhL",
+      "direction": "inbound",
+      "status": "received",
+      "folder": "inbox",
+      "is_read": false,
+      "is_starred": false,
+      "subject": "Vuelve con calma",
+      "body_preview": "No big moves required﻿ ‌ ﻿ ͏ ‌ ﻿ ͏ ‌ ﻿ ͏ ‌ ﻿ ͏ ‌ ﻿ ͏ ‌ ﻿ ͏ ͏ ‌ ﻿ ͏ ‌ ﻿ ͏ ‌ ﻿ ͏ ‌ ﻿ ͏ ‌ ﻿ ͏ ‌ ﻿ ͏ ‌ ﻿ ͏ ‌ ﻿ ͏ ‌ ﻿ ͏ ‌ ﻿ ͏ ‌ ﻿ ͏ ‌ ﻿ ͏ ‌ ﻿ ͏ ‌ ﻿ ͏ ‌ ﻿ ͏ ‌ ﻿ ͏ ‌ ﻿ ͏ ‌ ﻿ ͏ ‌ ﻿ ͏ ‌ ﻿ ͏ ‌ ﻿ ͏ ‌ ﻿ ͏ ‌ ﻿ ͏ ‌ ﻿ ͏ ‌.\r\n\r\nEmpieza de a poco\r\nEmpezar no tiene por qué",
+      "snippet": "No big moves required﻿ ‌ ﻿ ͏ ‌ ﻿ ͏ ‌ ﻿ ͏ ‌ ﻿ ͏ ‌ ﻿ ͏ ‌ ﻿ ͏ ͏ ‌ ﻿ ͏ ‌ ﻿ ͏ ‌ ﻿ ͏ ‌ ﻿ ͏ ‌ ﻿ ͏ ‌ ﻿ ͏ ‌ ﻿ ͏ ‌ ﻿ ͏ ‌ ﻿ ͏ ‌ ﻿ ͏ ‌ ﻿ ͏ ‌ ﻿ ͏ ‌ ﻿ ͏ ‌ ﻿ ͏ ‌ ﻿ ͏ ‌ ﻿ ͏ ‌ ﻿ ͏ ‌ ﻿ ͏ ‌ ﻿ ͏ ‌ ﻿ ͏ ‌ ﻿ ͏ ‌ ﻿ ͏ ‌ ﻿ ͏ ‌ ﻿ ͏ ‌.\r\n\r\nEmpieza de a poco\r\nEmpezar no tiene por qué",
+      "sent_at": "2026-08-18T23:50:48+00:00",
+      "received_at": "2026-08-18T23:50:52+00:00",
+      "has_attachments": false,
+      "attachment_count": 0,
+      "sender": {
+        "email": "tinder@mail.tinder.com",
+        "display_name": "Tinder"
+      }
+    },
+    {
+      "id": "5a3503ef-db61-4787-b10e-de41215a00e5",
+      "mail_integration_id": "85262509-942c-40b4-b02d-c1cd431d3466",
+      "provider": "microsoft",
+      "provider_thread_id": "AQQkADAwATYwMAItYjg3MS1iMDdjLTAwAi0wMAoAEAAO9HryHqhmT4mF30eRV843",
+      "provider_conversation_id": "AQQkADAwATYwMAItYjg3MS1iMDdjLTAwAi0wMAoAEAAO9HryHqhmT4mF30eRV843",
+      "direction": "inbound",
+      "status": "received",
+      "folder": "inbox",
+      "is_read": false,
+      "is_starred": false,
+      "subject": "Has compartido algunos datos de tu cuenta de Google con tommy-candle-prepared-pages.trycloudflare.com",
+      "body_preview": "Haz un seguimiento de los datos de tu cuenta de Google\r\n\r\n        andres.santa-fe@hotmail.com\r\n \r\n\r\n\r\n\r\nHas recibido este correo porque has usado la función Iniciar sesión con Google para iniciar sesión en tommy-candle-prepared-pages.trycloudflare.com el",
+      "snippet": "Haz un seguimiento de los datos de tu cuenta de Google\r\n\r\n        andres.santa-fe@hotmail.com\r\n \r\n\r\n\r\n\r\nHas recibido este correo porque has usado la función Iniciar sesión con Google para iniciar sesión en tommy-candle-prepared-pages.trycloudflare.com el",
+      "sent_at": "2026-08-18T23:24:51+00:00",
+      "received_at": "2026-08-18T23:24:54+00:00",
+      "has_attachments": false,
+      "attachment_count": 0,
+      "sender": {
+        "email": "noreply-accounts@google.com",
+        "display_name": "Google"
+      }
+    },
+    {
+      "id": "d56af573-5260-4931-a69a-cca07fb9d717",
+      "mail_integration_id": "85262509-942c-40b4-b02d-c1cd431d3466",
+      "provider": "microsoft",
+      "provider_thread_id": "AQQkADAwATYwMAItYjg3MS1iMDdjLTAwAi0wMAoAEACrapK7261QTafkon_u5ly1",
+      "provider_conversation_id": "AQQkADAwATYwMAItYjg3MS1iMDdjLTAwAi0wMAoAEACrapK7261QTafkon_u5ly1",
+      "direction": "inbound",
+      "status": "received",
+      "folder": "inbox",
+      "is_read": false,
+      "is_starred": false,
+      "subject": "Has compartido algunos datos de tu cuenta de Google con tommy-candle-prepared-pages.trycloudflare.com",
+      "body_preview": "Haz un seguimiento de los datos de tu cuenta de Google\r\n\r\n        andres.santa-fe@hotmail.com\r\n \r\n\r\n\r\n\r\nHas recibido este correo porque has usado la función Iniciar sesión con Google para iniciar sesión en tommy-candle-prepared-pages.trycloudflare.com el",
+      "snippet": "Haz un seguimiento de los datos de tu cuenta de Google\r\n\r\n        andres.santa-fe@hotmail.com\r\n \r\n\r\n\r\n\r\nHas recibido este correo porque has usado la función Iniciar sesión con Google para iniciar sesión en tommy-candle-prepared-pages.trycloudflare.com el",
+      "sent_at": "2026-08-18T23:12:58+00:00",
+      "received_at": "2026-08-18T23:13:06+00:00",
+      "has_attachments": false,
+      "attachment_count": 0,
+      "sender": {
+        "email": "noreply-accounts@google.com",
+        "display_name": "Google"
+      }
+    },
+    {
+      "id": "c2dc9794-c44d-4b79-a37e-ce9c582607b8",
+      "mail_integration_id": "85262509-942c-40b4-b02d-c1cd431d3466",
+      "provider": "microsoft",
+      "provider_thread_id": "AQQkADAwATYwMAItYjg3MS1iMDdjLTAwAi0wMAoAEACtX_0Gr6jUS57pNA-y0VxE",
+      "provider_conversation_id": "AQQkADAwATYwMAItYjg3MS1iMDdjLTAwAi0wMAoAEACtX_0Gr6jUS57pNA-y0VxE",
+      "direction": "inbound",
+      "status": "received",
+      "folder": "inbox",
+      "is_read": false,
+      "is_starred": false,
+      "subject": "Has compartido algunos datos de tu cuenta de Google con tommy-candle-prepared-pages.trycloudflare.com",
+      "body_preview": "Haz un seguimiento de los datos de tu cuenta de Google\r\n\r\n        andres.santa-fe@hotmail.com\r\n \r\n\r\n\r\n\r\nHas recibido este correo porque has usado la función Iniciar sesión con Google para iniciar sesión en tommy-candle-prepared-pages.trycloudflare.com el",
+      "snippet": "Haz un seguimiento de los datos de tu cuenta de Google\r\n\r\n        andres.santa-fe@hotmail.com\r\n \r\n\r\n\r\n\r\nHas recibido este correo porque has usado la función Iniciar sesión con Google para iniciar sesión en tommy-candle-prepared-pages.trycloudflare.com el",
+      "sent_at": "2026-08-18T23:09:23+00:00",
+      "received_at": "2026-08-18T23:09:27+00:00",
+      "has_attachments": false,
+      "attachment_count": 0,
+      "sender": {
+        "email": "noreply-accounts@google.com",
+        "display_name": "Google"
+      }
+    },
+    {
+      "id": "eacee1fc-2c0e-4d64-bbaa-a02214ef1c9e",
+      "mail_integration_id": "85262509-942c-40b4-b02d-c1cd431d3466",
+      "provider": "microsoft",
+      "provider_thread_id": "AQQkADAwATYwMAItYjg3MS1iMDdjLTAwAi0wMAoAEABcDx90WmnHQareZeYfR3Gv",
+      "provider_conversation_id": "AQQkADAwATYwMAItYjg3MS1iMDdjLTAwAi0wMAoAEABcDx90WmnHQareZeYfR3Gv",
+      "direction": "inbound",
+      "status": "received",
+      "folder": "inbox",
+      "is_read": false,
+      "is_starred": false,
+      "subject": "Nuevas aplicaciones conectadas a la cuenta de Microsoft",
+      "body_preview": "Cuenta de Microsoft\r\nNuevas aplicaciones con acceso a los datos\r\nBuddy Integrations se ha conectado a la cuenta de Microsoft an**e@hotmail.com.\r\nSi no se ha concedido este acceso, se deben eliminar las aplicaciones de la cuenta.\r\nAdministrar las aplicacio",
+      "snippet": "Cuenta de Microsoft\r\nNuevas aplicaciones con acceso a los datos\r\nBuddy Integrations se ha conectado a la cuenta de Microsoft an**e@hotmail.com.\r\nSi no se ha concedido este acceso, se deben eliminar las aplicaciones de la cuenta.\r\nAdministrar las aplicacio",
+      "sent_at": "2026-08-18T23:01:25+00:00",
+      "received_at": "2026-08-18T23:01:29+00:00",
+      "has_attachments": false,
+      "attachment_count": 0,
+      "sender": {
+        "email": "account-security-noreply@accountprotection.microsoft.com",
+        "display_name": "Equipo de cuentas Microsoft"
+      }
+    }
+  ],
+  "pagination": {
+    "limit": 20,
+    "offset": 0,
+    "count": 20,
+    "total_count": 73,
+    "has_more": true,
+    "next_offset": 20
+  }
+}
+
+============================================================
+09_CREATE_DRAFT_WITH_ATTACHMENT
+============================================================
+HTTP_STATUS=201
+{
+  "message": {
+    "id": "ce18e7ae-6834-4486-ae65-58c9d2e79669",
+    "user_id": "690cbc59-358d-4432-b2de-f9825a789875",
+    "mail_integration_id": "85262509-942c-40b4-b02d-c1cd431d3466",
+    "provider": "microsoft",
+    "provider_message_id": "AQMkADAwATYwMAItYjg3MS1iMDdjLTAwAi0wMAoARgAAA54tdNz8IMJMmOVrbGwAzZugBwCghEXHrMw3Sa4t1nJRsN9TAAACAQ8AAACghEXHrMw3Sa4t1nJRsN9TAAoE_u6nAAAA",
+    "provider_thread_id": "AQQkADAwATYwMAItYjg3MS1iMDdjLTAwAi0wMAoAEACk_evrABPw60y8CY9fYNOBvQ==",
+    "provider_conversation_id": "AQQkADAwATYwMAItYjg3MS1iMDdjLTAwAi0wMAoAEACk_evrABPw60y8CY9fYNOBvQ==",
+    "direction": "outbound",
+    "status": "draft",
+    "folder": "drafts",
+    "is_read": true,
+    "is_starred": false,
+    "is_archived": false,
+    "is_spam": false,
+    "is_trashed": false,
+    "subject": "BeeApp smoke test con adjunto 20260821T091957Z",
+    "body_text": "Borrador automatizado de prueba. No enviar.",
+    "body_html": null,
+    "body_preview": "Borrador automatizado de prueba. No enviar.",
+    "snippet": "Borrador automatizado de prueba. No enviar.",
+    "sent_at": "2026-08-21T09:20:25+00:00",
+    "received_at": "2026-08-21T09:20:25+00:00",
+    "has_attachments": true,
+    "attachment_count": 1,
+    "metadata": {
+      "last_synced_at": "2026-08-21T09:20:28.257349+00:00",
+      "microsoft_importance": "normal",
+      "microsoft_flag_status": "notflagged",
+      "microsoft_parent_folder_id": "AQMkADAwATYwMAItYjg3MS1iMDdjLTAwAi0wMAoALgAAA54tdNz8IMJMmOVrbGwAzZugAQCghEXHrMw3Sa4t1nJRsN9TAAACAQ8AAAA=",
+      "microsoft_body_content_type": "text",
+      "microsoft_attachments_loaded": true
+    },
+    "created_at": "2026-08-21T09:20:28.395383+00:00",
+    "updated_at": "2026-08-21T09:20:28.395383+00:00",
+    "recipients": {
+      "from": [],
+      "to": [
+        {
+          "email": "andres.santa-fe@hotmail.com",
+          "display_name": "andres.santa-fe@hotmail.com"
+        }
+      ],
+      "cc": [],
+      "bcc": [],
+      "reply_to": []
+    },
+    "attachments": [
+      {
+        "id": "218ccef6-54d6-47ff-b589-96d7e554de02",
+        "storage_file_id": null,
+        "source": "provider",
+        "provider_attachment_id": "AQMkADAwATYwMAItYjg3MS1iMDdjLTAwAi0wMAoARgAAA54tdNz8IMJMmOVrbGwAzZugBwCghEXHrMw3Sa4t1nJRsN9TAAACAQ8AAACghEXHrMw3Sa4t1nJRsN9TAAoE_u6nAAAAARIAEAD_iMJg0cK7Qp6I82fuqIWa",
+        "provider_message_attachment_id": "AQMkADAwATYwMAItYjg3MS1iMDdjLTAwAi0wMAoARgAAA54tdNz8IMJMmOVrbGwAzZugBwCghEXHrMw3Sa4t1nJRsN9TAAACAQ8AAACghEXHrMw3Sa4t1nJRsN9TAAoE_u6nAAAAARIAEAD_iMJg0cK7Qp6I82fuqIWa",
+        "filename": "beeapp_attachment_20260821T091957Z.txt",
+        "mime_type": "text/plain",
+        "size_bytes": 435,
+        "content_id": null,
+        "content_disposition": "attachment",
+        "is_inline": false,
+        "metadata": {
+          "last_modified_date_time": "2026-08-21T09:20:26Z"
+        },
+        "created_at": "2026-08-21T09:20:29.275661+00:00"
+      },
+      {
+        "id": "74376f7b-d951-458c-8cf1-7fc23c796694",
+        "storage_file_id": "8d53d952-d9c9-451e-a557-5fb0edbb342a",
+        "source": "storage",
+        "provider_attachment_id": null,
+        "provider_message_attachment_id": null,
+        "filename": "beeapp_attachment_20260821T091957Z.txt",
+        "mime_type": "text/plain",
+        "size_bytes": 149,
+        "content_id": null,
+        "content_disposition": "attachment",
+        "is_inline": false,
+        "metadata": {
+          "storage_path": "690cbc59-358d-4432-b2de-f9825a789875/files/8d53d952-d9c9-451e-a557-5fb0edbb342a/beeapp_attachment_20260821t091957z.txt",
+          "storage_file_id": "8d53d952-d9c9-451e-a557-5fb0edbb342a",
+          "storage_bucket_id": "beeapp-files"
+        },
+        "created_at": "2026-08-21T09:20:29.936995+00:00"
+      }
+    ]
+  }
+}
+DRAFT_WITH_ATTACHMENT_ID=ce18e7ae-6834-4486-ae65-58c9d2e79669
+
+============================================================
+10_GET_DRAFT_WITH_ATTACHMENT
+============================================================
+HTTP_STATUS=200
+{
+  "message": {
+    "id": "ce18e7ae-6834-4486-ae65-58c9d2e79669",
+    "user_id": "690cbc59-358d-4432-b2de-f9825a789875",
+    "mail_integration_id": "85262509-942c-40b4-b02d-c1cd431d3466",
+    "provider": "microsoft",
+    "provider_message_id": "AQMkADAwATYwMAItYjg3MS1iMDdjLTAwAi0wMAoARgAAA54tdNz8IMJMmOVrbGwAzZugBwCghEXHrMw3Sa4t1nJRsN9TAAACAQ8AAACghEXHrMw3Sa4t1nJRsN9TAAoE_u6nAAAA",
+    "provider_thread_id": "AQQkADAwATYwMAItYjg3MS1iMDdjLTAwAi0wMAoAEACk_evrABPw60y8CY9fYNOBvQ==",
+    "provider_conversation_id": "AQQkADAwATYwMAItYjg3MS1iMDdjLTAwAi0wMAoAEACk_evrABPw60y8CY9fYNOBvQ==",
+    "provider_change_key": "CQAAABYAAACghEXHrMw3Sa4t1nJRsN9TAAoEYzCS",
+    "provider_etag": "W/\"CQAAABYAAACghEXHrMw3Sa4t1nJRsN9TAAoEYzCS\"",
+    "provider_created_at": "2026-08-21T09:20:25+00:00",
+    "provider_updated_at": "2026-08-21T09:20:26+00:00",
+    "direction": "outbound",
+    "status": "draft",
+    "folder": "drafts",
+    "is_read": true,
+    "is_starred": false,
+    "is_archived": false,
+    "is_spam": false,
+    "is_trashed": false,
+    "is_deleted_permanently": false,
+    "deleted_permanently_at": null,
+    "subject": "BeeApp smoke test con adjunto 20260821T091957Z",
+    "body_text": "Borrador automatizado de prueba. No enviar.",
+    "body_html": null,
+    "body_preview": "Borrador automatizado de prueba. No enviar.",
+    "snippet": "Borrador automatizado de prueba. No enviar.",
+    "message_id_header": "<PH8PR84MB31641E3B0834E17B60A1B372A9A32@PH8PR84MB3164.NAMPRD84.PROD.OUTLOOK.COM>",
+    "in_reply_to_header": null,
+    "references_header": null,
+    "sent_at": "2026-08-21T09:20:25+00:00",
+    "received_at": "2026-08-21T09:20:25+00:00",
+    "has_attachments": true,
+    "attachment_count": 1,
+    "is_provider_deleted": false,
+    "provider_deleted_at": null,
+    "last_synced_at": "2026-08-21T09:20:28.257371+00:00",
+    "metadata": {
+      "last_synced_at": "2026-08-21T09:20:28.257349+00:00",
+      "microsoft_importance": "normal",
+      "microsoft_flag_status": "notflagged",
+      "microsoft_parent_folder_id": "AQMkADAwATYwMAItYjg3MS1iMDdjLTAwAi0wMAoALgAAA54tdNz8IMJMmOVrbGwAzZugAQCghEXHrMw3Sa4t1nJRsN9TAAACAQ8AAAA=",
+      "microsoft_body_content_type": "text",
+      "microsoft_attachments_loaded": true
+    },
+    "created_at": "2026-08-21T09:20:28.395383+00:00",
+    "updated_at": "2026-08-21T09:20:28.395383+00:00",
+    "recipients": {
+      "from": [],
+      "to": [
+        {
+          "email": "andres.santa-fe@hotmail.com",
+          "display_name": "andres.santa-fe@hotmail.com"
+        }
+      ],
+      "cc": [],
+      "bcc": [],
+      "reply_to": []
+    },
+    "attachments": [
+      {
+        "id": "218ccef6-54d6-47ff-b589-96d7e554de02",
+        "source": "provider",
+        "provider_attachment_id": "AQMkADAwATYwMAItYjg3MS1iMDdjLTAwAi0wMAoARgAAA54tdNz8IMJMmOVrbGwAzZugBwCghEXHrMw3Sa4t1nJRsN9TAAACAQ8AAACghEXHrMw3Sa4t1nJRsN9TAAoE_u6nAAAAARIAEAD_iMJg0cK7Qp6I82fuqIWa",
+        "provider_message_attachment_id": "AQMkADAwATYwMAItYjg3MS1iMDdjLTAwAi0wMAoARgAAA54tdNz8IMJMmOVrbGwAzZugBwCghEXHrMw3Sa4t1nJRsN9TAAACAQ8AAACghEXHrMw3Sa4t1nJRsN9TAAoE_u6nAAAAARIAEAD_iMJg0cK7Qp6I82fuqIWa",
+        "filename": "beeapp_attachment_20260821T091957Z.txt",
+        "mime_type": "text/plain",
+        "size_bytes": 435,
+        "content_id": null,
+        "content_disposition": "attachment",
+        "is_inline": false,
+        "metadata": {
+          "last_modified_date_time": "2026-08-21T09:20:26Z"
+        },
+        "created_at": "2026-08-21T09:20:29.275661+00:00"
+      },
+      {
+        "id": "74376f7b-d951-458c-8cf1-7fc23c796694",
+        "source": "storage",
+        "provider_attachment_id": null,
+        "provider_message_attachment_id": null,
+        "filename": "beeapp_attachment_20260821T091957Z.txt",
+        "mime_type": "text/plain",
+        "size_bytes": 149,
+        "content_id": null,
+        "content_disposition": "attachment",
+        "is_inline": false,
+        "metadata": {
+          "storage_path": "690cbc59-358d-4432-b2de-f9825a789875/files/8d53d952-d9c9-451e-a557-5fb0edbb342a/beeapp_attachment_20260821t091957z.txt",
+          "storage_file_id": "8d53d952-d9c9-451e-a557-5fb0edbb342a",
+          "storage_bucket_id": "beeapp-files"
+        },
+        "created_at": "2026-08-21T09:20:29.936995+00:00"
+      }
+    ]
+  }
+}
+
+============================================================
+11_EDIT_DRAFT_WITH_ATTACHMENT
+============================================================
+HTTP_STATUS=200
+{
+  "message": {
+    "id": "ce18e7ae-6834-4486-ae65-58c9d2e79669",
+    "user_id": "690cbc59-358d-4432-b2de-f9825a789875",
+    "mail_integration_id": "85262509-942c-40b4-b02d-c1cd431d3466",
+    "provider": "microsoft",
+    "provider_message_id": "AQMkADAwATYwMAItYjg3MS1iMDdjLTAwAi0wMAoARgAAA54tdNz8IMJMmOVrbGwAzZugBwCghEXHrMw3Sa4t1nJRsN9TAAACAQ8AAACghEXHrMw3Sa4t1nJRsN9TAAoE_u6nAAAA",
+    "provider_thread_id": "AQQkADAwATYwMAItYjg3MS1iMDdjLTAwAi0wMAoAEACk_evrABPw60y8CY9fYNOBvQ==",
+    "provider_conversation_id": "AQQkADAwATYwMAItYjg3MS1iMDdjLTAwAi0wMAoAEACk_evrABPw60y8CY9fYNOBvQ==",
+    "direction": "outbound",
+    "status": "draft",
+    "folder": "drafts",
+    "is_read": true,
+    "is_starred": false,
+    "is_archived": false,
+    "is_spam": false,
+    "is_trashed": false,
+    "subject": "BeeApp smoke test editado 20260821T091957Z",
+    "body_text": "Borrador editado por el smoke test. No enviar.",
+    "body_html": null,
+    "body_preview": "Borrador editado por el smoke test. No enviar.",
+    "snippet": "Borrador editado por el smoke test. No enviar.",
+    "sent_at": "2026-08-21T09:20:25+00:00",
+    "received_at": "2026-08-21T09:20:25+00:00",
+    "has_attachments": true,
+    "attachment_count": 1,
+    "metadata": {
+      "last_synced_at": "2026-08-21T09:20:37.059670+00:00",
+      "microsoft_importance": "normal",
+      "microsoft_flag_status": "notflagged",
+      "microsoft_parent_folder_id": "AQMkADAwATYwMAItYjg3MS1iMDdjLTAwAi0wMAoALgAAA54tdNz8IMJMmOVrbGwAzZugAQCghEXHrMw3Sa4t1nJRsN9TAAACAQ8AAAA=",
+      "microsoft_body_content_type": "text",
+      "microsoft_attachments_loaded": true
+    },
+    "created_at": "2026-08-21T09:20:28.395383+00:00",
+    "updated_at": "2026-08-21T09:20:37.206049+00:00",
+    "recipients": {
+      "from": [],
+      "to": [
+        {
+          "email": "andres.santa-fe@hotmail.com",
+          "display_name": "andres.santa-fe@hotmail.com"
+        }
+      ],
+      "cc": [],
+      "bcc": [],
+      "reply_to": []
+    },
+    "attachments": [
+      {
+        "id": "c2829420-67c4-43ae-92b3-6ca4e8c0ddbf",
+        "storage_file_id": null,
+        "source": "provider",
+        "provider_attachment_id": "AQMkADAwATYwMAItYjg3MS1iMDdjLTAwAi0wMAoARgAAA54tdNz8IMJMmOVrbGwAzZugBwCghEXHrMw3Sa4t1nJRsN9TAAACAQ8AAACghEXHrMw3Sa4t1nJRsN9TAAoE_u6nAAAAARIAEAB1JuyuW89kQZ91bcguzHvP",
+        "provider_message_attachment_id": "AQMkADAwATYwMAItYjg3MS1iMDdjLTAwAi0wMAoARgAAA54tdNz8IMJMmOVrbGwAzZugBwCghEXHrMw3Sa4t1nJRsN9TAAACAQ8AAACghEXHrMw3Sa4t1nJRsN9TAAoE_u6nAAAAARIAEAB1JuyuW89kQZ91bcguzHvP",
+        "filename": "beeapp_attachment_20260821T091957Z.txt",
+        "mime_type": "text/plain",
+        "size_bytes": 435,
+        "content_id": null,
+        "content_disposition": "attachment",
+        "is_inline": false,
+        "metadata": {
+          "last_modified_date_time": "2026-08-21T09:20:35Z"
+        },
+        "created_at": "2026-08-21T09:20:38.100861+00:00"
+      },
+      {
+        "id": "1985fc58-74c8-4660-b44a-d1a58dc25cc7",
+        "storage_file_id": "8d53d952-d9c9-451e-a557-5fb0edbb342a",
+        "source": "storage",
+        "provider_attachment_id": null,
+        "provider_message_attachment_id": null,
+        "filename": "beeapp_attachment_20260821T091957Z.txt",
+        "mime_type": "text/plain",
+        "size_bytes": 149,
+        "content_id": null,
+        "content_disposition": "attachment",
+        "is_inline": false,
+        "metadata": {
+          "storage_path": "690cbc59-358d-4432-b2de-f9825a789875/files/8d53d952-d9c9-451e-a557-5fb0edbb342a/beeapp_attachment_20260821t091957z.txt",
+          "storage_file_id": "8d53d952-d9c9-451e-a557-5fb0edbb342a",
+          "storage_bucket_id": "beeapp-files"
+        },
+        "created_at": "2026-08-21T09:20:38.747714+00:00"
+      }
+    ]
+  }
+}
+
+============================================================
+12_GET_EDITED_DRAFT
+============================================================
+HTTP_STATUS=200
+{
+  "message": {
+    "id": "ce18e7ae-6834-4486-ae65-58c9d2e79669",
+    "user_id": "690cbc59-358d-4432-b2de-f9825a789875",
+    "mail_integration_id": "85262509-942c-40b4-b02d-c1cd431d3466",
+    "provider": "microsoft",
+    "provider_message_id": "AQMkADAwATYwMAItYjg3MS1iMDdjLTAwAi0wMAoARgAAA54tdNz8IMJMmOVrbGwAzZugBwCghEXHrMw3Sa4t1nJRsN9TAAACAQ8AAACghEXHrMw3Sa4t1nJRsN9TAAoE_u6nAAAA",
+    "provider_thread_id": "AQQkADAwATYwMAItYjg3MS1iMDdjLTAwAi0wMAoAEACk_evrABPw60y8CY9fYNOBvQ==",
+    "provider_conversation_id": "AQQkADAwATYwMAItYjg3MS1iMDdjLTAwAi0wMAoAEACk_evrABPw60y8CY9fYNOBvQ==",
+    "provider_change_key": "CQAAABYAAACghEXHrMw3Sa4t1nJRsN9TAAoEYzCY",
+    "provider_etag": "W/\"CQAAABYAAACghEXHrMw3Sa4t1nJRsN9TAAoEYzCY\"",
+    "provider_created_at": "2026-08-21T09:20:25+00:00",
+    "provider_updated_at": "2026-08-21T09:20:35+00:00",
+    "direction": "outbound",
+    "status": "draft",
+    "folder": "drafts",
+    "is_read": true,
+    "is_starred": false,
+    "is_archived": false,
+    "is_spam": false,
+    "is_trashed": false,
+    "is_deleted_permanently": false,
+    "deleted_permanently_at": null,
+    "subject": "BeeApp smoke test editado 20260821T091957Z",
+    "body_text": "Borrador editado por el smoke test. No enviar.",
+    "body_html": null,
+    "body_preview": "Borrador editado por el smoke test. No enviar.",
+    "snippet": "Borrador editado por el smoke test. No enviar.",
+    "message_id_header": "<PH8PR84MB31641E3B0834E17B60A1B372A9A32@PH8PR84MB3164.NAMPRD84.PROD.OUTLOOK.COM>",
+    "in_reply_to_header": null,
+    "references_header": null,
+    "sent_at": "2026-08-21T09:20:25+00:00",
+    "received_at": "2026-08-21T09:20:25+00:00",
+    "has_attachments": true,
+    "attachment_count": 1,
+    "is_provider_deleted": false,
+    "provider_deleted_at": null,
+    "last_synced_at": "2026-08-21T09:20:37.059689+00:00",
+    "metadata": {
+      "last_synced_at": "2026-08-21T09:20:37.059670+00:00",
+      "microsoft_importance": "normal",
+      "microsoft_flag_status": "notflagged",
+      "microsoft_parent_folder_id": "AQMkADAwATYwMAItYjg3MS1iMDdjLTAwAi0wMAoALgAAA54tdNz8IMJMmOVrbGwAzZugAQCghEXHrMw3Sa4t1nJRsN9TAAACAQ8AAAA=",
+      "microsoft_body_content_type": "text",
+      "microsoft_attachments_loaded": true
+    },
+    "created_at": "2026-08-21T09:20:28.395383+00:00",
+    "updated_at": "2026-08-21T09:20:37.206049+00:00",
+    "recipients": {
+      "from": [],
+      "to": [
+        {
+          "email": "andres.santa-fe@hotmail.com",
+          "display_name": "andres.santa-fe@hotmail.com"
+        }
+      ],
+      "cc": [],
+      "bcc": [],
+      "reply_to": []
+    },
+    "attachments": [
+      {
+        "id": "c2829420-67c4-43ae-92b3-6ca4e8c0ddbf",
+        "source": "provider",
+        "provider_attachment_id": "AQMkADAwATYwMAItYjg3MS1iMDdjLTAwAi0wMAoARgAAA54tdNz8IMJMmOVrbGwAzZugBwCghEXHrMw3Sa4t1nJRsN9TAAACAQ8AAACghEXHrMw3Sa4t1nJRsN9TAAoE_u6nAAAAARIAEAB1JuyuW89kQZ91bcguzHvP",
+        "provider_message_attachment_id": "AQMkADAwATYwMAItYjg3MS1iMDdjLTAwAi0wMAoARgAAA54tdNz8IMJMmOVrbGwAzZugBwCghEXHrMw3Sa4t1nJRsN9TAAACAQ8AAACghEXHrMw3Sa4t1nJRsN9TAAoE_u6nAAAAARIAEAB1JuyuW89kQZ91bcguzHvP",
+        "filename": "beeapp_attachment_20260821T091957Z.txt",
+        "mime_type": "text/plain",
+        "size_bytes": 435,
+        "content_id": null,
+        "content_disposition": "attachment",
+        "is_inline": false,
+        "metadata": {
+          "last_modified_date_time": "2026-08-21T09:20:35Z"
+        },
+        "created_at": "2026-08-21T09:20:38.100861+00:00"
+      },
+      {
+        "id": "1985fc58-74c8-4660-b44a-d1a58dc25cc7",
+        "source": "storage",
+        "provider_attachment_id": null,
+        "provider_message_attachment_id": null,
+        "filename": "beeapp_attachment_20260821T091957Z.txt",
+        "mime_type": "text/plain",
+        "size_bytes": 149,
+        "content_id": null,
+        "content_disposition": "attachment",
+        "is_inline": false,
+        "metadata": {
+          "storage_path": "690cbc59-358d-4432-b2de-f9825a789875/files/8d53d952-d9c9-451e-a557-5fb0edbb342a/beeapp_attachment_20260821t091957z.txt",
+          "storage_file_id": "8d53d952-d9c9-451e-a557-5fb0edbb342a",
+          "storage_bucket_id": "beeapp-files"
+        },
+        "created_at": "2026-08-21T09:20:38.747714+00:00"
+      }
+    ]
+  }
+}
+
+============================================================
+13_CREATE_DRAFT_WITHOUT_ATTACHMENT
+============================================================
+HTTP_STATUS=201
+{
+  "message": {
+    "id": "09e91893-8715-44d9-8160-32979994713a",
+    "user_id": "690cbc59-358d-4432-b2de-f9825a789875",
+    "mail_integration_id": "85262509-942c-40b4-b02d-c1cd431d3466",
+    "provider": "microsoft",
+    "provider_message_id": "AQMkADAwATYwMAItYjg3MS1iMDdjLTAwAi0wMAoARgAAA54tdNz8IMJMmOVrbGwAzZugBwCghEXHrMw3Sa4t1nJRsN9TAAACAQ8AAACghEXHrMw3Sa4t1nJRsN9TAAoE_u6oAAAA",
+    "provider_thread_id": "AQQkADAwATYwMAItYjg3MS1iMDdjLTAwAi0wMAoAEACMs--FmJ7BTrNl4uN4NA0X",
+    "provider_conversation_id": "AQQkADAwATYwMAItYjg3MS1iMDdjLTAwAi0wMAoAEACMs--FmJ7BTrNl4uN4NA0X",
+    "direction": "outbound",
+    "status": "draft",
+    "folder": "drafts",
+    "is_read": true,
+    "is_starred": false,
+    "is_archived": false,
+    "is_spam": false,
+    "is_trashed": false,
+    "subject": "BeeApp smoke test sin adjunto 20260821T091957Z",
+    "body_text": "Borrador automatizado sin archivos. No enviar.",
+    "body_html": null,
+    "body_preview": "Borrador automatizado sin archivos. No enviar.",
+    "snippet": "Borrador automatizado sin archivos. No enviar.",
+    "sent_at": "2026-08-21T09:20:41+00:00",
+    "received_at": "2026-08-21T09:20:41+00:00",
+    "has_attachments": false,
+    "attachment_count": 0,
+    "metadata": {
+      "last_synced_at": "2026-08-21T09:20:43.502465+00:00",
+      "microsoft_importance": "normal",
+      "microsoft_flag_status": "notflagged",
+      "microsoft_parent_folder_id": "AQMkADAwATYwMAItYjg3MS1iMDdjLTAwAi0wMAoALgAAA54tdNz8IMJMmOVrbGwAzZugAQCghEXHrMw3Sa4t1nJRsN9TAAACAQ8AAAA=",
+      "microsoft_body_content_type": "text",
+      "microsoft_attachments_loaded": true
+    },
+    "created_at": "2026-08-21T09:20:43.633603+00:00",
+    "updated_at": "2026-08-21T09:20:43.633603+00:00",
+    "recipients": {
+      "from": [],
+      "to": [
+        {
+          "email": "andres.santa-fe@hotmail.com",
+          "display_name": "andres.santa-fe@hotmail.com"
+        }
+      ],
+      "cc": [],
+      "bcc": [],
+      "reply_to": []
+    },
+    "attachments": []
+  }
+}
+DRAFT_WITHOUT_ATTACHMENT_ID=09e91893-8715-44d9-8160-32979994713a
+
+============================================================
+14_GET_DRAFT_WITHOUT_ATTACHMENT
+============================================================
+HTTP_STATUS=200
+{
+  "message": {
+    "id": "09e91893-8715-44d9-8160-32979994713a",
+    "user_id": "690cbc59-358d-4432-b2de-f9825a789875",
+    "mail_integration_id": "85262509-942c-40b4-b02d-c1cd431d3466",
+    "provider": "microsoft",
+    "provider_message_id": "AQMkADAwATYwMAItYjg3MS1iMDdjLTAwAi0wMAoARgAAA54tdNz8IMJMmOVrbGwAzZugBwCghEXHrMw3Sa4t1nJRsN9TAAACAQ8AAACghEXHrMw3Sa4t1nJRsN9TAAoE_u6oAAAA",
+    "provider_thread_id": "AQQkADAwATYwMAItYjg3MS1iMDdjLTAwAi0wMAoAEACMs--FmJ7BTrNl4uN4NA0X",
+    "provider_conversation_id": "AQQkADAwATYwMAItYjg3MS1iMDdjLTAwAi0wMAoAEACMs--FmJ7BTrNl4uN4NA0X",
+    "provider_change_key": "CQAAABYAAACghEXHrMw3Sa4t1nJRsN9TAAoEYzCa",
+    "provider_etag": "W/\"CQAAABYAAACghEXHrMw3Sa4t1nJRsN9TAAoEYzCa\"",
+    "provider_created_at": "2026-08-21T09:20:41+00:00",
+    "provider_updated_at": "2026-08-21T09:20:41+00:00",
+    "direction": "outbound",
+    "status": "draft",
+    "folder": "drafts",
+    "is_read": true,
+    "is_starred": false,
+    "is_archived": false,
+    "is_spam": false,
+    "is_trashed": false,
+    "is_deleted_permanently": false,
+    "deleted_permanently_at": null,
+    "subject": "BeeApp smoke test sin adjunto 20260821T091957Z",
+    "body_text": "Borrador automatizado sin archivos. No enviar.",
+    "body_html": null,
+    "body_preview": "Borrador automatizado sin archivos. No enviar.",
+    "snippet": "Borrador automatizado sin archivos. No enviar.",
+    "message_id_header": "<PH8PR84MB316436D43D3F672BDAD1A3F6A9A32@PH8PR84MB3164.NAMPRD84.PROD.OUTLOOK.COM>",
+    "in_reply_to_header": null,
+    "references_header": null,
+    "sent_at": "2026-08-21T09:20:41+00:00",
+    "received_at": "2026-08-21T09:20:41+00:00",
+    "has_attachments": false,
+    "attachment_count": 0,
+    "is_provider_deleted": false,
+    "provider_deleted_at": null,
+    "last_synced_at": "2026-08-21T09:20:43.502486+00:00",
+    "metadata": {
+      "last_synced_at": "2026-08-21T09:20:43.502465+00:00",
+      "microsoft_importance": "normal",
+      "microsoft_flag_status": "notflagged",
+      "microsoft_parent_folder_id": "AQMkADAwATYwMAItYjg3MS1iMDdjLTAwAi0wMAoALgAAA54tdNz8IMJMmOVrbGwAzZugAQCghEXHrMw3Sa4t1nJRsN9TAAACAQ8AAAA=",
+      "microsoft_body_content_type": "text",
+      "microsoft_attachments_loaded": true
+    },
+    "created_at": "2026-08-21T09:20:43.633603+00:00",
+    "updated_at": "2026-08-21T09:20:43.633603+00:00",
+    "recipients": {
+      "from": [],
+      "to": [
+        {
+          "email": "andres.santa-fe@hotmail.com",
+          "display_name": "andres.santa-fe@hotmail.com"
+        }
+      ],
+      "cc": [],
+      "bcc": [],
+      "reply_to": []
+    },
+    "attachments": []
+  }
+}
+
+============================================================
+15_MAIL_SYNC_DIAGNOSTIC_MAX_20_SECONDS
+============================================================
+HTTP_STATUS=200
+{
+  "requested_integration_count": 1,
+  "synced_integration_count": 1,
+  "failed_integration_count": 0,
+  "results": [
+    {
+      "integration_id": "85262509-942c-40b4-b02d-c1cd431d3466",
+      "provider": "microsoft",
+      "sync_run": {
+        "id": "343abe37-6e7d-46f3-99d3-1adac25d8ce8",
+        "user_id": "690cbc59-358d-4432-b2de-f9825a789875",
+        "mail_integration_id": "85262509-942c-40b4-b02d-c1cd431d3466",
+        "trigger": "manual",
+        "status": "succeeded",
+        "is_full_sync": false,
+        "started_at": "2026-08-21T09:20:47.092773+00:00",
+        "completed_at": "2026-08-21T09:20:57.451212+00:00",
+        "messages_fetched_count": 10,
+        "messages_created_count": 0,
+        "messages_updated_count": 0,
+        "messages_deleted_count": 0,
+        "messages_skipped_count": 10,
+        "cursor_before": null,
+        "cursor_after": null,
+        "error_code": null,
+        "error_message": null,
+        "metadata": {
+          "after": "2026-05-23T09:20:47.092765+00:00",
+          "provider": "microsoft",
+          "initial_sync": false,
+          "max_messages": 10,
+          "attachment_metadata_loaded": true,
+          "attachment_content_downloaded": false
+        },
+        "created_at": "2026-08-21T09:20:47.235033+00:00",
+        "updated_at": "2026-08-21T09:20:57.589097+00:00"
+      },
+      "fetched_message_count": 10,
+      "created_message_count": 0,
+      "updated_message_count": 0,
+      "skipped_message_count": 10,
+      "initial_sync": false,
+      "cursor_after": null
+    }
+  ],
+  "failures": []
+}
+CURL_EXIT_CODE=0
+
+============================================================
+16_DELETE_DRAFT_WITH_ATTACHMENT
+============================================================
+HTTP_STATUS=204
+(Respuesta vacía)
+
+============================================================
+17_VERIFY_DELETED_DRAFT_EXPECT_404
+============================================================
+HTTP_STATUS=404
+{
+  "detail": "El correo no fue encontrado."
+}
+
+============================================================
+18_DELETE_DRAFT_WITHOUT_ATTACHMENT
+============================================================
+HTTP_STATUS=204
+(Respuesta vacía)
+
+============================================================
+FINAL_SUMMARY
+============================================================
+REPORT_FILE=/home/andres-mendoza/Git/beeapp_ai/Backend/beeAppBack/beeapp_mail_test_results/mail_backend_report_20260821T091957Z.txt
+STORAGE_FILE_ID=8d53d952-d9c9-451e-a557-5fb0edbb342a
+DRAFT_WITH_ATTACHMENT_ID=ce18e7ae-6834-4486-ae65-58c9d2e79669
+DRAFT_WITHOUT_ATTACHMENT_ID=09e91893-8715-44d9-8160-32979994713a
+TESTS_FAILED=0
+NOTE=Los borradores de prueba se intentan eliminar al final. El archivo Storage de prueba se conserva para inspección manual.
