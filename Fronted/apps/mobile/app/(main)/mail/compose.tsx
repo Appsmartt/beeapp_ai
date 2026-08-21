@@ -12,13 +12,16 @@ import {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from 'react';
+import * as DocumentPicker from 'expo-document-picker';
 import {
   ChevronDown,
   ChevronLeft,
   Paperclip,
   Send,
+  X,
 } from 'lucide-react-native';
 import {
   colors,
@@ -33,10 +36,12 @@ import FloatingTabBar from '../../../src/components/FloatingTabBar';
 import {
   createMailDraft,
   sendMailDraft,
+  uploadStorageFiles,
 } from '@beeapp/api-client';
 import type {
   MailDraftRecipientPayload,
   MailIntegration,
+  StorageFile,
 } from '@beeapp/shared-types';
 
 import {
@@ -49,61 +54,26 @@ import {
   useMail,
 } from '../../../src/hooks/useMail';
 
+
+const MAX_MAIL_ATTACHMENTS = 10;
+const MAX_MAIL_ATTACHMENT_SIZE_BYTES = 3 * 1024 * 1024;
+const MAX_MAIL_ATTACHMENTS_TOTAL_SIZE_BYTES = 10 * 1024 * 1024;
+
+type RecipientField = 'to' | 'cc' | 'bcc';
+
+interface MailAttachment {
+  id: string;
+  name: string;
+  mimeType: string;
+  sizeBytes: number;
+}
+
 function getErrorMessage(
   error: unknown,
 ): string {
   return error instanceof Error
     ? error.message
     : 'Inténtalo nuevamente.';
-}
-
-function parseRecipients(
-  value: string,
-): MailDraftRecipientPayload[] {
-  const rawRecipients = value
-    .split(/[,;\n]+/)
-    .map((recipient) => recipient.trim())
-    .filter(Boolean);
-
-  const recipientsByEmail = new Map<
-    string,
-    MailDraftRecipientPayload
-  >();
-
-  rawRecipients.forEach((rawRecipient) => {
-    const angleMatch = /^(.+?)\s*<([^>]+)>$/.exec(
-      rawRecipient,
-    );
-
-    const email = (
-      angleMatch
-        ? angleMatch[2]
-        : rawRecipient
-    )
-      .trim()
-      .toLowerCase();
-
-    if (
-      !email
-      || recipientsByEmail.has(email)
-    ) {
-      return;
-    }
-
-    const displayName = angleMatch?.[1]
-      ?.trim()
-      .replace(/^["']|["']$/g, '')
-      || null;
-
-    recipientsByEmail.set(email, {
-      email,
-      display_name: displayName,
-    });
-  });
-
-  return Array.from(
-    recipientsByEmail.values(),
-  );
 }
 
 function isValidEmail(
@@ -114,21 +84,116 @@ function isValidEmail(
   );
 }
 
-function validateRecipients(
-  recipients: MailDraftRecipientPayload[],
-): string | null {
-  const invalidRecipient = recipients.find(
-    (recipient) => !isValidEmail(recipient.email),
-  );
+function getRecipientKey(
+  email: string,
+): string {
+  return email.trim().toLowerCase();
+}
 
-  if (invalidRecipient) {
-    return (
-      `La dirección "${invalidRecipient.email}" `
-      + 'no es válida.'
-    );
+function parseRecipientValue(
+  rawValue: string,
+): MailDraftRecipientPayload | null {
+  const value = rawValue.trim();
+
+  if (!value) {
+    return null;
   }
 
-  return null;
+  const angleMatch = /^(.+?)\s*<([^>]+)>$/.exec(value);
+
+  const email = (
+    angleMatch
+      ? angleMatch[2]
+      : value
+  )
+    .trim()
+    .toLowerCase();
+
+  if (!isValidEmail(email)) {
+    return null;
+  }
+
+  const displayName = angleMatch?.[1]
+    ?.trim()
+    .replace(/^["']|["']$/g, '')
+    || null;
+
+  return {
+    email,
+    display_name: displayName,
+  };
+}
+
+function parseRecipientInput(
+  value: string,
+): {
+  validRecipients: MailDraftRecipientPayload[];
+  invalidValues: string[];
+} {
+  const values = value
+    .split(/[,;\n]+/)
+    .map((item) => item.trim())
+    .filter(Boolean);
+
+  const validRecipients: MailDraftRecipientPayload[] = [];
+  const invalidValues: string[] = [];
+  const seenEmails = new Set<string>();
+
+  values.forEach((rawValue) => {
+    const recipient = parseRecipientValue(rawValue);
+
+    if (!recipient) {
+      invalidValues.push(rawValue);
+      return;
+    }
+
+    const key = getRecipientKey(recipient.email);
+
+    if (seenEmails.has(key)) {
+      return;
+    }
+
+    seenEmails.add(key);
+    validRecipients.push(recipient);
+  });
+
+  return {
+    validRecipients,
+    invalidValues,
+  };
+}
+
+function formatBytes(
+  bytes: number,
+): string {
+  if (!Number.isFinite(bytes) || bytes <= 0) {
+    return '0 B';
+  }
+
+  if (bytes < 1024) {
+    return `${bytes} B`;
+  }
+
+  if (bytes < 1024 * 1024) {
+    return `${Math.round(bytes / 1024)} KB`;
+  }
+
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function getAttachmentTotalSize(
+  attachments: MailAttachment[],
+): number {
+  return attachments.reduce(
+    (total, attachment) => total + attachment.sizeBytes,
+    0,
+  );
+}
+
+function getInitialRecipients(
+  value: string,
+): MailDraftRecipientPayload[] {
+  return parseRecipientInput(value).validRecipients;
 }
 
 export default function MailComposeScreen() {
@@ -148,9 +213,32 @@ export default function MailComposeScreen() {
     setSelectedIntegrationId,
   ] = useState<string | null>(null);
 
-  const [to, setTo] = useState(initialTo);
-  const [cc, setCc] = useState('');
-  const [bcc, setBcc] = useState('');
+  const [
+    toRecipients,
+    setToRecipients,
+  ] = useState<MailDraftRecipientPayload[]>(
+    () => getInitialRecipients(initialTo),
+  );
+
+  const [
+    ccRecipients,
+    setCcRecipients,
+  ] = useState<MailDraftRecipientPayload[]>([]);
+
+  const [
+    bccRecipients,
+    setBccRecipients,
+  ] = useState<MailDraftRecipientPayload[]>([]);
+
+  const [
+    recipientInput,
+    setRecipientInput,
+  ] = useState<Record<RecipientField, string>>({
+    to: '',
+    cc: '',
+    bcc: '',
+  });
+
   const [subject, setSubject] = useState(initialSubject);
   const [body, setBody] = useState('');
 
@@ -159,7 +247,18 @@ export default function MailComposeScreen() {
     setShowCcBcc,
   ] = useState(false);
 
+  const [
+    attachments,
+    setAttachments,
+  ] = useState<MailAttachment[]>([]);
+
   const [sending, setSending] = useState(false);
+  const [uploadingAttachments, setUploadingAttachments] =
+    useState(false);
+
+  const recipientInputRefs = useRef<
+    Partial<Record<RecipientField, TextInput | null>>
+  >({});
 
   const {
     integrations,
@@ -204,6 +303,10 @@ export default function MailComposeScreen() {
     ? getMailIntegrationLabel(selectedIntegration)
     : 'Selecciona una cuenta';
 
+  const attachmentTotalSize = useMemo(() => (
+    getAttachmentTotalSize(attachments)
+  ), [attachments]);
+
   const handleSelectSender = useCallback((
     integration: MailIntegration,
   ) => {
@@ -211,8 +314,444 @@ export default function MailComposeScreen() {
     setSenderDropdownVisible(false);
   }, []);
 
+  const getRecipientsForField = useCallback((
+    field: RecipientField,
+  ) => {
+    if (field === 'to') {
+      return toRecipients;
+    }
+
+    if (field === 'cc') {
+      return ccRecipients;
+    }
+
+    return bccRecipients;
+  }, [
+    bccRecipients,
+    ccRecipients,
+    toRecipients,
+  ]);
+
+  const getAllRecipientEmails = useCallback((
+    excludedField?: RecipientField,
+  ) => {
+    const recipientsByField: Record<
+      RecipientField,
+      MailDraftRecipientPayload[]
+    > = {
+      to: toRecipients,
+      cc: ccRecipients,
+      bcc: bccRecipients,
+    };
+
+    const emails = new Set<string>();
+
+    (
+      Object.keys(recipientsByField) as RecipientField[]
+    ).forEach((field) => {
+      if (field === excludedField) {
+        return;
+      }
+
+      recipientsByField[field].forEach((recipient) => {
+        emails.add(getRecipientKey(recipient.email));
+      });
+    });
+
+    return emails;
+  }, [
+    bccRecipients,
+    ccRecipients,
+    toRecipients,
+  ]);
+
+  const setRecipientsForField = useCallback((
+    field: RecipientField,
+    nextRecipients: MailDraftRecipientPayload[],
+  ) => {
+    if (field === 'to') {
+      setToRecipients(nextRecipients);
+      return;
+    }
+
+    if (field === 'cc') {
+      setCcRecipients(nextRecipients);
+      return;
+    }
+
+    setBccRecipients(nextRecipients);
+  }, []);
+
+  const addRecipients = useCallback((
+    field: RecipientField,
+    rawValue?: string,
+  ): boolean => {
+    const value = (
+      rawValue
+      ?? recipientInput[field]
+    ).trim();
+
+    if (!value) {
+      return true;
+    }
+
+    const {
+      validRecipients,
+      invalidValues,
+    } = parseRecipientInput(value);
+
+    if (invalidValues.length > 0) {
+      Alert.alert(
+        'Correo no válido',
+        (
+          `Revisa esta dirección: "${invalidValues[0]}". `
+          + 'Puedes agregar correos separados por coma, '
+          + 'punto y coma o Enter.'
+        ),
+      );
+
+      return false;
+    }
+
+    if (validRecipients.length === 0) {
+      return true;
+    }
+
+    const currentRecipients = getRecipientsForField(field);
+    const currentEmails = new Set(
+      currentRecipients.map((recipient) => (
+        getRecipientKey(recipient.email)
+      )),
+    );
+    const emailsInOtherFields = getAllRecipientEmails(field);
+
+    const duplicatedElsewhere = validRecipients.find(
+      (recipient) => emailsInOtherFields.has(
+        getRecipientKey(recipient.email),
+      ),
+    );
+
+    if (duplicatedElsewhere) {
+      Alert.alert(
+        'Destinatario repetido',
+        (
+          `"${duplicatedElsewhere.email}" ya está en `
+          + 'otro campo de destinatarios.'
+        ),
+      );
+
+      return false;
+    }
+
+    const nextRecipients = [
+      ...currentRecipients,
+      ...validRecipients.filter((recipient) => (
+        !currentEmails.has(getRecipientKey(recipient.email))
+      )),
+    ];
+
+    setRecipientsForField(field, nextRecipients);
+
+    setRecipientInput((currentInput) => ({
+      ...currentInput,
+      [field]: '',
+    }));
+
+    return true;
+  }, [
+    getAllRecipientEmails,
+    getRecipientsForField,
+    recipientInput,
+    setRecipientsForField,
+  ]);
+
+  const removeRecipient = useCallback((
+    field: RecipientField,
+    email: string,
+  ) => {
+    const keyToRemove = getRecipientKey(email);
+
+    setRecipientsForField(
+      field,
+      getRecipientsForField(field).filter((recipient) => (
+        getRecipientKey(recipient.email) !== keyToRemove
+      )),
+    );
+  }, [
+    getRecipientsForField,
+    setRecipientsForField,
+  ]);
+
+  const handleRecipientInputChange = useCallback((
+    field: RecipientField,
+    value: string,
+  ) => {
+    if (!/[,;\n]$/.test(value)) {
+      setRecipientInput((currentInput) => ({
+        ...currentInput,
+        [field]: value,
+      }));
+      return;
+    }
+
+    const valueWithoutSeparator = value.replace(
+      /[,;\n]+$/,
+      '',
+    );
+
+    const added = addRecipients(
+      field,
+      valueWithoutSeparator,
+    );
+
+    if (!added) {
+      setRecipientInput((currentInput) => ({
+        ...currentInput,
+        [field]: valueWithoutSeparator,
+      }));
+    }
+  }, [addRecipients]);
+
+  const handleRecipientSubmit = useCallback((
+    field: RecipientField,
+  ) => {
+    const added = addRecipients(field);
+
+    if (added) {
+      recipientInputRefs.current[field]?.focus();
+    }
+  }, [addRecipients]);
+
+  const handleAttachFile = useCallback(() => {
+    if (
+      sending
+      || uploadingAttachments
+    ) {
+      return;
+    }
+
+    void (async () => {
+      try {
+        const remainingSlots = (
+          MAX_MAIL_ATTACHMENTS - attachments.length
+        );
+
+        if (remainingSlots <= 0) {
+          Alert.alert(
+            'Límite de adjuntos',
+            (
+              `Puedes adjuntar máximo ${MAX_MAIL_ATTACHMENTS} `
+              + 'archivos por correo.'
+            ),
+          );
+          return;
+        }
+
+        const pickerResult = (
+          await DocumentPicker.getDocumentAsync({
+            type: '*/*',
+            copyToCacheDirectory: true,
+            multiple: true,
+          })
+        );
+
+        if (
+          pickerResult.canceled
+          || !pickerResult.assets.length
+        ) {
+          return;
+        }
+
+        const selectedAssets = pickerResult.assets.slice(
+          0,
+          remainingSlots,
+        );
+
+        if (
+          pickerResult.assets.length > remainingSlots
+        ) {
+          Alert.alert(
+            'Algunos archivos no se seleccionaron',
+            (
+              `Solo se agregarán ${remainingSlots} archivo(s), `
+              + `porque el máximo por correo es `
+              + `${MAX_MAIL_ATTACHMENTS}.`
+            ),
+          );
+        }
+
+        const tooLargeAsset = selectedAssets.find(
+          (asset) => (
+            asset.size !== undefined
+            && asset.size > MAX_MAIL_ATTACHMENT_SIZE_BYTES
+          ),
+        );
+
+        if (tooLargeAsset) {
+          Alert.alert(
+            'Archivo demasiado grande',
+            (
+              `“${tooLargeAsset.name}” supera el límite de 3 MB `
+              + 'por adjunto.'
+            ),
+          );
+          return;
+        }
+
+        const selectedSize = selectedAssets.reduce(
+          (total, asset) => (
+            total + (asset.size || 0)
+          ),
+          0,
+        );
+
+        if (
+          attachmentTotalSize + selectedSize
+          > MAX_MAIL_ATTACHMENTS_TOTAL_SIZE_BYTES
+        ) {
+          Alert.alert(
+            'Adjuntos demasiado grandes',
+            (
+              'Los adjuntos de un correo no pueden superar '
+              + '10 MB en total.'
+            ),
+          );
+          return;
+        }
+
+        setUploadingAttachments(true);
+
+        const credentials = (
+          await getValidSessionCredentials()
+        );
+
+        if (!credentials) {
+          throw new Error(
+            'Tu sesión expiró. Inicia sesión nuevamente.',
+          );
+        }
+
+        const formData = new FormData();
+
+        selectedAssets.forEach((asset) => {
+          formData.append(
+            'files',
+            {
+              uri: asset.uri,
+              name: asset.name || 'archivo',
+              type: asset.mimeType
+                || 'application/octet-stream',
+            } as unknown as Blob,
+          );
+        });
+
+        const uploadResponse = await uploadStorageFiles(
+          credentials,
+          formData,
+        );
+
+        if (uploadResponse.failure_count > 0) {
+          const firstFailure = uploadResponse.failed_files[0];
+
+          Alert.alert(
+            'Algunos archivos no se subieron',
+            firstFailure?.detail
+              || (
+                `${uploadResponse.failure_count} archivo(s) `
+                + 'no pudieron subirse.'
+              ),
+          );
+        }
+
+        if (uploadResponse.success_count === 0) {
+          return;
+        }
+
+        const uploadedFiles = uploadResponse.files as StorageFile[];
+
+        setAttachments((currentAttachments) => {
+          const existingIds = new Set(
+            currentAttachments.map((attachment) => (
+              attachment.id
+            )),
+          );
+
+          const nextAttachments = [
+            ...currentAttachments,
+            ...uploadedFiles
+              .filter((file) => !existingIds.has(file.id))
+              .map((file) => ({
+                id: file.id,
+                name: file.display_name
+                  || file.original_name
+                  || 'Archivo adjunto',
+                mimeType: file.mime_type
+                  || 'application/octet-stream',
+                sizeBytes: file.size_bytes || 0,
+              })),
+          ];
+
+          return nextAttachments.slice(
+            0,
+            MAX_MAIL_ATTACHMENTS,
+          );
+        });
+      } catch (attachmentError) {
+        Alert.alert(
+          'No fue posible adjuntar',
+          getErrorMessage(attachmentError),
+        );
+      } finally {
+        setUploadingAttachments(false);
+      }
+    })();
+  }, [
+    attachmentTotalSize,
+    attachments.length,
+    sending,
+    uploadingAttachments,
+  ]);
+
+  const handleRemoveAttachment = useCallback((
+    attachmentId: string,
+  ) => {
+    setAttachments((currentAttachments) => (
+      currentAttachments.filter((attachment) => (
+        attachment.id !== attachmentId
+      ))
+    ));
+  }, []);
+
+  const commitPendingRecipients = useCallback((): boolean => {
+    const fields: RecipientField[] = [
+      'to',
+      'cc',
+      'bcc',
+    ];
+
+    for (const field of fields) {
+      if (!recipientInput[field].trim()) {
+        continue;
+      }
+
+      const added = addRecipients(field);
+
+      if (!added) {
+        return false;
+      }
+    }
+
+    return true;
+  }, [
+    addRecipients,
+    recipientInput,
+  ]);
+
   const handleSend = useCallback(() => {
-    if (sending) {
+    if (
+      sending
+      || uploadingAttachments
+    ) {
       return;
     }
 
@@ -224,26 +763,10 @@ export default function MailComposeScreen() {
           + 'Microsoft activa para enviar el correo.'
         ),
       );
-
       return;
     }
 
-    const toRecipients = parseRecipients(to);
-    const ccRecipients = parseRecipients(cc);
-    const bccRecipients = parseRecipients(bcc);
-
-    const recipientValidationError = validateRecipients([
-      ...toRecipients,
-      ...ccRecipients,
-      ...bccRecipients,
-    ]);
-
-    if (recipientValidationError) {
-      Alert.alert(
-        'Revisa los destinatarios',
-        recipientValidationError,
-      );
-
+    if (!commitPendingRecipients()) {
       return;
     }
 
@@ -252,7 +775,6 @@ export default function MailComposeScreen() {
         'Falta un destinatario',
         'Especifica al menos un destinatario en el campo Para.',
       );
-
       return;
     }
 
@@ -278,7 +800,9 @@ export default function MailComposeScreen() {
             subject: subject.trim() || null,
             body: body || null,
             body_content_type: 'text',
-            file_ids: [],
+            file_ids: attachments.map(
+              (attachment) => attachment.id,
+            ),
           },
         );
 
@@ -309,26 +833,18 @@ export default function MailComposeScreen() {
       }
     })();
   }, [
-    bcc,
+    attachments,
+    bccRecipients,
     body,
-    cc,
+    ccRecipients,
+    commitPendingRecipients,
+    router,
     selectedIntegrationId,
     sending,
     subject,
-    to,
-    router,
+    toRecipients,
+    uploadingAttachments,
   ]);
-
-  const handleAttachFile = useCallback(() => {
-    Alert.alert(
-      'Adjuntos próximamente',
-      (
-        'El envío ya está conectado. La selección de archivos '
-        + 'de Storage se habilitará cuando conectemos el selector '
-        + 'de archivos con el campo file_ids del backend.'
-      ),
-    );
-  }, []);
 
   const handleRefreshAccounts = useCallback(() => {
     void refreshMail();
@@ -338,6 +854,114 @@ export default function MailComposeScreen() {
     !loading
     && activeIntegrations.length === 0
   );
+
+  const renderRecipientField = (
+    field: RecipientField,
+    label: string,
+    placeholder: string,
+    showToggle = false,
+  ) => {
+    const recipients = getRecipientsForField(field);
+
+    return (
+      <View style={styles.recipientRow}>
+        <Text style={styles.rowLabel}>
+          {label}
+        </Text>
+
+        <View style={styles.recipientContent}>
+          {recipients.length > 0 ? (
+            <View style={styles.recipientChips}>
+              {recipients.map((recipient) => (
+                <View
+                  key={recipient.email}
+                  style={styles.recipientChip}
+                >
+                  <Text
+                    style={styles.recipientChipText}
+                    numberOfLines={1}
+                  >
+                    {recipient.display_name
+                      ? `${recipient.display_name} <${recipient.email}>`
+                      : recipient.email}
+                  </Text>
+
+                  <TouchableOpacity
+                    onPress={() => {
+                      removeRecipient(
+                        field,
+                        recipient.email,
+                      );
+                    }}
+                    disabled={sending}
+                    style={styles.recipientRemoveButton}
+                    activeOpacity={0.7}
+                    accessibilityRole="button"
+                    accessibilityLabel={
+                      `Quitar ${recipient.email}`
+                    }
+                  >
+                    <X
+                      size={13}
+                      color={colors.brand.primary}
+                    />
+                  </TouchableOpacity>
+                </View>
+              ))}
+            </View>
+          ) : null}
+
+          <TextInput
+            ref={(input) => {
+              recipientInputRefs.current[field] = input;
+            }}
+            style={styles.recipientTextInput}
+            placeholder={placeholder}
+            placeholderTextColor={colors.neutral.gray500}
+            autoCapitalize="none"
+            autoCorrect={false}
+            keyboardType="email-address"
+            editable={!sending}
+            value={recipientInput[field]}
+            onChangeText={(value) => {
+              handleRecipientInputChange(field, value);
+            }}
+            onSubmitEditing={() => {
+              handleRecipientSubmit(field);
+            }}
+            onBlur={() => {
+              if (recipientInput[field].trim()) {
+                addRecipients(field);
+              }
+            }}
+            blurOnSubmit={false}
+            returnKeyType="done"
+          />
+        </View>
+
+        {showToggle ? (
+          <TouchableOpacity
+            onPress={() => {
+              setShowCcBcc((visible) => !visible);
+            }}
+            style={styles.ccBccToggleBtn}
+            disabled={sending}
+            activeOpacity={0.7}
+            accessibilityRole="button"
+            accessibilityLabel={
+              showCcBcc
+                ? 'Ocultar CC y CCO'
+                : 'Mostrar CC y CCO'
+            }
+          >
+            <Text style={styles.ccBccToggleText}>
+              {showCcBcc ? 'Ocultar' : 'CC/CCO'}
+            </Text>
+          </TouchableOpacity>
+        ) : null}
+      </View>
+    );
+  };
 
   return (
     <ScreenSafeArea style={styles.safeArea}>
@@ -364,7 +988,10 @@ export default function MailComposeScreen() {
           <TouchableOpacity
             onPress={handleSend}
             style={styles.sendHeaderBtn}
-            disabled={sending}
+            disabled={
+              sending
+              || uploadingAttachments
+            }
             activeOpacity={0.8}
             accessibilityRole="button"
             accessibilityLabel="Enviar correo"
@@ -507,74 +1134,26 @@ export default function MailComposeScreen() {
               </View>
             ) : null}
 
-            <View style={styles.inputRow}>
-              <Text style={styles.rowLabel}>
-                Para:
-              </Text>
-
-              <TextInput
-                style={styles.textInputField}
-                placeholder="correo@ejemplo.com"
-                placeholderTextColor={colors.neutral.gray500}
-                autoCapitalize="none"
-                autoCorrect={false}
-                keyboardType="email-address"
-                editable={!sending}
-                value={to}
-                onChangeText={setTo}
-              />
-
-              <TouchableOpacity
-                onPress={() => {
-                  setShowCcBcc((visible) => !visible);
-                }}
-                style={styles.ccBccToggleBtn}
-                disabled={sending}
-                activeOpacity={0.7}
-              >
-                <Text style={styles.ccBccToggleText}>
-                  {showCcBcc ? 'Ocultar' : 'CC/CCO'}
-                </Text>
-              </TouchableOpacity>
-            </View>
+            {renderRecipientField(
+              'to',
+              'Para:',
+              'correo@ejemplo.com',
+              true,
+            )}
 
             {showCcBcc ? (
               <View style={styles.ccBccSection}>
-                <View style={styles.inputRow}>
-                  <Text style={styles.rowLabel}>
-                    CC:
-                  </Text>
+                {renderRecipientField(
+                  'cc',
+                  'CC:',
+                  'copia@ejemplo.com',
+                )}
 
-                  <TextInput
-                    style={styles.textInputField}
-                    placeholder="copia@ejemplo.com"
-                    placeholderTextColor={colors.neutral.gray500}
-                    autoCapitalize="none"
-                    autoCorrect={false}
-                    keyboardType="email-address"
-                    editable={!sending}
-                    value={cc}
-                    onChangeText={setCc}
-                  />
-                </View>
-
-                <View style={styles.inputRow}>
-                  <Text style={styles.rowLabel}>
-                    CCO:
-                  </Text>
-
-                  <TextInput
-                    style={styles.textInputField}
-                    placeholder="copiaoculta@ejemplo.com"
-                    placeholderTextColor={colors.neutral.gray500}
-                    autoCapitalize="none"
-                    autoCorrect={false}
-                    keyboardType="email-address"
-                    editable={!sending}
-                    value={bcc}
-                    onChangeText={setBcc}
-                  />
-                </View>
+                {renderRecipientField(
+                  'bcc',
+                  'CCO:',
+                  'copiaoculta@ejemplo.com',
+                )}
               </View>
             ) : null}
 
@@ -606,34 +1185,118 @@ export default function MailComposeScreen() {
 
             <View style={styles.attachmentBar}>
               <TouchableOpacity
-                style={styles.attachBtn}
+                style={[
+                  styles.attachBtn,
+                  (
+                    sending
+                    || uploadingAttachments
+                  )
+                    && styles.attachBtnDisabled,
+                ]}
                 onPress={handleAttachFile}
-                disabled={sending}
+                disabled={
+                  sending
+                  || uploadingAttachments
+                }
                 activeOpacity={0.8}
+                accessibilityRole="button"
+                accessibilityLabel="Adjuntar archivo"
               >
-                <Paperclip
-                  size={16}
-                  color={colors.brand.primary}
-                  style={styles.attachIcon}
-                />
+                {uploadingAttachments ? (
+                  <ActivityIndicator
+                    size="small"
+                    color={colors.brand.primary}
+                    style={styles.attachIcon}
+                  />
+                ) : (
+                  <Paperclip
+                    size={16}
+                    color={colors.brand.primary}
+                    style={styles.attachIcon}
+                  />
+                )}
 
                 <Text style={styles.attachBtnText}>
-                  Adjuntar archivo
+                  {uploadingAttachments
+                    ? 'Subiendo archivos...'
+                    : 'Adjuntar archivo'}
                 </Text>
               </TouchableOpacity>
 
               <Text style={styles.attachmentHelperText}>
-                Próximamente podrás elegir archivos de Storage.
+                Máximo {MAX_MAIL_ATTACHMENTS} archivos, 3 MB por
+                archivo y 10 MB en total.
               </Text>
+
+              {attachments.length > 0 ? (
+                <View style={styles.attachmentsList}>
+                  <Text style={styles.attachmentsTitle}>
+                    Adjuntos ({attachments.length}) ·{' '}
+                    {formatBytes(attachmentTotalSize)}
+                  </Text>
+
+                  {attachments.map((attachment) => (
+                    <View
+                      key={attachment.id}
+                      style={styles.attachmentItem}
+                    >
+                      <Paperclip
+                        size={15}
+                        color={colors.brand.primary}
+                        style={styles.attachmentItemIcon}
+                      />
+
+                      <View style={styles.attachmentItemInfo}>
+                        <Text
+                          style={styles.attachmentItemName}
+                          numberOfLines={1}
+                        >
+                          {attachment.name}
+                        </Text>
+
+                        <Text style={styles.attachmentItemMeta}>
+                          {attachment.mimeType} ·{' '}
+                          {formatBytes(attachment.sizeBytes)}
+                        </Text>
+                      </View>
+
+                      <TouchableOpacity
+                        onPress={() => {
+                          handleRemoveAttachment(attachment.id);
+                        }}
+                        disabled={sending}
+                        style={styles.attachmentRemoveButton}
+                        activeOpacity={0.7}
+                        accessibilityRole="button"
+                        accessibilityLabel={
+                          `Quitar ${attachment.name}`
+                        }
+                      >
+                        <X
+                          size={17}
+                          color={colors.semantic.error}
+                        />
+                      </TouchableOpacity>
+                    </View>
+                  ))}
+                </View>
+              ) : null}
             </View>
 
             <TouchableOpacity
               style={[
                 styles.sendButton,
-                sending && styles.sendButtonDisabled,
+                (
+                  sending
+                  || uploadingAttachments
+                )
+                  && styles.sendButtonDisabled,
               ]}
               onPress={handleSend}
-              disabled={sending}
+              disabled={
+                sending
+                || uploadingAttachments
+              }
               activeOpacity={0.8}
             >
               {sending ? (
@@ -652,7 +1315,9 @@ export default function MailComposeScreen() {
               <Text style={styles.sendButtonText}>
                 {sending
                   ? 'Enviando...'
-                  : 'Enviar correo'}
+                  : uploadingAttachments
+                    ? 'Esperando adjuntos...'
+                    : 'Enviar correo'}
               </Text>
             </TouchableOpacity>
 
@@ -782,11 +1447,63 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     marginBottom: 8,
   },
+  recipientRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.neutral.gray200,
+    backgroundColor: colors.neutral.white,
+    paddingHorizontal: 12,
+    borderRadius: 10,
+    marginBottom: 8,
+  },
   rowLabel: {
     width: 60,
+    paddingTop: 4,
     fontSize: 13,
     fontWeight: '700',
     color: colors.neutral.gray600,
+  },
+  recipientContent: {
+    flex: 1,
+    minWidth: 0,
+  },
+  recipientChips: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginBottom: 6,
+  },
+  recipientChip: {
+    maxWidth: '100%',
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderRadius: 16,
+    backgroundColor: '#F3E8FF',
+    borderWidth: 1,
+    borderColor: '#DDD6FE',
+    paddingLeft: 9,
+    paddingRight: 4,
+    paddingVertical: 5,
+  },
+  recipientChipText: {
+    maxWidth: 210,
+    fontSize: 11,
+    fontWeight: '700',
+    color: colors.brand.primary,
+  },
+  recipientRemoveButton: {
+    marginLeft: 4,
+    borderRadius: 12,
+    padding: 2,
+  },
+  recipientTextInput: {
+    minHeight: 30,
+    paddingVertical: 3,
+    fontSize: 13,
+    color: colors.neutral.text,
+    fontWeight: '600',
   },
   senderSelectBox: {
     flex: 1,
@@ -884,6 +1601,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 8,
   },
+  attachBtnDisabled: {
+    opacity: 0.65,
+  },
   attachIcon: {
     marginRight: 6,
   },
@@ -896,6 +1616,52 @@ const styles = StyleSheet.create({
     marginTop: 7,
     fontSize: 11,
     color: colors.neutral.gray600,
+  },
+  attachmentsList: {
+    width: '100%',
+    marginTop: 12,
+    gap: 8,
+  },
+  attachmentsTitle: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: colors.neutral.gray700,
+  },
+  attachmentItem: {
+    width: '100%',
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: colors.neutral.gray200,
+    backgroundColor: colors.neutral.white,
+    padding: 10,
+  },
+  attachmentItemIcon: {
+    marginRight: 9,
+  },
+  attachmentItemInfo: {
+    flex: 1,
+    minWidth: 0,
+  },
+  attachmentItemName: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: colors.neutral.text,
+  },
+  attachmentItemMeta: {
+    marginTop: 2,
+    fontSize: 10,
+    color: colors.neutral.gray600,
+  },
+  attachmentRemoveButton: {
+    width: 30,
+    height: 30,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 15,
+    backgroundColor: `${colors.semantic.error}10`,
+    marginLeft: 8,
   },
   sendButton: {
     flexDirection: 'row',

@@ -52,8 +52,8 @@ class ExternalMailProvider(Protocol):
         """
         Return provider message IDs and the latest provider cursor.
 
-        For Gmail the cursor is the latest historyId.
-        For Microsoft this will later be a delta link.
+        Gmail returns its current history ID. Microsoft Graph currently
+        returns None because its delta-link synchronization is not yet used.
         """
 
     def get_message(
@@ -62,9 +62,7 @@ class ExternalMailProvider(Protocol):
         access_token: str,
         provider_message_id: str,
     ) -> dict[str, Any]:
-        """
-        Return a normalized message compatible with Mail services.
-        """
+        """Return a normalized message compatible with Mail services."""
 
     def update_message_state(
         self,
@@ -130,8 +128,16 @@ class ExternalMailProvider(Protocol):
         access_token: str,
         provider_message_id: str,
         provider_draft_id: str | None,
+        draft_snapshot: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
-        """Send a remote draft and return its normalized message."""
+        """
+        Send a remote draft and return a normalized sent message.
+
+        Gmail returns the newly created sent Message directly. Microsoft
+        Graph returns 202 without a resource, so its provider may return
+        a safe local sent-message snapshot while a later sync resolves
+        the final Sent Items resource.
+        """
 
 
 def normalize_email_address(
@@ -242,6 +248,7 @@ def validate_draft_content(
     bcc_recipients: list[dict[str, str | None]],
     subject: str | None,
     body: str | None,
+    attachments: list[dict[str, Any]] | None = None,
 ) -> None:
     has_recipient = bool(
         to_recipients
@@ -254,11 +261,41 @@ def validate_draft_content(
     has_body = bool(
         normalize_text(body, max_length=200_000)
     )
+    has_attachments = bool(attachments)
 
-    if not has_recipient and not has_subject and not has_body:
+    if not (
+        has_recipient
+        or has_subject
+        or has_body
+        or has_attachments
+    ):
         raise MailProviderError(
             "El borrador debe tener al menos un destinatario, "
-            "asunto o contenido."
+            "asunto, contenido o adjunto."
+        )
+
+
+def validate_sendable_draft(
+    *,
+    to_recipients: list[dict[str, str | None]],
+    cc_recipients: list[dict[str, str | None]],
+    bcc_recipients: list[dict[str, str | None]],
+) -> None:
+    """
+    Providers may store incomplete drafts, but no email can be sent unless
+    it has at least one effective recipient.
+
+    CC and BCC are accepted here because SMTP/Gmail/Graph allow messages
+    addressed only through those headers. The mobile UI still requires a
+    primary To recipient for its standard compose experience.
+    """
+    if not (
+        to_recipients
+        or cc_recipients
+        or bcc_recipients
+    ):
+        raise MailProviderError(
+            "Agrega al menos un destinatario antes de enviar."
         )
 
 
@@ -330,14 +367,14 @@ def validate_mail_attachments(
         if len(normalized_attachments) >= MAX_MAIL_ATTACHMENTS:
             break
 
-    if len(normalized_attachments) < len(
-        {
-            str(item.get("storage_file_id") or "").strip()
-            for item in attachments or []
-            if isinstance(item, dict)
-            and str(item.get("storage_file_id") or "").strip()
-        }
-    ):
+    requested_file_ids = {
+        str(item.get("storage_file_id") or "").strip()
+        for item in attachments or []
+        if isinstance(item, dict)
+        and str(item.get("storage_file_id") or "").strip()
+    }
+
+    if len(normalized_attachments) < len(requested_file_ids):
         raise MailProviderError(
             "Puedes adjuntar un máximo de 10 archivos."
         )

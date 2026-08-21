@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import datetime, timezone
 from typing import Any
 
 from beeAppBack.core.supabase_client import (
@@ -25,6 +26,9 @@ from apps.mail.services.google_mail_provider_service import (
 from apps.mail.services.mail_provider_service import (
     MAX_MAIL_ATTACHMENT_SIZE_BYTES,
     MailProviderError,
+    normalize_recipients,
+    normalize_text,
+    validate_sendable_draft,
 )
 from apps.mail.services.mail_sync_service import (
     persist_provider_mail_message,
@@ -52,6 +56,10 @@ def _supabase():
     return get_supabase_admin_client()
 
 
+def _utc_now_iso() -> str:
+    return datetime.now(timezone.utc).isoformat()
+
+
 def _extract_single(response) -> dict[str, Any] | None:
     if response is None:
         return None
@@ -65,6 +73,21 @@ def _extract_single(response) -> dict[str, Any] | None:
         return data
 
     return None
+
+
+def _response_data(response) -> list[dict[str, Any]]:
+    if response is None:
+        return []
+
+    data = getattr(response, "data", None)
+
+    if isinstance(data, list):
+        return data
+
+    if isinstance(data, dict):
+        return [data]
+
+    return []
 
 
 def _get_active_mail_integration(
@@ -135,7 +158,16 @@ def _get_draft_message(
             .table("mail_messages")
             .select(
                 "id,user_id,mail_integration_id,provider,"
-                "provider_message_id,status,folder,metadata,"
+                "provider_message_id,provider_thread_id,"
+                "provider_conversation_id,provider_change_key,"
+                "provider_etag,provider_web_link,"
+                "provider_created_at,provider_updated_at,"
+                "direction,status,folder,is_read,is_starred,"
+                "is_archived,is_spam,is_trashed,subject,"
+                "body_text,body_html,body_preview,snippet,"
+                "message_id_header,in_reply_to_header,"
+                "references_header,sent_at,received_at,"
+                "has_attachments,attachment_count,metadata,"
                 "is_provider_deleted"
             )
             .eq("id", message_id)
@@ -158,6 +190,15 @@ def _get_draft_message(
         ):
             raise MailMessageNotFoundError(
                 "El correo indicado no es un borrador."
+            )
+
+        provider_message_id = str(
+            message.get("provider_message_id") or ""
+        ).strip()
+
+        if not provider_message_id:
+            raise MailMessageNotFoundError(
+                "El borrador no tiene identificador del proveedor."
             )
 
         return message
@@ -352,6 +393,167 @@ def _replace_storage_attachment_links(
         ) from error
 
 
+def _get_message_recipients(
+    *,
+    message_id: str,
+) -> dict[str, list[dict[str, str | None]]]:
+    recipients: dict[str, list[dict[str, str | None]]] = {
+        "from": [],
+        "to": [],
+        "cc": [],
+        "bcc": [],
+        "reply_to": [],
+    }
+
+    try:
+        response = (
+            _supabase()
+            .table("mail_message_recipients")
+            .select(
+                "recipient_kind,email,display_name,position"
+            )
+            .eq("message_id", message_id)
+            .order("position")
+            .execute()
+        )
+
+        for recipient in _response_data(response):
+            recipient_kind = str(
+                recipient.get("recipient_kind") or ""
+            ).strip()
+
+            if recipient_kind not in recipients:
+                continue
+
+            email = str(recipient.get("email") or "").strip()
+
+            if not email:
+                continue
+
+            recipients[recipient_kind].append(
+                {
+                    "email": email[:320],
+                    "display_name": (
+                        str(
+                            recipient.get("display_name") or ""
+                        ).strip()[:255]
+                        or None
+                    ),
+                }
+            )
+
+        return recipients
+
+    except Exception as error:
+        raise MailSyncError(
+            "No fue posible cargar los destinatarios del borrador."
+        ) from error
+
+
+def _get_message_attachments(
+    *,
+    message_id: str,
+) -> list[dict[str, Any]]:
+    try:
+        response = (
+            _supabase()
+            .table("mail_message_attachments")
+            .select(
+                "id,storage_file_id,source,"
+                "provider_attachment_id,"
+                "provider_message_attachment_id,filename,"
+                "mime_type,size_bytes,content_id,"
+                "content_disposition,is_inline,"
+                "checksum_sha256,metadata,created_at"
+            )
+            .eq("message_id", message_id)
+            .order("created_at")
+            .execute()
+        )
+
+        return _response_data(response)
+
+    except Exception as error:
+        raise MailSyncError(
+            "No fue posible cargar los adjuntos del borrador."
+        ) from error
+
+
+def _build_draft_snapshot(
+    *,
+    draft: dict[str, Any],
+) -> dict[str, Any]:
+    recipients = _get_message_recipients(
+        message_id=str(draft["id"]),
+    )
+    attachments = _get_message_attachments(
+        message_id=str(draft["id"]),
+    )
+
+    metadata = draft.get("metadata")
+
+    return {
+        "provider_message_id": draft["provider_message_id"],
+        "provider_thread_id": draft.get(
+            "provider_thread_id"
+        ),
+        "provider_conversation_id": draft.get(
+            "provider_conversation_id"
+        ),
+        "provider_change_key": draft.get(
+            "provider_change_key"
+        ),
+        "provider_etag": draft.get("provider_etag"),
+        "provider_web_link": draft.get(
+            "provider_web_link"
+        ),
+        "provider_created_at": draft.get(
+            "provider_created_at"
+        ),
+        "provider_updated_at": draft.get(
+            "provider_updated_at"
+        ),
+        "direction": draft.get("direction") or "outbound",
+        "status": draft.get("status") or "draft",
+        "folder": draft.get("folder") or "drafts",
+        "is_read": bool(draft.get("is_read")),
+        "is_starred": bool(draft.get("is_starred")),
+        "is_archived": bool(draft.get("is_archived")),
+        "is_spam": bool(draft.get("is_spam")),
+        "is_trashed": bool(draft.get("is_trashed")),
+        "subject": draft.get("subject"),
+        "body_text": draft.get("body_text"),
+        "body_html": draft.get("body_html"),
+        "body_preview": draft.get("body_preview"),
+        "snippet": draft.get("snippet"),
+        "message_id_header": draft.get(
+            "message_id_header"
+        ),
+        "in_reply_to_header": draft.get(
+            "in_reply_to_header"
+        ),
+        "references_header": draft.get(
+            "references_header"
+        ),
+        "sent_at": draft.get("sent_at"),
+        "received_at": draft.get("received_at"),
+        "has_attachments": bool(
+            draft.get("has_attachments")
+            or attachments
+        ),
+        "attachment_count": int(
+            draft.get("attachment_count") or len(attachments)
+        ),
+        "recipients": recipients,
+        "attachments": attachments,
+        "metadata": (
+            metadata
+            if isinstance(metadata, dict)
+            else {}
+        ),
+    }
+
+
 def _serialize_message(
     *,
     user_id: str,
@@ -384,102 +586,240 @@ def _serialize_message(
                 "No fue posible recuperar el correo guardado."
             )
 
-        recipients_response = (
-            _supabase()
-            .table("mail_message_recipients")
-            .select(
-                "recipient_kind,email,display_name,position"
-            )
-            .eq("message_id", message_id)
-            .order("position")
-            .execute()
+        recipients = _get_message_recipients(
+            message_id=message_id,
         )
 
-        recipients: dict[str, list[dict[str, str | None]]] = {
-            "from": [],
-            "to": [],
-            "cc": [],
-            "bcc": [],
-            "reply_to": [],
-        }
-
-        recipient_data = getattr(
-            recipients_response,
-            "data",
-            None,
-        )
-
-        for recipient in (
-            recipient_data
-            if isinstance(recipient_data, list)
-            else []
-        ):
-            kind = str(
-                recipient.get("recipient_kind") or ""
-            )
-
-            if kind not in recipients:
-                continue
-
-            email = str(recipient.get("email") or "").strip()
-
-            if not email:
-                continue
-
-            recipients[kind].append(
-                {
-                    "email": email,
-                    "display_name": (
-                        str(
-                            recipient.get("display_name")
-                            or ""
-                        ).strip()
-                        or None
-                    ),
-                }
-            )
-
-        attachments_response = (
-            _supabase()
-            .table("mail_message_attachments")
-            .select(
-                "id,storage_file_id,source,"
-                "provider_attachment_id,"
-                "provider_message_attachment_id,filename,"
-                "mime_type,size_bytes,content_id,"
-                "content_disposition,is_inline,metadata,"
-                "created_at"
-            )
-            .eq("message_id", message_id)
-            .order("created_at")
-            .execute()
-        )
-
-        attachment_data = getattr(
-            attachments_response,
-            "data",
-            None,
+        attachments = _get_message_attachments(
+            message_id=message_id,
         )
 
         return {
             "message": {
                 **message,
                 "recipients": recipients,
-                "attachments": (
-                    attachment_data
-                    if isinstance(attachment_data, list)
-                    else []
-                ),
+                "attachments": attachments,
             }
         }
 
     except MailMessageNotFoundError:
         raise
 
+    except MailSyncError as error:
+        raise MailMessageNotFoundError(str(error)) from error
+
     except Exception as error:
         raise MailMessageNotFoundError(
             "No fue posible cargar el correo guardado."
         ) from error
+
+
+def _mark_draft_as_sent_from_snapshot(
+    *,
+    user_id: str,
+    draft: dict[str, Any],
+    integration: dict[str, Any],
+    provider_message: dict[str, Any],
+) -> str:
+    """
+    Persists Microsoft Graph's asynchronous send fallback.
+
+    Microsoft returns HTTP 202 without a Message body. The provider supplies
+    an accepted local snapshot with the immutable provider message ID, which
+    is enough to update the existing BeeApp draft record into a sent record.
+    A later synchronization enriches it with definitive Graph data.
+    """
+    try:
+        now = _utc_now_iso()
+
+        existing_metadata = draft.get("metadata")
+        provider_metadata = provider_message.get("metadata")
+
+        metadata = {
+            **(
+                existing_metadata
+                if isinstance(existing_metadata, dict)
+                else {}
+            ),
+            **(
+                provider_metadata
+                if isinstance(provider_metadata, dict)
+                else {}
+            ),
+            "last_synced_at": now,
+        }
+
+        payload = {
+            "mail_integration_id": integration["id"],
+            "provider": integration["provider"],
+            "provider_message_id": (
+                provider_message.get("provider_message_id")
+                or draft["provider_message_id"]
+            ),
+            "provider_thread_id": provider_message.get(
+                "provider_thread_id"
+            ),
+            "provider_conversation_id": provider_message.get(
+                "provider_conversation_id"
+            ),
+            "provider_change_key": provider_message.get(
+                "provider_change_key"
+            ),
+            "provider_etag": provider_message.get(
+                "provider_etag"
+            ),
+            "provider_web_link": provider_message.get(
+                "provider_web_link"
+            ),
+            "provider_created_at": provider_message.get(
+                "provider_created_at"
+            ),
+            "provider_updated_at": provider_message.get(
+                "provider_updated_at"
+            ),
+            "direction": "outbound",
+            "status": "sent",
+            "folder": "sent",
+            "is_read": True,
+            "is_starred": bool(
+                provider_message.get(
+                    "is_starred",
+                    draft.get("is_starred"),
+                )
+            ),
+            "is_archived": False,
+            "is_spam": False,
+            "is_trashed": False,
+            "is_deleted_permanently": False,
+            "deleted_permanently_at": None,
+            "subject": provider_message.get(
+                "subject",
+                draft.get("subject"),
+            ),
+            "body_text": provider_message.get(
+                "body_text",
+                draft.get("body_text"),
+            ),
+            "body_html": provider_message.get(
+                "body_html",
+                draft.get("body_html"),
+            ),
+            "body_preview": provider_message.get(
+                "body_preview",
+                draft.get("body_preview"),
+            ),
+            "snippet": provider_message.get(
+                "snippet",
+                draft.get("snippet"),
+            ),
+            "message_id_header": provider_message.get(
+                "message_id_header",
+                draft.get("message_id_header"),
+            ),
+            "in_reply_to_header": provider_message.get(
+                "in_reply_to_header",
+                draft.get("in_reply_to_header"),
+            ),
+            "references_header": provider_message.get(
+                "references_header",
+                draft.get("references_header"),
+            ),
+            "sent_at": (
+                provider_message.get("sent_at")
+                or draft.get("sent_at")
+                or now
+            ),
+            "received_at": None,
+            "has_attachments": bool(
+                provider_message.get(
+                    "has_attachments",
+                    draft.get("has_attachments"),
+                )
+            ),
+            "attachment_count": int(
+                provider_message.get(
+                    "attachment_count",
+                    draft.get("attachment_count"),
+                )
+                or 0
+            ),
+            "is_provider_deleted": False,
+            "provider_deleted_at": None,
+            "last_synced_at": now,
+            "metadata": metadata,
+        }
+
+        response = (
+            _supabase()
+            .table("mail_messages")
+            .update(payload)
+            .eq("id", draft["id"])
+            .eq("user_id", user_id)
+            .execute()
+        )
+
+        saved_message = _extract_single(response)
+
+        if not saved_message:
+            raise MailSyncError(
+                "Microsoft confirmó el envío, pero BeeApp no pudo "
+                "actualizar el correo local."
+            )
+
+        return str(saved_message["id"])
+
+    except MailSyncError:
+        raise
+
+    except Exception as error:
+        raise MailSyncError(
+            "No fue posible guardar el correo enviado por Microsoft."
+        ) from error
+
+
+def _persist_sent_provider_message(
+    *,
+    user_id: str,
+    draft: dict[str, Any],
+    integration: dict[str, Any],
+    provider_message: dict[str, Any],
+) -> str:
+    metadata = provider_message.get("metadata")
+
+    is_microsoft_pending_sync = bool(
+        isinstance(metadata, dict)
+        and metadata.get(
+            "microsoft_sent_message_pending_sync"
+        )
+    )
+
+    if is_microsoft_pending_sync:
+        return _mark_draft_as_sent_from_snapshot(
+            user_id=user_id,
+            draft=draft,
+            integration=integration,
+            provider_message=provider_message,
+        )
+
+    saved_message = persist_provider_mail_message(
+        user_id=user_id,
+        integration=integration,
+        provider_message=provider_message,
+    )
+
+    saved_message_id = str(saved_message["id"])
+
+    if saved_message_id != str(draft["id"]):
+        (
+            _supabase()
+            .table("mail_messages")
+            .delete()
+            .eq("id", draft["id"])
+            .eq("user_id", user_id)
+            .execute()
+        )
+
+    return saved_message_id
 
 
 def create_mail_draft(
@@ -630,6 +970,7 @@ def update_mail_draft(
         if (
             previous_provider_message_id
             != provider_message["provider_message_id"]
+            and saved_message_id != str(draft["id"])
         ):
             (
                 _supabase()
@@ -705,6 +1046,28 @@ def send_mail_draft(
         user_id=user_id,
         integration_id=str(draft["mail_integration_id"]),
     )
+
+    if integration["provider"] != draft["provider"]:
+        raise MailMessageNotFoundError(
+            "La integración no coincide con el proveedor del borrador."
+        )
+
+    draft_snapshot = _build_draft_snapshot(
+        draft=draft,
+    )
+
+    validate_sendable_draft(
+        to_recipients=normalize_recipients(
+            draft_snapshot["recipients"]["to"]
+        ),
+        cc_recipients=normalize_recipients(
+            draft_snapshot["recipients"]["cc"]
+        ),
+        bcc_recipients=normalize_recipients(
+            draft_snapshot["recipients"]["bcc"]
+        ),
+    )
+
     provider = _get_mail_provider(
         provider_name=integration["provider"],
     )
@@ -720,27 +1083,19 @@ def send_mail_draft(
             provider_draft_id=_get_gmail_draft_id(
                 message=draft
             ),
+            draft_snapshot=draft_snapshot,
         )
 
-        saved_message = persist_provider_mail_message(
+        saved_message_id = _persist_sent_provider_message(
             user_id=user_id,
+            draft=draft,
             integration=integration,
             provider_message=provider_message,
         )
 
-        if str(saved_message["id"]) != str(draft["id"]):
-            (
-                _supabase()
-                .table("mail_messages")
-                .delete()
-                .eq("id", draft["id"])
-                .eq("user_id", user_id)
-                .execute()
-            )
-
         return _serialize_message(
             user_id=user_id,
-            message_id=str(saved_message["id"]),
+            message_id=saved_message_id,
         )
 
     except MailProviderError as error:

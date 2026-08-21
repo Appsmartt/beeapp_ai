@@ -21,8 +21,8 @@ from apps.mail.services.mail_provider_service import (
     validate_draft_content,
     validate_mail_attachments,
     validate_message_state_update,
+    validate_sendable_draft,
 )
-
 
 
 logger = logging.getLogger(__name__)
@@ -120,7 +120,10 @@ class GoogleMailProvider:
                 error_payload,
             )
 
-            if reason in {"accessNotConfigured", "SERVICE_DISABLED"}:
+            if reason in {
+                "accessNotConfigured",
+                "SERVICE_DISABLED",
+            }:
                 raise MailProviderError(
                     "El servicio de Gmail de BeeApp no está habilitado. "
                     "Contacta al administrador de la aplicación."
@@ -138,7 +141,8 @@ class GoogleMailProvider:
             }:
                 raise MailProviderError(
                     "La conexión con Gmail no tiene los permisos necesarios. "
-                    "Vuelve a conectar tu cuenta y acepta los permisos solicitados."
+                    "Vuelve a conectar tu cuenta y acepta los permisos "
+                    "solicitados."
                 )
 
             raise MailProviderError(
@@ -171,7 +175,10 @@ class GoogleMailProvider:
 
             logger.warning(
                 "Gmail API request failed. "
-                "status_code=%s reason=%s response=%s",
+                "method=%s url=%s status_code=%s reason=%s "
+                "response=%s",
+                method,
+                url,
                 response.status_code,
                 reason,
                 error_payload,
@@ -179,16 +186,20 @@ class GoogleMailProvider:
 
             if reason in {
                 "invalidArgument",
-                "notFound",
                 "failedPrecondition",
             }:
                 raise MailProviderError(
-                    "No fue posible actualizar este correo en Gmail."
+                    "Gmail rechazó el borrador. Verifica los "
+                    "destinatarios, el asunto y los adjuntos."
                 )
 
-            raise MailProviderError(
-                str(message)[:500]
-            )
+            if reason == "notFound":
+                raise MailProviderError(
+                    "El borrador ya no existe en Gmail. "
+                    "Vuelve a redactar el correo."
+                )
+
+            raise MailProviderError(str(message)[:500])
 
         if response.status_code == 204:
             return {}
@@ -481,6 +492,7 @@ class GoogleMailProvider:
         draft_id = self._required_draft_id(
             provider_draft_id
         )
+
         normalized_message = self._build_draft_message(
             to_recipients=to_recipients,
             cc_recipients=cc_recipients,
@@ -490,6 +502,7 @@ class GoogleMailProvider:
             body_content_type=body_content_type,
             attachments=attachments,
         )
+
         encoded_draft_id = quote(draft_id, safe="")
 
         draft_data = self._request(
@@ -538,9 +551,22 @@ class GoogleMailProvider:
         access_token: str,
         provider_message_id: str,
         provider_draft_id: str | None,
+        draft_snapshot: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
+        """
+        Gmail sends an existing Draft using its immutable draft resource ID.
+
+        `provider_message_id` belongs to the Message contained by the
+        draft and is intentionally not used as the endpoint identifier.
+        Gmail returns the resulting sent Message, which is normalized and
+        persisted by the Mail domain service.
+        """
         draft_id = self._required_draft_id(
             provider_draft_id
+        )
+
+        self._validate_draft_snapshot_for_send(
+            draft_snapshot=draft_snapshot,
         )
 
         sent_data = self._request(
@@ -552,7 +578,14 @@ class GoogleMailProvider:
             },
         )
 
-        return self._normalize_message(sent_data)
+        sent_message = self._normalize_message(sent_data)
+
+        if sent_message.get("status") != "sent":
+            raise MailProviderError(
+                "Gmail no confirmó que el borrador fuera enviado."
+            )
+
+        return sent_message
 
     def _required_draft_id(
         self,
@@ -566,6 +599,47 @@ class GoogleMailProvider:
             )
 
         return draft_id
+
+    def _validate_draft_snapshot_for_send(
+        self,
+        *,
+        draft_snapshot: dict[str, Any] | None,
+    ) -> None:
+        """
+        Validates BeeApp's persisted recipients before the Gmail request.
+
+        A draft created externally might not have a local snapshot. In that
+        case Gmail remains authoritative and performs its own validation.
+        """
+        if not isinstance(draft_snapshot, dict):
+            return
+
+        recipients = draft_snapshot.get("recipients")
+
+        if not isinstance(recipients, dict):
+            return
+
+        normalized_to = normalize_recipients(
+            recipients.get("to")
+            if isinstance(recipients.get("to"), list)
+            else []
+        )
+        normalized_cc = normalize_recipients(
+            recipients.get("cc")
+            if isinstance(recipients.get("cc"), list)
+            else []
+        )
+        normalized_bcc = normalize_recipients(
+            recipients.get("bcc")
+            if isinstance(recipients.get("bcc"), list)
+            else []
+        )
+
+        validate_sendable_draft(
+            to_recipients=normalized_to,
+            cc_recipients=normalized_cc,
+            bcc_recipients=normalized_bcc,
+        )
 
     def _build_draft_message(
         self,
@@ -603,6 +677,7 @@ class GoogleMailProvider:
             bcc_recipients=normalized_bcc,
             subject=normalized_subject,
             body=normalized_body,
+            attachments=normalized_attachments,
         )
 
         message = EmailMessage()
@@ -637,14 +712,14 @@ class GoogleMailProvider:
             message.set_content(normalized_body or " ")
 
         for attachment in normalized_attachments:
-            mime_type = str(
+            mime_parts = str(
                 attachment["mime_type"]
             ).split("/", 1)
 
-            maintype = mime_type[0] or "application"
+            maintype = mime_parts[0] or "application"
             subtype = (
-                mime_type[1]
-                if len(mime_type) > 1
+                mime_parts[1]
+                if len(mime_parts) > 1
                 else "octet-stream"
             )
 
