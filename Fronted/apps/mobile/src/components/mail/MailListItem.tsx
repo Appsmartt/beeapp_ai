@@ -1,25 +1,51 @@
+import {
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from 'react-native';
+import {
+  Archive,
+  MailOpen,
+  Paperclip,
+  Star,
+  Trash2,
+} from 'lucide-react-native';
+import {
+  colors,
+} from '@beeapp/design-system';
 
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
-import { colors } from '@beeapp/design-system';
-import { Star, Paperclip, MailOpen, Archive, Trash2 } from 'lucide-react-native';
-import VerifiedBadge from '../VerifiedBadge';
-import { EmailItem } from '../../mocks/emails';
+import type {
+  MailListItemModel,
+} from '../../services/mailService';
 
-const getInitials = (name: string) => {
-  const parts = name.split(' ');
-  if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
-  return name.slice(0, 2).toUpperCase();
+const getInitials = (
+  name: string,
+): string => {
+  const parts = name
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean);
+
+  if (parts.length >= 2) {
+    return (
+      parts[0][0]
+      + parts[1][0]
+    ).toUpperCase();
+  }
+
+  return name.slice(0, 2).toUpperCase() || '?';
 };
 
 interface MailListItemProps {
-  item: EmailItem;
+  item: MailListItemModel;
   isSwipeActive: boolean;
   onPress: () => void;
   onLongPress: () => void;
-  onToggleStar: (e: any) => void;
-  onToggleRead: (e: any) => void;
-  onArchive: (e: any) => void;
-  onDelete: (e: any) => void;
+  onToggleStar?: () => void;
+  onToggleRead?: () => void;
+  onArchive?: () => void;
+  onDelete?: () => void;
 }
 
 export default function MailListItem({
@@ -35,93 +61,202 @@ export default function MailListItem({
   return (
     <View style={styles.mailWrapper}>
       <TouchableOpacity
-        style={[styles.mailRow, !item.isRead && styles.mailRowUnread]}
+        style={[
+          styles.mailRow,
+          !item.isRead && styles.mailRowUnread,
+        ]}
         onPress={onPress}
         onLongPress={onLongPress}
         activeOpacity={0.7}
       >
-        {/* Sender Color Avatar */}
-        <View style={[styles.avatarCircle, { backgroundColor: item.initialsColor }]}>
-          <Text style={styles.avatarText}>{getInitials(item.senderName)}</Text>
+        <View
+          style={[
+            styles.avatarCircle,
+            {
+              backgroundColor: item.initialsColor,
+            },
+          ]}
+        >
+          <Text style={styles.avatarText}>
+            {getInitials(item.senderName)}
+          </Text>
         </View>
 
-        {/* Mail description preview */}
         <View style={styles.mailDetailsCol}>
           <View style={styles.senderTimeRow}>
-            <View style={styles.senderNameWrap}>
-              <Text style={[styles.senderNameText, !item.isRead && styles.senderNameTextUnread]} numberOfLines={1}>
-                {item.senderName}
-              </Text>
-              {item.senderVerified && <VerifiedBadge size={13} />}
-            </View>
-            <Text style={styles.mailTimeText}>{item.time}</Text>
+            <Text
+              style={[
+                styles.senderNameText,
+                !item.isRead
+                  && styles.senderNameTextUnread,
+              ]}
+              numberOfLines={1}
+            >
+              {item.senderName}
+            </Text>
+
+            <Text style={styles.mailTimeText}>
+              {item.timestamp}
+            </Text>
           </View>
 
-          <Text style={[styles.subjectText, !item.isRead && styles.subjectTextUnread]} numberOfLines={1}>
+          <Text
+            style={[
+              styles.subjectText,
+              !item.isRead && styles.subjectTextUnread,
+            ]}
+            numberOfLines={1}
+          >
             {item.subject}
           </Text>
 
-          <Text style={styles.bodyPreviewText} numberOfLines={2}>
+          <Text
+            style={styles.bodyPreviewText}
+            numberOfLines={2}
+          >
             {item.bodyPreview}
           </Text>
 
-          {/* Icons Row (Attachment & Account) */}
           <View style={styles.metaRow}>
-            {item.hasAttachment && (
+            {item.hasAttachment ? (
               <View style={styles.attachmentBadge}>
-                <Paperclip size={10} color={colors.neutral.gray600} style={{ marginRight: 4 }} />
-                <Text style={styles.attachmentCountText}>Adjunto</Text>
+                <Paperclip
+                  size={10}
+                  color={colors.neutral.gray600}
+                  style={styles.attachmentIcon}
+                />
+
+                <Text style={styles.attachmentCountText}>
+                  {item.attachmentCount > 1
+                    ? `${item.attachmentCount} adjuntos`
+                    : 'Adjunto'}
+                </Text>
               </View>
-            )}
-            <View style={[styles.accountTag, { borderColor: item.initialsColor }]}>
-              <Text style={[styles.accountTagText, { color: item.initialsColor }]}>
-                {item.account.split('@')[0]}
+            ) : null}
+
+            <View
+              style={[
+                styles.accountTag,
+                {
+                  borderColor: item.initialsColor,
+                },
+              ]}
+            >
+              <Text
+                style={[
+                  styles.accountTagText,
+                  {
+                    color: item.initialsColor,
+                  },
+                ]}
+                numberOfLines={1}
+              >
+                {item.accountEmail.split('@')[0]}
               </Text>
             </View>
           </View>
         </View>
 
-        {/* Star Icon triggers */}
-        <TouchableOpacity onPress={onToggleStar} style={styles.starTouchArea} activeOpacity={0.7}>
-          <Star
-            size={18}
-            color={item.isStarred ? '#F59E0B' : colors.neutral.gray400}
-            fill={item.isStarred ? '#F59E0B' : 'transparent'}
-          />
-        </TouchableOpacity>
+        {onToggleStar ? (
+          <TouchableOpacity
+            onPress={onToggleStar}
+            style={styles.starTouchArea}
+            activeOpacity={0.7}
+          >
+            <Star
+              size={18}
+              color={
+                item.isStarred
+                  ? '#F59E0B'
+                  : colors.neutral.gray400
+              }
+              fill={
+                item.isStarred
+                  ? '#F59E0B'
+                  : 'transparent'
+              }
+            />
+          </TouchableOpacity>
+        ) : null}
       </TouchableOpacity>
 
-      {/* Swipe Actions Simulation */}
-      {isSwipeActive && (
+      {isSwipeActive ? (
         <View style={styles.actionsPanel}>
           <TouchableOpacity
-            style={[styles.swipeBtn, { backgroundColor: colors.neutral.gray100 }]}
+            style={[
+              styles.swipeBtn,
+              {
+                backgroundColor: colors.neutral.gray100,
+              },
+            ]}
             onPress={onToggleRead}
+            disabled={!onToggleRead}
             activeOpacity={0.8}
           >
-            <MailOpen size={16} color={colors.neutral.gray600} />
-            <Text style={styles.swipeBtnText}>{item.isRead ? 'No leído' : 'Leído'}</Text>
+            <MailOpen
+              size={16}
+              color={colors.neutral.gray600}
+            />
+
+            <Text style={styles.swipeBtnText}>
+              {item.isRead
+                ? 'No leído'
+                : 'Leído'}
+            </Text>
           </TouchableOpacity>
 
           <TouchableOpacity
-            style={[styles.swipeBtn, { backgroundColor: colors.neutral.gray100 }]}
+            style={[
+              styles.swipeBtn,
+              {
+                backgroundColor: colors.neutral.gray100,
+              },
+            ]}
             onPress={onArchive}
+            disabled={!onArchive}
             activeOpacity={0.8}
           >
-            <Archive size={16} color={colors.neutral.gray600} />
-            <Text style={styles.swipeBtnText}>Archivar</Text>
+            <Archive
+              size={16}
+              color={colors.neutral.gray600}
+            />
+
+            <Text style={styles.swipeBtnText}>
+              Archivar
+            </Text>
           </TouchableOpacity>
 
           <TouchableOpacity
-            style={[styles.swipeBtn, { backgroundColor: colors.semantic.error + '15' }]}
+            style={[
+              styles.swipeBtn,
+              {
+                backgroundColor: (
+                  `${colors.semantic.error}15`
+                ),
+              },
+            ]}
             onPress={onDelete}
+            disabled={!onDelete}
             activeOpacity={0.8}
           >
-            <Trash2 size={16} color={colors.semantic.error} />
-            <Text style={[styles.swipeBtnText, { color: colors.semantic.error }]}>Eliminar</Text>
+            <Trash2
+              size={16}
+              color={colors.semantic.error}
+            />
+
+            <Text
+              style={[
+                styles.swipeBtnText,
+                {
+                  color: colors.semantic.error,
+                },
+              ]}
+            >
+              Eliminar
+            </Text>
           </TouchableOpacity>
         </View>
-      )}
+      ) : null}
     </View>
   );
 }
@@ -139,7 +274,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.neutral.white,
   },
   mailRowUnread: {
-    backgroundColor: colors.brand.primary + '08',
+    backgroundColor: `${colors.brand.primary}08`,
   },
   avatarCircle: {
     width: 40,
@@ -153,10 +288,11 @@ const styles = StyleSheet.create({
   avatarText: {
     color: colors.neutral.white,
     fontSize: 14,
-    fontWeight: '400',
+    fontWeight: '700',
   },
   mailDetailsCol: {
     flex: 1,
+    minWidth: 0,
     paddingRight: 24,
   },
   senderTimeRow: {
@@ -165,21 +301,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 4,
   },
-  senderNameWrap: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    marginRight: 8,
-  },
   senderNameText: {
-    flexShrink: 1,
+    flex: 1,
+    marginRight: 8,
     fontSize: 13,
     color: colors.neutral.text,
     fontWeight: '600',
   },
   senderNameTextUnread: {
-    fontWeight: '700',
+    fontWeight: '800',
   },
   mailTimeText: {
     fontSize: 11,
@@ -188,11 +318,11 @@ const styles = StyleSheet.create({
   subjectText: {
     fontSize: 13,
     color: colors.neutral.text,
-    fontWeight: '400',
+    fontWeight: '500',
     marginBottom: 4,
   },
   subjectTextUnread: {
-    fontWeight: '400',
+    fontWeight: '700',
     color: colors.brand.primary,
   },
   bodyPreviewText: {
@@ -216,12 +346,16 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.neutral.gray200,
   },
+  attachmentIcon: {
+    marginRight: 4,
+  },
   attachmentCountText: {
     fontSize: 10,
-    fontWeight: '400',
+    fontWeight: '500',
     color: colors.neutral.gray700,
   },
   accountTag: {
+    maxWidth: 120,
     borderRadius: 6,
     paddingHorizontal: 6,
     paddingVertical: 1,
@@ -229,7 +363,7 @@ const styles = StyleSheet.create({
   },
   accountTagText: {
     fontSize: 9,
-    fontWeight: '400',
+    fontWeight: '600',
   },
   starTouchArea: {
     position: 'absolute',
@@ -254,7 +388,7 @@ const styles = StyleSheet.create({
   },
   swipeBtnText: {
     fontSize: 9,
-    fontWeight: '400',
+    fontWeight: '600',
     color: colors.neutral.text,
     marginTop: 4,
     textTransform: 'uppercase',

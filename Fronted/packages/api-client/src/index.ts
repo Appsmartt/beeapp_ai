@@ -5,3 +5,4 @@ export * from './notifications';
 export * from './notes';
 export * from './calendar';
 export * from './integrations';
+export * from './mail';
