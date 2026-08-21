@@ -27,6 +27,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Link2,
+  Mail,
   Plus,
   RefreshCw,
   ShieldCheck,
@@ -510,6 +511,39 @@ export default function IntegrationsScreen() {
               <ChevronRight
                 size={21}
                 color={colors.brand.primary}
+              />
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.mailSettingsCard}
+              onPress={() => {
+                router.push(
+                  '/(main)/mail/external-mail',
+                );
+              }}
+              activeOpacity={0.8}
+            >
+              <View style={styles.mailSettingsIcon}>
+                <Mail
+                  size={21}
+                  color="#2563EB"
+                />
+              </View>
+
+              <View style={styles.calendarSettingsContent}>
+                <Text style={styles.calendarSettingsTitle}>
+                  Correos externos
+                </Text>
+
+                <Text style={styles.calendarSettingsDescription}>
+                  Revisa y sincroniza tus cuentas de Gmail u
+                  Outlook en BeeApp.
+                </Text>
+              </View>
+
+              <ChevronRight
+                size={21}
+                color="#2563EB"
               />
             </TouchableOpacity>
 
@@ -1025,6 +1059,25 @@ const styles = StyleSheet.create({
     lineHeight: 16,
     fontWeight: '500',
     color: colors.neutral.gray600,
+  },
+  mailSettingsCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#EFF6FF',
+    borderWidth: 1,
+    borderColor: '#BFDBFE',
+    borderRadius: 17,
+    padding: 14,
+    marginBottom: 20,
+  },
+  mailSettingsIcon: {
+    width: 43,
+    height: 43,
+    borderRadius: 13,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.neutral.white,
+    marginRight: 12,
   },
   sectionHeader: {
     flexDirection: 'row',
