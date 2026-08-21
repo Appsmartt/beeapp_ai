@@ -73,13 +73,13 @@ function formatDetailDate(
   value: string | null,
 ): string {
   if (!value) {
-    return '';
+    return 'Fecha no disponible';
   }
 
   const parsedDate = new Date(value);
 
   if (Number.isNaN(parsedDate.getTime())) {
-    return '';
+    return 'Fecha no disponible';
   }
 
   return new Intl.DateTimeFormat(
@@ -126,7 +126,47 @@ function getRecipientLabel(
 function getReplyRecipient(
   email: MailDetailModel,
 ): string {
-  return email.senderEmail.trim();
+  const replyToRecipient = email.recipients.find((recipient) => (
+    recipient.recipient_type === 'reply_to'
+    && recipient.email
+  ));
+
+  return (
+    replyToRecipient?.email
+    || email.senderEmail
+    || ''
+  ).trim();
+}
+
+function getReplyAllRecipients(
+  email: MailDetailModel,
+): string {
+  const recipients = email.recipients
+    .filter((recipient) => (
+      (
+        recipient.recipient_type === 'to'
+        || recipient.recipient_type === 'cc'
+        || recipient.recipient_type === 'reply_to'
+      )
+      && recipient.email
+    ))
+    .map((recipient) => recipient.email?.trim() || '')
+    .filter(Boolean);
+
+  const sender = getReplyRecipient(email);
+
+  const allRecipients = [
+    sender,
+    ...recipients,
+  ];
+
+  return Array.from(
+    new Set(
+      allRecipients.map((recipient) => (
+        recipient.toLowerCase()
+      )),
+    ),
+  ).join(', ');
 }
 
 function getAttachmentDescription(
@@ -162,18 +202,43 @@ function getAttachmentDescription(
   );
 }
 
+function getMailBody(
+  email: MailDetailModel,
+): string {
+  const body = email.body.trim();
+
+  if (body) {
+    return body;
+  }
+
+  const preview = email.bodyPreview.trim();
+
+  if (preview) {
+    return preview;
+  }
+
+  return 'Este correo no contiene texto disponible.';
+}
+
 export default function MailDetailScreen() {
   const router = useModuleNav();
   const params = useScreenParams();
 
-  const messageId = String(params.id || '').trim();
+  const messageId = String(
+    params.id
+    || params.messageId
+    || '',
+  ).trim();
 
   const [
     email,
     setEmail,
   ] = useState<MailDetailModel | null>(null);
 
-  const [loading, setLoading] = useState(true);
+  const [
+    loading,
+    setLoading,
+  ] = useState(true);
 
   const [
     actionLoading,
@@ -197,11 +262,11 @@ export default function MailDetailScreen() {
 
   const loadEmail = useCallback(async () => {
     if (!messageId) {
+      setEmail(null);
       setLoadError(
         'No fue posible identificar el correo.',
       );
       setLoading(false);
-
       return;
     }
 
@@ -209,9 +274,7 @@ export default function MailDetailScreen() {
     setLoadError(null);
 
     try {
-      const loadedEmail = await getMessageById(
-        messageId,
-      );
+      const loadedEmail = await getMessageById(messageId);
 
       setEmail(loadedEmail);
 
@@ -233,11 +296,18 @@ export default function MailDetailScreen() {
               : currentEmail
           ));
         } catch {
-          // La lectura del mensaje sigue disponible aunque no se
-          // pueda actualizar el estado remoto de lectura.
+          setEmail((currentEmail) => (
+            currentEmail
+              ? {
+                ...currentEmail,
+                isRead: true,
+              }
+              : currentEmail
+          ));
         }
       }
     } catch (error) {
+      setEmail(null);
       setLoadError(
         getErrorMessage(
           error,
@@ -267,6 +337,12 @@ export default function MailDetailScreen() {
     email?.receivedAt,
     email?.sentAt,
   ]);
+
+  const bodyText = useMemo(() => (
+    email
+      ? getMailBody(email)
+      : ''
+  ), [email]);
 
   const handleToggleStar = useCallback(() => {
     if (!email || actionLoading) {
@@ -323,7 +399,7 @@ export default function MailDetailScreen() {
           'No fue posible archivar',
           getErrorMessage(error),
         );
-
+      } finally {
         setActionLoading(false);
       }
     })();
@@ -365,7 +441,7 @@ export default function MailDetailScreen() {
                   'No fue posible mover el correo',
                   getErrorMessage(error),
                 );
-
+              } finally {
                 setActionLoading(false);
               }
             })();
@@ -396,7 +472,7 @@ export default function MailDetailScreen() {
           'No fue posible restaurar',
           getErrorMessage(error),
         );
-
+      } finally {
         setActionLoading(false);
       }
     })();
@@ -427,7 +503,9 @@ export default function MailDetailScreen() {
       return;
     }
 
-    const replyRecipient = getReplyRecipient(email);
+    const replyRecipient = replyType === 'reply_all'
+      ? getReplyAllRecipients(email)
+      : getReplyRecipient(email);
 
     if (
       replyType !== 'forward'
@@ -437,7 +515,6 @@ export default function MailDetailScreen() {
         'No fue posible responder',
         'Este correo no tiene una dirección de remitente válida.',
       );
-
       return;
     }
 
@@ -503,6 +580,8 @@ export default function MailDetailScreen() {
               void loadEmail();
             }}
             activeOpacity={0.8}
+            accessibilityRole="button"
+            accessibilityLabel="Reintentar abrir correo"
           >
             <Text style={styles.retryButtonText}>
               Reintentar
@@ -513,6 +592,8 @@ export default function MailDetailScreen() {
             style={styles.backTextButton}
             onPress={() => router.back()}
             activeOpacity={0.7}
+            accessibilityRole="button"
+            accessibilityLabel="Volver a correos"
           >
             <Text style={styles.backTextButtonText}>
               Volver a correos
@@ -704,9 +785,11 @@ export default function MailDetailScreen() {
 
           <View style={styles.divider} />
 
-          <Text style={styles.emailBodyText}>
-            {email.body}
-          </Text>
+          <View style={styles.emailBodyContainer}>
+            <Text selectable style={styles.emailBodyText}>
+              {bodyText}
+            </Text>
+          </View>
 
           {email.hasAttachment
             && email.attachments
@@ -782,6 +865,8 @@ export default function MailDetailScreen() {
                 }}
                 disabled={actionLoading}
                 activeOpacity={0.8}
+                accessibilityRole="button"
+                accessibilityLabel="Responder correo"
               >
                 <CornerUpLeft
                   size={16}
@@ -801,6 +886,8 @@ export default function MailDetailScreen() {
                 }}
                 disabled={actionLoading}
                 activeOpacity={0.8}
+                accessibilityRole="button"
+                accessibilityLabel="Responder a todos"
               >
                 <ReplyAll
                   size={16}
@@ -820,6 +907,8 @@ export default function MailDetailScreen() {
                 }}
                 disabled={actionLoading}
                 activeOpacity={0.8}
+                accessibilityRole="button"
+                accessibilityLabel="Reenviar correo"
               >
                 <CornerUpRight
                   size={16}
@@ -1042,6 +1131,9 @@ const styles = StyleSheet.create({
     height: 1,
     backgroundColor: colors.neutral.gray200,
     marginVertical: 16,
+  },
+  emailBodyContainer: {
+    minHeight: 90,
   },
   emailBodyText: {
     fontSize: 14,
