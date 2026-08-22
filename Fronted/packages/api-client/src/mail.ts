@@ -20,7 +20,30 @@ import type {
 
 import {
     api,
-} from './client';
+    } from './client';
+
+type MailApiAuth = AuthCredentials | null | undefined;
+
+function isAuthCredentials(
+    value: unknown,
+    ): value is AuthCredentials {
+    return Boolean(
+        value
+        && typeof value === 'object'
+        && 'token' in value
+        && 'scheme' in value,
+    );
+}
+
+function buildAuthOptions(
+    auth?: MailApiAuth,
+    ): {
+    auth?: AuthCredentials;
+    } {
+    return auth
+        ? { auth }
+        : {};
+}
 
 function buildQuery(
     params: object,
@@ -44,20 +67,14 @@ function buildQuery(
             && item !== null
             && item !== ''
             ) {
-            searchParams.append(
-                key,
-                String(item),
-            );
+            searchParams.append(key, String(item));
             }
         });
 
         return;
         }
 
-        searchParams.set(
-        key,
-        String(value),
-        );
+        searchParams.set(key, String(value));
     });
 
     const query = searchParams.toString();
@@ -88,160 +105,372 @@ function mailMessagePath(
 function mailMessageStatePath(
     messageId: string,
     ): string {
-    return (
-        `${mailMessagePath(messageId)}`
-        + 'state/'
-    );
+    return `${mailMessagePath(messageId)}state/`;
 }
 
 function mailMessageMovePath(
     messageId: string,
     ): string {
-    return (
-        `${mailMessagePath(messageId)}`
-        + 'move/'
-    );
+    return `${mailMessagePath(messageId)}move/`;
 }
 
 function mailDraftDetailPath(
     messageId: string,
     ): string {
-    return (
-        `${mailMessagePath(messageId)}`
-        + 'draft/'
-    );
+    return `${mailMessagePath(messageId)}draft/`;
 }
 
 function mailDraftSendPath(
     messageId: string,
     ): string {
-    return (
-        `${mailMessagePath(messageId)}`
-        + 'send/'
-    );
+    return `${mailMessagePath(messageId)}send/`;
 }
 
+/**
+ * Compatible con:
+ * - Mobile: getMailIntegrations(auth, options)
+ * - Web: getMailIntegrations(options)
+ */
 export function getMailIntegrations(
-    auth: AuthCredentials,
-    options: {
+    authOrOptions?: AuthCredentials | {
+        provider?: 'google' | 'microsoft';
+        include_inactive?: boolean;
+    },
+    maybeOptions: {
         provider?: 'google' | 'microsoft';
         include_inactive?: boolean;
     } = {},
     ): Promise<GetMailIntegrationsResponse> {
+    const auth = isAuthCredentials(authOrOptions)
+        ? authOrOptions
+        : undefined;
+
+    const options = isAuthCredentials(authOrOptions)
+        ? maybeOptions
+        : (authOrOptions || {});
+
     return api.get<GetMailIntegrationsResponse>(
         `/mail/integrations/${buildQuery({
         provider: options.provider,
         include_inactive: options.include_inactive,
         })}`,
-        { auth },
+        buildAuthOptions(auth),
     );
 }
 
+/**
+ * Compatible con:
+ * - Mobile: getMailIntegration(auth, integrationId)
+ * - Web: getMailIntegration(integrationId)
+ */
 export function getMailIntegration(
-    auth: AuthCredentials,
-    integrationId: string,
+    authOrIntegrationId: AuthCredentials | string,
+    maybeIntegrationId?: string,
     ): Promise<GetMailIntegrationResponse> {
+    const auth = isAuthCredentials(authOrIntegrationId)
+        ? authOrIntegrationId
+        : undefined;
+
+    const integrationId = isAuthCredentials(authOrIntegrationId)
+        ? maybeIntegrationId
+        : authOrIntegrationId;
+
+    if (!integrationId?.trim()) {
+        throw new Error(
+        'No fue posible identificar la integración de correo.',
+        );
+    }
+
     return api.get<GetMailIntegrationResponse>(
         mailIntegrationPath(integrationId),
-        { auth },
+        buildAuthOptions(auth),
     );
 }
 
+/**
+ * Compatible con:
+ * - Mobile: getMailMessages(auth, query)
+ * - Web: getMailMessages(query)
+ */
 export function getMailMessages(
-    auth: AuthCredentials,
-    query: MailMessagesQuery = {},
+    authOrQuery: AuthCredentials | MailMessagesQuery = {},
+    maybeQuery: MailMessagesQuery = {},
     ): Promise<GetMailMessagesResponse> {
+    const auth = isAuthCredentials(authOrQuery)
+        ? authOrQuery
+        : undefined;
+
+    const query = isAuthCredentials(authOrQuery)
+        ? maybeQuery
+        : authOrQuery;
+
     return api.get<GetMailMessagesResponse>(
         `/mail/messages/${buildQuery(query)}`,
-        { auth },
+        buildAuthOptions(auth),
     );
 }
 
+/**
+ * Compatible con:
+ * - Mobile: getMailMessage(auth, messageId)
+ * - Web: getMailMessage(messageId)
+ */
 export function getMailMessage(
-    auth: AuthCredentials,
-    messageId: string,
+    authOrMessageId: AuthCredentials | string,
+    maybeMessageId?: string,
     ): Promise<GetMailMessageResponse> {
+    const auth = isAuthCredentials(authOrMessageId)
+        ? authOrMessageId
+        : undefined;
+
+    const messageId = isAuthCredentials(authOrMessageId)
+        ? maybeMessageId
+        : authOrMessageId;
+
+    if (!messageId?.trim()) {
+        throw new Error(
+        'No fue posible identificar el correo.',
+        );
+    }
+
     return api.get<GetMailMessageResponse>(
         mailMessagePath(messageId),
-        { auth },
+        buildAuthOptions(auth),
     );
 }
 
+/**
+ * Compatible con:
+ * - Mobile: updateMailMessageState(auth, messageId, payload)
+ * - Web: updateMailMessageState(messageId, payload)
+ */
 export function updateMailMessageState(
-    auth: AuthCredentials,
-    messageId: string,
-    payload: UpdateMailMessageStatePayload,
+    authOrMessageId: AuthCredentials | string,
+    messageIdOrPayload: string | UpdateMailMessageStatePayload,
+    maybePayload?: UpdateMailMessageStatePayload,
     ): Promise<UpdateMailMessageStateResponse> {
+    const auth = isAuthCredentials(authOrMessageId)
+        ? authOrMessageId
+        : undefined;
+
+    const messageId = isAuthCredentials(authOrMessageId)
+        ? messageIdOrPayload as string
+        : authOrMessageId;
+
+    const payload = isAuthCredentials(authOrMessageId)
+        ? maybePayload
+        : messageIdOrPayload as UpdateMailMessageStatePayload;
+
+    if (!messageId.trim()) {
+        throw new Error(
+        'No fue posible identificar el correo.',
+        );
+    }
+
+    if (!payload) {
+        throw new Error(
+        'No se recibió el estado del correo a actualizar.',
+        );
+    }
+
     return api.patch<UpdateMailMessageStateResponse>(
         mailMessageStatePath(messageId),
         payload,
-        { auth },
+        buildAuthOptions(auth),
     );
 }
 
+/**
+ * Compatible con:
+ * - Mobile: moveMailMessage(auth, messageId, payload)
+ * - Web: moveMailMessage(messageId, payload)
+ */
 export function moveMailMessage(
-    auth: AuthCredentials,
-    messageId: string,
-    payload: MoveMailMessagePayload,
+    authOrMessageId: AuthCredentials | string,
+    messageIdOrPayload: string | MoveMailMessagePayload,
+    maybePayload?: MoveMailMessagePayload,
     ): Promise<MoveMailMessageResponse> {
+    const auth = isAuthCredentials(authOrMessageId)
+        ? authOrMessageId
+        : undefined;
+
+    const messageId = isAuthCredentials(authOrMessageId)
+        ? messageIdOrPayload as string
+        : authOrMessageId;
+
+    const payload = isAuthCredentials(authOrMessageId)
+        ? maybePayload
+        : messageIdOrPayload as MoveMailMessagePayload;
+
+    if (!messageId.trim()) {
+        throw new Error(
+        'No fue posible identificar el correo.',
+        );
+    }
+
+    if (!payload) {
+        throw new Error(
+        'No se recibió el destino del correo.',
+        );
+    }
+
     return api.post<MoveMailMessageResponse>(
         mailMessageMovePath(messageId),
         payload,
-        { auth },
+        buildAuthOptions(auth),
     );
 }
 
+/**
+ * Compatible con:
+ * - Mobile: createMailDraft(auth, payload)
+ * - Web: createMailDraft(payload)
+ */
 export function createMailDraft(
-    auth: AuthCredentials,
-    payload: CreateMailDraftPayload,
+    authOrPayload: AuthCredentials | CreateMailDraftPayload,
+    maybePayload?: CreateMailDraftPayload,
     ): Promise<CreateMailDraftResponse> {
+    const auth = isAuthCredentials(authOrPayload)
+        ? authOrPayload
+        : undefined;
+
+    const payload = isAuthCredentials(authOrPayload)
+        ? maybePayload
+        : authOrPayload;
+
+    if (!payload) {
+        throw new Error(
+        'No se recibió la información del borrador.',
+        );
+    }
+
     return api.post<CreateMailDraftResponse>(
         '/mail/drafts/',
         payload,
-        { auth },
+        buildAuthOptions(auth),
     );
 }
 
+/**
+ * Compatible con:
+ * - Mobile: updateMailDraft(auth, messageId, payload)
+ * - Web: updateMailDraft(messageId, payload)
+ */
 export function updateMailDraft(
-    auth: AuthCredentials,
-    messageId: string,
-    payload: UpdateMailDraftPayload,
+    authOrMessageId: AuthCredentials | string,
+    messageIdOrPayload: string | UpdateMailDraftPayload,
+    maybePayload?: UpdateMailDraftPayload,
     ): Promise<UpdateMailDraftResponse> {
+    const auth = isAuthCredentials(authOrMessageId)
+        ? authOrMessageId
+        : undefined;
+
+    const messageId = isAuthCredentials(authOrMessageId)
+        ? messageIdOrPayload as string
+        : authOrMessageId;
+
+    const payload = isAuthCredentials(authOrMessageId)
+        ? maybePayload
+        : messageIdOrPayload as UpdateMailDraftPayload;
+
+    if (!messageId.trim()) {
+        throw new Error(
+        'No fue posible identificar el borrador.',
+        );
+    }
+
+    if (!payload) {
+        throw new Error(
+        'No se recibió la información del borrador.',
+        );
+    }
+
     return api.patch<UpdateMailDraftResponse>(
         mailDraftDetailPath(messageId),
         payload,
-        { auth },
+        buildAuthOptions(auth),
     );
 }
 
+/**
+ * Compatible con:
+ * - Mobile: deleteMailDraft(auth, messageId)
+ * - Web: deleteMailDraft(messageId)
+ */
 export async function deleteMailDraft(
-    auth: AuthCredentials,
-    messageId: string,
+    authOrMessageId: AuthCredentials | string,
+    maybeMessageId?: string,
     ): Promise<void> {
+    const auth = isAuthCredentials(authOrMessageId)
+        ? authOrMessageId
+        : undefined;
+
+    const messageId = isAuthCredentials(authOrMessageId)
+        ? maybeMessageId
+        : authOrMessageId;
+
+    if (!messageId?.trim()) {
+        throw new Error(
+        'No fue posible identificar el borrador.',
+        );
+    }
+
     await api.delete<void>(
         mailDraftDetailPath(messageId),
-        { auth },
+        buildAuthOptions(auth),
     );
 }
 
+/**
+ * Compatible con:
+ * - Mobile: sendMailDraft(auth, messageId)
+ * - Web: sendMailDraft(messageId)
+ */
 export function sendMailDraft(
-    auth: AuthCredentials,
-    messageId: string,
+    authOrMessageId: AuthCredentials | string,
+    maybeMessageId?: string,
     ): Promise<SendMailDraftResponse> {
+    const auth = isAuthCredentials(authOrMessageId)
+        ? authOrMessageId
+        : undefined;
+
+    const messageId = isAuthCredentials(authOrMessageId)
+        ? maybeMessageId
+        : authOrMessageId;
+
+    if (!messageId?.trim()) {
+        throw new Error(
+        'No fue posible identificar el borrador.',
+        );
+    }
+
     return api.post<SendMailDraftResponse>(
         mailDraftSendPath(messageId),
         {},
-        { auth },
+        buildAuthOptions(auth),
     );
 }
 
+/**
+ * Compatible con:
+ * - Mobile: syncMail(auth, payload)
+ * - Web: syncMail(payload)
+ */
 export function syncMail(
-    auth: AuthCredentials,
-    payload: MailSyncPayload = {},
+    authOrPayload: AuthCredentials | MailSyncPayload = {},
+    maybePayload: MailSyncPayload = {},
     ): Promise<MailSyncResponse> {
+    const auth = isAuthCredentials(authOrPayload)
+        ? authOrPayload
+        : undefined;
+
+    const payload = isAuthCredentials(authOrPayload)
+        ? maybePayload
+        : authOrPayload;
+
     return api.post<MailSyncResponse>(
         '/mail/sync/',
         payload,
-        { auth },
+        buildAuthOptions(auth),
     );
 }

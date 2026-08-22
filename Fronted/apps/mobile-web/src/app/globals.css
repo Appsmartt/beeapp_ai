@@ -172,3 +172,45 @@ body {
   color: var(--brand-primary);
   text-decoration: underline;
 }
+
+.mail-html-content {
+  overflow-wrap: anywhere;
+}
+
+.mail-html-content p,
+.mail-html-content div,
+.mail-html-content blockquote,
+.mail-html-content ul,
+.mail-html-content ol {
+  margin-bottom: 0.9rem;
+}
+
+.mail-html-content ul,
+.mail-html-content ol {
+  padding-left: 1.5rem;
+}
+
+.mail-html-content ul {
+  list-style: disc;
+}
+
+.mail-html-content ol {
+  list-style: decimal;
+}
+
+.mail-html-content a {
+  color: var(--brand-primary);
+  text-decoration: underline;
+}
+
+.mail-html-content img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 0.75rem;
+}
+
+.mail-html-content table {
+  display: block;
+  max-width: 100%;
+  overflow-x: auto;
+}

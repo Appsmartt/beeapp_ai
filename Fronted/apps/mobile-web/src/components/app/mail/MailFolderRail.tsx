@@ -1,27 +1,30 @@
 'use client';
 
-import type { EmailItem, MailFolder } from '@/mocks/emails';
+import type {
+  MailListItemModel,
+  MailViewFolder,
+} from './mailTypes';
 import IconRailButton from '../IconRailButton';
 import ModuleNotificationBell from '../ModuleNotificationBell';
-import { MAIL_FOLDERS, unreadIn } from './mailFolders';
+import {
+  getVisibleUnreadCount,
+  MAIL_FOLDERS,
+} from './mailFolders';
 
 interface MailFolderRailProps {
-  folder: MailFolder;
-  onSelectFolder: (folder: MailFolder) => void;
-  emails: EmailItem[];
-  /** Cuenta activa, o null si están todas */
-  account: string | null;
+  folder: MailViewFolder;
+  onSelectFolder: (folder: MailViewFolder) => void;
+  messages: MailListItemModel[];
 }
 
 export default function MailFolderRail({
   folder,
   onSelectFolder,
-  emails,
-  account,
+  messages,
 }: MailFolderRailProps) {
   return (
-    <nav className="hidden lg:flex w-14 shrink-0 bg-white border-r border-neutral-200 flex-col items-center py-3 gap-1 justify-between">
-      <div className="flex flex-col items-center gap-1 w-full">
+    <nav className="hidden w-14 shrink-0 flex-col items-center justify-between border-r border-neutral-200 bg-white py-3 lg:flex">
+      <div className="flex w-full flex-col items-center gap-1">
         {MAIL_FOLDERS.map((option) => (
           <IconRailButton
             key={option.key}
@@ -30,8 +33,12 @@ export default function MailFolderRail({
             tooltipSide="right"
             isActive={folder === option.key}
             badge={
-              option.key === 'inbox' || option.key === 'unread'
-                ? unreadIn(emails, option.key, account)
+              option.key === 'inbox'
+              || option.key === 'unread'
+                ? getVisibleUnreadCount(
+                  messages,
+                  option.key,
+                )
                 : undefined
             }
             onClick={() => onSelectFolder(option.key)}
