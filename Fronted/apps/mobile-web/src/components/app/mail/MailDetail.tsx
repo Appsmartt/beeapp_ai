@@ -1,178 +1,278 @@
 'use client';
 
 import {
-  ArrowLeft,
-  Star,
-  Trash2,
   Archive,
-  Paperclip,
-  FileText,
-  Download,
+  ArrowLeft,
   CornerUpLeft,
   CornerUpRight,
-  CheckCircle2,
+  Download,
+  FileText,
   Mail,
+  ReplyAll,
+  Star,
+  Trash2,
 } from 'lucide-react';
-import type { EmailItem } from '@/mocks/emails';
+
+import type {
+  MailDetailModel,
+} from './mailTypes';
+import {
+  formatMailDetailDate,
+  getAttachmentDescription,
+  getInitials,
+  getRecipientLabel,
+} from './mailTypes';
 
 interface MailDetailProps {
-  email: EmailItem;
+  email: MailDetailModel;
+  actionLoading?: boolean;
   onBack: () => void;
   onToggleStar: (id: string) => void;
   onArchive: (id: string) => void;
   onDelete: (id: string) => void;
-  onReply: (email: EmailItem) => void;
-  onForward: (email: EmailItem) => void;
+  onRestore: (id: string) => void;
+  onReply: (email: MailDetailModel) => void;
+  onReplyAll: (email: MailDetailModel) => void;
+  onForward: (email: MailDetailModel) => void;
 }
 
-const initialsOf = (name: string) => {
-  const parts = name.trim().split(' ');
-  if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
-  return name.slice(0, 2).toUpperCase();
-};
+const TOOLBAR = (
+  'rounded-xl p-2 text-neutral-500 '
+  + 'transition-colors hover:bg-neutral-100 '
+  + 'disabled:cursor-wait disabled:opacity-50'
+);
 
-const TOOLBAR = 'p-2 rounded-xl text-neutral-500 hover:bg-neutral-100 transition-colors';
-
-/** Panel derecho: el correo abierto, con adjuntos y acciones */
 export default function MailDetail({
   email,
+  actionLoading = false,
   onBack,
   onToggleStar,
   onArchive,
   onDelete,
+  onRestore,
   onReply,
+  onReplyAll,
   onForward,
 }: MailDetailProps) {
-  const attachments = email.attachments ?? [];
+  const emailDate = formatMailDetailDate(
+    email.receivedAt || email.sentAt,
+  );
+
+  const canShowHtml = Boolean(
+    email.bodyHtml
+    && !email.body.trim(),
+  );
 
   return (
-    <div className="bg-white min-h-full flex flex-col">
-      <div className="flex items-center justify-between px-4 py-3 border-b border-neutral-100 bg-white sticky top-0 z-10">
-        <button type="button" onClick={onBack} aria-label="Volver" className={TOOLBAR}>
-          <ArrowLeft className="w-5 h-5" />
+    <div className="flex min-h-full flex-col bg-white">
+      <div className="sticky top-0 z-10 flex items-center justify-between border-b border-neutral-100 bg-white px-4 py-3">
+        <button
+          type="button"
+          onClick={onBack}
+          disabled={actionLoading}
+          aria-label="Volver a correos"
+          className={TOOLBAR}
+        >
+          <ArrowLeft className="h-5 w-5" />
         </button>
 
         <div className="flex items-center gap-1">
           <button
             type="button"
             onClick={() => onToggleStar(email.id)}
-            aria-label="Favorito"
+            disabled={actionLoading}
+            aria-label={
+              email.isStarred
+                ? 'Quitar de importantes'
+                : 'Marcar como importante'
+            }
             className={TOOLBAR}
           >
-            <Star className={`w-5 h-5 ${email.starred ? 'text-amber-400 fill-amber-400' : ''}`} />
+            <Star
+              className={`h-5 w-5 ${
+                email.isStarred
+                  ? 'fill-amber-400 text-amber-400'
+                  : ''
+              }`}
+            />
           </button>
-          <button
-            type="button"
-            onClick={() => onArchive(email.id)}
-            aria-label="Archivar"
-            className={TOOLBAR}
-          >
-            <Archive className="w-5 h-5" />
-          </button>
-          <button
-            type="button"
-            onClick={() => onDelete(email.id)}
-            aria-label="Eliminar"
-            className="p-2 rounded-xl text-red-600 hover:bg-red-50 transition-colors"
-          >
-            <Trash2 className="w-5 h-5" />
-          </button>
+
+          {email.isTrashed ? (
+            <button
+              type="button"
+              onClick={() => onRestore(email.id)}
+              disabled={actionLoading}
+              aria-label="Restaurar correo a recibidos"
+              className={TOOLBAR}
+            >
+              <Mail className="h-5 w-5 text-brand-primary" />
+            </button>
+          ) : (
+            <>
+              <button
+                type="button"
+                onClick={() => onArchive(email.id)}
+                disabled={actionLoading}
+                aria-label="Archivar correo"
+                className={TOOLBAR}
+              >
+                <Archive className="h-5 w-5" />
+              </button>
+
+              <button
+                type="button"
+                onClick={() => onDelete(email.id)}
+                disabled={actionLoading}
+                aria-label="Mover correo a la papelera"
+                className="rounded-xl p-2 text-red-600 transition-colors hover:bg-red-50 disabled:cursor-wait disabled:opacity-50"
+              >
+                <Trash2 className="h-5 w-5" />
+              </button>
+            </>
+          )}
         </div>
       </div>
 
-      <div className="p-6 flex-1 overflow-y-auto">
-        <div className="max-w-3xl">
-          <span className="inline-flex items-center gap-1.5 text-[11px] font-normal text-neutral-600 bg-neutral-100 rounded-lg px-2.5 py-1">
-            <Mail className="w-3 h-3" />
-            Cuenta: {email.account}
+      <div className="flex-1 overflow-y-auto p-6">
+        <div className="mx-auto max-w-3xl">
+          {actionLoading ? (
+            <div className="mb-4 inline-flex items-center gap-2 rounded-xl bg-brand-primary/10 px-3 py-2 text-xs font-semibold text-brand-primary">
+              <span className="h-3 w-3 animate-spin rounded-full border-2 border-brand-primary border-t-transparent" />
+              Actualizando correo...
+            </div>
+          ) : null}
+
+          <span className="inline-flex items-center gap-1.5 rounded-lg bg-neutral-100 px-2.5 py-1 text-[11px] font-medium text-neutral-600">
+            <Mail className="h-3 w-3" />
+            Cuenta: {email.accountEmail}
           </span>
 
-          <h1 className="text-xl font-semibold text-neutral-900 leading-snug mt-4">
+          <h1 className="mt-4 text-xl font-semibold leading-snug text-neutral-900">
             {email.subject}
           </h1>
 
-          <div className="flex items-start gap-3 mt-5 pb-5 border-b border-neutral-100">
+          <div className="mt-5 flex items-start gap-3 border-b border-neutral-100 pb-5">
             <div
-              style={{ backgroundColor: email.initialsColor }}
-              className="w-11 h-11 rounded-full text-white text-sm font-normal flex items-center justify-center shrink-0"
+              style={{
+                backgroundColor: email.initialsColor,
+              }}
+              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-sm font-semibold text-white"
             >
-              {initialsOf(email.sender)}
+              {getInitials(email.senderName)}
             </div>
 
-            <div className="flex-1 min-w-0">
-              <span className="flex items-center gap-1">
-                <span className="text-sm font-normal text-neutral-900 truncate">{email.sender}</span>
-                {email.senderVerified && (
-                  <CheckCircle2 className="w-4 h-4 text-brand-primary shrink-0" />
-                )}
+            <div className="min-w-0 flex-1">
+              <span className="block truncate text-sm font-semibold text-neutral-900">
+                {email.senderName}
               </span>
-              <p className="text-xs font-normal text-neutral-500 truncate">De: {email.email}</p>
-              <p className="text-xs font-normal text-neutral-400">Para: mí</p>
+
+              {email.senderEmail ? (
+                <p className="truncate text-xs font-normal text-neutral-500">
+                  De: {email.senderEmail}
+                </p>
+              ) : null}
+
+              <p className="truncate text-xs font-normal text-neutral-400">
+                {getRecipientLabel(email)}
+              </p>
             </div>
 
-            <span className="text-[11px] font-normal text-neutral-500 shrink-0">
-              {email.date ?? email.timestamp}
+            <span className="max-w-[130px] shrink-0 text-right text-[11px] font-normal leading-4 text-neutral-500">
+              {emailDate}
             </span>
           </div>
 
-          <div className="text-sm font-normal text-neutral-800 leading-relaxed whitespace-pre-line py-6">
-            {email.body || email.preview}
-          </div>
+          {canShowHtml ? (
+            <div
+              className="mail-html-content py-6 text-sm leading-relaxed text-neutral-800"
+              dangerouslySetInnerHTML={{
+                __html: email.bodyHtml || '',
+              }}
+            />
+          ) : (
+            <div className="whitespace-pre-wrap py-6 text-sm font-normal leading-relaxed text-neutral-800">
+              {email.body}
+            </div>
+          )}
 
-          {attachments.length > 0 && (
-            <div className="pt-5 border-t border-neutral-100 space-y-3">
-              <span className="text-[11px] font-normal uppercase tracking-[0.08em] text-neutral-500 flex items-center gap-1.5">
-                <Paperclip className="w-3.5 h-3.5" />
-                Archivos adjuntos ({attachments.length})
+          {email.attachments.length > 0 ? (
+            <div className="space-y-3 border-t border-neutral-100 pt-5">
+              <span className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.08em] text-neutral-500">
+                <FileText className="h-3.5 w-3.5" />
+                Archivos adjuntos ({email.attachments.length})
               </span>
 
-              {attachments.map((file) => (
+              {email.attachments.map((file) => (
                 <div
-                  key={file.name}
-                  className="flex items-center justify-between gap-3 p-3 rounded-xl border border-neutral-200 bg-white"
+                  key={file.id}
+                  className="flex items-center justify-between gap-3 rounded-xl border border-neutral-200 bg-white p-3"
                 >
-                  <div className="flex items-center gap-3 min-w-0">
-                    <span className="w-9 h-9 rounded-lg bg-neutral-50 text-neutral-500 flex items-center justify-center shrink-0">
-                      <FileText className="w-4 h-4" />
+                  <div className="flex min-w-0 items-center gap-3">
+                    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-neutral-50 text-neutral-500">
+                      <FileText className="h-4 w-4" />
                     </span>
+
                     <div className="min-w-0">
-                      <p className="text-xs font-normal text-neutral-900 truncate">{file.name}</p>
+                      <p className="truncate text-xs font-semibold text-neutral-900">
+                        {file.filename}
+                      </p>
+
                       <p className="text-[11px] font-normal text-neutral-500">
-                        {file.kind} · {file.size}
+                        {getAttachmentDescription(
+                          file.mime_type,
+                          file.size_bytes,
+                        )}
                       </p>
                     </div>
                   </div>
 
                   <button
                     type="button"
-                    aria-label={`Descargar ${file.name}`}
-                    className="w-8 h-8 rounded-full bg-brand-primary/10 text-brand-primary flex items-center justify-center hover:bg-brand-primary/20 transition-colors shrink-0"
+                    disabled
+                    title="La descarga de adjuntos se habilitará próximamente."
+                    aria-label={`Descargar ${file.filename}`}
+                    className="flex h-8 w-8 shrink-0 cursor-not-allowed items-center justify-center rounded-full bg-brand-primary/10 text-brand-primary opacity-50"
                   >
-                    <Download className="w-4 h-4" />
+                    <Download className="h-4 w-4" />
                   </button>
                 </div>
               ))}
             </div>
-          )}
+          ) : null}
 
-          <div className="flex gap-3 mt-8 pt-5 border-t border-neutral-100">
-            <button
-              type="button"
-              onClick={() => onReply(email)}
-              className="flex-1 h-10 rounded-xl border border-neutral-300 text-neutral-700 text-xs font-normal flex items-center justify-center gap-2 hover:bg-neutral-50 transition-colors"
-            >
-              <CornerUpLeft className="w-4 h-4" />
-              Responder
-            </button>
-            <button
-              type="button"
-              onClick={() => onForward(email)}
-              className="flex-1 h-10 rounded-xl border border-neutral-300 text-neutral-700 text-xs font-normal flex items-center justify-center gap-2 hover:bg-neutral-50 transition-colors"
-            >
-              <CornerUpRight className="w-4 h-4" />
-              Reenviar
-            </button>
-          </div>
+          {!email.isTrashed ? (
+            <div className="mt-8 flex gap-3 border-t border-neutral-100 pt-5">
+              <button
+                type="button"
+                onClick={() => onReply(email)}
+                disabled={actionLoading}
+                className="flex h-10 flex-1 items-center justify-center gap-2 rounded-xl border border-neutral-300 text-xs font-medium text-neutral-700 transition-colors hover:bg-neutral-50 disabled:opacity-50"
+              >
+                <CornerUpLeft className="h-4 w-4" />
+                Responder
+              </button>
+
+              <button
+                type="button"
+                onClick={() => onReplyAll(email)}
+                disabled={actionLoading}
+                className="flex h-10 flex-1 items-center justify-center gap-2 rounded-xl border border-neutral-300 text-xs font-medium text-neutral-700 transition-colors hover:bg-neutral-50 disabled:opacity-50"
+              >
+                <ReplyAll className="h-4 w-4" />
+                Todos
+              </button>
+
+              <button
+                type="button"
+                onClick={() => onForward(email)}
+                disabled={actionLoading}
+                className="flex h-10 flex-1 items-center justify-center gap-2 rounded-xl border border-neutral-300 text-xs font-medium text-neutral-700 transition-colors hover:bg-neutral-50 disabled:opacity-50"
+              >
+                <CornerUpRight className="h-4 w-4" />
+                Reenviar
+              </button>
+            </div>
+          ) : null}
         </div>
       </div>
     </div>

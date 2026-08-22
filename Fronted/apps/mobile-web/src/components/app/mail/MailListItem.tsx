@@ -1,21 +1,27 @@
 'use client';
 
-import { useState } from 'react';
 import {
-  Star,
-  Paperclip,
-  MoreVertical,
-  MailOpen,
-  Mail,
   Archive,
-  Trash2,
   CheckCircle2,
+  Mail,
+  MailOpen,
+  MoreVertical,
+  Paperclip,
+  Star,
+  Trash2,
 } from 'lucide-react';
-import type { EmailItem } from '@/mocks/emails';
+
+import type {
+  MailListItemModel,
+} from './mailTypes';
+import {
+  getInitials,
+} from './mailTypes';
 
 interface MailListItemProps {
-  email: EmailItem;
+  email: MailListItemModel;
   isSelected: boolean;
+  isUpdating?: boolean;
   onOpen: () => void;
   onToggleStar: () => void;
   onToggleRead: () => void;
@@ -23,157 +29,180 @@ interface MailListItemProps {
   onDelete: () => void;
 }
 
-const initialsOf = (name: string) => {
-  const parts = name.trim().split(' ');
-  if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
-  return name.slice(0, 2).toUpperCase();
-};
-
-/** Fila de correo: remitente, asunto, preview, adjuntos y menú de acciones */
 export default function MailListItem({
   email,
   isSelected,
+  isUpdating = false,
   onOpen,
   onToggleStar,
   onToggleRead,
   onArchive,
   onDelete,
 }: MailListItemProps) {
-  const [menuOpen, setMenuOpen] = useState(false);
-
-  const runAction = (action: () => void) => {
-    setMenuOpen(false);
-    action();
-  };
-
-  const menuItems = [
-    { key: 'read', label: email.unread ? 'Marcar como leído' : 'Marcar como no leído', icon: email.unread ? MailOpen : Mail, action: onToggleRead },
-    { key: 'star', label: email.starred ? 'Quitar de favoritos' : 'Marcar favorito', icon: Star, action: onToggleStar },
-    { key: 'archive', label: 'Archivar', icon: Archive, action: onArchive },
-  ];
-
   return (
     <div
-      onClick={onOpen}
-      className={`relative px-4 py-3.5 flex items-start gap-3 cursor-pointer transition-colors ${
+      className={`group relative flex cursor-pointer items-start gap-3 px-4 py-3.5 transition-colors ${
         isSelected
-          ? 'bg-brand-primary/10 border-l-4 border-brand-primary pl-3'
-          : email.unread
-            ? 'bg-brand-primary/5 hover:bg-brand-primary/10'
-            : 'hover:bg-neutral-50'
-      }`}
+          ? 'border-l-4 border-brand-primary bg-brand-primary/10 pl-3'
+          : email.isRead
+            ? 'hover:bg-neutral-50'
+            : 'bg-brand-primary/5 hover:bg-brand-primary/10'
+      } ${isUpdating ? 'pointer-events-none opacity-60' : ''}`}
+      onClick={onOpen}
+      role="button"
+      tabIndex={0}
+      onKeyDown={(event) => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          onOpen();
+        }
+      }}
+      aria-label={`Abrir correo de ${email.senderName}: ${email.subject}`}
     >
       <div
-        style={{ backgroundColor: email.initialsColor }}
-        className="w-10 h-10 rounded-full text-white text-xs font-normal flex items-center justify-center shrink-0"
+        style={{
+          backgroundColor: email.initialsColor,
+        }}
+        className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-xs font-semibold text-white"
       >
-        {initialsOf(email.sender)}
+        {getInitials(email.senderName)}
       </div>
 
-      <div className="flex-1 min-w-0">
+      <div className="min-w-0 flex-1">
         <div className="flex items-center justify-between gap-2">
-          <span className="flex items-center gap-1 min-w-0">
-            <span className="text-xs font-normal text-neutral-900 truncate">{email.sender}</span>
-            {email.senderVerified && (
-              <CheckCircle2 className="w-3.5 h-3.5 text-brand-primary shrink-0" />
-            )}
+          <span className="flex min-w-0 items-center gap-1">
+            <span
+              className={`truncate text-xs text-neutral-900 ${
+                email.isRead
+                  ? 'font-medium'
+                  : 'font-bold'
+              }`}
+            >
+              {email.senderName}
+            </span>
+
+            <CheckCircle2 className="hidden h-3.5 w-3.5 shrink-0 text-brand-primary" />
           </span>
 
-          <span className="flex items-center gap-1.5 shrink-0">
-            {email.unread && <span className="w-2 h-2 rounded-full bg-blue-500" />}
-            <span className="text-[10px] font-normal text-neutral-400">{email.timestamp}</span>
+          <span className="flex shrink-0 items-center gap-1.5">
+            {!email.isRead ? (
+              <span className="h-2 w-2 rounded-full bg-brand-primary" />
+            ) : null}
+
+            <span className="text-[10px] font-normal text-neutral-400">
+              {email.timestamp}
+            </span>
           </span>
         </div>
 
         <p
-          className={`text-xs font-normal truncate mt-0.5 ${
-            email.unread ? 'text-brand-primary' : 'text-neutral-800'
+          className={`mt-0.5 truncate text-xs ${
+            email.isRead
+              ? 'font-normal text-neutral-800'
+              : 'font-semibold text-brand-primary'
           }`}
         >
           {email.subject}
         </p>
 
-        <p className="text-[11px] font-normal text-neutral-500 truncate mt-0.5">{email.preview}</p>
+        <p className="mt-0.5 truncate text-[11px] font-normal text-neutral-500">
+          {email.bodyPreview}
+        </p>
 
-        <div className="flex items-center gap-2 mt-1.5">
-          {email.hasAttachment && (
-            <span className="inline-flex items-center gap-1 text-[10px] font-normal text-neutral-600 bg-neutral-50 border border-neutral-200 px-1.5 py-0.5 rounded-md">
-              <Paperclip className="w-2.5 h-2.5" />
-              Adjunto
+        <div className="mt-1.5 flex items-center gap-2">
+          {email.hasAttachment ? (
+            <span className="inline-flex items-center gap-1 rounded-md border border-neutral-200 bg-neutral-50 px-1.5 py-0.5 text-[10px] font-normal text-neutral-600">
+              <Paperclip className="h-2.5 w-2.5" />
+              {email.attachmentCount > 1
+                ? `${email.attachmentCount} adjuntos`
+                : 'Adjunto'}
             </span>
-          )}
+          ) : null}
 
           <span
-            style={{ borderColor: email.initialsColor, color: email.initialsColor }}
-            className="text-[9px] font-normal border px-1.5 py-0.5 rounded-md truncate max-w-[120px]"
+            style={{
+              borderColor: email.initialsColor,
+              color: email.initialsColor,
+            }}
+            className="max-w-[120px] truncate rounded-md border px-1.5 py-0.5 text-[9px] font-medium"
+            title={email.accountEmail}
           >
-            {email.account.split('@')[0]}
+            {email.accountEmail.split('@')[0]}
           </span>
         </div>
       </div>
 
-      <div className="flex flex-col items-center gap-1 shrink-0">
+      <div
+        className="flex shrink-0 flex-col items-center gap-1"
+        onClick={(event) => event.stopPropagation()}
+      >
         <button
           type="button"
-          onClick={(event) => {
-            event.stopPropagation();
-            onToggleStar();
-          }}
-          aria-label={email.starred ? 'Quitar de favoritos' : 'Marcar favorito'}
-          className="p-1 text-neutral-300 hover:text-amber-400 transition-colors"
+          onClick={onToggleStar}
+          disabled={isUpdating}
+          aria-label={
+            email.isStarred
+              ? 'Quitar de importantes'
+              : 'Marcar como importante'
+          }
+          className="rounded-md p-1 text-neutral-300 transition-colors hover:text-amber-400 disabled:cursor-wait"
         >
-          <Star className={`w-4 h-4 ${email.starred ? 'text-amber-400 fill-amber-400' : ''}`} />
-        </button>
-
-        <button
-          type="button"
-          onClick={(event) => {
-            event.stopPropagation();
-            setMenuOpen(!menuOpen);
-          }}
-          aria-label="Más acciones"
-          className="p-1 text-neutral-400 hover:text-neutral-700 transition-colors"
-        >
-          <MoreVertical className="w-4 h-4" />
-        </button>
-      </div>
-
-      {menuOpen && (
-        <>
-          <div
-            className="fixed inset-0 z-20"
-            onClick={(event) => {
-              event.stopPropagation();
-              setMenuOpen(false);
-            }}
+          <Star
+            className={`h-4 w-4 ${
+              email.isStarred
+                ? 'fill-amber-400 text-amber-400'
+                : ''
+            }`}
           />
-          <div
-            onClick={(event) => event.stopPropagation()}
-            className="absolute top-10 right-3 z-30 w-52 bg-white border border-neutral-200 rounded-xl shadow-xl py-1"
+        </button>
+
+        <div className="relative">
+          <button
+            type="button"
+            disabled={isUpdating}
+            aria-label="Más acciones"
+            className="peer rounded-md p-1 text-neutral-400 transition-colors hover:text-neutral-700"
           >
-            {menuItems.map((item) => (
-              <button
-                key={item.key}
-                type="button"
-                onClick={() => runAction(item.action)}
-                className="w-full flex items-center gap-2 px-3 py-2 text-xs font-normal text-neutral-700 hover:bg-neutral-50 transition-colors"
-              >
-                <item.icon className="w-3.5 h-3.5 text-neutral-500" />
-                {item.label}
-              </button>
-            ))}
+            <MoreVertical className="h-4 w-4" />
+          </button>
+
+          <div className="invisible absolute right-0 top-full z-30 mt-1 w-52 overflow-hidden rounded-xl border border-neutral-200 bg-white py-1 opacity-0 shadow-xl transition-all peer-focus-within:visible peer-focus-within:opacity-100 hover:visible hover:opacity-100">
+            <button
+              type="button"
+              onClick={onToggleRead}
+              className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs font-normal text-neutral-700 transition-colors hover:bg-neutral-50"
+            >
+              {email.isRead ? (
+                <Mail className="h-3.5 w-3.5 text-neutral-500" />
+              ) : (
+                <MailOpen className="h-3.5 w-3.5 text-neutral-500" />
+              )}
+
+              {email.isRead
+                ? 'Marcar como no leído'
+                : 'Marcar como leído'}
+            </button>
 
             <button
               type="button"
-              onClick={() => runAction(onDelete)}
-              className="w-full flex items-center gap-2 px-3 py-2 text-xs font-normal text-red-600 hover:bg-red-50 transition-colors"
+              onClick={onArchive}
+              className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs font-normal text-neutral-700 transition-colors hover:bg-neutral-50"
             >
-              <Trash2 className="w-3.5 h-3.5" />
-              Eliminar
+              <Archive className="h-3.5 w-3.5 text-neutral-500" />
+              Archivar
+            </button>
+
+            <button
+              type="button"
+              onClick={onDelete}
+              className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs font-normal text-red-600 transition-colors hover:bg-red-50"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+              Mover a papelera
             </button>
           </div>
-        </>
-      )}
+        </div>
+      </div>
     </div>
   );
 }

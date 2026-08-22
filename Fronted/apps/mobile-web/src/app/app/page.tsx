@@ -2,10 +2,13 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+
 import HomeHeader from '@/components/app/HomeHeader';
-import SideMenu, { MenuOption } from '@/components/app/SideMenu';
+import SideMenu, {
+  type MenuOption,
+} from '@/components/app/SideMenu';
 import {
-  ModuleKey,
+  type ModuleKey,
   REORDERABLE_MODULE_KEYS,
 } from '@/components/app/modules';
 import ModuleSidebar from '@/components/app/ModuleSidebar';
@@ -15,7 +18,9 @@ import NotesModule from '@/components/app/notes/NotesModule';
 import StorageModule from '@/components/app/storage/StorageModule';
 import ChatModule from '@/components/app/chat/ChatModule';
 import CalendarModule from '@/components/app/calendar/CalendarModule';
-import { ChatSection } from '@/components/app/chat/chatSections';
+import {
+  type ChatSection,
+} from '@/components/app/chat/chatSections';
 
 type HomeMenuOption = MenuOption | 'beeservices';
 
@@ -23,11 +28,16 @@ export default function HomePage() {
   const router = useRouter();
 
   const [sideMenuOpen, setSideMenuOpen] = useState(false);
-  const [sideMenuOption, setSideMenuOption] = useState<MenuOption>(null);
+
+  const [sideMenuOption, setSideMenuOption] =
+    useState<MenuOption>(null);
+
   const [activeModule, setActiveModule] =
     useState<ModuleKey>('overview');
+
   const [chatSection, setChatSection] =
     useState<ChatSection>('chats');
+
   const [moduleOrder, setModuleOrder] = useState<ModuleKey[]>(
     REORDERABLE_MODULE_KEYS,
   );
@@ -52,22 +62,30 @@ export default function HomePage() {
     setSideMenuOpen(true);
   };
 
+  const handleOpenIntegrations = () => {
+    handleOpenSideMenuWithOption('integrations');
+  };
+
   const renderModuleContent = () => {
     switch (activeModule) {
       case 'overview':
         return (
           <AllModulesOverview
             onSelectModule={handleSelectModule}
-            onOpenSideMenuOption={(option) =>
+            onOpenSideMenuOption={(option) => (
               handleOpenSideMenuWithOption(
                 option as HomeMenuOption,
               )
-            }
+            )}
           />
         );
 
       case 'mail':
-        return <MailModule />;
+        return (
+          <MailModule
+            onOpenIntegrations={handleOpenIntegrations}
+          />
+        );
 
       case 'notes':
         return <NotesModule />;
@@ -92,13 +110,15 @@ export default function HomePage() {
   };
 
   return (
-    <div className="min-h-full bg-white flex">
-      <div className="flex-1 min-w-0 flex flex-col">
+    <div className="flex min-h-full bg-white">
+      <div className="flex min-w-0 flex-1 flex-col">
         <HomeHeader
-          onOpenSideMenu={() => handleOpenSideMenuWithOption(null)}
+          onOpenSideMenu={() => {
+            handleOpenSideMenuWithOption(null);
+          }}
         />
 
-        <main className="flex-1 min-w-0">
+        <main className="min-w-0 flex-1">
           {renderModuleContent()}
         </main>
       </div>
@@ -106,7 +126,9 @@ export default function HomePage() {
       <ModuleSidebar
         activeModule={activeModule}
         onSelectModule={handleSelectModule}
-        onOpenSideMenu={() => handleOpenSideMenuWithOption(null)}
+        onOpenSideMenu={() => {
+          handleOpenSideMenuWithOption(null);
+        }}
         moduleOrder={moduleOrder}
         onReorderModules={setModuleOrder}
       />
