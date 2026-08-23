@@ -518,10 +518,6 @@ export async function getChatInbox(
     },
   );
 
-  console.log(
-    '[CHAT DEBUG] Raw inbox response:',
-    JSON.stringify(response, null, 2),
-  );
 
   return {
     ...response,
