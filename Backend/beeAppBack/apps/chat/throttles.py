@@ -91,3 +91,20 @@ class ChatGroupMutationThrottle(SimpleRateThrottle):
             "scope": self.scope,
             "ident": ident,
         }
+
+class ChatRecipientSearchThrottle(SimpleRateThrottle):
+    """
+    Limita búsquedas de destinatarios para prevenir enumeración
+    masiva de cuentas por correo, teléfono o nombre comercial.
+    """
+
+    scope = "chat_recipient_search"
+    rate = "30/min"
+
+    def get_cache_key(self, request, view):
+        ident = self.get_ident(request)
+
+        return self.cache_format % {
+            "scope": self.scope,
+            "ident": ident,
+        }

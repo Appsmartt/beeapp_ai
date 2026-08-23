@@ -25,6 +25,7 @@ from apps.chat.views import (
     ChatMessageReactionDetailView,
     ChatMessageReactionsView,
     ChatMessageReadStatusView,
+    ChatRecipientSearchView,
 )
 
 
@@ -38,6 +39,11 @@ urlpatterns = [
         "identities/",
         ChatIdentitiesView.as_view(),
         name="chat-identities",
+    ),
+    path(
+        "recipients/search/",
+        ChatRecipientSearchView.as_view(),
+        name="chat-recipient-search",
     ),
     path(
         "inbox/",
