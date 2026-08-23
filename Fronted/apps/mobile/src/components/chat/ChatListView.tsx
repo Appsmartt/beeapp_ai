@@ -93,25 +93,27 @@ export default function ChatListView({
         />
       ) : null}
 
-      {chats.map((chat) => (
-        <ChatListItem
-          key={`conversation-${chat.id}`}
-          id={chat.id}
-          name={chat.name}
-          lastMessage={chat.lastMessage}
-          time={chat.time}
-          unreadCount={chat.unreadCount}
-          isGroup={chat.isGroup}
-          verified={chat.verified}
-          status={chat.status}
-          online={chat.online}
-          isPinned={chat.isPinned}
-          isMuted={chat.isMuted}
-          isProtected={isProtected(chat.id)}
-          onPress={() => onOpenChat(chat)}
-          onMorePress={() => onOpenMenu(chat)}
-        />
-      ))}
+      {chats
+        .filter((chat) => Boolean(chat.id?.trim()))
+        .map((chat) => (
+          <ChatListItem
+            key={`conversation-${chat.id}`}
+            id={chat.id}
+            name={chat.name}
+            lastMessage={chat.lastMessage}
+            time={chat.time}
+            unreadCount={chat.unreadCount}
+            isGroup={chat.isGroup}
+            verified={chat.verified}
+            status={chat.status}
+            online={chat.online}
+            isPinned={chat.isPinned}
+            isMuted={chat.isMuted}
+            isProtected={isProtected(chat.id)}
+            onPress={() => onOpenChat(chat)}
+            onMorePress={() => onOpenMenu(chat)}
+          />
+        ))}
 
       <View
         key="chat-list-bottom-gap"
