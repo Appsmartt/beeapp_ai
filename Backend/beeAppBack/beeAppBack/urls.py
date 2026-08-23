@@ -40,4 +40,8 @@ urlpatterns = [
         "api/mail/",
         include("apps.mail.urls"),
     ),
+    path(
+        "api/chat/",
+        include("apps.chat.urls"),
+    ),
 ]

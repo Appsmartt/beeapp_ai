@@ -191,6 +191,33 @@ class AuthenticatedAPIView(APIView):
             request=request,
         )
 
+    def get_bearer_access_token(self, request) -> str:
+        authorization_header = request.headers.get(
+            "Authorization",
+            "",
+        )
+
+        scheme, _, token = authorization_header.partition(" ")
+
+        if scheme.lower() != "bearer" or not token:
+            raise AccountAuthenticationError(
+                "Bearer access token is required."
+            )
+
+        return token
+
+    def get_authenticated_user_and_access_token(
+        self,
+        request,
+    ):
+        access_token = self.get_bearer_access_token(request)
+
+        authenticated_user = get_authenticated_user(
+            access_token=access_token,
+        )
+
+        return authenticated_user, access_token
+
 
 class RegisterUserView(APIView):
     permission_classes = [AllowAny]
