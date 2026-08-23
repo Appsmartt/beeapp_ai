@@ -30,6 +30,7 @@ from apps.chat.serializers import (
     ChatIdentityListQuerySerializer,
     ChatInboxQuerySerializer,
     ChatMessageListQuerySerializer,
+    ChatRecipientSearchQuerySerializer,
     ClearConversationSerializer,
     ConversationDetailQuerySerializer,
     ConversationParticipantsQuerySerializer,
@@ -69,6 +70,9 @@ from apps.chat.services.chat_identity_service import (
     list_chat_identities,
     sync_chat_identities_for_user,
 )
+from apps.chat.services.chat_recipient_search_service import (
+    search_chat_recipients,
+)
 from apps.chat.services.chat_message_service import (
     create_chat_message_reaction,
     delete_chat_message_reaction,
@@ -85,6 +89,7 @@ from apps.chat.throttles import (
     ChatGroupMutationThrottle,
     ChatMessageSendThrottle,
     ChatReactionThrottle,
+    ChatRecipientSearchThrottle,
 )
 from apps.storage.exceptions import (
     StorageQuotaExceededError,
@@ -224,6 +229,50 @@ class ChatIdentitiesView(AuthenticatedAPIView):
             {
                 "identities": identities,
             },
+            status=status.HTTP_200_OK,
+        )
+
+
+class ChatRecipientSearchView(AuthenticatedAPIView):
+    """
+    GET /api/chat/recipients/search/?q=<texto>&limit=20
+
+    Busca destinatarios de Chat disponibles sin exponer correo,
+    teléfono, owner_id ni otros datos privados.
+    """
+
+    throttle_classes = [ChatRecipientSearchThrottle]
+
+    def get(self, request):
+        serializer = ChatRecipientSearchQuerySerializer(
+            data=request.query_params,
+        )
+        serializer.is_valid(raise_exception=True)
+
+        try:
+            authenticated_user = self.get_authenticated_user(
+                request
+            )
+
+            result = search_chat_recipients(
+                user_id=str(authenticated_user.id),
+                query=serializer.validated_data["q"],
+                limit=serializer.validated_data["limit"],
+            )
+
+        except AccountAuthenticationError:
+            return _unauthorized_response()
+
+        except ChatIdentityError as error:
+            return Response(
+                {
+                    "detail": str(error),
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        return Response(
+            result,
             status=status.HTTP_200_OK,
         )
 

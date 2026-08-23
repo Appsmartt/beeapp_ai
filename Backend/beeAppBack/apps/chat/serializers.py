@@ -70,6 +70,31 @@ class ChatInboxQuerySerializer(serializers.Serializer):
     )
 
 
+class ChatRecipientSearchQuerySerializer(serializers.Serializer):
+    q = serializers.CharField(
+        min_length=3,
+        max_length=160,
+        trim_whitespace=True,
+    )
+
+    limit = serializers.IntegerField(
+        required=False,
+        default=20,
+        min_value=1,
+        max_value=25,
+    )
+
+    def validate_q(self, value: str) -> str:
+        normalized_value = value.strip()
+
+        if len(normalized_value) < 3:
+            raise serializers.ValidationError(
+                "Search query must contain at least 3 characters."
+            )
+
+        return normalized_value
+
+
 class CreateDirectConversationSerializer(serializers.Serializer):
     sender_identity_id = serializers.UUIDField()
     recipient_identity_id = serializers.UUIDField()
