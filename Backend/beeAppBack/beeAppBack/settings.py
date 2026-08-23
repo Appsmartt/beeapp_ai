@@ -53,6 +53,7 @@ INSTALLED_APPS = [
     "apps.calendar.apps.CalendarConfig",
     "apps.integrations.apps.IntegrationsConfig",
     "apps.mail.apps.MailConfig",
+    "apps.commercial.apps.CommercialConfig",
 ]
 
 MIDDLEWARE = [
