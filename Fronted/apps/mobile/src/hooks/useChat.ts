@@ -6,22 +6,15 @@ import {
   useState,
 } from 'react';
 import {
-  addChatParticipants,
+  bootstrapChat,
   createDirectChatConversation,
-  createGroupChatConversation,
-  deleteChatConversation,
-  deleteChatMessage,
   getChatConversation,
-  getChatConversations,
+  getChatIdentities,
+  getChatInbox,
   getChatMessages,
   getChatParticipants,
-  pinChatMessage,
-  removeChatParticipant,
-  searchChatUsers,
+  searchChatRecipients,
   sendChatMessage,
-  unpinChatMessage,
-  updateChatConversation,
-  updateChatMessage,
 } from '@beeapp/api-client';
 import type {
   AuthCredentials,
@@ -48,8 +41,6 @@ import {
   getChatMessages as getStoredMessages,
   getProtectedConversationIds,
   isChatConversationProtected,
-  removeChatConversation,
-  removeChatMessage,
   setChatConversationProtected,
   setChatConversations,
   setChatMessages,
@@ -75,13 +66,6 @@ function sortConversations(
   conversations: ChatConversation[],
 ): ChatConversation[] {
   return [...conversations].sort((left, right) => {
-    const leftPinned = Boolean(left.is_pinned);
-    const rightPinned = Boolean(right.is_pinned);
-
-    if (leftPinned !== rightPinned) {
-      return leftPinned ? -1 : 1;
-    }
-
     const leftDate = new Date(
       left.last_message_at
       || left.updated_at,
@@ -114,9 +98,16 @@ async function getChatAuthContext(): Promise<{
     );
   }
 
+  if (token.scheme !== 'Bearer') {
+    throw new Error(
+      'Chat requiere una sesión iniciada con correo y contraseña. '
+      + 'Cierra sesión e ingresa nuevamente con correo.',
+    );
+  }
+
   return {
     currentUserId: session.user.id,
-    token: token as AuthCredentials,
+    token,
   };
 }
 
@@ -175,7 +166,6 @@ export interface UseChatConversationsResult {
 export function useChatConversations(
   {
     autoLoad = true,
-    includeArchived = false,
   }: UseChatConversationsOptions = {},
 ): UseChatConversationsResult {
   const [rawConversations, setRawConversations] = useState<
@@ -185,9 +175,14 @@ export function useChatConversations(
   );
 
   const [currentUserId, setCurrentUserId] = useState('');
+  const [privateIdentityId, setPrivateIdentityId] = useState<
+    string | null
+  >(null);
+
   const [loading, setLoading] = useState(
     getStoredConversations().length === 0,
   );
+
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -200,6 +195,31 @@ export function useChatConversations(
 
     setChatConversations(sorted);
     setRawConversations(sorted);
+  }, []);
+
+  const resolvePrivateIdentityId = useCallback(async (
+    token: AuthCredentials,
+  ) => {
+    await bootstrapChat(token);
+
+    const response = await getChatIdentities(token);
+
+    const identity = response.identities.find(
+      (item) => (
+        item.identity_type === 'profile'
+        && item.is_active
+      ),
+    );
+
+    if (!identity) {
+      throw new Error(
+        'No fue posible crear tu identidad privada de Chat.',
+      );
+    }
+
+    setPrivateIdentityId(identity.id);
+
+    return identity.id;
   }, []);
 
   const loadConversations = useCallback(async (
@@ -221,18 +241,20 @@ export function useChatConversations(
 
     try {
       const {
-        currentUserId: nextCurrentUserId,
+        currentUserId: activeUserId,
         token,
       } = await getChatAuthContext();
 
-      const archived = options.archived ?? includeArchived;
+      const identityId = (
+        privateIdentityId
+        || await resolvePrivateIdentityId(token)
+      );
 
-      const response = await getChatConversations(
+      const response = await getChatInbox(
         token,
+        identityId,
         {
-          archived,
           limit: 100,
-          offset: 0,
         },
       );
 
@@ -240,13 +262,13 @@ export function useChatConversations(
         return [];
       }
 
-      setCurrentUserId(nextCurrentUserId);
+      setCurrentUserId(activeUserId);
       synchronizeConversations(response.conversations);
 
       return response.conversations.map((conversation) => (
         mapConversationToListItem(
           conversation,
-          nextCurrentUserId,
+          activeUserId,
           isChatConversationProtected(conversation.id),
         )
       ));
@@ -268,7 +290,8 @@ export function useChatConversations(
       }
     }
   }, [
-    includeArchived,
+    privateIdentityId,
+    resolvePrivateIdentityId,
     synchronizeConversations,
   ]);
 
@@ -278,7 +301,7 @@ export function useChatConversations(
     }
 
     void loadConversations().catch(() => {
-      // El mensaje de error ya se mantiene en el estado local.
+      // El hook conserva el error para la pantalla.
     });
   }, [
     autoLoad,
@@ -286,17 +309,23 @@ export function useChatConversations(
   ]);
 
   const createDirectConversation = useCallback(async (
-    userId: string,
+    recipientIdentityId: string,
   ) => {
     const {
       currentUserId: activeUserId,
       token,
     } = await getChatAuthContext();
+
+    const senderIdentityId = (
+      privateIdentityId
+      || await resolvePrivateIdentityId(token)
+    );
 
     const response = await createDirectChatConversation(
       token,
       {
-        user_id: userId,
+        sender_identity_id: senderIdentityId,
+        recipient_identity_id: recipientIdentityId,
       },
     );
 
@@ -311,100 +340,30 @@ export function useChatConversations(
       isChatConversationProtected(response.conversation.id),
     );
   }, [
+    privateIdentityId,
+    resolvePrivateIdentityId,
     synchronizeConversations,
   ]);
 
-  const createGroupConversation = useCallback(async (
-    payload: {
-      name: string;
-      description?: string;
-      participantIds: string[];
-    },
+  const searchUsers = useCallback(async (
+    query: string,
   ) => {
-    const {
-      currentUserId: activeUserId,
-      token,
-    } = await getChatAuthContext();
+    const normalizedQuery = query.trim();
 
-    const response = await createGroupChatConversation(
-      token,
-      {
-        name: payload.name.trim(),
-        description: payload.description?.trim() || null,
-        participant_ids: payload.participantIds,
-      },
-    );
+    if (normalizedQuery.length < 3) {
+      return [];
+    }
 
-    setCurrentUserId(activeUserId);
-    upsertChatConversation(response.conversation);
-
-    synchronizeConversations(getStoredConversations());
-
-    return mapConversationToListItem(
-      response.conversation,
-      activeUserId,
-      isChatConversationProtected(response.conversation.id),
-    );
-  }, [
-    synchronizeConversations,
-  ]);
-
-  const updateConversation = useCallback(async (
-    conversationId: string,
-    payload: {
-      name?: string;
-      description?: string | null;
-      isMuted?: boolean;
-      isArchived?: boolean;
-      isPinned?: boolean;
-    },
-  ) => {
-    const {
-      currentUserId: activeUserId,
-      token,
-    } = await getChatAuthContext();
-
-    const response = await updateChatConversation(
-      token,
-      conversationId,
-      {
-        name: payload.name,
-        description: payload.description,
-        is_muted: payload.isMuted,
-        is_archived: payload.isArchived,
-        is_pinned: payload.isPinned,
-      },
-    );
-
-    setCurrentUserId(activeUserId);
-    upsertChatConversation(response.conversation);
-
-    synchronizeConversations(getStoredConversations());
-
-    return mapConversationToListItem(
-      response.conversation,
-      activeUserId,
-      isChatConversationProtected(conversationId),
-    );
-  }, [
-    synchronizeConversations,
-  ]);
-
-  const deleteConversation = useCallback(async (
-    conversationId: string,
-  ) => {
     const { token } = await getChatAuthContext();
 
-    await deleteChatConversation(
+    const response = await searchChatRecipients(
       token,
-      conversationId,
+      normalizedQuery,
+      20,
     );
 
-    removeChatConversation(conversationId);
-    synchronizeConversations(getStoredConversations());
-  }, [
-    synchronizeConversations,
-  ]);
+    return response.users.map(mapChatSearchUser);
+  }, []);
 
   const setProtected = useCallback((
     conversationId: string,
@@ -424,25 +383,14 @@ export function useChatConversations(
     conversationId: string,
   ) => isChatConversationProtected(conversationId), []);
 
-  const searchUsers = useCallback(async (
-    query: string,
-  ) => {
-    const normalizedQuery = query.trim();
-
-    if (normalizedQuery.length < 2) {
-      return [];
-    }
-
-    const { token } = await getChatAuthContext();
-
-    const response = await searchChatUsers(
-      token,
-      normalizedQuery,
-      20,
-    );
-
-    return response.users.map(mapChatSearchUser);
-  }, []);
+  const unsupportedConversationAction = useCallback(
+    async () => {
+      throw new Error(
+        'Esta acción todavía no está conectada al API actual de Chat.',
+      );
+    },
+    [],
+  );
 
   const conversations = useMemo(() => {
     if (!currentUserId) {
@@ -474,9 +422,21 @@ export function useChatConversations(
     error,
     loadConversations,
     createDirectConversation,
-    createGroupConversation,
-    updateConversation,
-    deleteConversation,
+    createGroupConversation: (
+      unsupportedConversationAction as UseChatConversationsResult[
+        'createGroupConversation'
+      ]
+    ),
+    updateConversation: (
+      unsupportedConversationAction as UseChatConversationsResult[
+        'updateConversation'
+      ]
+    ),
+    deleteConversation: (
+      unsupportedConversationAction as UseChatConversationsResult[
+        'deleteConversation'
+      ]
+    ),
     setProtected,
     isProtected,
     searchUsers,
@@ -545,6 +505,10 @@ export function useChatMessages(
   }: UseChatMessagesOptions,
 ): UseChatMessagesResult {
   const [currentUserId, setCurrentUserId] = useState('');
+  const [privateIdentityId, setPrivateIdentityId] = useState<
+    string | null
+  >(null);
+
   const [rawMessages, setRawMessages] = useState<
     ChatMessage[]
   >(
@@ -556,6 +520,7 @@ export function useChatMessages(
   const [participants, setParticipants] = useState<
     ChatParticipant[]
   >([]);
+
   const [conversation, setConversation] = useState<
     ChatConversation | null
   >(null);
@@ -564,16 +529,43 @@ export function useChatMessages(
     Boolean(conversationId)
     && getStoredMessages(conversationId || '').length === 0,
   );
+
   const [refreshing, setRefreshing] = useState(false);
   const [sending, setSending] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(false);
-  const [nextOffset, setNextOffset] = useState<
+  const [nextBeforeSequence, setNextBeforeSequence] = useState<
     number | null
   >(null);
+
   const [error, setError] = useState<string | null>(null);
 
   const requestIdRef = useRef(0);
+
+  const resolvePrivateIdentityId = useCallback(async (
+    token: AuthCredentials,
+  ) => {
+    await bootstrapChat(token);
+
+    const response = await getChatIdentities(token);
+
+    const identity = response.identities.find(
+      (item) => (
+        item.identity_type === 'profile'
+        && item.is_active
+      ),
+    );
+
+    if (!identity) {
+      throw new Error(
+        'No fue posible crear tu identidad privada de Chat.',
+      );
+    }
+
+    setPrivateIdentityId(identity.id);
+
+    return identity.id;
+  }, []);
 
   const synchronizeMessages = useCallback((
     nextMessages: ChatMessage[],
@@ -591,6 +583,7 @@ export function useChatMessages(
       conversationId,
       sorted,
     );
+
     setRawMessages(sorted);
   }, [
     conversationId,
@@ -677,14 +670,12 @@ export function useChatMessages(
         token,
       } = await getChatAuthContext();
 
-      const offset = options.offset || 0;
-
       const response = await getChatMessages(
         token,
         conversationId,
         {
           limit: DEFAULT_LIMIT,
-          offset,
+          beforeSequence: options.offset || undefined,
         },
       );
 
@@ -692,13 +683,9 @@ export function useChatMessages(
         return [];
       }
 
-      setCurrentUserId(activeUserId);
-
-      const currentMessages = (
-        offset > 0
-          ? getStoredMessages(conversationId)
-          : []
-      );
+      const currentMessages = options.offset
+        ? getStoredMessages(conversationId)
+        : [];
 
       const mergedMessages = [
         ...currentMessages,
@@ -709,19 +696,15 @@ export function useChatMessages(
         ) === index
       ));
 
+      setCurrentUserId(activeUserId);
       synchronizeMessages(mergedMessages);
 
       setHasMore(
-        Boolean(response.has_more),
+        response.next_before_sequence !== null,
       );
 
-      setNextOffset(
-        response.next_offset
-        ?? (
-          response.has_more
-            ? offset + response.messages.length
-            : null
-        ),
+      setNextBeforeSequence(
+        response.next_before_sequence,
       );
 
       return mergedMessages.map((message) => (
@@ -766,7 +749,7 @@ export function useChatMessages(
       loadParticipants(),
       loadMessages(),
     ]).catch(() => {
-      // El estado error ya se actualizó desde las acciones fallidas.
+      // El hook conserva el error para mostrarlo en pantalla.
     });
   }, [
     autoLoad,
@@ -783,15 +766,16 @@ export function useChatMessages(
       || refreshing
       || loadingMore
       || !hasMore
-      || nextOffset === null
+      || nextBeforeSequence === null
     ) {
       return;
     }
 
     try {
       setLoadingMore(true);
+
       await loadMessages({
-        offset: nextOffset,
+        offset: nextBeforeSequence,
       });
     } finally {
       setLoadingMore(false);
@@ -802,7 +786,7 @@ export function useChatMessages(
     loadMessages,
     loading,
     loadingMore,
-    nextOffset,
+    nextBeforeSequence,
     refreshing,
   ]);
 
@@ -820,12 +804,9 @@ export function useChatMessages(
       );
     }
 
-    const content = payload.content.trim();
+    const body = payload.content.trim();
 
-    if (
-      !content
-      && (!payload.fileIds || payload.fileIds.length === 0)
-    ) {
+    if (!body) {
       throw new Error(
         'Escribe un mensaje antes de enviarlo.',
       );
@@ -840,14 +821,18 @@ export function useChatMessages(
         token,
       } = await getChatAuthContext();
 
+      const senderIdentityId = (
+        privateIdentityId
+        || await resolvePrivateIdentityId(token)
+      );
+
       const response = await sendChatMessage(
         token,
         conversationId,
         {
-          content,
-          message_type: payload.messageType || 'text',
-          reply_to_id: payload.replyToId || null,
-          file_ids: payload.fileIds || [],
+          sender_identity_id: senderIdentityId,
+          body,
+          message_type: 'text',
         },
       );
 
@@ -856,7 +841,10 @@ export function useChatMessages(
         conversationId,
         response.message,
       );
-      setRawMessages(getStoredMessages(conversationId));
+
+      setRawMessages(
+        getStoredMessages(conversationId),
+      );
 
       return mapChatMessageToModel(
         response.message,
@@ -872,6 +860,7 @@ export function useChatMessages(
       );
 
       setError(message);
+
       throw new Error(message);
     } finally {
       setSending(false);
@@ -879,183 +868,18 @@ export function useChatMessages(
   }, [
     conversationId,
     conversationIsAi,
+    privateIdentityId,
+    resolvePrivateIdentityId,
   ]);
 
-  const editMessage = useCallback(async (
-    messageId: string,
-    content: string,
-  ) => {
-    if (!conversationId) {
+  const unsupportedMessageAction = useCallback(
+    async () => {
       throw new Error(
-        'No fue posible identificar el chat.',
+        'Esta acción todavía no está conectada al API actual de Chat.',
       );
-    }
-
-    const normalizedContent = content.trim();
-
-    if (!normalizedContent) {
-      throw new Error(
-        'El mensaje no puede quedar vacío.',
-      );
-    }
-
-    const {
-      currentUserId: activeUserId,
-      token,
-    } = await getChatAuthContext();
-
-    const response = await updateChatMessage(
-      token,
-      conversationId,
-      messageId,
-      {
-        content: normalizedContent,
-      },
-    );
-
-    setCurrentUserId(activeUserId);
-    upsertChatMessage(
-      conversationId,
-      response.message,
-    );
-    setRawMessages(getStoredMessages(conversationId));
-
-    return mapChatMessageToModel(
-      response.message,
-      activeUserId,
-      {
-        conversationIsAi,
-      },
-    );
-  }, [
-    conversationId,
-    conversationIsAi,
-  ]);
-
-  const deleteMessage = useCallback(async (
-    messageId: string,
-  ) => {
-    if (!conversationId) {
-      throw new Error(
-        'No fue posible identificar el chat.',
-      );
-    }
-
-    const { token } = await getChatAuthContext();
-
-    await deleteChatMessage(
-      token,
-      conversationId,
-      messageId,
-    );
-
-    removeChatMessage(
-      conversationId,
-      messageId,
-    );
-
-    setRawMessages(getStoredMessages(conversationId));
-  }, [
-    conversationId,
-  ]);
-
-  const togglePinnedMessage = useCallback(async (
-    messageId: string,
-    isPinned: boolean,
-  ) => {
-    if (!conversationId) {
-      throw new Error(
-        'No fue posible identificar el chat.',
-      );
-    }
-
-    const {
-      currentUserId: activeUserId,
-      token,
-    } = await getChatAuthContext();
-
-    const response = isPinned
-      ? await unpinChatMessage(
-          token,
-          conversationId,
-          messageId,
-        )
-      : await pinChatMessage(
-          token,
-          conversationId,
-          messageId,
-        );
-
-    setCurrentUserId(activeUserId);
-    upsertChatMessage(
-      conversationId,
-      response.message,
-    );
-    setRawMessages(getStoredMessages(conversationId));
-
-    return mapChatMessageToModel(
-      response.message,
-      activeUserId,
-      {
-        conversationIsAi,
-      },
-    );
-  }, [
-    conversationId,
-    conversationIsAi,
-  ]);
-
-  const addParticipants = useCallback(async (
-    userIds: string[],
-  ) => {
-    if (!conversationId) {
-      throw new Error(
-        'No fue posible identificar el grupo.',
-      );
-    }
-
-    const { token } = await getChatAuthContext();
-
-    const response = await addChatParticipants(
-      token,
-      conversationId,
-      {
-        user_ids: userIds,
-      },
-    );
-
-    setParticipants(response.participants);
-
-    return response.participants;
-  }, [
-    conversationId,
-  ]);
-
-  const removeParticipant = useCallback(async (
-    userId: string,
-  ) => {
-    if (!conversationId) {
-      throw new Error(
-        'No fue posible identificar el grupo.',
-      );
-    }
-
-    const { token } = await getChatAuthContext();
-
-    await removeChatParticipant(
-      token,
-      conversationId,
-      userId,
-    );
-
-    setParticipants((currentParticipants) => (
-      currentParticipants.filter(
-        (participant) => participant.user_id !== userId,
-      )
-    ));
-  }, [
-    conversationId,
-  ]);
+    },
+    [],
+  );
 
   const messages = useMemo(() => {
     if (!currentUserId) {
@@ -1096,11 +920,31 @@ export function useChatMessages(
     loadConversation,
     loadParticipants,
     sendMessage,
-    editMessage,
-    deleteMessage,
-    togglePinnedMessage,
-    addParticipants,
-    removeParticipant,
+    editMessage: (
+      unsupportedMessageAction as UseChatMessagesResult[
+        'editMessage'
+      ]
+    ),
+    deleteMessage: (
+      unsupportedMessageAction as UseChatMessagesResult[
+        'deleteMessage'
+      ]
+    ),
+    togglePinnedMessage: (
+      unsupportedMessageAction as UseChatMessagesResult[
+        'togglePinnedMessage'
+      ]
+    ),
+    addParticipants: (
+      unsupportedMessageAction as UseChatMessagesResult[
+        'addParticipants'
+      ]
+    ),
+    removeParticipant: (
+      unsupportedMessageAction as UseChatMessagesResult[
+        'removeParticipant'
+      ]
+    ),
     clearError,
   };
 }

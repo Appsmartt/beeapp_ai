@@ -50,30 +50,6 @@ export interface ChatApiParticipant {
   identity: ChatApiIdentitySummary;
 }
 
-export interface ChatApiInboxConversation {
-  conversation_id: string;
-  conversation_type: 'direct' | 'group';
-  group_name: string | null;
-  group_description: string | null;
-  group_image_file_id: string | null;
-  other_identity_id: string | null;
-  other_identity_type: 'profile' | 'commercial_profile' | null;
-  other_profile_id: string | null;
-  other_commercial_profile_id: string | null;
-  other_display_name: string | null;
-  other_logo_file_id: string | null;
-  last_message_id: string | null;
-  last_message_type: string | null;
-  last_message_preview: string | null;
-  last_message_at: string | null;
-  last_message_sender_identity_id: string | null;
-  unread_count: number;
-  last_read_message_id: string | null;
-  last_read_at: string | null;
-  notifications_enabled: boolean;
-  cleared_at: string | null;
-}
-
 export interface ChatApiConversation {
   id: string;
   conversation_type: 'direct' | 'group';
@@ -133,7 +109,7 @@ export interface ChatIdentitiesResponse {
 
 export interface ChatInboxResponse {
   identity_id: string;
-  conversations: ChatApiInboxConversation[];
+  conversations: ChatApiConversation[];
   limit: number;
   next_before_last_message_at: string | null;
 }
@@ -371,103 +347,6 @@ function toSharedConversation(
   };
 }
 
-
-function toSharedInboxConversation(
-  conversation: ChatApiInboxConversation,
-): ChatConversation {
-  const {
-    firstName,
-    lastName,
-  } = splitIdentityDisplayName(
-    conversation.other_display_name,
-  );
-
-  const otherParticipant: ChatParticipant | null = (
-    conversation.conversation_type === 'direct'
-    && conversation.other_identity_id
-      ? {
-          id: conversation.other_identity_id,
-          conversation_id: conversation.conversation_id,
-          user_id: (
-            conversation.other_profile_id
-            || conversation.other_identity_id
-          ),
-          role: 'member',
-          joined_at: '',
-          left_at: null,
-          user: {
-            id: (
-              conversation.other_profile_id
-              || conversation.other_identity_id
-            ),
-            first_name: firstName,
-            last_name: lastName,
-            avatar_url: null,
-            is_verified: false,
-            is_online: false,
-          },
-        }
-      : null
-  );
-
-  const lastMessage: ChatMessage | null = (
-    conversation.last_message_id
-      ? {
-          id: conversation.last_message_id,
-          conversation_id: conversation.conversation_id,
-          sender_id: conversation.last_message_sender_identity_id,
-          message_type: (
-            conversation.last_message_type === 'image'
-            || conversation.last_message_type === 'audio'
-              ? conversation.last_message_type
-              : conversation.last_message_type === 'document'
-              || conversation.last_message_type === 'video'
-                ? 'file'
-                : 'text'
-          ),
-          content: conversation.last_message_preview || '',
-          status: 'sent',
-          created_at: conversation.last_message_at || '',
-          attachments: [],
-          sender: null,
-          is_pinned: false,
-          is_sent_by_ai: false,
-        }
-      : null
-  );
-
-  return {
-    id: conversation.conversation_id,
-    conversation_type: conversation.conversation_type,
-    name: (
-      conversation.conversation_type === 'group'
-        ? conversation.group_name
-        : null
-    ),
-    description: (
-      conversation.conversation_type === 'group'
-        ? conversation.group_description
-        : null
-    ),
-    avatar_url: null,
-    created_by_id: null,
-    created_at: conversation.last_message_at || '',
-    updated_at: conversation.last_message_at || '',
-    last_message_at: conversation.last_message_at,
-    last_message: lastMessage,
-    participants: otherParticipant
-      ? [otherParticipant]
-      : [],
-    unread_count: conversation.unread_count || 0,
-    is_pinned: false,
-    is_muted: !conversation.notifications_enabled,
-    is_archived: false,
-    is_protected: false,
-    is_ai: false,
-    direct_profile: otherParticipant?.user || null,
-  };
-}
-
 export function bootstrapChat(
   auth: AuthCredentials,
 ): Promise<ChatBootstrapResponse> {
@@ -526,7 +405,7 @@ export async function getChatInbox(
   return {
     ...response,
     conversations: response.conversations.map(
-      toSharedInboxConversation,
+      toSharedConversation,
     ),
   };
 }
