@@ -38,13 +38,22 @@ def get_supabase_admin_client() -> Client:
     )
 
 
-def get_supabase_user_client(*, access_token: str) -> Client:
+def get_supabase_user_client(
+    *,
+    access_token: str,
+) -> Client:
+    if not isinstance(access_token, str) or not access_token.strip():
+        raise ValueError(
+            "A valid access token is required."
+        )
+
     client = create_client(
         _get_required_env("SUPABASE_URL"),
         _get_required_env("SUPABASE_PUBLISHABLE_KEY"),
     )
 
-    client.postgrest.auth(access_token)
-    client.storage.set_auth(access_token)
+    token = access_token.strip()
+
+    client.postgrest.auth(token)
 
     return client

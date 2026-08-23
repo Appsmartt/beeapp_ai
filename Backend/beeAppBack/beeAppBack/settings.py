@@ -45,6 +45,7 @@ INSTALLED_APPS = [
     "django.contrib.messages",
     "django.contrib.staticfiles",
     "rest_framework",
+    "apps.chat",
     "corsheaders",
     "apps.accounts.apps.AccountsConfig",
     "apps.storage.apps.StorageConfig",
@@ -206,3 +207,13 @@ INTEGRATION_MOBILE_FAILURE_REDIRECT = get_required_env(
 INTEGRATION_WEB_RESULT_REDIRECT = get_required_env(
     "INTEGRATION_WEB_RESULT_REDIRECT"
 )
+
+REST_FRAMEWORK = {
+    "DEFAULT_THROTTLE_RATES": {
+        "chat_user": "120/min",
+        "chat_message_send": "30/min",
+        "chat_attachment_upload": "10/min",
+        "chat_reaction": "60/min",
+        "chat_group_mutation": "20/min",
+    },
+}
