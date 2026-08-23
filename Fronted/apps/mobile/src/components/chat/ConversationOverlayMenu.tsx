@@ -1,7 +1,9 @@
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { colors } from '@beeapp/design-system';
 import { BellOff, Trash2, Reply, Pencil, X } from 'lucide-react-native';
-import { ChatMessage } from '../../mocks/chats';
+import type {
+  ChatMessageModel,
+} from '../../services/chatService';
 
 interface MenuProps {
   visible: boolean;
@@ -36,10 +38,16 @@ export function ConversationOverlayMenu({ visible, onClose, onViewInfo, onMute, 
 }
 
 interface PreviewsProps {
-  replyTarget: ChatMessage | null;
+  replyTarget: Pick<
+    ChatMessageModel,
+    'isUser' | 'senderName' | 'text'
+  > | null;
   chatName: string;
   onCancelReply: () => void;
-  editingMessage: ChatMessage | null;
+  editingMessage: Pick<
+    ChatMessageModel,
+    'text'
+  > | null;
   onCancelEdit: () => void;
   toastText: string | null;
 }

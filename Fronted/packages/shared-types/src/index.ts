@@ -2084,3 +2084,224 @@ export interface MailSyncResponse {
   results: MailSyncIntegrationResult[];
   failures: MailSyncFailure[];
 }
+/* ============================================================
+ * Chat
+ * ============================================================ */
+
+export type ChatConversationType =
+  | 'direct'
+  | 'group'
+  | 'ai';
+
+export type ChatMessageType =
+  | 'text'
+  | 'image'
+  | 'file'
+  | 'audio'
+  | 'system';
+
+export type ChatMessageStatus =
+  | 'sent'
+  | 'delivered'
+  | 'read'
+  | 'failed';
+
+export interface ChatProfileSummary {
+  id: string;
+  first_name: string;
+  last_name: string;
+  email?: string | null;
+  occupation?: string | null;
+  location?: string | null;
+  avatar_url?: string | null;
+  is_verified?: boolean;
+  is_online?: boolean;
+  last_seen_at?: string | null;
+}
+
+export interface ChatParticipant {
+  id: string;
+  conversation_id: string;
+  user_id: string;
+  role: 'owner' | 'admin' | 'member';
+  joined_at: string;
+  left_at?: string | null;
+  muted_until?: string | null;
+  user?: ChatProfileSummary | null;
+}
+
+export interface ChatAttachment {
+  id: string;
+  message_id?: string;
+  file_id?: string | null;
+  name: string;
+  mime_type?: string | null;
+  size_bytes?: number | null;
+  url?: string | null;
+  thumbnail_url?: string | null;
+  duration_seconds?: number | null;
+}
+
+export interface ChatReplyPreview {
+  id: string;
+  sender_name: string;
+  content: string;
+  message_type: ChatMessageType;
+}
+
+export interface ChatMessage {
+  id: string;
+  conversation_id: string;
+  sender_id: string | null;
+  message_type: ChatMessageType;
+  content: string;
+  status: ChatMessageStatus;
+  created_at: string;
+  updated_at?: string;
+  edited_at?: string | null;
+  deleted_at?: string | null;
+  destroyed_at?: string | null;
+  reply_to_id?: string | null;
+  reply_to?: ChatReplyPreview | null;
+  attachments?: ChatAttachment[];
+  sender?: ChatProfileSummary | null;
+  is_pinned?: boolean;
+  pinned_at?: string | null;
+  is_sent_by_ai?: boolean;
+}
+
+export interface ChatConversation {
+  id: string;
+  conversation_type: ChatConversationType;
+  name: string | null;
+  description?: string | null;
+  avatar_url?: string | null;
+  created_by_id?: string | null;
+  created_at: string;
+  updated_at: string;
+  last_message_at?: string | null;
+  last_message?: ChatMessage | null;
+  participants?: ChatParticipant[];
+  unread_count: number;
+  is_pinned?: boolean;
+  is_muted?: boolean;
+  is_archived?: boolean;
+  is_protected?: boolean;
+  is_ai?: boolean;
+  direct_profile?: ChatProfileSummary | null;
+}
+
+export interface ChatConversationsQuery {
+  archived?: boolean;
+  search?: string;
+  limit?: number;
+  offset?: number;
+}
+
+export interface ChatMessagesQuery {
+  limit?: number;
+  offset?: number;
+  before?: string;
+}
+
+export interface SearchChatUsersQuery {
+  q: string;
+  limit?: number;
+}
+
+export interface CreateDirectConversationPayload {
+  user_id: string;
+}
+
+export interface CreateGroupConversationPayload {
+  name: string;
+  description?: string | null;
+  participant_ids: string[];
+}
+
+export interface UpdateChatConversationPayload {
+  name?: string;
+  description?: string | null;
+  is_muted?: boolean;
+  is_archived?: boolean;
+  is_pinned?: boolean;
+}
+
+export interface SendChatMessagePayload {
+  content: string;
+  message_type?: ChatMessageType;
+  reply_to_id?: string | null;
+  file_ids?: string[];
+}
+
+export interface UpdateChatMessagePayload {
+  content: string;
+}
+
+export interface AddChatParticipantsPayload {
+  user_ids: string[];
+}
+
+export interface ChatSearchUser {
+  id: string;
+  first_name: string;
+  last_name: string;
+  email: string | null;
+  occupation?: string | null;
+  location?: string | null;
+  avatar_url?: string | null;
+  is_verified?: boolean;
+  is_online?: boolean;
+}
+
+export interface GetChatConversationsResponse {
+  conversations: ChatConversation[];
+  count: number;
+  limit: number;
+  offset: number;
+}
+
+export interface GetChatConversationResponse {
+  conversation: ChatConversation;
+}
+
+export interface CreateChatConversationResponse {
+  conversation: ChatConversation;
+}
+
+export interface UpdateChatConversationResponse {
+  conversation: ChatConversation;
+}
+
+export interface GetChatMessagesResponse {
+  messages: ChatMessage[];
+  count: number;
+  limit: number;
+  offset: number;
+  has_more?: boolean;
+  next_offset?: number | null;
+}
+
+export interface GetChatMessageResponse {
+  message: ChatMessage;
+}
+
+export interface SendChatMessageResponse {
+  message: ChatMessage;
+}
+
+export interface UpdateChatMessageResponse {
+  message: ChatMessage;
+}
+
+export interface GetChatParticipantsResponse {
+  participants: ChatParticipant[];
+}
+
+export interface AddChatParticipantsResponse {
+  participants: ChatParticipant[];
+}
+
+export interface SearchChatUsersResponse {
+  users: ChatSearchUser[];
+}

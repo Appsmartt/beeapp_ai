@@ -1,204 +1,715 @@
-import { useEffect, useRef, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, Alert } from 'react-native';
-import ScreenSafeArea from '../../../src/components/layout/ScreenSafeArea';
-import { useModuleNav, useScreenParams } from '../../../src/components/embedded/EmbeddedNavContext';
+import {
+  useEffect,
+  useRef,
+  useState,
+} from 'react';
+import {
+  ActivityIndicator,
+  Alert,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 import { colors } from '@beeapp/design-system';
+
+import ScreenSafeArea from '../../../src/components/layout/ScreenSafeArea';
+import {
+  useModuleNav,
+  useScreenParams,
+} from '../../../src/components/embedded/EmbeddedNavContext';
+
 import MessageBubble from '../../../src/components/chat/MessageBubble';
 import WriteBar from '../../../src/components/chat/WriteBar';
 import AiAutoReplyBanner from '../../../src/components/chat/AiAutoReplyBanner';
 import PinnedMessageBanner from '../../../src/components/chat/PinnedMessageBanner';
 import ForwardMessageModal from '../../../src/components/chat/ForwardMessageModal';
-import ChatMessageMenuModal, { ChatMessageAction } from '../../../src/components/chat/ChatMessageMenuModal';
+import ChatMessageMenuModal, {
+  type ChatMessageAction,
+} from '../../../src/components/chat/ChatMessageMenuModal';
 import AiCatalogModal from '../../../src/components/chat/AiCatalogModal';
 import ConversationHeader from '../../../src/components/chat/ConversationHeader';
-import { ConversationOverlayMenu, ConversationPreviews } from '../../../src/components/chat/ConversationOverlayMenu';
 import {
-  AI_CHAT_ID,
-  AI_CONVERSATION_MESSAGES,
-  ChatMessage,
-  MOCK_CONVERSATION_MESSAGES,
-  SELLER_CONVERSATION_MESSAGES,
-  MOCK_CHATS,
-} from '../../../src/mocks/chats';
+  ConversationOverlayMenu,
+  ConversationPreviews,
+} from '../../../src/components/chat/ConversationOverlayMenu';
+
+import {
+  useChatMessages,
+} from '../../../src/hooks/useChat';
+
+import type {
+  ChatMessageModel,
+} from '../../../src/services/chatService';
 
 export default function ConversationScreen() {
   const router = useModuleNav();
   const params = useScreenParams();
-  const chatId = params.id as string;
-  const chatName = (params.name as string) || 'Conversación';
-  const isGroup = params.isGroup === 'true';
-  const online = params.online === 'true';
-  const initialMessage = params.initialMessage as string | undefined;
 
-  const targetChat = MOCK_CHATS.find((c) => c.id === chatId);
-  const isVerified = !!targetChat?.verified;
-  const isAI = chatId === AI_CHAT_ID;
-  const groupMemberCount = targetChat?.members?.length ?? 0;
-  const isSellerChat = !!targetChat?.isSellerChat;
+  const chatId = String(params.id || '').trim();
+  const fallbackChatName = (
+    String(params.name || '').trim()
+    || 'Conversación'
+  );
 
-  const [aiAutoReply, setAiAutoReply] = useState(false);
-  const [menuOpen, setMenuOpen] = useState(false);
-  const [catalogVisible, setCatalogVisible] = useState(false);
+  const isGroupFromRoute = params.isGroup === 'true';
+  const isAiFromRoute = params.isAi === 'true';
+  const onlineFromRoute = params.online === 'true';
 
-  const [messages, setMessages] = useState<ChatMessage[]>(() => {
-    if (isAI) return AI_CONVERSATION_MESSAGES;
-    if (isSellerChat) return SELLER_CONVERSATION_MESSAGES;
-    return MOCK_CONVERSATION_MESSAGES;
+  const {
+    messages,
+    participants,
+    conversation,
+    loading,
+    refreshing,
+    sending,
+    error,
+    loadMessages,
+    sendMessage,
+    editMessage,
+    deleteMessage,
+    togglePinnedMessage,
+  } = useChatMessages({
+    conversationId: chatId || null,
+    conversationIsAi: isAiFromRoute,
   });
 
-  const [selectedMessage, setSelectedMessage] = useState<ChatMessage | null>(null);
-  const [replyTarget, setReplyTarget] = useState<ChatMessage | null>(null);
-  const [editingMessage, setEditingMessage] = useState<ChatMessage | null>(null);
-  const [editingText, setEditingText] = useState('');
-  const [forwardModalOpen, setForwardModalOpen] = useState(false);
-  const [toastText, setToastText] = useState<string | null>(null);
+  const [aiAutoReply, setAiAutoReply] =
+    useState(false);
+
+  const [menuOpen, setMenuOpen] =
+    useState(false);
+
+  const [catalogVisible, setCatalogVisible] =
+    useState(false);
+
+  const [selectedMessage, setSelectedMessage] =
+    useState<ChatMessageModel | null>(null);
+
+  const [replyTarget, setReplyTarget] =
+    useState<ChatMessageModel | null>(null);
+
+  const [editingMessage, setEditingMessage] =
+    useState<ChatMessageModel | null>(null);
+
+  const [editingText, setEditingText] =
+    useState('');
+
+  const [forwardModalOpen, setForwardModalOpen] =
+    useState(false);
+
+  const [toastText, setToastText] =
+    useState<string | null>(null);
 
   const scrollRef = useRef<ScrollView | null>(null);
-  const pinnedMessage = messages.find((m) => m.isPinned);
+
+  const chatName = (
+    conversation?.name?.trim()
+    || fallbackChatName
+  );
+
+  const isGroup = (
+    conversation?.conversation_type === 'group'
+    || isGroupFromRoute
+  );
+
+  const isAI = (
+    conversation?.conversation_type === 'ai'
+    || Boolean(conversation?.is_ai)
+    || isAiFromRoute
+  );
+
+  const online = (
+    conversation?.direct_profile?.is_online
+    ?? onlineFromRoute
+  );
+
+  const isVerified = Boolean(
+    conversation?.direct_profile?.is_verified,
+  );
+
+  /*
+   * El contrato actual del backend no expone metadata de conversación.
+   * Por eso el banner de respuesta automática queda oculto hasta que
+   * exista una señal explícita para los chats de vendedor.
+   */
+  const isSellerChat = false;
+
+  const pinnedMessage = messages.find(
+    (message) => message.isPinned,
+  );
 
   const scrollToBottom = () => {
-    setTimeout(() => { scrollRef.current?.scrollToEnd({ animated: true }); }, 100);
-  };
-
-  const handleSendMessage = (text: string) => {
-    if (editingMessage) {
-      setMessages((prev) => prev.map((m) => (m.id === editingMessage.id ? { ...m, text, isEdited: true } : m)));
-      setEditingMessage(null);
-      setEditingText('');
-      return;
-    }
-    const newMsg: ChatMessage = {
-      id: Date.now(),
-      isUser: true,
-      type: 'text',
-      text,
-      time: '14:35',
-      status: 'sent',
-      replyTo: replyTarget ? { sender: replyTarget.isUser ? 'Tú' : replyTarget.senderName || chatName, text: replyTarget.text || 'Mensaje' } : undefined,
-    };
-    setMessages((prev) => [...prev, newMsg]);
-    setReplyTarget(null);
-    scrollToBottom();
-
-    if (!isAI) {
-      setTimeout(() => {
-        const replyMsg: ChatMessage = {
-          id: Date.now() + 1,
-          senderName: isGroup ? 'Desarrollador 🐝' : chatName,
-          isUser: false,
-          type: 'text',
-          text: '¡Recibido! Esto es una simulación de conversación de BeeApp AI.',
-          time: '14:36',
-          status: 'read',
-        };
-        setMessages((prev) => [...prev, replyMsg]);
-        scrollToBottom();
-      }, 1000);
-    }
+    setTimeout(() => {
+      scrollRef.current?.scrollToEnd({
+        animated: true,
+      });
+    }, 100);
   };
 
   useEffect(() => {
-    if (initialMessage) handleSendMessage(initialMessage);
-  }, [initialMessage]);
-
-  const handleSendVoiceNote = (duration: string) => {
-    setMessages((prev) => [...prev, { id: Date.now(), isUser: true, type: 'audio', audioDuration: duration, time: '14:36', status: 'sent' }]);
-    scrollToBottom();
-  };
-
-  const handleSendAttachment = (type: 'photo' | 'camera' | 'file' | 'location' | 'contact') => {
-    let mockMsg: ChatMessage;
-    const timeNow = '14:37';
-    if (type === 'photo' || type === 'camera') {
-      mockMsg = { id: Date.now(), isUser: true, type: 'image', mediaUrl: 'https://picsum.photos/400/300', text: `Foto (${type})`, time: timeNow, status: 'sent' };
-    } else if (type === 'file') {
-      mockMsg = { id: Date.now(), isUser: true, type: 'file', fileName: 'Reporte_Avances.xlsx', fileSize: '340 KB', time: timeNow, status: 'sent' };
-    } else {
-      mockMsg = { id: Date.now(), isUser: true, type: 'text', text: `📍 Ubicación/Contacto (${type})`, time: timeNow, status: 'sent' };
+    if (messages.length > 0) {
+      scrollToBottom();
     }
-    setMessages((prev) => [...prev, mockMsg]);
-    scrollToBottom();
+  }, [messages.length]);
+
+  useEffect(() => {
+    const initialMessage = String(
+      params.initialMessage || '',
+    ).trim();
+
+    if (!initialMessage || !chatId) {
+      return;
+    }
+
+    void sendMessage({
+      content: initialMessage,
+    })
+      .then(() => {
+        scrollToBottom();
+      })
+      .catch(() => {
+        // El hook expone el error para renderizarlo en pantalla.
+      });
+  }, [
+    chatId,
+    params.initialMessage,
+    sendMessage,
+  ]);
+
+  const showToast = (
+    text: string,
+  ) => {
+    setToastText(text);
+
+    setTimeout(() => {
+      setToastText(null);
+    }, 2200);
   };
 
-  const handleSelectMessageAction = (action: ChatMessageAction) => {
-    if (!selectedMessage) return;
+  const handleSendMessage = async (
+    text: string,
+  ) => {
+    try {
+      if (editingMessage) {
+        await editMessage(
+          editingMessage.id,
+          text,
+        );
+
+        setEditingMessage(null);
+        setEditingText('');
+        showToast('Mensaje editado');
+        return;
+      }
+
+      await sendMessage({
+        content: text,
+        replyToId: replyTarget?.id || null,
+      });
+
+      setReplyTarget(null);
+      scrollToBottom();
+    } catch (sendError) {
+      Alert.alert(
+        'No fue posible enviar el mensaje',
+        sendError instanceof Error
+          ? sendError.message
+          : 'Inténtalo nuevamente.',
+      );
+    }
+  };
+
+  const handleSendVoiceNote = (
+    duration: string,
+  ) => {
+    Alert.alert(
+      'Nota de voz',
+      (
+        `Grabaste una nota de voz de ${duration}. `
+        + 'La carga de audio se conectará cuando el backend '
+        + 'exponga el endpoint de adjuntos de Chat.'
+      ),
+    );
+  };
+
+  const handleSendAttachment = (
+    type: 'photo' | 'camera' | 'file' | 'location' | 'contact',
+  ) => {
+    const labels = {
+      photo: 'Foto',
+      camera: 'Cámara',
+      file: 'Archivo',
+      location: 'Ubicación',
+      contact: 'Contacto',
+    };
+
+    Alert.alert(
+      labels[type],
+      (
+        'Esta acción necesita el endpoint de adjuntos o '
+        + 'compartidos de Chat en el backend.'
+      ),
+    );
+  };
+
+  const handleSelectMessageAction = (
+    action: ChatMessageAction,
+  ) => {
+    if (!selectedMessage) {
+      return;
+    }
+
     const target = selectedMessage;
     setSelectedMessage(null);
-    if (action === 'reply') { setEditingMessage(null); setReplyTarget(target); }
-    else if (action === 'edit') { setReplyTarget(null); setEditingMessage(target); setEditingText(target.text || ''); }
-    else if (action === 'forward') { setForwardModalOpen(true); }
-    else if (action === 'pin') { setMessages((prev) => prev.map((m) => ({ ...m, isPinned: m.id === target.id ? !target.isPinned : false }))); }
-    else if (action === 'copy') { setToastText('Texto copiado'); setTimeout(() => setToastText(null), 2000); }
-    else if (action === 'delete') {
-      Alert.alert('Eliminar mensaje', '¿Eliminar este mensaje para ti?', [
-        { text: 'Cancelar', style: 'cancel' },
-        { text: 'Eliminar', style: 'destructive', onPress: () => setMessages((prev) => prev.filter((m) => m.id !== target.id)) },
-      ]);
-    } else if (action === 'destroy') {
-      Alert.alert('Destruir mensaje', '¿Destruir este mensaje para todos?', [
-        { text: 'Cancelar', style: 'cancel' },
-        { text: 'Destruir', style: 'destructive', onPress: () => setMessages((prev) => prev.map((m) => m.id === target.id ? { ...m, isDestroyed: true, text: 'Este mensaje fue destruido' } : m)) },
-      ]);
+
+    if (action === 'reply') {
+      setEditingMessage(null);
+      setEditingText('');
+      setReplyTarget(target);
+      return;
+    }
+
+    if (action === 'edit') {
+      if (!target.isUser) {
+        return;
+      }
+
+      setReplyTarget(null);
+      setEditingMessage(target);
+      setEditingText(target.text || '');
+      return;
+    }
+
+    if (action === 'forward') {
+      setForwardModalOpen(true);
+      return;
+    }
+
+    if (action === 'copy') {
+      showToast(
+        'Copia de texto disponible próximamente.',
+      );
+      return;
+    }
+
+    if (action === 'pin') {
+      void togglePinnedMessage(
+        target.id,
+        target.isPinned,
+      )
+        .then(() => {
+          showToast(
+            target.isPinned
+              ? 'Mensaje desfijado'
+              : 'Mensaje fijado',
+          );
+        })
+        .catch((pinError) => {
+          Alert.alert(
+            'No fue posible actualizar el mensaje',
+            pinError instanceof Error
+              ? pinError.message
+              : 'Inténtalo nuevamente.',
+          );
+        });
+
+      return;
+    }
+
+    if (action === 'delete') {
+      Alert.alert(
+        'Eliminar mensaje',
+        '¿Eliminar este mensaje para ti?',
+        [
+          {
+            text: 'Cancelar',
+            style: 'cancel',
+          },
+          {
+            text: 'Eliminar',
+            style: 'destructive',
+            onPress: () => {
+              void deleteMessage(target.id)
+                .then(() => {
+                  showToast('Mensaje eliminado');
+                })
+                .catch((deleteError) => {
+                  Alert.alert(
+                    'No fue posible eliminar el mensaje',
+                    deleteError instanceof Error
+                      ? deleteError.message
+                      : 'Inténtalo nuevamente.',
+                  );
+                });
+            },
+          },
+        ],
+      );
+
+      return;
+    }
+
+    if (action === 'destroy') {
+      Alert.alert(
+        'Destruir mensaje',
+        (
+          'Tu backend actual no expone una acción separada '
+          + 'para destruir mensajes para todos.'
+        ),
+      );
     }
   };
+
+  const handleUnpinBanner = () => {
+    if (!pinnedMessage) {
+      return;
+    }
+
+    void togglePinnedMessage(
+      pinnedMessage.id,
+      true,
+    )
+      .catch((pinError) => {
+        Alert.alert(
+          'No fue posible desfijar el mensaje',
+          pinError instanceof Error
+            ? pinError.message
+            : 'Inténtalo nuevamente.',
+        );
+      });
+  };
+
+  const handleClearChat = () => {
+    Alert.alert(
+      'Vaciar chat',
+      (
+        'Tu backend actual no expone una acción para '
+        + 'vaciar todos los mensajes de una conversación.'
+      ),
+    );
+  };
+
+  const handleDeleteChat = () => {
+    Alert.alert(
+      'Eliminar chat',
+      (
+        'Puedes eliminar el chat desde el menú de la lista '
+        + 'principal de Chats.'
+      ),
+      [
+        {
+          text: 'Aceptar',
+          onPress: () => router.back(),
+        },
+      ],
+    );
+  };
+
+  if (!chatId) {
+    return (
+      <ScreenSafeArea style={styles.safeArea}>
+        <View style={styles.centerState}>
+          <Text style={styles.errorText}>
+            No fue posible identificar la conversación.
+          </Text>
+        </View>
+      </ScreenSafeArea>
+    );
+  }
 
   return (
     <ScreenSafeArea style={styles.safeArea}>
       <View style={styles.container}>
         <ConversationHeader
-          chatName={chatName} isAI={isAI} isGroup={isGroup} isVerified={isVerified} online={online} groupMemberCount={groupMemberCount} menuOpen={menuOpen}
-          onBack={() => router.back()} onOpenProfile={() => router.push({ pathname: '/(main)/chat/chat-profile', params: { id: chatId } })}
-          onOpenAiSettings={() => router.push('/(main)/chat/ai-settings')}
-          onCall={(video) => router.push({ pathname: '/(main)/chat/call', params: { id: chatId, name: chatName, isVideo: video ? 'true' : 'false', isGroup: isGroup ? 'true' : 'false' } })}
-          onToggleMenu={() => setMenuOpen(!menuOpen)}
+          chatName={chatName}
+          isAI={isAI}
+          isGroup={isGroup}
+          isVerified={isVerified}
+          online={online}
+          groupMemberCount={
+            participants.length
+            || conversation?.participants?.length
+            || 0
+          }
+          menuOpen={menuOpen}
+          onBack={() => router.back()}
+          onOpenProfile={() => {
+            router.push({
+              pathname: '/(main)/chat/chat-profile',
+              params: {
+                id: chatId,
+              },
+            });
+          }}
+          onOpenAiSettings={() => {
+            router.push(
+              '/(main)/chat/ai-settings',
+            );
+          }}
+          onCall={(video) => {
+            router.push({
+              pathname: '/(main)/chat/call',
+              params: {
+                id: chatId,
+                name: chatName,
+                isVideo: video ? 'true' : 'false',
+                isGroup: isGroup ? 'true' : 'false',
+              },
+            });
+          }}
+          onToggleMenu={() => {
+            setMenuOpen((current) => !current);
+          }}
         />
 
-        {pinnedMessage && (
-          <PinnedMessageBanner text={pinnedMessage.text || 'Mensaje fijado'} onUnpin={() => setMessages((prev) => prev.map((m) => ({ ...m, isPinned: false })))} />
-        )}
+        {pinnedMessage ? (
+          <PinnedMessageBanner
+            text={pinnedMessage.text || 'Mensaje fijado'}
+            onUnpin={handleUnpinBanner}
+          />
+        ) : null}
 
         <ConversationOverlayMenu
-          visible={menuOpen} onClose={() => setMenuOpen(false)}
-          onViewInfo={() => alert('Perfil/Info del grupo (Mock)')} onMute={() => alert('Conversación silenciada')}
-          onClear={() => setMessages([])} onDelete={() => router.back()}
+          visible={menuOpen}
+          onClose={() => {
+            setMenuOpen(false);
+          }}
+          onViewInfo={() => {
+            if (!isAI) {
+              router.push({
+                pathname: '/(main)/chat/chat-profile',
+                params: {
+                  id: chatId,
+                },
+              });
+            }
+          }}
+          onMute={() => {
+            showToast(
+              'La opción de silenciar está disponible desde la lista de chats.',
+            );
+          }}
+          onClear={handleClearChat}
+          onDelete={handleDeleteChat}
         />
 
-        {isSellerChat && <AiAutoReplyBanner enabled={aiAutoReply} onChange={setAiAutoReply} />}
+        {isSellerChat ? (
+          <AiAutoReplyBanner
+            enabled={aiAutoReply}
+            onChange={setAiAutoReply}
+          />
+        ) : null}
 
-        <ScrollView ref={scrollRef} style={styles.chatScroll} contentContainerStyle={styles.chatScrollContent} onContentSizeChange={scrollToBottom} showsVerticalScrollIndicator={false}>
-          <View style={styles.dateSeparator}><Text style={styles.dateSeparatorText}>HOY</Text></View>
-          {messages.map((msg) => (
-            <MessageBubble
-              key={msg.id} senderName={msg.senderName} senderVerified={msg.senderVerified} isUser={msg.isUser} isAI={isAI} sentByAi={msg.sentByAi} type={msg.type} text={msg.text} mediaUrl={msg.mediaUrl} fileName={msg.fileName} fileSize={msg.fileSize} audioDuration={msg.audioDuration} status={msg.status} time={msg.time} replyTo={msg.replyTo} showCatalog={msg.showCatalog} isEdited={msg.isEdited} isDestroyed={msg.isDestroyed} isPinned={msg.isPinned}
-              onLongPress={() => setSelectedMessage(msg)}
-              onContactCatalogItem={(item) => handleSendMessage(`Hola ${item.sellerName}, estoy interesado en: ${item.productName}`)}
+        {loading && messages.length === 0 ? (
+          <View style={styles.centerState}>
+            <ActivityIndicator
+              size="large"
+              color={colors.brand.primary}
             />
-          ))}
-        </ScrollView>
+
+            <Text style={styles.loadingText}>
+              Cargando mensajes...
+            </Text>
+          </View>
+        ) : (
+          <ScrollView
+            ref={scrollRef}
+            style={styles.chatScroll}
+            contentContainerStyle={
+              styles.chatScrollContent
+            }
+            onContentSizeChange={scrollToBottom}
+            showsVerticalScrollIndicator={false}
+            refreshControl={
+              <RefreshControl
+                refreshing={refreshing}
+                onRefresh={() => {
+                  void loadMessages({
+                    refresh: true,
+                  }).catch(() => {
+                    // El hook conserva el error.
+                  });
+                }}
+                tintColor={colors.brand.primary}
+              />
+            }
+          >
+            <View style={styles.dateSeparator}>
+              <Text style={styles.dateSeparatorText}>
+                HOY
+              </Text>
+            </View>
+
+            {error ? (
+              <View style={styles.errorBox}>
+                <Text style={styles.errorText}>
+                  {error}
+                </Text>
+
+                <Text
+                  style={styles.retryText}
+                  onPress={() => {
+                    void loadMessages({
+                      refresh: true,
+                    }).catch(() => {
+                      // El hook actualiza error.
+                    });
+                  }}
+                >
+                  Reintentar
+                </Text>
+              </View>
+            ) : null}
+
+            {refreshing ? (
+              <ActivityIndicator
+                size="small"
+                color={colors.brand.primary}
+                style={styles.refreshingIndicator}
+              />
+            ) : null}
+
+            {messages.map((message) => (
+              <MessageBubble
+                key={message.id}
+                senderName={message.senderName}
+                senderVerified={message.senderVerified}
+                isUser={message.isUser}
+                isAI={message.isAI}
+                sentByAi={message.sentByAi}
+                type={message.type}
+                text={message.text}
+                mediaUrl={message.mediaUrl}
+                fileName={message.fileName}
+                fileSize={message.fileSize}
+                audioDuration={message.audioDuration}
+                status={message.status}
+                time={message.time}
+                replyTo={
+                  message.replyTo
+                    ? {
+                        sender: message.replyTo.sender,
+                        text: message.replyTo.text,
+                      }
+                    : undefined
+                }
+                isEdited={message.isEdited}
+                isDestroyed={message.isDestroyed}
+                isPinned={message.isPinned}
+                onLongPress={() => {
+                  setSelectedMessage(message);
+                }}
+                onContactCatalogItem={(item) => {
+                  void handleSendMessage(
+                    (
+                      `Hola ${item.sellerName}, `
+                      + `estoy interesado en: ${item.productName}`
+                    ),
+                  );
+                }}
+              />
+            ))}
+
+            {messages.length === 0 && !error ? (
+              <View style={styles.emptyState}>
+                <Text style={styles.emptyText}>
+                  Aún no hay mensajes. Escribe el primero.
+                </Text>
+              </View>
+            ) : null}
+          </ScrollView>
+        )}
 
         <ConversationPreviews
-          replyTarget={replyTarget} chatName={chatName} onCancelReply={() => setReplyTarget(null)}
-          editingMessage={editingMessage} onCancelEdit={() => { setEditingMessage(null); setEditingText(''); }} toastText={toastText}
+          replyTarget={
+            replyTarget
+              ? {
+                  isUser: replyTarget.isUser,
+                  senderName: replyTarget.senderName,
+                  text: replyTarget.text,
+                }
+              : null
+          }
+          chatName={chatName}
+          onCancelReply={() => {
+            setReplyTarget(null);
+          }}
+          editingMessage={
+            editingMessage
+              ? {
+                  text: editingMessage.text,
+                }
+              : null
+          }
+          onCancelEdit={() => {
+            setEditingMessage(null);
+            setEditingText('');
+          }}
+          toastText={toastText}
         />
 
         <WriteBar
-          onSendMessage={handleSendMessage} onSendVoiceNote={handleSendVoiceNote} onSendAttachment={handleSendAttachment}
-          value={editingMessage ? editingText : undefined} onChangeText={editingMessage ? setEditingText : undefined}
+          onSendMessage={(text) => {
+            void handleSendMessage(text);
+          }}
+          onSendVoiceNote={handleSendVoiceNote}
+          onSendAttachment={handleSendAttachment}
+          value={
+            editingMessage
+              ? editingText
+              : undefined
+          }
+          onChangeText={
+            editingMessage
+              ? setEditingText
+              : undefined
+          }
+          disabled={sending}
         />
 
         <ChatMessageMenuModal
-          visible={selectedMessage !== null} isUser={selectedMessage?.isUser ?? false} isPinned={selectedMessage?.isPinned} isDestroyed={selectedMessage?.isDestroyed}
-          onClose={() => setSelectedMessage(null)} onSelectAction={handleSelectMessageAction}
+          visible={selectedMessage !== null}
+          isUser={selectedMessage?.isUser ?? false}
+          isPinned={selectedMessage?.isPinned}
+          isDestroyed={selectedMessage?.isDestroyed}
+          onClose={() => {
+            setSelectedMessage(null);
+          }}
+          onSelectAction={handleSelectMessageAction}
         />
 
         <ForwardMessageModal
-          visible={forwardModalOpen} onClose={() => setForwardModalOpen(false)}
-          onSelectChat={(targetChatName) => { setToastText(`Mensaje reenviado a ${targetChatName}`); setTimeout(() => setToastText(null), 2000); }}
+          visible={forwardModalOpen}
+          onClose={() => {
+            setForwardModalOpen(false);
+          }}
+          onSelectChat={(targetChatName) => {
+            showToast(
+              (
+                `Reenvío a ${targetChatName} pendiente: `
+                + 'el backend aún requiere endpoint de reenviar.'
+              ),
+            );
+          }}
         />
 
         <AiCatalogModal
-          visible={catalogVisible} onClose={() => setCatalogVisible(false)}
-          onContact={(item) => { setCatalogVisible(false); handleSendMessage(`Hola ${item.sellerName}, estoy interesado en: ${item.productName}`); }}
+          visible={catalogVisible}
+          onClose={() => {
+            setCatalogVisible(false);
+          }}
+          onContact={(item) => {
+            setCatalogVisible(false);
+
+            void handleSendMessage(
+              (
+                `Hola ${item.sellerName}, `
+                + `estoy interesado en: ${item.productName}`
+              ),
+            );
+          }}
         />
       </View>
     </ScreenSafeArea>
@@ -206,10 +717,79 @@ export default function ConversationScreen() {
 }
 
 const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: colors.neutral.gray50 },
-  container: { flex: 1 },
-  chatScroll: { flex: 1, backgroundColor: colors.neutral.gray50 },
-  chatScrollContent: { paddingHorizontal: 16, paddingVertical: 20 },
-  dateSeparator: { alignItems: 'center', marginVertical: 16 },
-  dateSeparatorText: { fontSize: 10, fontWeight: '600', color: colors.neutral.gray600, backgroundColor: colors.neutral.gray200, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 6, letterSpacing: 0.5 },
+  safeArea: {
+    backgroundColor: colors.neutral.gray50,
+    flex: 1,
+  },
+  container: {
+    flex: 1,
+  },
+  centerState: {
+    alignItems: 'center',
+    flex: 1,
+    gap: 12,
+    justifyContent: 'center',
+    paddingHorizontal: 24,
+  },
+  loadingText: {
+    color: colors.neutral.gray600,
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  chatScroll: {
+    backgroundColor: colors.neutral.gray50,
+    flex: 1,
+  },
+  chatScrollContent: {
+    paddingHorizontal: 16,
+    paddingVertical: 20,
+  },
+  dateSeparator: {
+    alignItems: 'center',
+    marginVertical: 16,
+  },
+  dateSeparatorText: {
+    backgroundColor: colors.neutral.gray200,
+    borderRadius: 6,
+    color: colors.neutral.gray600,
+    fontSize: 10,
+    fontWeight: '600',
+    letterSpacing: 0.5,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+  },
+  errorBox: {
+    alignItems: 'center',
+    backgroundColor: '#FEF2F2',
+    borderColor: '#FECACA',
+    borderRadius: 10,
+    borderWidth: 1,
+    marginBottom: 14,
+    padding: 12,
+  },
+  errorText: {
+    color: colors.semantic.error,
+    fontSize: 12,
+    lineHeight: 17,
+    textAlign: 'center',
+  },
+  retryText: {
+    color: colors.brand.primary,
+    fontSize: 12,
+    fontWeight: '700',
+    marginTop: 7,
+  },
+  refreshingIndicator: {
+    marginBottom: 12,
+  },
+  emptyState: {
+    alignItems: 'center',
+    paddingHorizontal: 24,
+    paddingVertical: 42,
+  },
+  emptyText: {
+    color: colors.neutral.gray600,
+    fontSize: 13,
+    textAlign: 'center',
+  },
 });

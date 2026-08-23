@@ -9,9 +9,17 @@ interface WriteBarProps {
   onSendAttachment: (type: 'photo' | 'camera' | 'file' | 'location' | 'contact') => void;
   value?: string;
   onChangeText?: (text: string) => void;
+  disabled?: boolean;
 }
 
-export default function WriteBar({ onSendMessage, onSendVoiceNote, onSendAttachment, value, onChangeText }: WriteBarProps) {
+export default function WriteBar({
+  onSendMessage,
+  onSendVoiceNote,
+  onSendAttachment,
+  value,
+  onChangeText,
+  disabled = false,
+}: WriteBarProps) {
   const [internalText, setInternalText] = useState('');
   const text = value !== undefined ? value : internalText;
   const setText = onChangeText || setInternalText;
@@ -42,12 +50,13 @@ export default function WriteBar({ onSendMessage, onSendVoiceNote, onSendAttachm
   }, [isRecording]);
 
   const handleSend = () => {
-    if (!text.trim()) return;
+    if (disabled || !text.trim()) return;
     onSendMessage(text);
     setText('');
   };
 
   const handleStartRecord = () => {
+    if (disabled) return;
     setIsRecording(true);
     setAttachOpen(false);
   };
@@ -153,12 +162,21 @@ export default function WriteBar({ onSendMessage, onSendVoiceNote, onSendAttachm
               placeholderTextColor={colors.neutral.gray500}
               value={text}
               onChangeText={setText}
+              editable={!disabled}
               multiline
             />
 
             {/* Dynamic Mic/Send Button */}
             {text.trim() ? (
-              <TouchableOpacity style={styles.sendButton} onPress={handleSend} activeOpacity={0.8}>
+              <TouchableOpacity
+                style={[
+                  styles.sendButton,
+                  disabled && styles.buttonDisabled,
+                ]}
+                onPress={handleSend}
+                activeOpacity={0.8}
+                disabled={disabled}
+              >
                 <Send size={18} color={colors.neutral.white} />
               </TouchableOpacity>
             ) : (
@@ -166,6 +184,7 @@ export default function WriteBar({ onSendMessage, onSendVoiceNote, onSendAttachm
                 style={styles.micButton}
                 onLongPress={handleStartRecord}
                 onPress={() => alert('Mantén presionado para grabar nota de voz')}
+                disabled={disabled}
                 activeOpacity={0.7}
               >
                 <Mic size={20} color={colors.neutral.gray600} />
@@ -243,6 +262,9 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: colors.neutral.text,
     marginRight: 8,
+  },
+  buttonDisabled: {
+    opacity: 0.55,
   },
   sendButton: {
     width: 38,
