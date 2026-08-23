@@ -1,20 +1,29 @@
-import type { ReactElement } from 'react';
+import type {
+  ReactElement,
+} from 'react';
 
 import {
-  View,
-  Text,
-  StyleSheet,
   ScrollView,
+  StyleSheet,
+  Text,
   TouchableOpacity,
+  View,
 } from 'react-native';
-import { Archive } from 'lucide-react-native';
+import {
+  Archive,
+} from 'lucide-react-native';
+import {
+  colors,
+} from '@beeapp/design-system';
+
 import ChatListItem from './ChatListItem';
 import AiChatListItem from './AiChatListItem';
 import type {
   ChatListItemModel,
 } from '../../services/chatService';
-import { isProtected } from '../../stores/pinStore';
-import { colors } from '@beeapp/design-system';
+import {
+  isProtected,
+} from '../../stores/pinStore';
 
 interface ChatListViewProps {
   aiChat?: ChatListItemModel;
@@ -44,27 +53,37 @@ export default function ChatListView({
       showsVerticalScrollIndicator={false}
       refreshControl={refreshControl}
     >
-      {onPressArchived && (
+      {onPressArchived ? (
         <TouchableOpacity
+          key="archived-chats"
           style={styles.archivedRow}
           onPress={onPressArchived}
           activeOpacity={0.7}
         >
           <View style={styles.archivedIcon}>
-            <Archive size={19} color={colors.neutral.gray600} />
+            <Archive
+              size={19}
+              color={colors.neutral.gray600}
+            />
           </View>
 
           <View style={styles.archivedTextContainer}>
-            <Text style={styles.archivedTitle}>Chats archivados</Text>
+            <Text style={styles.archivedTitle}>
+              Chats archivados
+            </Text>
+
             <Text style={styles.archivedSubtitle}>
-              {archivedCount === 1 ? '1 chat archivado' : `${archivedCount} chats archivados`}
+              {archivedCount === 1
+                ? '1 chat archivado'
+                : `${archivedCount} chats archivados`}
             </Text>
           </View>
         </TouchableOpacity>
-      )}
+      ) : null}
 
-      {aiChat && (
+      {aiChat ? (
         <AiChatListItem
+          key={`ai-${aiChat.id}`}
           name={aiChat.name}
           lastMessage={aiChat.lastMessage}
           time={aiChat.time}
@@ -72,11 +91,11 @@ export default function ChatListView({
           onPress={() => onOpenChat(aiChat)}
           onMorePress={() => onOpenMenu(aiChat)}
         />
-      )}
+      ) : null}
 
       {chats.map((chat) => (
         <ChatListItem
-          key={chat.id}
+          key={`conversation-${chat.id}`}
           id={chat.id}
           name={chat.name}
           lastMessage={chat.lastMessage}
@@ -94,7 +113,10 @@ export default function ChatListView({
         />
       ))}
 
-      <View style={styles.bottomGap} />
+      <View
+        key="chat-list-bottom-gap"
+        style={styles.bottomGap}
+      />
     </ScrollView>
   );
 }
@@ -104,34 +126,34 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   archivedRow: {
-    flexDirection: 'row',
     alignItems: 'center',
+    backgroundColor: colors.neutral.white,
+    borderBottomColor: colors.neutral.gray200,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    flexDirection: 'row',
     paddingHorizontal: 20,
     paddingVertical: 14,
-    backgroundColor: colors.neutral.white,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: colors.neutral.gray200,
   },
   archivedIcon: {
-    width: 38,
-    height: 38,
-    borderRadius: 12,
-    backgroundColor: colors.neutral.gray100,
     alignItems: 'center',
+    backgroundColor: colors.neutral.gray100,
+    borderRadius: 12,
+    height: 38,
     justifyContent: 'center',
     marginRight: 12,
+    width: 38,
   },
   archivedTextContainer: {
     flex: 1,
   },
   archivedTitle: {
+    color: colors.neutral.text,
     fontSize: 14,
     fontWeight: '600',
-    color: colors.neutral.text,
   },
   archivedSubtitle: {
-    fontSize: 12,
     color: colors.neutral.gray500,
+    fontSize: 12,
     marginTop: 2,
   },
   bottomGap: {

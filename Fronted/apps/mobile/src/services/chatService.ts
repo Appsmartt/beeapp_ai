@@ -136,6 +136,7 @@ export function formatChatTime(
   }
 
   const yesterday = new Date(now);
+
   yesterday.setDate(now.getDate() - 1);
 
   const isYesterday = (
@@ -235,15 +236,18 @@ function getDirectProfile(
   conversation: ChatConversation,
   currentUserId: string,
 ): ChatProfileSummary | null {
-  if (conversation.direct_profile) {
-    return conversation.direct_profile;
-  }
-
-  const participant = conversation.participants?.find(
-    (item) => item.user_id !== currentUserId,
+  const directParticipant = conversation.participants?.find(
+    (participant) => (
+      participant.user?.id !== currentUserId
+      && participant.user_id !== currentUserId
+    ),
   );
 
-  return participant?.user || null;
+  if (directParticipant?.user) {
+    return directParticipant.user;
+  }
+
+  return conversation.direct_profile || null;
 }
 
 export function mapConversationToListItem(
