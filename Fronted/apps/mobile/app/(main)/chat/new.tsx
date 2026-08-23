@@ -1,273 +1,677 @@
-import { useState } from 'react';
 import {
-  View,
-  Text,
-  StyleSheet,
+  useEffect,
+  useMemo,
+  useState,
+} from 'react';
+import {
+  ActivityIndicator,
+  Alert,
   ScrollView,
-  TouchableOpacity,
+  StyleSheet,
+  Text,
   TextInput,
+  TouchableOpacity,
+  View,
 } from 'react-native';
-import ScreenSafeArea from '../../../src/components/layout/ScreenSafeArea';
-import { useModuleNav, useScreenParams } from '../../../src/components/embedded/EmbeddedNavContext';
+import {
+  ArrowRight,
+  Check,
+  ChevronLeft,
+  Search,
+  Users,
+  X,
+} from 'lucide-react-native';
 import { colors } from '@beeapp/design-system';
-import { ChevronLeft, Search, Users, X, Check, ArrowRight } from 'lucide-react-native';
+
+import ScreenSafeArea from '../../../src/components/layout/ScreenSafeArea';
+import {
+  useModuleNav,
+  useScreenParams,
+} from '../../../src/components/embedded/EmbeddedNavContext';
 import VerifiedBadge from '../../../src/components/VerifiedBadge';
+
+import {
+  useChatConversations,
+} from '../../../src/hooks/useChat';
+
+import type {
+  ChatUserOption,
+} from '../../../src/services/chatService';
 
 export default function NewChatScreen() {
   const router = useModuleNav();
   const params = useScreenParams();
-  const [searchText, setSearchText] = useState('');
-  
-  // Interactive Wizard States
-  // The header menu can open this screen straight in "new group" mode
-  const [isCreatingGroup, setIsCreatingGroup] = useState(params.mode === 'group');
-  const [selectedContacts, setSelectedContacts] = useState<string[]>([]);
-  const [groupStep, setGroupStep] = useState(1); // 1: Selection, 2: Group Info
-  const [groupName, setGroupName] = useState('');
-  const [groupDesc, setGroupDesc] = useState('');
 
-  // Mock Contact list
-  const [contacts, setContacts] = useState([
-    { id: '1', name: 'Carlos Mendoza', status: 'En línea', initials: 'C', verified: true },
-    { id: '2', name: 'Mariana Gómez', status: 'Últ. vez hace 1 hora', initials: 'M', verified: true },
-    { id: '3', name: 'Alejandro Reyes', status: 'En línea', initials: 'A', verified: true },
-    { id: '4', name: 'Laura Restrepo', status: 'En línea', initials: 'L', verified: true },
-    { id: '5', name: 'Felipe Jaramillo', status: 'Últ. vez ayer', initials: 'F', verified: false },
-    { id: '6', name: 'Daniela Ortiz', status: 'Ausente', initials: 'D', verified: false },
-  ]);
+  const {
+    searchUsers,
+    createDirectConversation,
+    createGroupConversation,
+  } = useChatConversations({
+    autoLoad: false,
+  });
 
-  const handleContactPress = (contact: typeof contacts[0]) => {
-    if (isCreatingGroup) {
-      if (selectedContacts.includes(contact.id)) {
-        setSelectedContacts(selectedContacts.filter((id) => id !== contact.id));
-      } else {
-        setSelectedContacts([...selectedContacts, contact.id]);
-      }
-    } else {
-      // Start individual chat immediately
-      router.replace({
-        pathname: '/(main)/chat/conversation',
-        params: {
-          id: contact.id,
-          name: contact.name,
-          isGroup: 'false',
-          online: contact.status === 'En línea' ? 'true' : 'false',
-        },
-      });
-    }
-  };
+  const [searchText, setSearchText] =
+    useState('');
 
-  const handleCreateGroup = () => {
-    if (!groupName.trim()) {
-      alert('Ingresa el nombre del grupo.');
+  const [results, setResults] =
+    useState<ChatUserOption[]>([]);
+
+  const [searching, setSearching] =
+    useState(false);
+
+  const [searchError, setSearchError] =
+    useState<string | null>(null);
+
+  const [submitting, setSubmitting] =
+    useState(false);
+
+  const [isCreatingGroup, setIsCreatingGroup] =
+    useState(params.mode === 'group');
+
+  const [selectedContacts, setSelectedContacts] =
+    useState<ChatUserOption[]>([]);
+
+  const [groupStep, setGroupStep] =
+    useState(1);
+
+  const [groupName, setGroupName] =
+    useState('');
+
+  const [groupDesc, setGroupDesc] =
+    useState('');
+
+  useEffect(() => {
+    const normalizedQuery = searchText.trim();
+
+    if (normalizedQuery.length < 2) {
+      setResults([]);
+      setSearchError(null);
+      setSearching(false);
       return;
     }
-    
-    // Redirect to conversation view passing the newly created mock group
+
+    let cancelled = false;
+
+    const timer = setTimeout(() => {
+      setSearching(true);
+      setSearchError(null);
+
+      void searchUsers(normalizedQuery)
+        .then((users) => {
+          if (!cancelled) {
+            setResults(users);
+          }
+        })
+        .catch((error) => {
+          if (!cancelled) {
+            setResults([]);
+            setSearchError(
+              error instanceof Error
+                ? error.message
+                : 'No fue posible buscar usuarios.',
+            );
+          }
+        })
+        .finally(() => {
+          if (!cancelled) {
+            setSearching(false);
+          }
+        });
+    }, 350);
+
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [
+    searchText,
+    searchUsers,
+  ]);
+
+  const selectedIds = useMemo(
+    () => selectedContacts.map(
+      (contact) => contact.id,
+    ),
+    [selectedContacts],
+  );
+
+  const toggleSelectedContact = (
+    contact: ChatUserOption,
+  ) => {
+    setSelectedContacts((currentContacts) => {
+      const isSelected = currentContacts.some(
+        (item) => item.id === contact.id,
+      );
+
+      return isSelected
+        ? currentContacts.filter(
+            (item) => item.id !== contact.id,
+          )
+        : [
+            ...currentContacts,
+            contact,
+          ];
+    });
+  };
+
+  const openConversation = (
+    conversation: {
+      id: string;
+      name: string;
+      isGroup: boolean;
+      isAI: boolean;
+      online: boolean;
+    },
+  ) => {
     router.replace({
       pathname: '/(main)/chat/conversation',
       params: {
-        id: `g_${Date.now()}`,
-        name: groupName,
-        isGroup: 'true',
-        online: 'false',
+        id: conversation.id,
+        name: conversation.name,
+        isGroup: conversation.isGroup
+          ? 'true'
+          : 'false',
+        isAi: conversation.isAI
+          ? 'true'
+          : 'false',
+        online: conversation.online
+          ? 'true'
+          : 'false',
       },
     });
   };
 
-  const handleNextStep = () => {
-    if (selectedContacts.length === 0) {
-      alert('Selecciona al menos un participante.');
+  const handleDirectChat = async (
+    contact: ChatUserOption,
+  ) => {
+    if (submitting) {
       return;
     }
+
+    try {
+      setSubmitting(true);
+
+      const conversation = await createDirectConversation(
+        contact.id,
+      );
+
+      openConversation({
+        id: conversation.id,
+        name: conversation.name,
+        isGroup: conversation.isGroup,
+        isAI: conversation.isAI,
+        online: conversation.online,
+      });
+    } catch (createError) {
+      Alert.alert(
+        'No fue posible crear el chat',
+        createError instanceof Error
+          ? createError.message
+          : 'Inténtalo nuevamente.',
+      );
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleGroupContactPress = (
+    contact: ChatUserOption,
+  ) => {
+    if (submitting) {
+      return;
+    }
+
+    toggleSelectedContact(contact);
+  };
+
+  const handleNextStep = () => {
+    if (selectedContacts.length === 0) {
+      Alert.alert(
+        'Selecciona participantes',
+        'Selecciona al menos un participante.',
+      );
+
+      return;
+    }
+
     setGroupStep(2);
   };
 
-  const handleRemoveSelected = (id: string) => {
-    setSelectedContacts(selectedContacts.filter((cId) => cId !== id));
+  const handleCreateGroup = async () => {
+    const normalizedName = groupName.trim();
+
+    if (!normalizedName) {
+      Alert.alert(
+        'Nombre requerido',
+        'Ingresa el nombre del grupo.',
+      );
+
+      return;
+    }
+
+    if (selectedIds.length === 0) {
+      Alert.alert(
+        'Participantes requeridos',
+        'Selecciona al menos un participante.',
+      );
+
+      return;
+    }
+
+    try {
+      setSubmitting(true);
+
+      const conversation = await createGroupConversation({
+        name: normalizedName,
+        description: groupDesc.trim(),
+        participantIds: selectedIds,
+      });
+
+      openConversation({
+        id: conversation.id,
+        name: conversation.name,
+        isGroup: true,
+        isAI: false,
+        online: false,
+      });
+    } catch (createError) {
+      Alert.alert(
+        'No fue posible crear el grupo',
+        createError instanceof Error
+          ? createError.message
+          : 'Inténtalo nuevamente.',
+      );
+    } finally {
+      setSubmitting(false);
+    }
   };
 
-  const handleDeleteContact = (id: string) => {
-    setContacts(contacts.filter((c) => c.id !== id));
+  const handleRemoveSelected = (
+    contactId: string,
+  ) => {
+    setSelectedContacts((currentContacts) => (
+      currentContacts.filter(
+        (contact) => contact.id !== contactId,
+      )
+    ));
   };
 
-  const filteredContacts = contacts.filter((c) =>
-    c.name.toLowerCase().includes(searchText.toLowerCase())
-  );
+  const renderSearchState = () => {
+    if (searching) {
+      return (
+        <View style={styles.stateWrap}>
+          <ActivityIndicator
+            size="small"
+            color={colors.brand.primary}
+          />
+
+          <Text style={styles.stateText}>
+            Buscando usuarios...
+          </Text>
+        </View>
+      );
+    }
+
+    if (searchError) {
+      return (
+        <View style={styles.stateWrap}>
+          <Text style={styles.errorText}>
+            {searchError}
+          </Text>
+        </View>
+      );
+    }
+
+    if (searchText.trim().length < 2) {
+      return (
+        <View style={styles.stateWrap}>
+          <Text style={styles.stateText}>
+            Escribe al menos dos caracteres para buscar usuarios de BeeApp.
+          </Text>
+        </View>
+      );
+    }
+
+    if (results.length === 0) {
+      return (
+        <View style={styles.stateWrap}>
+          <Text style={styles.stateText}>
+            No encontramos usuarios con esa búsqueda.
+          </Text>
+        </View>
+      );
+    }
+
+    return results.map((contact) => {
+      const isSelected = selectedIds.includes(
+        contact.id,
+      );
+
+      return (
+        <TouchableOpacity
+          key={contact.id}
+          style={styles.contactRow}
+          onPress={() => {
+            if (isCreatingGroup) {
+              handleGroupContactPress(contact);
+              return;
+            }
+
+            void handleDirectChat(contact);
+          }}
+          activeOpacity={0.7}
+          disabled={submitting}
+        >
+          <View style={styles.avatarCircle}>
+            <Text style={styles.avatarText}>
+              {contact.initials}
+            </Text>
+          </View>
+
+          <View style={styles.contactDetails}>
+            <View style={styles.contactNameRow}>
+              <Text style={styles.contactName}>
+                {contact.name}
+              </Text>
+
+              {contact.verified ? (
+                <VerifiedBadge size={13} />
+              ) : null}
+            </View>
+
+            <Text
+              style={styles.contactStatus}
+              numberOfLines={1}
+            >
+              {contact.occupation
+                || contact.location
+                || (
+                  contact.online
+                    ? 'En línea'
+                    : 'Usuario BeeApp'
+                )}
+            </Text>
+          </View>
+
+          {isCreatingGroup ? (
+            <View
+              style={[
+                styles.checkbox,
+                isSelected && styles.checkboxSelected,
+              ]}
+            >
+              {isSelected ? (
+                <Check
+                  size={12}
+                  color={colors.neutral.white}
+                />
+              ) : null}
+            </View>
+          ) : null}
+        </TouchableOpacity>
+      );
+    });
+  };
 
   return (
     <ScreenSafeArea style={styles.safeArea}>
       <View style={styles.container}>
-        {/* Header */}
         <View style={styles.header}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.backBtn} activeOpacity={0.7}>
-            <ChevronLeft size={24} color={colors.neutral.text} />
+          <TouchableOpacity
+            onPress={() => {
+              if (
+                isCreatingGroup
+                && groupStep === 2
+              ) {
+                setGroupStep(1);
+                return;
+              }
+
+              router.back();
+            }}
+            style={styles.backBtn}
+            activeOpacity={0.7}
+            disabled={submitting}
+          >
+            <ChevronLeft
+              size={24}
+              color={colors.neutral.text}
+            />
           </TouchableOpacity>
+
           <Text style={styles.headerTitle}>
-            {isCreatingGroup ? (groupStep === 1 ? 'Añadir Participantes' : 'Nuevo Grupo') : 'Nuevo Chat'}
+            {isCreatingGroup
+              ? (
+                  groupStep === 1
+                    ? 'Añadir participantes'
+                    : 'Nuevo grupo'
+                )
+              : 'Nuevo chat'}
           </Text>
-          <View style={{ width: 32 }} />
+
+          <View style={styles.headerSpacer} />
         </View>
 
         {isCreatingGroup && groupStep === 2 ? (
-          // Group creation step 2: Details
-          <ScrollView style={styles.contentScroll} contentContainerStyle={styles.scrollContent}>
+          <ScrollView
+            style={styles.contentScroll}
+            contentContainerStyle={
+              styles.scrollContent
+            }
+            keyboardShouldPersistTaps="handled"
+          >
             <View style={styles.avatarSetupSection}>
               <View style={styles.groupAvatarBig}>
-                <Users size={32} color={colors.neutral.gray600} />
+                <Users
+                  size={32}
+                  color={colors.neutral.gray600}
+                />
               </View>
-              <TouchableOpacity style={styles.logoBtn}>
-                <Text style={styles.logoBtnText}>Añadir Imagen</Text>
-              </TouchableOpacity>
+
+              <Text style={styles.avatarHint}>
+                La foto del grupo podrá configurarse próximamente.
+              </Text>
             </View>
 
             <View style={styles.inputGroup}>
-              <Text style={styles.inputLabel}>Nombre del Grupo *</Text>
+              <Text style={styles.inputLabel}>
+                Nombre del grupo *
+              </Text>
+
               <TextInput
                 style={styles.inputField}
-                placeholder="Nombre del grupo (ej. Proyecto Alfa)"
-                placeholderTextColor={colors.neutral.gray500}
+                placeholder="Ej. Proyecto Alfa"
+                placeholderTextColor={
+                  colors.neutral.gray500
+                }
                 value={groupName}
                 onChangeText={setGroupName}
+                editable={!submitting}
               />
             </View>
 
             <View style={styles.inputGroup}>
-              <Text style={styles.inputLabel}>Descripción</Text>
+              <Text style={styles.inputLabel}>
+                Descripción
+              </Text>
+
               <TextInput
-                style={[styles.inputField, { height: 80 }]}
-                placeholder="Ingresa una breve descripción del grupo..."
-                placeholderTextColor={colors.neutral.gray500}
+                style={[
+                  styles.inputField,
+                  styles.multilineInput,
+                ]}
+                placeholder="Describe brevemente el propósito del grupo..."
+                placeholderTextColor={
+                  colors.neutral.gray500
+                }
                 multiline
                 numberOfLines={3}
                 value={groupDesc}
                 onChangeText={setGroupDesc}
+                editable={!submitting}
               />
             </View>
 
             <Text style={styles.selectedCountText}>
               Participantes seleccionados ({selectedContacts.length})
             </Text>
+
             <View style={styles.chipsWrap}>
-              {selectedContacts.map((cId) => {
-                const contact = contacts.find((c) => c.id === cId);
-                return (
-                  <View key={cId} style={styles.chipMini}>
-                    <Text style={styles.chipMiniText}>{contact?.name.split(' ')[0]}</Text>
-                  </View>
-                );
-              })}
+              {selectedContacts.map((contact) => (
+                <View
+                  key={contact.id}
+                  style={styles.chipMini}
+                >
+                  <Text style={styles.chipMiniText}>
+                    {contact.name.split(' ')[0]}
+                  </Text>
+                </View>
+              ))}
             </View>
 
-            <TouchableOpacity style={styles.primaryButton} onPress={handleCreateGroup} activeOpacity={0.8}>
-              <Text style={styles.primaryButtonText}>Crear Grupo</Text>
+            <TouchableOpacity
+              style={[
+                styles.primaryButton,
+                submitting && styles.primaryButtonDisabled,
+              ]}
+              onPress={() => {
+                void handleCreateGroup();
+              }}
+              activeOpacity={0.8}
+              disabled={submitting}
+            >
+              {submitting ? (
+                <ActivityIndicator
+                  color={colors.neutral.white}
+                />
+              ) : (
+                <Text style={styles.primaryButtonText}>
+                  Crear grupo
+                </Text>
+              )}
             </TouchableOpacity>
           </ScrollView>
         ) : (
-          // Selection or single chat step
-          <View style={{ flex: 1 }}>
-            {/* Search Input bar */}
+          <View style={styles.selectionContainer}>
             <View style={styles.searchBar}>
-              <Search size={18} color={colors.neutral.gray500} style={styles.searchIcon} />
+              <Search
+                size={18}
+                color={colors.neutral.gray500}
+                style={styles.searchIcon}
+              />
+
               <TextInput
                 style={styles.searchInput}
-                placeholder="Buscar contactos..."
-                placeholderTextColor={colors.neutral.gray500}
+                placeholder="Buscar usuarios de BeeApp..."
+                placeholderTextColor={
+                  colors.neutral.gray500
+                }
                 value={searchText}
                 onChangeText={setSearchText}
+                autoCapitalize="none"
+                autoCorrect={false}
+                editable={!submitting}
               />
             </View>
 
-            {/* Selected Contacts Chips Row */}
-            {isCreatingGroup && selectedContacts.length > 0 && (
+            {isCreatingGroup
+            && selectedContacts.length > 0 ? (
               <View style={styles.selectedChipsContainer}>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipsScroll}>
-                  {selectedContacts.map((cId) => {
-                    const contact = contacts.find((c) => c.id === cId);
-                    if (!contact) return null;
-                    return (
-                      <View key={cId} style={styles.chip}>
-                        <View style={styles.chipAvatar}>
-                          <Text style={styles.chipAvatarText}>{contact.initials}</Text>
-                        </View>
-                        <Text style={styles.chipName} numberOfLines={1}>
-                          {contact.name.split(' ')[0]}
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={
+                    styles.chipsScroll
+                  }
+                >
+                  {selectedContacts.map((contact) => (
+                    <View
+                      key={contact.id}
+                      style={styles.chip}
+                    >
+                      <View style={styles.chipAvatar}>
+                        <Text style={styles.chipAvatarText}>
+                          {contact.initials}
                         </Text>
-                        <TouchableOpacity onPress={() => handleRemoveSelected(cId)} style={styles.chipRemove}>
-                          <X size={10} color={colors.neutral.gray600} />
-                        </TouchableOpacity>
                       </View>
-                    );
-                  })}
+
+                      <Text
+                        style={styles.chipName}
+                        numberOfLines={1}
+                      >
+                        {contact.name.split(' ')[0]}
+                      </Text>
+
+                      <TouchableOpacity
+                        onPress={() => {
+                          handleRemoveSelected(contact.id);
+                        }}
+                        style={styles.chipRemove}
+                        disabled={submitting}
+                      >
+                        <X
+                          size={10}
+                          color={colors.neutral.gray600}
+                        />
+                      </TouchableOpacity>
+                    </View>
+                  ))}
                 </ScrollView>
               </View>
-            )}
+            ) : null}
 
-            {/* List */}
-            <ScrollView style={styles.listScroll} showsVerticalScrollIndicator={false}>
-              {/* Option to trigger Group Creation */}
-              {!isCreatingGroup && (
+            <ScrollView
+              style={styles.listScroll}
+              showsVerticalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
+            >
+              {!isCreatingGroup ? (
                 <TouchableOpacity
                   style={styles.optionRow}
-                  onPress={() => setIsCreatingGroup(true)}
+                  onPress={() => {
+                    setIsCreatingGroup(true);
+                    setSelectedContacts([]);
+                    setGroupStep(1);
+                  }}
                   activeOpacity={0.7}
+                  disabled={submitting}
                 >
                   <View style={styles.optionIconBadge}>
-                    <Users size={18} color={colors.brand.primary} />
+                    <Users
+                      size={18}
+                      color={colors.brand.primary}
+                    />
                   </View>
-                  <Text style={styles.optionText}>Nuevo grupo</Text>
+
+                  <Text style={styles.optionText}>
+                    Nuevo grupo
+                  </Text>
                 </TouchableOpacity>
-              )}
+              ) : null}
 
-              <Text style={styles.sectionTitle}>Contactos</Text>
+              <Text style={styles.sectionTitle}>
+                Usuarios
+              </Text>
 
-              {filteredContacts.map((contact) => {
-                const isSelected = selectedContacts.includes(contact.id);
-                return (
-                  <TouchableOpacity
-                    key={contact.id}
-                    style={styles.contactRow}
-                    onPress={() => handleContactPress(contact)}
-                    activeOpacity={0.7}
-                  >
-                    <View style={styles.avatarCircle}>
-                      <Text style={styles.avatarText}>{contact.initials}</Text>
-                    </View>
-                    <View style={styles.contactDetails}>
-                      <View style={styles.contactNameRow}>
-                        <Text style={styles.contactName}>{contact.name}</Text>
-                        {contact.verified && <VerifiedBadge size={13} />}
-                      </View>
-                      <Text style={styles.contactStatus}>{contact.status}</Text>
-                    </View>
+              {renderSearchState()}
 
-                    {/* Checkbox or delete simulation */}
-                    {isCreatingGroup ? (
-                      <View style={[styles.checkbox, isSelected && styles.checkboxSelected]}>
-                        {isSelected && <Check size={12} color={colors.neutral.white} />}
-                      </View>
-                    ) : (
-                      <TouchableOpacity
-                        style={styles.deleteContactBtn}
-                        onPress={() => handleDeleteContact(contact.id)}
-                        activeOpacity={0.7}
-                      >
-                        <X size={14} color={colors.neutral.gray500} />
-                      </TouchableOpacity>
-                    )}
-                  </TouchableOpacity>
-                );
-              })}
-              {/* Spacing at bottom */}
-              <View style={{ height: 100 }} />
+              <View style={styles.bottomGap} />
             </ScrollView>
 
-            {/* Floating button to proceed in Group creation wizard */}
-            {isCreatingGroup && selectedContacts.length > 0 && (
-              <TouchableOpacity style={styles.fabNext} onPress={handleNextStep} activeOpacity={0.8}>
-                <ArrowRight size={22} color={colors.neutral.white} />
+            {isCreatingGroup
+            && selectedContacts.length > 0 ? (
+              <TouchableOpacity
+                style={styles.fabNext}
+                onPress={handleNextStep}
+                activeOpacity={0.8}
+                disabled={submitting}
+              >
+                <ArrowRight
+                  size={22}
+                  color={colors.neutral.white}
+                />
               </TouchableOpacity>
-            )}
+            ) : null}
           </View>
         )}
       </View>
@@ -277,84 +681,90 @@ export default function NewChatScreen() {
 
 const styles = StyleSheet.create({
   safeArea: {
-    flex: 1,
     backgroundColor: colors.neutral.gray50,
+    flex: 1,
   },
   container: {
     flex: 1,
   },
   header: {
-    flexDirection: 'row',
     alignItems: 'center',
+    backgroundColor: colors.neutral.white,
+    borderBottomColor: colors.neutral.gray100,
+    borderBottomWidth: 1,
+    flexDirection: 'row',
     justifyContent: 'space-between',
     paddingHorizontal: 16,
     paddingVertical: 12,
-    backgroundColor: colors.neutral.white,
-    borderBottomWidth: 1,
-    borderColor: colors.neutral.gray100,
   },
   backBtn: {
     padding: 4,
   },
   headerTitle: {
+    color: colors.neutral.text,
     fontSize: 16,
     fontWeight: '800',
-    color: colors.neutral.text,
+  },
+  headerSpacer: {
+    width: 32,
+  },
+  selectionContainer: {
+    flex: 1,
   },
   searchBar: {
-    flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: colors.neutral.white,
+    borderBottomColor: colors.neutral.gray100,
+    borderBottomWidth: 1,
+    flexDirection: 'row',
     paddingHorizontal: 20,
     paddingVertical: 14,
-    borderBottomWidth: 1,
-    borderColor: colors.neutral.gray100,
   },
   searchIcon: {
-    position: 'absolute',
     left: 32,
+    position: 'absolute',
     zIndex: 1,
   },
   searchInput: {
-    flex: 1,
-    height: 42,
     backgroundColor: colors.neutral.gray50,
-    borderWidth: 1,
     borderColor: colors.neutral.gray200,
     borderRadius: 12,
+    borderWidth: 1,
+    color: colors.neutral.text,
+    flex: 1,
+    fontSize: 14,
+    height: 42,
     paddingLeft: 38,
     paddingRight: 16,
-    fontSize: 14,
-    color: colors.neutral.text,
   },
   selectedChipsContainer: {
-    paddingVertical: 12,
     backgroundColor: colors.neutral.white,
+    borderBottomColor: colors.neutral.gray100,
     borderBottomWidth: 1,
-    borderColor: colors.neutral.gray100,
+    paddingVertical: 12,
   },
   chipsScroll: {
-    paddingHorizontal: 20,
     gap: 8,
+    paddingHorizontal: 20,
   },
   chip: {
-    flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: colors.neutral.gray100,
+    borderColor: colors.neutral.gray200,
     borderRadius: 16,
+    borderWidth: 1,
+    flexDirection: 'row',
     paddingHorizontal: 8,
     paddingVertical: 6,
-    borderWidth: 1,
-    borderColor: colors.neutral.gray200,
   },
   chipAvatar: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    backgroundColor: colors.brand.primary,
     alignItems: 'center',
+    backgroundColor: colors.brand.primary,
+    borderRadius: 10,
+    height: 20,
     justifyContent: 'center',
     marginRight: 6,
+    width: 20,
   },
   chipAvatarText: {
     color: colors.neutral.white,
@@ -362,127 +772,145 @@ const styles = StyleSheet.create({
     fontWeight: '800',
   },
   chipName: {
+    color: colors.neutral.text,
     fontSize: 12,
     fontWeight: '600',
-    color: colors.neutral.text,
     marginRight: 6,
   },
   chipRemove: {
-    padding: 2,
     backgroundColor: colors.neutral.gray200,
     borderRadius: 8,
+    padding: 2,
   },
   listScroll: {
     flex: 1,
   },
   optionRow: {
-    flexDirection: 'row',
     alignItems: 'center',
+    backgroundColor: colors.neutral.white,
+    borderBottomColor: colors.neutral.gray100,
+    borderBottomWidth: 1,
+    flexDirection: 'row',
     paddingHorizontal: 20,
     paddingVertical: 16,
-    backgroundColor: colors.neutral.white,
-    borderBottomWidth: 1,
-    borderColor: colors.neutral.gray100,
   },
   optionIconBadge: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
-    backgroundColor: '#F3E8FF',
     alignItems: 'center',
+    backgroundColor: '#F3E8FF',
+    borderRadius: 10,
+    height: 36,
     justifyContent: 'center',
     marginRight: 14,
+    width: 36,
   },
   optionText: {
+    color: colors.brand.primary,
     fontSize: 14,
     fontWeight: '700',
-    color: colors.brand.primary,
   },
   sectionTitle: {
+    color: colors.neutral.gray600,
     fontSize: 11,
     fontWeight: '700',
-    color: colors.neutral.gray600,
-    textTransform: 'uppercase',
     letterSpacing: 0.5,
+    marginBottom: 8,
     marginHorizontal: 20,
     marginTop: 18,
-    marginBottom: 8,
+    textTransform: 'uppercase',
+  },
+  stateWrap: {
+    alignItems: 'center',
+    gap: 10,
+    paddingHorizontal: 24,
+    paddingVertical: 30,
+  },
+  stateText: {
+    color: colors.neutral.gray600,
+    fontSize: 13,
+    lineHeight: 19,
+    textAlign: 'center',
+  },
+  errorText: {
+    color: colors.semantic.error,
+    fontSize: 13,
+    lineHeight: 19,
+    textAlign: 'center',
   },
   contactRow: {
-    flexDirection: 'row',
     alignItems: 'center',
+    backgroundColor: colors.neutral.white,
+    borderBottomColor: colors.neutral.gray100,
+    borderBottomWidth: 1,
+    flexDirection: 'row',
     paddingHorizontal: 20,
     paddingVertical: 12,
-    backgroundColor: colors.neutral.white,
-    borderBottomWidth: 1,
-    borderColor: colors.neutral.gray100,
   },
   avatarCircle: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: '#F3E8FF',
     alignItems: 'center',
+    backgroundColor: '#F3E8FF',
+    borderColor: '#DDD6FE',
+    borderRadius: 20,
+    borderWidth: 1,
+    height: 40,
     justifyContent: 'center',
     marginRight: 14,
-    borderWidth: 1,
-    borderColor: '#DDD6FE',
+    width: 40,
   },
   avatarText: {
-    fontSize: 15,
-    fontWeight: '700',
     color: colors.brand.primary,
+    fontSize: 14,
+    fontWeight: '700',
   },
   contactDetails: {
     flex: 1,
   },
   contactNameRow: {
-    flexDirection: 'row',
     alignItems: 'center',
+    flexDirection: 'row',
     gap: 4,
   },
   contactName: {
+    color: colors.neutral.text,
     flexShrink: 1,
     fontSize: 14,
     fontWeight: '700',
-    color: colors.neutral.text,
   },
   contactStatus: {
-    fontSize: 11,
     color: colors.neutral.gray600,
+    fontSize: 11,
     marginTop: 2,
   },
-  deleteContactBtn: {
-    padding: 6,
-  },
   checkbox: {
-    width: 20,
-    height: 20,
+    alignItems: 'center',
+    borderColor: colors.neutral.gray300,
     borderRadius: 6,
     borderWidth: 2,
-    borderColor: colors.neutral.gray300,
+    height: 20,
     justifyContent: 'center',
-    alignItems: 'center',
+    width: 20,
   },
   checkboxSelected: {
-    borderColor: colors.brand.primary,
     backgroundColor: colors.brand.primary,
+    borderColor: colors.brand.primary,
   },
   fabNext: {
-    position: 'absolute',
-    bottom: 24,
-    right: 24,
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: colors.brand.primary,
-    justifyContent: 'center',
     alignItems: 'center',
+    backgroundColor: colors.brand.primary,
+    borderRadius: 28,
+    bottom: 24,
+    elevation: 6,
+    height: 56,
+    justifyContent: 'center',
+    position: 'absolute',
+    right: 24,
     shadowColor: colors.brand.primary,
-    shadowOffset: { width: 0, height: 6 },
+    shadowOffset: {
+      width: 0,
+      height: 6,
+    },
     shadowOpacity: 0.3,
     shadowRadius: 8,
-    elevation: 6,
+    width: 56,
   },
   contentScroll: {
     flex: 1,
@@ -496,56 +924,54 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
   groupAvatarBig: {
-    width: 80,
-    height: 80,
-    borderRadius: 24,
-    backgroundColor: colors.neutral.gray100,
-    borderWidth: 1.5,
-    borderColor: colors.neutral.gray200,
     alignItems: 'center',
+    backgroundColor: colors.neutral.gray100,
+    borderColor: colors.neutral.gray200,
+    borderRadius: 24,
+    borderWidth: 1.5,
+    height: 80,
     justifyContent: 'center',
     marginBottom: 12,
+    width: 80,
   },
-  logoBtn: {
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    borderRadius: 8,
-    backgroundColor: colors.neutral.gray100,
-  },
-  logoBtnText: {
+  avatarHint: {
+    color: colors.neutral.gray600,
     fontSize: 11,
-    fontWeight: '700',
-    color: colors.neutral.text,
+    textAlign: 'center',
   },
   inputGroup: {
     marginBottom: 20,
   },
   inputLabel: {
+    color: colors.neutral.gray700,
     fontSize: 11,
     fontWeight: '700',
-    color: colors.neutral.gray700,
-    textTransform: 'uppercase',
     letterSpacing: 0.5,
     marginBottom: 8,
+    textTransform: 'uppercase',
   },
   inputField: {
     backgroundColor: colors.neutral.white,
+    borderColor: colors.neutral.gray200,
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: colors.neutral.gray200,
+    color: colors.neutral.text,
+    fontSize: 14,
+    fontWeight: '500',
     paddingHorizontal: 12,
     paddingVertical: 10,
-    fontSize: 14,
-    color: colors.neutral.text,
-    fontWeight: '500',
+  },
+  multilineInput: {
+    height: 80,
+    textAlignVertical: 'top',
   },
   selectedCountText: {
+    color: colors.neutral.gray600,
     fontSize: 11,
     fontWeight: '700',
-    color: colors.neutral.gray600,
-    textTransform: 'uppercase',
     letterSpacing: 0.5,
     marginBottom: 10,
+    textTransform: 'uppercase',
   },
   chipsWrap: {
     flexDirection: 'row',
@@ -555,32 +981,42 @@ const styles = StyleSheet.create({
   },
   chipMini: {
     backgroundColor: colors.neutral.gray100,
+    borderColor: colors.neutral.gray200,
     borderRadius: 12,
+    borderWidth: 1,
     paddingHorizontal: 10,
     paddingVertical: 6,
-    borderWidth: 1,
-    borderColor: colors.neutral.gray200,
   },
   chipMiniText: {
+    color: colors.neutral.text,
     fontSize: 12,
     fontWeight: '600',
-    color: colors.neutral.text,
   },
   primaryButton: {
+    alignItems: 'center',
     backgroundColor: colors.brand.primary,
     borderRadius: 14,
-    paddingVertical: 16,
-    alignItems: 'center',
+    elevation: 4,
+    justifyContent: 'center',
+    minHeight: 52,
     shadowColor: colors.brand.primary,
-    shadowOffset: { width: 0, height: 6 },
+    shadowOffset: {
+      width: 0,
+      height: 6,
+    },
     shadowOpacity: 0.25,
     shadowRadius: 10,
-    elevation: 4,
+  },
+  primaryButtonDisabled: {
+    opacity: 0.7,
   },
   primaryButtonText: {
     color: colors.neutral.white,
     fontSize: 16,
     fontWeight: '700',
     letterSpacing: 0.5,
+  },
+  bottomGap: {
+    height: 100,
   },
 });

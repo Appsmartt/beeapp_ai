@@ -1,139 +1,287 @@
-import { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
-import ScreenSafeArea from '../../../src/components/layout/ScreenSafeArea';
-import { useModuleNav } from '../../../src/components/embedded/EmbeddedNavContext';
+import {
+  useEffect,
+  useMemo,
+  useState,
+} from 'react';
+import {
+  ActivityIndicator,
+  Alert,
+  RefreshControl,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from 'react-native';
+import {
+  ArrowLeft,
+  SquarePen,
+  UserPlus,
+} from 'lucide-react-native';
 import { useNavigation } from 'expo-router';
 import { colors } from '@beeapp/design-system';
-import { SquarePen, UserPlus, ArrowLeft } from 'lucide-react-native';
+
+import ScreenSafeArea from '../../../src/components/layout/ScreenSafeArea';
+import {
+  useModuleNav,
+} from '../../../src/components/embedded/EmbeddedNavContext';
 import ModuleNotificationBell from '../../../src/components/ModuleNotificationBell';
+
 import ChatListView from '../../../src/components/chat/ChatListView';
 import StatusCirclesRow from '../../../src/components/chat/StatusCirclesRow';
 import StatusViewer from '../../../src/components/chat/StatusViewer';
 import CreateStatusModal from '../../../src/components/chat/CreateStatusModal';
-import ChatTabs, { ChatTab } from '../../../src/components/chat/ChatTabs';
+import ChatTabs, {
+  type ChatTab,
+} from '../../../src/components/chat/ChatTabs';
 import ChatCategoryChips from '../../../src/components/chat/ChatCategoryChips';
 import ChatCategoryModals from '../../../src/components/chat/ChatCategoryModals';
 import ChatOptionsSheet from '../../../src/components/chat/ChatOptionsSheet';
-import ContactsListView from '../../../src/components/contacts/ContactsListView';
-import CommunitiesTabView from '../../../src/components/chat/CommunitiesTabView';
-import CreateCommunityModal from '../../../src/components/chat/CreateCommunityModal';
 import ChatCreateMenu from '../../../src/components/chat/ChatCreateMenu';
-import { Community, MOCK_COMMUNITIES, addCommunity } from '../../../src/mocks/communities';
-import {
-  MOCK_CHATS,
-  MOCK_CATEGORIES,
-  ChatCategory,
-  addCategory,
-  setChatCategories,
-} from '../../../src/mocks/chats';
-import { MOCK_STATUSES, addStatus, markStatusViewed } from '../../../src/mocks/statuses';
-import { isProtected, hasPin, setProtected } from '../../../src/stores/pinStore';
+import CreateCommunityModal from '../../../src/components/chat/CreateCommunityModal';
+import CommunitiesTabView from '../../../src/components/chat/CommunitiesTabView';
+
+import ContactsListView from '../../../src/components/contacts/ContactsListView';
 import PinLockModal from '../../../src/components/security/PinLockModal';
+
+import {
+  useChatConversations,
+} from '../../../src/hooks/useChat';
+import type {
+  ChatListItemModel,
+} from '../../../src/services/chatService';
+
+import {
+  MOCK_CATEGORIES,
+  type ChatCategory,
+  addCategory,
+} from '../../../src/mocks/chats';
+
+import {
+  MOCK_COMMUNITIES,
+  type Community,
+  addCommunity,
+} from '../../../src/mocks/communities';
+
+import {
+  MOCK_STATUSES,
+  addStatus,
+  markStatusViewed,
+} from '../../../src/mocks/statuses';
+
+import {
+  hasPin,
+  isProtected as isLegacyProtected,
+} from '../../../src/stores/pinStore';
+
+type PinAction = {
+  type: 'open' | 'add' | 'remove';
+  chat?: ChatListItemModel;
+};
 
 export default function ChatListScreen() {
   const router = useModuleNav();
   const navigation = useNavigation();
 
-  const [chats, setChats] = useState(MOCK_CHATS);
-  const [menuChat, setMenuChat] = useState<typeof MOCK_CHATS[0] | null>(null);
-  const [lockedChatId, setLockedChatId] = useState<string | null>(null);
-  const [pinAction, setPinAction] = useState<{
-    type: 'open' | 'add' | 'remove';
-    chat?: typeof MOCK_CHATS[0];
-  } | null>(null);
-  const [, setTick] = useState(0);
+  const {
+    conversations,
+    loading,
+    refreshing,
+    error,
+    loadConversations,
+    updateConversation,
+    deleteConversation,
+    setProtected,
+    isProtected,
+  } = useChatConversations();
 
-  const [activeTab, setActiveTab] = useState<ChatTab>('chats');
-  const [viewMode, setViewMode] = useState<'all' | 'archived'>('all');
-  const [creatingContact, setCreatingContact] = useState(false);
+  const [menuChat, setMenuChat] =
+    useState<ChatListItemModel | null>(null);
+
+  const [lockedChatId, setLockedChatId] =
+    useState<string | null>(null);
+
+  const [pinAction, setPinAction] =
+    useState<PinAction | null>(null);
+
+  const [activeTab, setActiveTab] =
+    useState<ChatTab>('chats');
+
+  const [viewMode, setViewMode] =
+    useState<'all' | 'archived'>('all');
+
+  const [creatingContact, setCreatingContact] =
+    useState(false);
+
+  const [createMenuOpen, setCreateMenuOpen] =
+    useState(false);
+
+  const [creatingCommunity, setCreatingCommunity] =
+    useState(false);
+
+  const [communities, setCommunities] =
+    useState<Community[]>([
+      ...MOCK_COMMUNITIES,
+    ]);
+
+  const [categories, setCategories] =
+    useState<ChatCategory[]>([
+      ...MOCK_CATEGORIES,
+    ]);
+
+  const [activeCategoryId, setActiveCategoryId] =
+    useState<string | null>(null);
+
+  const [creatingCategory, setCreatingCategory] =
+    useState(false);
+
+  const [assigningChat, setAssigningChat] =
+    useState<ChatListItemModel | null>(null);
+
+  const [chatCategoryIds, setChatCategoryIds] =
+    useState<Record<string, string[]>>({});
+
+  const [statuses, setStatuses] =
+    useState([...MOCK_STATUSES]);
+
+  const [viewerIndex, setViewerIndex] =
+    useState<number | null>(null);
+
+  const [creatingStatus, setCreatingStatus] =
+    useState(false);
+
   const isContactsTab = activeTab === 'contacts';
 
-  const [createMenuOpen, setCreateMenuOpen] = useState(false);
-  const [creatingCommunity, setCreatingCommunity] = useState(false);
-  const [communities, setCommunities] = useState<Community[]>([...MOCK_COMMUNITIES]);
-
-  const [categories, setCategories] = useState<ChatCategory[]>([...MOCK_CATEGORIES]);
-  const [activeCategoryId, setActiveCategoryId] = useState<string | null>(null);
-  const [creatingCategory, setCreatingCategory] = useState(false);
-  const [assigningChat, setAssigningChat] = useState<typeof MOCK_CHATS[0] | null>(null);
-
-  const [statuses, setStatuses] = useState([...MOCK_STATUSES]);
-  const [viewerIndex, setViewerIndex] = useState<number | null>(null);
-  const [creatingStatus, setCreatingStatus] = useState(false);
-
   useEffect(() => {
-    const unsubscribe = navigation.addListener('focus', () => {
-      setChats([...MOCK_CHATS]);
-    });
+    const unsubscribe = navigation.addListener(
+      'focus',
+      () => {
+        if (activeTab === 'chats') {
+          void loadConversations({
+            refresh: true,
+            archived: viewMode === 'archived',
+          }).catch(() => {
+            // El hook conserva el error para mostrarlo debajo.
+          });
+        }
+      },
+    );
 
     return unsubscribe;
-  }, [navigation]);
+  }, [
+    activeTab,
+    loadConversations,
+    navigation,
+    viewMode,
+  ]);
 
-  const handlePin = (id: string) => {
-    setChats((prev) =>
-      prev.map((chat) => (chat.id === id ? { ...chat, isPinned: !chat.isPinned } : chat)),
-    );
-  };
+  const protectedChatIds = useMemo(
+    () => new Set(
+      conversations
+        .filter((chat) => (
+          isProtected(chat.id)
+          || isLegacyProtected(chat.id)
+        ))
+        .map((chat) => chat.id),
+    ),
+    [
+      conversations,
+      isProtected,
+    ],
+  );
 
-  const handleMute = (id: string) => {
-    setChats((prev) =>
-      prev.map((chat) => (chat.id === id ? { ...chat, isMuted: !chat.isMuted } : chat)),
-    );
-  };
+  const archivedCount = useMemo(
+    () => conversations.filter(
+      (chat) => chat.isArchived,
+    ).length,
+    [conversations],
+  );
 
-  const handleDelete = (id: string) => {
-    setChats((prev) => prev.filter((chat) => chat.id !== id));
-  };
+  const visibleChats = useMemo(
+    () => conversations
+      .filter((chat) => {
+        if (viewMode === 'archived') {
+          return chat.isArchived;
+        }
 
-  const handleArchive = (id: string) => {
-    setChats((prev) =>
-      prev.map((chat) => (chat.id === id ? { ...chat, isArchived: true } : chat)),
-    );
-  };
+        return !chat.isArchived;
+      })
+      .filter((chat) => {
+        if (!activeCategoryId) {
+          return true;
+        }
 
-  const handleChatPress = (chat: typeof chats[0]) => {
-    if (isProtected(chat.id)) {
-      setPinAction({ type: 'open', chat });
-      setLockedChatId(chat.id);
-      return;
-    }
+        return (
+          chatCategoryIds[chat.id] || []
+        ).includes(activeCategoryId);
+      })
+      .map((chat) => ({
+        ...chat,
+        isProtected: protectedChatIds.has(chat.id),
+      })),
+    [
+      activeCategoryId,
+      chatCategoryIds,
+      conversations,
+      protectedChatIds,
+      viewMode,
+    ],
+  );
 
-    openChat(chat);
-  };
+  const aiChat = useMemo(
+    () => (
+      viewMode === 'all'
+      && !activeCategoryId
+        ? visibleChats.find((chat) => chat.isAI)
+        : undefined
+    ),
+    [
+      activeCategoryId,
+      viewMode,
+      visibleChats,
+    ],
+  );
 
-  const openChat = (chat: typeof chats[0]) => {
-    setChats((prev) =>
-      prev.map((item) => (item.id === chat.id ? { ...item, unreadCount: 0 } : item)),
-    );
+  const regularChats = useMemo(
+    () => visibleChats.filter(
+      (chat) => !chat.isAI,
+    ),
+    [visibleChats],
+  );
 
+  const openChat = (
+    chat: ChatListItemModel,
+  ) => {
     router.push({
       pathname: '/(main)/chat/conversation',
       params: {
         id: chat.id,
         name: chat.name,
         isGroup: chat.isGroup ? 'true' : 'false',
+        isAi: chat.isAI ? 'true' : 'false',
         online: chat.online ? 'true' : 'false',
       },
     });
   };
 
-  const handleToggleProtection = (chat: typeof chats[0]) => {
-    setMenuChat(null);
+  const handleChatPress = (
+    chat: ChatListItemModel,
+  ) => {
+    const protectedChat = (
+      isProtected(chat.id)
+      || isLegacyProtected(chat.id)
+    );
 
-    if (isProtected(chat.id)) {
-      setPinAction({ type: 'remove', chat });
+    if (protectedChat) {
+      setPinAction({
+        type: 'open',
+        chat,
+      });
+
       setLockedChatId(chat.id);
       return;
     }
 
-    if (!hasPin()) {
-      alert('Debes crear un PIN primero en los ajustes de Seguridad.');
-      router.push('/(main)/profile/security');
-      return;
-    }
-
-    setPinAction({ type: 'add', chat });
-    setLockedChatId(chat.id);
+    openChat(chat);
   };
 
   const handlePinSuccess = () => {
@@ -142,46 +290,192 @@ export default function ChatListScreen() {
     setLockedChatId(null);
     setPinAction(null);
 
-    if (!action) return;
+    if (!action?.chat) {
+      return;
+    }
 
-    if (action.type === 'open' && action.chat) {
+    if (action.type === 'open') {
       openChat(action.chat);
       return;
     }
 
-    if (action.type === 'add' && action.chat) {
+    if (action.type === 'add') {
       setProtected(action.chat.id, true);
-      setTick((tick) => tick + 1);
-      alert('Chat protegido con éxito.');
+      Alert.alert(
+        'Chat protegido',
+        'El chat quedó protegido con tu PIN.',
+      );
       return;
     }
 
-    if (action.type === 'remove' && action.chat) {
-      setProtected(action.chat.id, false);
-      setTick((tick) => tick + 1);
-      alert('Protección del chat removida.');
+    setProtected(action.chat.id, false);
+
+    Alert.alert(
+      'Protección removida',
+      'El chat ya no requiere PIN para abrirse.',
+    );
+  };
+
+  const handleToggleProtection = (
+    chat: ChatListItemModel,
+  ) => {
+    setMenuChat(null);
+
+    if (
+      isProtected(chat.id)
+      || isLegacyProtected(chat.id)
+    ) {
+      setPinAction({
+        type: 'remove',
+        chat,
+      });
+
+      setLockedChatId(chat.id);
+      return;
+    }
+
+    if (!hasPin()) {
+      Alert.alert(
+        'PIN requerido',
+        'Debes crear un PIN primero desde Seguridad.',
+        [
+          {
+            text: 'Cancelar',
+            style: 'cancel',
+          },
+          {
+            text: 'Ir a Seguridad',
+            onPress: () => {
+              router.push(
+                '/(main)/profile/security',
+              );
+            },
+          },
+        ],
+      );
+
+      return;
+    }
+
+    setPinAction({
+      type: 'add',
+      chat,
+    });
+
+    setLockedChatId(chat.id);
+  };
+
+  const handleTogglePin = async (
+    chat: ChatListItemModel,
+  ) => {
+    try {
+      await updateConversation(
+        chat.id,
+        {
+          isPinned: !chat.isPinned,
+        },
+      );
+    } catch (updateError) {
+      Alert.alert(
+        'No fue posible actualizar el chat',
+        updateError instanceof Error
+          ? updateError.message
+          : 'Inténtalo nuevamente.',
+      );
     }
   };
 
-  const archivedCount = chats.filter((chat) => chat.isArchived).length;
+  const handleToggleMute = async (
+    chat: ChatListItemModel,
+  ) => {
+    try {
+      await updateConversation(
+        chat.id,
+        {
+          isMuted: !chat.isMuted,
+        },
+      );
+    } catch (updateError) {
+      Alert.alert(
+        'No fue posible actualizar el chat',
+        updateError instanceof Error
+          ? updateError.message
+          : 'Inténtalo nuevamente.',
+      );
+    }
+  };
 
-  const aiChat =
-    activeCategoryId || viewMode !== 'all'
-      ? undefined
-      : chats.find((chat) => chat.isAI);
+  const handleArchive = async (
+    chat: ChatListItemModel,
+  ) => {
+    try {
+      await updateConversation(
+        chat.id,
+        {
+          isArchived: true,
+        },
+      );
+    } catch (updateError) {
+      Alert.alert(
+        'No fue posible archivar el chat',
+        updateError instanceof Error
+          ? updateError.message
+          : 'Inténtalo nuevamente.',
+      );
+    }
+  };
 
-  const filteredChats = chats
-    .filter((chat) => {
-      if (chat.isAI) return false;
-      if (viewMode === 'archived') return !!chat.isArchived;
+  const handleDelete = (
+    chat: ChatListItemModel,
+  ) => {
+    Alert.alert(
+      'Eliminar chat',
+      `¿Seguro que quieres eliminar el chat con ${chat.name}?`,
+      [
+        {
+          text: 'Cancelar',
+          style: 'cancel',
+        },
+        {
+          text: 'Eliminar',
+          style: 'destructive',
+          onPress: () => {
+            void deleteConversation(chat.id)
+              .catch((deleteError) => {
+                Alert.alert(
+                  'No fue posible eliminar el chat',
+                  deleteError instanceof Error
+                    ? deleteError.message
+                    : 'Inténtalo nuevamente.',
+                );
+              });
+          },
+        },
+      ],
+    );
+  };
 
-      return !chat.isArchived;
-    })
-    .filter((chat) => !activeCategoryId || (chat.categoryIds ?? []).includes(activeCategoryId))
-    .sort((a, b) => {
-      if (a.isPinned === b.isPinned) return 0;
-      return a.isPinned ? -1 : 1;
+  const handleSaveCategories = (
+    categoryIds: string[],
+  ) => {
+    if (assigningChat) {
+      setChatCategoryIds((current) => ({
+        ...current,
+        [assigningChat.id]: categoryIds,
+      }));
+    }
+
+    setAssigningChat(null);
+  };
+
+  const handleRefresh = () => {
+    void loadConversations({
+      refresh: true,
+      archived: viewMode === 'archived',
+    }).catch(() => {
+      // El error ya se presenta en la UI.
     });
+  };
 
   return (
     <ScreenSafeArea style={styles.safeArea}>
@@ -193,11 +487,19 @@ export default function ChatListScreen() {
               onPress={() => setViewMode('all')}
               activeOpacity={0.7}
             >
-              <ArrowLeft size={20} color={colors.neutral.text} />
-              <Text style={styles.title}>Chats archivados</Text>
+              <ArrowLeft
+                size={20}
+                color={colors.neutral.text}
+              />
+
+              <Text style={styles.title}>
+                Chats archivados
+              </Text>
             </TouchableOpacity>
           ) : (
-            <Text style={styles.title}>Chats</Text>
+            <Text style={styles.title}>
+              Chats
+            </Text>
           )}
 
           <View style={styles.headerActions}>
@@ -205,38 +507,53 @@ export default function ChatListScreen() {
 
             <TouchableOpacity
               style={styles.newChatBtn}
-              onPress={() =>
-                isContactsTab ? setCreatingContact(true) : setCreateMenuOpen(true)
-              }
+              onPress={() => (
+                isContactsTab
+                  ? setCreatingContact(true)
+                  : setCreateMenuOpen(true)
+              )}
               activeOpacity={0.7}
             >
               {isContactsTab ? (
-                <UserPlus size={20} color={colors.neutral.text} />
+                <UserPlus
+                  size={20}
+                  color={colors.neutral.text}
+                />
               ) : (
-                <SquarePen size={20} color={colors.neutral.text} />
+                <SquarePen
+                  size={20}
+                  color={colors.neutral.text}
+                />
               )}
             </TouchableOpacity>
           </View>
         </View>
 
         {viewMode === 'all' && (
-          <ChatTabs activeTab={activeTab} onChange={setActiveTab} />
+          <ChatTabs
+            activeTab={activeTab}
+            onChange={setActiveTab}
+          />
         )}
 
         {isContactsTab ? (
           <ContactsListView
             creating={creatingContact}
-            onCloseCreate={() => setCreatingContact(false)}
+            onCloseCreate={() => {
+              setCreatingContact(false);
+            }}
           />
         ) : activeTab === 'communities' ? (
           <CommunitiesTabView
             communities={communities}
-            onOpenCommunity={(community) =>
+            onOpenCommunity={(community) => {
               router.push({
                 pathname: '/(main)/chat/community',
-                params: { id: community.id },
-              })
-            }
+                params: {
+                  id: community.id,
+                },
+              });
+            }}
           />
         ) : (
           <>
@@ -244,10 +561,18 @@ export default function ChatListScreen() {
               <>
                 <StatusCirclesRow
                   statuses={statuses}
-                  onCreate={() => setCreatingStatus(true)}
+                  onCreate={() => {
+                    setCreatingStatus(true);
+                  }}
                   onOpen={(index) => {
-                    markStatusViewed(statuses[index].id);
-                    setStatuses([...MOCK_STATUSES]);
+                    markStatusViewed(
+                      statuses[index].id,
+                    );
+
+                    setStatuses([
+                      ...MOCK_STATUSES,
+                    ]);
+
                     setViewerIndex(index);
                   }}
                 />
@@ -256,24 +581,85 @@ export default function ChatListScreen() {
                   categories={categories}
                   activeCategoryId={activeCategoryId}
                   onChange={setActiveCategoryId}
-                  onCreate={() => setCreatingCategory(true)}
+                  onCreate={() => {
+                    setCreatingCategory(true);
+                  }}
                 />
               </>
             )}
 
-            <ChatListView
-              aiChat={aiChat}
-              chats={filteredChats}
-              archivedCount={viewMode === 'all' ? archivedCount : 0}
-              onPressArchived={
-                viewMode === 'all' ? () => setViewMode('archived') : undefined
-              }
-              onOpenChat={handleChatPress}
-              onOpenMenu={setMenuChat}
-              onPin={handlePin}
-              onMute={handleMute}
-              onDelete={handleDelete}
-            />
+            {loading && conversations.length === 0 ? (
+              <View style={styles.loadingState}>
+                <ActivityIndicator
+                  size="large"
+                  color={colors.brand.primary}
+                />
+
+                <Text style={styles.loadingText}>
+                  Cargando chats...
+                </Text>
+              </View>
+            ) : (
+              <View style={styles.listWrap}>
+                {error ? (
+                  <View style={styles.errorBox}>
+                    <Text style={styles.errorText}>
+                      {error}
+                    </Text>
+
+                    <TouchableOpacity
+                      onPress={handleRefresh}
+                      activeOpacity={0.7}
+                    >
+                      <Text style={styles.retryText}>
+                        Reintentar
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                ) : null}
+
+                <ChatListView
+                  aiChat={aiChat}
+                  chats={regularChats}
+                  archivedCount={
+                    viewMode === 'all'
+                      ? archivedCount
+                      : 0
+                  }
+                  onPressArchived={
+                    viewMode === 'all'
+                      ? () => {
+                          setViewMode('archived');
+                          void loadConversations({
+                            refresh: true,
+                            archived: true,
+                          }).catch(() => {
+                            // El hook conserva el error.
+                          });
+                        }
+                      : undefined
+                  }
+                  onOpenChat={handleChatPress}
+                  onOpenMenu={setMenuChat}
+                  onPin={() => {
+                    // La acción ahora se ejecuta desde ChatOptionsSheet.
+                  }}
+                  onMute={() => {
+                    // La acción ahora se ejecuta desde ChatOptionsSheet.
+                  }}
+                  onDelete={() => {
+                    // La acción ahora se ejecuta desde ChatOptionsSheet.
+                  }}
+                  refreshControl={
+                    <RefreshControl
+                      refreshing={refreshing}
+                      onRefresh={handleRefresh}
+                      tintColor={colors.brand.primary}
+                    />
+                  }
+                />
+              </View>
+            )}
           </>
         )}
       </View>
@@ -283,22 +669,31 @@ export default function ChatListScreen() {
         statuses={statuses}
         index={viewerIndex ?? 0}
         onChangeIndex={setViewerIndex}
-        onClose={() => setViewerIndex(null)}
+        onClose={() => {
+          setViewerIndex(null);
+        }}
       />
 
       <CreateStatusModal
         visible={creatingStatus}
         onPublish={(status) => {
           addStatus(status);
-          setStatuses([...MOCK_STATUSES]);
+          setStatuses([
+            ...MOCK_STATUSES,
+          ]);
           setCreatingStatus(false);
         }}
-        onClose={() => setCreatingStatus(false)}
+        onClose={() => {
+          setCreatingStatus(false);
+        }}
       />
 
       <PinLockModal
-        visible={!!lockedChatId}
-        itemName={pinAction?.chat?.name || 'Chat protegido'}
+        visible={Boolean(lockedChatId)}
+        itemName={
+          pinAction?.chat?.name
+          || 'Chat protegido'
+        }
         onClose={() => {
           setLockedChatId(null);
           setPinAction(null);
@@ -316,37 +711,61 @@ export default function ChatListScreen() {
           setCreateMenuOpen(false);
           router.push({
             pathname: '/(main)/chat/new',
-            params: { mode: 'group' },
+            params: {
+              mode: 'group',
+            },
           });
         }}
         onNewCommunity={() => {
           setCreateMenuOpen(false);
           setCreatingCommunity(true);
         }}
-        onClose={() => setCreateMenuOpen(false)}
+        onClose={() => {
+          setCreateMenuOpen(false);
+        }}
       />
 
       <CreateCommunityModal
         visible={creatingCommunity}
         onCreate={(data) => {
           addCommunity(data);
-          setCommunities([...MOCK_COMMUNITIES]);
+          setCommunities([
+            ...MOCK_COMMUNITIES,
+          ]);
           setCreatingCommunity(false);
           setActiveTab('communities');
         }}
-        onClose={() => setCreatingCommunity(false)}
+        onClose={() => {
+          setCreatingCommunity(false);
+        }}
       />
 
       <ChatOptionsSheet
-        chat={menuChat}
-        isProtected={!!menuChat && isProtected(menuChat.id)}
-        onToggleProtection={() => menuChat && handleToggleProtection(menuChat)}
+        chat={menuChat as any}
+        isProtected={
+          Boolean(menuChat)
+          && (
+            isProtected(menuChat?.id || '')
+            || isLegacyProtected(menuChat?.id || '')
+          )
+        }
+        onToggleProtection={() => {
+          if (menuChat) {
+            handleToggleProtection(menuChat);
+          }
+        }}
         onTogglePin={() => {
-          if (menuChat) handlePin(menuChat.id);
+          if (menuChat) {
+            void handleTogglePin(menuChat);
+          }
+
           setMenuChat(null);
         }}
         onToggleMute={() => {
-          if (menuChat) handleMute(menuChat.id);
+          if (menuChat) {
+            void handleToggleMute(menuChat);
+          }
+
           setMenuChat(null);
         }}
         onAssignCategory={() => {
@@ -354,14 +773,22 @@ export default function ChatListScreen() {
           setMenuChat(null);
         }}
         onDelete={() => {
-          if (menuChat) handleDelete(menuChat.id);
+          if (menuChat) {
+            handleDelete(menuChat);
+          }
+
           setMenuChat(null);
         }}
         onArchive={() => {
-          if (menuChat) handleArchive(menuChat.id);
+          if (menuChat) {
+            void handleArchive(menuChat);
+          }
+
           setMenuChat(null);
         }}
-        onClose={() => setMenuChat(null)}
+        onClose={() => {
+          setMenuChat(null);
+        }}
       />
 
       <ChatCategoryModals
@@ -369,21 +796,33 @@ export default function ChatListScreen() {
         creating={creatingCategory}
         onCreate={(category) => {
           const created = addCategory(category);
-          setCategories([...MOCK_CATEGORIES]);
+
+          setCategories([
+            ...MOCK_CATEGORIES,
+          ]);
+
           setActiveCategoryId(created.id);
           setCreatingCategory(false);
         }}
-        onCloseCreate={() => setCreatingCategory(false)}
-        assigningChat={assigningChat}
-        onSaveAssign={(ids) => {
-          if (assigningChat) {
-            setChatCategories(assigningChat.id, ids);
-          }
-
-          setChats([...MOCK_CHATS]);
+        onCloseCreate={() => {
+          setCreatingCategory(false);
+        }}
+        assigningChat={
+          assigningChat
+            ? {
+                name: assigningChat.name,
+                categoryIds: (
+                  chatCategoryIds[
+                    assigningChat.id
+                  ] || []
+                ),
+              }
+            : null
+        }
+        onSaveAssign={handleSaveCategories}
+        onCloseAssign={() => {
           setAssigningChat(null);
         }}
-        onCloseAssign={() => setAssigningChat(null)}
       />
     </ScreenSafeArea>
   );
@@ -398,35 +837,68 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   header: {
-    flexDirection: 'row',
     alignItems: 'center',
+    backgroundColor: colors.neutral.white,
+    flexDirection: 'row',
     justifyContent: 'space-between',
+    paddingBottom: 12,
     paddingHorizontal: 20,
     paddingTop: 16,
-    paddingBottom: 12,
-    backgroundColor: colors.neutral.white,
   },
   title: {
+    color: colors.neutral.text,
     fontSize: 24,
     fontWeight: '800',
-    color: colors.neutral.text,
   },
   backRow: {
-    flexDirection: 'row',
     alignItems: 'center',
+    flexDirection: 'row',
     gap: 10,
   },
   headerActions: {
-    flexDirection: 'row',
     alignItems: 'center',
+    flexDirection: 'row',
     gap: 6,
   },
   newChatBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
-    backgroundColor: colors.neutral.gray100,
     alignItems: 'center',
+    backgroundColor: colors.neutral.gray100,
+    borderRadius: 12,
+    height: 40,
     justifyContent: 'center',
+    width: 40,
+  },
+  loadingState: {
+    alignItems: 'center',
+    flex: 1,
+    gap: 12,
+    justifyContent: 'center',
+  },
+  loadingText: {
+    color: colors.neutral.gray600,
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  listWrap: {
+    flex: 1,
+  },
+  errorBox: {
+    alignItems: 'center',
+    backgroundColor: '#FEF2F2',
+    borderBottomColor: '#FECACA',
+    borderBottomWidth: 1,
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+  },
+  errorText: {
+    color: colors.semantic.error,
+    fontSize: 12,
+    textAlign: 'center',
+  },
+  retryText: {
+    color: colors.brand.primary,
+    fontSize: 12,
+    fontWeight: '700',
+    marginTop: 6,
   },
 });

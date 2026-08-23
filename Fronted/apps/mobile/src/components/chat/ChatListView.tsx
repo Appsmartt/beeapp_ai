@@ -1,3 +1,5 @@
+import type { ReactElement } from 'react';
+
 import {
   View,
   Text,
@@ -8,20 +10,23 @@ import {
 import { Archive } from 'lucide-react-native';
 import ChatListItem from './ChatListItem';
 import AiChatListItem from './AiChatListItem';
-import { ChatItem } from '../../mocks/chats';
+import type {
+  ChatListItemModel,
+} from '../../services/chatService';
 import { isProtected } from '../../stores/pinStore';
 import { colors } from '@beeapp/design-system';
 
 interface ChatListViewProps {
-  aiChat?: ChatItem;
-  chats: ChatItem[];
+  aiChat?: ChatListItemModel;
+  chats: ChatListItemModel[];
   archivedCount?: number;
   onPressArchived?: () => void;
-  onOpenChat: (chat: ChatItem) => void;
-  onOpenMenu: (chat: ChatItem) => void;
+  onOpenChat: (chat: ChatListItemModel) => void;
+  onOpenMenu: (chat: ChatListItemModel) => void;
   onPin: (id: string) => void;
   onMute: (id: string) => void;
   onDelete: (id: string) => void;
+  refreshControl?: ReactElement;
 }
 
 export default function ChatListView({
@@ -31,9 +36,14 @@ export default function ChatListView({
   onPressArchived,
   onOpenChat,
   onOpenMenu,
+  refreshControl,
 }: ChatListViewProps) {
   return (
-    <ScrollView style={styles.scroll} showsVerticalScrollIndicator={false}>
+    <ScrollView
+      style={styles.scroll}
+      showsVerticalScrollIndicator={false}
+      refreshControl={refreshControl}
+    >
       {onPressArchived && (
         <TouchableOpacity
           style={styles.archivedRow}
