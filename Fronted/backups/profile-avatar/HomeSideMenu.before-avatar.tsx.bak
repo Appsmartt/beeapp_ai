@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from 'react';
 import {
   Alert,
   Animated,
-  Image,
   Linking,
   Modal,
   ScrollView,
@@ -38,9 +37,6 @@ import {
   getSessionCredentials,
 } from '../../services/authSession';
 import {
-  getProfileAvatarUrl,
-} from '../../services/profileAvatarService';
-import {
   PANEL_WIDTH,
   sideMenuStyles as styles,
 } from './homeSideMenuStyles';
@@ -63,14 +59,12 @@ interface SideMenuUserProfile {
   name: string;
   email: string;
   initials: string;
-  avatarUrl: string | null;
 }
 
 const INITIAL_USER_PROFILE: SideMenuUserProfile = {
   name: 'Cargando perfil...',
   email: '',
   initials: '?',
-  avatarUrl: null,
 };
 
 function getUserInitials(
@@ -171,25 +165,6 @@ export default function HomeSideMenu({
           return;
         }
 
-        let avatarUrl: string | null = null;
-
-        if (response.profile.avatar_file_id) {
-          try {
-            const avatarAccess = await getProfileAvatarUrl(
-              credentials,
-              response.profile.avatar_file_id,
-            );
-
-            avatarUrl = avatarAccess.url;
-          } catch {
-            avatarUrl = null;
-          }
-        }
-
-        if (!isMounted) {
-          return;
-        }
-
         setUserProfile({
           name: getFullName(
             response.profile.first_name,
@@ -200,7 +175,6 @@ export default function HomeSideMenu({
             response.profile.first_name,
             response.profile.last_name,
           ),
-          avatarUrl,
         });
       } catch {
         if (!isMounted) {
@@ -211,7 +185,6 @@ export default function HomeSideMenu({
           name: 'No fue posible cargar el perfil',
           email: '',
           initials: '?',
-          avatarUrl: null,
         });
       }
     };
@@ -473,16 +446,9 @@ export default function HomeSideMenu({
           >
             <View style={styles.profileCard}>
               <View style={styles.avatarWrap}>
-                {userProfile.avatarUrl ? (
-                  <Image
-                    source={{ uri: userProfile.avatarUrl }}
-                    style={styles.avatarImage}
-                  />
-                ) : (
-                  <Text style={styles.avatarText}>
-                    {userProfile.initials}
-                  </Text>
-                )}
+                <Text style={styles.avatarText}>
+                  {userProfile.initials}
+                </Text>
 
                 <View style={styles.onlineBadge} />
               </View>
