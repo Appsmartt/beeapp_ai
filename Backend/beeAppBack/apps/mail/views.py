@@ -2,12 +2,14 @@ from __future__ import annotations
 
 import logging
 
+from django.http import HttpResponse
 from rest_framework import status
 from rest_framework.response import Response
 
 from apps.accounts.exceptions import AccountAuthenticationError
 from apps.accounts.views import AuthenticatedAPIView
 from apps.mail.exceptions import (
+    MailAttachmentError,
     MailIntegrationInactiveError,
     MailIntegrationNotFoundError,
     MailMessageNotFoundError,
@@ -23,6 +25,9 @@ from apps.mail.serializers import (
     SendMailDraftSerializer,
     UpdateMailDraftSerializer,
     UpdateMailMessageStateSerializer,
+)
+from apps.mail.services.mail_attachment_service import (
+    download_mail_attachment,
 )
 from apps.mail.services.mail_draft_service import (
     create_mail_draft,
@@ -189,6 +194,49 @@ class MailMessagesView(AuthenticatedAPIView):
             result,
             status=status.HTTP_200_OK,
         )
+
+
+class MailMessageAttachmentDownloadView(AuthenticatedAPIView):
+    def get(self, request, message_id, attachment_id):
+        try:
+            authenticated_user = self.get_authenticated_user(
+                request
+            )
+
+            download = download_mail_attachment(
+                user_id=str(authenticated_user.id),
+                message_id=str(message_id),
+                attachment_id=str(attachment_id),
+            )
+
+        except AccountAuthenticationError:
+            return _unauthorized_response()
+
+        except MailMessageNotFoundError as error:
+            return _mail_error_response(
+                error,
+                response_status=status.HTTP_404_NOT_FOUND,
+            )
+
+        except MailAttachmentError as error:
+            return _mail_error_response(
+                error,
+                response_status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        response = HttpResponse(
+            download.content,
+            content_type=download.content_type,
+        )
+
+        response["Content-Disposition"] = (
+            f'attachment; filename="{download.filename}"'
+        )
+        response["Cache-Control"] = "private, no-store"
+        response["X-Content-Type-Options"] = "nosniff"
+        response["Content-Length"] = str(len(download.content))
+
+        return response
 
 
 class MailMessageDetailView(AuthenticatedAPIView):

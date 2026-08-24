@@ -7,6 +7,7 @@ from apps.mail.views import (
     MailIntegrationDetailView,
     MailIntegrationsView,
     MailMessageActionView,
+    MailMessageAttachmentDownloadView,
     MailMessageDetailView,
     MailMessageMoveView,
     MailMessagesView,
@@ -50,6 +51,14 @@ urlpatterns = [
         "messages/<uuid:message_id>/action/",
         MailMessageActionView.as_view(),
         name="mail-message-action",
+    ),
+    path(
+        (
+            "messages/<uuid:message_id>/attachments/"
+            "<uuid:attachment_id>/download/"
+        ),
+        MailMessageAttachmentDownloadView.as_view(),
+        name="mail-message-attachment-download",
     ),
     path(
         "drafts/",

@@ -1927,6 +1927,9 @@ export interface MailMessage {
   sender: MailMessageSender | null;
   recipients?: MailMessageRecipients;
   attachments?: MailMessageAttachment[];
+  created_at?: string | null;
+  updated_at?: string | null;
+  last_synced_at?: string | null;
 }
 
 

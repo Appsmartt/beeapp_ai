@@ -20,6 +20,7 @@ import type {
 
 import {
     api,
+    downloadApiFile,
     } from './client';
 
 type MailApiAuth = AuthCredentials | null | undefined;
@@ -447,6 +448,45 @@ export function sendMailDraft(
     return api.post<SendMailDraftResponse>(
         mailDraftSendPath(messageId),
         {},
+        buildAuthOptions(auth),
+    );
+}
+
+/**
+ * Descarga temporalmente un adjunto del proveedor usando la autorización
+ * de BeeApp. Nunca expone tokens OAuth a la aplicación móvil.
+ */
+export function downloadMailAttachment(
+    auth: AuthCredentials,
+    messageId: string,
+    attachmentId: string,
+    ): Promise<{
+    blob: Blob;
+    contentType: string | null;
+    contentDisposition: string | null;
+}> {
+    const normalizedMessageId = messageId.trim();
+    const normalizedAttachmentId = attachmentId.trim();
+
+    if (!normalizedMessageId) {
+        throw new Error(
+        'No fue posible identificar el correo del adjunto.',
+        );
+    }
+
+    if (!normalizedAttachmentId) {
+        throw new Error(
+        'No fue posible identificar el adjunto.',
+        );
+    }
+
+    return downloadApiFile(
+        (
+        `${mailMessagePath(normalizedMessageId)}`
+        + `attachments/${encodeURIComponent(
+            normalizedAttachmentId,
+        )}/download/`
+        ),
         buildAuthOptions(auth),
     );
 }

@@ -7,6 +7,11 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import * as FileSystem from 'expo-file-system';
+import * as Sharing from 'expo-sharing';
+import {
+  downloadMailAttachment,
+} from '@beeapp/api-client';
 import {
   useCallback,
   useEffect,
@@ -38,6 +43,9 @@ import FloatingTabBar from '../../../src/components/FloatingTabBar';
 import {
   useMail,
 } from '../../../src/hooks/useMail';
+import {
+  getValidSessionCredentials,
+} from '../../../src/services/authSession';
 import type {
   MailDetailModel,
 } from '../../../src/services/mailService';
@@ -246,11 +254,22 @@ export default function MailDetailScreen() {
   ] = useState(false);
 
   const [
+    refreshingDetail,
+    setRefreshingDetail,
+  ] = useState(false);
+
+  const [
+    downloadingAttachmentId,
+    setDownloadingAttachmentId,
+  ] = useState<string | null>(null);
+
+  const [
     loadError,
     setLoadError,
   ] = useState<string | null>(null);
 
   const {
+    getCachedMessageById,
     getMessageById,
     updateMessageState,
     archiveMessage,
@@ -260,6 +279,44 @@ export default function MailDetailScreen() {
     autoLoad: false,
   });
 
+  const markEmailAsRead = useCallback(async (
+    loadedEmail: MailDetailModel,
+  ) => {
+    if (loadedEmail.isRead) {
+      return;
+    }
+
+    setEmail((currentEmail) => (
+      currentEmail
+        ? {
+            ...currentEmail,
+            isRead: true,
+          }
+        : currentEmail
+    ));
+
+    try {
+      const updatedMessage = await updateMessageState(
+        loadedEmail.id,
+        {
+          is_read: true,
+        },
+      );
+
+      setEmail((currentEmail) => (
+        currentEmail
+          ? {
+              ...currentEmail,
+              isRead: updatedMessage.is_read,
+            }
+          : currentEmail
+      ));
+    } catch {
+      // El usuario ya abrió el correo. Conservamos la lectura
+      // local y se reconciliará con el próximo refresh.
+    }
+  }, [updateMessageState]);
+
   const loadEmail = useCallback(async () => {
     if (!messageId) {
       setEmail(null);
@@ -267,45 +324,49 @@ export default function MailDetailScreen() {
         'No fue posible identificar el correo.',
       );
       setLoading(false);
+      setRefreshingDetail(false);
+      return;
+    }
+
+    setLoadError(null);
+
+    const cachedEmail = await getCachedMessageById(
+      messageId,
+    );
+
+    if (cachedEmail) {
+      setEmail(cachedEmail);
+      setLoading(false);
+      setRefreshingDetail(true);
+
+      void markEmailAsRead(cachedEmail);
+
+      try {
+        const refreshedEmail = await getMessageById(
+          messageId,
+        );
+
+        setEmail(refreshedEmail);
+
+        void markEmailAsRead(refreshedEmail);
+      } catch {
+        // El detalle cacheado sigue disponible aunque falle la red.
+      } finally {
+        setRefreshingDetail(false);
+      }
+
       return;
     }
 
     setLoading(true);
-    setLoadError(null);
+    setRefreshingDetail(true);
 
     try {
       const loadedEmail = await getMessageById(messageId);
 
       setEmail(loadedEmail);
 
-      if (!loadedEmail.isRead) {
-        try {
-          const updatedMessage = await updateMessageState(
-            messageId,
-            {
-              is_read: true,
-            },
-          );
-
-          setEmail((currentEmail) => (
-            currentEmail
-              ? {
-                ...currentEmail,
-                isRead: updatedMessage.is_read,
-              }
-              : currentEmail
-          ));
-        } catch {
-          setEmail((currentEmail) => (
-            currentEmail
-              ? {
-                ...currentEmail,
-                isRead: true,
-              }
-              : currentEmail
-          ));
-        }
-      }
+      void markEmailAsRead(loadedEmail);
     } catch (error) {
       setEmail(null);
       setLoadError(
@@ -316,11 +377,13 @@ export default function MailDetailScreen() {
       );
     } finally {
       setLoading(false);
+      setRefreshingDetail(false);
     }
   }, [
+    getCachedMessageById,
     getMessageById,
+    markEmailAsRead,
     messageId,
-    updateMessageState,
   ]);
 
   useEffect(() => {
@@ -483,18 +546,142 @@ export default function MailDetailScreen() {
     router,
   ]);
 
-  const handleDownload = useCallback((
+  const getSafeFileName = useCallback((
     fileName: string,
   ) => {
-    Alert.alert(
-      'Descarga no disponible',
-      (
-        `${fileName} está sincronizado como adjunto, pero `
-        + 'la descarga de contenido se habilitará en el '
-        + 'siguiente bloque de integración de adjuntos.'
-      ),
-    );
+    const normalizedFileName = fileName
+      .trim()
+      .replace(/[\\/:*?"<>|]/g, '_')
+      .replace(/\s+/g, ' ');
+
+    return normalizedFileName || 'adjunto';
   }, []);
+
+  const handleDownload = useCallback(async (
+    attachmentId: string,
+    fileName: string,
+  ) => {
+    if (!email || downloadingAttachmentId) {
+      return;
+    }
+
+    const normalizedAttachmentId = attachmentId.trim();
+
+    if (!normalizedAttachmentId) {
+      Alert.alert(
+        'No fue posible descargar',
+        'El adjunto no tiene un identificador válido.',
+      );
+      return;
+    }
+
+    setDownloadingAttachmentId(normalizedAttachmentId);
+
+    try {
+      const credentials = await getValidSessionCredentials();
+
+      if (!credentials) {
+        throw new Error(
+          'Tu sesión expiró. Inicia sesión nuevamente.',
+        );
+      }
+
+      const download = await downloadMailAttachment(
+        credentials,
+        email.id,
+        normalizedAttachmentId,
+      );
+
+      const safeFileName = getSafeFileName(fileName);
+      const temporaryUri = (
+        `${FileSystem.cacheDirectory}`
+        + `beeapp-mail-${Date.now()}-${safeFileName}`
+      );
+
+      const reader = new FileReader();
+
+      const base64Content = await new Promise<string>((
+        resolve,
+        reject,
+      ) => {
+        reader.onerror = () => {
+          reject(
+            new Error(
+              'No fue posible preparar el archivo descargado.',
+            ),
+          );
+        };
+
+        reader.onloadend = () => {
+          const dataUrl = String(reader.result || '');
+          const separatorIndex = dataUrl.indexOf(',');
+
+          if (separatorIndex < 0) {
+            reject(
+              new Error(
+                'El archivo descargado tiene un formato inválido.',
+              ),
+            );
+            return;
+          }
+
+          resolve(dataUrl.slice(separatorIndex + 1));
+        };
+
+        reader.readAsDataURL(download.blob);
+      });
+
+      await FileSystem.writeAsStringAsync(
+        temporaryUri,
+        base64Content,
+        {
+          encoding: FileSystem.EncodingType.Base64,
+        },
+      );
+
+      const sharingAvailable = await Sharing.isAvailableAsync();
+
+      if (!sharingAvailable) {
+        Alert.alert(
+          'Archivo descargado',
+          (
+            'El archivo se descargó temporalmente, pero este '
+            + 'dispositivo no permite abrir la hoja de compartir.'
+          ),
+        );
+        return;
+      }
+
+      await Sharing.shareAsync(
+        temporaryUri,
+        {
+          mimeType: (
+            download.contentType
+            || 'application/octet-stream'
+          ),
+          dialogTitle: `Abrir ${safeFileName}`,
+          UTI: (
+            download.contentType
+            || undefined
+          ),
+        },
+      );
+    } catch (downloadError) {
+      Alert.alert(
+        'No fue posible descargar el adjunto',
+        getErrorMessage(
+          downloadError,
+          'Inténtalo nuevamente.',
+        ),
+      );
+    } finally {
+      setDownloadingAttachmentId(null);
+    }
+  }, [
+    downloadingAttachmentId,
+    email,
+    getSafeFileName,
+  ]);
 
   const handleReply = useCallback((
     replyType: 'reply' | 'reply_all' | 'forward',
@@ -798,11 +985,28 @@ export default function MailDetailScreen() {
               <View style={styles.divider} />
 
               <View style={styles.attachmentsBox}>
-                <Text style={styles.attachmentsTitle}>
-                  Archivos adjuntos (
-                  {email.attachments.length}
-                  )
-                </Text>
+                <View style={styles.attachmentsHeaderRow}>
+                  <Text style={styles.attachmentsTitle}>
+                    Archivos adjuntos (
+                    {email.attachments.length}
+                    )
+                  </Text>
+
+                  {refreshingDetail ? (
+                    <View style={styles.attachmentsRefreshingRow}>
+                      <ActivityIndicator
+                        size="small"
+                        color={colors.brand.primary}
+                      />
+
+                      <Text
+                        style={styles.attachmentsRefreshingText}
+                      >
+                        Verificando adjuntos...
+                      </Text>
+                    </View>
+                  ) : null}
+                </View>
 
                 <View style={styles.attachmentsListCol}>
                   {email.attachments.map((file) => (
@@ -835,19 +1039,34 @@ export default function MailDetailScreen() {
 
                       <TouchableOpacity
                         onPress={() => {
-                          handleDownload(file.filename);
+                          void handleDownload(
+                            file.id,
+                            file.filename,
+                          );
                         }}
                         style={styles.downloadBtn}
+                        disabled={
+                          downloadingAttachmentId !== null
+                        }
                         activeOpacity={0.7}
                         accessibilityRole="button"
                         accessibilityLabel={
-                          `Descargar ${file.filename}`
+                          downloadingAttachmentId === file.id
+                            ? `Descargando ${file.filename}`
+                            : `Descargar ${file.filename}`
                         }
                       >
-                        <Download
-                          size={16}
-                          color={colors.brand.primary}
-                        />
+                        {downloadingAttachmentId === file.id ? (
+                          <ActivityIndicator
+                            size="small"
+                            color={colors.brand.primary}
+                          />
+                        ) : (
+                          <Download
+                            size={16}
+                            color={colors.brand.primary}
+                          />
+                        )}
                       </TouchableOpacity>
                     </View>
                   ))}
@@ -1144,13 +1363,30 @@ const styles = StyleSheet.create({
   attachmentsBox: {
     marginBottom: 24,
   },
+  attachmentsHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 10,
+    marginBottom: 12,
+  },
   attachmentsTitle: {
+    flex: 1,
     fontSize: 12,
     fontWeight: '700',
     color: colors.neutral.gray700,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
-    marginBottom: 12,
+  },
+  attachmentsRefreshingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+  },
+  attachmentsRefreshingText: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: colors.brand.primary,
   },
   attachmentsListCol: {
     gap: 10,
