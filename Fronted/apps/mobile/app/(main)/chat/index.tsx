@@ -15,7 +15,6 @@ import {
 import {
   ArrowLeft,
   SquarePen,
-  UserPlus,
 } from 'lucide-react-native';
 import { useNavigation } from 'expo-router';
 import { colors } from '@beeapp/design-system';
@@ -37,10 +36,6 @@ import ChatCategoryChips from '../../../src/components/chat/ChatCategoryChips';
 import ChatCategoryModals from '../../../src/components/chat/ChatCategoryModals';
 import ChatOptionsSheet from '../../../src/components/chat/ChatOptionsSheet';
 import ChatCreateMenu from '../../../src/components/chat/ChatCreateMenu';
-import CreateCommunityModal from '../../../src/components/chat/CreateCommunityModal';
-import CommunitiesTabView from '../../../src/components/chat/CommunitiesTabView';
-
-import ContactsListView from '../../../src/components/contacts/ContactsListView';
 import PinLockModal from '../../../src/components/security/PinLockModal';
 
 import {
@@ -55,12 +50,6 @@ import {
   type ChatCategory,
   addCategory,
 } from '../../../src/mocks/chats';
-
-import {
-  MOCK_COMMUNITIES,
-  type Community,
-  addCommunity,
-} from '../../../src/mocks/communities';
 
 import {
   MOCK_STATUSES,
@@ -109,19 +98,8 @@ export default function ChatListScreen() {
   const [viewMode, setViewMode] =
     useState<'all' | 'archived'>('all');
 
-  const [creatingContact, setCreatingContact] =
-    useState(false);
-
   const [createMenuOpen, setCreateMenuOpen] =
     useState(false);
-
-  const [creatingCommunity, setCreatingCommunity] =
-    useState(false);
-
-  const [communities, setCommunities] =
-    useState<Community[]>([
-      ...MOCK_COMMUNITIES,
-    ]);
 
   const [categories, setCategories] =
     useState<ChatCategory[]>([
@@ -149,7 +127,7 @@ export default function ChatListScreen() {
   const [creatingStatus, setCreatingStatus] =
     useState(false);
 
-  const isContactsTab = activeTab === 'contacts';
+  const isStatusesTab = activeTab === 'statuses';
 
   useEffect(() => {
     const unsubscribe = navigation.addListener(
@@ -191,7 +169,11 @@ export default function ChatListScreen() {
 
   const archivedCount = useMemo(
     () => conversations.filter(
-      (chat) => chat.isArchived,
+      (chat) => (
+        chat.isArchived
+        && !chat.isGroup
+        && !chat.isAI
+      ),
     ).length,
     [conversations],
   );
@@ -246,6 +228,20 @@ export default function ChatListScreen() {
       (chat) => !chat.isAI,
     ),
     [visibleChats],
+  );
+
+  const directChats = useMemo(
+    () => regularChats.filter(
+      (chat) => !chat.isGroup,
+    ),
+    [regularChats],
+  );
+
+  const groupChats = useMemo(
+    () => regularChats.filter(
+      (chat) => chat.isGroup,
+    ),
+    [regularChats],
   );
 
   const openChat = (
@@ -507,24 +503,13 @@ export default function ChatListScreen() {
 
             <TouchableOpacity
               style={styles.newChatBtn}
-              onPress={() => (
-                isContactsTab
-                  ? setCreatingContact(true)
-                  : setCreateMenuOpen(true)
-              )}
+              onPress={() => setCreateMenuOpen(true)}
               activeOpacity={0.7}
             >
-              {isContactsTab ? (
-                <UserPlus
-                  size={20}
-                  color={colors.neutral.text}
-                />
-              ) : (
-                <SquarePen
-                  size={20}
-                  color={colors.neutral.text}
-                />
-              )}
+              <SquarePen
+                size={20}
+                color={colors.neutral.text}
+              />
             </TouchableOpacity>
           </View>
         </View>
@@ -536,56 +521,59 @@ export default function ChatListScreen() {
           />
         )}
 
-        {isContactsTab ? (
-          <ContactsListView
-            creating={creatingContact}
-            onCloseCreate={() => {
-              setCreatingContact(false);
+        {isStatusesTab ? (
+          <StatusCirclesRow
+            statuses={statuses}
+            onCreate={() => {
+              setCreatingStatus(true);
+            }}
+            onOpen={(index) => {
+              markStatusViewed(
+                statuses[index].id,
+              );
+
+              setStatuses([
+                ...MOCK_STATUSES,
+              ]);
+
+              setViewerIndex(index);
             }}
           />
         ) : activeTab === 'communities' ? (
-          <CommunitiesTabView
-            communities={communities}
-            onOpenCommunity={(community) => {
-              router.push({
-                pathname: '/(main)/chat/community',
-                params: {
-                  id: community.id,
-                },
-              });
-            }}
-          />
+          <View style={styles.listWrap}>
+            <ChatListView
+              chats={groupChats}
+              onOpenChat={handleChatPress}
+              onOpenMenu={setMenuChat}
+              onPin={() => {
+                // La acción ahora se ejecuta desde ChatOptionsSheet.
+              }}
+              onMute={() => {
+                // La acción ahora se ejecuta desde ChatOptionsSheet.
+              }}
+              onDelete={() => {
+                // La acción ahora se ejecuta desde ChatOptionsSheet.
+              }}
+              refreshControl={
+                <RefreshControl
+                  refreshing={refreshing}
+                  onRefresh={handleRefresh}
+                  tintColor={colors.brand.primary}
+                />
+              }
+            />
+          </View>
         ) : (
           <>
             {viewMode === 'all' && (
-              <>
-                <StatusCirclesRow
-                  statuses={statuses}
-                  onCreate={() => {
-                    setCreatingStatus(true);
-                  }}
-                  onOpen={(index) => {
-                    markStatusViewed(
-                      statuses[index].id,
-                    );
-
-                    setStatuses([
-                      ...MOCK_STATUSES,
-                    ]);
-
-                    setViewerIndex(index);
-                  }}
-                />
-
-                <ChatCategoryChips
-                  categories={categories}
-                  activeCategoryId={activeCategoryId}
-                  onChange={setActiveCategoryId}
-                  onCreate={() => {
-                    setCreatingCategory(true);
-                  }}
-                />
-              </>
+              <ChatCategoryChips
+                categories={categories}
+                activeCategoryId={activeCategoryId}
+                onChange={setActiveCategoryId}
+                onCreate={() => {
+                  setCreatingCategory(true);
+                }}
+              />
             )}
 
             {loading && conversations.length === 0 ? (
@@ -620,7 +608,7 @@ export default function ChatListScreen() {
 
                 <ChatListView
                   aiChat={aiChat}
-                  chats={regularChats}
+                  chats={directChats}
                   archivedCount={
                     viewMode === 'all'
                       ? archivedCount
@@ -709,25 +697,10 @@ export default function ChatListScreen() {
         }}
         onNewCommunity={() => {
           setCreateMenuOpen(false);
-          setCreatingCommunity(true);
+          router.push('/(main)/chat/new');
         }}
         onClose={() => {
           setCreateMenuOpen(false);
-        }}
-      />
-
-      <CreateCommunityModal
-        visible={creatingCommunity}
-        onCreate={(data) => {
-          addCommunity(data);
-          setCommunities([
-            ...MOCK_COMMUNITIES,
-          ]);
-          setCreatingCommunity(false);
-          setActiveTab('communities');
-        }}
-        onClose={() => {
-          setCreatingCommunity(false);
         }}
       />
 
