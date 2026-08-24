@@ -1,10 +1,21 @@
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import {
+  useEffect,
+  useState,
+} from 'react';
+import {
+  Image,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from 'react-native';
 import { colors } from '@beeapp/design-system';
 import { ChevronLeft, Phone, Video, MoreVertical, Bot, SlidersHorizontal } from 'lucide-react-native';
 import VerifiedBadge from '../VerifiedBadge';
 
 interface ConversationHeaderProps {
   chatName: string;
+  avatarUrl?: string | null;
   isAI: boolean;
   isGroup: boolean;
   isVerified: boolean;
@@ -20,6 +31,7 @@ interface ConversationHeaderProps {
 
 export default function ConversationHeader({
   chatName,
+  avatarUrl,
   isAI,
   isGroup,
   isVerified,
@@ -31,6 +43,18 @@ export default function ConversationHeader({
   onCall,
   onToggleMenu,
 }: ConversationHeaderProps) {
+  const [avatarFailed, setAvatarFailed] = useState(false);
+
+  useEffect(() => {
+    setAvatarFailed(false);
+  }, [avatarUrl]);
+
+  const canRenderAvatar = Boolean(
+    !isAI
+    && avatarUrl?.trim()
+    && !avatarFailed,
+  );
+
   return (
     <View style={styles.header}>
       <View style={styles.headerLeftCol}>
@@ -44,13 +68,37 @@ export default function ConversationHeader({
           disabled={isAI}
           activeOpacity={0.7}
         >
-          <View style={[styles.avatarCircle, isAI && styles.avatarCircleAI]}>
+          <View
+            style={[
+              styles.avatarCircle,
+              isAI && styles.avatarCircleAI,
+            ]}
+          >
             {isAI ? (
               <Bot size={20} color={colors.neutral.white} />
+            ) : canRenderAvatar ? (
+              <Image
+                source={{
+                  uri: avatarUrl as string,
+                }}
+                style={styles.avatarImage}
+                resizeMode="cover"
+                onError={() => {
+                  setAvatarFailed(true);
+                }}
+                accessibilityLabel={
+                  `Foto de ${chatName}`
+                }
+              />
             ) : (
-              <Text style={styles.avatarText}>{chatName[0]?.toUpperCase() || 'C'}</Text>
+              <Text style={styles.avatarText}>
+                {chatName[0]?.toUpperCase() || 'C'}
+              </Text>
             )}
-            {online && !isGroup && !isAI && <View style={styles.onlineBadge} />}
+
+            {online && !isGroup && !isAI ? (
+              <View style={styles.onlineBadge} />
+            ) : null}
           </View>
 
           <View style={styles.nameMetaCol}>
@@ -131,10 +179,16 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 10,
+    overflow: 'hidden',
     position: 'relative',
   },
   avatarCircleAI: {
     backgroundColor: colors.brand.primary,
+  },
+  avatarImage: {
+    borderRadius: 19,
+    height: '100%',
+    width: '100%',
   },
   avatarText: {
     fontSize: 14,

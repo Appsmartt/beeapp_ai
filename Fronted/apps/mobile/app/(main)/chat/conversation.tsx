@@ -16,6 +16,10 @@ import {
   LockKeyhole,
 } from 'lucide-react-native';
 import { colors } from '@beeapp/design-system';
+import {
+  getChatContactProfile,
+  getStorageFileAccess,
+} from '@beeapp/api-client';
 
 import ScreenSafeArea from '../../../src/components/layout/ScreenSafeArea';
 import {
@@ -41,6 +45,9 @@ import {
 import {
   useChatMessages,
 } from '../../../src/hooks/useChat';
+import {
+  getValidSessionCredentials,
+} from '../../../src/services/authSession';
 
 import type {
   ChatMessageModel,
@@ -108,6 +115,9 @@ export default function ConversationScreen() {
     useState(false);
 
   const [toastText, setToastText] =
+    useState<string | null>(null);
+
+  const [resolvedContactAvatarUrl, setResolvedContactAvatarUrl] =
     useState<string | null>(null);
 
   const scrollRef = useRef<ScrollView | null>(null);
@@ -192,6 +202,74 @@ export default function ConversationScreen() {
     || conversation?.direct_profile?.avatar_url
     || conversation?.avatar_url
     || ''
+  );
+
+  useEffect(() => {
+    let cancelled = false;
+
+    if (
+      isGroup
+      || isAI
+      || !contactIdentityId
+      || contactAvatarUrl
+    ) {
+      setResolvedContactAvatarUrl(null);
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    const loadContactAvatar = async () => {
+      try {
+        const auth = await getValidSessionCredentials();
+
+        if (!auth) {
+          return;
+        }
+
+        const contact = await getChatContactProfile(
+          auth,
+          contactIdentityId,
+        );
+
+        if (
+          cancelled
+          || !contact.avatar_file_id
+        ) {
+          return;
+        }
+
+        const access = await getStorageFileAccess(
+          auth,
+          contact.avatar_file_id,
+        );
+
+        if (!cancelled) {
+          setResolvedContactAvatarUrl(access.url);
+        }
+      } catch {
+        if (!cancelled) {
+          setResolvedContactAvatarUrl(null);
+        }
+      }
+    };
+
+    void loadContactAvatar();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    contactAvatarUrl,
+    contactIdentityId,
+    isAI,
+    isGroup,
+  ]);
+
+  const headerAvatarUrl = (
+    contactAvatarUrl
+    || resolvedContactAvatarUrl
+    || null
   );
 
   const canPostInGroup = (
@@ -524,6 +602,7 @@ export default function ConversationScreen() {
       <View style={styles.container}>
         <ConversationHeader
           chatName={chatName}
+          avatarUrl={headerAvatarUrl}
           isAI={isAI}
           isGroup={isGroup}
           isVerified={isVerified}
