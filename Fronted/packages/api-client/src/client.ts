@@ -365,6 +365,59 @@ async function upload<T>(
     );
 }
 
+export async function downloadApiFile(
+    endpoint: string,
+    options: Omit<ApiRequestOptions, 'method' | 'body'> = {},
+): Promise<{
+    blob: Blob;
+    contentType: string | null;
+    contentDisposition: string | null;
+}> {
+    const {
+        token,
+        auth,
+        headers,
+        credentials,
+        ...fetchOptions
+    } = options;
+
+    const response = await fetch(buildUrl(endpoint), {
+        ...fetchOptions,
+        method: 'GET',
+        credentials: (
+            credentials
+            ?? getDefaultCredentials(auth, token)
+        ),
+        headers: {
+            Accept: '*/*',
+            ...getAuthorizationHeader(token, auth),
+            ...headers,
+        },
+    });
+
+    if (!response.ok) {
+        const errorBody = await getErrorBody(response);
+
+        throw new ApiRequestError(
+            getErrorMessageFromBody(
+                errorBody,
+                `Error ${response.status}: backend request failed.`,
+            ),
+            response.status,
+            endpoint,
+            errorBody,
+        );
+    }
+
+    return {
+        blob: await response.blob(),
+        contentType: response.headers.get('content-type'),
+        contentDisposition: response.headers.get(
+            'content-disposition',
+        ),
+    };
+}
+
 export const api = {
     get<T>(
         endpoint: string,

@@ -2,6 +2,7 @@ import {
   ActivityIndicator,
   Alert,
   Animated,
+  AppState,
   RefreshControl,
   ScrollView,
   StyleSheet,
@@ -54,6 +55,9 @@ import {
 
 const FAB_BOTTOM_OFFSET = 105;
 const SYNC_FEEDBACK_DURATION_MS = 4_800;
+
+const MAIL_FOCUSED_REFRESH_INTERVAL_MS = 60_000;
+const MAIL_UNFOCUSED_SYNC_INTERVAL_MS = 5 * 60_000;
 
 type SyncFeedbackKind = 'success' | 'warning' | 'error';
 
@@ -257,7 +261,9 @@ export default function MailInboxScreen() {
     setSyncFeedback,
   ] = useState<SyncFeedback | null>(null);
 
-  const hasStartedBackgroundSyncRef = useRef(false);
+  const isScreenFocusedRef = useRef(false);
+  const appStateRef = useRef(AppState.currentState);
+
   const feedbackTimerRef = useRef<ReturnType<
     typeof setTimeout
   > | null>(null);
@@ -276,9 +282,10 @@ export default function MailInboxScreen() {
     updatingMessageId,
     error,
     hasActiveIntegrations,
-    refreshMail,
-    loadMore,
+    refreshMailIfStale,
     syncInbox,
+    syncInboxIfStale,
+    loadMore,
     toggleMessageRead,
     toggleMessageStar,
     archiveMessage,
@@ -380,37 +387,95 @@ export default function MailInboxScreen() {
     };
   }, []);
 
-  useFocusEffect(
-    useCallback(() => {
-      void refreshMail();
-    }, [refreshMail]),
-  );
-
-  useEffect(() => {
+  const runFocusedRefresh = useCallback(() => {
     if (
-      loading
-      || syncing
-      || !hasActiveIntegrations
-      || hasStartedBackgroundSyncRef.current
+      !isScreenFocusedRef.current
+      || appStateRef.current !== 'active'
     ) {
       return;
     }
 
-    hasStartedBackgroundSyncRef.current = true;
+    void refreshMailIfStale(
+      MAIL_FOCUSED_REFRESH_INTERVAL_MS,
+    ).catch(() => {
+      // El caché sigue disponible si la revalidación falla.
+    });
 
-    void (async () => {
-      try {
-        await syncInbox();
-      } catch {
-        // La carga local sigue disponible. La sincronización automática
-        // no debe interrumpir al usuario con una alerta.
-      }
-    })();
+    void syncInboxIfStale(
+      MAIL_FOCUSED_REFRESH_INTERVAL_MS,
+    ).catch(() => {
+      // La sincronización automática nunca debe interrumpir al usuario.
+    });
   }, [
-    hasActiveIntegrations,
-    loading,
-    syncInbox,
-    syncing,
+    refreshMailIfStale,
+    syncInboxIfStale,
+  ]);
+
+  const runUnfocusedSync = useCallback(() => {
+    if (
+      isScreenFocusedRef.current
+      || appStateRef.current !== 'active'
+    ) {
+      return;
+    }
+
+    void syncInboxIfStale(
+      MAIL_UNFOCUSED_SYNC_INTERVAL_MS,
+    ).catch(() => {
+      // El sync silencioso se reintentará en el próximo ciclo.
+    });
+  }, [syncInboxIfStale]);
+
+  useFocusEffect(
+    useCallback(() => {
+      isScreenFocusedRef.current = true;
+      runFocusedRefresh();
+
+      return () => {
+        isScreenFocusedRef.current = false;
+      };
+    }, [runFocusedRefresh]),
+  );
+
+  useEffect(() => {
+    const appStateSubscription = AppState.addEventListener(
+      'change',
+      (nextAppState) => {
+        appStateRef.current = nextAppState;
+
+        if (nextAppState === 'active') {
+          if (isScreenFocusedRef.current) {
+            runFocusedRefresh();
+          } else {
+            runUnfocusedSync();
+          }
+        }
+      },
+    );
+
+    return () => {
+      appStateSubscription.remove();
+    };
+  }, [
+    runFocusedRefresh,
+    runUnfocusedSync,
+  ]);
+
+  useEffect(() => {
+    const intervalId = setInterval(() => {
+      if (isScreenFocusedRef.current) {
+        runFocusedRefresh();
+      } else {
+        runUnfocusedSync();
+      }
+    }, MAIL_FOCUSED_REFRESH_INTERVAL_MS);
+
+    return () => {
+      clearInterval(intervalId);
+    };
+  }, [
+    runFocusedRefresh,
+    runUnfocusedSync,
   ]);
 
   const getUnreadCount = useCallback((
