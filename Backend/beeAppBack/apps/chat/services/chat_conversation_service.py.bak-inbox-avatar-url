@@ -215,10 +215,6 @@ def get_chat_inbox(
 
         conversations = _response_rows(response)
 
-        _attach_inbox_avatar_urls(
-            conversations=conversations,
-        )
-
         return {
             "identity_id": str(identity_id),
             "conversations": conversations,
@@ -255,72 +251,6 @@ def get_chat_inbox(
             f"Could not retrieve chat inbox: {message}"
         ) from error
 
-
-
-def _attach_inbox_avatar_urls(
-    *,
-    conversations: list[dict[str, Any]],
-) -> None:
-    for conversation in conversations:
-        avatar_file_id = (
-            conversation.get("group_image_file_id")
-            if conversation.get("conversation_type") == "group"
-            else conversation.get("other_logo_file_id")
-        )
-
-        conversation["avatar_url"] = None
-
-        if not avatar_file_id:
-            continue
-
-        try:
-            file_response = (
-                _supabase()
-                .table("files")
-                .select("bucket_id,storage_path,status")
-                .eq("id", str(avatar_file_id))
-                .eq("status", "ready")
-                .maybe_single()
-                .execute()
-            )
-
-            file_record = _extract_first_row(file_response)
-
-            if (
-                not file_record
-                or not file_record.get("bucket_id")
-                or not file_record.get("storage_path")
-            ):
-                continue
-
-            signed_response = (
-                _supabase()
-                .storage.from_(file_record["bucket_id"])
-                .create_signed_url(
-                    file_record["storage_path"],
-                    300,
-                )
-            )
-
-            signed_url = getattr(
-                signed_response,
-                "signed_url",
-                None,
-            )
-
-            if not signed_url and isinstance(
-                signed_response,
-                dict,
-            ):
-                signed_url = (
-                    signed_response.get("signedURL")
-                    or signed_response.get("signed_url")
-                )
-
-            conversation["avatar_url"] = signed_url or None
-
-        except Exception:
-            continue
 
 def get_conversation(
     *,
