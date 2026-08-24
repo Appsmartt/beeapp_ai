@@ -1,10 +1,4 @@
-import {
-  Image,
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-} from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { colors } from '@beeapp/design-system';
 import { Check, CheckCheck, BellOff, Users, Lock, MoreVertical } from 'lucide-react-native';
 import VerifiedBadge from '../VerifiedBadge';
@@ -16,7 +10,6 @@ interface ChatListItemProps {
   time: string;
   unreadCount: number;
   isGroup: boolean;
-  avatarUrl?: string | null;
   verified?: boolean;
   status: 'sent' | 'delivered' | 'read';
   online?: boolean;
@@ -33,7 +26,6 @@ export default function ChatListItem({
   time,
   unreadCount,
   isGroup,
-  avatarUrl,
   verified,
   status,
   online,
@@ -51,33 +43,13 @@ export default function ChatListItem({
     >
       {/* Avatar Section */}
       <View style={styles.avatarContainer}>
-        {avatarUrl ? (
-          <Image
-            source={{ uri: avatarUrl }}
-            style={[
-              styles.avatarImage,
-              isGroup
-                ? styles.groupAvatarImage
-                : styles.directAvatarImage,
-              isPinned
-                && !isGroup
-                && styles.avatarImagePinned,
-            ]}
-          />
-        ) : isGroup ? (
+        {isGroup ? (
           <View style={styles.groupAvatar}>
             <Users size={22} color={colors.neutral.gray600} />
           </View>
         ) : (
-          <View
-            style={[
-              styles.avatarCircle,
-              isPinned && styles.avatarCirclePinned,
-            ]}
-          >
-            <Text style={styles.avatarText}>
-              {name.charAt(0).toUpperCase() || '?'}
-            </Text>
+          <View style={[styles.avatarCircle, isPinned && styles.avatarCirclePinned]}>
+            <Text style={styles.avatarText}>{name[0].toUpperCase()}</Text>
           </View>
         )}
         {online && !isGroup && <View style={styles.onlineBadge} />}
@@ -188,25 +160,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     borderWidth: 1,
     borderColor: colors.neutral.gray200,
-  },
-  avatarImage: {
-    width: 48,
-    height: 48,
-    resizeMode: 'cover',
-  },
-  directAvatarImage: {
-    borderRadius: 24,
-    borderWidth: 1,
-    borderColor: colors.brand.primary + '30',
-  },
-  groupAvatarImage: {
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: colors.neutral.gray200,
-  },
-  avatarImagePinned: {
-    borderColor: colors.brand.primary,
-    borderWidth: 2,
   },
   onlineBadge: {
     position: 'absolute',
