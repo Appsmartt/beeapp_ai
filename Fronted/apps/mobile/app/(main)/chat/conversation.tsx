@@ -138,6 +138,62 @@ export default function ConversationScreen() {
     conversation?.direct_profile?.is_verified,
   );
 
+  const currentIdentityId = (
+    postingIdentityId
+    || privateIdentityId
+    || null
+  );
+
+  const directParticipants = (
+    conversation?.participants?.filter(
+      (participant) => Boolean(participant.identity_id),
+    )
+    || []
+  );
+
+  const contactParticipant = (
+    !isGroup && currentIdentityId
+      ? (
+          directParticipants.find(
+            (participant) => (
+              participant.identity_id !== currentIdentityId
+            ),
+          )
+          || null
+        )
+      : null
+  );
+
+  const contactIdentityId = (
+    contactParticipant?.identity_id
+    || null
+  );
+
+  const contactDisplayName = (
+    [
+      contactParticipant?.user?.first_name,
+      contactParticipant?.user?.last_name,
+    ]
+      .filter(Boolean)
+      .join(' ')
+      .trim()
+    || [
+      conversation?.direct_profile?.first_name,
+      conversation?.direct_profile?.last_name,
+    ]
+      .filter(Boolean)
+      .join(' ')
+      .trim()
+    || ''
+  );
+
+  const contactAvatarUrl = (
+    contactParticipant?.user?.avatar_url
+    || conversation?.direct_profile?.avatar_url
+    || conversation?.avatar_url
+    || ''
+  );
+
   const canPostInGroup = (
     !isGroup
     || !postingIdentityId
@@ -480,6 +536,26 @@ export default function ConversationScreen() {
           menuOpen={menuOpen}
           onBack={() => router.back()}
           onOpenProfile={() => {
+            if (!isGroup) {
+              if (!contactIdentityId) {
+                Alert.alert(
+                  'Cargando contacto',
+                  'Espera un momento e inténtalo otra vez.',
+                );
+                return;
+              }
+
+              router.push({
+                pathname: '/(main)/contacts/detail',
+                params: {
+                  id: contactIdentityId,
+                  displayName: contactDisplayName,
+                  avatarUrl: contactAvatarUrl,
+                },
+              });
+              return;
+            }
+
             router.push({
               pathname: '/(main)/chat/chat-profile',
               params: {
@@ -521,14 +597,36 @@ export default function ConversationScreen() {
             setMenuOpen(false);
           }}
           onViewInfo={() => {
-            if (!isAI) {
+            if (isAI) {
+              return;
+            }
+
+            if (!isGroup) {
+              if (!contactIdentityId) {
+                Alert.alert(
+                  'Cargando contacto',
+                  'Espera un momento e inténtalo otra vez.',
+                );
+                return;
+              }
+
               router.push({
-                pathname: '/(main)/chat/chat-profile',
+                pathname: '/(main)/contacts/detail',
                 params: {
-                  id: chatId,
+                  id: contactIdentityId,
+                  displayName: contactDisplayName,
+                  avatarUrl: contactAvatarUrl,
                 },
               });
+              return;
             }
+
+            router.push({
+              pathname: '/(main)/chat/chat-profile',
+              params: {
+                id: chatId,
+              },
+            });
           }}
           onMute={() => {
             showToast(

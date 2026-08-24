@@ -2124,6 +2124,24 @@ export type ChatMessageStatus =
   | 'read'
   | 'failed';
 
+export interface ChatContactSocialLink {
+  platform: string;
+  url: string;
+}
+
+export interface ChatContactProfile {
+  identity_id: string;
+  identity_type: 'profile' | 'commercial_profile';
+  profile_id: string | null;
+  commercial_profile_id: string | null;
+  display_name: string;
+  occupation: string | null;
+  location: string | null;
+  social_links: ChatContactSocialLink[];
+  avatar_file_id: string | null;
+  is_available: boolean;
+}
+
 export interface ChatProfileSummary {
   id: string;
   first_name: string;
@@ -2140,6 +2158,7 @@ export interface ChatProfileSummary {
 export interface ChatParticipant {
   id: string;
   conversation_id: string;
+  identity_id?: string;
   user_id: string;
   role: 'owner' | 'admin' | 'member';
   joined_at: string;
