@@ -50,6 +50,10 @@ from apps.chat.services.chat_attachment_service import (
     get_chat_attachment_metadata,
     upload_chat_attachment_and_send_message,
 )
+from apps.chat.services.chat_contact_profile_service import (
+    get_chat_contact_profile,
+)
+
 from apps.chat.services.chat_conversation_service import (
     clear_chat_conversation,
     create_or_get_direct_conversation,
@@ -273,6 +277,56 @@ class ChatRecipientSearchView(AuthenticatedAPIView):
 
         return Response(
             result,
+            status=status.HTTP_200_OK,
+        )
+
+
+class ChatContactProfileView(AuthenticatedAPIView):
+    """
+    GET /api/chat/contacts/<identity_id>/profile/
+
+    Endpoint aislado: no participa en bootstrap, identities ni inbox.
+    Devuelve datos públicos mínimos y avatar_file_id, nunca URLs
+    firmadas ni datos privados.
+    """
+
+    def get(self, request, identity_id):
+        try:
+            authenticated_user = self.get_authenticated_user(
+                request,
+            )
+
+            contact = get_chat_contact_profile(
+                user_id=str(authenticated_user.id),
+                identity_id=str(identity_id),
+            )
+
+        except AccountAuthenticationError:
+            return _unauthorized_response()
+
+        except (
+            ChatConversationAccessError,
+            ChatIdentityNotFoundError,
+        ):
+            return Response(
+                {
+                    "detail": "Contact was not found.",
+                },
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        except Exception:
+            return Response(
+                {
+                    "detail": "Could not retrieve contact profile.",
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        return Response(
+            {
+                "contact": contact,
+            },
             status=status.HTTP_200_OK,
         )
 

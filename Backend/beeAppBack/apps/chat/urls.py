@@ -1,6 +1,7 @@
 from django.urls import path
 
 from apps.chat.views import (
+    ChatContactProfileView,
     ChatBootstrapView,
     ChatConversationAttachmentUploadView,
     ChatConversationClearView,
@@ -44,6 +45,11 @@ urlpatterns = [
         "recipients/search/",
         ChatRecipientSearchView.as_view(),
         name="chat-recipient-search",
+    ),
+    path(
+        "contacts/<uuid:identity_id>/profile/",
+        ChatContactProfileView.as_view(),
+        name="chat-contact-profile",
     ),
     path(
         "inbox/",

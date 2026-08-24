@@ -1,293 +1,607 @@
-import { useState } from 'react';
 import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+} from 'react';
+import {
+  ActivityIndicator,
   Alert,
+  Image,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native';
-import ScreenSafeArea from '../../../src/components/layout/ScreenSafeArea';
-import { useModuleNav, useScreenParams } from '../../../src/components/embedded/EmbeddedNavContext';
-import { colors } from '@beeapp/design-system';
 import {
+  Briefcase,
   ChevronLeft,
+  Globe,
+  MapPin,
   MessageSquare,
   Phone,
-  Video,
-  Mail,
-  Briefcase,
-  Layers,
-  Heart,
-  FileText,
-  VolumeX,
-  Volume2,
   ShieldAlert,
   Trash2,
-  ArrowDownLeft,
-  ArrowUpRight,
-  PhoneOff,
+  Video,
+  Volume2,
+  VolumeX,
 } from 'lucide-react-native';
-import VerifiedBadge from '../../../src/components/VerifiedBadge';
-import { ALL_CONTACT_DETAILS, CONTACT_CALLS } from '../../../src/mocks/contacts';
-import SocialNetworksSection from '../../../src/components/profile/SocialNetworksSection';
+import { colors } from '@beeapp/design-system';
+import {
+  getChatContactProfile,
+  getStorageFileAccess,
+} from '@beeapp/api-client';
+import type {
+  ChatContactProfile,
+} from '@beeapp/shared-types';
+
+import ScreenSafeArea from '../../../src/components/layout/ScreenSafeArea';
+import {
+  useModuleNav,
+  useScreenParams,
+} from '../../../src/components/embedded/EmbeddedNavContext';
+import {
+  getValidSessionCredentials,
+} from '../../../src/services/authSession';
+import {
+  getInitials,
+} from '../../../src/services/chatService';
 
 
+const AVATAR_BACKGROUND = '#F3E8FF';
+
+function buildContactMeta(
+  contact: ChatContactProfile,
+): string | null {
+  if (contact.occupation) {
+    return contact.occupation;
+  }
+
+  if (contact.location) {
+    return contact.location;
+  }
+
+  if (contact.identity_type === 'commercial_profile') {
+    return 'Perfil comercial de BeeApp';
+  }
+
+  return null;
+}
 
 export default function ContactDetailScreen() {
   const router = useModuleNav();
   const params = useScreenParams();
-  const contactId = params.id as string || 'c1';
 
-  const [isMuted, setIsMuted] = useState(false);
-  const [isBlocked, setIsBlocked] = useState(false);
+  const identityId = String(params.id || '').trim();
+  const routeDisplayName = String(
+    params.displayName || '',
+  ).trim();
+  const routeAvatarUrl = String(
+    params.avatarUrl || '',
+  ).trim();
 
-  const contact = ALL_CONTACT_DETAILS[contactId] || ALL_CONTACT_DETAILS.c1;
-  const callLogs = CONTACT_CALLS[contactId] || [];
+  const [contact, setContact] =
+    useState<ChatContactProfile | null>(null);
 
-  const handleAction = (actionName: string, isVideo: boolean = false) => {
-    if (actionName === 'chat') {
-      router.push({
-        pathname: '/(main)/chat/conversation',
-        params: { id: contact.id, name: contact.name, isGroup: 'false', online: contact.online ? 'true' : 'false' },
-      });
-    } else if (actionName === 'call') {
-      router.push({
-        pathname: '/(main)/chat/call',
-        params: { name: contact.name, isVideo: isVideo ? 'true' : 'false' },
-      });
+  const [avatarUrl, setAvatarUrl] =
+    useState<string | null>(null);
+
+  const [loading, setLoading] =
+    useState(true);
+
+  const [refreshing, setRefreshing] =
+    useState(false);
+
+  const [avatarFailed, setAvatarFailed] =
+    useState(false);
+
+  const [error, setError] =
+    useState<string | null>(null);
+
+  const [isMuted, setIsMuted] =
+    useState(false);
+
+  const [isBlocked, setIsBlocked] =
+    useState(false);
+
+  const loadContact = useCallback(
+    async (
+      options: {
+        refresh?: boolean;
+      } = {},
+    ) => {
+      if (!identityId) {
+        setContact(null);
+        setAvatarUrl(null);
+        setError(
+          'No fue posible identificar el contacto.',
+        );
+        setLoading(false);
+        setRefreshing(false);
+        return;
+      }
+
+      if (options.refresh) {
+        setRefreshing(true);
+      } else {
+        setLoading(true);
+      }
+
+      setError(null);
+
+      try {
+        const auth = await getValidSessionCredentials();
+
+        if (!auth) {
+          throw new Error(
+            'Tu sesión expiró. Inicia sesión nuevamente.',
+          );
+        }
+
+        const nextContact = await getChatContactProfile(
+          auth,
+          identityId,
+        );
+
+        setContact({
+          ...nextContact,
+          display_name: (
+            nextContact.display_name.trim()
+            || routeDisplayName
+            || 'Usuario BeeApp'
+          ),
+        });
+        setAvatarFailed(false);
+        setAvatarUrl(routeAvatarUrl || null);
+
+        if (!routeAvatarUrl && nextContact.avatar_file_id) {
+          try {
+            const avatarAccess = await getStorageFileAccess(
+              auth,
+              nextContact.avatar_file_id,
+            );
+
+            setAvatarUrl(avatarAccess.url);
+          } catch {
+            setAvatarUrl(null);
+          }
+        }
+      } catch (loadError) {
+        setContact(null);
+        setAvatarUrl(null);
+        setError(
+          loadError instanceof Error
+            ? loadError.message
+            : 'No fue posible cargar el perfil del contacto.',
+        );
+      } finally {
+        setLoading(false);
+        setRefreshing(false);
+      }
+    },
+    [
+      identityId,
+      routeAvatarUrl,
+      routeDisplayName,
+    ],
+  );
+
+  useEffect(() => {
+    void loadContact();
+  }, [loadContact]);
+
+  const initials = useMemo(
+    () => getInitials(contact?.display_name || ''),
+    [contact?.display_name],
+  );
+
+  const contactMeta = contact
+    ? buildContactMeta(contact)
+    : null;
+
+  const canRenderAvatar = Boolean(
+    avatarUrl && !avatarFailed,
+  );
+
+  const handleChat = () => {
+    Alert.alert(
+      'Mensaje',
+      'Este perfil se abrió desde un contacto de Chat. La conversación existente se mantiene sin cambios.',
+    );
+  };
+
+  const handleCall = (
+    isVideo: boolean,
+  ) => {
+    if (!contact) {
+      return;
     }
+
+    router.push({
+      pathname: '/(main)/chat/call',
+      params: {
+        name: contact.display_name,
+        isVideo: isVideo ? 'true' : 'false',
+      },
+    });
   };
 
   const toggleMute = () => {
-    setIsMuted(!isMuted);
-    Alert.alert(isMuted ? 'Notificaciones activadas' : 'Notificaciones silenciadas', `Has ${isMuted ? 'activado' : 'silenciado'} las alertas de este contacto.`);
+    setIsMuted((current) => !current);
+
+    Alert.alert(
+      isMuted
+        ? 'Notificaciones activadas'
+        : 'Notificaciones silenciadas',
+      isMuted
+        ? 'Las alertas de este contacto se activaron localmente.'
+        : 'Las alertas de este contacto se silenciaron localmente.',
+    );
   };
 
   const toggleBlock = () => {
-    setIsBlocked(!isBlocked);
-    Alert.alert(isBlocked ? 'Contacto desbloqueado' : 'Contacto bloqueado', `Has ${isBlocked ? 'desbloqueado' : 'bloqueado'} a ${contact.name}.`);
+    setIsBlocked((current) => !current);
+
+    Alert.alert(
+      isBlocked
+        ? 'Contacto desbloqueado'
+        : 'Contacto bloqueado',
+      isBlocked
+        ? 'El contacto se desbloqueó localmente.'
+        : 'El contacto se bloqueó localmente.',
+    );
   };
 
   const handleDelete = () => {
     Alert.alert(
-      'Eliminar Contacto',
-      `¿Estás seguro de que deseas eliminar a ${contact.name} de tus contactos?`,
-      [
-        { text: 'Cancelar', style: 'cancel' },
-        {
-          text: 'Eliminar',
-          style: 'destructive',
-          onPress: () => {
-            alert('Contacto eliminado.');
-            router.back();
-          },
-        },
-      ]
+      'Eliminar contacto',
+      'La eliminación de contactos todavía no está conectada al backend.',
     );
   };
 
-  const renderCallIcon = (type: 'incoming' | 'outgoing' | 'missed') => {
-    if (type === 'incoming') return <ArrowDownLeft size={13} color="#10B981" />;
-    if (type === 'outgoing') return <ArrowUpRight size={13} color="#3B82F6" />;
-    return <PhoneOff size={13} color="#EF4444" />;
-  };
+  if (loading && !contact) {
+    return (
+      <ScreenSafeArea style={styles.safeArea}>
+        <View style={styles.centerState}>
+          <ActivityIndicator
+            size="large"
+            color={colors.brand.primary}
+          />
+
+          <Text style={styles.loadingText}>
+            Cargando perfil del contacto...
+          </Text>
+        </View>
+      </ScreenSafeArea>
+    );
+  }
+
+  if (!contact) {
+    return (
+      <ScreenSafeArea style={styles.safeArea}>
+        <View style={styles.centerState}>
+          <Text style={styles.errorText}>
+            {error || 'No fue posible cargar el contacto.'}
+          </Text>
+
+          <TouchableOpacity
+            style={styles.retryButton}
+            onPress={() => {
+              void loadContact({
+                refresh: true,
+              });
+            }}
+            activeOpacity={0.75}
+          >
+            <Text style={styles.retryButtonText}>
+              Reintentar
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.backLink}
+            onPress={() => router.back()}
+            activeOpacity={0.75}
+          >
+            <Text style={styles.backLinkText}>
+              Volver
+            </Text>
+          </TouchableOpacity>
+        </View>
+      </ScreenSafeArea>
+    );
+  }
 
   return (
     <ScreenSafeArea style={styles.safeArea}>
       <View style={styles.container}>
-        {/* Header */}
         <View style={styles.header}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.backBtn} activeOpacity={0.7}>
-            <ChevronLeft size={24} color={colors.neutral.text} />
+          <TouchableOpacity
+            onPress={() => router.back()}
+            style={styles.backButton}
+            activeOpacity={0.7}
+          >
+            <ChevronLeft
+              size={24}
+              color={colors.neutral.text}
+            />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Perfil del Contacto</Text>
-          <View style={{ width: 24 }} />
+
+          <Text style={styles.headerTitle}>
+            Perfil del contacto
+          </Text>
+
+          <View style={styles.headerSpacer} />
         </View>
 
-        <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
-          {/* User Bio Header */}
+        <ScrollView
+          style={styles.scrollView}
+          showsVerticalScrollIndicator={false}
+          refreshControl={undefined}
+        >
           <View style={styles.profileHeaderCard}>
-            <View style={[styles.avatarWrap, { backgroundColor: contact.color }]}>
-              <Text style={styles.avatarText}>{contact.initials}</Text>
-              {contact.online && <View style={styles.onlineBadge} />}
-            </View>
-            <View style={styles.profileNameRow}>
-              <Text style={styles.profileName}>{contact.name}</Text>
-              {contact.verified && <VerifiedBadge size={18} />}
-            </View>
-            <Text style={styles.profileProfession}>{contact.profession}</Text>
-            <Text style={styles.profileCompany}>{contact.company}</Text>
-          </View>
-
-          {/* Quick Actions Row */}
-          <View style={styles.actionsRow}>
-            <TouchableOpacity style={styles.actionBtn} onPress={() => handleAction('chat')} activeOpacity={0.7}>
-              <View style={styles.actionIconBg}>
-                <MessageSquare size={18} color={colors.brand.primary} />
-              </View>
-              <Text style={styles.actionLabel}>Mensaje</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity style={styles.actionBtn} onPress={() => handleAction('call', false)} activeOpacity={0.7}>
-              <View style={styles.actionIconBg}>
-                <Phone size={18} color={colors.brand.primary} />
-              </View>
-              <Text style={styles.actionLabel}>Llamar</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity style={styles.actionBtn} onPress={() => handleAction('call', true)} activeOpacity={0.7}>
-              <View style={styles.actionIconBg}>
-                <Video size={18} color={colors.brand.primary} />
-              </View>
-              <Text style={styles.actionLabel}>Video</Text>
-            </TouchableOpacity>
-          </View>
-
-          {/* Info Details Section */}
-          <Text style={styles.sectionHeader}>Información General</Text>
-          <View style={styles.infoCard}>
-            <View style={styles.infoRow}>
-              <Phone size={16} color={colors.neutral.gray600} />
-              <View style={styles.infoTextCol}>
-                <Text style={styles.infoLabel}>Teléfono</Text>
-                <Text style={styles.infoValue}>{contact.phone}</Text>
-              </View>
-            </View>
-
-            <View style={styles.infoRow}>
-              <Mail size={16} color={colors.neutral.gray600} />
-              <View style={styles.infoTextCol}>
-                <Text style={styles.infoLabel}>Correo Electrónico</Text>
-                <Text style={styles.infoValue}>{contact.email}</Text>
-              </View>
-            </View>
-
-            <View style={styles.infoRow}>
-              <Briefcase size={16} color={colors.neutral.gray600} />
-              <View style={styles.infoTextCol}>
-                <Text style={styles.infoLabel}>Empresa</Text>
-                <Text style={styles.infoValue}>{contact.company}</Text>
-              </View>
-            </View>
-
-            <View style={styles.infoRow}>
-              <Layers size={16} color={colors.neutral.gray600} />
-              <View style={styles.infoTextCol}>
-                <Text style={styles.infoLabel}>Actividad Económica</Text>
-                <Text style={styles.infoValue}>{contact.activity}</Text>
-              </View>
-            </View>
-
-            <View style={[styles.infoRow, { borderBottomWidth: 0, paddingBottom: 0 }]}>
-              <Heart size={16} color={colors.neutral.gray600} />
-              <View style={styles.infoTextCol}>
-                <Text style={styles.infoLabel}>Intereses</Text>
-                <View style={styles.interestsContainer}>
-                  {contact.interests.map((item, idx) => (
-                    <View key={idx} style={styles.interestBadge}>
-                      <Text style={styles.interestBadgeText}>{item}</Text>
-                    </View>
-                  ))}
-                </View>
-              </View>
-            </View>
-          </View>
-
-          {/* Call History specific to this contact */}
-
-          {/* Redes sociales */}
-          <SocialNetworksSection socialLinks={contact.socialLinks} />
-
-          <Text style={styles.sectionHeader}>Historial de Llamadas</Text>
-          <View style={styles.callsSummaryCard}>
-            {/* Quick Metrics */}
-            <View style={styles.metricsRow}>
-              <View style={styles.metricItem}>
-                <Text style={styles.metricVal}>{callLogs.length}</Text>
-                <Text style={styles.metricLabel}>Total Llamadas</Text>
-              </View>
-              <View style={styles.metricItem}>
-                <Text style={styles.metricVal}>
-                  {callLogs.filter(l => l.type !== 'missed').length > 0 ? '18m 10s' : '0s'}
-                </Text>
-                <Text style={styles.metricLabel}>Tiempo Hablado</Text>
-              </View>
-              <View style={styles.metricItem}>
-                <Text style={styles.metricVal}>{callLogs[0]?.time.split(',')[0] || 'N/A'}</Text>
-                <Text style={styles.metricLabel}>Última Llamada</Text>
-              </View>
-            </View>
-
-            {/* List details */}
-            <View style={styles.callsList}>
-              {callLogs.map((log, idx) => (
-                <View key={idx} style={[styles.callLogRow, idx === callLogs.length - 1 && { borderBottomWidth: 0 }]}>
-                  <View style={styles.callLogTypeCol}>
-                    {renderCallIcon(log.type)}
-                    <Text style={[styles.callLogTypeText, log.type === 'missed' && styles.callLogTypeTextMissed]}>
-                      Llamada {log.type === 'incoming' ? 'Entrante' : log.type === 'outgoing' ? 'Saliente' : 'Perdida'}
-                    </Text>
-                  </View>
-                  <View style={styles.callLogMetaCol}>
-                    <Text style={styles.callLogTime}>{log.time}</Text>
-                    {log.type !== 'missed' && (
-                      <Text style={styles.callLogDuration}>{log.duration}</Text>
-                    )}
-                  </View>
-                </View>
-              ))}
-            </View>
-          </View>
-
-          {/* Shared Files and Media mock section */}
-          <Text style={styles.sectionHeader}>Archivos Compartidos</Text>
-          <View style={styles.sharedFilesCard}>
-            <View style={styles.sharedFileItem}>
-              <FileText size={18} color="#EF4444" style={styles.sharedFileIcon} />
-              <View style={styles.sharedFileDetails}>
-                <Text style={styles.sharedFileName} numberOfLines={1}>NDA_Firmado_BeeApp.pdf</Text>
-                <Text style={styles.sharedFileMeta}>1.2 MB • Hace 2 días</Text>
-              </View>
-            </View>
-
-            <View style={[styles.sharedFileItem, { borderBottomWidth: 0, paddingBottom: 0 }]}>
-              <FileText size={18} color="#6B7280" style={styles.sharedFileIcon} />
-              <View style={styles.sharedFileDetails}>
-                <Text style={styles.sharedFileName} numberOfLines={1}>Propuesta_Comercial.docx</Text>
-                <Text style={styles.sharedFileMeta}>850 KB • Hace 5 días</Text>
-              </View>
-            </View>
-          </View>
-
-          {/* Privacy actions */}
-          <Text style={styles.sectionHeader}>Opciones</Text>
-          <View style={styles.optionsCard}>
-            <TouchableOpacity style={styles.optionRow} onPress={toggleMute}>
-              {isMuted ? (
-                <Volume2 size={16} color={colors.neutral.text} />
+            <View style={styles.avatarWrap}>
+              {canRenderAvatar ? (
+                <Image
+                  source={{
+                    uri: avatarUrl as string,
+                  }}
+                  style={styles.avatarImage}
+                  onError={() => {
+                    setAvatarFailed(true);
+                  }}
+                  accessibilityLabel={
+                    `Foto de ${contact.display_name}`
+                  }
+                />
               ) : (
-                <VolumeX size={16} color={colors.neutral.text} />
+                <Text style={styles.avatarText}>
+                  {initials}
+                </Text>
               )}
-              <Text style={styles.optionLabelText}>
-                {isMuted ? 'Activar notificaciones' : 'Silenciar notificaciones'}
+            </View>
+
+            <Text
+              style={styles.profileName}
+              numberOfLines={2}
+            >
+              {contact.display_name}
+            </Text>
+
+            {contactMeta ? (
+              <Text
+                style={styles.profileMeta}
+                numberOfLines={2}
+              >
+                {contactMeta}
+              </Text>
+            ) : null}
+
+            {contact.identity_type === 'commercial_profile' ? (
+              <Text style={styles.profileType}>
+                Perfil comercial
+              </Text>
+            ) : null}
+          </View>
+
+          <View style={styles.actionsRow}>
+            <TouchableOpacity
+              style={styles.actionButton}
+              onPress={handleChat}
+              activeOpacity={0.7}
+            >
+              <View style={styles.actionIconWrap}>
+                <MessageSquare
+                  size={18}
+                  color={colors.brand.primary}
+                />
+              </View>
+
+              <Text style={styles.actionLabel}>
+                Mensaje
               </Text>
             </TouchableOpacity>
 
-            <TouchableOpacity style={styles.optionRow} onPress={toggleBlock}>
-              <ShieldAlert size={16} color={colors.neutral.text} />
-              <Text style={styles.optionLabelText}>
-                {isBlocked ? 'Desbloquear contacto' : 'Bloquear contacto'}
+            <TouchableOpacity
+              style={styles.actionButton}
+              onPress={() => handleCall(false)}
+              activeOpacity={0.7}
+            >
+              <View style={styles.actionIconWrap}>
+                <Phone
+                  size={18}
+                  color={colors.brand.primary}
+                />
+              </View>
+
+              <Text style={styles.actionLabel}>
+                Llamar
               </Text>
             </TouchableOpacity>
 
-            <TouchableOpacity style={[styles.optionRow, { borderBottomWidth: 0 }]} onPress={handleDelete}>
-              <Trash2 size={16} color={colors.semantic.error} />
-              <Text style={[styles.optionLabelText, { color: colors.semantic.error }]}>Eliminar contacto</Text>
+            <TouchableOpacity
+              style={styles.actionButton}
+              onPress={() => handleCall(true)}
+              activeOpacity={0.7}
+            >
+              <View style={styles.actionIconWrap}>
+                <Video
+                  size={18}
+                  color={colors.brand.primary}
+                />
+              </View>
+
+              <Text style={styles.actionLabel}>
+                Video
+              </Text>
             </TouchableOpacity>
           </View>
 
-          <View style={{ height: 60 }} />
+          <Text style={styles.sectionTitle}>
+            Información general
+          </Text>
+
+          <View style={styles.infoCard}>
+            {contact.occupation ? (
+              <View style={styles.infoRow}>
+                <Briefcase
+                  size={16}
+                  color={colors.neutral.gray600}
+                />
+
+                <View style={styles.infoTextColumn}>
+                  <Text style={styles.infoLabel}>
+                    Ocupación
+                  </Text>
+
+                  <Text style={styles.infoValue}>
+                    {contact.occupation}
+                  </Text>
+                </View>
+              </View>
+            ) : null}
+
+            {contact.location ? (
+              <View style={styles.infoRow}>
+                <MapPin
+                  size={16}
+                  color={colors.neutral.gray600}
+                />
+
+                <View style={styles.infoTextColumn}>
+                  <Text style={styles.infoLabel}>
+                    Ubicación
+                  </Text>
+
+                  <Text style={styles.infoValue}>
+                    {contact.location}
+                  </Text>
+                </View>
+              </View>
+            ) : null}
+
+            {!contact.occupation && !contact.location ? (
+              <Text style={styles.emptyInfoText}>
+                Este contacto no ha compartido información adicional.
+              </Text>
+            ) : null}
+          </View>
+
+          {contact.social_links.length > 0 ? (
+            <>
+              <Text style={styles.sectionTitle}>
+                Redes y enlaces
+              </Text>
+
+              <View style={styles.infoCard}>
+                {contact.social_links.map((link, index) => (
+                  <View
+                    key={`${link.platform}-${link.url}`}
+                    style={[
+                      styles.infoRow,
+                      index === contact.social_links.length - 1
+                        ? styles.lastInfoRow
+                        : null,
+                    ]}
+                  >
+                    <Globe
+                      size={16}
+                      color={colors.neutral.gray600}
+                    />
+
+                    <View style={styles.infoTextColumn}>
+                      <Text style={styles.infoLabel}>
+                        {link.platform}
+                      </Text>
+
+                      <Text
+                        style={styles.linkValue}
+                        numberOfLines={1}
+                      >
+                        {link.url}
+                      </Text>
+                    </View>
+                  </View>
+                ))}
+              </View>
+            </>
+          ) : null}
+
+          <Text style={styles.sectionTitle}>
+            Opciones
+          </Text>
+
+          <View style={styles.optionsCard}>
+            <TouchableOpacity
+              style={styles.optionRow}
+              onPress={toggleMute}
+              activeOpacity={0.7}
+            >
+              {isMuted ? (
+                <Volume2
+                  size={16}
+                  color={colors.neutral.text}
+                />
+              ) : (
+                <VolumeX
+                  size={16}
+                  color={colors.neutral.text}
+                />
+              )}
+
+              <Text style={styles.optionLabel}>
+                {isMuted
+                  ? 'Activar notificaciones'
+                  : 'Silenciar notificaciones'}
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.optionRow}
+              onPress={toggleBlock}
+              activeOpacity={0.7}
+            >
+              <ShieldAlert
+                size={16}
+                color={colors.neutral.text}
+              />
+
+              <Text style={styles.optionLabel}>
+                {isBlocked
+                  ? 'Desbloquear contacto'
+                  : 'Bloquear contacto'}
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[
+                styles.optionRow,
+                styles.lastOptionRow,
+              ]}
+              onPress={handleDelete}
+              activeOpacity={0.7}
+            >
+              <Trash2
+                size={16}
+                color={colors.semantic.error}
+              />
+
+              <Text style={styles.deleteLabel}>
+                Eliminar contacto
+              </Text>
+            </TouchableOpacity>
+          </View>
+
+          {refreshing ? (
+            <ActivityIndicator
+              size="small"
+              color={colors.brand.primary}
+              style={styles.refreshIndicator}
+            />
+          ) : null}
+
+          <View style={styles.bottomSpacer} />
         </ScrollView>
       </View>
     </ScreenSafeArea>
@@ -296,29 +610,32 @@ export default function ContactDetailScreen() {
 
 const styles = StyleSheet.create({
   safeArea: {
-    flex: 1,
     backgroundColor: colors.neutral.gray50,
+    flex: 1,
   },
   container: {
     flex: 1,
   },
   header: {
-    flexDirection: 'row',
     alignItems: 'center',
+    backgroundColor: colors.neutral.white,
+    borderBottomColor: colors.neutral.gray100,
+    borderBottomWidth: 1,
+    flexDirection: 'row',
     justifyContent: 'space-between',
     paddingHorizontal: 20,
     paddingVertical: 12,
-    backgroundColor: colors.neutral.white,
-    borderBottomWidth: 1,
-    borderColor: colors.neutral.gray100,
   },
-  backBtn: {
+  backButton: {
     padding: 4,
   },
   headerTitle: {
+    color: colors.neutral.text,
     fontSize: 16,
     fontWeight: '800',
-    color: colors.neutral.text,
+  },
+  headerSpacer: {
+    width: 24,
   },
   scrollView: {
     flex: 1,
@@ -326,280 +643,206 @@ const styles = StyleSheet.create({
   profileHeaderCard: {
     alignItems: 'center',
     backgroundColor: colors.neutral.white,
-    paddingVertical: 24,
+    borderBottomColor: colors.neutral.gray200,
     borderBottomWidth: 1,
-    borderColor: colors.neutral.gray200,
+    paddingHorizontal: 24,
+    paddingVertical: 24,
   },
   avatarWrap: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    justifyContent: 'center',
     alignItems: 'center',
+    backgroundColor: AVATAR_BACKGROUND,
+    borderRadius: 48,
+    height: 96,
+    justifyContent: 'center',
     marginBottom: 12,
-    position: 'relative',
+    overflow: 'hidden',
+    width: 96,
+  },
+  avatarImage: {
+    height: '100%',
+    width: '100%',
   },
   avatarText: {
-    fontSize: 24,
+    color: colors.brand.primary,
+    fontSize: 30,
     fontWeight: '800',
-    color: colors.neutral.text,
-  },
-  onlineBadge: {
-    width: 14,
-    height: 14,
-    borderRadius: 7,
-    backgroundColor: '#10B981',
-    borderWidth: 2,
-    borderColor: colors.neutral.white,
-    position: 'absolute',
-    bottom: 2,
-    right: 2,
-  },
-  profileNameRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-    marginBottom: 4,
   },
   profileName: {
-    flexShrink: 1,
-    fontSize: 18,
-    fontWeight: 'bold',
     color: colors.neutral.text,
+    fontSize: 19,
+    fontWeight: '800',
+    textAlign: 'center',
   },
-  profileProfession: {
+  profileMeta: {
+    color: colors.neutral.gray600,
     fontSize: 13,
     fontWeight: '600',
-    color: colors.neutral.gray700,
-    marginBottom: 2,
+    marginTop: 5,
+    textAlign: 'center',
   },
-  profileCompany: {
+  profileType: {
+    color: colors.brand.primary,
     fontSize: 11,
-    color: colors.neutral.gray600,
-    fontWeight: '500',
+    fontWeight: '700',
+    marginTop: 7,
+    textTransform: 'uppercase',
   },
   actionsRow: {
+    backgroundColor: colors.neutral.white,
+    borderBottomColor: colors.neutral.gray200,
+    borderBottomWidth: 1,
     flexDirection: 'row',
+    gap: 32,
     justifyContent: 'center',
     paddingVertical: 16,
-    backgroundColor: colors.neutral.white,
-    borderBottomWidth: 1,
-    borderColor: colors.neutral.gray200,
-    gap: 32,
   },
-  actionBtn: {
+  actionButton: {
     alignItems: 'center',
     gap: 6,
   },
-  actionIconBg: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: colors.neutral.gray50,
-    borderWidth: 1,
-    borderColor: colors.neutral.gray200,
-    justifyContent: 'center',
+  actionIconWrap: {
     alignItems: 'center',
+    backgroundColor: colors.neutral.gray50,
+    borderColor: colors.neutral.gray200,
+    borderRadius: 22,
+    borderWidth: 1,
+    height: 44,
+    justifyContent: 'center',
+    width: 44,
   },
   actionLabel: {
-    fontSize: 11,
-    fontWeight: '700',
     color: colors.neutral.text,
-  },
-  sectionHeader: {
     fontSize: 11,
     fontWeight: '700',
+  },
+  sectionTitle: {
     color: colors.neutral.gray600,
-    textTransform: 'uppercase',
+    fontSize: 11,
+    fontWeight: '700',
     letterSpacing: 0.5,
+    marginBottom: 8,
     marginHorizontal: 20,
     marginTop: 24,
-    marginBottom: 8,
+    textTransform: 'uppercase',
   },
   infoCard: {
     backgroundColor: colors.neutral.white,
-    borderTopWidth: 1,
+    borderBottomColor: colors.neutral.gray200,
     borderBottomWidth: 1,
-    borderColor: colors.neutral.gray200,
+    borderTopColor: colors.neutral.gray200,
+    borderTopWidth: 1,
     paddingHorizontal: 20,
-    paddingVertical: 14,
+    paddingVertical: 4,
   },
   infoRow: {
-    flexDirection: 'row',
     alignItems: 'flex-start',
-    paddingVertical: 12,
-    borderBottomWidth: 1,
     borderBottomColor: colors.neutral.gray100,
+    borderBottomWidth: 1,
+    flexDirection: 'row',
     gap: 12,
+    paddingVertical: 13,
   },
-  infoTextCol: {
+  lastInfoRow: {
+    borderBottomWidth: 0,
+  },
+  infoTextColumn: {
     flex: 1,
   },
   infoLabel: {
-    fontSize: 11,
     color: colors.neutral.gray600,
+    fontSize: 11,
     fontWeight: '600',
     marginBottom: 2,
+    textTransform: 'capitalize',
   },
   infoValue: {
+    color: colors.neutral.text,
     fontSize: 13,
     fontWeight: '700',
-    color: colors.neutral.text,
   },
-  interestsContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 6,
-    marginTop: 4,
-  },
-  interestBadge: {
-    backgroundColor: colors.neutral.gray100,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 8,
-  },
-  interestBadgeText: {
-    fontSize: 10,
-    color: colors.neutral.gray700,
-    fontWeight: '600',
-  },
-  callsSummaryCard: {
-    backgroundColor: colors.neutral.white,
-    borderTopWidth: 1,
-    borderBottomWidth: 1,
-    borderColor: colors.neutral.gray200,
-  },
-  metricsRow: {
-    flexDirection: 'row',
-    borderBottomWidth: 1,
-    borderBottomColor: colors.neutral.gray100,
-    paddingVertical: 14,
-  },
-  metricItem: {
-    flex: 1,
-    alignItems: 'center',
-    borderRightWidth: 1,
-    borderRightColor: colors.neutral.gray100,
-  },
-  metricVal: {
-    fontSize: 15,
-    fontWeight: '800',
+  linkValue: {
     color: colors.brand.primary,
-    marginBottom: 2,
-  },
-  metricLabel: {
-    fontSize: 10,
-    color: colors.neutral.gray600,
-    fontWeight: '600',
-  },
-  callsList: {
-    paddingHorizontal: 20,
-    paddingVertical: 8,
-  },
-  callLogRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.neutral.gray100,
-  },
-  callLogTypeCol: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  callLogTypeText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: colors.neutral.text,
-  },
-  callLogTypeTextMissed: {
-    color: '#EF4444',
-    fontWeight: '800',
-  },
-  callLogMetaCol: {
-    alignItems: 'flex-end',
-  },
-  callLogTime: {
-    fontSize: 11,
-    color: colors.neutral.gray600,
-    fontWeight: '500',
-    marginBottom: 2,
-  },
-  callLogDuration: {
-    fontSize: 9,
-    color: colors.neutral.gray500,
-    fontWeight: '600',
-  },
-  sharedFilesCard: {
-    backgroundColor: colors.neutral.white,
-    borderTopWidth: 1,
-    borderBottomWidth: 1,
-    borderColor: colors.neutral.gray200,
-    paddingHorizontal: 20,
-    paddingVertical: 14,
-    gap: 12,
-  },
-  sharedFileItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.neutral.gray100,
-  },
-  sharedFileIcon: {
-    marginRight: 12,
-  },
-  sharedFileDetails: {
-    flex: 1,
-  },
-  sharedFileName: {
     fontSize: 13,
     fontWeight: '700',
-    color: colors.neutral.text,
   },
-  sharedFileMeta: {
-    fontSize: 10,
+  emptyInfoText: {
     color: colors.neutral.gray600,
-    marginTop: 2,
-    fontWeight: '500',
+    fontSize: 13,
+    paddingVertical: 14,
+    textAlign: 'center',
   },
   optionsCard: {
     backgroundColor: colors.neutral.white,
-    borderTopWidth: 1,
+    borderBottomColor: colors.neutral.gray200,
     borderBottomWidth: 1,
-    borderColor: colors.neutral.gray200,
+    borderTopColor: colors.neutral.gray200,
+    borderTopWidth: 1,
   },
   optionRow: {
-    flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 14,
-    paddingHorizontal: 20,
-    borderBottomWidth: 1,
     borderBottomColor: colors.neutral.gray100,
+    borderBottomWidth: 1,
+    flexDirection: 'row',
     gap: 12,
+    paddingHorizontal: 20,
+    paddingVertical: 14,
   },
-  optionLabelText: {
+  lastOptionRow: {
+    borderBottomWidth: 0,
+  },
+  optionLabel: {
+    color: colors.neutral.text,
     fontSize: 13,
     fontWeight: '600',
-    color: colors.neutral.text,
   },
-  errorContainer: {
-    flex: 1,
-    justifyContent: 'center',
+  deleteLabel: {
+    color: colors.semantic.error,
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  centerState: {
     alignItems: 'center',
+    flex: 1,
+    gap: 12,
+    justifyContent: 'center',
+    paddingHorizontal: 24,
+  },
+  loadingText: {
+    color: colors.neutral.gray600,
+    fontSize: 14,
+    fontWeight: '600',
   },
   errorText: {
-    fontSize: 16,
-    fontWeight: '700',
     color: colors.neutral.text,
+    fontSize: 14,
+    fontWeight: '700',
+    lineHeight: 21,
+    textAlign: 'center',
+  },
+  retryButton: {
+    backgroundColor: colors.brand.primary,
+    borderRadius: 8,
+    marginTop: 4,
+    paddingHorizontal: 18,
+    paddingVertical: 10,
+  },
+  retryButtonText: {
+    color: colors.neutral.white,
+    fontSize: 13,
+    fontWeight: '700',
   },
   backLink: {
-    marginTop: 12,
+    padding: 8,
   },
   backLinkText: {
-    fontSize: 14,
     color: colors.brand.primary,
+    fontSize: 13,
     fontWeight: '700',
+  },
+  refreshIndicator: {
+    marginTop: 20,
+  },
+  bottomSpacer: {
+    height: 70,
   },
 });

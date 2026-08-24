@@ -1,5 +1,6 @@
 import type {
   AuthCredentials,
+  ChatContactProfile,
   ChatConversation,
   ChatMessage,
   ChatParticipant,
@@ -90,6 +91,26 @@ export interface ChatApiConversation {
   created_at: string;
   updated_at: string;
   participants?: ChatApiParticipant[];
+}
+
+export interface ChatApiContactProfile {
+  identity_id: string;
+  identity_type: 'profile' | 'commercial_profile';
+  profile_id: string | null;
+  commercial_profile_id: string | null;
+  display_name: string;
+  occupation: string | null;
+  location: string | null;
+  social_links: Array<{
+    platform: string;
+    url: string;
+  }>;
+  avatar_file_id: string | null;
+  is_available: boolean;
+}
+
+export interface ChatContactProfileResponse {
+  contact: ChatApiContactProfile;
 }
 
 export interface ChatApiAttachment {
@@ -251,6 +272,7 @@ function toSharedParticipant(
   return {
     id: participant.id,
     conversation_id: participant.conversation_id,
+    identity_id: participant.identity_id,
     user_id: (
       identity?.profile_id
       || participant.identity_id
@@ -392,6 +414,7 @@ function toSharedInboxConversation(
       ? {
           id: conversation.other_identity_id,
           conversation_id: conversation.conversation_id,
+          identity_id: conversation.other_identity_id,
           user_id: (
             conversation.other_profile_id
             || conversation.other_identity_id
@@ -406,7 +429,7 @@ function toSharedInboxConversation(
             ),
             first_name: firstName,
             last_name: lastName,
-            avatar_url: null,
+            avatar_url: conversation.avatar_url || null,
             is_verified: false,
             is_online: false,
           },
@@ -573,6 +596,54 @@ export async function searchChatRecipients(
         is_online: false,
       };
     }),
+  };
+}
+
+export async function getChatContactProfile(
+  auth: AuthCredentials,
+  identityId: string,
+): Promise<ChatContactProfile> {
+  const normalizedIdentityId = identityId.trim();
+
+  if (!normalizedIdentityId) {
+    throw new Error(
+      'No fue posible identificar el contacto.',
+    );
+  }
+
+  const response = await api.get<
+    ChatContactProfileResponse
+  >(
+    `/chat/contacts/${encodeURIComponent(
+      normalizedIdentityId,
+    )}/profile/`,
+    {
+      auth: requireBearerAuth(auth),
+    },
+  );
+
+  return {
+    identity_id: response.contact.identity_id,
+    identity_type: response.contact.identity_type,
+    profile_id: response.contact.profile_id,
+    commercial_profile_id: (
+      response.contact.commercial_profile_id
+    ),
+    display_name: response.contact.display_name,
+    occupation: response.contact.occupation || null,
+    location: response.contact.location || null,
+    social_links: (
+      response.contact.social_links || []
+    ).map((link) => ({
+      platform: link.platform,
+      url: link.url,
+    })),
+    avatar_file_id: (
+      response.contact.avatar_file_id || null
+    ),
+    is_available: Boolean(
+      response.contact.is_available,
+    ),
   };
 }
 
