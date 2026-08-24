@@ -12,6 +12,9 @@ import {
   Text,
   View,
 } from 'react-native';
+import {
+  LockKeyhole,
+} from 'lucide-react-native';
 import { colors } from '@beeapp/design-system';
 
 import ScreenSafeArea from '../../../src/components/layout/ScreenSafeArea';
@@ -64,8 +67,13 @@ export default function ConversationScreen() {
     loading,
     refreshing,
     sending,
+    loadingMore,
+    hasMore,
+    privateIdentityId,
+    postingIdentityId,
     error,
     loadMessages,
+    loadMore,
     sendMessage,
     editMessage,
     deleteMessage,
@@ -103,6 +111,7 @@ export default function ConversationScreen() {
     useState<string | null>(null);
 
   const scrollRef = useRef<ScrollView | null>(null);
+  const loadingMoreRef = useRef(false);
 
   const chatName = (
     conversation?.name?.trim()
@@ -129,6 +138,18 @@ export default function ConversationScreen() {
     conversation?.direct_profile?.is_verified,
   );
 
+  const canPostInGroup = (
+    !isGroup
+    || !postingIdentityId
+    || postingIdentityId === privateIdentityId
+  );
+
+  const isResolvingGroupPermission = (
+    isGroup
+    && Boolean(postingIdentityId)
+    && privateIdentityId === null
+  );
+
   /*
    * El contrato actual del backend no expone metadata de conversación.
    * Por eso el banner de respuesta automática queda oculto hasta que
@@ -146,6 +167,29 @@ export default function ConversationScreen() {
         animated: true,
       });
     }, 100);
+  };
+
+  const handleChatScroll = (
+    offsetY: number,
+  ) => {
+    if (
+      offsetY > 80
+      || loadingMoreRef.current
+      || loadingMore
+      || !hasMore
+    ) {
+      return;
+    }
+
+    loadingMoreRef.current = true;
+
+    void loadMore()
+      .catch(() => {
+        // El hook conserva el error para mostrarlo en pantalla.
+      })
+      .finally(() => {
+        loadingMoreRef.current = false;
+      });
   };
 
   useEffect(() => {
@@ -521,6 +565,12 @@ export default function ConversationScreen() {
               styles.chatScrollContent
             }
             onContentSizeChange={scrollToBottom}
+            onScroll={(event) => {
+              handleChatScroll(
+                event.nativeEvent.contentOffset.y,
+              );
+            }}
+            scrollEventThrottle={120}
             showsVerticalScrollIndicator={false}
             refreshControl={
               <RefreshControl
@@ -536,6 +586,23 @@ export default function ConversationScreen() {
               />
             }
           >
+            {loadingMore ? (
+              <View style={styles.loadingMoreState}>
+                <ActivityIndicator
+                  size="small"
+                  color={colors.brand.primary}
+                />
+
+                <Text style={styles.loadingMoreText}>
+                  Cargando mensajes anteriores...
+                </Text>
+              </View>
+            ) : hasMore ? (
+              <Text style={styles.loadMoreHint}>
+                Desliza hacia arriba para ver mensajes anteriores
+              </Text>
+            ) : null}
+
             <View style={styles.dateSeparator}>
               <Text style={styles.dateSeparatorText}>
                 HOY
@@ -650,24 +717,62 @@ export default function ConversationScreen() {
           toastText={toastText}
         />
 
-        <WriteBar
-          onSendMessage={(text) => {
-            void handleSendMessage(text);
-          }}
-          onSendVoiceNote={handleSendVoiceNote}
-          onSendAttachment={handleSendAttachment}
-          value={
-            editingMessage
-              ? editingText
-              : undefined
-          }
-          onChangeText={
-            editingMessage
-              ? setEditingText
-              : undefined
-          }
-          disabled={sending}
-        />
+        {isResolvingGroupPermission ? (
+          <View style={styles.readOnlyComposer}>
+            <ActivityIndicator
+              size="small"
+              color={colors.brand.primary}
+            />
+
+            <View style={styles.readOnlyComposerTextWrap}>
+              <Text style={styles.readOnlyComposerTitle}>
+                Verificando permisos del grupo...
+              </Text>
+
+              <Text style={styles.readOnlyComposerDescription}>
+                Espera un momento mientras confirmamos si puedes enviar mensajes.
+              </Text>
+            </View>
+          </View>
+        ) : canPostInGroup ? (
+          <WriteBar
+            onSendMessage={(text) => {
+              void handleSendMessage(text);
+            }}
+            onSendVoiceNote={handleSendVoiceNote}
+            onSendAttachment={handleSendAttachment}
+            value={
+              editingMessage
+                ? editingText
+                : undefined
+            }
+            onChangeText={
+              editingMessage
+                ? setEditingText
+                : undefined
+            }
+            disabled={sending}
+          />
+        ) : (
+          <View style={styles.readOnlyComposer}>
+            <View style={styles.readOnlyComposerIcon}>
+              <LockKeyhole
+                size={17}
+                color={colors.neutral.gray600}
+              />
+            </View>
+
+            <View style={styles.readOnlyComposerTextWrap}>
+              <Text style={styles.readOnlyComposerTitle}>
+                Solo administradores pueden escribir
+              </Text>
+
+              <Text style={styles.readOnlyComposerDescription}>
+                Puedes leer los mensajes de este grupo, pero no tienes permiso para enviar mensajes.
+              </Text>
+            </View>
+          </View>
+        )}
 
         <ChatMessageMenuModal
           visible={selectedMessage !== null}
@@ -781,6 +886,58 @@ const styles = StyleSheet.create({
   },
   refreshingIndicator: {
     marginBottom: 12,
+  },
+  loadingMoreState: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: 8,
+    justifyContent: 'center',
+    marginBottom: 8,
+    paddingVertical: 6,
+  },
+  loadingMoreText: {
+    color: colors.neutral.gray600,
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  loadMoreHint: {
+    color: colors.neutral.gray500,
+    fontSize: 10,
+    marginBottom: 4,
+    textAlign: 'center',
+  },
+  readOnlyComposer: {
+    alignItems: 'center',
+    backgroundColor: colors.neutral.white,
+    borderColor: colors.neutral.gray200,
+    borderTopWidth: 1,
+    flexDirection: 'row',
+    minHeight: 76,
+    paddingHorizontal: 18,
+    paddingVertical: 12,
+  },
+  readOnlyComposerIcon: {
+    alignItems: 'center',
+    backgroundColor: colors.neutral.gray100,
+    borderRadius: 18,
+    height: 36,
+    justifyContent: 'center',
+    marginRight: 11,
+    width: 36,
+  },
+  readOnlyComposerTextWrap: {
+    flex: 1,
+  },
+  readOnlyComposerTitle: {
+    color: colors.neutral.gray700,
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  readOnlyComposerDescription: {
+    color: colors.neutral.gray500,
+    fontSize: 11,
+    lineHeight: 16,
+    marginTop: 2,
   },
   emptyState: {
     alignItems: 'center',

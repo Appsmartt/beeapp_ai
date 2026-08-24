@@ -234,6 +234,7 @@ class ChatMessageListQuerySerializer(serializers.Serializer):
     )
     before_sequence = serializers.IntegerField(
         required=False,
+        allow_null=True,
         min_value=1,
     )
 

@@ -39,18 +39,62 @@ import {
 import {
   getChatConversations as getStoredConversations,
   getChatMessages as getStoredMessages,
+  getChatMessagesCacheMetadata,
   getProtectedConversationIds,
   hydrateChatConversations,
+  hydrateChatMessages,
   isChatConversationProtected,
   setChatConversationProtected,
   setChatConversations,
   setChatMessages,
-  updateChatConversationLastMessage,
   upsertChatConversation,
+  updateChatConversationLastMessage,
   upsertChatMessage,
 } from '../stores/chatStore';
 
 const DEFAULT_LIMIT = 50;
+const MAX_CHAT_REQUEST_ATTEMPTS = 3;
+const CHAT_RETRY_BASE_DELAY_MS = 350;
+
+function wait(
+  milliseconds: number,
+): Promise<void> {
+  return new Promise((resolve) => {
+    setTimeout(resolve, milliseconds);
+  });
+}
+
+async function retryChatRequest<T>(
+  request: () => Promise<T>,
+): Promise<T> {
+  let lastError: unknown;
+
+  for (
+    let attempt = 1;
+    attempt <= MAX_CHAT_REQUEST_ATTEMPTS;
+    attempt += 1
+  ) {
+    try {
+      return await request();
+    } catch (error) {
+      lastError = error;
+
+      if (attempt === MAX_CHAT_REQUEST_ATTEMPTS) {
+        break;
+      }
+
+      await wait(
+        CHAT_RETRY_BASE_DELAY_MS * attempt,
+      );
+    }
+  }
+
+  throw lastError instanceof Error
+    ? lastError
+    : new Error(
+        'No fue posible completar la solicitud de Chat.',
+      );
+}
 
 function getErrorMessage(
   error: unknown,
@@ -62,6 +106,140 @@ function getErrorMessage(
   )
     ? error.message
     : fallback;
+}
+
+function getMessageTimestamp(
+  message: ChatMessage,
+): number {
+  const timestamp = new Date(
+    message.created_at,
+  ).getTime();
+
+  return Number.isFinite(timestamp)
+    ? timestamp
+    : 0;
+}
+
+function getMessageSequence(
+  message: ChatMessage,
+): number | null {
+  const sequenceNumber = message.sequence_number;
+
+  return (
+    typeof sequenceNumber === 'number'
+    && Number.isFinite(sequenceNumber)
+    && sequenceNumber > 0
+  )
+    ? sequenceNumber
+    : null;
+}
+
+function sortMessages(
+  messages: ChatMessage[],
+): ChatMessage[] {
+  return [...messages].sort((left, right) => {
+    const leftSequence = getMessageSequence(left);
+    const rightSequence = getMessageSequence(right);
+
+    if (
+      leftSequence !== null
+      && rightSequence !== null
+      && leftSequence !== rightSequence
+    ) {
+      return leftSequence - rightSequence;
+    }
+
+    const timestampDifference = (
+      getMessageTimestamp(left)
+      - getMessageTimestamp(right)
+    );
+
+    if (timestampDifference !== 0) {
+      return timestampDifference;
+    }
+
+    return left.id.localeCompare(right.id);
+  });
+}
+
+function mergeMessages(
+  currentMessages: ChatMessage[],
+  incomingMessages: ChatMessage[],
+): ChatMessage[] {
+  const messagesById = new Map<string, ChatMessage>();
+
+  for (const message of [
+    ...currentMessages,
+    ...incomingMessages,
+  ]) {
+    const id = String(message?.id || '').trim();
+
+    if (!id) {
+      continue;
+    }
+
+    const existing = messagesById.get(id);
+
+    if (!existing) {
+      messagesById.set(id, {
+        ...message,
+        id,
+      });
+      continue;
+    }
+
+    const existingSequence = getMessageSequence(existing);
+    const incomingSequence = getMessageSequence(message);
+
+    const incomingIsNewer = (
+      incomingSequence !== null
+      && (
+        existingSequence === null
+        || incomingSequence >= existingSequence
+      )
+    )
+    || (
+      incomingSequence === null
+      && (
+        existingSequence === null
+        || getMessageTimestamp(message)
+          >= getMessageTimestamp(existing)
+      )
+    );
+
+    const newest = incomingIsNewer
+      ? message
+      : existing;
+
+    const oldest = incomingIsNewer
+      ? existing
+      : message;
+
+    messagesById.set(id, {
+      ...oldest,
+      ...newest,
+      id,
+      conversation_id: (
+        newest.conversation_id
+        || oldest.conversation_id
+      ),
+      sequence_number: (
+        newest.sequence_number
+        ?? oldest.sequence_number
+      ),
+      attachments: (
+        newest.attachments?.length
+          ? newest.attachments
+          : oldest.attachments
+      ),
+      sender: newest.sender || oldest.sender || null,
+      reply_to: newest.reply_to || oldest.reply_to || null,
+    });
+  }
+
+  return sortMessages(
+    Array.from(messagesById.values()),
+  );
 }
 
 function sortConversations(
@@ -472,6 +650,9 @@ export interface UseChatMessagesResult {
   messages: ChatMessageModel[];
   participants: ChatParticipant[];
   conversation: ChatConversation | null;
+  currentUserId: string;
+  privateIdentityId: string | null;
+  postingIdentityId: string | null;
   loading: boolean;
   refreshing: boolean;
   sending: boolean;
@@ -481,7 +662,7 @@ export interface UseChatMessagesResult {
   loadMessages: (
     options?: {
       refresh?: boolean;
-      offset?: number;
+      beforeSequence?: number;
     },
   ) => Promise<ChatMessageModel[]>;
   loadMore: () => Promise<void>;
@@ -522,6 +703,10 @@ export function useChatMessages(
     autoLoad = true,
   }: UseChatMessagesOptions,
 ): UseChatMessagesResult {
+  const normalizedConversationId = String(
+    conversationId || '',
+  ).trim();
+
   const [currentUserId, setCurrentUserId] = useState('');
   const [privateIdentityId, setPrivateIdentityId] = useState<
     string | null
@@ -530,8 +715,8 @@ export function useChatMessages(
   const [rawMessages, setRawMessages] = useState<
     ChatMessage[]
   >(
-    conversationId
-      ? getStoredMessages(conversationId)
+    normalizedConversationId
+      ? getStoredMessages(normalizedConversationId)
       : [],
   );
 
@@ -544,21 +729,43 @@ export function useChatMessages(
   >(null);
 
   const [loading, setLoading] = useState(
-    Boolean(conversationId)
-    && getStoredMessages(conversationId || '').length === 0,
+    Boolean(normalizedConversationId)
+    && getStoredMessages(normalizedConversationId).length === 0,
   );
 
   const [refreshing, setRefreshing] = useState(false);
   const [sending, setSending] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
-  const [hasMore, setHasMore] = useState(false);
+
+  const initialMetadata = normalizedConversationId
+    ? getChatMessagesCacheMetadata(
+        normalizedConversationId,
+      )
+    : {
+        hasMore: false,
+        nextBeforeSequence: null,
+      };
+
+  const [hasMore, setHasMore] = useState(
+    initialMetadata.hasMore,
+  );
+
   const [nextBeforeSequence, setNextBeforeSequence] = useState<
     number | null
-  >(null);
+  >(
+    initialMetadata.nextBeforeSequence,
+  );
 
   const [error, setError] = useState<string | null>(null);
 
+  const postingIdentityId = (
+    conversation?.posting_identity_id
+    || conversation?.created_by_identity_id
+    || null
+  );
+
   const requestIdRef = useRef(0);
+  const hydrationRequestIdRef = useRef(0);
 
   const resolvePrivateIdentityId = useCallback(async (
     token: AuthCredentials,
@@ -587,28 +794,82 @@ export function useChatMessages(
 
   const synchronizeMessages = useCallback((
     nextMessages: ChatMessage[],
+    metadata: {
+      nextBeforeSequence?: number | null;
+      hasMore?: boolean;
+      lastSyncedAt?: string | null;
+    } = {},
   ) => {
-    if (!conversationId) {
+    if (!normalizedConversationId) {
       return;
     }
 
-    const sorted = [...nextMessages].sort((left, right) => (
-      new Date(left.created_at).getTime()
-      - new Date(right.created_at).getTime()
-    ));
+    const sorted = sortMessages(nextMessages);
 
     setChatMessages(
-      conversationId,
+      normalizedConversationId,
       sorted,
+      metadata,
     );
 
     setRawMessages(sorted);
+
+    if (metadata.hasMore !== undefined) {
+      setHasMore(metadata.hasMore);
+    }
+
+    if (metadata.nextBeforeSequence !== undefined) {
+      setNextBeforeSequence(
+        metadata.nextBeforeSequence,
+      );
+    }
   }, [
-    conversationId,
+    normalizedConversationId,
+  ]);
+
+  const hydrateCachedMessages = useCallback(async (
+    activeUserId: string,
+  ) => {
+    if (!normalizedConversationId) {
+      return [];
+    }
+
+    const hydrationRequestId = (
+      hydrationRequestIdRef.current + 1
+    );
+
+    hydrationRequestIdRef.current = hydrationRequestId;
+
+    const cachedMessages = await hydrateChatMessages(
+      activeUserId,
+      normalizedConversationId,
+    );
+
+    if (
+      hydrationRequestId
+      !== hydrationRequestIdRef.current
+    ) {
+      return [];
+    }
+
+    const cacheMetadata = getChatMessagesCacheMetadata(
+      normalizedConversationId,
+    );
+
+    setCurrentUserId(activeUserId);
+    setRawMessages(cachedMessages);
+    setHasMore(cacheMetadata.hasMore);
+    setNextBeforeSequence(
+      cacheMetadata.nextBeforeSequence,
+    );
+
+    return cachedMessages;
+  }, [
+    normalizedConversationId,
   ]);
 
   const loadConversation = useCallback(async () => {
-    if (!conversationId) {
+    if (!normalizedConversationId) {
       return null;
     }
 
@@ -618,9 +879,11 @@ export function useChatMessages(
         token,
       } = await getChatAuthContext();
 
-      const response = await getChatConversation(
-        token,
-        conversationId,
+      const response = await retryChatRequest(
+        () => getChatConversation(
+          token,
+          normalizedConversationId,
+        ),
       );
 
       setCurrentUserId(activeUserId);
@@ -639,45 +902,55 @@ export function useChatMessages(
       throw loadError;
     }
   }, [
-    conversationId,
+    normalizedConversationId,
   ]);
 
   const loadParticipants = useCallback(async () => {
-    if (!conversationId) {
+    if (!normalizedConversationId) {
       return [];
     }
 
     const { token } = await getChatAuthContext();
 
-    const response = await getChatParticipants(
-      token,
-      conversationId,
+    const response = await retryChatRequest(
+      () => getChatParticipants(
+        token,
+        normalizedConversationId,
+      ),
     );
 
     setParticipants(response.participants);
 
     return response.participants;
   }, [
-    conversationId,
+    normalizedConversationId,
   ]);
 
   const loadMessages = useCallback(async (
     options: {
       refresh?: boolean;
-      offset?: number;
+      beforeSequence?: number;
     } = {},
   ) => {
-    if (!conversationId) {
+    if (!normalizedConversationId) {
       return [];
     }
 
     const requestId = requestIdRef.current + 1;
     requestIdRef.current = requestId;
 
+    const isLoadingHistory = (
+      typeof options.beforeSequence === 'number'
+    );
+
     if (options.refresh) {
       setRefreshing(true);
-    } else {
-      setLoading(true);
+    } else if (!isLoadingHistory) {
+      setLoading(
+        getStoredMessages(
+          normalizedConversationId,
+        ).length === 0,
+      );
     }
 
     setError(null);
@@ -688,42 +961,60 @@ export function useChatMessages(
         token,
       } = await getChatAuthContext();
 
-      const response = await getChatMessages(
-        token,
-        conversationId,
-        {
-          limit: DEFAULT_LIMIT,
-          beforeSequence: options.offset || undefined,
-        },
+      const cachedMessages = await hydrateCachedMessages(
+        activeUserId,
       );
 
       if (requestId !== requestIdRef.current) {
         return [];
       }
 
-      const currentMessages = options.offset
-        ? getStoredMessages(conversationId)
-        : [];
+      const response = await retryChatRequest(
+        () => getChatMessages(
+          token,
+          normalizedConversationId,
+          {
+            limit: DEFAULT_LIMIT,
+            beforeSequence: options.beforeSequence,
+          },
+        ),
+      );
 
-      const mergedMessages = [
-        ...currentMessages,
-        ...response.messages,
-      ].filter((message, index, allMessages) => (
-        allMessages.findIndex(
-          (candidate) => candidate.id === message.id,
-        ) === index
-      ));
+      if (requestId !== requestIdRef.current) {
+        return [];
+      }
+
+      const messagesBeforeRequest = (
+        getStoredMessages(normalizedConversationId)
+      );
+
+      const currentMessages = (
+        isLoadingHistory
+          ? messagesBeforeRequest
+          : cachedMessages
+      );
+
+      const mergedMessages = mergeMessages(
+        currentMessages,
+        response.messages,
+      );
+
+      const hasOlderMessages = (
+        response.next_before_sequence !== null
+      );
+
+      synchronizeMessages(
+        mergedMessages,
+        {
+          nextBeforeSequence: (
+            response.next_before_sequence
+          ),
+          hasMore: hasOlderMessages,
+          lastSyncedAt: new Date().toISOString(),
+        },
+      );
 
       setCurrentUserId(activeUserId);
-      synchronizeMessages(mergedMessages);
-
-      setHasMore(
-        response.next_before_sequence !== null,
-      );
-
-      setNextBeforeSequence(
-        response.next_before_sequence,
-      );
 
       return mergedMessages.map((message) => (
         mapChatMessageToModel(
@@ -752,34 +1043,103 @@ export function useChatMessages(
       }
     }
   }, [
-    conversationId,
     conversationIsAi,
+    hydrateCachedMessages,
+    normalizedConversationId,
     synchronizeMessages,
   ]);
 
   useEffect(() => {
-    if (!autoLoad || !conversationId) {
+    if (!autoLoad || !normalizedConversationId) {
       return;
     }
 
-    void Promise.all([
-      loadConversation(),
-      loadParticipants(),
-      loadMessages(),
-    ]).catch(() => {
-      // El hook conserva el error para mostrarlo en pantalla.
-    });
+    let cancelled = false;
+
+    const initializeConversation = async () => {
+      try {
+        const {
+          currentUserId: activeUserId,
+        } = await getChatAuthContext();
+
+        if (cancelled) {
+          return;
+        }
+
+        await hydrateCachedMessages(activeUserId);
+
+        if (cancelled) {
+          return;
+        }
+
+        const [
+          loadedConversation,
+        ] = await Promise.all([
+          loadConversation(),
+          loadParticipants(),
+          loadMessages(),
+        ]);
+
+        if (
+          loadedConversation?.conversation_type === 'group'
+          && (
+            loadedConversation.posting_identity_id
+            || loadedConversation.created_by_identity_id
+          )
+        ) {
+          const { token } = await getChatAuthContext();
+
+          await resolvePrivateIdentityId(token);
+        }
+      } catch {
+        // El hook conserva el error para mostrarlo en pantalla.
+      }
+    };
+
+    void initializeConversation();
+
+    return () => {
+      cancelled = true;
+      requestIdRef.current += 1;
+      hydrationRequestIdRef.current += 1;
+    };
   }, [
     autoLoad,
-    conversationId,
+    hydrateCachedMessages,
     loadConversation,
     loadMessages,
     loadParticipants,
+    normalizedConversationId,
+  ]);
+
+  useEffect(() => {
+    setRawMessages(
+      normalizedConversationId
+        ? getStoredMessages(normalizedConversationId)
+        : [],
+    );
+
+    const metadata = normalizedConversationId
+      ? getChatMessagesCacheMetadata(
+          normalizedConversationId,
+        )
+      : {
+          hasMore: false,
+          nextBeforeSequence: null,
+        };
+
+    setHasMore(metadata.hasMore);
+    setNextBeforeSequence(
+      metadata.nextBeforeSequence,
+    );
+    setError(null);
+  }, [
+    normalizedConversationId,
   ]);
 
   const loadMore = useCallback(async () => {
     if (
-      !conversationId
+      !normalizedConversationId
       || loading
       || refreshing
       || loadingMore
@@ -793,18 +1153,18 @@ export function useChatMessages(
       setLoadingMore(true);
 
       await loadMessages({
-        offset: nextBeforeSequence,
+        beforeSequence: nextBeforeSequence,
       });
     } finally {
       setLoadingMore(false);
     }
   }, [
-    conversationId,
     hasMore,
     loadMessages,
     loading,
     loadingMore,
     nextBeforeSequence,
+    normalizedConversationId,
     refreshing,
   ]);
 
@@ -816,7 +1176,7 @@ export function useChatMessages(
       fileIds?: string[];
     },
   ) => {
-    if (!conversationId) {
+    if (!normalizedConversationId) {
       throw new Error(
         'No fue posible identificar el chat.',
       );
@@ -839,11 +1199,12 @@ export function useChatMessages(
         token,
       } = await getChatAuthContext();
 
+      await hydrateCachedMessages(activeUserId);
+
       const senderIdentityId = (
         privateIdentityId
         || await resolvePrivateIdentityId(token)
       );
-
 
       const allowedPostingIdentityId = (
         conversation?.posting_identity_id
@@ -863,7 +1224,7 @@ export function useChatMessages(
 
       const response = await sendChatMessage(
         token,
-        conversationId,
+        normalizedConversationId,
         {
           sender_identity_id: senderIdentityId,
           body,
@@ -872,17 +1233,19 @@ export function useChatMessages(
       );
 
       setCurrentUserId(activeUserId);
+
       upsertChatMessage(
-        conversationId,
+        normalizedConversationId,
         response.message,
       );
+
       updateChatConversationLastMessage(
-        conversationId,
+        normalizedConversationId,
         response.message,
       );
 
       setRawMessages(
-        getStoredMessages(conversationId),
+        getStoredMessages(normalizedConversationId),
       );
 
       return mapChatMessageToModel(
@@ -905,8 +1268,10 @@ export function useChatMessages(
       setSending(false);
     }
   }, [
-    conversationId,
+    conversation,
     conversationIsAi,
+    hydrateCachedMessages,
+    normalizedConversationId,
     privateIdentityId,
     resolvePrivateIdentityId,
   ]);
@@ -948,6 +1313,9 @@ export function useChatMessages(
     messages,
     participants,
     conversation,
+    currentUserId,
+    privateIdentityId,
+    postingIdentityId,
     loading,
     refreshing,
     sending,
