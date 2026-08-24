@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Any
 
 from beeAppBack.core.supabase_client import (
+    execute_with_supabase_admin_retry,
     get_supabase_admin_client,
 )
 
@@ -76,15 +77,17 @@ def sync_chat_identities_for_user(
     )
     """
     try:
-        response = (
-            _supabase()
-            .rpc(
-                "sync_chat_identities_for_user",
-                {
-                    "p_user_id": str(user_id),
-                },
-            )
-            .execute()
+        execute_with_supabase_admin_retry(
+            lambda client: (
+                client
+                .rpc(
+                    "sync_chat_identities_for_user",
+                    {
+                        "p_user_id": str(user_id),
+                    },
+                )
+                .execute()
+            ),
         )
 
         return list_chat_identities(
@@ -135,18 +138,26 @@ def list_chat_identities(
     - display_name y logo_file_id del perfil comercial.
     """
     try:
-        query = (
-            _supabase()
-            .table("chat_identities")
-            .select(CHAT_IDENTITY_COLUMNS)
-            .eq("owner_id", str(user_id))
-            .order("created_at")
-        )
+        def fetch_identities():
+            def operation(client):
+                query = (
+                    client
+                    .table("chat_identities")
+                    .select(CHAT_IDENTITY_COLUMNS)
+                    .eq("owner_id", str(user_id))
+                    .order("created_at")
+                )
 
-        if active_only:
-            query = query.eq("is_active", True)
+                if active_only:
+                    query = query.eq("is_active", True)
 
-        identities_response = query.execute()
+                return query.execute()
+
+            return execute_with_supabase_admin_retry(
+                operation,
+            )
+
+        identities_response = fetch_identities()
         identities = _response_rows(identities_response)
 
         if not identities:
@@ -205,18 +216,24 @@ def get_owned_chat_identity(
     Obtiene una identidad siempre que pertenezca al usuario autenticado.
     """
     try:
-        query = (
-            _supabase()
-            .table("chat_identities")
-            .select(CHAT_IDENTITY_COLUMNS)
-            .eq("id", str(identity_id))
-            .eq("owner_id", str(user_id))
+        def operation(client):
+            query = (
+                client
+                .table("chat_identities")
+                .select(CHAT_IDENTITY_COLUMNS)
+                .eq("id", str(identity_id))
+                .eq("owner_id", str(user_id))
+            )
+
+            if require_active:
+                query = query.eq("is_active", True)
+
+            return query.maybe_single().execute()
+
+        response = execute_with_supabase_admin_retry(
+            operation,
         )
 
-        if require_active:
-            query = query.eq("is_active", True)
-
-        response = query.maybe_single().execute()
         identity = _extract_first_row(response)
 
         if not identity:
@@ -266,17 +283,23 @@ def get_chat_identity(
     No expone owner_id como dato de presentación.
     """
     try:
-        query = (
-            _supabase()
-            .table("chat_identities")
-            .select(CHAT_IDENTITY_COLUMNS)
-            .eq("id", str(identity_id))
+        def operation(client):
+            query = (
+                client
+                .table("chat_identities")
+                .select(CHAT_IDENTITY_COLUMNS)
+                .eq("id", str(identity_id))
+            )
+
+            if require_active:
+                query = query.eq("is_active", True)
+
+            return query.maybe_single().execute()
+
+        response = execute_with_supabase_admin_retry(
+            operation,
         )
 
-        if require_active:
-            query = query.eq("is_active", True)
-
-        response = query.maybe_single().execute()
         identity = _extract_first_row(response)
 
         if not identity:
@@ -320,12 +343,14 @@ def _get_profiles_by_ids(
     if not profile_ids:
         return {}
 
-    response = (
-        _supabase()
-        .table("profile")
-        .select(PROFILE_COLUMNS)
-        .in_("id", profile_ids)
-        .execute()
+    response = execute_with_supabase_admin_retry(
+        lambda client: (
+            client
+            .table("profile")
+            .select(PROFILE_COLUMNS)
+            .in_("id", profile_ids)
+            .execute()
+        ),
     )
 
     return {
@@ -340,12 +365,14 @@ def _get_commercial_profiles_by_ids(
     if not commercial_profile_ids:
         return {}
 
-    response = (
-        _supabase()
-        .table("commercial_profiles")
-        .select(COMMERCIAL_PROFILE_COLUMNS)
-        .in_("id", commercial_profile_ids)
-        .execute()
+    response = execute_with_supabase_admin_retry(
+        lambda client: (
+            client
+            .table("commercial_profiles")
+            .select(COMMERCIAL_PROFILE_COLUMNS)
+            .in_("id", commercial_profile_ids)
+            .execute()
+        ),
     )
 
     return {
@@ -360,46 +387,50 @@ def _serialize_chat_identity(
     profile: dict[str, Any] | None,
     commercial_profile: dict[str, Any] | None,
 ) -> dict[str, Any]:
-    identity_type = identity["identity_type"]
+    identity_type = identity.get("identity_type")
 
     if identity_type == "profile":
         first_name = (
-            str(profile.get("first_name") or "").strip()
+            profile.get("first_name", "")
             if profile
             else ""
         )
         last_name = (
-            str(profile.get("last_name") or "").strip()
+            profile.get("last_name", "")
             if profile
             else ""
         )
+
         display_name = " ".join(
             value
-            for value in (first_name, last_name)
+            for value in (
+                first_name.strip(),
+                last_name.strip(),
+            )
             if value
-        ) or "Usuario"
+        ).strip() or "Usuario BeeApp"
 
         avatar_file_id = None
         is_available = True
-
     else:
         display_name = (
-            str(
-                commercial_profile.get("display_name")
-                if commercial_profile
-                else ""
-            ).strip()
-            or "Perfil comercial"
-        )
+            commercial_profile.get("display_name")
+            if commercial_profile
+            else None
+        ) or "Negocio BeeApp"
+
         avatar_file_id = (
             commercial_profile.get("logo_file_id")
             if commercial_profile
             else None
         )
+
         is_available = bool(
-            commercial_profile.get("is_available", True)
-            if commercial_profile
-            else False
+            commercial_profile
+            and commercial_profile.get(
+                "is_available",
+                True,
+            )
         )
 
     return {
@@ -411,7 +442,7 @@ def _serialize_chat_identity(
         ),
         "display_name": display_name,
         "avatar_file_id": avatar_file_id,
-        "is_active": identity.get("is_active", False),
+        "is_active": bool(identity.get("is_active")),
         "is_available": is_available,
         "created_at": identity.get("created_at"),
         "updated_at": identity.get("updated_at"),

@@ -293,6 +293,7 @@ function toSharedMessage(
       || message.sender_identity?.profile_id
       || message.sender_identity_id
     ),
+    sequence_number: message.sequence_number,
     message_type: (
       message.message_type === 'image'
       || message.message_type === 'audio'
