@@ -252,28 +252,6 @@ function getMailBody(
   return 'Este correo no contiene texto disponible.';
 }
 
-function getReadableTextFromHtml(html: string): string {
-  return html
-    .replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, '')
-    .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, '')
-    .replace(/<head\b[^>]*>[\s\S]*?<\/head>/gi, '')
-    .replace(/<!--[\s\S]*?-->/g, '')
-    .replace(/<(?:br|\/p|\/div|\/li|\/tr|\/h[1-6])\s*\/?>/gi, '\n')
-    .replace(/<[^>]+>/g, ' ')
-    .replace(/&nbsp;|&#160;/gi, ' ')
-    .replace(/&amp;/gi, '&')
-    .replace(/&lt;/gi, '<')
-    .replace(/&gt;/gi, '>')
-    .replace(/&quot;/gi, '"')
-    .replace(/&#39;|&apos;/gi, "'")
-    .replace(/[\u200B-\u200D\u2060\uFEFF]/g, '')
-    .replace(/[ \t]+\n/g, '\n')
-    .replace(/\n[ \t]+/g, '\n')
-    .replace(/\n{3,}/g, '\n\n')
-    .replace(/[ \t]{2,}/g, ' ')
-    .trim();
-}
-
 export default function MailDetailScreen() {
   const router = useModuleNav();
   const params = useScreenParams();
@@ -294,8 +272,6 @@ export default function MailDetailScreen() {
     loading,
     setLoading,
   ] = useState(true);
-
-  const [showPlainText, setShowPlainText] = useState(false);
 
   const [
     actionLoading,
@@ -450,10 +426,6 @@ export default function MailDetailScreen() {
     email?.sentAt,
   ]);
 
-  useEffect(() => {
-    setShowPlainText(false);
-  }, [email?.id]);
-
   const bodyText = useMemo(() => (
     email
       ? getMailBody(email)
@@ -463,6 +435,38 @@ export default function MailDetailScreen() {
   const htmlBody = useMemo(() => (
     email?.bodyHtml?.trim() || null
   ), [email?.bodyHtml]);
+
+  // MAIL_HTML_STYLE_DIAGNOSTICS: temporal; eliminar después de revisar Metro.
+  useEffect(() => {
+    if (!__DEV__ || !htmlBody) {
+      return;
+    }
+
+    const styleMatches = [
+      ...htmlBody.matchAll(
+        /(?:color|background(?:-color)?|opacity|visibility|display)\s*:\s*([^;"'}]+)/gi,
+      ),
+    ];
+
+    console.log('[Mail HTML style diagnostics]', {
+      subject: email?.subject ?? null,
+      provider: email?.provider ?? null,
+      htmlLength: htmlBody.length,
+      styles: styleMatches
+        .slice(0, 50)
+        .map((match) => match[0].trim()),
+    });
+  }, [
+    email?.provider,
+    email?.subject,
+    htmlBody,
+  ]);
+
+  const htmlRenderersProps = useMemo(() => ({
+    a: {
+      onPress: handleOpenHtmlLink,
+    },
+  }), [handleOpenHtmlLink]);
 
   const htmlContentWidth = Math.max(
     0,
@@ -1125,34 +1129,15 @@ export default function MailDetailScreen() {
 
           <View style={styles.divider} />
 
-          {htmlBody ? (
-            <TouchableOpacity
-              accessibilityRole="button"
-              accessibilityLabel={
-                showPlainText
-                  ? 'Ver diseño del correo'
-                  : 'Ver texto plano'
-              }
-              activeOpacity={0.7}
-              onPress={() => setShowPlainText((current) => !current)}
-              style={styles.mailViewModeButton}
-            >
-              <Text style={styles.mailViewModeButtonText}>
-                {showPlainText
-                  ? 'Ver diseño del correo'
-                  : 'Ver texto plano'}
-              </Text>
-            </TouchableOpacity>
-          ) : null}
-
           <View style={styles.emailBodyContainer}>
-            {htmlBody && !showPlainText ? (
+            {htmlBody ? (
               <RenderHTML
                 contentWidth={htmlContentWidth}
                 source={{
                   html: htmlBody,
                 }}
                 ignoredDomTags={htmlIgnoredDomTags}
+                ignoredStyles={['color']}
                 customHTMLElementModels={
                   MAIL_HTML_CUSTOM_ELEMENT_MODELS
                 }
@@ -1162,17 +1147,11 @@ export default function MailDetailScreen() {
                 defaultTextProps={{
                   selectable: true,
                 }}
-                renderersProps={{
-                  a: {
-                    onPress: handleOpenHtmlLink,
-                  },
-                }}
+                renderersProps={htmlRenderersProps}
               />
             ) : (
               <Text selectable style={styles.emailBodyText}>
-                {htmlBody
-                  ? getReadableTextFromHtml(htmlBody)
-                  : bodyText}
+                {bodyText}
               </Text>
             )}
           </View>
@@ -1552,21 +1531,6 @@ const styles = StyleSheet.create({
   },
   emailBodyContainer: {
     minHeight: 90,
-  },
-  mailViewModeButton: {
-    alignSelf: 'flex-start',
-    backgroundColor: colors.neutral.white,
-    borderColor: colors.neutral.gray200,
-    borderRadius: 8,
-    borderWidth: 1,
-    marginBottom: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-  },
-  mailViewModeButtonText: {
-    color: colors.brand.primary,
-    fontSize: 13,
-    fontWeight: '700',
   },
   emailBodyText: {
     fontSize: 14,

@@ -44,6 +44,7 @@ export interface MailDetailModel {
     senderEmail: string;
     recipients: MailMessageRecipient[];
     body: string;
+  bodyHtml: string | null;
     bodyPreview: string;
     sentAt: string | null;
     receivedAt: string | null;
@@ -497,6 +498,7 @@ export function mapMailMessageToDetail(
         senderEmail: sender.email,
         recipients: getMailMessageRecipients(message),
         body: getMailBodyText(message),
+        bodyHtml: message.body_html?.trim() || null,
         bodyPreview: (
         message.body_preview
         || message.snippet

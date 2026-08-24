@@ -446,7 +446,7 @@ class MicrosoftMailProvider:
                     "flag,parentFolderId,internetMessageId"
                 ),
             },
-            prefer_text_body=True,
+            prefer_text_body=False,
         )
 
         self._cache_mail_folder_ids(
