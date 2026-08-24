@@ -27,7 +27,8 @@ CHAT_IDENTITY_COLUMNS = (
     "commercial_profile_id,is_active"
 )
 
-MAX_SEARCH_LIMIT = 25
+MAX_SEARCH_LIMIT = 20
+PHONE_SUFFIX_MIN_LENGTH = 4
 
 
 def _supabase():
@@ -57,9 +58,9 @@ def search_chat_recipients(
 ) -> dict[str, Any]:
     normalized_query = _normalize_query(query)
 
-    if len(normalized_query) < 3:
+    if len(normalized_query) < 2:
         raise ChatRecipientNotFoundError(
-            "Search query must contain at least 3 characters."
+            "Search query must contain at least 2 characters."
         )
 
     normalized_limit = max(
@@ -67,21 +68,19 @@ def search_chat_recipients(
         min(int(limit), MAX_SEARCH_LIMIT),
     )
 
-    normalized_phone = _normalize_phone_query(
-        normalized_query,
-    )
+    phone_digits = _normalize_phone_digits(normalized_query)
 
     private_results = _search_private_profiles(
         user_id=user_id,
         query=normalized_query,
-        normalized_phone=normalized_phone,
+        phone_digits=phone_digits,
         limit=normalized_limit,
     )
 
     commercial_results = _search_commercial_profiles(
         user_id=user_id,
         query=normalized_query,
-        normalized_phone=normalized_phone,
+        phone_digits=phone_digits,
         limit=normalized_limit,
     )
 
@@ -103,56 +102,68 @@ def _search_private_profiles(
     *,
     user_id: str,
     query: str,
-    normalized_phone: str | None,
+    phone_digits: str | None,
     limit: int,
 ) -> list[dict[str, Any]]:
     try:
-        profile_query = (
-            _supabase()
-            .table("profile")
-            .select(PRIVATE_PROFILE_COLUMNS)
-            .eq("is_public", True)
-            .neq("id", str(user_id))
-            .limit(limit)
-        )
+        profiles_by_id: dict[str, dict[str, Any]] = {}
 
-        if "@" in query:
-            profile_query = profile_query.ilike(
-                "email",
-                query,
+        if phone_digits:
+            phone_profiles = _response_rows(
+                (
+                    _supabase()
+                    .table("profile")
+                    .select(PRIVATE_PROFILE_COLUMNS)
+                    .eq("is_public", True)
+                    .neq("id", str(user_id))
+                    .limit(limit)
+                    .execute()
+                )
             )
-        elif normalized_phone:
-            profile_query = profile_query.eq(
-                "normalized_phone",
-                normalized_phone,
-            )
+
+            for profile in phone_profiles:
+                if _phone_matches_suffix(
+                    profile.get("normalized_phone"),
+                    phone_digits,
+                ):
+                    profiles_by_id[profile["id"]] = profile
         else:
+            name_profiles = _response_rows(
+                (
+                    _supabase()
+                    .table("profile")
+                    .select(PRIVATE_PROFILE_COLUMNS)
+                    .eq("is_public", True)
+                    .neq("id", str(user_id))
+                    .or_(
+                        (
+                            f"first_name.ilike.%{query}%,"
+                            f"last_name.ilike.%{query}%,"
+                            f"email.ilike.%{query}%"
+                        )
+                    )
+                    .limit(limit)
+                    .execute()
+                )
+            )
+
+            for profile in name_profiles:
+                profiles_by_id[profile["id"]] = profile
+
+        if not profiles_by_id:
             return []
-
-        profiles = _response_rows(profile_query.execute())
-
-        if not profiles:
-            return []
-
-        profile_ids = [
-            profile["id"]
-            for profile in profiles
-            if profile.get("id")
-        ]
 
         identities_by_profile_id = _get_active_profile_identities(
-            profile_ids=profile_ids,
+            profile_ids=list(profiles_by_id),
         )
 
         results: list[dict[str, Any]] = []
 
-        for profile in profiles:
+        for profile in profiles_by_id.values():
             identity = identities_by_profile_id.get(profile["id"])
 
             if not identity:
                 continue
-
-            display_name = _private_display_name(profile)
 
             results.append(
                 {
@@ -160,13 +171,13 @@ def _search_private_profiles(
                     "identity_type": "profile",
                     "profile_id": profile["id"],
                     "commercial_profile_id": None,
-                    "display_name": display_name,
+                    "display_name": _private_display_name(profile),
                     "avatar_file_id": None,
                     "is_available": True,
                     "match_rank": _private_match_rank(
                         profile=profile,
                         query=query,
-                        normalized_phone=normalized_phone,
+                        phone_digits=phone_digits,
                     ),
                 }
             )
@@ -186,45 +197,13 @@ def _search_commercial_profiles(
     *,
     user_id: str,
     query: str,
-    normalized_phone: str | None,
+    phone_digits: str | None,
     limit: int,
 ) -> list[dict[str, Any]]:
     try:
-        base_query = (
-            _supabase()
-            .table("commercial_profiles")
-            .select(COMMERCIAL_PROFILE_COLUMNS)
-            .eq("is_public", True)
-            .eq("is_available", True)
-            .neq("owner_id", str(user_id))
-            .limit(limit)
-        )
+        profiles_by_id: dict[str, dict[str, Any]] = {}
 
-        commercial_profiles = _response_rows(
-            base_query.ilike(
-                "display_name",
-                f"%{query}%",
-            ).execute()
-        )
-
-        if "@" in query:
-            email_profiles = _response_rows(
-                (
-                    _supabase()
-                    .table("commercial_profiles")
-                    .select(COMMERCIAL_PROFILE_COLUMNS)
-                    .eq("is_public", True)
-                    .eq("is_available", True)
-                    .eq("is_email_public", True)
-                    .eq("public_email", query)
-                    .neq("owner_id", str(user_id))
-                    .limit(limit)
-                    .execute()
-                )
-            )
-            commercial_profiles.extend(email_profiles)
-
-        if normalized_phone:
+        if phone_digits:
             phone_profiles = _response_rows(
                 (
                     _supabase()
@@ -239,35 +218,54 @@ def _search_commercial_profiles(
                 )
             )
 
-            commercial_profiles.extend(
-                profile
-                for profile in phone_profiles
-                if _commercial_normalized_phone(profile)
-                == normalized_phone
+            for profile in phone_profiles:
+                if _phone_matches_suffix(
+                    _commercial_phone_digits(profile),
+                    phone_digits,
+                ):
+                    profiles_by_id[profile["id"]] = profile
+        else:
+            commercial_profiles = _response_rows(
+                (
+                    _supabase()
+                    .table("commercial_profiles")
+                    .select(COMMERCIAL_PROFILE_COLUMNS)
+                    .eq("is_public", True)
+                    .eq("is_available", True)
+                    .neq("owner_id", str(user_id))
+                    .or_(
+                        (
+                            f"display_name.ilike.%{query}%,"
+                            f"public_email.ilike.%{query}%"
+                        )
+                    )
+                    .limit(limit)
+                    .execute()
+                )
             )
 
-        commercial_profiles_by_id = {
-            profile["id"]: profile
-            for profile in commercial_profiles
-            if profile.get("id")
-        }
+            for profile in commercial_profiles:
+                if (
+                    profile.get("is_email_public")
+                    or _matches_text(
+                        profile.get("display_name"),
+                        query,
+                    )
+                ):
+                    profiles_by_id[profile["id"]] = profile
 
-        if not commercial_profiles_by_id:
+        if not profiles_by_id:
             return []
 
         identities_by_commercial_profile_id = (
             _get_active_commercial_identities(
-                commercial_profile_ids=list(
-                    commercial_profiles_by_id
-                ),
+                commercial_profile_ids=list(profiles_by_id),
             )
         )
 
         results: list[dict[str, Any]] = []
 
-        for commercial_profile in (
-            commercial_profiles_by_id.values()
-        ):
+        for commercial_profile in profiles_by_id.values():
             identity = identities_by_commercial_profile_id.get(
                 commercial_profile["id"]
             )
@@ -293,7 +291,7 @@ def _search_commercial_profiles(
                     "match_rank": _commercial_match_rank(
                         commercial_profile=commercial_profile,
                         query=query,
-                        normalized_phone=normalized_phone,
+                        phone_digits=phone_digits,
                     ),
                 }
             )
@@ -364,41 +362,49 @@ def _normalize_query(value: str) -> str:
     return str(value or "").strip().lower()
 
 
-def _normalize_phone_query(
+def _normalize_phone_digits(
     value: str,
 ) -> str | None:
-    normalized = re.sub(r"[^0-9+]", "", value)
+    digits = re.sub(r"\D", "", value)
 
-    if not normalized:
+    if len(digits) < PHONE_SUFFIX_MIN_LENGTH:
         return None
 
-    if normalized.count("+") > 1:
-        return None
-
-    if "+" in normalized and not normalized.startswith("+"):
-        return None
-
-    digits_only = normalized.lstrip("+")
-
-    if len(digits_only) < 7:
-        return None
-
-    return f"+{digits_only}"
+    return digits
 
 
-def _commercial_normalized_phone(
+def _phone_matches_suffix(
+    value: Any,
+    query_digits: str,
+) -> bool:
+    candidate_digits = re.sub(
+        r"\D",
+        "",
+        str(value or ""),
+    )
+
+    return query_digits in candidate_digits
+
+
+def _commercial_phone_digits(
     commercial_profile: dict[str, Any],
-) -> str | None:
-    dial_code = str(
-        commercial_profile.get("phone_dial_code") or ""
-    )
-    phone_number = str(
-        commercial_profile.get("phone_number") or ""
+) -> str:
+    return "".join(
+        re.findall(
+            r"\d+",
+            (
+                f"{commercial_profile.get('phone_dial_code') or ''}"
+                f"{commercial_profile.get('phone_number') or ''}"
+            ),
+        )
     )
 
-    return _normalize_phone_query(
-        f"{dial_code}{phone_number}",
-    )
+
+def _matches_text(
+    value: Any,
+    query: str,
+) -> bool:
+    return query in str(value or "").casefold()
 
 
 def _private_display_name(
@@ -421,50 +427,66 @@ def _private_match_rank(
     *,
     profile: dict[str, Any],
     query: str,
-    normalized_phone: str | None,
+    phone_digits: str | None,
 ) -> int:
-    if str(profile.get("email") or "").lower() == query:
+    email = str(profile.get("email") or "").casefold()
+    display_name = _private_display_name(profile).casefold()
+
+    if phone_digits and _phone_matches_suffix(
+        profile.get("normalized_phone"),
+        phone_digits,
+    ):
         return 0
 
-    if (
-        normalized_phone
-        and profile.get("normalized_phone") == normalized_phone
-    ):
+    if email == query:
         return 1
 
-    return 9
+    if email.startswith(query):
+        return 2
+
+    if display_name.startswith(query):
+        return 3
+
+    return 8
 
 
 def _commercial_match_rank(
     *,
     commercial_profile: dict[str, Any],
     query: str,
-    normalized_phone: str | None,
+    phone_digits: str | None,
 ) -> int:
-    if (
-        commercial_profile.get("is_email_public")
-        and str(
-            commercial_profile.get("public_email") or ""
-        ).lower()
-        == query
-    ):
-        return 2
+    email = str(
+        commercial_profile.get("public_email") or ""
+    ).casefold()
+    display_name = str(
+        commercial_profile.get("display_name") or ""
+    ).casefold()
 
     if (
         commercial_profile.get("is_phone_public")
-        and normalized_phone
-        and _commercial_normalized_phone(commercial_profile)
-        == normalized_phone
+        and phone_digits
+        and _phone_matches_suffix(
+            _commercial_phone_digits(commercial_profile),
+            phone_digits,
+        )
     ):
-        return 3
+        return 0
 
     if (
-        str(
-            commercial_profile.get("display_name") or ""
-        ).lower()
-        == query
+        commercial_profile.get("is_email_public")
+        and email == query
     ):
-        return 4
+        return 1
+
+    if (
+        commercial_profile.get("is_email_public")
+        and email.startswith(query)
+    ):
+        return 2
+
+    if display_name.startswith(query):
+        return 3
 
     return 8
 

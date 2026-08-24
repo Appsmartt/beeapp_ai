@@ -2177,6 +2177,8 @@ export interface ChatConversation {
   description?: string | null;
   avatar_url?: string | null;
   created_by_id?: string | null;
+  created_by_identity_id?: string | null;
+  posting_identity_id?: string | null;
   created_at: string;
   updated_at: string;
   last_message_at?: string | null;

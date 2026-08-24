@@ -707,15 +707,6 @@ export default function ChatListScreen() {
           setCreateMenuOpen(false);
           router.push('/(main)/chat/new');
         }}
-        onNewGroup={() => {
-          setCreateMenuOpen(false);
-          router.push({
-            pathname: '/(main)/chat/new',
-            params: {
-              mode: 'group',
-            },
-          });
-        }}
         onNewCommunity={() => {
           setCreateMenuOpen(false);
           setCreatingCommunity(true);

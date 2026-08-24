@@ -294,7 +294,7 @@ def send_chat_message(
 
         if "CHAT_GROUP_ONLY_POSTING_IDENTITY_CAN_SEND" in message:
             raise ChatMessageSendError(
-                "Only the group creator can send messages."
+                "Only the group posting identity can send messages."
             ) from error
 
         if "CHAT_SENDER_NOT_ACTIVE_PARTICIPANT_OR_NOT_OWNER" in message:

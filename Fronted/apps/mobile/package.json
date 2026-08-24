@@ -15,6 +15,7 @@
     "@beeapp/api-client": "*",
     "@beeapp/design-system": "*",
     "@beeapp/shared-types": "*",
+    "@react-native-async-storage/async-storage": "1.23.1",
     "expo": "~51.0.0",
     "expo-camera": "~15.0.16",
     "expo-constants": "~16.0.2",

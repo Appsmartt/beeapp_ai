@@ -1,11 +1,10 @@
 import { View, Text, StyleSheet, Modal, TouchableOpacity } from 'react-native';
 import { colors, radii } from '@beeapp/design-system';
-import { MessageCircle, Users, Megaphone } from 'lucide-react-native';
+import { MessageCircle, Megaphone } from 'lucide-react-native';
 
 interface ChatCreateMenuProps {
   visible: boolean;
   onNewChat: () => void;
-  onNewGroup: () => void;
   onNewCommunity: () => void;
   onClose: () => void;
 }
@@ -14,13 +13,11 @@ interface ChatCreateMenuProps {
 export default function ChatCreateMenu({
   visible,
   onNewChat,
-  onNewGroup,
   onNewCommunity,
   onClose,
 }: ChatCreateMenuProps) {
   const options = [
     { icon: MessageCircle, label: 'Nuevo chat', onPress: onNewChat },
-    { icon: Users, label: 'Nuevo grupo', onPress: onNewGroup },
     { icon: Megaphone, label: 'Nueva comunidad', onPress: onNewCommunity },
   ];
 

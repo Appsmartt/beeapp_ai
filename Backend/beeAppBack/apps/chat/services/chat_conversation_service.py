@@ -138,7 +138,7 @@ def create_or_get_direct_conversation(
         conversation = get_conversation(
             user_id=user_id,
             conversation_id=conversation_id,
-            include_participants=True,
+            include_participants=False,
         )
 
         return {
