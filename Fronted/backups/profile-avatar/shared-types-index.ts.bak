@@ -161,7 +161,6 @@ export interface UserProfile {
 export interface CurrentUserProfile
   extends UserProfile {
   email: string | null;
-  avatar_file_id: string | null;
 }
 
 export interface GetCurrentProfileResponse {
@@ -180,20 +179,6 @@ export interface UpdateProfilePayload {
 }
 
 export interface UpdateProfileResponse {
-  message: string;
-  profile: CurrentUserProfile;
-}
-
-export interface UpdateProfileAvatarPayload {
-  avatar_file_id: string;
-}
-
-export interface UpdateProfileAvatarResponse {
-  message: string;
-  profile: CurrentUserProfile;
-}
-
-export interface RemoveProfileAvatarResponse {
   message: string;
   profile: CurrentUserProfile;
 }

@@ -37,6 +37,7 @@ import {
 import { colors } from '@beeapp/design-system';
 import {
   getCurrentProfile,
+  getStorageFileAccess,
   updateProfile,
 } from '@beeapp/api-client';
 import type {

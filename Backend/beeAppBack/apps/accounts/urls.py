@@ -9,6 +9,7 @@ from apps.accounts.views import (
     PasswordResetRequestView,
     PasswordResetVerifyView,
     PhoneOtpMobileVerifyView,
+    ProfileAvatarView,
     PhoneOtpRequestView,
     PhoneOtpVerifyView,
     QrLoginChallengeDetailView,
@@ -75,6 +76,11 @@ urlpatterns = [
         "me/",
         CurrentProfileView.as_view(),
         name="current-profile",
+    ),
+    path(
+        "me/avatar/",
+        ProfileAvatarView.as_view(),
+        name="profile-avatar",
     ),
     path(
         "me/profile/",

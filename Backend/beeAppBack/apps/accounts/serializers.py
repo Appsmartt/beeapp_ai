@@ -242,7 +242,10 @@ class ProfileSocialLinkSerializer(serializers.Serializer):
 
         parsed_url = urlparse(normalized_value)
 
-        if parsed_url.scheme not in ("http", "https") or not parsed_url.netloc:
+        if (
+            parsed_url.scheme not in ("http", "https")
+            or not parsed_url.netloc
+        ):
             raise serializers.ValidationError(
                 "A complete HTTP or HTTPS URL is required."
             )
@@ -375,3 +378,7 @@ class UpdateAssistantSettingsSerializer(serializers.Serializer):
             )
 
         return normalized_value
+
+
+class UpdateProfileAvatarSerializer(serializers.Serializer):
+    avatar_file_id = serializers.UUIDField()
