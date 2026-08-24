@@ -2,17 +2,32 @@ from beeAppBack.core.supabase_client import get_supabase_admin_client
 
 from apps.accounts.exceptions import (
     AssistantSettingsUpdateError,
+    ProfileAvatarValidationError,
     ProfileCreationError,
     ProfileLookupError,
     ProfileUpdateError,
 )
+from apps.storage.exceptions import (
+    StorageFileNotFoundError,
+)
+from apps.storage.services.storage_file_service import (
+    get_owned_file,
+)
 
+
+MAX_PROFILE_AVATAR_SIZE_BYTES = 5 * 1024 * 1024
+
+PROFILE_AVATAR_MIME_TYPES = {
+    "image/jpeg",
+    "image/png",
+    "image/webp",
+}
 
 PROFILE_COLUMNS = (
     "id,email,first_name,last_name,phone_dial_code,"
     "phone_number,normalized_phone,timezone,role,"
     "occupation,location,assistant_name,assistant_tone,"
-    "updated_at"
+    "avatar_file_id,updated_at"
 )
 
 SOCIAL_LINK_COLUMNS = "platform,url"
@@ -119,6 +134,137 @@ def get_profile(*, auth_user_id: str) -> dict:
     except Exception as error:
         raise ProfileLookupError(
             "Could not retrieve the BeeApp profile."
+        ) from error
+
+
+def validate_profile_avatar(
+    *,
+    auth_user_id: str,
+    avatar_file_id: str,
+) -> dict:
+    try:
+        file_record = get_owned_file(
+            user_id=str(auth_user_id),
+            file_id=str(avatar_file_id),
+            include_trashed=True,
+        )
+
+        if file_record.get("status") != "ready":
+            raise ProfileAvatarValidationError(
+                "The selected avatar file is not ready."
+            )
+
+        if file_record.get("kind") != "image":
+            raise ProfileAvatarValidationError(
+                "The selected avatar file must be an image."
+            )
+
+        if file_record.get("trashed_at") is not None:
+            raise ProfileAvatarValidationError(
+                "The selected avatar file is in trash."
+            )
+
+        if file_record.get("mime_type") not in PROFILE_AVATAR_MIME_TYPES:
+            raise ProfileAvatarValidationError(
+                "The selected avatar must be a JPEG, PNG, or WebP image."
+            )
+
+        if (
+            int(file_record.get("size_bytes") or 0)
+            > MAX_PROFILE_AVATAR_SIZE_BYTES
+        ):
+            raise ProfileAvatarValidationError(
+                "The selected avatar image must be 5 MB or smaller."
+            )
+
+        return file_record
+
+    except ProfileAvatarValidationError:
+        raise
+
+    except StorageFileNotFoundError as error:
+        raise ProfileAvatarValidationError(
+            "The selected avatar file was not found."
+        ) from error
+
+    except Exception as error:
+        raise ProfileAvatarValidationError(
+            "Could not validate the selected avatar file."
+        ) from error
+
+
+def update_profile_avatar(
+    *,
+    auth_user_id: str,
+    avatar_file_id: str,
+) -> dict:
+    try:
+        validate_profile_avatar(
+            auth_user_id=str(auth_user_id),
+            avatar_file_id=str(avatar_file_id),
+        )
+
+        response = (
+            get_supabase_admin_client()
+            .table("profile")
+            .update(
+                {
+                    "avatar_file_id": str(avatar_file_id),
+                }
+            )
+            .eq("id", str(auth_user_id))
+            .execute()
+        )
+
+        if not response.data:
+            raise ProfileUpdateError(
+                "Supabase did not return the updated profile avatar."
+            )
+
+        return get_profile(auth_user_id=str(auth_user_id))
+
+    except (
+        ProfileAvatarValidationError,
+        ProfileUpdateError,
+    ):
+        raise
+
+    except Exception as error:
+        raise ProfileUpdateError(
+            "Could not update the profile avatar."
+        ) from error
+
+
+def remove_profile_avatar(
+    *,
+    auth_user_id: str,
+) -> dict:
+    try:
+        response = (
+            get_supabase_admin_client()
+            .table("profile")
+            .update(
+                {
+                    "avatar_file_id": None,
+                }
+            )
+            .eq("id", str(auth_user_id))
+            .execute()
+        )
+
+        if not response.data:
+            raise ProfileUpdateError(
+                "Supabase did not return the updated profile."
+            )
+
+        return get_profile(auth_user_id=str(auth_user_id))
+
+    except ProfileUpdateError:
+        raise
+
+    except Exception as error:
+        raise ProfileUpdateError(
+            "Could not remove the profile avatar."
         ) from error
 
 

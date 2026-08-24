@@ -62,6 +62,10 @@ class ProfileUpdateError(AccountError):
     """Raised when a profile cannot be updated."""
 
 
+class ProfileAvatarValidationError(ProfileUpdateError):
+    """Raised when a selected profile avatar file is invalid."""
+
+
 class AssistantSettingsUpdateError(AccountError):
     """Raised when assistant settings cannot be updated."""
 

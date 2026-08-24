@@ -17,6 +17,7 @@ from apps.accounts.exceptions import (
     PasswordResetVerificationError,
     PhoneOtpRequestError,
     PhoneOtpVerificationError,
+    ProfileAvatarValidationError,
     ProfileLookupError,
     ProfileUpdateError,
     QrLoginError,
@@ -31,6 +32,7 @@ from apps.accounts.serializers import (
     RegisterUserSerializer,
     UpdateAssistantSettingsSerializer,
     UpdateOnboardingProfileSerializer,
+    UpdateProfileAvatarSerializer,
     UpdateProfileSerializer,
     VerifyPhoneOtpSerializer,
 )
@@ -65,9 +67,11 @@ from apps.accounts.services.phone_otp_service import (
 )
 from apps.accounts.services.profile_service import (
     get_profile,
+    remove_profile_avatar,
     update_assistant_settings,
     update_onboarding_profile,
     update_profile,
+    update_profile_avatar,
 )
 from apps.accounts.services.qr_login_service import (
     approve_qr_login_challenge,
@@ -655,6 +659,96 @@ class CurrentProfileView(AuthenticatedAPIView):
 
         return Response(
             {
+                "profile": profile,
+            },
+            status=status.HTTP_200_OK,
+        )
+
+
+class ProfileAvatarView(AuthenticatedAPIView):
+    def patch(self, request):
+        serializer = UpdateProfileAvatarSerializer(
+            data=request.data,
+        )
+        serializer.is_valid(raise_exception=True)
+
+        try:
+            authenticated_user = self.get_authenticated_user(
+                request
+            )
+
+            profile = update_profile_avatar(
+                auth_user_id=str(authenticated_user.id),
+                avatar_file_id=str(
+                    serializer.validated_data["avatar_file_id"]
+                ),
+            )
+
+            profile["email"] = authenticated_user.email
+
+        except AccountAuthenticationError:
+            return Response(
+                {
+                    "detail": "Invalid or expired access token.",
+                },
+                status=status.HTTP_401_UNAUTHORIZED,
+            )
+
+        except ProfileAvatarValidationError as error:
+            return Response(
+                {
+                    "detail": str(error),
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        except ProfileUpdateError:
+            return Response(
+                {
+                    "detail": "Profile avatar could not be updated.",
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        return Response(
+            {
+                "message": "Profile avatar updated successfully.",
+                "profile": profile,
+            },
+            status=status.HTTP_200_OK,
+        )
+
+    def delete(self, request):
+        try:
+            authenticated_user = self.get_authenticated_user(
+                request
+            )
+
+            profile = remove_profile_avatar(
+                auth_user_id=str(authenticated_user.id),
+            )
+
+            profile["email"] = authenticated_user.email
+
+        except AccountAuthenticationError:
+            return Response(
+                {
+                    "detail": "Invalid or expired access token.",
+                },
+                status=status.HTTP_401_UNAUTHORIZED,
+            )
+
+        except ProfileUpdateError:
+            return Response(
+                {
+                    "detail": "Profile avatar could not be removed.",
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        return Response(
+            {
+                "message": "Profile avatar removed successfully.",
                 "profile": profile,
             },
             status=status.HTTP_200_OK,

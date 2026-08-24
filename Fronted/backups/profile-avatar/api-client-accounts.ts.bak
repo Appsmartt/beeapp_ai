@@ -22,11 +22,8 @@ import type {
     UpdateAssistantSettingsResponse,
     UpdateOnboardingProfilePayload,
     UpdateOnboardingProfileResponse,
-    UpdateProfileAvatarPayload,
-    UpdateProfileAvatarResponse,
     UpdateProfilePayload,
     UpdateProfileResponse,
-    RemoveProfileAvatarResponse,
     VerifyPhoneOtpMobileResponse,
     VerifyPhoneOtpPayload,
     WebSessionProfileResponse,
@@ -149,30 +146,6 @@ export function updateCurrentWebProfile(
         payload,
         {
         credentials: 'include',
-        },
-    );
-}
-
-export function updateProfileAvatar(
-    auth: AuthCredentials,
-    payload: UpdateProfileAvatarPayload,
-    ): Promise<UpdateProfileAvatarResponse> {
-    return api.patch<UpdateProfileAvatarResponse>(
-        '/accounts/me/avatar/',
-        payload,
-        {
-        auth,
-        },
-    );
-}
-
-export async function removeProfileAvatar(
-    auth: AuthCredentials,
-    ): Promise<RemoveProfileAvatarResponse> {
-    return api.delete<RemoveProfileAvatarResponse>(
-        '/accounts/me/avatar/',
-        {
-        auth,
         },
     );
 }

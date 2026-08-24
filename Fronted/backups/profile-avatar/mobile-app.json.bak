@@ -16,8 +16,7 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.beeapp.mobile",
       "infoPlist": {
-        "NSCameraUsageDescription": "BeeApp necesita acceso a la cámara para que puedas tomar una foto de perfil.",
-        "NSPhotoLibraryUsageDescription": "BeeApp necesita acceso a tus fotos para que puedas elegir una imagen de perfil."
+        "NSCameraUsageDescription": "BeeApp necesita acceso a la cámara para escanear códigos QR de inicio de sesión."
       }
     },
     "android": {
@@ -49,13 +48,6 @@
         "expo-camera",
         {
           "cameraPermission": "BeeApp necesita acceso a la cámara para escanear códigos QR de inicio de sesión."
-        }
-      ],
-      [
-        "expo-image-picker",
-        {
-          "photosPermission": "BeeApp necesita acceso a tus fotos para que puedas elegir una imagen de perfil.",
-          "cameraPermission": "BeeApp necesita acceso a la cámara para que puedas tomar una foto de perfil."
         }
       ],
       [
