@@ -244,6 +244,8 @@ def refresh_mobile_device_session(
                 "Only mobile sessions can be refreshed here."
             )
 
+        old_session_token_hash = hash_token(session_token)
+
         new_session_token = secrets.token_urlsafe(48)
         new_expires_at = (
             timezone.now()
@@ -252,7 +254,7 @@ def refresh_mobile_device_session(
 
         supabase = get_supabase_admin_client()
 
-        (
+        response = (
             supabase.table("device_sessions")
             .update(
                 {
@@ -264,10 +266,16 @@ def refresh_mobile_device_session(
                 }
             )
             .eq("id", device_session["id"])
+            .eq("session_token_hash", old_session_token_hash)
             .eq("is_active", True)
             .is_("revoked_at", "null")
             .execute()
         )
+
+        if not getattr(response, "data", None):
+            raise DeviceSessionError(
+                "Session was already refreshed or is no longer active."
+            )
 
         return {
             "token": new_session_token,
@@ -296,7 +304,7 @@ def update_device_metadata(
 
         supabase = get_supabase_admin_client()
 
-        (
+        response = (
             supabase.table("device_sessions")
             .update(
                 {
@@ -392,7 +400,7 @@ def revoke_all_user_device_sessions(
     try:
         supabase = get_supabase_admin_client()
 
-        (
+        response = (
             supabase.table("device_sessions")
             .update(
                 {

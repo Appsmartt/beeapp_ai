@@ -40,10 +40,12 @@ import {
   getChatConversations as getStoredConversations,
   getChatMessages as getStoredMessages,
   getProtectedConversationIds,
+  hydrateChatConversations,
   isChatConversationProtected,
   setChatConversationProtected,
   setChatConversations,
   setChatMessages,
+  updateChatConversationLastMessage,
   upsertChatConversation,
   upsertChatMessage,
 } from '../stores/chatStore';
@@ -231,9 +233,11 @@ export function useChatConversations(
     const requestId = requestIdRef.current + 1;
     requestIdRef.current = requestId;
 
+    const hasMemoryCache = getStoredConversations().length > 0;
+
     if (options.refresh) {
       setRefreshing(true);
-    } else {
+    } else if (!hasMemoryCache) {
       setLoading(true);
     }
 
@@ -244,6 +248,20 @@ export function useChatConversations(
         currentUserId: activeUserId,
         token,
       } = await getChatAuthContext();
+
+      const cachedConversations = await hydrateChatConversations(
+        activeUserId,
+      );
+
+      if (requestId !== requestIdRef.current) {
+        return [];
+      }
+
+      setCurrentUserId(activeUserId);
+
+      if (cachedConversations.length > 0) {
+        setRawConversations(cachedConversations);
+      }
 
       const identityId = (
         privateIdentityId
@@ -350,7 +368,7 @@ export function useChatConversations(
   ) => {
     const normalizedQuery = query.trim();
 
-    if (normalizedQuery.length < 3) {
+    if (normalizedQuery.length < 2) {
       return [];
     }
 
@@ -826,6 +844,23 @@ export function useChatMessages(
         || await resolvePrivateIdentityId(token)
       );
 
+
+      const allowedPostingIdentityId = (
+        conversation?.posting_identity_id
+        || conversation?.created_by_identity_id
+        || null
+      );
+
+      if (
+        conversation?.conversation_type === 'group'
+        && allowedPostingIdentityId
+        && senderIdentityId !== allowedPostingIdentityId
+      ) {
+        throw new Error(
+          'No tienes permiso para enviar mensajes en este grupo.',
+        );
+      }
+
       const response = await sendChatMessage(
         token,
         conversationId,
@@ -838,6 +873,10 @@ export function useChatMessages(
 
       setCurrentUserId(activeUserId);
       upsertChatMessage(
+        conversationId,
+        response.message,
+      );
+      updateChatConversationLastMessage(
         conversationId,
         response.message,
       );

@@ -2,17 +2,7 @@
 > @beeapp/mobile@0.1.0 type-check
 > tsc --noEmit
 
-[1G[0K[96mapp/(auth)/privacy.tsx[0m:[93m1[0m:[93m1[0m - [91merror[0m[90m TS6133: [0m'React' is declared but its value is never read.
-
-[7m1[0m import React from 'react';
-[7m [0m [91m~~~~~~~~~~~~~~~~~~~~~~~~~~[0m
-
-[96mapp/(auth)/register.tsx[0m:[93m7[0m:[93m5[0m - [91merror[0m[90m TS6133: [0m'Modal' is declared but its value is never read.
-
-[7m7[0m     Modal,
-[7m [0m [91m    ~~~~~[0m
-
-[96mapp/(auth)/register.tsx[0m:[93m297[0m:[93m25[0m - [91merror[0m[90m TS2769: [0mNo overload matches this call.
+[1G[0K[96mapp/(auth)/register.tsx[0m:[93m296[0m:[93m25[0m - [91merror[0m[90m TS2769: [0mNo overload matches this call.
   Overload 1 of 2, '(props: ViewProps): View', gave the following error.
     Type '"" | { borderColor: string; } | undefined' is not assignable to type 'ViewStyle | Falsy | RegisteredStyle<ViewStyle> | RecursiveArray<ViewStyle | Falsy | RegisteredStyle<ViewStyle>> | readonly (ViewStyle | ... 1 more ... | RegisteredStyle<...>)[]'.
       Type '""' is not assignable to type 'ViewStyle | Falsy | RegisteredStyle<ViewStyle> | RecursiveArray<ViewStyle | Falsy | RegisteredStyle<ViewStyle>> | readonly (ViewStyle | ... 1 more ... | RegisteredStyle<...>)[]'.
@@ -20,11 +10,11 @@
     Type '"" | { borderColor: string; } | undefined' is not assignable to type 'ViewStyle | Falsy | RegisteredStyle<ViewStyle> | RecursiveArray<ViewStyle | Falsy | RegisteredStyle<ViewStyle>> | readonly (ViewStyle | ... 1 more ... | RegisteredStyle<...>)[]'.
       Type '""' is not assignable to type 'ViewStyle | Falsy | RegisteredStyle<ViewStyle> | RecursiveArray<ViewStyle | Falsy | RegisteredStyle<ViewStyle>> | readonly (ViewStyle | ... 1 more ... | RegisteredStyle<...>)[]'.
 
-[7m297[0m                         errors.phoneNumber && styles.inputError,
+[7m296[0m                         errors.phoneNumber && styles.inputError,
 [7m   [0m [91m                        ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~[0m
 
 
-[96mapp/(auth)/register.tsx[0m:[93m504[0m:[93m37[0m - [91merror[0m[90m TS2769: [0mNo overload matches this call.
+[96mapp/(auth)/register.tsx[0m:[93m503[0m:[93m37[0m - [91merror[0m[90m TS2769: [0mNo overload matches this call.
   Overload 1 of 2, '(props: ViewProps): View', gave the following error.
     Type '"" | { borderColor: string; } | undefined' is not assignable to type 'ViewStyle | Falsy | RegisteredStyle<ViewStyle> | RecursiveArray<ViewStyle | Falsy | RegisteredStyle<ViewStyle>> | readonly (ViewStyle | ... 1 more ... | RegisteredStyle<...>)[]'.
       Type '""' is not assignable to type 'ViewStyle | Falsy | RegisteredStyle<ViewStyle> | RecursiveArray<ViewStyle | Falsy | RegisteredStyle<ViewStyle>> | readonly (ViewStyle | ... 1 more ... | RegisteredStyle<...>)[]'.
@@ -32,11 +22,11 @@
     Type '"" | { borderColor: string; } | undefined' is not assignable to type 'ViewStyle | Falsy | RegisteredStyle<ViewStyle> | RecursiveArray<ViewStyle | Falsy | RegisteredStyle<ViewStyle>> | readonly (ViewStyle | ... 1 more ... | RegisteredStyle<...>)[]'.
       Type '""' is not assignable to type 'ViewStyle | Falsy | RegisteredStyle<ViewStyle> | RecursiveArray<ViewStyle | Falsy | RegisteredStyle<ViewStyle>> | readonly (ViewStyle | ... 1 more ... | RegisteredStyle<...>)[]'.
 
-[7m504[0m         <View style={[styles.input, error && styles.inputError]}>
+[7m503[0m         <View style={[styles.input, error && styles.inputError]}>
 [7m   [0m [91m                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~[0m
 
 
-[96mapp/(auth)/register.tsx[0m:[93m547[0m:[93m37[0m - [91merror[0m[90m TS2769: [0mNo overload matches this call.
+[96mapp/(auth)/register.tsx[0m:[93m546[0m:[93m37[0m - [91merror[0m[90m TS2769: [0mNo overload matches this call.
   Overload 1 of 2, '(props: ViewProps): View', gave the following error.
     Type '"" | { borderColor: string; } | undefined' is not assignable to type 'ViewStyle | Falsy | RegisteredStyle<ViewStyle> | RecursiveArray<ViewStyle | Falsy | RegisteredStyle<ViewStyle>> | readonly (ViewStyle | ... 1 more ... | RegisteredStyle<...>)[]'.
       Type '""' is not assignable to type 'ViewStyle | Falsy | RegisteredStyle<ViewStyle> | RecursiveArray<ViewStyle | Falsy | RegisteredStyle<ViewStyle>> | readonly (ViewStyle | ... 1 more ... | RegisteredStyle<...>)[]'.
@@ -44,84 +34,9 @@
     Type '"" | { borderColor: string; } | undefined' is not assignable to type 'ViewStyle | Falsy | RegisteredStyle<ViewStyle> | RecursiveArray<ViewStyle | Falsy | RegisteredStyle<ViewStyle>> | readonly (ViewStyle | ... 1 more ... | RegisteredStyle<...>)[]'.
       Type '""' is not assignable to type 'ViewStyle | Falsy | RegisteredStyle<ViewStyle> | RecursiveArray<ViewStyle | Falsy | RegisteredStyle<ViewStyle>> | readonly (ViewStyle | ... 1 more ... | RegisteredStyle<...>)[]'.
 
-[7m547[0m         <View style={[styles.input, error && styles.inputError]}>
+[7m546[0m         <View style={[styles.input, error && styles.inputError]}>
 [7m   [0m [91m                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~[0m
 
-
-[96mapp/(auth)/terms.tsx[0m:[93m1[0m:[93m1[0m - [91merror[0m[90m TS6133: [0m'React' is declared but its value is never read.
-
-[7m1[0m import React from 'react';
-[7m [0m [91m~~~~~~~~~~~~~~~~~~~~~~~~~~[0m
-
-[96mapp/(main)/chat/call.tsx[0m:[93m1[0m:[93m8[0m - [91merror[0m[90m TS6133: [0m'React' is declared but its value is never read.
-
-[7m1[0m import React, { useState, useEffect, useRef } from 'react';
-[7m [0m [91m       ~~~~~[0m
-
-[96mapp/(main)/chat/call.tsx[0m:[93m1[0m:[93m38[0m - [91merror[0m[90m TS6133: [0m'useRef' is declared but its value is never read.
-
-[7m1[0m import React, { useState, useEffect, useRef } from 'react';
-[7m [0m [91m                                     ~~~~~~[0m
-
-[96mapp/(main)/chat/call.tsx[0m:[93m11[0m:[93m3[0m - [91merror[0m[90m TS6133: [0m'VolumeX' is declared but its value is never read.
-
-[7m11[0m   VolumeX,
-[7m  [0m [91m  ~~~~~~~[0m
-
-[96mapp/(main)/chat/call.tsx[0m:[93m14[0m:[93m3[0m - [91merror[0m[90m TS6133: [0m'Camera' is declared but its value is never read.
-
-[7m14[0m   Camera,
-[7m  [0m [91m  ~~~~~~[0m
-
-[96mapp/(main)/chat/conversation.tsx[0m:[93m1[0m:[93m8[0m - [91merror[0m[90m TS6133: [0m'React' is declared but its value is never read.
-
-[7m1[0m import React, { useState, useRef, useEffect } from 'react';
-[7m [0m [91m       ~~~~~[0m
-
-[96mapp/(main)/chat/new.tsx[0m:[93m1[0m:[93m8[0m - [91merror[0m[90m TS6133: [0m'React' is declared but its value is never read.
-
-[7m1[0m import React, { useState } from 'react';
-[7m [0m [91m       ~~~~~[0m
-
-[96mapp/(main)/chat/new.tsx[0m:[93m17[0m:[93m7[0m - [91merror[0m[90m TS6133: [0m'SCREEN_WIDTH' is declared but its value is never read.
-
-[7m17[0m const { width: SCREEN_WIDTH } = Dimensions.get('window');
-[7m  [0m [91m      ~~~~~~~~~~~~~~~~~~~~~~~[0m
-
-[96mapp/(main)/contacts/detail.tsx[0m:[93m1[0m:[93m8[0m - [91merror[0m[90m TS6133: [0m'React' is declared but its value is never read.
-
-[7m1[0m import React, { useState } from 'react';
-[7m [0m [91m       ~~~~~[0m
-
-[96mapp/(main)/explore.tsx[0m:[93m1[0m:[93m8[0m - [91merror[0m[90m TS6133: [0m'React' is declared but its value is never read.
-
-[7m1[0m import React, { useState, useEffect } from 'react';
-[7m [0m [91m       ~~~~~[0m
-
-[96mapp/(main)/mail/compose.tsx[0m:[93m1[0m:[93m8[0m - [91merror[0m[90m TS6133: [0m'React' is declared but its value is never read.
-
-[7m1[0m import React, { useState } from 'react';
-[7m [0m [91m       ~~~~~[0m
-
-[96mapp/(main)/mail/detail.tsx[0m:[93m1[0m:[93m8[0m - [91merror[0m[90m TS6133: [0m'React' is declared but its value is never read.
-
-[7m1[0m import React, { useState } from 'react';
-[7m [0m [91m       ~~~~~[0m
-
-[96mapp/(main)/mail/index.tsx[0m:[93m1[0m:[93m8[0m - [91merror[0m[90m TS6133: [0m'React' is declared but its value is never read.
-
-[7m1[0m import React, { useState } from 'react';
-[7m [0m [91m       ~~~~~[0m
-
-[96mapp/(main)/profile/subscription.tsx[0m:[93m1[0m:[93m8[0m - [91merror[0m[90m TS6133: [0m'React' is declared but its value is never read.
-
-[7m1[0m import React, { useState } from 'react';
-[7m [0m [91m       ~~~~~[0m
-
-[96mapp/(main)/storage/sign.tsx[0m:[93m1[0m:[93m8[0m - [91merror[0m[90m TS6133: [0m'React' is declared but its value is never read.
-
-[7m1[0m import React, { useState, useEffect } from 'react';
-[7m [0m [91m       ~~~~~[0m
 
 [96msrc/components/FloatingTabBar.tsx[0m:[93m3[0m:[93m1[0m - [91merror[0m[90m TS6133: [0m'useRouter' is declared but its value is never read.
 
@@ -142,121 +57,6 @@
 
 [7m90[0m     ? CHAT_NOTIFICATIONS.filter((n) => n.target.module === currentRightItem.target.module && !readIds.includes(n.id)).length
 [7m  [0m [91m                                                           ~~~~~~~~~~~~~~~~[0m
-
-[96msrc/components/VoiceAssistantFab.tsx[0m:[93m1[0m:[93m8[0m - [91merror[0m[90m TS6133: [0m'React' is declared but its value is never read.
-
-[7m1[0m import React, { useState, useEffect, useRef } from 'react';
-[7m [0m [91m       ~~~~~[0m
-
-[96msrc/components/VoiceAssistantFab.tsx[0m:[93m3[0m:[93m3[0m - [91merror[0m[90m TS6133: [0m'View' is declared but its value is never read.
-
-[7m3[0m   View,
-[7m [0m [91m  ~~~~[0m
-
-[96msrc/components/assistant/VoiceAssistantScreen.tsx[0m:[93m3[0m:[93m22[0m - [91merror[0m[90m TS6133: [0m'StyleSheet' is declared but its value is never read.
-
-[7m3[0m import { View, Text, StyleSheet, Modal, ScrollView, TouchableOpacity, Platform } from 'react-native';
-[7m [0m [91m                     ~~~~~~~~~~[0m
-
-[96msrc/components/chat/AiCatalogCards.tsx[0m:[93m1[0m:[93m8[0m - [91merror[0m[90m TS6133: [0m'React' is declared but its value is never read.
-
-[7m1[0m import React, { useState } from 'react';
-[7m [0m [91m       ~~~~~[0m
-
-[96msrc/components/chat/AiCatalogCards.tsx[0m:[93m4[0m:[93m16[0m - [91merror[0m[90m TS6133: [0m'MapPin' is declared but its value is never read.
-
-[7m4[0m import { Star, MapPin, ChevronDown, ChevronUp, MessageSquare } from 'lucide-react-native';
-[7m [0m [91m               ~~~~~~[0m
-
-[96msrc/components/chat/AiCatalogItem.tsx[0m:[93m1[0m:[93m8[0m - [91merror[0m[90m TS6133: [0m'React' is declared but its value is never read.
-
-[7m1[0m import React, { useState } from 'react';
-[7m [0m [91m       ~~~~~[0m
-
-[96msrc/components/chat/AiCatalogModal.tsx[0m:[93m1[0m:[93m1[0m - [91merror[0m[90m TS6133: [0m'React' is declared but its value is never read.
-
-[7m1[0m import React from 'react';
-[7m [0m [91m~~~~~~~~~~~~~~~~~~~~~~~~~~[0m
-
-[96msrc/components/chat/ChatListItem.tsx[0m:[93m1[0m:[93m1[0m - [91merror[0m[90m TS6133: [0m'React' is declared but its value is never read.
-
-[7m1[0m import React from 'react';
-[7m [0m [91m~~~~~~~~~~~~~~~~~~~~~~~~~~[0m
-
-[96msrc/components/chat/ChatMessageMenuModal.tsx[0m:[93m1[0m:[93m1[0m - [91merror[0m[90m TS6133: [0m'React' is declared but its value is never read.
-
-[7m1[0m import React from 'react';
-[7m [0m [91m~~~~~~~~~~~~~~~~~~~~~~~~~~[0m
-
-[96msrc/components/chat/CommunitiesTabView.tsx[0m:[93m2[0m:[93m18[0m - [91merror[0m[90m TS6133: [0m'spacing' is declared but its value is never read.
-
-[7m2[0m import { colors, spacing } from '@beeapp/design-system';
-[7m [0m [91m                 ~~~~~~~[0m
-
-[96msrc/components/chat/ConversationHeader.tsx[0m:[93m1[0m:[93m1[0m - [91merror[0m[90m TS6133: [0m'React' is declared but its value is never read.
-
-[7m1[0m import React from 'react';
-[7m [0m [91m~~~~~~~~~~~~~~~~~~~~~~~~~~[0m
-
-[96msrc/components/chat/ConversationOverlayMenu.tsx[0m:[93m1[0m:[93m1[0m - [91merror[0m[90m TS6133: [0m'React' is declared but its value is never read.
-
-[7m1[0m import React from 'react';
-[7m [0m [91m~~~~~~~~~~~~~~~~~~~~~~~~~~[0m
-
-[96msrc/components/chat/ForwardMessageModal.tsx[0m:[93m1[0m:[93m8[0m - [91merror[0m[90m TS6133: [0m'React' is declared but its value is never read.
-
-[7m1[0m import React, { useState } from 'react';
-[7m [0m [91m       ~~~~~[0m
-
-[96msrc/components/chat/ForwardMessageModal.tsx[0m:[93m12[0m:[93m30[0m - [91merror[0m[90m TS6133: [0m'Check' is declared but its value is never read.
-
-[7m12[0m import { Search, X, Forward, Check } from 'lucide-react-native';
-[7m  [0m [91m                             ~~~~~[0m
-
-[96msrc/components/chat/MessageBubble.tsx[0m:[93m1[0m:[93m8[0m - [91merror[0m[90m TS6133: [0m'React' is declared but its value is never read.
-
-[7m1[0m import React, { useState } from 'react';
-[7m [0m [91m       ~~~~~[0m
-
-[96msrc/components/chat/PinnedMessageBanner.tsx[0m:[93m1[0m:[93m1[0m - [91merror[0m[90m TS6133: [0m'React' is declared but its value is never read.
-
-[7m1[0m import React from 'react';
-[7m [0m [91m~~~~~~~~~~~~~~~~~~~~~~~~~~[0m
-
-[96msrc/components/chat/RestrictedAndArchivedRows.tsx[0m:[93m1[0m:[93m1[0m - [91merror[0m[90m TS6133: [0m'React' is declared but its value is never read.
-
-[7m1[0m import React from 'react';
-[7m [0m [91m~~~~~~~~~~~~~~~~~~~~~~~~~~[0m
-
-[96msrc/components/chat/StatusViewersSheet.tsx[0m:[93m1[0m:[93m1[0m - [91merror[0m[90m TS6133: [0m'React' is declared but its value is never read.
-
-[7m1[0m import React from 'react';
-[7m [0m [91m~~~~~~~~~~~~~~~~~~~~~~~~~~[0m
-
-[96msrc/components/chat/WriteBar.tsx[0m:[93m1[0m:[93m8[0m - [91merror[0m[90m TS6133: [0m'React' is declared but its value is never read.
-
-[7m1[0m import React, { useState, useEffect, useRef } from 'react';
-[7m [0m [91m       ~~~~~[0m
-
-[96msrc/components/chat/status/StatusPrivacySelector.tsx[0m:[93m1[0m:[93m8[0m - [91merror[0m[90m TS6133: [0m'React' is declared but its value is never read.
-
-[7m1[0m import React, { useState } from 'react';
-[7m [0m [91m       ~~~~~[0m
-
-[96msrc/components/contacts/ContactsListView.tsx[0m:[93m6[0m:[93m3[0m - [91merror[0m[90m TS6133: [0m'Globe' is declared but its value is never read.
-
-[7m6[0m   Globe,
-[7m [0m [91m  ~~~~~[0m
-
-[96msrc/components/home/OverviewSection.tsx[0m:[93m28[0m:[93m3[0m - [91merror[0m[90m TS6133: [0m'color' is declared but its value is never read.
-
-[7m28[0m   color,
-[7m  [0m [91m  ~~~~~[0m
-
-[96msrc/components/notes/NoteEntityActionModal.tsx[0m:[93m16[0m:[93m5[0m - [91merror[0m[90m TS6133: [0m'radii' is declared but its value is never read.
-
-[7m16[0m     radii,
-[7m  [0m [91m    ~~~~~[0m
 
 [96msrc/components/notes/NoteShareModal.tsx[0m:[93m31[0m:[93m5[0m - [91merror[0m[90m TS2724: [0m'"@beeapp/api-client"' has no exported member named 'searchNoteShareRecipients'. Did you mean 'searchStorageShareRecipients'?
 
@@ -297,58 +97,14 @@
 [7m  [0m [91m            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~[0m
 
 
-[96msrc/components/storage/SignatureCreatorCard.tsx[0m:[93m1[0m:[93m1[0m - [91merror[0m[90m TS6133: [0m'React' is declared but its value is never read.
 
-[7m1[0m import React from 'react';
-[7m [0m [91m~~~~~~~~~~~~~~~~~~~~~~~~~~[0m
-
-[96msrc/components/storage/SignatureDocPreview.tsx[0m:[93m1[0m:[93m1[0m - [91merror[0m[90m TS6133: [0m'React' is declared but its value is never read.
-
-[7m1[0m import React from 'react';
-[7m [0m [91m~~~~~~~~~~~~~~~~~~~~~~~~~~[0m
-
-
-Found 53 errors in 38 files.
+Found 11 errors in 4 files.
 
 Errors  Files
-     1  app/(auth)/privacy.tsx[90m:1[0m
-     4  app/(auth)/register.tsx[90m:7[0m
-     1  app/(auth)/terms.tsx[90m:1[0m
-     4  app/(main)/chat/call.tsx[90m:1[0m
-     1  app/(main)/chat/conversation.tsx[90m:1[0m
-     2  app/(main)/chat/new.tsx[90m:1[0m
-     1  app/(main)/contacts/detail.tsx[90m:1[0m
-     1  app/(main)/explore.tsx[90m:1[0m
-     1  app/(main)/mail/compose.tsx[90m:1[0m
-     1  app/(main)/mail/detail.tsx[90m:1[0m
-     1  app/(main)/mail/index.tsx[90m:1[0m
-     1  app/(main)/profile/subscription.tsx[90m:1[0m
-     1  app/(main)/storage/sign.tsx[90m:1[0m
+     3  app/(auth)/register.tsx[90m:296[0m
      4  src/components/FloatingTabBar.tsx[90m:3[0m
-     2  src/components/VoiceAssistantFab.tsx[90m:1[0m
-     1  src/components/assistant/VoiceAssistantScreen.tsx[90m:3[0m
-     2  src/components/chat/AiCatalogCards.tsx[90m:1[0m
-     1  src/components/chat/AiCatalogItem.tsx[90m:1[0m
-     1  src/components/chat/AiCatalogModal.tsx[90m:1[0m
-     1  src/components/chat/ChatListItem.tsx[90m:1[0m
-     1  src/components/chat/ChatMessageMenuModal.tsx[90m:1[0m
-     1  src/components/chat/CommunitiesTabView.tsx[90m:2[0m
-     1  src/components/chat/ConversationHeader.tsx[90m:1[0m
-     1  src/components/chat/ConversationOverlayMenu.tsx[90m:1[0m
-     2  src/components/chat/ForwardMessageModal.tsx[90m:1[0m
-     1  src/components/chat/MessageBubble.tsx[90m:1[0m
-     1  src/components/chat/PinnedMessageBanner.tsx[90m:1[0m
-     1  src/components/chat/RestrictedAndArchivedRows.tsx[90m:1[0m
-     1  src/components/chat/StatusViewersSheet.tsx[90m:1[0m
-     1  src/components/chat/WriteBar.tsx[90m:1[0m
-     1  src/components/chat/status/StatusPrivacySelector.tsx[90m:1[0m
-     1  src/components/contacts/ContactsListView.tsx[90m:6[0m
-     1  src/components/home/OverviewSection.tsx[90m:28[0m
-     1  src/components/notes/NoteEntityActionModal.tsx[90m:16[0m
      2  src/components/notes/NoteShareModal.tsx[90m:31[0m
      2  src/components/onboarding/AboutYouSection.tsx[90m:37[0m
-     1  src/components/storage/SignatureCreatorCard.tsx[90m:1[0m
-     1  src/components/storage/SignatureDocPreview.tsx[90m:1[0m
 [1G[0K⠙[1G[0K[1mnpm[22m [31merror[39m Lifecycle script `type-check` failed with error:
 [1G[0K⠙[1G[0K[1mnpm[22m [31merror[39m [94mcode[39m [33m2[39m
 [1G[0K⠙[1G[0K[1mnpm[22m [31merror[39m [94mpath[39m /home/andres-mendoza/Git/beeapp_ai/Fronted/apps/mobile

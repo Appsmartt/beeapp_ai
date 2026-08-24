@@ -72,7 +72,7 @@ class ChatInboxQuerySerializer(serializers.Serializer):
 
 class ChatRecipientSearchQuerySerializer(serializers.Serializer):
     q = serializers.CharField(
-        min_length=3,
+        min_length=2,
         max_length=160,
         trim_whitespace=True,
     )
@@ -87,9 +87,9 @@ class ChatRecipientSearchQuerySerializer(serializers.Serializer):
     def validate_q(self, value: str) -> str:
         normalized_value = value.strip()
 
-        if len(normalized_value) < 3:
+        if len(normalized_value) < 2:
             raise serializers.ValidationError(
-                "Search query must contain at least 3 characters."
+                "Search query must contain at least 2 characters."
             )
 
         return normalized_value

@@ -1,7 +1,11 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
 import type {
   ChatConversation,
   ChatMessage,
 } from '@beeapp/shared-types';
+
+const CHAT_INBOX_CACHE_PREFIX = 'beeapp.chat.inbox.v1';
 
 let conversations: ChatConversation[] = [];
 
@@ -11,6 +15,14 @@ let messagesByConversationId: Record<
 > = {};
 
 let protectedConversationIds: string[] = [];
+
+let activeUserId: string | null = null;
+
+function getInboxCacheKey(
+  userId: string,
+): string {
+  return `${CHAT_INBOX_CACHE_PREFIX}.${userId}`;
+}
 
 function hasConversationId(
   conversation: ChatConversation | null | undefined,
@@ -113,6 +125,84 @@ function normalizeConversations(
   );
 }
 
+function persistConversations(): void {
+  if (!activeUserId) {
+    return;
+  }
+
+  void AsyncStorage.setItem(
+    getInboxCacheKey(activeUserId),
+    JSON.stringify(conversations),
+  ).catch(() => {
+    // Cache persistence must never block chat usage.
+  });
+}
+
+export async function hydrateChatConversations(
+  userId: string,
+): Promise<ChatConversation[]> {
+  const normalizedUserId = userId.trim();
+
+  if (!normalizedUserId) {
+    conversations = [];
+    activeUserId = null;
+
+    return conversations;
+  }
+
+  if (activeUserId === normalizedUserId) {
+    return conversations;
+  }
+
+  activeUserId = normalizedUserId;
+  conversations = [];
+
+  try {
+    const serializedConversations = await AsyncStorage.getItem(
+      getInboxCacheKey(normalizedUserId),
+    );
+
+    if (!serializedConversations) {
+      return conversations;
+    }
+
+    const parsedConversations = JSON.parse(
+      serializedConversations,
+    );
+
+    if (!Array.isArray(parsedConversations)) {
+      return conversations;
+    }
+
+    conversations = normalizeConversations(
+      parsedConversations as ChatConversation[],
+    );
+
+    return conversations;
+  } catch {
+    return conversations;
+  }
+}
+
+export async function clearChatConversationsCache(
+  userId?: string,
+): Promise<void> {
+  const targetUserId = (userId || activeUserId || '').trim();
+
+  if (targetUserId) {
+    await AsyncStorage.removeItem(
+      getInboxCacheKey(targetUserId),
+    );
+  }
+
+  if (!userId || userId === activeUserId) {
+    conversations = [];
+    messagesByConversationId = {};
+    protectedConversationIds = [];
+    activeUserId = null;
+  }
+}
+
 export function getChatConversations(): ChatConversation[] {
   return conversations;
 }
@@ -121,6 +211,7 @@ export function setChatConversations(
   nextConversations: ChatConversation[],
 ): void {
   conversations = normalizeConversations(nextConversations);
+  persistConversations();
 }
 
 export function upsertChatConversation(
@@ -136,6 +227,26 @@ export function upsertChatConversation(
   ]);
 }
 
+export function updateChatConversationLastMessage(
+  conversationId: string,
+  message: ChatMessage,
+): void {
+  const currentConversation = conversations.find(
+    (conversation) => conversation.id === conversationId,
+  );
+
+  if (!currentConversation) {
+    return;
+  }
+
+  upsertChatConversation({
+    ...currentConversation,
+    last_message: message,
+    last_message_at: message.created_at,
+    updated_at: message.created_at,
+  });
+}
+
 export function removeChatConversation(
   conversationId: string,
 ): void {
@@ -148,6 +259,8 @@ export function removeChatConversation(
   protectedConversationIds = protectedConversationIds.filter(
     (id) => id !== conversationId,
   );
+
+  persistConversations();
 }
 
 export function getChatMessages(

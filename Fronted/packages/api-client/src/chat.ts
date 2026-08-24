@@ -357,6 +357,8 @@ function toSharedConversation(
       conversation.created_by_identity_id
       || null
     ),
+    created_by_identity_id: conversation.created_by_identity_id,
+    posting_identity_id: conversation.posting_identity_id,
     created_at: conversation.created_at,
     updated_at: conversation.updated_at,
     last_message_at: conversation.last_message_at,
