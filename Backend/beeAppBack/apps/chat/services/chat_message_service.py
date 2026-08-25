@@ -292,14 +292,17 @@ def send_chat_message(
     except Exception as error:
         message = str(error)
 
-        if "CHAT_GROUP_ONLY_POSTING_IDENTITY_CAN_SEND" in message:
-            raise ChatMessageSendError(
-                "Only the group posting identity can send messages."
-            ) from error
-
-        if "CHAT_SENDER_NOT_ACTIVE_PARTICIPANT_OR_NOT_OWNER" in message:
+        if any(
+            marker in message
+            for marker in (
+                "CHAT_SENDER_CANNOT_SEND_IN_THIS_CONVERSATION",
+                "CHAT_GROUP_ONLY_POSTING_IDENTITY_CAN_SEND",
+                "CHAT_SENDER_NOT_ACTIVE_PARTICIPANT_OR_NOT_OWNER",
+            )
+        ):
             raise ChatConversationAccessError(
-                "The selected identity cannot send in this conversation."
+                "The selected identity cannot send messages "
+                "in this conversation."
             ) from error
 
         if "CHAT_ATTACHMENT_FILE_MUST_BELONG_TO_SENDER" in message:

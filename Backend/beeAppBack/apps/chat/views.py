@@ -38,11 +38,16 @@ from apps.chat.serializers import (
     CreateChatGroupSerializer,
     CreateDirectConversationSerializer,
     CreateReactionSerializer,
+    DeactivateChatGroupSerializer,
     DeleteReactionQuerySerializer,
     LeaveChatGroupSerializer,
     MarkConversationReadSerializer,
+    RemoveChatGroupParticipantSerializer,
     RespondToChatGroupInviteSerializer,
     SendChatMessageSerializer,
+    SetChatGroupParticipantRoleSerializer,
+    TransferChatGroupOwnershipSerializer,
+    UpdateChatGroupSerializer,
     UploadChatAttachmentSerializer,
 )
 from apps.chat.services.chat_attachment_service import (
@@ -63,12 +68,16 @@ from apps.chat.services.chat_conversation_service import (
 )
 from apps.chat.services.chat_group_service import (
     create_chat_group,
+    deactivate_chat_group,
     get_chat_group_invite,
     invite_identity_to_chat_group,
     leave_chat_group,
     list_chat_group_invites,
     remove_identity_from_chat_group,
     respond_to_chat_group_invite,
+    set_chat_group_participant_role,
+    transfer_chat_group_ownership,
+    update_chat_group,
 )
 from apps.chat.services.chat_identity_service import (
     list_chat_identities,
@@ -1358,6 +1367,9 @@ class ChatGroupsView(AuthenticatedAPIView):
                     ]
                 ),
                 name=serializer.validated_data["name"],
+                posting_policy=serializer.validated_data[
+                    "posting_policy"
+                ],
                 description=serializer.validated_data.get(
                     "description"
                 ),
@@ -1400,6 +1412,138 @@ class ChatGroupsView(AuthenticatedAPIView):
                 "conversation": conversation,
             },
             status=status.HTTP_201_CREATED,
+        )
+
+
+class ChatGroupDetailView(AuthenticatedAPIView):
+    """
+    PATCH  /api/chat/groups/<conversation_id>/
+    DELETE /api/chat/groups/<conversation_id>/
+
+    PATCH actualiza nombre, descripción, imagen y/o posting_policy.
+    DELETE desactiva lógicamente el grupo.
+    Ambas acciones requieren la identidad owner.
+    """
+
+    throttle_classes = [ChatGroupMutationThrottle]
+
+    def patch(self, request, conversation_id):
+        serializer = UpdateChatGroupSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        try:
+            authenticated_user = self.get_authenticated_user(
+                request
+            )
+            access_token = _get_access_token(request)
+
+            image_file_id = serializer.validated_data.get(
+                "image_file_id"
+            )
+
+            conversation = update_chat_group(
+                user_id=str(authenticated_user.id),
+                access_token=access_token,
+                conversation_id=str(conversation_id),
+                actor_identity_id=str(
+                    serializer.validated_data[
+                        "actor_identity_id"
+                    ]
+                ),
+                name=serializer.validated_data.get("name"),
+                description=serializer.validated_data.get(
+                    "description"
+                ),
+                image_file_id=(
+                    str(image_file_id)
+                    if image_file_id is not None
+                    else None
+                ),
+                posting_policy=serializer.validated_data.get(
+                    "posting_policy"
+                ),
+            )
+
+        except AccountAuthenticationError:
+            return _unauthorized_response()
+
+        except ChatConversationAccessError:
+            return Response(
+                {
+                    "detail": (
+                        "The selected identity cannot update "
+                        "this group."
+                    ),
+                },
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        except ChatConversationNotFoundError:
+            return _group_not_found_response()
+
+        except ChatGroupError as error:
+            return Response(
+                {
+                    "detail": str(error),
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        return Response(
+            {
+                "conversation": conversation,
+            },
+            status=status.HTTP_200_OK,
+        )
+
+    def delete(self, request, conversation_id):
+        serializer = DeactivateChatGroupSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        try:
+            authenticated_user = self.get_authenticated_user(
+                request
+            )
+            access_token = _get_access_token(request)
+
+            deactivate_chat_group(
+                user_id=str(authenticated_user.id),
+                access_token=access_token,
+                conversation_id=str(conversation_id),
+                owner_identity_id=str(
+                    serializer.validated_data[
+                        "owner_identity_id"
+                    ]
+                ),
+            )
+
+        except AccountAuthenticationError:
+            return _unauthorized_response()
+
+        except ChatConversationAccessError:
+            return Response(
+                {
+                    "detail": (
+                        "The selected identity cannot deactivate "
+                        "this group."
+                    ),
+                },
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        except ChatConversationNotFoundError:
+            return _group_not_found_response()
+
+        except ChatGroupError as error:
+            return Response(
+                {
+                    "detail": str(error),
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        return Response(
+            status=status.HTTP_204_NO_CONTENT,
         )
 
 
@@ -1489,6 +1633,11 @@ class ChatGroupConversationInvitesView(
                 user_id=str(authenticated_user.id),
                 access_token=access_token,
                 conversation_id=str(conversation_id),
+                actor_identity_id=str(
+                    serializer.validated_data[
+                        "actor_identity_id"
+                    ]
+                ),
                 invited_identity_id=str(
                     serializer.validated_data[
                         "invited_identity_id"
@@ -1508,7 +1657,8 @@ class ChatGroupConversationInvitesView(
             return Response(
                 {
                     "detail": (
-                        "Only the group creator can invite members."
+                        "The selected identity cannot invite "
+                        "members to this group."
                     ),
                 },
                 status=status.HTTP_403_FORBIDDEN,
@@ -1632,6 +1782,80 @@ class ChatGroupInviteResponseView(AuthenticatedAPIView):
         )
 
 
+class ChatGroupOwnershipTransferView(
+    AuthenticatedAPIView,
+):
+    """
+    POST /api/chat/groups/<conversation_id>/transfer-ownership/
+
+    Solo el owner actual puede transferir la propiedad.
+    El owner anterior queda como admin; la DB mantiene la
+    consistencia de un único owner activo.
+    """
+
+    throttle_classes = [ChatGroupMutationThrottle]
+
+    def post(self, request, conversation_id):
+        serializer = TransferChatGroupOwnershipSerializer(
+            data=request.data,
+        )
+        serializer.is_valid(raise_exception=True)
+
+        try:
+            authenticated_user = self.get_authenticated_user(
+                request
+            )
+            access_token = _get_access_token(request)
+
+            conversation = transfer_chat_group_ownership(
+                user_id=str(authenticated_user.id),
+                access_token=access_token,
+                conversation_id=str(conversation_id),
+                current_owner_identity_id=str(
+                    serializer.validated_data[
+                        "current_owner_identity_id"
+                    ]
+                ),
+                new_owner_identity_id=str(
+                    serializer.validated_data[
+                        "new_owner_identity_id"
+                    ]
+                ),
+            )
+
+        except AccountAuthenticationError:
+            return _unauthorized_response()
+
+        except ChatConversationAccessError:
+            return Response(
+                {
+                    "detail": (
+                        "The selected identity cannot transfer "
+                        "group ownership."
+                    ),
+                },
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        except ChatConversationNotFoundError:
+            return _group_not_found_response()
+
+        except ChatGroupError as error:
+            return Response(
+                {
+                    "detail": str(error),
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        return Response(
+            {
+                "conversation": conversation,
+            },
+            status=status.HTTP_200_OK,
+        )
+
+
 class ChatGroupLeaveView(AuthenticatedAPIView):
     """
     POST /api/chat/groups/<conversation_id>/leave/
@@ -1687,6 +1911,85 @@ class ChatGroupLeaveView(AuthenticatedAPIView):
         )
 
 
+class ChatGroupParticipantRoleView(
+    AuthenticatedAPIView,
+):
+    """
+    PATCH /api/chat/groups/<conversation_id>/participants/
+          <identity_id>/role/
+
+    Promueve member -> admin o degrada admin -> member.
+    La autorización final se aplica en la RPC:
+    - owner puede promover y degradar;
+    - admin solo puede promover members;
+    - nadie puede modificar el rol owner por esta ruta.
+    """
+
+    throttle_classes = [ChatGroupMutationThrottle]
+
+    def patch(
+        self,
+        request,
+        conversation_id,
+        identity_id,
+    ):
+        serializer = SetChatGroupParticipantRoleSerializer(
+            data=request.data,
+        )
+        serializer.is_valid(raise_exception=True)
+
+        try:
+            authenticated_user = self.get_authenticated_user(
+                request
+            )
+            access_token = _get_access_token(request)
+
+            conversation = set_chat_group_participant_role(
+                user_id=str(authenticated_user.id),
+                access_token=access_token,
+                conversation_id=str(conversation_id),
+                actor_identity_id=str(
+                    serializer.validated_data[
+                        "actor_identity_id"
+                    ]
+                ),
+                target_identity_id=str(identity_id),
+                role=serializer.validated_data["role"],
+            )
+
+        except AccountAuthenticationError:
+            return _unauthorized_response()
+
+        except ChatConversationAccessError:
+            return Response(
+                {
+                    "detail": (
+                        "The selected identity cannot change "
+                        "this participant role."
+                    ),
+                },
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        except ChatConversationNotFoundError:
+            return _group_not_found_response()
+
+        except ChatGroupError as error:
+            return Response(
+                {
+                    "detail": str(error),
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        return Response(
+            {
+                "conversation": conversation,
+            },
+            status=status.HTTP_200_OK,
+        )
+
+
 class ChatGroupParticipantDetailView(
     AuthenticatedAPIView,
 ):
@@ -1702,6 +2005,11 @@ class ChatGroupParticipantDetailView(
         conversation_id,
         identity_id,
     ):
+        serializer = RemoveChatGroupParticipantSerializer(
+            data=request.data,
+        )
+        serializer.is_valid(raise_exception=True)
+
         try:
             authenticated_user = self.get_authenticated_user(
                 request
@@ -1712,7 +2020,12 @@ class ChatGroupParticipantDetailView(
                 user_id=str(authenticated_user.id),
                 access_token=access_token,
                 conversation_id=str(conversation_id),
-                identity_id=str(identity_id),
+                actor_identity_id=str(
+                    serializer.validated_data[
+                        "actor_identity_id"
+                    ]
+                ),
+                target_identity_id=str(identity_id),
             )
 
         except AccountAuthenticationError:
@@ -1722,7 +2035,8 @@ class ChatGroupParticipantDetailView(
             return Response(
                 {
                     "detail": (
-                        "Only the group creator can remove members."
+                        "The selected identity cannot remove "
+                        "this participant."
                     ),
                 },
                 status=status.HTTP_403_FORBIDDEN,
