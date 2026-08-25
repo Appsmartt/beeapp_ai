@@ -83,8 +83,8 @@ export async function authenticateWithBiometrics(
     ): Promise<BiometricAuthenticationResult> {
     const promptMessage =
         method === 'faceid'
-        ? 'Usa Face ID para desbloquear BeeApp'
-        : 'Usa tu huella dactilar para desbloquear BeeApp';
+        ? 'Usa Face ID para desbloquear Buddy'
+        : 'Usa tu huella dactilar para desbloquear Buddy';
 
     const result =
         await LocalAuthentication.authenticateAsync({

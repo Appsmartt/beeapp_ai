@@ -28,7 +28,7 @@ import {
   requestPhoneOtp,
 } from '@beeapp/api-client';
 
-import AnimatedLogo from '../../src/components/AnimatedLogo';
+import BuddyLogo from '../../src/components/BuddyLogo';
 import ScreenSafeArea from '../../src/components/layout/ScreenSafeArea';
 import {
   saveAuthSession,
@@ -237,9 +237,9 @@ export default function LoginScreen() {
           <View style={styles.innerContainer}>
             <View style={styles.contentContainer}>
               <View style={styles.logoContainer}>
-                <AnimatedLogo
-                  size={76}
-                  showText={false}
+                <BuddyLogo
+                  size={118}
+                  showText
                   autoStopAfter={2500}
                 />
               </View>
@@ -247,7 +247,7 @@ export default function LoginScreen() {
               <Text style={styles.title}>Inicia sesión</Text>
 
               <Text style={styles.subtitle}>
-                Elige cómo quieres acceder a tu cuenta de BeeApp AI.
+                Elige cómo quieres acceder a tu cuenta de Buddy AI.
               </Text>
 
               <View style={styles.methodSwitcher}>
@@ -390,7 +390,7 @@ export default function LoginScreen() {
                       </Text>
                     ) : (
                       <Text style={styles.helperText}>
-                        Si el número existe en BeeApp, enviaremos un
+                        Si el número existe en Buddy, enviaremos un
                         código de seis dígitos.
                       </Text>
                     )}

@@ -87,7 +87,7 @@ function fullName(
     .join(' ')
     .trim();
 
-  return value || 'Usuario BeeApp';
+  return value || 'Usuario Buddy';
 }
 
 export function getInitials(

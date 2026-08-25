@@ -1,5 +1,5 @@
 /**
- * BeeServices mock data — business-centric model.
+ * BuddyServices mock data — business-centric model.
  *
  * A user owns one or more Businesses; each Business contains a catalogue
  * of Products and/or Services.

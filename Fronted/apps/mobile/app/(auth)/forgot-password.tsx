@@ -20,7 +20,7 @@ import {
 import { colors } from '@beeapp/design-system';
 import { requestPasswordReset } from '@beeapp/api-client';
 
-import AnimatedLogo from '../../src/components/AnimatedLogo';
+import BuddyLogo from '../../src/components/BuddyLogo';
 import ScreenSafeArea from '../../src/components/layout/ScreenSafeArea';
 
 
@@ -107,7 +107,7 @@ export default function ForgotPasswordScreen() {
                 </TouchableOpacity>
 
                 <View style={styles.logoContainer}>
-                <AnimatedLogo
+                <BuddyLogo
                     size={76}
                     showText={false}
                     autoStopAfter={2500}
@@ -211,7 +211,7 @@ export default function ForgotPasswordScreen() {
 
                 <Text style={styles.securityNote}>
                 Por seguridad, no confirmaremos si el número está
-                registrado en BeeApp.
+                registrado en Buddy.
                 </Text>
             </View>
             </TouchableWithoutFeedback>

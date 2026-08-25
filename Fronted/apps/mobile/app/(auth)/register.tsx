@@ -29,7 +29,7 @@ import { colors } from '@beeapp/design-system';
 import { registerUser } from '@beeapp/api-client';
 import type { RegisterUserPayload } from '@beeapp/shared-types';
 
-import AnimatedLogo from '../../src/components/AnimatedLogo';
+import BuddyLogo from '../../src/components/BuddyLogo';
 import CountryCodeModal from '../../src/components/contacts/CountryCodeModal';
 import ScreenSafeArea from '../../src/components/layout/ScreenSafeArea';
 import { COUNTRIES, type Country } from '../../src/mocks/countries';
@@ -166,7 +166,7 @@ export default function RegisterScreen() {
 
         Alert.alert(
             'Cuenta creada',
-            `Bienvenido a BeeApp AI, ${response.user.first_name}. Tu cuenta y perfil fueron creados correctamente.`,
+            `Bienvenido a Buddy AI, ${response.user.first_name}. Tu cuenta y perfil fueron creados correctamente.`,
             [
             {
                 text: 'Ir a iniciar sesión',
@@ -211,7 +211,7 @@ export default function RegisterScreen() {
                 </TouchableOpacity>
 
                 <View style={styles.logoContainer}>
-                <AnimatedLogo
+                <BuddyLogo
                     size={64}
                     showText={false}
                     autoStopAfter={2500}
@@ -229,7 +229,7 @@ export default function RegisterScreen() {
                 <Text style={styles.title}>Crea tu cuenta</Text>
 
                 <Text style={styles.subtitle}>
-                    Completa tus datos para crear tu usuario y perfil en BeeApp AI.
+                    Completa tus datos para crear tu usuario y perfil en Buddy AI.
                 </Text>
                 </View>
 
@@ -414,7 +414,7 @@ export default function RegisterScreen() {
                         Política de Privacidad
                     </Text>
 
-                    {' '}de BeeApp AI.
+                    {' '}de Buddy AI.
                     </Text>
                 </TouchableOpacity>
 

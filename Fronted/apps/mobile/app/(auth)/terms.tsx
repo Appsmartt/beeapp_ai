@@ -28,12 +28,12 @@ export default function TermsScreen() {
 
         <Text style={styles.sectionTitle}>1. Aceptación de los Términos</Text>
         <Text style={styles.paragraph}>
-          Al descargar, instalar o utilizar BeeApp AI, usted acepta quedar sujeto a estos Términos y Condiciones de Uso. Si no está de acuerdo con alguna parte de los términos descritos aquí, no debe acceder ni utilizar ninguno de nuestros servicios.
+          Al descargar, instalar o utilizar Buddy AI, usted acepta quedar sujeto a estos Términos y Condiciones de Uso. Si no está de acuerdo con alguna parte de los términos descritos aquí, no debe acceder ni utilizar ninguno de nuestros servicios.
         </Text>
 
         <Text style={styles.sectionTitle}>2. Descripción del Servicio</Text>
         <Text style={styles.paragraph}>
-          BeeApp AI provee una plataforma móvil y web de comunicación corporativa y productividad laboral. La herramienta facilita la mensajería interna, la colaboración por canales, la gestión de chats grupales y el uso de asistentes inteligentes basados en IA.
+          Buddy AI provee una plataforma móvil y web de comunicación corporativa y productividad laboral. La herramienta facilita la mensajería interna, la colaboración por canales, la gestión de chats grupales y el uso de asistentes inteligentes basados en IA.
         </Text>
 
         <Text style={styles.sectionTitle}>3. Cuenta de Usuario y Registro</Text>
@@ -43,7 +43,7 @@ export default function TermsScreen() {
 
         <Text style={styles.sectionTitle}>4. Propiedad Intelectual</Text>
         <Text style={styles.paragraph}>
-          Toda la tecnología, marcas, código de programación, interfaces gráficas, logotipos y base de datos de BeeApp AI son propiedad exclusiva de la empresa y están protegidos por las leyes locales e internacionales de propiedad intelectual.
+          Toda la tecnología, marcas, código de programación, interfaces gráficas, logotipos y base de datos de Buddy AI son propiedad exclusiva de la empresa y están protegidos por las leyes locales e internacionales de propiedad intelectual.
         </Text>
 
         <Text style={styles.sectionTitle}>5. Limitación de Responsabilidad</Text>

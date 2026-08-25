@@ -57,7 +57,7 @@ async function configureAndroidNotificationChannel(): Promise<void> {
         {
         name: 'Notificaciones generales',
         description: (
-            'Avisos de correo, calendario, archivos y actividad de BeeApp.'
+            'Avisos de correo, calendario, archivos y actividad de Buddy.'
         ),
         importance: Notifications.AndroidImportance.HIGH,
         vibrationPattern: [0, 250, 250, 250],

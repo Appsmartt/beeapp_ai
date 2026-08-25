@@ -323,7 +323,7 @@ export default function ExternalMailScreen() {
         Alert.alert(
             `Sincronizar ${provider.name}`,
             (
-                'BeeApp consultará los correos recientes de esta '
+                'Buddy consultará los correos recientes de esta '
                 + 'cuenta y actualizará tu bandeja de entrada.'
             ),
             [
@@ -728,7 +728,7 @@ export default function ExternalMailScreen() {
                                 <Text style={styles.noIntegrationsText}>
                                     Conecta Google o Microsoft desde
                                     Integraciones externas para usar
-                                    Gmail u Outlook en BeeApp.
+                                    Gmail u Outlook en Buddy.
                                 </Text>
 
                                 <TouchableOpacity
@@ -768,7 +768,7 @@ export default function ExternalMailScreen() {
                                 </Text>
 
                                 <Text style={styles.securityText}>
-                                    BeeApp solo recibe la información
+                                    Buddy solo recibe la información
                                     necesaria para mostrar y sincronizar
                                     tus correos. Las credenciales OAuth
                                     no aparecen ni se guardan en esta

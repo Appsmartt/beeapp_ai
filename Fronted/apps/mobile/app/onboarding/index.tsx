@@ -505,7 +505,7 @@ export default function OnboardingScreen() {
                   </Text>
 
                   <Text style={sharedStyles.subtitle}>
-                    BeeApp AI incluye tu propio asistente inteligente
+                    Buddy AI incluye tu propio asistente inteligente
                     para automatizar tus tareas diarias.
                   </Text>
 

@@ -418,7 +418,7 @@ export function CalendarEditInviteesSection({
 
         <Text style={styles.inputHint}>
           Escribe al menos 3 caracteres para buscar
-          usuarios de BeeApp.
+          usuarios de Buddy.
         </Text>
 
 

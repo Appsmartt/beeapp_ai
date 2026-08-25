@@ -110,7 +110,7 @@ export default function ConversationHeader({
             </View>
             <Text style={styles.chatMeta}>
               {isAI
-                ? 'Asistente de BeeApp · siempre disponible'
+                ? 'Asistente de Buddy · siempre disponible'
                 : isGroup
                 ? `${groupMemberCount} participantes`
                 : online

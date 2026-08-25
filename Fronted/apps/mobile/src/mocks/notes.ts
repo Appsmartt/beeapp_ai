@@ -16,7 +16,7 @@ export const MOCK_NOTES: NoteSummary[] = [
   {
     id: 'n1',
     title: 'Ideas campaña de Marketing',
-    preview: 'Usar videos de formato corto en TikTok sobre BeeApp y contactar micro-influencers del sector Pymes.',
+    preview: 'Usar videos de formato corto en TikTok sobre Buddy y contactar micro-influencers del sector Pymes.',
     date: '23 Jul',
     isProtected: false,
   },

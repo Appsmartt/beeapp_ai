@@ -5,7 +5,7 @@ import { colors } from '@beeapp/design-system';
  * lista de chats. Todo es mock: nada se publica ni caduca de verdad.
  */
 
-/** Producto de BeeServices vinculado a un estado */
+/** Producto de BuddyServices vinculado a un estado */
 export interface StatusProductLink {
   id: string;
   name: string;
@@ -128,7 +128,7 @@ export const MOCK_STATUSES: StatusItem[] = [
     authorInitials: 'SV',
     authorColor: '#F3E8FF',
     type: 'text',
-    text: 'Probando las nuevas funciones de privacidad de BeeApp AI.',
+    text: 'Probando las nuevas funciones de privacidad de Buddy AI.',
     photoUrl: null,
     bgColor: STATUS_BG_COLORS[0],
     linkedProduct: null,

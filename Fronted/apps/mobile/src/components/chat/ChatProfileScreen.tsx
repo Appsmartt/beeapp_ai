@@ -102,7 +102,7 @@ export default function ChatProfileScreen() {
     conversation?.name?.trim()
     || (
       isGroup
-        ? 'Grupo de BeeApp'
+        ? 'Grupo de Buddy'
         : [
             conversation?.direct_profile?.first_name,
             conversation?.direct_profile?.last_name,
@@ -123,7 +123,7 @@ export default function ChatProfileScreen() {
         .filter(Boolean)
         .join(' ')
         .trim()
-        || 'Usuario BeeApp';
+        || 'Usuario Buddy';
 
       return {
         id: participant.user_id,
@@ -315,7 +315,7 @@ export default function ChatProfileScreen() {
                 : (
                     conversation?.direct_profile?.occupation
                     || conversation?.direct_profile?.location
-                    || 'Contacto de BeeApp'
+                    || 'Contacto de Buddy'
                   )
             }
             initials={getInitials(name)}

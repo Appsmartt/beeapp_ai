@@ -1,6 +1,6 @@
 /**
  * Data of the logged user, as it was captured during onboarding.
- * Personal data only: everything about a business lives in BeeServices.
+ * Personal data only: everything about a business lives in BuddyServices.
  */
 export const CURRENT_USER = {
   name: 'Santiago Valencia',

@@ -25,7 +25,7 @@ import {
   verifyPhoneOtpMobile,
 } from '@beeapp/api-client';
 
-import AnimatedLogo from '../../src/components/AnimatedLogo';
+import BuddyLogo from '../../src/components/BuddyLogo';
 import ScreenSafeArea from '../../src/components/layout/ScreenSafeArea';
 import {
   saveAuthSession,
@@ -302,7 +302,7 @@ export default function VerifyScreen() {
           <View style={styles.innerContainer}>
             <View style={styles.contentContainer}>
               <View style={styles.logoContainer}>
-                <AnimatedLogo
+                <BuddyLogo
                   size={80}
                   showText={false}
                   autoStopAfter={2500}

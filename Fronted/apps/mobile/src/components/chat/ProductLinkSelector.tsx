@@ -12,7 +12,7 @@ interface ProductLinkSelectorProps {
   onClose: () => void;
 }
 
-/** Picks one product or service of BeeServices to attach to a status */
+/** Picks one product or service of BuddyServices to attach to a status */
 export default function ProductLinkSelector({ visible, selectedId, onLink, onClose }: ProductLinkSelectorProps) {
   const [selected, setSelected] = useState<string | undefined>(selectedId);
   const items = getMyItems();
@@ -34,7 +34,7 @@ export default function ProductLinkSelector({ visible, selectedId, onLink, onClo
 
         <View style={styles.sheet}>
           <Text style={styles.title}>Vincular producto</Text>
-          <Text style={styles.subtitle}>Elige qué publicaste en BeeServices para mostrarlo en tu estado.</Text>
+          <Text style={styles.subtitle}>Elige qué publicaste en BuddyServices para mostrarlo en tu estado.</Text>
 
           <ScrollView style={styles.list} showsVerticalScrollIndicator={false}>
             {items.length === 0 ? (

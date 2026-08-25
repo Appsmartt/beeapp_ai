@@ -29,7 +29,7 @@ export default function SubscriptionScreen() {
   const handleCancelSubscription = () => {
     Alert.alert(
       'Cancelar Suscripción',
-      '¿Estás seguro de que deseas cancelar tu plan BeeApp Plus? Mantendrás el acceso a todas las funciones premium hasta el 15 de Agosto de 2026.',
+      '¿Estás seguro de que deseas cancelar tu plan Buddy Plus? Mantendrás el acceso a todas las funciones premium hasta el 15 de Agosto de 2026.',
       [
         {
           text: 'Volver',
@@ -49,12 +49,12 @@ export default function SubscriptionScreen() {
 
   const handleReactivateSubscription = () => {
     setSubStatus('plus_active');
-    Alert.alert('Suscripción Reactivada', '¡Gracias por continuar con BeeApp Plus!');
+    Alert.alert('Suscripción Reactivada', '¡Gracias por continuar con Buddy Plus!');
   };
 
   const handleUpgradeSubscription = () => {
     setSubStatus('plus_active');
-    Alert.alert('¡Mejorado a Plus!', 'Tu cuenta ha sido mejorada al plan BeeApp Plus con éxito.');
+    Alert.alert('¡Mejorado a Plus!', 'Tu cuenta ha sido mejorada al plan Buddy Plus con éxito.');
   };
 
   return (
@@ -78,7 +78,7 @@ export default function SubscriptionScreen() {
             <View style={styles.planStatusCard}>
               <View style={styles.statusBadgeRow}>
                 <View style={[styles.statusDot, { backgroundColor: colors.neutral.gray500 }]} />
-                <Text style={styles.statusLabelText}>Plan Activo: BeeApp Gratis</Text>
+                <Text style={styles.statusLabelText}>Plan Activo: Buddy Gratis</Text>
               </View>
               <Text style={styles.statusDescription}>
                 Tu plan actual es gratuito. Tienes funciones de organización básicas con límites de almacenamiento.
@@ -94,7 +94,7 @@ export default function SubscriptionScreen() {
                 activeOpacity={0.8}
               >
                 <Sparkles size={14} color={colors.neutral.white} style={{ marginRight: 6 }} />
-                <Text style={styles.primaryActionBtnText}>Mejorar a BeeApp Plus</Text>
+                <Text style={styles.primaryActionBtnText}>Mejorar a Buddy Plus</Text>
               </TouchableOpacity>
             </View>
           )}
@@ -104,7 +104,7 @@ export default function SubscriptionScreen() {
               <View style={styles.statusBadgeRow}>
                 <View style={[styles.statusDot, { backgroundColor: colors.semantic.success }]} />
                 <Text style={[styles.statusLabelText, { color: colors.brand.primary }]}>
-                  Plan Activo: BeeApp Plus
+                  Plan Activo: Buddy Plus
                 </Text>
                 <View style={styles.activePlanPill}>
                   <Sparkles size={10} color={colors.brand.primary} style={{ marginRight: 4 }} />
@@ -208,14 +208,14 @@ export default function SubscriptionScreen() {
           {/* Plan Comparison Cards */}
           <View style={styles.plansColumn}>
             
-            {/* Plan BeeApp Plus (Premium - Highlighted) */}
+            {/* Plan Buddy Plus (Premium - Highlighted) */}
             <View style={styles.premiumCard}>
               <View style={styles.premiumBadgeRow}>
                 <Sparkles size={14} color={colors.neutral.white} style={{ marginRight: 6 }} />
                 <Text style={styles.premiumBadgeText}>RECOMENDADO</Text>
               </View>
 
-              <Text style={styles.planNameTextPremium}>BeeApp Plus</Text>
+              <Text style={styles.planNameTextPremium}>Buddy Plus</Text>
               <Text style={styles.planDescTextPremium}>
                 Acceso completo e ilimitado para potenciar tu productividad corporativa.
               </Text>
@@ -256,7 +256,7 @@ export default function SubscriptionScreen() {
 
             {/* Plan Gratis (Standard) */}
             <View style={styles.standardCard}>
-              <Text style={styles.planNameText}>BeeApp Gratis</Text>
+              <Text style={styles.planNameText}>Buddy Gratis</Text>
               <Text style={styles.planDescText}>
                 Plan básico ideal para organizar tus tareas y notas iniciales.
               </Text>

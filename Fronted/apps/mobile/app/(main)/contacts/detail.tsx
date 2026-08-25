@@ -63,7 +63,7 @@ function buildContactMeta(
   }
 
   if (contact.identity_type === 'commercial_profile') {
-    return 'Perfil comercial de BeeApp';
+    return 'Perfil comercial de Buddy';
   }
 
   return null;
@@ -149,7 +149,7 @@ export default function ContactDetailScreen() {
           display_name: (
             nextContact.display_name.trim()
             || routeDisplayName
-            || 'Usuario BeeApp'
+            || 'Usuario Buddy'
           ),
         });
         setAvatarFailed(false);

@@ -7,7 +7,7 @@ import FloatingTabBar from '../../../src/components/FloatingTabBar';
 import { VERIFIED_COLOR } from '../../../src/components/VerifiedBadge';
 
 // Mock account state shown as a summary above the two options
-const MOCK_PLAN = 'BeeApp Gratis';
+const MOCK_PLAN = 'Buddy Gratis';
 const MOCK_VERIFIED = false;
 
 /** Entry point of the account section: subscription plan and Bee Verify. */
@@ -53,7 +53,7 @@ export default function SubscriptionHubScreen() {
             <View style={styles.optionCol}>
               <Text style={styles.optionTitle}>Mi plan</Text>
               <Text style={styles.optionDesc}>
-                Consulta tu plan, los beneficios de BeeApp Plus y tu almacenamiento disponible.
+                Consulta tu plan, los beneficios de Buddy Plus y tu almacenamiento disponible.
               </Text>
             </View>
             <ChevronRight size={18} color={colors.neutral.gray500} />

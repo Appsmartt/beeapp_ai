@@ -559,7 +559,7 @@ function getRecipientName(
     return (
         `${recipient.first_name} `
         + `${recipient.last_name}`
-    ).trim() || 'Usuario de BeeApp';
+    ).trim() || 'Usuario de Buddy';
 }
 
 

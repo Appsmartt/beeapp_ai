@@ -380,7 +380,7 @@ export default function ExternalCalendarsScreen() {
         Alert.alert(
             `Buscar calendarios de ${provider.name}`,
             (
-                'BeeApp consultará los calendarios disponibles en esta '
+                'Buddy consultará los calendarios disponibles en esta '
                 + 'cuenta. No se crearán ni importarán eventos todavía.'
             ),
             [
@@ -467,7 +467,7 @@ export default function ExternalCalendarsScreen() {
         Alert.alert(
             `Sincronizar ${provider.name}`,
             (
-                'BeeApp consultará los eventos de los calendarios '
+                'Buddy consultará los eventos de los calendarios '
                 + 'seleccionados y actualizará tu Agenda.'
             ),
             [
@@ -636,8 +636,8 @@ export default function ExternalCalendarsScreen() {
 
                         <Text style={styles.preferenceDescription}>
                             {calendar.is_selected
-                                ? 'Este calendario está disponible en BeeApp.'
-                                : 'Este calendario no se usará en BeeApp.'}
+                                ? 'Este calendario está disponible en Buddy.'
+                                : 'Este calendario no se usará en Buddy.'}
                         </Text>
                     </View>
 
@@ -1110,7 +1110,7 @@ export default function ExternalCalendarsScreen() {
                                 <Text style={styles.introText}>
                                     Descubre los calendarios de tus cuentas
                                     conectadas, elige cuáles usar y
-                                    sincronízalos con BeeApp.
+                                    sincronízalos con Buddy.
                                 </Text>
                             </View>
                         </View>
@@ -1202,7 +1202,7 @@ export default function ExternalCalendarsScreen() {
                                 </Text>
 
                                 <Text style={styles.securityText}>
-                                    BeeApp solo recibe la información necesaria
+                                    Buddy solo recibe la información necesaria
                                     para mostrar y sincronizar tus calendarios.
                                     Las credenciales OAuth no aparecen ni se
                                     guardan en esta pantalla.

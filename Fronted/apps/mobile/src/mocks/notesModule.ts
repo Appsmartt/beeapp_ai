@@ -24,7 +24,7 @@ export const MOCK_MODULE_NOTES: NoteItem[] = [
     {
       id: 'n1',
       title: 'Ideas campaña de Marketing',
-      content: '1. Usar videos de formato corto en TikTok sobre BeeApp.\n2. Contactar micro-influencers del sector Pymes.\n3. Crear descuentos por recomendación directa.',
+      content: '1. Usar videos de formato corto en TikTok sobre Buddy.\n2. Contactar micro-influencers del sector Pymes.\n3. Crear descuentos por recomendación directa.',
       updatedAt: '2026-07-23T10:00:00Z',
       createdAt: '2026-07-20T08:00:00Z',
       isFavorite: true,

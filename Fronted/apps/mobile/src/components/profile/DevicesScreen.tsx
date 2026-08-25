@@ -153,7 +153,7 @@ export default function DevicesScreen() {
     if (!challengeToken) {
       Alert.alert(
         'Código no válido',
-        'Escanea el código QR mostrado por BeeApp Web.',
+        'Escanea el código QR mostrado por Buddy Web.',
       );
 
       return;
@@ -313,7 +313,7 @@ export default function DevicesScreen() {
                       ? 'Iniciando sesión...'
                       : (
                           'Apunta la cámara al código QR '
-                          + 'de BeeApp Web'
+                          + 'de Buddy Web'
                         )}
                   </Text>
                 </CameraView>
@@ -348,7 +348,7 @@ export default function DevicesScreen() {
                 </TouchableOpacity>
 
                 <Text style={styles.scanHint}>
-                  Escanea el código QR que aparece en BeeApp Web
+                  Escanea el código QR que aparece en Buddy Web
                   para vincular tu cuenta.
                 </Text>
               </>

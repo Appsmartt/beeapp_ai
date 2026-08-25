@@ -17,7 +17,7 @@ import Svg, {
 } from 'react-native-svg';
 import { colors } from '@beeapp/design-system';
 
-import AnimatedLogo from '../src/components/AnimatedLogo';
+import BuddyLogo from '../src/components/BuddyLogo';
 import {
   getAuthSession,
 } from '../src/services/authSession';
@@ -304,8 +304,8 @@ export default function SplashScreen() {
           },
         ]}
       >
-        <AnimatedLogo
-          size={100}
+        <BuddyLogo
+          size={210}
           showText
         />
 

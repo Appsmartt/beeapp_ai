@@ -63,7 +63,7 @@ const ALL_MODULES: ModuleDef[] = [
   {
     id: 'contacts',
     name: 'Contactos',
-    description: 'Busca profesionales y empresas en la red BeeApp, gestiona tus contactos y revisa el historial de llamadas.',
+    description: 'Busca profesionales y empresas en la red Buddy, gestiona tus contactos y revisa el historial de llamadas.',
     category: 'Comunicación',
     icon: Users,
     bgColor: '#FEE2E2',
@@ -136,7 +136,7 @@ export default function ExploreScreen() {
     if (module.isUpcoming) {
       Alert.alert(
         'Próximamente',
-        `El módulo "${module.name}" llegará en las próximas versiones de BeeApp AI.`
+        `El módulo "${module.name}" llegará en las próximas versiones de Buddy AI.`
       );
       return;
     }

@@ -13,7 +13,7 @@ export default function BeeServicesHeader({
     return (
         <View style={styles.header}>
         <View style={styles.headerTextColumn}>
-            <Text style={styles.headerTitle}>BeeServices</Text>
+            <Text style={styles.headerTitle}>BuddyServices</Text>
 
             <Text style={styles.headerSubtitle}>
             Conecta necesidades con soluciones

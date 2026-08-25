@@ -62,7 +62,7 @@ export interface ChatItem {
   isMuted?: boolean;
   /** Mock: shows the verified badge next to the name (Bee Verify) */
   verified?: boolean;
-  /** The BeeApp assistant: pinned on top, logo avatar and no swipe actions */
+  /** The Buddy assistant: pinned on top, logo avatar and no swipe actions */
   isAI?: boolean;
   isProtected?: boolean;
   /** Only on group chats: who is in the group */
@@ -77,7 +77,7 @@ export interface ChatItem {
   linkedProduct?: SellerChatProduct | null;
 }
 
-/** Producto o servicio de BeeServices por el que un cliente escribió */
+/** Producto o servicio de BuddyServices por el que un cliente escribió */
 export interface SellerChatProduct {
   name: string;
   businessName: string;
@@ -114,7 +114,7 @@ export const MOCK_CHATS: ChatItem[] = [
     id: '1',
     verified: true,
     name: 'Carlos Mendoza',
-    lastMessage: 'Claro, nos vemos en la tarde para revisar la propuesta de BeeApp.',
+    lastMessage: 'Claro, nos vemos en la tarde para revisar la propuesta de Buddy.',
     time: '14:32',
     unreadCount: 2,
     isGroup: false,
@@ -208,7 +208,7 @@ export const SELLER_CONVERSATION_MESSAGES: ChatMessage[] = [
     senderName: 'Cliente',
     isUser: false,
     type: 'text',
-    text: 'Hola, buenas tardes. ¿Todavía tienes disponible lo que publicaste en BeeApp?',
+    text: 'Hola, buenas tardes. ¿Todavía tienes disponible lo que publicaste en Buddy?',
     time: '09:12',
     status: 'read',
   },
@@ -270,7 +270,7 @@ export const MOCK_CONVERSATION_MESSAGES: ChatMessage[] = [
     senderVerified: true,
     isUser: false,
     type: 'file' as const,
-    fileName: 'Propuesta_Comercial_BeeApp.pdf',
+    fileName: 'Propuesta_Comercial_Buddy.pdf',
     fileSize: '1.4 MB',
     time: '12:05',
     status: 'read' as const,

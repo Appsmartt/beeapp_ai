@@ -1,4 +1,4 @@
-/** Sesión de BeeApp Web vinculada a la cuenta (mock en memoria) */
+/** Sesión de Buddy Web vinculada a la cuenta (mock en memoria) */
 export interface LinkedDevice {
   id: string;
   /** Navegador y sistema operativo, tal como se muestran en la lista */

@@ -863,7 +863,7 @@ export default function MailInboxScreen() {
 
             <Text style={styles.emptyDesc}>
               Conecta una cuenta de Gmail u Outlook para
-              ver y sincronizar tus correos en BeeApp.
+              ver y sincronizar tus correos en Buddy.
             </Text>
 
             <TouchableOpacity

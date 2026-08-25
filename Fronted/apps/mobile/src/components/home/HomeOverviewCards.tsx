@@ -53,7 +53,7 @@ export function HomeEventsCard() {
         <View style={styles.eventBarIndicator} />
         <View style={styles.eventTextWrap}>
           <Text style={styles.eventTitle}>Sincronización semanal de equipo</Text>
-          <Text style={styles.eventMeta}>En 2 horas • Sala Virtual BeeApp</Text>
+          <Text style={styles.eventMeta}>En 2 horas • Sala Virtual Buddy</Text>
         </View>
       </View>
 
