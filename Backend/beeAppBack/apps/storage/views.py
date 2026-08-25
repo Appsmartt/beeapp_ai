@@ -714,12 +714,10 @@ class StorageFileDetailView(AuthenticatedAPIView):
                 status=status.HTTP_404_NOT_FOUND,
             )
 
-        except StorageFileOperationError:
+        except StorageFileOperationError as error:
             return Response(
                 {
-                    "detail": (
-                        "Could not permanently delete file."
-                    ),
+                    "detail": str(error),
                 },
                 status=status.HTTP_400_BAD_REQUEST,
             )
@@ -783,10 +781,10 @@ class StorageTagsView(AuthenticatedAPIView):
                 status=status.HTTP_401_UNAUTHORIZED,
             )
 
-        except StorageTagError:
+        except StorageTagError as error:
             return Response(
                 {
-                    "detail": "Could not create tag.",
+                    "detail": str(error),
                 },
                 status=status.HTTP_400_BAD_REQUEST,
             )

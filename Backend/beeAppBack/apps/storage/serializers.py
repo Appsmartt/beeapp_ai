@@ -215,7 +215,7 @@ class FileAccessQuerySerializer(serializers.Serializer):
 
 class CreateStorageTagSerializer(serializers.Serializer):
     name = serializers.CharField(
-        max_length=60,
+        max_length=100,
         trim_whitespace=True,
     )
     icon = serializers.CharField(
@@ -280,7 +280,7 @@ class CreateStorageTagSerializer(serializers.Serializer):
 class UpdateStorageTagSerializer(serializers.Serializer):
     name = serializers.CharField(
         required=False,
-        max_length=60,
+        max_length=100,
         trim_whitespace=True,
     )
     icon = serializers.CharField(
