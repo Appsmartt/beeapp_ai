@@ -29,7 +29,7 @@ export default function SecurityPage() {
 
           <div className="p-4 rounded-2xl bg-neutral-50 border border-neutral-200/80 space-y-3">
             <p className="text-xs text-neutral-600 font-normal">
-              Método de desbloqueo al abrir BeeApp AI:
+              Método de desbloqueo al abrir Buddy AI:
             </p>
 
             <div className="space-y-2">

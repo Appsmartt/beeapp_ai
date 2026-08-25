@@ -84,7 +84,7 @@ export default function CreateNoteModal({
 
                     <span className="hidden items-center gap-1 rounded-full border border-violet-200 bg-violet-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-brand-primary sm:inline-flex">
                         <Sparkles className="h-3 w-3" />
-                        BeeApp
+                        Buddy
                     </span>
                     </div>
 

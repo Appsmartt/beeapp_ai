@@ -34,7 +34,7 @@ export function SupportPanel() {
     <div className="space-y-6 select-none">
       {/* Header Info */}
       <div className="space-y-2">
-        <h3 className="font-semibold text-sm text-neutral-900">Soporte BeeApp AI</h3>
+        <h3 className="font-semibold text-sm text-neutral-900">Soporte Buddy AI</h3>
         <p className="text-xs text-neutral-600 font-normal leading-relaxed">
           ¿Necesitas ayuda? Contáctanos por cualquiera de estos canales o revisa las preguntas frecuentes:
         </p>
@@ -67,7 +67,7 @@ export function SupportPanel() {
 
           {/* Correo electrónico */}
           <a
-            href="mailto:soporte@beeapp.ai"
+            href="mailto:soporte@buddy.ai"
             className="p-3.5 flex items-center justify-between hover:bg-white transition-colors text-left"
           >
             <div className="flex items-center gap-3">
@@ -76,7 +76,7 @@ export function SupportPanel() {
               </div>
               <div>
                 <p className="text-xs font-semibold text-neutral-900">Correo electrónico</p>
-                <p className="text-[11px] text-neutral-500 font-normal">soporte@beeapp.ai</p>
+                <p className="text-[11px] text-neutral-500 font-normal">soporte@buddy.ai</p>
               </div>
             </div>
             <span className="text-xs font-semibold text-blue-600">Enviar correo</span>

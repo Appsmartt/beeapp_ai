@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { Menu, GripVertical } from 'lucide-react';
 import { MODULES, ModuleKey, getModule } from './modules';
 import IconRailButton from './IconRailButton';
-import { BeeAppLogoMark } from '@/components/BeeAppLogo';
+import { BuddyLogoMark } from '@/components/BuddyLogo';
 
 interface ModuleSidebarProps {
   activeModule: ModuleKey;
@@ -48,7 +48,7 @@ export default function ModuleSidebar({
     <aside className="flex w-14 shrink-0 sticky top-0 h-screen bg-white border-l border-neutral-200 flex-col items-center py-3 gap-1 overflow-y-auto no-scrollbar">
       {/* Marca */}
       <div className="h-12 flex items-center justify-center shrink-0">
-        <BeeAppLogoMark size={28} />
+        <BuddyLogoMark size={28} />
       </div>
 
       {/* Menú del usuario */}

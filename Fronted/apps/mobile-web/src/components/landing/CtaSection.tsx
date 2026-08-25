@@ -15,7 +15,7 @@ export default function CtaSection() {
           </h2>
 
           <p className="text-neutral-400 font-normal text-base sm:text-lg max-w-2xl mx-auto relative z-10">
-            Únete a BeeApp AI hoy mismo y experimenta el poder de gestionar tu comunicación y ventas con inteligencia artificial.
+            Únete a Buddy AI hoy mismo y experimenta el poder de gestionar tu comunicación y ventas con inteligencia artificial.
           </p>
 
           <div className="pt-4 flex justify-center relative z-10">

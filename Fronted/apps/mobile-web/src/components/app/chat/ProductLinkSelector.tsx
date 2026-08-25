@@ -43,7 +43,7 @@ export default function ProductLinkSelector({
           <div>
             <h2 className="font-semibold text-sm text-neutral-900">Vincular producto</h2>
             <p className="text-xs text-neutral-500 font-normal">
-              Elige qué publicaste en BeeServices para mostrarlo en tu estado.
+              Elige qué publicaste en BuddyServices para mostrarlo en tu estado.
             </p>
           </div>
           <button type="button" onClick={onClose} className="p-1 text-neutral-400 hover:text-neutral-900">

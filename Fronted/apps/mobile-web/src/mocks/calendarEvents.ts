@@ -57,7 +57,7 @@ export const MOCK_CALENDAR_EVENTS: CalendarEventItem[] = [
   },
   {
     id: 'ev-2',
-    title: 'Revisión de Catálogo BeeServices',
+    title: 'Revisión de Catálogo BuddyServices',
     time: '11:30 AM - 12:00 PM',
     duration: '30 min',
     location: 'Oficina Principal',

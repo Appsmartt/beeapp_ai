@@ -61,7 +61,7 @@ export default function IntegrationOAuthResultPage() {
             </div>
 
             <h1 className="mt-5 text-xl font-bold text-neutral-900">
-            BeeApp Integraciones
+            Buddy Integraciones
             </h1>
 
             <p className="mt-3 text-sm leading-relaxed text-neutral-600">

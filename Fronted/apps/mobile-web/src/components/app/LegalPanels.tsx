@@ -12,14 +12,14 @@ export function TermsPanel() {
         <div>
           <h4 className="font-semibold text-xs text-neutral-900">1. Aceptación de los Términos</h4>
           <p className="mt-1 text-neutral-600">
-            Al descargar, instalar o utilizar BeeApp AI, usted acepta quedar sujeto a estos Términos y Condiciones de Uso. Si no está de acuerdo con alguna parte de los términos descritos aquí, no debe acceder ni utilizar ninguno de nuestros servicios.
+            Al descargar, instalar o utilizar Buddy AI, usted acepta quedar sujeto a estos Términos y Condiciones de Uso. Si no está de acuerdo con alguna parte de los términos descritos aquí, no debe acceder ni utilizar ninguno de nuestros servicios.
           </p>
         </div>
 
         <div>
           <h4 className="font-semibold text-xs text-neutral-900">2. Descripción del Servicio</h4>
           <p className="mt-1 text-neutral-600">
-            BeeApp AI provee una plataforma móvil y web de comunicación corporativa y productividad laboral. La herramienta facilita la mensajería interna, la colaboración por canales, la gestión de chats grupales y el uso de asistentes inteligentes basados en IA.
+            Buddy AI provee una plataforma móvil y web de comunicación corporativa y productividad laboral. La herramienta facilita la mensajería interna, la colaboración por canales, la gestión de chats grupales y el uso de asistentes inteligentes basados en IA.
           </p>
         </div>
 
@@ -33,7 +33,7 @@ export function TermsPanel() {
         <div>
           <h4 className="font-semibold text-xs text-neutral-900">4. Propiedad Intelectual</h4>
           <p className="mt-1 text-neutral-600">
-            Toda la tecnología, marcas, código de programación, interfaces gráficas, logotipos y base de datos de BeeApp AI son propiedad exclusiva de la empresa y están protegidos por las leyes locales e internacionales de propiedad intelectual.
+            Toda la tecnología, marcas, código de programación, interfaces gráficas, logotipos y base de datos de Buddy AI son propiedad exclusiva de la empresa y están protegidos por las leyes locales e internacionales de propiedad intelectual.
           </p>
         </div>
 
@@ -54,14 +54,14 @@ export function TermsPanel() {
         <div>
           <h4 className="font-semibold text-xs text-neutral-900">7. Contacto</h4>
           <p className="mt-1 text-neutral-600">
-            Para soporte, sugerencias o aclaraciones legales, puede escribirnos a soporte@beeapp.ai o consultar directamente con el administrador asignado por su empresa.
+            Para soporte, sugerencias o aclaraciones legales, puede escribirnos a soporte@buddy.ai o consultar directamente con el administrador asignado por su empresa.
           </p>
         </div>
       </div>
 
       <div className="pt-3 border-t border-neutral-100 text-center">
         <p className="text-[11px] text-neutral-500 font-normal">
-          Al hacer uso de la plataforma BeeApp AI, confirmas que aceptas íntegramente estos términos de uso.
+          Al hacer uso de la plataforma Buddy AI, confirmas que aceptas íntegramente estos términos de uso.
         </p>
       </div>
     </div>
@@ -119,7 +119,7 @@ export function PrivacyPanel() {
         <div>
           <h4 className="font-semibold text-xs text-neutral-900">5. Derechos del Usuario (ARCO)</h4>
           <p className="mt-1 text-neutral-600">
-            Como titular de los datos en Colombia (bajo la Ley 1581 de 2012), usted tiene derecho a conocer, actualizar, rectificar y solicitar la eliminación de su información personal escribiendo a privacidad@beeapp.ai.
+            Como titular de los datos en Colombia (bajo la Ley 1581 de 2012), usted tiene derecho a conocer, actualizar, rectificar y solicitar la eliminación de su información personal escribiendo a privacidad@buddy.ai.
           </p>
         </div>
 

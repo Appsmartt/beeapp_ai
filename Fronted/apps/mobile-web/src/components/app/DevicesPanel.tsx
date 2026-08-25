@@ -74,7 +74,7 @@ export function DevicesPanel() {
               <span>Escanear código QR</span>
             </button>
             <p className="text-[11px] text-neutral-500 font-normal text-center leading-relaxed">
-              Escanea el código QR que aparece en la pantalla de BeeApp Web o App móvil para vincular tu sesión de forma segura.
+              Escanea el código QR que aparece en la pantalla de Buddy Web o App móvil para vincular tu sesión de forma segura.
             </p>
           </div>
         )}

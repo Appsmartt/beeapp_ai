@@ -7,7 +7,7 @@ const steps = [
   {
     step: '2',
     title: 'Configura tu negocio',
-    description: 'Agrega tu información, productos y servicios dentro de BeeServices.',
+    description: 'Agrega tu información, productos y servicios dentro de BuddyServices.',
   },
   {
     step: '3',

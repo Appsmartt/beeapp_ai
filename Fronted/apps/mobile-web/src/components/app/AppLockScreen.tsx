@@ -36,7 +36,7 @@ export default function AppLockScreen({ onUnlock }: AppLockScreenProps) {
           <div className="w-14 h-14 rounded-2xl bg-brand-primary/10 text-brand-primary flex items-center justify-center mx-auto shadow-xs">
             <Bot className="w-8 h-8" />
           </div>
-          <h1 className="text-lg font-bold tracking-tight text-neutral-900">BeeApp AI</h1>
+          <h1 className="text-lg font-bold tracking-tight text-neutral-900">Buddy AI</h1>
           <p className="text-xs text-neutral-500 font-normal">
             Ingresa tu código PIN de 6 dígitos para acceder
           </p>

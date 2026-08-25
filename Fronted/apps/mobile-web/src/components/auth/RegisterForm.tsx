@@ -18,7 +18,7 @@ import {
 import { registerUser } from '@beeapp/api-client';
 import type { RegisterUserPayload } from '@beeapp/shared-types';
 
-import BeeAppLogo from '../BeeAppLogo';
+import BuddyLogo from '../BuddyLogo';
 import CountrySelector, {
     COUNTRIES,
     type Country,
@@ -168,7 +168,7 @@ export default function RegisterForm() {
             </h1>
 
             <p className="mt-3 max-w-sm text-sm leading-relaxed text-neutral-600">
-                Bienvenido a BeeApp AI, {createdUserName}. Tu usuario y perfil
+                Bienvenido a Buddy AI, {createdUserName}. Tu usuario y perfil
                 fueron creados correctamente.
             </p>
 
@@ -199,9 +199,9 @@ export default function RegisterForm() {
             <Link
             href="/"
             className="mb-4 inline-flex h-14 w-14 items-center justify-center rounded-2xl bg-brand-primary/10 text-brand-primary"
-            aria-label="Ir al inicio de BeeApp AI"
+            aria-label="Ir al inicio de Buddy AI"
             >
-            <BeeAppLogo height={38} showText={false} />
+            <BuddyLogo height={38} showText={false} />
             </Link>
 
             <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-2xl bg-brand-primary/10 text-brand-primary">
@@ -214,7 +214,7 @@ export default function RegisterForm() {
 
             <p className="mt-2 max-w-md text-sm leading-relaxed text-neutral-600">
             Crea tu usuario, protege tu cuenta con una contraseña y completa tu
-            perfil inicial en BeeApp AI.
+            perfil inicial en Buddy AI.
             </p>
         </div>
 
@@ -372,7 +372,7 @@ export default function RegisterForm() {
 
             <span className="text-xs leading-relaxed text-neutral-600">
                 Acepto los Términos y Condiciones y la Política de Privacidad de
-                BeeApp AI.
+                Buddy AI.
             </span>
             </label>
 

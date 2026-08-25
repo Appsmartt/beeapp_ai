@@ -8,14 +8,14 @@ import {
 const BENEFITS = [
   'Asistente de IA por Voz y Texto ilimitado',
   '15 GB de Almacenamiento Cifrado de archivos',
-  'Gestión de múltiples negocios en BeeServices',
+  'Gestión de múltiples negocios en BuddyServices',
   'Sincronización automática multidispositivo',
   'Canales y chats grupales sin límites',
 ];
 
 const VERIFY_BENEFITS = [
   { icon: ShieldCheck, title: 'Identidad confirmada', desc: 'La insignia azul aparece junto a tu nombre en chats, contactos y estados.' },
-  { icon: Store, title: 'Más confianza al vender', desc: 'Los clientes ven que tu negocio fue revisado por el equipo de BeeApp.' },
+  { icon: Store, title: 'Más confianza al vender', desc: 'Los clientes ven que tu negocio fue revisado por el equipo de Buddy.' },
   { icon: Search, title: 'Mejor posición en la red', desc: 'Las cuentas verificadas se destacan en los resultados de búsqueda.' },
   { icon: MessageCircle, title: 'Menos suplantación', desc: 'La insignia distingue tu cuenta real de cualquier intento de imitación.' },
 ];
@@ -25,7 +25,7 @@ const REQUIREMENTS = [
   { text: 'Número de celular verificado por SMS', done: true },
   { text: 'Datos de empresa registrados (nombre y actividad)', done: true },
   { text: 'Documento de identidad o RUT de la empresa', done: false },
-  { text: 'Al menos 30 días de actividad en BeeApp', done: false },
+  { text: 'Al menos 30 días de actividad en Buddy', done: false },
 ];
 
 export function SubscriptionPanel() {
@@ -49,7 +49,7 @@ export function SubscriptionPanel() {
               <div className="flex items-center gap-2">
                 <span className="w-2 h-2 rounded-full bg-amber-400" />
                 <span className="text-xs font-semibold uppercase tracking-wider text-amber-400">
-                  Plan Activo: BeeApp Gratis
+                  Plan Activo: Buddy Gratis
                 </span>
               </div>
               <span className="text-[10px] font-bold bg-neutral-800 text-neutral-300 px-2 py-0.5 rounded-full border border-neutral-700">
@@ -113,7 +113,7 @@ export function SubscriptionPanel() {
               className="w-full h-11 rounded-xl bg-brand-primary text-white text-xs font-semibold flex items-center justify-center gap-2 hover:bg-brand-dark transition-colors shadow-md"
             >
               <Sparkles className="w-4 h-4" />
-              <span>Mejorar a BeeApp Plus</span>
+              <span>Mejorar a Buddy Plus</span>
             </button>
           </div>
         ) : (
@@ -123,7 +123,7 @@ export function SubscriptionPanel() {
               <span className="text-[10px] font-bold bg-brand-primary text-white px-2.5 py-0.5 rounded-full">Activo</span>
             </div>
             <div>
-              <h3 className="text-2xl font-bold">BeeApp Plus</h3>
+              <h3 className="text-2xl font-bold">Buddy Plus</h3>
               <p className="text-xs text-neutral-400 font-normal mt-0.5">
                 {billingCycle === 'monthly' ? '$9.99 USD / mes' : '$7.99 USD / mes (facturado anual)'} • Renueva el 24 de Agosto de 2026
               </p>

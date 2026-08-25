@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { Menu, X } from 'lucide-react';
 import { useState } from 'react';
-import BeeAppLogo from '@/components/BeeAppLogo';
+import BuddyLogo from '@/components/BuddyLogo';
 
 export default function LandingNavbar() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -13,7 +13,7 @@ export default function LandingNavbar() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
         {/* Brand Logo */}
         <Link href="/" className="flex items-center">
-          <BeeAppLogo height={34} />
+          <BuddyLogo height={34} />
         </Link>
 
         {/* Desktop Navigation */}

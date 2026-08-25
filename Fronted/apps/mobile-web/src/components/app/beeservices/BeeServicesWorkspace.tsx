@@ -133,7 +133,7 @@ export default function BeeServicesWorkspace() {
                 </Link>
 
                 <h1 className="text-2xl font-extrabold leading-tight text-[#7427D5]">
-                    BeeServices
+                    BuddyServices
                 </h1>
                 </div>
 
@@ -352,7 +352,7 @@ export default function BeeServicesWorkspace() {
 
             <footer className="flex flex-col items-center py-7">
             <p className="text-[11px] text-[#594C67]">
-                Impulsando economías locales con BeeApp AI
+                Impulsando economías locales con Buddy AI
             </p>
             <span className="mt-2 h-1 w-9 rounded-full bg-[#D8AEE5]" />
             </footer>

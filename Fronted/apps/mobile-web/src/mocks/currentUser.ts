@@ -11,7 +11,7 @@ export interface CurrentUser {
 export const CURRENT_USER: CurrentUser = {
   id: 'usr-001',
   name: 'Santiago Morales',
-  email: 'santiago@beeapp.ai',
+  email: 'santiago@buddy.ai',
   phone: '+57 300 123 4567',
   avatar: '',
   verified: true,

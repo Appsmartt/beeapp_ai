@@ -51,7 +51,7 @@ export const RIGHT_TAB_NOTIFICATIONS: TickerNotification[] = [
     type: 'chat',
     sender: 'Mariana Gómez',
     initials: 'MG',
-    message: '¿Revisaste el catálogo de BeeServices?',
+    message: '¿Revisaste el catálogo de BuddyServices?',
     timestamp: '13:40',
     read: false,
     chatId: '3',

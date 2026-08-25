@@ -131,7 +131,7 @@ export default function ChatConversation({
                 {isVerified && <CheckCircle2 className="w-3.5 h-3.5 text-brand-primary shrink-0" />}
               </div>
               <p className="text-[11px] text-neutral-500 truncate font-normal leading-tight">
-                {isAI ? 'Asistente de BeeApp · siempre disponible' : isGroup ? `${groupMemberCount} participantes` : online ? 'En línea' : 'Últ. vez hace 1 hora'}
+                {isAI ? 'Asistente de Buddy · siempre disponible' : isGroup ? `${groupMemberCount} participantes` : online ? 'En línea' : 'Últ. vez hace 1 hora'}
               </p>
             </div>
           </div>

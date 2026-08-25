@@ -868,7 +868,7 @@ export default function MailModule({
             <EmptyState
               icon={<Mail className="h-9 w-9" />}
               title="Configura tu correo"
-              description="Conecta una cuenta de Gmail u Outlook para ver y sincronizar tus correos en BeeApp."
+              description="Conecta una cuenta de Gmail u Outlook para ver y sincronizar tus correos en Buddy."
               actionLabel="Ir a integraciones"
               onAction={onOpenIntegrations}
             />

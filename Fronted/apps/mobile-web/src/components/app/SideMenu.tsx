@@ -30,7 +30,7 @@ import type {
   CurrentUserProfile,
 } from '@beeapp/shared-types';
 
-import BeeAppLogo from '@/components/BeeAppLogo';
+import BuddyLogo from '@/components/BuddyLogo';
 import { EditProfilePanel } from './EditProfilePanel';
 import { SubscriptionPanel } from './SubscriptionPanel';
 import { IntegrationsPanel } from './IntegrationsPanel';
@@ -100,7 +100,7 @@ function getFullName(
     )
     .join(' ');
 
-  return fullName || 'Usuario BeeApp';
+  return fullName || 'Usuario Buddy';
 }
 
 function getInitials(
@@ -216,7 +216,7 @@ export default function SideMenu({
     }, 2000);
   };
 
-  const handleOpenBeeServices = () => {
+  const handleOpenBuddyServices = () => {
     setSelectedOption(null);
     onClose();
     router.push('/app/beeservices');
@@ -327,7 +327,7 @@ export default function SideMenu({
 
         <aside className="h-full w-[340px] flex flex-col overflow-y-auto bg-white">
           <div className="px-5 pt-5">
-            <BeeAppLogo height={30} />
+            <BuddyLogo height={30} />
           </div>
 
           <div className="flex items-center justify-between border-b border-neutral-100 bg-neutral-50/50 p-5">
@@ -369,11 +369,11 @@ export default function SideMenu({
 
               <button
                 type="button"
-                onClick={handleOpenBeeServices}
+                onClick={handleOpenBuddyServices}
                 className="w-full flex items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-normal text-neutral-700 transition-colors hover:bg-brand-primary/10 hover:text-brand-primary"
               >
                 <Store className="h-4 w-4 text-neutral-500" />
-                <span>BeeServices</span>
+                <span>BuddyServices</span>
               </button>
             </div>
 

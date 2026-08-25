@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import BeeAppLogo from '@/components/BeeAppLogo';
+import BuddyLogo from '@/components/BuddyLogo';
 
 export default function Footer() {
   return (
@@ -9,7 +9,7 @@ export default function Footer() {
           
           {/* Logo */}
           <Link href="/" className="flex items-center">
-            <BeeAppLogo height={32} inverted />
+            <BuddyLogo height={32} inverted />
           </Link>
 
           {/* Links */}
@@ -29,7 +29,7 @@ export default function Footer() {
 
         {/* Bottom copyright */}
         <div className="pt-8 text-center text-xs font-normal text-neutral-500">
-          © 2026 BeeApp AI. Todos los derechos reservados.
+          © 2026 Buddy AI. Todos los derechos reservados.
         </div>
       </div>
     </footer>

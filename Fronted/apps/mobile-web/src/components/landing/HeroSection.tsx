@@ -47,7 +47,7 @@ export default function HeroSection() {
                     <div className="w-7 h-7 rounded-lg bg-brand-primary/10 flex items-center justify-center text-brand-primary">
                       <Bot className="w-4 h-4" />
                     </div>
-                    <span className="font-bold text-xs text-neutral-900">BeeApp AI</span>
+                    <span className="font-bold text-xs text-neutral-900">Buddy AI</span>
                   </div>
                   <div className="w-2 h-2 rounded-full bg-semantic-success"></div>
                 </div>
@@ -79,7 +79,7 @@ export default function HeroSection() {
 
                   <div className="p-2.5 rounded-xl bg-neutral-50 border border-neutral-100 space-y-1">
                     <div className="flex justify-between items-center text-[11px] font-semibold text-neutral-900">
-                      <span>BeeServices</span>
+                      <span>BuddyServices</span>
                       <span className="text-[9px] text-neutral-400 font-normal">Hace 5m</span>
                     </div>
                     <p className="text-[10px] text-neutral-600 font-normal leading-snug">
