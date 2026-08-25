@@ -879,13 +879,30 @@ run_integrations_tests() {
     echo
     assert_nonempty "Integrations: connected Microsoft connection ID exists" "$microsoft_connection_id"
     assert_no_sensitive_keys "Integrations: Microsoft connections after OAuth do not expose tokens" "$connections_response"
+
+    if [[ -n "$microsoft_connection_id" ]]; then
+      record_assertion "Integrations: Microsoft OAuth session completed" "PASS" "Se detectó conexión Microsoft connected: $microsoft_connection_id."
+    else
+      microsoft_existing_status="$(find_connection_status "microsoft" "$connections_response")"
+      if [[ -n "$microsoft_existing_status" ]]; then
+        record_assertion "Integrations: Microsoft OAuth session completed" "FAIL" "El usuario abrió Microsoft OAuth, pero la conexión no quedó connected (estado=$microsoft_existing_status). Revisa consentimiento, callback, redirect URI, túnel Cloudflare, scopes Calendars.Read y logs Django."
+      else
+        record_assertion "Integrations: Microsoft OAuth session completed" "FAIL" "El usuario abrió Microsoft OAuth, pero no se creó ninguna conexión Microsoft. Posibles causas: consentimiento cancelado, callback no llegó al backend, redirect URI incorrecto, túnel Cloudflare caído o error de Microsoft."
+      fi
+    fi
   else
     connections_response="$(api_request "Integrations: list existing connections before calendar tests" "200" "$API_BASE/api/integrations/connections/" -H "Authorization: Bearer $INTEGRATIONS_ACCESS_TOKEN")"
     microsoft_connection_id="$(find_connected_connection_id "microsoft" "$connections_response")"
     if [[ -n "$microsoft_connection_id" ]]; then
+      record_assertion "Integrations: Microsoft OAuth not started in this run" "SKIP" "El usuario eligió no abrir OAuth; se reutilizará la conexión Microsoft connected existente: $microsoft_connection_id."
       record_assertion "Integrations: reuses existing Microsoft connection" "PASS" "$microsoft_connection_id"
     else
-      record_assertion "Integrations: real Microsoft OAuth" "SKIP" "El usuario eligió no iniciar Microsoft OAuth y no existe conexión previa."
+      microsoft_existing_status="$(find_connection_status "microsoft" "$connections_response")"
+      if [[ -n "$microsoft_existing_status" ]]; then
+        record_assertion "Integrations: Microsoft OAuth not started in this run" "SKIP" "El usuario eligió no abrir OAuth. Existe una conexión Microsoft pero no está connected (estado=$microsoft_existing_status). Discovery se omite; reautoriza Microsoft."
+      else
+        record_assertion "Integrations: Microsoft OAuth not started in this run" "SKIP" "El usuario eligió no abrir OAuth y no existe ninguna conexión Microsoft. Discovery se omite."
+      fi
     fi
   fi
 
@@ -961,15 +978,14 @@ run_external_calendar_tests() {
   fi
 
   echo "[External calendars 1/12] Seguridad sin credenciales"
+  # Se usa un UUID sintácticamente válido: AuthenticatedAPIView debe rechazar
+  # antes de buscar la integración, por eso se esperan 401 en ambas rutas.
+  EXTERNAL_CALENDAR_TEST_INTEGRATION_ID="00000000-0000-0000-0000-000000000000"
   api_request "External calendars: integrations without credentials" "401" "$API_BASE/api/calendar/integrations/" >/dev/null
-  api_request "External calendars: list without credentials" "401" "$API_BASE/api/calendar/external-calendars/" >/dev/null
-
-  if [[ -n "${EXTERNAL_CALENDAR_MICROSOFT_CONNECTION_ID:-}" ]]; then
-    api_request "External calendars: Microsoft discovery without credentials" "401" \
-      -X POST "$API_BASE/api/calendar/integrations/$EXTERNAL_CALENDAR_MICROSOFT_CONNECTION_ID/discover/" >/dev/null
-  else
-    record_assertion "External calendars: discovery without credentials route" "SKIP" "No existe conexión Microsoft para construir la URL de discovery."
-  fi
+  api_request "External calendars: list without credentials" "401" \
+    "$API_BASE/api/calendar/integrations/$EXTERNAL_CALENDAR_TEST_INTEGRATION_ID/external-calendars/" >/dev/null
+  api_request "External calendars: discovery without credentials" "401" \
+    -X POST "$API_BASE/api/calendar/integrations/$EXTERNAL_CALENDAR_TEST_INTEGRATION_ID/discover-calendars/" >/dev/null
 
   echo "[External calendars 2/12] Estado seguro de integraciones de Agenda"
   integrations_response="$(api_request "External calendars: calendar integrations list" "200" "$API_BASE/api/calendar/integrations/" -H "Authorization: Bearer $INTEGRATIONS_ACCESS_TOKEN")"
@@ -992,8 +1008,19 @@ run_external_calendar_tests() {
     record_assertion "External calendars: Google integration is represented in Agenda" "SKIP" "No existe conexión Google o no se incluyó en el listado."
   fi
 
-  echo "[External calendars 3/12] Listado externo inicial y forma de datos"
-  external_list_before_response="$(api_request "External calendars: list before discovery" "200" "$API_BASE/api/calendar/external-calendars/" -H "Authorization: Bearer $INTEGRATIONS_ACCESS_TOKEN")"
+  echo "[External calendars 3/12] Precondición Microsoft y listado externo inicial"
+  if [[ -z "${EXTERNAL_CALENDAR_MICROSOFT_CONNECTION_ID:-}" ]]; then
+    record_assertion "External calendars: list before discovery" "SKIP" "No existe conexión Microsoft connected; el listado es por integration_id."
+    record_assertion "External calendars: list before discovery does not expose tokens" "SKIP" "No existe conexión Microsoft connected."
+    record_assertion "External calendars: existing records have required public shape" "SKIP" "No existe conexión Microsoft connected."
+    record_assertion "External calendars: Microsoft connection prerequisite" "SKIP" "No se completó OAuth Microsoft ni hay una conexión Microsoft previa."
+    record_assertion "External calendars: Microsoft discovery" "SKIP" "No se puede ejecutar sin conexión Microsoft connected."
+    record_assertion "External calendars: discovery idempotency" "SKIP" "No se puede ejecutar sin conexión Microsoft connected."
+    record_assertion "External calendars: discovery does not import events" "SKIP" "No se puede ejecutar sin conexión Microsoft connected."
+    return 0
+  fi
+
+  external_list_before_response="$(api_request "External calendars: list before discovery" "200" "$API_BASE/api/calendar/integrations/$EXTERNAL_CALENDAR_MICROSOFT_CONNECTION_ID/external-calendars/" -H "Authorization: Bearer $INTEGRATIONS_ACCESS_TOKEN")"
   assert_no_sensitive_keys "External calendars: list before discovery does not expose tokens" "$external_list_before_response"
   assert_all_external_calendars_shape "External calendars: existing records have required public shape" "$external_list_before_response"
   before_external_total="$(external_calendar_count "$external_list_before_response")"
@@ -1005,8 +1032,8 @@ run_external_calendar_tests() {
   before_beeapp_calendar_count="$(printf '%s' "$calendar_list_before_response" | json_count "data.get('calendars', [])")"
 
   echo "[External calendars 4/12] Validaciones de discovery"
-  api_request_any_status "External calendars: invalid connection discovery is rejected" "400 404" \
-    -X POST "$API_BASE/api/calendar/integrations/00000000-0000-0000-0000-000000000000/discover/" \
+  api_request_any_status "External calendars: invalid integration discovery is rejected" "400 404" \
+    -X POST "$API_BASE/api/calendar/integrations/00000000-0000-0000-0000-000000000000/discover-calendars/" \
     -H "Authorization: Bearer $INTEGRATIONS_ACCESS_TOKEN" >/dev/null
 
   if [[ -z "${EXTERNAL_CALENDAR_MICROSOFT_CONNECTION_ID:-}" ]]; then
@@ -1029,7 +1056,7 @@ run_external_calendar_tests() {
   echo "[External calendars 6/12] Discovery real Microsoft"
   events_before="$(calendar_event_count_in_range "$INTEGRATIONS_ACCESS_TOKEN")"
   discovery_response="$(api_request "External calendars: discover Microsoft calendars" "200" \
-    -X POST "$API_BASE/api/calendar/integrations/$EXTERNAL_CALENDAR_MICROSOFT_CONNECTION_ID/discover/" \
+    -X POST "$API_BASE/api/calendar/integrations/$EXTERNAL_CALENDAR_MICROSOFT_CONNECTION_ID/discover-calendars/" \
     -H "Authorization: Bearer $INTEGRATIONS_ACCESS_TOKEN" \
     -H "Content-Type: application/json" \
     -d '{}')"
@@ -1054,7 +1081,7 @@ run_external_calendar_tests() {
   fi
 
   echo "[External calendars 7/12] Persistencia después de discovery"
-  external_list_after_response="$(api_request "External calendars: list after Microsoft discovery" "200" "$API_BASE/api/calendar/external-calendars/" -H "Authorization: Bearer $INTEGRATIONS_ACCESS_TOKEN")"
+  external_list_after_response="$(api_request "External calendars: list after Microsoft discovery" "200" "$API_BASE/api/calendar/integrations/$EXTERNAL_CALENDAR_MICROSOFT_CONNECTION_ID/external-calendars/" -H "Authorization: Bearer $INTEGRATIONS_ACCESS_TOKEN")"
   assert_no_sensitive_keys "External calendars: list after discovery does not expose tokens" "$external_list_after_response"
   assert_all_external_calendars_shape "External calendars: discovered records have required public shape" "$external_list_after_response"
   after_microsoft_external="$(external_calendar_count_by_provider "microsoft" "$external_list_after_response")"
@@ -1082,12 +1109,12 @@ run_external_calendar_tests() {
 
   echo "[External calendars 8/12] Discovery idempotente"
   discovery_repeat_response="$(api_request "External calendars: repeat Microsoft discovery idempotently" "200" \
-    -X POST "$API_BASE/api/calendar/integrations/$EXTERNAL_CALENDAR_MICROSOFT_CONNECTION_ID/discover/" \
+    -X POST "$API_BASE/api/calendar/integrations/$EXTERNAL_CALENDAR_MICROSOFT_CONNECTION_ID/discover-calendars/" \
     -H "Authorization: Bearer $INTEGRATIONS_ACCESS_TOKEN" \
     -H "Content-Type: application/json" \
     -d '{}')"
   assert_no_sensitive_keys "External calendars: repeated discovery response does not expose tokens" "$discovery_repeat_response"
-  external_list_repeat_response="$(api_request "External calendars: list after repeated discovery" "200" "$API_BASE/api/calendar/external-calendars/" -H "Authorization: Bearer $INTEGRATIONS_ACCESS_TOKEN")"
+  external_list_repeat_response="$(api_request "External calendars: list after repeated discovery" "200" "$API_BASE/api/calendar/integrations/$EXTERNAL_CALENDAR_MICROSOFT_CONNECTION_ID/external-calendars/" -H "Authorization: Bearer $INTEGRATIONS_ACCESS_TOKEN")"
   repeat_microsoft_external="$(external_calendar_count_by_provider "microsoft" "$external_list_repeat_response")"
   repeat_microsoft_ids="$(external_calendar_ids_by_provider "microsoft" "$external_list_repeat_response")"
   assert_integer_equals "External calendars: repeated discovery does not duplicate Microsoft records" "$after_microsoft_external" "$repeat_microsoft_external"
@@ -1100,7 +1127,7 @@ run_external_calendar_tests() {
   echo "[External calendars 10/12] Aislamiento entre usuarios"
   if [[ -n "${USER_B_TOKEN:-}" ]]; then
     api_request_any_status "External calendars: User B cannot discover User A Microsoft connection" "403 404" \
-      -X POST "$API_BASE/api/calendar/integrations/$EXTERNAL_CALENDAR_MICROSOFT_CONNECTION_ID/discover/" \
+      -X POST "$API_BASE/api/calendar/integrations/$EXTERNAL_CALENDAR_MICROSOFT_CONNECTION_ID/discover-calendars/" \
       -H "Authorization: Bearer $USER_B_TOKEN" \
       -H "Content-Type: application/json" \
       -d '{}' >/dev/null
@@ -1116,7 +1143,7 @@ run_external_calendar_tests() {
     google_detail_status="$(printf '%s' "$google_detail_response" | json_value "data.get('connection', {}).get('status', '')")"
     if [[ "$google_detail_status" == "reauth_required" ]]; then
       api_request_any_status "External calendars: Google reauth-required discovery is blocked" "400 403 409" \
-        -X POST "$API_BASE/api/calendar/integrations/$google_connection_id_for_discovery/discover/" \
+        -X POST "$API_BASE/api/calendar/integrations/$google_connection_id_for_discovery/discover-calendars/" \
         -H "Authorization: Bearer $INTEGRATIONS_ACCESS_TOKEN" \
         -H "Content-Type: application/json" \
         -d '{}' >/dev/null

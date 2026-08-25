@@ -1,1244 +1,2228 @@
 #!/usr/bin/env bash
-# BeeApp — Suite E2E combinada: Agenda + Integraciones Google/Microsoft
-# Conserva las pruebas de Agenda existentes y agrega pruebas E2E de
-# calendarios externos/discovery implementadas en este bloque.
-#
-# Requiere: bash, curl, python3 (o python), mktemp y realpath.
-# Para OAuth real, requiere Django y Cloudflare Tunnel activos.
-#
-# Uso:
-#   chmod +x general_test.sh
-#   ./general_test.sh
-#
-# Variables opcionales:
-#   BEEAPP_API=http://127.0.0.1:8000
-#   BEEAPP_USER_A_EMAIL=usuario-a@ejemplo.com
-#   BEEAPP_USER_B_EMAIL=usuario-b@ejemplo.com
-#   BEEAPP_USER_EMAIL=usuario-integraciones@ejemplo.com
-#   OAUTH_TIMEOUT_SECONDS=180
-#   OAUTH_POLL_SECONDS=3
-#
-# Nota: no usa `set -e` intencionalmente. La suite continúa para emitir
-# el reporte completo aunque una solicitud individual falle.
 
 set -u
 set -o pipefail
 
-API_BASE="${BEEAPP_API:-http://127.0.0.1:8000}"
-USER_A_EMAIL="${BEEAPP_USER_A_EMAIL:-andres.santa-fe@hotmail.com}"
-USER_B_EMAIL="${BEEAPP_USER_B_EMAIL:-andresFelipeMendozaSilva@hotmail.com}"
-INTEGRATIONS_USER_EMAIL="${BEEAPP_USER_EMAIL:-$USER_A_EMAIL}"
-OAUTH_TIMEOUT_SECONDS="${OAUTH_TIMEOUT_SECONDS:-180}"
-OAUTH_POLL_SECONDS="${OAUTH_POLL_SECONDS:-3}"
+API_BASE_URL="${BEEAPP_API_BASE_URL:-http://127.0.0.1:8000}"
+RUN_ID="${BEEAPP_TEST_RUN_ID:-e2e-$(date -u +%Y%m%dT%H%M%SZ)-$$}"
 
-REPORT="beeapp_e2e_combined_report.txt"
-SUMMARY="beeapp_e2e_combined_summary.txt"
+OUTPUT_DIR="${BEEAPP_TEST_OUTPUT_DIR:-$PWD/beeapp_general_test_results}"
+REPORT_FILE="$OUTPUT_DIR/general_backend_report_${RUN_ID}.txt"
+FAILURES_FILE="$OUTPUT_DIR/general_backend_failures_${RUN_ID}.txt"
+TMP_DIR="$(mktemp -d "${TMPDIR:-/tmp}/beeapp-e2e-${RUN_ID}.XXXXXX")"
 
-PASS_COUNT=0
-FAIL_COUNT=0
-SKIP_COUNT=0
-TEST_PREFIX="E2E BeeApp $(date '+%Y%m%d%H%M%S')"
-RANGE_START="2026-08-01T00:00:00-05:00"
-RANGE_END="2026-09-10T00:00:00-05:00"
+RUN_STORAGE_TESTS="${RUN_STORAGE_TESTS:-true}"
+RUN_NOTES_TESTS="${RUN_NOTES_TESTS:-true}"
+RUN_NOTIFICATIONS_TESTS="${RUN_NOTIFICATIONS_TESTS:-true}"
+RUN_CALENDAR_TESTS="${RUN_CALENDAR_TESTS:-true}"
+RUN_COMMERCIAL_TESTS="${RUN_COMMERCIAL_TESTS:-true}"
+RUN_CHAT_TESTS="${RUN_CHAT_TESTS:-true}"
+RUN_INTEGRATIONS_TESTS="${RUN_INTEGRATIONS_TESTS:-true}"
+RUN_MAIL_TESTS="${RUN_MAIL_TESTS:-false}"
+RUN_EXTERNAL_INTEGRATION_TESTS="${RUN_EXTERNAL_INTEGRATION_TESTS:-false}"
+KEEP_REMOTE_TEST_DATA="${KEEP_REMOTE_TEST_DATA:-false}"
+
+ACCESS_TOKEN_A=""
+ACCESS_TOKEN_B=""
+ACCESS_TOKEN_C=""
+ACCESS_TOKEN_D=""
+
+USER_A_ID=""
+USER_B_ID=""
+USER_C_ID=""
+USER_D_ID=""
+
+STORAGE_TEXT_FILE="$TMP_DIR/storage_${RUN_ID}.txt"
+NOTE_TEXT_FILE="$TMP_DIR/note_${RUN_ID}.txt"
+CHAT_TEXT_FILE="$TMP_DIR/chat_${RUN_ID}.txt"
+MAIL_TEXT_FILE="$TMP_DIR/mail_${RUN_ID}.txt"
+LOGO_PNG_FILE="$TMP_DIR/logo_${RUN_ID}.png"
+
+declare -a REMOTE_FILE_IDS=()
+declare -a STORAGE_FOLDER_IDS=()
+declare -a STORAGE_TAG_IDS=()
+declare -a NOTE_FOLDER_IDS=()
+declare -a NOTE_TAG_IDS=()
+declare -a NOTE_IDS=()
+declare -a NOTE_SHARE_IDS=()
+declare -a CALENDAR_IDS=()
+declare -a CALENDAR_TAG_IDS=()
+declare -a CALENDAR_EVENT_IDS=()
+declare -a COMMERCIAL_PROFILE_IDS=()
+declare -a CHAT_GROUP_IDS=()
+
+STORAGE_FILE_ID=""
+STORAGE_FOLDER_ID=""
+STORAGE_TAG_ID=""
+NOTE_ID=""
+NOTE_ATTACHMENT_ID=""
+NOTE_TAG_ID=""
+NOTE_FOLDER_ID=""
+NOTE_SHARE_ID=""
+CALENDAR_ID=""
+CALENDAR_TAG_ID=""
+CALENDAR_EVENT_ID=""
+CALENDAR_DUPLICATE_EVENT_ID=""
+COMMERCIAL_PROFILE_ID=""
+LOGO_FILE_ID=""
+
+USER_A_IDENTITY_ID=""
+USER_B_IDENTITY_ID=""
+USER_C_IDENTITY_ID=""
+USER_D_IDENTITY_ID=""
+DIRECT_CONVERSATION_ID=""
+DIRECT_MESSAGE_A_ID=""
+DIRECT_MESSAGE_B_ID=""
+NORMAL_GROUP_ID=""
+NORMAL_GROUP_INVITE_ID=""
+BROADCAST_GROUP_ID=""
+BROADCAST_GROUP_INVITE_ID=""
+CHAT_ATTACHMENT_MESSAGE_ID=""
+CHAT_ATTACHMENT_FILE_ID=""
+
+TESTS_TOTAL=0
+TESTS_PASSED=0
+TESTS_FAILED=0
+TESTS_SKIPPED=0
+EXPECTED_FAILURES_OK=0
+
+CURRENT_TEST_LABEL=""
+HTTP_CODE=""
+CURL_EXIT_CODE=0
+RESPONSE_FILE=""
+CURL_ERROR_FILE=""
+
+mkdir -p "$OUTPUT_DIR"
+: > "$REPORT_FILE"
+: > "$FAILURES_FILE"
+
 
 require_command() {
-  local command_name="$1"
-
-  if ! command -v "$command_name" >/dev/null 2>&1; then
-    echo "ERROR: Falta el comando requerido: $command_name" >&2
+  if ! command -v "$1" >/dev/null 2>&1; then
+    printf 'ERROR: required command is missing: %s\n' "$1" \
+      | tee -a "$REPORT_FILE" \
+      | tee -a "$FAILURES_FILE"
     exit 1
   fi
 }
 
-require_command curl
-require_command mktemp
-require_command realpath
 
-if command -v python3 >/dev/null 2>&1; then
-  PYTHON_BIN="python3"
-elif command -v python >/dev/null 2>&1; then
-  PYTHON_BIN="python"
-else
-  echo "ERROR: Falta Python 3 (python3 o python)." >&2
-  exit 1
-fi
-
-json_pretty() {
-  "$PYTHON_BIN" -m json.tool 2>/dev/null || cat
+sanitize_json() {
+  jq '
+    walk(
+      if type == "object" then
+        del(
+          .access_token,
+          .refresh_token,
+          .token,
+          .authorization,
+          .Authorization,
+          .session,
+          .password,
+          .email,
+          .phone,
+          .phone_number,
+          .phone_dial_code,
+          .normalized_phone,
+          .url,
+          .signed_url,
+          .signedURL,
+          .storage_path,
+          .bucket_id,
+          .provider_payload,
+          .access_token_ciphertext,
+          .refresh_token_ciphertext,
+          .id_token_ciphertext
+        )
+      else
+        .
+      end
+    )
+  ' 2>/dev/null || cat
 }
 
-json_value() {
-  local expression="$1"
 
-  "$PYTHON_BIN" -c "
-import json
-import sys
-try:
-    data = json.load(sys.stdin)
-    value = $expression
-except Exception:
-    print('')
-    raise SystemExit(0)
-if value is None:
-    print('')
-elif isinstance(value, bool):
-    print(str(value).lower())
-elif isinstance(value, (dict, list)):
-    print(json.dumps(value, separators=(',', ':')))
-else:
-    print(value)
-" 2>/dev/null
-}
-
-json_count() {
-  local expression="$1"
-
-  "$PYTHON_BIN" -c "
-import json
-import sys
-try:
-    data = json.load(sys.stdin)
-    value = $expression
-    print(len(value) if value is not None else 0)
-except Exception:
-    print('')
-" 2>/dev/null
-}
-
-urlencode() {
-  "$PYTHON_BIN" -c "
-import sys
-import urllib.parse
-print(urllib.parse.quote(sys.stdin.read().strip(), safe=''))
-"
-}
-
-record_report() {
-  local label="$1"
-  local expected_status="$2"
-  local actual_status="$3"
-  local result="$4"
-  local response="$5"
-
+record_section() {
   {
-    echo
-    echo "================================================================"
-    echo "TEST: $label"
-    echo "================================================================"
-    echo "expected_status: $expected_status"
-    echo "actual_status: $actual_status"
-    echo "result: $result"
-    echo "response:"
-    printf '%s' "$response" | json_pretty
-  } >> "$REPORT"
-
-  printf '%-8s | expected=%-16s | actual=%-8s | %s\n' \
-    "$result" "$expected_status" "$actual_status" "$label" >> "$SUMMARY"
+    printf '\n============================================================\n'
+    printf '%s\n' "$1"
+    printf '============================================================\n'
+  } >> "$REPORT_FILE"
 }
 
-record_assertion() {
+
+record_response() {
   local label="$1"
-  local result="$2"
-  local detail="${3:-}"
+  local http_code="$2"
+  local body_file="$3"
 
-  case "$result" in
-    PASS) PASS_COUNT=$((PASS_COUNT + 1)) ;;
-    SKIP) SKIP_COUNT=$((SKIP_COUNT + 1)) ;;
-    *) FAIL_COUNT=$((FAIL_COUNT + 1)) ;;
-  esac
+  record_section "$label"
+  printf 'HTTP_STATUS=%s\n' "$http_code" >> "$REPORT_FILE"
 
-  {
-    echo
-    echo "================================================================"
-    echo "ASSERTION: $label"
-    echo "================================================================"
-    echo "result: $result"
-    echo "detail: $detail"
-  } >> "$REPORT"
-
-  printf '%-8s | %s%s\n' \
-    "$result" "$label" "${detail:+ — $detail}" >> "$SUMMARY"
-}
-
-api_request() {
-  local label="$1"
-  local expected_status="$2"
-  shift 2
-
-  local body_file actual_status response curl_exit_code result
-  body_file="$(mktemp)"
-
-  actual_status="$(curl -sS -o "$body_file" -w '%{http_code}' "$@")"
-  curl_exit_code=$?
-  response="$(cat "$body_file")"
-  rm -f "$body_file"
-
-  if [[ "$curl_exit_code" -ne 0 ]]; then
-    result="FAIL"
-    actual_status="curl-$curl_exit_code"
-    FAIL_COUNT=$((FAIL_COUNT + 1))
-  elif [[ "$actual_status" == "$expected_status" ]]; then
-    result="PASS"
-    PASS_COUNT=$((PASS_COUNT + 1))
+  if [ -s "$body_file" ]; then
+    sanitize_json < "$body_file" >> "$REPORT_FILE"
   else
-    result="FAIL"
-    FAIL_COUNT=$((FAIL_COUNT + 1))
+    printf '(Empty response)\n' >> "$REPORT_FILE"
   fi
-
-  record_report "$label" "$expected_status" "$actual_status" "$result" "$response"
-  printf '%s' "$response"
 }
 
-api_request_any_status() {
-  local label="$1"
-  local allowed_statuses="$2"
-  shift 2
 
-  local body_file actual_status response curl_exit_code result allowed_status
-  result="FAIL"
-  body_file="$(mktemp)"
+begin_test() {
+  CURRENT_TEST_LABEL="$1"
+  TESTS_TOTAL=$((TESTS_TOTAL + 1))
 
-  actual_status="$(curl -sS -o "$body_file" -w '%{http_code}' "$@")"
-  curl_exit_code=$?
-  response="$(cat "$body_file")"
-  rm -f "$body_file"
+  {
+    printf '\n------------------------------------------------------------\n'
+    printf 'TEST_START=%s\n' "$CURRENT_TEST_LABEL"
+  } >> "$REPORT_FILE"
+}
 
-  if [[ "$curl_exit_code" -eq 0 ]]; then
-    for allowed_status in $allowed_statuses; do
-      if [[ "$actual_status" == "$allowed_status" ]]; then
-        result="PASS"
-        PASS_COUNT=$((PASS_COUNT + 1))
-        break
-      fi
-    done
+
+mark_pass() {
+  local message="$1"
+
+  TESTS_PASSED=$((TESTS_PASSED + 1))
+
+  {
+    printf 'TEST_RESULT=PASS\n'
+    printf 'PASS: %s\n' "$message"
+  } >> "$REPORT_FILE"
+
+  printf '✅ PASS [%s] %s\n' \
+    "$CURRENT_TEST_LABEL" \
+    "$message" >&2
+}
+
+
+mark_skip() {
+  local message="$1"
+
+  TESTS_SKIPPED=$((TESTS_SKIPPED + 1))
+
+  {
+    printf 'TEST_RESULT=SKIPPED\n'
+    printf 'SKIPPED: %s\n' "$message"
+  } >> "$REPORT_FILE"
+
+  printf '⏭️  SKIP [%s] %s\n' \
+    "$CURRENT_TEST_LABEL" \
+    "$message" >&2
+}
+
+
+guess_failure_cause() {
+  local http_code="$1"
+  local response_text="$2"
+  local curl_error="$3"
+
+  local combined
+  combined="$(
+    printf '%s %s' "$response_text" "$curl_error" \
+      | tr '[:upper:]' '[:lower:]'
+  )"
+
+  if [[ "$combined" == *"connection refused"* ]]; then
+    printf '%s' \
+      "Django is not running or BEEAPP_API_BASE_URL has the wrong host/port."
+    return
   fi
 
-  if [[ "$result" != "PASS" ]]; then
-    FAIL_COUNT=$((FAIL_COUNT + 1))
-    if [[ "$curl_exit_code" -ne 0 ]]; then
-      actual_status="curl-$curl_exit_code"
+  if [[ "$combined" == *"timed out"* ]]; then
+    printf '%s' \
+      "Request timed out. Review Django logs, Supabase RPCs, triggers, network, or a blocked transaction."
+    return
+  fi
+
+  if [[ "$http_code" == "401" ]]; then
+    printf '%s' \
+      "Authentication failed. Verify test credentials, login endpoint, access token extraction, or backend authentication."
+    return
+  fi
+
+  if [[ "$http_code" == "403" ]]; then
+    printf '%s' \
+      "Authorization failed. Verify resource ownership, active participation, roles, permissions, RLS, and authenticated JWT propagation."
+    return
+  fi
+
+  if [[ "$http_code" == "404" ]]; then
+    printf '%s' \
+      "The resource was not found, is inactive, deleted, inaccessible, or the generated ID was not extracted correctly."
+    return
+  fi
+
+  if [[ "$http_code" == "413" ]]; then
+    printf '%s' \
+      "Upload was too large or the account has insufficient Storage quota."
+    return
+  fi
+
+  if [[ "$http_code" == "429" ]]; then
+    printf '%s' \
+      "A Django rate throttle was reached. Wait for the configured rate-limit window before retrying."
+    return
+  fi
+
+  if [[ "$http_code" == "500" ]]; then
+    printf '%s' \
+      "Unhandled backend error. Inspect the Django traceback and Supabase/PostgREST errors."
+    return
+  fi
+
+  if [[ "$combined" == *"authentication_required"* ]]; then
+    printf '%s' \
+      "Supabase did not receive a valid user JWT. Review Authorization propagation and get_supabase_user_client()."
+    return
+  fi
+
+  if [[ "$combined" == *"function"* ]] \
+    && [[ "$combined" == *"does not exist"* ]]; then
+    printf '%s' \
+      "A required Supabase RPC is missing or its parameter signature differs from the deployed function."
+    return
+  fi
+
+  if [[ "$combined" == *"column"* ]] \
+    && [[ "$combined" == *"does not exist"* ]]; then
+    printf '%s' \
+      "The backend queried a database column absent from the deployed Supabase schema."
+    return
+  fi
+
+  if [[ "$combined" == *"quota"* ]]; then
+    printf '%s' \
+      "Storage quota was exceeded or could not be reserved."
+    return
+  fi
+
+  if [[ "$combined" == *"calendar"* ]] \
+    && [[ "$combined" == *"not found"* ]]; then
+    printf '%s' \
+      "Calendar access, ownership, event IDs, tags, or attendee records need verification."
+    return
+  fi
+
+  if [[ "$combined" == *"chat"* ]]; then
+    printf '%s' \
+      "Chat validation or authorization failed. Verify identity ownership, active membership, role, posting policy, attachments, RLS, and RPC rules."
+    return
+  fi
+
+  if [[ "$http_code" == "400" ]]; then
+    printf '%s' \
+      "Payload validation or a domain rule failed. Inspect RESPONSE_BODY for serializer, service, provider, or SQL details."
+    return
+  fi
+
+  printf '%s' \
+    "Cause was not classified automatically. Inspect RESPONSE_BODY, Django traceback, and Supabase logs."
+}
+
+
+mark_failure() {
+  local message="$1"
+  local http_code="${2:-N/A}"
+  local body_file="${3:-}"
+  local curl_error_file="${4:-}"
+
+  local response_text=""
+  local curl_error_text=""
+  local probable_cause=""
+
+  TESTS_FAILED=$((TESTS_FAILED + 1))
+
+  if [ -n "$body_file" ] && [ -f "$body_file" ]; then
+    response_text="$(sanitize_json < "$body_file")"
+  fi
+
+  if [ -n "$curl_error_file" ] && [ -f "$curl_error_file" ]; then
+    curl_error_text="$(cat "$curl_error_file")"
+  fi
+
+  probable_cause="$(
+    guess_failure_cause \
+      "$http_code" \
+      "$response_text" \
+      "$curl_error_text"
+  )"
+
+  {
+    printf '\n============================================================\n'
+    printf 'FAILED_TEST=%s\n' "$CURRENT_TEST_LABEL"
+    printf 'MESSAGE=%s\n' "$message"
+    printf 'HTTP_STATUS=%s\n' "$http_code"
+    printf 'POSSIBLE_CAUSE=%s\n' "$probable_cause"
+    printf '%s\n' '------------------------------------------------------------'
+
+    if [ -n "$response_text" ]; then
+      printf '%s\n' 'RESPONSE_BODY:'
+      printf '%s\n' "$response_text"
+    else
+      printf '%s\n' 'RESPONSE_BODY=(Empty)'
     fi
-  fi
 
-  record_report "$label" "one-of($allowed_statuses)" "$actual_status" "$result" "$response"
-  printf '%s' "$response"
+    if [ -n "$curl_error_text" ]; then
+      printf '%s\n' 'CURL_ERROR:'
+      printf '%s\n' "$curl_error_text"
+    fi
+
+    printf '%s\n' 'RECOMMENDED_ACTION:'
+    printf '%s\n' \
+      '1. Read RESPONSE_BODY and POSSIBLE_CAUSE.'
+    printf '%s\n' \
+      '2. Inspect Django runserver traceback.'
+    printf '%s\n' \
+      '3. Verify Supabase RPCs, RLS, triggers, constraints, and authenticated JWT propagation.'
+    printf '============================================================\n'
+  } >> "$FAILURES_FILE"
+
+  printf '\n❌ FAIL [%s] %s\n' \
+    "$CURRENT_TEST_LABEL" \
+    "$message" >&2
+  printf 'HTTP_STATUS=%s\n' "$http_code" >&2
+  printf 'POSSIBLE_CAUSE=%s\n' "$probable_cause" >&2
 }
 
-assert_nonempty() {
+
+mark_expected_failure_ok() {
+  local message="$1"
+
+  TESTS_PASSED=$((TESTS_PASSED + 1))
+  EXPECTED_FAILURES_OK=$((EXPECTED_FAILURES_OK + 1))
+
+  {
+    printf 'TEST_RESULT=PASS_EXPECTED_FAILURE\n'
+    printf 'EXPECTED_FAILURE_OK: %s\n' "$message"
+  } >> "$REPORT_FILE"
+
+  printf '✅ PASS [%s] %s\n' \
+    "$CURRENT_TEST_LABEL" \
+    "$message" >&2
+}
+
+
+request() {
+  local method="$1"
+  local token="$2"
+  local url="$3"
+  local body="${4:-}"
+  local content_type="${5:-}"
+
+  RESPONSE_FILE="$(mktemp)"
+  CURL_ERROR_FILE="$(mktemp)"
+
+  local -a curl_args=(
+    --silent
+    --show-error
+    --max-time 90
+    --request "$method"
+    --header "Authorization: Bearer $token"
+    --header "Accept: application/json"
+    --output "$RESPONSE_FILE"
+    --write-out "%{http_code}"
+  )
+
+  if [ -n "$content_type" ]; then
+    curl_args+=(--header "Content-Type: $content_type")
+  fi
+
+  if [ -n "$body" ]; then
+    curl_args+=(--data "$body")
+  fi
+
+  curl_args+=("$url")
+
+  HTTP_CODE="$(curl "${curl_args[@]}" 2>"$CURL_ERROR_FILE")"
+  CURL_EXIT_CODE=$?
+}
+
+
+request_multipart() {
+  local method="$1"
+  local token="$2"
+  local url="$3"
+  shift 3
+
+  RESPONSE_FILE="$(mktemp)"
+  CURL_ERROR_FILE="$(mktemp)"
+
+  local -a curl_args=(
+    --silent
+    --show-error
+    --max-time 180
+    --request "$method"
+    --header "Authorization: Bearer $token"
+    --header "Accept: application/json"
+    --output "$RESPONSE_FILE"
+    --write-out "%{http_code}"
+  )
+
+  while [ "$#" -gt 0 ]; do
+    curl_args+=(--form "$1")
+    shift
+  done
+
+  curl_args+=("$url")
+
+  HTTP_CODE="$(curl "${curl_args[@]}" 2>"$CURL_ERROR_FILE")"
+  CURL_EXIT_CODE=$?
+}
+
+
+cleanup_request_files() {
+  rm -f \
+    "${RESPONSE_FILE:-}" \
+    "${CURL_ERROR_FILE:-}"
+
+  RESPONSE_FILE=""
+  CURL_ERROR_FILE=""
+}
+
+
+run_json_request() {
+  local label="$1"
+  local method="$2"
+  local token="$3"
+  local url="$4"
+  local body="$5"
+  local expected_code="$6"
+
+  begin_test "$label"
+
+  request \
+    "$method" \
+    "$token" \
+    "$url" \
+    "$body" \
+    "application/json"
+
+  record_response \
+    "$label" \
+    "$HTTP_CODE" \
+    "$RESPONSE_FILE"
+
+  if [ "$CURL_EXIT_CODE" -ne 0 ]; then
+    mark_failure \
+      "curl request failed." \
+      "$HTTP_CODE" \
+      "$RESPONSE_FILE" \
+      "$CURL_ERROR_FILE"
+
+  elif [ "$HTTP_CODE" != "$expected_code" ]; then
+    mark_failure \
+      "Expected HTTP $expected_code, got HTTP $HTTP_CODE." \
+      "$HTTP_CODE" \
+      "$RESPONSE_FILE" \
+      "$CURL_ERROR_FILE"
+
+  else
+    mark_pass "Returned expected HTTP $expected_code."
+  fi
+
+  cleanup_request_files
+}
+
+
+run_get() {
+  local label="$1"
+  local token="$2"
+  local url="$3"
+  local expected_code="${4:-200}"
+
+  begin_test "$label"
+
+  request "GET" "$token" "$url"
+
+  record_response \
+    "$label" \
+    "$HTTP_CODE" \
+    "$RESPONSE_FILE"
+
+  if [ "$CURL_EXIT_CODE" -ne 0 ]; then
+    mark_failure \
+      "curl request failed." \
+      "$HTTP_CODE" \
+      "$RESPONSE_FILE" \
+      "$CURL_ERROR_FILE"
+
+  elif [ "$HTTP_CODE" != "$expected_code" ]; then
+    mark_failure \
+      "Expected HTTP $expected_code, got HTTP $HTTP_CODE." \
+      "$HTTP_CODE" \
+      "$RESPONSE_FILE" \
+      "$CURL_ERROR_FILE"
+
+  else
+    mark_pass "Returned expected HTTP $expected_code."
+  fi
+
+  cleanup_request_files
+}
+
+
+run_expected_failure() {
+  local label="$1"
+  local method="$2"
+  local token="$3"
+  local url="$4"
+  local body="$5"
+  local accepted_codes="${6:-400 403}"
+
+  begin_test "$label"
+
+  request \
+    "$method" \
+    "$token" \
+    "$url" \
+    "$body" \
+    "application/json"
+
+  record_response \
+    "$label" \
+    "$HTTP_CODE" \
+    "$RESPONSE_FILE"
+
+  if [ "$CURL_EXIT_CODE" -ne 0 ]; then
+    mark_failure \
+      "curl request failed unexpectedly." \
+      "$HTTP_CODE" \
+      "$RESPONSE_FILE" \
+      "$CURL_ERROR_FILE"
+
+  elif [[ " $accepted_codes " == *" $HTTP_CODE "* ]]; then
+    mark_expected_failure_ok \
+      "Expected rejection returned HTTP $HTTP_CODE."
+
+  else
+    mark_failure \
+      "Expected one of [$accepted_codes], got HTTP $HTTP_CODE." \
+      "$HTTP_CODE" \
+      "$RESPONSE_FILE" \
+      "$CURL_ERROR_FILE"
+  fi
+
+  cleanup_request_files
+}
+
+
+extract_json_value() {
+  local json="$1"
+  local filter="$2"
+
+  printf '%s' "$json" \
+    | jq -r "$filter // empty" \
+    | head -n 1
+}
+
+
+extract_profile_identity_id() {
+  local json="$1"
+
+  printf '%s' "$json" \
+    | jq -r '
+      .identities[]
+      | select(.identity_type == "profile")
+      | .id
+    ' \
+    | head -n 1
+}
+
+
+validate_uuid_value() {
   local label="$1"
   local value="$2"
 
-  if [[ -n "$value" ]]; then
-    record_assertion "$label" "PASS"
-    return 0
+  begin_test "$label"
+
+  if [ -z "$value" ] || [ "$value" = "null" ]; then
+    mark_failure "UUID was not extracted." "N/A"
+    return 1
   fi
 
-  record_assertion "$label" "FAIL" "Valor vacío"
-  return 1
-}
-
-assert_equals() {
-  local label="$1"
-  local expected="$2"
-  local actual="$3"
-
-  if [[ "$expected" == "$actual" ]]; then
-    record_assertion "$label" "PASS" "$actual"
-    return 0
+  if ! [[ "$value" =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]]; then
+    mark_failure "Extracted value is not a UUID: $value" "N/A"
+    return 1
   fi
 
-  record_assertion "$label" "FAIL" "Esperado=$expected; recibido=$actual"
-  return 1
+  mark_pass "UUID extracted successfully."
+  return 0
 }
 
-assert_integer_equals() {
+
+assert_json_value() {
   local label="$1"
-  local expected="$2"
-  local actual="$3"
+  local actual="$2"
+  local expected="$3"
 
-  if [[ "$expected" =~ ^[0-9]+$ ]] && [[ "$actual" =~ ^[0-9]+$ ]] && [[ "$expected" -eq "$actual" ]]; then
-    record_assertion "$label" "PASS" "$actual"
-    return 0
-  fi
+  begin_test "$label"
 
-  record_assertion "$label" "FAIL" "Esperado=$expected; recibido=$actual"
-  return 1
-}
-
-assert_no_sensitive_keys() {
-  local label="$1"
-  local response="$2"
-  local result
-
-  result="$(printf '%s' "$response" | "$PYTHON_BIN" -c "
-import json
-import sys
-sensitive_fragments = (
-    'access_token', 'refresh_token', 'id_token', 'ciphertext',
-    'pkce_verifier', 'client_secret', 'state_hash', 'authorization_code',
-    'oauth_code', 'token_encrypted', 'secret_encrypted',
-)
-def walk(value, path='root'):
-    if isinstance(value, dict):
-        for key, child in value.items():
-            normalized_key = str(key).lower()
-            if any(fragment in normalized_key for fragment in sensitive_fragments):
-                print(f'SENSITIVE_KEY:{path}.{key}')
-                raise SystemExit(1)
-            walk(child, f'{path}.{key}')
-    elif isinstance(value, list):
-        for index, child in enumerate(value):
-            walk(child, f'{path}[{index}]')
-try:
-    walk(json.load(sys.stdin))
-except json.JSONDecodeError:
-    print('INVALID_JSON')
-    raise SystemExit(1)
-print('OK')
-")"
-
-  if [[ "$result" == "OK" ]]; then
-    record_assertion "$label" "PASS"
+  if [ "$actual" = "$expected" ]; then
+    mark_pass "Value matched expected value: $expected."
   else
-    record_assertion "$label" "FAIL" "$result"
+    mark_failure \
+      "Expected '$expected', got '${actual:-empty}'." \
+      "N/A"
   fi
 }
 
-assert_all_external_calendars_shape() {
-  local label="$1"
-  local response="$2"
-  local result
 
-  result="$(printf '%s' "$response" | "$PYTHON_BIN" -c "
-import json
-import sys
-try:
-    data = json.load(sys.stdin)
-    items = data.get('external_calendars')
-    if items is None:
-        items = data.get('calendars')
-    if not isinstance(items, list):
-        print('MISSING_EXTERNAL_CALENDARS_LIST')
-        raise SystemExit(1)
-    for index, item in enumerate(items):
-        if not isinstance(item, dict):
-            print(f'INVALID_ITEM:{index}')
-            raise SystemExit(1)
-        provider = item.get('provider')
-        external_id = item.get('external_calendar_id') or item.get('provider_calendar_id') or item.get('external_id')
-        name = item.get('name') or item.get('display_name')
-        if not provider:
-            print(f'MISSING_PROVIDER:{index}')
-            raise SystemExit(1)
-        if not external_id:
-            print(f'MISSING_EXTERNAL_ID:{index}')
-            raise SystemExit(1)
-        if not name:
-            print(f'MISSING_NAME:{index}')
-            raise SystemExit(1)
-    print('OK')
-except json.JSONDecodeError:
-    print('INVALID_JSON')
-    raise SystemExit(1)
-")"
+register_remote_file() {
+  local file_id="$1"
 
-  if [[ "$result" == "OK" ]]; then
-    record_assertion "$label" "PASS"
-  else
-    record_assertion "$label" "FAIL" "$result"
+  if [ -n "$file_id" ] && [ "$file_id" != "null" ]; then
+    REMOTE_FILE_IDS+=("$file_id")
   fi
 }
+
+
+register_resource() {
+  local array_name="$1"
+  local resource_id="$2"
+
+  if [ -n "$resource_id" ] && [ "$resource_id" != "null" ]; then
+    eval "$array_name+=(\"\$resource_id\")"
+  fi
+}
+
 
 login() {
-  local email="$1"
-  local password="$2"
-  local payload
+  local user_label="$1"
+  local email=""
+  local password=""
+  local login_body=""
+  local login_file=""
+  local login_error_file=""
+  local login_http_code=""
+  local login_exit_code=0
+  local token=""
 
-  payload="$(EMAIL="$email" PASSWORD="$password" "$PYTHON_BIN" -c "
-import json
-import os
-print(json.dumps({'email': os.environ['EMAIL'], 'password': os.environ['PASSWORD']}))
-")"
+  read -r -p "BeeApp email for ${user_label}: " email >&2
+  read -r -s -p "BeeApp password for ${user_label}: " password >&2
+  printf '\n' >&2
 
-  api_request "Login: $email" "200" \
-    -X POST "$API_BASE/api/accounts/login/" \
-    -H "Content-Type: application/json" \
-    -d "$payload"
-}
-
-cleanup_event() {
-  local token="$1" event_id="$2" label="$3"
-  [[ -z "$event_id" ]] && return
-
-  api_request_any_status "Cleanup event: $label" "204 404" \
-    -X DELETE "$API_BASE/api/calendar/events/$event_id/" \
-    -H "Authorization: Bearer $token" >/dev/null
-}
-
-cleanup_calendar() {
-  local token="$1" calendar_id="$2" label="$3"
-  [[ -z "$calendar_id" ]] && return
-
-  api_request_any_status "Cleanup calendar: $label" "204 404" \
-    -X DELETE "$API_BASE/api/calendar/calendars/$calendar_id/" \
-    -H "Authorization: Bearer $token" >/dev/null
-}
-
-cleanup_tag() {
-  local token="$1" tag_id="$2" label="$3"
-  [[ -z "$tag_id" ]] && return
-
-  api_request_any_status "Cleanup tag: $label" "204 404" \
-    -X DELETE "$API_BASE/api/calendar/tags/$tag_id/" \
-    -H "Authorization: Bearer $token" >/dev/null
-}
-
-open_oauth_url() {
-  local provider_name="$1"
-  local url="$2"
-  local opener=""
-  local open_result=1
-
-  if [[ -z "$url" ]]; then
-    record_assertion \
-      "Integrations: ${provider_name} OAuth URL available" \
-      "FAIL" \
-      "La URL OAuth está vacía."
-    return 1
-  fi
-
-  echo
-  echo "================================================================"
-  echo "URL ${provider_name^^} OAUTH"
-  echo "================================================================"
-  printf '%s\n' "$url"
-  echo "================================================================"
-  echo
-
-  if command -v google-chrome >/dev/null 2>&1; then
-    opener="google-chrome"
-  elif command -v google-chrome-stable >/dev/null 2>&1; then
-    opener="google-chrome-stable"
-  elif command -v chromium >/dev/null 2>&1; then
-    opener="chromium"
-  elif command -v chromium-browser >/dev/null 2>&1; then
-    opener="chromium-browser"
-  elif command -v xdg-open >/dev/null 2>&1; then
-    opener="xdg-open"
-  fi
-
-  if [[ -z "$opener" ]]; then
-    record_assertion \
-      "Integrations: abrir ${provider_name} OAuth automáticamente" \
-      "SKIP" \
-      "No se encontró navegador ni xdg-open."
-    echo "Copia la URL anterior y pégala manualmente en Chrome."
-    return 1
-  fi
-
-  echo "Intentando abrir OAuth con: $opener"
-  "$opener" "$url" >/dev/null 2>&1 &
-  open_result=$?
-
-  if [[ "$open_result" -eq 0 ]]; then
-    record_assertion \
-      "Integrations: abrir ${provider_name} OAuth automáticamente" \
-      "PASS" \
-      "$opener"
-    return 0
-  fi
-
-  record_assertion \
-    "Integrations: abrir ${provider_name} OAuth automáticamente" \
-    "SKIP" \
-    "Falló $opener; abre la URL manualmente."
-  echo "Copia la URL anterior y pégala manualmente en Chrome."
-  return 1
-}
-
-find_connected_connection_id() {
-  local provider="$1"
-  local response="$2"
-
-  printf '%s' "$response" | json_value \
-    "next((
-        item.get('id', '')
-        for item in data.get('connections', [])
-        if item.get('provider') == '$provider' and item.get('status') == 'connected'
-    ), '')"
-}
-
-find_connection_status() {
-  local provider="$1"
-  local response="$2"
-
-  printf '%s' "$response" | json_value \
-    "next((
-        item.get('status', '')
-        for item in data.get('connections', [])
-        if item.get('provider') == '$provider'
-    ), '')"
-}
-
-connection_count_by_provider() {
-  local provider="$1"
-  local response="$2"
-
-  printf '%s' "$response" | json_count \
-    "[item for item in data.get('connections', []) if item.get('provider') == '$provider']"
-}
-
-external_calendar_items_expression() {
-  printf "%s" "(data.get('external_calendars') if isinstance(data.get('external_calendars'), list) else data.get('calendars', []))"
-}
-
-external_calendar_count() {
-  local response="$1"
-
-  printf '%s' "$response" | json_count "$(external_calendar_items_expression)"
-}
-
-external_calendar_count_by_provider() {
-  local provider="$1"
-  local response="$2"
-
-  printf '%s' "$response" | json_count \
-    "[item for item in $(external_calendar_items_expression) if item.get('provider') == '$provider']"
-}
-
-external_calendar_ids_by_provider() {
-  local provider="$1"
-  local response="$2"
-
-  printf '%s' "$response" | json_value \
-    "','.join(sorted(str(item.get('id', '')) for item in $(external_calendar_items_expression) if item.get('provider') == '$provider'))"
-}
-
-calendar_event_count_in_range() {
-  local token="$1"
-  local response
-
-  response="$(api_request \
-    "Calendar external discovery: count BeeApp events before/after" \
-    "200" \
-    "$API_BASE/api/calendar/events/?range_start=$RANGE_START&range_end=$RANGE_END" \
-    -H "Authorization: Bearer $token"
+  login_body="$(
+    jq -n \
+      --arg email "$email" \
+      --arg password "$password" \
+      '{email: $email, password: $password}'
   )"
 
-  printf '%s' "$response" | json_count "data.get('events', [])"
-}
-
-run_agenda_tests() {
-  local login_a_response login_b_response bootstrap_a_response bootstrap_b_response
-  local profile_a_response profile_b_response search_by_email_response
-  local secondary_calendar_response tag_response timed_event_response all_day_event_response
-  local recurrent_event_response duplicate_event_response invited_event_response accepted_event_response
-  local share_response
-
-  echo
-  echo "============================================================"
-  echo "BLOQUE 1/3 — BEEAPP AGENDA E2E"
-  echo "============================================================"
-
-  echo "[Agenda 1/18] Health check"
-  HEALTH_RESPONSE="$(api_request "Agenda: health check" "200" "$API_BASE/api/health/")"
-  HEALTH_STATUS="$(printf '%s' "$HEALTH_RESPONSE" | json_value "data.get('status', '')")"
-  assert_equals "Agenda: health payload status" "ok" "$HEALTH_STATUS"
-
-  echo "[Agenda 2/18] Login de ambos usuarios"
-  login_a_response="$(login "$USER_A_EMAIL" "$USER_A_PASSWORD")"
-  login_b_response="$(login "$USER_B_EMAIL" "$USER_B_PASSWORD")"
-
-  USER_A_TOKEN="$(printf '%s' "$login_a_response" | json_value "data.get('session', {}).get('access_token', '')")"
-  USER_A_ID="$(printf '%s' "$login_a_response" | json_value "data.get('user', {}).get('id', '')")"
-  USER_B_TOKEN="$(printf '%s' "$login_b_response" | json_value "data.get('session', {}).get('access_token', '')")"
-  USER_B_ID="$(printf '%s' "$login_b_response" | json_value "data.get('user', {}).get('id', '')")"
-
-  assert_nonempty "Agenda: User A access token extracted" "$USER_A_TOKEN" || return 1
-  assert_nonempty "Agenda: User A ID extracted" "$USER_A_ID" || return 1
-  assert_nonempty "Agenda: User B access token extracted" "$USER_B_TOKEN" || return 1
-  assert_nonempty "Agenda: User B ID extracted" "$USER_B_ID" || return 1
-
-  echo "[Agenda 3/18] Perfiles y bootstrap"
-  profile_a_response="$(api_request "Agenda: User A profile" "200" "$API_BASE/api/accounts/me/" -H "Authorization: Bearer $USER_A_TOKEN")"
-  profile_b_response="$(api_request "Agenda: User B profile" "200" "$API_BASE/api/accounts/me/" -H "Authorization: Bearer $USER_B_TOKEN")"
-  bootstrap_a_response="$(api_request "Agenda: User A bootstrap" "200" "$API_BASE/api/calendar/bootstrap/?range_start=$RANGE_START&range_end=$RANGE_END" -H "Authorization: Bearer $USER_A_TOKEN")"
-  bootstrap_b_response="$(api_request "Agenda: User B bootstrap" "200" "$API_BASE/api/calendar/bootstrap/?range_start=$RANGE_START&range_end=$RANGE_END" -H "Authorization: Bearer $USER_B_TOKEN")"
-
-  USER_A_DEFAULT_CALENDAR_ID="$(printf '%s' "$bootstrap_a_response" | json_value "next((item.get('id', '') for item in data.get('calendars', []) if item.get('is_default') is True and item.get('share_permission') == 'owner'), '')")"
-  USER_B_DEFAULT_CALENDAR_ID="$(printf '%s' "$bootstrap_b_response" | json_value "next((item.get('id', '') for item in data.get('calendars', []) if item.get('is_default') is True and item.get('share_permission') == 'owner'), '')")"
-  assert_nonempty "Agenda: User A default calendar extracted" "$USER_A_DEFAULT_CALENDAR_ID" || return 1
-  assert_nonempty "Agenda: User B default calendar extracted" "$USER_B_DEFAULT_CALENDAR_ID" || return 1
-
-  echo "[Agenda 4/18] Calendarios y preferencias"
-  api_request "Agenda: list User A calendars" "200" "$API_BASE/api/calendar/calendars/" -H "Authorization: Bearer $USER_A_TOKEN" >/dev/null
-  api_request "Agenda: get User A preferences" "200" "$API_BASE/api/calendar/preferences/" -H "Authorization: Bearer $USER_A_TOKEN" >/dev/null
-  api_request "Agenda: update User A preferences" "200" \
-    -X PATCH "$API_BASE/api/calendar/preferences/" \
-    -H "Authorization: Bearer $USER_A_TOKEN" \
-    -H "Content-Type: application/json" \
-    -d '{"default_view":"agenda","show_weekends":true,"show_declined_events":true,"default_reminders":[{"channel":"push","offset_minutes":15},{"channel":"in_app","offset_minutes":30}]}' >/dev/null
-
-  echo "[Agenda 5/18] Búsqueda de usuarios"
-  local user_b_email_encoded
-  user_b_email_encoded="$(printf '%s' "$USER_B_EMAIL" | urlencode)"
-  search_by_email_response="$(api_request "Agenda: User A searches User B by email" "200" "$API_BASE/api/calendar/users/search/?q=$user_b_email_encoded" -H "Authorization: Bearer $USER_A_TOKEN")"
-  api_request "Agenda: User A searches User B by name" "200" "$API_BASE/api/calendar/users/search/?q=Felipe" -H "Authorization: Bearer $USER_A_TOKEN" >/dev/null
-  api_request "Agenda: User A searches User B by phone suffix" "200" "$API_BASE/api/calendar/users/search/?q=3058155499" -H "Authorization: Bearer $USER_A_TOKEN" >/dev/null
-  local search_result_user_b_id
-  search_result_user_b_id="$(printf '%s' "$search_by_email_response" | json_value "data.get('users', [{}])[0].get('user_id', '')")"
-  assert_equals "Agenda: search by email returned expected User B" "$USER_B_ID" "$search_result_user_b_id"
-
-  echo "[Agenda 6/18] CRUD de calendario secundario"
-  secondary_calendar_response="$(api_request "Agenda: create secondary User A calendar" "201" \
-    -X POST "$API_BASE/api/calendar/calendars/" \
-    -H "Authorization: Bearer $USER_A_TOKEN" -H "Content-Type: application/json" \
-    -d "$(TEST_PREFIX="$TEST_PREFIX" "$PYTHON_BIN" -c "import json,os; print(json.dumps({'name':os.environ['TEST_PREFIX']+' Trabajo','description':'Calendario temporal para pruebas E2E.','color':'#2563EB','timezone':'America/Bogota'}))")")"
-  SECONDARY_CALENDAR_ID="$(printf '%s' "$secondary_calendar_response" | json_value "data.get('calendar', {}).get('id', '')")"
-  assert_nonempty "Agenda: secondary calendar ID extracted" "$SECONDARY_CALENDAR_ID"
-  api_request "Agenda: update secondary calendar" "200" \
-    -X PATCH "$API_BASE/api/calendar/calendars/$SECONDARY_CALENDAR_ID/" \
-    -H "Authorization: Bearer $USER_A_TOKEN" -H "Content-Type: application/json" \
-    -d "$(TEST_PREFIX="$TEST_PREFIX" "$PYTHON_BIN" -c "import json,os; print(json.dumps({'name':os.environ['TEST_PREFIX']+' Trabajo actualizado','color':'#0891B2'}))")" >/dev/null
-
-  echo "[Agenda 7/18] CRUD de tags"
-  tag_response="$(api_request "Agenda: create User A tag" "201" \
-    -X POST "$API_BASE/api/calendar/tags/" \
-    -H "Authorization: Bearer $USER_A_TOKEN" -H "Content-Type: application/json" \
-    -d "$(TEST_PREFIX="$TEST_PREFIX" "$PYTHON_BIN" -c "import json,os; print(json.dumps({'name':os.environ['TEST_PREFIX']+' Etiqueta','color':'#9333EA'}))")")"
-  TAG_ID="$(printf '%s' "$tag_response" | json_value "data.get('tag', {}).get('id', '')")"
-  assert_nonempty "Agenda: calendar tag ID extracted" "$TAG_ID"
-  api_request "Agenda: list User A tags" "200" "$API_BASE/api/calendar/tags/" -H "Authorization: Bearer $USER_A_TOKEN" >/dev/null
-  api_request "Agenda: update User A tag" "200" \
-    -X PATCH "$API_BASE/api/calendar/tags/$TAG_ID/" \
-    -H "Authorization: Bearer $USER_A_TOKEN" -H "Content-Type: application/json" \
-    -d "$(TEST_PREFIX="$TEST_PREFIX" "$PYTHON_BIN" -c "import json,os; print(json.dumps({'name':os.environ['TEST_PREFIX']+' Etiqueta actualizada','color':'#DB2777'}))")" >/dev/null
-
-  echo "[Agenda 8/18] Crear evento horario completo"
-  timed_event_response="$(api_request "Agenda: create timed event" "201" \
-    -X POST "$API_BASE/api/calendar/events/" \
-    -H "Authorization: Bearer $USER_A_TOKEN" -H "Content-Type: application/json" \
-    -d "$(TEST_PREFIX="$TEST_PREFIX" CALENDAR_ID="$USER_A_DEFAULT_CALENDAR_ID" TAG_ID="$TAG_ID" "$PYTHON_BIN" -c "import json,os; print(json.dumps({'calendar_id':os.environ['CALENDAR_ID'],'title':os.environ['TEST_PREFIX']+' Evento horario','description':'Evento E2E con tag, enlace y recordatorios por defecto.','event_kind':'hybrid','custom_type_name':'Prueba automatizada','color':'#6025D2','is_all_day':False,'starts_at':'2026-08-22T14:15:00-05:00','ends_at':'2026-08-22T15:45:00-05:00','starts_on':None,'ends_on':None,'timezone':'America/Bogota','location_name':'Sala E2E','location_address':'Bogotá, Colombia','location_maps_url':None,'is_private':False,'notifications_enabled':True,'tag_ids':[os.environ['TAG_ID']],'conferences':[{'provider':'external','label':'Sala virtual E2E','join_url':'https://example.com/beeapp-agenda-e2e','is_primary':True}]}))")")"
-  TIMED_EVENT_ID="$(printf '%s' "$timed_event_response" | json_value "data.get('event', {}).get('id', '')")"
-  assert_nonempty "Agenda: timed event ID extracted" "$TIMED_EVENT_ID"
-  api_request "Agenda: get timed event detail" "200" "$API_BASE/api/calendar/events/$TIMED_EVENT_ID/" -H "Authorization: Bearer $USER_A_TOKEN" >/dev/null
-
-  echo "[Agenda 9/18] Crear evento todo el día"
-  all_day_event_response="$(api_request "Agenda: create all-day event" "201" \
-    -X POST "$API_BASE/api/calendar/events/" \
-    -H "Authorization: Bearer $USER_A_TOKEN" -H "Content-Type: application/json" \
-    -d "$(TEST_PREFIX="$TEST_PREFIX" CALENDAR_ID="$USER_A_DEFAULT_CALENDAR_ID" "$PYTHON_BIN" -c "import json,os; print(json.dumps({'calendar_id':os.environ['CALENDAR_ID'],'title':os.environ['TEST_PREFIX']+' Evento todo el día','description':'Prueba de evento sin horario.','event_kind':'in_person','color':'#059669','is_all_day':True,'starts_at':None,'ends_at':None,'starts_on':'2026-08-26','ends_on':'2026-08-27','timezone':'America/Bogota','location_name':'Bogotá','location_address':'Bogotá, Colombia','location_maps_url':None,'is_private':False,'notifications_enabled':True,'reminders':[{'channel':'push','offset_minutes':60,'all_day_reminder_time':'09:00:00'}]}))")")"
-  ALL_DAY_EVENT_ID="$(printf '%s' "$all_day_event_response" | json_value "data.get('event', {}).get('id', '')")"
-  assert_nonempty "Agenda: all-day event ID extracted" "$ALL_DAY_EVENT_ID"
-
-  echo "[Agenda 10/18] Crear evento recurrente"
-  recurrent_event_response="$(api_request "Agenda: create recurring weekly event" "201" \
-    -X POST "$API_BASE/api/calendar/events/" \
-    -H "Authorization: Bearer $USER_A_TOKEN" -H "Content-Type: application/json" \
-    -d "$(TEST_PREFIX="$TEST_PREFIX" CALENDAR_ID="$USER_A_DEFAULT_CALENDAR_ID" "$PYTHON_BIN" -c "import json,os; print(json.dumps({'calendar_id':os.environ['CALENDAR_ID'],'title':os.environ['TEST_PREFIX']+' Evento recurrente','description':'Prueba de RRULE semanal.','event_kind':'virtual','color':'#9333EA','is_all_day':False,'starts_at':'2026-08-24T08:30:00-05:00','ends_at':'2026-08-24T09:00:00-05:00','starts_on':None,'ends_on':None,'timezone':'America/Bogota','location_name':None,'location_address':None,'location_maps_url':None,'is_private':False,'notifications_enabled':False,'recurrence':{'rrule':'FREQ=WEEKLY;INTERVAL=1;BYDAY=MO','frequency':'weekly','interval_count':1,'week_days':[1],'timezone':'America/Bogota'}}))")")"
-  RECURRENT_EVENT_ID="$(printf '%s' "$recurrent_event_response" | json_value "data.get('event', {}).get('id', '')")"
-  assert_nonempty "Agenda: recurring event ID extracted" "$RECURRENT_EVENT_ID"
-
-  echo "[Agenda 11/18] Listado, filtros, búsqueda y conflictos"
-  api_request "Agenda: list User A events by range" "200" "$API_BASE/api/calendar/events/?range_start=$RANGE_START&range_end=$RANGE_END" -H "Authorization: Bearer $USER_A_TOKEN" >/dev/null
-  api_request "Agenda: filter User A events by tag" "200" "$API_BASE/api/calendar/events/?range_start=$RANGE_START&range_end=$RANGE_END&tag_ids=$TAG_ID" -H "Authorization: Bearer $USER_A_TOKEN" >/dev/null
-  local search_event_encoded
-  search_event_encoded="$(printf '%s' "$TEST_PREFIX Evento horario" | urlencode)"
-  api_request "Agenda: search User A events by title" "200" "$API_BASE/api/calendar/events/?range_start=$RANGE_START&range_end=$RANGE_END&search=$search_event_encoded" -H "Authorization: Bearer $USER_A_TOKEN" >/dev/null
-  api_request "Agenda: detect conflict with timed event" "200" "$API_BASE/api/calendar/conflicts/?is_all_day=false&starts_at=2026-08-22T14%3A30%3A00-05%3A00&ends_at=2026-08-22T15%3A00%3A00-05%3A00" -H "Authorization: Bearer $USER_A_TOKEN" >/dev/null
-
-  echo "[Agenda 12/18] Editar eventos"
-  api_request "Agenda: update timed event schedule" "200" \
-    -X PATCH "$API_BASE/api/calendar/events/$TIMED_EVENT_ID/" \
-    -H "Authorization: Bearer $USER_A_TOKEN" -H "Content-Type: application/json" \
-    -d "$(TEST_PREFIX="$TEST_PREFIX" "$PYTHON_BIN" -c "import json,os; print(json.dumps({'title':os.environ['TEST_PREFIX']+' Evento horario actualizado','description':'Evento actualizado durante pruebas E2E.','is_all_day':False,'starts_at':'2026-08-22T16:00:00-05:00','ends_at':'2026-08-22T17:30:00-05:00','starts_on':None,'ends_on':None}))")" >/dev/null
-  api_request "Agenda: update all-day event schedule" "200" \
-    -X PATCH "$API_BASE/api/calendar/events/$ALL_DAY_EVENT_ID/" \
-    -H "Authorization: Bearer $USER_A_TOKEN" -H "Content-Type: application/json" \
-    -d '{"is_all_day":true,"starts_at":null,"ends_at":null,"starts_on":"2026-08-28","ends_on":"2026-08-29"}' >/dev/null
-
-  echo "[Agenda 13/18] Duplicar evento"
-  duplicate_event_response="$(api_request "Agenda: duplicate timed event" "201" \
-    -X POST "$API_BASE/api/calendar/events/$TIMED_EVENT_ID/duplicate/" \
-    -H "Authorization: Bearer $USER_A_TOKEN" -H "Content-Type: application/json" \
-    -d '{"starts_at":"2026-08-31T16:00:00-05:00","ends_at":"2026-08-31T17:30:00-05:00","include_attendees":false,"include_reminders":false,"include_recurrence":false}')"
-  DUPLICATE_EVENT_ID="$(printf '%s' "$duplicate_event_response" | json_value "data.get('event', {}).get('id', '')")"
-  assert_nonempty "Agenda: duplicate event ID extracted" "$DUPLICATE_EVENT_ID"
-
-  echo "[Agenda 14/18] Invitación y RSVP rechazar"
-  invited_event_response="$(api_request "Agenda: create event inviting User B" "201" \
-    -X POST "$API_BASE/api/calendar/events/" \
-    -H "Authorization: Bearer $USER_A_TOKEN" -H "Content-Type: application/json" \
-    -d "$(TEST_PREFIX="$TEST_PREFIX" CALENDAR_ID="$USER_A_DEFAULT_CALENDAR_ID" USER_B_ID="$USER_B_ID" "$PYTHON_BIN" -c "import json,os; print(json.dumps({'calendar_id':os.environ['CALENDAR_ID'],'title':os.environ['TEST_PREFIX']+' Invitación para RSVP','description':'Prueba RSVP aceptar/rechazar.','event_kind':'virtual','color':'#DC2626','is_all_day':False,'starts_at':'2026-08-27T10:00:00-05:00','ends_at':'2026-08-27T11:00:00-05:00','starts_on':None,'ends_on':None,'timezone':'America/Bogota','location_name':None,'location_address':None,'location_maps_url':None,'is_private':False,'notifications_enabled':True,'attendee_ids':[os.environ['USER_B_ID']]}))")")"
-  INVITED_EVENT_ID="$(printf '%s' "$invited_event_response" | json_value "data.get('event', {}).get('id', '')")"
-  assert_nonempty "Agenda: invited event ID extracted" "$INVITED_EVENT_ID"
-  api_request "Agenda: User B sees invited event in bootstrap" "200" "$API_BASE/api/calendar/bootstrap/?range_start=$RANGE_START&range_end=$RANGE_END" -H "Authorization: Bearer $USER_B_TOKEN" >/dev/null
-  api_request "Agenda: User B declines event invitation" "200" \
-    -X POST "$API_BASE/api/calendar/events/$INVITED_EVENT_ID/rsvp/" \
-    -H "Authorization: Bearer $USER_B_TOKEN" -H "Content-Type: application/json" \
-    -d '{"response_status":"declined"}' >/dev/null
-  api_request "Agenda: User B hides declined event" "200" \
-    -X PATCH "$API_BASE/api/calendar/events/$INVITED_EVENT_ID/declined-visibility/" \
-    -H "Authorization: Bearer $USER_B_TOKEN" -H "Content-Type: application/json" \
-    -d '{"hidden":true}' >/dev/null
-  api_request "Agenda: User B restores declined event visibility" "200" \
-    -X PATCH "$API_BASE/api/calendar/events/$INVITED_EVENT_ID/declined-visibility/" \
-    -H "Authorization: Bearer $USER_B_TOKEN" -H "Content-Type: application/json" \
-    -d '{"hidden":false}' >/dev/null
-
-  echo "[Agenda 15/18] Invitación y RSVP aceptar"
-  accepted_event_response="$(api_request "Agenda: create second event inviting User B" "201" \
-    -X POST "$API_BASE/api/calendar/events/" \
-    -H "Authorization: Bearer $USER_A_TOKEN" -H "Content-Type: application/json" \
-    -d "$(TEST_PREFIX="$TEST_PREFIX" CALENDAR_ID="$USER_A_DEFAULT_CALENDAR_ID" USER_B_ID="$USER_B_ID" "$PYTHON_BIN" -c "import json,os; print(json.dumps({'calendar_id':os.environ['CALENDAR_ID'],'title':os.environ['TEST_PREFIX']+' Invitación aceptada','description':'Prueba de solicitud aprobada.','event_kind':'virtual','color':'#2563EB','is_all_day':False,'starts_at':'2026-08-28T10:00:00-05:00','ends_at':'2026-08-28T11:00:00-05:00','starts_on':None,'ends_on':None,'timezone':'America/Bogota','location_name':None,'location_address':None,'location_maps_url':None,'is_private':False,'notifications_enabled':True,'attendee_ids':[os.environ['USER_B_ID']]}))")")"
-  ACCEPTED_EVENT_ID="$(printf '%s' "$accepted_event_response" | json_value "data.get('event', {}).get('id', '')")"
-  assert_nonempty "Agenda: accepted event ID extracted" "$ACCEPTED_EVENT_ID"
-  api_request "Agenda: User B accepts second invitation" "200" \
-    -X POST "$API_BASE/api/calendar/events/$ACCEPTED_EVENT_ID/rsvp/" \
-    -H "Authorization: Bearer $USER_B_TOKEN" -H "Content-Type: application/json" \
-    -d '{"response_status":"accepted"}' >/dev/null
-  api_request "Agenda: User B requests existing organizer (validation)" "400" \
-    -X POST "$API_BASE/api/calendar/events/$ACCEPTED_EVENT_ID/invitee-requests/" \
-    -H "Authorization: Bearer $USER_B_TOKEN" -H "Content-Type: application/json" \
-    -d "$(USER_A_ID="$USER_A_ID" "$PYTHON_BIN" -c "import json,os; print(json.dumps({'requested_user_id':os.environ['USER_A_ID'],'note':'El organizador ya existe; esta prueba debe fallar.'}))")" >/dev/null
-  api_request "Agenda: User A lists invitee requests" "200" "$API_BASE/api/calendar/events/$ACCEPTED_EVENT_ID/invitee-requests/" -H "Authorization: Bearer $USER_A_TOKEN" >/dev/null
-
-  echo "[Agenda 16/18] Expulsar asistente"
-  api_request "Agenda: User A removes User B" "200" \
-    -X DELETE "$API_BASE/api/calendar/events/$ACCEPTED_EVENT_ID/attendees/" \
-    -H "Authorization: Bearer $USER_A_TOKEN" -H "Content-Type: application/json" \
-    -d "$(USER_B_ID="$USER_B_ID" "$PYTHON_BIN" -c "import json,os; print(json.dumps({'attendee_user_id':os.environ['USER_B_ID']}))")" >/dev/null
-
-  echo "[Agenda 17/18] Compartir calendario"
-  share_response="$(api_request "Agenda: User A shares secondary calendar" "201" \
-    -X POST "$API_BASE/api/calendar/calendars/$SECONDARY_CALENDAR_ID/shares/" \
-    -H "Authorization: Bearer $USER_A_TOKEN" -H "Content-Type: application/json" \
-    -d "$(USER_B_ID="$USER_B_ID" "$PYTHON_BIN" -c "import json,os; print(json.dumps({'shared_with_user_id':os.environ['USER_B_ID'],'permission':'viewer'}))")")"
-  SHARE_ID="$(printf '%s' "$share_response" | json_value "data.get('share', {}).get('id', '')")"
-  assert_nonempty "Agenda: calendar share ID extracted" "$SHARE_ID"
-  api_request "Agenda: User A lists shares" "200" "$API_BASE/api/calendar/calendars/$SECONDARY_CALENDAR_ID/shares/" -H "Authorization: Bearer $USER_A_TOKEN" >/dev/null
-  api_request "Agenda: User B accepts calendar share" "200" -X POST "$API_BASE/api/calendar/calendar-shares/$SHARE_ID/accept/" -H "Authorization: Bearer $USER_B_TOKEN" >/dev/null
-  api_request "Agenda: User B lists calendars after share" "200" "$API_BASE/api/calendar/calendars/" -H "Authorization: Bearer $USER_B_TOKEN" >/dev/null
-  api_request "Agenda: User A revokes calendar share" "200" -X POST "$API_BASE/api/calendar/calendar-shares/$SHARE_ID/revoke/" -H "Authorization: Bearer $USER_A_TOKEN" >/dev/null
-
-  echo "[Agenda 18/18] Notificaciones y limpieza"
-  api_request "Agenda: list User A calendar notifications" "200" "$API_BASE/api/notifications/?module=calendar&unread_only=false&limit=100" -H "Authorization: Bearer $USER_A_TOKEN" >/dev/null
-  api_request "Agenda: list User B calendar notifications" "200" "$API_BASE/api/notifications/?module=calendar&unread_only=false&limit=100" -H "Authorization: Bearer $USER_B_TOKEN" >/dev/null
-
-  cleanup_event "$USER_A_TOKEN" "${INVITED_EVENT_ID:-}" "RSVP declined event"
-  cleanup_event "$USER_A_TOKEN" "${ACCEPTED_EVENT_ID:-}" "accepted invitation event"
-  cleanup_event "$USER_A_TOKEN" "${DUPLICATE_EVENT_ID:-}" "duplicate event"
-  cleanup_event "$USER_A_TOKEN" "${RECURRENT_EVENT_ID:-}" "recurring event"
-  cleanup_event "$USER_A_TOKEN" "${ALL_DAY_EVENT_ID:-}" "all-day event"
-  cleanup_event "$USER_A_TOKEN" "${TIMED_EVENT_ID:-}" "timed event"
-  cleanup_calendar "$USER_A_TOKEN" "${SECONDARY_CALENDAR_ID:-}" "secondary test calendar"
-  cleanup_tag "$USER_A_TOKEN" "${TAG_ID:-}" "test tag"
-}
-
-run_integrations_tests() {
-  local login_response catalog_response connections_response
-  local google_auth_response microsoft_auth_response
-  local google_status microsoft_status
-  local google_auth_url google_request_id google_expires_at
-  local microsoft_auth_url microsoft_request_id microsoft_expires_at
-  local google_connection_id microsoft_connection_id
-  local detail_response reauth_response disconnected_detail_response
-  local detail_provider detail_status detail_email reauth_url
-  local disconnected_status run_google_oauth run_microsoft_oauth
-  local required_scope elapsed_seconds provider_name connection_id
-
-  echo
-  echo "============================================================"
-  echo "BLOQUE 2/3 — BEEAPP INTEGRACIONES E2E"
-  echo "============================================================"
-
-  echo "[Integraciones 1/12] Health check"
-  HEALTH_RESPONSE="$(api_request "Integrations: health check" "200" "$API_BASE/api/health/")"
-  HEALTH_STATUS="$(printf '%s' "$HEALTH_RESPONSE" | json_value "data.get('status', '')")"
-  assert_equals "Integrations: health payload status" "ok" "$HEALTH_STATUS"
-
-  echo "[Integraciones 2/12] Login"
-  login_response="$(login "$INTEGRATIONS_USER_EMAIL" "$INTEGRATIONS_USER_PASSWORD")"
-  INTEGRATIONS_ACCESS_TOKEN="$(printf '%s' "$login_response" | json_value "data.get('session', {}).get('access_token', '')")"
-  assert_nonempty "Integrations: access token extracted" "$INTEGRATIONS_ACCESS_TOKEN" || return 1
-
-  echo "[Integraciones 3/12] Seguridad sin credenciales"
-  api_request "Integrations: catalog without credentials" "401" "$API_BASE/api/integrations/catalog/" >/dev/null
-  api_request "Integrations: connections without credentials" "401" "$API_BASE/api/integrations/connections/" >/dev/null
-  api_request "Integrations: Google authorization without credentials" "401" \
-    -X POST "$API_BASE/api/integrations/connections/google/authorize/" \
-    -H "Content-Type: application/json" -d '{"capabilities":[]}' >/dev/null
-  api_request "Integrations: Microsoft authorization without credentials" "401" \
-    -X POST "$API_BASE/api/integrations/connections/microsoft/authorize/" \
-    -H "Content-Type: application/json" -d '{"capabilities":[]}' >/dev/null
-
-  echo "[Integraciones 4/12] Catálogo Google y Microsoft"
-  catalog_response="$(api_request "Integrations: integration catalog" "200" "$API_BASE/api/integrations/catalog/" -H "Authorization: Bearer $INTEGRATIONS_ACCESS_TOKEN")"
-  google_status="$(printf '%s' "$catalog_response" | json_value "next((item.get('status', '') for item in data.get('providers', []) if item.get('id') == 'google'), '')")"
-  microsoft_status="$(printf '%s' "$catalog_response" | json_value "next((item.get('status', '') for item in data.get('providers', []) if item.get('id') == 'microsoft'), '')")"
-  assert_equals "Integrations: Google appears as available" "available" "$google_status"
-  assert_equals "Integrations: Microsoft appears as available" "available" "$microsoft_status"
-  assert_no_sensitive_keys "Integrations: catalog does not expose secrets" "$catalog_response"
-
-  echo "[Integraciones 5/12] Lista segura de conexiones"
-  connections_response="$(api_request "Integrations: connection list" "200" "$API_BASE/api/integrations/connections/" -H "Authorization: Bearer $INTEGRATIONS_ACCESS_TOKEN")"
-  assert_no_sensitive_keys "Integrations: connection list does not expose tokens" "$connections_response"
-
-  echo "[Integraciones 6/12] Validaciones de payload"
-  api_request "Integrations: Google capabilities must be an array" "400" \
-    -X POST "$API_BASE/api/integrations/connections/google/authorize/" \
-    -H "Authorization: Bearer $INTEGRATIONS_ACCESS_TOKEN" -H "Content-Type: application/json" \
-    -d '{"capabilities":"calendar"}' >/dev/null
-  api_request "Integrations: Microsoft capabilities must be an array" "400" \
-    -X POST "$API_BASE/api/integrations/connections/microsoft/authorize/" \
-    -H "Authorization: Bearer $INTEGRATIONS_ACCESS_TOKEN" -H "Content-Type: application/json" \
-    -d '{"capabilities":"mail"}' >/dev/null
-
-  echo "[Integraciones 7/12] Inicio OAuth Google"
-  google_auth_response="$(api_request "Integrations: start Google OAuth authorization" "201" \
-    -X POST "$API_BASE/api/integrations/connections/google/authorize/" \
-    -H "Authorization: Bearer $INTEGRATIONS_ACCESS_TOKEN" -H "Content-Type: application/json" \
-    -d '{"capabilities":["calendar"]}')"
-  google_auth_url="$(printf '%s' "$google_auth_response" | json_value "data.get('authorization_url', '')")"
-  google_request_id="$(printf '%s' "$google_auth_response" | json_value "data.get('request_id', '')")"
-  google_expires_at="$(printf '%s' "$google_auth_response" | json_value "data.get('expires_at', '')")"
-  assert_nonempty "Integrations: Google authorization URL extracted" "$google_auth_url"
-  assert_nonempty "Integrations: Google OAuth request ID extracted" "$google_request_id"
-  assert_nonempty "Integrations: Google OAuth expiration extracted" "$google_expires_at"
-  if [[ "$google_auth_url" == https://accounts.google.com/* ]]; then
-    record_assertion "Integrations: Google authorization endpoint is official" "PASS"
-  else
-    record_assertion "Integrations: Google authorization endpoint is official" "FAIL" "Expected https://accounts.google.com/"
-  fi
-
-  echo "[Integraciones 8/12] Inicio OAuth Microsoft"
-  microsoft_auth_response="$(api_request "Integrations: start Microsoft OAuth authorization" "201" \
-    -X POST "$API_BASE/api/integrations/connections/microsoft/authorize/" \
-    -H "Authorization: Bearer $INTEGRATIONS_ACCESS_TOKEN" -H "Content-Type: application/json" \
-    -d '{"capabilities":["calendar"]}')"
-  microsoft_auth_url="$(printf '%s' "$microsoft_auth_response" | json_value "data.get('authorization_url', '')")"
-  microsoft_request_id="$(printf '%s' "$microsoft_auth_response" | json_value "data.get('request_id', '')")"
-  microsoft_expires_at="$(printf '%s' "$microsoft_auth_response" | json_value "data.get('expires_at', '')")"
-  assert_nonempty "Integrations: Microsoft authorization URL extracted" "$microsoft_auth_url"
-  assert_nonempty "Integrations: Microsoft OAuth request ID extracted" "$microsoft_request_id"
-  assert_nonempty "Integrations: Microsoft OAuth expiration extracted" "$microsoft_expires_at"
-  if [[ "$microsoft_auth_url" == https://login.microsoftonline.com/* ]]; then
-    record_assertion "Integrations: Microsoft authorization endpoint is official" "PASS"
-  else
-    record_assertion "Integrations: Microsoft authorization endpoint is official" "FAIL" "Expected https://login.microsoftonline.com/"
-  fi
-  for required_scope in openid profile email offline_access User.Read Calendars.Read; do
-    if [[ "$microsoft_auth_url" == *"$required_scope"* ]]; then
-      record_assertion "Integrations: Microsoft OAuth includes $required_scope" "PASS"
-    else
-      record_assertion "Integrations: Microsoft OAuth includes $required_scope" "FAIL"
-    fi
-  done
-
-  echo "[Integraciones 9/12] Callbacks OAuth inválidos y seguros"
-  api_request_any_status "Integrations: Google callback without parameters redirects safely" "301 302" "$API_BASE/api/integrations/oauth/callback/google/" >/dev/null
-  api_request_any_status "Integrations: Google callback invalid state redirects safely" "301 302" "$API_BASE/api/integrations/oauth/callback/google/?code=fake-code&state=invalid-state" >/dev/null
-  api_request_any_status "Integrations: Microsoft callback without parameters redirects safely" "301 302" "$API_BASE/api/integrations/oauth/callback/microsoft/" >/dev/null
-  api_request_any_status "Integrations: Microsoft callback invalid state redirects safely" "301 302" "$API_BASE/api/integrations/oauth/callback/microsoft/?code=fake-code&state=invalid-state" >/dev/null
-
-  echo "[Integraciones 10/12] OAuth real Google opcional"
-  read -r -p "¿Abrir Google OAuth ahora? [y/N]: " run_google_oauth
-  google_connection_id=""
-
-  if [[ "$run_google_oauth" =~ ^[Yy]$ ]]; then
-    echo "Completa el login y consentimiento Google en el navegador."
-    open_oauth_url "Google" "$google_auth_url" || true
-    read -r -p "Cuando termines Google OAuth, presiona Enter para verificar... " _
-
-    connections_response="$(api_request "Integrations: list connections after Google OAuth" "200" "$API_BASE/api/integrations/connections/" -H "Authorization: Bearer $INTEGRATIONS_ACCESS_TOKEN")"
-    google_connection_id="$(find_connected_connection_id "google" "$connections_response")"
-    assert_nonempty "Integrations: connected Google connection ID exists" "$google_connection_id"
-    assert_no_sensitive_keys "Integrations: Google connections after OAuth do not expose tokens" "$connections_response"
-  else
-    record_assertion "Integrations: real Google OAuth" "SKIP" "El usuario eligió no iniciar Google OAuth."
-  fi
-
-  echo "[Integraciones 11/12] OAuth real Microsoft opcional"
-  read -r -p "¿Abrir Microsoft OAuth ahora? [y/N]: " run_microsoft_oauth
-  microsoft_connection_id=""
-
-  if [[ "$run_microsoft_oauth" =~ ^[Yy]$ ]]; then
-    echo "Completa el login y consentimiento Microsoft en el navegador."
-    open_oauth_url "Microsoft" "$microsoft_auth_url" || true
-    read -r -p "Cuando termines Microsoft OAuth, presiona Enter para verificar... " _
-
-    elapsed_seconds=0
-    while [[ "$elapsed_seconds" -lt "$OAUTH_TIMEOUT_SECONDS" ]]; do
-      connections_response="$(api_request "Integrations: poll connections after Microsoft OAuth" "200" "$API_BASE/api/integrations/connections/" -H "Authorization: Bearer $INTEGRATIONS_ACCESS_TOKEN")"
-      microsoft_connection_id="$(find_connected_connection_id "microsoft" "$connections_response")"
-      [[ -n "$microsoft_connection_id" ]] && break
-      sleep "$OAUTH_POLL_SECONDS"
-      elapsed_seconds=$((elapsed_seconds + OAUTH_POLL_SECONDS))
-      printf '\rEsperando conexión Microsoft... %ss/%ss' "$elapsed_seconds" "$OAUTH_TIMEOUT_SECONDS"
-    done
-    echo
-    assert_nonempty "Integrations: connected Microsoft connection ID exists" "$microsoft_connection_id"
-    assert_no_sensitive_keys "Integrations: Microsoft connections after OAuth do not expose tokens" "$connections_response"
-
-    if [[ -n "$microsoft_connection_id" ]]; then
-      record_assertion "Integrations: Microsoft OAuth session completed" "PASS" "Se detectó conexión Microsoft connected: $microsoft_connection_id."
-    else
-      microsoft_existing_status="$(find_connection_status "microsoft" "$connections_response")"
-      if [[ -n "$microsoft_existing_status" ]]; then
-        record_assertion "Integrations: Microsoft OAuth session completed" "FAIL" "El usuario abrió Microsoft OAuth, pero la conexión no quedó connected (estado=$microsoft_existing_status). Revisa consentimiento, callback, redirect URI, túnel Cloudflare, scopes Calendars.Read y logs Django."
-      else
-        record_assertion "Integrations: Microsoft OAuth session completed" "FAIL" "El usuario abrió Microsoft OAuth, pero no se creó ninguna conexión Microsoft. Posibles causas: consentimiento cancelado, callback no llegó al backend, redirect URI incorrecto, túnel Cloudflare caído o error de Microsoft."
-      fi
-    fi
-  else
-    connections_response="$(api_request "Integrations: list existing connections before calendar tests" "200" "$API_BASE/api/integrations/connections/" -H "Authorization: Bearer $INTEGRATIONS_ACCESS_TOKEN")"
-    microsoft_connection_id="$(find_connected_connection_id "microsoft" "$connections_response")"
-    if [[ -n "$microsoft_connection_id" ]]; then
-      record_assertion "Integrations: Microsoft OAuth not started in this run" "SKIP" "El usuario eligió no abrir OAuth; se reutilizará la conexión Microsoft connected existente: $microsoft_connection_id."
-      record_assertion "Integrations: reuses existing Microsoft connection" "PASS" "$microsoft_connection_id"
-    else
-      microsoft_existing_status="$(find_connection_status "microsoft" "$connections_response")"
-      if [[ -n "$microsoft_existing_status" ]]; then
-        record_assertion "Integrations: Microsoft OAuth not started in this run" "SKIP" "El usuario eligió no abrir OAuth. Existe una conexión Microsoft pero no está connected (estado=$microsoft_existing_status). Discovery se omite; reautoriza Microsoft."
-      else
-        record_assertion "Integrations: Microsoft OAuth not started in this run" "SKIP" "El usuario eligió no abrir OAuth y no existe ninguna conexión Microsoft. Discovery se omite."
-      fi
-    fi
-  fi
-
-  echo "[Integraciones 12/12] Detalle, reautorización y desconexión"
-  for provider_connection in "google:$google_connection_id" "microsoft:$microsoft_connection_id"; do
-    provider_name="${provider_connection%%:*}"
-    connection_id="${provider_connection#*:}"
-    [[ -z "$connection_id" ]] && continue
-
-    detail_response="$(api_request "Integrations: ${provider_name} connection detail" "200" "$API_BASE/api/integrations/connections/$connection_id/" -H "Authorization: Bearer $INTEGRATIONS_ACCESS_TOKEN")"
-    detail_provider="$(printf '%s' "$detail_response" | json_value "data.get('connection', {}).get('provider', '')")"
-    detail_status="$(printf '%s' "$detail_response" | json_value "data.get('connection', {}).get('status', '')")"
-    detail_email="$(printf '%s' "$detail_response" | json_value "data.get('connection', {}).get('provider_email', '')")"
-
-    assert_equals "Integrations: ${provider_name} provider is persisted" "$provider_name" "$detail_provider"
-    assert_equals "Integrations: ${provider_name} status is persisted" "connected" "$detail_status"
-    assert_nonempty "Integrations: ${provider_name} account email is persisted" "$detail_email"
-    assert_no_sensitive_keys "Integrations: ${provider_name} detail does not expose tokens" "$detail_response"
-
-    reauth_response="$(api_request "Integrations: start ${provider_name} reauthorization" "201" \
-      -X POST "$API_BASE/api/integrations/connections/$connection_id/reauthorize/" \
-      -H "Authorization: Bearer $INTEGRATIONS_ACCESS_TOKEN" -H "Content-Type: application/json" \
-      -d '{"capabilities":["calendar"]}')"
-    reauth_url="$(printf '%s' "$reauth_response" | json_value "data.get('authorization_url', '')")"
-    assert_nonempty "Integrations: ${provider_name} reauthorization URL extracted" "$reauth_url"
-
-    if [[ "$provider_name" == "google" && "$reauth_url" == https://accounts.google.com/* ]]; then
-      record_assertion "Integrations: Google reauthorization endpoint is official" "PASS"
-    elif [[ "$provider_name" == "microsoft" && "$reauth_url" == https://login.microsoftonline.com/* ]]; then
-      record_assertion "Integrations: Microsoft reauthorization endpoint is official" "PASS"
-    else
-      record_assertion "Integrations: ${provider_name} reauthorization endpoint is official" "FAIL"
-    fi
-
-    read -r -p "¿Deseas desconectar ${provider_name} de prueba? [y/N]: " RUN_DISCONNECT
-    if [[ "$RUN_DISCONNECT" =~ ^[Yy]$ ]]; then
-      api_request "Integrations: disconnect ${provider_name} connection" "204" \
-        -X DELETE "$API_BASE/api/integrations/connections/$connection_id/" \
-        -H "Authorization: Bearer $INTEGRATIONS_ACCESS_TOKEN" >/dev/null
-
-      disconnected_detail_response="$(api_request "Integrations: get disconnected ${provider_name} detail" "200" "$API_BASE/api/integrations/connections/$connection_id/" -H "Authorization: Bearer $INTEGRATIONS_ACCESS_TOKEN")"
-      disconnected_status="$(printf '%s' "$disconnected_detail_response" | json_value "data.get('connection', {}).get('status', '')")"
-      assert_equals "Integrations: ${provider_name} disconnected status is persisted" "disconnected" "$disconnected_status"
-      if [[ "$provider_name" == "microsoft" ]]; then
-        microsoft_connection_id=""
-      fi
-    else
-      record_assertion "Integrations: ${provider_name} disconnect endpoint" "SKIP" "La conexión se conserva para pruebas posteriores."
-    fi
-  done
-
-  EXTERNAL_CALENDAR_MICROSOFT_CONNECTION_ID="$microsoft_connection_id"
-}
-
-run_external_calendar_tests() {
-  local integrations_response external_list_before_response external_list_after_response external_list_repeat_response
-  local discovery_response discovery_repeat_response calendar_list_before_response calendar_list_after_response
-  local calendar_integrations_status microsoft_calendar_status google_calendar_status
-  local before_external_total before_microsoft_external after_microsoft_external repeat_microsoft_external
-  local before_microsoft_ids after_microsoft_ids repeat_microsoft_ids
-  local before_beeapp_calendar_count after_beeapp_calendar_count
-  local events_before events_after discovery_count discovered_provider discovery_connection_id
-  local microsoft_connection_status google_connection_status
-
-  echo
-  echo "============================================================"
-  echo "BLOQUE 3/3 — CALENDARIOS EXTERNOS Y DISCOVERY E2E"
-  echo "============================================================"
-
-  if [[ -z "${INTEGRATIONS_ACCESS_TOKEN:-}" ]]; then
-    record_assertion "External calendars: critical authentication prerequisite" "FAIL" "No existe token de Integraciones."
-    return 1
-  fi
-
-  echo "[External calendars 1/12] Seguridad sin credenciales"
-  # Se usa un UUID sintácticamente válido: AuthenticatedAPIView debe rechazar
-  # antes de buscar la integración, por eso se esperan 401 en ambas rutas.
-  EXTERNAL_CALENDAR_TEST_INTEGRATION_ID="00000000-0000-0000-0000-000000000000"
-  api_request "External calendars: integrations without credentials" "401" "$API_BASE/api/calendar/integrations/" >/dev/null
-  api_request "External calendars: list without credentials" "401" \
-    "$API_BASE/api/calendar/integrations/$EXTERNAL_CALENDAR_TEST_INTEGRATION_ID/external-calendars/" >/dev/null
-  api_request "External calendars: discovery without credentials" "401" \
-    -X POST "$API_BASE/api/calendar/integrations/$EXTERNAL_CALENDAR_TEST_INTEGRATION_ID/discover-calendars/" >/dev/null
-
-  echo "[External calendars 2/12] Estado seguro de integraciones de Agenda"
-  integrations_response="$(api_request "External calendars: calendar integrations list" "200" "$API_BASE/api/calendar/integrations/" -H "Authorization: Bearer $INTEGRATIONS_ACCESS_TOKEN")"
-  assert_no_sensitive_keys "External calendars: calendar integrations do not expose tokens" "$integrations_response"
-
-  microsoft_calendar_status="$(printf '%s' "$integrations_response" | json_value "next((item.get('status', '') for item in data.get('integrations', data.get('connections', [])) if item.get('provider') == 'microsoft'), '')")"
-  google_calendar_status="$(printf '%s' "$integrations_response" | json_value "next((item.get('status', '') for item in data.get('integrations', data.get('connections', [])) if item.get('provider') == 'google'), '')")"
-  microsoft_connection_status="$(printf '%s' "$integrations_response" | json_value "next((item.get('connection_status', item.get('status', '')) for item in data.get('integrations', data.get('connections', [])) if item.get('provider') == 'microsoft'), '')")"
-  google_connection_status="$(printf '%s' "$integrations_response" | json_value "next((item.get('connection_status', item.get('status', '')) for item in data.get('integrations', data.get('connections', [])) if item.get('provider') == 'google'), '')")"
-
-  if [[ -n "$microsoft_calendar_status" || -n "$microsoft_connection_status" ]]; then
-    record_assertion "External calendars: Microsoft integration is represented in Agenda" "PASS" "status=${microsoft_calendar_status:-$microsoft_connection_status}"
-  else
-    record_assertion "External calendars: Microsoft integration is represented in Agenda" "FAIL" "No se encontró Microsoft en /api/calendar/integrations/."
-  fi
-
-  if [[ -n "$google_calendar_status" || -n "$google_connection_status" ]]; then
-    record_assertion "External calendars: Google integration is represented in Agenda" "PASS" "status=${google_calendar_status:-$google_connection_status}"
-  else
-    record_assertion "External calendars: Google integration is represented in Agenda" "SKIP" "No existe conexión Google o no se incluyó en el listado."
-  fi
-
-  echo "[External calendars 3/12] Precondición Microsoft y listado externo inicial"
-  if [[ -z "${EXTERNAL_CALENDAR_MICROSOFT_CONNECTION_ID:-}" ]]; then
-    record_assertion "External calendars: list before discovery" "SKIP" "No existe conexión Microsoft connected; el listado es por integration_id."
-    record_assertion "External calendars: list before discovery does not expose tokens" "SKIP" "No existe conexión Microsoft connected."
-    record_assertion "External calendars: existing records have required public shape" "SKIP" "No existe conexión Microsoft connected."
-    record_assertion "External calendars: Microsoft connection prerequisite" "SKIP" "No se completó OAuth Microsoft ni hay una conexión Microsoft previa."
-    record_assertion "External calendars: Microsoft discovery" "SKIP" "No se puede ejecutar sin conexión Microsoft connected."
-    record_assertion "External calendars: discovery idempotency" "SKIP" "No se puede ejecutar sin conexión Microsoft connected."
-    record_assertion "External calendars: discovery does not import events" "SKIP" "No se puede ejecutar sin conexión Microsoft connected."
-    return 0
-  fi
-
-  external_list_before_response="$(api_request "External calendars: list before discovery" "200" "$API_BASE/api/calendar/integrations/$EXTERNAL_CALENDAR_MICROSOFT_CONNECTION_ID/external-calendars/" -H "Authorization: Bearer $INTEGRATIONS_ACCESS_TOKEN")"
-  assert_no_sensitive_keys "External calendars: list before discovery does not expose tokens" "$external_list_before_response"
-  assert_all_external_calendars_shape "External calendars: existing records have required public shape" "$external_list_before_response"
-  before_external_total="$(external_calendar_count "$external_list_before_response")"
-  before_microsoft_external="$(external_calendar_count_by_provider "microsoft" "$external_list_before_response")"
-  before_microsoft_ids="$(external_calendar_ids_by_provider "microsoft" "$external_list_before_response")"
-
-  calendar_list_before_response="$(api_request "External calendars: BeeApp calendars before discovery" "200" "$API_BASE/api/calendar/calendars/" -H "Authorization: Bearer $INTEGRATIONS_ACCESS_TOKEN")"
-  assert_no_sensitive_keys "External calendars: BeeApp calendars before discovery do not expose secrets" "$calendar_list_before_response"
-  before_beeapp_calendar_count="$(printf '%s' "$calendar_list_before_response" | json_count "data.get('calendars', [])")"
-
-  echo "[External calendars 4/12] Validaciones de discovery"
-  api_request_any_status "External calendars: invalid integration discovery is rejected" "400 404" \
-    -X POST "$API_BASE/api/calendar/integrations/00000000-0000-0000-0000-000000000000/discover-calendars/" \
-    -H "Authorization: Bearer $INTEGRATIONS_ACCESS_TOKEN" >/dev/null
-
-  if [[ -z "${EXTERNAL_CALENDAR_MICROSOFT_CONNECTION_ID:-}" ]]; then
-    record_assertion "External calendars: Microsoft connection prerequisite" "SKIP" "No se completó OAuth Microsoft ni hay una conexión Microsoft previa."
-    record_assertion "External calendars: Microsoft discovery" "SKIP" "No se puede ejecutar sin conexión Microsoft connected."
-    record_assertion "External calendars: discovery idempotency" "SKIP" "No se puede ejecutar sin conexión Microsoft connected."
-    record_assertion "External calendars: discovery does not import events" "SKIP" "No se puede ejecutar sin conexión Microsoft connected."
-    return 0
-  fi
-
-  echo "[External calendars 5/12] Verificar conexión Microsoft elegible"
-  local microsoft_detail_response microsoft_detail_status microsoft_detail_provider
-  microsoft_detail_response="$(api_request "External calendars: Microsoft connection detail before discovery" "200" "$API_BASE/api/integrations/connections/$EXTERNAL_CALENDAR_MICROSOFT_CONNECTION_ID/" -H "Authorization: Bearer $INTEGRATIONS_ACCESS_TOKEN")"
-  microsoft_detail_provider="$(printf '%s' "$microsoft_detail_response" | json_value "data.get('connection', {}).get('provider', '')")"
-  microsoft_detail_status="$(printf '%s' "$microsoft_detail_response" | json_value "data.get('connection', {}).get('status', '')")"
-  assert_equals "External calendars: selected connection provider is Microsoft" "microsoft" "$microsoft_detail_provider"
-  assert_equals "External calendars: Microsoft connection is connected before discovery" "connected" "$microsoft_detail_status"
-  assert_no_sensitive_keys "External calendars: Microsoft detail before discovery does not expose tokens" "$microsoft_detail_response"
-
-  echo "[External calendars 6/12] Discovery real Microsoft"
-  events_before="$(calendar_event_count_in_range "$INTEGRATIONS_ACCESS_TOKEN")"
-  discovery_response="$(api_request "External calendars: discover Microsoft calendars" "200" \
-    -X POST "$API_BASE/api/calendar/integrations/$EXTERNAL_CALENDAR_MICROSOFT_CONNECTION_ID/discover-calendars/" \
-    -H "Authorization: Bearer $INTEGRATIONS_ACCESS_TOKEN" \
-    -H "Content-Type: application/json" \
-    -d '{}')"
-  assert_no_sensitive_keys "External calendars: discovery response does not expose tokens" "$discovery_response"
-  discovered_provider="$(printf '%s' "$discovery_response" | json_value "data.get('provider', data.get('connection', {}).get('provider', ''))")"
-  discovery_connection_id="$(printf '%s' "$discovery_response" | json_value "data.get('connection_id', data.get('connection', {}).get('id', ''))")"
-  discovery_count="$(printf '%s' "$discovery_response" | json_value "data.get('discovered_count', data.get('created_count', data.get('count', '')))" )"
-  if [[ -n "$discovered_provider" ]]; then
-    assert_equals "External calendars: discovery response identifies Microsoft" "microsoft" "$discovered_provider"
-  else
-    record_assertion "External calendars: discovery response identifies Microsoft" "PASS" "Proveedor validado por la conexión de la URL."
-  fi
-  if [[ -n "$discovery_connection_id" ]]; then
-    assert_equals "External calendars: discovery response uses requested connection" "$EXTERNAL_CALENDAR_MICROSOFT_CONNECTION_ID" "$discovery_connection_id"
-  else
-    record_assertion "External calendars: discovery response identifies requested connection" "PASS" "Conexión validada por la URL."
-  fi
-  if [[ -n "$discovery_count" ]]; then
-    record_assertion "External calendars: discovery reports a count" "PASS" "$discovery_count"
-  else
-    record_assertion "External calendars: discovery reports a count" "PASS" "El contrato no expone contador; se valida por listado persistido."
-  fi
-
-  echo "[External calendars 7/12] Persistencia después de discovery"
-  external_list_after_response="$(api_request "External calendars: list after Microsoft discovery" "200" "$API_BASE/api/calendar/integrations/$EXTERNAL_CALENDAR_MICROSOFT_CONNECTION_ID/external-calendars/" -H "Authorization: Bearer $INTEGRATIONS_ACCESS_TOKEN")"
-  assert_no_sensitive_keys "External calendars: list after discovery does not expose tokens" "$external_list_after_response"
-  assert_all_external_calendars_shape "External calendars: discovered records have required public shape" "$external_list_after_response"
-  after_microsoft_external="$(external_calendar_count_by_provider "microsoft" "$external_list_after_response")"
-  after_microsoft_ids="$(external_calendar_ids_by_provider "microsoft" "$external_list_after_response")"
-
-  if [[ "$after_microsoft_external" =~ ^[0-9]+$ && "$before_microsoft_external" =~ ^[0-9]+$ && "$after_microsoft_external" -ge "$before_microsoft_external" ]]; then
-    record_assertion "External calendars: Microsoft records are persisted after discovery" "PASS" "Antes=$before_microsoft_external; después=$after_microsoft_external"
-  else
-    record_assertion "External calendars: Microsoft records are persisted after discovery" "FAIL" "Antes=$before_microsoft_external; después=$after_microsoft_external"
-  fi
-
-  if [[ "$after_microsoft_external" =~ ^[0-9]+$ && "$after_microsoft_external" -gt 0 ]]; then
-    record_assertion "External calendars: at least one Microsoft calendar is available" "PASS" "$after_microsoft_external"
-  else
-    record_assertion "External calendars: at least one Microsoft calendar is available" "FAIL" "No se encontraron calendarios Microsoft después de discovery."
-  fi
-
-  calendar_list_after_response="$(api_request "External calendars: BeeApp calendars after discovery" "200" "$API_BASE/api/calendar/calendars/" -H "Authorization: Bearer $INTEGRATIONS_ACCESS_TOKEN")"
-  after_beeapp_calendar_count="$(printf '%s' "$calendar_list_after_response" | json_count "data.get('calendars', [])")"
-  if [[ "$after_beeapp_calendar_count" =~ ^[0-9]+$ && "$before_beeapp_calendar_count" =~ ^[0-9]+$ && "$after_beeapp_calendar_count" -ge "$before_beeapp_calendar_count" ]]; then
-    record_assertion "External calendars: BeeApp internal calendars are preserved or created" "PASS" "Antes=$before_beeapp_calendar_count; después=$after_beeapp_calendar_count"
-  else
-    record_assertion "External calendars: BeeApp internal calendars are preserved or created" "FAIL" "Antes=$before_beeapp_calendar_count; después=$after_beeapp_calendar_count"
-  fi
-
-  echo "[External calendars 8/12] Discovery idempotente"
-  discovery_repeat_response="$(api_request "External calendars: repeat Microsoft discovery idempotently" "200" \
-    -X POST "$API_BASE/api/calendar/integrations/$EXTERNAL_CALENDAR_MICROSOFT_CONNECTION_ID/discover-calendars/" \
-    -H "Authorization: Bearer $INTEGRATIONS_ACCESS_TOKEN" \
-    -H "Content-Type: application/json" \
-    -d '{}')"
-  assert_no_sensitive_keys "External calendars: repeated discovery response does not expose tokens" "$discovery_repeat_response"
-  external_list_repeat_response="$(api_request "External calendars: list after repeated discovery" "200" "$API_BASE/api/calendar/integrations/$EXTERNAL_CALENDAR_MICROSOFT_CONNECTION_ID/external-calendars/" -H "Authorization: Bearer $INTEGRATIONS_ACCESS_TOKEN")"
-  repeat_microsoft_external="$(external_calendar_count_by_provider "microsoft" "$external_list_repeat_response")"
-  repeat_microsoft_ids="$(external_calendar_ids_by_provider "microsoft" "$external_list_repeat_response")"
-  assert_integer_equals "External calendars: repeated discovery does not duplicate Microsoft records" "$after_microsoft_external" "$repeat_microsoft_external"
-  assert_equals "External calendars: repeated discovery preserves Microsoft record identities" "$after_microsoft_ids" "$repeat_microsoft_ids"
-
-  echo "[External calendars 9/12] Discovery no importa eventos"
-  events_after="$(calendar_event_count_in_range "$INTEGRATIONS_ACCESS_TOKEN")"
-  assert_integer_equals "External calendars: discovery does not create BeeApp events" "$events_before" "$events_after"
-
-  echo "[External calendars 10/12] Aislamiento entre usuarios"
-  if [[ -n "${USER_B_TOKEN:-}" ]]; then
-    api_request_any_status "External calendars: User B cannot discover User A Microsoft connection" "403 404" \
-      -X POST "$API_BASE/api/calendar/integrations/$EXTERNAL_CALENDAR_MICROSOFT_CONNECTION_ID/discover-calendars/" \
-      -H "Authorization: Bearer $USER_B_TOKEN" \
-      -H "Content-Type: application/json" \
-      -d '{}' >/dev/null
-  else
-    record_assertion "External calendars: cross-user discovery isolation" "SKIP" "No existe token de User B."
-  fi
-
-  echo "[External calendars 11/12] Google reautorización requerida no ejecuta discovery"
-  local google_connection_id_for_discovery google_detail_response google_detail_status
-  google_connection_id_for_discovery="$(find_connected_connection_id "google" "$integrations_response")"
-  if [[ -n "$google_connection_id_for_discovery" ]]; then
-    google_detail_response="$(api_request "External calendars: Google connection detail for discovery policy" "200" "$API_BASE/api/integrations/connections/$google_connection_id_for_discovery/" -H "Authorization: Bearer $INTEGRATIONS_ACCESS_TOKEN")"
-    google_detail_status="$(printf '%s' "$google_detail_response" | json_value "data.get('connection', {}).get('status', '')")"
-    if [[ "$google_detail_status" == "reauth_required" ]]; then
-      api_request_any_status "External calendars: Google reauth-required discovery is blocked" "400 403 409" \
-        -X POST "$API_BASE/api/calendar/integrations/$google_connection_id_for_discovery/discover-calendars/" \
-        -H "Authorization: Bearer $INTEGRATIONS_ACCESS_TOKEN" \
-        -H "Content-Type: application/json" \
-        -d '{}' >/dev/null
-    else
-      record_assertion "External calendars: Google reauth-required discovery policy" "SKIP" "Estado actual Google=$google_detail_status; no está reauth_required."
-    fi
-  else
-    record_assertion "External calendars: Google reauth-required discovery policy" "SKIP" "No hay conexión Google connected para evaluar."
-  fi
-
-  echo "[External calendars 12/12] Resumen de persistencia"
-  if [[ "$before_external_total" =~ ^[0-9]+$ && "$after_microsoft_external" =~ ^[0-9]+$ ]]; then
-    record_assertion "External calendars: discovery completed with persisted calendar data" "PASS" "Externos iniciales=$before_external_total; Microsoft después=$after_microsoft_external"
-  else
-    record_assertion "External calendars: discovery completed with persisted calendar data" "FAIL" "No se pudieron leer los conteos de calendarios externos."
-  fi
-}
-
-write_final_summary() {
-  {
-    echo
-    echo "================================================================"
-    echo "FINAL COUNTS"
-    echo "================================================================"
-    echo "PASS: $PASS_COUNT"
-    echo "FAIL: $FAIL_COUNT"
-    echo "SKIP: $SKIP_COUNT"
-  } >> "$REPORT"
+  login_file="$(mktemp)"
+  login_error_file="$(mktemp)"
+
+  login_http_code="$(
+    curl --silent --show-error \
+      --max-time 45 \
+      --request POST \
+      --header "Content-Type: application/json" \
+      --header "Accept: application/json" \
+      --data "$login_body" \
+      --output "$login_file" \
+      --write-out "%{http_code}" \
+      "$API_BASE_URL/api/accounts/login/" \
+      2>"$login_error_file"
+  )"
+  login_exit_code=$?
+
+  begin_test "LOGIN_${user_label}"
 
   {
-    echo "================================================================"
-    echo "FINAL COUNTS"
-    echo "PASS: $PASS_COUNT"
-    echo "FAIL: $FAIL_COUNT"
-    echo "SKIP: $SKIP_COUNT"
-  } >> "$SUMMARY"
+    printf '\n============================================================\n'
+    printf 'LOGIN_%s\n' "$user_label"
+    printf '============================================================\n'
+    printf 'HTTP_STATUS=%s\n' "$login_http_code"
+
+    if [ -s "$login_file" ]; then
+      sanitize_json < "$login_file"
+    else
+      printf '(Empty response)\n'
+    fi
+  } >> "$REPORT_FILE"
+
+  token="$(
+    jq -r '.session.access_token // empty' \
+      "$login_file" \
+      2>/dev/null || true
+  )"
+
+  if [ "$login_exit_code" -ne 0 ] \
+    || [ "$login_http_code" != "200" ] \
+    || [ -z "$token" ]; then
+    mark_failure \
+      "Login did not return session.access_token." \
+      "$login_http_code" \
+      "$login_file" \
+      "$login_error_file"
+
+    rm -f "$login_file" "$login_error_file"
+    exit 1
+  fi
+
+  mark_pass "Authentication succeeded and access token was extracted."
+
+  rm -f "$login_file" "$login_error_file"
+
+  printf '%s' "$token"
 }
 
-{
-  echo "BEEAPP — COMBINED E2E API TEST REPORT"
-  echo "Generated: $(date '+%Y-%m-%d %H:%M:%S %z')"
-  echo "API_BASE: $API_BASE"
-  echo "Agenda User A: $USER_A_EMAIL"
-  echo "Agenda User B: $USER_B_EMAIL"
-  echo "Integrations User: $INTEGRATIONS_USER_EMAIL"
-  echo "Test prefix: $TEST_PREFIX"
-  echo "Passwords, tokens, OAuth codes and states are not recorded."
-} > "$REPORT"
+
+create_local_test_files() {
+  printf 'BeeApp Storage E2E test file.\nRun ID: %s\n' \
+    "$RUN_ID" > "$STORAGE_TEXT_FILE"
+
+  printf 'BeeApp Notes E2E attachment.\nRun ID: %s\n' \
+    "$RUN_ID" > "$NOTE_TEXT_FILE"
+
+  printf 'BeeApp Chat E2E attachment.\nRun ID: %s\n' \
+    "$RUN_ID" > "$CHAT_TEXT_FILE"
+
+  printf 'BeeApp Mail E2E attachment.\nRun ID: %s\n' \
+    "$RUN_ID" > "$MAIL_TEXT_FILE"
+
+  base64 -d > "$LOGO_PNG_FILE" <<'PNG'
+iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4z8DwHwAFgAI/ScLkSAAAAABJRU5ErkJggg==
+PNG
+}
+
+
+cleanup_remote_file() {
+  local file_id="$1"
+
+  [ -z "$file_id" ] && return 0
+  [ "$file_id" = "null" ] && return 0
+
+  request \
+    "POST" \
+    "$ACCESS_TOKEN_A" \
+    "$API_BASE_URL/api/storage/files/$file_id/trash/"
+
+  if [ "$CURL_EXIT_CODE" -eq 0 ] \
+    && { [ "$HTTP_CODE" = "200" ] || [ "$HTTP_CODE" = "404" ]; }; then
+    :
+  fi
+
+  cleanup_request_files
+
+  request \
+    "DELETE" \
+    "$ACCESS_TOKEN_A" \
+    "$API_BASE_URL/api/storage/files/$file_id/"
+
+  cleanup_request_files
+}
+
+
+cleanup_resources() {
+  if [ "$KEEP_REMOTE_TEST_DATA" = "true" ]; then
+    {
+      printf '\nKEEP_REMOTE_TEST_DATA=true; remote cleanup skipped.\n'
+    } >> "$REPORT_FILE"
+    return
+  fi
+
+  record_section "CLEANUP"
+
+  local id=""
+
+  for id in "${CHAT_GROUP_IDS[@]:-}"; do
+    [ -z "$id" ] && continue
+    request \
+      "DELETE" \
+      "$ACCESS_TOKEN_A" \
+      "$API_BASE_URL/api/chat/groups/$id/" \
+      "$(jq -n --arg owner_identity_id "$USER_A_IDENTITY_ID" '{owner_identity_id:$owner_identity_id}')" \
+      "application/json"
+    cleanup_request_files
+  done
+
+  for id in "${CALENDAR_EVENT_IDS[@]:-}"; do
+    [ -z "$id" ] && continue
+    request \
+      "DELETE" \
+      "$ACCESS_TOKEN_A" \
+      "$API_BASE_URL/api/calendar/events/$id/"
+    cleanup_request_files
+  done
+
+  for id in "${CALENDAR_TAG_IDS[@]:-}"; do
+    [ -z "$id" ] && continue
+    request \
+      "DELETE" \
+      "$ACCESS_TOKEN_A" \
+      "$API_BASE_URL/api/calendar/tags/$id/"
+    cleanup_request_files
+  done
+
+  for id in "${CALENDAR_IDS[@]:-}"; do
+    [ -z "$id" ] && continue
+    request \
+      "DELETE" \
+      "$ACCESS_TOKEN_A" \
+      "$API_BASE_URL/api/calendar/calendars/$id/"
+    cleanup_request_files
+  done
+
+  for id in "${NOTE_SHARE_IDS[@]:-}"; do
+    [ -z "$id" ] && continue
+    request \
+      "POST" \
+      "$ACCESS_TOKEN_A" \
+      "$API_BASE_URL/api/notes/shares/$id/revoke/" \
+      '{}' \
+      "application/json"
+    cleanup_request_files
+  done
+
+  for id in "${NOTE_IDS[@]:-}"; do
+    [ -z "$id" ] && continue
+
+    request \
+      "POST" \
+      "$ACCESS_TOKEN_A" \
+      "$API_BASE_URL/api/notes/$id/trash/" \
+      '{}' \
+      "application/json"
+    cleanup_request_files
+
+    request \
+      "DELETE" \
+      "$ACCESS_TOKEN_A" \
+      "$API_BASE_URL/api/notes/$id/"
+    cleanup_request_files
+  done
+
+  for id in "${NOTE_TAG_IDS[@]:-}"; do
+    [ -z "$id" ] && continue
+    request \
+      "DELETE" \
+      "$ACCESS_TOKEN_A" \
+      "$API_BASE_URL/api/notes/tags/$id/"
+    cleanup_request_files
+  done
+
+  for id in "${NOTE_FOLDER_IDS[@]:-}"; do
+    [ -z "$id" ] && continue
+    request \
+      "DELETE" \
+      "$ACCESS_TOKEN_A" \
+      "$API_BASE_URL/api/notes/folders/$id/"
+    cleanup_request_files
+  done
+
+  for id in "${STORAGE_TAG_IDS[@]:-}"; do
+    [ -z "$id" ] && continue
+    request \
+      "DELETE" \
+      "$ACCESS_TOKEN_A" \
+      "$API_BASE_URL/api/storage/tags/$id/"
+    cleanup_request_files
+  done
+
+  for id in "${STORAGE_FOLDER_IDS[@]:-}"; do
+    [ -z "$id" ] && continue
+    request \
+      "DELETE" \
+      "$ACCESS_TOKEN_A" \
+      "$API_BASE_URL/api/storage/folders/$id/"
+    cleanup_request_files
+  done
+
+  for id in "${REMOTE_FILE_IDS[@]:-}"; do
+    cleanup_remote_file "$id"
+  done
+
+  {
+    printf 'Remote cleanup attempted for test resources.\n'
+  } >> "$REPORT_FILE"
+}
+
+
+cleanup() {
+  cleanup_resources || true
+  rm -rf "$TMP_DIR"
+  unset     ACCESS_TOKEN_A     ACCESS_TOKEN_B     ACCESS_TOKEN_C     ACCESS_TOKEN_D
+}
+trap cleanup EXIT INT TERM
+
+
+require_command curl
+require_command jq
+require_command base64
+
+create_local_test_files
+
+record_section "BEEAPP_GENERAL_BACKEND_E2E_TEST"
 
 {
-  echo "BEEAPP — COMBINED E2E API TEST SUMMARY"
-  echo "Generated: $(date '+%Y-%m-%d %H:%M:%S %z')"
-  echo "================================================================"
-} > "$SUMMARY"
+  printf 'RUN_ID=%s\n' "$RUN_ID"
+  printf 'API_BASE_URL=%s\n' "$API_BASE_URL"
+  printf 'TMP_DIR=%s\n' "$TMP_DIR"
+  printf 'RUN_STORAGE_TESTS=%s\n' "$RUN_STORAGE_TESTS"
+  printf 'RUN_NOTES_TESTS=%s\n' "$RUN_NOTES_TESTS"
+  printf 'RUN_NOTIFICATIONS_TESTS=%s\n' "$RUN_NOTIFICATIONS_TESTS"
+  printf 'RUN_CALENDAR_TESTS=%s\n' "$RUN_CALENDAR_TESTS"
+  printf 'RUN_COMMERCIAL_TESTS=%s\n' "$RUN_COMMERCIAL_TESTS"
+  printf 'RUN_CHAT_TESTS=%s\n' "$RUN_CHAT_TESTS"
+  printf 'RUN_INTEGRATIONS_TESTS=%s\n' "$RUN_INTEGRATIONS_TESTS"
+  printf 'RUN_MAIL_TESTS=%s\n' "$RUN_MAIL_TESTS"
+  printf 'KEEP_REMOTE_TEST_DATA=%s\n' "$KEEP_REMOTE_TEST_DATA"
+  printf '%s\n' \
+    'NOTE=This suite creates real remote data. Cleanup is attempted automatically unless KEEP_REMOTE_TEST_DATA=true.'
+  printf '%s\n' \
+    'NOTE=OAuth callbacks, provider sync, and email sending are disabled by default.'
+} >> "$REPORT_FILE"
 
-echo "============================================================"
-echo "BEEAPP — SUITE E2E COMBINADA"
-echo "API: $API_BASE"
-echo "Orden: Agenda -> Integraciones -> Calendarios externos/discovery"
-echo "============================================================"
+printf '\n============================================================\n'
+printf 'BeeApp General Backend E2E Test\n'
+printf 'API: %s\n' "$API_BASE_URL"
+printf 'Run ID: %s\n' "$RUN_ID"
+printf '============================================================\n'
+printf '%s\n\n' \
+  'Use four distinct BeeApp accounts:
+- User A: owner of test resources.
+- User B: primary collaborator, attendee, and chat participant.
+- User C: second collaborator and additional test participant.
+- User D: unauthorized user used for negative-access tests.'
 
-echo
-read -r -s -p "Password para User A ($USER_A_EMAIL): " USER_A_PASSWORD
-echo
-read -r -s -p "Password para User B ($USER_B_EMAIL): " USER_B_PASSWORD
-echo
+ACCESS_TOKEN_A="$(login "USER_A_OWNER")"
+ACCESS_TOKEN_B="$(login "USER_B_COLLABORATOR")"
+ACCESS_TOKEN_C="$(login "USER_C_SECOND_COLLABORATOR")"
+ACCESS_TOKEN_D="$(login "USER_D_UNAUTHORIZED")"
 
-if [[ "$INTEGRATIONS_USER_EMAIL" == "$USER_A_EMAIL" ]]; then
-  INTEGRATIONS_USER_PASSWORD="$USER_A_PASSWORD"
-  echo "Integraciones usará la contraseña de User A ($INTEGRATIONS_USER_EMAIL)."
-elif [[ "$INTEGRATIONS_USER_EMAIL" == "$USER_B_EMAIL" ]]; then
-  INTEGRATIONS_USER_PASSWORD="$USER_B_PASSWORD"
-  echo "Integraciones usará la contraseña de User B ($INTEGRATIONS_USER_EMAIL)."
+begin_test "01_HEALTH_CHECK"
+request "GET" "" "$API_BASE_URL/api/health/"
+record_response "01_HEALTH_CHECK" "$HTTP_CODE" "$RESPONSE_FILE"
+
+if [ "$CURL_EXIT_CODE" -ne 0 ] || [ "$HTTP_CODE" != "200" ]; then
+  mark_failure \
+    "Health endpoint failed." \
+    "$HTTP_CODE" \
+    "$RESPONSE_FILE" \
+    "$CURL_ERROR_FILE"
 else
-  read -r -s -p "Password para Integraciones ($INTEGRATIONS_USER_EMAIL): " INTEGRATIONS_USER_PASSWORD
-  echo
+  mark_pass "Health endpoint returned HTTP 200."
+fi
+cleanup_request_files
+
+begin_test "02_GET_CURRENT_PROFILE_USER_A"
+request "GET" "$ACCESS_TOKEN_A" "$API_BASE_URL/api/accounts/me/"
+record_response \
+  "02_GET_CURRENT_PROFILE_USER_A" \
+  "$HTTP_CODE" \
+  "$RESPONSE_FILE"
+PROFILE_A_RESULT="$(cat "$RESPONSE_FILE")"
+
+if [ "$CURL_EXIT_CODE" -ne 0 ] || [ "$HTTP_CODE" != "200" ]; then
+  mark_failure \
+    "Could not retrieve User A profile." \
+    "$HTTP_CODE" \
+    "$RESPONSE_FILE" \
+    "$CURL_ERROR_FILE"
+else
+  mark_pass "User A profile returned HTTP 200."
 fi
 
-run_agenda_tests || record_assertion "Agenda: precondiciones críticas" "FAIL" "No fue posible continuar todas las pruebas de Agenda"
-run_integrations_tests || record_assertion "Integrations: precondiciones críticas" "FAIL" "No fue posible continuar todas las pruebas de Integraciones"
-run_external_calendar_tests || record_assertion "External calendars: precondiciones críticas" "FAIL" "No fue posible continuar todas las pruebas de calendarios externos"
+USER_A_ID="$(extract_json_value "$PROFILE_A_RESULT" '.profile.id')"
+cleanup_request_files
 
-write_final_summary
-
-echo
-echo "============================================================"
-echo "SUITE E2E COMBINADA TERMINADA"
-echo "============================================================"
-echo "PASS: $PASS_COUNT"
-echo "FAIL: $FAIL_COUNT"
-echo "SKIP: $SKIP_COUNT"
-echo
-echo "Reporte completo: $(realpath "$REPORT")"
-echo "Resumen: $(realpath "$SUMMARY")"
-
-if [[ "$FAIL_COUNT" -gt 0 ]]; then
+if ! validate_uuid_value "02A_USER_A_ID" "$USER_A_ID"; then
   exit 1
 fi
+
+begin_test "03_GET_CURRENT_PROFILE_USER_B"
+request "GET" "$ACCESS_TOKEN_B" "$API_BASE_URL/api/accounts/me/"
+record_response \
+  "03_GET_CURRENT_PROFILE_USER_B" \
+  "$HTTP_CODE" \
+  "$RESPONSE_FILE"
+PROFILE_B_RESULT="$(cat "$RESPONSE_FILE")"
+
+if [ "$CURL_EXIT_CODE" -ne 0 ] || [ "$HTTP_CODE" != "200" ]; then
+  mark_failure \
+    "Could not retrieve User B profile." \
+    "$HTTP_CODE" \
+    "$RESPONSE_FILE" \
+    "$CURL_ERROR_FILE"
+else
+  mark_pass "User B profile returned HTTP 200."
+fi
+
+USER_B_ID="$(extract_json_value "$PROFILE_B_RESULT" '.profile.id')"
+cleanup_request_files
+
+if ! validate_uuid_value "03A_USER_B_ID" "$USER_B_ID"; then
+  exit 1
+fi
+
+begin_test "04_GET_CURRENT_PROFILE_USER_C"
+request "GET" "$ACCESS_TOKEN_C" "$API_BASE_URL/api/accounts/me/"
+record_response   "04_GET_CURRENT_PROFILE_USER_C"   "$HTTP_CODE"   "$RESPONSE_FILE"
+PROFILE_C_RESULT="$(cat "$RESPONSE_FILE")"
+
+if [ "$CURL_EXIT_CODE" -ne 0 ] || [ "$HTTP_CODE" != "200" ]; then
+  mark_failure     "Could not retrieve User C profile."     "$HTTP_CODE"     "$RESPONSE_FILE"     "$CURL_ERROR_FILE"
+else
+  mark_pass "User C profile returned HTTP 200."
+fi
+
+USER_C_ID="$(extract_json_value "$PROFILE_C_RESULT" '.profile.id')"
+cleanup_request_files
+
+if ! validate_uuid_value "04A_USER_C_ID" "$USER_C_ID"; then
+  exit 1
+fi
+
+begin_test "05_GET_CURRENT_PROFILE_USER_D"
+request "GET" "$ACCESS_TOKEN_D" "$API_BASE_URL/api/accounts/me/"
+record_response   "05_GET_CURRENT_PROFILE_USER_D"   "$HTTP_CODE"   "$RESPONSE_FILE"
+PROFILE_D_RESULT="$(cat "$RESPONSE_FILE")"
+
+if [ "$CURL_EXIT_CODE" -ne 0 ] || [ "$HTTP_CODE" != "200" ]; then
+  mark_failure     "Could not retrieve User D profile."     "$HTTP_CODE"     "$RESPONSE_FILE"     "$CURL_ERROR_FILE"
+else
+  mark_pass "User D profile returned HTTP 200."
+fi
+
+USER_D_ID="$(extract_json_value "$PROFILE_D_RESULT" '.profile.id')"
+cleanup_request_files
+
+if ! validate_uuid_value "05A_USER_D_ID" "$USER_D_ID"; then
+  exit 1
+fi
+
+
+if [ "$RUN_STORAGE_TESTS" = "true" ]; then
+  run_get \
+    "10_STORAGE_SUMMARY_USER_A" \
+    "$ACCESS_TOKEN_A" \
+    "$API_BASE_URL/api/storage/summary/" \
+    "200"
+
+  begin_test "11_CREATE_STORAGE_FOLDER"
+  request \
+    "POST" \
+    "$ACCESS_TOKEN_A" \
+    "$API_BASE_URL/api/storage/folders/" \
+    "$(jq -n --arg run_id "$RUN_ID" '{name:("E2E Storage Folder " + $run_id), parent_id:null}')" \
+    "application/json"
+  record_response "11_CREATE_STORAGE_FOLDER" "$HTTP_CODE" "$RESPONSE_FILE"
+  STORAGE_FOLDER_RESULT="$(cat "$RESPONSE_FILE")"
+
+  if [ "$CURL_EXIT_CODE" -ne 0 ] || [ "$HTTP_CODE" != "201" ]; then
+    mark_failure "Could not create storage folder." "$HTTP_CODE" "$RESPONSE_FILE" "$CURL_ERROR_FILE"
+  else
+    mark_pass "Storage folder was created."
+  fi
+
+  STORAGE_FOLDER_ID="$(extract_json_value "$STORAGE_FOLDER_RESULT" '.folder.id')"
+  cleanup_request_files
+
+  if validate_uuid_value "11A_STORAGE_FOLDER_ID" "$STORAGE_FOLDER_ID"; then
+    register_resource STORAGE_FOLDER_IDS "$STORAGE_FOLDER_ID"
+  fi
+
+  run_json_request \
+    "12_RENAME_STORAGE_FOLDER" \
+    "PATCH" \
+    "$ACCESS_TOKEN_A" \
+    "$API_BASE_URL/api/storage/folders/$STORAGE_FOLDER_ID/" \
+    "$(jq -n --arg run_id "$RUN_ID" '{name:("E2E Storage Folder Renamed " + $run_id)}')" \
+    "200"
+
+  begin_test "13_UPLOAD_STORAGE_TEXT_FILE"
+  request_multipart \
+    "POST" \
+    "$ACCESS_TOKEN_A" \
+    "$API_BASE_URL/api/storage/uploads/" \
+    "folder_id=$STORAGE_FOLDER_ID" \
+    "file=@${STORAGE_TEXT_FILE};type=text/plain"
+  record_response "13_UPLOAD_STORAGE_TEXT_FILE" "$HTTP_CODE" "$RESPONSE_FILE"
+  STORAGE_UPLOAD_RESULT="$(cat "$RESPONSE_FILE")"
+
+  if [ "$CURL_EXIT_CODE" -ne 0 ] || [ "$HTTP_CODE" != "201" ]; then
+    mark_failure "Could not upload storage text file." "$HTTP_CODE" "$RESPONSE_FILE" "$CURL_ERROR_FILE"
+  else
+    mark_pass "Storage text file was uploaded."
+  fi
+
+  STORAGE_FILE_ID="$(extract_json_value "$STORAGE_UPLOAD_RESULT" '.files[0].id')"
+  cleanup_request_files
+
+  if validate_uuid_value "13A_STORAGE_FILE_ID" "$STORAGE_FILE_ID"; then
+    register_remote_file "$STORAGE_FILE_ID"
+  fi
+
+  run_get \
+    "14_LIST_STORAGE_FILES_IN_FOLDER" \
+    "$ACCESS_TOKEN_A" \
+    "$API_BASE_URL/api/storage/files/?folder_id=$STORAGE_FOLDER_ID&status=ready&limit=50" \
+    "200"
+
+  run_json_request \
+    "15_RENAME_STORAGE_FILE" \
+    "PATCH" \
+    "$ACCESS_TOKEN_A" \
+    "$API_BASE_URL/api/storage/files/$STORAGE_FILE_ID/" \
+    "$(jq -n --arg run_id "$RUN_ID" '{display_name:("e2e-storage-renamed-" + $run_id + ".txt")}')" \
+    "200"
+
+  run_get \
+    "16_GET_STORAGE_FILE_ACCESS_URL" \
+    "$ACCESS_TOKEN_A" \
+    "$API_BASE_URL/api/storage/files/$STORAGE_FILE_ID/access/?download=true" \
+    "200"
+
+  begin_test "17_CREATE_STORAGE_TAG"
+  request \
+    "POST" \
+    "$ACCESS_TOKEN_A" \
+    "$API_BASE_URL/api/storage/tags/" \
+    "$(jq -n --arg run_id "$RUN_ID" '{name:("E2E Storage Tag " + $run_id), icon:"tag", color:"#8B5CF6", sort_order:0}')" \
+    "application/json"
+  record_response "17_CREATE_STORAGE_TAG" "$HTTP_CODE" "$RESPONSE_FILE"
+  STORAGE_TAG_RESULT="$(cat "$RESPONSE_FILE")"
+
+  if [ "$CURL_EXIT_CODE" -ne 0 ] || [ "$HTTP_CODE" != "201" ]; then
+    mark_failure "Could not create storage tag." "$HTTP_CODE" "$RESPONSE_FILE" "$CURL_ERROR_FILE"
+  else
+    mark_pass "Storage tag was created."
+  fi
+
+  STORAGE_TAG_ID="$(extract_json_value "$STORAGE_TAG_RESULT" '.tag.id')"
+  cleanup_request_files
+
+  if validate_uuid_value "17A_STORAGE_TAG_ID" "$STORAGE_TAG_ID"; then
+    register_resource STORAGE_TAG_IDS "$STORAGE_TAG_ID"
+  fi
+
+  run_json_request \
+    "18_ASSIGN_STORAGE_TAG_TO_FILE" \
+    "PUT" \
+    "$ACCESS_TOKEN_A" \
+    "$API_BASE_URL/api/storage/files/$STORAGE_FILE_ID/tags/" \
+    "$(jq -n --arg tag_id "$STORAGE_TAG_ID" '{tag_ids:[$tag_id]}')" \
+    "200"
+
+  run_get \
+    "19_LIST_STORAGE_FILE_TAGS" \
+    "$ACCESS_TOKEN_A" \
+    "$API_BASE_URL/api/storage/files/$STORAGE_FILE_ID/tags/" \
+    "200"
+
+  run_json_request \
+    "20_TRASH_STORAGE_FILE" \
+    "POST" \
+    "$ACCESS_TOKEN_A" \
+    "$API_BASE_URL/api/storage/files/$STORAGE_FILE_ID/trash/" \
+    '{}' \
+    "200"
+
+  run_json_request \
+    "21_RESTORE_STORAGE_FILE" \
+    "POST" \
+    "$ACCESS_TOKEN_A" \
+    "$API_BASE_URL/api/storage/files/$STORAGE_FILE_ID/restore/" \
+    '{}' \
+    "200"
+else
+  begin_test "10_STORAGE_TESTS_DISABLED"
+  mark_skip "RUN_STORAGE_TESTS is not true."
+fi
+
+
+if [ "$RUN_NOTES_TESTS" = "true" ]; then
+  run_get \
+    "30_LIST_NOTE_TEMPLATES" \
+    "$ACCESS_TOKEN_A" \
+    "$API_BASE_URL/api/notes/templates/" \
+    "200"
+
+  begin_test "31_CREATE_NOTE_FOLDER"
+  request \
+    "POST" \
+    "$ACCESS_TOKEN_A" \
+    "$API_BASE_URL/api/notes/folders/" \
+    "$(jq -n --arg run_id "$RUN_ID" '{name:("E2E Note Folder " + $run_id), parent_id:null}')" \
+    "application/json"
+  record_response "31_CREATE_NOTE_FOLDER" "$HTTP_CODE" "$RESPONSE_FILE"
+  NOTE_FOLDER_RESULT="$(cat "$RESPONSE_FILE")"
+
+  if [ "$CURL_EXIT_CODE" -ne 0 ] || [ "$HTTP_CODE" != "201" ]; then
+    mark_failure "Could not create note folder." "$HTTP_CODE" "$RESPONSE_FILE" "$CURL_ERROR_FILE"
+  else
+    mark_pass "Note folder was created."
+  fi
+
+  NOTE_FOLDER_ID="$(extract_json_value "$NOTE_FOLDER_RESULT" '.folder.id')"
+  cleanup_request_files
+
+  if validate_uuid_value "31A_NOTE_FOLDER_ID" "$NOTE_FOLDER_ID"; then
+    register_resource NOTE_FOLDER_IDS "$NOTE_FOLDER_ID"
+  fi
+
+  begin_test "32_CREATE_NOTE_TAG"
+  request \
+    "POST" \
+    "$ACCESS_TOKEN_A" \
+    "$API_BASE_URL/api/notes/tags/" \
+    "$(jq -n --arg run_id "$RUN_ID" '{name:("E2E Note Tag " + $run_id), icon:"tag", color:"#8B5CF6", sort_order:0}')" \
+    "application/json"
+  record_response "32_CREATE_NOTE_TAG" "$HTTP_CODE" "$RESPONSE_FILE"
+  NOTE_TAG_RESULT="$(cat "$RESPONSE_FILE")"
+
+  if [ "$CURL_EXIT_CODE" -ne 0 ] || [ "$HTTP_CODE" != "201" ]; then
+    mark_failure "Could not create note tag." "$HTTP_CODE" "$RESPONSE_FILE" "$CURL_ERROR_FILE"
+  else
+    mark_pass "Note tag was created."
+  fi
+
+  NOTE_TAG_ID="$(extract_json_value "$NOTE_TAG_RESULT" '.tag.id')"
+  cleanup_request_files
+
+  if validate_uuid_value "32A_NOTE_TAG_ID" "$NOTE_TAG_ID"; then
+    register_resource NOTE_TAG_IDS "$NOTE_TAG_ID"
+  fi
+
+  begin_test "33_CREATE_NOTE"
+  request \
+    "POST" \
+    "$ACCESS_TOKEN_A" \
+    "$API_BASE_URL/api/notes/" \
+    "$(jq -n --arg title "E2E Note $RUN_ID" --arg folder_id "$NOTE_FOLDER_ID" '{title:$title, folder_id:$folder_id}')" \
+    "application/json"
+  record_response "33_CREATE_NOTE" "$HTTP_CODE" "$RESPONSE_FILE"
+  NOTE_CREATE_RESULT="$(cat "$RESPONSE_FILE")"
+
+  if [ "$CURL_EXIT_CODE" -ne 0 ] || [ "$HTTP_CODE" != "201" ]; then
+    mark_failure "Could not create note." "$HTTP_CODE" "$RESPONSE_FILE" "$CURL_ERROR_FILE"
+  else
+    mark_pass "Note was created."
+  fi
+
+  NOTE_ID="$(extract_json_value "$NOTE_CREATE_RESULT" '.note.id')"
+  cleanup_request_files
+
+  if validate_uuid_value "33A_NOTE_ID" "$NOTE_ID"; then
+    register_resource NOTE_IDS "$NOTE_ID"
+  fi
+
+  NOTE_CONTENT="$(
+    jq -n --arg run_id "$RUN_ID" '{
+      version: 1,
+      blocks: [
+        {
+          id: ("e2e-text-" + $run_id),
+          type: "text",
+          content: "BeeApp end-to-end note content."
+        },
+        {
+          id: ("e2e-heading-" + $run_id),
+          type: "heading",
+          content: "E2E heading"
+        }
+      ]
+    }'
+  )"
+
+  run_json_request \
+    "34_UPDATE_NOTE_CONTENT" \
+    "PATCH" \
+    "$ACCESS_TOKEN_A" \
+    "$API_BASE_URL/api/notes/$NOTE_ID/" \
+    "$(jq -n --argjson content "$NOTE_CONTENT" --arg folder_id "$NOTE_FOLDER_ID" '{content:$content, color:"#8B5CF6", folder_id:$folder_id, is_favorite:true, is_pinned:true}')" \
+    "200"
+
+  run_json_request \
+    "35_ASSIGN_NOTE_TAG" \
+    "PUT" \
+    "$ACCESS_TOKEN_A" \
+    "$API_BASE_URL/api/notes/$NOTE_ID/tags/" \
+    "$(jq -n --arg tag_id "$NOTE_TAG_ID" '{tag_ids:[$tag_id]}')" \
+    "200"
+
+  run_get \
+    "36_LIST_NOTE_TAGS_FOR_NOTE" \
+    "$ACCESS_TOKEN_A" \
+    "$API_BASE_URL/api/notes/$NOTE_ID/tags/" \
+    "200"
+
+  begin_test "37_UPLOAD_AND_ATTACH_NOTE_FILE"
+  request_multipart \
+    "POST" \
+    "$ACCESS_TOKEN_A" \
+    "$API_BASE_URL/api/notes/$NOTE_ID/attachments/upload/" \
+    "attachment_type=attachment" \
+    "file=@${NOTE_TEXT_FILE};type=text/plain"
+  record_response "37_UPLOAD_AND_ATTACH_NOTE_FILE" "$HTTP_CODE" "$RESPONSE_FILE"
+  NOTE_ATTACHMENT_UPLOAD_RESULT="$(cat "$RESPONSE_FILE")"
+
+  if [ "$CURL_EXIT_CODE" -ne 0 ] || [ "$HTTP_CODE" != "201" ]; then
+    mark_failure "Could not upload note attachment." "$HTTP_CODE" "$RESPONSE_FILE" "$CURL_ERROR_FILE"
+  else
+    mark_pass "Note attachment was uploaded and linked."
+  fi
+
+  NOTE_ATTACHMENT_ID="$(extract_json_value "$NOTE_ATTACHMENT_UPLOAD_RESULT" '.attachments[0].id')"
+  NOTE_ATTACHMENT_FILE_ID="$(extract_json_value "$NOTE_ATTACHMENT_UPLOAD_RESULT" '.attachments[0].file.id')"
+  cleanup_request_files
+
+  if validate_uuid_value "37A_NOTE_ATTACHMENT_ID" "$NOTE_ATTACHMENT_ID"; then
+    :
+  fi
+
+  if validate_uuid_value "37B_NOTE_ATTACHMENT_FILE_ID" "$NOTE_ATTACHMENT_FILE_ID"; then
+    register_remote_file "$NOTE_ATTACHMENT_FILE_ID"
+  fi
+
+  run_get \
+    "38_LIST_NOTE_ATTACHMENTS" \
+    "$ACCESS_TOKEN_A" \
+    "$API_BASE_URL/api/notes/$NOTE_ID/attachments/" \
+    "200"
+
+  run_get \
+    "39_GET_NOTE_ATTACHMENT_ACCESS_URL" \
+    "$ACCESS_TOKEN_A" \
+    "$API_BASE_URL/api/notes/$NOTE_ID/attachments/$NOTE_ATTACHMENT_ID/access/?download=true" \
+    "200"
+
+  begin_test "40_SHARE_NOTE_A_TO_B"
+  request \
+    "POST" \
+    "$ACCESS_TOKEN_A" \
+    "$API_BASE_URL/api/notes/$NOTE_ID/shares/" \
+    "$(jq -n --arg recipient_id "$USER_B_ID" '{recipient_id:$recipient_id, expires_at:null}')" \
+    "application/json"
+  record_response "40_SHARE_NOTE_A_TO_B" "$HTTP_CODE" "$RESPONSE_FILE"
+  NOTE_SHARE_RESULT="$(cat "$RESPONSE_FILE")"
+
+  if [ "$CURL_EXIT_CODE" -ne 0 ] || [ "$HTTP_CODE" != "201" ]; then
+    mark_failure "Could not share note with User B." "$HTTP_CODE" "$RESPONSE_FILE" "$CURL_ERROR_FILE"
+  else
+    mark_pass "Note share for User B was created."
+  fi
+
+  NOTE_SHARE_ID="$(extract_json_value "$NOTE_SHARE_RESULT" '.share.id')"
+  cleanup_request_files
+
+  if validate_uuid_value "40A_NOTE_SHARE_ID" "$NOTE_SHARE_ID"; then
+    register_resource NOTE_SHARE_IDS "$NOTE_SHARE_ID"
+  fi
+
+  run_get \
+    "41_LIST_RECEIVED_NOTE_SHARES_USER_B" \
+    "$ACCESS_TOKEN_B" \
+    "$API_BASE_URL/api/notes/shares/received/?include_hidden=false&limit=50" \
+    "200"
+
+  run_get \
+    "42_GET_SHARED_NOTE_AS_USER_B" \
+    "$ACCESS_TOKEN_B" \
+    "$API_BASE_URL/api/notes/shared/$NOTE_ID/" \
+    "200"
+
+  run_get \
+    "43_GET_SHARED_NOTE_ATTACHMENT_AS_USER_B" \
+    "$ACCESS_TOKEN_B" \
+    "$API_BASE_URL/api/notes/$NOTE_ID/attachments/" \
+    "200"
+
+  run_json_request \
+    "44_REVOKE_NOTE_SHARE" \
+    "POST" \
+    "$ACCESS_TOKEN_A" \
+    "$API_BASE_URL/api/notes/shares/$NOTE_SHARE_ID/revoke/" \
+    '{}' \
+    "200"
+
+  run_json_request \
+    "45_TRASH_NOTE" \
+    "POST" \
+    "$ACCESS_TOKEN_A" \
+    "$API_BASE_URL/api/notes/$NOTE_ID/trash/" \
+    '{}' \
+    "200"
+
+  run_json_request \
+    "46_RESTORE_NOTE" \
+    "POST" \
+    "$ACCESS_TOKEN_A" \
+    "$API_BASE_URL/api/notes/$NOTE_ID/restore/" \
+    '{}' \
+    "200"
+else
+  begin_test "30_NOTES_TESTS_DISABLED"
+  mark_skip "RUN_NOTES_TESTS is not true."
+fi
+
+
+if [ "$RUN_NOTIFICATIONS_TESTS" = "true" ]; then
+  run_get \
+    "50_LIST_NOTIFICATIONS_USER_A" \
+    "$ACCESS_TOKEN_A" \
+    "$API_BASE_URL/api/notifications/?limit=50&offset=0" \
+    "200"
+
+  run_json_request \
+    "51_MARK_ALL_STORAGE_NOTIFICATIONS_READ" \
+    "POST" \
+    "$ACCESS_TOKEN_A" \
+    "$API_BASE_URL/api/notifications/read-all/?module=storage" \
+    '{}' \
+    "200"
+else
+  begin_test "50_NOTIFICATIONS_TESTS_DISABLED"
+  mark_skip "RUN_NOTIFICATIONS_TESTS is not true."
+fi
+
+
+if [ "$RUN_CALENDAR_TESTS" = "true" ]; then
+  CALENDAR_RANGE_START="$(date -u -d '+1 day' '+%Y-%m-%dT09:00:00Z' 2>/dev/null || date -u -v+1d '+%Y-%m-%dT09:00:00Z')"
+  CALENDAR_RANGE_END="$(date -u -d '+2 day' '+%Y-%m-%dT18:00:00Z' 2>/dev/null || date -u -v+2d '+%Y-%m-%dT18:00:00Z')"
+  EVENT_START="$(date -u -d '+1 day' '+%Y-%m-%dT10:00:00Z' 2>/dev/null || date -u -v+1d '+%Y-%m-%dT10:00:00Z')"
+  EVENT_END="$(date -u -d '+1 day' '+%Y-%m-%dT11:00:00Z' 2>/dev/null || date -u -v+1d '+%Y-%m-%dT11:00:00Z')"
+  DUPLICATE_START="$(date -u -d '+1 day' '+%Y-%m-%dT12:00:00Z' 2>/dev/null || date -u -v+1d '+%Y-%m-%dT12:00:00Z')"
+  DUPLICATE_END="$(date -u -d '+1 day' '+%Y-%m-%dT13:00:00Z' 2>/dev/null || date -u -v+1d '+%Y-%m-%dT13:00:00Z')"
+
+  run_get \
+    "60_GET_CALENDAR_PREFERENCES" \
+    "$ACCESS_TOKEN_A" \
+    "$API_BASE_URL/api/calendar/preferences/" \
+    "200"
+
+  begin_test "61_CREATE_CALENDAR"
+  request \
+    "POST" \
+    "$ACCESS_TOKEN_A" \
+    "$API_BASE_URL/api/calendar/calendars/" \
+    "$(jq -n --arg run_id "$RUN_ID" '{name:("E2E Calendar " + $run_id), description:"Calendar created by general_test.sh", color:"#6025D2", timezone:"America/Bogota"}')" \
+    "application/json"
+  record_response "61_CREATE_CALENDAR" "$HTTP_CODE" "$RESPONSE_FILE"
+  CALENDAR_CREATE_RESULT="$(cat "$RESPONSE_FILE")"
+
+  if [ "$CURL_EXIT_CODE" -ne 0 ] || [ "$HTTP_CODE" != "201" ]; then
+    mark_failure "Could not create calendar." "$HTTP_CODE" "$RESPONSE_FILE" "$CURL_ERROR_FILE"
+  else
+    mark_pass "Calendar was created."
+  fi
+
+  CALENDAR_ID="$(extract_json_value "$CALENDAR_CREATE_RESULT" '.calendar.id')"
+  cleanup_request_files
+
+  if validate_uuid_value "61A_CALENDAR_ID" "$CALENDAR_ID"; then
+    register_resource CALENDAR_IDS "$CALENDAR_ID"
+  fi
+
+  begin_test "62_CREATE_CALENDAR_TAG"
+  request \
+    "POST" \
+    "$ACCESS_TOKEN_A" \
+    "$API_BASE_URL/api/calendar/tags/" \
+    "$(jq -n --arg run_id "$RUN_ID" '{name:("E2E Calendar Tag " + $run_id), color:"#2563EB"}')" \
+    "application/json"
+  record_response "62_CREATE_CALENDAR_TAG" "$HTTP_CODE" "$RESPONSE_FILE"
+  CALENDAR_TAG_RESULT="$(cat "$RESPONSE_FILE")"
+
+  if [ "$CURL_EXIT_CODE" -ne 0 ] || [ "$HTTP_CODE" != "201" ]; then
+    mark_failure "Could not create calendar tag." "$HTTP_CODE" "$RESPONSE_FILE" "$CURL_ERROR_FILE"
+  else
+    mark_pass "Calendar tag was created."
+  fi
+
+  CALENDAR_TAG_ID="$(extract_json_value "$CALENDAR_TAG_RESULT" '.tag.id')"
+  cleanup_request_files
+
+  if validate_uuid_value "62A_CALENDAR_TAG_ID" "$CALENDAR_TAG_ID"; then
+    register_resource CALENDAR_TAG_IDS "$CALENDAR_TAG_ID"
+  fi
+
+  begin_test "63_CREATE_CALENDAR_EVENT_WITH_USER_B_ATTENDEE"
+  request \
+    "POST" \
+    "$ACCESS_TOKEN_A" \
+    "$API_BASE_URL/api/calendar/events/" \
+    "$(jq -n \
+      --arg calendar_id "$CALENDAR_ID" \
+      --arg tag_id "$CALENDAR_TAG_ID" \
+      --arg attendee_id "$USER_B_ID" \
+      --arg start "$EVENT_START" \
+      --arg end "$EVENT_END" \
+      --arg run_id "$RUN_ID" \
+      '{
+        calendar_id:$calendar_id,
+        title:("E2E Calendar Event " + $run_id),
+        description:"Calendar end-to-end event",
+        event_kind:"virtual",
+        color:"#6025D2",
+        is_all_day:false,
+        starts_at:$start,
+        ends_at:$end,
+        starts_on:null,
+        ends_on:null,
+        timezone:"America/Bogota",
+        is_private:false,
+        notifications_enabled:false,
+        tag_ids:[$tag_id],
+        attendee_ids:[$attendee_id],
+        reminders:[],
+        conferences:[{
+          provider:"external",
+          label:"E2E conference",
+          join_url:"https://example.com/e2e-calendar",
+          is_primary:true
+        }]
+      }')" \
+    "application/json"
+  record_response "63_CREATE_CALENDAR_EVENT_WITH_USER_B_ATTENDEE" "$HTTP_CODE" "$RESPONSE_FILE"
+  CALENDAR_EVENT_RESULT="$(cat "$RESPONSE_FILE")"
+
+  if [ "$CURL_EXIT_CODE" -ne 0 ] || [ "$HTTP_CODE" != "201" ]; then
+    mark_failure "Could not create calendar event." "$HTTP_CODE" "$RESPONSE_FILE" "$CURL_ERROR_FILE"
+  else
+    mark_pass "Calendar event was created."
+  fi
+
+  CALENDAR_EVENT_ID="$(extract_json_value "$CALENDAR_EVENT_RESULT" '.event.id')"
+  cleanup_request_files
+
+  if validate_uuid_value "63A_CALENDAR_EVENT_ID" "$CALENDAR_EVENT_ID"; then
+    register_resource CALENDAR_EVENT_IDS "$CALENDAR_EVENT_ID"
+  fi
+
+  run_get \
+    "64_GET_CALENDAR_EVENT_DETAIL_OWNER" \
+    "$ACCESS_TOKEN_A" \
+    "$API_BASE_URL/api/calendar/events/$CALENDAR_EVENT_ID/" \
+    "200"
+
+  run_get \
+    "65_LIST_CALENDAR_EVENTS_OWNER" \
+    "$ACCESS_TOKEN_A" \
+    "$API_BASE_URL/api/calendar/events/?range_start=$CALENDAR_RANGE_START&range_end=$CALENDAR_RANGE_END&limit=100" \
+    "200"
+
+  run_get \
+    "66_CALENDAR_CONFLICTS_OWNER" \
+    "$ACCESS_TOKEN_A" \
+    "$API_BASE_URL/api/calendar/conflicts/?is_all_day=false&starts_at=$EVENT_START&ends_at=$EVENT_END" \
+    "200"
+
+  run_json_request \
+    "67_RSVP_ACCEPT_EVENT_AS_USER_B" \
+    "POST" \
+    "$ACCESS_TOKEN_B" \
+    "$API_BASE_URL/api/calendar/events/$CALENDAR_EVENT_ID/rsvp/" \
+    '{"response_status":"accepted"}' \
+    "200"
+
+  begin_test "68_DUPLICATE_CALENDAR_EVENT"
+  request \
+    "POST" \
+    "$ACCESS_TOKEN_A" \
+    "$API_BASE_URL/api/calendar/events/$CALENDAR_EVENT_ID/duplicate/" \
+    "$(jq -n --arg start "$DUPLICATE_START" --arg end "$DUPLICATE_END" '{starts_at:$start, ends_at:$end, include_attendees:false, include_reminders:false, include_recurrence:false}')" \
+    "application/json"
+  record_response "68_DUPLICATE_CALENDAR_EVENT" "$HTTP_CODE" "$RESPONSE_FILE"
+  CALENDAR_DUPLICATE_RESULT="$(cat "$RESPONSE_FILE")"
+
+  if [ "$CURL_EXIT_CODE" -ne 0 ] || [ "$HTTP_CODE" != "201" ]; then
+    mark_failure "Could not duplicate calendar event." "$HTTP_CODE" "$RESPONSE_FILE" "$CURL_ERROR_FILE"
+  else
+    mark_pass "Calendar event was duplicated."
+  fi
+
+  CALENDAR_DUPLICATE_EVENT_ID="$(extract_json_value "$CALENDAR_DUPLICATE_RESULT" '.event.id')"
+  cleanup_request_files
+
+  if validate_uuid_value "68A_CALENDAR_DUPLICATE_EVENT_ID" "$CALENDAR_DUPLICATE_EVENT_ID"; then
+    register_resource CALENDAR_EVENT_IDS "$CALENDAR_DUPLICATE_EVENT_ID"
+  fi
+
+  run_json_request \
+    "69_UPDATE_CALENDAR_EVENT" \
+    "PATCH" \
+    "$ACCESS_TOKEN_A" \
+    "$API_BASE_URL/api/calendar/events/$CALENDAR_EVENT_ID/" \
+    "$(jq -n --arg run_id "$RUN_ID" '{title:("E2E Calendar Event Updated " + $run_id)}')" \
+    "200"
+else
+  begin_test "60_CALENDAR_TESTS_DISABLED"
+  mark_skip "RUN_CALENDAR_TESTS is not true."
+fi
+
+
+if [ "$RUN_COMMERCIAL_TESTS" = "true" ]; then
+  begin_test "70_UPLOAD_COMMERCIAL_LOGO"
+  request_multipart \
+    "POST" \
+    "$ACCESS_TOKEN_A" \
+    "$API_BASE_URL/api/storage/uploads/" \
+    "file=@${LOGO_PNG_FILE};type=image/png"
+  record_response "70_UPLOAD_COMMERCIAL_LOGO" "$HTTP_CODE" "$RESPONSE_FILE"
+  LOGO_UPLOAD_RESULT="$(cat "$RESPONSE_FILE")"
+
+  if [ "$CURL_EXIT_CODE" -ne 0 ] || [ "$HTTP_CODE" != "201" ]; then
+    mark_failure "Could not upload commercial logo." "$HTTP_CODE" "$RESPONSE_FILE" "$CURL_ERROR_FILE"
+  else
+    mark_pass "Commercial logo was uploaded."
+  fi
+
+  LOGO_FILE_ID="$(extract_json_value "$LOGO_UPLOAD_RESULT" '.files[0].id')"
+  cleanup_request_files
+
+  if validate_uuid_value "70A_LOGO_FILE_ID" "$LOGO_FILE_ID"; then
+    register_remote_file "$LOGO_FILE_ID"
+  fi
+
+  run_get \
+    "71_LIST_COMMERCIAL_ROOT_CATEGORIES" \
+    "$ACCESS_TOKEN_A" \
+    "$API_BASE_URL/api/commercial/categories/?offer_type=services" \
+    "200"
+
+  begin_test "72_CREATE_COMMERCIAL_PROFILE_CUSTOM_ACTIVITY"
+  request \
+    "POST" \
+    "$ACCESS_TOKEN_A" \
+    "$API_BASE_URL/api/commercial/profiles/" \
+    "$(jq -n \
+      --arg logo_file_id "$LOGO_FILE_ID" \
+      --arg run_id "$RUN_ID" \
+      '{
+        offer_type:"services",
+        category_id:null,
+        custom_activity_text:"E2E testing services",
+        display_name:("E2E Commercial Profile " + $run_id),
+        description:"Commercial profile generated by end-to-end test.",
+        country_code:"CO",
+        city:"Bogota",
+        address:null,
+        neighborhood:null,
+        location_reference:null,
+        is_address_public:false,
+        phone_dial_code:null,
+        phone_number:null,
+        is_phone_public:false,
+        public_email:null,
+        is_email_public:false,
+        logo_file_id:$logo_file_id,
+        is_public:false,
+        is_available:true,
+        modalities:["virtual"],
+        hours:[]
+      }')" \
+    "application/json"
+  record_response "72_CREATE_COMMERCIAL_PROFILE_CUSTOM_ACTIVITY" "$HTTP_CODE" "$RESPONSE_FILE"
+  COMMERCIAL_PROFILE_RESULT="$(cat "$RESPONSE_FILE")"
+
+  if [ "$CURL_EXIT_CODE" -ne 0 ] || [ "$HTTP_CODE" != "201" ]; then
+    mark_failure "Could not create commercial profile." "$HTTP_CODE" "$RESPONSE_FILE" "$CURL_ERROR_FILE"
+  else
+    mark_pass "Commercial profile was created."
+  fi
+
+  COMMERCIAL_PROFILE_ID="$(extract_json_value "$COMMERCIAL_PROFILE_RESULT" '.profile.id')"
+  cleanup_request_files
+
+  if validate_uuid_value "72A_COMMERCIAL_PROFILE_ID" "$COMMERCIAL_PROFILE_ID"; then
+    register_resource COMMERCIAL_PROFILE_IDS "$COMMERCIAL_PROFILE_ID"
+  fi
+
+  run_get \
+    "73_GET_COMMERCIAL_PROFILE" \
+    "$ACCESS_TOKEN_A" \
+    "$API_BASE_URL/api/commercial/profiles/$COMMERCIAL_PROFILE_ID/" \
+    "200"
+else
+  begin_test "70_COMMERCIAL_TESTS_DISABLED"
+  mark_skip "RUN_COMMERCIAL_TESTS is not true."
+fi
+
+
+if [ "$RUN_INTEGRATIONS_TESTS" = "true" ]; then
+  run_get \
+    "80_GET_INTEGRATION_CATALOG" \
+    "$ACCESS_TOKEN_A" \
+    "$API_BASE_URL/api/integrations/catalog/" \
+    "200"
+
+  run_get \
+    "81_LIST_INTEGRATION_CONNECTIONS" \
+    "$ACCESS_TOKEN_A" \
+    "$API_BASE_URL/api/integrations/connections/" \
+    "200"
+
+  run_get \
+    "82_LIST_CALENDAR_INTEGRATIONS" \
+    "$ACCESS_TOKEN_A" \
+    "$API_BASE_URL/api/calendar/integrations/" \
+    "200"
+
+  run_get \
+    "83_LIST_MAIL_INTEGRATIONS" \
+    "$ACCESS_TOKEN_A" \
+    "$API_BASE_URL/api/mail/integrations/?include_inactive=true" \
+    "200"
+else
+  begin_test "80_INTEGRATIONS_TESTS_DISABLED"
+  mark_skip "RUN_INTEGRATIONS_TESTS is not true."
+fi
+
+
+if [ "$RUN_MAIL_TESTS" = "true" ]; then
+  begin_test "90_MAIL_TESTS_REQUIRE_ACTIVE_INTEGRATION"
+  mark_skip "Mail draft/send tests are intentionally disabled by default because they require an active OAuth integration and may create provider-side drafts or send mail."
+else
+  begin_test "90_MAIL_TESTS_DISABLED"
+  mark_skip "Set RUN_MAIL_TESTS=true only in a dedicated test mailbox environment."
+fi
+
+
+if [ "$RUN_CHAT_TESTS" = "true" ]; then
+  begin_test "100_BOOTSTRAP_CHAT_USER_A"
+  request \
+    "POST" \
+    "$ACCESS_TOKEN_A" \
+    "$API_BASE_URL/api/chat/bootstrap/" \
+    '{}' \
+    "application/json"
+  record_response "100_BOOTSTRAP_CHAT_USER_A" "$HTTP_CODE" "$RESPONSE_FILE"
+  BOOTSTRAP_A="$(cat "$RESPONSE_FILE")"
+
+  if [ "$CURL_EXIT_CODE" -ne 0 ] || [ "$HTTP_CODE" != "200" ]; then
+    mark_failure "Chat bootstrap User A failed." "$HTTP_CODE" "$RESPONSE_FILE" "$CURL_ERROR_FILE"
+    cleanup_request_files
+    exit 1
+  else
+    mark_pass "Chat bootstrap User A succeeded."
+  fi
+
+  USER_A_IDENTITY_ID="$(extract_profile_identity_id "$BOOTSTRAP_A")"
+  cleanup_request_files
+
+  if ! validate_uuid_value "100A_USER_A_PROFILE_IDENTITY" "$USER_A_IDENTITY_ID"; then
+    exit 1
+  fi
+
+  begin_test "101_BOOTSTRAP_CHAT_USER_B"
+  request \
+    "POST" \
+    "$ACCESS_TOKEN_B" \
+    "$API_BASE_URL/api/chat/bootstrap/" \
+    '{}' \
+    "application/json"
+  record_response "101_BOOTSTRAP_CHAT_USER_B" "$HTTP_CODE" "$RESPONSE_FILE"
+  BOOTSTRAP_B="$(cat "$RESPONSE_FILE")"
+
+  if [ "$CURL_EXIT_CODE" -ne 0 ] || [ "$HTTP_CODE" != "200" ]; then
+    mark_failure "Chat bootstrap User B failed." "$HTTP_CODE" "$RESPONSE_FILE" "$CURL_ERROR_FILE"
+    cleanup_request_files
+    exit 1
+  else
+    mark_pass "Chat bootstrap User B succeeded."
+  fi
+
+  USER_B_IDENTITY_ID="$(extract_profile_identity_id "$BOOTSTRAP_B")"
+  cleanup_request_files
+
+  if ! validate_uuid_value "101A_USER_B_PROFILE_IDENTITY" "$USER_B_IDENTITY_ID"; then
+    exit 1
+  fi
+
+  begin_test "102_BOOTSTRAP_CHAT_USER_C"
+  request     "POST"     "$ACCESS_TOKEN_C"     "$API_BASE_URL/api/chat/bootstrap/"     '{}'     "application/json"
+  record_response     "102_BOOTSTRAP_CHAT_USER_C"     "$HTTP_CODE"     "$RESPONSE_FILE"
+  BOOTSTRAP_C="$(cat "$RESPONSE_FILE")"
+
+  if [ "$CURL_EXIT_CODE" -ne 0 ] || [ "$HTTP_CODE" != "200" ]; then
+    mark_failure       "Chat bootstrap User C failed."       "$HTTP_CODE"       "$RESPONSE_FILE"       "$CURL_ERROR_FILE"
+    cleanup_request_files
+    exit 1
+  else
+    mark_pass "Chat bootstrap User C succeeded."
+  fi
+
+  USER_C_IDENTITY_ID="$(extract_profile_identity_id "$BOOTSTRAP_C")"
+  cleanup_request_files
+
+  if ! validate_uuid_value     "102A_USER_C_PROFILE_IDENTITY"     "$USER_C_IDENTITY_ID"; then
+    exit 1
+  fi
+
+  begin_test "103_BOOTSTRAP_CHAT_USER_D"
+  request     "POST"     "$ACCESS_TOKEN_D"     "$API_BASE_URL/api/chat/bootstrap/"     '{}'     "application/json"
+  record_response     "103_BOOTSTRAP_CHAT_USER_D"     "$HTTP_CODE"     "$RESPONSE_FILE"
+  BOOTSTRAP_D="$(cat "$RESPONSE_FILE")"
+
+  if [ "$CURL_EXIT_CODE" -ne 0 ] || [ "$HTTP_CODE" != "200" ]; then
+    mark_failure       "Chat bootstrap User D failed."       "$HTTP_CODE"       "$RESPONSE_FILE"       "$CURL_ERROR_FILE"
+    cleanup_request_files
+    exit 1
+  else
+    mark_pass "Chat bootstrap User D succeeded."
+  fi
+
+  USER_D_IDENTITY_ID="$(extract_profile_identity_id "$BOOTSTRAP_D")"
+  cleanup_request_files
+
+  if ! validate_uuid_value     "103A_USER_D_PROFILE_IDENTITY"     "$USER_D_IDENTITY_ID"; then
+    exit 1
+  fi
+
+  begin_test "102_CREATE_OR_GET_DIRECT_CONVERSATION"
+  request \
+    "POST" \
+    "$ACCESS_TOKEN_A" \
+    "$API_BASE_URL/api/chat/direct-conversations/" \
+    "$(jq -n --arg sender "$USER_A_IDENTITY_ID" --arg recipient "$USER_B_IDENTITY_ID" '{sender_identity_id:$sender, recipient_identity_id:$recipient}')" \
+    "application/json"
+  record_response "102_CREATE_OR_GET_DIRECT_CONVERSATION" "$HTTP_CODE" "$RESPONSE_FILE"
+  DIRECT_RESULT="$(cat "$RESPONSE_FILE")"
+
+  if [ "$CURL_EXIT_CODE" -ne 0 ] \
+    || { [ "$HTTP_CODE" != "200" ] && [ "$HTTP_CODE" != "201" ]; }; then
+    mark_failure "Could not create/get direct conversation." "$HTTP_CODE" "$RESPONSE_FILE" "$CURL_ERROR_FILE"
+  else
+    mark_pass "Direct conversation is available."
+  fi
+
+  DIRECT_CONVERSATION_ID="$(extract_json_value "$DIRECT_RESULT" '.conversation.id')"
+  cleanup_request_files
+
+  if ! validate_uuid_value "102A_DIRECT_CONVERSATION_ID" "$DIRECT_CONVERSATION_ID"; then
+    exit 1
+  fi
+
+  begin_test "103_SEND_DIRECT_MESSAGE_A_TO_B"
+  request \
+    "POST" \
+    "$ACCESS_TOKEN_A" \
+    "$API_BASE_URL/api/chat/conversations/$DIRECT_CONVERSATION_ID/messages/" \
+    "$(jq -n --arg sender "$USER_A_IDENTITY_ID" --arg run_id "$RUN_ID" '{sender_identity_id:$sender, message_type:"text", body:("Direct message A to B " + $run_id), metadata:{source:"general_test",run_id:$run_id}}')" \
+    "application/json"
+  record_response "103_SEND_DIRECT_MESSAGE_A_TO_B" "$HTTP_CODE" "$RESPONSE_FILE"
+  DIRECT_MESSAGE_A_RESULT="$(cat "$RESPONSE_FILE")"
+
+  if [ "$CURL_EXIT_CODE" -ne 0 ] || [ "$HTTP_CODE" != "201" ]; then
+    mark_failure "Could not send direct message A to B." "$HTTP_CODE" "$RESPONSE_FILE" "$CURL_ERROR_FILE"
+  else
+    mark_pass "Direct message A to B was created."
+  fi
+
+  DIRECT_MESSAGE_A_ID="$(extract_json_value "$DIRECT_MESSAGE_A_RESULT" '.message.id')"
+  cleanup_request_files
+
+  if ! validate_uuid_value "103A_DIRECT_MESSAGE_A_ID" "$DIRECT_MESSAGE_A_ID"; then
+    exit 1
+  fi
+
+  run_json_request \
+    "104_MARK_DIRECT_CONVERSATION_READ_USER_B" \
+    "POST" \
+    "$ACCESS_TOKEN_B" \
+    "$API_BASE_URL/api/chat/conversations/$DIRECT_CONVERSATION_ID/read/" \
+    "$(jq -n --arg identity "$USER_B_IDENTITY_ID" --arg message "$DIRECT_MESSAGE_A_ID" '{identity_id:$identity,last_read_message_id:$message}')" \
+    "200"
+
+  run_get \
+    "105_GET_DIRECT_MESSAGE_READ_STATUS_USER_A" \
+    "$ACCESS_TOKEN_A" \
+    "$API_BASE_URL/api/chat/messages/$DIRECT_MESSAGE_A_ID/read-status/" \
+    "200"
+
+  begin_test "106_SEND_DIRECT_MESSAGE_B_TO_A"
+  request \
+    "POST" \
+    "$ACCESS_TOKEN_B" \
+    "$API_BASE_URL/api/chat/conversations/$DIRECT_CONVERSATION_ID/messages/" \
+    "$(jq -n --arg sender "$USER_B_IDENTITY_ID" --arg run_id "$RUN_ID" '{sender_identity_id:$sender, message_type:"text", body:("Direct message B to A " + $run_id), metadata:{source:"general_test",run_id:$run_id}}')" \
+    "application/json"
+  record_response "106_SEND_DIRECT_MESSAGE_B_TO_A" "$HTTP_CODE" "$RESPONSE_FILE"
+  DIRECT_MESSAGE_B_RESULT="$(cat "$RESPONSE_FILE")"
+
+  if [ "$CURL_EXIT_CODE" -ne 0 ] || [ "$HTTP_CODE" != "201" ]; then
+    mark_failure "Could not send direct message B to A." "$HTTP_CODE" "$RESPONSE_FILE" "$CURL_ERROR_FILE"
+  else
+    mark_pass "Direct message B to A was created."
+  fi
+
+  DIRECT_MESSAGE_B_ID="$(extract_json_value "$DIRECT_MESSAGE_B_RESULT" '.message.id')"
+  cleanup_request_files
+
+  if ! validate_uuid_value "106A_DIRECT_MESSAGE_B_ID" "$DIRECT_MESSAGE_B_ID"; then
+    exit 1
+  fi
+
+  run_json_request \
+    "107_CREATE_REACTION_B_ON_A_MESSAGE" \
+    "POST" \
+    "$ACCESS_TOKEN_B" \
+    "$API_BASE_URL/api/chat/messages/$DIRECT_MESSAGE_A_ID/reactions/" \
+    "$(jq -n --arg identity "$USER_B_IDENTITY_ID" '{identity_id:$identity,emoji:"👍"}')" \
+    "201"
+
+  run_get \
+    "108_LIST_REACTIONS_USER_A" \
+    "$ACCESS_TOKEN_A" \
+    "$API_BASE_URL/api/chat/messages/$DIRECT_MESSAGE_A_ID/reactions/" \
+    "200"
+
+  begin_test "109_DELETE_REACTION_B"
+  request \
+    "DELETE" \
+    "$ACCESS_TOKEN_B" \
+    "$API_BASE_URL/api/chat/messages/$DIRECT_MESSAGE_A_ID/reactions/%F0%9F%91%8D/?identity_id=$USER_B_IDENTITY_ID"
+  record_response "109_DELETE_REACTION_B" "$HTTP_CODE" "$RESPONSE_FILE"
+
+  if [ "$CURL_EXIT_CODE" -ne 0 ] || [ "$HTTP_CODE" != "204" ]; then
+    mark_failure "Could not delete chat reaction." "$HTTP_CODE" "$RESPONSE_FILE" "$CURL_ERROR_FILE"
+  else
+    mark_pass "Chat reaction was deleted."
+  fi
+  cleanup_request_files
+
+  begin_test "110_CREATE_NORMAL_GROUP"
+  request \
+    "POST" \
+    "$ACCESS_TOKEN_A" \
+    "$API_BASE_URL/api/chat/groups/" \
+    "$(jq -n --arg creator "$USER_A_IDENTITY_ID" --arg run_id "$RUN_ID" '{creator_identity_id:$creator,name:("E2E All Members Group " + $run_id),posting_policy:"all_members",description:"E2E chat group"}')" \
+    "application/json"
+  record_response "110_CREATE_NORMAL_GROUP" "$HTTP_CODE" "$RESPONSE_FILE"
+  NORMAL_GROUP_RESULT="$(cat "$RESPONSE_FILE")"
+
+  if [ "$CURL_EXIT_CODE" -ne 0 ] || [ "$HTTP_CODE" != "201" ]; then
+    mark_failure "Could not create normal group." "$HTTP_CODE" "$RESPONSE_FILE" "$CURL_ERROR_FILE"
+  else
+    mark_pass "Normal group was created."
+  fi
+
+  NORMAL_GROUP_ID="$(extract_json_value "$NORMAL_GROUP_RESULT" '.conversation.id')"
+  cleanup_request_files
+
+  if validate_uuid_value "110A_NORMAL_GROUP_ID" "$NORMAL_GROUP_ID"; then
+    register_resource CHAT_GROUP_IDS "$NORMAL_GROUP_ID"
+  fi
+
+  begin_test "111_INVITE_USER_B_TO_NORMAL_GROUP"
+  request \
+    "POST" \
+    "$ACCESS_TOKEN_A" \
+    "$API_BASE_URL/api/chat/groups/$NORMAL_GROUP_ID/invites/" \
+    "$(jq -n --arg actor "$USER_A_IDENTITY_ID" --arg invited "$USER_B_IDENTITY_ID" '{actor_identity_id:$actor,invited_identity_id:$invited,expires_at:null}')" \
+    "application/json"
+  record_response "111_INVITE_USER_B_TO_NORMAL_GROUP" "$HTTP_CODE" "$RESPONSE_FILE"
+  NORMAL_INVITE_RESULT="$(cat "$RESPONSE_FILE")"
+
+  if [ "$CURL_EXIT_CODE" -ne 0 ] || [ "$HTTP_CODE" != "201" ]; then
+    mark_failure "Could not invite User B to normal group." "$HTTP_CODE" "$RESPONSE_FILE" "$CURL_ERROR_FILE"
+  else
+    mark_pass "User B was invited to normal group."
+  fi
+
+  NORMAL_GROUP_INVITE_ID="$(extract_json_value "$NORMAL_INVITE_RESULT" '.invite.id')"
+  cleanup_request_files
+
+  if ! validate_uuid_value "111A_NORMAL_GROUP_INVITE_ID" "$NORMAL_GROUP_INVITE_ID"; then
+    exit 1
+  fi
+
+  run_json_request \
+    "112_ACCEPT_NORMAL_GROUP_INVITE_USER_B" \
+    "POST" \
+    "$ACCESS_TOKEN_B" \
+    "$API_BASE_URL/api/chat/group-invites/$NORMAL_GROUP_INVITE_ID/response/" \
+    '{"accept":true}' \
+    "200"
+
+  run_json_request \
+    "113_MEMBER_SENDS_IN_NORMAL_GROUP" \
+    "POST" \
+    "$ACCESS_TOKEN_B" \
+    "$API_BASE_URL/api/chat/conversations/$NORMAL_GROUP_ID/messages/" \
+    "$(jq -n --arg sender "$USER_B_IDENTITY_ID" --arg run_id "$RUN_ID" '{sender_identity_id:$sender,message_type:"text",body:("Member message " + $run_id),metadata:{source:"general_test"}}')" \
+    "201"
+
+  begin_test "114_CREATE_BROADCAST_GROUP"
+  request \
+    "POST" \
+    "$ACCESS_TOKEN_A" \
+    "$API_BASE_URL/api/chat/groups/" \
+    "$(jq -n --arg creator "$USER_A_IDENTITY_ID" --arg run_id "$RUN_ID" '{creator_identity_id:$creator,name:("E2E Broadcast Group " + $run_id),posting_policy:"admins_only",description:"E2E broadcast group"}')" \
+    "application/json"
+  record_response "114_CREATE_BROADCAST_GROUP" "$HTTP_CODE" "$RESPONSE_FILE"
+  BROADCAST_GROUP_RESULT="$(cat "$RESPONSE_FILE")"
+
+  if [ "$CURL_EXIT_CODE" -ne 0 ] || [ "$HTTP_CODE" != "201" ]; then
+    mark_failure "Could not create broadcast group." "$HTTP_CODE" "$RESPONSE_FILE" "$CURL_ERROR_FILE"
+  else
+    mark_pass "Broadcast group was created."
+  fi
+
+  BROADCAST_GROUP_ID="$(extract_json_value "$BROADCAST_GROUP_RESULT" '.conversation.id')"
+  cleanup_request_files
+
+  if validate_uuid_value "114A_BROADCAST_GROUP_ID" "$BROADCAST_GROUP_ID"; then
+    register_resource CHAT_GROUP_IDS "$BROADCAST_GROUP_ID"
+  fi
+
+  begin_test "115_INVITE_USER_B_TO_BROADCAST_GROUP"
+  request \
+    "POST" \
+    "$ACCESS_TOKEN_A" \
+    "$API_BASE_URL/api/chat/groups/$BROADCAST_GROUP_ID/invites/" \
+    "$(jq -n --arg actor "$USER_A_IDENTITY_ID" --arg invited "$USER_B_IDENTITY_ID" '{actor_identity_id:$actor,invited_identity_id:$invited,expires_at:null}')" \
+    "application/json"
+  record_response "115_INVITE_USER_B_TO_BROADCAST_GROUP" "$HTTP_CODE" "$RESPONSE_FILE"
+  BROADCAST_INVITE_RESULT="$(cat "$RESPONSE_FILE")"
+
+  if [ "$CURL_EXIT_CODE" -ne 0 ] || [ "$HTTP_CODE" != "201" ]; then
+    mark_failure "Could not invite User B to broadcast group." "$HTTP_CODE" "$RESPONSE_FILE" "$CURL_ERROR_FILE"
+  else
+    mark_pass "User B was invited to broadcast group."
+  fi
+
+  BROADCAST_GROUP_INVITE_ID="$(extract_json_value "$BROADCAST_INVITE_RESULT" '.invite.id')"
+  cleanup_request_files
+
+  if ! validate_uuid_value "115A_BROADCAST_GROUP_INVITE_ID" "$BROADCAST_GROUP_INVITE_ID"; then
+    exit 1
+  fi
+
+  run_json_request \
+    "116_ACCEPT_BROADCAST_GROUP_INVITE_USER_B" \
+    "POST" \
+    "$ACCESS_TOKEN_B" \
+    "$API_BASE_URL/api/chat/group-invites/$BROADCAST_GROUP_INVITE_ID/response/" \
+    '{"accept":true}' \
+    "200"
+
+  BROADCAST_MEMBER_PAYLOAD="$(
+    jq -n --arg sender "$USER_B_IDENTITY_ID" --arg run_id "$RUN_ID" \
+      '{sender_identity_id:$sender,message_type:"text",body:("Blocked member message " + $run_id),metadata:{source:"general_test"}}'
+  )"
+
+  run_expected_failure \
+    "117_MEMBER_CANNOT_SEND_IN_BROADCAST_GROUP" \
+    "POST" \
+    "$ACCESS_TOKEN_B" \
+    "$API_BASE_URL/api/chat/conversations/$BROADCAST_GROUP_ID/messages/" \
+    "$BROADCAST_MEMBER_PAYLOAD" \
+    "400 403"
+
+  run_json_request \
+    "118_OWNER_PROMOTES_B_TO_ADMIN" \
+    "PATCH" \
+    "$ACCESS_TOKEN_A" \
+    "$API_BASE_URL/api/chat/groups/$BROADCAST_GROUP_ID/participants/$USER_B_IDENTITY_ID/role/" \
+    "$(jq -n --arg actor "$USER_A_IDENTITY_ID" '{actor_identity_id:$actor,role:"admin"}')" \
+    "200"
+
+  run_json_request \
+    "119_ADMIN_SENDS_IN_BROADCAST_GROUP" \
+    "POST" \
+    "$ACCESS_TOKEN_B" \
+    "$API_BASE_URL/api/chat/conversations/$BROADCAST_GROUP_ID/messages/" \
+    "$(jq -n --arg sender "$USER_B_IDENTITY_ID" --arg run_id "$RUN_ID" '{sender_identity_id:$sender,message_type:"text",body:("Admin broadcast message " + $run_id),metadata:{source:"general_test"}}')" \
+    "201"
+
+  begin_test "120_UPLOAD_CHAT_ATTACHMENT_A_TO_B"
+  request_multipart \
+    "POST" \
+    "$ACCESS_TOKEN_A" \
+    "$API_BASE_URL/api/chat/conversations/$DIRECT_CONVERSATION_ID/attachments/" \
+    "sender_identity_id=$USER_A_IDENTITY_ID" \
+    "message_type=document" \
+    "body=Temporary E2E chat attachment $RUN_ID" \
+    "metadata={\"source\":\"general_test\",\"run_id\":\"$RUN_ID\"}" \
+    "file=@${CHAT_TEXT_FILE};type=text/plain"
+  record_response "120_UPLOAD_CHAT_ATTACHMENT_A_TO_B" "$HTTP_CODE" "$RESPONSE_FILE"
+  CHAT_ATTACHMENT_RESULT="$(cat "$RESPONSE_FILE")"
+
+  if [ "$CURL_EXIT_CODE" -ne 0 ] || [ "$HTTP_CODE" != "201" ]; then
+    mark_failure "Chat attachment upload failed." "$HTTP_CODE" "$RESPONSE_FILE" "$CURL_ERROR_FILE"
+  else
+    mark_pass "Chat attachment was uploaded and message created."
+  fi
+
+  CHAT_ATTACHMENT_MESSAGE_ID="$(extract_json_value "$CHAT_ATTACHMENT_RESULT" '.message.id')"
+  CHAT_ATTACHMENT_FILE_ID="$(extract_json_value "$CHAT_ATTACHMENT_RESULT" '.file.id // .message.attachment_file_id')"
+  cleanup_request_files
+
+  if validate_uuid_value "120A_CHAT_ATTACHMENT_MESSAGE_ID" "$CHAT_ATTACHMENT_MESSAGE_ID"; then
+    :
+  fi
+
+  if validate_uuid_value "120B_CHAT_ATTACHMENT_FILE_ID" "$CHAT_ATTACHMENT_FILE_ID"; then
+    register_remote_file "$CHAT_ATTACHMENT_FILE_ID"
+  fi
+
+  run_get \
+    "121_GET_CHAT_ATTACHMENT_METADATA_AS_USER_B" \
+    "$ACCESS_TOKEN_B" \
+    "$API_BASE_URL/api/chat/messages/$CHAT_ATTACHMENT_MESSAGE_ID/attachment/?identity_id=$USER_B_IDENTITY_ID" \
+    "200"
+
+  run_get \
+    "122_GET_CHAT_ATTACHMENT_ACCESS_URL_AS_USER_B" \
+    "$ACCESS_TOKEN_B" \
+    "$API_BASE_URL/api/chat/messages/$CHAT_ATTACHMENT_MESSAGE_ID/attachment/access/?identity_id=$USER_B_IDENTITY_ID&download=true" \
+    "200"
+else
+  begin_test "100_CHAT_TESTS_DISABLED"
+  mark_skip "RUN_CHAT_TESTS is not true."
+fi
+
+
+record_section "PUSH_WORKER_MANUAL_CHECK"
+
+{
+  printf '%s\n' \
+    'Optional manual validation after this suite:'
+  printf '%s\n' \
+    'python manage.py process_chat_push_notifications --limit 50'
+  printf '%s\n' \
+    'The suite does not execute the push worker because it can send real Expo notifications.'
+} >> "$REPORT_FILE"
+
+record_section "FINAL_SUMMARY"
+
+{
+  printf 'RUN_ID=%s\n' "$RUN_ID"
+  printf 'TESTS_TOTAL=%s\n' "$TESTS_TOTAL"
+  printf 'TESTS_PASSED=%s\n' "$TESTS_PASSED"
+  printf 'TESTS_FAILED=%s\n' "$TESTS_FAILED"
+  printf 'TESTS_SKIPPED=%s\n' "$TESTS_SKIPPED"
+  printf 'EXPECTED_FAILURES_OK=%s\n' "$EXPECTED_FAILURES_OK"
+  printf 'USER_A_ID=%s\n' "$USER_A_ID"
+  printf 'USER_B_ID=%s\n' "$USER_B_ID"
+  printf 'USER_C_ID=%s\n' "$USER_C_ID"
+  printf 'USER_D_ID=%s\n' "$USER_D_ID"
+  printf 'USER_A_IDENTITY_ID=%s\n' "$USER_A_IDENTITY_ID"
+  printf 'USER_B_IDENTITY_ID=%s\n' "$USER_B_IDENTITY_ID"
+  printf 'USER_C_IDENTITY_ID=%s\n' "$USER_C_IDENTITY_ID"
+  printf 'USER_D_IDENTITY_ID=%s\n' "$USER_D_IDENTITY_ID"
+  printf 'REPORT_FILE=%s\n' "$REPORT_FILE"
+  printf 'FAILURES_FILE=%s\n' "$FAILURES_FILE"
+} >> "$REPORT_FILE"
+
+printf '\n============================================================\n'
+printf 'FINAL SUMMARY — BeeApp General Backend E2E Test\n'
+printf '============================================================\n'
+printf 'Total tests:              %s\n' "$TESTS_TOTAL"
+printf 'Passed tests:             %s\n' "$TESTS_PASSED"
+printf 'Failed tests:             %s\n' "$TESTS_FAILED"
+printf 'Skipped tests:            %s\n' "$TESTS_SKIPPED"
+printf 'Expected failures passed: %s\n' "$EXPECTED_FAILURES_OK"
+printf '\nFull report:\n  %s\n' "$REPORT_FILE"
+printf 'Failures report:\n  %s\n' "$FAILURES_FILE"
+printf '============================================================\n'
+
+if [ "$TESTS_FAILED" -eq 0 ]; then
+  printf '✅ ALL ENABLED GENERAL BACKEND E2E TESTS PASSED.\n'
+else
+  printf '❌ SOME GENERAL BACKEND E2E TESTS FAILED.\n'
+  printf 'Open the failures report for exact details and likely causes.\n'
+fi
+
+exit "$TESTS_FAILED"

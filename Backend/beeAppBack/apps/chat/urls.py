@@ -1,8 +1,8 @@
 from django.urls import path
 
 from apps.chat.views import (
-    ChatContactProfileView,
     ChatBootstrapView,
+    ChatContactProfileView,
     ChatConversationAttachmentUploadView,
     ChatConversationClearView,
     ChatConversationDetailView,
@@ -11,11 +11,14 @@ from apps.chat.views import (
     ChatConversationReadView,
     ChatDirectConversationsView,
     ChatGroupConversationInvitesView,
+    ChatGroupDetailView,
     ChatGroupInviteDetailView,
     ChatGroupInviteResponseView,
     ChatGroupInvitesView,
     ChatGroupLeaveView,
+    ChatGroupOwnershipTransferView,
     ChatGroupParticipantDetailView,
+    ChatGroupParticipantRoleView,
     ChatGroupsView,
     ChatIdentitiesView,
     ChatInboxView,
@@ -97,14 +100,32 @@ urlpatterns = [
         name="chat-groups",
     ),
     path(
+        "groups/<uuid:conversation_id>/",
+        ChatGroupDetailView.as_view(),
+        name="chat-group-detail",
+    ),
+    path(
         "groups/<uuid:conversation_id>/invites/",
         ChatGroupConversationInvitesView.as_view(),
         name="chat-group-invites-create",
     ),
     path(
+        "groups/<uuid:conversation_id>/transfer-ownership/",
+        ChatGroupOwnershipTransferView.as_view(),
+        name="chat-group-transfer-ownership",
+    ),
+    path(
         "groups/<uuid:conversation_id>/leave/",
         ChatGroupLeaveView.as_view(),
         name="chat-group-leave",
+    ),
+    path(
+        (
+            "groups/<uuid:conversation_id>/participants/"
+            "<uuid:identity_id>/role/"
+        ),
+        ChatGroupParticipantRoleView.as_view(),
+        name="chat-group-participant-role",
     ),
     path(
         (
