@@ -19,7 +19,7 @@ export const MOCK_NOTES: NoteItem[] = [
     id: 'nt-1',
     title: 'Estrategia de Ventas Q3',
     preview: 'Definición de metas mensuales y expansión del catálogo de servicios...',
-    content: '1. Incrementar ventas de BeeServices en un 25%.\n2. Configurar respuestas automáticas del asistente de IA.\n3. Lanzar catálogo de productos de temporada.',
+    content: '1. Incrementar ventas de BuddyServices en un 25%.\n2. Configurar respuestas automáticas del asistente de IA.\n3. Lanzar catálogo de productos de temporada.',
     timestamp: 'Hoy, 09:15 AM',
     isProtected: false,
     isFavorite: true,

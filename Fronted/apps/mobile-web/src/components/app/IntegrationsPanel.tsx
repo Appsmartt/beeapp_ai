@@ -128,7 +128,7 @@ export function IntegrationsPanel() {
     const shouldDisconnect = window.confirm(
       `¿Desconectar ${item.providerName}?\n\n`
       + `Se eliminará la autorización de ${item.accountLabel} `
-      + 'guardada en BeeApp. Podrás vincularla nuevamente '
+      + 'guardada en Buddy. Podrás vincularla nuevamente '
       + 'cuando quieras.',
     );
 
@@ -158,7 +158,7 @@ export function IntegrationsPanel() {
   ) => {
     const shouldDelete = window.confirm(
       '¿Eliminar cuenta de la lista?\n\n'
-      + `${item.accountLabel} dejará de aparecer en BeeApp. `
+      + `${item.accountLabel} dejará de aparecer en Buddy. `
       + 'La cuenta ya está desconectada y sus credenciales '
       + 'no se conservan.',
     );
@@ -213,7 +213,7 @@ export function IntegrationsPanel() {
       <div className="flex items-start justify-between gap-4">
         <p className="max-w-2xl text-sm text-neutral-500 font-normal leading-relaxed">
           Vincula cuentas externas para usar sus permisos de
-          forma segura en BeeApp. Nunca guardamos tu contraseña.
+          forma segura en Buddy. Nunca guardamos tu contraseña.
         </p>
 
         <button
@@ -354,7 +354,7 @@ export function IntegrationsPanel() {
             </h3>
 
             <p className="mt-2 mx-auto max-w-md text-xs leading-relaxed text-neutral-500">
-              Vincula una cuenta para permitir que BeeApp use
+              Vincula una cuenta para permitir que Buddy use
               sus permisos cuando los necesites.
             </p>
           </div>
@@ -470,7 +470,7 @@ export function IntegrationsPanel() {
 
               <p className="text-xs leading-relaxed font-medium text-emerald-800">
                 Iniciarás sesión directamente con el proveedor.
-                BeeApp nunca recibe tu contraseña.
+                Buddy nunca recibe tu contraseña.
               </p>
             </div>
           </div>

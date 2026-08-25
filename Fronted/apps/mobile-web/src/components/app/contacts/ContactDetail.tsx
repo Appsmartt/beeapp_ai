@@ -98,7 +98,7 @@ export default function ContactDetail({ contact, onBack, onSendMessage }: Contac
         <div className="space-y-1.5">
           <h3 className="text-[11px] uppercase tracking-wider font-semibold text-neutral-500 px-1">Archivos Compartidos</h3>
           <div className="bg-white rounded-2xl border border-neutral-200 p-3 space-y-2 shadow-xs">
-            <div className="flex items-center gap-3"><FileText className="w-4 h-4 text-red-500 shrink-0" /><div className="min-w-0"><p className="text-xs font-normal text-neutral-900 truncate">NDA_Firmado_BeeApp.pdf</p><p className="text-[10px] text-neutral-500 font-normal">1.2 MB • Hace 2 días</p></div></div>
+            <div className="flex items-center gap-3"><FileText className="w-4 h-4 text-red-500 shrink-0" /><div className="min-w-0"><p className="text-xs font-normal text-neutral-900 truncate">NDA_Firmado_Buddy.pdf</p><p className="text-[10px] text-neutral-500 font-normal">1.2 MB • Hace 2 días</p></div></div>
             <div className="flex items-center gap-3 pt-2 border-t border-neutral-100"><FileText className="w-4 h-4 text-neutral-500 shrink-0" /><div className="min-w-0"><p className="text-xs font-normal text-neutral-900 truncate">Propuesta_Comercial.docx</p><p className="text-[10px] text-neutral-500 font-normal">850 KB • Hace 5 días</p></div></div>
           </div>
         </div>

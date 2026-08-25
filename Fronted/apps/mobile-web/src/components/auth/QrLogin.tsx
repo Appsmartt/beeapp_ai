@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import { QRCodeSVG } from 'qrcode.react';
 import { ArrowLeft, RefreshCw } from 'lucide-react';
 import { api } from '@beeapp/api-client';
-import BeeAppLogo from '@/components/BeeAppLogo';
+import BuddyLogo from '@/components/BuddyLogo';
 
 type QrLoginStatus =
   | 'LOADING'
@@ -31,7 +31,7 @@ type GetQrLoginChallengeStatusResponse = {
 };
 
 const STEPS = [
-  'Abre BeeApp AI en tu teléfono',
+  'Abre Buddy AI en tu teléfono',
   'Ve a Menú > Dispositivos',
   'Escanea el código QR',
 ];
@@ -82,7 +82,7 @@ export default function QrLogin() {
       setExpiresAt(response.expires_at);
       setSecondsLeft(getRemainingSeconds(response.expires_at));
       setMessage(
-        'Escanea el código desde BeeApp AI en tu teléfono.',
+        'Escanea el código desde Buddy AI en tu teléfono.',
       );
       setLoginStatus('READY');
     } catch (error) {
@@ -150,7 +150,7 @@ export default function QrLogin() {
         if (response.status === 'APPROVED') {
           setLoginStatus('APPROVING');
           setMessage(
-            'Sesión aprobada. Preparando BeeApp Web...',
+            'Sesión aprobada. Preparando Buddy Web...',
           );
 
           await api.post(
@@ -209,15 +209,15 @@ export default function QrLogin() {
     <div className="w-full max-w-md bg-white p-6 sm:p-8 rounded-3xl sm:border sm:border-neutral-200/80 sm:shadow-xl space-y-6">
       <div className="flex flex-col items-center text-center space-y-3">
         <Link href="/" className="mb-1">
-          <BeeAppLogo height={52} />
+          <BuddyLogo height={52} />
         </Link>
 
         <h1 className="text-2xl sm:text-3xl font-semibold text-neutral-900 tracking-tight">
-          Inicia sesión en BeeApp Web
+          Inicia sesión en Buddy Web
         </h1>
 
         <p className="text-sm text-neutral-600 font-normal max-w-xs">
-          Escanea el código QR desde la app de BeeApp AI en tu
+          Escanea el código QR desde la app de Buddy AI en tu
           teléfono para iniciar sesión.
         </p>
       </div>

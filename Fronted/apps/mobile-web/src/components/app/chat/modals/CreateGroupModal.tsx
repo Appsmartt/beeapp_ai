@@ -121,7 +121,7 @@ export default function CreateGroupModal({
             type="text"
             value={groupName}
             onChange={(e) => setGroupName(e.target.value)}
-            placeholder="Ej. Proyecto Alfa, Marketing BeeApp..."
+            placeholder="Ej. Proyecto Alfa, Marketing Buddy..."
             className="w-full h-11 px-4 bg-neutral-50 border border-neutral-200 rounded-xl text-xs font-normal outline-none focus:border-brand-primary text-neutral-900"
           />
         </div>

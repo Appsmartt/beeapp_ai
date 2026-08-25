@@ -76,7 +76,7 @@ export function BeeServicesPanel({ onClose }: BeeServicesPanelProps) {
           )}
 
           <h2 className="font-semibold text-base text-neutral-900 truncate">
-            {view === 'list' && 'BeeServices'}
+            {view === 'list' && 'BuddyServices'}
             {view === 'business-detail' && (selectedBusiness?.name || 'Detalle del Negocio')}
             {view === 'item-detail' && (selectedItem?.name || 'Detalle')}
           </h2>

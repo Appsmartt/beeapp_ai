@@ -24,7 +24,7 @@ export default function SubscriptionPage() {
           </div>
 
           <div>
-            <h2 className="text-2xl font-bold">BeeApp Pro</h2>
+            <h2 className="text-2xl font-bold">Buddy Pro</h2>
             <p className="text-xs text-neutral-400 font-normal">$29.99 / mes • Renueva el 24 de Agosto de 2026</p>
           </div>
 
@@ -39,7 +39,7 @@ export default function SubscriptionPage() {
             </div>
             <div className="flex items-center gap-2">
               <Check className="w-4 h-4 text-brand-primary" />
-              <span>Gestión de múltiples negocios en BeeServices</span>
+              <span>Gestión de múltiples negocios en BuddyServices</span>
             </div>
           </div>
         </div>

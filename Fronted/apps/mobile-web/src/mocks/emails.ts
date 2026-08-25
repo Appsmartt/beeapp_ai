@@ -40,15 +40,15 @@ export interface EmailItem {
 }
 
 /** Cuentas de correo conectadas (mock) */
-export const MAIL_ACCOUNTS = ['santiago@appsmartt.com', 'contacto@beeapp.ai'];
+export const MAIL_ACCOUNTS = ['santiago@appsmartt.com', 'contacto@buddy.ai'];
 
 export const MOCK_EMAILS: EmailItem[] = [
   {
     id: 'em-1',
-    sender: 'Soporte BeeApp',
+    sender: 'Soporte Buddy',
     senderVerified: true,
-    email: 'soporte@beeapp.ai',
-    subject: 'Bienvenido a BeeApp AI',
+    email: 'soporte@buddy.ai',
+    subject: 'Bienvenido a Buddy AI',
     preview: 'Gracias por registrarte. Descubre todas las funciones disponibles...',
     timestamp: '10:30 AM',
     date: '26 de julio de 2026, 10:30',
@@ -56,9 +56,9 @@ export const MOCK_EMAILS: EmailItem[] = [
     starred: true,
     hasAttachment: false,
     folder: 'inbox',
-    account: 'contacto@beeapp.ai',
+    account: 'contacto@buddy.ai',
     initialsColor: '#D97706',
-    body: 'Gracias por registrarte en BeeApp AI. Tu cuenta ha sido verificada exitosamente. Explora los módulos de chat, notas, almacenamiento y BeeServices para gestionar tu negocio.',
+    body: 'Gracias por registrarte en Buddy AI. Tu cuenta ha sido verificada exitosamente. Explora los módulos de chat, notas, almacenamiento y BuddyServices para gestionar tu negocio.',
   },
   {
     id: 'em-2',
@@ -74,7 +74,7 @@ export const MOCK_EMAILS: EmailItem[] = [
     folder: 'inbox',
     account: 'santiago@appsmartt.com',
     initialsColor: '#7C3AED',
-    body: 'Hola Santiago,\n\nTe envío la propuesta técnica para conectar la API de pagos con BeeServices.\n\nQuedo atento a tus comentarios.\n\nCarlos Mendoza',
+    body: 'Hola Santiago,\n\nTe envío la propuesta técnica para conectar la API de pagos con BuddyServices.\n\nQuedo atento a tus comentarios.\n\nCarlos Mendoza',
     attachments: [
       { name: 'Propuesta_API_v3.pdf', size: '1.2 MB', kind: 'PDF' },
       { name: 'Diagrama_Integracion.png', size: '480 KB', kind: 'PNG' },
@@ -93,7 +93,7 @@ export const MOCK_EMAILS: EmailItem[] = [
     starred: true,
     hasAttachment: true,
     folder: 'inbox',
-    account: 'contacto@beeapp.ai',
+    account: 'contacto@buddy.ai',
     initialsColor: '#059669',
     body: 'Adjunto los banners formateados en PNG para la sección de anuncios y catálogo.',
     attachments: [{ name: 'Banners_Campana.zip', size: '8.4 MB', kind: 'ZIP' }],
@@ -103,7 +103,7 @@ export const MOCK_EMAILS: EmailItem[] = [
     sender: 'Notificaciones Financieras',
     email: 'pagos@facturas.net',
     subject: 'Recibo de pago de suscripción #8492',
-    preview: 'Tu pago del Plan Pro BeeApp ha sido procesado correctamente por $29.99...',
+    preview: 'Tu pago del Plan Pro Buddy ha sido procesado correctamente por $29.99...',
     timestamp: '24 Jul',
     date: '24 de julio de 2026, 07:45',
     unread: false,
@@ -126,9 +126,9 @@ export const MOCK_EMAILS: EmailItem[] = [
     starred: false,
     hasAttachment: false,
     folder: 'inbox',
-    account: 'contacto@beeapp.ai',
+    account: 'contacto@buddy.ai',
     initialsColor: '#DB2777',
-    body: 'Te invitamos a compartir la experiencia de tu negocio con BeeApp AI en nuestro panel de transformación digital.',
+    body: 'Te invitamos a compartir la experiencia de tu negocio con Buddy AI en nuestro panel de transformación digital.',
   },
   {
     id: 'em-6',
@@ -175,7 +175,7 @@ export const MOCK_EMAILS: EmailItem[] = [
     starred: false,
     hasAttachment: false,
     folder: 'trash',
-    account: 'contacto@beeapp.ai',
+    account: 'contacto@buddy.ai',
     initialsColor: '#DC2626',
     body: 'Oferta exclusiva por tiempo limitado. Aprende las mejores estrategias de automatización del mercado.',
   },

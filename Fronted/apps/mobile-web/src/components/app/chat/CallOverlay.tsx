@@ -46,7 +46,7 @@ export default function CallOverlay({
         <p className="text-xs font-semibold text-brand-primary tracking-wide uppercase">
           {seconds === 0 ? 'Conectando...' : `En llamada • ${formatTimer(seconds)}`}
         </p>
-        <p className="text-xs font-normal text-neutral-400">BeeApp Voice & Video</p>
+        <p className="text-xs font-normal text-neutral-400">Buddy Voice & Video</p>
       </div>
 
       {/* Main Avatar & Caller View */}

@@ -8,7 +8,7 @@ const features = [
   },
   {
     icon: ShoppingBag,
-    title: 'BeeServices',
+    title: 'BuddyServices',
     description: 'Crea tu negocio, publica productos y servicios, conecta con clientes.',
   },
   {

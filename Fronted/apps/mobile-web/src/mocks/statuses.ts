@@ -130,7 +130,7 @@ export const MOCK_STATUSES: StatusItem[] = [
     authorInitials: 'SV',
     authorColor: '#F3E8FF',
     type: 'text',
-    text: 'Probando las nuevas funciones de privacidad de BeeApp AI.',
+    text: 'Probando las nuevas funciones de privacidad de Buddy AI.',
     photoUrl: null,
     bgColor: STATUS_BG_COLORS[0],
     linkedProduct: null,

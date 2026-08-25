@@ -83,7 +83,7 @@ export const MOCK_STORAGE_ITEMS: StorageItem[] = [
   },
   {
     id: 'precios-doc',
-    name: 'Estructura_Precios_BeeApp.doc',
+    name: 'Estructura_Precios_Buddy.doc',
     type: 'doc',
     size: '850 KB',
     date: 'Ayer, 04:20 PM',

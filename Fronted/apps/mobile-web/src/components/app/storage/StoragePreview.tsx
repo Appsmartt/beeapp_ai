@@ -10,9 +10,7 @@ import {
   Download,
   FileText,
   FolderOpen,
-  Image as ImageIcon,
   LoaderCircle,
-  Play,
   Share2,
   Trash2,
 } from 'lucide-react';

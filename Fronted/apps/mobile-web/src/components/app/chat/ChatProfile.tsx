@@ -37,7 +37,7 @@ export default function ChatProfile({ chat, onBack }: ChatProfileProps) {
   const isAdmin = members.some((m) => m.isCurrentUser && m.role === 'admin');
   const meta = isGroup
     ? `${members.length} ${members.length === 1 ? 'miembro' : 'miembros'}`
-    : 'Contacto de BeeApp';
+    : 'Contacto de Buddy';
 
   const toggleDisappearing = (val: boolean) => {
     setDisappearingOn(val);

@@ -357,28 +357,6 @@ function formatEventTime(
   )}`;
 }
 
-function formatEventDayTime(
-  event: CalendarEvent,
-): string {
-  if (event.is_all_day) {
-    return 'Todo el día';
-  }
-
-  const eventStart = getEventStartDate(event);
-
-  if (!eventStart) {
-    return 'Horario no disponible';
-  }
-
-  return eventStart.toLocaleTimeString(
-    'es-CO',
-    {
-      hour: '2-digit',
-      minute: '2-digit',
-    },
-  );
-}
-
 function getMeetingUrl(
   event: CalendarEvent,
 ): string | null {
@@ -1507,7 +1485,7 @@ function CalendarEventPanel({
 
   const organizerName = event.organizer_id
     ? `Organizador ${event.organizer_id.slice(0, 8)}`
-    : 'Organizador BeeApp';
+    : 'Organizador Buddy';
 
   return (
     <div className="flex min-h-full flex-col bg-white">
@@ -1724,7 +1702,7 @@ function CalendarEventPanel({
                 const displayName = attendee.external_display_name
                   || attendee.external_email
                   || attendee.attendee_user_id
-                  || 'Usuario BeeApp';
+                  || 'Usuario Buddy';
 
                 return (
                   <div

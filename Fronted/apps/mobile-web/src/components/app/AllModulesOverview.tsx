@@ -176,7 +176,7 @@ export default function AllModulesOverview({
 
             <div>
               <h2 className="text-lg font-semibold text-neutral-900">
-                BeeServices
+                BuddyServices
               </h2>
 
               <p className="text-xs font-normal text-neutral-500">

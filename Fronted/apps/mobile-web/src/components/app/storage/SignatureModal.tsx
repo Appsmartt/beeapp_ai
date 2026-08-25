@@ -147,7 +147,7 @@ export default function SignatureModal({ visible, item, onClose, onConfirmSign }
             <span className="font-serif italic text-2xl text-blue-900 font-bold -rotate-3 inline-block">
               Santiago Valencia
             </span>
-            <span className="text-[10px] text-neutral-500 font-normal">Sincronizada con BeeServices • Válida para contratos</span>
+            <span className="text-[10px] text-neutral-500 font-normal">Sincronizada con BuddyServices • Válida para contratos</span>
           </div>
         )}
 

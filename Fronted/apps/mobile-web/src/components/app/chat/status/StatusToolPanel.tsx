@@ -213,7 +213,7 @@ export default function StatusToolPanel(props: StatusToolPanelProps) {
               className="w-full h-11 rounded-xl border border-neutral-200 text-xs font-normal text-neutral-600 flex items-center justify-center gap-2 hover:border-brand-primary hover:text-brand-primary transition-colors duration-200"
             >
               <ShoppingBag className="w-4 h-4" />
-              Vincular producto de BeeServices
+              Vincular producto de BuddyServices
             </button>
           )}
         </StatusToolSection>
