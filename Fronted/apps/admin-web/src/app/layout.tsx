@@ -2,8 +2,8 @@ import type { Metadata } from 'next';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'BeeApp AI - Admin',
-  description: 'Plataforma web de administración, supervisión y monitoreo de BeeApp AI',
+  title: 'Buddy - Admin',
+  description: 'Plataforma web de administración, supervisión y monitoreo de Buddy',
   icons: {
     icon: '/logo.png',
   },

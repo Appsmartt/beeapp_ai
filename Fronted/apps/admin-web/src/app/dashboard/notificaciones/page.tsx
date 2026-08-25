@@ -36,7 +36,7 @@ export default function NotificacionesPage() {
       <div className="page-toolbar">
         <div className="page-toolbar-heading">
           <span className="page-toolbar-title">Notificaciones push</span>
-          <span className="page-toolbar-subtitle">Envía y monitorea comunicaciones a los usuarios de BeeApp</span>
+          <span className="page-toolbar-subtitle">Envía y monitorea comunicaciones a los usuarios de Buddy</span>
         </div>
       </div>
 

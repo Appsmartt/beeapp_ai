@@ -70,14 +70,14 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         <div className="sidebar-logo-container">
           <Image
             src="/logo.png"
-            alt="BeeApp Logo"
+            alt="Buddy Logo"
             width={48}
             height={48}
             className="sidebar-brand-logo"
             priority
           />
           <div className="sidebar-logo-text-col">
-            <span className="sidebar-brand-title">BeeApp AI</span>
+            <span className="sidebar-brand-title">Buddy</span>
             <span className="sidebar-brand-subtitle">Panel de Control</span>
           </div>
           <button onClick={() => setSidebarOpen(false)} className="close-sidebar-mobile-btn">
@@ -184,7 +184,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 <div className="profile-dropdown-popover">
                   <div className="dropdown-popover-header">
                     <span className="dropdown-popover-name">Santiago Valencia</span>
-                    <span className="dropdown-popover-email">santiago@beeapp.ai</span>
+                    <span className="dropdown-popover-email">santiago@buddy.ai</span>
                   </div>
                   <Link href="/dashboard/perfil" onClick={() => setProfileDropdownOpen(false)} className="dropdown-popover-row">
                     <User size={14} />

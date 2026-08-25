@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import AnimatedLogo from '../../components/AnimatedLogo';
+import StaticLogo from '../../components/StaticLogo';
 
 function VerifyForm() {
   const router = useRouter();
@@ -72,9 +72,9 @@ function VerifyForm() {
 
   return (
     <div style={cardStyle}>
-      {/* Top Logo (AnimatedLogo web version, auto-stop after 2.5s) */}
-      <div style={{ textAlign: 'center', marginBottom: '24px' }}>
-        <AnimatedLogo size={80} showText={false} autoStopAfter={2500} />
+      {/* Logo estático de Buddy */}
+      <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '24px' }}>
+        <StaticLogo variant="mark" width={80} priority />
       </div>
 
       <h1 style={titleStyle}>Verificación de Seguridad</h1>

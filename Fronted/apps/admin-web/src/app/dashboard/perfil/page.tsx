@@ -7,7 +7,7 @@ export default function AdminProfilePage() {
   // Reference initial values
   const initialValues = {
     nombre: 'Santiago Valencia',
-    email: 'santiago@beeapp.ai',
+    email: 'santiago@buddy.ai',
     telefono: '+57 300 123 4567',
     photoUrl: null as string | null
   };
