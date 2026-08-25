@@ -128,7 +128,7 @@ export default function VoiceAssistantScreen({ visible, onClose }: VoiceAssistan
 
     // Check if chat already exists
     let existingChat = MOCK_CHATS.find((c) => c.name === result.sellerName);
-    const initialText = `Hola, me interesa tu servicio de ${result.productName} que encontré en BeeApp.`;
+    const initialText = `Hola, me interesa tu servicio de ${result.productName} que encontré en Buddy.`;
     
     if (!existingChat) {
       // Create new chat

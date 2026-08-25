@@ -197,7 +197,7 @@ export default function NewChatScreen() {
       return (
         <View style={styles.stateWrap}>
           <Text style={styles.stateText}>
-            Escribe al menos dos caracteres para buscar usuarios de BeeApp.
+            Escribe al menos dos caracteres para buscar usuarios de Buddy.
           </Text>
         </View>
       );
@@ -249,7 +249,7 @@ export default function NewChatScreen() {
               || (
                 contact.online
                   ? 'En línea'
-                  : 'Usuario BeeApp'
+                  : 'Usuario Buddy'
               )}
           </Text>
         </View>
@@ -290,7 +290,7 @@ export default function NewChatScreen() {
 
             <TextInput
               style={styles.searchInput}
-              placeholder="Buscar usuarios de BeeApp..."
+              placeholder="Buscar usuarios de Buddy..."
               placeholderTextColor={
                 colors.neutral.gray500
               }

@@ -14,7 +14,7 @@ import {
 import { useRouter } from 'expo-router';
 import { colors } from '@beeapp/design-system';
 
-import AnimatedLogo from '../AnimatedLogo';
+import BuddyLogo from '../BuddyLogo';
 import AppLockPinPad from './AppLockPinPad';
 import BiometricButton from './BiometricButton';
 import {
@@ -49,11 +49,11 @@ function getMethodTitle(method: AppLockMethod): string {
 
 function getMethodSubtitle(method: AppLockMethod): string {
   if (method === 'faceid') {
-    return 'Usa Face ID para continuar en BeeApp.';
+    return 'Usa Face ID para continuar en Buddy.';
   }
 
   if (method === 'fingerprint') {
-    return 'Usa tu huella dactilar para continuar en BeeApp.';
+    return 'Usa tu huella dactilar para continuar en Buddy.';
   }
 
   return 'Digita tu PIN de 6 dígitos para desbloquear la app.';
@@ -245,7 +245,7 @@ export default function AppLockScreen() {
     <View style={styles.overlay}>
       <View style={styles.card}>
         <View style={styles.logoContainer}>
-          <AnimatedLogo
+          <BuddyLogo
             size={70}
             showText
           />

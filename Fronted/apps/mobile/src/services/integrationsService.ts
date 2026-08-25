@@ -71,7 +71,7 @@ export function getProviderOption(
         || {
         provider,
         name: 'Integración externa',
-        description: 'Cuenta externa vinculada a BeeApp.',
+        description: 'Cuenta externa vinculada a Buddy.',
         iconLetter: '•',
         iconColor: colorsForUnknownProvider(provider),
         availability: 'coming_soon',
@@ -154,7 +154,7 @@ export function getConnectionStatusPresentation(
             label: 'Acceso revocado',
             color: '#DC2626',
             helperText: (
-            'El proveedor revocó el acceso de BeeApp.'
+            'El proveedor revocó el acceso de Buddy.'
             ),
         };
 
@@ -172,7 +172,7 @@ export function getConnectionStatusPresentation(
             label: 'Desconectado',
             color: '#64748B',
             helperText: (
-            'Esta cuenta ya no tiene permisos en BeeApp.'
+            'Esta cuenta ya no tiene permisos en Buddy.'
             ),
         };
 

@@ -190,7 +190,7 @@ export default function IntegrationsScreen() {
     Alert.alert(
       `Desconectar ${item.providerName}`,
       (
-        `Se eliminarán de BeeApp la autorización y los datos `
+        `Se eliminarán de Buddy la autorización y los datos `
         + `sincronizados de ${item.accountLabel}, incluidos `
         + 'correos, borradores, adjuntos y eventos asociados. '
         + 'Tus datos no se eliminarán de Google, Microsoft ni '
@@ -234,7 +234,7 @@ export default function IntegrationsScreen() {
     Alert.alert(
       'Eliminar cuenta de la lista',
       (
-        `${item.accountLabel} dejará de aparecer en BeeApp. `
+        `${item.accountLabel} dejará de aparecer en Buddy. `
         + 'La cuenta ya está desconectada y sus credenciales '
         + 'no se conservan.'
       ),
@@ -430,7 +430,7 @@ export default function IntegrationsScreen() {
           >
             <Text style={styles.subtitle}>
               Vincula cuentas externas para usar sus permisos
-              de forma segura en BeeApp. Nunca guardamos tu
+              de forma segura en Buddy. Nunca guardamos tu
               contraseña.
             </Text>
 
@@ -537,7 +537,7 @@ export default function IntegrationsScreen() {
 
                 <Text style={styles.calendarSettingsDescription}>
                   Revisa y sincroniza tus cuentas de Gmail u
-                  Outlook en BeeApp.
+                  Outlook en Buddy.
                 </Text>
               </View>
 
@@ -575,7 +575,7 @@ export default function IntegrationsScreen() {
                 </Text>
 
                 <Text style={styles.emptyDescription}>
-                  Vincula una cuenta para permitir que BeeApp
+                  Vincula una cuenta para permitir que Buddy
                   use sus permisos cuando los necesites.
                 </Text>
               </View>
@@ -724,7 +724,7 @@ export default function IntegrationsScreen() {
 
                 <Text style={styles.providerSecurityText}>
                   Iniciarás sesión directamente con el proveedor.
-                  BeeApp nunca recibe tu contraseña.
+                  Buddy nunca recibe tu contraseña.
                 </Text>
               </View>
             </View>

@@ -48,7 +48,7 @@ export default function BeeServicesScreen() {
 
             <View style={styles.footer}>
                 <Text style={styles.footerText}>
-                Impulsando economías locales con BeeApp AI
+                Impulsando economías locales con Buddy AI
                 </Text>
 
                 <View style={styles.footerLine} />

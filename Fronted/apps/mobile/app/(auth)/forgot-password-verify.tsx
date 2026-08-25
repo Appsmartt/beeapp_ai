@@ -29,7 +29,7 @@ import {
     verifyPasswordReset,
     } from '@beeapp/api-client';
 
-import AnimatedLogo from '../../src/components/AnimatedLogo';
+import BuddyLogo from '../../src/components/BuddyLogo';
 import ScreenSafeArea from '../../src/components/layout/ScreenSafeArea';
 
 
@@ -149,7 +149,7 @@ export default function ForgotPasswordVerifyScreen() {
                 </TouchableOpacity>
 
                 <View style={styles.logoContainer}>
-                <AnimatedLogo
+                <BuddyLogo
                     size={76}
                     showText={false}
                     autoStopAfter={2500}
@@ -203,7 +203,7 @@ export default function ForgotPasswordVerifyScreen() {
                 ) : (
                     <Text style={styles.helperText}>
                     El código expira según la configuración de seguridad
-                    de BeeApp.
+                    de Buddy.
                     </Text>
                 )}
 

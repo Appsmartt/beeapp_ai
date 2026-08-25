@@ -70,7 +70,7 @@ export default function IntegrationOAuthResultScreen() {
             />
 
             <Text style={styles.title}>
-            BeeApp Integraciones
+            Buddy Integraciones
             </Text>
 
             <Text style={styles.message}>

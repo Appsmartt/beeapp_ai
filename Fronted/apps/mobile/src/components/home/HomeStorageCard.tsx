@@ -141,7 +141,7 @@ export default function HomeStorageCard({
           </Text>
 
           <Text style={styles.planBadge}>
-            Plan BeeApp Plus
+            Plan Buddy Plus
           </Text>
         </View>
 

@@ -748,7 +748,7 @@ export function getShareDisplayName(
     share: NoteShare,
     ): string {
     if (!share.shared_by) {
-        return 'Usuario de BeeApp';
+        return 'Usuario de Buddy';
     }
 
     return (

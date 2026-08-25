@@ -157,7 +157,7 @@ export default function CallScreen() {
                 <Text style={styles.callerNameText}>{callerName}</Text>
                 {isVerified && <VerifiedBadge size={20} />}
               </View>
-              <Text style={styles.callLabelText}>BeeApp Voice</Text>
+              <Text style={styles.callLabelText}>Buddy Voice</Text>
             </View>
           )}
         </View>

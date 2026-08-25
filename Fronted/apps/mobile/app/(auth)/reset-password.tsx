@@ -23,7 +23,7 @@ import {
 import { colors } from '@beeapp/design-system';
 import { confirmPasswordReset } from '@beeapp/api-client';
 
-import AnimatedLogo from '../../src/components/AnimatedLogo';
+import BuddyLogo from '../../src/components/BuddyLogo';
 import ScreenSafeArea from '../../src/components/layout/ScreenSafeArea';
 import { clearAuthSession } from '../../src/services/authSession';
 
@@ -108,7 +108,7 @@ export default function ResetPasswordScreen() {
             <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
             <View style={styles.content}>
                 <View style={styles.logoContainer}>
-                <AnimatedLogo
+                <BuddyLogo
                     size={76}
                     showText={false}
                     autoStopAfter={2500}

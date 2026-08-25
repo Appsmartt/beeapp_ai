@@ -24,7 +24,7 @@ const BENEFITS = [
   {
     icon: Store,
     title: 'Más confianza al vender',
-    desc: 'Los clientes ven que tu negocio fue revisado por el equipo de BeeApp.',
+    desc: 'Los clientes ven que tu negocio fue revisado por el equipo de Buddy.',
   },
   {
     icon: Search,
@@ -43,7 +43,7 @@ const REQUIREMENTS = [
   { text: 'Número de celular verificado por SMS', done: true },
   { text: 'Datos de empresa registrados (nombre y actividad)', done: true },
   { text: 'Documento de identidad o RUT de la empresa', done: false },
-  { text: 'Al menos 30 días de actividad en BeeApp', done: false },
+  { text: 'Al menos 30 días de actividad en Buddy', done: false },
 ];
 
 /**
@@ -76,7 +76,7 @@ export default function VerificationScreen() {
             </View>
             <Text style={styles.heroTitle}>Consigue tu insignia de verificado</Text>
             <Text style={styles.heroDesc}>
-              Bee Verify es el servicio con el que el equipo de BeeApp revisa tu identidad y la de tu
+              Bee Verify es el servicio con el que el equipo de Buddy revisa tu identidad y la de tu
               empresa. Al aprobarla, tu cuenta recibe la palomita azul de cuenta verificada.
             </Text>
           </View>

@@ -107,7 +107,7 @@ export default function ProfileMainScreen() {
     try {
       await Share.share({
         message: (
-          '¡Descarga BeeApp AI! La plataforma definitiva para '
+          '¡Descarga Buddy AI! La plataforma definitiva para '
           + 'optimizar tus correos, notas, archivos y automatizar '
           + 'tu negocio con IA. Descárgala aquí: https://beeapp.ai'
         ),
@@ -120,7 +120,7 @@ export default function ProfileMainScreen() {
   const handleContactSupport = () => {
     const supportPhone = '573001234567';
     const message =
-      'Hola soporte de BeeApp, necesito ayuda con mi cuenta.';
+      'Hola soporte de Buddy, necesito ayuda con mi cuenta.';
 
     const url = (
       `https://wa.me/${supportPhone}?text=`
@@ -151,7 +151,7 @@ export default function ProfileMainScreen() {
   const handleSignOut = () => {
     Alert.alert(
       'Cerrar sesión',
-      '¿Estás seguro de que deseas cerrar sesión en BeeApp?',
+      '¿Estás seguro de que deseas cerrar sesión en Buddy?',
       [
         {
           text: 'Cancelar',
@@ -217,7 +217,7 @@ export default function ProfileMainScreen() {
               </View>
 
               <Text style={styles.profileName}>
-                {fullName || 'Usuario BeeApp'}
+                {fullName || 'Usuario Buddy'}
               </Text>
 
               <Text style={styles.profileOccupation}>
@@ -516,7 +516,7 @@ export default function ProfileMainScreen() {
             </TouchableOpacity>
 
             <Text style={styles.versionText}>
-              BeeApp AI v1.0.0 (Build 1425)
+              Buddy AI v1.0.0 (Build 1425)
             </Text>
 
             <View style={styles.bottomSpacing} />

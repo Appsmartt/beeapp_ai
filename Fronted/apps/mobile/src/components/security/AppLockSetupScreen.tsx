@@ -296,7 +296,7 @@ export default function AppLockSetupScreen({
         <AppLockPinPad
           key="app-lock-pin-create"
           title="Crea tu código de acceso"
-          subtitle="Elige 6 dígitos para proteger el acceso a BeeApp."
+          subtitle="Elige 6 dígitos para proteger el acceso a Buddy."
           onComplete={handlePinCreate}
           error={pinError}
         />
@@ -362,7 +362,7 @@ export default function AppLockSetupScreen({
 
         <Text style={styles.subtitle}>
           Elige cómo proteger el acceso a tu cuenta cada vez que
-          abras BeeApp.
+          abras Buddy.
         </Text>
 
         <OptionCard

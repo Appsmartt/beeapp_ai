@@ -81,7 +81,7 @@ function replaceIntegration(
  * - POST /mail/sync/
  *
  * Esta capa no lee ni expone tokens OAuth. El backend usa la sesión
- * BeeApp para localizar las credenciales cifradas de cada cuenta.
+ * Buddy para localizar las credenciales cifradas de cada cuenta.
  */
 export function useMailIntegrations(): UseMailIntegrationsResult {
     const [integrations, setIntegrations] = useState<

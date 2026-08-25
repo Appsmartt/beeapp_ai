@@ -137,7 +137,7 @@ function replaceIntegration(
  * - POST  /calendar/integrations/<integration_id>/sync/
  * - PATCH /calendar/external-calendars/<external_calendar_id>/
  *
- * El cliente móvil solo utiliza la sesión BeeApp. Los tokens OAuth se
+ * El cliente móvil solo utiliza la sesión Buddy. Los tokens OAuth se
  * mantienen exclusivamente en el backend y nunca se devuelven a esta UI.
  */
 export function useCalendarIntegrations(): UseCalendarIntegrationsResult {

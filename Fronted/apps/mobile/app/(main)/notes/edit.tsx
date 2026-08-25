@@ -248,7 +248,7 @@ export default function NoteEditScreen() {
               `${sharedBy.first_name} `
               + `${sharedBy.last_name}`
             ).trim()
-            : 'Usuario de BeeApp',
+            : 'Usuario de Buddy',
         );
 
         setStatus('ready');

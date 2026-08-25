@@ -98,7 +98,7 @@ function getFullName(
     )
     .join(' ');
 
-  return fullName || 'Usuario BeeApp';
+  return fullName || 'Usuario Buddy';
 }
 
 export default function HomeSideMenu({
@@ -228,7 +228,7 @@ export default function HomeSideMenu({
     router.push(path);
   };
 
-  const openBeeServices = () => {
+  const openBuddyServices = () => {
     goTo('/(main)/beeservices');
   };
 
@@ -236,7 +236,7 @@ export default function HomeSideMenu({
     try {
       await Share.share({
         message:
-          '¡Descarga BeeApp AI! La plataforma definitiva para '
+          '¡Descarga Buddy AI! La plataforma definitiva para '
           + 'optimizar tus correos, notas, archivos y automatizar '
           + 'tu negocio con IA. Descárgala aquí: https://beeapp.ai',
       });
@@ -249,7 +249,7 @@ export default function HomeSideMenu({
     const supportPhone = '573001234567';
 
     const message =
-      'Hola soporte de BeeApp, necesito ayuda con mi cuenta.';
+      'Hola soporte de Buddy, necesito ayuda con mi cuenta.';
 
     const url =
       `https://wa.me/${supportPhone}?text=${encodeURIComponent(
@@ -276,7 +276,7 @@ export default function HomeSideMenu({
   const handleSignOut = () => {
     Alert.alert(
       'Cerrar Sesión',
-      '¿Estás seguro de que deseas cerrar sesión en BeeApp?',
+      '¿Estás seguro de que deseas cerrar sesión en Buddy?',
       [
         {
           text: 'Cancelar',
@@ -517,7 +517,7 @@ export default function HomeSideMenu({
             <View style={styles.optionsCard}>
               <TouchableOpacity
                 style={styles.optionRow}
-                onPress={openBeeServices}
+                onPress={openBuddyServices}
                 activeOpacity={0.7}
               >
                 <View
@@ -535,7 +535,7 @@ export default function HomeSideMenu({
                 </View>
 
                 <Text style={styles.optionLabel}>
-                  BeeServices
+                  BuddyServices
                 </Text>
 
                 <ChevronRight
@@ -630,7 +630,7 @@ export default function HomeSideMenu({
             </TouchableOpacity>
 
             <Text style={styles.versionText}>
-              BeeApp AI v1.0.0 (Build 1425)
+              Buddy AI v1.0.0 (Build 1425)
             </Text>
 
             <View

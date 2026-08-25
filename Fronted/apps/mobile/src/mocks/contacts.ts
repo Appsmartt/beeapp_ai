@@ -86,7 +86,7 @@ export const DISCOVER_CONTACTS: ContactItem[] = [
     verified: true,
     name: 'Alejandro Ruiz',
     profession: 'Desarrollador Mobile',
-    company: 'BeeApp Labs',
+    company: 'Buddy Labs',
     activity: 'Tecnología e Información (TI)',
     interests: ['React Native', 'Expo', 'Artificial Intelligence'],
     initials: 'AR',

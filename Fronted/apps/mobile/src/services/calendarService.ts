@@ -428,7 +428,7 @@ export function mapCalendarUserToOption(
         .join(' ')
         .trim()
         || user.email
-        || 'Usuario BeeApp';
+        || 'Usuario Buddy';
 
 
     const phone = [
@@ -499,7 +499,7 @@ function mapAttendee(
         || (
         attendee.is_organizer
             ? 'Organizador'
-            : 'Usuario BeeApp'
+            : 'Usuario Buddy'
         );
 
 
