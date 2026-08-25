@@ -35,7 +35,7 @@ export const MOCK_NOTIFICATIONS: NotificationCampaign[] = [
   },
   {
     id: 'ntf_004',
-    titulo: 'Bienvenida a BeeApp Plus',
+    titulo: 'Bienvenida a Buddy Plus',
     mensaje: 'Gracias por actualizar tu plan. Descubre las funciones exclusivas de Plus.',
     modoDestinatario: 'especificos',
     usuariosIds: ['usr_001', 'usr_005'],
@@ -59,7 +59,7 @@ export const MOCK_NOTIFICATIONS: NotificationCampaign[] = [
   {
     id: 'ntf_006',
     titulo: 'Encuesta de satisfacción',
-    mensaje: 'Cuéntanos qué opinas de BeeApp AI en esta breve encuesta de 2 minutos.',
+    mensaje: 'Cuéntanos qué opinas de Buddy AI en esta breve encuesta de 2 minutos.',
     modoDestinatario: 'segmento',
     segmentoCriterios: { planTier: '', estado: 'activo', registroDias: '90', visibilidad: '' },
     cantidadDestinatarios: 312,
@@ -81,7 +81,7 @@ export const MOCK_NOTIFICATIONS: NotificationCampaign[] = [
   {
     id: 'ntf_008',
     titulo: 'Campaña de reactivación',
-    mensaje: 'Hace tiempo no te vemos por BeeApp. Vuelve y descubre las novedades.',
+    mensaje: 'Hace tiempo no te vemos por Buddy. Vuelve y descubre las novedades.',
     modoDestinatario: 'segmento',
     segmentoCriterios: { planTier: '', estado: 'inactivo', registroDias: '', visibilidad: '' },
     cantidadDestinatarios: 88,

@@ -2,7 +2,7 @@
 
 import React, { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import AnimatedLogo from '../components/AnimatedLogo';
+import StaticLogo from '../components/StaticLogo';
 
 export default function AdminHomePage() {
   const router = useRouter();
@@ -121,8 +121,8 @@ export default function AdminHomePage() {
 
       {/* ── Content Foreground ── */}
       <div style={styles.splashContent}>
-        {/* Animated Logo (size 100, showing real text) */}
-        <AnimatedLogo size={100} showText={true} />
+        {/* Logo estático de Buddy */}
+        <StaticLogo variant="wordmark" width={280} priority />
 
         {/* Spinner */}
         <div style={styles.spinner} />

@@ -20,7 +20,7 @@ export default function AdminPrivacyPage() {
           <p style={dateStyle}>Última actualización: 21 de Julio de 2026</p>
 
           <p style={paragraphStyle}>
-            Esta política detalla el tratamiento de datos y los estándares de privacidad aplicables a las cuentas con privilegios administrativos en el <strong style={boldStyle}>Panel Web de BeeApp AI</strong>.
+            Esta política detalla el tratamiento de datos y los estándares de privacidad aplicables a las cuentas con privilegios administrativos en el <strong style={boldStyle}>Panel Web de Buddy AI</strong>.
           </p>
 
           <h2 style={sectionTitleStyle}>1. Recopilación de Datos Administrativos</h2>
@@ -41,12 +41,12 @@ export default function AdminPrivacyPage() {
 
           <h2 style={sectionTitleStyle}>3. Protección y Confidencialidad</h2>
           <p style={paragraphStyle}>
-            Toda la comunicación entre el navegador del administrador y la infraestructura de BeeApp AI utiliza conexiones cifradas TLS 1.3 con almacenamiento de logs bajo estándares ISO 27001.
+            Toda la comunicación entre el navegador del administrador y la infraestructura de Buddy AI utiliza conexiones cifradas TLS 1.3 con almacenamiento de logs bajo estándares ISO 27001.
           </p>
 
           <h2 style={sectionTitleStyle}>4. Contacto de Privacidad</h2>
           <p style={paragraphStyle}>
-            Para consultas de privacidad del equipo administrativo, comunícate con dpo@beeapp.ai.
+            Para consultas de privacidad del equipo administrativo, comunícate con dpo@buddy.ai.
           </p>
         </div>
       </div>

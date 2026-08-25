@@ -12,34 +12,34 @@ export default function ConfiguracionPage() {
 
   // Mock terms and privacy text states
   const [termsText, setTermsText] = useState(
-    `TÉRMINOS Y CONDICIONES DE USO — BEEAPP AI
+    `TÉRMINOS Y CONDICIONES DE USO — BUDDY AI
 
 1. ACEPTACIÓN DE LOS TÉRMINOS
-Al acceder y utilizar la plataforma BeeApp AI (incluyendo aplicaciones móviles, web y servicios asociados), usted acepta quedar vinculado por estos Términos y Condiciones de Uso, todas las leyes y regulaciones aplicables.
+Al acceder y utilizar la plataforma Buddy AI (incluyendo aplicaciones móviles, web y servicios asociados), usted acepta quedar vinculado por estos Términos y Condiciones de Uso, todas las leyes y regulaciones aplicables.
 
 2. LICENCIA DE USO Y RESTRICCIONES
-Se concede autorización para utilizar los servicios de BeeApp AI bajo la modalidad del plan suscrito (Gratuito o Plus). Esta es la concesión de una licencia de uso personal, no transferible y revocable. No está permitido:
+Se concede autorización para utilizar los servicios de Buddy AI bajo la modalidad del plan suscrito (Gratuito o Plus). Esta es la concesión de una licencia de uso personal, no transferible y revocable. No está permitido:
 - Modificar o copiar los materiales ni el código base de la plataforma.
 - Utilizar los servicios de inteligencia artificial para actividades ilícitas.
-- Intentar descompilar o realizar ingeniería inversa de cualquier software contenido en BeeApp AI.
+- Intentar descompilar o realizar ingeniería inversa de cualquier software contenido en Buddy AI.
 
 3. LIMITACIÓN DE RESPONSABILIDAD
-Los servicios y el asistente de inteligencia artificial se proporcionan "tal cual". BeeApp AI no ofrece garantías, explícitas o implícitas, sobre la precisión de las respuestas del asistente o la disponibilidad permanente de las integraciones externas.`
+Los servicios y el asistente de inteligencia artificial se proporcionan "tal cual". Buddy AI no ofrece garantías, explícitas o implícitas, sobre la precisión de las respuestas del asistente o la disponibilidad permanente de las integraciones externas.`
   );
 
   const [privacyText, setPrivacyText] = useState(
-    `POLÍTICA DE PRIVACIDAD — BEEAPP AI
+    `POLÍTICA DE PRIVACIDAD — BUDDY AI
 
 Última actualización: Julio 2026
 
 1. INFORMACIÓN QUE RECOPILAMOS
-Para proveer el ecosistema inteligente de BeeApp AI, recopilamos la siguiente información estrictamente necesaria:
+Para proveer el ecosistema inteligente de Buddy AI, recopilamos la siguiente información estrictamente necesaria:
 - Información de perfil básico: Nombre, dirección, correo electrónico y número celular verificado.
 - Datos de integración (opcional): Calendario, contactos y buzón de correo, procesados exclusivamente bajo demanda del usuario.
 
 2. PRIVACIDAD DE LOS DATOS Y ACCESO ADMINISTRATIVO
 De acuerdo con las estrictas regulaciones de privacidad de la plataforma:
-- Los administradores de BeeApp AI NO tienen acceso bajo ninguna circunstancia a los correos electrónicos, archivos, notas, ni transcripciones de chats o videollamadas de los usuarios finales.
+- Los administradores de Buddy AI NO tienen acceso bajo ninguna circunstancia a los correos electrónicos, archivos, notas, ni transcripciones de chats o videollamadas de los usuarios finales.
 - Los datos de integraciones Gmail o Outlook se sincronizan directamente a nivel de cliente y se resguardan de forma encriptada.
 
 3. COMPARTICIÓN DE DATOS

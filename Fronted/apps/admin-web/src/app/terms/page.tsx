@@ -20,7 +20,7 @@ export default function AdminTermsPage() {
           <p style={dateStyle}>Última actualización: 21 de Julio de 2026</p>
 
           <p style={paragraphStyle}>
-            El presente acuerdo rige el acceso y uso del <strong style={boldStyle}>Panel de Administración Web de BeeApp AI</strong>, reservado exclusivamente para administradores, supervisores y personal autorizado de la organización.
+            El presente acuerdo rige el acceso y uso del <strong style={boldStyle}>Panel de Administración Web de Buddy AI</strong>, reservado exclusivamente para administradores, supervisores y personal autorizado de la organización.
           </p>
 
           <h2 style={sectionTitleStyle}>1. Responsabilidad de la Cuenta Administrativa</h2>
@@ -39,7 +39,7 @@ export default function AdminTermsPage() {
 
           <h2 style={sectionTitleStyle}>3. Monitoreo y Auditoría</h2>
           <p style={paragraphStyle}>
-            BeeApp AI monitorea el uso del panel web en tiempo real para prevenir abusos, accesos no autorizados o alteraciones indebidas de las políticas del sistema.
+            Buddy AI monitorea el uso del panel web en tiempo real para prevenir abusos, accesos no autorizados o alteraciones indebidas de las políticas del sistema.
           </p>
 
           <h2 style={sectionTitleStyle}>4. Modificaciones y Suspensión</h2>

@@ -3,7 +3,7 @@
 import React, { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import AnimatedLogo from '../../components/AnimatedLogo';
+import StaticLogo from '../../components/StaticLogo';
 import { COUNTRIES, Country } from '../../mocks/countries';
 
 export default function AdminLoginPage() {
@@ -34,11 +34,11 @@ export default function AdminLoginPage() {
   return (
     <div style={containerStyle}>
       <div style={cardStyle}>
-        {/* Top Logo (AnimatedLogo, plays once 2.5s) */}
-        <div style={{ textAlign: 'center', marginBottom: '24px' }}>
-          <AnimatedLogo size={80} showText={false} autoStopAfter={2500} />
+        {/* Logo estático de Buddy */}
+        <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '24px' }}>
+          <StaticLogo variant="wordmark" width={240} priority />
         </div>
-        <h1 style={titleStyle}>BeeApp AI</h1>
+        <h1 style={titleStyle}>Buddy</h1>
         <p style={{ textAlign: 'center', color: '#6C757D', fontSize: '14px', marginBottom: '28px', marginTop: '-4px' }}>
           Acceso Personal Administrativo
         </p>
