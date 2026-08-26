@@ -7,9 +7,6 @@ import type {
 
 const CHAT_INBOX_CACHE_PREFIX = 'beeapp.chat.inbox.v1';
 const CHAT_MESSAGES_CACHE_PREFIX = 'beeapp.chat.messages.v2';
-const CHAT_ARCHIVED_CONVERSATIONS_PREFIX = (
-  'beeapp.chat.archived-conversations.v1'
-);
 
 const CHAT_MESSAGES_CACHE_VERSION = 2;
 const MAX_PERSISTED_MESSAGES_PER_CONVERSATION = 300;
@@ -42,7 +39,6 @@ let messageCacheMetadataByConversationId: Record<
 > = {};
 
 let protectedConversationIds: string[] = [];
-let archivedConversationIds: string[] = [];
 
 let activeUserId: string | null = null;
 
@@ -62,14 +58,6 @@ function getMessagesCacheKey(
   );
 }
 
-function getArchivedConversationsCacheKey(
-  userId: string,
-): string {
-  return (
-    `${CHAT_ARCHIVED_CONVERSATIONS_PREFIX}.${userId}`
-  );
-}
-
 function hasConversationId(
   conversation: ChatConversation | null | undefined,
 ): conversation is ChatConversation {
@@ -84,18 +72,6 @@ function normalizeConversationId(
   conversationId: string,
 ): string {
   return String(conversationId || '').trim();
-}
-
-function normalizeConversationIds(
-  conversationIds: string[],
-): string[] {
-  return Array.from(
-    new Set(
-      conversationIds
-        .map(normalizeConversationId)
-        .filter(Boolean),
-    ),
-  );
 }
 
 function getConversationTimestamp(
@@ -366,19 +342,6 @@ function persistConversations(): void {
   });
 }
 
-function persistArchivedConversationIds(): void {
-  if (!activeUserId) {
-    return;
-  }
-
-  void AsyncStorage.setItem(
-    getArchivedConversationsCacheKey(activeUserId),
-    JSON.stringify(archivedConversationIds),
-  ).catch(() => {
-    // Archive persistence must never block chat usage.
-  });
-}
-
 function persistMessages(
   conversationId: string,
 ): void {
@@ -431,7 +394,6 @@ function clearInMemoryChatData(): void {
   messagesByConversationId = {};
   messageCacheMetadataByConversationId = {};
   protectedConversationIds = [];
-  archivedConversationIds = [];
   activeUserId = null;
 }
 
@@ -454,33 +416,9 @@ export async function hydrateChatConversations(
   activeUserId = normalizedUserId;
 
   try {
-    const [
-      serializedConversations,
-      serializedArchivedConversationIds,
-    ] = await Promise.all([
-      AsyncStorage.getItem(
-        getInboxCacheKey(normalizedUserId),
-      ),
-      AsyncStorage.getItem(
-        getArchivedConversationsCacheKey(normalizedUserId),
-      ),
-    ]);
-
-    if (serializedArchivedConversationIds) {
-      try {
-        const parsedArchivedIds = JSON.parse(
-          serializedArchivedConversationIds,
-        );
-
-        if (Array.isArray(parsedArchivedIds)) {
-          archivedConversationIds = normalizeConversationIds(
-            parsedArchivedIds,
-          );
-        }
-      } catch {
-        archivedConversationIds = [];
-      }
-    }
+    const serializedConversations = await AsyncStorage.getItem(
+      getInboxCacheKey(normalizedUserId),
+    );
 
     if (!serializedConversations) {
       return conversations;
@@ -624,14 +562,9 @@ export async function clearChatConversationsCache(
   const targetUserId = (userId || activeUserId || '').trim();
 
   if (targetUserId) {
-    await Promise.all([
-      AsyncStorage.removeItem(
-        getInboxCacheKey(targetUserId),
-      ),
-      AsyncStorage.removeItem(
-        getArchivedConversationsCacheKey(targetUserId),
-      ),
-    ]);
+    await AsyncStorage.removeItem(
+      getInboxCacheKey(targetUserId),
+    );
   }
 
   if (!userId || userId === activeUserId) {
@@ -733,10 +666,6 @@ export function removeChatConversation(
     (item) => item.id !== normalizedConversationId,
   );
 
-  archivedConversationIds = archivedConversationIds.filter(
-    (id) => id !== normalizedConversationId,
-  );
-
   const {
     [normalizedConversationId]: _removedMessages,
     ...remainingMessages
@@ -755,7 +684,6 @@ export function removeChatConversation(
   );
 
   persistConversations();
-  persistArchivedConversationIds();
 
   if (activeUserId && normalizedConversationId) {
     void AsyncStorage.removeItem(
@@ -941,52 +869,4 @@ export function setChatConversationProtected(
   protectedConversationIds = protectedConversationIds.filter(
     (id) => id !== conversationId,
   );
-}
-
-export function getArchivedChatConversationIds(): string[] {
-  return archivedConversationIds;
-}
-
-export function isChatConversationArchived(
-  conversationId: string,
-): boolean {
-  const normalizedConversationId = normalizeConversationId(
-    conversationId,
-  );
-
-  return archivedConversationIds.includes(
-    normalizedConversationId,
-  );
-}
-
-export function setChatConversationArchived(
-  conversationId: string,
-  value: boolean,
-): void {
-  const normalizedConversationId = normalizeConversationId(
-    conversationId,
-  );
-
-  if (!normalizedConversationId) {
-    return;
-  }
-
-  if (value) {
-    if (
-      !archivedConversationIds.includes(
-        normalizedConversationId,
-      )
-    ) {
-      archivedConversationIds = [
-        ...archivedConversationIds,
-        normalizedConversationId,
-      ];
-    }
-  } else {
-    archivedConversationIds = archivedConversationIds.filter(
-      (id) => id !== normalizedConversationId,
-    );
-  }
-
-  persistArchivedConversationIds();
 }

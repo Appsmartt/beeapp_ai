@@ -1,7 +1,6 @@
 import type {
   ReactElement,
 } from 'react';
-
 import {
   FlatList,
   StyleSheet,
@@ -29,6 +28,8 @@ interface ChatListViewProps {
   aiChat?: ChatListItemModel;
   chats: ChatListItemModel[];
   archivedCount?: number;
+  archivedLabel?: string;
+  archivedSubtitle?: string;
   onPressArchived?: () => void;
   onOpenChat: (chat: ChatListItemModel) => void;
   onOpenMenu: (chat: ChatListItemModel) => void;
@@ -42,6 +43,8 @@ export default function ChatListView({
   aiChat,
   chats,
   archivedCount = 0,
+  archivedLabel = 'Chats archivados',
+  archivedSubtitle,
   onPressArchived,
   onOpenChat,
   onOpenMenu,
@@ -49,6 +52,18 @@ export default function ChatListView({
 }: ChatListViewProps) {
   const validChats = chats.filter(
     (chat) => Boolean(chat.id?.trim()),
+  );
+
+  const resolvedArchivedSubtitle = (
+    archivedSubtitle
+    || (
+      archivedCount === 1
+        ? `1 ${archivedLabel.toLowerCase().replace(
+            ' archivados',
+            '',
+          )} archivado`
+        : `${archivedCount} archivados`
+    )
   );
 
   return (
@@ -94,13 +109,11 @@ export default function ChatListView({
 
               <View style={styles.archivedTextContainer}>
                 <Text style={styles.archivedTitle}>
-                  Chats archivados
+                  {archivedLabel}
                 </Text>
 
                 <Text style={styles.archivedSubtitle}>
-                  {archivedCount === 1
-                    ? '1 chat archivado'
-                    : `${archivedCount} chats archivados`}
+                  {resolvedArchivedSubtitle}
                 </Text>
               </View>
             </TouchableOpacity>
@@ -118,7 +131,9 @@ export default function ChatListView({
           ) : null}
         </>
       }
-      ListFooterComponent={<View style={styles.bottomGap} />}
+      ListFooterComponent={
+        <View style={styles.bottomGap} />
+      }
     />
   );
 }
