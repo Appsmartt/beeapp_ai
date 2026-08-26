@@ -20,7 +20,10 @@ import {
   Search,
   Timer,
 } from 'lucide-react-native';
-import { colors, spacing } from '@beeapp/design-system';
+import {
+  colors,
+  spacing,
+} from '@beeapp/design-system';
 
 import ScreenSafeArea from '../layout/ScreenSafeArea';
 import {
@@ -32,77 +35,74 @@ import ChatProfileHeader from './ChatProfileHeader';
 import ChatProfileRow from './ChatProfileRow';
 import MemberListSection from './MemberListSection';
 import AddMemberModal from './AddMemberModal';
+import EditGroupModal from './EditGroupModal';
 import DisappearingMessagesModal, {
   type DisappearingInterval,
   disappearingLabel,
 } from './DisappearingMessagesModal';
 
 import {
+  useChatConversations,
   useChatMessages,
 } from '../../hooks/useChat';
-
-import type {
-  GroupMember,
-} from '../../mocks/chats';
-
-function getInitials(
-  value: string,
-): string {
-  const initials = value
-    .trim()
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((part) => part.charAt(0).toUpperCase())
-    .join('');
-
-  return initials || '?';
-}
+import {
+  getInitials,
+} from '../../services/chatService';
 
 export default function ChatProfileScreen() {
   const router = useModuleNav();
   const params = useScreenParams();
 
   const chatId = String(params.id || '').trim();
+  const isNewlyCreatedGroup = (
+    params.newlyCreated === 'true'
+  );
 
   const {
     conversation,
     participants,
     loading,
     error,
+    privateIdentityId,
     loadConversation,
     loadParticipants,
     addParticipants,
     removeParticipant,
+    leaveGroup,
   } = useChatMessages({
     conversationId: chatId || null,
     autoLoad: Boolean(chatId),
   });
 
-  const [muted, setMuted] =
-    useState(false);
+  const {
+    updateConversation,
+  } = useChatConversations({
+    autoLoad: false,
+  });
 
-  const [disappearingOn, setDisappearingOn] =
-    useState(false);
+  const [muted, setMuted] = useState(false);
 
-  const [interval, setIntervalValue] =
-    useState<DisappearingInterval>('24h');
+  const [disappearingOn, setDisappearingOn] = useState(false);
 
-  const [intervalModal, setIntervalModal] =
-    useState(false);
+  const [interval, setIntervalValue] = useState<
+    DisappearingInterval
+  >('24h');
 
-  const [addMemberModal, setAddMemberModal] =
-    useState(false);
+  const [intervalModal, setIntervalModal] = useState(false);
+  const [addMemberModal, setAddMemberModal] = useState(false);
+  const [editGroupModal, setEditGroupModal] = useState(false);
 
   const isGroup = (
     conversation?.conversation_type === 'group'
   );
 
+  const permissions = conversation?.permissions || null;
+
   const name = (
     conversation?.name?.trim()
     || (
       isGroup
-        ? 'Grupo de Buddy'
+        ? 'Grupo BeeApp'
         : [
             conversation?.direct_profile?.first_name,
             conversation?.direct_profile?.last_name,
@@ -114,30 +114,11 @@ export default function ChatProfileScreen() {
     || 'Conversación'
   );
 
-  const members = useMemo<GroupMember[]>(
-    () => participants.map((participant) => {
-      const memberName = [
-        participant.user?.first_name,
-        participant.user?.last_name,
-      ]
-        .filter(Boolean)
-        .join(' ')
-        .trim()
-        || 'Usuario Buddy';
-
-      return {
-        id: participant.user_id,
-        name: memberName,
-        role: (
-          participant.role === 'owner'
-          || participant.role === 'admin'
-            ? 'admin'
-            : 'member'
-        ),
-        initials: getInitials(memberName),
-        color: '#F3E8FF',
-      };
-    }),
+  const activeParticipants = useMemo(
+    () => participants.filter((participant) => (
+      !participant.left_at
+      && !participant.removed_at
+    )),
     [participants],
   );
 
@@ -158,36 +139,27 @@ export default function ChatProfileScreen() {
   };
 
   const handleAddMembers = async (
-    nextMembers: GroupMember[],
+    identityIds: string[],
   ) => {
-    const userIds = nextMembers
-      .map((member) => member.id)
-      .filter(Boolean);
-
-    if (userIds.length === 0) {
+    if (!identityIds.length) {
       return;
     }
 
-    try {
-      await addParticipants(userIds);
-      setAddMemberModal(false);
-      await loadParticipants();
-    } catch (addError) {
-      Alert.alert(
-        'No fue posible agregar participantes',
-        addError instanceof Error
-          ? addError.message
-          : 'Inténtalo nuevamente.',
-      );
-    }
+    await addParticipants(identityIds);
+
+    await Promise.all([
+      loadConversation(),
+      loadParticipants(),
+    ]);
   };
 
   const handleRemoveMember = (
-    memberId: string,
+    identityId: string,
+    displayName: string,
   ) => {
     Alert.alert(
       'Quitar participante',
-      '¿Seguro que quieres quitar a este participante?',
+      `¿Seguro que quieres quitar a ${displayName}?`,
       [
         {
           text: 'Cancelar',
@@ -197,13 +169,88 @@ export default function ChatProfileScreen() {
           text: 'Quitar',
           style: 'destructive',
           onPress: () => {
-            void removeParticipant(memberId)
-              .then(() => loadParticipants())
+            void removeParticipant(identityId)
+              .then(async () => {
+                await Promise.all([
+                  loadConversation(),
+                  loadParticipants(),
+                ]);
+              })
               .catch((removeError) => {
                 Alert.alert(
                   'No fue posible quitar al participante',
                   removeError instanceof Error
                     ? removeError.message
+                    : 'Inténtalo nuevamente.',
+                );
+              });
+          },
+        },
+      ],
+    );
+  };
+
+  const handleEditGroup = async (payload: {
+    name: string;
+    description: string | null;
+    postingPolicy: 'all_members' | 'admins_only';
+  }) => {
+    if (!isGroup || !permissions?.can_update_group) {
+      throw new Error(
+        'No tienes permiso para editar este grupo.',
+      );
+    }
+
+    await updateConversation(chatId, {
+      name: payload.name,
+      description: payload.description,
+      postingPolicy: payload.postingPolicy,
+    });
+
+    await Promise.all([
+      loadConversation(),
+      loadParticipants(),
+    ]);
+  };
+
+  const handleLeaveGroup = () => {
+    if (!permissions?.can_leave_group) {
+      Alert.alert(
+        'No puedes salir del grupo',
+        permissions?.own_role === 'owner'
+          ? (
+              'Como owner, debes transferir la propiedad '
+              + 'o desactivar el grupo antes de salir.'
+            )
+          : (
+              'No tienes permiso para salir de este grupo.'
+            ),
+      );
+
+      return;
+    }
+
+    Alert.alert(
+      'Salir del grupo',
+      'Dejarás de recibir mensajes y el grupo se ocultará de tu lista de chats.',
+      [
+        {
+          text: 'Cancelar',
+          style: 'cancel',
+        },
+        {
+          text: 'Salir',
+          style: 'destructive',
+          onPress: () => {
+            void leaveGroup()
+              .then(() => {
+                router.replace('/(main)/chat');
+              })
+              .catch((leaveError) => {
+                Alert.alert(
+                  'No fue posible salir del grupo',
+                  leaveError instanceof Error
+                    ? leaveError.message
                     : 'Inténtalo nuevamente.',
                 );
               });
@@ -259,7 +306,7 @@ export default function ChatProfileScreen() {
 
           <Text style={styles.topBarTitle}>
             {isGroup
-              ? 'Perfil del grupo'
+              ? 'Información del grupo'
               : 'Perfil del contacto'}
           </Text>
         </View>
@@ -291,40 +338,54 @@ export default function ChatProfileScreen() {
             </View>
           ) : null}
 
+          {isGroup && isNewlyCreatedGroup ? (
+            <View style={styles.createdGroupBox}>
+              <Text style={styles.createdGroupTitle}>
+                Grupo creado
+              </Text>
+
+              <Text style={styles.createdGroupText}>
+                Agrega participantes para enviarles una invitación.
+                Podrán unirse cuando la acepten.
+              </Text>
+            </View>
+          ) : null}
+
           <ChatProfileHeader
             isGroup={Boolean(isGroup)}
             name={name}
             onChangeName={() => {
-              Alert.alert(
-                'Nombre de grupo',
-                (
-                  'La edición del nombre se conectará al '
-                  + 'endpoint PATCH de conversación en el '
-                  + 'siguiente ajuste de backend.'
-                ),
-              );
+              if (!permissions?.can_update_group) {
+                Alert.alert(
+                  'Sin permiso',
+                  'Solo el owner puede editar este grupo.',
+                );
+                return;
+              }
+
+              setEditGroupModal(true);
             }}
             meta={
               isGroup
                 ? (
-                    `${members.length} `
-                    + `${members.length === 1
+                    `${activeParticipants.length} `
+                    + `${activeParticipants.length === 1
                       ? 'miembro'
                       : 'miembros'}`
                   )
                 : (
                     conversation?.direct_profile?.occupation
                     || conversation?.direct_profile?.location
-                    || 'Contacto de Buddy'
+                    || 'Contacto BeeApp'
                   )
             }
             initials={getInitials(name)}
             onChangePhoto={() => {
               Alert.alert(
-                'Foto del chat',
+                'Foto del grupo',
                 (
-                  'La carga de foto requiere soporte de '
-                  + 'adjuntos para conversaciones.'
+                  'La carga de foto se conectará cuando '
+                  + 'implementemos el flujo de Storage.'
                 ),
               );
             }}
@@ -354,8 +415,14 @@ export default function ChatProfileScreen() {
               <View style={styles.divider} />
 
               <MemberListSection
-                members={members}
-                canManage
+                members={activeParticipants}
+                currentIdentityId={privateIdentityId}
+                canInvite={Boolean(
+                  permissions?.can_invite_members,
+                )}
+                canRemove={Boolean(
+                  permissions?.can_remove_members,
+                )}
                 onAdd={() => {
                   setAddMemberModal(true);
                 }}
@@ -374,7 +441,7 @@ export default function ChatProfileScreen() {
                 'Buscar mensajes',
                 (
                   'La búsqueda dentro de una conversación '
-                  + 'requiere un endpoint de búsqueda de Chat.'
+                  + 'requiere un endpoint específico de Chat.'
                 ),
               );
             }}
@@ -388,10 +455,10 @@ export default function ChatProfileScreen() {
               setMuted(nextValue);
 
               Alert.alert(
-                'Preferencia guardada localmente',
+                'Preferencia no disponible',
                 (
-                  'La preferencia de silenciar se sincroniza '
-                  + 'desde el menú de la lista de Chats.'
+                  'El backend actual todavía no expone una '
+                  + 'operación para actualizar esta preferencia.'
                 ),
               );
             }}
@@ -404,8 +471,8 @@ export default function ChatProfileScreen() {
               Alert.alert(
                 'Archivos compartidos',
                 (
-                  'Esta vista estará disponible cuando Chat '
-                  + 'exponga adjuntos en el backend.'
+                  'Esta vista se conectará cuando agreguemos '
+                  + 'el explorador de adjuntos de Chat.'
                 ),
               );
             }}
@@ -422,14 +489,16 @@ export default function ChatProfileScreen() {
             }
             danger
             onPress={() => {
+              if (isGroup) {
+                handleLeaveGroup();
+                return;
+              }
+
               Alert.alert(
-                isGroup
-                  ? 'Salir del grupo'
-                  : 'Eliminar chat',
+                'Eliminar chat',
                 (
-                  isGroup
-                    ? 'La salida del grupo requiere un endpoint de miembros.'
-                    : 'Puedes eliminar el chat desde la lista principal.'
+                  'Puedes eliminar el chat desde la lista '
+                  + 'principal de Chats.'
                 ),
               );
             }}
@@ -450,14 +519,23 @@ export default function ChatProfileScreen() {
 
         <AddMemberModal
           visible={addMemberModal}
-          memberIds={members.map(
-            (member) => member.id,
+          memberIdentityIds={activeParticipants.map(
+            (participant) => participant.identity_id,
           )}
-          onAdd={(nextMembers) => {
-            void handleAddMembers(nextMembers);
-          }}
+          onAdd={handleAddMembers}
           onClose={() => {
             setAddMemberModal(false);
+          }}
+        />
+
+        <EditGroupModal
+          visible={editGroupModal}
+          initialName={name}
+          initialDescription={conversation?.description}
+          initialPostingPolicy={conversation?.posting_policy}
+          onSave={handleEditGroup}
+          onClose={() => {
+            setEditGroupModal(false);
           }}
         />
       </View>
@@ -507,6 +585,26 @@ const styles = StyleSheet.create({
     backgroundColor: colors.neutral.gray100,
     height: 1,
     marginVertical: spacing.xs,
+  },
+  createdGroupBox: {
+    backgroundColor: '#ECFDF5',
+    borderColor: '#A7F3D0',
+    borderRadius: 10,
+    borderWidth: 1,
+    marginHorizontal: spacing.md,
+    marginTop: spacing.sm,
+    padding: 12,
+  },
+  createdGroupTitle: {
+    color: '#166534',
+    fontSize: 13,
+    fontWeight: '800',
+  },
+  createdGroupText: {
+    color: '#166534',
+    fontSize: 12,
+    lineHeight: 18,
+    marginTop: 4,
   },
   errorBox: {
     alignItems: 'center',

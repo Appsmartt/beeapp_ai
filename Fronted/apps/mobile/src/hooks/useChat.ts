@@ -7,18 +7,26 @@ import {
 } from 'react';
 import {
   bootstrapChat,
+  clearChatConversation,
+  createChatGroup,
   createDirectChatConversation,
   getChatConversation,
   getChatIdentities,
   getChatInbox,
   getChatMessages,
   getChatParticipants,
+  inviteToChatGroup,
+  leaveChatGroup,
+  markChatConversationRead,
+  removeChatGroupParticipant,
   searchChatRecipients,
   sendChatMessage,
+  updateChatGroup,
 } from '@beeapp/api-client';
 import type {
   AuthCredentials,
   ChatConversation,
+  ChatGroupPostingPolicy,
   ChatMessage,
   ChatMessageType,
   ChatParticipant,
@@ -44,6 +52,7 @@ import {
   hydrateChatConversations,
   hydrateChatMessages,
   isChatConversationProtected,
+  removeChatConversation,
   setChatConversationProtected,
   setChatConversations,
   setChatMessages,
@@ -260,6 +269,62 @@ function sortConversations(
   });
 }
 
+function mergeConversation(
+  current: ChatConversation,
+  incoming: ChatConversation,
+): ChatConversation {
+  const currentDate = new Date(
+    current.last_message_at
+    || current.updated_at
+    || current.created_at,
+  ).getTime();
+
+  const incomingDate = new Date(
+    incoming.last_message_at
+    || incoming.updated_at
+    || incoming.created_at,
+  ).getTime();
+
+  const newest = incomingDate >= currentDate
+    ? incoming
+    : current;
+
+  const oldest = newest === incoming
+    ? current
+    : incoming;
+
+  return {
+    ...oldest,
+    ...newest,
+    id: newest.id,
+    participants: (
+      newest.participants?.length
+        ? newest.participants
+        : oldest.participants
+    ),
+    own_participant: (
+      newest.own_participant
+      || oldest.own_participant
+      || null
+    ),
+    permissions: (
+      newest.permissions
+      || oldest.permissions
+      || null
+    ),
+    last_message: (
+      newest.last_message
+      || oldest.last_message
+      || null
+    ),
+    last_message_at: (
+      newest.last_message_at
+      || oldest.last_message_at
+      || null
+    ),
+  };
+}
+
 async function getChatAuthContext(): Promise<{
   currentUserId: string;
   token: AuthCredentials;
@@ -301,6 +366,7 @@ export interface UseChatConversationsResult {
   loading: boolean;
   refreshing: boolean;
   error: string | null;
+  privateIdentityId: string | null;
   loadConversations: (
     options?: {
       refresh?: boolean;
@@ -308,20 +374,29 @@ export interface UseChatConversationsResult {
     },
   ) => Promise<ChatListItemModel[]>;
   createDirectConversation: (
-    userId: string,
+    recipientIdentityId: string,
   ) => Promise<ChatListItemModel>;
   createGroupConversation: (
     payload: {
       name: string;
-      description?: string;
-      participantIds: string[];
+      description?: string | null;
+      postingPolicy: ChatGroupPostingPolicy;
+      participantIds?: string[];
     },
-  ) => Promise<ChatListItemModel>;
+  ) => Promise<{
+    conversation: ChatListItemModel;
+    invitedCount: number;
+    inviteFailures: Array<{
+      identityId: string;
+      detail: string;
+    }>;
+  }>;
   updateConversation: (
     conversationId: string,
     payload: {
       name?: string;
       description?: string | null;
+      postingPolicy?: ChatGroupPostingPolicy;
       isMuted?: boolean;
       isArchived?: boolean;
       isPinned?: boolean;
@@ -541,6 +616,219 @@ export function useChatConversations(
     synchronizeConversations,
   ]);
 
+  const createGroupConversation = useCallback(async (
+    payload: {
+      name: string;
+      description?: string | null;
+      postingPolicy: ChatGroupPostingPolicy;
+      participantIds?: string[];
+    },
+  ) => {
+    const normalizedName = payload.name.trim();
+
+    if (!normalizedName) {
+      throw new Error(
+        'El nombre del grupo es obligatorio.',
+      );
+    }
+
+    const {
+      currentUserId: activeUserId,
+      token,
+    } = await getChatAuthContext();
+
+    const creatorIdentityId = (
+      privateIdentityId
+      || await resolvePrivateIdentityId(token)
+    );
+
+    const created = await createChatGroup(
+      token,
+      {
+        creator_identity_id: creatorIdentityId,
+        name: normalizedName,
+        posting_policy: payload.postingPolicy,
+        description: payload.description?.trim() || null,
+      },
+    );
+
+    setCurrentUserId(activeUserId);
+    upsertChatConversation(created.conversation);
+    synchronizeConversations(getStoredConversations());
+
+    const uniqueParticipantIds = Array.from(
+      new Set(
+        (payload.participantIds || [])
+          .map((identityId) => identityId.trim())
+          .filter(
+            (identityId) => (
+              Boolean(identityId)
+              && identityId !== creatorIdentityId
+            ),
+          ),
+      ),
+    );
+
+    const inviteResults = await Promise.allSettled(
+      uniqueParticipantIds.map((identityId) => (
+        inviteToChatGroup(
+          token,
+          created.conversation.id,
+          {
+            actor_identity_id: creatorIdentityId,
+            invited_identity_id: identityId,
+          },
+        )
+      )),
+    );
+
+    const inviteFailures = inviteResults
+      .map((result, index) => ({
+        result,
+        identityId: uniqueParticipantIds[index],
+      }))
+      .filter((
+        item,
+      ): item is {
+        result: PromiseRejectedResult;
+        identityId: string;
+      } => item.result.status === 'rejected')
+      .map((item) => ({
+        identityId: item.identityId,
+        detail: getErrorMessage(
+          item.result.reason,
+          'No fue posible enviar la invitación.',
+        ),
+      }));
+
+    return {
+      conversation: mapConversationToListItem(
+        created.conversation,
+        activeUserId,
+        isChatConversationProtected(created.conversation.id),
+      ),
+      invitedCount: (
+        uniqueParticipantIds.length
+        - inviteFailures.length
+      ),
+      inviteFailures,
+    };
+  }, [
+    privateIdentityId,
+    resolvePrivateIdentityId,
+    synchronizeConversations,
+  ]);
+
+  const updateConversation = useCallback(async (
+    conversationId: string,
+    payload: {
+      name?: string;
+      description?: string | null;
+      postingPolicy?: ChatGroupPostingPolicy;
+      isMuted?: boolean;
+      isArchived?: boolean;
+      isPinned?: boolean;
+    },
+  ) => {
+    const normalizedConversationId = conversationId.trim();
+
+    if (!normalizedConversationId) {
+      throw new Error(
+        'No fue posible identificar el chat.',
+      );
+    }
+
+    if (
+      payload.isMuted !== undefined
+      || payload.isArchived !== undefined
+      || payload.isPinned !== undefined
+    ) {
+      throw new Error(
+        'Esta preferencia todavía no está disponible en el backend de Chat.',
+      );
+    }
+
+    const {
+      currentUserId: activeUserId,
+      token,
+    } = await getChatAuthContext();
+
+    const actorIdentityId = (
+      privateIdentityId
+      || await resolvePrivateIdentityId(token)
+    );
+
+    const response = await updateChatGroup(
+      token,
+      normalizedConversationId,
+      {
+        actor_identity_id: actorIdentityId,
+        ...(payload.name !== undefined
+          ? {
+              name: payload.name,
+            }
+          : {}),
+        ...(payload.description !== undefined
+          ? {
+              description: payload.description,
+            }
+          : {}),
+        ...(payload.postingPolicy !== undefined
+          ? {
+              posting_policy: payload.postingPolicy,
+            }
+          : {}),
+      },
+    );
+
+    setCurrentUserId(activeUserId);
+    upsertChatConversation(response.conversation);
+    synchronizeConversations(getStoredConversations());
+
+    return mapConversationToListItem(
+      response.conversation,
+      activeUserId,
+      isChatConversationProtected(response.conversation.id),
+    );
+  }, [
+    privateIdentityId,
+    resolvePrivateIdentityId,
+    synchronizeConversations,
+  ]);
+
+  const deleteConversation = useCallback(async (
+    conversationId: string,
+  ) => {
+    const normalizedConversationId = conversationId.trim();
+
+    if (!normalizedConversationId) {
+      throw new Error(
+        'No fue posible identificar el chat.',
+      );
+    }
+
+    const { token } = await getChatAuthContext();
+
+    const identityId = (
+      privateIdentityId
+      || await resolvePrivateIdentityId(token)
+    );
+
+    await clearChatConversation(
+      token,
+      normalizedConversationId,
+      {
+        identity_id: identityId,
+      },
+    );
+
+    removeChatConversation(normalizedConversationId);
+    setRawConversations(getStoredConversations());
+  }, [
+    privateIdentityId,
+    resolvePrivateIdentityId,
+  ]);
+
   const searchUsers = useCallback(async (
     query: string,
   ) => {
@@ -579,15 +867,6 @@ export function useChatConversations(
     conversationId: string,
   ) => isChatConversationProtected(conversationId), []);
 
-  const unsupportedConversationAction = useCallback(
-    async () => {
-      throw new Error(
-        'Esta acción todavía no está conectada al API actual de Chat.',
-      );
-    },
-    [],
-  );
-
   const conversations = useMemo(() => {
     if (!currentUserId) {
       return [];
@@ -616,23 +895,12 @@ export function useChatConversations(
     loading,
     refreshing,
     error,
+    privateIdentityId,
     loadConversations,
     createDirectConversation,
-    createGroupConversation: (
-      unsupportedConversationAction as UseChatConversationsResult[
-        'createGroupConversation'
-      ]
-    ),
-    updateConversation: (
-      unsupportedConversationAction as UseChatConversationsResult[
-        'updateConversation'
-      ]
-    ),
-    deleteConversation: (
-      unsupportedConversationAction as UseChatConversationsResult[
-        'deleteConversation'
-      ]
-    ),
+    createGroupConversation,
+    updateConversation,
+    deleteConversation,
     setProtected,
     isProtected,
     searchUsers,
@@ -688,11 +956,12 @@ export interface UseChatMessagesResult {
     isPinned: boolean,
   ) => Promise<ChatMessageModel>;
   addParticipants: (
-    userIds: string[],
+    identityIds: string[],
   ) => Promise<ChatParticipant[]>;
   removeParticipant: (
-    userId: string,
+    identityId: string,
   ) => Promise<void>;
+  leaveGroup: () => Promise<void>;
   clearError: () => void;
 }
 
@@ -868,6 +1137,18 @@ export function useChatMessages(
     normalizedConversationId,
   ]);
 
+  const applyConversation = useCallback((
+    nextConversation: ChatConversation,
+  ) => {
+    setConversation((current) => (
+      current
+        ? mergeConversation(current, nextConversation)
+        : nextConversation
+    ));
+
+    upsertChatConversation(nextConversation);
+  }, []);
+
   const loadConversation = useCallback(async () => {
     if (!normalizedConversationId) {
       return null;
@@ -887,8 +1168,7 @@ export function useChatMessages(
       );
 
       setCurrentUserId(activeUserId);
-      setConversation(response.conversation);
-      upsertChatConversation(response.conversation);
+      applyConversation(response.conversation);
 
       return response.conversation;
     } catch (loadError) {
@@ -902,6 +1182,7 @@ export function useChatMessages(
       throw loadError;
     }
   }, [
+    applyConversation,
     normalizedConversationId,
   ]);
 
@@ -922,6 +1203,39 @@ export function useChatMessages(
     setParticipants(response.participants);
 
     return response.participants;
+  }, [
+    normalizedConversationId,
+  ]);
+
+  const markLatestMessageAsRead = useCallback(async (
+    token: AuthCredentials,
+    identityId: string,
+    messagesToMark: ChatMessage[],
+  ) => {
+    if (!normalizedConversationId || !messagesToMark.length) {
+      return;
+    }
+
+    const latestMessage = messagesToMark[
+      messagesToMark.length - 1
+    ];
+
+    if (!latestMessage?.id) {
+      return;
+    }
+
+    try {
+      await markChatConversationRead(
+        token,
+        normalizedConversationId,
+        {
+          identity_id: identityId,
+          last_read_message_id: latestMessage.id,
+        },
+      );
+    } catch {
+      // Marcar lectura no debe impedir ver ni enviar mensajes.
+    }
   }, [
     normalizedConversationId,
   ]);
@@ -1016,6 +1330,19 @@ export function useChatMessages(
 
       setCurrentUserId(activeUserId);
 
+      if (!isLoadingHistory) {
+        const identityId = (
+          privateIdentityId
+          || await resolvePrivateIdentityId(token)
+        );
+
+        void markLatestMessageAsRead(
+          token,
+          identityId,
+          mergedMessages,
+        );
+      }
+
       return mergedMessages.map((message) => (
         mapChatMessageToModel(
           message,
@@ -1045,7 +1372,10 @@ export function useChatMessages(
   }, [
     conversationIsAi,
     hydrateCachedMessages,
+    markLatestMessageAsRead,
     normalizedConversationId,
+    privateIdentityId,
+    resolvePrivateIdentityId,
     synchronizeMessages,
   ]);
 
@@ -1060,6 +1390,7 @@ export function useChatMessages(
       try {
         const {
           currentUserId: activeUserId,
+          token,
         } = await getChatAuthContext();
 
         if (cancelled) {
@@ -1072,25 +1403,17 @@ export function useChatMessages(
           return;
         }
 
-        const [
-          loadedConversation,
-        ] = await Promise.all([
+        await resolvePrivateIdentityId(token);
+
+        if (cancelled) {
+          return;
+        }
+
+        await Promise.all([
           loadConversation(),
           loadParticipants(),
           loadMessages(),
         ]);
-
-        if (
-          loadedConversation?.conversation_type === 'group'
-          && (
-            loadedConversation.posting_identity_id
-            || loadedConversation.created_by_identity_id
-          )
-        ) {
-          const { token } = await getChatAuthContext();
-
-          await resolvePrivateIdentityId(token);
-        }
       } catch {
         // El hook conserva el error para mostrarlo en pantalla.
       }
@@ -1110,6 +1433,7 @@ export function useChatMessages(
     loadMessages,
     loadParticipants,
     normalizedConversationId,
+    resolvePrivateIdentityId,
   ]);
 
   useEffect(() => {
@@ -1190,6 +1514,16 @@ export function useChatMessages(
       );
     }
 
+    if (
+      conversation?.conversation_type === 'group'
+      && conversation.permissions
+      && !conversation.permissions.can_send_messages
+    ) {
+      throw new Error(
+        'No tienes permiso para enviar mensajes en este grupo.',
+      );
+    }
+
     setSending(true);
     setError(null);
 
@@ -1205,22 +1539,6 @@ export function useChatMessages(
         privateIdentityId
         || await resolvePrivateIdentityId(token)
       );
-
-      const allowedPostingIdentityId = (
-        conversation?.posting_identity_id
-        || conversation?.created_by_identity_id
-        || null
-      );
-
-      if (
-        conversation?.conversation_type === 'group'
-        && allowedPostingIdentityId
-        && senderIdentityId !== allowedPostingIdentityId
-      ) {
-        throw new Error(
-          'No tienes permiso para enviar mensajes en este grupo.',
-        );
-      }
 
       const response = await sendChatMessage(
         token,
@@ -1271,6 +1589,198 @@ export function useChatMessages(
     conversation,
     conversationIsAi,
     hydrateCachedMessages,
+    normalizedConversationId,
+    privateIdentityId,
+    resolvePrivateIdentityId,
+  ]);
+
+  const addParticipants = useCallback(async (
+    identityIds: string[],
+  ) => {
+    if (!normalizedConversationId) {
+      throw new Error(
+        'No fue posible identificar el grupo.',
+      );
+    }
+
+    if (conversation?.conversation_type !== 'group') {
+      throw new Error(
+        'Solo puedes invitar participantes a un grupo.',
+      );
+    }
+
+    if (!conversation.permissions?.can_invite_members) {
+      throw new Error(
+        'No tienes permiso para invitar participantes a este grupo.',
+      );
+    }
+
+    const normalizedIdentityIds = Array.from(
+      new Set(
+        identityIds
+          .map((identityId) => identityId.trim())
+          .filter(Boolean),
+      ),
+    );
+
+    if (!normalizedIdentityIds.length) {
+      return participants;
+    }
+
+    const { token } = await getChatAuthContext();
+
+    const actorIdentityId = (
+      privateIdentityId
+      || await resolvePrivateIdentityId(token)
+    );
+
+    const results = await Promise.allSettled(
+      normalizedIdentityIds.map((identityId) => (
+        inviteToChatGroup(
+          token,
+          normalizedConversationId,
+          {
+            actor_identity_id: actorIdentityId,
+            invited_identity_id: identityId,
+          },
+        )
+      )),
+    );
+
+    const rejected = results.find(
+      (result) => result.status === 'rejected',
+    );
+
+    if (rejected?.status === 'rejected') {
+      throw new Error(
+        getErrorMessage(
+          rejected.reason,
+          'No fue posible enviar una o más invitaciones.',
+        ),
+      );
+    }
+
+    const refreshedConversation = await loadConversation();
+    const refreshedParticipants = await loadParticipants();
+
+    if (refreshedConversation) {
+      applyConversation(refreshedConversation);
+    }
+
+    return refreshedParticipants;
+  }, [
+    applyConversation,
+    conversation?.conversation_type,
+    conversation?.permissions?.can_invite_members,
+    loadConversation,
+    loadParticipants,
+    normalizedConversationId,
+    participants,
+    privateIdentityId,
+    resolvePrivateIdentityId,
+  ]);
+
+  const removeParticipant = useCallback(async (
+    identityId: string,
+  ) => {
+    if (!normalizedConversationId) {
+      throw new Error(
+        'No fue posible identificar el grupo.',
+      );
+    }
+
+    if (conversation?.conversation_type !== 'group') {
+      throw new Error(
+        'Solo puedes quitar participantes de un grupo.',
+      );
+    }
+
+    if (!conversation.permissions?.can_remove_members) {
+      throw new Error(
+        'No tienes permiso para quitar participantes de este grupo.',
+      );
+    }
+
+    const normalizedIdentityId = identityId.trim();
+
+    if (!normalizedIdentityId) {
+      throw new Error(
+        'No fue posible identificar el participante.',
+      );
+    }
+
+    const { token } = await getChatAuthContext();
+
+    const actorIdentityId = (
+      privateIdentityId
+      || await resolvePrivateIdentityId(token)
+    );
+
+    await removeChatGroupParticipant(
+      token,
+      normalizedConversationId,
+      normalizedIdentityId,
+      {
+        actor_identity_id: actorIdentityId,
+      },
+    );
+
+    const refreshedConversation = await loadConversation();
+    await loadParticipants();
+
+    if (refreshedConversation) {
+      applyConversation(refreshedConversation);
+    }
+  }, [
+    applyConversation,
+    conversation?.conversation_type,
+    conversation?.permissions?.can_remove_members,
+    loadConversation,
+    loadParticipants,
+    normalizedConversationId,
+    privateIdentityId,
+    resolvePrivateIdentityId,
+  ]);
+
+  const leaveGroup = useCallback(async () => {
+    if (!normalizedConversationId) {
+      throw new Error(
+        'No fue posible identificar el grupo.',
+      );
+    }
+
+    if (conversation?.conversation_type !== 'group') {
+      throw new Error(
+        'Esta conversación no es un grupo.',
+      );
+    }
+
+    if (!conversation.permissions?.can_leave_group) {
+      throw new Error(
+        'No puedes salir de este grupo. '
+        + 'El owner debe transferir la propiedad o desactivar el grupo.',
+      );
+    }
+
+    const { token } = await getChatAuthContext();
+
+    const identityId = (
+      privateIdentityId
+      || await resolvePrivateIdentityId(token)
+    );
+
+    await leaveChatGroup(
+      token,
+      normalizedConversationId,
+      {
+        identity_id: identityId,
+      },
+    );
+
+    removeChatConversation(normalizedConversationId);
+  }, [
+    conversation?.conversation_type,
+    conversation?.permissions?.can_leave_group,
     normalizedConversationId,
     privateIdentityId,
     resolvePrivateIdentityId,
@@ -1342,16 +1852,9 @@ export function useChatMessages(
         'togglePinnedMessage'
       ]
     ),
-    addParticipants: (
-      unsupportedMessageAction as UseChatMessagesResult[
-        'addParticipants'
-      ]
-    ),
-    removeParticipant: (
-      unsupportedMessageAction as UseChatMessagesResult[
-        'removeParticipant'
-      ]
-    ),
+    addParticipants,
+    removeParticipant,
+    leaveGroup,
     clearError,
   };
 }

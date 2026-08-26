@@ -2111,6 +2111,22 @@ export type ChatConversationType =
   | 'group'
   | 'ai';
 
+export type ChatGroupPostingPolicy =
+  | 'all_members'
+  | 'admins_only';
+
+export type ChatParticipantRole =
+  | 'owner'
+  | 'admin'
+  | 'member';
+
+export type ChatGroupInviteStatus =
+  | 'pending'
+  | 'accepted'
+  | 'declined'
+  | 'cancelled'
+  | 'expired';
+
 export type ChatMessageType =
   | 'text'
   | 'image'
@@ -2158,13 +2174,39 @@ export interface ChatProfileSummary {
 export interface ChatParticipant {
   id: string;
   conversation_id: string;
-  identity_id?: string;
+  identity_id: string;
   user_id: string;
-  role: 'owner' | 'admin' | 'member';
+  role: ChatParticipantRole;
   joined_at: string;
   left_at?: string | null;
+  removed_at?: string | null;
+  removed_by_identity_id?: string | null;
+  cleared_at?: string | null;
+  cleared_before_message_id?: string | null;
+  last_read_message_id?: string | null;
+  last_read_at?: string | null;
+  last_delivered_message_id?: string | null;
+  last_delivered_at?: string | null;
+  unread_count?: number;
+  notifications_enabled?: boolean;
   muted_until?: string | null;
+  created_at?: string;
+  updated_at?: string;
   user?: ChatProfileSummary | null;
+}
+
+export interface ChatConversationPermissions {
+  own_role: ChatParticipantRole | null;
+  is_active_participant: boolean;
+  can_send_messages: boolean;
+  can_invite_members: boolean;
+  can_remove_members: boolean;
+  can_promote_members: boolean;
+  can_demote_admins: boolean;
+  can_update_group: boolean;
+  can_transfer_ownership: boolean;
+  can_deactivate_group: boolean;
+  can_leave_group: boolean;
 }
 
 export interface ChatAttachment {
@@ -2214,14 +2256,18 @@ export interface ChatConversation {
   name: string | null;
   description?: string | null;
   avatar_url?: string | null;
+  image_file_id?: string | null;
   created_by_id?: string | null;
   created_by_identity_id?: string | null;
   posting_identity_id?: string | null;
+  posting_policy?: ChatGroupPostingPolicy | null;
   created_at: string;
   updated_at: string;
   last_message_at?: string | null;
   last_message?: ChatMessage | null;
   participants?: ChatParticipant[];
+  own_participant?: ChatParticipant | null;
+  permissions?: ChatConversationPermissions | null;
   unread_count: number;
   is_pinned?: boolean;
   is_muted?: boolean;
@@ -2229,6 +2275,32 @@ export interface ChatConversation {
   is_protected?: boolean;
   is_ai?: boolean;
   direct_profile?: ChatProfileSummary | null;
+}
+
+export interface ChatGroupInvite {
+  id: string;
+  conversation_id: string;
+  invited_identity_id: string;
+  invited_by_identity_id: string;
+  status: ChatGroupInviteStatus;
+  responded_at: string | null;
+  expires_at: string | null;
+  created_at: string;
+  updated_at: string;
+  conversation?: ChatConversation | null;
+  invited_identity?: ChatIdentitySummary | null;
+  invited_by_identity?: ChatIdentitySummary | null;
+}
+
+export interface ChatIdentitySummary {
+  id: string;
+  identity_type: 'profile' | 'commercial_profile' | null;
+  profile_id: string | null;
+  commercial_profile_id: string | null;
+  display_name: string;
+  avatar_file_id: string | null;
+  is_active: boolean;
+  is_available: boolean;
 }
 
 export interface ChatConversationsQuery {
@@ -2256,12 +2328,15 @@ export interface CreateDirectConversationPayload {
 export interface CreateGroupConversationPayload {
   name: string;
   description?: string | null;
-  participant_ids: string[];
+  posting_policy?: ChatGroupPostingPolicy;
+  image_file_id?: string | null;
 }
 
 export interface UpdateChatConversationPayload {
   name?: string;
   description?: string | null;
+  posting_policy?: ChatGroupPostingPolicy;
+  image_file_id?: string | null;
   is_muted?: boolean;
   is_archived?: boolean;
   is_pinned?: boolean;

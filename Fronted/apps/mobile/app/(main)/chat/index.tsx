@@ -15,6 +15,7 @@ import {
 import {
   ArrowLeft,
   SquarePen,
+  UserPlus,
 } from 'lucide-react-native';
 import { useNavigation } from 'expo-router';
 import { colors } from '@beeapp/design-system';
@@ -503,8 +504,25 @@ export default function ChatListScreen() {
 
             <TouchableOpacity
               style={styles.newChatBtn}
+              onPress={() => {
+                router.push(
+                  '/(main)/chat/group-invites',
+                );
+              }}
+              activeOpacity={0.7}
+              accessibilityLabel="Invitaciones a grupos"
+            >
+              <UserPlus
+                size={20}
+                color={colors.neutral.text}
+              />
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.newChatBtn}
               onPress={() => setCreateMenuOpen(true)}
               activeOpacity={0.7}
+              accessibilityLabel="Crear chat o grupo"
             >
               <SquarePen
                 size={20}
@@ -694,6 +712,10 @@ export default function ChatListScreen() {
         onNewChat={() => {
           setCreateMenuOpen(false);
           router.push('/(main)/chat/new');
+        }}
+        onNewGroup={() => {
+          setCreateMenuOpen(false);
+          router.push('/(main)/chat/new-group');
         }}
         onNewCommunity={() => {
           setCreateMenuOpen(false);
