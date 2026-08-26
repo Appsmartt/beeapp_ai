@@ -272,7 +272,7 @@ export function mapConversationToListItem(
   );
 
   const lastMessage = conversation.last_message;
-  const lastMessageText = (
+  const lastMessageContent = (
     lastMessage?.content?.trim()
     || (
       lastMessage?.message_type === 'image'
@@ -283,6 +283,26 @@ export function mapConversationToListItem(
             ? '📎 Archivo'
             : 'Aún no hay mensajes'
     )
+  );
+
+  const lastMessageSenderName = lastMessage?.sender
+    ? fullName(lastMessage.sender)
+    : '';
+
+  const lastMessageIsCurrentUser = Boolean(
+    lastMessage?.sender_id
+    && lastMessage.sender_id === currentUserId,
+  );
+
+  const lastMessageText = (
+    isGroup
+    && lastMessage?.id
+    && lastMessageSenderName
+      ? (
+          `${lastMessageIsCurrentUser ? 'Tú' : lastMessageSenderName}: `
+          + lastMessageContent
+        )
+      : lastMessageContent
   );
 
   return {

@@ -77,7 +77,6 @@ export default function ConversationScreen() {
     loadingMore,
     hasMore,
     privateIdentityId,
-    postingIdentityId,
     error,
     loadMessages,
     loadMore,
@@ -148,9 +147,13 @@ export default function ConversationScreen() {
     conversation?.direct_profile?.is_verified,
   );
 
+  const isAnnouncementsGroup = (
+    isGroup
+    && conversation?.posting_policy === 'admins_only'
+  );
+
   const currentIdentityId = (
-    postingIdentityId
-    || privateIdentityId
+    privateIdentityId
     || null
   );
 
@@ -274,14 +277,13 @@ export default function ConversationScreen() {
 
   const canPostInGroup = (
     !isGroup
-    || !postingIdentityId
-    || postingIdentityId === privateIdentityId
+    || Boolean(conversation?.permissions?.can_send_messages)
   );
 
   const isResolvingGroupPermission = (
     isGroup
-    && Boolean(postingIdentityId)
-    && privateIdentityId === null
+    && conversation !== null
+    && conversation.permissions === null
   );
 
   /*
@@ -670,6 +672,18 @@ export default function ConversationScreen() {
           />
         ) : null}
 
+        {isAnnouncementsGroup ? (
+          <View style={styles.announcementBanner}>
+            <Text style={styles.announcementBannerText}>
+              Grupo de anuncios
+            </Text>
+
+            <Text style={styles.announcementBannerDescription}>
+              Solo owner y administradores pueden enviar mensajes.
+            </Text>
+          </View>
+        ) : null}
+
         <ConversationOverlayMenu
           visible={menuOpen}
           onClose={() => {
@@ -941,11 +955,21 @@ export default function ConversationScreen() {
 
             <View style={styles.readOnlyComposerTextWrap}>
               <Text style={styles.readOnlyComposerTitle}>
-                Solo administradores pueden escribir
+                {isAnnouncementsGroup
+                  ? 'Solo administradores pueden escribir'
+                  : 'No puedes enviar mensajes'}
               </Text>
 
               <Text style={styles.readOnlyComposerDescription}>
-                Puedes leer los mensajes de este grupo, pero no tienes permiso para enviar mensajes.
+                {isAnnouncementsGroup
+                  ? (
+                      'Puedes leer los mensajes de este grupo, '
+                      + 'pero no tienes permiso para enviar mensajes.'
+                    )
+                  : (
+                      'Tu participación en esta conversación no '
+                      + 'permite enviar mensajes.'
+                    )}
               </Text>
             </View>
           </View>
@@ -1025,6 +1049,24 @@ const styles = StyleSheet.create({
   chatScrollContent: {
     paddingHorizontal: 16,
     paddingVertical: 20,
+  },
+  announcementBanner: {
+    backgroundColor: '#FFF7ED',
+    borderBottomColor: '#FED7AA',
+    borderBottomWidth: 1,
+    paddingHorizontal: 18,
+    paddingVertical: 9,
+  },
+  announcementBannerText: {
+    color: '#9A3412',
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  announcementBannerDescription: {
+    color: '#9A3412',
+    fontSize: 11,
+    lineHeight: 16,
+    marginTop: 2,
   },
   dateSeparator: {
     alignItems: 'center',
