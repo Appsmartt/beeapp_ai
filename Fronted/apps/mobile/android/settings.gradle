@@ -44,7 +44,7 @@ if (getRNMinorVersion() >= 75) {
   }
 }
 
-rootProject.name = 'BeeApp AI'
+rootProject.name = 'Buddy AI'
 
 dependencyResolutionManagement {
   versionCatalogs {
