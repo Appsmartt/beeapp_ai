@@ -28,13 +28,15 @@ def get_required_env(name: str) -> str:
 
 SECRET_KEY = get_required_env("SECRET_KEY")
 
-DEBUG = True
+DEBUG = os.getenv("DEBUG", "True").lower() == "true"
 
 ALLOWED_HOSTS = [
-    "127.0.0.1",
-    "localhost",
-    "192.168.1.5",
-    "moved-palestinian-grass-glass.trycloudflare.com",
+    host.strip()
+    for host in os.getenv(
+        "ALLOWED_HOSTS",
+        "127.0.0.1,localhost,192.168.1.5",
+    ).split(",")
+    if host.strip()
 ]
 
 INSTALLED_APPS = [
