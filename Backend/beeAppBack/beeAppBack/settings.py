@@ -31,12 +31,10 @@ SECRET_KEY = get_required_env("SECRET_KEY")
 DEBUG = os.getenv("DEBUG", "True").lower() == "true"
 
 ALLOWED_HOSTS = [
-    host.strip()
-    for host in os.getenv(
-        "ALLOWED_HOSTS",
-        "beeappai-production.up.railway.app,localhost,127.0.0.1",
-    ).split(",")
-    if host.strip()
+    "beeappai-production.up.railway.app",
+    "localhost",
+    "127.0.0.1",
+    "192.168.1.5",
 ]
 
 INSTALLED_APPS = [
