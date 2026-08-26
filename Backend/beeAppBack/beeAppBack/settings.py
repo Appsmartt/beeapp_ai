@@ -30,18 +30,8 @@ SECRET_KEY = get_required_env("SECRET_KEY")
 
 DEBUG = os.getenv("DEBUG", "True").lower() == "true"
 
-ALLOWED_HOSTS = [
-    host.strip()
-    for host in os.getenv(
-        "ALLOWED_HOSTS",
-        (
-            "127.0.0.1,localhost,192.168.1.5,"
-            "beeappai-production.up.railway.app,"
-            "beeappai.railway.internal"
-        ),
-    ).split(",")
-    if host.strip()
-]
+ALLOWED_HOSTS = ["*"]
+
 
 INSTALLED_APPS = [
     "django.contrib.admin",
