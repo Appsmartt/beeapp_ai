@@ -1,12 +1,34 @@
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
-import { colors } from '@beeapp/design-system';
+import {
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from 'react-native';
+import {
+  colors,
+} from '@beeapp/design-system';
 
-export type ChatTab = 'chats' | 'communities' | 'statuses';
+export type ChatTab =
+  | 'chats'
+  | 'groups'
+  | 'statuses';
 
-const TABS: { id: ChatTab; label: string }[] = [
-  { id: 'chats', label: 'Chats' },
-  { id: 'communities', label: 'Comunidades' },
-  { id: 'statuses', label: 'Estados' },
+const TABS: Array<{
+  id: ChatTab;
+  label: string;
+}> = [
+  {
+    id: 'chats',
+    label: 'Chats',
+  },
+  {
+    id: 'groups',
+    label: 'Grupos',
+  },
+  {
+    id: 'statuses',
+    label: 'Estados',
+  },
 ];
 
 interface ChatTabsProps {
@@ -14,20 +36,37 @@ interface ChatTabsProps {
   onChange: (tab: ChatTab) => void;
 }
 
-/** Underline tabs of the chat module: conversations, communities or statuses */
-export default function ChatTabs({ activeTab, onChange }: ChatTabsProps) {
+export default function ChatTabs({
+  activeTab,
+  onChange,
+}: ChatTabsProps) {
   return (
     <View style={styles.row}>
       {TABS.map((tab) => {
         const isActive = activeTab === tab.id;
+
         return (
           <TouchableOpacity
             key={tab.id}
-            style={[styles.tab, isActive && styles.tabActive]}
+            style={[
+              styles.tab,
+              isActive
+                ? styles.tabActive
+                : null,
+            ]}
             onPress={() => onChange(tab.id)}
             activeOpacity={0.7}
           >
-            <Text style={[styles.label, isActive && styles.labelActive]}>{tab.label}</Text>
+            <Text
+              style={[
+                styles.label,
+                isActive
+                  ? styles.labelActive
+                  : null,
+              ]}
+            >
+              {tab.label}
+            </Text>
           </TouchableOpacity>
         );
       })}
@@ -37,28 +76,28 @@ export default function ChatTabs({ activeTab, onChange }: ChatTabsProps) {
 
 const styles = StyleSheet.create({
   row: {
-    flexDirection: 'row',
     backgroundColor: colors.neutral.white,
-    borderBottomWidth: 1,
     borderBottomColor: colors.neutral.gray100,
+    borderBottomWidth: 1,
+    flexDirection: 'row',
   },
   tab: {
-    flex: 1,
     alignItems: 'center',
-    paddingVertical: 12,
-    borderBottomWidth: 2,
     borderBottomColor: 'transparent',
+    borderBottomWidth: 2,
+    flex: 1,
+    paddingVertical: 12,
   },
   tabActive: {
     borderBottomColor: colors.brand.primary,
   },
   label: {
+    color: colors.neutral.gray600,
     fontSize: 14,
     fontWeight: '400',
-    color: colors.neutral.gray600,
   },
   labelActive: {
-    fontWeight: '600',
     color: colors.brand.primary,
+    fontWeight: '600',
   },
 });

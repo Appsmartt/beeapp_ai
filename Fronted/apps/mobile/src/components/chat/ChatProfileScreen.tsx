@@ -8,6 +8,7 @@ import {
   Alert,
   ScrollView,
   StyleSheet,
+  Switch,
   Text,
   TouchableOpacity,
   View,
@@ -17,8 +18,7 @@ import {
   ChevronLeft,
   Image as ImageIcon,
   LogOut,
-  Search,
-  Timer,
+  MessageSquareText,
 } from 'lucide-react-native';
 import {
   colors,
@@ -36,10 +36,6 @@ import ChatProfileRow from './ChatProfileRow';
 import MemberListSection from './MemberListSection';
 import AddMemberModal from './AddMemberModal';
 import EditGroupModal from './EditGroupModal';
-import DisappearingMessagesModal, {
-  type DisappearingInterval,
-  disappearingLabel,
-} from './DisappearingMessagesModal';
 
 import {
   useChatConversations,
@@ -81,38 +77,15 @@ export default function ChatProfileScreen() {
   });
 
   const [muted, setMuted] = useState(false);
-
-  const [disappearingOn, setDisappearingOn] = useState(false);
-
-  const [interval, setIntervalValue] = useState<
-    DisappearingInterval
-  >('24h');
-
-  const [intervalModal, setIntervalModal] = useState(false);
   const [addMemberModal, setAddMemberModal] = useState(false);
   const [editGroupModal, setEditGroupModal] = useState(false);
+  const [updatingPostingPolicy, setUpdatingPostingPolicy] = useState(false);
 
   const isGroup = (
     conversation?.conversation_type === 'group'
   );
 
   const permissions = conversation?.permissions || null;
-
-  const name = (
-    conversation?.name?.trim()
-    || (
-      isGroup
-        ? 'Grupo BeeApp'
-        : [
-            conversation?.direct_profile?.first_name,
-            conversation?.direct_profile?.last_name,
-          ]
-            .filter(Boolean)
-            .join(' ')
-            .trim()
-    )
-    || 'Conversación'
-  );
 
   const activeParticipants = useMemo(
     () => participants.filter((participant) => (
@@ -122,20 +95,37 @@ export default function ChatProfileScreen() {
     [participants],
   );
 
+  const groupName = (
+    conversation?.name?.trim()
+    || 'Grupo BeeApp'
+  );
+
+  const groupDescription = (
+    conversation?.description?.trim()
+    || null
+  );
+
+  const isAnnouncementsGroup = (
+    conversation?.posting_policy === 'admins_only'
+  );
+
+  const hasLoadedGroupDetail = Boolean(
+    conversation
+    && conversation.conversation_type === 'group'
+    && Array.isArray(participants)
+  );
+
   useEffect(() => {
     setMuted(Boolean(conversation?.is_muted));
   }, [
     conversation?.is_muted,
   ]);
 
-  const toggleDisappearing = (
-    value: boolean,
-  ) => {
-    setDisappearingOn(value);
-
-    if (value) {
-      setIntervalModal(true);
-    }
+  const reloadGroupData = async () => {
+    await Promise.all([
+      loadConversation(),
+      loadParticipants(),
+    ]);
   };
 
   const handleAddMembers = async (
@@ -146,11 +136,7 @@ export default function ChatProfileScreen() {
     }
 
     await addParticipants(identityIds);
-
-    await Promise.all([
-      loadConversation(),
-      loadParticipants(),
-    ]);
+    await reloadGroupData();
   };
 
   const handleRemoveMember = (
@@ -170,12 +156,7 @@ export default function ChatProfileScreen() {
           style: 'destructive',
           onPress: () => {
             void removeParticipant(identityId)
-              .then(async () => {
-                await Promise.all([
-                  loadConversation(),
-                  loadParticipants(),
-                ]);
-              })
+              .then(() => reloadGroupData())
               .catch((removeError) => {
                 Alert.alert(
                   'No fue posible quitar al participante',
@@ -195,9 +176,9 @@ export default function ChatProfileScreen() {
     description: string | null;
     postingPolicy: 'all_members' | 'admins_only';
   }) => {
-    if (!isGroup || !permissions?.can_update_group) {
+    if (!permissions?.can_update_group) {
       throw new Error(
-        'No tienes permiso para editar este grupo.',
+        'Solo el owner puede editar este grupo.',
       );
     }
 
@@ -207,10 +188,39 @@ export default function ChatProfileScreen() {
       postingPolicy: payload.postingPolicy,
     });
 
-    await Promise.all([
-      loadConversation(),
-      loadParticipants(),
-    ]);
+    await reloadGroupData();
+  };
+
+  const handlePostingPolicyChange = async (
+    adminsOnly: boolean,
+  ) => {
+    if (
+      !permissions?.can_update_group
+      || updatingPostingPolicy
+    ) {
+      return;
+    }
+
+    try {
+      setUpdatingPostingPolicy(true);
+
+      await updateConversation(chatId, {
+        postingPolicy: adminsOnly
+          ? 'admins_only'
+          : 'all_members',
+      });
+
+      await reloadGroupData();
+    } catch (updateError) {
+      Alert.alert(
+        'No fue posible actualizar el grupo',
+        updateError instanceof Error
+          ? updateError.message
+          : 'Inténtalo nuevamente.',
+      );
+    } finally {
+      setUpdatingPostingPolicy(false);
+    }
   };
 
   const handleLeaveGroup = () => {
@@ -265,14 +275,14 @@ export default function ChatProfileScreen() {
       <ScreenSafeArea style={styles.safeArea}>
         <View style={styles.centerState}>
           <Text style={styles.errorText}>
-            No fue posible identificar el chat.
+            No fue posible identificar el grupo.
           </Text>
         </View>
       </ScreenSafeArea>
     );
   }
 
-  if (loading && !conversation) {
+  if (loading || !conversation || !hasLoadedGroupDetail) {
     return (
       <ScreenSafeArea style={styles.safeArea}>
         <View style={styles.centerState}>
@@ -282,8 +292,30 @@ export default function ChatProfileScreen() {
           />
 
           <Text style={styles.loadingText}>
-            Cargando información del chat...
+            Cargando información del grupo...
           </Text>
+        </View>
+      </ScreenSafeArea>
+    );
+  }
+
+  if (!isGroup) {
+    return (
+      <ScreenSafeArea style={styles.safeArea}>
+        <View style={styles.centerState}>
+          <Text style={styles.errorText}>
+            Esta pantalla solo está disponible para grupos.
+          </Text>
+
+          <TouchableOpacity
+            style={styles.backToChatButton}
+            onPress={() => router.back()}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.backToChatButtonText}>
+              Volver
+            </Text>
+          </TouchableOpacity>
         </View>
       </ScreenSafeArea>
     );
@@ -305,9 +337,7 @@ export default function ChatProfileScreen() {
           </TouchableOpacity>
 
           <Text style={styles.topBarTitle}>
-            {isGroup
-              ? 'Información del grupo'
-              : 'Perfil del contacto'}
+            Información del grupo
           </Text>
         </View>
 
@@ -323,10 +353,7 @@ export default function ChatProfileScreen() {
 
               <TouchableOpacity
                 onPress={() => {
-                  void Promise.all([
-                    loadConversation(),
-                    loadParticipants(),
-                  ]).catch(() => {
+                  void reloadGroupData().catch(() => {
                     // El hook mantiene el mensaje de error.
                   });
                 }}
@@ -338,7 +365,7 @@ export default function ChatProfileScreen() {
             </View>
           ) : null}
 
-          {isGroup && isNewlyCreatedGroup ? (
+          {isNewlyCreatedGroup ? (
             <View style={styles.createdGroupBox}>
               <Text style={styles.createdGroupTitle}>
                 Grupo creado
@@ -352,8 +379,8 @@ export default function ChatProfileScreen() {
           ) : null}
 
           <ChatProfileHeader
-            isGroup={Boolean(isGroup)}
-            name={name}
+            isGroup
+            name={groupName}
             onChangeName={() => {
               if (!permissions?.can_update_group) {
                 Alert.alert(
@@ -366,20 +393,12 @@ export default function ChatProfileScreen() {
               setEditGroupModal(true);
             }}
             meta={
-              isGroup
-                ? (
-                    `${activeParticipants.length} `
-                    + `${activeParticipants.length === 1
-                      ? 'miembro'
-                      : 'miembros'}`
-                  )
-                : (
-                    conversation?.direct_profile?.occupation
-                    || conversation?.direct_profile?.location
-                    || 'Contacto BeeApp'
-                  )
+              `${activeParticipants.length} `
+              + `${activeParticipants.length === 1
+                ? 'miembro'
+                : 'miembros'}`
             }
-            initials={getInitials(name)}
+            initials={getInitials(groupName)}
             onChangePhoto={() => {
               Alert.alert(
                 'Foto del grupo',
@@ -391,61 +410,85 @@ export default function ChatProfileScreen() {
             }}
           />
 
-          <View style={styles.divider} />
+          {groupDescription ? (
+            <View style={styles.descriptionBox}>
+              <Text style={styles.descriptionLabel}>
+                Descripción
+              </Text>
 
-          <ChatProfileRow
-            icon={Timer}
-            label="Mensajes temporales"
-            subtitle={
-              disappearingOn
-                ? disappearingLabel(interval)
-                : 'Desactivado'
-            }
-            switchValue={disappearingOn}
-            onSwitchChange={toggleDisappearing}
-            onPress={
-              disappearingOn
-                ? () => setIntervalModal(true)
-                : undefined
-            }
-          />
+              <Text style={styles.descriptionText}>
+                {groupDescription}
+              </Text>
+            </View>
+          ) : null}
 
-          {isGroup ? (
-            <>
-              <View style={styles.divider} />
+          {permissions?.can_update_group ? (
+            <View style={styles.postingPolicyRow}>
+              <View style={styles.postingPolicyIcon}>
+                <MessageSquareText
+                  size={19}
+                  color={colors.brand.primary}
+                />
+              </View>
 
-              <MemberListSection
-                members={activeParticipants}
-                currentIdentityId={privateIdentityId}
-                canInvite={Boolean(
-                  permissions?.can_invite_members,
-                )}
-                canRemove={Boolean(
-                  permissions?.can_remove_members,
-                )}
-                onAdd={() => {
-                  setAddMemberModal(true);
-                }}
-                onRemove={handleRemoveMember}
-              />
-            </>
+              <View style={styles.postingPolicyTextWrap}>
+                <Text style={styles.postingPolicyTitle}>
+                  Solo owner y administradores pueden escribir
+                </Text>
+
+                <Text style={styles.postingPolicyDescription}>
+                  {isAnnouncementsGroup
+                    ? (
+                        'Está activado. Los miembros solo pueden '
+                        + 'leer los mensajes.'
+                      )
+                    : (
+                        'Está desactivado. Todos los miembros '
+                        + 'pueden enviar mensajes.'
+                      )}
+                </Text>
+              </View>
+
+              {updatingPostingPolicy ? (
+                <ActivityIndicator
+                  size="small"
+                  color={colors.brand.primary}
+                />
+              ) : (
+                <Switch
+                  value={isAnnouncementsGroup}
+                  onValueChange={(value) => {
+                    void handlePostingPolicyChange(value);
+                  }}
+                  disabled={updatingPostingPolicy}
+                  trackColor={{
+                    false: colors.neutral.gray300,
+                    true: colors.brand.primary,
+                  }}
+                  thumbColor={colors.neutral.white}
+                />
+              )}
+            </View>
           ) : null}
 
           <View style={styles.divider} />
 
-          <ChatProfileRow
-            icon={Search}
-            label="Buscar en la conversación"
-            onPress={() => {
-              Alert.alert(
-                'Buscar mensajes',
-                (
-                  'La búsqueda dentro de una conversación '
-                  + 'requiere un endpoint específico de Chat.'
-                ),
-              );
+          <MemberListSection
+            members={activeParticipants}
+            currentIdentityId={privateIdentityId}
+            canInvite={Boolean(
+              permissions?.can_invite_members,
+            )}
+            canRemove={Boolean(
+              permissions?.can_remove_members,
+            )}
+            onAdd={() => {
+              setAddMemberModal(true);
             }}
+            onRemove={handleRemoveMember}
           />
+
+          <View style={styles.divider} />
 
           <ChatProfileRow
             icon={BellOff}
@@ -482,40 +525,11 @@ export default function ChatProfileScreen() {
 
           <ChatProfileRow
             icon={LogOut}
-            label={
-              isGroup
-                ? 'Salir del grupo'
-                : 'Eliminar chat'
-            }
+            label="Salir del grupo"
             danger
-            onPress={() => {
-              if (isGroup) {
-                handleLeaveGroup();
-                return;
-              }
-
-              Alert.alert(
-                'Eliminar chat',
-                (
-                  'Puedes eliminar el chat desde la lista '
-                  + 'principal de Chats.'
-                ),
-              );
-            }}
+            onPress={handleLeaveGroup}
           />
         </ScrollView>
-
-        <DisappearingMessagesModal
-          visible={intervalModal}
-          value={interval}
-          onSave={(nextInterval) => {
-            setIntervalValue(nextInterval);
-            setIntervalModal(false);
-          }}
-          onClose={() => {
-            setIntervalModal(false);
-          }}
-        />
 
         <AddMemberModal
           visible={addMemberModal}
@@ -530,9 +544,9 @@ export default function ChatProfileScreen() {
 
         <EditGroupModal
           visible={editGroupModal}
-          initialName={name}
-          initialDescription={conversation?.description}
-          initialPostingPolicy={conversation?.posting_policy}
+          initialName={groupName}
+          initialDescription={conversation.description}
+          initialPostingPolicy={conversation.posting_policy}
           onSave={handleEditGroup}
           onClose={() => {
             setEditGroupModal(false);
@@ -581,11 +595,6 @@ const styles = StyleSheet.create({
   content: {
     paddingBottom: 140,
   },
-  divider: {
-    backgroundColor: colors.neutral.gray100,
-    height: 1,
-    marginVertical: spacing.xs,
-  },
   createdGroupBox: {
     backgroundColor: '#ECFDF5',
     borderColor: '#A7F3D0',
@@ -605,6 +614,70 @@ const styles = StyleSheet.create({
     fontSize: 12,
     lineHeight: 18,
     marginTop: 4,
+  },
+  descriptionBox: {
+    backgroundColor: colors.neutral.gray50,
+    borderColor: colors.neutral.gray200,
+    borderRadius: 10,
+    borderWidth: 1,
+    marginHorizontal: spacing.md,
+    marginTop: spacing.xs,
+    padding: 12,
+  },
+  descriptionLabel: {
+    color: colors.neutral.gray600,
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 0.3,
+    textTransform: 'uppercase',
+  },
+  descriptionText: {
+    color: colors.neutral.text,
+    fontSize: 13,
+    lineHeight: 19,
+    marginTop: 6,
+  },
+  postingPolicyRow: {
+    alignItems: 'center',
+    backgroundColor: colors.neutral.white,
+    borderBottomColor: colors.neutral.gray100,
+    borderBottomWidth: 1,
+    borderTopColor: colors.neutral.gray100,
+    borderTopWidth: 1,
+    flexDirection: 'row',
+    marginTop: spacing.md,
+    paddingHorizontal: spacing.md,
+    paddingVertical: 14,
+  },
+  postingPolicyIcon: {
+    alignItems: 'center',
+    backgroundColor: '#F3E8FF',
+    borderRadius: 18,
+    height: 36,
+    justifyContent: 'center',
+    marginRight: 11,
+    width: 36,
+  },
+  postingPolicyTextWrap: {
+    flex: 1,
+    paddingRight: 10,
+  },
+  postingPolicyTitle: {
+    color: colors.neutral.text,
+    fontSize: 13,
+    fontWeight: '700',
+    lineHeight: 18,
+  },
+  postingPolicyDescription: {
+    color: colors.neutral.gray600,
+    fontSize: 11,
+    lineHeight: 16,
+    marginTop: 3,
+  },
+  divider: {
+    backgroundColor: colors.neutral.gray100,
+    height: 1,
+    marginVertical: spacing.xs,
   },
   errorBox: {
     alignItems: 'center',
@@ -627,5 +700,17 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '700',
     marginTop: 7,
+  },
+  backToChatButton: {
+    backgroundColor: colors.brand.primary,
+    borderRadius: 10,
+    marginTop: 8,
+    paddingHorizontal: 18,
+    paddingVertical: 10,
+  },
+  backToChatButtonText: {
+    color: colors.neutral.white,
+    fontSize: 13,
+    fontWeight: '700',
   },
 });

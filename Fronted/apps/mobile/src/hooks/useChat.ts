@@ -51,8 +51,10 @@ import {
   getProtectedConversationIds,
   hydrateChatConversations,
   hydrateChatMessages,
+  isChatConversationArchived,
   isChatConversationProtected,
   removeChatConversation,
+  setChatConversationArchived,
   setChatConversationProtected,
   setChatConversations,
   setChatMessages,
@@ -405,6 +407,15 @@ export interface UseChatConversationsResult {
   deleteConversation: (
     conversationId: string,
   ) => Promise<void>;
+  archiveConversation: (
+    conversationId: string,
+  ) => Promise<void>;
+  restoreConversation: (
+    conversationId: string,
+  ) => Promise<void>;
+  isArchived: (
+    conversationId: string,
+  ) => boolean;
   setProtected: (
     conversationId: string,
     value: boolean,
@@ -538,7 +549,12 @@ export function useChatConversations(
 
       return response.conversations.map((conversation) => (
         mapConversationToListItem(
-          conversation,
+          {
+            ...conversation,
+            is_archived: isChatConversationArchived(
+              conversation.id,
+            ),
+          },
           activeUserId,
           isChatConversationProtected(conversation.id),
         )
@@ -740,11 +756,44 @@ export function useChatConversations(
 
     if (
       payload.isMuted !== undefined
-      || payload.isArchived !== undefined
       || payload.isPinned !== undefined
     ) {
       throw new Error(
         'Esta preferencia todavía no está disponible en el backend de Chat.',
+      );
+    }
+
+    if (payload.isArchived !== undefined) {
+      setChatConversationArchived(
+        normalizedConversationId,
+        payload.isArchived,
+      );
+
+      setRawConversations([
+        ...getStoredConversations(),
+      ]);
+
+      const currentConversation = getStoredConversations().find(
+        (conversation) => (
+          conversation.id === normalizedConversationId
+        ),
+      );
+
+      if (!currentConversation) {
+        throw new Error(
+          'No fue posible encontrar el chat para actualizarlo.',
+        );
+      }
+
+      return mapConversationToListItem(
+        {
+          ...currentConversation,
+          is_archived: payload.isArchived,
+        },
+        currentUserId,
+        isChatConversationProtected(
+          normalizedConversationId,
+        ),
       );
     }
 
@@ -829,6 +878,64 @@ export function useChatConversations(
     resolvePrivateIdentityId,
   ]);
 
+  const archiveConversation = useCallback(async (
+    conversationId: string,
+  ) => {
+    const normalizedConversationId = conversationId.trim();
+
+    if (!normalizedConversationId) {
+      throw new Error(
+        'No fue posible identificar el chat.',
+      );
+    }
+
+    const exists = getStoredConversations().some(
+      (conversation) => (
+        conversation.id === normalizedConversationId
+      ),
+    );
+
+    if (!exists) {
+      throw new Error(
+        'No fue posible encontrar el chat para archivarlo.',
+      );
+    }
+
+    setChatConversationArchived(
+      normalizedConversationId,
+      true,
+    );
+
+    setRawConversations([
+      ...getStoredConversations(),
+    ]);
+  }, []);
+
+  const restoreConversation = useCallback(async (
+    conversationId: string,
+  ) => {
+    const normalizedConversationId = conversationId.trim();
+
+    if (!normalizedConversationId) {
+      throw new Error(
+        'No fue posible identificar el chat.',
+      );
+    }
+
+    setChatConversationArchived(
+      normalizedConversationId,
+      false,
+    );
+
+    setRawConversations([
+      ...getStoredConversations(),
+    ]);
+  }, []);
+
+  const isArchived = useCallback((
+    conversationId: string,
+  ) => isChatConversationArchived(conversationId), []);
+
   const searchUsers = useCallback(async (
     query: string,
   ) => {
@@ -876,7 +983,12 @@ export function useChatConversations(
 
     return rawConversations.map((conversation) => (
       mapConversationToListItem(
-        conversation,
+        {
+          ...conversation,
+          is_archived: isChatConversationArchived(
+            conversation.id,
+          ),
+        },
         currentUserId,
         protectedIds.includes(conversation.id),
       )
@@ -901,6 +1013,9 @@ export function useChatConversations(
     createGroupConversation,
     updateConversation,
     deleteConversation,
+    archiveConversation,
+    restoreConversation,
+    isArchived,
     setProtected,
     isProtected,
     searchUsers,

@@ -13,12 +13,15 @@ import {
   View,
 } from 'react-native';
 import {
-  ArrowLeft,
   SquarePen,
   UserPlus,
 } from 'lucide-react-native';
-import { useNavigation } from 'expo-router';
-import { colors } from '@beeapp/design-system';
+import {
+  useNavigation,
+} from 'expo-router';
+import {
+  colors,
+} from '@beeapp/design-system';
 
 import ScreenSafeArea from '../../../src/components/layout/ScreenSafeArea';
 import {
@@ -80,66 +83,70 @@ export default function ChatListScreen() {
     loadConversations,
     updateConversation,
     deleteConversation,
+    archiveConversation,
+    restoreConversation,
     setProtected,
     isProtected,
   } = useChatConversations();
 
-  const [menuChat, setMenuChat] =
-    useState<ChatListItemModel | null>(null);
+  const [menuChat, setMenuChat] = useState<
+    ChatListItemModel | null
+  >(null);
 
-  const [lockedChatId, setLockedChatId] =
-    useState<string | null>(null);
+  const [lockedChatId, setLockedChatId] = useState<
+    string | null
+  >(null);
 
-  const [pinAction, setPinAction] =
-    useState<PinAction | null>(null);
+  const [pinAction, setPinAction] = useState<
+    PinAction | null
+  >(null);
 
-  const [activeTab, setActiveTab] =
-    useState<ChatTab>('chats');
+  const [activeTab, setActiveTab] = useState<ChatTab>('chats');
 
-  const [viewMode, setViewMode] =
-    useState<'all' | 'archived'>('all');
+  const [createMenuOpen, setCreateMenuOpen] = useState(false);
 
-  const [createMenuOpen, setCreateMenuOpen] =
-    useState(false);
+  const [categories, setCategories] = useState<
+    ChatCategory[]
+  >([
+    ...MOCK_CATEGORIES,
+  ]);
 
-  const [categories, setCategories] =
-    useState<ChatCategory[]>([
-      ...MOCK_CATEGORIES,
-    ]);
+  const [activeCategoryId, setActiveCategoryId] = useState<
+    string | null
+  >(null);
 
-  const [activeCategoryId, setActiveCategoryId] =
-    useState<string | null>(null);
+  const [creatingCategory, setCreatingCategory] = useState(false);
 
-  const [creatingCategory, setCreatingCategory] =
-    useState(false);
+  const [assigningChat, setAssigningChat] = useState<
+    ChatListItemModel | null
+  >(null);
 
-  const [assigningChat, setAssigningChat] =
-    useState<ChatListItemModel | null>(null);
+  const [chatCategoryIds, setChatCategoryIds] = useState<
+    Record<string, string[]>
+  >({});
 
-  const [chatCategoryIds, setChatCategoryIds] =
-    useState<Record<string, string[]>>({});
+  const [statuses, setStatuses] = useState([
+    ...MOCK_STATUSES,
+  ]);
 
-  const [statuses, setStatuses] =
-    useState([...MOCK_STATUSES]);
+  const [viewerIndex, setViewerIndex] = useState<
+    number | null
+  >(null);
 
-  const [viewerIndex, setViewerIndex] =
-    useState<number | null>(null);
-
-  const [creatingStatus, setCreatingStatus] =
-    useState(false);
+  const [creatingStatus, setCreatingStatus] = useState(false);
 
   const isStatusesTab = activeTab === 'statuses';
+  const isGroupsTab = activeTab === 'groups';
 
   useEffect(() => {
     const unsubscribe = navigation.addListener(
       'focus',
       () => {
-        if (activeTab === 'chats') {
+        if (!isStatusesTab) {
           void loadConversations({
             refresh: true,
-            archived: viewMode === 'archived',
           }).catch(() => {
-            // El hook conserva el error para mostrarlo debajo.
+            // El hook conserva el error para la pantalla.
           });
         }
       },
@@ -147,10 +154,9 @@ export default function ChatListScreen() {
 
     return unsubscribe;
   }, [
-    activeTab,
+    isStatusesTab,
     loadConversations,
     navigation,
-    viewMode,
   ]);
 
   const protectedChatIds = useMemo(
@@ -168,28 +174,10 @@ export default function ChatListScreen() {
     ],
   );
 
-  const archivedCount = useMemo(
-    () => conversations.filter(
-      (chat) => (
-        chat.isArchived
-        && !chat.isGroup
-        && !chat.isAI
-      ),
-    ).length,
-    [conversations],
-  );
-
-  const visibleChats = useMemo(
+  const categorizedChats = useMemo(
     () => conversations
       .filter((chat) => {
-        if (viewMode === 'archived') {
-          return chat.isArchived;
-        }
-
-        return !chat.isArchived;
-      })
-      .filter((chat) => {
-        if (!activeCategoryId) {
+        if (!activeCategoryId || activeTab !== 'chats') {
           return true;
         }
 
@@ -203,46 +191,72 @@ export default function ChatListScreen() {
       })),
     [
       activeCategoryId,
+      activeTab,
       chatCategoryIds,
       conversations,
       protectedChatIds,
-      viewMode,
     ],
+  );
+
+  const activeChats = useMemo(
+    () => categorizedChats.filter(
+      (chat) => !chat.isArchived,
+    ),
+    [categorizedChats],
+  );
+
+  const archivedChats = useMemo(
+    () => categorizedChats.filter(
+      (chat) => (
+        chat.isArchived
+        && !chat.isAI
+      ),
+    ),
+    [categorizedChats],
   );
 
   const aiChat = useMemo(
-    () => (
-      viewMode === 'all'
-      && !activeCategoryId
-        ? visibleChats.find((chat) => chat.isAI)
-        : undefined
-    ),
+    () => activeTab === 'chats'
+      ? activeChats.find((chat) => chat.isAI)
+      : undefined,
     [
-      activeCategoryId,
-      viewMode,
-      visibleChats,
+      activeChats,
+      activeTab,
     ],
   );
 
-  const regularChats = useMemo(
-    () => visibleChats.filter(
-      (chat) => !chat.isAI,
-    ),
-    [visibleChats],
-  );
-
   const directChats = useMemo(
-    () => regularChats.filter(
-      (chat) => !chat.isGroup,
+    () => activeChats.filter(
+      (chat) => (
+        !chat.isAI
+        && !chat.isGroup
+      ),
     ),
-    [regularChats],
+    [activeChats],
   );
 
   const groupChats = useMemo(
-    () => regularChats.filter(
-      (chat) => chat.isGroup,
+    () => activeChats.filter(
+      (chat) => (
+        !chat.isAI
+        && chat.isGroup
+      ),
     ),
-    [regularChats],
+    [activeChats],
+  );
+
+  const archivedDirectCount = useMemo(
+    () => archivedChats.filter(
+      (chat) => !chat.isGroup,
+    ).length,
+    [archivedChats],
+  );
+
+  const archivedGroupCount = useMemo(
+    () => archivedChats.filter(
+      (chat) => chat.isGroup,
+    ).length,
+    [archivedChats],
   );
 
   const openChat = (
@@ -253,9 +267,15 @@ export default function ChatListScreen() {
       params: {
         id: chat.id,
         name: chat.name,
-        isGroup: chat.isGroup ? 'true' : 'false',
-        isAi: chat.isAI ? 'true' : 'false',
-        online: chat.online ? 'true' : 'false',
+        isGroup: chat.isGroup
+          ? 'true'
+          : 'false',
+        isAi: chat.isAI
+          ? 'true'
+          : 'false',
+        online: chat.online
+          ? 'true'
+          : 'false',
       },
     });
   };
@@ -298,6 +318,7 @@ export default function ChatListScreen() {
 
     if (action.type === 'add') {
       setProtected(action.chat.id, true);
+
       Alert.alert(
         'Chat protegido',
         'El chat quedó protegido con tu PIN.',
@@ -406,17 +427,41 @@ export default function ChatListScreen() {
     chat: ChatListItemModel,
   ) => {
     try {
-      await updateConversation(
-        chat.id,
-        {
-          isArchived: true,
-        },
+      await archiveConversation(chat.id);
+
+      Alert.alert(
+        'Chat archivado',
+        chat.isGroup
+          ? 'El grupo ahora está en Grupos archivados.'
+          : 'El chat ahora está en Chats archivados.',
       );
-    } catch (updateError) {
+    } catch (archiveError) {
       Alert.alert(
         'No fue posible archivar el chat',
-        updateError instanceof Error
-          ? updateError.message
+        archiveError instanceof Error
+          ? archiveError.message
+          : 'Inténtalo nuevamente.',
+      );
+    }
+  };
+
+  const handleRestore = async (
+    chat: ChatListItemModel,
+  ) => {
+    try {
+      await restoreConversation(chat.id);
+
+      Alert.alert(
+        'Chat restaurado',
+        chat.isGroup
+          ? 'El grupo volvió a la pestaña Grupos.'
+          : 'El chat volvió a la pestaña Chats.',
+      );
+    } catch (restoreError) {
+      Alert.alert(
+        'No fue posible restaurar el chat',
+        restoreError instanceof Error
+          ? restoreError.message
           : 'Inténtalo nuevamente.',
       );
     }
@@ -427,7 +472,11 @@ export default function ChatListScreen() {
   ) => {
     Alert.alert(
       'Eliminar chat',
-      `¿Seguro que quieres eliminar el chat con ${chat.name}?`,
+      (
+        `¿Seguro que quieres eliminar `
+        + `${chat.isGroup ? 'el grupo' : 'el chat'} `
+        + `"${chat.name}" de tu lista?`
+      ),
       [
         {
           text: 'Cancelar',
@@ -468,36 +517,55 @@ export default function ChatListScreen() {
   const handleRefresh = () => {
     void loadConversations({
       refresh: true,
-      archived: viewMode === 'archived',
     }).catch(() => {
       // El error ya se presenta en la UI.
     });
   };
 
+  const visibleListChats = isGroupsTab
+    ? groupChats
+    : directChats;
+
+  const archivedCount = isGroupsTab
+    ? archivedGroupCount
+    : archivedDirectCount;
+
+  const archivedLabel = isGroupsTab
+    ? 'Grupos archivados'
+    : 'Chats archivados';
+
+  const archivedSubtitle = isGroupsTab
+    ? (
+        archivedCount === 1
+          ? '1 grupo archivado'
+          : `${archivedCount} grupos archivados`
+      )
+    : (
+      archivedCount === 1
+        ? '1 chat archivado'
+        : `${archivedCount} chats archivados`
+    );
+
+  const emptyTitle = isGroupsTab
+    ? 'Aún no tienes grupos'
+    : 'Aún no tienes chats';
+
+  const emptyDescription = isGroupsTab
+    ? (
+        'Crea un grupo para conversar con varias '
+        + 'cuentas de BeeApp.'
+      )
+    : (
+      'Inicia un chat o crea un grupo para comenzar.'
+    );
+
   return (
     <ScreenSafeArea style={styles.safeArea}>
       <View style={styles.container}>
         <View style={styles.header}>
-          {viewMode === 'archived' ? (
-            <TouchableOpacity
-              style={styles.backRow}
-              onPress={() => setViewMode('all')}
-              activeOpacity={0.7}
-            >
-              <ArrowLeft
-                size={20}
-                color={colors.neutral.text}
-              />
-
-              <Text style={styles.title}>
-                Chats archivados
-              </Text>
-            </TouchableOpacity>
-          ) : (
-            <Text style={styles.title}>
-              Chats
-            </Text>
-          )}
+          <Text style={styles.title}>
+            Chats
+          </Text>
 
           <View style={styles.headerActions}>
             <ModuleNotificationBell moduleId="chat" />
@@ -532,12 +600,10 @@ export default function ChatListScreen() {
           </View>
         </View>
 
-        {viewMode === 'all' && (
-          <ChatTabs
-            activeTab={activeTab}
-            onChange={setActiveTab}
-          />
-        )}
+        <ChatTabs
+          activeTab={activeTab}
+          onChange={setActiveTab}
+        />
 
         {isStatusesTab ? (
           <StatusCirclesRow
@@ -557,33 +623,9 @@ export default function ChatListScreen() {
               setViewerIndex(index);
             }}
           />
-        ) : activeTab === 'communities' ? (
-          <View style={styles.listWrap}>
-            <ChatListView
-              chats={groupChats}
-              onOpenChat={handleChatPress}
-              onOpenMenu={setMenuChat}
-              onPin={() => {
-                // La acción ahora se ejecuta desde ChatOptionsSheet.
-              }}
-              onMute={() => {
-                // La acción ahora se ejecuta desde ChatOptionsSheet.
-              }}
-              onDelete={() => {
-                // La acción ahora se ejecuta desde ChatOptionsSheet.
-              }}
-              refreshControl={
-                <RefreshControl
-                  refreshing={refreshing}
-                  onRefresh={handleRefresh}
-                  tintColor={colors.brand.primary}
-                />
-              }
-            />
-          </View>
         ) : (
           <>
-            {viewMode === 'all' && (
+            {!isGroupsTab ? (
               <ChatCategoryChips
                 categories={categories}
                 activeCategoryId={activeCategoryId}
@@ -592,7 +634,7 @@ export default function ChatListScreen() {
                   setCreatingCategory(true);
                 }}
               />
-            )}
+            ) : null}
 
             {loading && conversations.length === 0 ? (
               <View style={styles.loadingState}>
@@ -625,36 +667,35 @@ export default function ChatListScreen() {
                 ) : null}
 
                 <ChatListView
-                  aiChat={aiChat}
-                  chats={directChats}
-                  archivedCount={
-                    viewMode === 'all'
-                      ? archivedCount
-                      : 0
+                  aiChat={
+                    isGroupsTab
+                      ? undefined
+                      : aiChat
                   }
-                  onPressArchived={
-                    viewMode === 'all'
-                      ? () => {
-                          setViewMode('archived');
-                          void loadConversations({
-                            refresh: true,
-                            archived: true,
-                          }).catch(() => {
-                            // El hook conserva el error.
-                          });
-                        }
-                      : undefined
-                  }
+                  chats={visibleListChats}
+                  archivedCount={archivedCount}
+                  archivedLabel={archivedLabel}
+                  archivedSubtitle={archivedSubtitle}
+                  onPressArchived={() => {
+                    router.push({
+                      pathname: '/(main)/chat/archived',
+                      params: {
+                        kind: isGroupsTab
+                          ? 'group'
+                          : 'direct',
+                      },
+                    });
+                  }}
                   onOpenChat={handleChatPress}
                   onOpenMenu={setMenuChat}
                   onPin={() => {
-                    // La acción ahora se ejecuta desde ChatOptionsSheet.
+                    // La acción se ejecuta desde ChatOptionsSheet.
                   }}
                   onMute={() => {
-                    // La acción ahora se ejecuta desde ChatOptionsSheet.
+                    // La acción se ejecuta desde ChatOptionsSheet.
                   }}
                   onDelete={() => {
-                    // La acción ahora se ejecuta desde ChatOptionsSheet.
+                    // La acción se ejecuta desde ChatOptionsSheet.
                   }}
                   refreshControl={
                     <RefreshControl
@@ -664,6 +705,18 @@ export default function ChatListScreen() {
                     />
                   }
                 />
+
+                {visibleListChats.length === 0 && !error ? (
+                  <View style={styles.emptyOverlay}>
+                    <Text style={styles.emptyTitle}>
+                      {emptyTitle}
+                    </Text>
+
+                    <Text style={styles.emptyDescription}>
+                      {emptyDescription}
+                    </Text>
+                  </View>
+                ) : null}
               </View>
             )}
           </>
@@ -717,17 +770,13 @@ export default function ChatListScreen() {
           setCreateMenuOpen(false);
           router.push('/(main)/chat/new-group');
         }}
-        onNewCommunity={() => {
-          setCreateMenuOpen(false);
-          router.push('/(main)/chat/new');
-        }}
         onClose={() => {
           setCreateMenuOpen(false);
         }}
       />
 
       <ChatOptionsSheet
-        chat={menuChat as any}
+        chat={menuChat}
         isProtected={
           Boolean(menuChat)
           && (
@@ -768,6 +817,13 @@ export default function ChatListScreen() {
         onArchive={() => {
           if (menuChat) {
             void handleArchive(menuChat);
+          }
+
+          setMenuChat(null);
+        }}
+        onRestore={() => {
+          if (menuChat) {
+            void handleRestore(menuChat);
           }
 
           setMenuChat(null);
@@ -816,8 +872,8 @@ export default function ChatListScreen() {
 
 const styles = StyleSheet.create({
   safeArea: {
-    flex: 1,
     backgroundColor: colors.neutral.gray50,
+    flex: 1,
   },
   container: {
     flex: 1,
@@ -835,11 +891,6 @@ const styles = StyleSheet.create({
     color: colors.neutral.text,
     fontSize: 24,
     fontWeight: '800',
-  },
-  backRow: {
-    alignItems: 'center',
-    flexDirection: 'row',
-    gap: 10,
   },
   headerActions: {
     alignItems: 'center',
@@ -886,5 +937,23 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '700',
     marginTop: 6,
+  },
+  emptyOverlay: {
+    alignItems: 'center',
+    paddingHorizontal: 36,
+    paddingVertical: 48,
+  },
+  emptyTitle: {
+    color: colors.neutral.text,
+    fontSize: 15,
+    fontWeight: '800',
+    textAlign: 'center',
+  },
+  emptyDescription: {
+    color: colors.neutral.gray600,
+    fontSize: 12,
+    lineHeight: 18,
+    marginTop: 7,
+    textAlign: 'center',
   },
 });
