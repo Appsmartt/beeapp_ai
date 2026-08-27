@@ -1,0 +1,80 @@
+from django.urls import path
+
+from apps.calls.views import (
+    ActiveCallForConversationView,
+    CallDetailView,
+    CallHistoryForConversationView,
+    CancelCallJoinAttemptView,
+    ConfirmCallJoinedView,
+    DeclineDirectCallView,
+    EndCallView,
+    JoinCallView,
+    KickCallParticipantView,
+    LeaveCallView,
+    RefreshCallRtcTokenView,
+    StartCallView,
+)
+
+
+urlpatterns = [
+    path(
+        "conversations/<uuid:conversation_id>/start/",
+        StartCallView.as_view(),
+        name="start-call",
+    ),
+    path(
+        "conversations/<uuid:conversation_id>/active/",
+        ActiveCallForConversationView.as_view(),
+        name="active-call-for-conversation",
+    ),
+    path(
+        "conversations/<uuid:conversation_id>/history/",
+        CallHistoryForConversationView.as_view(),
+        name="call-history-for-conversation",
+    ),
+    path(
+        "<uuid:call_id>/join/",
+        JoinCallView.as_view(),
+        name="join-call",
+    ),
+    path(
+        "<uuid:call_id>/refresh-token/",
+        RefreshCallRtcTokenView.as_view(),
+        name="refresh-call-rtc-token",
+    ),
+    path(
+        "<uuid:call_id>/confirm-joined/",
+        ConfirmCallJoinedView.as_view(),
+        name="confirm-call-joined",
+    ),
+    path(
+        "<uuid:call_id>/cancel-join-attempt/",
+        CancelCallJoinAttemptView.as_view(),
+        name="cancel-call-join-attempt",
+    ),
+    path(
+        "<uuid:call_id>/decline/",
+        DeclineDirectCallView.as_view(),
+        name="decline-direct-call",
+    ),
+    path(
+        "<uuid:call_id>/kick/",
+        KickCallParticipantView.as_view(),
+        name="kick-call-participant",
+    ),
+    path(
+        "<uuid:call_id>/leave/",
+        LeaveCallView.as_view(),
+        name="leave-call",
+    ),
+    path(
+        "<uuid:call_id>/end/",
+        EndCallView.as_view(),
+        name="end-call",
+    ),
+    path(
+        "<uuid:call_id>/",
+        CallDetailView.as_view(),
+        name="call-detail",
+    ),
+]
