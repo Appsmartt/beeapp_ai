@@ -34,3 +34,8 @@ build
 
 # Generated BeeApp call/chat E2E reports. They can contain API responses or secrets.
 Backend/beeAppBack/beeapp_call_chat_test_results/
+
+# Local backup files
+*.bak
+*.bak-*
+*.bak-before-*
