@@ -44,4 +44,8 @@ urlpatterns = [
         "api/chat/",
         include("apps.chat.urls"),
     ),
+    path(
+        "api/calls/",
+        include("apps.calls.urls"),
+    ),
 ]

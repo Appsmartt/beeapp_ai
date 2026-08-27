@@ -46,6 +46,7 @@ INSTALLED_APPS = [
     "django.contrib.staticfiles",
     "rest_framework",
     "apps.chat",
+    "apps.calls.apps.CallsConfig",
     "corsheaders",
     "apps.accounts.apps.AccountsConfig",
     "apps.storage.apps.StorageConfig",
@@ -215,5 +216,18 @@ REST_FRAMEWORK = {
         "chat_attachment_upload": "10/min",
         "chat_reaction": "60/min",
         "chat_group_mutation": "20/min",
+        "call_user": "120/min",
+        "call_start": "12/min",
+        "call_join": "30/min",
+        "call_mutation": "60/min",
     },
 }
+AGORA_APP_ID = get_required_env("AGORA_APP_ID")
+
+AGORA_APP_CERTIFICATE = get_required_env(
+    "AGORA_APP_CERTIFICATE"
+)
+
+AGORA_RTC_TOKEN_TTL_SECONDS = int(
+    os.getenv("AGORA_RTC_TOKEN_TTL_SECONDS", "3600")
+)
