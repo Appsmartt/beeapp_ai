@@ -14,12 +14,17 @@ def send_expo_push_notifications(
     title: str,
     body: str,
     data: dict[str, Any],
+    channel_id: str | None = None,
 ) -> dict[str, Any]:
     if not tokens:
         return {
             "sent_tokens": [],
             "failed_tokens": {},
         }
+
+    normalized_channel_id = str(
+        channel_id or ""
+    ).strip() or None
 
     messages = [
         {
@@ -29,6 +34,13 @@ def send_expo_push_notifications(
             "body": body,
             "data": data,
             "priority": "high",
+            **(
+                {
+                    "channelId": normalized_channel_id,
+                }
+                if normalized_channel_id
+                else {}
+            ),
         }
         for token in tokens
     ]

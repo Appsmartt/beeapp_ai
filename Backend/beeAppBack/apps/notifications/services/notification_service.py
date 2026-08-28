@@ -29,6 +29,54 @@ def _supabase():
     return get_supabase_admin_client()
 
 
+def create_incoming_call_notification(
+    *,
+    recipient_id: str,
+    call_id: str,
+    conversation_id: str,
+    call_type: str,
+    caller_identity_id: str,
+    caller_name: str,
+) -> dict[str, Any]:
+    normalized_call_type = str(call_type or "").strip().lower()
+
+    if normalized_call_type not in {"voice", "video"}:
+        raise NotificationUpdateError(
+            "Incoming call type must be voice or video."
+        )
+
+    normalized_caller_name = (
+        str(caller_name or "").strip()
+        or "Un contacto"
+    )
+
+    call_label = (
+        "Videollamada"
+        if normalized_call_type == "video"
+        else "Llamada de voz"
+    )
+
+    return create_module_notification(
+        recipient_id=str(recipient_id),
+        module="calls",
+        notification_type="incoming_call",
+        title="Llamada entrante",
+        body=(
+            f"{normalized_caller_name} te está llamando"
+        ),
+        metadata={
+            "action": "open_incoming_call",
+            "call_id": str(call_id),
+            "conversation_id": str(conversation_id),
+            "call_type": normalized_call_type,
+            "caller_identity_id": str(caller_identity_id),
+            "caller_name": normalized_caller_name,
+            "call_label": call_label,
+        },
+        send_push=True,
+    )
+
+
 def create_storage_notification(
     *,
     recipient_id: str,
@@ -616,15 +664,34 @@ def _send_module_push(
         if not tokens:
             return
 
+        notification_module = str(
+            notification.get("module") or ""
+        ).strip()
+
+        notification_type = str(
+            notification.get("type") or ""
+        ).strip()
+
+        channel_id = (
+            "incoming-calls"
+            if (
+                notification_module == "calls"
+                and notification_type == "incoming_call"
+            )
+            else None
+        )
+
         result = send_expo_push_notifications(
             tokens=tokens,
             title=notification["title"],
             body=notification["body"],
             data={
                 "notification_id": notification["id"],
-                "module": notification["module"],
+                "module": notification_module,
+                "type": notification_type,
                 **(notification.get("metadata") or {}),
             },
+            channel_id=channel_id,
         )
 
         if result["sent_tokens"]:

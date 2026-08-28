@@ -358,6 +358,31 @@ async function getChatAuthContext(): Promise<{
   };
 }
 
+export async function getPrivateChatIdentityId(): Promise<string> {
+  const {
+    token,
+  } = await getChatAuthContext();
+
+  await bootstrapChat(token);
+
+  const response = await getChatIdentities(token);
+
+  const identity = response.identities.find(
+    (item) => (
+      item.identity_type === 'profile'
+      && item.is_active
+    ),
+  );
+
+  if (!identity) {
+    throw new Error(
+      'No fue posible crear tu identidad privada de Chat.',
+    );
+  }
+
+  return identity.id;
+}
+
 export interface UseChatConversationsOptions {
   autoLoad?: boolean;
   includeArchived?: boolean;

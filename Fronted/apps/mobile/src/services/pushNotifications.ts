@@ -10,6 +10,7 @@ import {
     } from '@beeapp/api-client';
 
 const ANDROID_NOTIFICATION_CHANNEL_ID = 'default';
+const ANDROID_INCOMING_CALL_CHANNEL_ID = 'incoming-calls';
 
 let lastRegisteredToken = '';
 let registrationInFlight: Promise<string | null> | null = null;
@@ -66,6 +67,24 @@ async function configureAndroidNotificationChannel(): Promise<void> {
         lockscreenVisibility: (
             Notifications.AndroidNotificationVisibility.PUBLIC
         ),
+        },
+    );
+
+    await Notifications.setNotificationChannelAsync(
+        ANDROID_INCOMING_CALL_CHANNEL_ID,
+        {
+        name: 'Llamadas entrantes',
+        description: (
+            'Avisos urgentes de llamadas entrantes de BeeApp.'
+        ),
+        importance: Notifications.AndroidImportance.MAX,
+        vibrationPattern: [0, 500, 250, 500, 250, 500],
+        lightColor: '#6025D2',
+        sound: 'default',
+        lockscreenVisibility: (
+            Notifications.AndroidNotificationVisibility.PUBLIC
+        ),
+        bypassDnd: false,
         },
     );
 }
