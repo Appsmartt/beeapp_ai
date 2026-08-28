@@ -34,6 +34,9 @@ import {
   saveAuthSession,
 } from '../../src/services/authSession';
 import {
+  registerCurrentDeviceForPushNotifications,
+} from '../../src/services/pushNotifications';
+import {
   COUNTRIES,
   type Country,
 } from '../../src/mocks/countries';
@@ -206,6 +209,8 @@ export default function LoginScreen() {
         session: response.session,
         user: response.user,
       });
+
+      void registerCurrentDeviceForPushNotifications();
 
       router.replace('/');
     } catch (error) {
