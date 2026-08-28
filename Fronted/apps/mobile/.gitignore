@@ -1,0 +1,10 @@
+google-services.json
+
+# Firebase / FCM client configuration: never commit generated copies.
+google-services.json
+android/app/google-services.json
+
+# Local diagnostic exports.
+beeapp_contexto_llamadas*.txt
+beeapp_backend_llamadas_push*.txt
+beeapp_pendiente_llamada_entrante*.txt

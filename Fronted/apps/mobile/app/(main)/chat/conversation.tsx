@@ -6,6 +6,7 @@ import {
 import {
   ActivityIndicator,
   Alert,
+  Modal,
   RefreshControl,
   ScrollView,
   StyleSheet,
@@ -17,6 +18,7 @@ import {
 } from 'lucide-react-native';
 import { colors } from '@beeapp/design-system';
 import {
+  getActiveConversationCall,
   getChatContactProfile,
   getStorageFileAccess,
   startCall,
@@ -123,8 +125,11 @@ export default function ConversationScreen() {
   const [resolvedContactAvatarUrl, setResolvedContactAvatarUrl] =
     useState<string | null>(null);
 
+  const [isStartingCall, setIsStartingCall] = useState(false);
+
   const scrollRef = useRef<ScrollView | null>(null);
   const loadingMoreRef = useRef(false);
+  const startCallInFlightRef = useRef(false);
 
   const chatName = (
     conversation?.name?.trim()
@@ -568,6 +573,10 @@ export default function ConversationScreen() {
   const handleStartDirectCall = async (
     video: boolean,
   ) => {
+    if (startCallInFlightRef.current) {
+      return;
+    }
+
     if (isGroup) {
       Alert.alert(
         'Llamadas grupales',
@@ -584,12 +593,34 @@ export default function ConversationScreen() {
       return;
     }
 
+    startCallInFlightRef.current = true;
+    setIsStartingCall(true);
+
     try {
       const auth = await getValidSessionCredentials();
 
       if (!auth) {
         throw new Error(
           'Tu sesión expiró. Inicia sesión nuevamente.',
+        );
+      }
+
+      const activeCall = await getActiveConversationCall(
+        auth,
+        chatId,
+        privateIdentityId,
+      );
+
+      if (
+        activeCall?.call
+        && (
+          activeCall.call.status === 'ringing'
+          || activeCall.call.status === 'active'
+        )
+      ) {
+        throw new Error(
+          'Ya existe una llamada en curso en esta conversación. '
+          + 'Espera a que termine o contesta la llamada entrante.',
         );
       }
 
@@ -620,6 +651,9 @@ export default function ConversationScreen() {
           ? callError.message
           : 'Inténtalo nuevamente.',
       );
+    } finally {
+      startCallInFlightRef.current = false;
+      setIsStartingCall(false);
     }
   };
 
@@ -664,6 +698,29 @@ export default function ConversationScreen() {
   return (
     <ScreenSafeArea style={styles.safeArea}>
       <View style={styles.container}>
+        <Modal
+          transparent
+          animationType="fade"
+          visible={isStartingCall}
+          onRequestClose={() => undefined}
+        >
+          <View style={styles.callStartingOverlay}>
+            <View style={styles.callStartingCard}>
+              <ActivityIndicator
+                size="large"
+                color={colors.brand.primary}
+              />
+
+              <Text style={styles.callStartingTitle}>
+                Creando llamada…
+              </Text>
+
+              <Text style={styles.callStartingText}>
+                Preparando una conexión segura.
+              </Text>
+            </View>
+          </View>
+        </Modal>
         <ConversationHeader
           chatName={chatName}
           avatarUrl={headerAvatarUrl}
@@ -1077,6 +1134,44 @@ export default function ConversationScreen() {
 }
 
 const styles = StyleSheet.create({
+  callStartingOverlay: {
+    alignItems: 'center',
+    backgroundColor: 'rgba(17, 16, 30, 0.48)',
+    flex: 1,
+    justifyContent: 'center',
+    padding: 24,
+  },
+  callStartingCard: {
+    alignItems: 'center',
+    backgroundColor: colors.neutral.white,
+    borderRadius: 20,
+    elevation: 12,
+    maxWidth: 320,
+    paddingHorizontal: 28,
+    paddingVertical: 26,
+    shadowColor: '#000',
+    shadowOffset: {
+      height: 8,
+      width: 0,
+    },
+    shadowOpacity: 0.22,
+    shadowRadius: 16,
+    width: '100%',
+  },
+  callStartingTitle: {
+    color: colors.neutral.text,
+    fontSize: 18,
+    fontWeight: '800',
+    marginTop: 16,
+    textAlign: 'center',
+  },
+  callStartingText: {
+    color: colors.neutral.gray600,
+    fontSize: 13,
+    lineHeight: 19,
+    marginTop: 7,
+    textAlign: 'center',
+  },
   safeArea: {
     backgroundColor: colors.neutral.gray50,
     flex: 1,
