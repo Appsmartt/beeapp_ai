@@ -515,11 +515,17 @@ def register_push_device(
             "last_seen_at": "now()",
         }
 
-        if existing.data:
+        existing_device = (
+            existing.data
+            if existing is not None
+            else None
+        )
+
+        if existing_device:
             response = (
                 supabase.table("push_devices")
                 .update(payload)
-                .eq("id", existing.data["id"])
+                .eq("id", existing_device["id"])
                 .execute()
             )
         else:
@@ -529,7 +535,7 @@ def register_push_device(
                 .execute()
             )
 
-        if not response.data:
+        if not response or not response.data:
             raise PushDeviceError(
                 "Supabase did not return the registered push device."
             )
@@ -540,6 +546,11 @@ def register_push_device(
         raise
 
     except Exception as error:
+        print(
+            "[push_devices] ERROR:",
+            repr(error),
+            flush=True,
+        )
         raise PushDeviceError(
             "Could not register push device."
         ) from error

@@ -30,6 +30,9 @@ import ScreenSafeArea from '../../src/components/layout/ScreenSafeArea';
 import {
   saveAuthSession,
 } from '../../src/services/authSession';
+import {
+  registerCurrentDeviceForPushNotifications,
+} from '../../src/services/pushNotifications';
 
 
 const OTP_LENGTH = 6;
@@ -225,6 +228,8 @@ export default function VerifyScreen() {
         session: response.session,
         user: response.user,
       });
+
+      void registerCurrentDeviceForPushNotifications();
 
       router.replace('/');
     } catch (requestError) {
