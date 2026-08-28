@@ -2,6 +2,9 @@ from rest_framework import status
 from rest_framework.response import Response
 
 from apps.accounts.exceptions import AccountAuthenticationError
+from apps.accounts.services.device_session_service import (
+    get_active_mobile_device_session_for_auth_session,
+)
 from apps.accounts.views import AuthenticatedAPIView
 from apps.notifications.exceptions import (
     NotificationLookupError,
@@ -133,10 +136,36 @@ class PushDeviceView(AuthenticatedAPIView):
         serializer.is_valid(raise_exception=True)
 
         try:
-            authenticated_user = self.get_authenticated_user(request)
+            authorization_header = str(
+                request.headers.get("Authorization") or ""
+            ).strip()
+
+            scheme, _, access_token = authorization_header.partition(" ")
+
+            if (
+                scheme.lower() != "bearer"
+                or not access_token.strip()
+            ):
+                raise AccountAuthenticationError(
+                    "A Bearer access token is required."
+                )
+
+            access_token = access_token.strip()
+
+            authenticated_user = self.get_authenticated_user(
+                request,
+            )
+
+            mobile_session = (
+                get_active_mobile_device_session_for_auth_session(
+                    user_id=str(authenticated_user.id),
+                    access_token=access_token,
+                )
+            )
 
             device = register_push_device(
                 user_id=str(authenticated_user.id),
+                device_session_id=str(mobile_session["id"]),
                 **serializer.validated_data,
             )
 

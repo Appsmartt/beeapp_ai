@@ -489,6 +489,7 @@ def mark_all_notifications_as_read(
 def register_push_device(
     *,
     user_id: str,
+    device_session_id: str,
     expo_push_token: str,
     platform: str,
     device_id: str | None = None,
@@ -507,6 +508,7 @@ def register_push_device(
 
         payload = {
             "user_id": user_id,
+            "device_session_id": device_session_id,
             "expo_push_token": expo_push_token,
             "platform": platform,
             "device_id": device_id,

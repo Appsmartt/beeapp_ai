@@ -3,9 +3,13 @@ import re
 
 from beeAppBack.core.supabase_client import (
     get_supabase_publishable_client,
+    is_transient_supabase_error,
 )
 
-from apps.accounts.exceptions import AccountLoginError
+from apps.accounts.exceptions import (
+    AccountLoginError,
+    AccountLoginUnavailableError,
+)
 
 
 logger = logging.getLogger(__name__)
@@ -93,7 +97,10 @@ def login_with_email_password(
             },
         }
 
-    except AccountLoginError:
+    except (
+        AccountLoginError,
+        AccountLoginUnavailableError,
+    ):
         raise
 
     except Exception as error:
@@ -106,6 +113,11 @@ def login_with_email_password(
             type(error).__name__,
             _sanitize_error_message(error),
         )
+
+        if is_transient_supabase_error(error):
+            raise AccountLoginUnavailableError(
+                "Supabase Auth is temporarily unavailable."
+            ) from error
 
         raise AccountLoginError(
             "Email and password authentication failed."

@@ -26,6 +26,10 @@ class AccountLoginError(AccountError):
     """Raised when email and password authentication fails."""
 
 
+class AccountLoginUnavailableError(AccountError):
+    """Raised when Supabase Auth is temporarily unavailable."""
+
+
 class PhoneOtpRequestError(AccountError):
     """Raised when a phone OTP cannot be requested."""
 

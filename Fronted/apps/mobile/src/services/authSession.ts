@@ -1,6 +1,7 @@
 import * as SecureStore from 'expo-secure-store';
 import {
   ApiRequestError,
+  getCurrentProfile,
   refreshSession,
 } from '@beeapp/api-client';
 import type {
@@ -127,6 +128,36 @@ export async function getValidAuthSession(): Promise<
 
   return refreshAuthSession();
 }
+
+export async function validateStoredAuthSession(): Promise<
+  'valid' | 'revoked' | 'unknown'
+> {
+  const authSession = await getValidAuthSession();
+
+  if (!authSession) {
+    return 'unknown';
+  }
+
+  try {
+    await getCurrentProfile(
+      getSessionCredentials(authSession),
+    );
+
+    return 'valid';
+  } catch (error) {
+    if (
+      error instanceof ApiRequestError
+      && error.status === 401
+    ) {
+      return 'revoked';
+    }
+
+    // Red caída, timeout, DNS, 5xx o cualquier error incierto:
+    // conservar la sesión local y no expulsar al usuario.
+    return 'unknown';
+  }
+}
+
 
 export async function getValidSessionCredentials(): Promise<
   AuthCredentials | null

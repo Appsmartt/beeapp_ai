@@ -5,8 +5,12 @@ import {
   useState,
 } from 'react';
 import {
+  ActivityIndicator,
   AppState,
   Platform,
+  StyleSheet,
+  Text,
+  View,
   type AppStateStatus,
 } from 'react-native';
 import {
@@ -17,6 +21,11 @@ import * as Notifications from 'expo-notifications';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
+import {
+  resetUnauthorizedRequestNotification,
+  subscribeUnauthorizedRequest,
+} from '@beeapp/api-client';
+
 import AppLockScreen from '../src/components/security/AppLockScreen';
 import IncomingCallModal from '../src/components/chat/IncomingCallModal';
 import {
@@ -25,6 +34,10 @@ import {
 import {
   registerCurrentDeviceForPushNotifications,
 } from '../src/services/pushNotifications';
+import {
+  clearAuthSession,
+  validateStoredAuthSession,
+} from '../src/services/authSession';
 import {
   clearIncomingCall,
   getIncomingCall,
@@ -87,6 +100,228 @@ function getIncomingCallFromData(
     receivedAt: Date.now(),
   };
 }
+
+const SESSION_VALIDATION_INTERVAL_MS = 15_000;
+const SESSION_REVOKED_MODAL_MS = 6_000;
+
+function SessionRevocationHandler() {
+  const router = useRouter();
+  const handlingRef = useRef(false);
+  const appStateRef = useRef<AppStateStatus>(
+    AppState.currentState,
+  );
+  const [showRevokedModal, setShowRevokedModal] = useState(
+    false,
+  );
+
+  const closeRevokedSession = useCallback(() => {
+    if (handlingRef.current) {
+      return;
+    }
+
+    handlingRef.current = true;
+
+    void clearAuthSession()
+      .catch(() => {
+        // Aunque falle la limpieza local, se debe salir del área privada.
+      })
+      .finally(() => {
+        if (appStateRef.current !== 'active') {
+          router.replace('/(auth)/login');
+          return;
+        }
+
+        setShowRevokedModal(true);
+      });
+  }, [router]);
+
+  const validateSession = useCallback(async () => {
+    if (handlingRef.current) {
+      return;
+    }
+
+    const result = await validateStoredAuthSession();
+
+    if (result === 'revoked') {
+      closeRevokedSession();
+    }
+  }, [closeRevokedSession]);
+
+  useEffect(() => {
+    if (!showRevokedModal) {
+      return;
+    }
+
+    const timeoutId = setTimeout(() => {
+      setShowRevokedModal(false);
+      router.replace('/(auth)/login');
+    }, SESSION_REVOKED_MODAL_MS);
+
+    return () => {
+      clearTimeout(timeoutId);
+    };
+  }, [router, showRevokedModal]);
+
+  useEffect(() => {
+    resetUnauthorizedRequestNotification();
+    handlingRef.current = false;
+
+    void validateSession();
+
+    const intervalId = setInterval(() => {
+      if (appStateRef.current === 'active') {
+        void validateSession();
+      }
+    }, SESSION_VALIDATION_INTERVAL_MS);
+
+    const appStateSubscription = AppState.addEventListener(
+      'change',
+      (nextAppState: AppStateStatus) => {
+        appStateRef.current = nextAppState;
+
+        if (nextAppState === 'active') {
+          void validateSession();
+        }
+      },
+    );
+
+    return () => {
+      clearInterval(intervalId);
+      appStateSubscription.remove();
+    };
+  }, [validateSession]);
+
+  useEffect(() => {
+    return subscribeUnauthorizedRequest(() => {
+      closeRevokedSession();
+    });
+  }, [closeRevokedSession]);
+
+  if (!showRevokedModal) {
+    return null;
+  }
+
+  return (
+    <View
+      pointerEvents="auto"
+      style={sessionRevokedStyles.backdrop}
+    >
+      <View style={sessionRevokedStyles.card}>
+        <View style={sessionRevokedStyles.iconWrap}>
+          <Text style={sessionRevokedStyles.icon}>🔒</Text>
+        </View>
+
+        <Text style={sessionRevokedStyles.title}>
+          Sesión cerrada
+        </Text>
+
+        <Text style={sessionRevokedStyles.description}>
+          Tu cuenta se inició en otro dispositivo. Por seguridad,
+          cerramos esta sesión.
+        </Text>
+
+        <View style={sessionRevokedStyles.loadingRow}>
+          <ActivityIndicator
+            color="#6025D2"
+            size="small"
+          />
+          <Text style={sessionRevokedStyles.loadingText}>
+            Redirigiendo al inicio de sesión…
+          </Text>
+        </View>
+
+        <View style={sessionRevokedStyles.progressTrack}>
+          <View style={sessionRevokedStyles.progressFill} />
+        </View>
+      </View>
+    </View>
+  );
+}
+
+const sessionRevokedStyles = StyleSheet.create({
+  backdrop: {
+    alignItems: 'center',
+    backgroundColor: 'rgba(20, 10, 45, 0.72)',
+    bottom: 0,
+    elevation: 999,
+    justifyContent: 'center',
+    left: 0,
+    paddingHorizontal: 28,
+    position: 'absolute',
+    right: 0,
+    top: 0,
+    zIndex: 999,
+  },
+  card: {
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    borderColor: 'rgba(96, 37, 210, 0.12)',
+    borderRadius: 28,
+    borderWidth: 1,
+    elevation: 12,
+    maxWidth: 390,
+    paddingHorizontal: 28,
+    paddingVertical: 30,
+    shadowColor: '#1B0B3A',
+    shadowOffset: {
+      width: 0,
+      height: 12,
+    },
+    shadowOpacity: 0.28,
+    shadowRadius: 24,
+    width: '100%',
+  },
+  iconWrap: {
+    alignItems: 'center',
+    backgroundColor: '#F0EAFF',
+    borderRadius: 36,
+    height: 72,
+    justifyContent: 'center',
+    marginBottom: 18,
+    width: 72,
+  },
+  icon: {
+    fontSize: 31,
+  },
+  title: {
+    color: '#24114A',
+    fontSize: 23,
+    fontWeight: '700',
+    letterSpacing: -0.3,
+    marginBottom: 10,
+  },
+  description: {
+    color: '#685D7D',
+    fontSize: 15,
+    lineHeight: 22,
+    textAlign: 'center',
+  },
+  loadingRow: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: 25,
+  },
+  loadingText: {
+    color: '#6025D2',
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  progressTrack: {
+    backgroundColor: '#EEE7FF',
+    borderRadius: 3,
+    height: 6,
+    marginTop: 22,
+    overflow: 'hidden',
+    width: '100%',
+  },
+  progressFill: {
+    backgroundColor: '#6025D2',
+    borderRadius: 3,
+    height: '100%',
+    width: '100%',
+  },
+});
 
 function AppPushNotifications() {
   const router = useRouter();
@@ -267,6 +502,7 @@ export default function RootLayout() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
+        <SessionRevocationHandler />
         <AppPushNotifications />
 
         <Stack

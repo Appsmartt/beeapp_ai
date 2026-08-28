@@ -1,6 +1,7 @@
 import secrets
 
 from rest_framework import status
+from rest_framework.exceptions import AuthenticationFailed
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -8,6 +9,7 @@ from rest_framework.views import APIView
 from apps.accounts.exceptions import (
     AccountAuthenticationError,
     AccountLoginError,
+    AccountLoginUnavailableError,
     AccountRegistrationError,
     AssistantSettingsUpdateError,
     AuthUserLookupError,
@@ -44,8 +46,10 @@ from apps.accounts.services.auth_user_service import (
     update_auth_user_email,
 )
 from apps.accounts.services.device_session_service import (
+    create_or_replace_mobile_device_session,
     create_mobile_device_session,
     create_web_device_session,
+    get_active_mobile_device_session_for_auth_session,
     get_active_session_by_token,
     get_user_device_sessions,
     refresh_mobile_device_session,
@@ -173,7 +177,25 @@ class AuthenticatedAPIView(APIView):
         scheme, _, token = authorization_header.partition(" ")
 
         if scheme.lower() == "bearer" and token:
-            return get_authenticated_user(access_token=token)
+            try:
+                authenticated_user = get_authenticated_user(
+                    access_token=token,
+                )
+
+                get_active_mobile_device_session_for_auth_session(
+                    user_id=str(authenticated_user.id),
+                    access_token=token,
+                )
+
+                return authenticated_user
+            except (
+                AccountAuthenticationError,
+                DeviceSessionError,
+            ) as error:
+                raise AuthenticationFailed(
+                    "Authentication credentials were invalid or "
+                    "the mobile session is no longer active."
+                ) from error
 
         if scheme.lower() == "session" and token:
             return self.get_authenticated_user_from_session(
@@ -216,11 +238,25 @@ class AuthenticatedAPIView(APIView):
     ):
         access_token = self.get_bearer_access_token(request)
 
-        authenticated_user = get_authenticated_user(
-            access_token=access_token,
-        )
+        try:
+            authenticated_user = get_authenticated_user(
+                access_token=access_token,
+            )
 
-        return authenticated_user, access_token
+            get_active_mobile_device_session_for_auth_session(
+                user_id=str(authenticated_user.id),
+                access_token=access_token,
+            )
+
+            return authenticated_user, access_token
+        except (
+            AccountAuthenticationError,
+            DeviceSessionError,
+        ) as error:
+            raise AuthenticationFailed(
+                "Authentication credentials were invalid or "
+                "the mobile session is no longer active."
+            ) from error
 
 
 class RegisterUserView(APIView):
@@ -283,12 +319,41 @@ class LoginUserView(APIView):
             authenticated_user = login_with_email_password(
                 **serializer.validated_data
             )
+        except AccountLoginUnavailableError:
+            return Response(
+                {
+                    "detail": (
+                        "Authentication service is temporarily "
+                        "unavailable. Please try again."
+                    ),
+                },
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+
         except AccountLoginError:
             return Response(
                 {
                     "detail": "Invalid email or password.",
                 },
                 status=status.HTTP_401_UNAUTHORIZED,
+            )
+
+        try:
+            create_or_replace_mobile_device_session(
+                user_id=str(authenticated_user["user"]["id"]),
+                access_token=authenticated_user["session"][
+                    "access_token"
+                ],
+                request=request,
+            )
+        except DeviceSessionError:
+            return Response(
+                {
+                    "detail": (
+                        "Could not create the mobile device session."
+                    )
+                },
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
         return Response(
@@ -471,6 +536,14 @@ class PhoneOtpMobileVerifyView(APIView):
             profile = get_profile(
                 auth_user_id=str(authenticated_user.id),
             )
+
+            create_or_replace_mobile_device_session(
+                user_id=str(authenticated_user.id),
+                access_token=otp_result["session"][
+                    "access_token"
+                ],
+                request=request,
+            )
         except (
             PhoneOtpVerificationError,
             ProfileLookupError,
@@ -629,7 +702,10 @@ class CurrentProfileView(AuthenticatedAPIView):
             )
 
             profile["email"] = authenticated_user.email
-        except AccountAuthenticationError:
+        except (
+            AccountAuthenticationError,
+            AuthenticationFailed,
+        ):
             return Response(
                 {
                     "detail": "Invalid or expired access token.",
