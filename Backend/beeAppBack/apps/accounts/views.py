@@ -462,24 +462,14 @@ class PhoneOtpMobileVerifyView(APIView):
         serializer.is_valid(raise_exception=True)
 
         try:
-            authenticated_user = verify_phone_otp(
+            otp_result = verify_phone_otp(
                 **serializer.validated_data
             )
 
+            authenticated_user = otp_result["user"]
+
             profile = get_profile(
                 auth_user_id=str(authenticated_user.id),
-            )
-
-            session_token = secrets.token_urlsafe(48)
-
-            device_session = create_mobile_device_session(
-                user_id=str(authenticated_user.id),
-                session_token=session_token,
-            )
-
-            update_device_metadata(
-                device_id=device_session["id"],
-                request=request,
             )
         except (
             PhoneOtpVerificationError,
@@ -504,10 +494,7 @@ class PhoneOtpMobileVerifyView(APIView):
         return Response(
             {
                 "message": "Login successful.",
-                "session": {
-                    "token": session_token,
-                    "expires_at": device_session["expires_at"],
-                },
+                "session": otp_result["session"],
                 "user": {
                     "id": str(authenticated_user.id),
                     "email": authenticated_user.email,
