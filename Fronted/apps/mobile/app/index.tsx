@@ -1,6 +1,7 @@
 import {
   useEffect,
   useRef,
+  useState,
 } from 'react';
 import {
   ActivityIndicator,
@@ -21,6 +22,10 @@ import BuddyLogo from '../src/components/BuddyLogo';
 import {
   getAuthSession,
 } from '../src/services/authSession';
+import {
+  synchronizeInitialPrivateChats,
+  type ChatInitialSyncProgress,
+} from '../src/services/chatInitialSync';
 import {
   hasAppLockConfigured,
 } from '../src/stores/appLockStore';
@@ -69,6 +74,10 @@ export default function SplashScreen() {
   const wave4Anim = useRef(
     new Animated.Value(0),
   ).current;
+
+  const [syncProgress, setSyncProgress] = useState<
+    ChatInitialSyncProgress | null
+  >(null);
 
   useEffect(() => {
     Animated.timing(fadeAnim, {
@@ -127,6 +136,14 @@ export default function SplashScreen() {
       if (!appLockConfigured) {
         router.replace('/(auth)/app-lock-setup');
         return;
+      }
+
+      try {
+        await synchronizeInitialPrivateChats(
+          setSyncProgress,
+        );
+      } catch {
+        // Un fallo de sincronización no debe impedir entrar a BeeApp.
       }
 
       router.replace('/onboarding');
@@ -316,11 +333,23 @@ export default function SplashScreen() {
         />
 
         <Text style={styles.title}>
-          Iniciando tu espacio seguro...
+          {syncProgress
+            ? 'Sincronizando tus chats...'
+            : 'Iniciando tu espacio seguro...'}
         </Text>
 
         <Text style={styles.subtitle}>
-          Todo lo importante, en un solo lugar.
+          {syncProgress?.phase === 'messages'
+            ? (
+                `Chats sincronizados: `
+                + `${syncProgress.completedConversations} `
+                + `de ${syncProgress.totalConversations}`
+              )
+            : syncProgress?.phase === 'inbox'
+              ? 'Preparando tus conversaciones...'
+              : syncProgress?.phase === 'preparing'
+                ? 'Preparando la sincronización...'
+                : 'Todo lo importante, en un solo lugar.'}
         </Text>
       </Animated.View>
     </View>
