@@ -19,6 +19,7 @@ import { colors } from '@beeapp/design-system';
 import {
   getChatContactProfile,
   getStorageFileAccess,
+  startCall,
 } from '@beeapp/api-client';
 
 import ScreenSafeArea from '../../../src/components/layout/ScreenSafeArea';
@@ -48,6 +49,9 @@ import {
 import {
   getValidSessionCredentials,
 } from '../../../src/services/authSession';
+import {
+  setActiveCallCredentials,
+} from '../../../src/stores/activeCallStore';
 
 import type {
   ChatMessageModel,
@@ -561,6 +565,64 @@ export default function ConversationScreen() {
       });
   };
 
+  const handleStartDirectCall = async (
+    video: boolean,
+  ) => {
+    if (isGroup) {
+      Alert.alert(
+        'Llamadas grupales',
+        'La prueba RTC actual está habilitada solo para chats individuales.',
+      );
+      return;
+    }
+
+    if (!privateIdentityId) {
+      Alert.alert(
+        'Preparando llamada',
+        'Tu identidad de Chat aún se está cargando. Inténtalo nuevamente.',
+      );
+      return;
+    }
+
+    try {
+      const auth = await getValidSessionCredentials();
+
+      if (!auth) {
+        throw new Error(
+          'Tu sesión expiró. Inicia sesión nuevamente.',
+        );
+      }
+
+      const response = await startCall(
+        auth,
+        chatId,
+        {
+          actor_identity_id: privateIdentityId,
+          call_type: video ? 'video' : 'voice',
+        },
+      );
+
+      setActiveCallCredentials(response);
+
+      router.push({
+        pathname: '/(main)/chat/agora-test-call',
+        params: {
+          callId: response.call.id,
+          conversationId: chatId,
+          actorIdentityId: privateIdentityId,
+          callType: response.call.call_type,
+        },
+      });
+    } catch (callError) {
+      Alert.alert(
+        'No fue posible iniciar la llamada',
+        callError instanceof Error
+          ? callError.message
+          : 'Inténtalo nuevamente.',
+      );
+    }
+  };
+
   const handleClearChat = () => {
     Alert.alert(
       'Vaciar chat',
@@ -650,15 +712,7 @@ export default function ConversationScreen() {
             );
           }}
           onCall={(video) => {
-            router.push({
-              pathname: '/(main)/chat/call',
-              params: {
-                id: chatId,
-                name: chatName,
-                isVideo: video ? 'true' : 'false',
-                isGroup: isGroup ? 'true' : 'false',
-              },
-            });
+            void handleStartDirectCall(video);
           }}
           onToggleMenu={() => {
             setMenuOpen((current) => !current);

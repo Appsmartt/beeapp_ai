@@ -1,6 +1,53 @@
-from beeAppBack.core.supabase_client import get_supabase_publishable_client
+import logging
+import re
+
+from beeAppBack.core.supabase_client import (
+    get_supabase_publishable_client,
+)
 
 from apps.accounts.exceptions import AccountLoginError
+
+
+logger = logging.getLogger(__name__)
+
+
+def _mask_email(email: str) -> str:
+    normalized = str(email or "").strip().lower()
+
+    if "@" not in normalized:
+        return "<invalid-email>"
+
+    local, domain = normalized.rsplit("@", 1)
+
+    if not local:
+        return f"***@{domain}"
+
+    return f"{local[:1]}***@{domain}"
+
+
+def _sanitize_error_message(error: Exception) -> str:
+    message = str(error)
+
+    message = re.sub(
+        (
+            r"(?i)(authorization|bearer|token|apikey|"
+            r"api[_ -]?key|secret)\\s*[:=]\\s*[^,\\s]+"
+        ),
+        r"\\1=<redacted>",
+        message,
+    )
+
+    message = re.sub(
+        (
+            r"eyJ[a-zA-Z0-9_-]{20,}\\."
+            r"[a-zA-Z0-9_-]{20,}\\."
+            r"[a-zA-Z0-9_-]{20,}"
+        ),
+        "<redacted-jwt>",
+        message,
+    )
+
+    return message.replace("\\n", " ").replace("\\r", " ")[:500]
 
 
 def login_with_email_password(
@@ -50,6 +97,16 @@ def login_with_email_password(
         raise
 
     except Exception as error:
+        logger.warning(
+            (
+                "Supabase email login failed "
+                "email=%s error_type=%s error_message=%s"
+            ),
+            _mask_email(email),
+            type(error).__name__,
+            _sanitize_error_message(error),
+        )
+
         raise AccountLoginError(
             "Email and password authentication failed."
         ) from error
