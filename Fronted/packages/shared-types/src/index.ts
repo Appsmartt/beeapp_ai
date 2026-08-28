@@ -83,14 +83,7 @@ export interface SupabaseAuthSession {
   token_type: string;
 }
 
-export interface MobileAuthSession {
-  token: string;
-  expires_at: string;
-}
-
-export type AuthSession =
-  | SupabaseAuthSession
-  | MobileAuthSession;
+export type AuthSession = SupabaseAuthSession;
 
 export interface RefreshSessionPayload {
   refresh_token?: string;
@@ -135,7 +128,7 @@ export interface MobileAuthenticatedUser
 
 export interface VerifyPhoneOtpMobileResponse {
   message: string;
-  session: MobileAuthSession;
+  session: SupabaseAuthSession;
   user: MobileAuthenticatedUser;
 }
 

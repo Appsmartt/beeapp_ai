@@ -27,7 +27,7 @@ def request_phone_otp(*, phone: str) -> None:
         ) from error
 
 
-def verify_phone_otp(*, phone: str, code: str):
+def verify_phone_otp(*, phone: str, code: str) -> dict:
     try:
         supabase = get_supabase_publishable_client()
 
@@ -44,7 +44,23 @@ def verify_phone_otp(*, phone: str, code: str):
                 "Supabase did not return an authenticated session."
             )
 
-        return response.user
+        session = response.session
+
+        if not session.access_token or not session.refresh_token:
+            raise PhoneOtpVerificationError(
+                "Supabase did not return valid session tokens."
+            )
+
+        return {
+            "user": response.user,
+            "session": {
+                "access_token": session.access_token,
+                "refresh_token": session.refresh_token,
+                "expires_at": session.expires_at,
+                "expires_in": session.expires_in,
+                "token_type": session.token_type,
+            },
+        }
 
     except PhoneOtpVerificationError:
         raise
