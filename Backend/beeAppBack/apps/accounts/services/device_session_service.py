@@ -2,6 +2,7 @@ import hashlib
 import secrets
 from datetime import datetime, timedelta
 
+import jwt
 from django.utils import timezone
 
 from beeAppBack.core.supabase_client import (
@@ -143,12 +144,54 @@ def create_web_device_session(
     user_id: str,
     session_token: str,
 ) -> dict:
-    return create_device_session(
-        user_id=user_id,
-        session_token=session_token,
-        device_name="BeeApp Web",
-        device_type="WEB",
-    )
+    try:
+        supabase = get_supabase_admin_client()
+        now = timezone.now()
+        token_hash = hash_token(session_token)
+
+        response = supabase.rpc(
+            "replace_web_device_session",
+            {
+                "p_user_id": user_id,
+                "p_session_token_hash": token_hash,
+                "p_device_name": "BeeApp Web",
+                "p_platform": None,
+                "p_browser": None,
+                "p_ip_address": None,
+                "p_user_agent": None,
+                "p_expires_at": (
+                    now + timedelta(
+                        days=SESSION_DURATION_DAYS
+                    )
+                ).isoformat(),
+            },
+        ).execute()
+
+        response_data = getattr(response, "data", None)
+
+        if isinstance(response_data, list):
+            device_session = (
+                response_data[0]
+                if response_data
+                else None
+            )
+        elif isinstance(response_data, dict):
+            device_session = response_data
+        else:
+            device_session = None
+
+        if not device_session:
+            raise DeviceSessionError(
+                "Web device session was not created."
+            )
+
+        return device_session
+    except DeviceSessionError:
+        raise
+    except Exception as error:
+        raise DeviceSessionError(
+            "Could not create web device session."
+        ) from error
 
 
 def create_mobile_device_session(
@@ -416,4 +459,224 @@ def revoke_all_user_device_sessions(
     except Exception as error:
         raise DeviceSessionError(
             "Could not revoke device sessions."
+        ) from error
+
+# ============================================================
+# Mobile session control: one active MOBILE session per user.
+# ============================================================
+
+def get_supabase_auth_session_id(
+    *,
+    access_token: str,
+) -> str:
+    """
+    Reads the Supabase `session_id` claim from an access token that has
+    already been validated through Supabase Auth by the caller.
+
+    Signature verification is intentionally disabled here because this
+    function does not authenticate the token; it only reads a claim after
+    get_authenticated_user(access_token=...) has validated it remotely.
+    """
+    try:
+        payload = jwt.decode(
+            access_token,
+            options={
+                "verify_signature": False,
+                "verify_exp": False,
+                "verify_aud": False,
+            },
+        )
+
+        session_id = str(
+            payload.get("session_id")
+            or payload.get("sid")
+            or ""
+        ).strip()
+
+        if not session_id:
+            raise DeviceSessionError(
+                "Supabase access token did not include a session ID."
+            )
+
+        return session_id
+    except DeviceSessionError:
+        raise
+    except Exception as error:
+        raise DeviceSessionError(
+            "Could not read Supabase session ID."
+        ) from error
+
+
+def get_request_session_metadata(
+    request,
+) -> dict[str, str | None]:
+    """
+    Extracts optional device metadata from a Django request without trusting
+    forwarded headers unless they are explicitly populated by the deployment.
+    """
+    meta = getattr(request, "META", {}) or {}
+    headers = getattr(request, "headers", {}) or {}
+
+    forwarded_for = str(
+        meta.get("HTTP_X_FORWARDED_FOR") or ""
+    ).strip()
+
+    ip_address = (
+        forwarded_for.split(",")[0].strip()
+        if forwarded_for
+        else str(meta.get("REMOTE_ADDR") or "").strip()
+    )
+
+    user_agent = str(
+        headers.get("User-Agent")
+        or meta.get("HTTP_USER_AGENT")
+        or ""
+    ).strip()
+
+    platform = str(
+        headers.get("X-Platform")
+        or headers.get("X-Device-Platform")
+        or ""
+    ).strip()
+
+    browser = str(
+        headers.get("X-Browser")
+        or ""
+    ).strip()
+
+    return {
+        "platform": platform or None,
+        "browser": browser or None,
+        "ip_address": ip_address or None,
+        "user_agent": user_agent or None,
+    }
+
+
+def create_or_replace_mobile_device_session(
+    *,
+    user_id: str,
+    access_token: str,
+    request,
+) -> dict:
+    """
+    Replaces the user's active MOBILE session atomically through PostgreSQL.
+
+    Supabase Auth validates the access token before this helper is called.
+    The decoded session_id is only used to link the already-authenticated
+    Supabase session with the BeeApp device-session audit record.
+    """
+    auth_session_id = get_supabase_auth_session_id(
+        access_token=access_token,
+    )
+    metadata = get_request_session_metadata(request)
+
+    try:
+        supabase = get_supabase_admin_client()
+        now = timezone.now()
+
+        response = supabase.rpc(
+            "replace_mobile_device_session",
+            {
+                "p_user_id": user_id,
+                "p_auth_session_id": auth_session_id,
+                "p_session_token_hash": hash_token(
+                    secrets.token_urlsafe(48)
+                ),
+                "p_device_name": "BeeApp Mobile",
+                "p_platform": metadata["platform"],
+                "p_browser": metadata["browser"],
+                "p_ip_address": metadata["ip_address"],
+                "p_user_agent": metadata["user_agent"],
+                "p_expires_at": (
+                    now + timedelta(
+                        days=SESSION_DURATION_DAYS
+                    )
+                ).isoformat(),
+            },
+        ).execute()
+
+        response_data = getattr(response, "data", None)
+
+        if isinstance(response_data, list):
+            device_session = (
+                response_data[0]
+                if response_data
+                else None
+            )
+        elif isinstance(response_data, dict):
+            device_session = response_data
+        else:
+            device_session = None
+
+        if not device_session:
+            raise DeviceSessionError(
+                "Mobile device session was not created."
+            )
+
+        return device_session
+    except DeviceSessionError:
+        raise
+    except Exception as error:
+        raise DeviceSessionError(
+            "Could not create the mobile device session."
+        ) from error
+
+
+def get_active_mobile_device_session_for_auth_session(
+    *,
+    user_id: str,
+    access_token: str,
+) -> dict:
+    """
+    Validates that a Bearer token belongs to the currently active MOBILE
+    device session for that user.
+    """
+    auth_session_id = get_supabase_auth_session_id(
+        access_token=access_token,
+    )
+
+    try:
+        supabase = get_supabase_admin_client()
+
+        response = (
+            supabase.table("device_sessions")
+            .select(
+                "id,user_id,device_type,is_active,revoked_at,"
+                "expires_at,auth_session_id"
+            )
+            .eq("user_id", user_id)
+            .eq("device_type", "MOBILE")
+            .eq("auth_session_id", auth_session_id)
+            .eq("is_active", True)
+            .is_("revoked_at", "null")
+            .single()
+            .execute()
+        )
+
+        device_session = response.data
+
+        if not device_session:
+            raise DeviceSessionError(
+                "Mobile session is no longer active."
+            )
+
+        expires_at = parse_timestamp(
+            device_session["expires_at"],
+        )
+
+        if expires_at <= timezone.now():
+            revoke_device_session_by_id(
+                device_id=device_session["id"],
+            )
+
+            raise DeviceSessionError(
+                "Mobile session has expired."
+            )
+
+        return device_session
+    except DeviceSessionError:
+        raise
+    except Exception as error:
+        raise DeviceSessionError(
+            "Could not validate mobile device session."
         ) from error

@@ -50,6 +50,48 @@ export class ApiRequestError extends Error {
     }
 }
 
+export type UnauthorizedRequestListener = (
+    error: ApiRequestError,
+) => void;
+
+const unauthorizedRequestListeners = new Set<
+    UnauthorizedRequestListener
+>();
+
+let unauthorizedRequestNotified = false;
+
+export function subscribeUnauthorizedRequest(
+    listener: UnauthorizedRequestListener,
+): () => void {
+    unauthorizedRequestListeners.add(listener);
+
+    return () => {
+        unauthorizedRequestListeners.delete(listener);
+    };
+}
+
+export function resetUnauthorizedRequestNotification(): void {
+    unauthorizedRequestNotified = false;
+}
+
+function notifyUnauthorizedAuthenticatedRequest(
+    error: ApiRequestError,
+): void {
+    if (unauthorizedRequestNotified) {
+        return;
+    }
+
+    unauthorizedRequestNotified = true;
+
+    unauthorizedRequestListeners.forEach((listener) => {
+        try {
+            listener(error);
+        } catch {
+            // Un listener no debe impedir notificar a los demás.
+        }
+    });
+}
+
 export interface ApiRequestOptions
     extends Omit<RequestInit, 'body' | 'headers'> {
     body?: unknown;
@@ -324,10 +366,22 @@ async function request<T>(
         : undefined,
     });
 
-    return parseApiResponse<T>(
-        response,
-        endpoint,
-    );
+    try {
+        return await parseApiResponse<T>(
+            response,
+            endpoint,
+        );
+    } catch (error) {
+        if (
+            error instanceof ApiRequestError
+            && error.status === 401
+            && Boolean(auth?.token || token)
+        ) {
+            notifyUnauthorizedAuthenticatedRequest(error);
+        }
+
+        throw error;
+    }
 }
 
 async function upload<T>(
@@ -359,10 +413,22 @@ async function upload<T>(
         body: formData,
     });
 
-    return parseApiResponse<T>(
-        response,
-        endpoint,
-    );
+    try {
+        return await parseApiResponse<T>(
+            response,
+            endpoint,
+        );
+    } catch (error) {
+        if (
+            error instanceof ApiRequestError
+            && error.status === 401
+            && Boolean(auth?.token || token)
+        ) {
+            notifyUnauthorizedAuthenticatedRequest(error);
+        }
+
+        throw error;
+    }
 }
 
 export async function downloadApiFile(
@@ -398,7 +464,7 @@ export async function downloadApiFile(
     if (!response.ok) {
         const errorBody = await getErrorBody(response);
 
-        throw new ApiRequestError(
+        const error = new ApiRequestError(
             getErrorMessageFromBody(
                 errorBody,
                 `Error ${response.status}: backend request failed.`,
@@ -407,6 +473,15 @@ export async function downloadApiFile(
             endpoint,
             errorBody,
         );
+
+        if (
+            error.status === 401
+            && Boolean(auth?.token || token)
+        ) {
+            notifyUnauthorizedAuthenticatedRequest(error);
+        }
+
+        throw error;
     }
 
     return {
