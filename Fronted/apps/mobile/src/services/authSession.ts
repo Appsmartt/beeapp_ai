@@ -21,6 +21,7 @@ const REFRESH_MARGIN_MS = 60_000;
 export interface PersistedAuthSession {
   session: AuthSession;
   user: AuthenticatedUser;
+  deviceSessionId: string | null;
 }
 
 function getExpirationTime(
@@ -69,9 +70,28 @@ export async function getAuthSession(): Promise<
   }
 
   try {
-    return JSON.parse(
+    const parsedSession = JSON.parse(
       storedSession,
-    ) as PersistedAuthSession;
+    ) as Partial<PersistedAuthSession>;
+
+    if (
+      !parsedSession.session
+      || !parsedSession.user
+    ) {
+      await clearAuthSession();
+      return null;
+    }
+
+    return {
+      session: parsedSession.session,
+      user: parsedSession.user,
+      deviceSessionId: (
+        typeof parsedSession.deviceSessionId === 'string'
+        && parsedSession.deviceSessionId.trim()
+      )
+        ? parsedSession.deviceSessionId.trim()
+        : null,
+    };
   } catch {
     await clearAuthSession();
     return null;
@@ -95,6 +115,7 @@ export async function refreshAuthSession(): Promise<
     const refreshedSession: PersistedAuthSession = {
       session: refreshedResponse.session,
       user: persistedSession.user,
+      deviceSessionId: persistedSession.deviceSessionId ?? null,
     };
 
     await saveAuthSession(refreshedSession);

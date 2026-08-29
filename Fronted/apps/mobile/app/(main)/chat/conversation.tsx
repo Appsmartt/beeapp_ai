@@ -636,7 +636,7 @@ export default function ConversationScreen() {
       setActiveCallCredentials(response);
 
       router.push({
-        pathname: '/(main)/chat/agora-test-call',
+        pathname: '/(main)/chat/call',
         params: {
           callId: response.call.id,
           conversationId: chatId,

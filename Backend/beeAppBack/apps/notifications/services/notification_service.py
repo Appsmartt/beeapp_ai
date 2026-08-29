@@ -14,6 +14,7 @@ from apps.notifications.exceptions import (
 )
 from apps.notifications.services.expo_push_service import (
     send_expo_push_notifications,
+    send_session_revoked_push_notifications,
 )
 
 
@@ -27,6 +28,42 @@ UPLOAD_NOTIFICATION_WINDOW_SECONDS = 30
 
 def _supabase():
     return get_supabase_admin_client()
+
+
+
+def send_mobile_session_revoked_push(
+    *,
+    tokens: list[str],
+    revoked_device_session_ids: list[str],
+) -> None:
+    normalized_tokens = list(
+        dict.fromkeys(
+            str(token).strip()
+            for token in tokens
+            if str(token).strip()
+        )
+    )
+
+    normalized_session_ids = list(
+        dict.fromkeys(
+            str(device_session_id).strip()
+            for device_session_id in revoked_device_session_ids
+            if str(device_session_id).strip()
+        )
+    )
+
+    if not normalized_tokens or not normalized_session_ids:
+        return
+
+    try:
+        send_session_revoked_push_notifications(
+            tokens=normalized_tokens,
+            revoked_device_session_ids=normalized_session_ids,
+        )
+    except Exception:
+        # El cierre en servidor ya ocurrió. Un fallo de push no debe
+        # deshacer ni impedir la revocación de la sesión anterior.
+        return
 
 
 def create_incoming_call_notification(

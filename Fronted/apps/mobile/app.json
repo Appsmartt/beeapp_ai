@@ -73,7 +73,10 @@
         {
           "icon": "./src/assets/logo.png",
           "color": "#6025d2",
-          "defaultChannel": "default"
+          "defaultChannel": "default",
+          "sounds": [
+            "./src/assets/sounds/incoming-call.mp3"
+          ]
         }
       ],
       "./withMonorepoSettings.js"

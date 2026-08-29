@@ -227,6 +227,7 @@ export default function VerifyScreen() {
       await saveAuthSession({
         session: response.session,
         user: response.user,
+        deviceSessionId: response.device_session_id,
       });
 
       void registerCurrentDeviceForPushNotifications();

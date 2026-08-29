@@ -60,6 +60,9 @@ from apps.accounts.services.device_session_service import (
 from apps.accounts.services.login_service import (
     login_with_email_password,
 )
+from apps.notifications.services.notification_service import (
+    send_mobile_session_revoked_push,
+)
 from apps.accounts.services.password_reset_service import (
     confirm_password_reset,
     request_password_reset,
@@ -339,12 +342,14 @@ class LoginUserView(APIView):
             )
 
         try:
-            create_or_replace_mobile_device_session(
-                user_id=str(authenticated_user["user"]["id"]),
-                access_token=authenticated_user["session"][
-                    "access_token"
-                ],
-                request=request,
+            device_session = (
+                create_or_replace_mobile_device_session(
+                    user_id=str(authenticated_user["user"]["id"]),
+                    access_token=authenticated_user["session"][
+                        "access_token"
+                    ],
+                    request=request,
+                )
             )
         except DeviceSessionError:
             return Response(
@@ -356,11 +361,22 @@ class LoginUserView(APIView):
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
+        send_mobile_session_revoked_push(
+            tokens=device_session.get("revoked_push_tokens") or [],
+            revoked_device_session_ids=(
+                device_session.get(
+                    "revoked_device_session_ids"
+                )
+                or []
+            ),
+        )
+
         return Response(
             {
                 "message": "Login successful.",
                 "session": authenticated_user["session"],
                 "user": authenticated_user["user"],
+                "device_session_id": str(device_session["id"]),
             },
             status=status.HTTP_200_OK,
         )
@@ -537,12 +553,14 @@ class PhoneOtpMobileVerifyView(APIView):
                 auth_user_id=str(authenticated_user.id),
             )
 
-            create_or_replace_mobile_device_session(
-                user_id=str(authenticated_user.id),
-                access_token=otp_result["session"][
-                    "access_token"
-                ],
-                request=request,
+            device_session = (
+                create_or_replace_mobile_device_session(
+                    user_id=str(authenticated_user.id),
+                    access_token=otp_result["session"][
+                        "access_token"
+                    ],
+                    request=request,
+                )
             )
         except (
             PhoneOtpVerificationError,
@@ -564,10 +582,21 @@ class PhoneOtpMobileVerifyView(APIView):
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
+        send_mobile_session_revoked_push(
+            tokens=device_session.get("revoked_push_tokens") or [],
+            revoked_device_session_ids=(
+                device_session.get(
+                    "revoked_device_session_ids"
+                )
+                or []
+            ),
+        )
+
         return Response(
             {
                 "message": "Login successful.",
                 "session": otp_result["session"],
+                "device_session_id": str(device_session["id"]),
                 "user": {
                     "id": str(authenticated_user.id),
                     "email": authenticated_user.email,

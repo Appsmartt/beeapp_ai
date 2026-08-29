@@ -8,6 +8,28 @@ import httpx
 EXPO_PUSH_URL = "https://exp.host/--/api/v2/push/send"
 
 
+
+def send_session_revoked_push_notifications(
+    *,
+    tokens: list[str],
+    revoked_device_session_ids: list[str],
+) -> dict[str, Any]:
+    return send_expo_push_notifications(
+        tokens=tokens,
+        title="Sesión cerrada",
+        body=(
+            "Tu cuenta se inició en otro dispositivo. "
+            "Por seguridad, cerramos esta sesión."
+        ),
+        data={
+            "type": "session_revoked",
+            "revoked_device_session_ids": (
+                revoked_device_session_ids
+            ),
+        },
+    )
+
+
 def send_expo_push_notifications(
     *,
     tokens: list[str],
