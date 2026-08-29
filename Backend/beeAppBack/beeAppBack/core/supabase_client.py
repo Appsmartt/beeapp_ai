@@ -4,8 +4,9 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Callable, TypeVar
 
+import httpx
 from dotenv import load_dotenv
-from supabase import Client, create_client
+from supabase import Client, ClientOptions, create_client
 
 
 BASE_DIR = Path(__file__).resolve().parents[2]
@@ -13,6 +14,18 @@ BASE_DIR = Path(__file__).resolve().parents[2]
 load_dotenv(BASE_DIR / ".env")
 
 T = TypeVar("T")
+
+SUPABASE_AUTH_HTTP_TIMEOUT = httpx.Timeout(
+    connect=8.0,
+    read=35.0,
+    write=15.0,
+    pool=8.0,
+)
+
+SUPABASE_AUTH_HTTP_LIMITS = httpx.Limits(
+    max_connections=20,
+    max_keepalive_connections=10,
+)
 
 TRANSIENT_SUPABASE_ERROR_MARKERS = (
     "server disconnected",
@@ -54,10 +67,22 @@ def get_supabase_publishable_client() -> Client:
     El cliente Supabase contiene estado interno de Auth. No debe compartirse
     globalmente entre requests de Django: login, refresh y get_user pueden
     ejecutarse en paralelo y alterar ese estado.
+
+    Auth usa un cliente HTTPX explícito para no cortar una respuesta válida
+    por el timeout corto predeterminado del SDK.
     """
+    http_client = httpx.Client(
+        timeout=SUPABASE_AUTH_HTTP_TIMEOUT,
+        limits=SUPABASE_AUTH_HTTP_LIMITS,
+        trust_env=False,
+    )
+
     return create_client(
         _get_required_env("SUPABASE_URL"),
         _get_required_env("SUPABASE_PUBLISHABLE_KEY"),
+        options=ClientOptions(
+            httpx_client=http_client,
+        ),
     )
 
 
