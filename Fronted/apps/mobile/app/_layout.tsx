@@ -36,6 +36,7 @@ import {
 } from '../src/services/pushNotifications';
 import {
   clearAuthSession,
+  getAuthSession,
   validateStoredAuthSession,
 } from '../src/services/authSession';
 import {
@@ -58,6 +59,28 @@ function getNotificationData(
   )
     ? data as Record<string, unknown>
     : {};
+}
+
+function isSessionRevokedPush(
+  data: Record<string, unknown>,
+  deviceSessionId: string | null,
+): boolean {
+  if (
+    String(data.type || '').trim() !== 'session_revoked'
+    || !deviceSessionId
+  ) {
+    return false;
+  }
+
+  const revokedSessionIds = data.revoked_device_session_ids;
+
+  if (!Array.isArray(revokedSessionIds)) {
+    return false;
+  }
+
+  return revokedSessionIds.some(
+    (value) => String(value).trim() === deviceSessionId,
+  );
 }
 
 function getIncomingCallFromData(
@@ -101,7 +124,6 @@ function getIncomingCallFromData(
   };
 }
 
-const SESSION_VALIDATION_INTERVAL_MS = 15_000;
 const SESSION_REVOKED_MODAL_MS = 6_000;
 
 function SessionRevocationHandler() {
@@ -168,25 +190,20 @@ function SessionRevocationHandler() {
 
     void validateSession();
 
-    const intervalId = setInterval(() => {
-      if (appStateRef.current === 'active') {
-        void validateSession();
-      }
-    }, SESSION_VALIDATION_INTERVAL_MS);
-
     const appStateSubscription = AppState.addEventListener(
       'change',
       (nextAppState: AppStateStatus) => {
+        const wasActive = appStateRef.current === 'active';
+
         appStateRef.current = nextAppState;
 
-        if (nextAppState === 'active') {
+        if (!wasActive && nextAppState === 'active') {
           void validateSession();
         }
       },
     );
 
     return () => {
-      clearInterval(intervalId);
       appStateSubscription.remove();
     };
   }, [validateSession]);
@@ -195,6 +212,45 @@ function SessionRevocationHandler() {
     return subscribeUnauthorizedRequest(() => {
       closeRevokedSession();
     });
+  }, [closeRevokedSession]);
+
+  useEffect(() => {
+    const handleSessionRevokedPush = async (
+      notification: Notifications.Notification,
+    ) => {
+      const authSession = await getAuthSession();
+
+      if (
+        isSessionRevokedPush(
+          getNotificationData(notification),
+          authSession?.deviceSessionId ?? null,
+        )
+      ) {
+        closeRevokedSession();
+      }
+    };
+
+    const receivedSubscription = (
+      Notifications.addNotificationReceivedListener(
+        handleSessionRevokedPush,
+      )
+    );
+
+    void Notifications.getLastNotificationResponseAsync()
+      .then((response) => {
+        if (response) {
+          void handleSessionRevokedPush(
+            response.notification,
+          );
+        }
+      })
+      .catch(() => {
+        // La comprobación al abrir o volver a foreground sigue disponible.
+      });
+
+    return () => {
+      receivedSubscription.remove();
+    };
   }, [closeRevokedSession]);
 
   if (!showRevokedModal) {
@@ -485,7 +541,7 @@ function AppPushNotifications() {
         clearIncomingCall(call.callId);
 
         router.push({
-          pathname: '/(main)/chat/agora-test-call',
+          pathname: '/(main)/chat/call',
           params: {
             callId: call.callId,
             conversationId: call.conversationId,

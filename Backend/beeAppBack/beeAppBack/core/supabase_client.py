@@ -47,8 +47,14 @@ def _get_required_env(name: str) -> str:
     return value
 
 
-@lru_cache
 def get_supabase_publishable_client() -> Client:
+    """
+    Crea un cliente nuevo por operación de usuario.
+
+    El cliente Supabase contiene estado interno de Auth. No debe compartirse
+    globalmente entre requests de Django: login, refresh y get_user pueden
+    ejecutarse en paralelo y alterar ese estado.
+    """
     return create_client(
         _get_required_env("SUPABASE_URL"),
         _get_required_env("SUPABASE_PUBLISHABLE_KEY"),
@@ -113,13 +119,8 @@ def get_supabase_user_client(
             "A valid access token is required."
         )
 
-    client = create_client(
-        _get_required_env("SUPABASE_URL"),
-        _get_required_env("SUPABASE_PUBLISHABLE_KEY"),
-    )
+    client = get_supabase_publishable_client()
 
-    token = access_token.strip()
-
-    client.postgrest.auth(token)
+    client.postgrest.auth(access_token.strip())
 
     return client

@@ -104,6 +104,7 @@ export interface LoginUserResponse {
   message: string;
   session: SupabaseAuthSession;
   user: AuthenticatedUser;
+  device_session_id: string;
 }
 
 export interface RequestPhoneOtpPayload {

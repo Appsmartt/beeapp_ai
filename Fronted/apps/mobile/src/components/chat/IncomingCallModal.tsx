@@ -29,6 +29,10 @@ import {
 import {
   setActiveCallCredentials,
 } from '../../stores/activeCallStore';
+import {
+  startIncomingCallRingtone,
+  stopIncomingCallRingtone,
+} from '../../services/callRingtone';
 import type {
   IncomingCall,
 } from '../../stores/incomingCallStore';
@@ -66,7 +70,21 @@ export default function IncomingCallModal({
     setAction(null);
   }, [call?.callId]);
 
+  useEffect(() => {
+    if (!call) {
+      void stopIncomingCallRingtone();
+      return;
+    }
+
+    void startIncomingCallRingtone();
+
+    return () => {
+      void stopIncomingCallRingtone();
+    };
+  }, [call?.callId]);
+
   const closeUnavailableCall = () => {
+    void stopIncomingCallRingtone();
     onClose(call?.callId);
   };
 
@@ -105,6 +123,7 @@ export default function IncomingCallModal({
         },
       );
 
+      await stopIncomingCallRingtone();
       setActiveCallCredentials(credentials);
       onAccepted(call);
     } catch {
@@ -148,6 +167,7 @@ export default function IncomingCallModal({
        * porque la llamada deja de ser accionable desde este dispositivo.
        */
     } finally {
+      await stopIncomingCallRingtone();
       onClose(call.callId);
       setAction(null);
     }

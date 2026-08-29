@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
@@ -83,6 +83,7 @@ export default function LoginScreen() {
   const [errors, setErrors] = useState<FormErrors>({});
   const [formMessage, setFormMessage] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const submitInFlightRef = useRef(false);
 
   const filteredCountries = useMemo(() => {
     const normalizedQuery = countrySearch
@@ -116,6 +117,10 @@ export default function LoginScreen() {
   const changeLoginMethod = (
     nextMethod: LoginMethod,
   ) => {
+    if (submitInFlightRef.current) {
+      return;
+    }
+
     setLoginMethod(nextMethod);
     setErrors({});
     setFormMessage('');
@@ -123,6 +128,10 @@ export default function LoginScreen() {
   };
 
   const handleOtpContinue = async () => {
+    if (submitInFlightRef.current) {
+      return;
+    }
+
     const normalizedPhoneNumber = normalizePhoneNumber(
       phoneNumber,
     );
@@ -142,6 +151,7 @@ export default function LoginScreen() {
     ).replace(/\s/g, '');
 
     try {
+      submitInFlightRef.current = true;
       setIsSubmitting(true);
       setErrors({});
       setFormMessage('');
@@ -169,11 +179,16 @@ export default function LoginScreen() {
             ),
       );
     } finally {
+      submitInFlightRef.current = false;
       setIsSubmitting(false);
     }
   };
 
   const handlePasswordContinue = async () => {
+    if (submitInFlightRef.current) {
+      return;
+    }
+
     const nextErrors: FormErrors = {};
 
     if (!email.trim()) {
@@ -196,6 +211,7 @@ export default function LoginScreen() {
     }
 
     try {
+      submitInFlightRef.current = true;
       setIsSubmitting(true);
       setErrors({});
       setFormMessage('');
@@ -208,6 +224,7 @@ export default function LoginScreen() {
       await saveAuthSession({
         session: response.session,
         user: response.user,
+        deviceSessionId: response.device_session_id,
       });
 
       void registerCurrentDeviceForPushNotifications();
@@ -223,11 +240,16 @@ export default function LoginScreen() {
             ),
       );
     } finally {
+      submitInFlightRef.current = false;
       setIsSubmitting(false);
     }
   };
 
   const openCountryModal = () => {
+    if (submitInFlightRef.current) {
+      return;
+    }
+
     setCountrySearch('');
     setIsCountryModalVisible(true);
   };

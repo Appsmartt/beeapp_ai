@@ -575,7 +575,7 @@ def create_or_replace_mobile_device_session(
         now = timezone.now()
 
         response = supabase.rpc(
-            "replace_mobile_device_session",
+            "replace_mobile_device_session_with_revocation",
             {
                 "p_user_id": user_id,
                 "p_auth_session_id": auth_session_id,
@@ -612,6 +612,34 @@ def create_or_replace_mobile_device_session(
             raise DeviceSessionError(
                 "Mobile device session was not created."
             )
+
+        revoked_push_tokens = [
+            str(token).strip()
+            for token in (
+                device_session.get("revoked_push_tokens")
+                or []
+            )
+            if str(token).strip()
+        ]
+
+        device_session["revoked_push_tokens"] = (
+            list(dict.fromkeys(revoked_push_tokens))
+        )
+
+        revoked_device_session_ids = [
+            str(device_id).strip()
+            for device_id in (
+                device_session.get(
+                    "revoked_device_session_ids"
+                )
+                or []
+            )
+            if str(device_id).strip()
+        ]
+
+        device_session["revoked_device_session_ids"] = (
+            list(dict.fromkeys(revoked_device_session_ids))
+        )
 
         return device_session
     except DeviceSessionError:
