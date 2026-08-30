@@ -151,8 +151,19 @@ export interface ChatApiAttachment {
   kind?: string | null;
   size_bytes?: number | null;
   status?: string | null;
+  url?: string | null;
+  thumbnail_url?: string | null;
+  duration_seconds?: number | null;
   created_at?: string;
   updated_at?: string;
+}
+
+export interface ChatApiReplyPreview {
+  id: string;
+  body: string | null;
+  message_type?: string | null;
+  sender_identity?: ChatApiIdentitySummary | null;
+  sender_display_name?: string | null;
 }
 
 export interface ChatApiReaction {
@@ -172,13 +183,23 @@ export interface ChatApiMessage {
   message_type: string;
   body: string | null;
   attachment_file_id: string | null;
+  attachment_file_ids?: string[];
   reference_type: string | null;
   reference_id: string | null;
+  reply_to_message_id?: string | null;
   metadata: Record<string, unknown>;
   sequence_number: number;
   created_at: string;
+  updated_at?: string | null;
+  edited_at?: string | null;
+  deleted_at?: string | null;
+  destroyed_at?: string | null;
+  is_pinned?: boolean;
+  pinned_at?: string | null;
   sender_identity?: ChatApiIdentitySummary | null;
   attachment?: ChatApiAttachment | null;
+  attachments?: ChatApiAttachment[];
+  reply_to?: ChatApiReplyPreview | null;
   reactions?: ChatApiReaction[];
 }
 
@@ -430,7 +451,13 @@ function toSharedPermissions(
 function toSharedMessage(
   message: ChatApiMessage,
 ): ChatMessage {
-  const attachment = message.attachment;
+  const attachments = (
+    message.attachments?.length
+      ? message.attachments
+      : message.attachment
+        ? [message.attachment]
+        : []
+  );
 
   const {
     firstName,
@@ -463,24 +490,49 @@ function toSharedMessage(
     content: message.body || '',
     status: 'sent',
     created_at: message.created_at,
-    attachments: attachment
-      ? [
-          {
-            id: attachment.id,
-            file_id: attachment.id,
-            name: (
-              attachment.display_name
-              || attachment.original_name
-              || 'Archivo adjunto'
-            ),
-            mime_type: attachment.mime_type || null,
-            size_bytes: attachment.size_bytes || null,
-            url: null,
-            thumbnail_url: null,
-            duration_seconds: null,
-          },
-        ]
-      : [],
+    updated_at: message.updated_at || undefined,
+    edited_at: message.edited_at || null,
+    deleted_at: message.deleted_at || null,
+    destroyed_at: message.destroyed_at || null,
+    reply_to_id: (
+      message.reply_to_message_id
+      || message.reference_id
+      || null
+    ),
+    reply_to: message.reply_to
+      ? {
+          id: message.reply_to.id,
+          sender_name: (
+            message.reply_to.sender_display_name
+            || message.reply_to.sender_identity?.display_name
+            || 'Usuario Buddy'
+          ),
+          content: message.reply_to.body || '',
+          message_type: (
+            message.reply_to.message_type === 'image'
+            || message.reply_to.message_type === 'audio'
+              ? message.reply_to.message_type
+              : message.reply_to.message_type === 'document'
+              || message.reply_to.message_type === 'video'
+                ? 'file'
+                : 'text'
+          ),
+        }
+      : null,
+    attachments: attachments.map((attachment) => ({
+      id: attachment.id,
+      file_id: attachment.id,
+      name: (
+        attachment.display_name
+        || attachment.original_name
+        || 'Archivo adjunto'
+      ),
+      mime_type: attachment.mime_type || null,
+      size_bytes: attachment.size_bytes || null,
+      url: attachment.url || null,
+      thumbnail_url: attachment.thumbnail_url || null,
+      duration_seconds: attachment.duration_seconds || null,
+    })),
     sender: message.sender_identity
       ? {
           id: (
@@ -495,7 +547,8 @@ function toSharedMessage(
           is_online: false,
         }
       : null,
-    is_pinned: false,
+    is_pinned: Boolean(message.is_pinned),
+    pinned_at: message.pinned_at || null,
     is_sent_by_ai: false,
   };
 }
@@ -1057,12 +1110,22 @@ export async function sendChatMessage(
   conversationId: string,
   payload: {
     sender_identity_id: string;
-    body: string;
-    message_type?: 'text';
+    body?: string | null;
+    message_type?: 'text' | 'image' | 'file' | 'audio';
+    attachment_file_ids?: string[];
+    reply_to_message_id?: string | null;
   },
 ): Promise<{
   message: ChatMessage;
 }> {
+  const attachmentFileIds = Array.from(
+    new Set(
+      (payload.attachment_file_ids || [])
+        .map((fileId) => fileId.trim())
+        .filter(Boolean),
+    ),
+  );
+
   const response = await api.post<{
     message: ChatApiMessage;
   }>(
@@ -1070,7 +1133,19 @@ export async function sendChatMessage(
     {
       sender_identity_id: payload.sender_identity_id,
       message_type: payload.message_type || 'text',
-      body: payload.body,
+      body: payload.body?.trim() || '',
+      ...(attachmentFileIds.length > 0
+        ? {
+            attachment_file_ids: attachmentFileIds,
+          }
+        : {}),
+      ...(payload.reply_to_message_id
+        ? {
+            reply_to_message_id: (
+              payload.reply_to_message_id.trim()
+            ),
+          }
+        : {}),
       metadata: {},
     },
     {

@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import logging
-
 from typing import Any
 
 from beeAppBack.core.supabase_client import (
@@ -37,8 +35,6 @@ from apps.chat.services.chat_identity_service import (
     get_owned_chat_identity,
 )
 
-
-logger = logging.getLogger(__name__)
 
 MESSAGE_COLUMNS = (
     "id,conversation_id,sender_identity_id,sender_user_id,"
@@ -133,28 +129,7 @@ def list_conversation_messages(
         )
 
         if isinstance(cached_messages, dict):
-            logger.info(
-                "chat_cache_messages_hit",
-                extra={
-                    "conversation_id": str(conversation_id),
-                    "limit": int(limit),
-                    "has_cursor": (
-                        before_sequence is not None
-                    ),
-                },
-            )
             return cached_messages
-
-        logger.info(
-            "chat_cache_messages_miss",
-            extra={
-                "conversation_id": str(conversation_id),
-                "limit": int(limit),
-                "has_cursor": (
-                    before_sequence is not None
-                ),
-            },
-        )
 
         query = (
             _supabase()

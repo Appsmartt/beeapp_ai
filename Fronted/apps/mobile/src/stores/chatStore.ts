@@ -3,16 +3,24 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import type {
   ChatConversation,
   ChatMessage,
+  ChatRealtimeEvent,
 } from '@beeapp/shared-types';
 
-const CHAT_INBOX_CACHE_PREFIX = 'beeapp.chat.inbox.v1';
-const CHAT_MESSAGES_CACHE_PREFIX = 'beeapp.chat.messages.v2';
+const CHAT_INBOX_CACHE_PREFIX = 'beeapp.chat.inbox.v2';
+const CHAT_MESSAGES_CACHE_PREFIX = 'beeapp.chat.messages.v3';
 const CHAT_ARCHIVED_CONVERSATIONS_PREFIX = (
   'beeapp.chat.archived-conversations.v1'
 );
 
-const CHAT_MESSAGES_CACHE_VERSION = 2;
+const CHAT_INBOX_CACHE_VERSION = 2;
+const CHAT_MESSAGES_CACHE_VERSION = 3;
 const MAX_PERSISTED_MESSAGES_PER_CONVERSATION = 300;
+
+interface ChatInboxCachePayload {
+  version: number;
+  conversations: ChatConversation[];
+  lastSyncedAt: string | null;
+}
 
 interface ChatMessagesCachePayload {
   version: number;
@@ -46,6 +54,85 @@ let archivedConversationIds: string[] = [];
 
 let activeUserId: string | null = null;
 
+export type ChatStoreChange =
+  | {
+      type: 'conversations';
+      conversationIds?: string[];
+    }
+  | {
+      type: 'messages';
+      conversationId: string;
+    }
+  | {
+      type: 'conversation-removed';
+      conversationId: string;
+    }
+  | {
+      type: 'reset';
+    };
+
+export type ChatStoreListener = (
+  change: ChatStoreChange,
+) => void;
+
+const chatStoreListeners = new Set<ChatStoreListener>();
+
+export function subscribeChatStore(
+  listener: ChatStoreListener,
+): () => void {
+  chatStoreListeners.add(listener);
+
+  return () => {
+    chatStoreListeners.delete(listener);
+  };
+}
+
+function notifyChatStore(
+  change: ChatStoreChange,
+): void {
+  chatStoreListeners.forEach((listener) => {
+    try {
+      listener(change);
+    } catch {
+      // Un listener no debe impedir actualizar a los demás.
+    }
+  });
+}
+
+const RECENT_CHAT_EVENT_LIMIT = 500;
+const recentChatEventIds = new Set<string>();
+const recentChatEventOrder: string[] = [];
+
+function rememberChatEvent(
+  eventId: string,
+): boolean {
+  const normalizedEventId = String(eventId || '').trim();
+
+  if (!normalizedEventId) {
+    return true;
+  }
+
+  if (recentChatEventIds.has(normalizedEventId)) {
+    return false;
+  }
+
+  recentChatEventIds.add(normalizedEventId);
+  recentChatEventOrder.push(normalizedEventId);
+
+  while (
+    recentChatEventOrder.length
+    > RECENT_CHAT_EVENT_LIMIT
+  ) {
+    const expiredEventId = recentChatEventOrder.shift();
+
+    if (expiredEventId) {
+      recentChatEventIds.delete(expiredEventId);
+    }
+  }
+
+  return true;
+}
+
 function getInboxCacheKey(
   userId: string,
 ): string {
@@ -60,6 +147,12 @@ function getMessagesCacheKey(
     `${CHAT_MESSAGES_CACHE_PREFIX}.${userId}.`
     + `${conversationId}`
   );
+}
+
+function getMessagesCachePrefix(
+  userId: string,
+): string {
+  return `${CHAT_MESSAGES_CACHE_PREFIX}.${userId}.`;
 }
 
 function getArchivedConversationsCacheKey(
@@ -292,6 +385,17 @@ function mergeConversation(
       || oldest.last_message_at
       || null
     ),
+    cached_avatar_url: (
+      newest.avatar_url
+      && oldest.avatar_url
+      && newest.avatar_url !== oldest.avatar_url
+        ? null
+        : (
+            newest.cached_avatar_url
+            || oldest.cached_avatar_url
+            || null
+          )
+    ),
   };
 }
 
@@ -353,14 +457,22 @@ function getMessageCacheMetadata(
   );
 }
 
-function persistConversations(): void {
+function persistConversations(
+  lastSyncedAt: string | null = null,
+): void {
   if (!activeUserId) {
     return;
   }
 
+  const payload: ChatInboxCachePayload = {
+    version: CHAT_INBOX_CACHE_VERSION,
+    conversations,
+    lastSyncedAt,
+  };
+
   void AsyncStorage.setItem(
     getInboxCacheKey(activeUserId),
-    JSON.stringify(conversations),
+    JSON.stringify(payload),
   ).catch(() => {
     // Cache persistence must never block chat usage.
   });
@@ -433,6 +545,45 @@ function clearInMemoryChatData(): void {
   protectedConversationIds = [];
   archivedConversationIds = [];
   activeUserId = null;
+
+  notifyChatStore({
+    type: 'reset',
+  });
+}
+
+function removeMessageCachesNotInSnapshot(
+  userId: string,
+  conversationIds: string[],
+): void {
+  const validConversationIds = new Set(
+    normalizeConversationIds(conversationIds),
+  );
+
+  void AsyncStorage.getAllKeys()
+    .then((keys) => {
+      const messageCachePrefix = getMessagesCachePrefix(userId);
+
+      const staleKeys = keys.filter((key) => {
+        if (!key.startsWith(messageCachePrefix)) {
+          return false;
+        }
+
+        const conversationId = key.slice(
+          messageCachePrefix.length,
+        );
+
+        return !validConversationIds.has(conversationId);
+      });
+
+      if (!staleKeys.length) {
+        return;
+      }
+
+      return AsyncStorage.multiRemove(staleKeys);
+    })
+    .catch(() => {
+      // Snapshot cleanup must never block chat usage.
+    });
 }
 
 export async function hydrateChatConversations(
@@ -486,17 +637,34 @@ export async function hydrateChatConversations(
       return conversations;
     }
 
-    const parsedConversations = JSON.parse(
+    const parsedPayload = JSON.parse(
       serializedConversations,
+    ) as Partial<ChatInboxCachePayload>;
+
+    const validPayload = (
+      parsedPayload
+      && parsedPayload.version === CHAT_INBOX_CACHE_VERSION
+      && Array.isArray(parsedPayload.conversations)
     );
 
-    if (!Array.isArray(parsedConversations)) {
+    if (!validPayload) {
+      await AsyncStorage.removeItem(
+        getInboxCacheKey(normalizedUserId),
+      );
+
       return conversations;
     }
 
     conversations = normalizeConversations(
-      parsedConversations as ChatConversation[],
+      parsedPayload.conversations as ChatConversation[],
     );
+
+    notifyChatStore({
+      type: 'conversations',
+      conversationIds: conversations.map(
+        (conversation) => conversation.id,
+      ),
+    });
 
     return conversations;
   } catch {
@@ -586,6 +754,11 @@ export async function hydrateChatMessages(
       [normalizedConversationId]: hydratedMessages,
     };
 
+    notifyChatStore({
+      type: 'messages',
+      conversationId: normalizedConversationId,
+    });
+
     messageCacheMetadataByConversationId = {
       ...messageCacheMetadataByConversationId,
       [normalizedConversationId]: {
@@ -624,14 +797,21 @@ export async function clearChatConversationsCache(
   const targetUserId = (userId || activeUserId || '').trim();
 
   if (targetUserId) {
-    await Promise.all([
-      AsyncStorage.removeItem(
-        getInboxCacheKey(targetUserId),
-      ),
-      AsyncStorage.removeItem(
-        getArchivedConversationsCacheKey(targetUserId),
-      ),
-    ]);
+    const messageCachePrefix = getMessagesCachePrefix(
+      targetUserId,
+    );
+
+    const keys = await AsyncStorage.getAllKeys();
+
+    const keysToRemove = keys.filter((key) => (
+      key === getInboxCacheKey(targetUserId)
+      || key === getArchivedConversationsCacheKey(targetUserId)
+      || key.startsWith(messageCachePrefix)
+    ));
+
+    if (keysToRemove.length > 0) {
+      await AsyncStorage.multiRemove(keysToRemove);
+    }
   }
 
   if (!userId || userId === activeUserId) {
@@ -687,6 +867,48 @@ export function setChatConversations(
 ): void {
   conversations = normalizeConversations(nextConversations);
   persistConversations();
+
+  notifyChatStore({
+    type: 'conversations',
+    conversationIds: conversations.map(
+      (conversation) => conversation.id,
+    ),
+  });
+}
+
+export function replaceChatConversationsSnapshot(
+  nextConversations: ChatConversation[],
+  options: {
+    lastSyncedAt?: string | null;
+    removeStaleMessageCaches?: boolean;
+  } = {},
+): void {
+  conversations = normalizeConversations(nextConversations);
+
+  const lastSyncedAt = (
+    options.lastSyncedAt === undefined
+      ? new Date().toISOString()
+      : options.lastSyncedAt
+  );
+
+  persistConversations(lastSyncedAt);
+
+  notifyChatStore({
+    type: 'conversations',
+    conversationIds: conversations.map(
+      (conversation) => conversation.id,
+    ),
+  });
+
+  if (
+    options.removeStaleMessageCaches !== false
+    && activeUserId
+  ) {
+    removeMessageCachesNotInSnapshot(
+      activeUserId,
+      conversations.map((conversation) => conversation.id),
+    );
+  }
 }
 
 export function upsertChatConversation(
@@ -700,6 +922,130 @@ export function upsertChatConversation(
     conversation,
     ...conversations,
   ]);
+}
+
+export function applyChatRealtimeEvent(
+  event: ChatRealtimeEvent,
+): boolean {
+  if (!rememberChatEvent(event.event_id)) {
+    return false;
+  }
+
+  if (
+    event.event_type === 'chat.message.created'
+    || event.event_type === 'chat.message.updated'
+  ) {
+    const payload = event.payload;
+
+    if (
+      !('conversation_id' in payload)
+      || !('message' in payload)
+    ) {
+      return false;
+    }
+
+    const conversationId = normalizeConversationId(
+      payload.conversation_id,
+    );
+
+    if (!conversationId) {
+      return false;
+    }
+
+    upsertChatMessage(
+      conversationId,
+      payload.message,
+    );
+
+    const currentConversation = conversations.find(
+      (conversation) => conversation.id === conversationId,
+    );
+
+    if (currentConversation) {
+      const patch = payload.conversation_patch;
+
+      upsertChatConversation({
+        ...currentConversation,
+        last_message: payload.message,
+        last_message_at: (
+          patch?.last_message_at
+          || payload.message.created_at
+        ),
+        updated_at: (
+          patch?.updated_at
+          || payload.message.updated_at
+          || payload.message.created_at
+        ),
+        unread_count: (
+          typeof patch?.unread_count === 'number'
+            ? patch.unread_count
+            : currentConversation.unread_count
+        ),
+      });
+    }
+
+    return true;
+  }
+
+  if (event.event_type === 'chat.message.deleted') {
+    const payload = event.payload;
+
+    if (
+      !('conversation_id' in payload)
+      || !('message_id' in payload)
+    ) {
+      return false;
+    }
+
+    const conversationId = normalizeConversationId(
+      payload.conversation_id,
+    );
+
+    const messageId = String(
+      payload.message_id || '',
+    ).trim();
+
+    if (!conversationId || !messageId) {
+      return false;
+    }
+
+    const currentMessages = getChatMessages(conversationId);
+
+    setChatMessages(
+      conversationId,
+      currentMessages.map((message) => (
+        message.id === messageId
+          ? {
+              ...message,
+              deleted_at: (
+                payload.deleted_at
+                || event.occurred_at
+              ),
+              destroyed_at: (
+                payload.destroyed_at
+                || message.destroyed_at
+                || null
+              ),
+              content: '',
+              attachments: [],
+            }
+          : message
+      )),
+    );
+
+    return true;
+  }
+
+  if (event.event_type === 'chat.conversation.updated') {
+    const payload = event.payload;
+
+    if ('conversation' in payload) {
+      upsertChatConversation(payload.conversation);
+      return true;
+    }
+  }
+
+  return false;
 }
 
 export function updateChatConversationLastMessage(
@@ -756,6 +1102,11 @@ export function removeChatConversation(
 
   persistConversations();
   persistArchivedConversationIds();
+
+  notifyChatStore({
+    type: 'conversation-removed',
+    conversationId: normalizedConversationId,
+  });
 
   if (activeUserId && normalizedConversationId) {
     void AsyncStorage.removeItem(
@@ -828,6 +1179,11 @@ export function setChatMessagesCacheMetadata(
   };
 
   persistMessages(normalizedConversationId);
+
+  notifyChatStore({
+    type: 'messages',
+    conversationId: normalizedConversationId,
+  });
 }
 
 export function setChatMessages(
@@ -874,6 +1230,11 @@ export function setChatMessages(
   };
 
   persistMessages(normalizedConversationId);
+
+  notifyChatStore({
+    type: 'messages',
+    conversationId: normalizedConversationId,
+  });
 }
 
 export function upsertChatMessage(
@@ -927,20 +1288,35 @@ export function setChatConversationProtected(
   conversationId: string,
   value: boolean,
 ): void {
-  if (value) {
-    if (!protectedConversationIds.includes(conversationId)) {
-      protectedConversationIds = [
-        ...protectedConversationIds,
-        conversationId,
-      ];
-    }
+  const normalizedConversationId = normalizeConversationId(
+    conversationId,
+  );
 
+  if (!normalizedConversationId) {
     return;
   }
 
-  protectedConversationIds = protectedConversationIds.filter(
-    (id) => id !== conversationId,
-  );
+  if (value) {
+    if (
+      !protectedConversationIds.includes(
+        normalizedConversationId,
+      )
+    ) {
+      protectedConversationIds = [
+        ...protectedConversationIds,
+        normalizedConversationId,
+      ];
+    }
+  } else {
+    protectedConversationIds = protectedConversationIds.filter(
+      (id) => id !== normalizedConversationId,
+    );
+  }
+
+  notifyChatStore({
+    type: 'conversations',
+    conversationIds: [normalizedConversationId],
+  });
 }
 
 export function getArchivedChatConversationIds(): string[] {
@@ -989,4 +1365,9 @@ export function setChatConversationArchived(
   }
 
   persistArchivedConversationIds();
+
+  notifyChatStore({
+    type: 'conversations',
+    conversationIds: [normalizedConversationId],
+  });
 }

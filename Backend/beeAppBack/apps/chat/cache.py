@@ -1,0 +1,433 @@
+from __future__ import annotations
+
+from hashlib import sha256
+from typing import Any
+
+from django.core.cache import cache
+
+
+CHAT_CACHE_NAMESPACE = "chat"
+CHAT_CACHE_VERSION = "v1"
+
+INBOX_TTL_SECONDS = 60
+MESSAGES_LATEST_TTL_SECONDS = 90
+MESSAGES_HISTORY_TTL_SECONDS = 60
+REACTIONS_TTL_SECONDS = 45
+READ_STATUS_TTL_SECONDS = 30
+READERS_TTL_SECONDS = 30
+
+DEFAULT_INBOX_LIMIT = 50
+DEFAULT_MESSAGES_LIMIT = 50
+
+
+def _hash_account_id(
+    user_id: str,
+) -> str:
+    return sha256(
+        str(user_id).encode("utf-8")
+    ).hexdigest()[:24]
+
+
+def _key(
+    *parts: object,
+) -> str:
+    normalized_parts = [
+        str(part)
+        for part in parts
+        if part is not None
+    ]
+
+    return ":".join(
+        (
+            CHAT_CACHE_NAMESPACE,
+            CHAT_CACHE_VERSION,
+            *normalized_parts,
+        )
+    )
+
+
+def _version_key(
+    *,
+    resource: str,
+    resource_id: str,
+) -> str:
+    return _key(
+        "versions",
+        resource,
+        resource_id,
+    )
+
+
+def _get_version(
+    *,
+    resource: str,
+    resource_id: str,
+) -> int:
+    key = _version_key(
+        resource=resource,
+        resource_id=resource_id,
+    )
+
+    value = cache.get(key)
+
+    if value is None:
+        cache.add(
+            key,
+            1,
+            timeout=None,
+        )
+        return 1
+
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        cache.set(
+            key,
+            1,
+            timeout=None,
+        )
+        return 1
+
+
+def _bump_version(
+    *,
+    resource: str,
+    resource_id: str,
+) -> int:
+    key = _version_key(
+        resource=resource,
+        resource_id=resource_id,
+    )
+
+    try:
+        return int(cache.incr(key))
+    except ValueError:
+        cache.add(
+            key,
+            1,
+            timeout=None,
+        )
+        return 1
+
+
+def get_conversation_cache_version(
+    *,
+    conversation_id: str,
+) -> int:
+    return _get_version(
+        resource="conversation",
+        resource_id=str(conversation_id),
+    )
+
+
+def bump_conversation_cache_version(
+    *,
+    conversation_id: str,
+) -> int:
+    return _bump_version(
+        resource="conversation",
+        resource_id=str(conversation_id),
+    )
+
+
+def get_inbox_cache_version(
+    *,
+    identity_id: str,
+) -> int:
+    return _get_version(
+        resource="inbox",
+        resource_id=str(identity_id),
+    )
+
+
+def bump_inbox_cache_version(
+    *,
+    identity_id: str,
+) -> int:
+    return _bump_version(
+        resource="inbox",
+        resource_id=str(identity_id),
+    )
+
+
+def inbox_cache_key(
+    *,
+    user_id: str,
+    identity_id: str,
+    limit: int,
+    before_last_message_at: str | None,
+) -> str:
+    inbox_version = get_inbox_cache_version(
+        identity_id=identity_id,
+    )
+
+    return _key(
+        "inbox",
+        f"user-{_hash_account_id(user_id)}",
+        f"identity-{identity_id}",
+        f"limit-{int(limit)}",
+        (
+            "latest"
+            if before_last_message_at is None
+            else (
+                "before-"
+                + _hash_account_id(
+                    before_last_message_at
+                )
+            )
+        ),
+        f"version-{inbox_version}",
+    )
+
+
+def latest_inbox_cache_key(
+    *,
+    user_id: str,
+    identity_id: str,
+    limit: int = DEFAULT_INBOX_LIMIT,
+) -> str:
+    return inbox_cache_key(
+        user_id=user_id,
+        identity_id=identity_id,
+        limit=limit,
+        before_last_message_at=None,
+    )
+
+
+def messages_cache_key(
+    *,
+    user_id: str,
+    identity_id: str,
+    conversation_id: str,
+    limit: int,
+    before_sequence: int | None,
+) -> str:
+    conversation_version = get_conversation_cache_version(
+        conversation_id=conversation_id,
+    )
+
+    return _key(
+        "messages",
+        f"user-{_hash_account_id(user_id)}",
+        f"identity-{identity_id}",
+        f"conversation-{conversation_id}",
+        f"limit-{int(limit)}",
+        (
+            "latest"
+            if before_sequence is None
+            else f"before-{int(before_sequence)}"
+        ),
+        f"version-{conversation_version}",
+    )
+
+
+def latest_messages_cache_key(
+    *,
+    user_id: str,
+    identity_id: str,
+    conversation_id: str,
+    limit: int = DEFAULT_MESSAGES_LIMIT,
+) -> str:
+    return messages_cache_key(
+        user_id=user_id,
+        identity_id=identity_id,
+        conversation_id=conversation_id,
+        limit=limit,
+        before_sequence=None,
+    )
+
+
+
+def user_messages_cache_key(
+    *,
+    user_id: str,
+    conversation_id: str,
+    limit: int,
+    before_sequence: int | None,
+) -> str:
+    """
+    Clave para el endpoint HTTP de mensajes.
+
+    El endpoint actual autoriza por usuario y no recibe identity_id.
+    La clave mantiene ese contrato y queda aislada por usuario,
+    conversación, cursor, límite y versión de conversación.
+    """
+    conversation_version = get_conversation_cache_version(
+        conversation_id=conversation_id,
+    )
+
+    return _key(
+        "messages",
+        "user-access",
+        f"user-{_hash_account_id(user_id)}",
+        f"conversation-{conversation_id}",
+        f"limit-{int(limit)}",
+        (
+            "latest"
+            if before_sequence is None
+            else f"before-{int(before_sequence)}"
+        ),
+        f"version-{conversation_version}",
+    )
+
+def reactions_cache_key(
+    *,
+    user_id: str,
+    identity_id: str,
+    conversation_id: str,
+    message_id: str,
+) -> str:
+    conversation_version = get_conversation_cache_version(
+        conversation_id=conversation_id,
+    )
+
+    return _key(
+        "reactions",
+        f"user-{_hash_account_id(user_id)}",
+        f"identity-{identity_id}",
+        f"conversation-{conversation_id}",
+        f"message-{message_id}",
+        f"version-{conversation_version}",
+    )
+
+
+def read_status_cache_key(
+    *,
+    user_id: str,
+    identity_id: str,
+    conversation_id: str,
+    message_id: str,
+) -> str:
+    conversation_version = get_conversation_cache_version(
+        conversation_id=conversation_id,
+    )
+
+    return _key(
+        "read-status",
+        f"user-{_hash_account_id(user_id)}",
+        f"identity-{identity_id}",
+        f"conversation-{conversation_id}",
+        f"message-{message_id}",
+        f"version-{conversation_version}",
+    )
+
+
+def readers_cache_key(
+    *,
+    user_id: str,
+    identity_id: str,
+    conversation_id: str,
+    message_id: str,
+) -> str:
+    conversation_version = get_conversation_cache_version(
+        conversation_id=conversation_id,
+    )
+
+    return _key(
+        "readers",
+        f"user-{_hash_account_id(user_id)}",
+        f"identity-{identity_id}",
+        f"conversation-{conversation_id}",
+        f"message-{message_id}",
+        f"version-{conversation_version}",
+    )
+
+
+def get_cached_value(
+    *,
+    key: str,
+) -> Any | None:
+    return cache.get(key)
+
+
+def set_cached_value(
+    *,
+    key: str,
+    value: Any,
+    timeout: int,
+) -> None:
+    cache.set(
+        key,
+        value,
+        timeout=timeout,
+    )
+
+
+def get_latest_inbox_if_cached(
+    *,
+    user_id: str,
+    identity_id: str,
+    limit: int = DEFAULT_INBOX_LIMIT,
+) -> dict[str, Any] | None:
+    value = cache.get(
+        latest_inbox_cache_key(
+            user_id=user_id,
+            identity_id=identity_id,
+            limit=limit,
+        )
+    )
+
+    return value if isinstance(value, dict) else None
+
+
+def set_latest_inbox_if_cached(
+    *,
+    user_id: str,
+    identity_id: str,
+    value: dict[str, Any],
+    limit: int = DEFAULT_INBOX_LIMIT,
+) -> None:
+    key = latest_inbox_cache_key(
+        user_id=user_id,
+        identity_id=identity_id,
+        limit=limit,
+    )
+
+    if cache.get(key) is not None:
+        cache.set(
+            key,
+            value,
+            timeout=INBOX_TTL_SECONDS,
+        )
+
+
+def get_latest_messages_if_cached(
+    *,
+    user_id: str,
+    identity_id: str,
+    conversation_id: str,
+    limit: int = DEFAULT_MESSAGES_LIMIT,
+) -> dict[str, Any] | None:
+    value = cache.get(
+        latest_messages_cache_key(
+            user_id=user_id,
+            identity_id=identity_id,
+            conversation_id=conversation_id,
+            limit=limit,
+        )
+    )
+
+    return value if isinstance(value, dict) else None
+
+
+def set_latest_messages_if_cached(
+    *,
+    user_id: str,
+    identity_id: str,
+    conversation_id: str,
+    value: dict[str, Any],
+    limit: int = DEFAULT_MESSAGES_LIMIT,
+) -> None:
+    key = latest_messages_cache_key(
+        user_id=user_id,
+        identity_id=identity_id,
+        conversation_id=conversation_id,
+        limit=limit,
+    )
+
+    if cache.get(key) is not None:
+        cache.set(
+            key,
+            value,
+            timeout=MESSAGES_LATEST_TTL_SECONDS,
+        )

@@ -1,5 +1,4 @@
 import {
-  useEffect,
   useMemo,
   useState,
 } from 'react';
@@ -16,9 +15,6 @@ import {
   SquarePen,
   UserPlus,
 } from 'lucide-react-native';
-import {
-  useNavigation,
-} from 'expo-router';
 import {
   colors,
 } from '@beeapp/design-system';
@@ -73,8 +69,6 @@ type PinAction = {
 
 export default function ChatListScreen() {
   const router = useModuleNav();
-  const navigation = useNavigation();
-
   const {
     conversations,
     loading,
@@ -137,27 +131,6 @@ export default function ChatListScreen() {
 
   const isStatusesTab = activeTab === 'statuses';
   const isGroupsTab = activeTab === 'groups';
-
-  useEffect(() => {
-    const unsubscribe = navigation.addListener(
-      'focus',
-      () => {
-        if (!isStatusesTab) {
-          void loadConversations({
-            refresh: true,
-          }).catch(() => {
-            // El hook conserva el error para la pantalla.
-          });
-        }
-      },
-    );
-
-    return unsubscribe;
-  }, [
-    isStatusesTab,
-    loadConversations,
-    navigation,
-  ]);
 
   const protectedChatIds = useMemo(
     () => new Set(

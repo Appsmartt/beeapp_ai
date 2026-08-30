@@ -37,6 +37,7 @@ import {
   getValidSessionCredentials,
 } from '../services/authSession';
 import {
+  prefetchRecentChatMessages,
 } from '../services/chatInitialSync';
 import {
   mapChatMessageToModel,
@@ -614,10 +615,16 @@ export function useChatConversations(
       synchronizeConversations(response.conversations);
 
       /*
-       * Los mensajes no se precargan al login ni al refrescar el inbox.
-       * Cada conversación muestra primero su caché local al abrirse y
-       * consulta la red solo cuando necesita sincronizarse.
+       * La lista ya está disponible. Precargamos en segundo plano los
+       * mensajes de la última semana para 10 chats directos y 5 grupos.
+       * Así abrir una conversación prioritaria usa AsyncStorage primero.
        */
+      void prefetchRecentChatMessages(
+        token,
+        response.conversations,
+      ).catch(() => {
+        // La precarga no debe impedir usar ni refrescar el inbox.
+      });
 
       return response.conversations.map((conversation) => (
         mapConversationToListItem(

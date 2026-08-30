@@ -327,7 +327,8 @@ export function mapConversationToListItem(
     isAI,
     verified: Boolean(directProfile?.is_verified),
     avatarUrl: (
-      conversation.avatar_url
+      conversation.cached_avatar_url
+      || conversation.avatar_url
       || directProfile?.avatar_url
       || null
     ),

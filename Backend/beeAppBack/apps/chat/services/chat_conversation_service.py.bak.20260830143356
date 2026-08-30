@@ -1,19 +1,10 @@
 from __future__ import annotations
 
-import logging
-
 from typing import Any
 
 from beeAppBack.core.supabase_client import (
     get_supabase_admin_client,
     get_supabase_user_client,
-)
-
-from apps.chat.cache import (
-    INBOX_TTL_SECONDS,
-    get_cached_value,
-    inbox_cache_key,
-    set_cached_value,
 )
 
 from apps.chat.exceptions import (
@@ -28,8 +19,6 @@ from apps.chat.services.chat_identity_service import (
     get_owned_chat_identity,
 )
 
-
-logger = logging.getLogger(__name__)
 
 CONVERSATION_COLUMNS = (
     "id,conversation_type,direct_key,created_by_identity_id,"
@@ -201,52 +190,10 @@ def get_chat_inbox(
     limit: int = 50,
     before_last_message_at: str | None = None,
 ) -> dict[str, Any]:
-    """
-    Obtiene el inbox de una identidad propia.
-
-    La identidad se valida antes de revisar caché. El caché almacena
-    el payload final, incluidas las URLs de avatar ya enriquecidas,
-    para conservar exactamente el contrato HTTP existente.
-    """
     try:
         get_owned_chat_identity(
             user_id=user_id,
             identity_id=identity_id,
-        )
-
-        cache_key = inbox_cache_key(
-            user_id=user_id,
-            identity_id=identity_id,
-            limit=limit,
-            before_last_message_at=before_last_message_at,
-        )
-
-        cached_inbox = get_cached_value(
-            key=cache_key,
-        )
-
-        if isinstance(cached_inbox, dict):
-            logger.info(
-                "chat_cache_inbox_hit",
-                extra={
-                    "identity_id": str(identity_id),
-                    "limit": int(limit),
-                    "has_cursor": (
-                        before_last_message_at is not None
-                    ),
-                },
-            )
-            return cached_inbox
-
-        logger.info(
-            "chat_cache_inbox_miss",
-            extra={
-                "identity_id": str(identity_id),
-                "limit": int(limit),
-                "has_cursor": (
-                    before_last_message_at is not None
-                ),
-            },
         )
 
         response = (
@@ -272,7 +219,7 @@ def get_chat_inbox(
             conversations=conversations,
         )
 
-        inbox = {
+        return {
             "identity_id": str(identity_id),
             "conversations": conversations,
             "limit": limit,
@@ -282,14 +229,6 @@ def get_chat_inbox(
                 else None
             ),
         }
-
-        set_cached_value(
-            key=cache_key,
-            value=inbox,
-            timeout=INBOX_TTL_SECONDS,
-        )
-
-        return inbox
 
     except ChatConversationError:
         raise
@@ -315,6 +254,8 @@ def get_chat_inbox(
         raise ChatInboxError(
             f"Could not retrieve chat inbox: {message}"
         ) from error
+
+
 
 def _attach_inbox_avatar_urls(
     *,

@@ -46,6 +46,13 @@ import {
   subscribeIncomingCall,
   type IncomingCall,
 } from '../src/stores/incomingCallStore';
+import {
+  parseChatPushEvent,
+  getChatPushConversationId,
+} from '../src/services/chatPushEvents';
+import {
+  applyChatRealtimeEvent,
+} from '../src/stores/chatStore';
 
 function getNotificationData(
   notification: Notifications.Notification,
@@ -458,8 +465,20 @@ function AppPushNotifications() {
     const handleNotification = (
       notification: Notifications.Notification,
     ) => {
+      const notificationData = getNotificationData(
+        notification,
+      );
+
+      const chatEvent = parseChatPushEvent(
+        notificationData,
+      );
+
+      if (chatEvent) {
+        applyChatRealtimeEvent(chatEvent);
+      }
+
       const incoming = getIncomingCallFromData(
-        getNotificationData(notification),
+        notificationData,
       );
 
       if (incoming) {
@@ -474,6 +493,26 @@ function AppPushNotifications() {
       const data = getNotificationData(
         response.notification,
       );
+
+      const chatEvent = parseChatPushEvent(data);
+
+      if (chatEvent) {
+        applyChatRealtimeEvent(chatEvent);
+      }
+
+      const chatConversationId = getChatPushConversationId(
+        data,
+      );
+
+      if (chatConversationId) {
+        router.push({
+          pathname: '/(main)/chat/conversation',
+          params: {
+            id: chatConversationId,
+          },
+        });
+        return;
+      }
 
       const incoming = getIncomingCallFromData(data);
 

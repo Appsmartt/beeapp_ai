@@ -209,44 +209,6 @@ INTEGRATION_WEB_RESULT_REDIRECT = get_required_env(
     "INTEGRATION_WEB_RESULT_REDIRECT"
 )
 
-# Chat shared cache configuration.
-#
-# Production: define REDIS_URL so all Django workers and instances share
-# the same Redis cache. Local development without REDIS_URL uses a
-# process-local fallback only; it must not be used as production cache.
-REDIS_URL = os.getenv("REDIS_URL")
-
-if REDIS_URL:
-    CACHES = {
-        "default": {
-            "BACKEND": "django_redis.cache.RedisCache",
-            "LOCATION": REDIS_URL,
-            "OPTIONS": {
-                "CLIENT_CLASS": (
-                    "django_redis.client.DefaultClient"
-                ),
-                "CONNECTION_POOL_KWARGS": {
-                    "max_connections": 100,
-                    "retry_on_timeout": True,
-                },
-            },
-            "KEY_PREFIX": "beeapp",
-            "TIMEOUT": 60,
-        },
-    }
-else:
-    CACHES = {
-        "default": {
-            "BACKEND": (
-                "django.core.cache.backends.locmem.LocMemCache"
-            ),
-            "LOCATION": "beeapp-local-cache",
-            "TIMEOUT": 60,
-        },
-    }
-
-# End Chat shared cache configuration.
-
 REST_FRAMEWORK = {
     "DEFAULT_THROTTLE_RATES": {
         "chat_user": "120/min",

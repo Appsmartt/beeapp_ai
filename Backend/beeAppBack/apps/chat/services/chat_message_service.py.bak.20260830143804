@@ -1,22 +1,10 @@
 from __future__ import annotations
 
-import logging
-
 from typing import Any
 
 from beeAppBack.core.supabase_client import (
     get_supabase_admin_client,
     get_supabase_user_client,
-)
-
-from apps.chat.cache import (
-    MESSAGES_HISTORY_TTL_SECONDS,
-    MESSAGES_LATEST_TTL_SECONDS,
-    bump_conversation_cache_version,
-    bump_inbox_cache_version,
-    get_cached_value,
-    set_cached_value,
-    user_messages_cache_key,
 )
 
 from apps.chat.exceptions import (
@@ -37,8 +25,6 @@ from apps.chat.services.chat_identity_service import (
     get_owned_chat_identity,
 )
 
-
-logger = logging.getLogger(__name__)
 
 MESSAGE_COLUMNS = (
     "id,conversation_id,sender_identity_id,sender_user_id,"
@@ -107,53 +93,10 @@ def list_conversation_messages(
     limit: int = 50,
     before_sequence: int | None = None,
 ) -> dict[str, Any]:
-    """
-    Lista mensajes de una conversación.
-
-    La autorización se ejecuta antes de consultar caché. La caché
-    guarda el payload final ya enriquecido con identidad remitente,
-    adjunto y reacciones, sin cambiar el contrato existente del
-    endpoint HTTP.
-    """
     try:
         _require_user_conversation_access(
             user_id=user_id,
             conversation_id=conversation_id,
-        )
-
-        cache_key = user_messages_cache_key(
-            user_id=user_id,
-            conversation_id=conversation_id,
-            limit=limit,
-            before_sequence=before_sequence,
-        )
-
-        cached_messages = get_cached_value(
-            key=cache_key,
-        )
-
-        if isinstance(cached_messages, dict):
-            logger.info(
-                "chat_cache_messages_hit",
-                extra={
-                    "conversation_id": str(conversation_id),
-                    "limit": int(limit),
-                    "has_cursor": (
-                        before_sequence is not None
-                    ),
-                },
-            )
-            return cached_messages
-
-        logger.info(
-            "chat_cache_messages_miss",
-            extra={
-                "conversation_id": str(conversation_id),
-                "limit": int(limit),
-                "has_cursor": (
-                    before_sequence is not None
-                ),
-            },
         )
 
         query = (
@@ -179,7 +122,7 @@ def list_conversation_messages(
             messages=messages,
         )
 
-        result = {
+        return {
             "conversation_id": str(conversation_id),
             "messages": enriched_messages,
             "limit": limit,
@@ -189,18 +132,6 @@ def list_conversation_messages(
                 else None
             ),
         }
-
-        set_cached_value(
-            key=cache_key,
-            value=result,
-            timeout=(
-                MESSAGES_LATEST_TTL_SECONDS
-                if before_sequence is None
-                else MESSAGES_HISTORY_TTL_SECONDS
-            ),
-        )
-
-        return result
 
     except (
         ChatConversationAccessError,
@@ -213,6 +144,7 @@ def list_conversation_messages(
         raise ChatMessageError(
             f"Could not retrieve conversation messages: {error}"
         ) from error
+
 
 def get_chat_message(
     *,
@@ -343,14 +275,6 @@ def send_chat_message(
             raise ChatMessageSendError(
                 "Supabase did not return the created message."
             )
-
-        bump_conversation_cache_version(
-            conversation_id=str(conversation_id),
-        )
-
-        _bump_active_participant_inbox_versions(
-            conversation_id=str(conversation_id),
-        )
 
         return get_chat_message(
             user_id=user_id,
@@ -789,93 +713,6 @@ def _get_message_row(
 
     return message
 
-
-
-def _get_active_conversation_participant_owners(
-    *,
-    conversation_id: str,
-) -> list[dict[str, str]]:
-    """
-    Devuelve identidades activas participantes y sus cuentas propietarias.
-
-    Se usa exclusivamente para versionar los inboxes que cambian después
-    de un mensaje confirmado. La fuente de verdad continúa siendo la RPC
-    get_chat_inbox y Supabase.
-    """
-    participants_response = (
-        _supabase()
-        .table("chat_conversation_participants")
-        .select("identity_id")
-        .eq("conversation_id", str(conversation_id))
-        .is_("left_at", "null")
-        .is_("removed_at", "null")
-        .execute()
-    )
-
-    identity_ids = sorted(
-        {
-            str(participant["identity_id"])
-            for participant in _response_rows(
-                participants_response
-            )
-            if participant.get("identity_id")
-        }
-    )
-
-    if not identity_ids:
-        return []
-
-    identities_response = (
-        _supabase()
-        .table("chat_identities")
-        .select("id,owner_id")
-        .in_("id", identity_ids)
-        .eq("is_active", True)
-        .execute()
-    )
-
-    owners_by_identity_id = {
-        str(identity["id"]): str(identity["owner_id"])
-        for identity in _response_rows(identities_response)
-        if identity.get("id") and identity.get("owner_id")
-    }
-
-    return [
-        {
-            "identity_id": identity_id,
-            "owner_id": owners_by_identity_id[identity_id],
-        }
-        for identity_id in identity_ids
-        if identity_id in owners_by_identity_id
-    ]
-
-
-def _bump_active_participant_inbox_versions(
-    *,
-    conversation_id: str,
-) -> None:
-    """
-    Hace que cada inbox afectado deje de usar su versión anterior.
-
-    No falla un mensaje ya persistido si Redis/caché no está disponible.
-    El TTL seguirá actuando como red de seguridad y el próximo GET
-    reconstruirá el inbox desde la RPC de Supabase.
-    """
-    try:
-        participants = (
-            _get_active_conversation_participant_owners(
-                conversation_id=conversation_id,
-            )
-        )
-
-        for participant in participants:
-            bump_inbox_cache_version(
-                identity_id=participant["identity_id"],
-            )
-    except Exception:
-        # No se debe convertir un mensaje ya confirmado en error HTTP
-        # debido a un fallo no crítico de invalidación de caché.
-        return
 
 def _validate_message_payload(
     *,
