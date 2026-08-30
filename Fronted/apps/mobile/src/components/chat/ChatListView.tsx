@@ -20,9 +20,6 @@ import AiChatListItem from './AiChatListItem';
 import type {
   ChatListItemModel,
 } from '../../services/chatService';
-import {
-  isProtected,
-} from '../../stores/pinStore';
 
 interface ChatListViewProps {
   aiChat?: ChatListItemModel;
@@ -87,7 +84,7 @@ export default function ChatListView({
           online={chat.online}
           isPinned={chat.isPinned}
           isMuted={chat.isMuted}
-          isProtected={isProtected(chat.id)}
+          isProtected={chat.isProtected}
           onPress={() => onOpenChat(chat)}
           onMorePress={() => onOpenMenu(chat)}
         />
@@ -124,7 +121,7 @@ export default function ChatListView({
               name={aiChat.name}
               lastMessage={aiChat.lastMessage}
               time={aiChat.time}
-              isProtected={isProtected(aiChat.id)}
+              isProtected={aiChat.isProtected}
               onPress={() => onOpenChat(aiChat)}
               onMorePress={() => onOpenMenu(aiChat)}
             />

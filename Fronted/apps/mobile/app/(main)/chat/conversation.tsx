@@ -13,6 +13,8 @@ import {
   Text,
   View,
 } from 'react-native';
+import * as DocumentPicker from 'expo-document-picker';
+import * as ImagePicker from 'expo-image-picker';
 import {
   LockKeyhole,
 } from 'lucide-react-native';
@@ -51,6 +53,10 @@ import {
 import {
   getValidSessionCredentials,
 } from '../../../src/services/authSession';
+import {
+  uploadChatAttachment,
+  type PendingChatAttachment,
+} from '../../../src/services/chatAttachmentService';
 import {
   setActiveCallCredentials,
 } from '../../../src/stores/activeCallStore';
@@ -126,6 +132,16 @@ export default function ConversationScreen() {
     useState<string | null>(null);
 
   const [isStartingCall, setIsStartingCall] = useState(false);
+
+  const [
+    pendingAttachment,
+    setPendingAttachment,
+  ] = useState<PendingChatAttachment | null>(null);
+
+  const [
+    uploadingAttachment,
+    setUploadingAttachment,
+  ] = useState(false);
 
   const scrollRef = useRef<ScrollView | null>(null);
   const loadingMoreRef = useRef(false);
@@ -379,6 +395,7 @@ export default function ConversationScreen() {
 
   const handleSendMessage = async (
     text: string,
+    attachment?: PendingChatAttachment | null,
   ) => {
     try {
       if (editingMessage) {
@@ -395,9 +412,20 @@ export default function ConversationScreen() {
 
       await sendMessage({
         content: text,
+        messageType: attachment
+          ? (
+              attachment.kind === 'image'
+                ? 'image'
+                : 'file'
+            )
+          : 'text',
+        fileIds: attachment
+          ? [attachment.fileId]
+          : [],
         replyToId: replyTarget?.id || null,
       });
 
+      setPendingAttachment(null);
       setReplyTarget(null);
       scrollToBottom();
     } catch (sendError) {
@@ -407,6 +435,44 @@ export default function ConversationScreen() {
           ? sendError.message
           : 'Inténtalo nuevamente.',
       );
+    }
+  };
+
+  const handleUploadAttachment = async (
+    attachment: {
+      uri: string;
+      name?: string | null;
+      mimeType?: string | null;
+      sizeBytes?: number | null;
+      kind: 'image' | 'file';
+    },
+  ) => {
+    try {
+      setUploadingAttachment(true);
+
+      const auth = await getValidSessionCredentials();
+
+      if (!auth) {
+        throw new Error(
+          'Tu sesión expiró. Inicia sesión nuevamente.',
+        );
+      }
+
+      const uploadedAttachment = await uploadChatAttachment(
+        auth,
+        attachment,
+      );
+
+      setPendingAttachment(uploadedAttachment);
+    } catch (attachmentError) {
+      Alert.alert(
+        'No fue posible preparar el adjunto',
+        attachmentError instanceof Error
+          ? attachmentError.message
+          : 'Inténtalo nuevamente.',
+      );
+    } finally {
+      setUploadingAttachment(false);
     }
   };
 
@@ -423,24 +489,126 @@ export default function ConversationScreen() {
     );
   };
 
-  const handleSendAttachment = (
+  const handleSendAttachment = async (
     type: 'photo' | 'camera' | 'file' | 'location' | 'contact',
   ) => {
-    const labels = {
-      photo: 'Foto',
-      camera: 'Cámara',
-      file: 'Archivo',
-      location: 'Ubicación',
-      contact: 'Contacto',
-    };
+    if (uploadingAttachment || sending) {
+      return;
+    }
 
-    Alert.alert(
-      labels[type],
-      (
-        'Esta acción necesita el endpoint de adjuntos o '
-        + 'compartidos de Chat en el backend.'
-      ),
-    );
+    try {
+      if (type === 'photo') {
+        const permission = (
+          await ImagePicker.requestMediaLibraryPermissionsAsync()
+        );
+
+        if (!permission.granted) {
+          throw new Error(
+            'Necesitamos permiso para acceder a tus fotos.',
+          );
+        }
+
+        const result = await ImagePicker.launchImageLibraryAsync({
+          mediaTypes: ImagePicker.MediaTypeOptions.Images,
+          quality: 0.9,
+        });
+
+        if (result.canceled || !result.assets[0]) {
+          return;
+        }
+
+        const asset = result.assets[0];
+
+        await handleUploadAttachment({
+          uri: asset.uri,
+          name: asset.fileName || 'imagen.jpg',
+          mimeType: asset.mimeType || 'image/jpeg',
+          sizeBytes: asset.fileSize ?? null,
+          kind: 'image',
+        });
+
+        return;
+      }
+
+      if (type === 'camera') {
+        const permission = (
+          await ImagePicker.requestCameraPermissionsAsync()
+        );
+
+        if (!permission.granted) {
+          throw new Error(
+            'Necesitamos permiso para usar la cámara.',
+          );
+        }
+
+        const result = await ImagePicker.launchCameraAsync({
+          mediaTypes: ImagePicker.MediaTypeOptions.Images,
+          quality: 0.9,
+        });
+
+        if (result.canceled || !result.assets[0]) {
+          return;
+        }
+
+        const asset = result.assets[0];
+
+        await handleUploadAttachment({
+          uri: asset.uri,
+          name: asset.fileName || 'foto.jpg',
+          mimeType: asset.mimeType || 'image/jpeg',
+          sizeBytes: asset.fileSize ?? null,
+          kind: 'image',
+        });
+
+        return;
+      }
+
+      if (type === 'file') {
+        const result = await DocumentPicker.getDocumentAsync({
+          type: '*/*',
+          copyToCacheDirectory: true,
+          multiple: false,
+        });
+
+        if (result.canceled || !result.assets[0]) {
+          return;
+        }
+
+        const asset = result.assets[0];
+
+        await handleUploadAttachment({
+          uri: asset.uri,
+          name: asset.name || 'archivo',
+          mimeType: (
+            asset.mimeType
+            || 'application/octet-stream'
+          ),
+          sizeBytes: asset.size ?? null,
+          kind: asset.mimeType?.startsWith('image/')
+            ? 'image'
+            : 'file',
+        });
+
+        return;
+      }
+
+      const labels = {
+        location: 'Ubicación',
+        contact: 'Contacto',
+      };
+
+      Alert.alert(
+        labels[type],
+        'Esta opción se conectará en un siguiente paso.',
+      );
+    } catch (attachmentError) {
+      Alert.alert(
+        'No fue posible adjuntar el archivo',
+        attachmentError instanceof Error
+          ? attachmentError.message
+          : 'Inténtalo nuevamente.',
+      );
+    }
   };
 
   const handleSelectMessageAction = (
@@ -1038,11 +1206,16 @@ export default function ConversationScreen() {
           </View>
         ) : canPostInGroup ? (
           <WriteBar
-            onSendMessage={(text) => {
-              void handleSendMessage(text);
+            onSendMessage={(text, attachment) => {
+              void handleSendMessage(text, attachment);
             }}
             onSendVoiceNote={handleSendVoiceNote}
             onSendAttachment={handleSendAttachment}
+            pendingAttachment={pendingAttachment}
+            uploadingAttachment={uploadingAttachment}
+            onRemovePendingAttachment={() => {
+              setPendingAttachment(null);
+            }}
             value={
               editingMessage
                 ? editingText

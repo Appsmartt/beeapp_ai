@@ -2250,6 +2250,7 @@ export interface ChatConversation {
   name: string | null;
   description?: string | null;
   avatar_url?: string | null;
+  cached_avatar_url?: string | null;
   image_file_id?: string | null;
   created_by_id?: string | null;
   created_by_identity_id?: string | null;
@@ -2413,4 +2414,99 @@ export interface AddChatParticipantsResponse {
 
 export interface SearchChatUsersResponse {
   users: ChatSearchUser[];
+}
+
+/* ============================================================
+ * Chat realtime and push events
+ * ============================================================ */
+
+export type ChatRealtimeEventType =
+  | 'chat.message.created'
+  | 'chat.message.updated'
+  | 'chat.message.deleted'
+  | 'chat.conversation.updated'
+  | 'chat.participant.added'
+  | 'chat.participant.removed'
+  | 'chat.participant.left'
+  | 'chat.read.updated';
+
+export interface ChatConversationRealtimePatch {
+  id: string;
+  last_message_at?: string | null;
+  unread_count?: number;
+  updated_at?: string;
+}
+
+export interface ChatMessageCreatedRealtimePayload {
+  conversation_id: string;
+  message: ChatMessage;
+  conversation_patch?: ChatConversationRealtimePatch | null;
+}
+
+export interface ChatMessageUpdatedRealtimePayload {
+  conversation_id: string;
+  message: ChatMessage;
+  conversation_patch?: ChatConversationRealtimePatch | null;
+}
+
+export interface ChatMessageDeletedRealtimePayload {
+  conversation_id: string;
+  message_id: string;
+  deleted_at?: string | null;
+  destroyed_at?: string | null;
+  conversation_patch?: ChatConversationRealtimePatch | null;
+}
+
+export interface ChatConversationUpdatedRealtimePayload {
+  conversation: ChatConversation;
+}
+
+export interface ChatParticipantRealtimePayload {
+  conversation_id: string;
+  participant: ChatParticipant;
+}
+
+export interface ChatReadUpdatedRealtimePayload {
+  conversation_id: string;
+  identity_id: string;
+  last_read_message_id: string | null;
+  last_read_at: string | null;
+}
+
+export type ChatRealtimeEventPayload =
+  | ChatMessageCreatedRealtimePayload
+  | ChatMessageUpdatedRealtimePayload
+  | ChatMessageDeletedRealtimePayload
+  | ChatConversationUpdatedRealtimePayload
+  | ChatParticipantRealtimePayload
+  | ChatReadUpdatedRealtimePayload;
+
+export interface ChatRealtimeEvent {
+  event_id: string;
+  event_type: ChatRealtimeEventType;
+  version: 1;
+  occurred_at: string;
+  payload: ChatRealtimeEventPayload;
+}
+
+/*
+ * Payload mínimo que debe llegar mediante Expo Push.
+ *
+ * Para conversaciones no protegidas, el backend puede incluir `message`
+ * y `conversation_patch` para que la UI se actualice sin una petición HTTP.
+ * En chats protegidos, se recomienda enviar únicamente identificadores.
+ */
+export interface ChatPushNotificationData {
+  module?: 'chat';
+  type?: ChatRealtimeEventType | 'chat_message';
+  event_id?: string;
+  event_type?: ChatRealtimeEventType;
+  version?: number | string;
+  occurred_at?: string;
+  conversation_id?: string;
+  message_id?: string;
+  sequence_number?: number | string;
+  message?: ChatMessage;
+  conversation_patch?: ChatConversationRealtimePatch | null;
+  protected?: boolean | string;
 }

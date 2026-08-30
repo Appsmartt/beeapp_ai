@@ -108,3 +108,24 @@ class ChatRecipientSearchThrottle(SimpleRateThrottle):
             "scope": self.scope,
             "ident": ident,
         }
+
+
+class ChatSyncThrottle(SimpleRateThrottle):
+    """
+    Limita bootstrap y recuperación incremental de Chat.
+
+    No se usa como polling periódico. Protege el backend ante
+    reconexiones repetidas, errores de cliente o abuso del endpoint.
+    """
+
+    scope = "chat_sync"
+    rate = "30/min"
+
+    def get_cache_key(self, request, view):
+        ident = self.get_ident(request)
+
+        return self.cache_format % {
+            "scope": self.scope,
+            "ident": ident,
+        }
+

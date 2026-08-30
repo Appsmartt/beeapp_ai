@@ -31,6 +31,8 @@ from apps.chat.serializers import (
     ChatInboxQuerySerializer,
     ChatMessageListQuerySerializer,
     ChatRecipientSearchQuerySerializer,
+    ChatSyncBootstrapQuerySerializer,
+    ChatSyncChangesQuerySerializer,
     ClearConversationSerializer,
     ConversationDetailQuerySerializer,
     ConversationParticipantsQuerySerializer,
@@ -86,6 +88,11 @@ from apps.chat.services.chat_identity_service import (
 from apps.chat.services.chat_recipient_search_service import (
     search_chat_recipients,
 )
+from apps.chat.services.chat_sync_service import (
+    get_chat_sync_bootstrap,
+    get_chat_sync_changes,
+)
+
 from apps.chat.services.chat_message_service import (
     create_chat_message_reaction,
     delete_chat_message_reaction,
@@ -103,6 +110,7 @@ from apps.chat.throttles import (
     ChatMessageSendThrottle,
     ChatReactionThrottle,
     ChatRecipientSearchThrottle,
+    ChatSyncThrottle,
 )
 from apps.storage.exceptions import (
     StorageQuotaExceededError,
@@ -200,6 +208,130 @@ class ChatBootstrapView(AuthenticatedAPIView):
             {
                 "identities": identities,
             },
+            status=status.HTTP_200_OK,
+        )
+
+
+class ChatSyncBootstrapView(AuthenticatedAPIView):
+    """
+    GET /api/chat/sync/bootstrap/
+
+    Precarga acotada de Chat después de login. No reemplaza el
+    bootstrap existente de identidades; agrega conversaciones,
+    participantes, mensajes recientes, reacciones, invitaciones y
+    cursor de sincronización para caché local.
+    """
+
+    throttle_classes = [ChatSyncThrottle]
+
+    def get(self, request):
+        serializer = ChatSyncBootstrapQuerySerializer(
+            data=request.query_params,
+        )
+        serializer.is_valid(raise_exception=True)
+
+        try:
+            authenticated_user = self.get_authenticated_user(
+                request,
+            )
+            access_token = _get_access_token(request)
+
+            messages_since = serializer.validated_data[
+                "messages_since"
+            ]
+
+            bootstrap = get_chat_sync_bootstrap(
+                user_id=str(authenticated_user.id),
+                access_token=access_token,
+                direct_limit=serializer.validated_data[
+                    "direct_limit"
+                ],
+                group_limit=serializer.validated_data[
+                    "group_limit"
+                ],
+                messages_since=(
+                    messages_since.isoformat()
+                    if messages_since is not None
+                    else None
+                ),
+                messages_per_conversation=(
+                    serializer.validated_data[
+                        "messages_per_conversation"
+                    ]
+                ),
+            )
+
+        except AccountAuthenticationError:
+            return _unauthorized_response()
+
+        except ChatConversationAccessError:
+            return _unauthorized_response()
+
+        except ChatError as error:
+            return Response(
+                {
+                    "detail": str(error),
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        return Response(
+            bootstrap,
+            status=status.HTTP_200_OK,
+        )
+
+
+class ChatSyncChangesView(AuthenticatedAPIView):
+    """
+    GET /api/chat/sync/changes/
+
+    Recupera eventos posteriores a un cursor local. Se invoca al
+    retornar a foreground, reconectar red o Realtime, procesar una
+    push notification o recuperar cambios perdidos; nunca como
+    polling periódico.
+    """
+
+    throttle_classes = [ChatSyncThrottle]
+
+    def get(self, request):
+        serializer = ChatSyncChangesQuerySerializer(
+            data=request.query_params,
+        )
+        serializer.is_valid(raise_exception=True)
+
+        try:
+            authenticated_user = self.get_authenticated_user(
+                request,
+            )
+            access_token = _get_access_token(request)
+
+            changes = get_chat_sync_changes(
+                user_id=str(authenticated_user.id),
+                access_token=access_token,
+                after_event_sequence=(
+                    serializer.validated_data[
+                        "after_event_sequence"
+                    ]
+                ),
+                limit=serializer.validated_data["limit"],
+            )
+
+        except AccountAuthenticationError:
+            return _unauthorized_response()
+
+        except ChatConversationAccessError:
+            return _unauthorized_response()
+
+        except ChatError as error:
+            return Response(
+                {
+                    "detail": str(error),
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        return Response(
+            changes,
             status=status.HTTP_200_OK,
         )
 

@@ -2,6 +2,8 @@ from django.urls import path
 
 from apps.chat.views import (
     ChatBootstrapView,
+    ChatSyncBootstrapView,
+    ChatSyncChangesView,
     ChatContactProfileView,
     ChatConversationAttachmentUploadView,
     ChatConversationClearView,
@@ -38,6 +40,16 @@ urlpatterns = [
         "bootstrap/",
         ChatBootstrapView.as_view(),
         name="chat-bootstrap",
+    ),
+    path(
+        "sync/bootstrap/",
+        ChatSyncBootstrapView.as_view(),
+        name="chat-sync-bootstrap",
+    ),
+    path(
+        "sync/changes/",
+        ChatSyncChangesView.as_view(),
+        name="chat-sync-changes",
     ),
     path(
         "identities/",
