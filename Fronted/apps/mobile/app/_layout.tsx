@@ -53,6 +53,10 @@ import {
 import {
   applyChatRealtimeEvent,
 } from '../src/stores/chatStore';
+import {
+  startChatRealtime,
+  stopChatRealtime,
+} from '../src/services/chatRealtime';
 
 function getNotificationData(
   notification: Notifications.Notification,
@@ -425,6 +429,8 @@ function AppPushNotifications() {
         if (Platform.OS === 'android' || Platform.OS === 'ios') {
           await registerCurrentDeviceForPushNotifications();
         }
+
+        await startChatRealtime();
       })();
 
       authContextRefreshRef.current = refreshPromise;
@@ -458,6 +464,7 @@ function AppPushNotifications() {
 
     return () => {
       appStateSubscription.remove();
+      void stopChatRealtime();
     };
   }, [refreshAuthenticatedCallContext]);
 

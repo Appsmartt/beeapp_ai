@@ -1071,6 +1071,36 @@ export async function getChatParticipants(
   };
 }
 
+export async function getChatMessage(
+  auth: AuthCredentials,
+  messageId: string,
+): Promise<{
+  message: ChatMessage;
+}> {
+  const normalizedMessageId = messageId.trim();
+
+  if (!normalizedMessageId) {
+    throw new Error(
+      'No fue posible identificar el mensaje de Chat.',
+    );
+  }
+
+  const response = await api.get<{
+    message: ChatApiMessage;
+  }>(
+    `/chat/messages/${encodeURIComponent(
+      normalizedMessageId,
+    )}/`,
+    {
+      auth: requireBearerAuth(auth),
+    },
+  );
+
+  return {
+    message: toSharedMessage(response.message),
+  };
+}
+
 export async function getChatMessages(
   auth: AuthCredentials,
   conversationId: string,
