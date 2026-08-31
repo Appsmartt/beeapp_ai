@@ -451,19 +451,16 @@ function AppPushNotifications() {
   }, []);
 
   useEffect(() => {
+    /*
+     * El contexto autenticado se inicializa al montar este componente,
+     * es decir, después del inicio o restauración de sesión.
+     *
+     * No se ejecuta al volver desde background: ese flujo no debe
+     * reiniciar realtime ni provocar actividad de mensajes.
+     */
     void refreshAuthenticatedCallContext();
 
-    const appStateSubscription = AppState.addEventListener(
-      'change',
-      (nextAppState: AppStateStatus) => {
-        if (nextAppState === 'active') {
-          void refreshAuthenticatedCallContext();
-        }
-      },
-    );
-
     return () => {
-      appStateSubscription.remove();
       void stopChatRealtime();
     };
   }, [refreshAuthenticatedCallContext]);

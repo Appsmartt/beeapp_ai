@@ -37,8 +37,6 @@ import {
   getValidSessionCredentials,
 } from '../services/authSession';
 import {
-} from '../services/chatInitialSync';
-import {
   mapChatMessageToModel,
   mapChatSearchUser,
   mapConversationToListItem,
