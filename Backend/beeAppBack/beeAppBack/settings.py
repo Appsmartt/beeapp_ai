@@ -56,6 +56,7 @@ INSTALLED_APPS = [
     "apps.integrations.apps.IntegrationsConfig",
     "apps.mail.apps.MailConfig",
     "apps.commercial.apps.CommercialConfig",
+    "apps.statuses",
 ]
 
 MIDDLEWARE = [

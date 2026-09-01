@@ -23,6 +23,7 @@ urlpatterns = [
         include("apps.commercial.urls"),
     ),
     path("api/storage/", include("apps.storage.urls")),
+    path("api/statuses/", include("apps.statuses.urls")),
     path("api/notes/", include("apps.notes.urls")),
     path(
         "api/notifications/",
