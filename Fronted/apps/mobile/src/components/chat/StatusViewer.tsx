@@ -1,13 +1,20 @@
 import { useEffect, useRef, useState } from 'react';
 import { View, Text, StyleSheet, Modal, Image, TouchableOpacity, Animated, Easing } from 'react-native';
 import { GestureDetector, Gesture, GestureHandlerRootView } from 'react-native-gesture-handler';
+import { ResizeMode, Video } from 'expo-av';
 import { colors, spacing, radii } from '@beeapp/design-system';
 import { X, ShoppingBag, Eye } from 'lucide-react-native';
 import ScreenSafeArea from '../layout/ScreenSafeArea';
 import StatusProgressPills from './StatusProgressPills';
 import StatusViewersSheet from './StatusViewersSheet';
-import { StatusItem } from '../../mocks/statuses';
+import { StatusItem, StatusViewedBy } from '../../mocks/statuses';
 import { formatPrice } from '../../mocks/myServices';
+import {
+  loadStatusViewers,
+} from '../../services/statusesService';
+import {
+  mapStatusViewerToUi,
+} from '../../services/statusesMapper';
 
 const STATUS_DURATION = 6000;
 
@@ -23,6 +30,9 @@ export default function StatusViewer({ visible, statuses, index, onChangeIndex, 
   const progress = useRef(new Animated.Value(0)).current;
   const [productHidden, setProductHidden] = useState(false);
   const [viewersOpen, setViewersOpen] = useState(false);
+  const [viewedBy, setViewedBy] = useState<StatusViewedBy[]>([]);
+  const [viewersLoading, setViewersLoading] = useState(false);
+  const [viewersError, setViewersError] = useState<string | null>(null);
   const status = statuses[index];
 
   const goNext = () => (index < statuses.length - 1 ? onChangeIndex(index + 1) : onClose());
@@ -43,6 +53,9 @@ export default function StatusViewer({ visible, statuses, index, onChangeIndex, 
     if (!visible || !status) return;
     setProductHidden(false);
     setViewersOpen(false);
+    setViewedBy([]);
+    setViewersLoading(false);
+    setViewersError(null);
     elapsed.current = 0;
     progress.setValue(0);
   }, [visible, index, status?.id]);
@@ -63,11 +76,50 @@ export default function StatusViewer({ visible, statuses, index, onChangeIndex, 
 
   if (!status) return null;
 
-  const isPhoto = status.type === 'photo';
-  const isOwnStatus = status.authorId === 'me' || !!status.viewedBy;
+  const isVideo = status.type === 'video';
+  const isPhoto = (
+    status.type === 'photo'
+    || status.type === 'gif'
+  );
+  const hasMedia = isPhoto || isVideo;
+  const isOwnStatus = (
+    status.authorId === 'me'
+    || status.viewedBy !== undefined
+  );
   const background = status.bgColor ?? colors.neutral.text;
-  const onDark = isPhoto || background !== colors.neutral.white;
+  const onDark = hasMedia || background !== colors.neutral.white;
   const product = status.linkedProduct;
+
+  const loadViewers = async () => {
+    if (!isOwnStatus || viewersLoading) {
+      return;
+    }
+
+    if (status.viewedBy?.length) {
+      setViewedBy(status.viewedBy);
+      setViewersError(null);
+      return;
+    }
+
+    try {
+      setViewersLoading(true);
+      setViewersError(null);
+
+      const response = await loadStatusViewers(status.id);
+
+      setViewedBy(
+        response.viewers.map(mapStatusViewerToUi),
+      );
+    } catch (loadError) {
+      setViewersError(
+        loadError instanceof Error
+          ? loadError.message
+          : 'No fue posible cargar las vistas.',
+      );
+    } finally {
+      setViewersLoading(false);
+    }
+  };
 
   const dismissGesture = Gesture.Pan().onEnd((event) => {
     if (event.translationY > 120) onClose();
@@ -91,9 +143,16 @@ export default function StatusViewer({ visible, statuses, index, onChangeIndex, 
           <View style={[styles.screen, { backgroundColor: background }]}>
             {isPhoto ? (
               <>
-                <Image source={{ uri: status.photoUrl ?? undefined }} style={styles.blurLayer} resizeMode="cover" blurRadius={30} />
+                <Image
+                  source={{ uri: status.photoUrl ?? undefined }}
+                  style={styles.blurLayer}
+                  resizeMode="cover"
+                  blurRadius={30}
+                />
                 <View style={styles.blurTint} />
               </>
+            ) : isVideo ? (
+              <View style={styles.videoBackground} />
             ) : (
               <View style={styles.softShade} />
             )}
@@ -118,16 +177,46 @@ export default function StatusViewer({ visible, statuses, index, onChangeIndex, 
               <StatusProgressPills count={statuses.length} index={index} progress={progress} onDark={onDark} />
 
               <View style={styles.stage} pointerEvents="none">
-                {isPhoto && <Image source={{ uri: status.photoUrl ?? undefined }} style={styles.photoCard} resizeMode="cover" />}
+                {isVideo && status.photoUrl ? (
+                  <Video
+                    key={status.id}
+                    source={{ uri: status.photoUrl }}
+                    style={styles.photoCard}
+                    resizeMode={ResizeMode.COVER}
+                    shouldPlay={visible}
+                    isLooping
+                    isMuted={false}
+                    useNativeControls={false}
+                  />
+                ) : isPhoto ? (
+                  <Image
+                    source={{ uri: status.photoUrl ?? undefined }}
+                    style={styles.photoCard}
+                    resizeMode="cover"
+                  />
+                ) : null}
                 <View style={[styles.textLayer, { top: `${status.textPosition.y}%`, left: `${status.textPosition.x}%` }]}>
                   <Text style={[styles.statusText, textStyle]}>{status.text}</Text>
                 </View>
               </View>
 
               {isOwnStatus && (
-                <TouchableOpacity style={styles.viewedByBar} onPress={() => setViewersOpen(true)} activeOpacity={0.8}>
+                <TouchableOpacity
+                  style={styles.viewedByBar}
+                  onPress={() => {
+                    setViewersOpen(true);
+                    void loadViewers();
+                  }}
+                  activeOpacity={0.8}
+                >
                   <Eye size={16} color={colors.neutral.white} />
-                  <Text style={styles.viewedByText}>Visto por {status.viewedBy?.length ?? 3}</Text>
+                  <Text style={styles.viewedByText}>
+                    Visto por {
+                      status.viewerCount
+                      ?? status.viewedBy?.length
+                      ?? 0
+                    }
+                  </Text>
                 </TouchableOpacity>
               )}
 
@@ -147,7 +236,19 @@ export default function StatusViewer({ visible, statuses, index, onChangeIndex, 
           </View>
         </GestureDetector>
 
-        <StatusViewersSheet visible={viewersOpen} viewedBy={status.viewedBy} onClose={() => setViewersOpen(false)} />
+        <StatusViewersSheet
+          visible={viewersOpen}
+          viewedBy={viewedBy}
+          viewerCount={status.viewerCount}
+          loading={viewersLoading}
+          error={viewersError}
+          onRetry={() => {
+            void loadViewers();
+          }}
+          onClose={() => {
+            setViewersOpen(false);
+          }}
+        />
       </GestureHandlerRootView>
     </Modal>
   );
@@ -158,6 +259,7 @@ const styles = StyleSheet.create({
   screen: { flex: 1 },
   blurLayer: StyleSheet.absoluteFillObject,
   blurTint: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0, 0, 0, 0.45)' },
+  videoBackground: { ...StyleSheet.absoluteFillObject, backgroundColor: colors.neutral.text },
   softShade: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0, 0, 0, 0.08)' },
   tapLeft: { position: 'absolute', top: 0, bottom: 0, left: 0, width: '35%' },
   tapRight: { position: 'absolute', top: 0, bottom: 0, right: 0, width: '35%' },
