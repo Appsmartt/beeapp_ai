@@ -241,10 +241,18 @@ class StatusFeedView(AuthenticatedAPIView):
 
         return Response(
             {
-                "authors": StatusFeedAuthorSerializer(
-                    feed["authors"],
-                    many=True,
-                ).data,
+                "items": [
+                    {
+                        "author": StatusFeedAuthorSerializer(
+                            item["author"],
+                        ).data,
+                        "stories": StatusStorySerializer(
+                            item["stories"],
+                            many=True,
+                        ).data,
+                    }
+                    for item in feed["items"]
+                ],
                 "limit": feed["limit"],
             },
             status=status.HTTP_200_OK,

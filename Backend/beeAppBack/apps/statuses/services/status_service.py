@@ -286,8 +286,25 @@ def list_status_feed(
             for row in _response_rows(response)
         ]
 
+        items: list[dict[str, Any]] = []
+
+        for author in authors:
+            author_stories = list_author_status_stories(
+                user_id=str(user_id),
+                actor_type=str(author["actor_type"]),
+                actor_id=str(author["actor_id"]),
+                scope="active",
+            )
+
+            items.append(
+                {
+                    "author": author,
+                    "stories": author_stories["stories"],
+                }
+            )
+
         return {
-            "authors": authors,
+            "items": items,
             "limit": max(1, min(int(limit), 100)),
         }
 

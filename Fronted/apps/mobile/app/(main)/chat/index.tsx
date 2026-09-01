@@ -52,10 +52,16 @@ import {
 } from '../../../src/mocks/chats';
 
 import {
-  MOCK_STATUSES,
-  addStatus,
-  markStatusViewed,
-} from '../../../src/mocks/statuses';
+  useStatuses,
+} from '../../../src/hooks/useStatuses';
+import {
+  markStatusViewed as registerStatusView,
+  publishMediaStatus,
+  publishTextStatus,
+} from '../../../src/services/statusesService';
+import type {
+  StatusEditorPublishDraft,
+} from '../../../src/components/chat/CreateStatusModal';
 
 import {
   hasPin,
@@ -119,9 +125,16 @@ export default function ChatListScreen() {
     Record<string, string[]>
   >({});
 
-  const [statuses, setStatuses] = useState([
-    ...MOCK_STATUSES,
-  ]);
+  const {
+    statuses,
+    loading: statusesLoading,
+    refreshing: statusesRefreshing,
+    error: statusesError,
+    refresh: refreshStatuses,
+    backgrounds: statusBackgrounds,
+  } = useStatuses();
+
+  const [publishingStatus, setPublishingStatus] = useState(false);
 
   const [viewerIndex, setViewerIndex] = useState<
     number | null
@@ -495,6 +508,76 @@ export default function ChatListScreen() {
     });
   };
 
+  const handlePublishStatus = async (
+    draft: StatusEditorPublishDraft,
+  ) => {
+    if (publishingStatus) {
+      return;
+    }
+
+    try {
+      setPublishingStatus(true);
+
+      if (draft.media) {
+        await publishMediaStatus(
+          {
+            kind: draft.media.kind,
+            caption: draft.caption,
+            editor_metadata: draft.editorMetadata,
+            duration_seconds: (
+              draft.media.kind === 'video'
+                ? draft.media.durationSeconds ?? undefined
+                : undefined
+            ),
+          },
+          {
+            uri: draft.media.uri,
+            name: draft.media.name,
+            mimeType: draft.media.mimeType,
+          },
+        );
+      } else {
+        const normalizedColor = draft.backgroundColor
+          .trim()
+          .toUpperCase();
+
+        const selectedBackground = statusBackgrounds.find(
+          (background) => (
+            background.hex_color.toUpperCase()
+            === normalizedColor
+          ),
+        ) || statusBackgrounds[0];
+
+        if (!selectedBackground) {
+          throw new Error(
+            'No hay fondos de texto disponibles. Inténtalo nuevamente.',
+          );
+        }
+
+        await publishTextStatus({
+          kind: 'text',
+          text_content: draft.textContent,
+          text_background_id: selectedBackground.id,
+          caption: draft.caption,
+          editor_metadata: draft.editorMetadata,
+        });
+      }
+
+      setCreatingStatus(false);
+
+      await refreshStatuses();
+    } catch (publishError) {
+      Alert.alert(
+        'No fue posible publicar el estado',
+        publishError instanceof Error
+          ? publishError.message
+          : 'Inténtalo nuevamente.',
+      );
+    } finally {
+      setPublishingStatus(false);
+    }
+  };
+
   const visibleListChats = isGroupsTab
     ? groupChats
     : directChats;
@@ -579,23 +662,71 @@ export default function ChatListScreen() {
         />
 
         {isStatusesTab ? (
-          <StatusCirclesRow
-            statuses={statuses}
-            onCreate={() => {
-              setCreatingStatus(true);
-            }}
-            onOpen={(index) => {
-              markStatusViewed(
-                statuses[index].id,
-              );
+          <View style={styles.statusesTab}>
+            {statusesLoading ? (
+              <View style={styles.statusesState}>
+                <ActivityIndicator
+                  size="large"
+                  color={colors.brand.primary}
+                />
+                <Text style={styles.statusesStateText}>
+                  Cargando estados...
+                </Text>
+              </View>
+            ) : statusesError ? (
+              <View style={styles.statusesState}>
+                <Text style={styles.errorText}>
+                  {statusesError}
+                </Text>
+                <TouchableOpacity
+                  onPress={() => {
+                    void refreshStatuses();
+                  }}
+                  activeOpacity={0.7}
+                >
+                  <Text style={styles.retryText}>
+                    Reintentar
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <StatusCirclesRow
+                statuses={statuses}
+                onCreate={() => {
+                  setCreatingStatus(true);
+                }}
+                onOpen={(index) => {
+                  const selectedStatus = statuses[index];
 
-              setStatuses([
-                ...MOCK_STATUSES,
-              ]);
+                  if (selectedStatus) {
+                    void registerStatusView(
+                      selectedStatus.id,
+                    ).catch(() => {
+                      // El dueño no puede registrar su propia vista.
+                    });
+                  }
 
-              setViewerIndex(index);
-            }}
-          />
+                  setViewerIndex(index);
+                }}
+              />
+            )}
+
+            {!statusesLoading && !statusesError ? (
+              <TouchableOpacity
+                style={styles.statusesRefreshButton}
+                onPress={() => {
+                  void refreshStatuses();
+                }}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.statusesRefreshText}>
+                  {statusesRefreshing
+                    ? 'Actualizando estados...'
+                    : 'Actualizar estados'}
+                </Text>
+              </TouchableOpacity>
+            ) : null}
+          </View>
         ) : (
           <>
             {!isGroupsTab ? (
@@ -708,15 +839,13 @@ export default function ChatListScreen() {
 
       <CreateStatusModal
         visible={creatingStatus}
-        onPublish={(status) => {
-          addStatus(status);
-          setStatuses([
-            ...MOCK_STATUSES,
-          ]);
-          setCreatingStatus(false);
-        }}
+        backgrounds={statusBackgrounds}
+        isPublishing={publishingStatus}
+        onPublish={handlePublishStatus}
         onClose={() => {
-          setCreatingStatus(false);
+          if (!publishingStatus) {
+            setCreatingStatus(false);
+          }
         }}
       />
 
@@ -928,5 +1057,30 @@ const styles = StyleSheet.create({
     lineHeight: 18,
     marginTop: 7,
     textAlign: 'center',
+  },
+  statusesTab: {
+    flex: 1,
+  },
+  statusesState: {
+    alignItems: 'center',
+    flex: 1,
+    gap: 12,
+    justifyContent: 'center',
+    paddingHorizontal: 24,
+  },
+  statusesStateText: {
+    color: colors.neutral.gray600,
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  statusesRefreshButton: {
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 14,
+  },
+  statusesRefreshText: {
+    color: colors.brand.primary,
+    fontSize: 13,
+    fontWeight: '700',
   },
 });

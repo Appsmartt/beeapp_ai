@@ -1,8 +1,7 @@
 import { ReactNode } from 'react';
 import { Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { colors, spacing, radii } from '@beeapp/design-system';
-import { Type, ImagePlus, Sticker, Music, Camera, ShoppingBag, X } from 'lucide-react-native';
-import { StatusProductLink } from '../../../mocks/statuses';
+import { Type, ImagePlus, Sticker, Camera, ShoppingBag, X } from 'lucide-react-native';
 import { MAX_IMAGE_LAYERS, MAX_STICKER_LAYERS, MAX_TEXT_LAYERS } from '../../../mocks/statusMedia';
 
 interface StatusToolChipsProps {
@@ -12,14 +11,9 @@ interface StatusToolChipsProps {
   onAddImage: () => void;
   stickerCount: number;
   onOpenStickers: () => void;
-  hasMusic: boolean;
-  onOpenMusic: () => void;
   hasPhoto: boolean;
   onPickPhoto: () => void;
   onRemovePhoto: () => void;
-  product: StatusProductLink | null;
-  onLinkProduct: () => void;
-  onRemoveProduct: () => void;
 }
 
 interface ChipProps {
@@ -76,13 +70,6 @@ export default function StatusToolChips(props: StatusToolChipsProps) {
       />
 
       <Chip
-        icon={<Music size={16} color={props.hasMusic ? colors.brand.primary : iconColor} />}
-        label="Música"
-        onPress={props.onOpenMusic}
-        active={props.hasMusic}
-      />
-
-      <Chip
         icon={<Camera size={16} color={iconColor} />}
         label={props.hasPhoto ? 'Quitar foto' : 'Foto de fondo'}
         onPress={props.hasPhoto ? props.onRemovePhoto : props.onPickPhoto}
@@ -90,11 +77,10 @@ export default function StatusToolChips(props: StatusToolChipsProps) {
       />
 
       <Chip
-        icon={<ShoppingBag size={16} color={colors.brand.primary} />}
-        label={props.product ? props.product.name : 'Vincular producto'}
-        onPress={props.product ? props.onRemoveProduct : props.onLinkProduct}
-        active={!!props.product}
-        trailing={props.product ? <X size={13} color={colors.neutral.gray600} /> : undefined}
+        icon={<ShoppingBag size={16} color={colors.neutral.gray500} />}
+        label="Productos · Próximamente"
+        onPress={() => {}}
+        disabled
       />
     </ScrollView>
   );
