@@ -2183,6 +2183,111 @@ export interface StatusFeedItem {
   stories: StatusStory[];
 }
 
+export type StatusFollowState =
+  | 'pending'
+  | 'accepted'
+  | 'rejected';
+
+export interface StatusFollow {
+  id: string;
+  follower_profile_id: string;
+  target_actor_type: StatusActorType;
+  target_profile_id: string | null;
+  target_commercial_profile_id: string | null;
+  state: StatusFollowState;
+  requested_at: string | null;
+  responded_at: string | null;
+  accepted_at: string | null;
+  rejected_at: string | null;
+  created_at: string | null;
+  updated_at: string | null;
+}
+
+export interface CreateStatusFollowPayload {
+  target_actor_type: StatusActorType;
+  target_profile_id?: string | null;
+  target_commercial_profile_id?: string | null;
+}
+
+export interface CreateStatusFollowResponse {
+  follow: StatusFollow;
+}
+
+export interface StatusFollowTarget {
+  actor_type: StatusActorType;
+  profile_id: string | null;
+  commercial_profile_id: string | null;
+  display_name: string;
+  avatar_file_id: string | null;
+  is_available: boolean;
+}
+
+export interface StatusFollowListItem {
+  id: string;
+  state: StatusFollowState;
+  requested_at: string;
+  responded_at: string | null;
+  accepted_at: string | null;
+  rejected_at: string | null;
+  target: StatusFollowTarget;
+}
+
+export interface StatusFollowDiscoverItem {
+  actor_type: StatusActorType;
+  profile_id: string | null;
+  commercial_profile_id: string | null;
+  display_name: string;
+  avatar_file_id: string | null;
+  follow_id: string | null;
+  follow_state: StatusFollowState | null;
+}
+
+export interface StatusFollowDiscoverQuery {
+  q: string;
+  limit?: number;
+  cursor?: string;
+}
+
+export interface StatusFollowListQuery {
+  limit?: number;
+  cursor?: string;
+}
+
+export interface StatusFollowersQuery
+  extends StatusFollowListQuery {
+  actor_type?: StatusActorType;
+  commercial_profile_id?: string;
+}
+
+export interface GetStatusFollowDiscoverResponse {
+  query: string;
+  limit: number;
+  items: StatusFollowDiscoverItem[];
+  next_cursor: string | null;
+}
+
+export interface GetStatusFollowingResponse {
+  items: StatusFollowListItem[];
+  limit: number;
+  next_cursor: string | null;
+}
+
+export interface GetStatusFollowersResponse {
+  items: StatusFollowListItem[];
+  limit: number;
+  next_cursor: string | null;
+}
+
+export interface GetStatusFollowRequestsResponse {
+  items: StatusFollowListItem[];
+  limit: number;
+  next_cursor: string | null;
+}
+
+export interface UpdateStatusFollowResponse {
+  follow: StatusFollow;
+}
+
 export interface StatusProfileStories {
   actor: StatusActor | null;
   stories: StatusStory[];

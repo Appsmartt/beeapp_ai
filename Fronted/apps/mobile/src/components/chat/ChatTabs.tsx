@@ -10,8 +10,7 @@ import {
 
 export type ChatTab =
   | 'chats'
-  | 'groups'
-  | 'statuses';
+  | 'groups';
 
 const TABS: Array<{
   id: ChatTab;
@@ -24,10 +23,6 @@ const TABS: Array<{
   {
     id: 'groups',
     label: 'Grupos',
-  },
-  {
-    id: 'statuses',
-    label: 'Estados',
   },
 ];
 
