@@ -68,6 +68,7 @@ import {
   acceptStatusFollow,
   followStatusTarget,
   loadStatusFollowers,
+  loadStatusFollowing,
   loadStatusFollowRequests,
   markStatusViewed as registerStatusView,
   publishMediaStatus,
@@ -142,6 +143,11 @@ export default function ChatListScreen() {
   const [socialFollowers, setSocialFollowers] = useState<
     StatusFollowListItem[]
   >([]);
+  const [socialFollowersCount, setSocialFollowersCount] = useState(0);
+  const [socialFollowing, setSocialFollowing] = useState<
+    StatusFollowListItem[]
+  >([]);
+  const [socialFollowingCount, setSocialFollowingCount] = useState(0);
   const [socialLoading, setSocialLoading] = useState(false);
   const [socialError, setSocialError] = useState<string | null>(null);
   const [socialActingId, setSocialActingId] = useState<string | null>(null);
@@ -300,12 +306,26 @@ export default function ChatListScreen() {
           return;
         }
 
-        const response = await loadStatusFollowers({
+        if (socialActivityTab === 'followers') {
+          const response = await loadStatusFollowers({
+            limit: 50,
+          });
+
+          if (!cancelled) {
+            setSocialFollowers(response.items);
+            setSocialFollowersCount(response.count);
+          }
+
+          return;
+        }
+
+        const response = await loadStatusFollowing({
           limit: 50,
         });
 
         if (!cancelled) {
-          setSocialFollowers(response.items);
+          setSocialFollowing(response.items);
+          setSocialFollowingCount(response.count);
         }
       } catch (activityError) {
         if (!cancelled) {
@@ -1030,6 +1050,9 @@ export default function ChatListScreen() {
         invites={socialInvites}
         requests={socialRequests}
         followers={socialFollowers}
+        followersCount={socialFollowersCount}
+        following={socialFollowing}
+        followingCount={socialFollowingCount}
         loading={socialLoading}
         error={socialError}
         actingId={socialActingId}
