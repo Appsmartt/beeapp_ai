@@ -186,6 +186,7 @@ export default function ChatListScreen() {
   const {
     statuses,
     loading: statusesLoading,
+    refreshing: statusesRefreshing,
     error: statusesError,
     refresh: refreshStatuses,
     backgrounds: statusBackgrounds,
@@ -709,11 +710,12 @@ export default function ChatListScreen() {
   };
 
   const handleRefresh = () => {
-    void loadConversations({
-      refresh: true,
-    }).catch(() => {
-      // El error ya se presenta en la UI.
-    });
+    void Promise.allSettled([
+      loadConversations({
+        refresh: true,
+      }),
+      refreshStatuses(),
+    ]);
   };
 
   const handlePublishStatus = async (
@@ -986,7 +988,10 @@ export default function ChatListScreen() {
                 }}
                 refreshControl={
                   <RefreshControl
-                    refreshing={refreshing}
+                    refreshing={
+                      refreshing
+                      || statusesRefreshing
+                    }
                     onRefresh={handleRefresh}
                     tintColor={colors.brand.primary}
                   />
@@ -1013,6 +1018,7 @@ export default function ChatListScreen() {
         visible={viewerIndex !== null}
         statuses={statuses}
         index={viewerIndex ?? 0}
+        senderIdentityId={privateIdentityId}
         onChangeIndex={setViewerIndex}
         onClose={() => {
           setViewerIndex(null);

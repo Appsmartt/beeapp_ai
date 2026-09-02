@@ -10,6 +10,11 @@ interface StickerLayerManagerProps {
   stage: { width: number; height: number };
   onSelect: (id: string) => void;
   onMove: (id: string, x: number, y: number) => void;
+  onTransform: (
+    id: string,
+    scale: number,
+    rotation: number,
+  ) => void;
   onRemove: (id: string) => void;
 }
 
@@ -20,6 +25,7 @@ export default function StickerLayerManager({
   stage,
   onSelect,
   onMove,
+  onTransform,
   onRemove,
 }: StickerLayerManagerProps) {
   return (
@@ -32,10 +38,19 @@ export default function StickerLayerManager({
             key={layer.id}
             x={layer.x}
             y={layer.y}
+            scale={layer.scale}
+            rotation={layer.rotation}
             stage={stage}
             selected={layer.id === selectedId}
             onSelect={() => onSelect(layer.id)}
             onMove={(x, y) => onMove(layer.id, x, y)}
+            onTransform={(scale, rotation) => {
+              onTransform(
+                layer.id,
+                scale,
+                rotation,
+              );
+            }}
             onRemove={() => onRemove(layer.id)}
           >
             <View style={[styles.bubble, { backgroundColor: sticker.background }]}>

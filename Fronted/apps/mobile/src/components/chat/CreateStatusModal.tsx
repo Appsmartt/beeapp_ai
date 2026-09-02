@@ -5,6 +5,7 @@ import {
 import {
   Alert,
   Image,
+  Keyboard,
   LayoutChangeEvent,
   Modal,
   StyleSheet,
@@ -26,6 +27,8 @@ import {
   spacing,
 } from '@beeapp/design-system';
 import {
+  FileText,
+  ImagePlus,
   X,
 } from 'lucide-react-native';
 
@@ -36,9 +39,6 @@ import ImageLayerManager from './status/ImageLayerManager';
 import StickerLayerManager from './status/StickerLayerManager';
 import MentionDropdown from './status/MentionDropdown';
 import StickerPicker from './status/StickerPicker';
-import StatusPrivacySelector, {
-  type StatusVisibility,
-} from './status/StatusPrivacySelector';
 import {
   useStatusLayers,
 } from './status/useStatusLayers';
@@ -159,11 +159,15 @@ function serializeEditorMetadata(
         font_size: layer.fontSize,
         font_weight: layer.fontWeight,
         color: layer.color,
+        scale: layer.scale,
+        rotation: layer.rotation,
       })),
     image_layers: values.images.map((layer) => ({
       id: layer.id,
       x: layer.x,
       y: layer.y,
+      scale: layer.scale,
+      rotation: layer.rotation,
       size: layer.size,
       color: layer.color,
     })),
@@ -172,6 +176,8 @@ function serializeEditorMetadata(
       sticker_id: layer.stickerId,
       x: layer.x,
       y: layer.y,
+      scale: layer.scale,
+      rotation: layer.rotation,
     })),
   };
 }
@@ -203,13 +209,10 @@ export default function CreateStatusModal({
     height: 0,
   });
 
-  const [visibility, setVisibility] = useState<
-    StatusVisibility
-  >('all');
-  const [selectedContactIds, setSelectedContactIds] = useState<
-    string[]
-  >([]);
-  const [selectedCategoryId, setSelectedCategoryId] = useState<
+  const [editorMode, setEditorMode] = useState<
+    'chooser' | 'editor'
+  >('chooser');
+  const [editingTextId, setEditingTextId] = useState<
     string | null
   >(null);
 
@@ -235,9 +238,8 @@ export default function CreateStatusModal({
     setLastTextColor(STATUS_TEXT_COLORS[0]);
     setSheet(null);
     setMentionQuery(null);
-    setVisibility('all');
-    setSelectedContactIds([]);
-    setSelectedCategoryId(null);
+    setEditorMode('chooser');
+    setEditingTextId(null);
     layers.reset(STATUS_TEXT_COLORS[0]);
   }, [visible]);
 
@@ -253,6 +255,12 @@ export default function CreateStatusModal({
       width,
       height,
     });
+  };
+
+  const stopTextEditing = () => {
+    Keyboard.dismiss();
+    setEditingTextId(null);
+    setMentionQuery(null);
   };
 
   const handleTextChange = (
@@ -362,6 +370,7 @@ export default function CreateStatusModal({
         kind,
         durationSeconds,
       });
+      setEditorMode('editor');
     } catch (error) {
       Alert.alert(
         'No fue posible seleccionar el archivo',
@@ -373,7 +382,7 @@ export default function CreateStatusModal({
   };
 
   const hasTextContent = texts.some(
-    (layer) => layer.content.trim(),
+    (layer) => Boolean(layer.content.trim()),
   );
   const hasContent = hasTextContent || Boolean(media);
 
@@ -410,6 +419,26 @@ export default function CreateStatusModal({
 
   const isMediaStatus = Boolean(media);
 
+  const handleChooseText = () => {
+    if (isPublishing) {
+      return;
+    }
+
+    setEditorMode('editor');
+  };
+
+  const handleChooseMedia = () => {
+    void handlePickMedia();
+  };
+
+  const handleClose = () => {
+    if (isPublishing) {
+      return;
+    }
+
+    onClose();
+  };
+
   return (
     <Modal
       visible={visible}
@@ -418,10 +447,93 @@ export default function CreateStatusModal({
       statusBarTranslucent
     >
       <GestureHandlerRootView style={styles.root}>
+        {editorMode === 'chooser' ? (
+          <ScreenSafeArea style={styles.chooserScreen}>
+            <View style={styles.chooserHeader}>
+              <TouchableOpacity
+                onPress={handleClose}
+                style={styles.iconBtn}
+                activeOpacity={0.7}
+                accessibilityLabel="Cerrar creador de estado"
+              >
+                <X
+                  size={22}
+                  color={colors.neutral.text}
+                />
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.chooserContent}>
+              <Text style={styles.chooserTitle}>
+                Crear estado
+              </Text>
+
+              <Text style={styles.chooserSubtitle}>
+                Comparte un pensamiento, una foto o un video con tus seguidores.
+              </Text>
+
+              <TouchableOpacity
+                style={styles.chooserOption}
+                onPress={handleChooseText}
+                activeOpacity={0.8}
+              >
+                <View
+                  style={[
+                    styles.chooserIcon,
+                    styles.chooserTextIcon,
+                  ]}
+                >
+                  <FileText
+                    size={25}
+                    color={colors.brand.primary}
+                  />
+                </View>
+
+                <View style={styles.chooserOptionCopy}>
+                  <Text style={styles.chooserOptionTitle}>
+                    Texto
+                  </Text>
+
+                  <Text style={styles.chooserOptionSubtitle}>
+                    Escribe y personaliza un estado.
+                  </Text>
+                </View>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.chooserOption}
+                onPress={handleChooseMedia}
+                activeOpacity={0.8}
+              >
+                <View
+                  style={[
+                    styles.chooserIcon,
+                    styles.chooserMediaIcon,
+                  ]}
+                >
+                  <ImagePlus
+                    size={25}
+                    color={colors.neutral.white}
+                  />
+                </View>
+
+                <View style={styles.chooserOptionCopy}>
+                  <Text style={styles.chooserOptionTitle}>
+                    Foto o video
+                  </Text>
+
+                  <Text style={styles.chooserOptionSubtitle}>
+                    Elige un archivo desde tu galería.
+                  </Text>
+                </View>
+              </TouchableOpacity>
+            </View>
+          </ScreenSafeArea>
+        ) : (
         <ScreenSafeArea style={styles.screen}>
           <View style={styles.topBar}>
             <TouchableOpacity
-              onPress={onClose}
+              onPress={handleClose}
               style={styles.iconBtn}
               activeOpacity={0.7}
               disabled={isPublishing}
@@ -464,6 +576,11 @@ export default function CreateStatusModal({
               },
             ]}
             onLayout={onStageLayout}
+            onTouchStart={() => {
+              if (editingTextId !== null) {
+                stopTextEditing();
+              }
+            }}
           >
             {media?.kind === 'video' ? (
               <Video
@@ -499,9 +616,18 @@ export default function CreateStatusModal({
                   kind: 'image',
                   id,
                 });
+                stopTextEditing();
               }}
               onResize={layers.resizeImage}
               onMove={layers.moveImage}
+              onTransform={(id, scale, rotation) => {
+                layers.transformLayer(
+                  'image',
+                  id,
+                  scale,
+                  rotation,
+                );
+              }}
               onRemove={(id) => {
                 layers.removeLayer('image', id);
               }}
@@ -520,8 +646,17 @@ export default function CreateStatusModal({
                   kind: 'sticker',
                   id,
                 });
+                stopTextEditing();
               }}
               onMove={layers.moveSticker}
+              onTransform={(id, scale, rotation) => {
+                layers.transformLayer(
+                  'sticker',
+                  id,
+                  scale,
+                  rotation,
+                );
+              }}
               onRemove={(id) => {
                 layers.removeLayer('sticker', id);
               }}
@@ -530,6 +665,7 @@ export default function CreateStatusModal({
             <TextLayerManager
               layers={texts}
               selectedId={layers.selectedTextId}
+              editingId={editingTextId}
               stage={stage}
               onSelect={(id) => {
                 layers.setSelection({
@@ -537,12 +673,27 @@ export default function CreateStatusModal({
                   id,
                 });
               }}
+              onStartEditing={(id) => {
+                layers.setSelection({
+                  kind: 'text',
+                  id,
+                });
+                setEditingTextId(id);
+              }}
               onChangeContent={handleTextChange}
               onMove={(id, x, y) => {
                 layers.patchText(id, {
                   x,
                   y,
                 });
+              }}
+              onTransform={(id, scale, rotation) => {
+                layers.transformLayer(
+                  'text',
+                  id,
+                  scale,
+                  rotation,
+                );
               }}
               onRemove={(id) => {
                 layers.removeLayer('text', id);
@@ -558,15 +709,6 @@ export default function CreateStatusModal({
               }}
             />
           ) : null}
-
-          <StatusPrivacySelector
-            visibility={visibility}
-            onChangeVisibility={setVisibility}
-            selectedContactIds={selectedContactIds}
-            onChangeSelectedContacts={setSelectedContactIds}
-            selectedCategoryId={selectedCategoryId}
-            onChangeSelectedCategory={setSelectedCategoryId}
-          />
 
           <StatusEditorToolbar
             hasTextSelection={Boolean(selectedText)}
@@ -618,7 +760,10 @@ export default function CreateStatusModal({
               setMedia(null);
             }}
           />
-        </ScreenSafeArea>        <StickerPicker
+        </ScreenSafeArea>
+        )}
+
+        <StickerPicker
           visible={sheet === 'stickers'}
           onSelect={(sticker) => {
             layers.addSticker(sticker.id);
@@ -641,6 +786,73 @@ const styles = StyleSheet.create({
   screen: {
     flex: 1,
     backgroundColor: colors.neutral.white,
+  },
+  chooserScreen: {
+    flex: 1,
+    backgroundColor: colors.neutral.white,
+  },
+  chooserHeader: {
+    alignItems: 'flex-start',
+    paddingHorizontal: spacing.sm,
+    paddingTop: spacing.sm,
+  },
+  chooserContent: {
+    flex: 1,
+    justifyContent: 'center',
+    paddingHorizontal: spacing.xl,
+    paddingBottom: 72,
+  },
+  chooserTitle: {
+    color: colors.neutral.text,
+    fontSize: 28,
+    fontWeight: '800',
+    textAlign: 'center',
+  },
+  chooserSubtitle: {
+    color: colors.neutral.gray600,
+    fontSize: 14,
+    lineHeight: 21,
+    marginTop: spacing.sm,
+    marginBottom: spacing.xl,
+    textAlign: 'center',
+  },
+  chooserOption: {
+    alignItems: 'center',
+    backgroundColor: colors.neutral.gray50,
+    borderColor: colors.neutral.gray200,
+    borderRadius: radii.xl,
+    borderWidth: 1,
+    flexDirection: 'row',
+    marginTop: spacing.md,
+    padding: spacing.md,
+  },
+  chooserIcon: {
+    alignItems: 'center',
+    borderRadius: 22,
+    height: 44,
+    justifyContent: 'center',
+    width: 44,
+  },
+  chooserTextIcon: {
+    backgroundColor: `${colors.brand.primary}16`,
+  },
+  chooserMediaIcon: {
+    backgroundColor: colors.brand.primary,
+  },
+  chooserOptionCopy: {
+    flex: 1,
+    marginLeft: spacing.md,
+  },
+  chooserOptionTitle: {
+    color: colors.neutral.text,
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  chooserOptionSubtitle: {
+    color: colors.neutral.gray600,
+    fontSize: 13,
+    lineHeight: 18,
+    marginTop: 2,
   },
   topBar: {
     alignItems: 'center',
