@@ -25,6 +25,8 @@ export interface StatusTextLayer {
   content: string;
   x: number;
   y: number;
+  scale: number;
+  rotation: number;
   fontSize: number;
   fontWeight: '400' | '700';
   color: string;
@@ -35,6 +37,8 @@ export interface StatusImageLayer {
   id: string;
   x: number;
   y: number;
+  scale: number;
+  rotation: number;
   size: number;
   color: string;
 }
@@ -45,6 +49,8 @@ export interface StatusStickerLayer {
   stickerId: string;
   x: number;
   y: number;
+  scale: number;
+  rotation: number;
 }
 
 /** Canción de fondo elegida en el editor. Mock: no se reproduce nada */

@@ -30,6 +30,8 @@ const newTextLayer = (index: number, color: string): StatusTextLayer => ({
   content: '',
   x: 50,
   y: stagger(index),
+  scale: 1,
+  rotation: 0,
   fontSize: 24,
   fontWeight: '400',
   color,
@@ -75,6 +77,8 @@ export function useStatusLayers(defaultTextColor: string) {
         id: newId('im'),
         x: 50,
         y: stagger(prev.length),
+        scale: 1,
+        rotation: 0,
         size: IMAGE_LAYER_MIN + 40,
         color: STATUS_IMAGE_COLORS[prev.length % STATUS_IMAGE_COLORS.length],
       };
@@ -91,6 +95,8 @@ export function useStatusLayers(defaultTextColor: string) {
         stickerId,
         x: 50,
         y: stagger(prev.length),
+        scale: 1,
+        rotation: 0,
       };
       setSelection({ kind: 'sticker', id: layer.id });
       return [...prev, layer];
@@ -112,6 +118,52 @@ export function useStatusLayers(defaultTextColor: string) {
   const moveSticker = useCallback((id: string, x: number, y: number) => {
     setStickers((prev) => prev.map((layer) => (layer.id === id ? { ...layer, x, y } : layer)));
   }, []);
+
+  const transformLayer = useCallback(
+    (
+      kind: LayerKind,
+      id: string,
+      scale: number,
+      rotation: number,
+    ) => {
+      if (kind === 'text') {
+        setTexts((prev) => prev.map((layer) => (
+          layer.id === id
+            ? {
+              ...layer,
+              scale,
+              rotation,
+            }
+            : layer
+        )));
+      }
+
+      if (kind === 'image') {
+        setImages((prev) => prev.map((layer) => (
+          layer.id === id
+            ? {
+              ...layer,
+              scale,
+              rotation,
+            }
+            : layer
+        )));
+      }
+
+      if (kind === 'sticker') {
+        setStickers((prev) => prev.map((layer) => (
+          layer.id === id
+            ? {
+              ...layer,
+              scale,
+              rotation,
+            }
+            : layer
+        )));
+      }
+    },
+    [],
+  );
 
   const removeLayer = useCallback((kind: LayerKind, id: string) => {
     if (kind === 'text') setTexts((prev) => prev.filter((layer) => layer.id !== id));
@@ -141,6 +193,7 @@ export function useStatusLayers(defaultTextColor: string) {
     moveImage,
     resizeImage,
     moveSticker,
+    transformLayer,
     removeLayer,
   };
 }
