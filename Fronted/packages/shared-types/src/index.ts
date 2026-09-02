@@ -2268,18 +2268,21 @@ export interface GetStatusFollowDiscoverResponse {
 
 export interface GetStatusFollowingResponse {
   items: StatusFollowListItem[];
+  count: number;
   limit: number;
   next_cursor: string | null;
 }
 
 export interface GetStatusFollowersResponse {
   items: StatusFollowListItem[];
+  count: number;
   limit: number;
   next_cursor: string | null;
 }
 
 export interface GetStatusFollowRequestsResponse {
   items: StatusFollowListItem[];
+  count: number;
   limit: number;
   next_cursor: string | null;
 }

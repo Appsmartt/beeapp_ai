@@ -3,6 +3,8 @@ from __future__ import annotations
 import logging
 from typing import Any
 
+from postgrest import CountMethod
+
 from beeAppBack.core.supabase_client import (
     execute_with_supabase_admin_retry,
 )
@@ -556,23 +558,19 @@ def list_following(
     cursor: str | None = None,
 ) -> dict[str, Any]:
     """
-    Lista perfiles y comerciales que sigue el usuario autenticado.
+    Lista cuentas que el usuario autenticado sigue y cuyos estados puede ver.
 
-    Incluye pending y accepted; no devuelve relaciones rejected.
+    Solo devuelve relaciones accepted; las solicitudes pending no son
+    seguimientos activos todavía.
     """
-    rows = _list_follow_rows(
+    return _list_and_serialize_follow_list(
         user_id=user_id,
         mode="following",
         actor_type=None,
         commercial_profile_id=None,
+        target_profile_id=None,
         limit=limit,
         cursor=cursor,
-    )
-
-    return _serialize_follow_list(
-        rows=rows,
-        mode="following",
-        limit=limit,
     )
 
 
@@ -608,20 +606,14 @@ def list_followers(
             commercial_profile_id
         )
 
-    rows = _list_follow_rows(
+    return _list_and_serialize_follow_list(
         user_id=user_id,
         mode="followers",
         actor_type=normalized_actor_type,
         commercial_profile_id=target_commercial_profile_id,
+        target_profile_id=target_profile_id,
         limit=limit,
         cursor=cursor,
-        target_profile_id=target_profile_id,
-    )
-
-    return _serialize_follow_list(
-        rows=rows,
-        mode="followers",
-        limit=limit,
     )
 
 
@@ -634,21 +626,142 @@ def list_received_follow_requests(
     """
     Lista solicitudes pending recibidas por el perfil personal del usuario.
     """
-    rows = _list_follow_rows(
+    return _list_and_serialize_follow_list(
         user_id=user_id,
         mode="requests",
         actor_type="profile",
         commercial_profile_id=None,
+        target_profile_id=str(user_id),
         limit=limit,
         cursor=cursor,
-        target_profile_id=str(user_id),
+    )
+
+
+def _list_and_serialize_follow_list(
+    *,
+    user_id: str,
+    mode: str,
+    actor_type: str | None,
+    commercial_profile_id: str | None,
+    target_profile_id: str | None,
+    limit: int,
+    cursor: str | None,
+) -> dict[str, Any]:
+    total_count = _count_follow_rows(
+        user_id=user_id,
+        mode=mode,
+        actor_type=actor_type,
+        commercial_profile_id=commercial_profile_id,
+        target_profile_id=target_profile_id,
+    )
+
+    rows = _list_follow_rows(
+        user_id=user_id,
+        mode=mode,
+        actor_type=actor_type,
+        commercial_profile_id=commercial_profile_id,
+        target_profile_id=target_profile_id,
+        limit=limit,
+        cursor=cursor,
     )
 
     return _serialize_follow_list(
         rows=rows,
-        mode="requests",
+        mode=mode,
         limit=limit,
+        count=total_count,
     )
+
+
+def _apply_follow_list_filters(
+    query,
+    *,
+    user_id: str,
+    mode: str,
+    actor_type: str | None,
+    commercial_profile_id: str | None,
+    target_profile_id: str | None,
+):
+    if mode == "following":
+        return (
+            query
+            .eq("follower_profile_id", str(user_id))
+            .eq("state", "accepted")
+        )
+
+    if mode == "followers":
+        query = query.eq("state", "accepted")
+
+        if actor_type == "profile":
+            return query.eq(
+                "target_profile_id",
+                str(target_profile_id),
+            )
+
+        return query.eq(
+            "target_commercial_profile_id",
+            str(commercial_profile_id),
+        )
+
+    if mode == "requests":
+        return (
+            query
+            .eq("target_actor_type", "profile")
+            .eq("target_profile_id", str(target_profile_id))
+            .eq("state", "pending")
+        )
+
+    raise StatusFollowValidationError(
+        "Unsupported follow list mode."
+    )
+
+
+def _count_follow_rows(
+    *,
+    user_id: str,
+    mode: str,
+    actor_type: str | None,
+    commercial_profile_id: str | None,
+    target_profile_id: str | None,
+) -> int:
+    try:
+        def operation(client):
+            query = (
+                client
+                .table("status_follows")
+                .select("id", count=CountMethod.exact)
+            )
+
+            return _apply_follow_list_filters(
+                query,
+                user_id=user_id,
+                mode=mode,
+                actor_type=actor_type,
+                commercial_profile_id=commercial_profile_id,
+                target_profile_id=target_profile_id,
+            ).execute()
+
+        response = execute_with_supabase_admin_retry(operation)
+        return int(getattr(response, "count", 0) or 0)
+
+    except StatusFollowValidationError:
+        raise
+
+    except Exception as error:
+        logger.exception(
+            "status_follow_count_failed mode=%s actor_type=%s "
+            "target_profile_id=%s commercial_profile_id=%s "
+            "error_type=%s error_message=%s",
+            mode,
+            actor_type,
+            target_profile_id,
+            commercial_profile_id,
+            type(error).__name__,
+            str(error),
+        )
+        raise StatusFollowError(
+            f"Could not count follow relationships: {error}"
+        ) from error
 
 
 def _list_follow_rows(
@@ -675,39 +788,14 @@ def _list_follow_rows(
                 .limit(page_size)
             )
 
-            if mode == "following":
-                query = (
-                    query
-                    .eq("follower_profile_id", str(user_id))
-                    .in_("state", ["pending", "accepted"])
-                )
-
-            elif mode == "followers":
-                query = query.eq("state", "accepted")
-
-                if actor_type == "profile":
-                    query = query.eq(
-                        "target_profile_id",
-                        str(target_profile_id),
-                    )
-                else:
-                    query = query.eq(
-                        "target_commercial_profile_id",
-                        str(commercial_profile_id),
-                    )
-
-            elif mode == "requests":
-                query = (
-                    query
-                    .eq("target_actor_type", "profile")
-                    .eq("target_profile_id", str(target_profile_id))
-                    .eq("state", "pending")
-                )
-
-            else:
-                raise StatusFollowValidationError(
-                    "Unsupported follow list mode."
-                )
+            query = _apply_follow_list_filters(
+                query,
+                user_id=user_id,
+                mode=mode,
+                actor_type=actor_type,
+                commercial_profile_id=commercial_profile_id,
+                target_profile_id=target_profile_id,
+            )
 
             if cursor:
                 cursor_requested_at, cursor_follow_id = (
@@ -749,28 +837,12 @@ def _list_follow_rows(
         ) from error
 
 
-def _parse_follow_cursor(
-    cursor: str,
-) -> tuple[str, str]:
-    try:
-        requested_at, follow_id = cursor.rsplit("|", 1)
-
-        if not requested_at.strip() or not follow_id.strip():
-            raise ValueError
-
-        return requested_at.strip(), follow_id.strip()
-
-    except (AttributeError, ValueError) as error:
-        raise StatusFollowValidationError(
-            "Invalid follow cursor."
-        ) from error
-
-
 def _serialize_follow_list(
     *,
     rows: list[dict[str, Any]],
     mode: str,
     limit: int,
+    count: int,
 ) -> dict[str, Any]:
     normalized_limit = max(1, min(int(limit), 50))
     has_next_page = len(rows) > normalized_limit
@@ -833,9 +905,27 @@ def _serialize_follow_list(
 
     return {
         "items": items,
+        "count": count,
         "limit": normalized_limit,
         "next_cursor": next_cursor,
     }
+
+
+def _parse_follow_cursor(
+    cursor: str,
+) -> tuple[str, str]:
+    try:
+        requested_at, follow_id = cursor.rsplit("|", 1)
+
+        if not requested_at.strip() or not follow_id.strip():
+            raise ValueError
+
+        return requested_at.strip(), follow_id.strip()
+
+    except (AttributeError, ValueError) as error:
+        raise StatusFollowValidationError(
+            "Invalid follow cursor."
+        ) from error
 
 
 def _serialize_follow_list_target(

@@ -27,7 +27,8 @@ import type {
 export type SocialActivityTab =
   | 'invites'
   | 'requests'
-  | 'followers';
+  | 'followers'
+  | 'following';
 
 interface SocialActivitySheetProps {
   visible: boolean;
@@ -35,6 +36,9 @@ interface SocialActivitySheetProps {
   invites: ChatGroupInvite[];
   requests: StatusFollowListItem[];
   followers: StatusFollowListItem[];
+  followersCount: number;
+  following: StatusFollowListItem[];
+  followingCount: number;
   loading: boolean;
   error: string | null;
   actingId: string | null;
@@ -61,6 +65,10 @@ const TABS: Array<{
   {
     id: 'followers',
     label: 'Seguidores',
+  },
+  {
+    id: 'following',
+    label: 'Siguiendo',
   },
 ];
 
@@ -90,9 +98,7 @@ function getInviteSenderName(invite: ChatGroupInvite): string {
   );
 }
 
-function getFollowersTitle(
-  activeTab: SocialActivityTab,
-): string {
+function getActivityTitle(activeTab: SocialActivityTab): string {
   if (activeTab === 'invites') {
     return 'Invitaciones a grupos';
   }
@@ -101,7 +107,30 @@ function getFollowersTitle(
     return 'Solicitudes de seguimiento';
   }
 
-  return 'Tus seguidores';
+  if (activeTab === 'followers') {
+    return 'Tus seguidores';
+  }
+
+  return 'Cuentas que sigues';
+}
+
+function getCountCopy(
+  activeTab: SocialActivityTab,
+  count: number,
+): string | null {
+  if (activeTab === 'followers') {
+    return count === 1
+      ? '1 cuenta te sigue'
+      : `${count} cuentas te siguen`;
+  }
+
+  if (activeTab === 'following') {
+    return count === 1
+      ? 'Sigues a 1 cuenta'
+      : `Sigues a ${count} cuentas`;
+  }
+
+  return null;
 }
 
 function getEmptyCopy(
@@ -128,12 +157,35 @@ function getEmptyCopy(
     };
   }
 
+  if (activeTab === 'followers') {
+    return {
+      title: 'Aún no tienes seguidores',
+      description: (
+        'Cuando alguien siga tus estados, aparecerá aquí.'
+      ),
+    };
+  }
+
   return {
-    title: 'Aún no tienes seguidores',
+    title: 'Aún no sigues a ninguna cuenta',
     description: (
-      'Comparte estados y descubre personas para conectar.'
+      'Descubre personas o negocios para seguir sus estados.'
     ),
   };
+}
+
+function getEmptyIcon(activeTab: SocialActivityTab) {
+  if (activeTab === 'invites') {
+    return Inbox;
+  }
+
+  if (activeTab === 'requests') {
+    return Clock3;
+  }
+
+  return activeTab === 'followers'
+    ? Users
+    : UserCheck;
 }
 
 export default function SocialActivitySheet({
@@ -142,6 +194,9 @@ export default function SocialActivitySheet({
   invites,
   requests,
   followers,
+  followersCount,
+  following,
+  followingCount,
   loading,
   error,
   actingId,
@@ -153,6 +208,20 @@ export default function SocialActivitySheet({
   onClose,
 }: SocialActivitySheetProps) {
   const emptyCopy = getEmptyCopy(activeTab);
+  const EmptyIcon = getEmptyIcon(activeTab);
+
+  const activeItems = activeTab === 'followers'
+    ? followers
+    : activeTab === 'following'
+      ? following
+      : [];
+
+  const countCopy = getCountCopy(
+    activeTab,
+    activeTab === 'followers'
+      ? followersCount
+      : followingCount,
+  );
 
   const renderInvite = ({
     item,
@@ -308,12 +377,13 @@ export default function SocialActivitySheet({
     );
   };
 
-  const renderFollower = ({
+  const renderFollowRow = ({
     item,
   }: {
     item: StatusFollowListItem;
   }) => {
     const name = item.target.display_name;
+    const isFollower = activeTab === 'followers';
 
     return (
       <View style={styles.followerRow}>
@@ -330,7 +400,9 @@ export default function SocialActivitySheet({
           <Text style={styles.description}>
             {item.target.actor_type === 'commercial_profile'
               ? 'Cuenta comercial'
-              : 'Sigue tus estados'}
+              : isFollower
+                ? 'Sigue tus estados'
+                : 'Sigues sus estados'}
           </Text>
         </View>
 
@@ -341,6 +413,23 @@ export default function SocialActivitySheet({
       </View>
     );
   };
+
+  const renderEmptyState = () => (
+    <View style={styles.state}>
+      <View style={styles.emptyIcon}>
+        <EmptyIcon
+          size={24}
+          color={colors.brand.primary}
+        />
+      </View>
+      <Text style={styles.emptyTitle}>
+        {emptyCopy.title}
+      </Text>
+      <Text style={styles.stateText}>
+        {emptyCopy.description}
+      </Text>
+    </View>
+  );
 
   return (
     <Modal
@@ -361,8 +450,13 @@ export default function SocialActivitySheet({
                     Actividad social
                   </Text>
                   <Text style={styles.subtitle}>
-                    {getFollowersTitle(activeTab)}
+                    {getActivityTitle(activeTab)}
                   </Text>
+                  {countCopy ? (
+                    <Text style={styles.countText}>
+                      {countCopy}
+                    </Text>
+                  ) : null}
                 </View>
 
                 <TouchableOpacity
@@ -391,9 +485,13 @@ export default function SocialActivitySheet({
                       ]}
                       onPress={() => onChangeTab(tab.id)}
                       activeOpacity={0.7}
-                      accessibilityLabel={`Ver ${tab.label.toLowerCase()}`}
+                      accessibilityLabel={
+                        `Ver ${tab.label.toLowerCase()}`
+                      }
                     >
                       <Text
+                        numberOfLines={1}
+                        adjustsFontSizeToFit
                         style={[
                           styles.tabText,
                           isActive
@@ -429,22 +527,7 @@ export default function SocialActivitySheet({
                   data={invites}
                   keyExtractor={(item) => item.id}
                   renderItem={renderInvite}
-                  ListEmptyComponent={
-                    <View style={styles.state}>
-                      <View style={styles.emptyIcon}>
-                        <Inbox
-                          size={24}
-                          color={colors.brand.primary}
-                        />
-                      </View>
-                      <Text style={styles.emptyTitle}>
-                        {emptyCopy.title}
-                      </Text>
-                      <Text style={styles.stateText}>
-                        {emptyCopy.description}
-                      </Text>
-                    </View>
-                  }
+                  ListEmptyComponent={renderEmptyState}
                   contentContainerStyle={styles.content}
                 />
               ) : activeTab === 'requests' ? (
@@ -452,45 +535,15 @@ export default function SocialActivitySheet({
                   data={requests}
                   keyExtractor={(item) => item.id}
                   renderItem={renderRequest}
-                  ListEmptyComponent={
-                    <View style={styles.state}>
-                      <View style={styles.emptyIcon}>
-                        <Clock3
-                          size={24}
-                          color={colors.brand.primary}
-                        />
-                      </View>
-                      <Text style={styles.emptyTitle}>
-                        {emptyCopy.title}
-                      </Text>
-                      <Text style={styles.stateText}>
-                        {emptyCopy.description}
-                      </Text>
-                    </View>
-                  }
+                  ListEmptyComponent={renderEmptyState}
                   contentContainerStyle={styles.content}
                 />
               ) : (
                 <FlatList<StatusFollowListItem>
-                  data={followers}
+                  data={activeItems}
                   keyExtractor={(item) => item.id}
-                  renderItem={renderFollower}
-                  ListEmptyComponent={
-                    <View style={styles.state}>
-                      <View style={styles.emptyIcon}>
-                        <Users
-                          size={24}
-                          color={colors.brand.primary}
-                        />
-                      </View>
-                      <Text style={styles.emptyTitle}>
-                        {emptyCopy.title}
-                      </Text>
-                      <Text style={styles.stateText}>
-                        {emptyCopy.description}
-                      </Text>
-                    </View>
-                  }
+                  renderItem={renderFollowRow}
+                  ListEmptyComponent={renderEmptyState}
                   contentContainerStyle={styles.content}
                 />
               )}
@@ -541,6 +594,12 @@ const styles = StyleSheet.create({
     fontSize: 12,
     marginTop: 4,
   },
+  countText: {
+    color: colors.brand.primary,
+    fontSize: 12,
+    fontWeight: '700',
+    marginTop: 3,
+  },
   closeButton: {
     alignItems: 'center',
     backgroundColor: colors.neutral.gray100,
@@ -560,6 +619,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderRadius: 11,
     flex: 1,
+    minWidth: 0,
+    paddingHorizontal: 2,
     paddingVertical: 9,
   },
   tabActive: {
@@ -568,7 +629,7 @@ const styles = StyleSheet.create({
   },
   tabText: {
     color: colors.neutral.gray600,
-    fontSize: 11,
+    fontSize: 10,
     fontWeight: '600',
   },
   tabTextActive: {
