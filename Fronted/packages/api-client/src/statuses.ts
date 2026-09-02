@@ -2,10 +2,16 @@ import type {
   ArchiveStatusResponse,
   AuthCredentials,
   CreateMediaStatusPayload,
+  CreateStatusFollowPayload,
+  CreateStatusFollowResponse,
   CreateStatusResponse,
   CreateTextStatusPayload,
   GetStatusDetailResponse,
   GetStatusFeedResponse,
+  GetStatusFollowDiscoverResponse,
+  GetStatusFollowRequestsResponse,
+  GetStatusFollowersResponse,
+  GetStatusFollowingResponse,
   GetStatusTextBackgroundsResponse,
   GetStatusViewersResponse,
   RegisterStatusViewResponse,
@@ -13,8 +19,12 @@ import type {
   StatusActorType,
   StatusDetailQuery,
   StatusFeedQuery,
+  StatusFollowDiscoverQuery,
+  StatusFollowListQuery,
+  StatusFollowersQuery,
   StatusMineQuery,
   StatusMineResponse,
+  UpdateStatusFollowResponse,
 } from '@beeapp/shared-types';
 
 import {
@@ -115,6 +125,120 @@ export async function getStatusFeed(
     `/statuses/feed/${toQueryString({
       limit: query.limit,
     })}`,
+    {
+      auth,
+    },
+  );
+}
+
+export async function discoverStatusFollowTargets(
+  auth: AuthCredentials,
+  query: StatusFollowDiscoverQuery,
+): Promise<GetStatusFollowDiscoverResponse> {
+  return api.get<GetStatusFollowDiscoverResponse>(
+    `/statuses/follows/discover/${toQueryString({
+      q: query.q,
+      limit: query.limit,
+      cursor: query.cursor,
+    })}`,
+    {
+      auth,
+    },
+  );
+}
+
+export async function createStatusFollow(
+  auth: AuthCredentials,
+  payload: CreateStatusFollowPayload,
+): Promise<CreateStatusFollowResponse> {
+  return api.post<CreateStatusFollowResponse>(
+    '/statuses/follows/',
+    payload,
+    {
+      auth,
+    },
+  );
+}
+
+export async function getStatusFollowing(
+  auth: AuthCredentials,
+  query: StatusFollowListQuery = {},
+): Promise<GetStatusFollowingResponse> {
+  return api.get<GetStatusFollowingResponse>(
+    `/statuses/follows/following/${toQueryString({
+      limit: query.limit,
+      cursor: query.cursor,
+    })}`,
+    {
+      auth,
+    },
+  );
+}
+
+export async function getStatusFollowers(
+  auth: AuthCredentials,
+  query: StatusFollowersQuery = {},
+): Promise<GetStatusFollowersResponse> {
+  return api.get<GetStatusFollowersResponse>(
+    `/statuses/follows/followers/${toQueryString({
+      actor_type: query.actor_type,
+      commercial_profile_id: query.commercial_profile_id,
+      limit: query.limit,
+      cursor: query.cursor,
+    })}`,
+    {
+      auth,
+    },
+  );
+}
+
+export async function getStatusFollowRequests(
+  auth: AuthCredentials,
+  query: StatusFollowListQuery = {},
+): Promise<GetStatusFollowRequestsResponse> {
+  return api.get<GetStatusFollowRequestsResponse>(
+    `/statuses/follows/requests/${toQueryString({
+      limit: query.limit,
+      cursor: query.cursor,
+    })}`,
+    {
+      auth,
+    },
+  );
+}
+
+export async function acceptStatusFollowRequest(
+  auth: AuthCredentials,
+  followId: string,
+): Promise<UpdateStatusFollowResponse> {
+  return api.post<UpdateStatusFollowResponse>(
+    `/statuses/follows/${encodeURIComponent(followId)}/accept/`,
+    undefined,
+    {
+      auth,
+    },
+  );
+}
+
+export async function rejectStatusFollowRequest(
+  auth: AuthCredentials,
+  followId: string,
+): Promise<UpdateStatusFollowResponse> {
+  return api.post<UpdateStatusFollowResponse>(
+    `/statuses/follows/${encodeURIComponent(followId)}/reject/`,
+    undefined,
+    {
+      auth,
+    },
+  );
+}
+
+export async function deleteStatusFollow(
+  auth: AuthCredentials,
+  followId: string,
+): Promise<void> {
+  await api.delete<unknown>(
+    `/statuses/follows/${encodeURIComponent(followId)}/`,
     {
       auth,
     },

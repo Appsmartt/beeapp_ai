@@ -1,5 +1,7 @@
 import {
+  useEffect,
   useMemo,
+  useRef,
   useState,
 } from 'react';
 import {
@@ -18,6 +20,10 @@ import {
 import {
   colors,
 } from '@beeapp/design-system';
+import {
+  getChatGroupInvites,
+  respondToChatGroupInvite,
+} from '@beeapp/api-client';
 
 import ScreenSafeArea from '../../../src/components/layout/ScreenSafeArea';
 import {
@@ -36,6 +42,10 @@ import ChatCategoryChips from '../../../src/components/chat/ChatCategoryChips';
 import ChatCategoryModals from '../../../src/components/chat/ChatCategoryModals';
 import ChatOptionsSheet from '../../../src/components/chat/ChatOptionsSheet';
 import ChatCreateMenu from '../../../src/components/chat/ChatCreateMenu';
+import DiscoverPeopleModal from '../../../src/components/chat/DiscoverPeopleModal';
+import SocialActivitySheet, {
+  type SocialActivityTab,
+} from '../../../src/components/chat/SocialActivitySheet';
 import PinLockModal from '../../../src/components/security/PinLockModal';
 
 import {
@@ -55,13 +65,27 @@ import {
   useStatuses,
 } from '../../../src/hooks/useStatuses';
 import {
+  acceptStatusFollow,
+  followStatusTarget,
+  loadStatusFollowers,
+  loadStatusFollowRequests,
   markStatusViewed as registerStatusView,
   publishMediaStatus,
   publishTextStatus,
+  rejectStatusFollow,
+  searchStatusFollowTargets,
 } from '../../../src/services/statusesService';
 import type {
   StatusEditorPublishDraft,
 } from '../../../src/components/chat/CreateStatusModal';
+import type {
+  ChatGroupInvite,
+  StatusFollowDiscoverItem,
+  StatusFollowListItem,
+} from '@beeapp/shared-types';
+import {
+  getValidSessionCredentials,
+} from '../../../src/services/authSession';
 
 import {
   hasPin,
@@ -77,6 +101,7 @@ export default function ChatListScreen() {
   const router = useModuleNav();
   const {
     conversations,
+    privateIdentityId,
     loading,
     refreshing,
     error,
@@ -104,6 +129,33 @@ export default function ChatListScreen() {
   const [activeTab, setActiveTab] = useState<ChatTab>('chats');
 
   const [createMenuOpen, setCreateMenuOpen] = useState(false);
+  const [socialActivityOpen, setSocialActivityOpen] = useState(false);
+  const [socialActivityTab, setSocialActivityTab] = useState<
+    SocialActivityTab
+  >('invites');
+  const [socialInvites, setSocialInvites] = useState<
+    ChatGroupInvite[]
+  >([]);
+  const [socialRequests, setSocialRequests] = useState<
+    StatusFollowListItem[]
+  >([]);
+  const [socialFollowers, setSocialFollowers] = useState<
+    StatusFollowListItem[]
+  >([]);
+  const [socialLoading, setSocialLoading] = useState(false);
+  const [socialError, setSocialError] = useState<string | null>(null);
+  const [socialActingId, setSocialActingId] = useState<string | null>(null);
+  const [discoverPeopleOpen, setDiscoverPeopleOpen] = useState(false);
+  const [discoverQuery, setDiscoverQuery] = useState('');
+  const [discoverResults, setDiscoverResults] = useState<
+    StatusFollowDiscoverItem[]
+  >([]);
+  const [discoverLoading, setDiscoverLoading] = useState(false);
+  const [discoverError, setDiscoverError] = useState<string | null>(null);
+  const [followingTargetKey, setFollowingTargetKey] = useState<
+    string | null
+  >(null);
+  const discoverRequestRef = useRef(0);
 
   const [categories, setCategories] = useState<
     ChatCategory[]
@@ -128,7 +180,6 @@ export default function ChatListScreen() {
   const {
     statuses,
     loading: statusesLoading,
-    refreshing: statusesRefreshing,
     error: statusesError,
     refresh: refreshStatuses,
     backgrounds: statusBackgrounds,
@@ -142,8 +193,145 @@ export default function ChatListScreen() {
 
   const [creatingStatus, setCreatingStatus] = useState(false);
 
-  const isStatusesTab = activeTab === 'statuses';
   const isGroupsTab = activeTab === 'groups';
+
+  useEffect(() => {
+    if (!discoverPeopleOpen) {
+      return;
+    }
+
+    const normalizedQuery = discoverQuery.trim();
+
+    if (normalizedQuery.length < 2) {
+      setDiscoverResults([]);
+      setDiscoverError(null);
+      setDiscoverLoading(false);
+      return;
+    }
+
+    const requestId = discoverRequestRef.current + 1;
+    discoverRequestRef.current = requestId;
+
+    const timeoutId = setTimeout(() => {
+      void (async () => {
+        try {
+          setDiscoverLoading(true);
+          setDiscoverError(null);
+
+          const response = await searchStatusFollowTargets({
+            q: normalizedQuery,
+          });
+
+          if (discoverRequestRef.current === requestId) {
+            setDiscoverResults(response.items);
+          }
+        } catch (searchError) {
+          if (discoverRequestRef.current === requestId) {
+            setDiscoverResults([]);
+            setDiscoverError(
+              searchError instanceof Error
+                ? searchError.message
+                : 'No fue posible buscar personas.',
+            );
+          }
+        } finally {
+          if (discoverRequestRef.current === requestId) {
+            setDiscoverLoading(false);
+          }
+        }
+      })();
+    }, 320);
+
+    return () => {
+      clearTimeout(timeoutId);
+    };
+  }, [
+    discoverPeopleOpen,
+    discoverQuery,
+  ]);
+
+  useEffect(() => {
+    if (!socialActivityOpen) {
+      return;
+    }
+
+    let cancelled = false;
+
+    const loadSocialActivity = async () => {
+      try {
+        setSocialLoading(true);
+        setSocialError(null);
+
+        if (socialActivityTab === 'invites') {
+          const auth = await getValidSessionCredentials();
+
+          if (!auth || auth.scheme !== 'Bearer') {
+            throw new Error(
+              'Tu sesión expiró. Inicia sesión nuevamente.',
+            );
+          }
+
+          const response = await getChatGroupInvites(
+            auth,
+            {
+              identityId: privateIdentityId || undefined,
+              status: 'pending',
+              limit: 100,
+              offset: 0,
+            },
+          );
+
+          if (!cancelled) {
+            setSocialInvites(response.invites);
+          }
+
+          return;
+        }
+
+        if (socialActivityTab === 'requests') {
+          const response = await loadStatusFollowRequests({
+            limit: 50,
+          });
+
+          if (!cancelled) {
+            setSocialRequests(response.items);
+          }
+
+          return;
+        }
+
+        const response = await loadStatusFollowers({
+          limit: 50,
+        });
+
+        if (!cancelled) {
+          setSocialFollowers(response.items);
+        }
+      } catch (activityError) {
+        if (!cancelled) {
+          setSocialError(
+            activityError instanceof Error
+              ? activityError.message
+              : 'No fue posible cargar la actividad.',
+          );
+        }
+      } finally {
+        if (!cancelled) {
+          setSocialLoading(false);
+        }
+      }
+    };
+
+    void loadSocialActivity();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    privateIdentityId,
+    socialActivityOpen,
+    socialActivityTab,
+  ]);
 
   const protectedChatIds = useMemo(
     () => new Set(
@@ -629,12 +817,10 @@ export default function ChatListScreen() {
             <TouchableOpacity
               style={styles.newChatBtn}
               onPress={() => {
-                router.push(
-                  '/(main)/chat/group-invites',
-                );
+                setSocialActivityOpen(true);
               }}
               activeOpacity={0.7}
-              accessibilityLabel="Invitaciones a grupos"
+              accessibilityLabel="Abrir actividad social"
             >
               <UserPlus
                 size={20}
@@ -646,7 +832,7 @@ export default function ChatListScreen() {
               style={styles.newChatBtn}
               onPress={() => setCreateMenuOpen(true)}
               activeOpacity={0.7}
-              accessibilityLabel="Crear chat o grupo"
+              accessibilityLabel="Crear o descubrir personas"
             >
               <SquarePen
                 size={20}
@@ -656,175 +842,151 @@ export default function ChatListScreen() {
           </View>
         </View>
 
+        <View style={styles.statusesSection}>
+          <StatusCirclesRow
+            statuses={statuses}
+            showLoadingPlaceholders={
+              statusesLoading && statuses.length === 0
+            }
+            onCreate={() => {
+              setCreatingStatus(true);
+            }}
+            onOpen={(index) => {
+              const selectedStatus = statuses[index];
+
+              if (selectedStatus) {
+                void registerStatusView(
+                  selectedStatus.id,
+                ).catch(() => {
+                  // El dueño no puede registrar su propia vista.
+                });
+              }
+
+              setViewerIndex(index);
+            }}
+          />
+
+          {statusesError ? (
+            <View style={styles.statusesInlineState}>
+              <Text style={styles.statusesInlineError}>
+                No fue posible cargar los estados.
+              </Text>
+              <TouchableOpacity
+                onPress={() => {
+                  void refreshStatuses();
+                }}
+                activeOpacity={0.7}
+                accessibilityLabel="Reintentar cargar estados"
+              >
+                <Text style={styles.statusesInlineRetry}>
+                  Reintentar
+                </Text>
+              </TouchableOpacity>
+            </View>
+          ) : null}
+        </View>
+
         <ChatTabs
           activeTab={activeTab}
           onChange={setActiveTab}
         />
 
-        {isStatusesTab ? (
-          <View style={styles.statusesTab}>
-            {statusesLoading ? (
-              <View style={styles.statusesState}>
-                <ActivityIndicator
-                  size="large"
-                  color={colors.brand.primary}
-                />
-                <Text style={styles.statusesStateText}>
-                  Cargando estados...
-                </Text>
-              </View>
-            ) : statusesError ? (
-              <View style={styles.statusesState}>
-                <Text style={styles.errorText}>
-                  {statusesError}
-                </Text>
-                <TouchableOpacity
-                  onPress={() => {
-                    void refreshStatuses();
-                  }}
-                  activeOpacity={0.7}
-                >
-                  <Text style={styles.retryText}>
-                    Reintentar
+        <>
+          {!isGroupsTab ? (
+            <ChatCategoryChips
+              categories={categories}
+              activeCategoryId={activeCategoryId}
+              onChange={setActiveCategoryId}
+              onCreate={() => {
+                setCreatingCategory(true);
+              }}
+            />
+          ) : null}
+
+          {loading && conversations.length === 0 ? (
+            <View style={styles.loadingState}>
+              <ActivityIndicator
+                size="large"
+                color={colors.brand.primary}
+              />
+
+              <Text style={styles.loadingText}>
+                Cargando chats...
+              </Text>
+            </View>
+          ) : (
+            <View style={styles.listWrap}>
+              {error ? (
+                <View style={styles.errorBox}>
+                  <Text style={styles.errorText}>
+                    {error}
                   </Text>
-                </TouchableOpacity>
-              </View>
-            ) : (
-              <StatusCirclesRow
-                statuses={statuses}
-                onCreate={() => {
-                  setCreatingStatus(true);
-                }}
-                onOpen={(index) => {
-                  const selectedStatus = statuses[index];
 
-                  if (selectedStatus) {
-                    void registerStatusView(
-                      selectedStatus.id,
-                    ).catch(() => {
-                      // El dueño no puede registrar su propia vista.
-                    });
-                  }
+                  <TouchableOpacity
+                    onPress={handleRefresh}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={styles.retryText}>
+                      Reintentar
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              ) : null}
 
-                  setViewerIndex(index);
+              <ChatListView
+                aiChat={
+                  isGroupsTab
+                    ? undefined
+                    : aiChat
+                }
+                chats={visibleListChats}
+                archivedCount={archivedCount}
+                archivedLabel={archivedLabel}
+                archivedSubtitle={archivedSubtitle}
+                onPressArchived={() => {
+                  router.push({
+                    pathname: '/(main)/chat/archived',
+                    params: {
+                      kind: isGroupsTab
+                        ? 'group'
+                        : 'direct',
+                    },
+                  });
                 }}
+                onOpenChat={handleChatPress}
+                onOpenMenu={setMenuChat}
+                onPin={() => {
+                  // La acción se ejecuta desde ChatOptionsSheet.
+                }}
+                onMute={() => {
+                  // La acción se ejecuta desde ChatOptionsSheet.
+                }}
+                onDelete={() => {
+                  // La acción se ejecuta desde ChatOptionsSheet.
+                }}
+                refreshControl={
+                  <RefreshControl
+                    refreshing={refreshing}
+                    onRefresh={handleRefresh}
+                    tintColor={colors.brand.primary}
+                  />
+                }
               />
-            )}
 
-            {!statusesLoading && !statusesError ? (
-              <TouchableOpacity
-                style={styles.statusesRefreshButton}
-                onPress={() => {
-                  void refreshStatuses();
-                }}
-                activeOpacity={0.7}
-              >
-                <Text style={styles.statusesRefreshText}>
-                  {statusesRefreshing
-                    ? 'Actualizando estados...'
-                    : 'Actualizar estados'}
-                </Text>
-              </TouchableOpacity>
-            ) : null}
-          </View>
-        ) : (
-          <>
-            {!isGroupsTab ? (
-              <ChatCategoryChips
-                categories={categories}
-                activeCategoryId={activeCategoryId}
-                onChange={setActiveCategoryId}
-                onCreate={() => {
-                  setCreatingCategory(true);
-                }}
-              />
-            ) : null}
+              {visibleListChats.length === 0 && !error ? (
+                <View style={styles.emptyOverlay}>
+                  <Text style={styles.emptyTitle}>
+                    {emptyTitle}
+                  </Text>
 
-            {loading && conversations.length === 0 ? (
-              <View style={styles.loadingState}>
-                <ActivityIndicator
-                  size="large"
-                  color={colors.brand.primary}
-                />
-
-                <Text style={styles.loadingText}>
-                  Cargando chats...
-                </Text>
-              </View>
-            ) : (
-              <View style={styles.listWrap}>
-                {error ? (
-                  <View style={styles.errorBox}>
-                    <Text style={styles.errorText}>
-                      {error}
-                    </Text>
-
-                    <TouchableOpacity
-                      onPress={handleRefresh}
-                      activeOpacity={0.7}
-                    >
-                      <Text style={styles.retryText}>
-                        Reintentar
-                      </Text>
-                    </TouchableOpacity>
-                  </View>
-                ) : null}
-
-                <ChatListView
-                  aiChat={
-                    isGroupsTab
-                      ? undefined
-                      : aiChat
-                  }
-                  chats={visibleListChats}
-                  archivedCount={archivedCount}
-                  archivedLabel={archivedLabel}
-                  archivedSubtitle={archivedSubtitle}
-                  onPressArchived={() => {
-                    router.push({
-                      pathname: '/(main)/chat/archived',
-                      params: {
-                        kind: isGroupsTab
-                          ? 'group'
-                          : 'direct',
-                      },
-                    });
-                  }}
-                  onOpenChat={handleChatPress}
-                  onOpenMenu={setMenuChat}
-                  onPin={() => {
-                    // La acción se ejecuta desde ChatOptionsSheet.
-                  }}
-                  onMute={() => {
-                    // La acción se ejecuta desde ChatOptionsSheet.
-                  }}
-                  onDelete={() => {
-                    // La acción se ejecuta desde ChatOptionsSheet.
-                  }}
-                  refreshControl={
-                    <RefreshControl
-                      refreshing={refreshing}
-                      onRefresh={handleRefresh}
-                      tintColor={colors.brand.primary}
-                    />
-                  }
-                />
-
-                {visibleListChats.length === 0 && !error ? (
-                  <View style={styles.emptyOverlay}>
-                    <Text style={styles.emptyTitle}>
-                      {emptyTitle}
-                    </Text>
-
-                    <Text style={styles.emptyDescription}>
-                      {emptyDescription}
-                    </Text>
-                  </View>
-                ) : null}
-              </View>
-            )}
-          </>
-        )}
+                  <Text style={styles.emptyDescription}>
+                    {emptyDescription}
+                  </Text>
+                </View>
+              ) : null}
+            </View>
+          )}
+        </>
       </View>
 
       <StatusViewer
@@ -862,6 +1024,236 @@ export default function ChatListScreen() {
         onSuccess={handlePinSuccess}
       />
 
+      <SocialActivitySheet
+        visible={socialActivityOpen}
+        activeTab={socialActivityTab}
+        invites={socialInvites}
+        requests={socialRequests}
+        followers={socialFollowers}
+        loading={socialLoading}
+        error={socialError}
+        actingId={socialActingId}
+        onChangeTab={setSocialActivityTab}
+        onAcceptInvite={(invite) => {
+          if (socialActingId) {
+            return;
+          }
+
+          void (async () => {
+            try {
+              setSocialActingId(invite.id);
+              const auth = await getValidSessionCredentials();
+
+              if (!auth || auth.scheme !== 'Bearer') {
+                throw new Error(
+                  'Tu sesión expiró. Inicia sesión nuevamente.',
+                );
+              }
+
+              const result = await respondToChatGroupInvite(
+                auth,
+                invite.id,
+                true,
+              );
+
+              setSocialInvites((current) => current.filter(
+                (item) => item.id !== invite.id,
+              ));
+
+              await loadConversations({
+                refresh: true,
+              });
+
+              if (
+                result.accepted
+                && result.conversation
+              ) {
+                setSocialActivityOpen(false);
+
+                router.push({
+                  pathname: '/(main)/chat/conversation',
+                  params: {
+                    id: result.conversation.id,
+                    name: result.conversation.name?.trim()
+                      || 'Grupo',
+                    isGroup: 'true',
+                    isAi: 'false',
+                    online: 'false',
+                    inviteId: invite.id,
+                  },
+                });
+              }
+            } catch (inviteError) {
+              setSocialError(
+                inviteError instanceof Error
+                  ? inviteError.message
+                  : 'No fue posible aceptar la invitación.',
+              );
+            } finally {
+              setSocialActingId(null);
+            }
+          })();
+        }}
+        onRejectInvite={(invite) => {
+          if (socialActingId) {
+            return;
+          }
+
+          void (async () => {
+            try {
+              setSocialActingId(invite.id);
+              const auth = await getValidSessionCredentials();
+
+              if (!auth || auth.scheme !== 'Bearer') {
+                throw new Error(
+                  'Tu sesión expiró. Inicia sesión nuevamente.',
+                );
+              }
+
+              await respondToChatGroupInvite(
+                auth,
+                invite.id,
+                false,
+              );
+
+              setSocialInvites((current) => current.filter(
+                (item) => item.id !== invite.id,
+              ));
+            } catch (inviteError) {
+              setSocialError(
+                inviteError instanceof Error
+                  ? inviteError.message
+                  : 'No fue posible rechazar la invitación.',
+              );
+            } finally {
+              setSocialActingId(null);
+            }
+          })();
+        }}
+        onAcceptRequest={(request) => {
+          if (socialActingId) {
+            return;
+          }
+
+          void (async () => {
+            try {
+              setSocialActingId(request.id);
+              await acceptStatusFollow(request.id);
+
+              setSocialRequests((current) => current.filter(
+                (item) => item.id !== request.id,
+              ));
+
+              void refreshStatuses();
+            } catch (requestError) {
+              setSocialError(
+                requestError instanceof Error
+                  ? requestError.message
+                  : 'No fue posible aceptar la solicitud.',
+              );
+            } finally {
+              setSocialActingId(null);
+            }
+          })();
+        }}
+        onRejectRequest={(request) => {
+          if (socialActingId) {
+            return;
+          }
+
+          void (async () => {
+            try {
+              setSocialActingId(request.id);
+              await rejectStatusFollow(request.id);
+
+              setSocialRequests((current) => current.filter(
+                (item) => item.id !== request.id,
+              ));
+            } catch (requestError) {
+              setSocialError(
+                requestError instanceof Error
+                  ? requestError.message
+                  : 'No fue posible rechazar la solicitud.',
+              );
+            } finally {
+              setSocialActingId(null);
+            }
+          })();
+        }}
+        onClose={() => {
+          setSocialActivityOpen(false);
+          setSocialError(null);
+          setSocialActingId(null);
+        }}
+      />
+
+      <DiscoverPeopleModal
+        visible={discoverPeopleOpen}
+        query={discoverQuery}
+        results={discoverResults}
+        loading={discoverLoading}
+        error={discoverError}
+        followingTargetKey={followingTargetKey}
+        onChangeQuery={setDiscoverQuery}
+        onFollow={(target) => {
+          const targetKey = (
+            target.profile_id
+            || target.commercial_profile_id
+            || target.display_name
+          );
+
+          void (async () => {
+            try {
+              setFollowingTargetKey(targetKey);
+
+              const response = await followStatusTarget({
+                target_actor_type: target.actor_type,
+                target_profile_id: target.profile_id,
+                target_commercial_profile_id: (
+                  target.commercial_profile_id
+                ),
+              });
+
+              setDiscoverResults((current) => (
+                current.map((item) => {
+                  const itemKey = (
+                    item.profile_id
+                    || item.commercial_profile_id
+                    || item.display_name
+                  );
+
+                  return itemKey === targetKey
+                    ? {
+                      ...item,
+                      follow_id: response.follow.id,
+                      follow_state: response.follow.state,
+                    }
+                    : item;
+                })
+              ));
+
+              void refreshStatuses();
+            } catch (followError) {
+              setDiscoverError(
+                followError instanceof Error
+                  ? followError.message
+                  : 'No fue posible seguir esta cuenta.',
+              );
+            } finally {
+              setFollowingTargetKey(null);
+            }
+          })();
+        }}
+        onClose={() => {
+          discoverRequestRef.current += 1;
+          setDiscoverPeopleOpen(false);
+          setDiscoverQuery('');
+          setDiscoverResults([]);
+          setDiscoverError(null);
+          setFollowingTargetKey(null);
+        }}
+      />
+
       <ChatCreateMenu
         visible={createMenuOpen}
         onNewChat={() => {
@@ -871,6 +1263,10 @@ export default function ChatListScreen() {
         onNewGroup={() => {
           setCreateMenuOpen(false);
           router.push('/(main)/chat/new-group');
+        }}
+        onDiscoverPeople={() => {
+          setCreateMenuOpen(false);
+          setDiscoverPeopleOpen(true);
         }}
         onClose={() => {
           setCreateMenuOpen(false);
@@ -1058,29 +1454,29 @@ const styles = StyleSheet.create({
     marginTop: 7,
     textAlign: 'center',
   },
-  statusesTab: {
-    flex: 1,
+  statusesSection: {
+    backgroundColor: colors.neutral.white,
   },
-  statusesState: {
+  statusesInlineState: {
     alignItems: 'center',
-    flex: 1,
-    gap: 12,
-    justifyContent: 'center',
-    paddingHorizontal: 24,
+    flexDirection: 'row',
+    gap: 8,
+    minHeight: 82,
+    paddingHorizontal: 20,
   },
-  statusesStateText: {
+  statusesInlineText: {
     color: colors.neutral.gray600,
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '600',
   },
-  statusesRefreshButton: {
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingVertical: 14,
+  statusesInlineError: {
+    color: colors.semantic.error,
+    flex: 1,
+    fontSize: 12,
   },
-  statusesRefreshText: {
+  statusesInlineRetry: {
     color: colors.brand.primary,
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: '700',
   },
 });

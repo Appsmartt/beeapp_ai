@@ -1,31 +1,49 @@
 import {
+  acceptStatusFollowRequest,
   archiveStatus,
   createMediaStatus,
+  createStatusFollow,
   createTextStatus,
+  deleteStatusFollow,
+  discoverStatusFollowTargets,
   getMyStatuses,
   getStatusDetail,
   getStatusFeed,
+  getStatusFollowRequests,
+  getStatusFollowers,
+  getStatusFollowing,
   getStatusTextBackgrounds,
   getStatusViewers,
   registerStatusView,
+  rejectStatusFollowRequest,
   sendStatusReply,
   type StatusUploadFile,
 } from '@beeapp/api-client';
 import type {
   ArchiveStatusResponse,
   CreateMediaStatusPayload,
+  CreateStatusFollowPayload,
+  CreateStatusFollowResponse,
   CreateStatusResponse,
   CreateTextStatusPayload,
   GetStatusDetailResponse,
   GetStatusFeedResponse,
+  GetStatusFollowDiscoverResponse,
+  GetStatusFollowRequestsResponse,
+  GetStatusFollowersResponse,
+  GetStatusFollowingResponse,
   GetStatusTextBackgroundsResponse,
   GetStatusViewersResponse,
   RegisterStatusViewResponse,
   SendStatusReplyPayload,
   StatusDetailQuery,
   StatusFeedQuery,
+  StatusFollowDiscoverQuery,
+  StatusFollowListQuery,
+  StatusFollowersQuery,
   StatusMineQuery,
   StatusMineResponse,
+  UpdateStatusFollowResponse,
 } from '@beeapp/shared-types';
 
 import {
@@ -58,6 +76,78 @@ export async function loadStatusFeed(
   return getStatusFeed(
     await getRequiredStatusCredentials(),
     query,
+  );
+}
+
+export async function searchStatusFollowTargets(
+  query: StatusFollowDiscoverQuery,
+): Promise<GetStatusFollowDiscoverResponse> {
+  return discoverStatusFollowTargets(
+    await getRequiredStatusCredentials(),
+    query,
+  );
+}
+
+export async function followStatusTarget(
+  payload: CreateStatusFollowPayload,
+): Promise<CreateStatusFollowResponse> {
+  return createStatusFollow(
+    await getRequiredStatusCredentials(),
+    payload,
+  );
+}
+
+export async function loadStatusFollowing(
+  query: StatusFollowListQuery = {},
+): Promise<GetStatusFollowingResponse> {
+  return getStatusFollowing(
+    await getRequiredStatusCredentials(),
+    query,
+  );
+}
+
+export async function loadStatusFollowers(
+  query: StatusFollowersQuery = {},
+): Promise<GetStatusFollowersResponse> {
+  return getStatusFollowers(
+    await getRequiredStatusCredentials(),
+    query,
+  );
+}
+
+export async function loadStatusFollowRequests(
+  query: StatusFollowListQuery = {},
+): Promise<GetStatusFollowRequestsResponse> {
+  return getStatusFollowRequests(
+    await getRequiredStatusCredentials(),
+    query,
+  );
+}
+
+export async function acceptStatusFollow(
+  followId: string,
+): Promise<UpdateStatusFollowResponse> {
+  return acceptStatusFollowRequest(
+    await getRequiredStatusCredentials(),
+    followId,
+  );
+}
+
+export async function rejectStatusFollow(
+  followId: string,
+): Promise<UpdateStatusFollowResponse> {
+  return rejectStatusFollowRequest(
+    await getRequiredStatusCredentials(),
+    followId,
+  );
+}
+
+export async function removeStatusFollow(
+  followId: string,
+): Promise<void> {
+  await deleteStatusFollow(
+    await getRequiredStatusCredentials(),
+    followId,
   );
 }
 

@@ -7,6 +7,7 @@ import {
 } from 'react-native';
 import {
   MessageCircle,
+  Search,
   Users,
 } from 'lucide-react-native';
 import {
@@ -18,6 +19,7 @@ interface ChatCreateMenuProps {
   visible: boolean;
   onNewChat: () => void;
   onNewGroup: () => void;
+  onDiscoverPeople: () => void;
   onClose: () => void;
 }
 
@@ -25,6 +27,7 @@ export default function ChatCreateMenu({
   visible,
   onNewChat,
   onNewGroup,
+  onDiscoverPeople,
   onClose,
 }: ChatCreateMenuProps) {
   const options = [
@@ -37,6 +40,11 @@ export default function ChatCreateMenu({
       icon: Users,
       label: 'Nuevo grupo',
       onPress: onNewGroup,
+    },
+    {
+      icon: Search,
+      label: 'Descubrir personas',
+      onPress: onDiscoverPeople,
     },
   ];
 
