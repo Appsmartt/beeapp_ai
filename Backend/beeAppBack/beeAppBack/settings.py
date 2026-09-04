@@ -269,6 +269,13 @@ REST_FRAMEWORK = {
         "call_start": "12/min",
         "call_join": "30/min",
         "call_mutation": "60/min",
+        "commercial_explore": "120/min",
+        "commercial_manage": "30/min",
+        "commercial_request": "20/min",
+        "commercial_negotiation": "30/min",
+        "commercial_booking": "20/min",
+        "commercial_evidence": "10/min",
+        "commercial_dispute": "15/min",
     },
 }
 AGORA_APP_ID = get_required_env("AGORA_APP_ID")
