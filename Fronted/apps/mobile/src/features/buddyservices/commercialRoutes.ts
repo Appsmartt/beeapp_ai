@@ -79,6 +79,85 @@ export function buddyServicesCreateBusinessRoute(): Href {
   return '/(main)/beeservices/create-business';
 }
 
+export function buddyServicesManageBusinessRoute(
+businessId: string,
+): Href {
+return {
+pathname: '/(main)/beeservices/manage/[businessId]',
+params: {
+businessId: requireId(businessId, 'el negocio'),
+},
+};
+}
+
+export function buddyServicesManageOfferRoute(
+businessId: string,
+offerId: string,
+): Href {
+return {
+pathname: '/(main)/beeservices/manage/[businessId]/offers/[offerId]',
+params: {
+businessId: requireId(businessId, 'el negocio'),
+offerId: requireId(offerId, 'la oferta'),
+},
+};
+}
+
+export function buddyServicesManagePaymentMethodsRoute(
+businessId: string,
+): Href {
+return {
+pathname: '/(main)/beeservices/manage/[businessId]/payment-methods',
+params: {
+businessId: requireId(businessId, 'el negocio'),
+},
+};
+}
+
+export function buddyServicesManageOffersRoute(
+businessId: string,
+): Href {
+return {
+pathname: '/(main)/beeservices/manage/[businessId]/offers',
+params: {
+businessId: requireId(businessId, 'el negocio'),
+},
+};
+}
+
+export function buddyServicesManageCatalogsRoute(
+businessId: string,
+): Href {
+return {
+pathname: '/(main)/beeservices/manage/[businessId]/catalogs',
+params: {
+businessId: requireId(businessId, 'el negocio'),
+},
+};
+}
+
+export function buddyServicesManageProfileRoute(
+businessId: string,
+): Href {
+return {
+pathname: '/(main)/beeservices/manage/[businessId]/profile',
+params: {
+businessId: requireId(businessId, 'el negocio'),
+},
+};
+}
+
+export function buddyServicesManageOperationRoute(
+businessId: string,
+): Href {
+return {
+pathname: '/(main)/beeservices/manage/[businessId]/operation',
+params: {
+businessId: requireId(businessId, 'el negocio'),
+},
+};
+}
+
 export function buddyServicesMyPurchasesRoute(): Href {
   return '/(main)/beeservices/my-purchases';
 }
