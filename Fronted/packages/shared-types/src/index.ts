@@ -2823,3 +2823,5 @@ export interface ChatPushNotificationData {
   conversation_patch?: ChatConversationRealtimePatch | null;
   protected?: boolean | string;
 }
+
+export * from './commercial';
