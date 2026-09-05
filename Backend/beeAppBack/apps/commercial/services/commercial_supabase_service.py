@@ -95,6 +95,8 @@ def translate_commercial_rpc_error(
             "PROFILE_MISMATCH",
             "FILE_NOT_OWNED",
             "FILE_NOT_ACCESSIBLE",
+            "ONLY THE COMMERCIAL PROFILE OWNER",
+            "COMMERCIAL PROFILE OWNER CAN",
         )
     ):
         return CommercialAccessError(
