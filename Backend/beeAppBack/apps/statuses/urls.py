@@ -1,6 +1,10 @@
 from django.urls import path
 
 from apps.statuses.views import (
+    StatusAuthorStoriesView,
+    StatusCollectionView,
+    StatusDetailView,
+    StatusFeedView,
     StatusFollowAcceptView,
     StatusFollowDetailView,
     StatusFollowDiscoverView,
@@ -9,7 +13,11 @@ from apps.statuses.views import (
     StatusFollowingView,
     StatusFollowRequestsView,
     StatusFollowsView,
+    StatusMineView,
+    StatusRepliesView,
     StatusTextBackgroundsView,
+    StatusViewersView,
+    StatusViewsView,
 )
 
 
@@ -20,6 +28,46 @@ urlpatterns = [
         "text-backgrounds/",
         StatusTextBackgroundsView.as_view(),
         name="status-text-backgrounds",
+    ),
+    path(
+        "feed/",
+        StatusFeedView.as_view(),
+        name="status-feed",
+    ),
+    path(
+        "mine/",
+        StatusMineView.as_view(),
+        name="status-mine",
+    ),
+    path(
+        "authors/<str:actor_type>/<uuid:actor_id>/",
+        StatusAuthorStoriesView.as_view(),
+        name="status-author-stories",
+    ),
+    path(
+        "<uuid:status_id>/views/",
+        StatusViewsView.as_view(),
+        name="status-views",
+    ),
+    path(
+        "<uuid:status_id>/viewers/",
+        StatusViewersView.as_view(),
+        name="status-viewers",
+    ),
+    path(
+        "<uuid:status_id>/replies/",
+        StatusRepliesView.as_view(),
+        name="status-replies",
+    ),
+    path(
+        "<uuid:status_id>/",
+        StatusDetailView.as_view(),
+        name="status-detail",
+    ),
+    path(
+        "",
+        StatusCollectionView.as_view(),
+        name="status-collection",
     ),
     path(
         "follows/",

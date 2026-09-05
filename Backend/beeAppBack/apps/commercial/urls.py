@@ -1,13 +1,139 @@
 from django.urls import path
 
+from apps.commercial.request_views import CommercialRequestsView
+from apps.commercial.request_transition_views import CommercialRequestTransitionView
+from apps.commercial.request_proposal_views import CommercialRequestProposalsView
+from apps.commercial.reservation_views import CommercialReservationHoldView
+from apps.commercial.payment_flow_views import (
+    CommercialRequestPaymentMethodsView,
+    CommercialRequestPaymentView,
+)
+from apps.commercial.payment_proof_views import CommercialPaymentProofsView
+from apps.commercial.payment_proof_review_views import (
+    CommercialPaymentProofReviewView,
+)
+
 from apps.commercial.views import (
     CommercialCategoriesView,
     CommercialProfileDetailView,
+    CommercialProfileAuditEventsView,
+    CommercialProfileCatalogsView,
+    CommercialProfileCatalogDetailView,
+    CommercialProfileCatalogArchiveView,
+    CommercialProfileCatalogPauseView,
+    CommercialProfileCatalogPublishView,
+    CommercialProfileCatalogRestoreView,
+    CommercialProfileOffersView,
+    CommercialProfileOfferDetailView,
+    CommercialProfileOfferEnableView,
+    CommercialProfileOfferDisableView,
+    CommercialProfileOfferInventoryAdjustView,
+    CommercialProfileOfferPauseView,
+    CommercialProfileOfferPublishView,
+    CommercialProfileOfferArchiveView,
+    CommercialProfileOfferRestoreView,
+    CommercialProfileOfferImagesView,
+    CommercialProfileOfferImageArchiveView,
+    CommercialProfileOfferImageRestoreView,
+    CommercialProfileOfferImageSetPrimaryView,
+    CommercialProfileOfferImageDetailView,
+    CommercialProfileOfferModalitiesView,
+    CommercialProfilePaymentMethodsView,
+    CommercialProfilePaymentMethodDetailView,
+    CommercialProfilePaymentMethodArchiveView,
     CommercialProfilesView,
+    PublicCommercialCategoriesView,
+    PublicCommercialCitiesView,
+    PublicCommercialCountriesView,
+    PublicCommercialProfileDetailView,
+    PublicCommercialProfilesView,
+    PublicCommercialCatalogsView,
+    PublicCommercialOffersView,
+    PublicCommercialOfferDetailView,
 )
 
 
 urlpatterns = [
+    path(
+        "requests/",
+        CommercialRequestsView.as_view(),
+        name="commercial-requests",
+    ),
+    path(
+        "requests/<uuid:request_id>/transition/",
+        CommercialRequestTransitionView.as_view(),
+        name="commercial-request-transition",
+    ),
+    path(
+        "requests/<uuid:request_id>/proposals/",
+        CommercialRequestProposalsView.as_view(),
+        name="commercial-request-proposals",
+    ),
+    path(
+        "requests/<uuid:request_id>/reservation-hold/",
+        CommercialReservationHoldView.as_view(),
+        name="commercial-reservation-hold",
+    ),
+    path(
+        "requests/<uuid:request_id>/payment-request/",
+        CommercialRequestPaymentView.as_view(),
+        name="commercial-request-payment",
+    ),
+    path(
+        "requests/<uuid:request_id>/payment-methods/",
+        CommercialRequestPaymentMethodsView.as_view(),
+        name="commercial-request-payment-methods",
+    ),
+    path(
+        "requests/<uuid:request_id>/payment-proofs/",
+        CommercialPaymentProofsView.as_view(),
+        name="commercial-payment-proofs",
+    ),
+    path(
+        "payment-proofs/<uuid:payment_proof_id>/review/",
+        CommercialPaymentProofReviewView.as_view(),
+        name="commercial-payment-proof-review",
+    ),
+    path(
+        "public/countries/",
+        PublicCommercialCountriesView.as_view(),
+        name="public-commercial-countries",
+    ),
+    path(
+        "public/cities/",
+        PublicCommercialCitiesView.as_view(),
+        name="public-commercial-cities",
+    ),
+    path(
+        "public/categories/",
+        PublicCommercialCategoriesView.as_view(),
+        name="public-commercial-categories",
+    ),
+    path(
+        "public/profiles/",
+        PublicCommercialProfilesView.as_view(),
+        name="public-commercial-profiles",
+    ),
+    path(
+        "public/profiles/<uuid:profile_id>/",
+        PublicCommercialProfileDetailView.as_view(),
+        name="public-commercial-profile-detail",
+    ),
+    path(
+        "public/profiles/<uuid:profile_id>/catalogs/",
+        PublicCommercialCatalogsView.as_view(),
+        name="public-commercial-catalogs",
+    ),
+    path(
+        "public/profiles/<uuid:profile_id>/offers/",
+        PublicCommercialOffersView.as_view(),
+        name="public-commercial-profile-offers",
+    ),
+    path(
+        "public/offers/<uuid:offer_id>/",
+        PublicCommercialOfferDetailView.as_view(),
+        name="public-commercial-offer-detail",
+    ),
     path(
         "categories/",
         CommercialCategoriesView.as_view(),
@@ -22,5 +148,133 @@ urlpatterns = [
         "profiles/<uuid:profile_id>/",
         CommercialProfileDetailView.as_view(),
         name="commercial-profile-detail",
+    ),
+    path(
+        "profiles/<uuid:profile_id>/audit-events/",
+        CommercialProfileAuditEventsView.as_view(),
+        name="commercial-profile-audit-events",
+    ),
+    path(
+        "profiles/<uuid:profile_id>/catalogs/",
+        CommercialProfileCatalogsView.as_view(),
+        name="commercial-profile-catalogs",
+    ),
+    path(
+        "profiles/<uuid:profile_id>/catalogs/<uuid:catalog_id>/",
+        CommercialProfileCatalogDetailView.as_view(),
+        name="commercial-profile-catalog-detail",
+    ),
+    path(
+        "profiles/<uuid:profile_id>/catalogs/<uuid:catalog_id>/archive/",
+        CommercialProfileCatalogArchiveView.as_view(),
+        name="commercial-profile-catalog-archive",
+    ),
+    path(
+        "profiles/<uuid:profile_id>/catalogs/<uuid:catalog_id>/restore/",
+        CommercialProfileCatalogRestoreView.as_view(),
+        name="commercial-profile-catalog-restore",
+    ),
+    path(
+        "profiles/<uuid:profile_id>/catalogs/<uuid:catalog_id>/pause/",
+        CommercialProfileCatalogPauseView.as_view(),
+        name="commercial-profile-catalog-pause",
+    ),
+    path(
+        "profiles/<uuid:profile_id>/catalogs/<uuid:catalog_id>/publish/",
+        CommercialProfileCatalogPublishView.as_view(),
+        name="commercial-profile-catalog-publish",
+    ),
+
+    path(
+        "profiles/<uuid:profile_id>/payment-methods/",
+        CommercialProfilePaymentMethodsView.as_view(),
+        name="commercial-profile-payment-methods",
+    ),
+    path(
+        "profiles/<uuid:profile_id>/payment-methods/"
+        "<uuid:payment_method_id>/",
+        CommercialProfilePaymentMethodDetailView.as_view(),
+        name="commercial-profile-payment-method-detail",
+    ),
+    path(
+        "profiles/<uuid:profile_id>/payment-methods/"
+        "<uuid:payment_method_id>/archive/",
+        CommercialProfilePaymentMethodArchiveView.as_view(),
+        name="commercial-profile-payment-method-archive",
+    ),
+    path(
+        "profiles/<uuid:profile_id>/offers/",
+        CommercialProfileOffersView.as_view(),
+        name="commercial-profile-offers",
+    ),
+    path(
+        "profiles/<uuid:profile_id>/offers/<uuid:offer_id>/",
+        CommercialProfileOfferDetailView.as_view(),
+        name="commercial-profile-offer-detail",
+    ),
+    path(
+        "profiles/<uuid:profile_id>/offers/<uuid:offer_id>/pause/",
+        CommercialProfileOfferPauseView.as_view(),
+        name="commercial-profile-offer-pause",
+    ),
+    path(
+        "profiles/<uuid:profile_id>/offers/<uuid:offer_id>/enable/",
+        CommercialProfileOfferEnableView.as_view(),
+        name="commercial-profile-offer-enable",
+    ),
+    path(
+        "profiles/<uuid:profile_id>/offers/<uuid:offer_id>/disable/",
+        CommercialProfileOfferDisableView.as_view(),
+        name="commercial-profile-offer-disable",
+    ),
+    path(
+        "profiles/<uuid:profile_id>/offers/<uuid:offer_id>/inventory/adjust/",
+        CommercialProfileOfferInventoryAdjustView.as_view(),
+        name="commercial-profile-offer-inventory-adjust",
+    ),
+    path(
+        "profiles/<uuid:profile_id>/offers/<uuid:offer_id>/publish/",
+        CommercialProfileOfferPublishView.as_view(),
+        name="commercial-profile-offer-publish",
+    ),
+    path(
+        "profiles/<uuid:profile_id>/offers/<uuid:offer_id>/archive/",
+        CommercialProfileOfferArchiveView.as_view(),
+        name="commercial-profile-offer-archive",
+    ),
+    path(
+        "profiles/<uuid:profile_id>/offers/<uuid:offer_id>/restore/",
+        CommercialProfileOfferRestoreView.as_view(),
+        name="commercial-profile-offer-restore",
+    ),
+    path(
+        "profiles/<uuid:profile_id>/offers/<uuid:offer_id>/modalities/",
+        CommercialProfileOfferModalitiesView.as_view(),
+        name="commercial-profile-offer-modalities",
+    ),
+    path(
+        "profiles/<uuid:profile_id>/offers/<uuid:offer_id>/images/",
+        CommercialProfileOfferImagesView.as_view(),
+        name="commercial-profile-offer-images",
+    ),
+    path(
+        "profiles/<uuid:profile_id>/offers/<uuid:offer_id>/images/<uuid:image_id>/",
+        CommercialProfileOfferImageDetailView.as_view(),
+        name="commercial-profile-offer-image-detail",
+    ),
+    path(
+        "profiles/<uuid:profile_id>/offers/<uuid:offer_id>/images/<uuid:image_id>/archive/",
+        CommercialProfileOfferImageArchiveView.as_view(),
+        name="commercial-profile-offer-image-archive",
+    ),
+    path(
+        "profiles/<uuid:profile_id>/offers/<uuid:offer_id>/images/<uuid:image_id>/restore/",
+        CommercialProfileOfferImageRestoreView.as_view(),
+        name="commercial-profile-offer-image-restore",
+    ),
+    path(
+        "profiles/<uuid:profile_id>/offers/<uuid:offer_id>/images/<uuid:image_id>/set-primary/",
+        CommercialProfileOfferImageSetPrimaryView.as_view(),
+        name="commercial-profile-offer-image-set-primary",
     ),
 ]

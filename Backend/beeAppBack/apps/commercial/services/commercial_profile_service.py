@@ -4,12 +4,14 @@ from typing import Any
 
 from beeAppBack.core.supabase_client import (
     get_supabase_admin_client,
+    get_supabase_user_client,
 )
 
 from apps.commercial.exceptions import (
     CommercialCategoryLookupError,
     CommercialProfileCreateError,
     CommercialProfileNotFoundError,
+    CommercialProfileUpdateError,
     CommercialProfileValidationError,
 )
 from apps.storage.exceptions import (
@@ -171,9 +173,17 @@ def validate_commercial_logo(
 def create_commercial_profile(
     *,
     user_id: str,
+    access_token: str,
     payload: dict[str, Any],
 ) -> dict[str, Any]:
     created_profile_id: str | None = None
+
+    normalized_access_token = str(access_token or "").strip()
+
+    if not normalized_access_token:
+        raise CommercialProfileCreateError(
+            "A valid access token is required."
+        )
 
     try:
         offer_type = payload["offer_type"]
@@ -224,7 +234,9 @@ def create_commercial_profile(
             "is_available": payload["is_available"],
         }
 
-        supabase = get_supabase_admin_client()
+        supabase = get_supabase_user_client(
+            access_token=normalized_access_token,
+        )
 
         profile_response = (
             supabase.table("commercial_profiles")
@@ -296,8 +308,8 @@ def create_commercial_profile(
                     "Supabase did not create all profile hours."
                 )
 
-        return get_commercial_profile(
-            user_id=str(user_id),
+        return get_owned_commercial_profile_with_access_token(
+            access_token=normalized_access_token,
             profile_id=created_profile_id,
         )
 
@@ -307,6 +319,7 @@ def create_commercial_profile(
     ):
         _rollback_created_commercial_profile(
             user_id=str(user_id),
+            access_token=normalized_access_token,
             profile_id=created_profile_id,
         )
         raise
@@ -314,6 +327,7 @@ def create_commercial_profile(
     except Exception as error:
         _rollback_created_commercial_profile(
             user_id=str(user_id),
+            access_token=normalized_access_token,
             profile_id=created_profile_id,
         )
 
@@ -380,6 +394,7 @@ def get_commercial_profile(
 def _rollback_created_commercial_profile(
     *,
     user_id: str,
+    access_token: str,
     profile_id: str | None,
 ) -> None:
     if not profile_id:
@@ -387,7 +402,9 @@ def _rollback_created_commercial_profile(
 
     try:
         (
-            get_supabase_admin_client()
+            get_supabase_user_client(
+                access_token=access_token,
+            )
             .table("commercial_profiles")
             .delete()
             .eq("id", str(profile_id))
@@ -396,3 +413,512 @@ def _rollback_created_commercial_profile(
         )
     except Exception:
         pass
+
+PRIVATE_COMMERCIAL_PROFILE_COLUMNS = (
+    COMMERCIAL_PROFILE_COLUMNS
+    + ",publication_status,verification_status,"
+    "verification_badge_visible,timezone,booking_hold_minutes,"
+    "delivery_fee_mode,delivery_fee_amount,delivery_currency_code,"
+    "archived_at,suspended_at,suspension_reason,"
+    "inventory_hold_minutes"
+)
+
+
+def list_owned_commercial_profiles(
+    *,
+    user_id: str,
+) -> list[dict[str, Any]]:
+    try:
+        response = (
+            get_supabase_admin_client()
+            .table("commercial_profiles")
+            .select(PRIVATE_COMMERCIAL_PROFILE_COLUMNS)
+            .eq("owner_id", str(user_id))
+            .order("created_at", desc=True)
+            .execute()
+        )
+
+        profiles = response.data or []
+
+        return [
+            _attach_profile_relations(
+                profile=profile,
+            )
+            for profile in profiles
+        ]
+
+    except Exception as error:
+        raise CommercialProfileNotFoundError(
+            "Could not retrieve commercial profiles."
+        ) from error
+
+
+def get_owned_commercial_profile(
+    *,
+    user_id: str,
+    profile_id: str,
+) -> dict[str, Any]:
+    try:
+        response = (
+            get_supabase_admin_client()
+            .table("commercial_profiles")
+            .select(PRIVATE_COMMERCIAL_PROFILE_COLUMNS)
+            .eq("id", str(profile_id))
+            .eq("owner_id", str(user_id))
+            .maybe_single()
+            .execute()
+        )
+
+        profile = response.data
+
+        if not profile:
+            raise CommercialProfileNotFoundError(
+                "The requested commercial profile was not found."
+            )
+
+        return _attach_profile_relations(profile=profile)
+
+    except CommercialProfileNotFoundError:
+        raise
+
+    except Exception as error:
+        raise CommercialProfileNotFoundError(
+            "Could not retrieve commercial profile."
+        ) from error
+
+
+def update_commercial_profile(
+    *,
+    user_id: str,
+    access_token: str,
+    profile_id: str,
+    payload: dict[str, Any],
+) -> dict[str, Any]:
+    mutable_fields = {
+        "offer_type",
+        "category_id",
+        "custom_activity_text",
+        "display_name",
+        "description",
+        "country_code",
+        "city",
+        "address",
+        "neighborhood",
+        "location_reference",
+        "is_address_public",
+        "phone_dial_code",
+        "phone_number",
+        "is_phone_public",
+        "public_email",
+        "is_email_public",
+        "logo_file_id",
+        "is_available",
+        "timezone",
+        "booking_hold_minutes",
+        "inventory_hold_minutes",
+        "delivery_fee_mode",
+        "delivery_fee_amount",
+        "delivery_currency_code",
+    }
+
+    has_modalities = "modalities" in payload
+    has_hours = "hours" in payload
+
+    profile_payload = {
+        key: (
+            str(value)
+            if key in {"category_id", "logo_file_id"}
+            and value is not None
+            else value
+        )
+        for key, value in payload.items()
+        if key in mutable_fields
+    }
+
+    normalized_access_token = str(access_token or "").strip()
+
+    if not normalized_access_token:
+        raise CommercialProfileUpdateError(
+            "A valid access token is required."
+        )
+
+    try:
+        current_profile = get_owned_commercial_profile(
+            user_id=str(user_id),
+            profile_id=str(profile_id),
+        )
+
+        user_supabase = get_supabase_user_client(
+            access_token=normalized_access_token,
+        )
+
+        merged_profile = {
+            **current_profile,
+            **profile_payload,
+        }
+
+        _validate_merged_profile_payload(
+            user_id=str(user_id),
+            profile_id=str(profile_id),
+            merged_profile=merged_profile,
+        )
+
+        if profile_payload:
+            response = (
+                user_supabase
+                .table("commercial_profiles")
+                .update(profile_payload)
+                .eq("id", str(profile_id))
+                .eq("owner_id", str(user_id))
+                .execute()
+            )
+
+            if not response.data:
+                raise CommercialProfileUpdateError(
+                    "Supabase did not return the updated profile."
+                )
+
+        if has_modalities:
+            _replace_commercial_profile_modalities(
+                user_id=str(user_id),
+                access_token=normalized_access_token,
+                profile_id=str(profile_id),
+                modalities=payload["modalities"],
+            )
+
+        if has_hours:
+            _replace_commercial_profile_hours(
+                user_id=str(user_id),
+                access_token=normalized_access_token,
+                profile_id=str(profile_id),
+                hours=payload["hours"],
+            )
+
+        return get_owned_commercial_profile_with_access_token(
+            access_token=normalized_access_token,
+            profile_id=str(profile_id),
+        )
+
+    except (
+        CommercialProfileNotFoundError,
+        CommercialProfileUpdateError,
+        CommercialProfileValidationError,
+    ):
+        raise
+
+    except Exception as error:
+        raise CommercialProfileUpdateError(
+            "Could not update commercial profile."
+        ) from error
+
+
+def _attach_profile_relations(
+    *,
+    profile: dict[str, Any],
+) -> dict[str, Any]:
+    profile_id = str(profile["id"])
+    enriched_profile = dict(profile)
+
+    modalities_response = (
+        get_supabase_admin_client()
+        .table("commercial_profile_modalities")
+        .select(COMMERCIAL_MODALITY_COLUMNS)
+        .eq("commercial_profile_id", profile_id)
+        .order("created_at")
+        .execute()
+    )
+
+    hours_response = (
+        get_supabase_admin_client()
+        .table("commercial_profile_hours")
+        .select(COMMERCIAL_HOUR_COLUMNS)
+        .eq("commercial_profile_id", profile_id)
+        .order("day_of_week")
+        .order("opens_at")
+        .execute()
+    )
+
+    enriched_profile["modalities"] = (
+        modalities_response.data or []
+    )
+    enriched_profile["hours"] = hours_response.data or []
+
+    return enriched_profile
+
+
+def _validate_merged_profile_payload(
+    *,
+    user_id: str,
+    profile_id: str,
+    merged_profile: dict[str, Any],
+) -> None:
+    category_id = merged_profile.get("category_id")
+    custom_activity_text = (
+        str(
+            merged_profile.get("custom_activity_text") or ""
+        ).strip()
+        or None
+    )
+
+    if category_id is None and not custom_activity_text:
+        raise CommercialProfileValidationError(
+            "Select a category or provide a custom activity."
+        )
+
+    if category_id is not None and custom_activity_text:
+        raise CommercialProfileValidationError(
+            "Provide a custom activity only when no category is selected."
+        )
+
+    if category_id is not None:
+        validate_commercial_category(
+            category_id=str(category_id),
+            offer_type=merged_profile["offer_type"],
+        )
+
+    logo_file_id = merged_profile.get("logo_file_id")
+
+    if logo_file_id:
+        validate_commercial_logo(
+            user_id=str(user_id),
+            logo_file_id=str(logo_file_id),
+        )
+
+    phone_dial_code = merged_profile.get("phone_dial_code")
+    phone_number = merged_profile.get("phone_number")
+
+    if bool(phone_dial_code) != bool(phone_number):
+        raise CommercialProfileValidationError(
+            "Phone dial code and phone number must be provided together."
+        )
+
+    if (
+        merged_profile.get("is_phone_public")
+        and not phone_number
+    ):
+        raise CommercialProfileValidationError(
+            "A public phone number is required when phone visibility is enabled."
+        )
+
+    if (
+        merged_profile.get("is_email_public")
+        and not merged_profile.get("public_email")
+    ):
+        raise CommercialProfileValidationError(
+            "A public email is required when email visibility is enabled."
+        )
+
+    if (
+        merged_profile.get("delivery_fee_mode") == "fixed"
+        and merged_profile.get("delivery_fee_amount") is None
+    ):
+        raise CommercialProfileValidationError(
+            "A fixed delivery fee requires an amount."
+        )
+
+    if (
+        merged_profile.get("delivery_fee_mode")
+        in {
+            "not_offered",
+            "free",
+            "to_be_confirmed",
+        }
+        and merged_profile.get("delivery_fee_amount") is not None
+    ):
+        raise CommercialProfileValidationError(
+            "Only fixed delivery fees can include an amount."
+        )
+
+
+def _replace_commercial_profile_modalities(
+    *,
+    user_id: str,
+    access_token: str,
+    profile_id: str,
+    modalities: list[str],
+) -> None:
+    try:
+        del user_id
+
+        supabase = get_supabase_user_client(
+            access_token=access_token,
+        )
+
+        (
+            supabase.table("commercial_profile_modalities")
+            .delete()
+            .eq("commercial_profile_id", str(profile_id))
+            .execute()
+        )
+
+        if modalities:
+            response = (
+                supabase.table("commercial_profile_modalities")
+                .insert(
+                    [
+                        {
+                            "commercial_profile_id": str(profile_id),
+                            "modality": modality,
+                        }
+                        for modality in modalities
+                    ]
+                )
+                .execute()
+            )
+
+            if len(response.data or []) != len(modalities):
+                raise CommercialProfileUpdateError(
+                    "Could not update all profile modalities."
+                )
+
+    except CommercialProfileUpdateError:
+        raise
+
+    except Exception as error:
+        raise CommercialProfileUpdateError(
+            "Could not update profile modalities."
+        ) from error
+
+
+def _replace_commercial_profile_hours(
+    *,
+    user_id: str,
+    access_token: str,
+    profile_id: str,
+    hours: list[dict[str, Any]],
+) -> None:
+    try:
+        del user_id
+
+        supabase = get_supabase_user_client(
+            access_token=access_token,
+        )
+
+        (
+            supabase.table("commercial_profile_hours")
+            .delete()
+            .eq("commercial_profile_id", str(profile_id))
+            .execute()
+        )
+
+        if hours:
+            response = (
+                supabase.table("commercial_profile_hours")
+                .insert(
+                    [
+                        {
+                            "commercial_profile_id": str(profile_id),
+                            "day_of_week": hour["day_of_week"],
+                            "opens_at": (
+                                hour["opens_at"].isoformat()
+                                if hour.get("opens_at") is not None
+                                else None
+                            ),
+                            "closes_at": (
+                                hour["closes_at"].isoformat()
+                                if hour.get("closes_at") is not None
+                                else None
+                            ),
+                            "is_closed": hour["is_closed"],
+                        }
+                        for hour in hours
+                    ]
+                )
+                .execute()
+            )
+
+            if len(response.data or []) != len(hours):
+                raise CommercialProfileUpdateError(
+                    "Could not update all profile hours."
+                )
+
+    except CommercialProfileUpdateError:
+        raise
+
+    except Exception as error:
+        raise CommercialProfileUpdateError(
+            "Could not update profile hours."
+        ) from error
+
+
+def get_owned_commercial_profile_with_access_token(
+    *,
+    access_token: str,
+    profile_id: str,
+) -> dict[str, Any]:
+    normalized_access_token = str(access_token or "").strip()
+
+    if not normalized_access_token:
+        raise CommercialProfileNotFoundError(
+            "A valid access token is required."
+        )
+
+    try:
+        supabase = get_supabase_user_client(
+            access_token=normalized_access_token,
+        )
+
+        response = (
+            supabase.table("commercial_profiles")
+            .select(PRIVATE_COMMERCIAL_PROFILE_COLUMNS)
+            .eq("id", str(profile_id))
+            .maybe_single()
+            .execute()
+        )
+
+        profile = response.data
+
+        if not profile:
+            raise CommercialProfileNotFoundError(
+                "The requested commercial profile was not found."
+            )
+
+        return _attach_profile_relations_with_access_token(
+            access_token=normalized_access_token,
+            profile=profile,
+        )
+
+    except CommercialProfileNotFoundError:
+        raise
+
+    except Exception as error:
+        raise CommercialProfileNotFoundError(
+            "Could not retrieve commercial profile."
+        ) from error
+
+
+def _attach_profile_relations_with_access_token(
+    *,
+    access_token: str,
+    profile: dict[str, Any],
+) -> dict[str, Any]:
+    profile_id = str(profile["id"])
+    enriched_profile = dict(profile)
+
+    supabase = get_supabase_user_client(
+        access_token=access_token,
+    )
+
+    modalities_response = (
+        supabase.table("commercial_profile_modalities")
+        .select(COMMERCIAL_MODALITY_COLUMNS)
+        .eq("commercial_profile_id", profile_id)
+        .order("created_at")
+        .execute()
+    )
+
+    hours_response = (
+        supabase.table("commercial_profile_hours")
+        .select(COMMERCIAL_HOUR_COLUMNS)
+        .eq("commercial_profile_id", profile_id)
+        .order("day_of_week")
+        .order("opens_at")
+        .execute()
+    )
+
+    enriched_profile["modalities"] = (
+        modalities_response.data or []
+    )
+    enriched_profile["hours"] = hours_response.data or []
+
+    return enriched_profile
