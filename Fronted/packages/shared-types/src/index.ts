@@ -2096,6 +2096,319 @@ export interface MailSyncResponse {
   results: MailSyncIntegrationResult[];
   failures: MailSyncFailure[];
 }
+
+/* ============================================================
+ * Statuses
+ * ============================================================ */
+
+export type StatusActorType =
+  | 'profile'
+  | 'commercial_profile';
+
+export type StatusStoryKind =
+  | 'text'
+  | 'image'
+  | 'gif'
+  | 'video';
+
+export interface StatusActor {
+  actor_type: StatusActorType;
+  actor_id: string;
+  profile_id: string | null;
+  commercial_profile_id: string | null;
+  display_name: string;
+  avatar_file_id: string | null;
+  avatar_url: string | null;
+  avatar_url_expires_in_seconds: number | null;
+}
+
+export interface StatusMedia {
+  id: string;
+  bucket_id: string;
+  storage_path: string;
+  original_name: string;
+  mime_type: string;
+  size_bytes: number;
+  width: number | null;
+  height: number | null;
+  duration_seconds: number | null;
+  url: string | null;
+  url_expires_in_seconds: number | null;
+}
+
+export interface StatusStory {
+  id: string;
+  actor: StatusActor;
+  kind: StatusStoryKind;
+  caption: string | null;
+  text_content: string | null;
+  text_background_id: string | null;
+  editor_metadata: Record<string, unknown>;
+  created_at: string;
+  expires_at: string;
+  manually_archived_at: string | null;
+  deleted_at: string | null;
+  is_owner: boolean;
+  is_viewed: boolean;
+  media: StatusMedia | null;
+  viewer_count?: number;
+  reply_allowed?: boolean;
+}
+
+export interface StatusTextBackground {
+  id: string;
+  code: string;
+  label: string;
+  hex_color: string;
+  sort_order: number;
+}
+
+export interface StatusFeedAuthor {
+  actor_type: StatusActorType;
+  actor_id: string;
+  profile_id: string | null;
+  commercial_profile_id: string | null;
+  display_name: string;
+  avatar_file_id: string | null;
+  avatar_url: string | null;
+  avatar_url_expires_in_seconds: number | null;
+  active_story_count: number;
+  unseen_story_count: number;
+  has_unseen: boolean;
+  latest_story_at: string;
+}
+
+export interface StatusFeedItem {
+  author: StatusFeedAuthor;
+  stories: StatusStory[];
+}
+
+export type StatusFollowState =
+  | 'pending'
+  | 'accepted'
+  | 'rejected';
+
+export interface StatusFollow {
+  id: string;
+  follower_profile_id: string;
+  target_actor_type: StatusActorType;
+  target_profile_id: string | null;
+  target_commercial_profile_id: string | null;
+  state: StatusFollowState;
+  requested_at: string | null;
+  responded_at: string | null;
+  accepted_at: string | null;
+  rejected_at: string | null;
+  created_at: string | null;
+  updated_at: string | null;
+}
+
+export interface CreateStatusFollowPayload {
+  target_actor_type: StatusActorType;
+  target_profile_id?: string | null;
+  target_commercial_profile_id?: string | null;
+}
+
+export interface CreateStatusFollowResponse {
+  follow: StatusFollow;
+}
+
+export interface StatusFollowTarget {
+  actor_type: StatusActorType;
+  profile_id: string | null;
+  commercial_profile_id: string | null;
+  display_name: string;
+  avatar_file_id: string | null;
+  is_available: boolean;
+}
+
+export interface StatusFollowListItem {
+  id: string;
+  state: StatusFollowState;
+  requested_at: string;
+  responded_at: string | null;
+  accepted_at: string | null;
+  rejected_at: string | null;
+  target: StatusFollowTarget;
+}
+
+export interface StatusFollowDiscoverItem {
+  actor_type: StatusActorType;
+  profile_id: string | null;
+  commercial_profile_id: string | null;
+  display_name: string;
+  avatar_file_id: string | null;
+  follow_id: string | null;
+  follow_state: StatusFollowState | null;
+}
+
+export interface StatusFollowDiscoverQuery {
+  q: string;
+  limit?: number;
+  cursor?: string;
+}
+
+export interface StatusFollowListQuery {
+  limit?: number;
+  cursor?: string;
+}
+
+export interface StatusFollowersQuery
+  extends StatusFollowListQuery {
+  actor_type?: StatusActorType;
+  commercial_profile_id?: string;
+}
+
+export interface GetStatusFollowDiscoverResponse {
+  query: string;
+  limit: number;
+  items: StatusFollowDiscoverItem[];
+  next_cursor: string | null;
+}
+
+export interface GetStatusFollowingResponse {
+  items: StatusFollowListItem[];
+  count: number;
+  limit: number;
+  next_cursor: string | null;
+}
+
+export interface GetStatusFollowersResponse {
+  items: StatusFollowListItem[];
+  count: number;
+  limit: number;
+  next_cursor: string | null;
+}
+
+export interface GetStatusFollowRequestsResponse {
+  items: StatusFollowListItem[];
+  count: number;
+  limit: number;
+  next_cursor: string | null;
+}
+
+export interface UpdateStatusFollowResponse {
+  follow: StatusFollow;
+}
+
+export interface StatusProfileStories {
+  actor: StatusActor | null;
+  stories: StatusStory[];
+}
+
+export interface StatusCommercialProfileStories {
+  actor: StatusActor;
+  stories: StatusStory[];
+}
+
+export interface StatusMineActive {
+  profile: StatusProfileStories;
+  commercial_profiles: StatusCommercialProfileStories[];
+}
+
+export interface StatusMineResponse {
+  active: StatusMineActive;
+  archive: StatusMineActive | null;
+}
+
+export interface StatusViewer {
+  profile_id: string;
+  display_name: string;
+  avatar_file_id: string | null;
+  avatar_url: string | null;
+  avatar_url_expires_in_seconds: number | null;
+  viewed_at: string;
+}
+
+export interface StatusStoryView {
+  id?: string;
+  story_id?: string;
+  viewer_profile_id?: string;
+  viewed_at?: string;
+  [key: string]: unknown;
+}
+
+export interface StatusReplyResult {
+  conversation?: unknown;
+  message?: unknown;
+  [key: string]: unknown;
+}
+
+export interface StatusFeedQuery {
+  limit?: number;
+}
+
+export interface StatusMineQuery {
+  include_archived?: boolean;
+}
+
+export interface StatusDetailQuery {
+  include_archived?: boolean;
+}
+
+export interface StatusFollowersQuery {
+  actor_type?: StatusActorType;
+  commercial_profile_id?: string;
+  limit?: number;
+  cursor?: string;
+}
+
+export interface CreateTextStatusPayload {
+  actor_type?: StatusActorType;
+  actor_commercial_profile_id?: string;
+  kind: 'text';
+  caption?: string | null;
+  text_content: string;
+  text_background_id: string;
+  editor_metadata?: Record<string, unknown>;
+}
+
+export interface CreateMediaStatusPayload {
+  actor_type?: StatusActorType;
+  actor_commercial_profile_id?: string;
+  kind: 'image' | 'gif' | 'video';
+  caption?: string | null;
+  editor_metadata?: Record<string, unknown>;
+  duration_seconds?: number;
+}
+
+export interface CreateStatusResponse {
+  status: StatusStory;
+}
+
+export interface GetStatusTextBackgroundsResponse {
+  backgrounds: StatusTextBackground[];
+}
+
+export interface GetStatusFeedResponse {
+  items: StatusFeedItem[];
+  limit: number;
+}
+
+export interface GetStatusDetailResponse {
+  status: StatusStory;
+}
+
+export interface ArchiveStatusResponse {
+  status: StatusStory;
+  archived: boolean;
+}
+
+export interface RegisterStatusViewResponse {
+  view: StatusStoryView;
+}
+
+export interface GetStatusViewersResponse {
+  story_id: string;
+  count: number;
+  viewers: StatusViewer[];
+}
+
+export interface SendStatusReplyPayload {
+  sender_identity_id: string;
+  body: string;
+}
+
 /* ============================================================
  * Chat
  * ============================================================ */

@@ -13,6 +13,11 @@ interface ImageLayerManagerProps {
   onSelect: (id: string) => void;
   onResize: (id: string, size: number) => void;
   onMove: (id: string, x: number, y: number) => void;
+  onTransform: (
+    id: string,
+    scale: number,
+    rotation: number,
+  ) => void;
   onRemove: (id: string) => void;
 }
 
@@ -29,6 +34,7 @@ export default function ImageLayerManager({
   onSelect,
   onResize,
   onMove,
+  onTransform,
   onRemove,
 }: ImageLayerManagerProps) {
   return (
@@ -41,10 +47,19 @@ export default function ImageLayerManager({
             key={layer.id}
             x={layer.x}
             y={layer.y}
+            scale={layer.scale}
+            rotation={layer.rotation}
             stage={stage}
             selected={isSelected}
             onSelect={() => onSelect(layer.id)}
             onMove={(x, y) => onMove(layer.id, x, y)}
+            onTransform={(scale, rotation) => {
+              onTransform(
+                layer.id,
+                scale,
+                rotation,
+              );
+            }}
             onRemove={() => onRemove(layer.id)}
           >
             <View

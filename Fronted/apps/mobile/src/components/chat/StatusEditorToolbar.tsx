@@ -1,7 +1,7 @@
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { colors, spacing, radii } from '@beeapp/design-system';
 import { Bold, Minus, Plus } from 'lucide-react-native';
-import { STATUS_TEXT_COLORS, STATUS_BG_COLORS, StatusProductLink } from '../../mocks/statuses';
+import { STATUS_TEXT_COLORS } from '../../mocks/statuses';
 import StatusToolChips from './status/StatusToolChips';
 
 interface StatusEditorToolbarProps {
@@ -15,6 +15,7 @@ interface StatusEditorToolbarProps {
   onChangeTextColor: (color: string) => void;
   /** Background swatches only make sense on a text-only status */
   showBackgrounds: boolean;
+  backgroundColors: string[];
   bgColor: string;
   onChangeBgColor: (color: string) => void;
   textCount: number;
@@ -23,14 +24,9 @@ interface StatusEditorToolbarProps {
   onAddImage: () => void;
   stickerCount: number;
   onOpenStickers: () => void;
-  hasMusic: boolean;
-  onOpenMusic: () => void;
   hasPhoto: boolean;
   onPickPhoto: () => void;
   onRemovePhoto: () => void;
-  product: StatusProductLink | null;
-  onLinkProduct: () => void;
-  onRemoveProduct: () => void;
 }
 
 export const STATUS_TEXT_SIZE_MIN = 16;
@@ -53,14 +49,9 @@ export default function StatusEditorToolbar(props: StatusEditorToolbarProps) {
         onAddImage={props.onAddImage}
         stickerCount={props.stickerCount}
         onOpenStickers={props.onOpenStickers}
-        hasMusic={props.hasMusic}
-        onOpenMusic={props.onOpenMusic}
         hasPhoto={props.hasPhoto}
         onPickPhoto={props.onPickPhoto}
         onRemovePhoto={props.onRemovePhoto}
-        product={props.product}
-        onLinkProduct={props.onLinkProduct}
-        onRemoveProduct={props.onRemoveProduct}
       />
 
       <View style={[styles.textRow, !hasTextSelection && styles.disabled]} pointerEvents={hasTextSelection ? 'auto' : 'none'}>
@@ -128,7 +119,7 @@ export default function StatusEditorToolbar(props: StatusEditorToolbarProps) {
         <>
           <Text style={styles.rowLabel}>Color de fondo</Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.swatchRow}>
-            {STATUS_BG_COLORS.map((color) => (
+            {props.backgroundColors.map((color) => (
               <TouchableOpacity
                 key={color}
                 style={[

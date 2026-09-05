@@ -36,6 +36,9 @@ from apps.chat.services.chat_identity_service import (
     get_chat_identity,
     get_owned_chat_identity,
 )
+from apps.statuses.services.status_service import (
+    get_status_story,
+)
 
 
 logger = logging.getLogger(__name__)
@@ -177,6 +180,7 @@ def list_conversation_messages(
 
         enriched_messages = _enrich_messages(
             messages=messages,
+            viewer_user_id=str(user_id),
         )
 
         result = {
@@ -229,6 +233,7 @@ def get_chat_message(
 
         enriched_messages = _enrich_messages(
             messages=[message],
+            viewer_user_id=str(user_id),
         )
 
         if not enriched_messages:
@@ -1000,6 +1005,7 @@ def _validate_owned_chat_attachment(
 def _enrich_messages(
     *,
     messages: list[dict[str, Any]],
+    viewer_user_id: str | None = None,
 ) -> list[dict[str, Any]]:
     if not messages:
         return []
@@ -1044,27 +1050,82 @@ def _enrich_messages(
         sender_identity_id = message.get("sender_identity_id")
         attachment_file_id = message.get("attachment_file_id")
 
-        result.append(
-            {
-                **message,
-                "sender_identity": (
-                    identities_by_id.get(sender_identity_id)
-                    if sender_identity_id
-                    else None
-                ),
-                "attachment": (
-                    files_by_id.get(attachment_file_id)
-                    if attachment_file_id
-                    else None
-                ),
-                "reactions": reactions_by_message_id.get(
-                    message["id"],
-                    [],
-                ),
-            }
+        enriched_message = {
+            **message,
+            "sender_identity": (
+                identities_by_id.get(sender_identity_id)
+                if sender_identity_id
+                else None
+            ),
+            "attachment": (
+                files_by_id.get(attachment_file_id)
+                if attachment_file_id
+                else None
+            ),
+            "reactions": reactions_by_message_id.get(
+                message["id"],
+                [],
+            ),
+        }
+
+        enriched_message["reference"] = _enrich_message_reference(
+            message=message,
+            viewer_user_id=viewer_user_id,
         )
 
+        result.append(enriched_message)
+
     return result
+
+
+def _enrich_message_reference(
+    *,
+    message: dict[str, Any],
+    viewer_user_id: str | None,
+) -> dict[str, Any] | None:
+    reference_type = str(
+        message.get("reference_type") or ""
+    ).strip()
+    reference_id = message.get("reference_id")
+
+    if not reference_type or not reference_id:
+        return None
+
+    if reference_type != "status_story":
+        return {
+            "type": reference_type,
+            "id": str(reference_id),
+            "is_available": True,
+        }
+
+    unavailable_reference = {
+        "type": "status_story",
+        "id": str(reference_id),
+        "is_available": False,
+        "unavailable_reason": "expired_or_unavailable",
+    }
+
+    if not viewer_user_id:
+        return unavailable_reference
+
+    try:
+        story = get_status_story(
+            user_id=str(viewer_user_id),
+            story_id=str(reference_id),
+            include_archived=False,
+        )
+    except Exception:
+        return unavailable_reference
+
+    if not story:
+        return unavailable_reference
+
+    return {
+        "type": "status_story",
+        "id": str(reference_id),
+        "is_available": True,
+        "status": story,
+    }
 
 
 def _get_identities_by_ids(

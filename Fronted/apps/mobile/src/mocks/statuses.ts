@@ -25,6 +25,8 @@ export interface StatusTextLayer {
   content: string;
   x: number;
   y: number;
+  scale: number;
+  rotation: number;
   fontSize: number;
   fontWeight: '400' | '700';
   color: string;
@@ -35,6 +37,8 @@ export interface StatusImageLayer {
   id: string;
   x: number;
   y: number;
+  scale: number;
+  rotation: number;
   size: number;
   color: string;
 }
@@ -45,6 +49,8 @@ export interface StatusStickerLayer {
   stickerId: string;
   x: number;
   y: number;
+  scale: number;
+  rotation: number;
 }
 
 /** Canción de fondo elegida en el editor. Mock: no se reproduce nada */
@@ -67,7 +73,7 @@ export interface StatusItem {
   /** Avatar mock: iniciales sobre un color de fondo */
   authorInitials: string;
   authorColor: string;
-  type: 'photo' | 'text';
+  type: 'photo' | 'gif' | 'video' | 'text';
   text: string;
   /** null en los estados de solo texto */
   photoUrl: string | null;
@@ -95,6 +101,7 @@ export interface StatusItem {
   selectedContactIds?: string[];
   selectedCategoryId?: string;
   viewedBy?: StatusViewedBy[];
+  viewerCount?: number;
 }
 
 /** Colores de texto ofrecidos por el editor */

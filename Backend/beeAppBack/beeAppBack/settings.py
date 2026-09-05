@@ -135,7 +135,10 @@ USE_TZ = True
 
 STATIC_URL = "static/"
 
-DATA_UPLOAD_MAX_MEMORY_SIZE = 52_428_800
+# El límite HTTP deja margen para multipart/form-data.
+# Los servicios de Estados siguen validando un máximo real de 50 MB
+# por archivo de video y 10 MB para imagen/GIF.
+DATA_UPLOAD_MAX_MEMORY_SIZE = 62_914_560
 FILE_UPLOAD_MAX_MEMORY_SIZE = 2_621_440
 DATA_UPLOAD_MAX_NUMBER_FIELDS = 100
 
@@ -257,10 +260,22 @@ REST_FRAMEWORK = {
         "chat_group_mutation": "20/min",
         "chat_recipient_search": "30/min",
         "chat_sync": "30/min",
+        "status_user": "120/min",
+        "status_publish": "12/min",
+        "status_media_publish": "8/min",
+        "status_view": "120/min",
+        "status_reply": "30/min",
         "call_user": "120/min",
         "call_start": "12/min",
         "call_join": "30/min",
         "call_mutation": "60/min",
+        "commercial_explore": "120/min",
+        "commercial_manage": "30/min",
+        "commercial_request": "20/min",
+        "commercial_negotiation": "30/min",
+        "commercial_booking": "20/min",
+        "commercial_evidence": "10/min",
+        "commercial_dispute": "15/min",
     },
 }
 AGORA_APP_ID = get_required_env("AGORA_APP_ID")
