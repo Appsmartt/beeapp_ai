@@ -455,7 +455,7 @@ def list_public_commercial_profiles(
         def operation(client):
             query = (
                 _public_profile_query(client)
-                .select(PUBLIC_PROFILE_COLUMNS, count="exact")
+                .select(PUBLIC_PROFILE_COLUMNS)
             )
 
             normalized_country_code = (
@@ -540,11 +540,7 @@ def list_public_commercial_profiles(
 
         return {
             "profiles": _enrich_public_profiles(profiles),
-            "count": (
-                len(profiles)
-                if modality
-                else int(getattr(response, "count", 0) or 0)
-            ),
+            "count": len(profiles),
             "limit": normalized_limit,
             "offset": normalized_offset,
             "ordering": ordering,

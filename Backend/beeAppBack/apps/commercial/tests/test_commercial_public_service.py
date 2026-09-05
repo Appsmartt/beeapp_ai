@@ -213,3 +213,73 @@ class CommercialPublicCatalogValidationTests(
         self.assertTrue(
             callable(_require_public_catalog_for_profile)
         )
+
+
+class CommercialPublicProfileCountCompatibilityTests(SimpleTestCase):
+    def test_response_without_count_uses_returned_profile_count(self):
+        class Response:
+            data = [
+                {
+                    "id": "profile-1",
+                    "offer_type": "services",
+                    "category_id": None,
+                    "custom_activity_text": None,
+                    "display_name": "Servicio",
+                    "description": "Descripción",
+                    "country_code": "CO",
+                    "city": "Montería",
+                    "address": None,
+                    "neighborhood": None,
+                    "location_reference": None,
+                    "is_address_public": False,
+                    "phone_dial_code": None,
+                    "phone_number": None,
+                    "is_phone_public": False,
+                    "public_email": None,
+                    "is_email_public": False,
+                    "logo_file_id": None,
+                    "is_public": True,
+                    "is_available": True,
+                    "publication_status": "published",
+                    "verification_status": "not_requested",
+                    "verification_badge_visible": False,
+                    "delivery_fee_mode": "not_offered",
+                    "delivery_fee_amount": None,
+                    "delivery_currency_code": "COP",
+                    "created_at": "2026-09-01T00:00:00+00:00",
+                    "updated_at": "2026-09-01T00:00:00+00:00",
+                }
+            ]
+
+        from unittest.mock import patch
+
+        from apps.commercial.services.commercial_public_service import (
+            list_public_commercial_profiles,
+        )
+
+        with patch(
+            "apps.commercial.services.commercial_public_service.execute_with_supabase_admin_retry",
+            return_value=Response(),
+        ), patch(
+            "apps.commercial.services.commercial_public_service._get_modalities_by_profile_ids",
+            return_value={},
+        ), patch(
+            "apps.commercial.services.commercial_public_service._get_categories_by_ids",
+            return_value={},
+        ):
+            result = list_public_commercial_profiles(
+                country_code=None,
+                city=None,
+                category_id=None,
+                offer_type=None,
+                modality=None,
+                verified_only=False,
+                delivery_only=False,
+                search=None,
+                ordering="recent",
+                limit=10,
+                offset=0,
+            )
+
+        self.assertEqual(result["count"], 1)
+        self.assertEqual(len(result["profiles"]), 1)
