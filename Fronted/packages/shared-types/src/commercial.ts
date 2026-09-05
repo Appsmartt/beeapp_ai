@@ -336,3 +336,238 @@ export interface GetOwnedCommercialCatalogResponse {
 export interface GetOwnedCommercialOfferResponse {
   offer: CommercialOwnedOffer;
 }
+export interface CreateCommercialProfilePayload {
+  offer_type: CommercialOfferType;
+  category_id?: string | null;
+  custom_activity_text?: string | null;
+  display_name: string;
+  description: string;
+  country_code?: string;
+  city: string;
+  address?: string | null;
+  neighborhood?: string | null;
+  location_reference?: string | null;
+  is_address_public?: boolean;
+  phone_dial_code?: string | null;
+  phone_number?: string | null;
+  is_phone_public?: boolean;
+  public_email?: string | null;
+  is_email_public?: boolean;
+  logo_file_id: string;
+  is_public?: boolean;
+  is_available?: boolean;
+  modalities: CommercialModality[];
+  hours?: CommercialProfileHour[];
+}
+
+export interface UpdateCommercialProfilePayload {
+  offer_type?: CommercialOfferType;
+  category_id?: string | null;
+  custom_activity_text?: string | null;
+  display_name?: string;
+  description?: string;
+  country_code?: string;
+  city?: string;
+  address?: string | null;
+  neighborhood?: string | null;
+  location_reference?: string | null;
+  is_address_public?: boolean;
+  phone_dial_code?: string | null;
+  phone_number?: string | null;
+  is_phone_public?: boolean;
+  public_email?: string | null;
+  is_email_public?: boolean;
+  logo_file_id?: string | null;
+  is_available?: boolean;
+  timezone?: string;
+  booking_hold_minutes?: number;
+  inventory_hold_minutes?: number;
+  delivery_fee_mode?: CommercialOwnedProfile['delivery_fee_mode'];
+  delivery_fee_amount?: number | null;
+  delivery_currency_code?: string;
+  modalities?: CommercialModality[];
+  hours?: CommercialProfileHour[];
+}
+
+export interface CreateCommercialProfileResponse {
+  profile: CommercialOwnedProfile;
+}
+
+export interface UpdateCommercialProfileResponse {
+  profile: CommercialOwnedProfile;
+}
+
+export interface CreateCommercialCatalogPayload {
+  name: string;
+  description?: string | null;
+  sort_order?: number;
+  status?: 'published' | 'paused';
+}
+
+export interface UpdateCommercialCatalogPayload {
+  name?: string;
+  description?: string | null;
+  sort_order?: number;
+}
+
+export interface CreateCommercialCatalogResponse {
+  catalog: CommercialCatalog;
+}
+
+export interface UpdateCommercialCatalogResponse {
+  catalog: CommercialCatalog;
+}
+
+export interface CommercialCatalogMutationResponse {
+  catalog: CommercialCatalog;
+}
+
+export interface CreateCommercialOfferPayload {
+  catalog_id: string;
+  offer_kind: CommercialOfferKind;
+  title: string;
+  description?: string | null;
+  pricing_strategy?: CommercialPricingStrategy;
+  base_price_amount?: number | null;
+  currency_code?: 'COP';
+  is_available?: boolean;
+  sort_order?: number;
+  status?: 'published' | 'paused';
+  track_inventory?: boolean;
+  stock_quantity?: number | null;
+  duration_minutes?: number | null;
+  requires_booking?: boolean;
+  payment_policy?: CommercialPaymentPolicy | null;
+  modalities?: CommercialModality[];
+}
+
+export interface UpdateCommercialOfferPayload {
+  catalog_id?: string;
+  title?: string;
+  description?: string | null;
+  pricing_strategy?: CommercialPricingStrategy;
+  base_price_amount?: number | null;
+  currency_code?: 'COP';
+  is_available?: boolean;
+  sort_order?: number;
+  track_inventory?: boolean;
+  stock_quantity?: number | null;
+  duration_minutes?: number | null;
+  requires_booking?: boolean;
+  payment_policy?: CommercialPaymentPolicy | null;
+}
+
+export interface CreateCommercialOfferResponse {
+  offer: CommercialOwnedOffer;
+}
+
+export interface UpdateCommercialOfferResponse {
+  offer: CommercialOwnedOffer;
+}
+
+export interface CommercialOfferMutationResponse {
+  offer: CommercialOwnedOffer;
+}
+
+export interface UpdateCommercialOfferModalitiesPayload {
+  modalities: CommercialModality[];
+}
+
+export interface UpdateCommercialOfferModalitiesResponse {
+  offer: CommercialOwnedOffer;
+}
+
+export interface AdjustCommercialOfferInventoryPayload {
+  quantity_delta: number;
+  reason_code: string;
+  reason_text?: string | null;
+}
+
+export interface AdjustCommercialOfferInventoryResponse {
+  available_inventory: number;
+}
+
+export interface CreateCommercialOfferImagePayload {
+  file_id: string;
+  sort_order?: number;
+  is_primary?: boolean;
+}
+
+export interface UpdateCommercialOfferImagePayload {
+  sort_order: number;
+}
+
+export interface CommercialOfferImageMutationResponse {
+  image: CommercialOfferImage;
+}
+
+export interface CreateCommercialOfferImageResponse {
+  image: CommercialOfferImage;
+}
+
+export type CommercialPaymentMethodType =
+  | 'nequi'
+  | 'daviplata'
+  | 'breb'
+  | 'bank_account';
+
+export interface CommercialOwnedPaymentMethod {
+  id: string;
+  commercial_profile_id: string;
+  payment_method_type: CommercialPaymentMethodType;
+  display_name: string;
+  public_details: Record<string, unknown>;
+  private_details: Record<string, unknown>;
+  public_instructions: string | null;
+  private_instructions: string | null;
+  available_before_acceptance: boolean;
+  sort_order: number;
+  status: 'active' | 'archived';
+  archived_at: string | null;
+  created_at: string | null;
+  updated_at: string | null;
+}
+
+export interface CreateCommercialPaymentMethodPayload {
+  payment_method_type: CommercialPaymentMethodType;
+  display_name: string;
+  public_details?: Record<string, unknown>;
+  private_details?: Record<string, unknown>;
+  public_instructions?: string | null;
+  private_instructions?: string | null;
+  available_before_acceptance?: boolean;
+  sort_order?: number;
+  is_active?: boolean;
+}
+
+export interface UpdateCommercialPaymentMethodPayload {
+  display_name?: string;
+  public_details?: Record<string, unknown>;
+  private_details?: Record<string, unknown>;
+  public_instructions?: string | null;
+  private_instructions?: string | null;
+  available_before_acceptance?: boolean;
+  sort_order?: number;
+  is_active?: boolean;
+}
+
+export interface GetOwnedCommercialPaymentMethodsResponse {
+  commercial_profile_id: string;
+  payment_methods: CommercialOwnedPaymentMethod[];
+}
+
+export interface GetOwnedCommercialPaymentMethodResponse {
+  payment_method: CommercialOwnedPaymentMethod;
+}
+
+export interface CreateCommercialPaymentMethodResponse {
+  payment_method: CommercialOwnedPaymentMethod;
+}
+
+export interface UpdateCommercialPaymentMethodResponse {
+  payment_method: CommercialOwnedPaymentMethod;
+}
+
+export interface CommercialPaymentMethodMutationResponse {
+  payment_method: CommercialOwnedPaymentMethod;
+}
