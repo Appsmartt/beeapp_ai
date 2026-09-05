@@ -10,9 +10,9 @@ from apps.commercial.services.commercial_request_transition_service import (
     transition_commercial_request,
 )
 
-
 class CommercialRequestTransitionServiceTests(SimpleTestCase):
     request_id = "4b21f7d9-85b6-4785-8f43-f41092ba07d2"
+
 
     def test_rejects_missing_access_token(self):
         with self.assertRaises(CommercialAuthenticationError) as context:

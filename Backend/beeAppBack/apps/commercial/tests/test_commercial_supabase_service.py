@@ -34,6 +34,19 @@ class CommercialSupabaseServiceTests(SimpleTestCase):
             CommercialAuthenticationError,
         )
 
+    def test_translates_owner_payment_message_as_access_error(self):
+        error = Exception(
+            "Only the commercial profile owner can request payment"
+        )
+
+        translated = translate_commercial_rpc_error(error)
+
+        self.assertIsInstance(translated, CommercialAccessError)
+        self.assertEqual(
+            translated.code,
+            "COMMERCIAL_NOT_AUTHORIZED",
+        )
+
     def test_translates_access_error(self):
         error = translate_commercial_rpc_error(
             Exception("COMMERCE_REQUEST_CUSTOMER_REQUIRED")

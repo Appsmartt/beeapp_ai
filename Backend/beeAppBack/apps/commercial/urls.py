@@ -3,6 +3,15 @@ from django.urls import path
 from apps.commercial.request_views import CommercialRequestsView
 from apps.commercial.request_transition_views import CommercialRequestTransitionView
 from apps.commercial.request_proposal_views import CommercialRequestProposalsView
+from apps.commercial.reservation_views import CommercialReservationHoldView
+from apps.commercial.payment_flow_views import (
+    CommercialRequestPaymentMethodsView,
+    CommercialRequestPaymentView,
+)
+from apps.commercial.payment_proof_views import CommercialPaymentProofsView
+from apps.commercial.payment_proof_review_views import (
+    CommercialPaymentProofReviewView,
+)
 
 from apps.commercial.views import (
     CommercialCategoriesView,
@@ -59,6 +68,31 @@ urlpatterns = [
         "requests/<uuid:request_id>/proposals/",
         CommercialRequestProposalsView.as_view(),
         name="commercial-request-proposals",
+    ),
+    path(
+        "requests/<uuid:request_id>/reservation-hold/",
+        CommercialReservationHoldView.as_view(),
+        name="commercial-reservation-hold",
+    ),
+    path(
+        "requests/<uuid:request_id>/payment-request/",
+        CommercialRequestPaymentView.as_view(),
+        name="commercial-request-payment",
+    ),
+    path(
+        "requests/<uuid:request_id>/payment-methods/",
+        CommercialRequestPaymentMethodsView.as_view(),
+        name="commercial-request-payment-methods",
+    ),
+    path(
+        "requests/<uuid:request_id>/payment-proofs/",
+        CommercialPaymentProofsView.as_view(),
+        name="commercial-payment-proofs",
+    ),
+    path(
+        "payment-proofs/<uuid:payment_proof_id>/review/",
+        CommercialPaymentProofReviewView.as_view(),
+        name="commercial-payment-proof-review",
     ),
     path(
         "public/countries/",
