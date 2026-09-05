@@ -1,0 +1,77 @@
+]633;E;{   echo "============================================================================="\x3b   echo "BLOQUE 1A — VALIDACION DE ESTRUCTURA"\x3b   echo "============================================================================="\x3b    echo\x3b   echo "--- Rama ---"\x3b   git branch --show-current\x3b    echo\x3b   echo "--- Rutas BuddyServices ---"\x3b   find 'apps/mobile/app/(main)/beeservices'     -type f     -name '*.tsx'     -print     | sort\x3b    echo\x3b   echo "--- Componentes reales BuddyServices ---"\x3b   find apps/mobile/src/components/buddyservices     -type f     -name '*.tsx'     -print     | sort\x3b    echo\x3b   echo "--- Servicios y helpers BuddyServices ---"\x3b   find apps/mobile/src/features/buddyservices     -type f     -name '*.ts'     -print     | sort\x3b   printf '%s\\n' "apps/mobile/src/services/commercialService.ts"\x3b    echo\x3b   echo "--- Cliente y tipos comerciales ---"\x3b   printf '%s\\n'     "packages/api-client/src/commercial.ts"     "packages/shared-types/src/commercial.ts"\x3b    echo\x3b   echo "--- Mock de exploracion: consumidores activos ---"\x3b   grep -RIn     "beeServicesExplore"     apps/mobile     --include='*.ts'     --include='*.tsx'     || true\x3b    echo\x3b   echo "--- Imports comerciales reales ---"\x3b   grep -RInE     "commercialService|CommercialLocationSelector|CommercialCategoryGrid|CommercialRecentBusinesses|CommercialPendingScreen"     apps/mobile     --include='*.ts'     --include='*.tsx'     || true\x3b    echo\x3b   echo "--- Export API comercial ---"\x3b   grep -nF     "export * from './commercial'\x3b"     packages/api-client/src/index.ts     || true\x3b    echo\x3b   echo "--- Export tipos comerciales ---"\x3b   grep -nF     "export * from './commercial'\x3b"     packages/shared-types/src/index.ts     || true\x3b    echo\x3b   echo "--- Type-check dirigido: contratos y cliente ---"\x3b   npx tsc     --noEmit     --target ES2020     --module commonjs     --moduleResolution node     --esModuleInterop     --skipLibCheck     --strict     packages/shared-types/src/commercial.ts     packages/api-client/src/commercial.ts     apps/mobile/src/services/commercialService.ts\x3b    echo\x3b   echo "--- Errores globales solo BuddyServices ---"\x3b   npm run type-check --workspace=@beeapp/mobile 2>&1     | grep -E       "beeservices|buddyservices|CommercialLocationSelector|CommercialCategoryGrid|CommercialRecentBusinesses|CommercialPendingScreen|commercialService\\.ts|commercialRoutes\\.ts|commercialErrors\\.ts|packages/api-client/src/commercial\\.ts|packages/shared-types/src/commercial\\.ts"     || true\x3b } > docs/buddyservices/block-1a-validation.txt 2>&1;0d09355f-cb96-479e-a3b6-4c117025bb66]633;C=============================================================================
+BLOQUE 1A — VALIDACION DE ESTRUCTURA
+=============================================================================
+
+--- Rama ---
+feat/buddyservice-frontend
+
+--- Rutas BuddyServices ---
+apps/mobile/app/(main)/beeservices/create-business.tsx
+apps/mobile/app/(main)/beeservices/index.tsx
+apps/mobile/app/(main)/beeservices/my-businesses.tsx
+apps/mobile/app/(main)/beeservices/my-purchases.tsx
+apps/mobile/app/(main)/beeservices/offer/[offerId].tsx
+apps/mobile/app/(main)/beeservices/profile/[profileId].tsx
+apps/mobile/app/(main)/beeservices/results.tsx
+
+--- Componentes reales BuddyServices ---
+apps/mobile/src/components/buddyservices/CommercialCategoryGrid.tsx
+apps/mobile/src/components/buddyservices/CommercialLocationSelector.tsx
+apps/mobile/src/components/buddyservices/CommercialPendingScreen.tsx
+apps/mobile/src/components/buddyservices/CommercialRecentBusinesses.tsx
+
+--- Servicios y helpers BuddyServices ---
+apps/mobile/src/features/buddyservices/commercialErrors.ts
+apps/mobile/src/features/buddyservices/commercialRoutes.ts
+apps/mobile/src/services/commercialService.ts
+
+--- Cliente y tipos comerciales ---
+packages/api-client/src/commercial.ts
+packages/shared-types/src/commercial.ts
+
+--- Mock de exploracion: consumidores activos ---
+apps/mobile/src/components/beeservices/BeeServicesQuickActions.tsx:10:} from '../../mocks/beeServicesExplore';
+apps/mobile/src/components/beeservices/BeeServicesCategoryGrid.tsx:11:} from '../../mocks/beeServicesExplore';
+
+--- Imports comerciales reales ---
+apps/mobile/src/components/buddyservices/CommercialPendingScreen.tsx:11:interface CommercialPendingScreenProps {
+apps/mobile/src/components/buddyservices/CommercialPendingScreen.tsx:16:export default function CommercialPendingScreen({
+apps/mobile/src/components/buddyservices/CommercialPendingScreen.tsx:19:}: CommercialPendingScreenProps) {
+apps/mobile/src/components/buddyservices/CommercialCategoryGrid.tsx:23:interface CommercialCategoryGridProps {
+apps/mobile/src/components/buddyservices/CommercialCategoryGrid.tsx:101:export default function CommercialCategoryGrid({
+apps/mobile/src/components/buddyservices/CommercialCategoryGrid.tsx:105:}: CommercialCategoryGridProps) {
+apps/mobile/src/components/buddyservices/CommercialLocationSelector.tsx:25:interface CommercialLocationSelectorProps {
+apps/mobile/src/components/buddyservices/CommercialLocationSelector.tsx:45:export default function CommercialLocationSelector({
+apps/mobile/src/components/buddyservices/CommercialLocationSelector.tsx:55:}: CommercialLocationSelectorProps) {
+apps/mobile/src/components/buddyservices/CommercialRecentBusinesses.tsx:18:interface CommercialRecentBusinessesProps {
+apps/mobile/src/components/buddyservices/CommercialRecentBusinesses.tsx:87:export default function CommercialRecentBusinesses({
+apps/mobile/src/components/buddyservices/CommercialRecentBusinesses.tsx:90:}: CommercialRecentBusinessesProps) {
+apps/mobile/app/(main)/beeservices/results.tsx:1:import CommercialPendingScreen from '../../../src/components/buddyservices/CommercialPendingScreen';
+apps/mobile/app/(main)/beeservices/results.tsx:5:    <CommercialPendingScreen
+apps/mobile/app/(main)/beeservices/profile/[profileId].tsx:1:import CommercialPendingScreen from '../../../../src/components/buddyservices/CommercialPendingScreen';
+apps/mobile/app/(main)/beeservices/profile/[profileId].tsx:5:    <CommercialPendingScreen
+apps/mobile/app/(main)/beeservices/index.tsx:36:import CommercialCategoryGrid from '../../../src/components/buddyservices/CommercialCategoryGrid';
+apps/mobile/app/(main)/beeservices/index.tsx:37:import CommercialLocationSelector from '../../../src/components/buddyservices/CommercialLocationSelector';
+apps/mobile/app/(main)/beeservices/index.tsx:38:import CommercialRecentBusinesses from '../../../src/components/buddyservices/CommercialRecentBusinesses';
+apps/mobile/app/(main)/beeservices/index.tsx:56:} from '../../../src/services/commercialService';
+apps/mobile/app/(main)/beeservices/index.tsx:377:          <CommercialLocationSelector
+apps/mobile/app/(main)/beeservices/index.tsx:592:              <CommercialCategoryGrid
+apps/mobile/app/(main)/beeservices/index.tsx:598:              <CommercialRecentBusinesses
+apps/mobile/app/(main)/beeservices/my-purchases.tsx:1:import CommercialPendingScreen from '../../../src/components/buddyservices/CommercialPendingScreen';
+apps/mobile/app/(main)/beeservices/my-purchases.tsx:5:    <CommercialPendingScreen
+apps/mobile/app/(main)/beeservices/create-business.tsx:1:import CommercialPendingScreen from '../../../src/components/buddyservices/CommercialPendingScreen';
+apps/mobile/app/(main)/beeservices/create-business.tsx:5:    <CommercialPendingScreen
+apps/mobile/app/(main)/beeservices/offer/[offerId].tsx:1:import CommercialPendingScreen from '../../../../src/components/buddyservices/CommercialPendingScreen';
+apps/mobile/app/(main)/beeservices/offer/[offerId].tsx:5:    <CommercialPendingScreen
+apps/mobile/app/(main)/beeservices/my-businesses.tsx:1:import CommercialPendingScreen from '../../../src/components/buddyservices/CommercialPendingScreen';
+apps/mobile/app/(main)/beeservices/my-businesses.tsx:5:    <CommercialPendingScreen
+
+--- Export API comercial ---
+13:export * from './commercial';
+
+--- Export tipos comerciales ---
+2827:export * from './commercial';
+
+--- Type-check dirigido: contratos y cliente ---
+
+--- Errores globales solo BuddyServices ---
