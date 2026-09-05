@@ -1,5 +1,9 @@
 from django.urls import path
 
+from apps.commercial.request_views import CommercialRequestsView
+from apps.commercial.request_transition_views import CommercialRequestTransitionView
+from apps.commercial.request_proposal_views import CommercialRequestProposalsView
+
 from apps.commercial.views import (
     CommercialCategoriesView,
     CommercialProfileDetailView,
@@ -41,6 +45,21 @@ from apps.commercial.views import (
 
 
 urlpatterns = [
+    path(
+        "requests/",
+        CommercialRequestsView.as_view(),
+        name="commercial-requests",
+    ),
+    path(
+        "requests/<uuid:request_id>/transition/",
+        CommercialRequestTransitionView.as_view(),
+        name="commercial-request-transition",
+    ),
+    path(
+        "requests/<uuid:request_id>/proposals/",
+        CommercialRequestProposalsView.as_view(),
+        name="commercial-request-proposals",
+    ),
     path(
         "public/countries/",
         PublicCommercialCountriesView.as_view(),
