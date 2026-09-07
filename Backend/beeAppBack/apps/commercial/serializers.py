@@ -2030,7 +2030,6 @@ class CreateCommercialRequestSerializer(serializers.Serializer):
             raise serializers.ValidationError("Only COP is supported in V1.")
         return normalized
 
-
 class CommercialRequestTransitionSerializer(serializers.Serializer):
     action = serializers.ChoiceField(
         choices=(

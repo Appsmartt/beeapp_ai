@@ -39,7 +39,22 @@ import {
 } from '../../../../src/features/buddyservices/commercialErrors';
 import {
   loadPublicCommercialOffer,
+  loadPublicCommercialProfile,
 } from '../../../../src/services/commercialService';
+import {
+  addBusinessCartProduct,
+  replaceBusinessCartWithProduct,
+  type AddBusinessCartProductInput,
+} from '../../../../src/features/buddyservices/cart/businessCartStore';
+import {
+  getCommercialOfferAction,
+  getCommercialOfferActionLabel,
+  getDefaultRequestedModality,
+} from '../../../../src/features/buddyservices/commercialOfferAction';
+import {
+  buddyServicesCartRoute,
+  buddyServicesServiceRequestRoute,
+} from '../../../../src/features/buddyservices/commercialRoutes';
 
 function normalizeParam(
   value: string | string[] | undefined,
@@ -218,26 +233,111 @@ export default function BuddyServicesPublicOfferScreen() {
     router.replace('/(main)/beeservices');
   }, [router]);
 
-  const handleCommercialAction = useCallback(() => {
+  const handleCommercialAction = useCallback(async () => {
     if (!offer) {
       return;
     }
 
-    Alert.alert(
-      offer.requires_booking
-        ? 'Reserva próximamente'
-        : 'Solicitud próximamente',
-      offer.requires_booking
-        ? (
+    const action = getCommercialOfferAction(offer);
+
+    if (action === 'request_booking') {
+      Alert.alert(
+        'Reserva próximamente',
+        (
           'El flujo formal de reserva, hold y negociación '
           + 'se habilitará en el Bloque 6.'
-        )
-        : (
-          'El flujo formal de solicitud y carrito se '
-          + 'habilitará en los Bloques 4 y 5.'
         ),
-    );
-  }, [offer]);
+      );
+      return;
+    }
+
+    if (action === 'request_service') {
+      router.push(
+        buddyServicesServiceRequestRoute(offer.id),
+      );
+      return;
+    }
+
+    try {
+      const profileResponse = await loadPublicCommercialProfile(
+        offer.commercial_profile_id,
+      );
+
+      const cartProduct: AddBusinessCartProductInput = {
+        commercialOfferId: offer.id,
+        commercialProfileId: offer.commercial_profile_id,
+        commercialProfileName: (
+          profileResponse.profile.display_name
+        ),
+        title: offer.title,
+        quantity: 1,
+        pricingStrategy: offer.pricing_strategy,
+        unitPriceAmount: offer.base_price_amount,
+        currencyCode: offer.currency_code,
+        requestedModality: getDefaultRequestedModality(
+          offer,
+        ),
+        imageUrl: primaryImageUrl,
+        deliveryFeeMode: (
+          profileResponse.profile.delivery_fee_mode
+          || 'not_offered'
+        ),
+        deliveryFeeAmount: (
+          profileResponse.profile.delivery_fee_amount
+        ),
+      };
+
+      const result = addBusinessCartProduct(cartProduct);
+
+      if (result.kind === 'added') {
+        router.push(buddyServicesCartRoute());
+        return;
+      }
+
+      const {
+        currentCommercialProfileName,
+        incomingCommercialProfileName,
+      } = result.conflict;
+
+      Alert.alert(
+        'Carrito de otro negocio',
+        (
+          `Tu carrito actual pertenece a ${currentCommercialProfileName}. `
+          + `Para solicitar a ${incomingCommercialProfileName} `
+          + 'debes iniciar una nueva solicitud.'
+        ),
+        [
+          {
+            text: 'Mantener',
+            style: 'default',
+          },
+          {
+            text: 'Vaciar e iniciar otro',
+            style: 'destructive',
+            onPress: () => {
+              replaceBusinessCartWithProduct(cartProduct);
+              router.push(buddyServicesCartRoute());
+            },
+          },
+          {
+            text: 'Cancelar',
+            style: 'cancel',
+          },
+        ],
+      );
+    } catch (actionError) {
+      const uiError = toCommercialUiError(actionError);
+
+      Alert.alert(
+        uiError.title,
+        uiError.message,
+      );
+    }
+  }, [
+    offer,
+    primaryImageUrl,
+    router,
+  ]);
 
   if (loading && !offer) {
     return (
@@ -306,11 +406,9 @@ export default function BuddyServicesPublicOfferScreen() {
   }
 
   const isProduct = offer.offer_kind === 'product';
-  const actionLabel = offer.requires_booking
-    ? 'Solicitar reserva'
-    : isProduct
-    ? 'Solicitar producto'
-    : 'Solicitar servicio';
+  const actionLabel = getCommercialOfferActionLabel(
+    getCommercialOfferAction(offer),
+  );
 
   return (
     <ScreenSafeArea style={styles.safeArea}>

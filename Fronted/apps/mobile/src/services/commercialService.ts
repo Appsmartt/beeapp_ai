@@ -40,6 +40,7 @@ getOwnedCommercialProfiles,
   updateCommercialProfile,
 updateOwnedCommercialCatalog,
 getPublicCommercialProfiles,
+createCommercialRequest,
 } from '@beeapp/api-client';
 
 import type {
@@ -88,11 +89,20 @@ PublicCommercialOffersQuery,
   UpdateCommercialCatalogResponse,
 UpdateCommercialProfileResponse,
 PublicCommercialProfilesQuery,
+CreateCommercialRequestResponse,
 } from '@beeapp/shared-types';
 
 import {
   getValidSessionCredentials,
 } from './authSession';
+
+import type {
+BusinessCart,
+} from '../features/buddyservices/cart/businessCartStore';
+
+import {
+buildProductOrderPayload,
+} from '../features/buddyservices/cart/businessCartRequestPayload';
 
 async function getRequiredCommercialCredentials() {
   const credentials = await getValidSessionCredentials();
@@ -566,4 +576,26 @@ await getRequiredCommercialCredentials(),
 profileId,
 paymentMethodId,
 );
+}
+
+
+export async function createProductOrderFromBusinessCart(
+    cart: BusinessCart,
+    idempotencyKey: string,
+): Promise<CreateCommercialRequestResponse> {
+    const normalizedIdempotencyKey = String(
+        idempotencyKey || '',
+    ).trim();
+
+    if (!normalizedIdempotencyKey) {
+        throw new Error(
+            'No fue posible preparar la solicitud. Inténtalo nuevamente.',
+        );
+    }
+
+    return createCommercialRequest(
+        await getRequiredCommercialCredentials(),
+        normalizedIdempotencyKey,
+        buildProductOrderPayload(cart),
+    );
 }

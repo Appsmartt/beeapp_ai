@@ -161,3 +161,30 @@ businessId: requireId(businessId, 'el negocio'),
 export function buddyServicesMyPurchasesRoute(): Href {
   return '/(main)/beeservices/my-purchases';
 }
+
+export function buddyServicesCartRoute(): Href {
+  return '/(main)/beeservices/cart';
+}
+
+export function buddyServicesServiceRequestRoute(
+  offerId: string,
+): Href {
+  return {
+    pathname: '/(main)/beeservices/request/service/[offerId]',
+    params: {
+      offerId: requireId(offerId, 'la oferta'),
+    },
+  };
+}
+
+export function buddyServicesRequestDetailRoute(
+  requestId: string,
+): Href {
+  return {
+    pathname: '/(main)/beeservices/request/[requestId]',
+    params: {
+      requestId: requireId(requestId, 'la solicitud'),
+    },
+  };
+}
+
