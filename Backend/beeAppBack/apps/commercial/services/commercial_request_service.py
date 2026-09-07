@@ -16,6 +16,7 @@ from apps.commercial.services.commercial_supabase_service import (
 
 
 RPC_NAME = "commerce_create_request"
+GET_REQUEST_DETAIL_RPC_NAME = "commerce_get_request_detail"
 
 
 def _normalized_access_token(access_token: str | None) -> str:
@@ -117,3 +118,43 @@ def create_commercial_request(
         )
 
     return data
+
+def get_commercial_request_detail(
+    *,
+    access_token: str | None,
+    request_id: str | None,
+) -> dict[str, Any]:
+    token = _normalized_access_token(access_token)
+    normalized_request_id = str(request_id or "").strip()
+
+    if not normalized_request_id:
+        raise CommercialValidationError(
+            "Request id is required.",
+            code="COMMERCE_REQUEST_ID_REQUIRED",
+        )
+
+    data = execute_commercial_rpc(
+        access_token=token,
+        function_name=GET_REQUEST_DETAIL_RPC_NAME,
+        parameters={
+            "p_commerce_request_id": normalized_request_id,
+        },
+    )
+
+    if isinstance(data, list):
+        data = data[0] if data else None
+
+    if not isinstance(data, dict):
+        raise CommercialValidationError(
+            "Commercial request detail RPC returned an invalid response.",
+            code="COMMERCE_REQUEST_DETAIL_FAILED",
+        )
+
+    if not str(data.get("id") or "").strip():
+        raise CommercialValidationError(
+            "Commercial request detail is missing its identifier.",
+            code="COMMERCE_REQUEST_DETAIL_FAILED",
+        )
+
+    return data
+

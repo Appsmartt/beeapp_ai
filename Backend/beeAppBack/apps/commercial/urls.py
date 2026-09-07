@@ -60,6 +60,11 @@ urlpatterns = [
         name="commercial-requests",
     ),
     path(
+        "requests/<uuid:request_id>/",
+        CommercialRequestsView.as_view(),
+        name="commercial-request-detail",
+    ),
+    path(
         "requests/<uuid:request_id>/transition/",
         CommercialRequestTransitionView.as_view(),
         name="commercial-request-transition",

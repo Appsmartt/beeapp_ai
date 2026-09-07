@@ -49,6 +49,7 @@ UpdateCommercialPaymentMethodPayload,
 UpdateCommercialPaymentMethodResponse,
 CreateCommercialRequestPayload,
 CreateCommercialRequestResponse,
+GetCommercialRequestResponse,
 } from '@beeapp/shared-types';
 
 import { api } from './client';
@@ -759,4 +760,23 @@ export function createCommercialRequest(
       },
     },
   );
+}
+
+
+export function getCommercialRequest(
+auth: AuthCredentials,
+requestId: string,
+): Promise<GetCommercialRequestResponse> {
+const normalizedRequestId = String(requestId || '').trim();
+
+if (!normalizedRequestId) {
+throw new Error(
+'No fue posible identificar la solicitud.',
+);
+}
+
+return api.get<GetCommercialRequestResponse>(
+`/commercial/requests/${normalizedRequestId}/`,
+{ auth },
+);
 }

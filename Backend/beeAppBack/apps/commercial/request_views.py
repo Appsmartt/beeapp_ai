@@ -10,12 +10,41 @@ from apps.commercial.serializers import CreateCommercialRequestSerializer
 from apps.commercial.services.commercial_http_service import commercial_error_response
 from apps.commercial.services.commercial_request_service import (
     create_commercial_request,
+    get_commercial_request_detail,
 )
 from apps.commercial.throttles import CommercialManageThrottle
 
 
 class CommercialRequestsView(AuthenticatedAPIView):
     throttle_classes = [CommercialManageThrottle]
+
+
+    def get(self, request, request_id):
+        try:
+            _, access_token = self.get_authenticated_user_and_access_token(
+                request
+            )
+
+            detail = get_commercial_request_detail(
+                access_token=access_token,
+                request_id=str(request_id),
+            )
+        except AccountAuthenticationError:
+            return Response(
+                {
+                    "detail": "Invalid or expired access token.",
+                },
+                status=status.HTTP_401_UNAUTHORIZED,
+            )
+        except CommercialError as error:
+            return commercial_error_response(error)
+
+        return Response(
+            {
+                "request": detail,
+            },
+            status=status.HTTP_200_OK,
+        )
 
     def post(self, request):
         serializer = CreateCommercialRequestSerializer(data=request.data)
