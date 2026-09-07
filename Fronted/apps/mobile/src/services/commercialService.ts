@@ -41,6 +41,8 @@ getOwnedCommercialProfiles,
 updateOwnedCommercialCatalog,
 getPublicCommercialProfiles,
 createCommercialRequest,
+getCommercialRequest,
+ApiRequestError,
 } from '@beeapp/api-client';
 
 import type {
@@ -90,14 +92,18 @@ PublicCommercialOffersQuery,
 UpdateCommercialProfileResponse,
 PublicCommercialProfilesQuery,
 CreateCommercialRequestResponse,
+GetCommercialRequestResponse,
 } from '@beeapp/shared-types';
 
 import {
   getValidSessionCredentials,
 } from './authSession';
 
-import type {
-BusinessCart,
+import {
+revalidateBusinessCartLines,
+type BusinessCart,
+type RevalidateBusinessCartLineInput,
+type RevalidateBusinessCartLinesResult,
 } from '../features/buddyservices/cart/businessCartStore';
 
 import {
@@ -599,3 +605,81 @@ export async function createProductOrderFromBusinessCart(
         buildProductOrderPayload(cart),
     );
 }
+
+
+export async function loadCommercialRequest(
+requestId: string,
+): Promise<GetCommercialRequestResponse> {
+return getCommercialRequest(
+await getRequiredCommercialCredentials(),
+requestId,
+);
+}
+
+export async function revalidateBusinessCartAfterRemoteConflict(
+cart: BusinessCart,
+): Promise<RevalidateBusinessCartLinesResult> {
+const settled = await Promise.allSettled(
+cart.lines.map(async (line) => {
+const response = await loadPublicCommercialOffer(
+line.commercialOfferId,
+);
+
+return {
+line,
+offer: response.offer,
+};
+}),
+);
+
+const updates: RevalidateBusinessCartLineInput[] = [];
+const removedLineIds: string[] = [];
+
+settled.forEach((result, index) => {
+const line = cart.lines[index];
+
+if (result.status === 'fulfilled') {
+const { offer } = result.value;
+
+if (
+offer.offer_kind !== 'product'
+|| offer.commercial_profile_id !== cart.commercialProfileId
+) {
+removedLineIds.push(line.id);
+return;
+}
+
+updates.push({
+lineId: line.id,
+title: offer.title,
+pricingStrategy: offer.pricing_strategy,
+unitPriceAmount: offer.base_price_amount,
+requestedModality: (
+cart.requestedModality
+&& offer.modalities.includes(cart.requestedModality)
+? cart.requestedModality
+: offer.modalities[0] || null
+),
+imageUrl: (
+offer.images.find((image) => image.is_primary)?.url
+|| offer.images[0]?.url
+|| null
+),
+});
+return;
+}
+
+if (
+result.reason instanceof ApiRequestError
+&& [400, 404, 409, 422].includes(result.reason.status)
+) {
+removedLineIds.push(line.id);
+}
+});
+
+return revalidateBusinessCartLines(
+updates,
+removedLineIds,
+);
+}
+

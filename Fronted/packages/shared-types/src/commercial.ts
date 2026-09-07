@@ -666,3 +666,52 @@ export interface CreateCommercialRequestResponse {
   request: CreatedCommercialRequest;
   idempotent: boolean;
 }
+
+
+export interface CommercialRequestDetailItem {
+id: string;
+commercial_offer_id: string;
+sort_order: number;
+quantity: number;
+offer_kind: 'product' | 'service';
+title: string;
+description: string | null;
+pricing_strategy: CommercialPricingStrategy;
+unit_price_amount: number | null;
+currency_code: string;
+modality: CommercialModality | null;
+duration_minutes: number | null;
+requires_booking: boolean;
+payment_policy: CommercialPaymentPolicy | null;
+line_total_amount: number | null;
+offer_snapshot: Record<string, unknown>;
+original_terms: Record<string, unknown>;
+created_at: string;
+updated_at: string | null;
+}
+
+export interface CommercialRequestDetail {
+id: string;
+code: string;
+client_id: string;
+commercial_profile_id: string;
+request_type: CommercialRequestType;
+status: CommercialRequestStatus | string;
+expires_at: string | null;
+customer_note: string | null;
+requested_modality: CommercialModality | null;
+delivery_address: string | null;
+delivery_reference: string | null;
+subtotal_amount: number | null;
+delivery_fee_amount: number | null;
+total_amount: number | null;
+currency_code: string;
+final_terms: Record<string, unknown>;
+created_at: string;
+updated_at: string;
+items: CommercialRequestDetailItem[];
+}
+
+export interface GetCommercialRequestResponse {
+request: CommercialRequestDetail;
+}

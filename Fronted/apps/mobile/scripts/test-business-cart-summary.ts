@@ -44,6 +44,7 @@ deliveryAddress: 'Calle 1 # 2-3',
 deliveryReference: null,
 deliveryFeeMode: 'not_offered',
 deliveryFeeAmount: null,
+submissionIdempotencyKey: null,
 lines,
 updatedAt: '2026-09-07T00:00:00.000Z',
 };

@@ -22,6 +22,10 @@ ShoppingBag,
 Trash2,
 } from 'lucide-react-native';
 import {
+ApiRequestError,
+} from '@beeapp/api-client';
+
+import {
 useFocusEffect,
 useRouter,
 } from 'expo-router';
@@ -33,11 +37,18 @@ CommercialModality,
 
 import ScreenSafeArea from '../../../src/components/layout/ScreenSafeArea';
 import {
+toCommercialUiError,
+} from '../../../src/features/buddyservices/commercialErrors';
+import {
 createProductOrderFromBusinessCart,
+revalidateBusinessCartAfterRemoteConflict,
 } from '../../../src/services/commercialService';
 import {
 createCommercialRequestIdempotencyKey,
 } from '../../../src/features/buddyservices/cart/businessCartRequestPayload';
+import {
+buddyServicesRequestDetailRoute,
+} from '../../../src/features/buddyservices/commercialRoutes';
 import {
 getBusinessCartDeliveryLabel,
 getBusinessCartSummary,
@@ -375,30 +386,45 @@ createCommercialRequestIdempotencyKey,
 
 clearBusinessCart();
 
-Alert.alert(
-response.idempotent
-? 'Solicitud ya registrada'
-: 'Solicitud enviada',
-(
-`Tu solicitud ${response.request.code} fue registrada. `
-+ 'El negocio la revisará antes de confirmar el pedido.'
+router.replace(
+buddyServicesRequestDetailRoute(
+response.request.request_id,
 ),
-[
-{
-text: 'Ver negocios',
-onPress: () => {
-router.replace('/(main)/beeservices');
-},
-},
-],
 );
 } catch (error) {
 const uiError = toCommercialUiError(error);
+const shouldRevalidate = (
+error instanceof ApiRequestError
+&& [400, 404, 409, 422].includes(error.status)
+);
 
+if (shouldRevalidate) {
+try {
+const result = await revalidateBusinessCartAfterRemoteConflict(
+cart,
+);
+
+Alert.alert(
+'Carrito actualizado',
+(
+`${uiError.message} `
++ `${result.updatedLineCount} línea(s) actualizada(s) y `
++ `${result.removedLineCount} línea(s) eliminada(s). `
++ 'Revisa el resumen antes de continuar.'
+),
+);
+} catch {
 Alert.alert(
 uiError.title,
 uiError.message,
 );
+}
+} else {
+Alert.alert(
+uiError.title,
+uiError.message,
+);
+}
 } finally {
 setSubmitting(false);
 }

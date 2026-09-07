@@ -892,3 +892,107 @@ submissionIdempotencyKey: nextKey,
 
 return nextKey;
 }
+
+export type RevalidateBusinessCartLineInput = {
+lineId: string;
+title: string;
+pricingStrategy: CommercialPricingStrategy;
+unitPriceAmount: number | null;
+requestedModality: CommercialModality | null;
+imageUrl: string | null;
+};
+
+export type RevalidateBusinessCartLinesResult = {
+updatedLineCount: number;
+removedLineCount: number;
+cart: BusinessCart | null;
+};
+
+export function revalidateBusinessCartLines(
+inputs: RevalidateBusinessCartLineInput[],
+removedLineIds: string[],
+): RevalidateBusinessCartLinesResult {
+if (!activeCart) {
+return {
+updatedLineCount: 0,
+removedLineCount: 0,
+cart: null,
+};
+}
+
+const updatesByLineId = new Map(
+inputs.map((input) => [
+normalizeId(input.lineId),
+input,
+]),
+);
+
+const removedIds = new Set(
+removedLineIds.map((lineId) => normalizeId(lineId)),
+);
+
+let updatedLineCount = 0;
+let removedLineCount = 0;
+
+const nextLines = activeCart.lines
+.filter((line) => {
+const shouldRemove = removedIds.has(line.id);
+
+if (shouldRemove) {
+removedLineCount += 1;
+}
+
+return !shouldRemove;
+})
+.map((line) => {
+const update = updatesByLineId.get(line.id);
+
+if (!update) {
+return line;
+}
+
+const nextLine: BusinessCartLine = {
+...line,
+title: normalizeId(update.title) || line.title,
+pricingStrategy: update.pricingStrategy,
+unitPriceAmount: update.unitPriceAmount,
+requestedModality: update.requestedModality,
+imageUrl: normalizeOptionalText(update.imageUrl, 2000),
+};
+
+if (
+nextLine.title !== line.title
+|| nextLine.pricingStrategy !== line.pricingStrategy
+|| nextLine.unitPriceAmount !== line.unitPriceAmount
+|| nextLine.requestedModality !== line.requestedModality
+|| nextLine.imageUrl !== line.imageUrl
+) {
+updatedLineCount += 1;
+}
+
+return nextLine;
+});
+
+if (!nextLines.length) {
+clearBusinessCart();
+
+return {
+updatedLineCount,
+removedLineCount,
+cart: null,
+};
+}
+
+updateCart({
+...activeCart,
+lines: nextLines,
+submissionIdempotencyKey: null,
+});
+
+return {
+updatedLineCount,
+removedLineCount,
+cart: activeCart,
+};
+}
+
