@@ -15,6 +15,7 @@ View,
 import {
 ArrowLeft,
 Package,
+Wrench,
 } from 'lucide-react-native';
 import {
 useLocalSearchParams,
@@ -30,6 +31,15 @@ import {
 toCommercialUiError,
 type CommercialUiError,
 } from '../../../../src/features/buddyservices/commercialErrors';
+import {
+getCommercialRequestItemLabel,
+getCommercialRequestItemPriceLabel,
+getCommercialRequestItemsTitle,
+getCommercialRequestLineComment,
+getCommercialRequestTotalLabel,
+getCommercialRequestTotalState,
+} from '../../../../src/features/buddyservices/commercialRequestDetailPresentation';
+
 import {
 loadCommercialRequest,
 } from '../../../../src/services/commercialService';
@@ -277,30 +287,68 @@ Referencia: {requestDetail.delivery_reference}
 
 <View style={styles.section}>
 <Text style={styles.sectionTitle}>
-Productos solicitados
+{getCommercialRequestItemsTitle(requestDetail.request_type)}
 </Text>
-{requestDetail.items.map((item) => (
+{requestDetail.items.map((item) => {
+const lineComment = getCommercialRequestLineComment(item);
+const isService = item.offer_kind === 'service';
+
+return (
 <View key={item.id} style={styles.itemCard}>
 <View style={styles.itemHeader}>
+{isService ? (
+<Wrench color="#7427D5" size={18} />
+) : (
 <Package color="#7427D5" size={18} />
+)}
 <Text style={styles.itemTitle}>
 {item.title}
 </Text>
 </View>
+
+<Text style={styles.itemMeta}>
+{getCommercialRequestItemLabel(item)}
+</Text>
+
 <Text style={styles.itemMeta}>
 Cantidad: {item.quantity}
 </Text>
+
 <Text style={styles.itemMeta}>
-{item.pricing_strategy === 'starting_at'
-? `Desde ${formatCop(item.unit_price_amount)}`
-: item.pricing_strategy === 'to_be_confirmed'
-? 'Precio por confirmar'
-: formatCop(item.line_total_amount)}
+{getCommercialRequestItemPriceLabel(item, formatCop)}
+</Text>
+
+{item.pricing_strategy === 'starting_at' ? (
+<Text style={styles.itemHint}>
+El valor “desde” no es un total final.
+</Text>
+) : null}
+
+{item.pricing_strategy === 'to_be_confirmed' ? (
+<Text style={styles.itemHint}>
+El negocio confirmará el valor dentro de la solicitud.
+</Text>
+) : null}
+
+{lineComment ? (
+<View style={styles.lineCommentBox}>
+<Text style={styles.lineCommentLabel}>
+Comentario de esta línea
+</Text>
+<Text style={styles.lineCommentText}>
+{lineComment}
 </Text>
 </View>
-))}
+) : null}
+</View>
+);
+})}
 </View>
 
+{(() => {
+const totalState = getCommercialRequestTotalState(requestDetail);
+
+return (
 <View style={styles.totalCard}>
 <Text style={styles.totalRow}>
 Subtotal: {formatCop(requestDetail.subtotal_amount)}
@@ -309,9 +357,22 @@ Subtotal: {formatCop(requestDetail.subtotal_amount)}
 Domicilio: {formatCop(requestDetail.delivery_fee_amount)}
 </Text>
 <Text style={styles.totalValue}>
-Total: {formatCop(requestDetail.total_amount)}
+{getCommercialRequestTotalLabel(totalState)}: {formatCop(
+requestDetail.total_amount,
+)}
 </Text>
+{totalState === 'estimated' ? (
+<Text style={styles.totalHint}>
+Incluye valores “desde”; no es un total final.
+</Text>
+) : totalState === 'pending_confirmation' ? (
+<Text style={styles.totalHint}>
+El negocio confirmará los valores pendientes.
+</Text>
+) : null}
 </View>
+);
+})()}
 
 {requestDetail.customer_note ? (
 <View style={styles.section}>
@@ -449,6 +510,31 @@ itemMeta: {
 color: '#6E6281',
 fontSize: 14,
 },
+itemHint: {
+color: '#806899',
+fontSize: 12,
+lineHeight: 18,
+marginTop: 2,
+},
+lineCommentBox: {
+backgroundColor: '#F8F4FC',
+borderColor: '#E7DDF0',
+borderRadius: 10,
+borderWidth: 1,
+marginTop: 8,
+padding: 10,
+},
+lineCommentLabel: {
+color: '#6A4B8B',
+fontSize: 12,
+fontWeight: '700',
+},
+lineCommentText: {
+color: '#4E405E',
+fontSize: 13,
+lineHeight: 19,
+marginTop: 4,
+},
 totalCard: {
 backgroundColor: '#38294E',
 borderRadius: 16,
@@ -464,6 +550,12 @@ color: '#FFFFFF',
 fontSize: 18,
 fontWeight: '800',
 marginTop: 4,
+},
+totalHint: {
+color: '#DED2EB',
+fontSize: 12,
+lineHeight: 18,
+marginTop: 5,
 },
 primaryButton: {
 backgroundColor: '#7427D5',

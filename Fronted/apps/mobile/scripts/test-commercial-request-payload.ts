@@ -28,7 +28,7 @@ commercialProfileId: 'business-1',
 offerKind: 'product',
 title: 'Producto de prueba',
 quantity: 2,
-lineComment: 'No enviar en bolsa.',
+lineComment: '  No enviar en bolsa.  ',
 pricingStrategy: 'fixed',
 unitPriceAmount: 25000,
 currencyCode: 'COP',
@@ -53,9 +53,50 @@ items: [
 {
 commercial_offer_id: 'offer-1',
 quantity: 2,
+line_comment: 'No enviar en bolsa.',
 },
 ],
 });
+
+const cartWithoutLineComment: BusinessCart = {
+...cart,
+lines: [
+{
+...cart.lines[0],
+id: 'local-line-2',
+lineComment: '   ',
+},
+],
+};
+
+const payloadWithoutLineComment = buildProductOrderPayload(
+cartWithoutLineComment,
+);
+
+assert.equal(
+'line_comment' in payloadWithoutLineComment.items[0],
+false,
+);
+
+const cartWithLongLineComment: BusinessCart = {
+...cart,
+lines: [
+{
+...cart.lines[0],
+id: 'local-line-3',
+lineComment: 'x'.repeat(1200),
+},
+],
+};
+
+const payloadWithLongLineComment = buildProductOrderPayload(
+cartWithLongLineComment,
+);
+
+assert.equal(
+payloadWithLongLineComment.items[0].line_comment?.length,
+1000,
+);
 
 assert.equal(
 JSON.stringify(payload).includes('deliveryFeeAmount'),
@@ -67,6 +108,14 @@ false,
 );
 assert.equal(
 JSON.stringify(payload).includes('lineComment'),
+false,
+);
+assert.equal(
+JSON.stringify(payload).includes('private_instructions'),
+false,
+);
+assert.equal(
+JSON.stringify(payload).includes('signed_url'),
 false,
 );
 assert.equal(

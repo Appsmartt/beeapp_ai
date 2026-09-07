@@ -17,6 +17,7 @@ from apps.commercial.services.commercial_supabase_service import (
 
 RPC_NAME = "commerce_create_request"
 GET_REQUEST_DETAIL_RPC_NAME = "commerce_get_request_detail"
+LIST_REQUESTS_RPC_NAME = "commerce_list_requests"
 
 
 def _normalized_access_token(access_token: str | None) -> str:
@@ -118,6 +119,50 @@ def create_commercial_request(
         )
 
     return data
+
+def list_commercial_requests(
+    *,
+    access_token: str | None,
+    statuses: list[str] | None = None,
+    limit: int = 25,
+    offset: int = 0,
+) -> list[dict[str, Any]]:
+    token = _normalized_access_token(access_token)
+
+    normalized_statuses = [
+        str(item).strip()
+        for item in (statuses or [])
+        if str(item).strip()
+    ]
+
+    data = execute_commercial_rpc(
+        access_token=token,
+        function_name=LIST_REQUESTS_RPC_NAME,
+        parameters={
+            "p_scope": "client",
+            "p_statuses": normalized_statuses or None,
+            "p_limit": int(limit),
+            "p_offset": int(offset),
+        },
+    )
+
+    if data is None:
+        return []
+
+    if not isinstance(data, list):
+        raise CommercialValidationError(
+            "Commercial requests RPC returned an invalid response.",
+            code="COMMERCE_REQUEST_LIST_FAILED",
+        )
+
+    if not all(isinstance(item, dict) for item in data):
+        raise CommercialValidationError(
+            "Commercial requests RPC returned invalid rows.",
+            code="COMMERCE_REQUEST_LIST_FAILED",
+        )
+
+    return data
+
 
 def get_commercial_request_detail(
     *,
