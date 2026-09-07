@@ -50,6 +50,8 @@ UpdateCommercialPaymentMethodResponse,
 CreateCommercialRequestPayload,
 CreateCommercialRequestResponse,
 GetCommercialRequestResponse,
+GetCommercialRequestsQuery,
+GetCommercialRequestsResponse,
 } from '@beeapp/shared-types';
 
 import { api } from './client';
@@ -758,6 +760,42 @@ export function createCommercialRequest(
       headers: {
         'Idempotency-Key': normalizedIdempotencyKey,
       },
+    },
+  );
+}
+
+
+export function getCommercialRequests(
+  credentials: AuthCredentials,
+  query: GetCommercialRequestsQuery = {},
+): Promise<GetCommercialRequestsResponse> {
+  const searchParams = new URLSearchParams();
+
+  (query.statuses || []).forEach((status) => {
+    const normalizedStatus = String(status || '').trim();
+
+    if (normalizedStatus) {
+      searchParams.append('status', normalizedStatus);
+    }
+  });
+
+  if (query.limit !== undefined) {
+    searchParams.set('limit', String(query.limit));
+  }
+
+  if (query.offset !== undefined) {
+    searchParams.set('offset', String(query.offset));
+  }
+
+  const queryString = searchParams.toString();
+  const endpoint = queryString
+    ? `/commercial/requests/?${queryString}`
+    : '/commercial/requests/';
+
+  return api.get<GetCommercialRequestsResponse>(
+    endpoint,
+    {
+      auth: credentials,
     },
   );
 }

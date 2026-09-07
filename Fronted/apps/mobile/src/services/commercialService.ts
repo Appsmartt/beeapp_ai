@@ -40,8 +40,8 @@ getOwnedCommercialProfiles,
   updateCommercialProfile,
 updateOwnedCommercialCatalog,
 getPublicCommercialProfiles,
-createCommercialRequest,
 getCommercialRequest,
+getCommercialRequests,
 ApiRequestError,
 } from '@beeapp/api-client';
 
@@ -93,6 +93,8 @@ UpdateCommercialProfileResponse,
 PublicCommercialProfilesQuery,
 CreateCommercialRequestResponse,
 GetCommercialRequestResponse,
+GetCommercialRequestsQuery,
+GetCommercialRequestsResponse,
 } from '@beeapp/shared-types';
 
 import {
@@ -108,7 +110,13 @@ type RevalidateBusinessCartLinesResult,
 
 import {
 buildProductOrderPayload,
+buildServiceRequestPayload,
+type BuildServiceRequestPayloadInput,
 } from '../features/buddyservices/cart/businessCartRequestPayload';
+
+import {
+submitCommercialRequest,
+} from '../features/buddyservices/commercialRequestSubmission';
 
 async function getRequiredCommercialCredentials() {
   const credentials = await getValidSessionCredentials();
@@ -586,24 +594,35 @@ paymentMethodId,
 
 
 export async function createProductOrderFromBusinessCart(
-    cart: BusinessCart,
-    idempotencyKey: string,
+cart: BusinessCart,
+idempotencyKey: string,
 ): Promise<CreateCommercialRequestResponse> {
-    const normalizedIdempotencyKey = String(
-        idempotencyKey || '',
-    ).trim();
+return submitCommercialRequest(
+await getRequiredCommercialCredentials(),
+idempotencyKey,
+buildProductOrderPayload(cart),
+);
+}
 
-    if (!normalizedIdempotencyKey) {
-        throw new Error(
-            'No fue posible preparar la solicitud. Inténtalo nuevamente.',
-        );
-    }
 
-    return createCommercialRequest(
-        await getRequiredCommercialCredentials(),
-        normalizedIdempotencyKey,
-        buildProductOrderPayload(cart),
-    );
+export async function createServiceRequest(
+input: BuildServiceRequestPayloadInput,
+idempotencyKey: string,
+): Promise<CreateCommercialRequestResponse> {
+return submitCommercialRequest(
+await getRequiredCommercialCredentials(),
+idempotencyKey,
+buildServiceRequestPayload(input),
+);
+}
+
+export async function loadCommercialRequests(
+query: GetCommercialRequestsQuery = {},
+): Promise<GetCommercialRequestsResponse> {
+return getCommercialRequests(
+await getRequiredCommercialCredentials(),
+query,
+);
 }
 
 

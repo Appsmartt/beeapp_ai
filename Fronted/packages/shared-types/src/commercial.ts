@@ -602,6 +602,7 @@ export type CommercialDeliveryFeeMode =
 export interface CreateCommercialRequestItemPayload {
   commercial_offer_id: string;
   quantity?: number;
+line_comment?: string;
 }
 
 export interface CreateCommercialRequestPayload {
@@ -665,6 +666,37 @@ export interface CreatedCommercialRequest {
 export interface CreateCommercialRequestResponse {
   request: CreatedCommercialRequest;
   idempotent: boolean;
+}
+
+
+export interface CommercialRequestListItem {
+  id: string;
+  code: string;
+  commercial_profile_id: string;
+  request_type: CommercialRequestType;
+  status: CommercialRequestStatus | string;
+  requested_modality: CommercialModality | null;
+  subtotal_amount: number | null;
+  delivery_fee_amount: number | null;
+  total_amount: number | null;
+  currency_code: string;
+  expires_at: string | null;
+  created_at: string;
+  updated_at: string;
+  item_count: number;
+}
+
+export interface GetCommercialRequestsQuery {
+  statuses?: Array<CommercialRequestStatus | string>;
+  limit?: number;
+  offset?: number;
+}
+
+export interface GetCommercialRequestsResponse {
+  requests: CommercialRequestListItem[];
+  count: number;
+  limit: number;
+  offset: number;
 }
 
 
