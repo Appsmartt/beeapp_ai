@@ -47,6 +47,8 @@ GetOwnedCommercialPaymentMethodResponse,
 GetOwnedCommercialPaymentMethodsResponse,
 UpdateCommercialPaymentMethodPayload,
 UpdateCommercialPaymentMethodResponse,
+CreateCommercialRequestPayload,
+CreateCommercialRequestResponse,
 } from '@beeapp/shared-types';
 
 import { api } from './client';
@@ -729,4 +731,32 @@ paymentMethodId,
 undefined,
 { auth },
 );
+}
+
+
+export function createCommercialRequest(
+  auth: AuthCredentials,
+  idempotencyKey: string,
+  payload: CreateCommercialRequestPayload,
+): Promise<CreateCommercialRequestResponse> {
+  const normalizedIdempotencyKey = String(
+    idempotencyKey || '',
+  ).trim();
+
+  if (!normalizedIdempotencyKey) {
+    throw new Error(
+      'No fue posible identificar la solicitud. Inténtalo nuevamente.',
+    );
+  }
+
+  return api.post<CreateCommercialRequestResponse>(
+    '/commercial/requests/',
+    payload,
+    {
+      auth,
+      headers: {
+        'Idempotency-Key': normalizedIdempotencyKey,
+      },
+    },
+  );
 }

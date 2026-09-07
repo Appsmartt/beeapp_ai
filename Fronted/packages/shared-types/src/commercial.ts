@@ -126,6 +126,8 @@ export interface CommercialPublicProfile {
     | 'fixed'
     | 'to_be_confirmed'
     | null;
+  delivery_fee_amount: number | null;
+  delivery_currency_code: 'COP' | null;
   is_verified: boolean;
   created_at: string | null;
   updated_at: string | null;
@@ -570,4 +572,97 @@ export interface UpdateCommercialPaymentMethodResponse {
 
 export interface CommercialPaymentMethodMutationResponse {
   payment_method: CommercialOwnedPaymentMethod;
+}
+
+export type CommercialRequestType =
+  | 'product_order'
+  | 'service_request'
+  | 'booking_request';
+
+export type CommercialRequestStatus =
+  | 'submitted'
+  | 'under_review'
+  | 'accepted'
+  | 'rejected'
+  | 'cancelled'
+  | 'expired'
+  | 'awaiting_payment'
+  | 'payment_submitted'
+  | 'payment_verified'
+  | 'payment_rejected'
+  | 'disputed'
+  | 'completed';
+
+export type CommercialDeliveryFeeMode =
+  | 'not_offered'
+  | 'free'
+  | 'fixed'
+  | 'to_be_confirmed';
+
+export interface CreateCommercialRequestItemPayload {
+  commercial_offer_id: string;
+  quantity?: number;
+}
+
+export interface CreateCommercialRequestPayload {
+  request_type: CommercialRequestType;
+  commercial_profile_id: string;
+  requested_modality?: CommercialModality | null;
+  customer_note?: string;
+  delivery_address?: string;
+  delivery_reference?: string;
+  currency_code?: 'COP';
+  items: CreateCommercialRequestItemPayload[];
+}
+
+export interface CommercialRequestItem {
+  id?: string;
+  commercial_offer_id: string;
+  commercial_profile_id?: string;
+  offer_kind?: CommercialOfferKind;
+  title?: string;
+  quantity: number;
+  unit_price_amount?: number | null;
+  line_total_amount?: number | null;
+  pricing_strategy?: CommercialPricingStrategy;
+  requested_modality?: CommercialModality | null;
+  requires_booking?: boolean;
+  payment_policy?: CommercialPaymentPolicy | null;
+  duration_minutes?: number | null;
+  offer_snapshot?: Record<string, unknown>;
+  created_at?: string | null;
+  updated_at?: string | null;
+}
+
+export interface CommercialRequest {
+  id: string;
+  request_type: CommercialRequestType;
+  status: CommercialRequestStatus | string;
+  commercial_profile_id: string;
+  customer_id?: string;
+  requested_modality: CommercialModality | null;
+  customer_note: string | null;
+  delivery_address: string | null;
+  delivery_reference: string | null;
+  delivery_fee_mode?: CommercialDeliveryFeeMode;
+  subtotal_amount: number | null;
+  delivery_fee_amount: number | null;
+  total_amount: number | null;
+  currency_code: 'COP';
+  items: CommercialRequestItem[];
+  created_at: string | null;
+  updated_at: string | null;
+  expires_at?: string | null;
+}
+
+export interface CreatedCommercialRequest {
+  request_id: string;
+  code: string;
+  status: CommercialRequestStatus | string;
+  idempotent: boolean;
+}
+
+export interface CreateCommercialRequestResponse {
+  request: CreatedCommercialRequest;
+  idempotent: boolean;
 }

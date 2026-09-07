@@ -20,7 +20,8 @@ PUBLIC_PROFILE_COLUMNS = (
     "phone_number,is_phone_public,public_email,is_email_public,"
     "logo_file_id,is_public,is_available,publication_status,"
     "verification_status,verification_badge_visible,timezone,"
-    "delivery_fee_mode,created_at,updated_at"
+    "delivery_fee_mode,delivery_fee_amount,delivery_currency_code,"
+    "created_at,updated_at"
 )
 
 PUBLIC_CATEGORY_COLUMNS = (
@@ -234,6 +235,12 @@ def _serialize_public_profile(
         "modalities": modalities,
         "delivery_fee_mode": profile.get(
             "delivery_fee_mode"
+        ),
+        "delivery_fee_amount": profile.get(
+            "delivery_fee_amount"
+        ),
+        "delivery_currency_code": profile.get(
+            "delivery_currency_code"
         ),
         "is_verified": is_verified,
         "created_at": profile.get("created_at"),
