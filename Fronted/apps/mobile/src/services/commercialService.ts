@@ -42,6 +42,13 @@ updateOwnedCommercialCatalog,
 getPublicCommercialProfiles,
 getCommercialRequest,
 getCommercialRequests,
+getOwnedCommercialRequests,
+getCommercialRequestTimeline,
+completeCommercialRequest,
+acceptCommercialRequestProposal,
+rejectCommercialRequestProposal,
+withdrawCommercialRequestProposal,
+replaceCommercialPaymentProof,
 ApiRequestError,
 } from '@beeapp/api-client';
 
@@ -95,6 +102,15 @@ CreateCommercialRequestResponse,
 GetCommercialRequestResponse,
 GetCommercialRequestsQuery,
 GetCommercialRequestsResponse,
+GetOwnedCommercialRequestsResponse,
+GetCommercialRequestTimelineResponse,
+CompleteCommercialRequestPayload,
+CompleteCommercialRequestResponse,
+CommercialRequestProposalMutationResponse,
+RejectCommercialRequestProposalPayload,
+WithdrawCommercialRequestProposalPayload,
+ReplaceCommercialPaymentProofPayload,
+ReplaceCommercialPaymentProofResponse,
 } from '@beeapp/shared-types';
 
 import {
@@ -632,6 +648,79 @@ requestId: string,
 return getCommercialRequest(
 await getRequiredCommercialCredentials(),
 requestId,
+);
+}
+
+export async function loadOwnedCommercialRequests(
+profileId: string,
+query: GetCommercialRequestsQuery = {},
+): Promise<GetOwnedCommercialRequestsResponse> {
+return getOwnedCommercialRequests(
+await getRequiredCommercialCredentials(),
+profileId,
+query,
+);
+}
+
+export async function loadCommercialRequestTimeline(
+requestId: string,
+): Promise<GetCommercialRequestTimelineResponse> {
+return getCommercialRequestTimeline(
+await getRequiredCommercialCredentials(),
+requestId,
+);
+}
+
+export async function completeOwnedCommercialRequest(
+requestId: string,
+payload: CompleteCommercialRequestPayload = {},
+): Promise<CompleteCommercialRequestResponse> {
+return completeCommercialRequest(
+await getRequiredCommercialCredentials(),
+requestId,
+payload,
+);
+}
+
+export async function acceptCommercialProposal(
+proposalId: string,
+): Promise<CommercialRequestProposalMutationResponse> {
+return acceptCommercialRequestProposal(
+await getRequiredCommercialCredentials(),
+proposalId,
+);
+}
+
+export async function rejectCommercialProposal(
+proposalId: string,
+payload: RejectCommercialRequestProposalPayload = {},
+): Promise<CommercialRequestProposalMutationResponse> {
+return rejectCommercialRequestProposal(
+await getRequiredCommercialCredentials(),
+proposalId,
+payload,
+);
+}
+
+export async function withdrawCommercialProposal(
+proposalId: string,
+payload: WithdrawCommercialRequestProposalPayload = {},
+): Promise<CommercialRequestProposalMutationResponse> {
+return withdrawCommercialRequestProposal(
+await getRequiredCommercialCredentials(),
+proposalId,
+payload,
+);
+}
+
+export async function replaceRejectedCommercialPaymentProof(
+paymentProofId: string,
+payload: ReplaceCommercialPaymentProofPayload,
+): Promise<ReplaceCommercialPaymentProofResponse> {
+return replaceCommercialPaymentProof(
+await getRequiredCommercialCredentials(),
+paymentProofId,
+payload,
 );
 }
 

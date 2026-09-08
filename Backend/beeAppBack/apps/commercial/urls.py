@@ -3,6 +3,15 @@ from django.urls import path
 from apps.commercial.request_views import CommercialRequestsView
 from apps.commercial.request_transition_views import CommercialRequestTransitionView
 from apps.commercial.request_proposal_views import CommercialRequestProposalsView
+from apps.commercial.request_operations_views import (
+    CommercialPaymentProofReplaceView,
+    CommercialRequestCompleteView,
+    CommercialRequestProposalAcceptView,
+    CommercialRequestProposalRejectView,
+    CommercialRequestProposalWithdrawView,
+    CommercialRequestTimelineView,
+    OwnedCommercialRequestsView,
+)
 from apps.commercial.reservation_views import CommercialReservationHoldView
 from apps.commercial.payment_flow_views import (
     CommercialRequestPaymentMethodsView,
@@ -73,6 +82,41 @@ urlpatterns = [
         "requests/<uuid:request_id>/proposals/",
         CommercialRequestProposalsView.as_view(),
         name="commercial-request-proposals",
+    ),
+    path(
+        "profiles/<uuid:profile_id>/requests/",
+        OwnedCommercialRequestsView.as_view(),
+        name="owned-commercial-requests",
+    ),
+    path(
+        "requests/<uuid:request_id>/timeline/",
+        CommercialRequestTimelineView.as_view(),
+        name="commercial-request-timeline",
+    ),
+    path(
+        "requests/<uuid:request_id>/complete/",
+        CommercialRequestCompleteView.as_view(),
+        name="commercial-request-complete",
+    ),
+    path(
+        "proposals/<uuid:proposal_id>/accept/",
+        CommercialRequestProposalAcceptView.as_view(),
+        name="commercial-request-proposal-accept",
+    ),
+    path(
+        "proposals/<uuid:proposal_id>/reject/",
+        CommercialRequestProposalRejectView.as_view(),
+        name="commercial-request-proposal-reject",
+    ),
+    path(
+        "proposals/<uuid:proposal_id>/withdraw/",
+        CommercialRequestProposalWithdrawView.as_view(),
+        name="commercial-request-proposal-withdraw",
+    ),
+    path(
+        "payment-proofs/<uuid:payment_proof_id>/replace/",
+        CommercialPaymentProofReplaceView.as_view(),
+        name="commercial-payment-proof-replace",
     ),
     path(
         "requests/<uuid:request_id>/reservation-hold/",

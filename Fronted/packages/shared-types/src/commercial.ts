@@ -126,7 +126,6 @@ export interface CommercialPublicProfile {
     | 'fixed'
     | 'to_be_confirmed'
     | null;
-  delivery_fee_amount: number | null;
   delivery_currency_code: 'COP' | null;
   is_verified: boolean;
   created_at: string | null;
@@ -580,18 +579,19 @@ export type CommercialRequestType =
   | 'booking_request';
 
 export type CommercialRequestStatus =
+  | 'draft'
   | 'submitted'
   | 'under_review'
+  | 'proposal_sent'
   | 'accepted'
+  | 'payment_pending'
+  | 'payment_submitted'
+  | 'confirmed'
+  | 'completed'
   | 'rejected'
   | 'cancelled'
   | 'expired'
-  | 'awaiting_payment'
-  | 'payment_submitted'
-  | 'payment_verified'
-  | 'payment_rejected'
-  | 'disputed'
-  | 'completed';
+  | 'disputed';
 
 export type CommercialDeliveryFeeMode =
   | 'not_offered'
@@ -727,6 +727,7 @@ id: string;
 code: string;
 client_id: string;
 commercial_profile_id: string;
+business_snapshot?: Record<string, unknown>;
 request_type: CommercialRequestType;
 status: CommercialRequestStatus | string;
 expires_at: string | null;
@@ -746,4 +747,295 @@ items: CommercialRequestDetailItem[];
 
 export interface GetCommercialRequestResponse {
 request: CommercialRequestDetail;
+}
+
+export type CommercialRequestActorRole =
+  | 'customer'
+  | 'business_owner';
+
+export interface CommercialRequestBusinessContext {
+  id: string;
+  display_name: string;
+  city: string | null;
+  country_code: string | null;
+  timezone: string | null;
+}
+
+export interface CommercialRequestProposal {
+  id: string;
+  version_number: number;
+  proposed_by_profile_id: string;
+  status:
+    | 'pending'
+    | 'accepted'
+    | 'rejected'
+    | 'superseded'
+    | 'expired'
+    | 'withdrawn';
+  requested_modality: CommercialModality | null;
+  subtotal_amount: number | null;
+  delivery_fee_amount: number | null;
+  total_amount: number | null;
+  currency_code: string;
+  proposed_starts_at: string | null;
+  proposed_ends_at: string | null;
+  timezone: string | null;
+  note: string | null;
+  terms_snapshot: Record<string, unknown>;
+  responded_at: string | null;
+  responded_by_profile_id: string | null;
+  created_at: string;
+}
+
+export interface CommercialRequestTimelineEvent {
+  id: string;
+  event_type: string;
+  previous_status: CommercialRequestStatus | null;
+  new_status: CommercialRequestStatus | null;
+  actor_profile_id: string | null;
+  reason_code: string | null;
+  reason_text: string | null;
+  reference_type: string | null;
+  reference_id: string | null;
+  metadata: Record<string, unknown>;
+  created_at: string;
+}
+
+export interface CommercialRequestTimeline {
+  request_id: string;
+  request_status: CommercialRequestStatus | string;
+  proposals: CommercialRequestProposal[];
+  events: CommercialRequestTimelineEvent[];
+}
+
+export interface GetCommercialRequestTimelineResponse {
+  timeline: CommercialRequestTimeline;
+}
+
+export interface CommercialPaymentMethodPublic {
+  id: string;
+  payment_method_type: CommercialPaymentMethodType;
+  display_name: string;
+  public_details: Record<string, unknown>;
+  public_instructions: string | null;
+  sort_order: number | null;
+}
+
+export interface GetCommercialRequestPaymentMethodsResponse {
+  request_id: string;
+  payment_methods: CommercialPaymentMethodPublic[];
+}
+
+export interface CommercialPaymentProof {
+  id: string;
+  commerce_request_id: string;
+  commercial_profile_id: string;
+  submitted_by_profile_id: string;
+  file_id: string;
+  payment_method_id: string | null;
+  payment_method_snapshot: Record<string, unknown>;
+  payment_reference: string | null;
+  note: string | null;
+  status: 'submitted' | 'confirmed' | 'rejected' | 'replaced';
+  rejected_at: string | null;
+  rejected_by_profile_id: string | null;
+  rejection_reason: string | null;
+  replaced_by_proof_id: string | null;
+  confirmed_at: string | null;
+  confirmed_by_profile_id: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CommercialRequestPermissions {
+  can_start_review: boolean;
+  can_accept: boolean;
+  can_reject: boolean;
+  can_cancel: boolean;
+  can_create_proposal: boolean;
+  can_accept_proposal: boolean;
+  can_reject_proposal: boolean;
+  can_withdraw_proposal: boolean;
+  can_request_payment: boolean;
+  can_view_payment_methods: boolean;
+  can_submit_payment_proof: boolean;
+  can_replace_payment_proof: boolean;
+  can_review_payment_proof: boolean;
+  can_create_reservation_hold: boolean;
+  can_complete: boolean;
+  can_open_dispute: boolean;
+  can_open_chat: boolean;
+}
+
+export interface CommercialReservation {
+  id: string;
+  commerce_request_id: string;
+  commercial_profile_id: string;
+  commercial_offer_id: string;
+  source_proposal_id: string | null;
+  status:
+    | 'proposed'
+    | 'hold'
+    | 'payment_pending'
+    | 'confirmed'
+    | 'completed'
+    | 'cancelled'
+    | 'rejected'
+    | 'expired'
+    | 'no_show';
+  starts_at: string;
+  ends_at: string;
+  timezone: string;
+  hold_started_at: string | null;
+  hold_expires_at: string | null;
+  completed_at: string | null;
+  no_show_at: string | null;
+  no_show_marked_by_profile_id: string | null;
+  no_show_reason: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CommercialDispute {
+  id: string;
+  commerce_request_id: string;
+  commercial_profile_id: string;
+  commerce_reservation_id: string | null;
+  opened_by_profile_id: string;
+  status:
+    | 'opened'
+    | 'under_review'
+    | 'resolved_for_customer'
+    | 'resolved_for_business'
+    | 'closed';
+  reason_code: string;
+  reason_text: string | null;
+  resolution_text: string | null;
+  resolved_by_profile_id: string | null;
+  resolved_at: string | null;
+  closed_by_profile_id: string | null;
+  closed_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CommercialRequestDetailContext {
+  actor_role: CommercialRequestActorRole;
+  business: CommercialRequestBusinessContext;
+  permissions: CommercialRequestPermissions;
+  timeline: CommercialRequestTimeline;
+  payment_proofs: CommercialPaymentProof[];
+  reservation: CommercialReservation | null;
+  dispute: CommercialDispute | null;
+}
+
+export interface GetCommercialRequestFormalDetailResponse {
+  request: CommercialRequestDetail;
+  context: CommercialRequestDetailContext;
+}
+
+export interface CommercialRequestTransitionPayload {
+  action:
+    | 'start_review'
+    | 'accept'
+    | 'reject'
+    | 'cancel';
+  reason_code?: string | null;
+  reason_text?: string | null;
+}
+
+export interface CommercialRequestTransitionResponse {
+  request: {
+    request_id: string;
+    status: CommercialRequestStatus;
+    previous_status: CommercialRequestStatus | null;
+    action: string;
+  };
+}
+
+export interface CreateCommercialRequestProposalPayload {
+  requested_modality?: CommercialModality | null;
+  subtotal_amount?: number | null;
+  delivery_fee_amount?: number | null;
+  total_amount?: number | null;
+  proposed_starts_at?: string | null;
+  proposed_ends_at?: string | null;
+  timezone?: string | null;
+  note?: string | null;
+  terms_snapshot?: Record<string, unknown>;
+}
+
+export interface CreateCommercialRequestProposalResponse {
+  proposal: {
+    proposal_id: string;
+    request_id: string;
+    version_number: number;
+    status: 'pending';
+    request_status: 'proposal_sent';
+    proposed_by: CommercialRequestActorRole;
+  };
+}
+
+export interface PaymentProofSubmissionPayload {
+  file_id: string;
+  payment_method_id: string;
+  payment_reference?: string | null;
+  note?: string | null;
+}
+
+export interface PaymentProofSubmissionResponse {
+  payment_proof_id: string;
+  request_id: string;
+  status: 'submitted';
+}
+
+export interface ReviewCommercialPaymentProofPayload {
+  decision: 'confirmed' | 'rejected';
+  rejection_reason?: string | null;
+}
+
+export interface ReviewCommercialPaymentProofResponse {
+  payment_proof_id: string;
+  status: 'confirmed' | 'rejected';
+}
+
+export interface GetOwnedCommercialRequestsResponse
+  extends GetCommercialRequestsResponse {
+  commercial_profile_id: string;
+}
+
+export interface CompleteCommercialRequestPayload {
+  completion_note?: string | null;
+}
+
+export interface CompleteCommercialRequestResponse {
+  request_id: string;
+  status: 'completed';
+}
+
+export interface CommercialRequestProposalMutationResponse {
+  proposal_id: string;
+  request_id: string;
+  status: 'accepted' | 'rejected' | 'withdrawn';
+}
+
+export interface RejectCommercialRequestProposalPayload {
+  rejection_reason?: string | null;
+}
+
+export interface WithdrawCommercialRequestProposalPayload {
+  withdrawal_reason?: string | null;
+}
+
+export interface ReplaceCommercialPaymentProofPayload {
+  file_id: string;
+  payment_method_id?: string | null;
+  payment_reference?: string | null;
+  note?: string | null;
+}
+
+export interface ReplaceCommercialPaymentProofResponse {
+  payment_proof_id: string;
+  replaced_payment_proof_id: string;
+  status: 'submitted';
 }

@@ -10,6 +10,7 @@ import {
   BadgeCheck,
   Building2,
   CalendarDays,
+ClipboardList,
   CreditCard,
   FileCheck2,
   Layers3,
@@ -39,6 +40,7 @@ import {
   buddyServicesManageCatalogsRoute,
   buddyServicesManageOffersRoute,
   buddyServicesManageOperationRoute,
+buddyServicesManageRequestsRoute,
   buddyServicesManagePaymentMethodsRoute,
   buddyServicesManageProfileRoute,
 } from '../../../../src/features/buddyservices/commercialRoutes';
@@ -645,6 +647,77 @@ export default function BuddyServicesManageBusinessScreen() {
           </TouchableOpacity>
 
           <TouchableOpacity
+accessibilityHint="Consulta y gestiona solicitudes recibidas por el negocio"
+accessibilityLabel="Solicitudes del negocio"
+accessibilityRole="button"
+activeOpacity={0.82}
+onPress={() => {
+router.push(
+buddyServicesManageRequestsRoute(profile.id),
+);
+}}
+style={{
+backgroundColor: '#FFFFFF',
+borderColor: '#E7DDF2',
+borderRadius: 16,
+borderWidth: 1,
+marginBottom: 11,
+padding: 15,
+}}
+>
+<View
+style={{
+alignItems: 'center',
+flexDirection: 'row',
+}}
+>
+<View
+style={{
+alignItems: 'center',
+backgroundColor: '#F6EAFE',
+borderRadius: 12,
+height: 42,
+justifyContent: 'center',
+width: 42,
+}}
+>
+<ClipboardList
+color="#7427D5"
+size={20}
+/>
+</View>
+
+<View
+style={{
+flex: 1,
+marginLeft: 12,
+}}
+>
+<Text
+style={{
+color: '#261743',
+fontSize: 15,
+fontWeight: '800',
+}}
+>
+Solicitudes
+</Text>
+
+<Text
+style={{
+color: '#786593',
+fontSize: 12,
+lineHeight: 18,
+marginTop: 3,
+}}
+>
+Revisa compras, servicios y reservas recibidas.
+</Text>
+</View>
+</View>
+</TouchableOpacity>
+
+<TouchableOpacity
             accessibilityHint="Administra métodos de pago privados de este negocio"
             accessibilityLabel="Métodos de pago"
             accessibilityRole="button"
