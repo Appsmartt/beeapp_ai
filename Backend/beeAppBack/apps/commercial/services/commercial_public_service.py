@@ -236,9 +236,6 @@ def _serialize_public_profile(
         "delivery_fee_mode": profile.get(
             "delivery_fee_mode"
         ),
-        "delivery_fee_amount": profile.get(
-            "delivery_fee_amount"
-        ),
         "delivery_currency_code": profile.get(
             "delivery_currency_code"
         ),

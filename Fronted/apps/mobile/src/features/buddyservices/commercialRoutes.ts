@@ -158,6 +158,32 @@ businessId: requireId(businessId, 'el negocio'),
 };
 }
 
+export function buddyServicesManageRequestsRoute(
+businessId: string,
+): Href {
+return {
+pathname: '/(main)/beeservices/manage/[businessId]/requests',
+params: {
+businessId: requireId(businessId, 'el negocio'),
+},
+};
+}
+
+export function buddyServicesManageRequestDetailRoute(
+businessId: string,
+requestId: string,
+): Href {
+return {
+pathname: (
+'/(main)/beeservices/manage/[businessId]/requests/[requestId]'
+),
+params: {
+businessId: requireId(businessId, 'el negocio'),
+requestId: requireId(requestId, 'la solicitud'),
+},
+};
+}
+
 export function buddyServicesMyPurchasesRoute(): Href {
   return '/(main)/beeservices/my-purchases';
 }

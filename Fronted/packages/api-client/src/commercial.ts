@@ -52,6 +52,15 @@ CreateCommercialRequestResponse,
 GetCommercialRequestResponse,
 GetCommercialRequestsQuery,
 GetCommercialRequestsResponse,
+GetOwnedCommercialRequestsResponse,
+GetCommercialRequestTimelineResponse,
+CompleteCommercialRequestPayload,
+CompleteCommercialRequestResponse,
+CommercialRequestProposalMutationResponse,
+RejectCommercialRequestProposalPayload,
+WithdrawCommercialRequestProposalPayload,
+ReplaceCommercialPaymentProofPayload,
+ReplaceCommercialPaymentProofResponse,
 } from '@beeapp/shared-types';
 
 import { api } from './client';
@@ -817,4 +826,153 @@ return api.get<GetCommercialRequestResponse>(
 `/commercial/requests/${normalizedRequestId}/`,
 { auth },
 );
+}
+
+function commercialRequestPath(requestId: string): string {
+  const normalizedRequestId = String(requestId || '').trim();
+
+  if (!normalizedRequestId) {
+    throw new Error(
+      'No fue posible identificar la solicitud comercial.',
+    );
+  }
+
+  return `/commercial/requests/${encodeURIComponent(
+    normalizedRequestId,
+  )}/`;
+}
+
+function commercialProposalPath(proposalId: string): string {
+  const normalizedProposalId = String(proposalId || '').trim();
+
+  if (!normalizedProposalId) {
+    throw new Error(
+      'No fue posible identificar la propuesta comercial.',
+    );
+  }
+
+  return `/commercial/proposals/${encodeURIComponent(
+    normalizedProposalId,
+  )}/`;
+}
+
+function commercialPaymentProofPath(
+  paymentProofId: string,
+): string {
+  const normalizedPaymentProofId = String(
+    paymentProofId || '',
+  ).trim();
+
+  if (!normalizedPaymentProofId) {
+    throw new Error(
+      'No fue posible identificar el comprobante de pago.',
+    );
+  }
+
+  return `/commercial/payment-proofs/${encodeURIComponent(
+    normalizedPaymentProofId,
+  )}/`;
+}
+
+export function getOwnedCommercialRequests(
+  auth: AuthCredentials,
+  profileId: string,
+  query: GetCommercialRequestsQuery = {},
+): Promise<GetOwnedCommercialRequestsResponse> {
+  const searchParams = new URLSearchParams();
+
+  (query.statuses || []).forEach((status) => {
+    const normalizedStatus = String(status || '').trim();
+
+    if (normalizedStatus) {
+      searchParams.append('status', normalizedStatus);
+    }
+  });
+
+  if (query.limit !== undefined) {
+    searchParams.set('limit', String(query.limit));
+  }
+
+  if (query.offset !== undefined) {
+    searchParams.set('offset', String(query.offset));
+  }
+
+  const queryString = searchParams.toString();
+  const endpoint = queryString
+    ? `${profilePath(profileId)}requests/?${queryString}`
+    : `${profilePath(profileId)}requests/`;
+
+  return api.get<GetOwnedCommercialRequestsResponse>(
+    endpoint,
+    { auth },
+  );
+}
+
+export function getCommercialRequestTimeline(
+  auth: AuthCredentials,
+  requestId: string,
+): Promise<GetCommercialRequestTimelineResponse> {
+  return api.get<GetCommercialRequestTimelineResponse>(
+    `${commercialRequestPath(requestId)}timeline/`,
+    { auth },
+  );
+}
+
+export function completeCommercialRequest(
+  auth: AuthCredentials,
+  requestId: string,
+  payload: CompleteCommercialRequestPayload = {},
+): Promise<CompleteCommercialRequestResponse> {
+  return api.post<CompleteCommercialRequestResponse>(
+    `${commercialRequestPath(requestId)}complete/`,
+    payload,
+    { auth },
+  );
+}
+
+export function acceptCommercialRequestProposal(
+  auth: AuthCredentials,
+  proposalId: string,
+): Promise<CommercialRequestProposalMutationResponse> {
+  return api.post<CommercialRequestProposalMutationResponse>(
+    `${commercialProposalPath(proposalId)}accept/`,
+    undefined,
+    { auth },
+  );
+}
+
+export function rejectCommercialRequestProposal(
+  auth: AuthCredentials,
+  proposalId: string,
+  payload: RejectCommercialRequestProposalPayload = {},
+): Promise<CommercialRequestProposalMutationResponse> {
+  return api.post<CommercialRequestProposalMutationResponse>(
+    `${commercialProposalPath(proposalId)}reject/`,
+    payload,
+    { auth },
+  );
+}
+
+export function withdrawCommercialRequestProposal(
+  auth: AuthCredentials,
+  proposalId: string,
+  payload: WithdrawCommercialRequestProposalPayload = {},
+): Promise<CommercialRequestProposalMutationResponse> {
+  return api.post<CommercialRequestProposalMutationResponse>(
+    `${commercialProposalPath(proposalId)}withdraw/`,
+    payload,
+    { auth },
+  );
+}
+
+export function replaceCommercialPaymentProof(
+  auth: AuthCredentials,
+  paymentProofId: string,
+  payload: ReplaceCommercialPaymentProofPayload,
+): Promise<ReplaceCommercialPaymentProofResponse> {
+  return api.post<ReplaceCommercialPaymentProofResponse>(
+    `${commercialPaymentProofPath(paymentProofId)}replace/`,
+    payload,
+    { auth },
+  );
 }

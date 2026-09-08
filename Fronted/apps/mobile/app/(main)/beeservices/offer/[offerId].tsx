@@ -282,9 +282,7 @@ export default function BuddyServicesPublicOfferScreen() {
           profileResponse.profile.delivery_fee_mode
           || 'not_offered'
         ),
-        deliveryFeeAmount: (
-          profileResponse.profile.delivery_fee_amount
-        ),
+        deliveryFeeAmount: null,
       };
 
       const result = addBusinessCartProduct(cartProduct);

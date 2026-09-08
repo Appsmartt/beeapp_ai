@@ -15,6 +15,7 @@ View,
 } from 'react-native';
 import {
 ArrowLeft,
+ClipboardList,
 Package,
 Wrench,
 } from 'lucide-react-native';
@@ -22,18 +23,20 @@ import {
 useLocalSearchParams,
 useRouter,
 } from 'expo-router';
-import * as DocumentPicker from 'expo-document-picker';
 
 import type {
 CommercialRequestDetail,
 CommercialRequestTimeline,
 } from '@beeapp/shared-types';
 
-import ScreenSafeArea from '../../../../src/components/layout/ScreenSafeArea';
+import ScreenSafeArea from '../../../../../../src/components/layout/ScreenSafeArea';
 import {
 toCommercialUiError,
 type CommercialUiError,
-} from '../../../../src/features/buddyservices/commercialErrors';
+} from '../../../../../../src/features/buddyservices/commercialErrors';
+import {
+buddyServicesManageRequestsRoute,
+} from '../../../../../../src/features/buddyservices/commercialRoutes';
 import {
 getCommercialRequestItemLabel,
 getCommercialRequestItemPriceLabel,
@@ -41,21 +44,13 @@ getCommercialRequestItemsTitle,
 getCommercialRequestLineComment,
 getCommercialRequestTotalLabel,
 getCommercialRequestTotalState,
-} from '../../../../src/features/buddyservices/commercialRequestDetailPresentation';
-
+} from '../../../../../../src/features/buddyservices/commercialRequestDetailPresentation';
 import {
-acceptCommercialProposal,
+completeOwnedCommercialRequest,
 loadCommercialRequest,
 loadCommercialRequestTimeline,
-rejectCommercialProposal,
-replaceRejectedCommercialPaymentProof,
-} from '../../../../src/services/commercialService';
-import {
-uploadCommercialPaymentProof,
-} from '../../../../src/services/commercialPaymentProofService';
-import {
-getValidSessionCredentials,
-} from '../../../../src/services/authSession';
+withdrawCommercialProposal,
+} from '../../../../../../src/services/commercialService';
 
 function normalizeParam(
 value: string | string[] | undefined,
@@ -104,7 +99,7 @@ const labels: Record<string, string> = {
 draft: 'Borrador',
 submitted: 'Solicitud enviada',
 under_review: 'En revisión',
-proposal_sent: 'Propuesta recibida',
+proposal_sent: 'Propuesta enviada',
 accepted: 'Aceptada',
 payment_pending: 'Pago pendiente',
 payment_submitted: 'Pago enviado',
@@ -118,7 +113,6 @@ disputed: 'En disputa',
 
 return labels[value] || value;
 }
-
 
 function formatTimelineDate(
 value: string,
@@ -138,28 +132,6 @@ timeStyle: 'short',
 ).format(date);
 }
 
-function timelineEventLabel(eventType: string): string {
-const labels: Record<string, string> = {
-request_submitted: 'Solicitud enviada',
-request_under_review: 'Solicitud en revisión',
-request_accepted: 'Solicitud aceptada',
-request_rejected: 'Solicitud rechazada',
-request_cancelled: 'Solicitud cancelada',
-request_completed: 'Solicitud completada',
-proposal_created: 'Propuesta creada',
-proposal_received: 'Propuesta recibida',
-proposal_accepted: 'Propuesta aceptada',
-proposal_rejected: 'Propuesta rechazada',
-proposal_withdrawn: 'Propuesta retirada',
-payment_requested: 'Pago solicitado',
-payment_proof_submitted: 'Comprobante enviado',
-payment_proof_rejected: 'Comprobante rechazado',
-payment_proof_confirmed: 'Comprobante confirmado',
-};
-
-return labels[eventType] || 'Actualización de solicitud';
-}
-
 function proposalStatusLabel(status: string): string {
 const labels: Record<string, string> = {
 pending: 'Pendiente',
@@ -173,12 +145,36 @@ withdrawn: 'Retirada',
 return labels[status] || status;
 }
 
-export default function BuddyServicesRequestDetailScreen() {
+function timelineEventLabel(eventType: string): string {
+const labels: Record<string, string> = {
+request_submitted: 'Solicitud recibida',
+request_under_review: 'Solicitud en revisión',
+request_accepted: 'Solicitud aceptada',
+request_rejected: 'Solicitud rechazada',
+request_cancelled: 'Solicitud cancelada',
+request_completed: 'Solicitud completada',
+proposal_created: 'Propuesta creada',
+proposal_received: 'Propuesta enviada',
+proposal_accepted: 'Propuesta aceptada',
+proposal_rejected: 'Propuesta rechazada',
+proposal_withdrawn: 'Propuesta retirada',
+payment_requested: 'Pago solicitado',
+payment_proof_submitted: 'Comprobante enviado',
+payment_proof_rejected: 'Comprobante rechazado',
+payment_proof_confirmed: 'Comprobante confirmado',
+};
+
+return labels[eventType] || 'Actualización de solicitud';
+}
+
+export default function BuddyServicesManageRequestDetailScreen() {
 const router = useRouter();
 const params = useLocalSearchParams<{
+businessId?: string | string[];
 requestId?: string | string[];
 }>();
 
+const businessId = normalizeParam(params.businessId);
 const requestId = normalizeParam(params.requestId);
 
 const [requestDetail, setRequestDetail] = useState<
@@ -187,29 +183,26 @@ CommercialRequestDetail | null
 const [timeline, setTimeline] = useState<
 CommercialRequestTimeline | null
 >(null);
-const [timelineError, setTimelineError] = useState<
-CommercialUiError | null
->(null);
+const [loading, setLoading] = useState(true);
+const [refreshing, setRefreshing] = useState(false);
+const [error, setError] = useState<CommercialUiError | null>(
+null,
+);
 const [actionError, setActionError] = useState<
 CommercialUiError | null
 >(null);
 const [pendingAction, setPendingAction] = useState<
 string | null
 >(null);
-const [loading, setLoading] = useState(true);
-const [refreshing, setRefreshing] = useState(false);
-const [error, setError] = useState<CommercialUiError | null>(
-null,
-);
 
 const loadRequest = useCallback(async () => {
-if (!requestId) {
-setLoading(false);
+if (!businessId || !requestId) {
 setError({
 title: 'Solicitud no identificada',
-message: 'No fue posible identificar la solicitud comercial.',
+message: 'No fue posible identificar el negocio o la solicitud.',
 retryable: false,
 });
+setLoading(false);
 return;
 }
 
@@ -229,19 +222,37 @@ setTimeline(null);
 return;
 }
 
+if (
+requestResult.value.request.commercial_profile_id
+!== businessId
+) {
+setError({
+title: 'Sin acceso',
+message: (
+'Esta solicitud no pertenece al negocio que estás '
++ 'gestionando.'
+),
+retryable: false,
+});
+setRequestDetail(null);
+setTimeline(null);
+return;
+}
+
 setRequestDetail(requestResult.value.request);
 
 if (timelineResult.status === 'fulfilled') {
 setTimeline(timelineResult.value.timeline);
-setTimelineError(null);
 } else {
 setTimeline(null);
-setTimelineError(toCommercialUiError(timelineResult.reason));
 }
 } finally {
 setLoading(false);
 }
-}, [requestId]);
+}, [
+businessId,
+requestId,
+]);
 
 useEffect(() => {
 void loadRequest();
@@ -263,10 +274,17 @@ router.back();
 return;
 }
 
-router.replace('/(main)/beeservices/my-purchases');
-}, [router]);
+if (businessId) {
+router.replace(
+buddyServicesManageRequestsRoute(businessId),
+);
+}
+}, [
+businessId,
+router,
+]);
 
-const runRequestAction = useCallback(async (
+const runAction = useCallback(async (
 actionKey: string,
 operation: () => Promise<unknown>,
 successMessage: string,
@@ -278,129 +296,64 @@ try {
 await operation();
 Alert.alert('Solicitud actualizada', successMessage);
 await loadRequest();
-} catch (operationError) {
-setActionError(toCommercialUiError(operationError));
+} catch (actionErrorValue) {
+setActionError(toCommercialUiError(actionErrorValue));
 } finally {
 setPendingAction(null);
 }
 }, [loadRequest]);
 
-const confirmAcceptProposal = useCallback((
-proposalId: string,
-) => {
+const confirmCompleteRequest = useCallback(() => {
 Alert.alert(
-'Aceptar propuesta',
-'¿Deseas aceptar estas condiciones para la solicitud?',
+'Completar solicitud',
+'Confirma que la atención, reserva o entrega se completó correctamente.',
 [
 {
 text: 'Cancelar',
 style: 'cancel',
 },
 {
-text: 'Aceptar',
+text: 'Completar',
 onPress: () => {
-void runRequestAction(
-`accept:${proposalId}`,
-() => acceptCommercialProposal(proposalId),
-'La propuesta fue aceptada.',
+void runAction(
+'complete',
+() => completeOwnedCommercialRequest(requestId, {}),
+'La solicitud fue marcada como completada.',
 );
 },
 },
 ],
 );
-}, [runRequestAction]);
-
-const handleReplacePaymentProof = useCallback(async (
-paymentProofId: string,
-) => {
-if (pendingAction !== null) {
-return;
-}
-
-try {
-const result = await DocumentPicker.getDocumentAsync({
-type: '*/*',
-copyToCacheDirectory: true,
-multiple: false,
-});
-
-if (result.canceled || !result.assets[0]) {
-return;
-}
-
-const asset = result.assets[0];
-
-setPendingAction(`replace-proof:${paymentProofId}`);
-setActionError(null);
-
-const credentials = await getValidSessionCredentials();
-
-if (!credentials) {
-throw new Error(
-'Tu sesión venció. Inicia sesión nuevamente.',
-);
-}
-
-const uploadedFile = await uploadCommercialPaymentProof(
-credentials,
-{
-uri: asset.uri,
-name: asset.name || 'comprobante',
-mimeType: (
-asset.mimeType
-|| 'application/octet-stream'
-),
-sizeBytes: asset.size ?? null,
-},
-);
-
-await replaceRejectedCommercialPaymentProof(
-paymentProofId,
-{
-file_id: uploadedFile.id,
-},
-);
-
-Alert.alert(
-'Comprobante enviado',
-'El nuevo comprobante fue enviado para revisión.',
-);
-await loadRequest();
-} catch (replaceError) {
-setActionError(toCommercialUiError(replaceError));
-} finally {
-setPendingAction(null);
-}
 }, [
-loadRequest,
-pendingAction,
+requestId,
+runAction,
 ]);
 
-const confirmRejectProposal = useCallback((
+const confirmWithdrawProposal = useCallback((
 proposalId: string,
 ) => {
 Alert.alert(
-'Rechazar propuesta',
-'La propuesta será rechazada. Podrás continuar negociando si el negocio envía una nueva propuesta.',
+'Retirar propuesta',
+'La propuesta dejará de estar disponible para el cliente.',
 [
 {
 text: 'Cancelar',
 style: 'cancel',
 },
 {
-text: 'Rechazar',
+text: 'Retirar',
 style: 'destructive',
 onPress: () => {
-void runRequestAction(
-`reject:${proposalId}`,
-() => rejectCommercialProposal(proposalId, {}),
-'La propuesta fue rechazada.',
+void runAction(
+`withdraw:${proposalId}`,
+() => withdrawCommercialProposal(proposalId, {}),
+'La propuesta fue retirada.',
 );
 },
 },
 ],
 );
-}, [runRequestAction]);
+}, [runAction]);
 
 if (loading) {
 return (
@@ -408,7 +361,7 @@ return (
 <View style={styles.centered}>
 <ActivityIndicator color="#7427D5" size="large" />
 <Text style={styles.centeredText}>
-Cargando solicitud...
+Cargando solicitud del negocio...
 </Text>
 </View>
 </ScreenSafeArea>
@@ -419,6 +372,7 @@ if (error || !requestDetail) {
 return (
 <ScreenSafeArea style={styles.safeArea}>
 <View style={styles.centered}>
+<ClipboardList color="#7427D5" size={36} />
 <Text style={styles.errorTitle}>
 {error?.title || 'Solicitud no disponible'}
 </Text>
@@ -460,24 +414,26 @@ return (
 contentContainerStyle={styles.content}
 refreshControl={
 <RefreshControl
-refreshing={refreshing}
+colors={['#7427D5']}
 onRefresh={handleRefresh}
+refreshing={refreshing}
 tintColor="#7427D5"
 />
 }
 >
 <View style={styles.header}>
 <TouchableOpacity
-accessibilityLabel="Volver"
+accessibilityLabel="Volver a solicitudes del negocio"
 accessibilityRole="button"
 onPress={handleBack}
 style={styles.backButton}
 >
 <ArrowLeft color="#38294E" size={22} />
 </TouchableOpacity>
+
 <View style={styles.headerText}>
 <Text style={styles.eyebrow}>
-Solicitud formal
+Solicitud recibida
 </Text>
 <Text style={styles.title}>
 {requestDetail.code}
@@ -492,10 +448,6 @@ Estado actual
 <Text style={styles.statusValue}>
 {statusLabel(requestDetail.status)}
 </Text>
-<Text style={styles.statusHint}>
-Esta solicitud no es un pedido final hasta que el
-negocio la acepte o acuerde las condiciones.
-</Text>
 </View>
 
 <View style={styles.section}>
@@ -507,7 +459,7 @@ Modalidad: {modalityLabel(requestDetail.requested_modality)}
 </Text>
 {requestDetail.delivery_address ? (
 <Text style={styles.row}>
-Dirección: {requestDetail.delivery_address}
+Dirección de entrega: {requestDetail.delivery_address}
 </Text>
 ) : null}
 {requestDetail.delivery_reference ? (
@@ -537,35 +489,19 @@ return (
 {item.title}
 </Text>
 </View>
-
 <Text style={styles.itemMeta}>
 {getCommercialRequestItemLabel(item)}
 </Text>
-
 <Text style={styles.itemMeta}>
 Cantidad: {item.quantity}
 </Text>
-
 <Text style={styles.itemMeta}>
 {getCommercialRequestItemPriceLabel(item, formatCop)}
 </Text>
-
-{item.pricing_strategy === 'starting_at' ? (
-<Text style={styles.itemHint}>
-El valor “desde” no es un total final.
-</Text>
-) : null}
-
-{item.pricing_strategy === 'to_be_confirmed' ? (
-<Text style={styles.itemHint}>
-El negocio confirmará el valor dentro de la solicitud.
-</Text>
-) : null}
-
 {lineComment ? (
 <View style={styles.lineCommentBox}>
 <Text style={styles.lineCommentLabel}>
-Comentario de esta línea
+Comentario de la solicitud
 </Text>
 <Text style={styles.lineCommentText}>
 {lineComment}
@@ -593,15 +529,6 @@ Domicilio: {formatCop(requestDetail.delivery_fee_amount)}
 requestDetail.total_amount,
 )}
 </Text>
-{totalState === 'estimated' ? (
-<Text style={styles.totalHint}>
-Incluye valores “desde”; no es un total final.
-</Text>
-) : totalState === 'pending_confirmation' ? (
-<Text style={styles.totalHint}>
-El negocio confirmará los valores pendientes.
-</Text>
-) : null}
 </View>
 );
 })()}
@@ -617,33 +544,39 @@ El negocio confirmará los valores pendientes.
 </View>
 ) : null}
 
-{timelineError ? (
+{requestDetail.status === 'confirmed' ? (
 <View style={styles.section}>
 <Text style={styles.sectionTitle}>
-Historial
+Acciones
 </Text>
 <Text style={styles.row}>
-No fue posible cargar el historial de esta solicitud.
+Confirma la finalización solo cuando la atención, reserva o entrega haya concluido.
 </Text>
-{timelineError.retryable ? (
 <TouchableOpacity
-accessibilityLabel="Reintentar cargar historial"
+accessibilityLabel="Marcar solicitud como completada"
 accessibilityRole="button"
-onPress={() => {
-void loadRequest();
-}}
-style={styles.inlineButton}
+disabled={pendingAction !== null}
+onPress={confirmCompleteRequest}
+style={[
+styles.primaryButton,
+pendingAction !== null
+? styles.disabledButton
+: null,
+]}
 >
-<Text style={styles.inlineButtonText}>
-Reintentar historial
+<Text style={styles.primaryButtonText}>
+{pendingAction === 'complete'
+? 'Completando...'
+: 'Marcar como completada'}
 </Text>
 </TouchableOpacity>
-) : null}
 </View>
-) : timeline ? (
+) : null}
+
+{timeline ? (
 <View style={styles.section}>
 <Text style={styles.sectionTitle}>
-Historial
+Historial y propuestas
 </Text>
 
 {timeline.proposals.length > 0 ? (
@@ -671,48 +604,25 @@ Inicio: {formatTimelineDate(proposal.proposed_starts_at)}
 {proposal.note}
 </Text>
 ) : null}
-
 {proposal.status === 'pending' ? (
-<View style={styles.proposalActions}>
 <TouchableOpacity
-accessibilityLabel={`Aceptar propuesta ${proposal.version_number}`}
+accessibilityLabel={`Retirar propuesta ${proposal.version_number}`}
 accessibilityRole="button"
 disabled={pendingAction !== null}
-onPress={() => confirmAcceptProposal(proposal.id)}
+onPress={() => confirmWithdrawProposal(proposal.id)}
 style={[
-styles.proposalAcceptButton,
+styles.withdrawButton,
 pendingAction !== null
-? styles.actionButtonDisabled
+? styles.disabledButton
 : null,
 ]}
 >
-<Text style={styles.proposalAcceptButtonText}>
-{pendingAction === `accept:${proposal.id}`
-? 'Aceptando...'
-: 'Aceptar'}
+<Text style={styles.withdrawButtonText}>
+{pendingAction === `withdraw:${proposal.id}`
+? 'Retirando...'
+: 'Retirar propuesta'}
 </Text>
 </TouchableOpacity>
-
-<TouchableOpacity
-accessibilityLabel={`Rechazar propuesta ${proposal.version_number}`}
-accessibilityRole="button"
-disabled={pendingAction !== null}
-onPress={() => confirmRejectProposal(proposal.id)}
-style={[
-styles.proposalRejectButton,
-pendingAction !== null
-? styles.actionButtonDisabled
-: null,
-]}
->
-<Text style={styles.proposalRejectButtonText}>
-{pendingAction === `reject:${proposal.id}`
-? 'Rechazando...'
-: 'Rechazar'}
-</Text>
-</TouchableOpacity>
-
-</View>
 ) : null}
 </View>
 ))}
@@ -748,72 +658,22 @@ Movimientos
 Aún no hay movimientos registrados.
 </Text>
 ) : null}
-
-{(() => {
-const rejectedPaymentProofEvents = timeline.events
-.filter(
-(event) => event.event_type === 'payment_proof_rejected',
-)
-.sort((left, right) => (
-new Date(right.created_at).getTime()
-- new Date(left.created_at).getTime()
-));
-const latestRejectedPaymentProofEvent = (
-rejectedPaymentProofEvents[0]
-);
-
-return latestRejectedPaymentProofEvent ? (
-<View style={styles.paymentProofNotice}>
-<Text style={styles.paymentProofNoticeTitle}>
-Comprobante rechazado
-</Text>
-<Text style={styles.paymentProofNoticeText}>
-Selecciona un comprobante corregido para enviarlo nuevamente.
-</Text>
-<TouchableOpacity
-accessibilityLabel="Reemplazar comprobante de pago"
-accessibilityRole="button"
-disabled={pendingAction !== null}
-onPress={() => {
-if (latestRejectedPaymentProofEvent.reference_id) {
-void handleReplacePaymentProof(
-latestRejectedPaymentProofEvent.reference_id,
-);
-return;
-}
-
-setActionError({
-title: 'Comprobante no identificado',
-message: (
-'No fue posible identificar el comprobante rechazado. '
-+ 'Actualiza la solicitud e inténtalo nuevamente.'
-),
-retryable: true,
-});
-}}
-style={[
-styles.paymentProofButton,
-pendingAction !== null
-? styles.actionButtonDisabled
-: null,
-]}
->
-<Text style={styles.paymentProofButtonText}>
-{pendingAction?.startsWith('replace-proof:')
-? 'Enviando comprobante...'
-: 'Reemplazar comprobante'}
-</Text>
-</TouchableOpacity>
 </View>
-) : null;
-})()}
+) : (
+<View style={styles.section}>
+<Text style={styles.sectionTitle}>
+Historial
+</Text>
+<Text style={styles.row}>
+No fue posible cargar el historial en este momento.
+</Text>
 </View>
-) : null}
+)}
 
 {requestDetail.customer_note ? (
 <View style={styles.section}>
 <Text style={styles.sectionTitle}>
-Comentario
+Comentario del cliente
 </Text>
 <Text style={styles.row}>
 {requestDetail.customer_note}
@@ -845,11 +705,13 @@ centeredText: {
 color: '#6E6281',
 fontSize: 15,
 marginTop: 12,
+textAlign: 'center',
 },
 errorTitle: {
 color: '#38294E',
 fontSize: 20,
-fontWeight: '700',
+fontWeight: '800',
+marginTop: 14,
 textAlign: 'center',
 },
 errorText: {
@@ -902,12 +764,6 @@ fontSize: 20,
 fontWeight: '800',
 marginTop: 4,
 },
-statusHint: {
-color: '#5C5071',
-fontSize: 13,
-lineHeight: 19,
-marginTop: 8,
-},
 section: {
 backgroundColor: '#FFFFFF',
 borderRadius: 16,
@@ -946,12 +802,6 @@ itemMeta: {
 color: '#6E6281',
 fontSize: 14,
 },
-itemHint: {
-color: '#806899',
-fontSize: 12,
-lineHeight: 18,
-marginTop: 2,
-},
 lineCommentBox: {
 backgroundColor: '#F8F4FC',
 borderColor: '#E7DDF0',
@@ -986,43 +836,6 @@ color: '#FFFFFF',
 fontSize: 18,
 fontWeight: '800',
 marginTop: 4,
-},
-totalHint: {
-color: '#DED2EB',
-fontSize: 12,
-lineHeight: 18,
-marginTop: 5,
-},
-primaryButton: {
-backgroundColor: '#7427D5',
-borderRadius: 12,
-marginTop: 18,
-paddingHorizontal: 20,
-paddingVertical: 13,
-},
-primaryButtonText: {
-color: '#FFFFFF',
-fontSize: 15,
-fontWeight: '700',
-},
-secondaryButton: {
-marginTop: 14,
-padding: 12,
-},
-secondaryButtonText: {
-color: '#7427D5',
-fontSize: 15,
-fontWeight: '700',
-},
-inlineButton: {
-alignSelf: 'flex-start',
-marginTop: 4,
-paddingVertical: 6,
-},
-inlineButtonText: {
-color: '#7427D5',
-fontSize: 14,
-fontWeight: '700',
 },
 timelineGroup: {
 gap: 8,
@@ -1069,69 +882,42 @@ color: '#7A3B46',
 fontSize: 13,
 lineHeight: 19,
 },
-actionButtonDisabled: {
-opacity: 0.55,
-},
-proposalActions: {
-flexDirection: 'row',
-flexWrap: 'wrap',
-gap: 8,
+primaryButton: {
+alignItems: 'center',
+backgroundColor: '#7427D5',
+borderRadius: 12,
 marginTop: 8,
+paddingHorizontal: 18,
+paddingVertical: 13,
 },
-proposalAcceptButton: {
-backgroundColor: '#E1F4E8',
-borderRadius: 8,
-paddingHorizontal: 10,
-paddingVertical: 8,
-},
-proposalAcceptButtonText: {
-color: '#21643A',
-fontSize: 12,
-fontWeight: '800',
-},
-proposalRejectButton: {
-backgroundColor: '#FCE3E5',
-borderRadius: 8,
-paddingHorizontal: 10,
-paddingVertical: 8,
-},
-proposalRejectButtonText: {
-color: '#8A2533',
-fontSize: 12,
-fontWeight: '800',
-},
-paymentProofNotice: {
-backgroundColor: '#FFF0D8',
-borderColor: '#F0C98D',
-borderRadius: 10,
-borderWidth: 1,
-gap: 5,
-marginTop: 8,
-padding: 11,
-},
-paymentProofNoticeTitle: {
-color: '#805110',
+primaryButtonText: {
+color: '#FFFFFF',
 fontSize: 14,
 fontWeight: '800',
 },
-paymentProofNoticeText: {
-color: '#76592F',
-fontSize: 13,
-lineHeight: 18,
-},
-paymentProofButton: {
+withdrawButton: {
 alignSelf: 'flex-start',
-backgroundColor: '#FFFFFF',
-borderColor: '#D9A95B',
+backgroundColor: '#EEE7F3',
 borderRadius: 8,
-borderWidth: 1,
-marginTop: 3,
+marginTop: 6,
 paddingHorizontal: 10,
 paddingVertical: 8,
 },
-paymentProofButtonText: {
-color: '#805110',
+withdrawButtonText: {
+color: '#5E506B',
 fontSize: 12,
 fontWeight: '800',
+},
+disabledButton: {
+opacity: 0.55,
+},
+secondaryButton: {
+marginTop: 14,
+padding: 12,
+},
+secondaryButtonText: {
+color: '#7427D5',
+fontSize: 15,
+fontWeight: '700',
 },
 });
