@@ -64,7 +64,8 @@ assert.throws(
 );
 
 const credentials = {
-accessToken: 'test-access-token',
+scheme: 'Bearer' as const,
+token: 'test-access-token',
 };
 
 const payload = {
