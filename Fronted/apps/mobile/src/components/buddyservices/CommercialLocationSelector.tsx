@@ -83,6 +83,10 @@ export default function CommercialLocationSelector({
           <TouchableOpacity
             accessibilityLabel="Seleccionar país"
             accessibilityRole="button"
+accessibilityState={{
+busy: loadingCountries,
+disabled: disabled || loadingCountries,
+}}
             activeOpacity={0.8}
             disabled={disabled || loadingCountries}
             onPress={() => setPickerMode('country')}
@@ -123,6 +127,15 @@ export default function CommercialLocationSelector({
           <TouchableOpacity
             accessibilityLabel="Seleccionar ciudad"
             accessibilityRole="button"
+accessibilityHint={
+countryCode
+? 'Abre las ciudades disponibles para el país seleccionado.'
+: 'Selecciona un país antes de elegir una ciudad.'
+}
+accessibilityState={{
+busy: loadingCities,
+disabled: disabled || loadingCities || !countryCode,
+}}
             activeOpacity={0.8}
             disabled={
               disabled

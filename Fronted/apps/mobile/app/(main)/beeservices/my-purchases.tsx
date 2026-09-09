@@ -139,7 +139,11 @@ Cargando tus solicitudes...
 if (error) {
 return (
 <ScreenSafeArea style={styles.safeArea}>
-<View style={styles.centered}>
+<View
+accessibilityLiveRegion="polite"
+accessibilityRole="alert"
+style={styles.centered}
+>
 <ShoppingBag color="#7427D5" size={34} />
 <Text style={styles.errorTitle}>
 {error.title}
@@ -235,12 +239,19 @@ requestType={request.request_type}
 </View>
 
 <View style={styles.statusRow}>
-<View style={[
+<View
+accessibilityLabel={
+`Estado de solicitud: ${getCommercialRequestListStatusLabel(
+request.status,
+)}`
+}
+style={[
 styles.statusBadge,
 statusToneStyles[
 getCommercialRequestListStatusTone(request.status)
 ],
-]}>
+]}
+>
 <Text style={styles.statusText}>
 {getCommercialRequestListStatusLabel(request.status)}
 </Text>
