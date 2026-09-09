@@ -123,6 +123,9 @@ export default function CommercialResultsFilters({
         <TouchableOpacity
           accessibilityLabel={filterLabel(value)}
           accessibilityRole="button"
+accessibilityState={{
+disabled,
+}}
           activeOpacity={0.78}
           disabled={disabled}
           onPress={() => setModalMode('offerType')}
@@ -150,6 +153,9 @@ export default function CommercialResultsFilters({
         <TouchableOpacity
           accessibilityLabel="Filtrar por modalidad"
           accessibilityRole="button"
+accessibilityState={{
+disabled,
+}}
           activeOpacity={0.78}
           disabled={disabled}
           onPress={() => setModalMode('modality')}
@@ -172,6 +178,9 @@ export default function CommercialResultsFilters({
         <TouchableOpacity
           accessibilityLabel="Cambiar orden de resultados"
           accessibilityRole="button"
+accessibilityState={{
+disabled,
+}}
           activeOpacity={0.78}
           disabled={disabled}
           onPress={() => setModalMode('ordering')}
@@ -269,6 +278,9 @@ export default function CommercialResultsFilters({
           <TouchableOpacity
             accessibilityLabel="Limpiar filtros"
             accessibilityRole="button"
+accessibilityState={{
+disabled,
+}}
             activeOpacity={0.75}
             disabled={disabled}
             onPress={onClear}

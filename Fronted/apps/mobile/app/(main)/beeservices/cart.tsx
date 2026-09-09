@@ -209,6 +209,9 @@ Cantidad
 <TouchableOpacity
 accessibilityLabel={`Disminuir cantidad de ${line.title}`}
 accessibilityRole="button"
+accessibilityState={{
+disabled: line.quantity <= 1,
+}}
 activeOpacity={0.8}
 disabled={line.quantity <= 1}
 onPress={onDecrease}
@@ -268,6 +271,9 @@ const [cart, setCart] = useState<BusinessCart | null>(
 () => getBusinessCart(),
 );
 const [submitting, setSubmitting] = useState(false);
+const [cartUpdateNotice, setCartUpdateNotice] = useState<string | null>(
+null,
+);
 
 useEffect(() => (
 subscribeBusinessCart((change) => {
@@ -321,6 +327,7 @@ router.replace('/(main)/beeservices');
 const handleSelectModality = useCallback((
 modality: CommercialModality,
 ) => {
+setCartUpdateNotice(null);
 updateBusinessCartRequestDetails({
 requestedModality: modality,
 });
@@ -343,6 +350,7 @@ style: 'cancel',
 text: 'Vaciar carrito',
 style: 'destructive',
 onPress: () => {
+setCartUpdateNotice(null);
 clearBusinessCart();
 },
 },
@@ -404,14 +412,17 @@ const result = await revalidateBusinessCartAfterRemoteConflict(
 cart,
 );
 
+const notice = (
+`${result.updatedLineCount} línea(s) actualizada(s) y `
++ `${result.removedLineCount} línea(s) eliminada(s) por cambios remotos. `
++ 'Revisa productos, modalidad y resumen antes de continuar.'
+);
+
+setCartUpdateNotice(notice);
+
 Alert.alert(
 'Carrito actualizado',
-(
-`${uiError.message} `
-+ `${result.updatedLineCount} línea(s) actualizada(s) y `
-+ `${result.removedLineCount} línea(s) eliminada(s). `
-+ 'Revisa el resumen antes de continuar.'
-),
+`${uiError.message} ${notice}`,
 );
 } catch {
 Alert.alert(
@@ -434,6 +445,22 @@ if (!cart || cart.lines.length === 0 || !summary) {
 return (
 <ScreenSafeArea style={styles.safeArea}>
 <View style={styles.emptyContainer}>
+{cartUpdateNotice ? (
+<View
+accessibilityLiveRegion="polite"
+accessibilityRole="alert"
+style={styles.emptyCartUpdateNotice}
+>
+<Text style={styles.emptyCartUpdateNoticeTitle}>
+Tu carrito fue actualizado
+</Text>
+
+<Text style={styles.emptyCartUpdateNoticeText}>
+{cartUpdateNotice}
+</Text>
+</View>
+) : null}
+
 <View style={styles.emptyIcon}>
 <ShoppingBag
 color="#7427D5"
@@ -514,6 +541,22 @@ size={19}
 contentContainerStyle={styles.content}
 showsVerticalScrollIndicator={false}
 >
+{cartUpdateNotice ? (
+<View
+accessibilityLiveRegion="polite"
+accessibilityRole="alert"
+style={styles.cartUpdateNotice}
+>
+<Text style={styles.cartUpdateNoticeTitle}>
+Tu carrito fue actualizado
+</Text>
+
+<Text style={styles.cartUpdateNoticeText}>
+{cartUpdateNotice}
+</Text>
+</View>
+) : null}
+
 <View style={styles.businessBanner}>
 <ShoppingBag
 color="#7427D5"
@@ -536,18 +579,21 @@ Productos
 key={line.id}
 line={line}
 onDecrease={() => {
+setCartUpdateNotice(null);
 updateBusinessCartLineQuantity(
 line.id,
 line.quantity - 1,
 );
 }}
 onIncrease={() => {
+setCartUpdateNotice(null);
 updateBusinessCartLineQuantity(
 line.id,
 line.quantity + 1,
 );
 }}
 onCommentChange={(value) => {
+setCartUpdateNotice(null);
 updateBusinessCartLineComment(line.id, value);
 }}
 onRemove={() => {
@@ -563,6 +609,7 @@ style: 'cancel',
 text: 'Eliminar',
 style: 'destructive',
 onPress: () => {
+setCartUpdateNotice(null);
 removeBusinessCartLine(line.id);
 },
 },
@@ -592,6 +639,9 @@ accessibilityLabel={
 `Seleccionar ${modalityLabel(modality)}`
 }
 accessibilityRole="button"
+accessibilityState={{
+selected,
+}}
 activeOpacity={0.8}
 onPress={() => handleSelectModality(modality)}
 style={[
@@ -625,6 +675,7 @@ Datos de entrega
 <TextInput
 accessibilityLabel="Dirección de entrega"
 onChangeText={(deliveryAddress) => {
+setCartUpdateNotice(null);
 updateBusinessCartRequestDetails({
 deliveryAddress,
 });
@@ -638,6 +689,7 @@ value={cart.deliveryAddress || ''}
 <TextInput
 accessibilityLabel="Referencia de entrega"
 onChangeText={(deliveryReference) => {
+setCartUpdateNotice(null);
 updateBusinessCartRequestDetails({
 deliveryReference,
 });
@@ -662,6 +714,7 @@ Comentario general
 accessibilityLabel="Comentario general de la solicitud"
 multiline
 onChangeText={(customerNote) => {
+setCartUpdateNotice(null);
 updateBusinessCartRequestDetails({
 customerNote,
 });
@@ -733,6 +786,10 @@ submitting
 : 'Continuar con la solicitud'
 }
 accessibilityRole="button"
+accessibilityState={{
+busy: submitting,
+disabled: submitting,
+}}
 activeOpacity={0.85}
 disabled={submitting}
 onPress={handleContinue}
@@ -823,6 +880,25 @@ width: 40,
 content: {
 padding: 16,
 paddingBottom: 34,
+},
+cartUpdateNotice: {
+backgroundColor: '#FFF5D6',
+borderColor: '#D99000',
+borderRadius: 14,
+borderWidth: 1,
+marginBottom: 14,
+padding: 13,
+},
+cartUpdateNoticeTitle: {
+color: '#6B4100',
+fontSize: 14,
+fontWeight: '800',
+},
+cartUpdateNoticeText: {
+color: '#6B4100',
+fontSize: 13,
+lineHeight: 19,
+marginTop: 4,
 },
 businessBanner: {
 alignItems: 'center',
@@ -1070,6 +1146,26 @@ alignItems: 'center',
 flex: 1,
 justifyContent: 'center',
 paddingHorizontal: 32,
+},
+emptyCartUpdateNotice: {
+alignSelf: 'stretch',
+backgroundColor: '#FFF5D6',
+borderColor: '#D99000',
+borderRadius: 14,
+borderWidth: 1,
+marginBottom: 20,
+padding: 13,
+},
+emptyCartUpdateNoticeTitle: {
+color: '#6B4100',
+fontSize: 14,
+fontWeight: '800',
+},
+emptyCartUpdateNoticeText: {
+color: '#6B4100',
+fontSize: 13,
+lineHeight: 19,
+marginTop: 4,
 },
 emptyIcon: {
 alignItems: 'center',

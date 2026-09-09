@@ -422,6 +422,9 @@ export default function BeeServicesScreen() {
               <TouchableOpacity
                 accessibilityLabel="Buscar"
                 accessibilityRole="button"
+accessibilityState={{
+disabled: isInitialLoading,
+}}
                 activeOpacity={0.8}
                 disabled={isInitialLoading}
                 onPress={handleSearch}
@@ -504,7 +507,15 @@ export default function BeeServicesScreen() {
 
               <TouchableOpacity
                 accessibilityLabel="Ver todos los resultados"
+accessibilityHint={
+hasLocation
+? 'Abre los resultados para la ciudad seleccionada.'
+: 'Selecciona una ciudad antes de explorar resultados.'
+}
                 accessibilityRole="button"
+accessibilityState={{
+disabled: !hasLocation,
+}}
                 activeOpacity={0.78}
                 disabled={!hasLocation}
                 onPress={() => openResults()}
@@ -530,6 +541,7 @@ export default function BeeServicesScreen() {
           {error ? (
             <View
               accessibilityLiveRegion="polite"
+accessibilityRole="alert"
               style={localStyles.errorCard}
             >
               <Text style={localStyles.errorTitle}>

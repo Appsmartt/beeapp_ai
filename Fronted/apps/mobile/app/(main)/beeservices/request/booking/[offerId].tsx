@@ -321,7 +321,11 @@ export default function BuddyServicesBookingRequestScreen() {
   if (error || !offer) {
     return (
       <ScreenSafeArea style={styles.safeArea}>
-        <View style={styles.centered}>
+<View
+accessibilityLiveRegion="polite"
+accessibilityRole="alert"
+style={styles.centered}
+>
           <CalendarClock color="#7427D5" size={36} />
           <Text style={styles.errorTitle}>
             {error?.title || 'Reserva no disponible'}
@@ -473,6 +477,9 @@ export default function BuddyServicesBookingRequestScreen() {
                 `Elegir modalidad ${modality}`
               }
               accessibilityRole="button"
+accessibilityState={{
+selected: requestedModality === modality,
+}}
               key={modality}
               onPress={() => {
                 invalidateSubmissionIdempotencyKey();
@@ -554,6 +561,10 @@ export default function BuddyServicesBookingRequestScreen() {
         <TouchableOpacity
           accessibilityLabel="Enviar solicitud de fecha"
           accessibilityRole="button"
+accessibilityState={{
+busy: submitting,
+disabled: !canSubmit,
+}}
           disabled={!canSubmit}
           onPress={() => void handleSubmit()}
           style={[

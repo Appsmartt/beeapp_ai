@@ -124,6 +124,9 @@ export default function CommercialCategoryGrid({
                 `Explorar categoría ${category.name}`
               }
               accessibilityRole="button"
+accessibilityState={{
+disabled,
+}}
               activeOpacity={0.78}
               disabled={disabled}
               onPress={() => onPressCategory(category)}

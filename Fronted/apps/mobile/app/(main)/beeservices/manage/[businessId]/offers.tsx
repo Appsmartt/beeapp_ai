@@ -1021,6 +1021,8 @@ export default function BuddyServicesManageOffersScreen() {
 
             {editorError ? (
               <View
+                accessibilityLiveRegion="polite"
+              accessibilityRole="alert"
                 style={{
                   backgroundColor: '#FFF0F0',
                   borderColor: '#F7B2B2',
@@ -1654,11 +1656,15 @@ export default function BuddyServicesManageOffersScreen() {
             <TouchableOpacity
               accessibilityLabel="Crear oferta"
               accessibilityRole="button"
-              activeOpacity={0.82}
-              disabled={isSaving}
-              onPress={() => {
-                void saveOffer();
-              }}
+              accessibilityState={{
+                busy: isSaving,
+disabled: isSaving,
+}}
+activeOpacity={0.82}
+disabled={isSaving}
+onPress={() => {
+void saveOffer();
+}}
               style={{
                 alignItems: 'center',
                 backgroundColor: '#7427D5',

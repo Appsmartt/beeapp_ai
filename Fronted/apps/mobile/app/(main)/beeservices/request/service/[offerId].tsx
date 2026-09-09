@@ -318,7 +318,11 @@ Cargando servicio…
 if (error || !offer) {
 return (
 <ScreenSafeArea style={styles.safeArea}>
-<View style={styles.centerState}>
+<View
+accessibilityLiveRegion="polite"
+accessibilityRole="alert"
+style={styles.centerState}
+>
 <Text style={styles.errorTitle}>
 {error?.title || 'Servicio no disponible'}
 </Text>
@@ -435,6 +439,9 @@ accessibilityLabel={
 `Seleccionar ${modalityLabel(modality)}`
 }
 accessibilityRole="button"
+accessibilityState={{
+selected,
+}}
 activeOpacity={0.8}
 onPress={() => {
 invalidateSubmissionIdempotencyKey();
@@ -531,6 +538,10 @@ submitting
 : 'Enviar solicitud de servicio'
 }
 accessibilityRole="button"
+accessibilityState={{
+busy: submitting,
+disabled: !canSubmit,
+}}
 activeOpacity={0.85}
 disabled={!canSubmit}
 onPress={() => void handleSubmit()}

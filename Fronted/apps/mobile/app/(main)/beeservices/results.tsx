@@ -515,6 +515,7 @@ export default function BuddyServicesResultsScreen() {
           {error ? (
             <View
               accessibilityLiveRegion="polite"
+accessibilityRole="alert"
               style={styles.errorCard}
             >
               <Text style={styles.errorTitle}>
@@ -571,6 +572,10 @@ export default function BuddyServicesResultsScreen() {
                 <TouchableOpacity
                   accessibilityLabel="Cargar más resultados"
                   accessibilityRole="button"
+accessibilityState={{
+busy: loadingMore,
+disabled: loadingMore,
+}}
                   activeOpacity={0.8}
                   disabled={loadingMore}
                   onPress={handleLoadMore}

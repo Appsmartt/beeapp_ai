@@ -818,10 +818,12 @@ const line = cart.lines[index];
 if (result.status === 'fulfilled') {
 const { offer } = result.value;
 
-if (
+const isUnavailable = (
 offer.offer_kind !== 'product'
 || offer.commercial_profile_id !== cart.commercialProfileId
-) {
+);
+
+if (isUnavailable) {
 removedLineIds.push(line.id);
 return;
 }

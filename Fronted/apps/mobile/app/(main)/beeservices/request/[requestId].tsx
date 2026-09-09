@@ -23,6 +23,7 @@ useLocalSearchParams,
 useRouter,
 } from 'expo-router';
 import * as DocumentPicker from 'expo-document-picker';
+import * as FileSystem from 'expo-file-system';
 
 import type {
 CommercialRequestDetail,
@@ -315,9 +316,16 @@ if (pendingAction !== null) {
 return;
 }
 
+let selectedProofUri: string | null = null;
+
 try {
 const result = await DocumentPicker.getDocumentAsync({
-type: '*/*',
+type: [
+'application/pdf',
+'image/jpeg',
+'image/png',
+'image/webp',
+],
 copyToCacheDirectory: true,
 multiple: false,
 });
@@ -327,6 +335,7 @@ return;
 }
 
 const asset = result.assets[0];
+selectedProofUri = asset.uri;
 
 setPendingAction(`replace-proof:${paymentProofId}`);
 setActionError(null);
@@ -367,6 +376,23 @@ await loadRequest();
 } catch (replaceError) {
 setActionError(toCommercialUiError(replaceError));
 } finally {
+if (
+selectedProofUri
+&& FileSystem.cacheDirectory
+&& selectedProofUri.startsWith(FileSystem.cacheDirectory)
+) {
+try {
+await FileSystem.deleteAsync(
+selectedProofUri,
+{
+idempotent: true,
+},
+);
+} catch {
+// La limpieza temporal no debe afectar el resultado comercial.
+}
+}
+
 setPendingAction(null);
 }
 }, [
@@ -551,7 +577,27 @@ formalContext.reservation,
 );
 
 return (
-<View style={styles.reservationCard}>
+<View
+accessibilityLabel={
+`Reserva: ${reservationPresentation.statusLabel}. `
++ `Inicio: ${reservationPresentation.startsAtLabel}. `
++ `Fin: ${reservationPresentation.endsAtLabel}. `
++ (
+reservationPresentation.holdExpiresAtLabel
+? `El hold vence: ${reservationPresentation.holdExpiresAtLabel}. `
+: ''
+)
++ (
+reservationPresentation.isHoldActive
+&& reservationPresentation.holdRemainingSeconds !== null
+? `Hold activo: ${Math.ceil(
+reservationPresentation.holdRemainingSeconds / 60,
+)} minutos restantes.`
+: ''
+)
+}
+style={styles.reservationCard}
+>
 <Text style={styles.reservationTitle}>
 Reserva
 </Text>
@@ -884,7 +930,11 @@ rejectedPaymentProofEvents[0]
 );
 
 return latestRejectedPaymentProofEvent ? (
-<View style={styles.paymentProofNotice}>
+<View
+accessibilityLiveRegion="polite"
+accessibilityRole="alert"
+style={styles.paymentProofNotice}
+>
 <Text style={styles.paymentProofNoticeTitle}>
 Comprobante rechazado
 </Text>
@@ -894,6 +944,10 @@ Selecciona un comprobante corregido para enviarlo nuevamente.
 <TouchableOpacity
 accessibilityLabel="Reemplazar comprobante de pago"
 accessibilityRole="button"
+accessibilityState={{
+busy: pendingAction?.startsWith('replace-proof:') || false,
+disabled: pendingAction !== null,
+}}
 disabled={pendingAction !== null}
 onPress={() => {
 if (latestRejectedPaymentProofEvent.reference_id) {
