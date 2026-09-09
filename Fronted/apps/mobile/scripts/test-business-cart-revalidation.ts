@@ -24,7 +24,7 @@ __esModule: true,
 default: asyncStorageMock,
 ...asyncStorageMock,
 },
-};
+} as NodeModule;
 
 const cartStore = require(
 '../src/features/buddyservices/cart/businessCartStore',
