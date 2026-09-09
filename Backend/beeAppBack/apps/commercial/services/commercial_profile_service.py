@@ -65,9 +65,7 @@ def list_commercial_categories(
         if offer_type:
             query = query.eq("offer_type", offer_type)
 
-        if parent_id is None:
-            query = query.is_("parent_id", "null")
-        else:
+        if parent_id is not None:
             query = query.eq("parent_id", str(parent_id))
 
         if not include_inactive:

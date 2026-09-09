@@ -1,4 +1,5 @@
 import {
+ActivityIndicator,
   Image,
   ScrollView,
   Switch,
@@ -167,12 +168,12 @@ export default function BuddyServicesCreateBusinessScreen() {
   );
 
   const filteredCategories = useMemo(
-    () => categories.filter((category) => (
-      offerType === 'mixed'
-      || category.offer_type === offerType
-    )),
-    [categories, offerType],
-  );
+  () =>
+    categories
+      .filter((category) => category.offer_type === offerType)
+      .slice(0, 5),
+  [categories, offerType],
+);
 
   const loadCategories = useCallback(async () => {
     setIsCategoriesLoading(true);
@@ -697,12 +698,12 @@ export default function BuddyServicesCreateBusinessScreen() {
               marginTop: 11,
             }}
           >
-            <LoaderCircle
-              color="#7427D5"
-              size={17}
-            />
+            <ActivityIndicator
+color="#7427D5"
+size="small"
+/>
 
-            <Text
+<Text
               style={{
                 color: '#786593',
                 fontSize: 13,
