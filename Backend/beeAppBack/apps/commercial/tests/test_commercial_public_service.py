@@ -110,6 +110,46 @@ class CommercialPublicProfileSerializationTests(
         self.assertFalse(serialized["is_verified"])
 
 
+    def test_exposes_timezone_for_public_booking_context(self):
+        profile = {
+            "id": "11111111-1111-4111-8111-111111111111",
+            "display_name": "Negocio de prueba",
+            "description": "Descripción de prueba",
+            "offer_type": "services",
+            "custom_activity_text": None,
+            "country_code": "CO",
+            "city": "Bogotá",
+            "address": "Dirección privada",
+            "neighborhood": "Barrio privado",
+            "location_reference": "Referencia privada",
+            "is_address_public": False,
+            "phone_dial_code": "+57",
+            "phone_number": "3000000000",
+            "is_phone_public": False,
+            "public_email": "privado@example.com",
+            "is_email_public": False,
+            "logo_file_id": None,
+            "delivery_fee_mode": "not_offered",
+            "delivery_currency_code": "COP",
+            "verification_status": "not_requested",
+            "verification_badge_visible": False,
+            "timezone": "America/Bogota",
+            "created_at": "2026-09-09T00:00:00+00:00",
+            "updated_at": "2026-09-09T00:00:00+00:00",
+        }
+
+        result = _serialize_public_profile(
+            profile=profile,
+            modalities=["at_establishment"],
+            category=None,
+        )
+
+        self.assertEqual(result["timezone"], "America/Bogota")
+        self.assertIsNone(result["location"]["address"])
+        self.assertIsNone(result["contact"]["phone_number"])
+        self.assertIsNone(result["contact"]["email"])
+
+
 class CommercialPublicFilterNormalizationTests(
     SimpleTestCase,
 ):

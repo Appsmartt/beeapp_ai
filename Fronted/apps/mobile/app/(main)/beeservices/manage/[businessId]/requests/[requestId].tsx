@@ -10,6 +10,7 @@ RefreshControl,
 ScrollView,
 StyleSheet,
 Text,
+TextInput,
 TouchableOpacity,
 View,
 } from 'react-native';
@@ -26,6 +27,7 @@ useRouter,
 
 import type {
 CommercialRequestDetail,
+CommercialRequestDetailContext,
 CommercialRequestTimeline,
 } from '@beeapp/shared-types';
 
@@ -46,9 +48,16 @@ getCommercialRequestTotalLabel,
 getCommercialRequestTotalState,
 } from '../../../../../../src/features/buddyservices/commercialRequestDetailPresentation';
 import {
+presentCommercialReservation,
+} from '../../../../../../src/features/buddyservices/commercialReservationPresentation';
+import {
+toCommercialReservationStartsAtIso,
+} from '../../../../../../src/features/buddyservices/commercialReservationDateTime';
+import {
 completeOwnedCommercialRequest,
-loadCommercialRequest,
-loadCommercialRequestTimeline,
+createCommercialProposal,
+createCommercialReservationHoldForRequest,
+loadCommercialRequestFormalDetail,
 withdrawCommercialProposal,
 } from '../../../../../../src/services/commercialService';
 
@@ -183,6 +192,9 @@ CommercialRequestDetail | null
 const [timeline, setTimeline] = useState<
 CommercialRequestTimeline | null
 >(null);
+const [formalContext, setFormalContext] = useState<
+CommercialRequestDetailContext | null
+>(null);
 const [loading, setLoading] = useState(true);
 const [refreshing, setRefreshing] = useState(false);
 const [error, setError] = useState<CommercialUiError | null>(
@@ -194,6 +206,17 @@ CommercialUiError | null
 const [pendingAction, setPendingAction] = useState<
 string | null
 >(null);
+const [holdLocalDate, setHoldLocalDate] = useState('');
+const [holdLocalTime, setHoldLocalTime] = useState('');
+const [holdTimezone, setHoldTimezone] = useState('');
+const [proposalSubtotal, setProposalSubtotal] = useState('');
+const [proposalDeliveryFee, setProposalDeliveryFee] = useState('');
+const [proposalLocalDate, setProposalLocalDate] = useState('');
+const [proposalLocalStartTime, setProposalLocalStartTime] = useState('');
+const [proposalLocalEndTime, setProposalLocalEndTime] = useState('');
+const [proposalTimezone, setProposalTimezone] = useState('');
+const [proposalNote, setProposalNote] = useState('');
+const [proposalTerms, setProposalTerms] = useState('');
 
 const loadRequest = useCallback(async () => {
 if (!businessId || !requestId) {
@@ -210,20 +233,12 @@ setLoading(true);
 setError(null);
 
 try {
-const [requestResult, timelineResult] = await Promise.allSettled([
-loadCommercialRequest(requestId),
-loadCommercialRequestTimeline(requestId),
-]);
-
-if (requestResult.status === 'rejected') {
-setError(toCommercialUiError(requestResult.reason));
-setRequestDetail(null);
-setTimeline(null);
-return;
-}
+const response = await loadCommercialRequestFormalDetail(
+requestId,
+);
 
 if (
-requestResult.value.request.commercial_profile_id
+response.request.commercial_profile_id
 !== businessId
 ) {
 setError({
@@ -235,17 +250,47 @@ message: (
 retryable: false,
 });
 setRequestDetail(null);
+setFormalContext(null);
 setTimeline(null);
 return;
 }
 
-setRequestDetail(requestResult.value.request);
-
-if (timelineResult.status === 'fulfilled') {
-setTimeline(timelineResult.value.timeline);
-} else {
+setRequestDetail(response.request);
+setFormalContext(response.context);
+setTimeline(response.context.timeline);
+setHoldTimezone((currentTimezone) => (
+currentTimezone.trim()
+|| response.context.business.timezone
+|| response.context.reservation?.timezone
+|| 'America/Bogota'
+));
+setProposalTimezone((currentTimezone) => (
+currentTimezone.trim()
+|| response.context.business.timezone
+|| response.context.reservation?.timezone
+|| 'America/Bogota'
+));
+setProposalSubtotal((currentValue) => (
+currentValue.trim()
+|| (
+response.request.subtotal_amount === null
+? ''
+: String(response.request.subtotal_amount)
+)
+));
+setProposalDeliveryFee((currentValue) => (
+currentValue.trim()
+|| (
+response.request.delivery_fee_amount === null
+? ''
+: String(response.request.delivery_fee_amount)
+)
+));
+} catch (loadError) {
+setError(toCommercialUiError(loadError));
+setRequestDetail(null);
+setFormalContext(null);
 setTimeline(null);
-}
 } finally {
 setLoading(false);
 }
@@ -253,7 +298,6 @@ setLoading(false);
 businessId,
 requestId,
 ]);
-
 useEffect(() => {
 void loadRequest();
 }, [loadRequest]);
@@ -302,6 +346,210 @@ setActionError(toCommercialUiError(actionErrorValue));
 setPendingAction(null);
 }
 }, [loadRequest]);
+
+const parseProposalAmount = (
+value: string,
+fieldLabel: string,
+): number | null => {
+const normalizedValue = value.trim();
+
+if (!normalizedValue) {
+return null;
+}
+
+const parsedAmount = Number(normalizedValue);
+
+if (
+!Number.isFinite(parsedAmount)
+|| parsedAmount < 0
+|| !Number.isInteger(parsedAmount)
+) {
+throw new Error(
+`${fieldLabel} debe ser un número entero igual o mayor que cero.`,
+);
+}
+
+return parsedAmount;
+};
+
+const proposalTotalPreview = (() => {
+try {
+const subtotal = parseProposalAmount(
+proposalSubtotal,
+'El subtotal',
+);
+const deliveryFee = parseProposalAmount(
+proposalDeliveryFee,
+'El valor de domicilio',
+);
+
+return (
+subtotal === null && deliveryFee === null
+? null
+: (subtotal || 0) + (deliveryFee || 0)
+);
+} catch {
+return null;
+}
+})();
+
+const hasProposalContent = Boolean(
+proposalSubtotal.trim()
+|| proposalDeliveryFee.trim()
+|| proposalLocalDate.trim()
+|| proposalLocalStartTime.trim()
+|| proposalLocalEndTime.trim()
+|| proposalNote.trim()
+|| proposalTerms.trim()
+);
+
+const handleCreateProposal = useCallback(() => {
+if (
+!formalContext?.permissions.can_create_proposal
+|| !requestDetail
+) {
+return;
+}
+
+if (!hasProposalContent) {
+setActionError({
+title: 'Completa la propuesta',
+message: (
+'Agrega un monto, un horario completo, una nota o '
++ 'condiciones antes de enviarla.'
+),
+retryable: false,
+});
+return;
+}
+
+const requestedModality = requestDetail.requested_modality;
+
+void runAction(
+'create-proposal',
+async () => {
+const subtotalAmount = parseProposalAmount(
+proposalSubtotal,
+'El subtotal',
+);
+const deliveryFeeAmount = parseProposalAmount(
+proposalDeliveryFee,
+'El valor de domicilio',
+);
+const hasScheduleValue = Boolean(
+proposalLocalDate.trim()
+|| proposalLocalStartTime.trim()
+|| proposalLocalEndTime.trim()
+);
+
+let proposedStartsAt: string | null = null;
+let proposedEndsAt: string | null = null;
+
+if (hasScheduleValue) {
+if (
+!proposalLocalDate.trim()
+|| !proposalLocalStartTime.trim()
+|| !proposalLocalEndTime.trim()
+) {
+throw new Error(
+'Completa fecha, hora de inicio y hora de fin para proponer un horario.',
+);
+}
+
+proposedStartsAt = toCommercialReservationStartsAtIso({
+localDate: proposalLocalDate,
+localTime: proposalLocalStartTime,
+timezone: proposalTimezone,
+});
+proposedEndsAt = toCommercialReservationStartsAtIso({
+localDate: proposalLocalDate,
+localTime: proposalLocalEndTime,
+timezone: proposalTimezone,
+});
+
+if (
+new Date(proposedEndsAt).getTime()
+<= new Date(proposedStartsAt).getTime()
+) {
+throw new Error(
+'La hora de fin debe ser posterior a la hora de inicio.',
+);
+}
+}
+
+return createCommercialProposal(
+requestId,
+{
+delivery_fee_amount: deliveryFeeAmount,
+note: proposalNote.trim() || null,
+proposed_ends_at: proposedEndsAt,
+proposed_starts_at: proposedStartsAt,
+requested_modality: requestedModality,
+subtotal_amount: subtotalAmount,
+terms_snapshot: proposalTerms.trim()
+? { general: proposalTerms.trim() }
+: {},
+timezone: hasScheduleValue
+? proposalTimezone.trim()
+: null,
+total_amount: (
+subtotalAmount === null && deliveryFeeAmount === null
+? null
+: (subtotalAmount || 0) + (deliveryFeeAmount || 0)
+),
+},
+);
+},
+'La propuesta fue enviada al cliente para su revisión.',
+);
+}, [
+formalContext?.permissions.can_create_proposal,
+hasProposalContent,
+proposalDeliveryFee,
+proposalLocalDate,
+proposalLocalEndTime,
+proposalLocalStartTime,
+proposalNote,
+proposalSubtotal,
+proposalTerms,
+proposalTimezone,
+requestDetail,
+requestId,
+runAction,
+]);
+
+const handleCreateReservationHold = useCallback(() => {
+if (!formalContext?.permissions.can_create_reservation_hold) {
+return;
+}
+
+void runAction(
+'create-hold',
+async () => {
+const startsAt = toCommercialReservationStartsAtIso({
+localDate: holdLocalDate,
+localTime: holdLocalTime,
+timezone: holdTimezone,
+});
+
+return createCommercialReservationHoldForRequest(
+requestId,
+{
+starts_at: startsAt,
+timezone: holdTimezone.trim(),
+},
+);
+},
+'El hold temporal fue creado. Su vencimiento se muestra en la reserva.',
+);
+}, [
+formalContext?.permissions.can_create_reservation_hold,
+holdLocalDate,
+holdLocalTime,
+holdTimezone,
+requestId,
+runAction,
+]);
 
 const confirmCompleteRequest = useCallback(() => {
 Alert.alert(
@@ -450,6 +698,47 @@ Estado actual
 </Text>
 </View>
 
+{formalContext?.reservation ? (() => {
+const reservationPresentation = presentCommercialReservation(
+formalContext.reservation,
+);
+
+return (
+<View style={styles.reservationCard}>
+<Text style={styles.reservationTitle}>
+Reserva
+</Text>
+<Text style={styles.reservationStatus}>
+{reservationPresentation.statusLabel}
+</Text>
+<Text style={styles.reservationRow}>
+Inicio: {reservationPresentation.startsAtLabel}
+</Text>
+<Text style={styles.reservationRow}>
+Fin: {reservationPresentation.endsAtLabel}
+</Text>
+{reservationPresentation.holdExpiresAtLabel ? (
+<Text style={styles.reservationRow}>
+El hold vence: {reservationPresentation.holdExpiresAtLabel}
+</Text>
+) : null}
+{reservationPresentation.isHoldActive
+&& reservationPresentation.holdRemainingSeconds !== null ? (
+<Text style={styles.holdCountdown}>
+Hold activo: {Math.ceil(
+reservationPresentation.holdRemainingSeconds / 60,
+)} min restantes
+</Text>
+) : null}
+{reservationPresentation.pendingNotice ? (
+<Text style={styles.reservationNotice}>
+{reservationPresentation.pendingNotice}
+</Text>
+) : null}
+</View>
+);
+})() : null}
+
 <View style={styles.section}>
 <Text style={styles.sectionTitle}>
 Resumen
@@ -533,6 +822,191 @@ requestDetail.total_amount,
 );
 })()}
 
+{formalContext?.permissions.can_create_proposal ? (
+<View style={styles.section}>
+<Text style={styles.sectionTitle}>
+Crear propuesta
+</Text>
+<Text style={styles.row}>
+La propuesta no confirma el servicio. El cliente debe revisarla y aceptarla.
+</Text>
+<Text style={styles.row}>
+Modalidad: {modalityLabel(requestDetail.requested_modality)}
+</Text>
+<TextInput
+accessibilityLabel="Subtotal de la propuesta"
+keyboardType="numeric"
+onChangeText={setProposalSubtotal}
+placeholder="Subtotal en COP"
+placeholderTextColor="#9B90AA"
+style={styles.input}
+value={proposalSubtotal}
+/>
+<TextInput
+accessibilityLabel="Valor de domicilio de la propuesta"
+keyboardType="numeric"
+onChangeText={setProposalDeliveryFee}
+placeholder="Domicilio en COP"
+placeholderTextColor="#9B90AA"
+style={styles.input}
+value={proposalDeliveryFee}
+/>
+<Text style={styles.proposalTotalPreview}>
+Total propuesto: {formatCop(proposalTotalPreview)}
+</Text>
+<Text style={styles.inputHint}>
+El horario es opcional; si lo propones, completa fecha, inicio y fin.
+</Text>
+<TextInput
+accessibilityLabel="Fecha propuesta"
+autoCapitalize="none"
+keyboardType="numbers-and-punctuation"
+onChangeText={setProposalLocalDate}
+placeholder="Fecha: AAAA-MM-DD"
+placeholderTextColor="#9B90AA"
+style={styles.input}
+value={proposalLocalDate}
+/>
+<TextInput
+accessibilityLabel="Hora de inicio propuesta"
+autoCapitalize="none"
+keyboardType="numbers-and-punctuation"
+onChangeText={setProposalLocalStartTime}
+placeholder="Inicio: HH:MM"
+placeholderTextColor="#9B90AA"
+style={styles.input}
+value={proposalLocalStartTime}
+/>
+<TextInput
+accessibilityLabel="Hora de fin propuesta"
+autoCapitalize="none"
+keyboardType="numbers-and-punctuation"
+onChangeText={setProposalLocalEndTime}
+placeholder="Fin: HH:MM"
+placeholderTextColor="#9B90AA"
+style={styles.input}
+value={proposalLocalEndTime}
+/>
+<TextInput
+accessibilityLabel="Zona horaria de la propuesta"
+autoCapitalize="none"
+onChangeText={setProposalTimezone}
+placeholder="Zona horaria IANA"
+placeholderTextColor="#9B90AA"
+style={styles.input}
+value={proposalTimezone}
+/>
+<TextInput
+accessibilityLabel="Nota de la propuesta"
+multiline
+onChangeText={setProposalNote}
+placeholder="Nota opcional para el cliente"
+placeholderTextColor="#9B90AA"
+style={[styles.input, styles.multilineInput]}
+textAlignVertical="top"
+value={proposalNote}
+/>
+<TextInput
+accessibilityLabel="Términos de la propuesta"
+multiline
+onChangeText={setProposalTerms}
+placeholder="Términos o condiciones opcionales"
+placeholderTextColor="#9B90AA"
+style={[styles.input, styles.multilineInput]}
+textAlignVertical="top"
+value={proposalTerms}
+/>
+<TouchableOpacity
+accessibilityLabel="Enviar propuesta al cliente"
+accessibilityRole="button"
+disabled={
+pendingAction !== null
+|| !hasProposalContent
+}
+onPress={handleCreateProposal}
+style={[
+styles.proposalButton,
+pendingAction !== null
+|| !hasProposalContent
+? styles.disabledButton
+: null,
+]}
+>
+<Text style={styles.proposalButtonText}>
+{pendingAction === 'create-proposal'
+? 'Enviando propuesta...'
+: 'Enviar propuesta'}
+</Text>
+</TouchableOpacity>
+</View>
+) : null}
+
+{formalContext?.permissions.can_create_reservation_hold ? (
+<View style={styles.section}>
+<Text style={styles.sectionTitle}>
+Crear hold temporal
+</Text>
+<Text style={styles.row}>
+Retiene una fecha de forma temporal. No confirma la reserva ni el servicio.
+</Text>
+<TextInput
+accessibilityLabel="Fecha de inicio del hold"
+autoCapitalize="none"
+keyboardType="numbers-and-punctuation"
+onChangeText={setHoldLocalDate}
+placeholder="Fecha: AAAA-MM-DD"
+placeholderTextColor="#9B90AA"
+style={styles.input}
+value={holdLocalDate}
+/>
+<TextInput
+accessibilityLabel="Hora de inicio del hold"
+autoCapitalize="none"
+keyboardType="numbers-and-punctuation"
+onChangeText={setHoldLocalTime}
+placeholder="Hora: HH:MM"
+placeholderTextColor="#9B90AA"
+style={styles.input}
+value={holdLocalTime}
+/>
+<TextInput
+accessibilityLabel="Zona horaria del hold"
+autoCapitalize="none"
+onChangeText={setHoldTimezone}
+placeholder="Zona horaria IANA"
+placeholderTextColor="#9B90AA"
+style={styles.input}
+value={holdTimezone}
+/>
+<TouchableOpacity
+accessibilityLabel="Crear hold temporal"
+accessibilityRole="button"
+disabled={
+pendingAction !== null
+|| !holdLocalDate.trim()
+|| !holdLocalTime.trim()
+|| !holdTimezone.trim()
+}
+onPress={handleCreateReservationHold}
+style={[
+styles.holdButton,
+pendingAction !== null
+|| !holdLocalDate.trim()
+|| !holdLocalTime.trim()
+|| !holdTimezone.trim()
+? styles.disabledButton
+: null,
+]}
+>
+<Text style={styles.holdButtonText}>
+{pendingAction === 'create-hold'
+? 'Creando hold...'
+: 'Crear hold temporal'}
+</Text>
+</TouchableOpacity>
+</View>
+) : null}
+
 {actionError ? (
 <View style={styles.actionErrorCard}>
 <Text style={styles.actionErrorTitle}>
@@ -544,7 +1018,7 @@ requestDetail.total_amount,
 </View>
 ) : null}
 
-{requestDetail.status === 'confirmed' ? (
+{formalContext?.permissions.can_complete ? (
 <View style={styles.section}>
 <Text style={styles.sectionTitle}>
 Acciones
@@ -604,7 +1078,8 @@ Inicio: {formatTimelineDate(proposal.proposed_starts_at)}
 {proposal.note}
 </Text>
 ) : null}
-{proposal.status === 'pending' ? (
+{proposal.status === 'pending'
+&& formalContext?.permissions.can_withdraw_proposal ? (
 <TouchableOpacity
 accessibilityLabel={`Retirar propuesta ${proposal.version_number}`}
 accessibilityRole="button"
@@ -686,6 +1161,40 @@ Comentario del cliente
 }
 
 const styles = StyleSheet.create({
+reservationCard: {
+backgroundColor: '#FFF6DF',
+borderColor: '#EFCB75',
+borderRadius: 14,
+borderWidth: 1,
+gap: 8,
+padding: 14,
+},
+reservationTitle: {
+color: '#4A3200',
+fontSize: 16,
+fontWeight: '800',
+},
+reservationStatus: {
+color: '#6A4C00',
+fontSize: 15,
+fontWeight: '800',
+},
+reservationRow: {
+color: '#5A4A2D',
+fontSize: 14,
+lineHeight: 20,
+},
+holdCountdown: {
+color: '#7A3E00',
+fontSize: 14,
+fontWeight: '800',
+},
+reservationNotice: {
+color: '#6A4C00',
+fontSize: 13,
+fontWeight: '700',
+lineHeight: 19,
+},
 safeArea: {
 backgroundColor: '#F8F7FC',
 flex: 1,
@@ -774,6 +1283,54 @@ sectionTitle: {
 color: '#38294E',
 fontSize: 17,
 fontWeight: '800',
+},
+input: {
+borderColor: '#DDD5E8',
+borderRadius: 10,
+borderWidth: 1,
+color: '#38294E',
+fontSize: 15,
+paddingHorizontal: 12,
+paddingVertical: 11,
+},
+holdButton: {
+alignItems: 'center',
+backgroundColor: '#A25800',
+borderRadius: 10,
+justifyContent: 'center',
+minHeight: 46,
+paddingHorizontal: 16,
+},
+holdButtonText: {
+color: '#FFFFFF',
+fontSize: 15,
+fontWeight: '800',
+},
+proposalButton: {
+alignItems: 'center',
+backgroundColor: '#5420A5',
+borderRadius: 10,
+justifyContent: 'center',
+minHeight: 46,
+paddingHorizontal: 16,
+},
+proposalButtonText: {
+color: '#FFFFFF',
+fontSize: 15,
+fontWeight: '800',
+},
+proposalTotalPreview: {
+color: '#5420A5',
+fontSize: 15,
+fontWeight: '800',
+},
+inputHint: {
+color: '#806899',
+fontSize: 13,
+lineHeight: 19,
+},
+multilineInput: {
+minHeight: 88,
 },
 row: {
 color: '#5C5071',

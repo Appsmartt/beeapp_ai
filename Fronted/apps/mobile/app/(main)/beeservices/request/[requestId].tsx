@@ -26,6 +26,7 @@ import * as DocumentPicker from 'expo-document-picker';
 
 import type {
 CommercialRequestDetail,
+CommercialRequestDetailContext,
 CommercialRequestTimeline,
 } from '@beeapp/shared-types';
 
@@ -34,6 +35,9 @@ import {
 toCommercialUiError,
 type CommercialUiError,
 } from '../../../../src/features/buddyservices/commercialErrors';
+import {
+presentCommercialReservation,
+} from '../../../../src/features/buddyservices/commercialReservationPresentation';
 import {
 getCommercialRequestItemLabel,
 getCommercialRequestItemPriceLabel,
@@ -45,8 +49,7 @@ getCommercialRequestTotalState,
 
 import {
 acceptCommercialProposal,
-loadCommercialRequest,
-loadCommercialRequestTimeline,
+loadCommercialRequestFormalDetail,
 rejectCommercialProposal,
 replaceRejectedCommercialPaymentProof,
 } from '../../../../src/services/commercialService';
@@ -187,6 +190,9 @@ CommercialRequestDetail | null
 const [timeline, setTimeline] = useState<
 CommercialRequestTimeline | null
 >(null);
+const [formalContext, setFormalContext] = useState<
+CommercialRequestDetailContext | null
+>(null);
 const [timelineError, setTimelineError] = useState<
 CommercialUiError | null
 >(null);
@@ -217,32 +223,24 @@ setLoading(true);
 setError(null);
 
 try {
-const [requestResult, timelineResult] = await Promise.allSettled([
-loadCommercialRequest(requestId),
-loadCommercialRequestTimeline(requestId),
-]);
+const response = await loadCommercialRequestFormalDetail(
+requestId,
+);
 
-if (requestResult.status === 'rejected') {
-setError(toCommercialUiError(requestResult.reason));
-setRequestDetail(null);
-setTimeline(null);
-return;
-}
-
-setRequestDetail(requestResult.value.request);
-
-if (timelineResult.status === 'fulfilled') {
-setTimeline(timelineResult.value.timeline);
+setRequestDetail(response.request);
+setFormalContext(response.context);
+setTimeline(response.context.timeline);
 setTimelineError(null);
-} else {
+} catch (loadError) {
+setError(toCommercialUiError(loadError));
+setRequestDetail(null);
+setFormalContext(null);
 setTimeline(null);
-setTimelineError(toCommercialUiError(timelineResult.reason));
-}
+setTimelineError(null);
 } finally {
 setLoading(false);
 }
 }, [requestId]);
-
 useEffect(() => {
 void loadRequest();
 }, [loadRequest]);
@@ -402,6 +400,55 @@ void runRequestAction(
 );
 }, [runRequestAction]);
 
+const displayedTimeline = formalContext?.timeline || timeline;
+
+const formatProposalDateTime = (
+value: string | null,
+timezone: string | null,
+): string | null => {
+if (!value) {
+return null;
+}
+
+const date = new Date(value);
+
+if (Number.isNaN(date.getTime())) {
+return 'Fecha no disponible';
+}
+
+try {
+return new Intl.DateTimeFormat('es-CO', {
+day: 'numeric',
+hour: '2-digit',
+minute: '2-digit',
+month: 'long',
+timeZone: timezone || undefined,
+timeZoneName: timezone ? 'short' : undefined,
+year: 'numeric',
+}).format(date);
+} catch {
+return formatTimelineDate(value);
+}
+};
+
+const formatProposalTerms = (
+terms: Record<string, unknown>,
+): string | null => {
+const entries = Object.entries(terms || {})
+.filter(([, value]) => (
+value !== null
+&& value !== undefined
+&& String(value).trim().length > 0
+))
+.map(([key, value]) => `${key}: ${String(value)}`);
+
+return entries.length ? entries.join(' · ') : null;
+};
+
+const finalTermsLabel = formatProposalTerms(
+requestDetail?.final_terms || {},
+);
+
 if (loading) {
 return (
 <ScreenSafeArea style={styles.safeArea}>
@@ -497,6 +544,47 @@ Esta solicitud no es un pedido final hasta que el
 negocio la acepte o acuerde las condiciones.
 </Text>
 </View>
+
+{formalContext?.reservation ? (() => {
+const reservationPresentation = presentCommercialReservation(
+formalContext.reservation,
+);
+
+return (
+<View style={styles.reservationCard}>
+<Text style={styles.reservationTitle}>
+Reserva
+</Text>
+<Text style={styles.reservationStatus}>
+{reservationPresentation.statusLabel}
+</Text>
+<Text style={styles.reservationRow}>
+Inicio: {reservationPresentation.startsAtLabel}
+</Text>
+<Text style={styles.reservationRow}>
+Fin: {reservationPresentation.endsAtLabel}
+</Text>
+{reservationPresentation.holdExpiresAtLabel ? (
+<Text style={styles.reservationRow}>
+El hold vence: {reservationPresentation.holdExpiresAtLabel}
+</Text>
+) : null}
+{reservationPresentation.isHoldActive
+&& reservationPresentation.holdRemainingSeconds !== null ? (
+<Text style={styles.holdCountdown}>
+Hold activo: {Math.ceil(
+reservationPresentation.holdRemainingSeconds / 60,
+)} min restantes
+</Text>
+) : null}
+{reservationPresentation.pendingNotice ? (
+<Text style={styles.reservationNotice}>
+{reservationPresentation.pendingNotice}
+</Text>
+) : null}
+</View>
+);
+})() : null}
 
 <View style={styles.section}>
 <Text style={styles.sectionTitle}>
@@ -640,18 +728,18 @@ Reintentar historial
 </TouchableOpacity>
 ) : null}
 </View>
-) : timeline ? (
+) : displayedTimeline ? (
 <View style={styles.section}>
 <Text style={styles.sectionTitle}>
 Historial
 </Text>
 
-{timeline.proposals.length > 0 ? (
+{displayedTimeline.proposals.length > 0 ? (
 <View style={styles.timelineGroup}>
 <Text style={styles.timelineGroupTitle}>
 Propuestas
 </Text>
-{timeline.proposals.map((proposal) => (
+{displayedTimeline.proposals.map((proposal) => (
 <View key={proposal.id} style={styles.timelineCard}>
 <Text style={styles.timelineTitle}>
 Propuesta #{proposal.version_number} · {proposalStatusLabel(
@@ -663,7 +751,33 @@ Total: {formatCop(proposal.total_amount)}
 </Text>
 {proposal.proposed_starts_at ? (
 <Text style={styles.timelineText}>
-Inicio: {formatTimelineDate(proposal.proposed_starts_at)}
+Inicio: {formatProposalDateTime(
+proposal.proposed_starts_at,
+proposal.timezone,
+)}
+</Text>
+) : null}
+{proposal.proposed_ends_at ? (
+<Text style={styles.timelineText}>
+Fin: {formatProposalDateTime(
+proposal.proposed_ends_at,
+proposal.timezone,
+)}
+</Text>
+) : null}
+{proposal.timezone ? (
+<Text style={styles.timelineText}>
+Zona horaria: {proposal.timezone}
+</Text>
+) : null}
+{proposal.requested_modality ? (
+<Text style={styles.timelineText}>
+Modalidad: {modalityLabel(proposal.requested_modality)}
+</Text>
+) : null}
+{formatProposalTerms(proposal.terms_snapshot) ? (
+<Text style={styles.timelineText}>
+Condiciones: {formatProposalTerms(proposal.terms_snapshot)}
 </Text>
 ) : null}
 {proposal.note ? (
@@ -672,8 +786,13 @@ Inicio: {formatTimelineDate(proposal.proposed_starts_at)}
 </Text>
 ) : null}
 
-{proposal.status === 'pending' ? (
+{proposal.status === 'pending'
+&& (
+formalContext?.permissions.can_accept_proposal
+|| formalContext?.permissions.can_reject_proposal
+) ? (
 <View style={styles.proposalActions}>
+{formalContext.permissions.can_accept_proposal ? (
 <TouchableOpacity
 accessibilityLabel={`Aceptar propuesta ${proposal.version_number}`}
 accessibilityRole="button"
@@ -692,7 +811,9 @@ pendingAction !== null
 : 'Aceptar'}
 </Text>
 </TouchableOpacity>
+) : null}
 
+{formalContext.permissions.can_reject_proposal ? (
 <TouchableOpacity
 accessibilityLabel={`Rechazar propuesta ${proposal.version_number}`}
 accessibilityRole="button"
@@ -711,7 +832,7 @@ pendingAction !== null
 : 'Rechazar'}
 </Text>
 </TouchableOpacity>
-
+) : null}
 </View>
 ) : null}
 </View>
@@ -719,12 +840,12 @@ pendingAction !== null
 </View>
 ) : null}
 
-{timeline.events.length > 0 ? (
+{displayedTimeline.events.length > 0 ? (
 <View style={styles.timelineGroup}>
 <Text style={styles.timelineGroupTitle}>
 Movimientos
 </Text>
-{timeline.events.map((event) => (
+{displayedTimeline.events.map((event) => (
 <View key={event.id} style={styles.timelineCard}>
 <Text style={styles.timelineTitle}>
 {timelineEventLabel(event.event_type)}
@@ -742,15 +863,15 @@ Movimientos
 </View>
 ) : null}
 
-{timeline.proposals.length === 0
-&& timeline.events.length === 0 ? (
+{displayedTimeline.proposals.length === 0
+&& displayedTimeline.events.length === 0 ? (
 <Text style={styles.row}>
 Aún no hay movimientos registrados.
 </Text>
 ) : null}
 
 {(() => {
-const rejectedPaymentProofEvents = timeline.events
+const rejectedPaymentProofEvents = displayedTimeline.events
 .filter(
 (event) => event.event_type === 'payment_proof_rejected',
 )
@@ -810,6 +931,17 @@ pendingAction !== null
 </View>
 ) : null}
 
+{finalTermsLabel ? (
+<View style={styles.section}>
+<Text style={styles.sectionTitle}>
+Condiciones finales
+</Text>
+<Text style={styles.row}>
+{finalTermsLabel}
+</Text>
+</View>
+) : null}
+
 {requestDetail.customer_note ? (
 <View style={styles.section}>
 <Text style={styles.sectionTitle}>
@@ -826,6 +958,40 @@ Comentario
 }
 
 const styles = StyleSheet.create({
+reservationCard: {
+backgroundColor: '#FFF6DF',
+borderColor: '#EFCB75',
+borderRadius: 14,
+borderWidth: 1,
+gap: 8,
+padding: 14,
+},
+reservationTitle: {
+color: '#4A3200',
+fontSize: 16,
+fontWeight: '800',
+},
+reservationStatus: {
+color: '#6A4C00',
+fontSize: 15,
+fontWeight: '800',
+},
+reservationRow: {
+color: '#5A4A2D',
+fontSize: 14,
+lineHeight: 20,
+},
+holdCountdown: {
+color: '#7A3E00',
+fontSize: 14,
+fontWeight: '800',
+},
+reservationNotice: {
+color: '#6A4C00',
+fontSize: 13,
+fontWeight: '700',
+lineHeight: 19,
+},
 safeArea: {
 backgroundColor: '#F8F7FC',
 flex: 1,

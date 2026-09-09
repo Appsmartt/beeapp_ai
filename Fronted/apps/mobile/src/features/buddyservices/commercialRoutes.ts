@@ -203,6 +203,17 @@ export function buddyServicesServiceRequestRoute(
   };
 }
 
+export function buddyServicesBookingRequestRoute(
+offerId: string,
+): Href {
+return {
+pathname: '/(main)/beeservices/request/booking/[offerId]',
+params: {
+offerId: requireId(offerId, 'la oferta'),
+},
+};
+}
+
 export function buddyServicesRequestDetailRoute(
   requestId: string,
 ): Href {
