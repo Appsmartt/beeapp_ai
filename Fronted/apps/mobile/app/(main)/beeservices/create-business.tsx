@@ -139,9 +139,7 @@ export default function BuddyServicesCreateBusinessScreen() {
     string | null
   >(null);
 
-  const [categoryId, setCategoryId] = useState<string | null>(
-    null,
-  );
+  const [categoryIds, setCategoryIds] = useState<string[]>([]);
   const [customActivityText, setCustomActivityText] = useState('');
   const [displayName, setDisplayName] = useState('');
   const [description, setDescription] = useState('');
@@ -196,8 +194,8 @@ export default function BuddyServicesCreateBusinessScreen() {
   }, [offerType]);
 
   useEffect(() => {
-    setCategoryId(null);
-    void loadCategories();
+    setCategoryIds([]);
+void loadCategories();
   }, [loadCategories]);
 
   const selectLogo = useCallback(async () => {
@@ -262,7 +260,31 @@ export default function BuddyServicesCreateBusinessScreen() {
     ));
   }, []);
 
-  const submit = useCallback(async () => {
+  const toggleCategory = useCallback((
+categoryId: string,
+) => {
+setCategoryIds((currentCategoryIds) => {
+if (currentCategoryIds.includes(categoryId)) {
+return currentCategoryIds.filter(
+(value) => value !== categoryId,
+);
+}
+
+if (currentCategoryIds.length >= 5) {
+setFormError(
+'Puedes seleccionar hasta 5 categorías.',
+);
+return currentCategoryIds;
+}
+
+setCustomActivityText('');
+setFormError(null);
+
+return [...currentCategoryIds, categoryId];
+});
+}, []);
+
+const submit = useCallback(async () => {
     setFormError(null);
 
     const normalizedDisplayName = displayName.trim();
@@ -296,12 +318,15 @@ export default function BuddyServicesCreateBusinessScreen() {
       return;
     }
 
-    if (!categoryId && !customActivityText.trim()) {
-      setFormError(
-        'Selecciona una categoría o escribe la actividad del negocio.',
-      );
-      return;
-    }
+    if (
+categoryIds.length === 0
+&& !customActivityText.trim()
+) {
+setFormError(
+'Selecciona al menos una categoría o escribe la actividad del negocio.',
+);
+return;
+}
 
     if (modalities.length === 0) {
       setFormError('Selecciona al menos una modalidad.');
@@ -350,12 +375,12 @@ export default function BuddyServicesCreateBusinessScreen() {
 
       const response = await createOwnedCommercialProfile({
         offer_type: offerType,
-        category_id: categoryId,
-        custom_activity_text: (
-          categoryId
-            ? null
-            : normalizeOptionalText(customActivityText)
-        ),
+        category_ids: categoryIds,
+custom_activity_text: (
+categoryIds.length > 0
+? null
+: normalizeOptionalText(customActivityText)
+),
         display_name: normalizedDisplayName,
         description: normalizedDescription,
         country_code: countryCode.trim().toUpperCase(),
@@ -394,7 +419,7 @@ export default function BuddyServicesCreateBusinessScreen() {
     }
   }, [
     address,
-    categoryId,
+    categoryIds,
     city,
     countryCode,
     customActivityText,
@@ -734,7 +759,7 @@ size="small"
             }}
           >
             {filteredCategories.map((category) => {
-              const isSelected = categoryId === category.id;
+              const isSelected = categoryIds.includes(category.id);
 
               return (
                 <TouchableOpacity
@@ -743,10 +768,7 @@ size="small"
                   activeOpacity={0.82}
                   disabled={isSubmitting}
                   key={category.id}
-                  onPress={() => {
-                    setCategoryId(category.id);
-                    setCustomActivityText('');
-                  }}
+                  onPress={() => toggleCategory(category.id)}
                   style={{
                     backgroundColor: isSelected
                       ? '#EBDCFD'
@@ -784,7 +806,7 @@ size="small"
           onChangeText={(value) => {
             setCustomActivityText(value);
             if (value.trim()) {
-              setCategoryId(null);
+              setCategoryIds([]);
             }
           }}
           placeholder="O escribe una actividad personalizada"
