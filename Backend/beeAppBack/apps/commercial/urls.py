@@ -24,6 +24,7 @@ from apps.commercial.payment_proof_review_views import (
 )
 
 from apps.commercial.views import (
+    CommercialProfileChatView,
     CommercialCategoriesView,
     CommercialProfileDetailView,
     CommercialProfileAuditEventsView,
@@ -203,6 +204,11 @@ urlpatterns = [
         "profiles/<uuid:profile_id>/",
         CommercialProfileDetailView.as_view(),
         name="commercial-profile-detail",
+    ),
+    path(
+        "profiles/<uuid:profile_id>/chat/",
+        CommercialProfileChatView.as_view(),
+        name="commercial-profile-chat",
     ),
     path(
         "profiles/<uuid:profile_id>/audit-events/",
