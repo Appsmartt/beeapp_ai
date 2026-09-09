@@ -147,6 +147,50 @@ def get_commercial_request_timeline(
     return result
 
 
+def get_commercial_request_formal_detail(
+    *,
+    access_token: str | None,
+    request_id: str | UUID | None,
+) -> dict[str, Any]:
+    token = _required_token(access_token)
+    normalized_request_id = _required_id(
+        request_id,
+        field="commerce_request_id",
+    )
+
+    result = execute_commercial_rpc(
+        access_token=token,
+        function_name="commerce_get_request_formal_detail",
+        parameters={
+            "p_commerce_request_id": normalized_request_id,
+        },
+    )
+
+    if isinstance(result, list):
+        result = result[0] if result else None
+
+    if not isinstance(result, dict):
+        raise CommercialValidationError(
+            "Commercial formal request detail returned an invalid response.",
+            code="COMMERCE_REQUEST_FORMAL_DETAIL_FAILED",
+        )
+
+    request_detail = result.get("request")
+    context = result.get("context")
+
+    if (
+        not isinstance(request_detail, dict)
+        or str(request_detail.get("id") or "") != normalized_request_id
+        or not isinstance(context, dict)
+    ):
+        raise CommercialValidationError(
+            "Commercial formal request detail is incomplete.",
+            code="COMMERCE_REQUEST_FORMAL_DETAIL_FAILED",
+        )
+
+    return result
+
+
 def accept_commercial_request_proposal(
     *,
     access_token: str | None,

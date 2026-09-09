@@ -6,6 +6,7 @@ from apps.commercial.request_proposal_views import CommercialRequestProposalsVie
 from apps.commercial.request_operations_views import (
     CommercialPaymentProofReplaceView,
     CommercialRequestCompleteView,
+    CommercialRequestFormalDetailView,
     CommercialRequestProposalAcceptView,
     CommercialRequestProposalRejectView,
     CommercialRequestProposalWithdrawView,
@@ -87,6 +88,11 @@ urlpatterns = [
         "profiles/<uuid:profile_id>/requests/",
         OwnedCommercialRequestsView.as_view(),
         name="owned-commercial-requests",
+    ),
+    path(
+        "requests/<uuid:request_id>/formal-detail/",
+        CommercialRequestFormalDetailView.as_view(),
+        name="commercial-request-formal-detail",
     ),
     path(
         "requests/<uuid:request_id>/timeline/",

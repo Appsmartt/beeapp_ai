@@ -9,6 +9,7 @@ from apps.commercial.exceptions import (
 from apps.commercial.services.commercial_request_operations_service import (
     accept_commercial_request_proposal,
     complete_commercial_request,
+    get_commercial_request_formal_detail,
     get_commercial_request_timeline,
     list_owned_commercial_requests,
     reject_commercial_request_proposal,
@@ -88,6 +89,74 @@ class CommercialRequestOperationsServiceTests(SimpleTestCase):
         )
 
         self.assertEqual(result, [])
+
+    @patch(
+        "apps.commercial.services."
+        "commercial_request_operations_service.execute_commercial_rpc"
+    )
+    def test_gets_formal_request_detail(self, execute_rpc):
+        execute_rpc.return_value = {
+            "request": {
+                "id": self.request_id,
+            },
+            "context": {
+                "business": {
+                    "timezone": "America/Bogota",
+                },
+                "permissions": {},
+                "timeline": {
+                    "request_id": self.request_id,
+                    "proposals": [],
+                    "events": [],
+                },
+                "payment_proofs": [],
+                "reservation": None,
+                "dispute": None,
+            },
+        }
+
+        result = get_commercial_request_formal_detail(
+            access_token="token",
+            request_id=self.request_id,
+        )
+
+        self.assertEqual(result["request"]["id"], self.request_id)
+        self.assertEqual(
+            result["context"]["business"]["timezone"],
+            "America/Bogota",
+        )
+        execute_rpc.assert_called_once_with(
+            access_token="token",
+            function_name="commerce_get_request_formal_detail",
+            parameters={
+                "p_commerce_request_id": self.request_id,
+            },
+        )
+
+    @patch(
+        "apps.commercial.services."
+        "commercial_request_operations_service.execute_commercial_rpc"
+    )
+    def test_rejects_incomplete_formal_request_detail(
+        self,
+        execute_rpc,
+    ):
+        execute_rpc.return_value = {
+            "request": {
+                "id": self.request_id,
+            },
+        }
+
+        with self.assertRaises(CommercialValidationError) as context:
+            get_commercial_request_formal_detail(
+                access_token="token",
+                request_id=self.request_id,
+            )
+
+        self.assertEqual(
+            context.exception.code,
+            "COMMERCE_REQUEST_FORMAL_DETAIL_FAILED",
+        )
 
     @patch(
         "apps.commercial.services."
