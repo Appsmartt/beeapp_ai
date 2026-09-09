@@ -2365,3 +2365,10 @@ class CompleteCommercialRequestSerializer(
     ) -> str | None:
         normalized = value.strip()
         return normalized or None
+
+
+class CommercialChatConversationSerializer(serializers.Serializer):
+    conversation_id = serializers.UUIDField()
+    commercial_profile_id = serializers.UUIDField()
+    client_profile_id = serializers.UUIDField()
+    created = serializers.BooleanField()

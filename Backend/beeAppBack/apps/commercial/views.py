@@ -20,6 +20,7 @@ from apps.commercial.exceptions import (
     CommercialStateError,
 )
 from apps.commercial.serializers import (
+    CommercialChatConversationSerializer,
     CommercialCategoryQuerySerializer,
     CreateCommercialProfileSerializer,
     UpdateCommercialProfileSerializer,
@@ -41,6 +42,9 @@ from apps.commercial.serializers import (
     PublicCommercialCitiesQuerySerializer,
     PublicCommercialProfilesQuerySerializer,
     PublicCommercialOffersQuerySerializer,
+)
+from apps.commercial.services.commercial_chat_conversation_service import (
+    open_or_create_commercial_chat_conversation,
 )
 from apps.commercial.services.commercial_profile_service import (
     create_commercial_profile,
@@ -350,6 +354,38 @@ class CommercialProfileDetailView(AuthenticatedAPIView):
         )
 
 
+
+
+
+
+class CommercialProfileChatView(AuthenticatedAPIView):
+    def post(self, request, profile_id):
+        try:
+            user, access_token = self.get_authenticated_user_and_access_token(
+                request,
+            )
+            result = open_or_create_commercial_chat_conversation(
+                access_token=access_token,
+                client_profile_id=str(user.id),
+                commercial_profile_id=str(profile_id),
+            )
+        except AccountAuthenticationError:
+            return Response(
+                {"detail": "Invalid or expired access token."},
+                status=status.HTTP_401_UNAUTHORIZED,
+            )
+        except CommercialError as error:
+            return commercial_error_response(error)
+
+        serializer = CommercialChatConversationSerializer(result)
+        return Response(
+            serializer.data,
+            status=(
+                status.HTTP_201_CREATED
+                if result["created"]
+                else status.HTTP_200_OK
+            ),
+        )
 
 
 class CommercialProfileCatalogsView(AuthenticatedAPIView):
