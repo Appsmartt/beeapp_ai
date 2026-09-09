@@ -45,6 +45,10 @@ COMMERCIAL_HOUR_COLUMNS = (
     "is_closed,created_at,updated_at"
 )
 
+COMMERCIAL_PROFILE_CATEGORY_COLUMNS = (
+    "commercial_profile_id,commercial_category_id,sort_order"
+)
+
 
 def list_commercial_categories(
     *,
@@ -168,6 +172,68 @@ def validate_commercial_logo(
         ) from error
 
 
+
+def validate_commercial_categories(
+    *,
+    category_ids: list[str],
+    offer_type: str,
+) -> list[str]:
+    normalized_ids = [str(category_id) for category_id in category_ids]
+
+    if not 1 <= len(normalized_ids) <= 5:
+        raise CommercialProfileValidationError(
+            "Select between 1 and 5 categories."
+        )
+
+    if len(normalized_ids) != len(set(normalized_ids)):
+        raise CommercialProfileValidationError(
+            "Categories cannot be repeated."
+        )
+
+    for category_id in normalized_ids:
+        validate_commercial_category(
+            category_id=category_id,
+            offer_type=offer_type,
+        )
+
+    return normalized_ids
+
+
+def replace_commercial_profile_categories(
+    *,
+    supabase,
+    commercial_profile_id: str,
+    category_ids: list[str],
+) -> None:
+    supabase.table("commercial_profile_categories").delete().eq(
+        "commercial_profile_id",
+        commercial_profile_id,
+    ).execute()
+
+    rows = [
+        {
+            "commercial_profile_id": commercial_profile_id,
+            "commercial_category_id": category_id,
+            "sort_order": index,
+        }
+        for index, category_id in enumerate(category_ids)
+    ]
+
+
+    if not rows:
+        return
+    response = (
+        supabase.table("commercial_profile_categories")
+        .insert(rows)
+        .execute()
+    )
+
+    if len(response.data or []) != len(rows):
+        raise CommercialProfileCreateError(
+            "Supabase did not create all profile categories."
+        )
+
+
 def create_commercial_profile(
     *,
     user_id: str,
@@ -185,14 +251,18 @@ def create_commercial_profile(
 
     try:
         offer_type = payload["offer_type"]
-        category_id = payload.get("category_id")
-        logo_file_id = str(payload["logo_file_id"])
+        category_ids = [
+            str(category_id)
+            for category_id in (payload.get("category_ids") or [])
+        ]
 
-        if category_id is not None:
-            validate_commercial_category(
-                category_id=str(category_id),
+        if category_ids:
+            category_ids = validate_commercial_categories(
+                category_ids=category_ids,
                 offer_type=offer_type,
             )
+
+        logo_file_id = str(payload["logo_file_id"])
 
         validate_commercial_logo(
             user_id=str(user_id),
@@ -202,11 +272,7 @@ def create_commercial_profile(
         profile_data = {
             "owner_id": str(user_id),
             "offer_type": offer_type,
-            "category_id": (
-                str(category_id)
-                if category_id is not None
-                else None
-            ),
+            "category_id": None,
             "custom_activity_text": payload.get(
                 "custom_activity_text"
             ),
@@ -249,6 +315,12 @@ def create_commercial_profile(
 
         profile = profile_response.data[0]
         created_profile_id = str(profile["id"])
+
+        replace_commercial_profile_categories(
+            supabase=supabase,
+            commercial_profile_id=created_profile_id,
+            category_ids=category_ids,
+        )
 
         modalities_to_insert = [
             {
@@ -494,7 +566,6 @@ def update_commercial_profile(
 ) -> dict[str, Any]:
     mutable_fields = {
         "offer_type",
-        "category_id",
         "custom_activity_text",
         "display_name",
         "description",
@@ -519,14 +590,14 @@ def update_commercial_profile(
         "delivery_currency_code",
     }
 
+    has_category_ids = "category_ids" in payload
     has_modalities = "modalities" in payload
     has_hours = "hours" in payload
 
     profile_payload = {
         key: (
             str(value)
-            if key in {"category_id", "logo_file_id"}
-            and value is not None
+            if key == "logo_file_id" and value is not None
             else value
         )
         for key, value in payload.items()
@@ -546,6 +617,21 @@ def update_commercial_profile(
             profile_id=str(profile_id),
         )
 
+        category_ids = (
+            [
+                str(category_id)
+                for category_id in payload["category_ids"]
+            ]
+            if has_category_ids
+            else [
+                str(category_id)
+                for category_id in current_profile.get(
+                    "category_ids",
+                    [],
+                )
+            ]
+        )
+
         user_supabase = get_supabase_user_client(
             access_token=normalized_access_token,
         )
@@ -553,6 +639,7 @@ def update_commercial_profile(
         merged_profile = {
             **current_profile,
             **profile_payload,
+            "category_ids": category_ids,
         }
 
         _validate_merged_profile_payload(
@@ -560,6 +647,9 @@ def update_commercial_profile(
             profile_id=str(profile_id),
             merged_profile=merged_profile,
         )
+
+        if has_category_ids:
+            profile_payload["category_id"] = None
 
         if profile_payload:
             response = (
@@ -575,6 +665,13 @@ def update_commercial_profile(
                 raise CommercialProfileUpdateError(
                     "Supabase did not return the updated profile."
                 )
+
+        if has_category_ids:
+            replace_commercial_profile_categories(
+                supabase=user_supabase,
+                commercial_profile_id=str(profile_id),
+                category_ids=category_ids,
+            )
 
         if has_modalities:
             _replace_commercial_profile_modalities(
@@ -609,26 +706,30 @@ def update_commercial_profile(
             "Could not update commercial profile."
         ) from error
 
-
 def _attach_profile_relations(
     *,
     profile: dict[str, Any],
 ) -> dict[str, Any]:
     profile_id = str(profile["id"])
     enriched_profile = dict(profile)
+    admin_supabase = get_supabase_admin_client()
 
+    categories_response = (
+        admin_supabase.table("commercial_profile_categories")
+        .select(COMMERCIAL_PROFILE_CATEGORY_COLUMNS)
+        .eq("commercial_profile_id", profile_id)
+        .order("sort_order")
+        .execute()
+    )
     modalities_response = (
-        get_supabase_admin_client()
-        .table("commercial_profile_modalities")
+        admin_supabase.table("commercial_profile_modalities")
         .select(COMMERCIAL_MODALITY_COLUMNS)
         .eq("commercial_profile_id", profile_id)
         .order("created_at")
         .execute()
     )
-
     hours_response = (
-        get_supabase_admin_client()
-        .table("commercial_profile_hours")
+        admin_supabase.table("commercial_profile_hours")
         .select(COMMERCIAL_HOUR_COLUMNS)
         .eq("commercial_profile_id", profile_id)
         .order("day_of_week")
@@ -636,6 +737,14 @@ def _attach_profile_relations(
         .execute()
     )
 
+    categories = categories_response.data or []
+
+    enriched_profile["category_ids"] = [
+        str(row["commercial_category_id"])
+        for row in categories
+        if row.get("commercial_category_id")
+    ]
+    enriched_profile["categories"] = categories
     enriched_profile["modalities"] = (
         modalities_response.data or []
     )
@@ -643,14 +752,18 @@ def _attach_profile_relations(
 
     return enriched_profile
 
-
 def _validate_merged_profile_payload(
     *,
     user_id: str,
     profile_id: str,
     merged_profile: dict[str, Any],
 ) -> None:
-    category_id = merged_profile.get("category_id")
+    category_ids = [
+        str(category_id)
+        for category_id in (
+            merged_profile.get("category_ids") or []
+        )
+    ]
     custom_activity_text = (
         str(
             merged_profile.get("custom_activity_text") or ""
@@ -658,19 +771,19 @@ def _validate_merged_profile_payload(
         or None
     )
 
-    if category_id is None and not custom_activity_text:
+    if not category_ids and not custom_activity_text:
         raise CommercialProfileValidationError(
-            "Select a category or provide a custom activity."
+            "Select at least one category or provide a custom activity."
         )
 
-    if category_id is not None and custom_activity_text:
+    if category_ids and custom_activity_text:
         raise CommercialProfileValidationError(
             "Provide a custom activity only when no category is selected."
         )
 
-    if category_id is not None:
-        validate_commercial_category(
-            category_id=str(category_id),
+    if category_ids:
+        validate_commercial_categories(
+            category_ids=category_ids,
             offer_type=merged_profile["offer_type"],
         )
 

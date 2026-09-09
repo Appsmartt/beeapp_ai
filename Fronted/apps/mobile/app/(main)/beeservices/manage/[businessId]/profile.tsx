@@ -22,6 +22,7 @@ import {
 } from 'expo-router';
 
 import type {
+  CommercialCategory,
   CommercialOwnedProfile,
 } from '@beeapp/shared-types';
 
@@ -31,6 +32,7 @@ import {
 } from '../../../../../src/features/buddyservices/commercialErrors';
 import {
   loadOwnedCommercialProfile,
+  loadPublicCommercialCategories,
   updateOwnedCommercialProfile,
 } from '../../../../../src/services/commercialService';
 
@@ -83,6 +85,10 @@ export default function BuddyServicesManageProfileScreen() {
   const [publicEmail, setPublicEmail] = useState('');
   const [isEmailPublic, setIsEmailPublic] = useState(false);
   const [customActivityText, setCustomActivityText] = useState('');
+  const [categoryIds, setCategoryIds] = useState<string[]>([]);
+  const [categories, setCategories] = useState<CommercialCategory[]>([]);
+  const [isCategoriesLoading, setIsCategoriesLoading] = useState(true);
+  const [categoriesError, setCategoriesError] = useState<string | null>(null);
 
   const applyProfile = useCallback((
     nextProfile: CommercialOwnedProfile,
@@ -104,6 +110,57 @@ export default function BuddyServicesManageProfileScreen() {
     setCustomActivityText(
       nextProfile.custom_activity_text || '',
     );
+    setCategoryIds(nextProfile.category_ids ?? []);
+  }, []);
+
+  const loadCategories = useCallback(async () => {
+    if (!profile) {
+      return;
+    }
+
+    setIsCategoriesLoading(true);
+    setCategoriesError(null);
+
+    try {
+      const response = await loadPublicCommercialCategories({
+        offer_type: profile.offer_type,
+      });
+
+      setCategories(response.categories);
+    } catch (error) {
+      const uiError = toCommercialUiError(error);
+
+      setCategoriesError(uiError.message);
+      setCategories([]);
+    } finally {
+      setIsCategoriesLoading(false);
+    }
+  }, [profile]);
+
+  useEffect(() => {
+    void loadCategories();
+  }, [loadCategories]);
+
+  const toggleCategory = useCallback((categoryId: string) => {
+    setCategoryIds((currentCategoryIds) => {
+      if (currentCategoryIds.includes(categoryId)) {
+        return currentCategoryIds.filter(
+          (value) => value !== categoryId,
+        );
+      }
+
+      if (currentCategoryIds.length >= 5) {
+        setErrorMessage(
+          'Puedes seleccionar hasta 5 categorías.',
+        );
+        return currentCategoryIds;
+      }
+
+      setCustomActivityText('');
+      setErrorMessage(null);
+
+      return [...currentCategoryIds, categoryId];
+    });
   }, []);
 
   const loadProfile = useCallback(async () => {
@@ -223,14 +280,11 @@ export default function BuddyServicesManageProfileScreen() {
           is_phone_public: isPhonePublic,
           public_email: normalizedPublicEmail,
           is_email_public: isEmailPublic,
-          ...(
-            profile.category_id
-              ? {}
-              : {
-                custom_activity_text: optionalText(
-                  customActivityText,
-                ),
-              }
+          category_ids: categoryIds,
+          custom_activity_text: (
+            categoryIds.length
+              ? null
+              : optionalText(customActivityText)
           ),
         },
       );
@@ -247,6 +301,7 @@ export default function BuddyServicesManageProfileScreen() {
   }, [
     address,
     applyProfile,
+    categoryIds,
     city,
     countryCode,
     customActivityText,
@@ -802,7 +857,115 @@ export default function BuddyServicesManageProfileScreen() {
             />
           </View>
 
-          {!profile.category_id ? (
+          <Text
+            style={{
+              color: '#261743',
+              fontSize: 15,
+              fontWeight: '800',
+              marginTop: 24,
+            }}
+          >
+            Categorías
+          </Text>
+
+          <Text
+            style={{
+              color: '#786593',
+              fontSize: 13,
+              lineHeight: 19,
+              marginTop: 5,
+            }}
+          >
+            Selecciona hasta 5 categorías.
+          </Text>
+
+          {isCategoriesLoading ? (
+            <View
+              style={{
+                alignItems: 'center',
+                flexDirection: 'row',
+                marginTop: 10,
+              }}
+            >
+              <ActivityIndicator
+                color="#7427D5"
+                size="small"
+              />
+              <Text
+                style={{
+                  color: '#786593',
+                  fontSize: 13,
+                  marginLeft: 8,
+                }}
+              >
+                Cargando categorías…
+              </Text>
+            </View>
+          ) : categoriesError ? (
+            <Text
+              style={{
+                color: '#B42318',
+                fontSize: 13,
+                lineHeight: 19,
+                marginTop: 10,
+              }}
+            >
+              {categoriesError}
+            </Text>
+          ) : (
+            <View
+              style={{
+                flexDirection: 'row',
+                flexWrap: 'wrap',
+                gap: 8,
+                marginTop: 10,
+              }}
+            >
+              {categories.slice(0, 5).map((category) => {
+                const isSelected = categoryIds.includes(
+                  category.id,
+                );
+
+                return (
+                  <TouchableOpacity
+                    accessibilityLabel={`Categoría: ${category.name}`}
+                    accessibilityRole="button"
+                    activeOpacity={0.82}
+                    disabled={isSaving}
+                    key={category.id}
+                    onPress={() => toggleCategory(category.id)}
+                    style={{
+                      backgroundColor: isSelected
+                        ? '#EBDCFD'
+                        : '#FFFFFF',
+                      borderColor: isSelected
+                        ? '#7427D5'
+                        : '#DCCBEE',
+                      borderRadius: 99,
+                      borderWidth: 1,
+                      opacity: isSaving ? 0.55 : 1,
+                      paddingHorizontal: 12,
+                      paddingVertical: 8,
+                    }}
+                  >
+                    <Text
+                      style={{
+                        color: isSelected
+                          ? '#54209E'
+                          : '#4E3B68',
+                        fontSize: 12,
+                        fontWeight: '700',
+                      }}
+                    >
+                      {category.name}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          )}
+
+          {categoryIds.length === 0 ? (
             <>
               <Text
                 style={{
@@ -818,7 +981,12 @@ export default function BuddyServicesManageProfileScreen() {
               <TextInput
                 accessibilityLabel="Actividad personalizada"
                 editable={!isSaving}
-                onChangeText={setCustomActivityText}
+                onChangeText={(value) => {
+                  setCustomActivityText(value);
+                  if (value.trim()) {
+                    setCategoryIds([]);
+                  }
+                }}
                 placeholder="Actividad del negocio"
                 placeholderTextColor="#A692B7"
                 style={{

@@ -340,7 +340,7 @@ export interface GetOwnedCommercialOfferResponse {
 }
 export interface CreateCommercialProfilePayload {
   offer_type: CommercialOfferType;
-  category_id?: string | null;
+  category_ids?: string[];
   custom_activity_text?: string | null;
   display_name: string;
   description: string;
@@ -364,7 +364,7 @@ export interface CreateCommercialProfilePayload {
 
 export interface UpdateCommercialProfilePayload {
   offer_type?: CommercialOfferType;
-  category_id?: string | null;
+  category_ids?: string[];
   custom_activity_text?: string | null;
   display_name?: string;
   description?: string;

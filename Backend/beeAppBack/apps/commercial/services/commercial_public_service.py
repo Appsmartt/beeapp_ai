@@ -32,6 +32,10 @@ PUBLIC_MODALITY_COLUMNS = (
     "commercial_profile_id,modality"
 )
 
+PUBLIC_PROFILE_CATEGORY_COLUMNS = (
+    "commercial_profile_id,commercial_category_id,sort_order"
+)
+
 
 def _response_rows(response) -> list[dict[str, Any]]:
     if response is None:
@@ -113,6 +117,55 @@ def _get_modalities_by_profile_ids(
     return dict(result)
 
 
+def _get_category_ids_by_profile_ids(
+    *,
+    profile_ids: list[str],
+) -> dict[str, list[str]]:
+    normalized_ids = list(
+        dict.fromkeys(
+            str(profile_id)
+            for profile_id in profile_ids
+            if profile_id
+        )
+    )
+
+    if not normalized_ids:
+        return {}
+
+    try:
+        response = execute_with_supabase_admin_retry(
+            lambda client: (
+                client.table("commercial_profile_categories")
+                .select(PUBLIC_PROFILE_CATEGORY_COLUMNS)
+                .in_("commercial_profile_id", normalized_ids)
+                .order("sort_order")
+                .execute()
+            )
+        )
+    except Exception as error:
+        raise CommercialOperationError(
+            "Could not retrieve commercial profile categories.",
+            code=(
+                "COMMERCIAL_PUBLIC_PROFILE_CATEGORIES_LOOKUP_FAILED"
+            ),
+        ) from error
+
+    result: dict[str, list[str]] = defaultdict(list)
+
+    for row in _response_rows(response):
+        profile_id = str(
+            row.get("commercial_profile_id") or ""
+        )
+        category_id = str(
+            row.get("commercial_category_id") or ""
+        )
+
+        if profile_id and category_id:
+            result[profile_id].append(category_id)
+
+    return dict(result)
+
+
 def _get_categories_by_ids(
     *,
     category_ids: list[str],
@@ -166,8 +219,12 @@ def _serialize_public_profile(
     *,
     profile: dict[str, Any],
     modalities: list[str],
-    category: dict[str, Any] | None,
+    categories: list[dict[str, Any]] | None = None,
+    category: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
+    if categories is None:
+        categories = [category] if category is not None else []
+
     is_verified = (
         profile.get("verification_status") == "verified"
         and bool(profile.get("verification_badge_visible"))
@@ -178,7 +235,12 @@ def _serialize_public_profile(
         "display_name": profile["display_name"],
         "description": profile["description"],
         "offer_type": profile["offer_type"],
-        "category": category,
+        "categories": categories,
+        "category_ids": [
+            item["id"]
+            for item in categories
+            if item.get("id")
+        ],
         "custom_activity_text": profile.get(
             "custom_activity_text"
         ),
@@ -245,7 +307,6 @@ def _serialize_public_profile(
         "updated_at": profile.get("updated_at"),
     }
 
-
 def _enrich_public_profiles(
     profiles: list[dict[str, Any]],
 ) -> list[dict[str, Any]]:
@@ -255,17 +316,21 @@ def _enrich_public_profiles(
         if profile.get("id")
     ]
 
-    category_ids = [
-        str(profile["category_id"])
-        for profile in profiles
-        if profile.get("category_id")
-    ]
-
     modalities_by_profile_id = _get_modalities_by_profile_ids(
         profile_ids=profile_ids,
     )
+    category_ids_by_profile_id = (
+        _get_category_ids_by_profile_ids(
+            profile_ids=profile_ids,
+        )
+    )
+    all_category_ids = [
+        category_id
+        for category_ids in category_ids_by_profile_id.values()
+        for category_id in category_ids
+    ]
     categories_by_id = _get_categories_by_ids(
-        category_ids=category_ids,
+        category_ids=all_category_ids,
     )
 
     return [
@@ -275,15 +340,19 @@ def _enrich_public_profiles(
                 str(profile["id"]),
                 [],
             ),
-            category=categories_by_id.get(
-                str(profile["category_id"])
-            )
-            if profile.get("category_id")
-            else None,
+            categories=[
+                categories_by_id[category_id]
+                for category_id in (
+                    category_ids_by_profile_id.get(
+                        str(profile["id"]),
+                        [],
+                    )
+                )
+                if category_id in categories_by_id
+            ],
         )
         for profile in profiles
     ]
-
 
 def list_public_countries() -> list[dict[str, Any]]:
     try:
@@ -452,7 +521,34 @@ def list_public_commercial_profiles(
                 )
 
             if category_id:
-                query = query.eq("category_id", str(category_id))
+                category_profiles_response = (
+                    client.table("commercial_profile_categories")
+                    .select("commercial_profile_id")
+                    .eq(
+                        "commercial_category_id",
+                        str(category_id),
+                    )
+                    .execute()
+                )
+                matching_profile_ids = list(
+                    dict.fromkeys(
+                        str(row["commercial_profile_id"])
+                        for row in _response_rows(
+                            category_profiles_response
+                        )
+                        if row.get("commercial_profile_id")
+                    )
+                )
+
+                if matching_profile_ids:
+                    query = query.in_("id", matching_profile_ids)
+                else:
+                    query = query.in_(
+                        "id",
+                        [
+                            "00000000-0000-0000-0000-000000000000"
+                        ],
+                    )
 
             if offer_type:
                 query = query.eq("offer_type", offer_type)

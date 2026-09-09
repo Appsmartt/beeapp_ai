@@ -150,9 +150,12 @@ class CreateCommercialProfileSerializer(serializers.Serializer):
     offer_type = serializers.ChoiceField(
         choices=COMMERCIAL_OFFER_TYPES,
     )
-    category_id = serializers.UUIDField(
+    category_ids = serializers.ListField(
+        child=serializers.UUIDField(),
         required=False,
-        allow_null=True,
+        allow_empty=False,
+        min_length=1,
+        max_length=5,
     )
     custom_activity_text = serializers.CharField(
         required=False,
@@ -370,25 +373,32 @@ class CreateCommercialProfileSerializer(serializers.Serializer):
         return value
 
     def validate(self, attrs: dict) -> dict:
-        category_id = attrs.get("category_id")
+        category_ids = attrs.get("category_ids") or []
         custom_activity_text = attrs.get("custom_activity_text")
 
-        if category_id is None and not custom_activity_text:
+        if not category_ids and not custom_activity_text:
             raise serializers.ValidationError(
                 {
-                    "category_id": (
-                        "Select a category or provide a custom activity."
+                    "category_ids": (
+                        "Select at least one category or provide a custom activity."
                     )
                 }
             )
 
-        if category_id is not None and custom_activity_text:
+        if category_ids and custom_activity_text:
             raise serializers.ValidationError(
                 {
                     "custom_activity_text": (
                         "Provide a custom activity only when no category "
                         "is selected."
                     )
+                }
+            )
+
+        if len(category_ids) != len(set(category_ids)):
+            raise serializers.ValidationError(
+                {
+                    "category_ids": "Categories cannot be repeated."
                 }
             )
 
@@ -605,9 +615,12 @@ class UpdateCommercialProfileSerializer(serializers.Serializer):
         choices=COMMERCIAL_OFFER_TYPES,
         required=False,
     )
-    category_id = serializers.UUIDField(
+    category_ids = serializers.ListField(
+        child=serializers.UUIDField(),
         required=False,
-        allow_null=True,
+        allow_empty=False,
+        min_length=1,
+        max_length=5,
     )
     custom_activity_text = serializers.CharField(
         required=False,
@@ -737,6 +750,13 @@ class UpdateCommercialProfileSerializer(serializers.Serializer):
         required=False,
         allow_empty=True,
     )
+
+    def validate_category_ids(self, value: list) -> list:
+        if len(value) != len(set(value)):
+            raise serializers.ValidationError(
+                "Categories cannot be repeated."
+            )
+        return value
 
     def validate_display_name(self, value: str) -> str:
         normalized_value = value.strip()
