@@ -52,6 +52,7 @@ import {
   getDefaultRequestedModality,
 } from '../../../../src/features/buddyservices/commercialOfferAction';
 import {
+  buddyServicesBookingRequestRoute,
   buddyServicesCartRoute,
   buddyServicesServiceRequestRoute,
 } from '../../../../src/features/buddyservices/commercialRoutes';
@@ -241,12 +242,8 @@ export default function BuddyServicesPublicOfferScreen() {
     const action = getCommercialOfferAction(offer);
 
     if (action === 'request_booking') {
-      Alert.alert(
-        'Reserva próximamente',
-        (
-          'El flujo formal de reserva, hold y negociación '
-          + 'se habilitará en el Bloque 6.'
-        ),
+      router.push(
+        buddyServicesBookingRequestRoute(offer.id),
       );
       return;
     }

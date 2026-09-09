@@ -128,6 +128,7 @@ export interface CommercialPublicProfile {
     | null;
   delivery_currency_code: 'COP' | null;
   is_verified: boolean;
+  timezone: string | null;
   created_at: string | null;
   updated_at: string | null;
 }
@@ -951,6 +952,17 @@ export interface CommercialRequestTransitionResponse {
     previous_status: CommercialRequestStatus | null;
     action: string;
   };
+}
+
+export interface CreateCommercialReservationHoldPayload {
+starts_at: string;
+timezone: string;
+}
+
+export interface CreateCommercialReservationHoldResponse {
+reservation_id: string;
+request_id: string;
+status: 'hold';
 }
 
 export interface CreateCommercialRequestProposalPayload {

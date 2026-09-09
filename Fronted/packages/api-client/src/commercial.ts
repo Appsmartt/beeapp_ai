@@ -50,6 +50,13 @@ UpdateCommercialPaymentMethodResponse,
 CreateCommercialRequestPayload,
 CreateCommercialRequestResponse,
 GetCommercialRequestResponse,
+GetCommercialRequestFormalDetailResponse,
+CommercialRequestTransitionPayload,
+CommercialRequestTransitionResponse,
+CreateCommercialRequestProposalPayload,
+CreateCommercialRequestProposalResponse,
+CreateCommercialReservationHoldPayload,
+CreateCommercialReservationHoldResponse,
 GetCommercialRequestsQuery,
 GetCommercialRequestsResponse,
 GetOwnedCommercialRequestsResponse,
@@ -916,6 +923,52 @@ export function getCommercialRequestTimeline(
     `${commercialRequestPath(requestId)}timeline/`,
     { auth },
   );
+}
+
+export function getCommercialRequestFormalDetail(
+auth: AuthCredentials,
+requestId: string,
+): Promise<GetCommercialRequestFormalDetailResponse> {
+return api.get<GetCommercialRequestFormalDetailResponse>(
+`${commercialRequestPath(requestId)}formal-detail/`,
+{ auth },
+);
+}
+
+export function transitionCommercialRequest(
+auth: AuthCredentials,
+requestId: string,
+payload: CommercialRequestTransitionPayload,
+): Promise<CommercialRequestTransitionResponse> {
+return api.post<CommercialRequestTransitionResponse>(
+`${commercialRequestPath(requestId)}transition/`,
+payload,
+{ auth },
+);
+}
+
+export function createCommercialRequestProposal(
+auth: AuthCredentials,
+requestId: string,
+payload: CreateCommercialRequestProposalPayload,
+): Promise<CreateCommercialRequestProposalResponse> {
+return api.post<CreateCommercialRequestProposalResponse>(
+`${commercialRequestPath(requestId)}proposals/`,
+payload,
+{ auth },
+);
+}
+
+export function createCommercialReservationHold(
+auth: AuthCredentials,
+requestId: string,
+payload: CreateCommercialReservationHoldPayload,
+): Promise<CreateCommercialReservationHoldResponse> {
+return api.post<CreateCommercialReservationHoldResponse>(
+`${commercialRequestPath(requestId)}reservation-hold/`,
+payload,
+{ auth },
+);
 }
 
 export function completeCommercialRequest(

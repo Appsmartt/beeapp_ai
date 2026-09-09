@@ -240,6 +240,7 @@ def _serialize_public_profile(
             "delivery_currency_code"
         ),
         "is_verified": is_verified,
+        "timezone": profile.get("timezone"),
         "created_at": profile.get("created_at"),
         "updated_at": profile.get("updated_at"),
     }

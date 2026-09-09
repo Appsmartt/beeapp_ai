@@ -44,6 +44,10 @@ getCommercialRequest,
 getCommercialRequests,
 getOwnedCommercialRequests,
 getCommercialRequestTimeline,
+getCommercialRequestFormalDetail,
+transitionCommercialRequest,
+createCommercialRequestProposal,
+createCommercialReservationHold,
 completeCommercialRequest,
 acceptCommercialRequestProposal,
 rejectCommercialRequestProposal,
@@ -104,6 +108,13 @@ GetCommercialRequestsQuery,
 GetCommercialRequestsResponse,
 GetOwnedCommercialRequestsResponse,
 GetCommercialRequestTimelineResponse,
+GetCommercialRequestFormalDetailResponse,
+CommercialRequestTransitionPayload,
+CommercialRequestTransitionResponse,
+CreateCommercialRequestProposalPayload,
+CreateCommercialRequestProposalResponse,
+CreateCommercialReservationHoldPayload,
+CreateCommercialReservationHoldResponse,
 CompleteCommercialRequestPayload,
 CompleteCommercialRequestResponse,
 CommercialRequestProposalMutationResponse,
@@ -129,6 +140,11 @@ buildProductOrderPayload,
 buildServiceRequestPayload,
 type BuildServiceRequestPayloadInput,
 } from '../features/buddyservices/cart/businessCartRequestPayload';
+
+import {
+buildBookingRequestPayload,
+type BuildBookingRequestPayloadInput,
+} from '../features/buddyservices/commercialBookingRequestPayload';
 
 import {
 submitCommercialRequest,
@@ -632,6 +648,17 @@ buildServiceRequestPayload(input),
 );
 }
 
+export async function createBookingRequest(
+input: BuildBookingRequestPayloadInput,
+idempotencyKey: string,
+): Promise<CreateCommercialRequestResponse> {
+return submitCommercialRequest(
+await getRequiredCommercialCredentials(),
+idempotencyKey,
+buildBookingRequestPayload(input),
+);
+}
+
 export async function loadCommercialRequests(
 query: GetCommercialRequestsQuery = {},
 ): Promise<GetCommercialRequestsResponse> {
@@ -668,6 +695,48 @@ requestId: string,
 return getCommercialRequestTimeline(
 await getRequiredCommercialCredentials(),
 requestId,
+);
+}
+
+export async function loadCommercialRequestFormalDetail(
+requestId: string,
+): Promise<GetCommercialRequestFormalDetailResponse> {
+return getCommercialRequestFormalDetail(
+await getRequiredCommercialCredentials(),
+requestId,
+);
+}
+
+export async function transitionOwnedCommercialRequest(
+requestId: string,
+payload: CommercialRequestTransitionPayload,
+): Promise<CommercialRequestTransitionResponse> {
+return transitionCommercialRequest(
+await getRequiredCommercialCredentials(),
+requestId,
+payload,
+);
+}
+
+export async function createCommercialProposal(
+requestId: string,
+payload: CreateCommercialRequestProposalPayload,
+): Promise<CreateCommercialRequestProposalResponse> {
+return createCommercialRequestProposal(
+await getRequiredCommercialCredentials(),
+requestId,
+payload,
+);
+}
+
+export async function createCommercialReservationHoldForRequest(
+requestId: string,
+payload: CreateCommercialReservationHoldPayload,
+): Promise<CreateCommercialReservationHoldResponse> {
+return createCommercialReservationHold(
+await getRequiredCommercialCredentials(),
+requestId,
+payload,
 );
 }
 
