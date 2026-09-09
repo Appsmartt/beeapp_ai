@@ -374,52 +374,24 @@ def list_public_categories(
     city: str | None = None,
     offer_type: str | None = None,
 ) -> list[dict[str, Any]]:
-    normalized_country_code = _normalize_optional_country_code(
-        country_code
-    )
-    normalized_city = _normalize_optional_city(city)
+    del country_code, city
 
     try:
         def operation(client):
             query = (
-                _public_profile_query(client)
-                .select("category_id")
-                .not_.is_("category_id", "null")
+                client.table("commercial_categories")
+                .select("id,parent_id,offer_type,name,slug,sort_order")
+                .eq("is_active", True)
             )
-
-            if normalized_country_code:
-                query = query.eq(
-                    "country_code",
-                    normalized_country_code,
-                )
-
-            if normalized_city:
-                query = query.ilike(
-                    "city",
-                    normalized_city,
-                )
 
             if offer_type:
                 query = query.eq("offer_type", offer_type)
 
             return query.execute()
 
-        profiles_response = execute_with_supabase_admin_retry(
-            operation
-        )
+        response = execute_with_supabase_admin_retry(operation)
 
-        category_ids = [
-            str(row["category_id"])
-            for row in _response_rows(profiles_response)
-            if row.get("category_id")
-        ]
-
-        categories_by_id = _get_categories_by_ids(
-            category_ids=category_ids,
-        )
-
-        categories = list(categories_by_id.values())
-
+        categories = _response_rows(response)
         categories.sort(
             key=lambda category: (
                 int(category.get("sort_order") or 0),
@@ -427,7 +399,7 @@ def list_public_categories(
             )
         )
 
-        return categories
+        return categories[:5]
 
     except CommercialOperationError:
         raise
@@ -437,7 +409,6 @@ def list_public_categories(
             "Could not retrieve public commercial categories.",
             code="COMMERCIAL_PUBLIC_CATEGORIES_LOOKUP_FAILED",
         ) from error
-
 
 def list_public_commercial_profiles(
     *,
