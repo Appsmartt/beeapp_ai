@@ -453,7 +453,9 @@ def list_public_categories(
                 .eq("is_active", True)
             )
 
-            if offer_type:
+            if offer_type == "mixed":
+                query = query.in_("offer_type", ["products", "services"])
+            elif offer_type:
                 query = query.eq("offer_type", offer_type)
 
             return query.execute()
@@ -550,7 +552,9 @@ def list_public_commercial_profiles(
                         ],
                     )
 
-            if offer_type:
+            if offer_type == "mixed":
+                query = query.in_("offer_type", ["products", "services"])
+            elif offer_type:
                 query = query.eq("offer_type", offer_type)
 
             if verified_only:

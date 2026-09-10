@@ -148,7 +148,6 @@ export default function BuddyServicesCreateBusinessScreen() {
     string[]
   >([]);
   const [categorySearchQuery, setCategorySearchQuery] = useState('');
-  const [customActivityText, setCustomActivityText] = useState('');
   const [displayName, setDisplayName] = useState('');
   const [description, setDescription] = useState('');
   const [countryCode, setCountryCode] = useState('CO');
@@ -192,7 +191,12 @@ export default function BuddyServicesCreateBusinessScreen() {
 
   const filteredCategories = useMemo(
     () => categories.filter((category) => (
-      category.offer_type === offerType
+      (
+        offerType === 'mixed'
+          ? category.offer_type === 'products'
+            || category.offer_type === 'services'
+          : category.offer_type === offerType
+      )
       && (
         !normalizedCategorySearchQuery
         || category.name.toLocaleLowerCase('es-CO').includes(
@@ -251,6 +255,12 @@ export default function BuddyServicesCreateBusinessScreen() {
   useEffect(() => {
     void loadCategories();
   }, [loadCategories]);
+
+  useEffect(() => {
+    if (offerType === 'mixed') {
+      setNewCategoryNames([]);
+    }
+  }, [offerType]);
 
   const selectLogo = useCallback(async () => {
     setFormError(null);
@@ -336,7 +346,6 @@ export default function BuddyServicesCreateBusinessScreen() {
         return currentCategoryIds;
       }
 
-      setCustomActivityText('');
       setFormError(null);
 
       return [...currentCategoryIds, categoryId];
@@ -355,6 +364,13 @@ export default function BuddyServicesCreateBusinessScreen() {
   }, []);
 
   const addTemporaryCategory = useCallback(() => {
+    if (offerType === 'mixed') {
+      setFormError(
+        'No se pueden crear categorías nuevas para Servicios y productos.',
+      );
+      return;
+    }
+
     if (!normalizedNewCategoryName) {
       setFormError('Escribe el nombre de la categoría.');
       return;
@@ -386,13 +402,13 @@ export default function BuddyServicesCreateBusinessScreen() {
       normalizedNewCategoryName,
     ]);
     setCategorySearchQuery('');
-    setCustomActivityText('');
     setFormError(null);
   }, [
     canAddCategory,
     hasExistingCategoryMatch,
     hasTemporaryCategoryMatch,
     normalizedNewCategoryName,
+    offerType,
   ]);
 
   const submit = useCallback(async () => {
@@ -432,10 +448,9 @@ export default function BuddyServicesCreateBusinessScreen() {
     if (
       categoryIds.length === 0
       && newCategoryNames.length === 0
-      && !customActivityText.trim()
     ) {
       setFormError(
-        'Selecciona al menos una categoría o escribe la actividad del negocio.',
+        'Selecciona o crea al menos una categoría.',
       );
       return;
     }
@@ -489,11 +504,7 @@ export default function BuddyServicesCreateBusinessScreen() {
         offer_type: offerType,
         category_ids: categoryIds,
         new_category_names: newCategoryNames,
-        custom_activity_text: (
-          categoryIds.length > 0 || newCategoryNames.length > 0
-            ? null
-            : normalizeOptionalText(customActivityText)
-        ),
+        custom_activity_text: null,
         display_name: normalizedDisplayName,
         description: normalizedDescription,
         country_code: countryCode.trim().toUpperCase(),
@@ -535,7 +546,6 @@ export default function BuddyServicesCreateBusinessScreen() {
     categoryIds,
     city,
     countryCode,
-    customActivityText,
     description,
     displayName,
     isAddressPublic,
@@ -939,7 +949,11 @@ export default function BuddyServicesCreateBusinessScreen() {
           accessibilityLabel="Buscar categoría"
           editable={!isSubmitting}
           onChangeText={setCategorySearchQuery}
-          placeholder="Busca una categoría o escribe una nueva"
+          placeholder={
+            offerType === 'mixed'
+              ? 'Busca una categoría'
+              : 'Busca una categoría o escribe una nueva'
+          }
           placeholderTextColor="#A692B7"
           style={{
             backgroundColor: '#FFFFFF',
@@ -1053,9 +1067,10 @@ export default function BuddyServicesCreateBusinessScreen() {
               })}
             </View>
 
-            {normalizedNewCategoryName
-            && !hasExistingCategoryMatch
-            && !hasTemporaryCategoryMatch ? (
+            {offerType !== 'mixed'
+              && normalizedNewCategoryName
+              && !hasExistingCategoryMatch
+              && !hasTemporaryCategoryMatch ? (
               <TouchableOpacity
                 accessibilityLabel={
                   `Agregar nueva categoría ${normalizedNewCategoryName}`
@@ -1109,37 +1124,6 @@ export default function BuddyServicesCreateBusinessScreen() {
             ) : null}
           </>
         )}
-
-        <TextInput
-          accessibilityLabel="Actividad personalizada"
-          editable={
-            !isSubmitting
-            && totalSelectedCategories === 0
-          }
-          onChangeText={(value) => {
-            setCustomActivityText(value);
-
-            if (value.trim()) {
-              setCategoryIds([]);
-              setNewCategoryNames([]);
-            }
-          }}
-          placeholder="O escribe una actividad personalizada"
-          placeholderTextColor="#A692B7"
-          style={{
-            backgroundColor: '#FFFFFF',
-            borderColor: '#DCCBEE',
-            borderRadius: 13,
-            borderWidth: 1,
-            color: '#261743',
-            fontSize: 14,
-            marginTop: 12,
-            minHeight: 48,
-            opacity: totalSelectedCategories > 0 ? 0.55 : 1,
-            paddingHorizontal: 13,
-          }}
-          value={customActivityText}
-        />
 
         <Text
           style={{
