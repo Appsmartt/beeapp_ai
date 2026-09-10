@@ -500,12 +500,18 @@ def create_commercial_profile(
                 offer_type=offer_type,
             )
 
-        logo_file_id = str(payload["logo_file_id"])
-
-        validate_commercial_logo(
-            user_id=str(user_id),
-            logo_file_id=logo_file_id,
+        raw_logo_file_id = payload.get("logo_file_id")
+        logo_file_id = (
+            str(raw_logo_file_id)
+            if raw_logo_file_id is not None
+            else None
         )
+
+        if logo_file_id is not None:
+            validate_commercial_logo(
+                user_id=str(user_id),
+                logo_file_id=logo_file_id,
+            )
 
         supabase = get_supabase_user_client(
             access_token=normalized_access_token,

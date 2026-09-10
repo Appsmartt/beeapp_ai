@@ -181,9 +181,48 @@ const latestCategorySearchRequestRef = useRef(0);
     LocalCommercialLogo | null
   >(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  type RequiredFieldKey = (
+    | 'displayName'
+    | 'description'
+    | 'city'
+    | 'categories'
+    | 'modalities'
+  );
+
+  const [fieldErrors, setFieldErrors] = useState<
+    Partial<Record<RequiredFieldKey, string>>
+  >({});
   const [formError, setFormError] = useState<string | null>(
     null,
   );
+  const [categoryLimitNotice, setCategoryLimitNotice] = useState<
+    string | null
+  >(null);
+
+  const clearFieldError = useCallback((
+    field: RequiredFieldKey,
+  ) => {
+    setFieldErrors((currentErrors) => {
+      if (!currentErrors[field]) {
+        return currentErrors;
+      }
+
+      const nextErrors = { ...currentErrors };
+      delete nextErrors[field];
+
+      return nextErrors;
+    });
+  }, []);
+
+  const showCategoryLimitNotice = useCallback(() => {
+    setCategoryLimitNotice(
+      'Máximo 5 categorías. Quita una para agregar otra.',
+    );
+
+    setTimeout(() => {
+      setCategoryLimitNotice(null);
+    }, 3000);
+  }, []);
 
   const normalizedCategorySearchQuery = useMemo(
     () => categorySearchQuery.trim().toLocaleLowerCase('es-CO'),
@@ -403,7 +442,8 @@ const totalSelectedCategories = (
         )
         : [...currentModalities, modality]
     ));
-  }, []);
+    clearFieldError('modalities');
+  }, [clearFieldError]);
 
       const toggleCategory = useCallback((
     categoryId: string,
@@ -419,9 +459,7 @@ const totalSelectedCategories = (
     }
 
     if (categoryIds.length + newCategoryNames.length >= 5) {
-      setFormError(
-        'Puedes seleccionar o agregar hasta 5 categorías.',
-      );
+      showCategoryLimitNotice();
       return;
     }
 
@@ -440,11 +478,14 @@ const totalSelectedCategories = (
       ...currentCategoriesById,
       [category.id]: category,
     }));
+    clearFieldError('categories');
     setFormError(null);
   }, [
     categories,
     categoryIds,
+    clearFieldError,
     newCategoryNames.length,
+    showCategoryLimitNotice,
   ]);
 
   const removeTemporaryCategory = useCallback((
@@ -472,9 +513,7 @@ const totalSelectedCategories = (
     }
 
     if (!canAddCategory) {
-      setFormError(
-        'Puedes seleccionar o agregar hasta 5 categorías.',
-      );
+      showCategoryLimitNotice();
       return;
     }
 
@@ -497,13 +536,16 @@ const totalSelectedCategories = (
       normalizedNewCategoryName,
     ]);
     setCategorySearchQuery('');
+    clearFieldError('categories');
     setFormError(null);
   }, [
     canAddCategory,
+    clearFieldError,
     hasExistingCategoryMatch,
     hasTemporaryCategoryMatch,
     normalizedNewCategoryName,
     offerType,
+    showCategoryLimitNotice,
   ]);
 
   const submit = useCallback(async () => {
@@ -520,62 +562,45 @@ const totalSelectedCategories = (
       publicEmail,
     );
 
-    if (!logo) {
-      setFormError('Selecciona el logo del negocio.');
-      return;
-    }
+    const nextFieldErrors: Partial<
+      Record<RequiredFieldKey, string>
+    > = {};
 
     if (!normalizedDisplayName) {
-      setFormError('Escribe el nombre del negocio.');
-      return;
+      nextFieldErrors.displayName = (
+        'Escribe el nombre del negocio.'
+      );
     }
 
     if (!normalizedDescription) {
-      setFormError('Escribe una descripción del negocio.');
-      return;
+      nextFieldErrors.description = (
+        'Escribe una descripción del negocio.'
+      );
     }
 
     if (!normalizedCity) {
-      setFormError('Escribe la ciudad del negocio.');
-      return;
+      nextFieldErrors.city = (
+        'Escribe la ciudad del negocio.'
+      );
     }
 
     if (
       categoryIds.length === 0
       && newCategoryNames.length === 0
     ) {
-      setFormError(
-        'Selecciona o crea al menos una categoría.',
+      nextFieldErrors.categories = (
+        'Selecciona o crea al menos una categoría.'
       );
-      return;
     }
 
     if (modalities.length === 0) {
-      setFormError('Selecciona al menos una modalidad.');
-      return;
+      nextFieldErrors.modalities = (
+        'Selecciona al menos una modalidad.'
+      );
     }
 
-    if (
-      requiresAddress(modalities)
-      && !normalizedAddress
-    ) {
-      setFormError(
-        'La dirección es obligatoria para atención presencial.',
-      );
-      return;
-    }
-
-    if (isPhonePublic && !normalizedPhoneNumber) {
-      setFormError(
-        'Agrega un teléfono antes de hacerlo público.',
-      );
-      return;
-    }
-
-    if (isEmailPublic && !normalizedPublicEmail) {
-      setFormError(
-        'Agrega un email antes de hacerlo público.',
-      );
+    if (Object.keys(nextFieldErrors).length > 0) {
+      setFieldErrors(nextFieldErrors);
       return;
     }
 
@@ -590,29 +615,24 @@ const totalSelectedCategories = (
         );
       }
 
-      console.info(
-        '[commercial:create] logo upload started',
-        {
-          name: logo.name,
-          mimeType: logo.mimeType,
-          sizeBytes: logo.sizeBytes ?? null,
-        },
-      );
+      const uploadedLogo = logo
+        ? await uploadCommercialLogo(
+          credentials,
+          logo,
+        )
+        : null;
 
-      const uploadedLogo = await uploadCommercialLogo(
-        credentials,
-        logo,
-      );
-
-      console.info(
-        '[commercial:create] logo upload completed',
-        {
-          id: uploadedLogo.id,
-          status: uploadedLogo.status,
-          kind: uploadedLogo.kind,
-          mimeType: uploadedLogo.mime_type ?? null,
-        },
-      );
+      if (uploadedLogo) {
+        console.info(
+          '[commercial:create] logo upload completed',
+          {
+            id: uploadedLogo.id,
+            status: uploadedLogo.status,
+            kind: uploadedLogo.kind,
+            mimeType: uploadedLogo.mime_type ?? null,
+          },
+        );
+      }
 
       const payload = {
         offer_type: offerType,
@@ -640,7 +660,9 @@ const totalSelectedCategories = (
         is_phone_public: isPhonePublic,
         public_email: normalizedPublicEmail,
         is_email_public: isEmailPublic,
-        logo_file_id: uploadedLogo.id,
+        ...(uploadedLogo
+          ? { logo_file_id: uploadedLogo.id }
+          : {}),
         is_public: false,
         is_available: true,
         modalities,
@@ -664,7 +686,8 @@ const totalSelectedCategories = (
           isPhonePublic: payload.is_phone_public,
           hasPublicEmail: Boolean(payload.public_email),
           isEmailPublic: payload.is_email_public,
-          logoFileId: payload.logo_file_id,
+          hasLogo: Boolean(uploadedLogo),
+          logoFileId: payload.logo_file_id ?? null,
           modalities: payload.modalities,
           hoursCount: payload.hours?.length ?? 0,
         },
@@ -1102,9 +1125,11 @@ const totalSelectedCategories = (
           placeholderTextColor="#A692B7"
           style={{
             backgroundColor: '#FFFFFF',
-            borderColor: '#DCCBEE',
+            borderColor: fieldErrors.categories
+              ? '#E5484D'
+              : '#DCCBEE',
             borderRadius: 13,
-            borderWidth: 1,
+            borderWidth: fieldErrors.categories ? 2 : 1,
             color: '#261743',
             fontSize: 14,
             marginTop: 12,
@@ -1113,6 +1138,20 @@ const totalSelectedCategories = (
           }}
           value={categorySearchQuery}
         />
+
+        {fieldErrors.categories ? (
+          <Text style={styles.fieldErrorText}>
+            {fieldErrors.categories}
+          </Text>
+        ) : null}
+
+        {categoryLimitNotice ? (
+          <View style={styles.categoryLimitNotice}>
+            <Text style={styles.categoryLimitNoticeText}>
+              {categoryLimitNotice}
+            </Text>
+          </View>
+        ) : null}
 
         {isCategoriesLoading ? (
           <View
@@ -1300,14 +1339,19 @@ const totalSelectedCategories = (
         <TextInput
           accessibilityLabel="Nombre del negocio"
           editable={!isSubmitting}
-          onChangeText={setDisplayName}
+          onChangeText={(value) => {
+            setDisplayName(value);
+            clearFieldError('displayName');
+          }}
           placeholder="Nombre del negocio"
           placeholderTextColor="#A692B7"
           style={{
             backgroundColor: '#FFFFFF',
-            borderColor: '#DCCBEE',
+            borderColor: fieldErrors.displayName
+              ? '#E5484D'
+              : '#DCCBEE',
             borderRadius: 13,
-            borderWidth: 1,
+            borderWidth: fieldErrors.displayName ? 2 : 1,
             color: '#261743',
             fontSize: 14,
             marginTop: 10,
@@ -1317,19 +1361,30 @@ const totalSelectedCategories = (
           value={displayName}
         />
 
+        {fieldErrors.displayName ? (
+          <Text style={styles.fieldErrorText}>
+            {fieldErrors.displayName}
+          </Text>
+        ) : null}
+
         <TextInput
           accessibilityLabel="Descripción del negocio"
           editable={!isSubmitting}
           multiline
           numberOfLines={4}
-          onChangeText={setDescription}
+          onChangeText={(value) => {
+            setDescription(value);
+            clearFieldError('description');
+          }}
           placeholder="Describe lo que ofreces"
           placeholderTextColor="#A692B7"
           style={{
             backgroundColor: '#FFFFFF',
-            borderColor: '#DCCBEE',
+            borderColor: fieldErrors.description
+              ? '#E5484D'
+              : '#DCCBEE',
             borderRadius: 13,
-            borderWidth: 1,
+            borderWidth: fieldErrors.description ? 2 : 1,
             color: '#261743',
             fontSize: 14,
             lineHeight: 20,
@@ -1341,6 +1396,12 @@ const totalSelectedCategories = (
           }}
           value={description}
         />
+
+        {fieldErrors.description ? (
+          <Text style={styles.fieldErrorText}>
+            {fieldErrors.description}
+          </Text>
+        ) : null}
 
         <View
           style={{
@@ -1393,14 +1454,19 @@ const totalSelectedCategories = (
           <TextInput
             accessibilityLabel="Ciudad"
             editable={!isSubmitting}
-            onChangeText={setCity}
+            onChangeText={(value) => {
+              setCity(value);
+              clearFieldError('city');
+            }}
             placeholder="Ciudad"
             placeholderTextColor="#A692B7"
             style={{
               backgroundColor: '#FFFFFF',
-              borderColor: '#DCCBEE',
+              borderColor: fieldErrors.city
+                ? '#E5484D'
+                : '#DCCBEE',
               borderRadius: 13,
-              borderWidth: 1,
+              borderWidth: fieldErrors.city ? 2 : 1,
               color: '#261743',
               flex: 0.52,
               fontSize: 14,
@@ -1410,6 +1476,12 @@ const totalSelectedCategories = (
             value={city}
           />
         </View>
+
+        {fieldErrors.city ? (
+          <Text style={styles.fieldErrorText}>
+            {fieldErrors.city}
+          </Text>
+        ) : null}
 
         <Text
           style={{
@@ -1494,6 +1566,12 @@ const totalSelectedCategories = (
             );
           })}
         </View>
+
+        {fieldErrors.modalities ? (
+          <Text style={styles.fieldErrorText}>
+            {fieldErrors.modalities}
+          </Text>
+        ) : null}
 
         <Text
           style={{
@@ -1647,7 +1725,13 @@ const totalSelectedCategories = (
             accessibilityLabel="Teléfono comercial"
             editable={!isSubmitting}
             keyboardType="phone-pad"
-            onChangeText={setPhoneNumber}
+            onChangeText={(value) => {
+              setPhoneNumber(value);
+
+              if (!normalizeOptionalText(value)) {
+                setIsPhonePublic(false);
+              }
+            }}
             placeholder="Teléfono opcional"
             placeholderTextColor="#A692B7"
             style={{
@@ -1685,7 +1769,10 @@ const totalSelectedCategories = (
 
           <Switch
             accessibilityLabel="Mostrar teléfono públicamente"
-            disabled={isSubmitting}
+            disabled={
+              isSubmitting
+              || !normalizeOptionalText(phoneNumber)
+            }
             onValueChange={setIsPhonePublic}
             value={isPhonePublic}
           />
@@ -1697,7 +1784,13 @@ const totalSelectedCategories = (
           autoCorrect={false}
           editable={!isSubmitting}
           keyboardType="email-address"
-          onChangeText={setPublicEmail}
+          onChangeText={(value) => {
+            setPublicEmail(value);
+
+            if (!normalizeOptionalText(value)) {
+              setIsEmailPublic(false);
+            }
+          }}
           placeholder="Email opcional"
           placeholderTextColor="#A692B7"
           style={{
@@ -1734,7 +1827,10 @@ const totalSelectedCategories = (
 
           <Switch
             accessibilityLabel="Mostrar email públicamente"
-            disabled={isSubmitting}
+            disabled={
+              isSubmitting
+              || !normalizeOptionalText(publicEmail)
+            }
             onValueChange={setIsEmailPublic}
             value={isEmailPublic}
           />
@@ -1896,6 +1992,29 @@ function ColombiaCircularFlag({
 }
 
 const styles = StyleSheet.create({
+  fieldErrorText: {
+    color: '#B42318',
+    fontSize: 12,
+    fontWeight: '700',
+    lineHeight: 18,
+    marginTop: 6,
+    paddingHorizontal: 2,
+  },
+  categoryLimitNotice: {
+    backgroundColor: '#FFF4D8',
+    borderColor: '#E7A12B',
+    borderRadius: 10,
+    borderWidth: 1,
+    marginTop: 8,
+    paddingHorizontal: 11,
+    paddingVertical: 8,
+  },
+  categoryLimitNoticeText: {
+    color: '#8A5200',
+    fontSize: 12,
+    fontWeight: '700',
+    lineHeight: 17,
+  },
   colombiaFlag: {
     backgroundColor: '#FCD116',
     overflow: 'hidden',
