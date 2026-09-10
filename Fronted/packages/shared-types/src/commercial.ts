@@ -138,6 +138,12 @@ export interface CommercialOwnedProfile {
   owner_id: string;
   offer_type: CommercialOfferType;
   category_id: string | null;
+category_ids: string[];
+categories: Array<{
+commercial_profile_id: string;
+commercial_category_id: string;
+sort_order: number;
+}>;
   custom_activity_text: string | null;
   display_name: string;
   description: string;
@@ -341,6 +347,7 @@ export interface GetOwnedCommercialOfferResponse {
 export interface CreateCommercialProfilePayload {
   offer_type: CommercialOfferType;
   category_ids?: string[];
+new_category_names?: string[];
   custom_activity_text?: string | null;
   display_name: string;
   description: string;

@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import re
+import unicodedata
+
 from typing import Any
 
 from beeAppBack.core.supabase_client import (
@@ -129,6 +132,214 @@ def validate_commercial_category(
         ) from error
 
 
+def normalize_commercial_category_name(value: str) -> str:
+    normalized_value = re.sub(
+        r"\s+",
+        " ",
+        str(value or "").strip(),
+    )
+
+    if not normalized_value:
+        raise CommercialProfileValidationError(
+            "New category names cannot be empty."
+        )
+
+    return normalized_value
+
+
+def commercial_category_name_key(value: str) -> str:
+    normalized_value = normalize_commercial_category_name(value)
+    normalized_unicode = unicodedata.normalize(
+        "NFKD",
+        normalized_value,
+    )
+    without_accents = "".join(
+        character
+        for character in normalized_unicode
+        if not unicodedata.combining(character)
+    )
+
+    return without_accents.casefold()
+
+
+def build_commercial_category_slug(value: str) -> str:
+    normalized_value = commercial_category_name_key(value)
+    slug = re.sub(
+        r"[^a-z0-9]+",
+        "-",
+        normalized_value,
+    ).strip("-")
+
+    if not slug:
+        raise CommercialProfileValidationError(
+            "New category name must include letters or numbers."
+        )
+
+    return slug[:100]
+
+
+def compatible_category_offer_types(
+    offer_type: str,
+) -> list[str]:
+    if offer_type == "mixed":
+        return ["products", "services", "mixed"]
+
+    return [offer_type, "mixed"]
+
+
+def find_existing_commercial_category_by_name(
+    *,
+    supabase,
+    category_name: str,
+    offer_type: str,
+) -> dict[str, Any] | None:
+    expected_key = commercial_category_name_key(category_name)
+
+    response = (
+        supabase.table("commercial_categories")
+        .select(COMMERCIAL_CATEGORY_COLUMNS)
+        .eq("is_active", True)
+        .in_(
+            "offer_type",
+            compatible_category_offer_types(offer_type),
+        )
+        .order("sort_order")
+        .order("name")
+        .execute()
+    )
+
+    for category in response.data or []:
+        if commercial_category_name_key(
+            category["name"],
+        ) == expected_key:
+            return category
+
+    return None
+
+
+def build_unique_commercial_category_slug(
+    *,
+    supabase,
+    category_name: str,
+) -> str:
+    base_slug = build_commercial_category_slug(category_name)
+    candidate_slug = base_slug
+    suffix = 2
+
+    while True:
+        response = (
+            supabase.table("commercial_categories")
+            .select("id")
+            .eq("slug", candidate_slug)
+            .maybe_single()
+            .execute()
+        )
+
+        if not response.data:
+            return candidate_slug
+
+        candidate_slug = f"{base_slug[:90]}-{suffix}"
+        suffix += 1
+
+
+def is_commercial_category_unique_violation(
+    error: Exception,
+) -> bool:
+    error_message = str(error).casefold()
+
+    return (
+        "23505" in error_message
+        or "duplicate key" in error_message
+        or "unique constraint" in error_message
+        or (
+            "commercial_categories_active_offer_type_"
+            "normalized_name_key" in error_message
+        )
+    )
+
+def resolve_new_commercial_categories(
+    *,
+    supabase,
+    category_names: list[str],
+    offer_type: str,
+) -> tuple[list[str], list[str]]:
+    resolved_category_ids: list[str] = []
+    created_category_ids: list[str] = []
+
+    for raw_category_name in category_names:
+        category_name = normalize_commercial_category_name(
+            raw_category_name,
+        )
+
+        existing_category = (
+            find_existing_commercial_category_by_name(
+                supabase=supabase,
+                category_name=category_name,
+                offer_type=offer_type,
+            )
+        )
+
+        if existing_category:
+            resolved_category_ids.append(
+                str(existing_category["id"])
+            )
+            continue
+
+        try:
+            category_response = (
+                supabase.table("commercial_categories")
+                .insert(
+                    {
+                        "parent_id": None,
+                        "offer_type": offer_type,
+                        "name": category_name,
+                        "slug": (
+                            build_unique_commercial_category_slug(
+                                supabase=supabase,
+                                category_name=category_name,
+                            )
+                        ),
+                        "is_active": True,
+                        "sort_order": 0,
+                    }
+                )
+                .execute()
+            )
+        except Exception as error:
+            if not is_commercial_category_unique_violation(error):
+                raise
+
+            existing_category = (
+                find_existing_commercial_category_by_name(
+                    supabase=supabase,
+                    category_name=category_name,
+                    offer_type=offer_type,
+                )
+            )
+
+            if not existing_category:
+                raise CommercialProfileCreateError(
+                    "Could not resolve the duplicated category."
+                ) from error
+
+            resolved_category_ids.append(
+                str(existing_category["id"])
+            )
+            continue
+
+        if not category_response.data:
+            raise CommercialProfileCreateError(
+                "Supabase did not create the new category."
+            )
+
+        created_category_id = str(
+            category_response.data[0]["id"]
+        )
+        resolved_category_ids.append(created_category_id)
+        created_category_ids.append(created_category_id)
+
+    return resolved_category_ids, created_category_ids
+
 def validate_commercial_logo(
     *,
     user_id: str,
@@ -241,6 +452,7 @@ def create_commercial_profile(
     payload: dict[str, Any],
 ) -> dict[str, Any]:
     created_profile_id: str | None = None
+    created_category_ids: list[str] = []
 
     normalized_access_token = str(access_token or "").strip()
 
@@ -253,8 +465,24 @@ def create_commercial_profile(
         offer_type = payload["offer_type"]
         category_ids = [
             str(category_id)
-            for category_id in (payload.get("category_ids") or [])
+            for category_id in (
+                payload.get("category_ids") or []
+            )
         ]
+        new_category_names = [
+            normalize_commercial_category_name(category_name)
+            for category_name in (
+                payload.get("new_category_names") or []
+            )
+        ]
+
+        if (
+            len(category_ids) + len(new_category_names)
+            > 5
+        ):
+            raise CommercialProfileValidationError(
+                "Select or add up to 5 categories in total."
+            )
 
         if category_ids:
             category_ids = validate_commercial_categories(
@@ -269,10 +497,40 @@ def create_commercial_profile(
             logo_file_id=logo_file_id,
         )
 
+        supabase = get_supabase_user_client(
+            access_token=normalized_access_token,
+        )
+
+        (
+            new_category_ids,
+            created_category_ids,
+        ) = resolve_new_commercial_categories(
+            supabase=supabase,
+            category_names=new_category_names,
+            offer_type=offer_type,
+        )
+
+        category_ids = [
+            *category_ids,
+            *new_category_ids,
+        ]
+
+        if not category_ids and not payload.get(
+            "custom_activity_text"
+        ):
+            raise CommercialProfileValidationError(
+                "Select at least one category or provide a "
+                "custom activity."
+            )
+
         profile_data = {
             "owner_id": str(user_id),
             "offer_type": offer_type,
-            "category_id": None,
+            "category_id": (
+                category_ids[0]
+                if category_ids
+                else None
+            ),
             "custom_activity_text": payload.get(
                 "custom_activity_text"
             ),
@@ -297,10 +555,6 @@ def create_commercial_profile(
             "is_public": payload["is_public"],
             "is_available": payload["is_available"],
         }
-
-        supabase = get_supabase_user_client(
-            access_token=normalized_access_token,
-        )
 
         profile_response = (
             supabase.table("commercial_profiles")
@@ -391,6 +645,7 @@ def create_commercial_profile(
             user_id=str(user_id),
             access_token=normalized_access_token,
             profile_id=created_profile_id,
+            created_category_ids=created_category_ids,
         )
         raise
 
@@ -399,12 +654,12 @@ def create_commercial_profile(
             user_id=str(user_id),
             access_token=normalized_access_token,
             profile_id=created_profile_id,
+            created_category_ids=created_category_ids,
         )
 
         raise CommercialProfileCreateError(
             "Could not create the commercial profile."
         ) from error
-
 
 def get_commercial_profile(
     *,
@@ -466,33 +721,31 @@ def _rollback_created_commercial_profile(
     user_id: str,
     access_token: str,
     profile_id: str | None,
+    created_category_ids: list[str],
 ) -> None:
-    if not profile_id:
-        return
-
     try:
-        (
-            get_supabase_user_client(
-                access_token=access_token,
-            )
-            .table("commercial_profiles")
-            .delete()
-            .eq("id", str(profile_id))
-            .eq("owner_id", str(user_id))
-            .execute()
+        supabase = get_supabase_user_client(
+            access_token=access_token,
         )
+
+        if profile_id:
+            (
+                supabase.table("commercial_profiles")
+                .delete()
+                .eq("id", str(profile_id))
+                .eq("owner_id", str(user_id))
+                .execute()
+            )
+
+        for category_id in created_category_ids:
+            (
+                supabase.table("commercial_categories")
+                .delete()
+                .eq("id", str(category_id))
+                .execute()
+            )
     except Exception:
         pass
-
-PRIVATE_COMMERCIAL_PROFILE_COLUMNS = (
-    COMMERCIAL_PROFILE_COLUMNS
-    + ",publication_status,verification_status,"
-    "verification_badge_visible,timezone,booking_hold_minutes,"
-    "delivery_fee_mode,delivery_fee_amount,delivery_currency_code,"
-    "archived_at,suspended_at,suspension_reason,"
-    "inventory_hold_minutes"
-)
-
 
 def list_owned_commercial_profiles(
     *,
