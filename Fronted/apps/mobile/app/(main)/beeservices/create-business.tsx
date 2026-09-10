@@ -149,7 +149,10 @@ export default function BuddyServicesCreateBusinessScreen() {
     string | null
   >(null);
 
-  const [categoryIds, setCategoryIds] = useState<string[]>([]);
+      const [categoryIds, setCategoryIds] = useState<string[]>([]);
+  const [categoryDetailsById, setCategoryDetailsById] = useState<
+    Record<string, CommercialCategory>
+  >({});
   const [newCategoryNames, setNewCategoryNames] = useState<
     string[]
   >([]);
@@ -192,11 +195,13 @@ const latestCategorySearchRequestRef = useRef(0);
     [categorySearchQuery],
   );
 
-  const selectedCategories = useMemo(
-    () => categories.filter((category) => (
-      categoryIds.includes(category.id)
-    )),
-    [categories, categoryIds],
+      const selectedCategories = useMemo(
+    () => categoryIds.map((categoryId) => (
+      categoryDetailsById[categoryId]
+    )).filter((
+      category,
+    ): category is CommercialCategory => Boolean(category)),
+    [categoryDetailsById, categoryIds],
   );
 
   const filteredCategories = useMemo(
@@ -316,6 +321,26 @@ const totalSelectedCategories = (
     offerType,
   ]);
 
+      useEffect(() => {
+    if (categories.length === 0) {
+      return;
+    }
+
+    setCategoryDetailsById((currentCategoriesById) => {
+      const nextCategoriesById = {
+        ...currentCategoriesById,
+      };
+
+      categories.forEach((category) => {
+        nextCategoriesById[category.id] = category;
+      });
+
+      return nextCategoriesById;
+    });
+  }, [
+    categories,
+  ]);
+
   const selectLogo = useCallback(async () => {
     setFormError(null);
 
@@ -380,31 +405,47 @@ const totalSelectedCategories = (
     ));
   }, []);
 
-  const toggleCategory = useCallback((
+      const toggleCategory = useCallback((
     categoryId: string,
   ) => {
-    setCategoryIds((currentCategoryIds) => {
-      if (currentCategoryIds.includes(categoryId)) {
-        return currentCategoryIds.filter(
-          (value) => value !== categoryId,
-        );
-      }
+    const category = categories.find((item) => item.id === categoryId);
 
-      if (
-        currentCategoryIds.length + newCategoryNames.length
-        >= 5
-      ) {
-        setFormError(
-          'Puedes seleccionar o agregar hasta 5 categorías.',
-        );
-        return currentCategoryIds;
-      }
-
+    if (categoryIds.includes(categoryId)) {
+      setCategoryIds((currentCategoryIds) => (
+        currentCategoryIds.filter((value) => value !== categoryId)
+      ));
       setFormError(null);
+      return;
+    }
 
-      return [...currentCategoryIds, categoryId];
-    });
-  }, [newCategoryNames.length]);
+    if (categoryIds.length + newCategoryNames.length >= 5) {
+      setFormError(
+        'Puedes seleccionar o agregar hasta 5 categorías.',
+      );
+      return;
+    }
+
+    if (!category) {
+      setFormError(
+        'No pudimos encontrar los datos de esta categoría. Intenta buscarla nuevamente.',
+      );
+      return;
+    }
+
+    setCategoryIds((currentCategoryIds) => [
+      ...currentCategoryIds,
+      categoryId,
+    ]);
+    setCategoryDetailsById((currentCategoriesById) => ({
+      ...currentCategoriesById,
+      [category.id]: category,
+    }));
+    setFormError(null);
+  }, [
+    categories,
+    categoryIds,
+    newCategoryNames.length,
+  ]);
 
   const removeTemporaryCategory = useCallback((
     categoryName: string,
