@@ -107,10 +107,22 @@ export function toCommercialUiError(
       );
     }
 
+    const diagnosticDetail = error.message.trim();
+
+    console.warn(
+      '[commercial:create] API error diagnostic',
+      {
+        status: error.status,
+        detail: diagnosticDetail,
+      },
+    );
+
     return createCommercialUiError(
       'UNKNOWN_ERROR',
       'No fue posible completar la operación',
-      'Revisa la información e inténtalo nuevamente.',
+      diagnosticDetail || (
+        'Revisa la información e inténtalo nuevamente.'
+      ),
       false,
     );
   }

@@ -590,15 +590,38 @@ const totalSelectedCategories = (
         );
       }
 
+      console.info(
+        '[commercial:create] logo upload started',
+        {
+          name: logo.name,
+          mimeType: logo.mimeType,
+          sizeBytes: logo.sizeBytes ?? null,
+        },
+      );
+
       const uploadedLogo = await uploadCommercialLogo(
         credentials,
         logo,
       );
 
-      const response = await createOwnedCommercialProfile({
+      console.info(
+        '[commercial:create] logo upload completed',
+        {
+          id: uploadedLogo.id,
+          status: uploadedLogo.status,
+          kind: uploadedLogo.kind,
+          mimeType: uploadedLogo.mime_type ?? null,
+        },
+      );
+
+      const payload = {
         offer_type: offerType,
-        category_ids: categoryIds,
-        new_category_names: newCategoryNames,
+        ...(categoryIds.length > 0
+          ? { category_ids: categoryIds }
+          : {}),
+        ...(newCategoryNames.length > 0
+          ? { new_category_names: newCategoryNames }
+          : {}),
         custom_activity_text: null,
         display_name: normalizedDisplayName,
         description: normalizedDescription,
@@ -622,7 +645,34 @@ const totalSelectedCategories = (
         is_available: true,
         modalities,
         hours: [],
-      });
+      };
+
+      console.info(
+        '[commercial:create] payload summary',
+        {
+          offerType: payload.offer_type,
+          categoryIdsCount: payload.category_ids?.length ?? 0,
+          newCategoryNamesCount: payload.new_category_names?.length ?? 0,
+          hasCustomActivityText: Boolean(payload.custom_activity_text),
+          displayNameLength: payload.display_name.length,
+          descriptionLength: payload.description.length,
+          countryCode: payload.country_code,
+          cityLength: payload.city.length,
+          hasAddress: Boolean(payload.address),
+          isAddressPublic: payload.is_address_public,
+          hasPhoneNumber: Boolean(payload.phone_number),
+          isPhonePublic: payload.is_phone_public,
+          hasPublicEmail: Boolean(payload.public_email),
+          isEmailPublic: payload.is_email_public,
+          logoFileId: payload.logo_file_id,
+          modalities: payload.modalities,
+          hoursCount: payload.hours?.length ?? 0,
+        },
+      );
+
+      const response = await createOwnedCommercialProfile(
+        payload,
+      );
 
       router.replace(
         buddyServicesManageBusinessRoute(

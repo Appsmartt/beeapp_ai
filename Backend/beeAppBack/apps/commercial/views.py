@@ -1,5 +1,9 @@
+import logging
+
 from rest_framework import status
 from rest_framework.response import Response
+
+logger = logging.getLogger(__name__)
 
 from apps.accounts.exceptions import (
     AccountAuthenticationError,
@@ -205,7 +209,16 @@ class CommercialProfilesView(AuthenticatedAPIView):
         serializer = CreateCommercialProfileSerializer(
             data=request.data,
         )
-        serializer.is_valid(raise_exception=True)
+
+        if not serializer.is_valid():
+            logger.warning(
+                'Commercial profile create serializer validation failed: %s',
+                serializer.errors,
+            )
+            return Response(
+                serializer.errors,
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
         try:
             (
@@ -230,6 +243,10 @@ class CommercialProfilesView(AuthenticatedAPIView):
             )
 
         except CommercialProfileValidationError as error:
+            logger.warning(
+                'Commercial profile domain validation failed: %s',
+                str(error),
+            )
             return Response(
                 {
                     "detail": str(error),
@@ -238,6 +255,10 @@ class CommercialProfilesView(AuthenticatedAPIView):
             )
 
         except CommercialProfileCreateError as error:
+            logger.exception(
+                'Commercial profile creation failed: %s',
+                str(error),
+            )
             return Response(
                 {
                     "detail": str(error),

@@ -39,6 +39,10 @@ COMMERCIAL_PROFILE_COLUMNS = (
     "is_available,created_at,updated_at"
 )
 
+PRIVATE_COMMERCIAL_PROFILE_COLUMNS = (
+    COMMERCIAL_PROFILE_COLUMNS
+)
+
 COMMERCIAL_MODALITY_COLUMNS = (
     "id,commercial_profile_id,modality,created_at"
 )
@@ -235,7 +239,7 @@ def build_unique_commercial_category_slug(
             .execute()
         )
 
-        if not response.data:
+        if not response or not response.data:
             return candidate_slug
 
         candidate_slug = f"{base_slug[:90]}-{suffix}"
