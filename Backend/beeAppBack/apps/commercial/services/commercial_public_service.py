@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections import defaultdict
+from random import sample
 from typing import Any
 
 from beeAppBack.core.supabase_client import (
@@ -11,6 +12,10 @@ from apps.commercial.exceptions import (
     CommercialNotFoundError,
     CommercialOperationError,
 )
+from apps.commercial.services.commercial_profile_service import (
+    compatible_category_offer_types,
+)
+
 
 
 PUBLIC_PROFILE_COLUMNS = (
@@ -437,40 +442,92 @@ def list_public_cities(
         ) from error
 
 
+def _normalize_category_search(value: str | None) -> str | None:
+    import unicodedata
+
+    normalized_value = str(value or "").strip()
+    normalized_unicode = unicodedata.normalize(
+        "NFKD",
+        normalized_value,
+    )
+    normalized_without_accents = "".join(
+        character
+        for character in normalized_unicode
+        if not unicodedata.combining(character)
+    )
+    normalized_key = normalized_without_accents.casefold()
+
+    return normalized_key or None
+
 def list_public_categories(
     *,
     country_code: str | None = None,
     city: str | None = None,
     offer_type: str | None = None,
+    search: str | None = None,
+    limit: int = 5,
 ) -> list[dict[str, Any]]:
     del country_code, city
+
+    normalized_search = _normalize_category_search(search)
+    normalized_limit = max(1, min(int(limit), 5))
 
     try:
         def operation(client):
             query = (
                 client.table("commercial_categories")
-                .select("id,parent_id,offer_type,name,slug,sort_order")
+                .select(
+                    "id,parent_id,offer_type,name,slug,sort_order,"
+                    "normalized_name"
+                )
                 .eq("is_active", True)
             )
 
-            if offer_type == "mixed":
-                query = query.in_("offer_type", ["products", "services"])
-            elif offer_type:
-                query = query.eq("offer_type", offer_type)
+            if offer_type:
+                query = query.in_(
+                    "offer_type",
+                    compatible_category_offer_types(offer_type),
+                )
+
+            if normalized_search:
+                query = query.ilike(
+                    "normalized_name",
+                    f"%{normalized_search}%",
+                )
 
             return query.execute()
 
         response = execute_with_supabase_admin_retry(operation)
-
         categories = _response_rows(response)
-        categories.sort(
-            key=lambda category: (
-                int(category.get("sort_order") or 0),
-                str(category.get("name") or "").casefold(),
-            )
-        )
 
-        return categories[:5]
+        if normalized_search:
+            categories.sort(
+                key=lambda category: (
+                    0 if str(
+                        category.get("normalized_name") or ""
+                    ).casefold().startswith(normalized_search)
+                    else 1,
+                    int(category.get("sort_order") or 0),
+                    str(category.get("name") or "").casefold(),
+                )
+            )
+        else:
+            categories = sample(
+                categories,
+                min(normalized_limit, len(categories)),
+            )
+
+        return [
+            {
+                "id": category.get("id"),
+                "parent_id": category.get("parent_id"),
+                "offer_type": category.get("offer_type"),
+                "name": category.get("name"),
+                "slug": category.get("slug"),
+                "sort_order": category.get("sort_order"),
+            }
+            for category in categories[:normalized_limit]
+        ]
 
     except CommercialOperationError:
         raise
@@ -480,6 +537,8 @@ def list_public_categories(
             "Could not retrieve public commercial categories.",
             code="COMMERCIAL_PUBLIC_CATEGORIES_LOOKUP_FAILED",
         ) from error
+
+
 
 def list_public_commercial_profiles(
     *,

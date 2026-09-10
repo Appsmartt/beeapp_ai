@@ -3,6 +3,15 @@ export type CommercialOfferType =
   | 'services'
   | 'mixed';
 
+export interface PublicCommercialCategoriesQuery {
+  country_code?: string;
+  city?: string;
+  offer_type?: CommercialOfferType;
+  search?: string;
+  limit?: number;
+}
+
+
 export type CommercialOfferKind =
   | 'product'
   | 'service';

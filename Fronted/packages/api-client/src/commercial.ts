@@ -18,6 +18,7 @@ import type {
   GetPublicCommercialProfilesResponse,
   PublicCommercialOffersQuery,
   PublicCommercialProfilesQuery,
+  PublicCommercialCategoriesQuery,
 CreateCommercialProfilePayload,
 CreateCommercialProfileResponse,
 UpdateCommercialProfilePayload,
@@ -192,11 +193,7 @@ export function getCommercialCities(
 
 export function getPublicCommercialCategories(
   auth: AuthCredentials,
-  query: {
-    country_code?: string;
-    city?: string;
-    offer_type?: CommercialOfferType;
-  } = {},
+  query: PublicCommercialCategoriesQuery = {},
 ): Promise<GetCommercialCategoriesResponse> {
   return api.get<GetCommercialCategoriesResponse>(
     `/commercial/public/categories/${toQueryString(query)}`,

@@ -1623,6 +1623,8 @@ class PublicCommercialCategoriesView(AuthenticatedAPIView):
                 offer_type=serializer.validated_data.get(
                     "offer_type"
                 ),
+                search=serializer.validated_data.get("search"),
+                limit=serializer.validated_data["limit"],
             )
         except AccountAuthenticationError:
             return Response(
