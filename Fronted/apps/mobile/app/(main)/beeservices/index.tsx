@@ -1,6 +1,7 @@
 import {
   useCallback,
   useEffect,
+  useRef,
   useState,
 } from 'react';
 import {
@@ -18,8 +19,12 @@ import {
   PlusCircle,
   Search,
   Store,
+  X,
 } from 'lucide-react-native';
-import { useRouter } from 'expo-router';
+import {
+  useFocusEffect,
+  useRouter,
+} from 'expo-router';
 
 import type {
   CommercialCategory,
@@ -65,6 +70,7 @@ type HomeData = {
   categories: CommercialCategory[];
   profiles: CommercialPublicProfile[];
   hasOwnedProfiles: boolean;
+  hasResolvedOwnedProfiles: boolean;
 };
 
 function getInitialError(): CommercialUiError | null {
@@ -89,6 +95,7 @@ export default function BeeServicesScreen() {
     categories: [],
     profiles: [],
     hasOwnedProfiles: false,
+    hasResolvedOwnedProfiles: false,
   });
 
   const [loadingCountries, setLoadingCountries] = useState(true);
@@ -98,6 +105,11 @@ export default function BeeServicesScreen() {
   const [error, setError] = useState<CommercialUiError | null>(
     getInitialError,
   );
+  const [showCreateBusinessNotice, setShowCreateBusinessNotice] =
+    useState(false);
+  const createBusinessNoticeTimerRef = useRef<
+    ReturnType<typeof setTimeout> | null
+  >(null);
 
   const loadCountries = useCallback(async () => {
     setLoadingCountries(true);
@@ -146,6 +158,23 @@ export default function BeeServicesScreen() {
     }
   }, []);
 
+  const loadOwnedProfilesState = useCallback(async () => {
+    try {
+      const response = await loadOwnedCommercialProfiles();
+
+      setHomeData((current) => ({
+        ...current,
+        hasOwnedProfiles: response.profiles.length > 0,
+        hasResolvedOwnedProfiles: true,
+      }));
+    } catch {
+      setHomeData((current) => ({
+        ...current,
+        hasResolvedOwnedProfiles: true,
+      }));
+    }
+  }, []);
+
   const loadHomeData = useCallback(async (
     selectedCountryCode: string,
     selectedCity: string,
@@ -157,7 +186,6 @@ export default function BeeServicesScreen() {
       const [
         categoriesResponse,
         profilesResponse,
-        ownedProfilesResponse,
       ] = await Promise.all([
         loadPublicCommercialCategories({
           country_code: selectedCountryCode,
@@ -170,14 +198,13 @@ export default function BeeServicesScreen() {
           limit: RECENT_PROFILES_LIMIT,
           offset: 0,
         }),
-        loadOwnedCommercialProfiles(),
       ]);
 
-      setHomeData({
+      setHomeData((current) => ({
+        ...current,
         categories: categoriesResponse.categories,
         profiles: profilesResponse.profiles,
-        hasOwnedProfiles: ownedProfilesResponse.profiles.length > 0,
-      });
+      }));
     } catch (loadError) {
       setError(toCommercialUiError(loadError));
     } finally {
@@ -189,13 +216,27 @@ export default function BeeServicesScreen() {
     void loadCountries();
   }, [loadCountries]);
 
+  useFocusEffect(
+    useCallback(() => {
+      void loadOwnedProfilesState();
+    }, [loadOwnedProfilesState]),
+  );
+
+  useEffect(() => {
+    return () => {
+      if (createBusinessNoticeTimerRef.current) {
+        clearTimeout(createBusinessNoticeTimerRef.current);
+      }
+    };
+  }, []);
+
   useEffect(() => {
     setCity(null);
-    setHomeData({
+    setHomeData((current) => ({
+      ...current,
       categories: [],
       profiles: [],
-      hasOwnedProfiles: false,
-    });
+    }));
 
     void loadCities(countryCode);
   }, [countryCode, loadCities]);
@@ -219,6 +260,8 @@ export default function BeeServicesScreen() {
       void loadCities(countryCode);
     }
 
+    void loadOwnedProfilesState();
+
     if (city) {
       void loadHomeData(countryCode, city);
     }
@@ -229,6 +272,7 @@ export default function BeeServicesScreen() {
     loadCities,
     loadCountries,
     loadHomeData,
+    loadOwnedProfilesState,
   ]);
 
   const handleRefresh = useCallback(async () => {
@@ -238,6 +282,7 @@ export default function BeeServicesScreen() {
     try {
       await loadCountries();
       await loadCities(countryCode);
+      await loadOwnedProfilesState();
 
       if (city) {
         await loadHomeData(countryCode, city);
@@ -251,6 +296,7 @@ export default function BeeServicesScreen() {
     loadCities,
     loadCountries,
     loadHomeData,
+    loadOwnedProfilesState,
   ]);
 
   const handleSelectCountry = useCallback(
@@ -340,13 +386,49 @@ export default function BeeServicesScreen() {
     );
   }, [router]);
 
+  const dismissCreateBusinessNotice = useCallback(() => {
+    if (createBusinessNoticeTimerRef.current) {
+      clearTimeout(createBusinessNoticeTimerRef.current);
+      createBusinessNoticeTimerRef.current = null;
+    }
+
+    setShowCreateBusinessNotice(false);
+  }, []);
+
+  const showCreateBusinessNoticeForFiveSeconds = useCallback(() => {
+    if (createBusinessNoticeTimerRef.current) {
+      clearTimeout(createBusinessNoticeTimerRef.current);
+    }
+
+    setShowCreateBusinessNotice(true);
+    createBusinessNoticeTimerRef.current = setTimeout(() => {
+      createBusinessNoticeTimerRef.current = null;
+      setShowCreateBusinessNotice(false);
+    }, 5000);
+  }, []);
+
   const handleBusinessAction = useCallback(() => {
-    router.push(
-      homeData.hasOwnedProfiles
-        ? buddyServicesMyBusinessesRoute()
-        : buddyServicesCreateBusinessRoute(),
-    );
-  }, [homeData.hasOwnedProfiles, router]);
+    if (!homeData.hasResolvedOwnedProfiles) {
+      return;
+    }
+
+    if (homeData.hasOwnedProfiles) {
+      router.push(buddyServicesMyBusinessesRoute());
+      return;
+    }
+
+    showCreateBusinessNoticeForFiveSeconds();
+  }, [
+    homeData.hasOwnedProfiles,
+    homeData.hasResolvedOwnedProfiles,
+    router,
+    showCreateBusinessNoticeForFiveSeconds,
+  ]);
+
+  const handleCreateBusinessFromNotice = useCallback(() => {
+    dismissCreateBusinessNotice();
+    router.push(buddyServicesCreateBusinessRoute());
+  }, [dismissCreateBusinessNotice, router]);
 
   const hasLocation = Boolean(city);
   const isInitialLoading = (
@@ -644,6 +726,57 @@ accessibilityRole="alert"
           </View>
         </ScrollView>
 
+        {showCreateBusinessNotice ? (
+          <View
+            accessibilityLiveRegion="polite"
+            accessibilityRole="alert"
+            style={localStyles.createBusinessNotice}
+          >
+            <View style={localStyles.createBusinessNoticeIcon}>
+              <Store
+                color="#7427D5"
+                size={20}
+              />
+            </View>
+
+            <View style={localStyles.createBusinessNoticeContent}>
+              <Text style={localStyles.createBusinessNoticeTitle}>
+                Crea tu perfil comercial
+              </Text>
+
+              <Text style={localStyles.createBusinessNoticeMessage}>
+                Primero crea un perfil comercial para comenzar a gestionar
+                tu negocio.
+              </Text>
+
+              <TouchableOpacity
+                accessibilityLabel="Crear perfil comercial"
+                accessibilityRole="button"
+                activeOpacity={0.82}
+                onPress={handleCreateBusinessFromNotice}
+                style={localStyles.createBusinessNoticeAction}
+              >
+                <Text style={localStyles.createBusinessNoticeActionText}>
+                  Crear perfil
+                </Text>
+              </TouchableOpacity>
+            </View>
+
+            <TouchableOpacity
+              accessibilityLabel="Cerrar aviso"
+              accessibilityRole="button"
+              activeOpacity={0.8}
+              onPress={dismissCreateBusinessNotice}
+              style={localStyles.createBusinessNoticeClose}
+            >
+              <X
+                color="#786593"
+                size={18}
+              />
+            </TouchableOpacity>
+          </View>
+        ) : null}
+
         <HomeSideMenu
           onClose={() => setSideMenuVisible(false)}
           visible={sideMenuVisible}
@@ -687,6 +820,73 @@ const localStyles = StyleSheet.create({
   },
   disabledAction: {
     opacity: 0.5,
+  },
+  createBusinessNotice: {
+    alignItems: 'flex-start',
+    backgroundColor: '#FFFFFF',
+    borderColor: '#D9C2F0',
+    borderRadius: 18,
+    borderWidth: 1,
+    bottom: 24,
+    elevation: 8,
+    flexDirection: 'row',
+    left: 18,
+    padding: 14,
+    position: 'absolute',
+    right: 18,
+    shadowColor: '#3D245E',
+    shadowOffset: {
+      height: 5,
+      width: 0,
+    },
+    shadowOpacity: 0.16,
+    shadowRadius: 12,
+    zIndex: 10,
+  },
+  createBusinessNoticeIcon: {
+    alignItems: 'center',
+    backgroundColor: '#F6EAFE',
+    borderRadius: 14,
+    height: 42,
+    justifyContent: 'center',
+    marginRight: 11,
+    width: 42,
+  },
+  createBusinessNoticeContent: {
+    flex: 1,
+    paddingRight: 5,
+  },
+  createBusinessNoticeTitle: {
+    color: '#261743',
+    fontSize: 14,
+    fontWeight: '800',
+  },
+  createBusinessNoticeMessage: {
+    color: '#786593',
+    fontSize: 12,
+    lineHeight: 18,
+    marginTop: 4,
+  },
+  createBusinessNoticeAction: {
+    alignSelf: 'flex-start',
+    backgroundColor: '#7427D5',
+    borderRadius: 10,
+    marginTop: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  createBusinessNoticeActionText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  createBusinessNoticeClose: {
+    alignItems: 'center',
+    height: 28,
+    justifyContent: 'center',
+    marginLeft: 2,
+    marginTop: -3,
+    width: 28,
   },
   errorCard: {
     backgroundColor: '#FFF4F4',

@@ -4,7 +4,6 @@ import {
   View,
 } from 'react-native';
 import {
-  Building2,
   ChevronRight,
   CirclePause,
   CircleX,
@@ -16,6 +15,8 @@ import {
 import type {
   CommercialOwnedProfile,
 } from '@beeapp/shared-types';
+
+import CommercialLogoAvatar from './CommercialLogoAvatar';
 
 interface OwnedCommercialProfileCardProps {
   profile: CommercialOwnedProfile;
@@ -111,25 +112,45 @@ export default function OwnedCommercialProfileCard({
     >
       <View
         style={{
-          alignItems: 'flex-start',
+          alignItems: 'center',
           flexDirection: 'row',
-          justifyContent: 'space-between',
         }}
       >
+        <CommercialLogoAvatar
+          displayName={profile.display_name}
+          logoFileId={profile.logo_file_id}
+          size={56}
+        />
+
         <View
           style={{
-            alignItems: 'center',
-            backgroundColor: '#F6EAFE',
-            borderRadius: 14,
-            height: 44,
-            justifyContent: 'center',
-            width: 44,
+            flex: 1,
+            marginLeft: 12,
+            minWidth: 0,
           }}
         >
-          <Building2
-            color="#7427D5"
-            size={22}
-          />
+          <Text
+            numberOfLines={2}
+            style={{
+              color: '#261743',
+              fontSize: 17,
+              fontWeight: '800',
+            }}
+          >
+            {profile.display_name}
+          </Text>
+
+          <Text
+            numberOfLines={2}
+            style={{
+              color: '#786593',
+              fontSize: 13,
+              lineHeight: 19,
+              marginTop: 5,
+            }}
+          >
+            {profile.description}
+          </Text>
         </View>
 
         <ChevronRight
@@ -137,30 +158,6 @@ export default function OwnedCommercialProfileCard({
           size={21}
         />
       </View>
-
-      <Text
-        numberOfLines={2}
-        style={{
-          color: '#261743',
-          fontSize: 17,
-          fontWeight: '800',
-          marginTop: 13,
-        }}
-      >
-        {profile.display_name}
-      </Text>
-
-      <Text
-        numberOfLines={2}
-        style={{
-          color: '#786593',
-          fontSize: 13,
-          lineHeight: 19,
-          marginTop: 5,
-        }}
-      >
-        {profile.description}
-      </Text>
 
       <View
         style={{
