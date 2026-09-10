@@ -476,6 +476,12 @@ def create_commercial_profile(
             )
         ]
 
+        if offer_type == "mixed" and new_category_names:
+            raise CommercialProfileValidationError(
+                "No se pueden crear categorías nuevas "
+                "para Servicios y productos."
+            )
+
         if (
             len(category_ids) + len(new_category_names)
             > 5

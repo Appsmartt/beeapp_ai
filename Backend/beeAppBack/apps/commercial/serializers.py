@@ -416,6 +416,19 @@ class CreateCommercialProfileSerializer(serializers.Serializer):
         )
         custom_activity_text = attrs.get("custom_activity_text")
 
+        if (
+            attrs.get("offer_type") == "mixed"
+            and new_category_names
+        ):
+            raise serializers.ValidationError(
+                {
+                    "new_category_names": (
+                        "No se pueden crear categorías nuevas "
+                        "para Servicios y productos."
+                    )
+                }
+            )
+
         if len(category_ids) + len(new_category_names) > 5:
             raise serializers.ValidationError(
                 {
