@@ -248,7 +248,10 @@ class CreateCommercialProfileSerializer(serializers.Serializer):
         default=False,
     )
 
-    logo_file_id = serializers.UUIDField()
+    logo_file_id = serializers.UUIDField(
+        required=False,
+        allow_null=True,
+    )
 
     is_public = serializers.BooleanField(
         required=False,
