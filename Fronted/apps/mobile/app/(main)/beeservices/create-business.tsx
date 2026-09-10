@@ -1,5 +1,5 @@
 import {
-ActivityIndicator,
+  ActivityIndicator,
   Image,
   ScrollView,
   Switch,
@@ -114,6 +114,10 @@ function normalizeOptionalText(
   return normalizedValue || null;
 }
 
+function normalizeCategoryName(value: string): string {
+  return value.trim().replace(/\s+/g, ' ');
+}
+
 function requiresAddress(
   modalities: CommercialModality[],
 ): boolean {
@@ -140,6 +144,10 @@ export default function BuddyServicesCreateBusinessScreen() {
   >(null);
 
   const [categoryIds, setCategoryIds] = useState<string[]>([]);
+  const [newCategoryNames, setNewCategoryNames] = useState<
+    string[]
+  >([]);
+  const [categorySearchQuery, setCategorySearchQuery] = useState('');
   const [customActivityText, setCustomActivityText] = useState('');
   const [displayName, setDisplayName] = useState('');
   const [description, setDescription] = useState('');
@@ -165,13 +173,60 @@ export default function BuddyServicesCreateBusinessScreen() {
     null,
   );
 
+  const normalizedCategorySearchQuery = useMemo(
+    () => categorySearchQuery.trim().toLocaleLowerCase('es-CO'),
+    [categorySearchQuery],
+  );
+
+  const normalizedNewCategoryName = useMemo(
+    () => normalizeCategoryName(categorySearchQuery),
+    [categorySearchQuery],
+  );
+
+  const selectedCategories = useMemo(
+    () => categories.filter((category) => (
+      categoryIds.includes(category.id)
+    )),
+    [categories, categoryIds],
+  );
+
   const filteredCategories = useMemo(
-  () =>
-    categories
-      .filter((category) => category.offer_type === offerType)
-      .slice(0, 5),
-  [categories, offerType],
-);
+    () => categories.filter((category) => (
+      category.offer_type === offerType
+      && (
+        !normalizedCategorySearchQuery
+        || category.name.toLocaleLowerCase('es-CO').includes(
+          normalizedCategorySearchQuery,
+        )
+      )
+    )),
+    [
+      categories,
+      normalizedCategorySearchQuery,
+      offerType,
+    ],
+  );
+
+  const totalSelectedCategories = (
+    categoryIds.length + newCategoryNames.length
+  );
+  const canAddCategory = totalSelectedCategories < 5;
+
+  const hasExistingCategoryMatch = useMemo(
+    () => categories.some((category) => (
+      category.name.toLocaleLowerCase('es-CO')
+      === normalizedNewCategoryName.toLocaleLowerCase('es-CO')
+    )),
+    [categories, normalizedNewCategoryName],
+  );
+
+  const hasTemporaryCategoryMatch = useMemo(
+    () => newCategoryNames.some((categoryName) => (
+      categoryName.toLocaleLowerCase('es-CO')
+      === normalizedNewCategoryName.toLocaleLowerCase('es-CO')
+    )),
+    [newCategoryNames, normalizedNewCategoryName],
+  );
 
   const loadCategories = useCallback(async () => {
     setIsCategoriesLoading(true);
@@ -194,14 +249,15 @@ export default function BuddyServicesCreateBusinessScreen() {
   }, [offerType]);
 
   useEffect(() => {
-    setCategoryIds([]);
-void loadCategories();
+    void loadCategories();
   }, [loadCategories]);
 
   const selectLogo = useCallback(async () => {
     setFormError(null);
 
-    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    const permission = (
+      await ImagePicker.requestMediaLibraryPermissionsAsync()
+    );
 
     if (!permission.granted) {
       setFormError(
@@ -261,30 +317,85 @@ void loadCategories();
   }, []);
 
   const toggleCategory = useCallback((
-categoryId: string,
-) => {
-setCategoryIds((currentCategoryIds) => {
-if (currentCategoryIds.includes(categoryId)) {
-return currentCategoryIds.filter(
-(value) => value !== categoryId,
-);
-}
+    categoryId: string,
+  ) => {
+    setCategoryIds((currentCategoryIds) => {
+      if (currentCategoryIds.includes(categoryId)) {
+        return currentCategoryIds.filter(
+          (value) => value !== categoryId,
+        );
+      }
 
-if (currentCategoryIds.length >= 5) {
-setFormError(
-'Puedes seleccionar hasta 5 categorías.',
-);
-return currentCategoryIds;
-}
+      if (
+        currentCategoryIds.length + newCategoryNames.length
+        >= 5
+      ) {
+        setFormError(
+          'Puedes seleccionar o agregar hasta 5 categorías.',
+        );
+        return currentCategoryIds;
+      }
 
-setCustomActivityText('');
-setFormError(null);
+      setCustomActivityText('');
+      setFormError(null);
 
-return [...currentCategoryIds, categoryId];
-});
-}, []);
+      return [...currentCategoryIds, categoryId];
+    });
+  }, [newCategoryNames.length]);
 
-const submit = useCallback(async () => {
+  const removeTemporaryCategory = useCallback((
+    categoryName: string,
+  ) => {
+    setNewCategoryNames((currentCategoryNames) => (
+      currentCategoryNames.filter(
+        (value) => value !== categoryName,
+      )
+    ));
+    setFormError(null);
+  }, []);
+
+  const addTemporaryCategory = useCallback(() => {
+    if (!normalizedNewCategoryName) {
+      setFormError('Escribe el nombre de la categoría.');
+      return;
+    }
+
+    if (!canAddCategory) {
+      setFormError(
+        'Puedes seleccionar o agregar hasta 5 categorías.',
+      );
+      return;
+    }
+
+    if (hasExistingCategoryMatch) {
+      setFormError(
+        'Esta categoría ya existe. Selecciónala en los resultados.',
+      );
+      return;
+    }
+
+    if (hasTemporaryCategoryMatch) {
+      setFormError(
+        'Esta categoría ya fue agregada temporalmente.',
+      );
+      return;
+    }
+
+    setNewCategoryNames((currentCategoryNames) => [
+      ...currentCategoryNames,
+      normalizedNewCategoryName,
+    ]);
+    setCategorySearchQuery('');
+    setCustomActivityText('');
+    setFormError(null);
+  }, [
+    canAddCategory,
+    hasExistingCategoryMatch,
+    hasTemporaryCategoryMatch,
+    normalizedNewCategoryName,
+  ]);
+
+  const submit = useCallback(async () => {
     setFormError(null);
 
     const normalizedDisplayName = displayName.trim();
@@ -319,14 +430,15 @@ const submit = useCallback(async () => {
     }
 
     if (
-categoryIds.length === 0
-&& !customActivityText.trim()
-) {
-setFormError(
-'Selecciona al menos una categoría o escribe la actividad del negocio.',
-);
-return;
-}
+      categoryIds.length === 0
+      && newCategoryNames.length === 0
+      && !customActivityText.trim()
+    ) {
+      setFormError(
+        'Selecciona al menos una categoría o escribe la actividad del negocio.',
+      );
+      return;
+    }
 
     if (modalities.length === 0) {
       setFormError('Selecciona al menos una modalidad.');
@@ -376,11 +488,12 @@ return;
       const response = await createOwnedCommercialProfile({
         offer_type: offerType,
         category_ids: categoryIds,
-custom_activity_text: (
-categoryIds.length > 0
-? null
-: normalizeOptionalText(customActivityText)
-),
+        new_category_names: newCategoryNames,
+        custom_activity_text: (
+          categoryIds.length > 0 || newCategoryNames.length > 0
+            ? null
+            : normalizeOptionalText(customActivityText)
+        ),
         display_name: normalizedDisplayName,
         description: normalizedDescription,
         country_code: countryCode.trim().toUpperCase(),
@@ -432,6 +545,7 @@ categoryIds.length > 0
     locationReference,
     modalities,
     neighborhood,
+    newCategoryNames,
     offerType,
     phoneDialCode,
     phoneNumber,
@@ -522,6 +636,7 @@ categoryIds.length > 0
           }}
         >
           Se creará inicialmente como borrador privado.
+          {'\n'}
           Podrás completar su configuración antes de publicar.
         </Text>
 
@@ -712,8 +827,133 @@ categoryIds.length > 0
             marginTop: 24,
           }}
         >
-          Categoría o actividad
+          Categorías o actividad
         </Text>
+
+        {totalSelectedCategories > 0 ? (
+          <View
+            style={{
+              marginTop: 10,
+            }}
+          >
+            <Text
+              style={{
+                color: '#786593',
+                fontSize: 12,
+                fontWeight: '700',
+                marginBottom: 8,
+              }}
+            >
+              {`Categorías seleccionadas (${totalSelectedCategories}/5)`}
+            </Text>
+
+            <View
+              style={{
+                flexDirection: 'row',
+                flexWrap: 'wrap',
+                gap: 8,
+              }}
+            >
+              {selectedCategories.map((category) => (
+                <TouchableOpacity
+                  accessibilityLabel={`Quitar categoría ${category.name}`}
+                  accessibilityRole="button"
+                  activeOpacity={0.82}
+                  disabled={isSubmitting}
+                  key={category.id}
+                  onPress={() => toggleCategory(category.id)}
+                  style={{
+                    alignItems: 'center',
+                    backgroundColor: '#EBDCFD',
+                    borderColor: '#7427D5',
+                    borderRadius: 99,
+                    borderWidth: 1,
+                    flexDirection: 'row',
+                    opacity: isSubmitting ? 0.55 : 1,
+                    paddingHorizontal: 12,
+                    paddingVertical: 8,
+                  }}
+                >
+                  <Check
+                    color="#54209E"
+                    size={14}
+                  />
+
+                  <Text
+                    style={{
+                      color: '#54209E',
+                      fontSize: 12,
+                      fontWeight: '700',
+                      marginLeft: 5,
+                    }}
+                  >
+                    {category.name}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+
+              {newCategoryNames.map((categoryName) => (
+                <TouchableOpacity
+                  accessibilityLabel={
+                    `Quitar categoría nueva ${categoryName}`
+                  }
+                  accessibilityRole="button"
+                  activeOpacity={0.82}
+                  disabled={isSubmitting}
+                  key={`new-${categoryName}`}
+                  onPress={() => removeTemporaryCategory(categoryName)}
+                  style={{
+                    alignItems: 'center',
+                    backgroundColor: '#FFF4D8',
+                    borderColor: '#E7A12B',
+                    borderRadius: 99,
+                    borderWidth: 1,
+                    flexDirection: 'row',
+                    opacity: isSubmitting ? 0.55 : 1,
+                    paddingHorizontal: 12,
+                    paddingVertical: 8,
+                  }}
+                >
+                  <Check
+                    color="#9A5A00"
+                    size={14}
+                  />
+
+                  <Text
+                    style={{
+                      color: '#8A5200',
+                      fontSize: 12,
+                      fontWeight: '700',
+                      marginLeft: 5,
+                    }}
+                  >
+                    {`${categoryName} · Nueva`}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+        ) : null}
+
+        <TextInput
+          accessibilityLabel="Buscar categoría"
+          editable={!isSubmitting}
+          onChangeText={setCategorySearchQuery}
+          placeholder="Busca una categoría o escribe una nueva"
+          placeholderTextColor="#A692B7"
+          style={{
+            backgroundColor: '#FFFFFF',
+            borderColor: '#DCCBEE',
+            borderRadius: 13,
+            borderWidth: 1,
+            color: '#261743',
+            fontSize: 14,
+            marginTop: 12,
+            minHeight: 48,
+            paddingHorizontal: 13,
+          }}
+          value={categorySearchQuery}
+        />
 
         {isCategoriesLoading ? (
           <View
@@ -724,11 +964,11 @@ categoryIds.length > 0
             }}
           >
             <ActivityIndicator
-color="#7427D5"
-size="small"
-/>
+              color="#7427D5"
+              size="small"
+            />
 
-<Text
+            <Text
               style={{
                 color: '#786593',
                 fontSize: 13,
@@ -750,63 +990,138 @@ size="small"
             {categoriesError}
           </Text>
         ) : (
-          <View
-            style={{
-              flexDirection: 'row',
-              flexWrap: 'wrap',
-              gap: 8,
-              marginTop: 10,
-            }}
-          >
-            {filteredCategories.map((category) => {
-              const isSelected = categoryIds.includes(category.id);
+          <>
+            <View
+              style={{
+                flexDirection: 'row',
+                flexWrap: 'wrap',
+                gap: 8,
+                marginTop: 10,
+              }}
+            >
+              {filteredCategories.map((category) => {
+                const isSelected = categoryIds.includes(category.id);
 
-              return (
-                <TouchableOpacity
-                  accessibilityLabel={`Categoría: ${category.name}`}
-                  accessibilityRole="button"
-                  activeOpacity={0.82}
-                  disabled={isSubmitting}
-                  key={category.id}
-                  onPress={() => toggleCategory(category.id)}
-                  style={{
-                    backgroundColor: isSelected
-                      ? '#EBDCFD'
-                      : '#FFFFFF',
-                    borderColor: isSelected
-                      ? '#7427D5'
-                      : '#DCCBEE',
-                    borderRadius: 99,
-                    borderWidth: 1,
-                    opacity: isSubmitting ? 0.55 : 1,
-                    paddingHorizontal: 12,
-                    paddingVertical: 8,
-                  }}
-                >
-                  <Text
+                return (
+                  <TouchableOpacity
+                    accessibilityLabel={`Categoría: ${category.name}`}
+                    accessibilityRole="checkbox"
+                    accessibilityState={{
+                      checked: isSelected,
+                    }}
+                    activeOpacity={0.82}
+                    disabled={isSubmitting}
+                    key={category.id}
+                    onPress={() => toggleCategory(category.id)}
                     style={{
-                      color: isSelected
-                        ? '#54209E'
-                        : '#4E3B68',
-                      fontSize: 12,
-                      fontWeight: '700',
+                      alignItems: 'center',
+                      backgroundColor: isSelected
+                        ? '#EBDCFD'
+                        : '#FFFFFF',
+                      borderColor: isSelected
+                        ? '#7427D5'
+                        : '#DCCBEE',
+                      borderRadius: 99,
+                      borderWidth: 1,
+                      flexDirection: 'row',
+                      opacity: isSubmitting ? 0.55 : 1,
+                      paddingHorizontal: 12,
+                      paddingVertical: 8,
                     }}
                   >
-                    {category.name}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
-          </View>
+                    {isSelected ? (
+                      <Check
+                        color="#54209E"
+                        size={14}
+                      />
+                    ) : null}
+
+                    <Text
+                      style={{
+                        color: isSelected
+                          ? '#54209E'
+                          : '#4E3B68',
+                        fontSize: 12,
+                        fontWeight: '700',
+                        marginLeft: isSelected ? 5 : 0,
+                      }}
+                    >
+                      {category.name}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+
+            {normalizedNewCategoryName
+            && !hasExistingCategoryMatch
+            && !hasTemporaryCategoryMatch ? (
+              <TouchableOpacity
+                accessibilityLabel={
+                  `Agregar nueva categoría ${normalizedNewCategoryName}`
+                }
+                accessibilityRole="button"
+                activeOpacity={0.82}
+                disabled={isSubmitting || !canAddCategory}
+                onPress={addTemporaryCategory}
+                style={{
+                  alignItems: 'center',
+                  backgroundColor: '#FFF8E8',
+                  borderColor: '#E7A12B',
+                  borderRadius: 13,
+                  borderWidth: 1,
+                  flexDirection: 'row',
+                  justifyContent: 'center',
+                  marginTop: 10,
+                  minHeight: 46,
+                  opacity: (
+                    isSubmitting || !canAddCategory
+                      ? 0.55
+                      : 1
+                  ),
+                  paddingHorizontal: 13,
+                }}
+              >
+                <Text
+                  style={{
+                    color: '#8A5200',
+                    fontSize: 13,
+                    fontWeight: '800',
+                  }}
+                >
+                  {`Agregar categoría “${normalizedNewCategoryName}”`}
+                </Text>
+              </TouchableOpacity>
+            ) : null}
+
+            {filteredCategories.length === 0
+            && normalizedCategorySearchQuery ? (
+              <Text
+                style={{
+                  color: '#786593',
+                  fontSize: 12,
+                  lineHeight: 18,
+                  marginTop: 10,
+                }}
+              >
+                No encontramos categorías con esa búsqueda.
+              </Text>
+            ) : null}
+          </>
         )}
 
         <TextInput
           accessibilityLabel="Actividad personalizada"
-          editable={!isSubmitting}
+          editable={
+            !isSubmitting
+            && totalSelectedCategories === 0
+          }
           onChangeText={(value) => {
             setCustomActivityText(value);
+
             if (value.trim()) {
               setCategoryIds([]);
+              setNewCategoryNames([]);
             }
           }}
           placeholder="O escribe una actividad personalizada"
@@ -820,10 +1135,22 @@ size="small"
             fontSize: 14,
             marginTop: 12,
             minHeight: 48,
+            opacity: totalSelectedCategories > 0 ? 0.55 : 1,
             paddingHorizontal: 13,
           }}
           value={customActivityText}
         />
+
+        <Text
+          style={{
+            color: '#786593',
+            fontSize: 12,
+            lineHeight: 18,
+            marginTop: 6,
+          }}
+        >
+          Las categorías nuevas se guardarán únicamente al crear el negocio.
+        </Text>
 
         <Text
           style={{

@@ -157,6 +157,17 @@ class CreateCommercialProfileSerializer(serializers.Serializer):
         min_length=1,
         max_length=5,
     )
+    new_category_names = serializers.ListField(
+        child=serializers.CharField(
+            min_length=1,
+            max_length=120,
+            trim_whitespace=True,
+        ),
+        required=False,
+        allow_empty=False,
+        min_length=1,
+        max_length=5,
+    )
     custom_activity_text = serializers.CharField(
         required=False,
         allow_blank=False,
@@ -309,6 +320,32 @@ class CreateCommercialProfileSerializer(serializers.Serializer):
     ) -> str | None:
         return normalize_optional_text(value)
 
+    def validate_new_category_names(
+        self,
+        value: list[str],
+    ) -> list[str]:
+        normalized_names = [
+            re.sub(r"\s+", " ", item.strip())
+            for item in value
+        ]
+
+        if any(not item for item in normalized_names):
+            raise serializers.ValidationError(
+                "New category names cannot be empty."
+            )
+
+        normalized_keys = [
+            item.casefold()
+            for item in normalized_names
+        ]
+
+        if len(normalized_keys) != len(set(normalized_keys)):
+            raise serializers.ValidationError(
+                "New category names cannot be repeated."
+            )
+
+        return normalized_names
+
     def validate_custom_activity_text(
         self,
         value: str | None,
@@ -374,23 +411,44 @@ class CreateCommercialProfileSerializer(serializers.Serializer):
 
     def validate(self, attrs: dict) -> dict:
         category_ids = attrs.get("category_ids") or []
+        new_category_names = (
+            attrs.get("new_category_names") or []
+        )
         custom_activity_text = attrs.get("custom_activity_text")
 
-        if not category_ids and not custom_activity_text:
+        if len(category_ids) + len(new_category_names) > 5:
             raise serializers.ValidationError(
                 {
-                    "category_ids": (
-                        "Select at least one category or provide a custom activity."
+                    "new_category_names": (
+                        "You can select or add up to 5 categories "
+                        "in total."
                     )
                 }
             )
 
-        if category_ids and custom_activity_text:
+        if (
+            not category_ids
+            and not new_category_names
+            and not custom_activity_text
+        ):
+            raise serializers.ValidationError(
+                {
+                    "category_ids": (
+                        "Select at least one category or provide "
+                        "a custom activity."
+                    )
+                }
+            )
+
+        if (
+            (category_ids or new_category_names)
+            and custom_activity_text
+        ):
             raise serializers.ValidationError(
                 {
                     "custom_activity_text": (
-                        "Provide a custom activity only when no category "
-                        "is selected."
+                        "Provide a custom activity only when no "
+                        "category is selected."
                     )
                 }
             )
@@ -398,7 +456,9 @@ class CreateCommercialProfileSerializer(serializers.Serializer):
         if len(category_ids) != len(set(category_ids)):
             raise serializers.ValidationError(
                 {
-                    "category_ids": "Categories cannot be repeated."
+                    "category_ids": (
+                        "Categories cannot be repeated."
+                    )
                 }
             )
 
@@ -420,8 +480,8 @@ class CreateCommercialProfileSerializer(serializers.Serializer):
             raise serializers.ValidationError(
                 {
                     "phone_number": (
-                        "A public phone number is required when phone "
-                        "visibility is enabled."
+                        "A public phone number is required when "
+                        "phone visibility is enabled."
                     )
                 }
             )
@@ -433,8 +493,8 @@ class CreateCommercialProfileSerializer(serializers.Serializer):
             raise serializers.ValidationError(
                 {
                     "public_email": (
-                        "A public email is required when email visibility "
-                        "is enabled."
+                        "A public email is required when email "
+                        "visibility is enabled."
                     )
                 }
             )
@@ -455,6 +515,7 @@ class CreateCommercialProfileSerializer(serializers.Serializer):
             )
 
         return attrs
+
 
 PUBLIC_COMMERCIAL_PROFILE_ORDERINGS = (
     "recent",
