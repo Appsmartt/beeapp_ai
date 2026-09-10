@@ -1,7 +1,10 @@
 import {
   ActivityIndicator,
   Image,
+  Modal,
+  Pressable,
   ScrollView,
+  StyleSheet,
   Switch,
   Text,
   TextInput,
@@ -11,8 +14,10 @@ import {
 import {
   ArrowLeft,
   Check,
+  ChevronDown,
   ImagePlus,
   LoaderCircle,
+  X,
 } from 'lucide-react-native';
 import {
   useCallback,
@@ -153,6 +158,9 @@ const latestCategorySearchRequestRef = useRef(0);
   const [displayName, setDisplayName] = useState('');
   const [description, setDescription] = useState('');
   const [countryCode, setCountryCode] = useState('CO');
+  const [isCountryPickerVisible, setIsCountryPickerVisible] = (
+    useState(false)
+  );
   const [city, setCity] = useState('');
   const [address, setAddress] = useState('');
   const [neighborhood, setNeighborhood] = useState('');
@@ -1250,27 +1258,46 @@ const totalSelectedCategories = (
             marginTop: 10,
           }}
         >
-          <TextInput
-            accessibilityLabel="Código de país"
-            autoCapitalize="characters"
-            editable={!isSubmitting}
-            maxLength={2}
-            onChangeText={setCountryCode}
-            placeholder="CO"
-            placeholderTextColor="#A692B7"
+          <TouchableOpacity
+            accessibilityHint="Abre las opciones de país disponibles"
+            accessibilityLabel="Seleccionar país: Colombia"
+            accessibilityRole="button"
+            activeOpacity={0.82}
+            disabled={isSubmitting}
+            onPress={() => setIsCountryPickerVisible(true)}
             style={{
+              alignItems: 'center',
               backgroundColor: '#FFFFFF',
               borderColor: '#DCCBEE',
               borderRadius: 13,
               borderWidth: 1,
-              color: '#261743',
-              flex: 0.32,
-              fontSize: 14,
+              flex: 0.48,
+              flexDirection: 'row',
               minHeight: 48,
-              paddingHorizontal: 13,
+              opacity: isSubmitting ? 0.55 : 1,
+              paddingHorizontal: 12,
             }}
-            value={countryCode}
-          />
+          >
+            <ColombiaCircularFlag />
+
+            <Text
+              numberOfLines={1}
+              style={{
+                color: '#261743',
+                flex: 1,
+                fontSize: 14,
+                fontWeight: '700',
+                marginLeft: 8,
+              }}
+            >
+              Colombia
+            </Text>
+
+            <ChevronDown
+              color="#786593"
+              size={18}
+            />
+          </TouchableOpacity>
 
           <TextInput
             accessibilityLabel="Ciudad"
@@ -1284,7 +1311,7 @@ const totalSelectedCategories = (
               borderRadius: 13,
               borderWidth: 1,
               color: '#261743',
-              flex: 0.68,
+              flex: 0.52,
               fontSize: 14,
               minHeight: 48,
               paddingHorizontal: 13,
@@ -1663,6 +1690,187 @@ const totalSelectedCategories = (
           </Text>
         </TouchableOpacity>
       </ScrollView>
+
+      <Modal
+        animationType="slide"
+        onRequestClose={() => setIsCountryPickerVisible(false)}
+        transparent
+        visible={isCountryPickerVisible}
+      >
+        <Pressable
+          onPress={() => setIsCountryPickerVisible(false)}
+          style={styles.countryModalBackdrop}
+        >
+          <Pressable
+            onPress={(event) => event.stopPropagation()}
+            style={styles.countryModalSheet}
+          >
+            <View style={styles.countryModalHeader}>
+              <Text style={styles.countryModalTitle}>
+                Selecciona un país
+              </Text>
+
+              <TouchableOpacity
+                accessibilityLabel="Cerrar selector de país"
+                accessibilityRole="button"
+                hitSlop={10}
+                onPress={() => setIsCountryPickerVisible(false)}
+                style={styles.countryModalCloseButton}
+              >
+                <X
+                  color="#523C70"
+                  size={21}
+                />
+              </TouchableOpacity>
+            </View>
+
+            <TouchableOpacity
+              accessibilityLabel="Colombia"
+              accessibilityRole="button"
+              activeOpacity={0.78}
+              onPress={() => {
+                setCountryCode('CO');
+                setIsCountryPickerVisible(false);
+              }}
+              style={styles.countryOption}
+            >
+              <ColombiaCircularFlag size={24} />
+
+              <Text style={styles.countryOptionText}>
+                Colombia
+              </Text>
+            </TouchableOpacity>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </ScreenSafeArea>
   );
 }
+
+function ColombiaCircularFlag({
+  size = 18,
+}: {
+  size?: number;
+}) {
+  return (
+    <View
+      style={[
+        styles.colombiaFlag,
+        {
+          borderRadius: size / 2,
+          height: size,
+          width: size,
+        },
+      ]}
+    >
+      <View
+        style={[
+          styles.colombiaFlagYellow,
+          {
+            height: size / 2,
+          },
+        ]}
+      />
+
+      <View
+        style={[
+          styles.colombiaFlagBlue,
+          {
+            height: size / 4,
+          },
+        ]}
+      />
+
+      <View
+        style={[
+          styles.colombiaFlagRed,
+          {
+            height: size / 4,
+          },
+        ]}
+      />
+
+      <View
+        style={[
+          styles.colombiaFlagBorder,
+          {
+            borderRadius: size / 2,
+            height: size,
+            width: size,
+          },
+        ]}
+      />
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  colombiaFlag: {
+    backgroundColor: '#FCD116',
+    overflow: 'hidden',
+  },
+  colombiaFlagYellow: {
+    backgroundColor: '#FCD116',
+    width: '100%',
+  },
+  colombiaFlagBlue: {
+    backgroundColor: '#003893',
+    width: '100%',
+  },
+  colombiaFlagRed: {
+    backgroundColor: '#CE1126',
+    width: '100%',
+  },
+  colombiaFlagBorder: {
+    borderColor: 'rgba(38, 23, 67, 0.16)',
+    borderWidth: 1,
+    left: 0,
+    position: 'absolute',
+    top: 0,
+  },
+  countryModalBackdrop: {
+    backgroundColor: 'rgba(24, 11, 49, 0.44)',
+    flex: 1,
+    justifyContent: 'flex-end',
+  },
+  countryModalSheet: {
+    backgroundColor: '#FFFFFF',
+    borderTopLeftRadius: 26,
+    borderTopRightRadius: 26,
+    paddingBottom: 28,
+  },
+  countryModalHeader: {
+    alignItems: 'center',
+    borderBottomColor: '#F0EAF3',
+    borderBottomWidth: 1,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingVertical: 18,
+  },
+  countryModalTitle: {
+    color: '#261743',
+    fontSize: 17,
+    fontWeight: '800',
+  },
+  countryModalCloseButton: {
+    alignItems: 'center',
+    height: 34,
+    justifyContent: 'center',
+    width: 34,
+  },
+  countryOption: {
+    alignItems: 'center',
+    borderBottomColor: '#F3EEF6',
+    borderBottomWidth: 1,
+    flexDirection: 'row',
+    minHeight: 58,
+    paddingHorizontal: 20,
+  },
+  countryOptionText: {
+    color: '#38294E',
+    fontSize: 15,
+    fontWeight: '700',
+    marginLeft: 12,
+  },
+});
