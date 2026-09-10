@@ -42,7 +42,7 @@ import {
   toCommercialUiError,
 } from '../../../src/features/buddyservices/commercialErrors';
 import {
-  buddyServicesManageBusinessRoute,
+  buddyServicesMyBusinessesRoute,
 } from '../../../src/features/buddyservices/commercialRoutes';
 import {
   createOwnedCommercialProfile,
@@ -698,9 +698,7 @@ const totalSelectedCategories = (
       );
 
       router.replace(
-        buddyServicesManageBusinessRoute(
-          response.profile.id,
-        ),
+        buddyServicesMyBusinessesRoute(),
       );
     } catch (error) {
       const uiError = toCommercialUiError(error);
