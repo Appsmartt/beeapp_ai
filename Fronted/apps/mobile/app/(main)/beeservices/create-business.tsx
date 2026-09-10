@@ -18,6 +18,7 @@ import {
   useCallback,
   useEffect,
   useMemo,
+useRef,
   useState,
 } from 'react';
 import {
@@ -137,7 +138,7 @@ export default function BuddyServicesCreateBusinessScreen() {
     CommercialCategory[]
   >([]);
   const [isCategoriesLoading, setIsCategoriesLoading] = useState(
-    true,
+    false,
   );
   const [categoriesError, setCategoriesError] = useState<
     string | null
@@ -148,6 +149,7 @@ export default function BuddyServicesCreateBusinessScreen() {
     string[]
   >([]);
   const [categorySearchQuery, setCategorySearchQuery] = useState('');
+const latestCategorySearchRequestRef = useRef(0);
   const [displayName, setDisplayName] = useState('');
   const [description, setDescription] = useState('');
   const [countryCode, setCountryCode] = useState('CO');
@@ -190,28 +192,18 @@ export default function BuddyServicesCreateBusinessScreen() {
   );
 
   const filteredCategories = useMemo(
-    () => categories.filter((category) => (
-      (
-        offerType === 'mixed'
-          ? category.offer_type === 'products'
-            || category.offer_type === 'services'
-          : category.offer_type === offerType
-      )
-      && (
-        !normalizedCategorySearchQuery
-        || category.name.toLocaleLowerCase('es-CO').includes(
-          normalizedCategorySearchQuery,
-        )
-      )
-    )),
-    [
-      categories,
-      normalizedCategorySearchQuery,
-      offerType,
-    ],
-  );
+() => categories.filter((category) => (
+category.name.toLocaleLowerCase("es-CO").includes(
+normalizedCategorySearchQuery,
+)
+)),
+[
+categories,
+normalizedCategorySearchQuery,
+],
+);
 
-  const totalSelectedCategories = (
+const totalSelectedCategories = (
     categoryIds.length + newCategoryNames.length
   );
   const canAddCategory = totalSelectedCategories < 5;
@@ -232,35 +224,89 @@ export default function BuddyServicesCreateBusinessScreen() {
     [newCategoryNames, normalizedNewCategoryName],
   );
 
-  const loadCategories = useCallback(async () => {
+  useEffect(() => {
+    const search = normalizedCategorySearchQuery;
+    const requestId = latestCategorySearchRequestRef.current + 1;
+    latestCategorySearchRequestRef.current = requestId;
+
+    if (search.length === 1) {
+      setCategoriesError(null);
+      setIsCategoriesLoading(false);
+      return undefined;
+    }
+
     setIsCategoriesLoading(true);
     setCategoriesError(null);
 
-    try {
-      const response = await loadPublicCommercialCategories({
+    const loadCategories = () => {
+      void loadPublicCommercialCategories({
         offer_type: offerType,
+        ...(search.length >= 2 ? { search } : {}),
+        limit: 5,
+      }).then((response) => {
+        if (latestCategorySearchRequestRef.current !== requestId) {
+          return;
+        }
+
+        setCategories(response.categories);
+      }).catch((error) => {
+        if (latestCategorySearchRequestRef.current !== requestId) {
+          return;
+        }
+
+        const uiError = toCommercialUiError(error);
+        setCategoriesError(uiError.message);
+        setCategories([]);
+      }).finally(() => {
+        if (latestCategorySearchRequestRef.current === requestId) {
+          setIsCategoriesLoading(false);
+        }
       });
+    };
 
-      setCategories(response.categories);
-    } catch (error) {
-      const uiError = toCommercialUiError(error);
+    if (search.length >= 2) {
+      const timeoutId = setTimeout(loadCategories, 250);
 
-      setCategoriesError(uiError.message);
-      setCategories([]);
-    } finally {
-      setIsCategoriesLoading(false);
+      return () => {
+        clearTimeout(timeoutId);
+      };
     }
-  }, [offerType]);
 
-  useEffect(() => {
-    void loadCategories();
-  }, [loadCategories]);
+    loadCategories();
+    return undefined;
+  }, [
+    normalizedCategorySearchQuery,
+    offerType,
+  ]);
 
   useEffect(() => {
     if (offerType === 'mixed') {
       setNewCategoryNames([]);
     }
   }, [offerType]);
+
+  useEffect(() => {
+    setCategoryIds((currentCategoryIds) => (
+      currentCategoryIds.filter((categoryId) => {
+        const category = categories.find(
+          (item) => item.id === categoryId,
+        );
+
+        if (!category) {
+          return true;
+        }
+
+        return (
+          offerType === 'mixed'
+          || category.offer_type === offerType
+          || category.offer_type === 'mixed'
+        );
+      })
+    ));
+  }, [
+    categories,
+    offerType,
+  ]);
 
   const selectLogo = useCallback(async () => {
     setFormError(null);
@@ -1110,7 +1156,8 @@ export default function BuddyServicesCreateBusinessScreen() {
             ) : null}
 
             {filteredCategories.length === 0
-            && normalizedCategorySearchQuery ? (
+            && normalizedCategorySearchQuery.length >= 2
+            && !isCategoriesLoading ? (
               <Text
                 style={{
                   color: '#786593',
@@ -1133,7 +1180,11 @@ export default function BuddyServicesCreateBusinessScreen() {
             marginTop: 6,
           }}
         >
-          Las categorías nuevas se guardarán únicamente al crear el negocio.
+          {normalizedCategorySearchQuery.length === 0
+? 'Elige una sugerencia o escribe al menos 2 letras para buscar.'
+: normalizedCategorySearchQuery.length === 1
+? 'Escribe una letra más para buscar categorías.'
+: 'Las categorías nuevas se guardarán únicamente al crear el negocio.'}
         </Text>
 
         <Text

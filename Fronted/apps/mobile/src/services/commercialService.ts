@@ -80,10 +80,10 @@ UpdateCommercialOfferResponse,
 CommercialCatalogMutationResponse,
 CreateCommercialCatalogPayload,
 CreateCommercialProfilePayload,
-CommercialOfferType,
   CreateCommercialCatalogResponse,
 CreateCommercialProfileResponse,
 GetCommercialCategoriesResponse,
+PublicCommercialCategoriesQuery,
   GetCommercialCitiesResponse,
   GetCommercialCountriesResponse,
   GetOwnedCommercialProfileResponse,
@@ -180,16 +180,12 @@ export async function loadCommercialCities(
 }
 
 export async function loadPublicCommercialCategories(
-  query: {
-    country_code?: string;
-    city?: string;
-    offer_type?: CommercialOfferType;
-  } = {},
+query: PublicCommercialCategoriesQuery = {},
 ): Promise<GetCommercialCategoriesResponse> {
-  return getPublicCommercialCategories(
-    await getRequiredCommercialCredentials(),
-    query,
-  );
+return getPublicCommercialCategories(
+await getRequiredCommercialCredentials(),
+query,
+);
 }
 
 export async function loadPublicCommercialProfiles(

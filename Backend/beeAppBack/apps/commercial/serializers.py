@@ -562,6 +562,18 @@ class PublicCommercialCategoriesQuerySerializer(serializers.Serializer):
         choices=COMMERCIAL_OFFER_TYPES,
         required=False,
     )
+    search = serializers.CharField(
+        required=False,
+        allow_blank=False,
+        max_length=120,
+        trim_whitespace=True,
+    )
+    limit = serializers.IntegerField(
+        required=False,
+        default=5,
+        min_value=1,
+        max_value=5,
+    )
 
     def validate_country_code(self, value: str) -> str:
         return normalize_country_code(value)
@@ -572,6 +584,16 @@ class PublicCommercialCategoriesQuerySerializer(serializers.Serializer):
         if not normalized_value:
             raise serializers.ValidationError(
                 "City cannot be empty."
+            )
+
+        return normalized_value
+
+    def validate_search(self, value: str) -> str:
+        normalized_value = value.strip()
+
+        if len(normalized_value) < 2:
+            raise serializers.ValidationError(
+                "Search must contain at least 2 characters."
             )
 
         return normalized_value
