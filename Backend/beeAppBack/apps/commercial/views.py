@@ -53,7 +53,6 @@ from apps.commercial.services.commercial_chat_conversation_service import (
 )
 from apps.commercial.services.commercial_profile_service import (
     create_commercial_profile,
-    get_commercial_profile,
     get_owned_commercial_profile,
     list_commercial_categories,
     list_owned_commercial_profiles,
@@ -283,7 +282,7 @@ class CommercialProfileDetailView(AuthenticatedAPIView):
         try:
             authenticated_user = self.get_authenticated_user(request)
 
-            profile = get_commercial_profile(
+            profile = get_owned_commercial_profile(
                 user_id=str(authenticated_user.id),
                 profile_id=str(profile_id),
             )
