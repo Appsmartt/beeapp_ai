@@ -802,6 +802,9 @@ class UpdateCommercialProfileSerializer(serializers.Serializer):
     is_available = serializers.BooleanField(
         required=False,
     )
+    cash_on_delivery_enabled = serializers.BooleanField(
+        required=False,
+    )
     timezone = serializers.CharField(
         required=False,
         max_length=100,
@@ -1745,48 +1748,105 @@ def _normalize_json_object(value, *, field_name: str) -> dict:
     return value
 
 
+class CommercialMobilePaymentAccountSerializer(serializers.Serializer):
+    wallet_type = serializers.ChoiceField(
+        choices=(
+            CommercialExternalPaymentType.NEQUI.value,
+            CommercialExternalPaymentType.DAVIPLATA.value,
+            CommercialExternalPaymentType.BREB.value,
+        ),
+    )
+    payment_key = serializers.CharField(
+        max_length=320,
+        trim_whitespace=True,
+    )
+    account_holder_name = serializers.CharField(
+        required=False,
+        allow_blank=True,
+        allow_null=True,
+        max_length=160,
+        trim_whitespace=True,
+    )
+
+    def validate_payment_key(self, value: str) -> str:
+        normalized_value = value.strip()
+
+        if not normalized_value:
+            raise serializers.ValidationError(
+                "Payment key cannot be empty."
+            )
+
+        return normalized_value
+
+    def validate_account_holder_name(
+        self,
+        value: str | None,
+    ) -> str | None:
+        return normalize_optional_text(value)
+
+
+class CommercialBankAccountSerializer(serializers.Serializer):
+    account_holder_name = serializers.CharField(
+        max_length=160,
+        trim_whitespace=True,
+    )
+    account_holder_document_type = serializers.CharField(
+        max_length=80,
+        trim_whitespace=True,
+    )
+    account_holder_document_number = serializers.CharField(
+        max_length=80,
+        trim_whitespace=True,
+    )
+    bank_name = serializers.CharField(
+        max_length=160,
+        trim_whitespace=True,
+    )
+    account_type = serializers.CharField(
+        max_length=80,
+        trim_whitespace=True,
+    )
+    account_number = serializers.CharField(
+        max_length=80,
+        trim_whitespace=True,
+    )
+
+    def validate(self, attrs: dict) -> dict:
+        for field_name, value in attrs.items():
+            normalized_value = str(value or '').strip()
+
+            if not normalized_value:
+                raise serializers.ValidationError(
+                    {
+                        field_name: (
+                            "This bank account field cannot be empty."
+                        )
+                    }
+                )
+
+            attrs[field_name] = normalized_value
+
+        return attrs
+
+
 class CreateCommercialPaymentMethodSerializer(serializers.Serializer):
     payment_method_type = serializers.ChoiceField(
         choices=COMMERCIAL_EXTERNAL_PAYMENT_TYPES,
     )
     display_name = serializers.CharField(
-        max_length=160,
+        max_length=120,
         trim_whitespace=True,
-    )
-    public_details = serializers.JSONField(
-        required=False,
-        default=dict,
-    )
-    private_details = serializers.JSONField(
-        required=False,
-        default=dict,
-    )
-    public_instructions = serializers.CharField(
-        required=False,
-        allow_blank=True,
-        allow_null=True,
-        max_length=3000,
-        trim_whitespace=True,
-    )
-    private_instructions = serializers.CharField(
-        required=False,
-        allow_blank=True,
-        allow_null=True,
-        max_length=5000,
-        trim_whitespace=True,
-    )
-    available_before_acceptance = serializers.BooleanField(
-        required=False,
-        default=False,
     )
     sort_order = serializers.IntegerField(
         required=False,
         default=0,
         min_value=0,
     )
-    is_active = serializers.BooleanField(
+    mobile_account = CommercialMobilePaymentAccountSerializer(
         required=False,
-        default=True,
+    )
+    bank_account = CommercialBankAccountSerializer(
+        required=False,
     )
 
     def validate_display_name(self, value: str) -> str:
@@ -1799,92 +1859,118 @@ class CreateCommercialPaymentMethodSerializer(serializers.Serializer):
 
         return normalized_value
 
-    def validate_public_details(self, value) -> dict:
-        return _normalize_json_object(
-            value,
-            field_name="public_details",
-        )
-
-    def validate_private_details(self, value) -> dict:
-        return _normalize_json_object(
-            value,
-            field_name="private_details",
-        )
-
-    def validate_public_instructions(
-        self,
-        value: str | None,
-    ) -> str | None:
-        return normalize_optional_text(value)
-
-    def validate_private_instructions(
-        self,
-        value: str | None,
-    ) -> str | None:
-        return normalize_optional_text(value)
-
     def validate(self, attrs: dict) -> dict:
         payment_method_type = attrs["payment_method_type"]
-        private_details = attrs["private_details"]
-        private_instructions = attrs.get(
-            "private_instructions"
-        )
+        mobile_account = attrs.get("mobile_account")
+        bank_account = attrs.get("bank_account")
 
-        manual_payment_types = {
+        mobile_types = {
             CommercialExternalPaymentType.NEQUI.value,
             CommercialExternalPaymentType.DAVIPLATA.value,
             CommercialExternalPaymentType.BREB.value,
-            CommercialExternalPaymentType.BANK_ACCOUNT.value,
         }
 
-        if payment_method_type in manual_payment_types:
-            if not private_details and not private_instructions:
+        if payment_method_type in mobile_types:
+            if mobile_account is None:
                 raise serializers.ValidationError(
                     {
-                        "private_details": (
-                            "Manual payment methods require private "
-                            "details or private instructions."
+                        "mobile_account": (
+                            "Mobile payment account data is required."
                         )
                     }
                 )
+
+            if bank_account is not None:
+                raise serializers.ValidationError(
+                    {
+                        "bank_account": (
+                            "Bank account data is not allowed for this "
+                            "payment method type."
+                        )
+                    }
+                )
+
+            if (
+                mobile_account["wallet_type"]
+                != payment_method_type
+            ):
+                raise serializers.ValidationError(
+                    {
+                        "mobile_account": (
+                            "wallet_type must match payment_method_type."
+                        )
+                    }
+                )
+
+            if (
+                payment_method_type
+                in {
+                    CommercialExternalPaymentType.NEQUI.value,
+                    CommercialExternalPaymentType.DAVIPLATA.value,
+                }
+                and not re.fullmatch(
+                    r"3[0-9]{9}",
+                    mobile_account["payment_key"],
+                )
+            ):
+                raise serializers.ValidationError(
+                    {
+                        "mobile_account": {
+                            "payment_key": (
+                                "Nequi and Daviplata require a 10-digit "
+                                "Colombian mobile number starting with 3."
+                            )
+                        }
+                    }
+                )
+
+        elif (
+            payment_method_type
+            == CommercialExternalPaymentType.BANK_ACCOUNT.value
+        ):
+            if bank_account is None:
+                raise serializers.ValidationError(
+                    {
+                        "bank_account": (
+                            "Bank account data is required."
+                        )
+                    }
+                )
+
+            if mobile_account is not None:
+                raise serializers.ValidationError(
+                    {
+                        "mobile_account": (
+                            "Mobile account data is not allowed for "
+                            "bank_account."
+                        )
+                    }
+                )
+
+        else:
+            raise serializers.ValidationError(
+                {
+                    "payment_method_type": (
+                        "Unsupported payment method type."
+                    )
+                }
+            )
 
         return attrs
 
 
 class UpdateCommercialPaymentMethodSerializer(serializers.Serializer):
     display_name = serializers.CharField(
-        required=False,
-        max_length=160,
+        max_length=120,
         trim_whitespace=True,
-    )
-    public_details = serializers.JSONField(
-        required=False,
-    )
-    private_details = serializers.JSONField(
-        required=False,
-    )
-    public_instructions = serializers.CharField(
-        required=False,
-        allow_blank=True,
-        allow_null=True,
-        max_length=3000,
-        trim_whitespace=True,
-    )
-    private_instructions = serializers.CharField(
-        required=False,
-        allow_blank=True,
-        allow_null=True,
-        max_length=5000,
-        trim_whitespace=True,
-    )
-    available_before_acceptance = serializers.BooleanField(
-        required=False,
     )
     sort_order = serializers.IntegerField(
-        required=False,
         min_value=0,
     )
-    is_active = serializers.BooleanField(
+    mobile_account = CommercialMobilePaymentAccountSerializer(
+        required=False,
+    )
+    bank_account = CommercialBankAccountSerializer(
         required=False,
     )
 
@@ -1898,35 +1984,52 @@ class UpdateCommercialPaymentMethodSerializer(serializers.Serializer):
 
         return normalized_value
 
-    def validate_public_details(self, value) -> dict:
-        return _normalize_json_object(
-            value,
-            field_name="public_details",
-        )
-
-    def validate_private_details(self, value) -> dict:
-        return _normalize_json_object(
-            value,
-            field_name="private_details",
-        )
-
-    def validate_public_instructions(
-        self,
-        value: str | None,
-    ) -> str | None:
-        return normalize_optional_text(value)
-
-    def validate_private_instructions(
-        self,
-        value: str | None,
-    ) -> str | None:
-        return normalize_optional_text(value)
-
     def validate(self, attrs: dict) -> dict:
-        if not attrs:
+        mobile_account = attrs.get("mobile_account")
+        bank_account = attrs.get("bank_account")
+
+        if mobile_account is None and bank_account is None:
             raise serializers.ValidationError(
-                "At least one field must be provided."
+                {
+                    "non_field_errors": (
+                        "Provide mobile_account or bank_account."
+                    )
+                }
             )
+
+        if mobile_account is not None and bank_account is not None:
+            raise serializers.ValidationError(
+                {
+                    "non_field_errors": (
+                        "Provide only one account payload."
+                    )
+                }
+            )
+
+        if mobile_account is not None:
+            wallet_type = mobile_account["wallet_type"]
+
+            if (
+                wallet_type
+                in {
+                    CommercialExternalPaymentType.NEQUI.value,
+                    CommercialExternalPaymentType.DAVIPLATA.value,
+                }
+                and not re.fullmatch(
+                    r"3[0-9]{9}",
+                    mobile_account["payment_key"],
+                )
+            ):
+                raise serializers.ValidationError(
+                    {
+                        "mobile_account": {
+                            "payment_key": (
+                                "Nequi and Daviplata require a 10-digit "
+                                "Colombian mobile number starting with 3."
+                            )
+                        }
+                    }
+                )
 
         return attrs
 

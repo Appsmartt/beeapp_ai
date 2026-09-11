@@ -11,14 +11,16 @@ import {
 import {
   ArrowLeft,
   Archive,
+  Building2,
   CreditCard,
   Edit3,
-  Eye,
-  EyeOff,
+  KeyRound,
   Plus,
   Save,
   ShieldAlert,
+  Smartphone,
   X,
+  CheckCircle2,
 } from 'lucide-react-native';
 import {
   useCallback,
@@ -31,6 +33,9 @@ import {
 } from 'expo-router';
 
 import type {
+  CommercialBankAccount,
+  CommercialMobilePaymentAccount,
+  CommercialMobileWalletType,
   CommercialOwnedPaymentMethod,
   CommercialPaymentMethodType,
 } from '@beeapp/shared-types';
@@ -42,7 +47,9 @@ import {
 import {
   archiveOwnedPaymentMethod,
   createOwnedPaymentMethod,
+  loadOwnedCommercialProfile,
   loadOwnedPaymentMethods,
+  updateOwnedCommercialProfile,
   updateOwnedPaymentMethod,
 } from '../../../../../src/services/commercialService';
 
@@ -50,13 +57,14 @@ type PaymentMethodEditorState = {
   method: CommercialOwnedPaymentMethod | null;
   paymentMethodType: CommercialPaymentMethodType;
   displayName: string;
-  publicDetailsText: string;
-  privateDetailsText: string;
-  publicInstructions: string;
-  privateInstructions: string;
-  availableBeforeAcceptance: boolean;
+  paymentKey: string;
+  accountHolderName: string;
+  accountHolderDocumentType: string;
+  accountHolderDocumentNumber: string;
+  bankName: string;
+  bankAccountType: string;
+  accountNumber: string;
   sortOrder: string;
-  isActive: boolean;
 } | null;
 
 type ArchiveConfirmation = {
@@ -95,71 +103,16 @@ function normalizeBusinessId(
   return String(selectedValue || '').trim();
 }
 
-function prettyJson(
-  value: Record<string, unknown>,
-): string {
-  return JSON.stringify(value || {}, null, 2);
+function normalizePhone(value: string): string {
+  return value.replace(/\D/g, '').slice(0, 10);
 }
 
-function parseJsonObject(
-  value: string,
-  label: string,
-): Record<string, unknown> {
-  const normalizedValue = value.trim();
-
-  if (!normalizedValue) {
-    return {};
-  }
-
-  let parsedValue: unknown;
-
-  try {
-    parsedValue = JSON.parse(normalizedValue);
-  } catch {
-    throw new Error(`${label} debe ser un objeto JSON válido.`);
-  }
-
-  if (
-    !parsedValue
-    || typeof parsedValue !== 'object'
-    || Array.isArray(parsedValue)
-  ) {
-    throw new Error(`${label} debe ser un objeto JSON.`);
-  }
-
-  return parsedValue as Record<string, unknown>;
-}
-
-function createPaymentMethodEditor(): PaymentMethodEditorState {
-  return {
-    method: null,
-    paymentMethodType: 'nequi',
-    displayName: '',
-    publicDetailsText: '{}',
-    privateDetailsText: '{}',
-    publicInstructions: '',
-    privateInstructions: '',
-    availableBeforeAcceptance: false,
-    sortOrder: '0',
-    isActive: true,
-  };
-}
-
-function editPaymentMethodEditor(
-  method: CommercialOwnedPaymentMethod,
-): PaymentMethodEditorState {
-  return {
-    method,
-    paymentMethodType: method.payment_method_type,
-    displayName: method.display_name,
-    publicDetailsText: prettyJson(method.public_details),
-    privateDetailsText: prettyJson(method.private_details),
-    publicInstructions: method.public_instructions || '',
-    privateInstructions: method.private_instructions || '',
-    availableBeforeAcceptance: method.available_before_acceptance,
-    sortOrder: String(method.sort_order),
-    isActive: method.status === 'active',
-  };
+function isMobileType(
+  type: CommercialPaymentMethodType,
+): type is CommercialMobileWalletType {
+  return type === 'nequi'
+    || type === 'daviplata'
+    || type === 'breb';
 }
 
 function typeLabel(
@@ -168,6 +121,77 @@ function typeLabel(
   return PAYMENT_METHOD_TYPES.find(
     (item) => item.value === type,
   )?.label || type;
+}
+
+function maskValue(value: string): string {
+  const normalizedValue = String(value || '').trim();
+
+  if (!normalizedValue) {
+    return 'Sin dato';
+  }
+
+  if (normalizedValue.length <= 4) {
+    return '••••';
+  }
+
+  return `•••• ${normalizedValue.slice(-4)}`;
+}
+
+function createPaymentMethodEditor(): PaymentMethodEditorState {
+  return {
+    method: null,
+    paymentMethodType: 'nequi',
+    displayName: '',
+    paymentKey: '',
+    accountHolderName: '',
+    accountHolderDocumentType: '',
+    accountHolderDocumentNumber: '',
+    bankName: '',
+    bankAccountType: '',
+    accountNumber: '',
+    sortOrder: '0',
+  };
+}
+
+function editPaymentMethodEditor(
+  method: CommercialOwnedPaymentMethod,
+): PaymentMethodEditorState {
+  const mobileAccount = method.mobile_account;
+  const bankAccount = method.bank_account;
+
+  return {
+    method,
+    paymentMethodType: method.payment_method_type,
+    displayName: method.display_name,
+    paymentKey: mobileAccount?.payment_key || '',
+    accountHolderName: mobileAccount?.account_holder_name
+      || bankAccount?.account_holder_name
+      || '',
+    accountHolderDocumentType: (
+      bankAccount?.account_holder_document_type || ''
+    ),
+    accountHolderDocumentNumber: (
+      bankAccount?.account_holder_document_number || ''
+    ),
+    bankName: bankAccount?.bank_name || '',
+    bankAccountType: bankAccount?.account_type || '',
+    accountNumber: bankAccount?.account_number || '',
+    sortOrder: String(method.sort_order),
+  };
+}
+
+function inputStyle(marginTop = 10) {
+  return {
+    backgroundColor: '#FFFFFF',
+    borderColor: '#DCCBEE',
+    borderRadius: 13,
+    borderWidth: 1,
+    color: '#261743',
+    fontSize: 14,
+    marginTop,
+    minHeight: 48,
+    paddingHorizontal: 13,
+  } as const;
 }
 
 export default function BuddyServicesPaymentMethodsScreen() {
@@ -183,6 +207,17 @@ export default function BuddyServicesPaymentMethodsScreen() {
   >([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  const [isCashOnDeliveryEnabled, setIsCashOnDeliveryEnabled] = (
+    useState(false)
+  );
+  const [isUpdatingCashOnDelivery, setIsUpdatingCashOnDelivery] = (
+    useState(false)
+  );
+  const [cashOnDeliveryFeedback, setCashOnDeliveryFeedback] = useState<{
+    tone: 'success' | 'blocked' | 'error';
+    title: string;
+    message: string;
+  } | null>(null);
   const [errorMessage, setErrorMessage] = useState<
     string | null
   >(null);
@@ -195,7 +230,6 @@ export default function BuddyServicesPaymentMethodsScreen() {
   const [archiveConfirmation, setArchiveConfirmation] = useState<
     ArchiveConfirmation
   >(null);
-  const [showPrivateValues, setShowPrivateValues] = useState(false);
 
   const loadMethods = useCallback(async () => {
     if (!businessId) {
@@ -218,6 +252,16 @@ export default function BuddyServicesPaymentMethodsScreen() {
       );
 
       setMethods(response.payment_methods);
+
+      const profileResponse = await loadOwnedCommercialProfile(
+        businessId,
+      );
+
+      setIsCashOnDeliveryEnabled(
+        Boolean(
+          profileResponse.profile.cash_on_delivery_enabled,
+        ),
+      );
     } catch (error) {
       const uiError = toCommercialUiError(error);
 
@@ -239,65 +283,102 @@ export default function BuddyServicesPaymentMethodsScreen() {
 
     setEditor(null);
     setEditorError(null);
-    setShowPrivateValues(false);
   }, [isSaving]);
+
+  const updateEditor = useCallback((
+    updates: Partial<Exclude<PaymentMethodEditorState, null>>,
+  ) => {
+    setEditor((currentEditor) => (
+      currentEditor
+        ? {
+          ...currentEditor,
+          ...updates,
+        }
+        : currentEditor
+    ));
+  }, []);
 
   const saveMethod = useCallback(async () => {
     if (!editor || !businessId) {
       return;
     }
 
-    const normalizedDisplayName = editor.displayName.trim();
-    const parsedSortOrder = Number(editor.sortOrder.trim());
+    const displayName = editor.displayName.trim();
+    const sortOrder = Number(editor.sortOrder.trim());
+    const paymentType = editor.paymentMethodType;
 
-    if (!normalizedDisplayName) {
-      setEditorError('Escribe el nombre visible del método.');
+    if (!displayName) {
+      setEditorError('Escribe un nombre para identificar este método.');
       return;
     }
 
-    if (
-      !Number.isInteger(parsedSortOrder)
-      || parsedSortOrder < 0
-    ) {
+    if (!Number.isInteger(sortOrder) || sortOrder < 0) {
       setEditorError(
         'El orden debe ser un número entero igual o mayor que cero.',
       );
       return;
     }
 
-    let publicDetails: Record<string, unknown>;
-    let privateDetails: Record<string, unknown>;
+    let mobileAccount: CommercialMobilePaymentAccount | undefined;
+    let bankAccount: CommercialBankAccount | undefined;
 
-    try {
-      publicDetails = parseJsonObject(
-        editor.publicDetailsText,
-        'Los detalles públicos',
-      );
-      privateDetails = parseJsonObject(
-        editor.privateDetailsText,
-        'Los detalles privados',
-      );
-    } catch (error) {
-      setEditorError(
-        error instanceof Error
-          ? error.message
-          : 'Revisa el JSON de los detalles.',
-      );
-      return;
-    }
+    if (isMobileType(paymentType)) {
+      const paymentKey = paymentType === 'breb'
+        ? editor.paymentKey.trim()
+        : normalizePhone(editor.paymentKey);
 
-    const normalizedPrivateInstructions = (
-      editor.privateInstructions.trim() || null
-    );
+      if (!paymentKey) {
+        setEditorError(
+          paymentType === 'breb'
+            ? 'Escribe la llave Bre-B.'
+            : 'Escribe el número de celular.',
+        );
+        return;
+      }
 
-    if (
-      Object.keys(privateDetails).length === 0
-      && !normalizedPrivateInstructions
-    ) {
-      setEditorError(
-        'Agrega detalles privados o instrucciones privadas del pago.',
+      if (
+        paymentType !== 'breb'
+        && !/^3\d{9}$/.test(paymentKey)
+      ) {
+        setEditorError(
+          'Nequi y Daviplata requieren un celular colombiano de 10 dígitos que empiece por 3.',
+        );
+        return;
+      }
+
+      mobileAccount = {
+        wallet_type: paymentType,
+        payment_key: paymentKey,
+        account_holder_name: (
+          editor.accountHolderName.trim() || null
+        ),
+      };
+    } else {
+      const bankValues = {
+        account_holder_name: editor.accountHolderName.trim(),
+        account_holder_document_type: (
+          editor.accountHolderDocumentType.trim()
+        ),
+        account_holder_document_number: (
+          editor.accountHolderDocumentNumber.trim()
+        ),
+        bank_name: editor.bankName.trim(),
+        account_type: editor.bankAccountType.trim(),
+        account_number: editor.accountNumber.trim(),
+      };
+
+      const missingBankField = Object.values(bankValues).some(
+        (value) => !value,
       );
-      return;
+
+      if (missingBankField) {
+        setEditorError(
+          'Completa todos los datos de la cuenta bancaria.',
+        );
+        return;
+      }
+
+      bankAccount = bankValues;
     }
 
     setIsSaving(true);
@@ -309,37 +390,21 @@ export default function BuddyServicesPaymentMethodsScreen() {
           businessId,
           editor.method.id,
           {
-            display_name: normalizedDisplayName,
-            public_details: publicDetails,
-            private_details: privateDetails,
-            public_instructions: (
-              editor.publicInstructions.trim() || null
-            ),
-            private_instructions: normalizedPrivateInstructions,
-            available_before_acceptance: (
-              editor.availableBeforeAcceptance
-            ),
-            sort_order: parsedSortOrder,
-            is_active: editor.isActive,
+            display_name: displayName,
+            sort_order: sortOrder,
+            mobile_account: mobileAccount,
+            bank_account: bankAccount,
           },
         );
       } else {
         await createOwnedPaymentMethod(
           businessId,
           {
-            payment_method_type: editor.paymentMethodType,
-            display_name: normalizedDisplayName,
-            public_details: publicDetails,
-            private_details: privateDetails,
-            public_instructions: (
-              editor.publicInstructions.trim() || null
-            ),
-            private_instructions: normalizedPrivateInstructions,
-            available_before_acceptance: (
-              editor.availableBeforeAcceptance
-            ),
-            sort_order: parsedSortOrder,
-            is_active: editor.isActive,
+            payment_method_type: paymentType,
+            display_name: displayName,
+            sort_order: sortOrder,
+            mobile_account: mobileAccount,
+            bank_account: bankAccount,
           },
         );
       }
@@ -358,6 +423,80 @@ export default function BuddyServicesPaymentMethodsScreen() {
     closeEditor,
     editor,
     loadMethods,
+  ]);
+
+  const toggleCashOnDelivery = useCallback(async (
+    nextValue: boolean,
+  ) => {
+    if (!businessId || isUpdatingCashOnDelivery) {
+      return;
+    }
+
+    const previousValue = isCashOnDeliveryEnabled;
+
+    setIsUpdatingCashOnDelivery(true);
+    setIsCashOnDeliveryEnabled(nextValue);
+    setErrorMessage(null);
+
+    try {
+      const response = await updateOwnedCommercialProfile(
+        businessId,
+        {
+          cash_on_delivery_enabled: nextValue,
+        },
+      );
+
+      const confirmedValue = Boolean(
+        response.profile.cash_on_delivery_enabled,
+      );
+
+      setIsCashOnDeliveryEnabled(confirmedValue);
+
+      if (confirmedValue !== nextValue) {
+        setCashOnDeliveryFeedback({
+          tone: 'error',
+          title: 'Cambio sin confirmar',
+          message:
+            'El servidor devolvió un estado diferente. '
+            + 'Mostramos el valor confirmado.',
+        });
+        return;
+      }
+
+      setCashOnDeliveryFeedback(
+        confirmedValue
+          ? {
+              tone: 'success',
+              title: 'Pago contraentrega habilitado',
+              message:
+                'Tus clientes ya podrán pagar al recibir su pedido.',
+            }
+          : {
+              tone: 'blocked',
+              title: 'Pago contraentrega bloqueado',
+              message:
+                'Tus clientes ya no verán esta opción al pedir.',
+            },
+      );
+    } catch (error) {
+      setIsCashOnDeliveryEnabled(previousValue);
+
+      const uiError = toCommercialUiError(error);
+      setErrorMessage(uiError.message);
+      setCashOnDeliveryFeedback({
+        tone: 'error',
+        title: 'No se pudo guardar el cambio',
+        message:
+          uiError.message
+          || 'Revisa tu conexión e inténtalo nuevamente.',
+      });
+    } finally {
+      setIsUpdatingCashOnDelivery(false);
+    }
+  }, [
+    businessId,
+    isCashOnDeliveryEnabled,
+    isUpdatingCashOnDelivery,
   ]);
 
   const archiveMethod = useCallback(async () => {
@@ -389,6 +528,15 @@ export default function BuddyServicesPaymentMethodsScreen() {
     businessId,
     loadMethods,
   ]);
+
+  const currentType = editor?.paymentMethodType || 'nequi';
+  const editingMobileAccount = isMobileType(currentType);
+  const mobileLabel = currentType === 'breb'
+    ? 'Llave Bre-B'
+    : 'Número de celular';
+  const mobilePlaceholder = currentType === 'breb'
+    ? 'Ejemplo: 3001234567, correo o alias'
+    : '3001234567';
 
   return (
     <ScreenSafeArea
@@ -422,10 +570,7 @@ export default function BuddyServicesPaymentMethodsScreen() {
             width: 42,
           }}
         >
-          <ArrowLeft
-            color="#3D245E"
-            size={21}
-          />
+          <ArrowLeft color="#3D245E" size={21} />
         </TouchableOpacity>
 
         <Text
@@ -445,7 +590,6 @@ export default function BuddyServicesPaymentMethodsScreen() {
           disabled={isLoading || isSaving}
           onPress={() => {
             setEditorError(null);
-            setShowPrivateValues(false);
             setEditor(createPaymentMethodEditor());
           }}
           style={{
@@ -458,10 +602,7 @@ export default function BuddyServicesPaymentMethodsScreen() {
             width: 42,
           }}
         >
-          <Plus
-            color="#FFFFFF"
-            size={21}
-          />
+          <Plus color="#FFFFFF" size={21} />
         </TouchableOpacity>
       </View>
 
@@ -473,11 +614,7 @@ export default function BuddyServicesPaymentMethodsScreen() {
             justifyContent: 'center',
           }}
         >
-          <ActivityIndicator
-            color="#7427D5"
-            size="large"
-          />
-
+          <ActivityIndicator color="#7427D5" size="large" />
           <Text
             style={{
               color: '#786593',
@@ -497,11 +634,7 @@ export default function BuddyServicesPaymentMethodsScreen() {
             paddingHorizontal: 30,
           }}
         >
-          <ShieldAlert
-            color="#B42318"
-            size={34}
-          />
-
+          <ShieldAlert color="#B42318" size={34} />
           <Text
             style={{
               color: '#261743',
@@ -513,7 +646,6 @@ export default function BuddyServicesPaymentMethodsScreen() {
           >
             No fue posible cargar los métodos
           </Text>
-
           <Text
             style={{
               color: '#786593',
@@ -525,7 +657,6 @@ export default function BuddyServicesPaymentMethodsScreen() {
           >
             {errorMessage}
           </Text>
-
           <TouchableOpacity
             accessibilityLabel="Reintentar cargar métodos de pago"
             accessibilityRole="button"
@@ -577,9 +708,8 @@ export default function BuddyServicesPaymentMethodsScreen() {
                 fontWeight: '900',
               }}
             >
-              Información privada
+              Datos de pago para tus clientes
             </Text>
-
             <Text
               style={{
                 color: '#704900',
@@ -588,9 +718,114 @@ export default function BuddyServicesPaymentMethodsScreen() {
                 marginTop: 4,
               }}
             >
-              Los datos privados solo se muestran aquí al
-              owner del negocio y no se comparten públicamente.
+              Configura los datos que tus clientes verán cuando tengan una solicitud de pago activa.
             </Text>
+          </View>
+
+          <View
+            style={{
+              alignItems: 'center',
+              backgroundColor: isCashOnDeliveryEnabled
+                ? '#ECFDF3'
+                : '#F7F3FA',
+              borderColor: isCashOnDeliveryEnabled
+                ? '#A6EBC2'
+                : '#E0D3EC',
+              borderRadius: 16,
+              borderWidth: 1,
+              flexDirection: 'row',
+              marginTop: 12,
+              padding: 14,
+            }}
+          >
+            <View
+              style={{
+                alignItems: 'center',
+                backgroundColor: isCashOnDeliveryEnabled
+                  ? '#D1FADF'
+                  : '#EEE5F6',
+                borderRadius: 12,
+                height: 42,
+                justifyContent: 'center',
+                width: 42,
+              }}
+            >
+              <CreditCard
+                color={
+                  isCashOnDeliveryEnabled
+                    ? '#177245'
+                    : '#7427D5'
+                }
+                size={20}
+              />
+            </View>
+
+            <View
+              style={{
+                flex: 1,
+                marginLeft: 12,
+                paddingRight: 8,
+              }}
+            >
+              <Text
+                style={{
+                  color: '#261743',
+                  fontSize: 14,
+                  fontWeight: '900',
+                }}
+              >
+                Pago contraentrega
+              </Text>
+
+              <Text
+                style={{
+                  color: '#786593',
+                  fontSize: 12,
+                  lineHeight: 18,
+                  marginTop: 3,
+                }}
+              >
+                {isCashOnDeliveryEnabled
+                  ? 'Tus clientes podrán elegir pagar al recibir su pedido.'
+                  : 'Esta opción está bloqueada para tus clientes.'}
+              </Text>
+
+              <Text
+                style={{
+                  color: isCashOnDeliveryEnabled
+                    ? '#177245'
+                    : '#6D6875',
+                  fontSize: 11,
+                  fontWeight: '800',
+                  marginTop: 5,
+                }}
+              >
+                {isUpdatingCashOnDelivery
+                  ? 'Guardando…'
+                  : isCashOnDeliveryEnabled
+                    ? 'Habilitado'
+                    : 'Bloqueado'}
+              </Text>
+            </View>
+
+            <Switch
+              accessibilityLabel="Habilitar pago contraentrega"
+              accessibilityHint="Activa o bloquea el pago cuando el cliente recibe su pedido"
+              disabled={isUpdatingCashOnDelivery || isSaving}
+              onValueChange={(value) => {
+                void toggleCashOnDelivery(value);
+              }}
+              thumbColor={
+                isCashOnDeliveryEnabled
+                  ? '#FFFFFF'
+                  : '#FFFFFF'
+              }
+              trackColor={{
+                false: '#C8B8D8',
+                true: '#40A96B',
+              }}
+              value={isCashOnDeliveryEnabled}
+            />
           </View>
 
           {methods.length === 0 ? (
@@ -601,11 +836,7 @@ export default function BuddyServicesPaymentMethodsScreen() {
                 paddingTop: 70,
               }}
             >
-              <CreditCard
-                color="#7427D5"
-                size={32}
-              />
-
+              <CreditCard color="#7427D5" size={32} />
               <Text
                 style={{
                   color: '#261743',
@@ -617,14 +848,12 @@ export default function BuddyServicesPaymentMethodsScreen() {
               >
                 Aún no tienes métodos de pago
               </Text>
-
               <TouchableOpacity
                 accessibilityLabel="Crear primer método de pago"
                 accessibilityRole="button"
                 activeOpacity={0.82}
                 onPress={() => {
                   setEditorError(null);
-                  setShowPrivateValues(false);
                   setEditor(createPaymentMethodEditor());
                 }}
                 style={{
@@ -637,11 +866,7 @@ export default function BuddyServicesPaymentMethodsScreen() {
                   paddingHorizontal: 16,
                 }}
               >
-                <Plus
-                  color="#FFFFFF"
-                  size={18}
-                />
-
+                <Plus color="#FFFFFF" size={18} />
                 <Text
                   style={{
                     color: '#FFFFFF',
@@ -655,145 +880,256 @@ export default function BuddyServicesPaymentMethodsScreen() {
               </TouchableOpacity>
             </View>
           ) : (
-            <View
-              style={{
-                marginTop: 16,
-              }}
-            >
-              {methods.map((method) => (
-                <View
-                  key={method.id}
-                  style={{
-                    backgroundColor: '#FFFFFF',
-                    borderColor: '#E7DDF2',
-                    borderRadius: 16,
-                    borderWidth: 1,
-                    marginBottom: 11,
-                    padding: 14,
-                  }}
-                >
+            <View style={{ marginTop: 16 }}>
+              {methods.map((method) => {
+                const detail = method.mobile_account
+                  ? maskValue(method.mobile_account.payment_key)
+                  : method.bank_account
+                    ? `${method.bank_account.bank_name} · ${maskValue(method.bank_account.account_number)}`
+                    : 'Sin datos';
+
+                return (
                   <View
+                    key={method.id}
                     style={{
-                      alignItems: 'flex-start',
-                      flexDirection: 'row',
-                      justifyContent: 'space-between',
+                      backgroundColor: '#FFFFFF',
+                      borderColor: '#E7DDF2',
+                      borderRadius: 16,
+                      borderWidth: 1,
+                      marginBottom: 11,
+                      padding: 14,
                     }}
                   >
                     <View
                       style={{
-                        flex: 1,
-                        paddingRight: 12,
+                        alignItems: 'flex-start',
+                        flexDirection: 'row',
+                        justifyContent: 'space-between',
                       }}
                     >
-                      <Text
+                      <View
                         style={{
-                          color: '#261743',
-                          fontSize: 16,
-                          fontWeight: '800',
+                          flex: 1,
+                          paddingRight: 12,
                         }}
                       >
-                        {method.display_name}
-                      </Text>
-
-                      <Text
+                        <Text
+                          style={{
+                            color: '#261743',
+                            fontSize: 16,
+                            fontWeight: '800',
+                          }}
+                        >
+                          {method.display_name}
+                        </Text>
+                        <Text
+                          style={{
+                            color: '#786593',
+                            fontSize: 12,
+                            marginTop: 4,
+                          }}
+                        >
+                          {typeLabel(method.payment_method_type)}
+                        </Text>
+                        <Text
+                          style={{
+                            color: '#54209E',
+                            fontSize: 12,
+                            fontWeight: '700',
+                            marginTop: 6,
+                          }}
+                        >
+                          {detail}
+                        </Text>
+                      </View>
+                      <TouchableOpacity
+                        accessibilityLabel={`Editar ${method.display_name}`}
+                        accessibilityRole="button"
+                        activeOpacity={0.82}
+                        disabled={isSaving}
+                        onPress={() => {
+                          setEditorError(null);
+                          setEditor(editPaymentMethodEditor(method));
+                        }}
                         style={{
-                          color: '#786593',
-                          fontSize: 12,
-                          marginTop: 4,
+                          alignItems: 'center',
+                          backgroundColor: '#F6EAFE',
+                          borderRadius: 12,
+                          height: 38,
+                          justifyContent: 'center',
+                          opacity: isSaving ? 0.55 : 1,
+                          width: 38,
                         }}
                       >
-                        {typeLabel(method.payment_method_type)}
-                      </Text>
+                        <Edit3 color="#7427D5" size={18} />
+                      </TouchableOpacity>
                     </View>
 
-                    <TouchableOpacity
-                      accessibilityLabel={`Editar ${method.display_name}`}
-                      accessibilityRole="button"
-                      activeOpacity={0.82}
-                      disabled={isSaving}
-                      onPress={() => {
-                        setEditorError(null);
-                        setShowPrivateValues(false);
-                        setEditor(editPaymentMethodEditor(method));
-                      }}
-                      style={{
-                        alignItems: 'center',
-                        backgroundColor: '#F6EAFE',
-                        borderRadius: 12,
-                        height: 38,
-                        justifyContent: 'center',
-                        opacity: isSaving ? 0.55 : 1,
-                        width: 38,
-                      }}
-                    >
-                      <Edit3
-                        color="#7427D5"
-                        size={18}
-                      />
-                    </TouchableOpacity>
-                  </View>
-
-                  <View
-                    style={{
-                      alignItems: 'center',
-                      flexDirection: 'row',
-                      justifyContent: 'space-between',
-                      marginTop: 12,
-                    }}
-                  >
-                    <Text
-                      style={{
-                        color: method.status === 'active'
-                          ? '#177245'
-                          : '#6D6875',
-                        fontSize: 12,
-                        fontWeight: '800',
-                      }}
-                    >
-                      {method.status === 'active'
-                        ? 'Activo'
-                        : 'Archivado'}
-                    </Text>
-
-                    <TouchableOpacity
-                      accessibilityLabel={`Archivar ${method.display_name}`}
-                      accessibilityRole="button"
-                      activeOpacity={0.82}
-                      disabled={isSaving}
-                      onPress={() => {
-                        setArchiveConfirmation({
-                          method,
-                        });
-                      }}
+                    <View
                       style={{
                         alignItems: 'center',
                         flexDirection: 'row',
-                        opacity: isSaving ? 0.55 : 1,
+                        justifyContent: 'space-between',
+                        marginTop: 12,
                       }}
                     >
-                      <Archive
-                        color="#B42318"
-                        size={15}
-                      />
-
                       <Text
                         style={{
-                          color: '#B42318',
+                          color: '#177245',
                           fontSize: 12,
                           fontWeight: '800',
-                          marginLeft: 6,
                         }}
                       >
-                        Archivar
+                        Activo
                       </Text>
-                    </TouchableOpacity>
+                      <TouchableOpacity
+                        accessibilityLabel={`Archivar ${method.display_name}`}
+                        accessibilityRole="button"
+                        activeOpacity={0.82}
+                        disabled={isSaving}
+                        onPress={() => {
+                          setArchiveConfirmation({ method });
+                        }}
+                        style={{
+                          alignItems: 'center',
+                          flexDirection: 'row',
+                          opacity: isSaving ? 0.55 : 1,
+                        }}
+                      >
+                        <Archive color="#B42318" size={15} />
+                        <Text
+                          style={{
+                            color: '#B42318',
+                            fontSize: 12,
+                            fontWeight: '800',
+                            marginLeft: 6,
+                          }}
+                        >
+                          Archivar
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
                   </View>
-                </View>
-              ))}
+                );
+              })}
             </View>
           )}
         </ScrollView>
       )}
+
+      <Modal
+        animationType="fade"
+        onRequestClose={() => setCashOnDeliveryFeedback(null)}
+        transparent
+        visible={cashOnDeliveryFeedback !== null}
+      >
+        <View
+          style={{
+            alignItems: 'center',
+            backgroundColor: 'rgba(38, 23, 67, 0.42)',
+            flex: 1,
+            justifyContent: 'center',
+            paddingHorizontal: 24,
+          }}
+        >
+          <View
+            style={{
+              backgroundColor:
+                cashOnDeliveryFeedback?.tone === 'success'
+                  ? '#F0FDF4'
+                  : cashOnDeliveryFeedback?.tone === 'blocked'
+                    ? '#FAF7FD'
+                    : '#FFF4F2',
+              borderColor:
+                cashOnDeliveryFeedback?.tone === 'success'
+                  ? '#A6EBC2'
+                  : cashOnDeliveryFeedback?.tone === 'blocked'
+                    ? '#E0D3EC'
+                    : '#FECACA',
+              borderRadius: 22,
+              borderWidth: 1,
+              padding: 20,
+              width: '100%',
+            }}
+          >
+            <View
+              style={{
+                alignItems: 'center',
+                backgroundColor:
+                  cashOnDeliveryFeedback?.tone === 'success'
+                    ? '#D1FADF'
+                    : cashOnDeliveryFeedback?.tone === 'blocked'
+                      ? '#EEE5F6'
+                      : '#FEE4E2',
+                borderRadius: 26,
+                height: 52,
+                justifyContent: 'center',
+                width: 52,
+              }}
+            >
+              {cashOnDeliveryFeedback?.tone === 'success' ? (
+                <CheckCircle2 color="#177245" size={27} />
+              ) : cashOnDeliveryFeedback?.tone === 'blocked' ? (
+                <CreditCard color="#7427D5" size={25} />
+              ) : (
+                <ShieldAlert color="#B42318" size={26} />
+              )}
+            </View>
+
+            <Text
+              style={{
+                color: '#261743',
+                fontSize: 19,
+                fontWeight: '900',
+                marginTop: 15,
+              }}
+            >
+              {cashOnDeliveryFeedback?.title}
+            </Text>
+
+            <Text
+              style={{
+                color: '#786593',
+                fontSize: 14,
+                lineHeight: 21,
+                marginTop: 8,
+              }}
+            >
+              {cashOnDeliveryFeedback?.message}
+            </Text>
+
+            <TouchableOpacity
+              accessibilityLabel="Cerrar confirmación de pago contraentrega"
+              accessibilityRole="button"
+              activeOpacity={0.82}
+              onPress={() => setCashOnDeliveryFeedback(null)}
+              style={{
+                alignItems: 'center',
+                alignSelf: 'flex-start',
+                backgroundColor:
+                  cashOnDeliveryFeedback?.tone === 'error'
+                    ? '#B42318'
+                    : '#7427D5',
+                borderRadius: 12,
+                justifyContent: 'center',
+                marginTop: 20,
+                minHeight: 44,
+                paddingHorizontal: 16,
+              }}
+            >
+              <Text
+                style={{
+                  color: '#FFFFFF',
+                  fontSize: 13,
+                  fontWeight: '800',
+                }}
+              >
+                Entendido
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
 
       <Modal
         animationType="slide"
@@ -833,11 +1169,8 @@ export default function BuddyServicesPaymentMethodsScreen() {
                   fontWeight: '900',
                 }}
               >
-                {editor?.method
-                  ? 'Editar método'
-                  : 'Crear método'}
+                {editor?.method ? 'Editar método' : 'Crear método'}
               </Text>
-
               <TouchableOpacity
                 accessibilityLabel="Cerrar formulario de pago"
                 accessibilityRole="button"
@@ -854,17 +1187,14 @@ export default function BuddyServicesPaymentMethodsScreen() {
                   width: 38,
                 }}
               >
-                <X
-                  color="#3D245E"
-                  size={19}
-                />
+                <X color="#3D245E" size={19} />
               </TouchableOpacity>
             </View>
 
             {editorError ? (
               <View
                 accessibilityLiveRegion="polite"
-              accessibilityRole="alert"
+                accessibilityRole="alert"
                 style={{
                   backgroundColor: '#FFF0F0',
                   borderColor: '#F7B2B2',
@@ -896,9 +1226,8 @@ export default function BuddyServicesPaymentMethodsScreen() {
                     marginTop: 18,
                   }}
                 >
-                  Tipo
+                  Tipo de método
                 </Text>
-
                 <View
                   style={{
                     flexDirection: 'row',
@@ -908,9 +1237,7 @@ export default function BuddyServicesPaymentMethodsScreen() {
                   }}
                 >
                   {PAYMENT_METHOD_TYPES.map((option) => {
-                    const isSelected = (
-                      editor?.paymentMethodType === option.value
-                    );
+                    const isSelected = currentType === option.value;
 
                     return (
                       <TouchableOpacity
@@ -920,14 +1247,16 @@ export default function BuddyServicesPaymentMethodsScreen() {
                         disabled={isSaving}
                         key={option.value}
                         onPress={() => {
-                          setEditor((currentEditor) => (
-                            currentEditor
-                              ? {
-                                ...currentEditor,
-                                paymentMethodType: option.value,
-                              }
-                              : currentEditor
-                          ));
+                          updateEditor({
+                            paymentMethodType: option.value,
+                            paymentKey: '',
+                            accountHolderName: '',
+                            accountHolderDocumentType: '',
+                            accountHolderDocumentNumber: '',
+                            bankName: '',
+                            bankAccountType: '',
+                            accountNumber: '',
+                          });
                         }}
                         style={{
                           backgroundColor: isSelected
@@ -961,35 +1290,6 @@ export default function BuddyServicesPaymentMethodsScreen() {
               </>
             ) : null}
 
-            <TextInput
-              accessibilityLabel="Nombre visible del método de pago"
-              editable={!isSaving}
-              onChangeText={(value) => {
-                setEditor((currentEditor) => (
-                  currentEditor
-                    ? {
-                      ...currentEditor,
-                      displayName: value,
-                    }
-                    : currentEditor
-                ));
-              }}
-              placeholder="Ejemplo: Nequi principal"
-              placeholderTextColor="#A692B7"
-              style={{
-                backgroundColor: '#FFFFFF',
-                borderColor: '#DCCBEE',
-                borderRadius: 13,
-                borderWidth: 1,
-                color: '#261743',
-                fontSize: 14,
-                marginTop: 18,
-                minHeight: 48,
-                paddingHorizontal: 13,
-              }}
-              value={editor?.displayName || ''}
-            />
-
             <Text
               style={{
                 color: '#261743',
@@ -998,353 +1298,215 @@ export default function BuddyServicesPaymentMethodsScreen() {
                 marginTop: 20,
               }}
             >
-              Detalles públicos JSON
+              Nombre personalizado
             </Text>
-
             <TextInput
-              accessibilityLabel="Detalles públicos JSON"
-              autoCapitalize="none"
-              autoCorrect={false}
+              accessibilityLabel="Nombre personalizado del método de pago"
               editable={!isSaving}
-              multiline
-              onChangeText={(value) => {
-                setEditor((currentEditor) => (
-                  currentEditor
-                    ? {
-                      ...currentEditor,
-                      publicDetailsText: value,
-                    }
-                    : currentEditor
-                ));
-              }}
-              placeholder='{"alias":"Pagos BeeApp"}'
+              onChangeText={(value) => updateEditor({
+                displayName: value,
+              })}
+              placeholder={
+                currentType === 'bank_account'
+                  ? 'Ejemplo: Cuenta Bancolombia principal'
+                  : `Ejemplo: ${typeLabel(currentType)} principal`
+              }
               placeholderTextColor="#A692B7"
-              style={{
-                backgroundColor: '#FFFFFF',
-                borderColor: '#DCCBEE',
-                borderRadius: 13,
-                borderWidth: 1,
-                color: '#261743',
-                fontFamily: 'monospace',
-                fontSize: 13,
-                marginTop: 9,
-                minHeight: 82,
-                paddingHorizontal: 13,
-                paddingTop: 12,
-                textAlignVertical: 'top',
-              }}
-              value={editor?.publicDetailsText || ''}
+              style={inputStyle(9)}
+              value={editor?.displayName || ''}
             />
 
-            <TextInput
-              accessibilityLabel="Instrucciones públicas"
-              editable={!isSaving}
-              multiline
-              onChangeText={(value) => {
-                setEditor((currentEditor) => (
-                  currentEditor
-                    ? {
-                      ...currentEditor,
-                      publicInstructions: value,
-                    }
-                    : currentEditor
-                ));
-              }}
-              placeholder="Instrucciones públicas opcionales"
-              placeholderTextColor="#A692B7"
-              style={{
-                backgroundColor: '#FFFFFF',
-                borderColor: '#DCCBEE',
-                borderRadius: 13,
-                borderWidth: 1,
-                color: '#261743',
-                fontSize: 14,
-                marginTop: 10,
-                minHeight: 76,
-                paddingHorizontal: 13,
-                paddingTop: 12,
-                textAlignVertical: 'top',
-              }}
-              value={editor?.publicInstructions || ''}
-            />
-
-            <View
-              style={{
-                alignItems: 'center',
-                flexDirection: 'row',
-                justifyContent: 'space-between',
-                marginTop: 21,
-              }}
-            >
-              <Text
-                style={{
-                  color: '#261743',
-                  fontSize: 14,
-                  fontWeight: '900',
-                }}
-              >
-                Datos privados
-              </Text>
-
-              <TouchableOpacity
-                accessibilityLabel={
-                  showPrivateValues
-                    ? 'Ocultar datos privados'
-                    : 'Mostrar datos privados'
-                }
-                accessibilityRole="button"
-                activeOpacity={0.82}
-                onPress={() => {
-                  setShowPrivateValues((currentValue) => (
-                    !currentValue
-                  ));
-                }}
-                style={{
-                  alignItems: 'center',
-                  flexDirection: 'row',
-                }}
-              >
-                {showPrivateValues ? (
-                  <EyeOff
-                    color="#7427D5"
-                    size={16}
-                  />
-                ) : (
-                  <Eye
-                    color="#7427D5"
-                    size={16}
-                  />
-                )}
+            {editingMobileAccount ? (
+              <>
+                <View
+                  style={{
+                    alignItems: 'center',
+                    flexDirection: 'row',
+                    marginTop: 20,
+                  }}
+                >
+                  {currentType === 'breb' ? (
+                    <KeyRound color="#7427D5" size={18} />
+                  ) : (
+                    <Smartphone color="#7427D5" size={18} />
+                  )}
+                  <Text
+                    style={{
+                      color: '#261743',
+                      fontSize: 14,
+                      fontWeight: '800',
+                      marginLeft: 8,
+                    }}
+                  >
+                    {mobileLabel}
+                  </Text>
+                </View>
+                <TextInput
+                  accessibilityLabel={mobileLabel}
+                  autoCapitalize="none"
+                  editable={!isSaving}
+                  keyboardType={
+                    currentType === 'breb'
+                      ? 'default'
+                      : 'phone-pad'
+                  }
+                  maxLength={
+                    currentType === 'breb'
+                      ? 320
+                      : 10
+                  }
+                  onChangeText={(value) => updateEditor({
+                    paymentKey: currentType === 'breb'
+                      ? value
+                      : normalizePhone(value),
+                  })}
+                  placeholder={mobilePlaceholder}
+                  placeholderTextColor="#A692B7"
+                  style={inputStyle(9)}
+                  value={editor?.paymentKey || ''}
+                />
+                <Text
+                  style={{
+                    color: '#786593',
+                    fontSize: 12,
+                    lineHeight: 18,
+                    marginTop: 6,
+                  }}
+                >
+                  {currentType === 'breb'
+                    ? 'Ingresa la llave que usas para recibir pagos por Bre-B.'
+                    : 'Ingresa un celular colombiano de 10 dígitos que empiece por 3.'}
+                </Text>
 
                 <Text
                   style={{
-                    color: '#54209E',
-                    fontSize: 12,
-                    fontWeight: '800',
-                    marginLeft: 6,
-                  }}
-                >
-                  {showPrivateValues
-                    ? 'Ocultar'
-                    : 'Mostrar'}
-                </Text>
-              </TouchableOpacity>
-            </View>
-
-            <Text
-              style={{
-                color: '#786593',
-                fontSize: 12,
-                lineHeight: 18,
-                marginTop: 4,
-              }}
-            >
-              Solo visible dentro de esta administración autorizada.
-            </Text>
-
-            {showPrivateValues ? (
-              <>
-                <TextInput
-                  accessibilityLabel="Detalles privados JSON"
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                  editable={!isSaving}
-                  multiline
-                  onChangeText={(value) => {
-                    setEditor((currentEditor) => (
-                      currentEditor
-                        ? {
-                          ...currentEditor,
-                          privateDetailsText: value,
-                        }
-                        : currentEditor
-                    ));
-                  }}
-                  placeholder='{"numero":"3000000000"}'
-                  placeholderTextColor="#A692B7"
-                  style={{
-                    backgroundColor: '#FFFFFF',
-                    borderColor: '#DCCBEE',
-                    borderRadius: 13,
-                    borderWidth: 1,
-                    color: '#261743',
-                    fontFamily: 'monospace',
-                    fontSize: 13,
-                    marginTop: 10,
-                    minHeight: 92,
-                    paddingHorizontal: 13,
-                    paddingTop: 12,
-                    textAlignVertical: 'top',
-                  }}
-                  value={editor?.privateDetailsText || ''}
-                />
-
-                <TextInput
-                  accessibilityLabel="Instrucciones privadas"
-                  editable={!isSaving}
-                  multiline
-                  onChangeText={(value) => {
-                    setEditor((currentEditor) => (
-                      currentEditor
-                        ? {
-                          ...currentEditor,
-                          privateInstructions: value,
-                        }
-                        : currentEditor
-                    ));
-                  }}
-                  placeholder="Instrucciones privadas del pago"
-                  placeholderTextColor="#A692B7"
-                  style={{
-                    backgroundColor: '#FFFFFF',
-                    borderColor: '#DCCBEE',
-                    borderRadius: 13,
-                    borderWidth: 1,
                     color: '#261743',
                     fontSize: 14,
-                    marginTop: 10,
-                    minHeight: 92,
-                    paddingHorizontal: 13,
-                    paddingTop: 12,
-                    textAlignVertical: 'top',
+                    fontWeight: '800',
+                    marginTop: 18,
                   }}
-                  value={editor?.privateInstructions || ''}
+                >
+                  Nombre del titular (opcional)
+                </Text>
+                <TextInput
+                  accessibilityLabel="Nombre del titular opcional"
+                  editable={!isSaving}
+                  onChangeText={(value) => updateEditor({
+                    accountHolderName: value,
+                  })}
+                  placeholder="Ejemplo: Andrea Mendoza"
+                  placeholderTextColor="#A692B7"
+                  style={inputStyle(9)}
+                  value={editor?.accountHolderName || ''}
                 />
               </>
             ) : (
-              <View
-                style={{
-                  backgroundColor: '#F6EAFE',
-                  borderRadius: 13,
-                  marginTop: 10,
-                  padding: 12,
-                }}
-              >
-                <Text
+              <>
+                <View
                   style={{
-                    color: '#54209E',
-                    fontSize: 12,
-                    lineHeight: 18,
+                    alignItems: 'center',
+                    flexDirection: 'row',
+                    marginTop: 20,
                   }}
                 >
-                  Los detalles privados permanecen ocultos. Activa
-                  Mostrar solo si necesitas editarlos.
-                </Text>
-              </View>
+                  <Building2 color="#7427D5" size={18} />
+                  <Text
+                    style={{
+                      color: '#261743',
+                      fontSize: 14,
+                      fontWeight: '800',
+                      marginLeft: 8,
+                    }}
+                  >
+                    Datos de la cuenta bancaria
+                  </Text>
+                </View>
+
+                <TextInput
+                  accessibilityLabel="Nombre del titular de la cuenta"
+                  editable={!isSaving}
+                  onChangeText={(value) => updateEditor({
+                    accountHolderName: value,
+                  })}
+                  placeholder="Nombre completo o razón social"
+                  placeholderTextColor="#A692B7"
+                  style={inputStyle(10)}
+                  value={editor?.accountHolderName || ''}
+                />
+                <TextInput
+                  accessibilityLabel="Tipo de documento del titular"
+                  editable={!isSaving}
+                  onChangeText={(value) => updateEditor({
+                    accountHolderDocumentType: value,
+                  })}
+                  placeholder="Ejemplo: CC, NIT, CE"
+                  placeholderTextColor="#A692B7"
+                  style={inputStyle()}
+                  value={editor?.accountHolderDocumentType || ''}
+                />
+                <TextInput
+                  accessibilityLabel="Documento del titular"
+                  editable={!isSaving}
+                  keyboardType="number-pad"
+                  onChangeText={(value) => updateEditor({
+                    accountHolderDocumentNumber: value,
+                  })}
+                  placeholder="Número de documento"
+                  placeholderTextColor="#A692B7"
+                  style={inputStyle()}
+                  value={
+                    editor?.accountHolderDocumentNumber || ''
+                  }
+                />
+                <TextInput
+                  accessibilityLabel="Nombre del banco"
+                  editable={!isSaving}
+                  onChangeText={(value) => updateEditor({
+                    bankName: value,
+                  })}
+                  placeholder="Ejemplo: Bancolombia"
+                  placeholderTextColor="#A692B7"
+                  style={inputStyle()}
+                  value={editor?.bankName || ''}
+                />
+                <TextInput
+                  accessibilityLabel="Tipo de cuenta"
+                  editable={!isSaving}
+                  onChangeText={(value) => updateEditor({
+                    bankAccountType: value,
+                  })}
+                  placeholder="Ejemplo: Ahorros"
+                  placeholderTextColor="#A692B7"
+                  style={inputStyle()}
+                  value={editor?.bankAccountType || ''}
+                />
+                <TextInput
+                  accessibilityLabel="Número de cuenta"
+                  editable={!isSaving}
+                  keyboardType="number-pad"
+                  onChangeText={(value) => updateEditor({
+                    accountNumber: value,
+                  })}
+                  placeholder="Número de cuenta"
+                  placeholderTextColor="#A692B7"
+                  style={inputStyle()}
+                  value={editor?.accountNumber || ''}
+                />
+              </>
             )}
-
-            <View
-              style={{
-                alignItems: 'center',
-                flexDirection: 'row',
-                justifyContent: 'space-between',
-                marginTop: 20,
-              }}
-            >
-              <Text
-                style={{
-                  color: '#261743',
-                  fontSize: 14,
-                  fontWeight: '700',
-                }}
-              >
-                Disponible antes de aceptación
-              </Text>
-
-              <Switch
-                accessibilityLabel="Disponible antes de aceptación"
-                disabled={isSaving}
-                onValueChange={(value) => {
-                  setEditor((currentEditor) => (
-                    currentEditor
-                      ? {
-                        ...currentEditor,
-                        availableBeforeAcceptance: value,
-                      }
-                      : currentEditor
-                  ));
-                }}
-                value={editor?.availableBeforeAcceptance || false}
-              />
-            </View>
-
-            <View
-              style={{
-                alignItems: 'center',
-                flexDirection: 'row',
-                justifyContent: 'space-between',
-                marginTop: 12,
-              }}
-            >
-              <Text
-                style={{
-                  color: '#261743',
-                  fontSize: 14,
-                  fontWeight: '700',
-                }}
-              >
-                Método activo
-              </Text>
-
-              <Switch
-                accessibilityLabel="Método activo"
-                disabled={isSaving}
-                onValueChange={(value) => {
-                  setEditor((currentEditor) => (
-                    currentEditor
-                      ? {
-                        ...currentEditor,
-                        isActive: value,
-                      }
-                      : currentEditor
-                  ));
-                }}
-                value={editor?.isActive || false}
-              />
-            </View>
-
-            <TextInput
-              accessibilityLabel="Orden del método de pago"
-              editable={!isSaving}
-              keyboardType="number-pad"
-              onChangeText={(value) => {
-                setEditor((currentEditor) => (
-                  currentEditor
-                    ? {
-                      ...currentEditor,
-                      sortOrder: value,
-                    }
-                    : currentEditor
-                ));
-              }}
-              placeholder="0"
-              placeholderTextColor="#A692B7"
-              style={{
-                backgroundColor: '#FFFFFF',
-                borderColor: '#DCCBEE',
-                borderRadius: 13,
-                borderWidth: 1,
-                color: '#261743',
-                fontSize: 14,
-                marginTop: 14,
-                minHeight: 48,
-                paddingHorizontal: 13,
-              }}
-              value={editor?.sortOrder || ''}
-            />
 
             <TouchableOpacity
               accessibilityLabel="Guardar método de pago"
               accessibilityRole="button"
               accessibilityState={{
                 busy: isSaving,
-disabled: isSaving,
-}}
-activeOpacity={0.82}
-disabled={isSaving}
-onPress={() => {
-void saveMethod();
-}}
+                disabled: isSaving,
+              }}
+              activeOpacity={0.82}
+              disabled={isSaving}
+              onPress={() => {
+                void saveMethod();
+              }}
               style={{
                 alignItems: 'center',
                 backgroundColor: '#7427D5',
@@ -1357,11 +1519,7 @@ void saveMethod();
                 paddingHorizontal: 18,
               }}
             >
-              <Save
-                color="#FFFFFF"
-                size={19}
-              />
-
+              <Save color="#FFFFFF" size={19} />
               <Text
                 style={{
                   color: '#FFFFFF',
@@ -1370,9 +1528,7 @@ void saveMethod();
                   marginLeft: 8,
                 }}
               >
-                {isSaving
-                  ? 'Guardando…'
-                  : 'Guardar método'}
+                {isSaving ? 'Guardando…' : 'Guardar método'}
               </Text>
             </TouchableOpacity>
           </ScrollView>
@@ -1415,7 +1571,6 @@ void saveMethod();
             >
               Archivar método de pago
             </Text>
-
             <Text
               style={{
                 color: '#786593',
@@ -1424,10 +1579,8 @@ void saveMethod();
                 marginTop: 9,
               }}
             >
-              El método dejará de estar disponible para nuevas
-              instrucciones de pago. Su historial se conservará.
+              El método dejará de estar disponible para nuevas instrucciones de pago. Su historial se conservará.
             </Text>
-
             <Text
               style={{
                 color: '#4E3B68',
@@ -1438,7 +1591,6 @@ void saveMethod();
             >
               {archiveConfirmation?.method.display_name || ''}
             </Text>
-
             <View
               style={{
                 flexDirection: 'row',
@@ -1475,7 +1627,6 @@ void saveMethod();
                   Cancelar
                 </Text>
               </TouchableOpacity>
-
               <TouchableOpacity
                 accessibilityLabel="Confirmar archivo de método de pago"
                 accessibilityRole="button"
@@ -1501,9 +1652,7 @@ void saveMethod();
                     fontWeight: '800',
                   }}
                 >
-                  {isSaving
-                    ? 'Archivando…'
-                    : 'Archivar'}
+                  {isSaving ? 'Archivando…' : 'Archivar'}
                 </Text>
               </TouchableOpacity>
             </View>

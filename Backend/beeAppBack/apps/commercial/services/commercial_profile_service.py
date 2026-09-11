@@ -47,7 +47,7 @@ COMMERCIAL_PROFILE_COLUMNS = (
     "verification_badge_visible,timezone,booking_hold_minutes,"
     "delivery_fee_mode,delivery_fee_amount,delivery_currency_code,"
     "archived_at,suspended_at,suspension_reason,"
-    "inventory_hold_minutes,created_at,updated_at"
+    "inventory_hold_minutes,cash_on_delivery_enabled,created_at,updated_at"
 )
 
 PRIVATE_COMMERCIAL_PROFILE_COLUMNS = (
@@ -862,6 +862,7 @@ def update_commercial_profile(
         "is_email_public",
         "logo_file_id",
         "is_available",
+        "cash_on_delivery_enabled",
         "timezone",
         "booking_hold_minutes",
         "inventory_hold_minutes",

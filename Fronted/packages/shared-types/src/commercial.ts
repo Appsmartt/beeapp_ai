@@ -171,6 +171,7 @@ category?: CommercialCategory | null;
   logo_file_id: string | null;
   is_public: boolean;
   is_available: boolean;
+  cash_on_delivery_enabled: boolean;
   publication_status: CommercialProfilePublicationStatus;
   verification_status: CommercialVerificationStatus;
   verification_badge_visible: boolean;
@@ -398,6 +399,7 @@ export interface UpdateCommercialProfilePayload {
   is_email_public?: boolean;
   logo_file_id?: string | null;
   is_available?: boolean;
+  cash_on_delivery_enabled?: boolean;
   timezone?: string;
   booking_hold_minutes?: number;
   inventory_hold_minutes?: number;
@@ -540,44 +542,53 @@ export type CommercialPaymentMethodType =
   | 'breb'
   | 'bank_account';
 
+export type CommercialMobileWalletType =
+  | 'nequi'
+  | 'daviplata'
+  | 'breb';
+
+export interface CommercialMobilePaymentAccount {
+  wallet_type: CommercialMobileWalletType;
+  payment_key: string;
+  account_holder_name: string | null;
+}
+
+export interface CommercialBankAccount {
+  account_holder_name: string;
+  account_holder_document_type: string;
+  account_holder_document_number: string;
+  bank_name: string;
+  account_type: string;
+  account_number: string;
+}
+
 export interface CommercialOwnedPaymentMethod {
   id: string;
   commercial_profile_id: string;
   payment_method_type: CommercialPaymentMethodType;
   display_name: string;
-  public_details: Record<string, unknown>;
-  private_details: Record<string, unknown>;
-  public_instructions: string | null;
-  private_instructions: string | null;
-  available_before_acceptance: boolean;
   sort_order: number;
   status: 'active' | 'archived';
   archived_at: string | null;
   created_at: string | null;
   updated_at: string | null;
+  mobile_account: CommercialMobilePaymentAccount | null;
+  bank_account: CommercialBankAccount | null;
 }
 
 export interface CreateCommercialPaymentMethodPayload {
   payment_method_type: CommercialPaymentMethodType;
   display_name: string;
-  public_details?: Record<string, unknown>;
-  private_details?: Record<string, unknown>;
-  public_instructions?: string | null;
-  private_instructions?: string | null;
-  available_before_acceptance?: boolean;
   sort_order?: number;
-  is_active?: boolean;
+  mobile_account?: CommercialMobilePaymentAccount;
+  bank_account?: CommercialBankAccount;
 }
 
 export interface UpdateCommercialPaymentMethodPayload {
-  display_name?: string;
-  public_details?: Record<string, unknown>;
-  private_details?: Record<string, unknown>;
-  public_instructions?: string | null;
-  private_instructions?: string | null;
-  available_before_acceptance?: boolean;
-  sort_order?: number;
-  is_active?: boolean;
+  display_name: string;
+  sort_order: number;
+  mobile_account?: CommercialMobilePaymentAccount;
+  bank_account?: CommercialBankAccount;
 }
 
 export interface GetOwnedCommercialPaymentMethodsResponse {
