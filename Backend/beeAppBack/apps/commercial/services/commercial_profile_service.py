@@ -929,7 +929,7 @@ def update_commercial_profile(
         )
 
         if has_category_ids:
-            profile_payload["category_id"] = None
+            profile_payload["category_id"] = category_ids[0]
 
         if profile_payload:
             response = (
@@ -1485,10 +1485,7 @@ def get_owned_commercial_profile_with_access_token(
                 "The requested commercial profile was not found."
             )
 
-        return _attach_profile_relations_with_access_token(
-            access_token=normalized_access_token,
-            profile=profile,
-        )
+        return _attach_profile_relations(profile=profile)
 
     except CommercialProfileNotFoundError:
         raise
