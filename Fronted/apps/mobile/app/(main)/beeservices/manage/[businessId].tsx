@@ -611,6 +611,79 @@ export default function BuddyServicesManageBusinessScreen() {
             </View>
           </TouchableOpacity>
 
+<TouchableOpacity
+            accessibilityHint="Administra métodos de pago privados de este negocio"
+            accessibilityLabel="Métodos de pago"
+            accessibilityRole="button"
+            activeOpacity={0.82}
+            onPress={() => {
+              router.push(
+                buddyServicesManagePaymentMethodsRoute(
+                  profile.id,
+                ),
+              );
+            }}
+            style={{
+              backgroundColor: '#FFFFFF',
+              borderColor: '#E7DDF2',
+              borderRadius: 16,
+              borderWidth: 1,
+              marginBottom: 11,
+              padding: 15,
+            }}
+          >
+            <View
+              style={{
+                alignItems: 'center',
+                flexDirection: 'row',
+              }}
+            >
+              <View
+                style={{
+                  alignItems: 'center',
+                  backgroundColor: '#F6EAFE',
+                  borderRadius: 12,
+                  height: 42,
+                  justifyContent: 'center',
+                  width: 42,
+                }}
+              >
+                <CreditCard
+                  color="#7427D5"
+                  size={20}
+                />
+              </View>
+
+              <View
+                style={{
+                  flex: 1,
+                  marginLeft: 12,
+                }}
+              >
+                <Text
+                  style={{
+                    color: '#261743',
+                    fontSize: 15,
+                    fontWeight: '800',
+                  }}
+                >
+                  Métodos de pago
+                </Text>
+
+                <Text
+                  style={{
+                    color: '#786593',
+                    fontSize: 12,
+                    lineHeight: 18,
+                    marginTop: 3,
+                  }}
+                >
+                  Configura instrucciones externas privadas por negocio.
+                </Text>
+              </View>
+            </View>
+          </TouchableOpacity>
+
           <TouchableOpacity
             accessibilityHint="Administra los catálogos de este negocio"
             accessibilityLabel="Catálogos"
@@ -824,78 +897,7 @@ Revisa compras, servicios y reservas recibidas.
 </View>
 </TouchableOpacity>
 
-<TouchableOpacity
-            accessibilityHint="Administra métodos de pago privados de este negocio"
-            accessibilityLabel="Métodos de pago"
-            accessibilityRole="button"
-            activeOpacity={0.82}
-            onPress={() => {
-              router.push(
-                buddyServicesManagePaymentMethodsRoute(
-                  profile.id,
-                ),
-              );
-            }}
-            style={{
-              backgroundColor: '#FFFFFF',
-              borderColor: '#E7DDF2',
-              borderRadius: 16,
-              borderWidth: 1,
-              marginBottom: 11,
-              padding: 15,
-            }}
-          >
-            <View
-              style={{
-                alignItems: 'center',
-                flexDirection: 'row',
-              }}
-            >
-              <View
-                style={{
-                  alignItems: 'center',
-                  backgroundColor: '#F6EAFE',
-                  borderRadius: 12,
-                  height: 42,
-                  justifyContent: 'center',
-                  width: 42,
-                }}
-              >
-                <CreditCard
-                  color="#7427D5"
-                  size={20}
-                />
-              </View>
 
-              <View
-                style={{
-                  flex: 1,
-                  marginLeft: 12,
-                }}
-              >
-                <Text
-                  style={{
-                    color: '#261743',
-                    fontSize: 15,
-                    fontWeight: '800',
-                  }}
-                >
-                  Métodos de pago
-                </Text>
-
-                <Text
-                  style={{
-                    color: '#786593',
-                    fontSize: 12,
-                    lineHeight: 18,
-                    marginTop: 3,
-                  }}
-                >
-                  Configura instrucciones externas privadas por negocio.
-                </Text>
-              </View>
-            </View>
-          </TouchableOpacity>
 
           <DashboardAction
             description="Adjunta documentos y consulta el estado de revisión."
