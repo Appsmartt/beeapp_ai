@@ -15,6 +15,7 @@ ClipboardList,
   FileCheck2,
   Layers3,
   MapPin,
+  MessageCircle,
   Package,
   Settings2,
 } from 'lucide-react-native';
@@ -32,6 +33,7 @@ import type {
   CommercialOwnedProfile,
 } from '@beeapp/shared-types';
 
+import CommercialLogoAvatar from '../../../../src/components/buddyservices/CommercialLogoAvatar';
 import ScreenSafeArea from '../../../../src/components/layout/ScreenSafeArea';
 import {
   toCommercialUiError,
@@ -351,75 +353,98 @@ export default function BuddyServicesManageBusinessScreen() {
               padding: 18,
             }}
           >
-            <Text
-              style={{
-                color: '#DCC8FF',
-                fontSize: 12,
-                fontWeight: '800',
-                textTransform: 'uppercase',
-              }}
-            >
-              Gestionando
-            </Text>
-
-            <Text
-              style={{
-                color: '#FFFFFF',
-                fontSize: 22,
-                fontWeight: '900',
-                marginTop: 5,
-              }}
-            >
-              {profile.display_name}
-            </Text>
-
             <View
               style={{
                 alignItems: 'center',
                 flexDirection: 'row',
-                marginTop: 10,
               }}
             >
-              <MapPin
-                color="#DCC8FF"
-                size={15}
-              />
-
-              <Text
+              <View
                 style={{
-                  color: '#EDE4FF',
-                  fontSize: 13,
-                  marginLeft: 5,
+                  flex: 1,
+                  minWidth: 0,
+                  paddingRight: 16,
                 }}
               >
-                {`${profile.city}, ${profile.country_code}`}
-              </Text>
-            </View>
+                <Text
+                  style={{
+                    color: '#DCC8FF',
+                    fontSize: 12,
+                    fontWeight: '800',
+                    textTransform: 'uppercase',
+                  }}
+                >
+                  Gestionando
+                </Text>
 
-            <View
-              style={{
-                alignItems: 'center',
-                flexDirection: 'row',
-                marginTop: 12,
-              }}
-            >
-              <BadgeCheck
-                color="#C7F2D6"
-                size={16}
+                <Text
+                  numberOfLines={2}
+                  style={{
+                    color: '#FFFFFF',
+                    fontSize: 22,
+                    fontWeight: '900',
+                    marginTop: 5,
+                  }}
+                >
+                  {profile.display_name}
+                </Text>
+
+                <View
+                  style={{
+                    alignItems: 'center',
+                    flexDirection: 'row',
+                    marginTop: 10,
+                  }}
+                >
+                  <MapPin
+                    color="#DCC8FF"
+                    size={15}
+                  />
+
+                  <Text
+                    numberOfLines={1}
+                    style={{
+                      color: '#EDE4FF',
+                      fontSize: 13,
+                      marginLeft: 5,
+                    }}
+                  >
+                    {`${profile.city}, ${profile.country_code}`}
+                  </Text>
+                </View>
+
+                <View
+                  style={{
+                    alignItems: 'center',
+                    flexDirection: 'row',
+                    marginTop: 12,
+                  }}
+                >
+                  <BadgeCheck
+                    color="#C7F2D6"
+                    size={16}
+                  />
+
+                  <Text
+                    style={{
+                      color: '#C7F2D6',
+                      fontSize: 13,
+                      fontWeight: '800',
+                      marginLeft: 6,
+                    }}
+                  >
+                    {publicationLabel(profile)}
+                  </Text>
+                </View>
+              </View>
+
+              <CommercialLogoAvatar
+                displayName={profile.display_name}
+                logoFileId={profile.logo_file_id}
+                size={72}
               />
-
-              <Text
-                style={{
-                  color: '#C7F2D6',
-                  fontSize: 13,
-                  fontWeight: '800',
-                  marginLeft: 6,
-                }}
-              >
-                {publicationLabel(profile)}
-              </Text>
             </View>
-          </View>
+            </View>
 
           <Text
             style={{
@@ -794,6 +819,12 @@ Revisa compras, servicios y reservas recibidas.
             description="Adjunta documentos y consulta el estado de revisión."
             Icon={FileCheck2}
             title="Verificación"
+          />
+
+          <DashboardAction
+            description="Próximamente podrás gestionar conversaciones del negocio."
+            Icon={MessageCircle}
+            title="Abrir chats"
           />
 
           <TouchableOpacity

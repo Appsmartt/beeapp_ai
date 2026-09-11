@@ -152,6 +152,7 @@ categories: Array<{
 commercial_profile_id: string;
 commercial_category_id: string;
 sort_order: number;
+category?: CommercialCategory | null;
 }>;
   custom_activity_text: string | null;
   display_name: string;
