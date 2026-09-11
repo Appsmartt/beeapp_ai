@@ -684,6 +684,12 @@ export default function BuddyServicesManageBusinessScreen() {
             </View>
           </TouchableOpacity>
 
+          <DashboardAction
+            description="Adjunta documentos y consulta el estado de revisión."
+            Icon={FileCheck2}
+            title="Verificación"
+          />
+
           <TouchableOpacity
             accessibilityHint="Administra los catálogos de este negocio"
             accessibilityLabel="Catálogos"
@@ -898,12 +904,6 @@ Revisa compras, servicios y reservas recibidas.
 </TouchableOpacity>
 
 
-
-          <DashboardAction
-            description="Adjunta documentos y consulta el estado de revisión."
-            Icon={FileCheck2}
-            title="Verificación"
-          />
 
           <DashboardAction
             description="Próximamente podrás gestionar conversaciones del negocio."
