@@ -27,6 +27,7 @@ from apps.commercial.views import (
     CommercialProfileChatView,
     CommercialCategoriesView,
     CommercialProfileDetailView,
+    CommercialProfilePublicationView,
     CommercialProfileAuditEventsView,
     CommercialProfileCatalogsView,
     CommercialProfileCatalogDetailView,
@@ -204,6 +205,11 @@ urlpatterns = [
         "profiles/<uuid:profile_id>/",
         CommercialProfileDetailView.as_view(),
         name="commercial-profile-detail",
+    ),
+    path(
+        "profiles/<uuid:profile_id>/publication/",
+        CommercialProfilePublicationView.as_view(),
+        name="commercial-profile-publication",
     ),
     path(
         "profiles/<uuid:profile_id>/chat/",

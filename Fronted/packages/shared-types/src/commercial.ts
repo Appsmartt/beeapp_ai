@@ -415,6 +415,16 @@ export interface UpdateCommercialProfileResponse {
   profile: CommercialOwnedProfile;
 }
 
+export interface UpdateCommercialProfilePublicationPayload {
+  publication_status: 'published' | 'paused' | 'archived';
+  reason_code?: string | null;
+  reason_text?: string | null;
+}
+
+export interface UpdateCommercialProfilePublicationResponse {
+  profile: CommercialOwnedProfile;
+}
+
 export interface CreateCommercialCatalogPayload {
   name: string;
   description?: string | null;

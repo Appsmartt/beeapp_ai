@@ -28,6 +28,7 @@ from apps.commercial.serializers import (
     CommercialCategoryQuerySerializer,
     CreateCommercialProfileSerializer,
     UpdateCommercialProfileSerializer,
+    UpdateCommercialProfilePublicationSerializer,
     OwnedCommercialCatalogsQuerySerializer,
     CreateCommercialCatalogSerializer,
     UpdateCommercialCatalogSerializer,
@@ -57,6 +58,7 @@ from apps.commercial.services.commercial_profile_service import (
     list_commercial_categories,
     list_owned_commercial_profiles,
     update_commercial_profile,
+    update_commercial_profile_publication,
 )
 from apps.commercial.services.commercial_audit_service import (
     list_owned_commercial_audit_events,
@@ -377,6 +379,50 @@ class CommercialProfileDetailView(AuthenticatedAPIView):
 
 
 
+
+
+class CommercialProfilePublicationView(AuthenticatedAPIView):
+    throttle_classes = [CommercialManageThrottle]
+
+    def patch(self, request, profile_id):
+        serializer = UpdateCommercialProfilePublicationSerializer(
+            data=request.data,
+        )
+        serializer.is_valid(raise_exception=True)
+
+        try:
+            (
+                authenticated_user,
+                access_token,
+            ) = self.get_authenticated_user_and_access_token(request)
+
+            profile = update_commercial_profile_publication(
+                user_id=str(authenticated_user.id),
+                access_token=access_token,
+                profile_id=str(profile_id),
+                publication_status=serializer.validated_data[
+                    "publication_status"
+                ],
+                reason_code=serializer.validated_data.get("reason_code"),
+                reason_text=serializer.validated_data.get("reason_text"),
+            )
+
+        except AccountAuthenticationError:
+            return Response(
+                {
+                    "detail": "Invalid or expired access token.",
+                },
+                status=status.HTTP_401_UNAUTHORIZED,
+            )
+        except CommercialError as error:
+            return commercial_error_response(error)
+
+        return Response(
+            {
+                "profile": profile,
+            },
+            status=status.HTTP_200_OK,
+        )
 
 
 class CommercialProfileChatView(AuthenticatedAPIView):

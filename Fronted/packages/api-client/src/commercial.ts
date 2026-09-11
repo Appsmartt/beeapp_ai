@@ -23,6 +23,8 @@ CreateCommercialProfilePayload,
 CreateCommercialProfileResponse,
 UpdateCommercialProfilePayload,
 UpdateCommercialProfileResponse,
+UpdateCommercialProfilePublicationPayload,
+UpdateCommercialProfilePublicationResponse,
 CreateCommercialCatalogPayload,
 CreateCommercialCatalogResponse,
 UpdateCommercialCatalogPayload,
@@ -360,6 +362,18 @@ payload: UpdateCommercialProfilePayload,
 ): Promise<UpdateCommercialProfileResponse> {
 return api.patch<UpdateCommercialProfileResponse>(
 profilePath(profileId),
+payload,
+{ auth },
+);
+}
+
+export function updateCommercialProfilePublication(
+auth: AuthCredentials,
+profileId: string,
+payload: UpdateCommercialProfilePublicationPayload,
+): Promise<UpdateCommercialProfilePublicationResponse> {
+return api.patch<UpdateCommercialProfilePublicationResponse>(
+`${profilePath(profileId)}publication/`,
 payload,
 { auth },
 );

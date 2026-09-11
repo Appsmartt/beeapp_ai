@@ -38,6 +38,7 @@ getOwnedCommercialProfiles,
   getPublicCommercialOffers,
   getPublicCommercialProfile,
   updateCommercialProfile,
+updateCommercialProfilePublication,
 updateOwnedCommercialCatalog,
 getPublicCommercialProfiles,
 getCommercialRequest,
@@ -98,6 +99,8 @@ GetOwnedCommercialProfilesResponse,
   GetPublicCommercialProfilesResponse,
   UpdateCommercialCatalogPayload,
 UpdateCommercialProfilePayload,
+UpdateCommercialProfilePublicationPayload,
+UpdateCommercialProfilePublicationResponse,
 PublicCommercialOffersQuery,
   UpdateCommercialCatalogResponse,
 UpdateCommercialProfileResponse,
@@ -266,6 +269,17 @@ profileId: string,
 payload: UpdateCommercialProfilePayload,
 ): Promise<UpdateCommercialProfileResponse> {
 return updateCommercialProfile(
+await getRequiredCommercialCredentials(),
+profileId,
+payload,
+);
+}
+
+export async function updateOwnedCommercialProfilePublication(
+profileId: string,
+payload: UpdateCommercialProfilePublicationPayload,
+): Promise<UpdateCommercialProfilePublicationResponse> {
+return updateCommercialProfilePublication(
 await getRequiredCommercialCredentials(),
 profileId,
 payload,
