@@ -612,7 +612,7 @@ export default function BuddyServicesManageBusinessScreen() {
           </TouchableOpacity>
 
 <TouchableOpacity
-            accessibilityHint="Administra métodos de pago privados de este negocio"
+            accessibilityHint="Configura los métodos y datos de pago para tus clientes"
             accessibilityLabel="Métodos de pago"
             accessibilityRole="button"
             activeOpacity={0.82}
@@ -678,7 +678,7 @@ export default function BuddyServicesManageBusinessScreen() {
                     marginTop: 3,
                   }}
                 >
-                  Configura instrucciones externas privadas por negocio.
+                  Configura los datos e instrucciones de pago que verán tus clientes al comprar.
                 </Text>
               </View>
             </View>
