@@ -40,6 +40,7 @@ import {
 } from '../../../../src/features/buddyservices/commercialErrors';
 import {
   buddyServicesManageCatalogsRoute,
+  buddyServicesManageHoursRoute,
   buddyServicesManageOffersRoute,
   buddyServicesManageOperationRoute,
 buddyServicesManageRequestsRoute,
@@ -523,7 +524,88 @@ export default function BuddyServicesManageBusinessScreen() {
                     marginTop: 3,
                   }}
                 >
-                  Datos públicos, contacto, horarios y modalidades.
+                  Datos públicos, contacto y modalidades.
+                </Text>
+              </View>
+            </View>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            accessibilityHint="Asigna o modifica los días y horas de atención"
+            accessibilityLabel="Horario del negocio"
+            accessibilityRole="button"
+            activeOpacity={0.82}
+            onPress={() => {
+              const targetRoute = buddyServicesManageHoursRoute(
+                profile.id,
+              );
+
+              console.log(
+                '[BEEAPP_HOURS_DEBUG] Navegando a horario del negocio',
+                {
+                  businessId: profile.id,
+                  targetRoute,
+                },
+              );
+
+              router.push(targetRoute);
+            }}
+            style={{
+              backgroundColor: '#FFFFFF',
+              borderColor: '#E7DDF2',
+              borderRadius: 16,
+              borderWidth: 1,
+              marginBottom: 11,
+              padding: 15,
+            }}
+          >
+            <View
+              style={{
+                alignItems: 'center',
+                flexDirection: 'row',
+              }}
+            >
+              <View
+                style={{
+                  alignItems: 'center',
+                  backgroundColor: '#F6EAFE',
+                  borderRadius: 12,
+                  height: 42,
+                  justifyContent: 'center',
+                  width: 42,
+                }}
+              >
+                <CalendarDays
+                  color="#7427D5"
+                  size={20}
+                />
+              </View>
+
+              <View
+                style={{
+                  flex: 1,
+                  marginLeft: 12,
+                }}
+              >
+                <Text
+                  style={{
+                    color: '#261743',
+                    fontSize: 15,
+                    fontWeight: '800',
+                  }}
+                >
+                  Horario del negocio
+                </Text>
+
+                <Text
+                  style={{
+                    color: '#786593',
+                    fontSize: 12,
+                    lineHeight: 18,
+                    marginTop: 3,
+                  }}
+                >
+                  Define los días y horas en que atiendes a tus clientes.
                 </Text>
               </View>
             </View>

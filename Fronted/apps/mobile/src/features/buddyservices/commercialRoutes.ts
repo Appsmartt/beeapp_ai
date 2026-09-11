@@ -147,6 +147,17 @@ businessId: requireId(businessId, 'el negocio'),
 };
 }
 
+export function buddyServicesManageHoursRoute(
+businessId: string,
+): Href {
+return {
+pathname: '/(main)/beeservices/manage/[businessId]/hours',
+params: {
+businessId: requireId(businessId, 'el negocio'),
+},
+};
+}
+
 export function buddyServicesManageOperationRoute(
 businessId: string,
 ): Href {
