@@ -1213,13 +1213,39 @@ def _attach_profile_relations(
     )
 
     categories = categories_response.data or []
-
-    enriched_profile["category_ids"] = [
+    category_ids = [
         str(row["commercial_category_id"])
         for row in categories
         if row.get("commercial_category_id")
     ]
-    enriched_profile["categories"] = categories
+    categories_by_id: dict[str, dict[str, Any]] = {}
+
+    if category_ids:
+        category_details_response = (
+            admin_supabase.table("commercial_categories")
+            .select(COMMERCIAL_CATEGORY_COLUMNS)
+            .in_("id", category_ids)
+            .eq("is_active", True)
+            .execute()
+        )
+        categories_by_id = {
+            str(category["id"]): category
+            for category in (category_details_response.data or [])
+            if category.get("id")
+        }
+
+    enriched_categories = [
+        {
+            **row,
+            "category": categories_by_id.get(
+                str(row.get("commercial_category_id") or "")
+            ),
+        }
+        for row in categories
+    ]
+
+    enriched_profile["category_ids"] = category_ids
+    enriched_profile["categories"] = enriched_categories
     enriched_profile["modalities"] = (
         modalities_response.data or []
     )
