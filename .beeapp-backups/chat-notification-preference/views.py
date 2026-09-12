@@ -50,7 +50,6 @@ from apps.chat.serializers import (
     SetChatGroupParticipantRoleSerializer,
     TransferChatGroupOwnershipSerializer,
     UpdateChatGroupSerializer,
-    UpdateConversationNotificationsSerializer,
     UploadChatAttachmentSerializer,
 )
 from apps.chat.services.chat_attachment_service import (
@@ -68,7 +67,6 @@ from apps.chat.services.chat_conversation_service import (
     get_chat_inbox,
     get_conversation,
     list_conversation_participants,
-    set_chat_conversation_notifications,
 )
 from apps.chat.services.chat_group_service import (
     create_chat_group,
@@ -715,74 +713,6 @@ class ChatConversationClearView(AuthenticatedAPIView):
 
         return Response(
             status=status.HTTP_204_NO_CONTENT,
-        )
-
-
-
-class ChatConversationNotificationsView(
-    AuthenticatedAPIView,
-):
-    """
-    PATCH /api/chat/conversations/<conversation_id>/notifications/
-
-    Actualiza si la identidad propia recibe notificaciones de esta
-    conversación. La preferencia es individual por participante.
-    """
-
-    def patch(self, request, conversation_id):
-        serializer = UpdateConversationNotificationsSerializer(
-            data=request.data,
-        )
-        serializer.is_valid(raise_exception=True)
-
-        try:
-            authenticated_user = self.get_authenticated_user(
-                request
-            )
-            access_token = _get_access_token(request)
-
-            conversation = set_chat_conversation_notifications(
-                user_id=str(authenticated_user.id),
-                access_token=access_token,
-                conversation_id=str(conversation_id),
-                identity_id=str(
-                    serializer.validated_data["identity_id"]
-                ),
-                notifications_enabled=serializer.validated_data[
-                    "notifications_enabled"
-                ],
-            )
-
-        except AccountAuthenticationError:
-            return _unauthorized_response()
-
-        except ChatConversationAccessError:
-            return Response(
-                {
-                    "detail": (
-                        "The selected identity cannot update this "
-                        "conversation preference."
-                    ),
-                },
-                status=status.HTTP_403_FORBIDDEN,
-            )
-
-        except ChatConversationNotFoundError:
-            return _conversation_not_found_response()
-
-        except ChatConversationError as error:
-            return Response(
-                {
-                    "detail": str(error),
-                },
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
-        return Response(
-            {
-                "conversation": conversation,
-            },
-            status=status.HTTP_200_OK,
         )
 
 

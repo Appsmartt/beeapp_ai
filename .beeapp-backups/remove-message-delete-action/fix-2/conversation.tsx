@@ -740,8 +740,30 @@ export default function ConversationScreen() {
         });
 
       return;
+    },
+          {
+            text: 'Eliminar',
+            style: 'destructive',
+            onPress: () => {
+.then(() => {
+                  showToast('Mensaje eliminado');
+                })
+                .catch((deleteError) => {
+                  Alert.alert(
+                    'No fue posible eliminar el mensaje',
+                    deleteError instanceof Error
+                      ? deleteError.message
+                      : 'Inténtalo nuevamente.',
+                  );
+                });
+            },
+          },
+        ],
+      );
 
+      return;
     }
+
     if (action === 'destroy') {
       Alert.alert(
         'Destruir mensaje',

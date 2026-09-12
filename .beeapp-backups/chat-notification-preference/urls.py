@@ -9,7 +9,6 @@ from apps.chat.views import (
     ChatConversationClearView,
     ChatConversationDetailView,
     ChatConversationMessagesView,
-    ChatConversationNotificationsView,
     ChatConversationParticipantsView,
     ChatConversationReadView,
     ChatDirectConversationsView,
@@ -86,12 +85,6 @@ urlpatterns = [
         "conversations/<uuid:conversation_id>/clear/",
         ChatConversationClearView.as_view(),
         name="chat-conversation-clear",
-    ),
-
-    path(
-        "conversations/<uuid:conversation_id>/notifications/",
-        ChatConversationNotificationsView.as_view(),
-        name="chat-conversation-notifications",
     ),
     path(
         "conversations/<uuid:conversation_id>/participants/",

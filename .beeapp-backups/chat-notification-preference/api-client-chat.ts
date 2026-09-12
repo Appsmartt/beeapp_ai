@@ -1368,48 +1368,6 @@ export async function markChatConversationRead(
   );
 }
 
-export async function updateChatConversationNotifications(
-  auth: AuthCredentials,
-  conversationId: string,
-  payload: {
-    identity_id: string;
-    notifications_enabled: boolean;
-  },
-): Promise<{
-  conversation: ChatConversation;
-}> {
-  const normalizedIdentityId = String(
-    payload.identity_id || '',
-  ).trim();
-
-  if (!normalizedIdentityId) {
-    throw new Error(
-      'No fue posible identificar la identidad de Chat.',
-    );
-  }
-
-  const response = await api.patch<{
-    conversation: ChatApiConversation;
-  }>(
-    `${conversationPath(conversationId)}notifications/`,
-    {
-      identity_id: normalizedIdentityId,
-      notifications_enabled: Boolean(
-        payload.notifications_enabled,
-      ),
-    },
-    {
-      auth: requireBearerAuth(auth),
-    },
-  );
-
-  return {
-    conversation: toSharedConversation(
-      response.conversation,
-    ),
-  };
-}
-
 export async function clearChatConversation(
   auth: AuthCredentials,
   conversationId: string,

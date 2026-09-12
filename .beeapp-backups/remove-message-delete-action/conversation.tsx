@@ -109,6 +109,7 @@ export default function ConversationScreen() {
     sendMessage,
     sendAttachmentMessage,
     editMessage,
+    deleteMessage,
     togglePinnedMessage,
   } = useChatMessages({
     conversationId: chatId || null,
@@ -740,8 +741,41 @@ export default function ConversationScreen() {
         });
 
       return;
-
     }
+
+    if (action === 'delete') {
+      Alert.alert(
+        'Eliminar mensaje',
+        '¿Eliminar este mensaje para ti?',
+        [
+          {
+            text: 'Cancelar',
+            style: 'cancel',
+          },
+          {
+            text: 'Eliminar',
+            style: 'destructive',
+            onPress: () => {
+              void deleteMessage(target.id)
+                .then(() => {
+                  showToast('Mensaje eliminado');
+                })
+                .catch((deleteError) => {
+                  Alert.alert(
+                    'No fue posible eliminar el mensaje',
+                    deleteError instanceof Error
+                      ? deleteError.message
+                      : 'Inténtalo nuevamente.',
+                  );
+                });
+            },
+          },
+        ],
+      );
+
+      return;
+    }
+
     if (action === 'destroy') {
       Alert.alert(
         'Destruir mensaje',
