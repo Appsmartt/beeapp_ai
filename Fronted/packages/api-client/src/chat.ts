@@ -764,6 +764,25 @@ function toSharedInboxConversation(
     is_protected: false,
     is_ai: false,
     direct_profile: otherParticipant?.user || null,
+    other_identity_id: conversation.other_identity_id,
+    other_identity_type: conversation.other_identity_type,
+    other_profile_id: conversation.other_profile_id,
+    other_commercial_profile_id: (
+      conversation.other_commercial_profile_id
+    ),
+    other_display_name: conversation.other_display_name,
+    other_logo_file_id: conversation.other_logo_file_id,
+    commercial: (
+      conversation.other_identity_type === 'commercial_profile'
+      && conversation.other_commercial_profile_id
+      && conversation.other_display_name?.trim()
+        ? {
+            id: conversation.other_commercial_profile_id,
+            display_name: conversation.other_display_name.trim(),
+            logo_file_id: conversation.other_logo_file_id,
+          }
+        : null
+    ),
   };
 }
 

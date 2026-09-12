@@ -485,6 +485,13 @@ export default function ChatListScreen() {
 
   const categorizedChats = useMemo(
     () => conversations
+      .filter((chat) => (
+        chat.isAI
+        || Boolean(
+          chat.raw.last_message?.id
+          || chat.raw.last_message_at,
+        )
+      ))
       .filter((chat) => {
         if (!activeCategoryId || activeTab !== 'chats') {
           return true;
