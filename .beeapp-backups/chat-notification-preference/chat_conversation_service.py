@@ -11,7 +11,6 @@ from beeAppBack.core.supabase_client import (
 
 from apps.chat.cache import (
     INBOX_TTL_SECONDS,
-    bump_inbox_cache_version,
     get_cached_value,
     inbox_cache_key,
     set_cached_value,
@@ -710,100 +709,6 @@ def _build_conversation_permissions(
         "can_deactivate_group": is_group and is_owner,
         "can_leave_group": is_group and is_active_participant and not is_owner,
     }
-
-
-
-def set_chat_conversation_notifications(
-    *,
-    user_id: str,
-    access_token: str,
-    conversation_id: str,
-    identity_id: str,
-    notifications_enabled: bool,
-) -> dict[str, Any]:
-    """
-    Actualiza la preferencia de notificaciones únicamente de una
-    identidad propia que permanezca como participante activa.
-
-    La autorización decisiva también se ejecuta en la RPC usando
-    auth.uid() del JWT. Tras una mutación correcta, invalida el inbox
-    en caché de esa identidad para no devolver el valor anterior.
-    """
-    try:
-        get_owned_chat_identity(
-            user_id=user_id,
-            identity_id=identity_id,
-        )
-
-        _require_identity_active_participant(
-            conversation_id=conversation_id,
-            identity_id=identity_id,
-        )
-
-        response = (
-            _user_supabase(
-                access_token=access_token,
-            )
-            .rpc(
-                "set_chat_conversation_notifications",
-                {
-                    "p_conversation_id": str(conversation_id),
-                    "p_identity_id": str(identity_id),
-                    "p_notifications_enabled": bool(
-                        notifications_enabled
-                    ),
-                },
-            )
-            .execute()
-        )
-
-        if response.data is not True:
-            raise ChatConversationError(
-                "Conversation notification preference could not be updated."
-            )
-
-        bump_inbox_cache_version(
-            identity_id=str(identity_id),
-        )
-
-        return get_conversation(
-            user_id=user_id,
-            conversation_id=conversation_id,
-            include_participants=True,
-        )
-
-    except (
-        ChatConversationAccessError,
-        ChatConversationError,
-        ChatConversationNotFoundError,
-    ):
-        raise
-
-    except Exception as error:
-        message = str(error)
-
-        if (
-            "CHAT_IDENTITY_NOT_OWNED_BY_USER" in message
-            or "AUTHENTICATION_REQUIRED" in message
-        ):
-            raise ChatConversationAccessError(
-                "The selected identity cannot update this preference."
-            ) from error
-
-        if "CHAT_ACTIVE_PARTICIPATION_NOT_FOUND" in message:
-            raise ChatConversationNotFoundError(
-                "Conversation was not found."
-            ) from error
-
-        if "CHAT_NOTIFICATION_SETTINGS_PAYLOAD_INVALID" in message:
-            raise ChatConversationError(
-                "The notification preference payload is invalid."
-            ) from error
-
-        raise ChatConversationError(
-            "Could not update conversation notification preference: "
-            f"{message}"
-        ) from error
 
 
 def clear_chat_conversation(

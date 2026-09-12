@@ -1,26 +1,17 @@
 import {
-  uploadStorageFiles,
+  uploadChatAttachment,
 } from '@beeapp/api-client';
 import type {
   AuthCredentials,
-  StorageFile,
+  ChatMessage,
 } from '@beeapp/shared-types';
 
 const MAX_CHAT_ATTACHMENT_SIZE_BYTES = 52_428_800;
 
 export type ChatAttachmentKind =
   | 'image'
-  | 'file';
-
-export interface PendingChatAttachment {
-  localId: string;
-  fileId: string;
-  kind: ChatAttachmentKind;
-  name: string;
-  mimeType: string;
-  sizeBytes: number | null;
-  localUri: string;
-}
+  | 'document'
+  | 'audio';
 
 export interface UploadableChatAttachment {
   uri: string;
@@ -28,44 +19,35 @@ export interface UploadableChatAttachment {
   mimeType?: string | null;
   sizeBytes?: number | null;
   kind: ChatAttachmentKind;
-}
-
-function createLocalAttachmentId(): string {
-  return [
-    'chat-attachment',
-    Date.now().toString(36),
-    Math.random().toString(36).slice(2, 10),
-  ].join('-');
+  durationSeconds?: number | null;
 }
 
 function getFallbackName(
   kind: ChatAttachmentKind,
 ): string {
-  return kind === 'image'
-    ? 'imagen.jpg'
-    : 'archivo';
+  if (kind === 'image') {
+    return 'imagen.jpg';
+  }
+
+  if (kind === 'audio') {
+    return 'nota-de-voz.m4a';
+  }
+
+  return 'archivo';
 }
 
 function getFallbackMimeType(
   kind: ChatAttachmentKind,
 ): string {
-  return kind === 'image'
-    ? 'image/jpeg'
-    : 'application/octet-stream';
-}
-
-function getChatAttachmentKind(
-  file: StorageFile,
-  fallback: ChatAttachmentKind,
-): ChatAttachmentKind {
-  if (
-    file.kind === 'image'
-    || file.mime_type?.startsWith('image/')
-  ) {
-    return 'image';
+  if (kind === 'image') {
+    return 'image/jpeg';
   }
 
-  return fallback;
+  if (kind === 'audio') {
+    return 'audio/m4a';
+  }
+
+  return 'application/octet-stream';
 }
 
 export function validateChatAttachment(
@@ -76,80 +58,79 @@ export function validateChatAttachment(
   if (
     sizeBytes !== null
     && sizeBytes !== undefined
-    && sizeBytes > MAX_CHAT_ATTACHMENT_SIZE_BYTES
+    && (
+      !Number.isFinite(sizeBytes)
+      || sizeBytes <= 0
+      || sizeBytes > MAX_CHAT_ATTACHMENT_SIZE_BYTES
+    )
   ) {
     throw new Error(
-      'Cada archivo adjunto debe pesar máximo 50 MB.',
+      'Cada archivo adjunto debe pesar entre 1 byte y 50 MB.',
     );
   }
 
-  if (!attachment.uri?.trim()) {
+  if (!String(attachment.uri || '').trim()) {
     throw new Error(
       'No fue posible leer el archivo seleccionado.',
     );
   }
 }
 
-export async function uploadChatAttachment(
+export async function uploadChatAttachmentMessage(
   auth: AuthCredentials,
+  conversationId: string,
+  senderIdentityId: string,
   attachment: UploadableChatAttachment,
-): Promise<PendingChatAttachment> {
+  options: {
+    body?: string | null;
+  } = {},
+): Promise<ChatMessage> {
   validateChatAttachment(attachment);
 
-  const formData = new FormData();
+  const normalizedConversationId = String(
+    conversationId || '',
+  ).trim();
 
-  formData.append(
-    'files',
-    {
-      uri: attachment.uri,
-      name: attachment.name?.trim() || getFallbackName(
-        attachment.kind,
-      ),
-      type: attachment.mimeType?.trim() || getFallbackMimeType(
-        attachment.kind,
-      ),
-    } as unknown as Blob,
-  );
+  const normalizedSenderIdentityId = String(
+    senderIdentityId || '',
+  ).trim();
 
-  const response = await uploadStorageFiles(
-    auth,
-    formData,
-  );
-
-  const uploadedFile = response.files[0];
-
-  if (!uploadedFile?.id) {
-    const failureDetail = response.failed_files[0]?.detail;
-
+  if (!normalizedConversationId || !normalizedSenderIdentityId) {
     throw new Error(
-      failureDetail
-      || 'No fue posible subir el archivo adjunto.',
+      'No fue posible identificar el chat o la identidad remitente.',
     );
   }
 
-  return {
-    localId: createLocalAttachmentId(),
-    fileId: uploadedFile.id,
-    kind: getChatAttachmentKind(
-      uploadedFile,
-      attachment.kind,
-    ),
-    name: (
-      uploadedFile.display_name
-      || uploadedFile.original_name
-      || attachment.name?.trim()
-      || getFallbackName(attachment.kind)
-    ),
-    mimeType: (
-      uploadedFile.mime_type
-      || attachment.mimeType?.trim()
-      || getFallbackMimeType(attachment.kind)
-    ),
-    sizeBytes: (
-      uploadedFile.size_bytes
-      ?? attachment.sizeBytes
-      ?? null
-    ),
-    localUri: attachment.uri,
-  };
+  const message = await uploadChatAttachment(
+    auth,
+    normalizedConversationId,
+    {
+      sender_identity_id: normalizedSenderIdentityId,
+      message_type: attachment.kind,
+      body: options.body?.trim() || null,
+      metadata: {
+        ...(attachment.kind === 'audio'
+          && typeof attachment.durationSeconds === 'number'
+          && Number.isFinite(attachment.durationSeconds)
+          ? {
+              duration_seconds: Math.max(
+                0,
+                Math.round(attachment.durationSeconds),
+              ),
+            }
+          : {}),
+      },
+      file: {
+        uri: attachment.uri.trim(),
+        name: attachment.name?.trim() || getFallbackName(
+          attachment.kind,
+        ),
+        type: attachment.mimeType?.trim() || getFallbackMimeType(
+          attachment.kind,
+        ),
+      },
+    },
+  );
+
+  return message.message;
 }

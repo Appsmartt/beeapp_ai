@@ -6,7 +6,7 @@ import {
   StyleSheet,
   TouchableWithoutFeedback,
 } from 'react-native';
-import { Reply, Pencil, Forward, Pin, Copy, Bomb } from 'lucide-react-native';
+import { Reply, Pencil, Forward, Pin, Copy, Trash2, Bomb } from 'lucide-react-native';
 import { colors } from '@beeapp/design-system';
 
 export type ChatMessageAction =
@@ -96,6 +96,8 @@ export default function ChatMessageMenuModal({
                 <Text style={styles.menuText}>Copiar</Text>
               </TouchableOpacity>
 
+              {/* 6. Eliminar */}
+              </TouchableOpacity>
 
               {/* 7. Destruir (Rojo) */}
               <TouchableOpacity

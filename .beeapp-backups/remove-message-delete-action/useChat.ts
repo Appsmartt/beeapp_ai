@@ -1205,6 +1205,9 @@ export interface UseChatMessagesResult {
     messageId: string,
     content: string,
   ) => Promise<ChatMessageModel>;
+  deleteMessage: (
+    messageId: string,
+  ) => Promise<void>;
   togglePinnedMessage: (
     messageId: string,
     isPinned: boolean,
@@ -2333,6 +2336,11 @@ export function useChatMessages(
     editMessage: (
       unsupportedMessageAction as UseChatMessagesResult[
         'editMessage'
+      ]
+    ),
+    deleteMessage: (
+      unsupportedMessageAction as UseChatMessagesResult[
+        'deleteMessage'
       ]
     ),
     togglePinnedMessage: (

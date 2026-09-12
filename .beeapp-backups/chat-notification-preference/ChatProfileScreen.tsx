@@ -25,10 +25,6 @@ import {
   spacing,
 } from '@beeapp/design-system';
 
-import {
-  updateChatConversationNotifications,
-} from '@beeapp/api-client';
-
 import ScreenSafeArea from '../layout/ScreenSafeArea';
 import {
   useModuleNav,
@@ -45,9 +41,6 @@ import {
   useChatConversations,
   useChatMessages,
 } from '../../hooks/useChat';
-import {
-  getValidSessionCredentials,
-} from '../../services/authSession';
 import {
   getInitials,
 } from '../../services/chatService';
@@ -98,10 +91,6 @@ export default function ChatProfileScreen() {
   });
 
   const [muted, setMuted] = useState(false);
-  const [
-    updatingNotifications,
-    setUpdatingNotifications,
-  ] = useState(false);
   const [addMemberModal, setAddMemberModal] = useState(false);
   const [editGroupModal, setEditGroupModal] = useState(false);
   const [updatingPostingPolicy, setUpdatingPostingPolicy] = useState(false);
@@ -245,59 +234,6 @@ export default function ChatProfileScreen() {
       );
     } finally {
       setUpdatingPostingPolicy(false);
-    }
-  };
-
-  const handleNotificationPreferenceChange = async (
-    nextMuted: boolean,
-  ) => {
-    if (updatingNotifications) {
-      return;
-    }
-
-    if (!activeIdentityId) {
-      Alert.alert(
-        'No fue posible actualizar la preferencia',
-        'No se pudo identificar tu identidad de Chat.',
-      );
-      return;
-    }
-
-    const previousMuted = muted;
-
-    try {
-      setUpdatingNotifications(true);
-      setMuted(nextMuted);
-
-      const auth = await getValidSessionCredentials();
-
-      if (!auth) {
-        throw new Error(
-          'Tu sesión expiró. Inicia sesión nuevamente.',
-        );
-      }
-
-      await updateChatConversationNotifications(
-        auth,
-        chatId,
-        {
-          identity_id: activeIdentityId,
-          notifications_enabled: !nextMuted,
-        },
-      );
-
-      await reloadGroupData();
-    } catch (updateError) {
-      setMuted(previousMuted);
-
-      Alert.alert(
-        'No fue posible actualizar las notificaciones',
-        updateError instanceof Error
-          ? updateError.message
-          : 'Inténtalo nuevamente.',
-      );
-    } finally {
-      setUpdatingNotifications(false);
     }
   };
 
@@ -584,11 +520,16 @@ export default function ChatProfileScreen() {
             label="Silenciar notificaciones"
             switchValue={muted}
             onSwitchChange={(nextValue) => {
-              void handleNotificationPreferenceChange(
-                nextValue,
+              setMuted(nextValue);
+
+              Alert.alert(
+                'Preferencia no disponible',
+                (
+                  'El backend actual todavía no expone una '
+                  + 'operación para actualizar esta preferencia.'
+                ),
               );
             }}
-            disabled={updatingNotifications}
           />
 
           <ChatProfileRow

@@ -13,6 +13,9 @@ import {
   View,
 } from 'react-native';
 import {
+  Audio,
+} from 'expo-av';
+import {
   Camera,
   File,
   Image as ImageIcon,
@@ -27,16 +30,27 @@ import {
   colors,
 } from '@beeapp/design-system';
 
-import type {
-  PendingChatAttachment,
-} from '../../services/chatAttachmentService';
+type PendingChatAttachment = {
+  kind: 'image' | 'document';
+  name: string;
+  localUri: string;
+};
+
+export interface RecordedVoiceNote {
+  uri: string;
+  name: string;
+  mimeType: string;
+  durationSeconds: number;
+}
 
 interface WriteBarProps {
   onSendMessage: (
     text: string,
     attachment?: PendingChatAttachment | null,
   ) => void;
-  onSendVoiceNote: (duration: string) => void;
+  onSendVoiceNote: (
+    voiceNote: RecordedVoiceNote,
+  ) => void;
   onSendAttachment: (
     type: 'photo' | 'camera' | 'file' | 'location' | 'contact',
   ) => void;
@@ -46,6 +60,50 @@ interface WriteBarProps {
   onChangeText?: (text: string) => void;
   disabled?: boolean;
   uploadingAttachment?: boolean;
+}
+
+function formatRecordingTime(
+  durationSeconds: number,
+): string {
+  const safeDuration = Math.max(
+    0,
+    Math.floor(durationSeconds),
+  );
+
+  return (
+    `${Math.floor(safeDuration / 60)}:`
+    + String(safeDuration % 60).padStart(2, '0')
+  );
+}
+
+function extensionFromUri(
+  uri: string,
+): string {
+  const match = uri.match(/\.([a-z0-9]+)(?:\?.*)?$/i);
+
+  return match?.[1]?.toLowerCase() || 'm4a';
+}
+
+function mimeTypeFromExtension(
+  extension: string,
+): string {
+  if (extension === 'aac') {
+    return 'audio/aac';
+  }
+
+  if (extension === 'wav') {
+    return 'audio/wav';
+  }
+
+  if (extension === 'mp3') {
+    return 'audio/mpeg';
+  }
+
+  if (extension === '3gp') {
+    return 'audio/3gpp';
+  }
+
+  return 'audio/m4a';
 }
 
 export default function WriteBar({
@@ -67,30 +125,65 @@ export default function WriteBar({
   const [isRecording, setIsRecording] = useState(false);
   const [recordTime, setRecordTime] = useState(0);
 
-  const recordInterval = useRef<NodeJS.Timeout | null>(null);
+  const recordingRef = useRef<Audio.Recording | null>(null);
+  const recordInterval = useRef<
+    ReturnType<typeof setInterval> | null
+  >(null);
 
   useEffect(() => {
-    if (isRecording) {
-      recordInterval.current = setInterval(() => {
-        setRecordTime((previousValue) => (
-          previousValue + 1
-        ));
-      }, 1000);
-    } else {
+    if (!isRecording) {
       if (recordInterval.current) {
         clearInterval(recordInterval.current);
         recordInterval.current = null;
       }
 
-      setRecordTime(0);
+      return;
     }
+
+    recordInterval.current = setInterval(() => {
+      const status = recordingRef.current?.getStatusAsync();
+
+      void Promise.resolve(status)
+        .then((nextStatus) => {
+          if (
+            nextStatus?.isRecording
+            && typeof nextStatus.durationMillis === 'number'
+          ) {
+            setRecordTime(
+              Math.max(
+                0,
+                Math.floor(nextStatus.durationMillis / 1000),
+              ),
+            );
+          }
+        })
+        .catch(() => {
+          // La UI conserva el último tiempo válido si falla una lectura.
+        });
+    }, 250);
 
     return () => {
       if (recordInterval.current) {
         clearInterval(recordInterval.current);
+        recordInterval.current = null;
       }
     };
   }, [isRecording]);
+
+  useEffect(() => {
+    return () => {
+      const activeRecording = recordingRef.current;
+
+      recordingRef.current = null;
+
+      if (activeRecording) {
+        void activeRecording.stopAndUnloadAsync()
+          .catch(() => {
+            // Limpieza de mejor esfuerzo al desmontar.
+          });
+      }
+    };
+  }, []);
 
   const canSend = Boolean(
     text.trim()
@@ -106,38 +199,160 @@ export default function WriteBar({
     setText('');
   };
 
-  const handleStartRecord = () => {
-    if (disabled || uploadingAttachment) {
+  const handleStartRecord = async () => {
+    if (
+      disabled
+      || uploadingAttachment
+      || isRecording
+      || recordingRef.current
+    ) {
       return;
     }
 
-    setIsRecording(true);
-    setAttachOpen(false);
+    try {
+      const permission = await Audio.requestPermissionsAsync();
+
+      if (!permission.granted) {
+        throw new Error(
+          'Debes permitir el micrófono para grabar una nota de voz.',
+        );
+      }
+
+      await Audio.setAudioModeAsync({
+        allowsRecordingIOS: true,
+        playsInSilentModeIOS: true,
+        staysActiveInBackground: false,
+        shouldDuckAndroid: true,
+        playThroughEarpieceAndroid: false,
+      });
+
+      const recording = new Audio.Recording();
+
+      await recording.prepareToRecordAsync(
+        Audio.RecordingOptionsPresets.HIGH_QUALITY,
+      );
+
+      await recording.startAsync();
+
+      recordingRef.current = recording;
+      setRecordTime(0);
+      setAttachOpen(false);
+      setIsRecording(true);
+    } catch (error) {
+      const message = error instanceof Error
+        ? error.message
+        : 'No fue posible iniciar la grabación.';
+
+      setIsRecording(false);
+      recordingRef.current = null;
+
+      throw new Error(message);
+    }
+  };
+
+  const stopAndUnloadRecording = async (): Promise<{
+    uri: string;
+    durationSeconds: number;
+  } | null> => {
+    const recording = recordingRef.current;
+
+    recordingRef.current = null;
+
+    if (!recording) {
+      return null;
+    }
+
+    let durationSeconds = recordTime;
+
+    try {
+      const status = await recording.getStatusAsync();
+
+      if (typeof status.durationMillis === 'number') {
+        durationSeconds = Math.max(
+          0,
+          Math.floor(status.durationMillis / 1000),
+        );
+      }
+    } catch {
+      // Se usa el último valor de UI si no se pudo consultar el estado.
+    }
+
+    try {
+      await recording.stopAndUnloadAsync();
+    } finally {
+      await Audio.setAudioModeAsync({
+        allowsRecordingIOS: false,
+        playsInSilentModeIOS: true,
+        staysActiveInBackground: false,
+        shouldDuckAndroid: true,
+        playThroughEarpieceAndroid: false,
+      }).catch(() => {
+        // Restaurar modo es de mejor esfuerzo.
+      });
+    }
+
+    const uri = recording.getURI();
+
+    if (!uri) {
+      return null;
+    }
+
+    return {
+      uri,
+      durationSeconds,
+    };
   };
 
   const handleCancelRecord = () => {
     setIsRecording(false);
+    setRecordTime(0);
+
+    void stopAndUnloadRecording()
+      .catch(() => {
+        // Cancelar nunca debe dejar la barra bloqueada.
+      });
   };
 
   const handleStopRecord = () => {
-    if (!isRecording) {
+    if (!isRecording || disabled || uploadingAttachment) {
       return;
     }
 
     setIsRecording(false);
 
-    const minutes = Math.floor(recordTime / 60);
-    const seconds = recordTime % 60;
+    void stopAndUnloadRecording()
+      .then((result) => {
+        if (!result) {
+          throw new Error(
+            'No fue posible obtener el archivo de la nota de voz.',
+          );
+        }
 
-    const formattedDuration = (
-      `${minutes}:${String(seconds).padStart(2, '0')}`
-    );
+        if (result.durationSeconds < 1) {
+          throw new Error(
+            'La nota de voz debe durar al menos un segundo.',
+          );
+        }
 
-    onSendVoiceNote(
-      recordTime > 0
-        ? formattedDuration
-        : '0:03',
-    );
+        const extension = extensionFromUri(result.uri);
+
+        onSendVoiceNote({
+          uri: result.uri,
+          name: `nota-de-voz-${Date.now()}.${extension}`,
+          mimeType: mimeTypeFromExtension(extension),
+          durationSeconds: result.durationSeconds,
+        });
+      })
+      .catch((error) => {
+        const message = error instanceof Error
+          ? error.message
+          : 'No fue posible preparar la nota de voz.';
+
+        console.warn('[chat voice note]', message);
+      })
+      .finally(() => {
+        setRecordTime(0);
+      });
   };
 
   const handleAttachItemClick = (
@@ -252,31 +467,35 @@ export default function WriteBar({
           <TouchableOpacity
             style={styles.attachPanelItem}
             onPress={() => handleAttachItemClick('location')}
-            disabled={disabled || uploadingAttachment}
+            disabled
           >
             <View style={styles.attachIconWrap}>
               <MapPin
                 size={18}
-                color={colors.neutral.gray600}
+                color={colors.neutral.gray400}
               />
             </View>
 
-            <Text style={styles.attachText}>Ubicación</Text>
+            <Text style={styles.attachTextDisabled}>
+              Ubicación
+            </Text>
           </TouchableOpacity>
 
           <TouchableOpacity
             style={styles.attachPanelItem}
             onPress={() => handleAttachItemClick('contact')}
-            disabled={disabled || uploadingAttachment}
+            disabled
           >
             <View style={styles.attachIconWrap}>
               <User
                 size={18}
-                color={colors.neutral.gray600}
+                color={colors.neutral.gray400}
               />
             </View>
 
-            <Text style={styles.attachText}>Contacto</Text>
+            <Text style={styles.attachTextDisabled}>
+              Contacto
+            </Text>
           </TouchableOpacity>
         </View>
       ) : null}
@@ -288,10 +507,7 @@ export default function WriteBar({
               <View style={styles.redDot} />
 
               <Text style={styles.recordTimer}>
-                {(
-                  `Grabando... ${Math.floor(recordTime / 60)}:`
-                  + String(recordTime % 60).padStart(2, '0')
-                )}
+                {`Grabando... ${formatRecordingTime(recordTime)}`}
               </Text>
             </View>
 
@@ -383,13 +599,18 @@ export default function WriteBar({
             ) : (
               <TouchableOpacity
                 style={styles.micButton}
-                onLongPress={handleStartRecord}
                 onPress={() => {
-                  // La grabación inicia manteniendo presionado.
+                  void handleStartRecord()
+                    .catch((error) => {
+                      console.warn(
+                        '[chat voice note] start failed',
+                        error,
+                      );
+                    });
                 }}
                 disabled={disabled || uploadingAttachment}
                 activeOpacity={0.7}
-                accessibilityLabel="Mantén presionado para grabar audio"
+                accessibilityLabel="Grabar nota de voz"
               >
                 <Mic
                   size={20}
@@ -481,6 +702,11 @@ const styles = StyleSheet.create({
   },
   attachText: {
     color: colors.neutral.gray700,
+    fontSize: 11,
+    fontWeight: '400',
+  },
+  attachTextDisabled: {
+    color: colors.neutral.gray400,
     fontSize: 11,
     fontWeight: '400',
   },

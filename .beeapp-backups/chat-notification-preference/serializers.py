@@ -342,15 +342,6 @@ class ClearConversationSerializer(serializers.Serializer):
     identity_id = serializers.UUIDField()
 
 
-
-class UpdateConversationNotificationsSerializer(
-    serializers.Serializer,
-):
-    identity_id = serializers.UUIDField()
-
-    notifications_enabled = serializers.BooleanField()
-
-
 class ConversationDetailQuerySerializer(serializers.Serializer):
     include_participants = serializers.BooleanField(
         required=False,

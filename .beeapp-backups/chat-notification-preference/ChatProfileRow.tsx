@@ -13,8 +13,6 @@ interface ChatProfileRowProps {
   /** When provided the row shows a switch on the right instead of nothing */
   switchValue?: boolean;
   onSwitchChange?: (value: boolean) => void;
-  /** Disables the switch while its preference is being updated. */
-  disabled?: boolean;
   right?: ReactNode;
 }
 
@@ -27,7 +25,6 @@ export default function ChatProfileRow({
   onPress,
   switchValue,
   onSwitchChange,
-  disabled,
   right,
 }: ChatProfileRowProps) {
   const tint = danger ? colors.semantic.error : colors.neutral.gray700;
@@ -51,7 +48,6 @@ export default function ChatProfileRow({
         <Switch
           value={!!switchValue}
           onValueChange={onSwitchChange}
-          disabled={disabled}
           trackColor={{ false: colors.neutral.gray300, true: colors.brand.primary }}
           thumbColor={colors.neutral.white}
         />
