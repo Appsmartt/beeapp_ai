@@ -54,6 +54,18 @@ export default function ArchivedChatsScreen() {
     String(params.kind || ''),
   );
 
+  const context = String(params.context || '').trim();
+  const businessId = String(params.businessId || '').trim();
+  const requestedIdentityId = String(
+    params.identityId || '',
+  ).trim() || null;
+
+  const isCommercialContext = (
+    context === 'commercial'
+    && Boolean(businessId)
+    && Boolean(requestedIdentityId)
+  );
+
   const isGroupArchive = archivedKind === 'group';
 
   const {
@@ -64,7 +76,9 @@ export default function ArchivedChatsScreen() {
     loadConversations,
     restoreConversation,
     deleteConversation,
-  } = useChatConversations();
+  } = useChatConversations({
+    identityId: requestedIdentityId,
+  });
 
   const [menuChat, setMenuChat] = useState<
     ChatListItemModel | null
@@ -113,6 +127,13 @@ export default function ArchivedChatsScreen() {
         online: chat.online
           ? 'true'
           : 'false',
+        ...(isCommercialContext
+          ? {
+              context: 'commercial',
+              businessId,
+              identityId: requestedIdentityId || '',
+            }
+          : {}),
       },
     });
   };

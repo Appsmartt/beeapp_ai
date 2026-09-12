@@ -6,14 +6,14 @@ import type {
   ChatRealtimeEvent,
 } from '@beeapp/shared-types';
 
-const CHAT_INBOX_CACHE_PREFIX = 'beeapp.chat.inbox.v2';
-const CHAT_MESSAGES_CACHE_PREFIX = 'beeapp.chat.messages.v3';
+const CHAT_INBOX_CACHE_PREFIX = 'beeapp.chat.inbox.v3';
+const CHAT_MESSAGES_CACHE_PREFIX = 'beeapp.chat.messages.v4';
 const CHAT_ARCHIVED_CONVERSATIONS_PREFIX = (
-  'beeapp.chat.archived-conversations.v1'
+  'beeapp.chat.archived-conversations.v2'
 );
 
-const CHAT_INBOX_CACHE_VERSION = 2;
-const CHAT_MESSAGES_CACHE_VERSION = 3;
+const CHAT_INBOX_CACHE_VERSION = 3;
+const CHAT_MESSAGES_CACHE_VERSION = 4;
 const MAX_PERSISTED_MESSAGES_PER_CONVERSATION = 300;
 
 interface ChatInboxCachePayload {
@@ -53,6 +53,7 @@ let protectedConversationIds: string[] = [];
 let archivedConversationIds: string[] = [];
 
 let activeUserId: string | null = null;
+let activeIdentityId: string | null = null;
 
 export type ChatStoreChange =
   | {
@@ -135,31 +136,42 @@ function rememberChatEvent(
 
 function getInboxCacheKey(
   userId: string,
+  identityId: string,
 ): string {
-  return `${CHAT_INBOX_CACHE_PREFIX}.${userId}`;
+  return (
+    `${CHAT_INBOX_CACHE_PREFIX}.${userId}.`
+    + `${identityId}`
+  );
 }
 
 function getMessagesCacheKey(
   userId: string,
+  identityId: string,
   conversationId: string,
 ): string {
   return (
     `${CHAT_MESSAGES_CACHE_PREFIX}.${userId}.`
-    + `${conversationId}`
+    + `${identityId}.${conversationId}`
   );
 }
 
 function getMessagesCachePrefix(
   userId: string,
+  identityId: string,
 ): string {
-  return `${CHAT_MESSAGES_CACHE_PREFIX}.${userId}.`;
+  return (
+    `${CHAT_MESSAGES_CACHE_PREFIX}.${userId}.`
+    + `${identityId}.`
+  );
 }
 
 function getArchivedConversationsCacheKey(
   userId: string,
+  identityId: string,
 ): string {
   return (
-    `${CHAT_ARCHIVED_CONVERSATIONS_PREFIX}.${userId}`
+    `${CHAT_ARCHIVED_CONVERSATIONS_PREFIX}.${userId}.`
+    + `${identityId}`
   );
 }
 
@@ -460,7 +472,7 @@ function getMessageCacheMetadata(
 function persistConversations(
   lastSyncedAt: string | null = null,
 ): void {
-  if (!activeUserId) {
+  if (!activeUserId || !activeIdentityId) {
     return;
   }
 
@@ -471,7 +483,10 @@ function persistConversations(
   };
 
   void AsyncStorage.setItem(
-    getInboxCacheKey(activeUserId),
+    getInboxCacheKey(
+      activeUserId,
+      activeIdentityId,
+    ),
     JSON.stringify(payload),
   ).catch(() => {
     // Cache persistence must never block chat usage.
@@ -479,12 +494,15 @@ function persistConversations(
 }
 
 function persistArchivedConversationIds(): void {
-  if (!activeUserId) {
+  if (!activeUserId || !activeIdentityId) {
     return;
   }
 
   void AsyncStorage.setItem(
-    getArchivedConversationsCacheKey(activeUserId),
+    getArchivedConversationsCacheKey(
+      activeUserId,
+      activeIdentityId,
+    ),
     JSON.stringify(archivedConversationIds),
   ).catch(() => {
     // Archive persistence must never block chat usage.
@@ -494,7 +512,7 @@ function persistArchivedConversationIds(): void {
 function persistMessages(
   conversationId: string,
 ): void {
-  if (!activeUserId) {
+  if (!activeUserId || !activeIdentityId) {
     return;
   }
 
@@ -530,6 +548,7 @@ function persistMessages(
   void AsyncStorage.setItem(
     getMessagesCacheKey(
       activeUserId,
+      activeIdentityId,
       normalizedConversationId,
     ),
     JSON.stringify(payload),
@@ -545,6 +564,7 @@ function clearInMemoryChatData(): void {
   protectedConversationIds = [];
   archivedConversationIds = [];
   activeUserId = null;
+  activeIdentityId = null;
 
   notifyChatStore({
     type: 'reset',
@@ -553,6 +573,7 @@ function clearInMemoryChatData(): void {
 
 function removeMessageCachesNotInSnapshot(
   userId: string,
+  identityId: string,
   conversationIds: string[],
 ): void {
   const validConversationIds = new Set(
@@ -561,7 +582,10 @@ function removeMessageCachesNotInSnapshot(
 
   void AsyncStorage.getAllKeys()
     .then((keys) => {
-      const messageCachePrefix = getMessagesCachePrefix(userId);
+      const messageCachePrefix = getMessagesCachePrefix(
+        userId,
+        identityId,
+      );
 
       const staleKeys = keys.filter((key) => {
         if (!key.startsWith(messageCachePrefix)) {
@@ -588,21 +612,27 @@ function removeMessageCachesNotInSnapshot(
 
 export async function hydrateChatConversations(
   userId: string,
+  identityId: string,
 ): Promise<ChatConversation[]> {
   const normalizedUserId = userId.trim();
+  const normalizedIdentityId = identityId.trim();
 
-  if (!normalizedUserId) {
+  if (!normalizedUserId || !normalizedIdentityId) {
     clearInMemoryChatData();
 
     return conversations;
   }
 
-  if (activeUserId === normalizedUserId) {
+  if (
+    activeUserId === normalizedUserId
+    && activeIdentityId === normalizedIdentityId
+  ) {
     return conversations;
   }
 
   clearInMemoryChatData();
   activeUserId = normalizedUserId;
+  activeIdentityId = normalizedIdentityId;
 
   try {
     const [
@@ -610,10 +640,16 @@ export async function hydrateChatConversations(
       serializedArchivedConversationIds,
     ] = await Promise.all([
       AsyncStorage.getItem(
-        getInboxCacheKey(normalizedUserId),
+        getInboxCacheKey(
+          normalizedUserId,
+          normalizedIdentityId,
+        ),
       ),
       AsyncStorage.getItem(
-        getArchivedConversationsCacheKey(normalizedUserId),
+        getArchivedConversationsCacheKey(
+          normalizedUserId,
+          normalizedIdentityId,
+        ),
       ),
     ]);
 
@@ -649,7 +685,10 @@ export async function hydrateChatConversations(
 
     if (!validPayload) {
       await AsyncStorage.removeItem(
-        getInboxCacheKey(normalizedUserId),
+        getInboxCacheKey(
+          normalizedUserId,
+          normalizedIdentityId,
+        ),
       );
 
       return conversations;
@@ -674,22 +713,31 @@ export async function hydrateChatConversations(
 
 export async function hydrateChatMessages(
   userId: string,
+  identityId: string,
   conversationId: string,
 ): Promise<ChatMessage[]> {
   const normalizedUserId = userId.trim();
+  const normalizedIdentityId = identityId.trim();
   const normalizedConversationId = normalizeConversationId(
     conversationId,
   );
 
   if (
     !normalizedUserId
+    || !normalizedIdentityId
     || !normalizedConversationId
   ) {
     return [];
   }
 
-  if (activeUserId !== normalizedUserId) {
-    await hydrateChatConversations(normalizedUserId);
+  if (
+    activeUserId !== normalizedUserId
+    || activeIdentityId !== normalizedIdentityId
+  ) {
+    await hydrateChatConversations(
+      normalizedUserId,
+      normalizedIdentityId,
+    );
   }
 
   if (
@@ -705,6 +753,7 @@ export async function hydrateChatMessages(
     const serializedPayload = await AsyncStorage.getItem(
       getMessagesCacheKey(
         normalizedUserId,
+        normalizedIdentityId,
         normalizedConversationId,
       ),
     );
@@ -733,6 +782,7 @@ export async function hydrateChatMessages(
       await AsyncStorage.removeItem(
         getMessagesCacheKey(
           normalizedUserId,
+          normalizedIdentityId,
           normalizedConversationId,
         ),
       );
@@ -793,19 +843,32 @@ export async function hydrateChatMessages(
 
 export async function clearChatConversationsCache(
   userId?: string,
+  identityId?: string,
 ): Promise<void> {
   const targetUserId = (userId || activeUserId || '').trim();
+  const targetIdentityId = (
+    identityId
+    || activeIdentityId
+    || ''
+  ).trim();
 
-  if (targetUserId) {
+  if (targetUserId && targetIdentityId) {
     const messageCachePrefix = getMessagesCachePrefix(
       targetUserId,
+      targetIdentityId,
     );
 
     const keys = await AsyncStorage.getAllKeys();
 
     const keysToRemove = keys.filter((key) => (
-      key === getInboxCacheKey(targetUserId)
-      || key === getArchivedConversationsCacheKey(targetUserId)
+      key === getInboxCacheKey(
+        targetUserId,
+        targetIdentityId,
+      )
+      || key === getArchivedConversationsCacheKey(
+        targetUserId,
+        targetIdentityId,
+      )
       || key.startsWith(messageCachePrefix)
     ));
 
@@ -814,22 +877,31 @@ export async function clearChatConversationsCache(
     }
   }
 
-  if (!userId || userId === activeUserId) {
+  if (
+    (!userId && !identityId)
+    || (
+      targetUserId === activeUserId
+      && targetIdentityId === activeIdentityId
+    )
+  ) {
     clearInMemoryChatData();
   }
 }
 
 export async function clearChatMessagesCache(
   userId: string,
+  identityId: string,
   conversationId: string,
 ): Promise<void> {
   const normalizedUserId = userId.trim();
+  const normalizedIdentityId = identityId.trim();
   const normalizedConversationId = normalizeConversationId(
     conversationId,
   );
 
   if (
     !normalizedUserId
+    || !normalizedIdentityId
     || !normalizedConversationId
   ) {
     return;
@@ -838,11 +910,15 @@ export async function clearChatMessagesCache(
   await AsyncStorage.removeItem(
     getMessagesCacheKey(
       normalizedUserId,
+      normalizedIdentityId,
       normalizedConversationId,
     ),
   );
 
-  if (activeUserId === normalizedUserId) {
+  if (
+    activeUserId === normalizedUserId
+    && activeIdentityId === normalizedIdentityId
+  ) {
     const {
       [normalizedConversationId]: _removedMessages,
       ...remainingMessages
@@ -903,9 +979,11 @@ export function replaceChatConversationsSnapshot(
   if (
     options.removeStaleMessageCaches !== false
     && activeUserId
+    && activeIdentityId
   ) {
     removeMessageCachesNotInSnapshot(
       activeUserId,
+      activeIdentityId,
       conversations.map((conversation) => conversation.id),
     );
   }
@@ -1108,10 +1186,15 @@ export function removeChatConversation(
     conversationId: normalizedConversationId,
   });
 
-  if (activeUserId && normalizedConversationId) {
+  if (
+    activeUserId
+    && activeIdentityId
+    && normalizedConversationId
+  ) {
     void AsyncStorage.removeItem(
       getMessagesCacheKey(
         activeUserId,
+        activeIdentityId,
         normalizedConversationId,
       ),
     ).catch(() => {

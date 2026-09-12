@@ -78,6 +78,17 @@ export default function ConversationScreen() {
   const isGroupFromRoute = params.isGroup === 'true';
   const isAiFromRoute = params.isAi === 'true';
   const onlineFromRoute = params.online === 'true';
+  const context = String(params.context || '').trim();
+  const businessId = String(params.businessId || '').trim();
+  const requestedIdentityId = String(
+    params.identityId || '',
+  ).trim() || null;
+
+  const isCommercialContext = (
+    context === 'commercial'
+    && Boolean(businessId)
+    && Boolean(requestedIdentityId)
+  );
 
   const {
     messages,
@@ -88,7 +99,7 @@ export default function ConversationScreen() {
     sending,
     loadingMore,
     hasMore,
-    privateIdentityId,
+    activeIdentityId,
     error,
     loadMessages,
     loadMore,
@@ -99,6 +110,7 @@ export default function ConversationScreen() {
   } = useChatMessages({
     conversationId: chatId || null,
     conversationIsAi: isAiFromRoute,
+    identityId: requestedIdentityId,
   });
 
   const [aiAutoReply, setAiAutoReply] =
@@ -178,7 +190,7 @@ export default function ConversationScreen() {
   );
 
   const currentIdentityId = (
-    privateIdentityId
+    activeIdentityId
     || null
   );
 
@@ -753,7 +765,7 @@ export default function ConversationScreen() {
       return;
     }
 
-    if (!privateIdentityId) {
+    if (!activeIdentityId) {
       Alert.alert(
         'Preparando llamada',
         'Tu identidad de Chat aún se está cargando. Inténtalo nuevamente.',
@@ -776,7 +788,7 @@ export default function ConversationScreen() {
       const activeCall = await getActiveConversationCall(
         auth,
         chatId,
-        privateIdentityId,
+        activeIdentityId,
       );
 
       if (
@@ -796,7 +808,7 @@ export default function ConversationScreen() {
         auth,
         chatId,
         {
-          actor_identity_id: privateIdentityId,
+          actor_identity_id: activeIdentityId,
           call_type: video ? 'video' : 'voice',
         },
       );
@@ -808,8 +820,15 @@ export default function ConversationScreen() {
         params: {
           callId: response.call.id,
           conversationId: chatId,
-          actorIdentityId: privateIdentityId,
+          actorIdentityId: activeIdentityId,
           callType: response.call.call_type,
+          ...(isCommercialContext
+            ? {
+                context: 'commercial',
+                businessId,
+                identityId: requestedIdentityId || '',
+              }
+            : {}),
         },
       });
     } catch (callError) {
@@ -928,6 +947,13 @@ export default function ConversationScreen() {
               pathname: '/(main)/chat/chat-profile',
               params: {
                 id: chatId,
+                ...(isCommercialContext
+                  ? {
+                      context: 'commercial',
+                      businessId,
+                      identityId: requestedIdentityId || '',
+                    }
+                  : {}),
               },
             });
           }}
@@ -997,6 +1023,13 @@ export default function ConversationScreen() {
               pathname: '/(main)/chat/chat-profile',
               params: {
                 id: chatId,
+                ...(isCommercialContext
+                  ? {
+                      context: 'commercial',
+                      businessId,
+                      identityId: requestedIdentityId || '',
+                    }
+                  : {}),
               },
             });
           }}

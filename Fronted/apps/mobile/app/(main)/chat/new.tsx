@@ -22,6 +22,7 @@ import { colors } from '@beeapp/design-system';
 import ScreenSafeArea from '../../../src/components/layout/ScreenSafeArea';
 import {
   useModuleNav,
+  useScreenParams,
 } from '../../../src/components/embedded/EmbeddedNavContext';
 import VerifiedBadge from '../../../src/components/VerifiedBadge';
 
@@ -35,12 +36,26 @@ import type {
 
 export default function NewChatScreen() {
   const router = useModuleNav();
+  const params = useScreenParams();
+
+  const context = String(params.context || '').trim();
+  const businessId = String(params.businessId || '').trim();
+  const requestedIdentityId = String(
+    params.identityId || '',
+  ).trim() || null;
+
+  const isCommercialContext = (
+    context === 'commercial'
+    && Boolean(businessId)
+    && Boolean(requestedIdentityId)
+  );
 
   const {
     searchUsers,
     createDirectConversation,
   } = useChatConversations({
     autoLoad: false,
+    identityId: requestedIdentityId,
   });
 
   const [searchText, setSearchText] =
@@ -130,6 +145,13 @@ export default function NewChatScreen() {
         online: conversation.online
           ? 'true'
           : 'false',
+        ...(isCommercialContext
+          ? {
+              context: 'commercial',
+              businessId,
+              identityId: requestedIdentityId || '',
+            }
+          : {}),
       },
     });
   };

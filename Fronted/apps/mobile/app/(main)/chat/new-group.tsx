@@ -25,6 +25,7 @@ import {
 import ScreenSafeArea from '../../../src/components/layout/ScreenSafeArea';
 import {
   useModuleNav,
+  useScreenParams,
 } from '../../../src/components/embedded/EmbeddedNavContext';
 import {
   useChatConversations,
@@ -32,11 +33,25 @@ import {
 
 export default function NewGroupScreen() {
   const router = useModuleNav();
+  const params = useScreenParams();
+
+  const context = String(params.context || '').trim();
+  const businessId = String(params.businessId || '').trim();
+  const requestedIdentityId = String(
+    params.identityId || '',
+  ).trim() || null;
+
+  const isCommercialContext = (
+    context === 'commercial'
+    && Boolean(businessId)
+    && Boolean(requestedIdentityId)
+  );
 
   const {
     createGroupConversation,
   } = useChatConversations({
     autoLoad: false,
+    identityId: requestedIdentityId,
   });
 
   const [name, setName] = useState('');
@@ -58,6 +73,13 @@ export default function NewGroupScreen() {
       params: {
         id: conversationId,
         newlyCreated: 'true',
+        ...(isCommercialContext
+          ? {
+              context: 'commercial',
+              businessId,
+              identityId: requestedIdentityId || '',
+            }
+          : {}),
       },
     });
   };

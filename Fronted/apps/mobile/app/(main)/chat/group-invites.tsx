@@ -45,7 +45,7 @@ export default function GroupInvitesScreen() {
   const router = useModuleNav();
 
   const {
-    privateIdentityId,
+    activeIdentityId,
     loadConversations,
   } = useChatConversations({
     autoLoad: false,
@@ -84,7 +84,7 @@ export default function GroupInvitesScreen() {
       const response = await getChatGroupInvites(
         auth,
         {
-          identityId: privateIdentityId || undefined,
+          identityId: activeIdentityId || undefined,
           status: 'pending',
           limit: 100,
           offset: 0,
@@ -104,7 +104,7 @@ export default function GroupInvitesScreen() {
       setRefreshing(false);
     }
   }, [
-    privateIdentityId,
+    activeIdentityId,
   ]);
 
   useEffect(() => {

@@ -34,6 +34,20 @@ function flattenMyStatusStories(
   ];
 }
 
+function flattenCommercialStatusStories(
+  stories: Awaited<
+    ReturnType<typeof loadMyStatuses>
+  >,
+  commercialProfileId: string,
+): StatusStory[] {
+  return stories.active.commercial_profiles
+    .filter((item) => (
+      item.actor.commercial_profile_id
+      === commercialProfileId
+    ))
+    .flatMap((item) => item.stories);
+}
+
 function flattenFeedStories(
   feed: Awaited<
     ReturnType<typeof loadStatusFeed>
@@ -60,6 +74,10 @@ function mapStoriesToUi(
   ));
 }
 
+export interface UseStatusesOptions {
+  commercialProfileId?: string | null;
+}
+
 export interface UseStatusesResult {
   statuses: StatusItem[];
   backgrounds: StatusTextBackground[];
@@ -69,7 +87,15 @@ export interface UseStatusesResult {
   refresh: () => Promise<void>;
 }
 
-export function useStatuses(): UseStatusesResult {
+export function useStatuses(
+  {
+    commercialProfileId = null,
+  }: UseStatusesOptions = {},
+): UseStatusesResult {
+  const normalizedCommercialProfileId = String(
+    commercialProfileId || '',
+  ).trim() || null;
+
   const [statuses, setStatuses] = useState<StatusItem[]>(
     [],
   );
@@ -95,21 +121,24 @@ export function useStatuses(): UseStatusesResult {
       try {
         const [
           backgroundsResponse,
-          feedResponse,
           mineResponse,
         ] = await Promise.all([
           loadStatusTextBackgrounds(),
-          loadStatusFeed(),
           loadMyStatuses(),
         ]);
 
-        const ownStories = flattenMyStatusStories(
-          mineResponse,
-        );
+        const ownStories = normalizedCommercialProfileId
+          ? flattenCommercialStatusStories(
+              mineResponse,
+              normalizedCommercialProfileId,
+            )
+          : flattenMyStatusStories(mineResponse);
 
-        const feedStories = flattenFeedStories(
-          feedResponse,
-        );
+        const feedStories = normalizedCommercialProfileId
+          ? []
+          : flattenFeedStories(
+              await loadStatusFeed(),
+            );
 
         const uniqueStories = new Map<string, StatusStory>();
 
@@ -141,7 +170,9 @@ export function useStatuses(): UseStatusesResult {
         setRefreshing(false);
       }
     },
-    [],
+    [
+      normalizedCommercialProfileId,
+    ],
   );
 
   useEffect(() => {

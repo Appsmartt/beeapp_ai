@@ -33,6 +33,7 @@ export type SocialActivityTab =
 interface SocialActivitySheetProps {
   visible: boolean;
   activeTab: SocialActivityTab;
+  allowedTabs?: SocialActivityTab[];
   invites: ChatGroupInvite[];
   requests: StatusFollowListItem[];
   followers: StatusFollowListItem[];
@@ -191,6 +192,7 @@ function getEmptyIcon(activeTab: SocialActivityTab) {
 export default function SocialActivitySheet({
   visible,
   activeTab,
+  allowedTabs = TABS.map((tab) => tab.id),
   invites,
   requests,
   followers,
@@ -473,7 +475,9 @@ export default function SocialActivitySheet({
               </View>
 
               <View style={styles.tabs}>
-                {TABS.map((tab) => {
+                {TABS.filter((tab) => (
+                  allowedTabs.includes(tab.id)
+                )).map((tab) => {
                   const isActive = activeTab === tab.id;
 
                   return (
