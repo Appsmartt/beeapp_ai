@@ -611,9 +611,15 @@ class StatusFollowsView(AuthenticatedAPIView):
         serializer.is_valid(raise_exception=True)
 
         try:
-            authenticated_user = self.get_authenticated_user(request)
+            (
+                authenticated_user,
+                access_token,
+            ) = self.get_authenticated_user_and_access_token(
+                request
+            )
             follow = request_follow(
                 user_id=str(authenticated_user.id),
+                access_token=access_token,
                 **serializer.validated_data,
             )
         except (

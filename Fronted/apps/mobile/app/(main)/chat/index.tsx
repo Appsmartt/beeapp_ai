@@ -41,8 +41,6 @@ import CreateStatusModal from '../../../src/components/chat/CreateStatusModal';
 import ChatTabs, {
   type ChatTab,
 } from '../../../src/components/chat/ChatTabs';
-import ChatCategoryChips from '../../../src/components/chat/ChatCategoryChips';
-import ChatCategoryModals from '../../../src/components/chat/ChatCategoryModals';
 import ChatOptionsSheet from '../../../src/components/chat/ChatOptionsSheet';
 import ChatCreateMenu from '../../../src/components/chat/ChatCreateMenu';
 import DiscoverPeopleModal from '../../../src/components/chat/DiscoverPeopleModal';
@@ -57,12 +55,6 @@ import {
 import type {
   ChatListItemModel,
 } from '../../../src/services/chatService';
-
-import {
-  MOCK_CATEGORIES,
-  type ChatCategory,
-  addCategory,
-} from '../../../src/mocks/chats';
 
 import {
   useStatuses,
@@ -262,26 +254,6 @@ export default function ChatListScreen() {
     string | null
   >(null);
   const discoverRequestRef = useRef(0);
-
-  const [categories, setCategories] = useState<
-    ChatCategory[]
-  >([
-    ...MOCK_CATEGORIES,
-  ]);
-
-  const [activeCategoryId, setActiveCategoryId] = useState<
-    string | null
-  >(null);
-
-  const [creatingCategory, setCreatingCategory] = useState(false);
-
-  const [assigningChat, setAssigningChat] = useState<
-    ChatListItemModel | null
-  >(null);
-
-  const [chatCategoryIds, setChatCategoryIds] = useState<
-    Record<string, string[]>
-  >({});
 
   const {
     statuses,
@@ -487,28 +459,17 @@ export default function ChatListScreen() {
     () => conversations
       .filter((chat) => (
         chat.isAI
+        || chat.isGroup
         || Boolean(
           chat.raw.last_message?.id
           || chat.raw.last_message_at,
         )
       ))
-      .filter((chat) => {
-        if (!activeCategoryId || activeTab !== 'chats') {
-          return true;
-        }
-
-        return (
-          chatCategoryIds[chat.id] || []
-        ).includes(activeCategoryId);
-      })
       .map((chat) => ({
         ...chat,
         isProtected: protectedChatIds.has(chat.id),
       })),
     [
-      activeCategoryId,
-      activeTab,
-      chatCategoryIds,
       conversations,
       protectedChatIds,
     ],
@@ -824,19 +785,6 @@ export default function ChatListScreen() {
     );
   };
 
-  const handleSaveCategories = (
-    categoryIds: string[],
-  ) => {
-    if (assigningChat) {
-      setChatCategoryIds((current) => ({
-        ...current,
-        [assigningChat.id]: categoryIds,
-      }));
-    }
-
-    setAssigningChat(null);
-  };
-
   const handleRefresh = () => {
     void Promise.allSettled([
       loadConversations({
@@ -1054,17 +1002,6 @@ export default function ChatListScreen() {
         />
 
         <>
-          {!isGroupsTab ? (
-            <ChatCategoryChips
-              categories={categories}
-              activeCategoryId={activeCategoryId}
-              onChange={setActiveCategoryId}
-              onCreate={() => {
-                setCreatingCategory(true);
-              }}
-            />
-          ) : null}
-
           {(
             commercialIdentityLoading
             || (loading && conversations.length === 0)
@@ -1513,10 +1450,6 @@ export default function ChatListScreen() {
 
           setMenuChat(null);
         }}
-        onAssignCategory={() => {
-          setAssigningChat(menuChat);
-          setMenuChat(null);
-        }}
         onDelete={() => {
           if (menuChat) {
             handleDelete(menuChat);
@@ -1543,39 +1476,6 @@ export default function ChatListScreen() {
         }}
       />
 
-      <ChatCategoryModals
-        categories={categories}
-        creating={creatingCategory}
-        onCreate={(category) => {
-          const created = addCategory(category);
-
-          setCategories([
-            ...MOCK_CATEGORIES,
-          ]);
-
-          setActiveCategoryId(created.id);
-          setCreatingCategory(false);
-        }}
-        onCloseCreate={() => {
-          setCreatingCategory(false);
-        }}
-        assigningChat={
-          assigningChat
-            ? {
-                name: assigningChat.name,
-                categoryIds: (
-                  chatCategoryIds[
-                    assigningChat.id
-                  ] || []
-                ),
-              }
-            : null
-        }
-        onSaveAssign={handleSaveCategories}
-        onCloseAssign={() => {
-          setAssigningChat(null);
-        }}
-      />
     </ScreenSafeArea>
   );
 }
