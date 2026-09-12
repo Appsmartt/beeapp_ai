@@ -158,6 +158,17 @@ businessId: requireId(businessId, 'el negocio'),
 };
 }
 
+export function buddyServicesManageVerificationRoute(
+businessId: string,
+): Href {
+return {
+pathname: "/(main)/beeservices/manage/[businessId]/verification",
+params: {
+businessId: requireId(businessId, "el negocio"),
+},
+};
+}
+
 export function buddyServicesManageOperationRoute(
 businessId: string,
 ): Href {

@@ -3,6 +3,7 @@ from django.test import SimpleTestCase
 from apps.commercial.serializers import (
     CreateCommercialPaymentMethodSerializer,
     CreateCommercialVerificationDocumentSerializer,
+    CreateCommercialVerificationRequestSerializer,
     ReviewCommercialVerificationRequestSerializer,
     UpdateCommercialPaymentMethodSerializer,
     UpdateCommercialProfilePublicationSerializer,
@@ -91,6 +92,68 @@ class CommercialPaymentMethodSerializerTests(
 
 
 class CommercialVerificationSerializerTests(SimpleTestCase):
+    def test_accepts_valid_natural_person_request(self):
+        serializer = CreateCommercialVerificationRequestSerializer(
+            data={
+                "applicant_type": "natural",
+                "legal_name": "Andrés Mendoza",
+                "tax_id": "1.234.567.890",
+                "business_address": "Carrera 7 # 72-41, Bogotá",
+                "declaration_accepted": True,
+                "declaration_version": "v1",
+            }
+        )
+
+        self.assertTrue(serializer.is_valid(), serializer.errors)
+
+    def test_accepts_valid_legal_person_request(self):
+        serializer = CreateCommercialVerificationRequestSerializer(
+            data={
+                "applicant_type": "legal",
+                "legal_name": "BeeApp SAS",
+                "tax_id": "901.123.456-7",
+                "business_address": "Calle 100 # 10-20, Bogotá",
+                "review_note": "El RUT está actualizado.",
+                "declaration_accepted": True,
+                "declaration_version": "v1",
+            }
+        )
+
+        self.assertTrue(serializer.is_valid(), serializer.errors)
+
+    def test_rejects_request_without_declaration(self):
+        serializer = CreateCommercialVerificationRequestSerializer(
+            data={
+                "applicant_type": "legal",
+                "legal_name": "BeeApp SAS",
+                "tax_id": "901123456",
+                "business_address": "Calle 100 # 10-20, Bogotá",
+                "declaration_accepted": False,
+                "declaration_version": "v1",
+            }
+        )
+
+        self.assertFalse(serializer.is_valid())
+        self.assertIn(
+            "declaration_accepted",
+            serializer.errors,
+        )
+
+    def test_rejects_request_with_short_tax_id(self):
+        serializer = CreateCommercialVerificationRequestSerializer(
+            data={
+                "applicant_type": "natural",
+                "legal_name": "Ana Pérez",
+                "tax_id": "1234",
+                "business_address": "Calle 10 # 20-30, Bogotá",
+                "declaration_accepted": True,
+                "declaration_version": "v1",
+            }
+        )
+
+        self.assertFalse(serializer.is_valid())
+        self.assertIn("tax_id", serializer.errors)
+
     def test_accepts_valid_verification_document(self):
         serializer = CreateCommercialVerificationDocumentSerializer(
             data={

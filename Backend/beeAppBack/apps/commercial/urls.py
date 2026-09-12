@@ -22,6 +22,11 @@ from apps.commercial.payment_proof_views import CommercialPaymentProofsView
 from apps.commercial.payment_proof_review_views import (
     CommercialPaymentProofReviewView,
 )
+from apps.commercial.verification_views import (
+    CommercialProfileVerificationDocumentView,
+    CommercialProfileVerificationSubmitView,
+    CommercialProfileVerificationView,
+)
 
 from apps.commercial.views import (
     CommercialProfileChatView,
@@ -210,6 +215,21 @@ urlpatterns = [
         "profiles/<uuid:profile_id>/publication/",
         CommercialProfilePublicationView.as_view(),
         name="commercial-profile-publication",
+    ),
+    path(
+        "profiles/<uuid:profile_id>/verification/",
+        CommercialProfileVerificationView.as_view(),
+        name="commercial-profile-verification",
+    ),
+    path(
+        "profiles/<uuid:profile_id>/verification/submit/",
+        CommercialProfileVerificationSubmitView.as_view(),
+        name="commercial-profile-verification-submit",
+    ),
+    path(
+        "profiles/<uuid:profile_id>/verification/document/",
+        CommercialProfileVerificationDocumentView.as_view(),
+        name="commercial-profile-verification-document",
     ),
     path(
         "profiles/<uuid:profile_id>/chat/",
