@@ -646,9 +646,15 @@ class StatusFollowDiscoverView(AuthenticatedAPIView):
         serializer.is_valid(raise_exception=True)
 
         try:
-            authenticated_user = self.get_authenticated_user(request)
+            (
+                authenticated_user,
+                access_token,
+            ) = self.get_authenticated_user_and_access_token(
+                request
+            )
             result = discover_follow_targets(
                 user_id=str(authenticated_user.id),
+                access_token=access_token,
                 query=serializer.validated_data["q"],
                 limit=serializer.validated_data["limit"],
                 cursor=serializer.validated_data.get("cursor"),
