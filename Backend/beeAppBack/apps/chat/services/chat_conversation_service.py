@@ -91,6 +91,45 @@ def _response_rows(response) -> list[dict[str, Any]]:
     return []
 
 
+def _normalize_inbox_conversation(
+    row: dict[str, Any],
+) -> dict[str, Any]:
+    """
+    Normaliza el resultado de public.get_chat_inbox al contrato interno
+    de conversación usado por el backend y el cliente móvil.
+    """
+    conversation = dict(row)
+
+    conversation["id"] = str(
+        conversation.get("conversation_id")
+        or conversation.get("id")
+        or ""
+    )
+
+    if not conversation["id"]:
+        raise ChatInboxError(
+            "Chat inbox returned a conversation without an ID."
+        )
+
+    conversation["name"] = (
+        conversation.get("group_name")
+        if conversation.get("group_name") is not None
+        else conversation.get("name")
+    )
+    conversation["description"] = (
+        conversation.get("group_description")
+        if conversation.get("group_description") is not None
+        else conversation.get("description")
+    )
+    conversation["image_file_id"] = (
+        conversation.get("group_image_file_id")
+        if conversation.get("group_image_file_id") is not None
+        else conversation.get("image_file_id")
+    )
+
+    return conversation
+
+
 def create_or_get_direct_conversation(
     *,
     user_id: str,
@@ -350,7 +389,10 @@ def get_chat_inbox(
             .execute()
         )
 
-        conversations = _response_rows(response)
+        conversations = [
+            _normalize_inbox_conversation(row)
+            for row in _response_rows(response)
+        ]
 
         commercial_links_by_conversation_id = (
             _load_commercial_inbox_links(
@@ -395,6 +437,15 @@ def get_chat_inbox(
         raise
 
     except Exception as error:
+        logger.exception(
+            "chat_inbox_rpc_failed",
+            extra={
+                "user_id": str(user_id),
+                "identity_id": str(identity_id),
+                "limit": int(limit),
+                "has_cursor": before_last_message_at is not None,
+            },
+        )
         message = str(error)
 
         if "CHAT_IDENTITY_NOT_OWNED_BY_USER" in message:

@@ -1557,8 +1557,7 @@ export function useChatMessages(
       setLoading(
         getStoredMessages(
           normalizedConversationId,
-        ).length === 0
-        && rawMessages.length === 0,
+        ).length === 0,
       );
     }
 
@@ -1689,7 +1688,6 @@ export function useChatMessages(
     markLatestMessageAsRead,
     normalizedConversationId,
     activeIdentityId,
-    rawMessages.length,
     resolveActiveIdentityId,
     synchronizeMessages,
   ]);
