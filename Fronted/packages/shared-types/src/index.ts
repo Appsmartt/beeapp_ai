@@ -2583,6 +2583,17 @@ export interface ChatConversation {
   is_protected?: boolean;
   is_ai?: boolean;
   direct_profile?: ChatProfileSummary | null;
+  other_identity_id?: string | null;
+  other_identity_type?: 'profile' | 'commercial_profile' | null;
+  other_profile_id?: string | null;
+  other_commercial_profile_id?: string | null;
+  other_display_name?: string | null;
+  other_logo_file_id?: string | null;
+  commercial?: {
+    id: string;
+    display_name: string;
+    logo_file_id?: string | null;
+  } | null;
 }
 
 export interface ChatGroupInvite {
