@@ -164,11 +164,6 @@ export default function ConversationScreen() {
   const resolvedAttachmentMessageIdsRef = useRef<Set<string>>(new Set());
   const initialMessageSentRef = useRef<string | null>(null);
 
-  const chatName = (
-    conversation?.name?.trim()
-    || fallbackChatName
-  );
-
   const isGroup = (
     conversation?.conversation_type === 'group'
     || isGroupFromRoute
@@ -178,6 +173,74 @@ export default function ConversationScreen() {
     conversation?.conversation_type === 'ai'
     || Boolean(conversation?.is_ai)
     || isAiFromRoute
+  );
+
+  const resolveDirectChatName = (): string => {
+    const inboxOtherDisplayName = String(
+      conversation?.other_display_name || '',
+    ).trim();
+
+    if (inboxOtherDisplayName) {
+      return inboxOtherDisplayName;
+    }
+
+    const commercialName = String(
+      conversation?.commercial?.display_name || '',
+    ).trim();
+
+    if (commercialName) {
+      return commercialName;
+    }
+
+    const currentIdentityId = activeIdentityId || null;
+    const directParticipant = (
+      currentIdentityId
+        ? conversation?.participants?.find(
+            (participant) => (
+              participant.identity_id !== currentIdentityId
+            ),
+          )
+        : null
+    );
+
+    const participantName = [
+      directParticipant?.user?.first_name,
+      directParticipant?.user?.last_name,
+    ]
+      .filter(Boolean)
+      .join(' ')
+      .trim();
+
+    if (participantName && participantName !== 'Tú') {
+      return participantName;
+    }
+
+    const directProfileName = [
+      conversation?.direct_profile?.first_name,
+      conversation?.direct_profile?.last_name,
+    ]
+      .filter(Boolean)
+      .join(' ')
+      .trim();
+
+    if (directProfileName && directProfileName !== 'Tú') {
+      return directProfileName;
+    }
+
+    return fallbackChatName !== 'Tú'
+      ? fallbackChatName
+      : 'Conversación';
+  };
+
+  const chatName = (
+    conversation?.name?.trim()
+    || (
+      isAI
+        ? 'Bee'
+        : isGroup
+          ? fallbackChatName
+          : resolveDirectChatName()
+    )
   );
 
   const online = (

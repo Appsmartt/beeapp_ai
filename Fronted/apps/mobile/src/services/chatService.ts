@@ -232,6 +232,45 @@ function formatAudioDuration(
   return `${minutes}:${String(remainingSeconds).padStart(2, '0')}`;
 }
 
+function getDirectConversationDisplayName(
+  conversation: ChatConversation,
+  currentUserId: string,
+): string {
+  const inboxOtherDisplayName = String(
+    conversation.other_display_name || '',
+  ).trim();
+
+  if (inboxOtherDisplayName) {
+    return inboxOtherDisplayName;
+  }
+
+  const commercialName = String(
+    conversation.commercial?.display_name || '',
+  ).trim();
+
+  if (commercialName) {
+    return commercialName;
+  }
+
+  const directProfile = getDirectProfile(
+    conversation,
+    currentUserId,
+  );
+
+  const participantName = fullName(directProfile);
+
+  if (
+    participantName
+    && participantName !== 'Usuario Buddy'
+    && participantName !== 'Tú'
+  ) {
+    return participantName;
+  }
+
+  return 'Conversación';
+}
+
+
 function getDirectProfile(
   conversation: ChatConversation,
   currentUserId: string,
@@ -268,7 +307,16 @@ export function mapConversationToListItem(
 
   const displayName = (
     conversation.name?.trim()
-    || (isAI ? 'Bee' : fullName(directProfile))
+    || (
+      isAI
+        ? 'Bee'
+        : isGroup
+          ? 'Grupo sin nombre'
+          : getDirectConversationDisplayName(
+              conversation,
+              currentUserId,
+            )
+    )
   );
 
   const lastMessage = conversation.last_message;
