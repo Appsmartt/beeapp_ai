@@ -71,6 +71,11 @@ RejectCommercialRequestProposalPayload,
 WithdrawCommercialRequestProposalPayload,
 ReplaceCommercialPaymentProofPayload,
 ReplaceCommercialPaymentProofResponse,
+
+  AttachCommercialVerificationDocumentPayload,
+  CommercialVerificationMutationResponse,
+  GetOwnedCommercialVerificationResponse,
+  SaveCommercialVerificationPayload,
 } from '@beeapp/shared-types';
 
 import { api } from './client';
@@ -114,6 +119,11 @@ function profilePath(profileId: string): string {
   return `/commercial/profiles/${encodeURIComponent(
     normalizedProfileId,
   )}/`;
+}
+
+
+function verificationPath(profileId: string): string {
+  return profilePath(profileId) + "verification/";
 }
 
 function publicProfilePath(profileId: string): string {
@@ -279,6 +289,52 @@ export function getOwnedCommercialProfile(
 ): Promise<GetOwnedCommercialProfileResponse> {
   return api.get<GetOwnedCommercialProfileResponse>(
     profilePath(profileId),
+    { auth },
+  );
+}
+
+
+export function getOwnedCommercialVerification(
+  auth: AuthCredentials,
+  profileId: string,
+): Promise<GetOwnedCommercialVerificationResponse> {
+  return api.get<GetOwnedCommercialVerificationResponse>(
+    verificationPath(profileId),
+    { auth },
+  );
+}
+
+export function saveOwnedCommercialVerification(
+  auth: AuthCredentials,
+  profileId: string,
+  payload: SaveCommercialVerificationPayload,
+): Promise<CommercialVerificationMutationResponse> {
+  return api.post<CommercialVerificationMutationResponse>(
+    verificationPath(profileId),
+    payload,
+    { auth },
+  );
+}
+
+export function submitOwnedCommercialVerification(
+  auth: AuthCredentials,
+  profileId: string,
+): Promise<CommercialVerificationMutationResponse> {
+  return api.post<CommercialVerificationMutationResponse>(
+    verificationPath(profileId) + "submit/",
+    undefined,
+    { auth },
+  );
+}
+
+export function attachOwnedCommercialVerificationDocument(
+  auth: AuthCredentials,
+  profileId: string,
+  payload: AttachCommercialVerificationDocumentPayload,
+): Promise<CommercialVerificationMutationResponse> {
+  return api.post<CommercialVerificationMutationResponse>(
+    verificationPath(profileId) + "document/",
+    payload,
     { auth },
   );
 }

@@ -54,6 +54,10 @@ acceptCommercialRequestProposal,
 rejectCommercialRequestProposal,
 withdrawCommercialRequestProposal,
 replaceCommercialPaymentProof,
+getOwnedCommercialVerification,
+saveOwnedCommercialVerification,
+submitOwnedCommercialVerification,
+attachOwnedCommercialVerificationDocument,
 ApiRequestError,
 } from '@beeapp/api-client';
 
@@ -125,6 +129,10 @@ RejectCommercialRequestProposalPayload,
 WithdrawCommercialRequestProposalPayload,
 ReplaceCommercialPaymentProofPayload,
 ReplaceCommercialPaymentProofResponse,
+AttachCommercialVerificationDocumentPayload,
+CommercialVerificationMutationResponse,
+GetOwnedCommercialVerificationResponse,
+SaveCommercialVerificationPayload,
 } from '@beeapp/shared-types';
 
 import {
@@ -280,6 +288,46 @@ profileId: string,
 payload: UpdateCommercialProfilePublicationPayload,
 ): Promise<UpdateCommercialProfilePublicationResponse> {
 return updateCommercialProfilePublication(
+await getRequiredCommercialCredentials(),
+profileId,
+payload,
+);
+}
+
+export async function loadOwnedCommercialVerification(
+profileId: string,
+): Promise<GetOwnedCommercialVerificationResponse> {
+return getOwnedCommercialVerification(
+await getRequiredCommercialCredentials(),
+profileId,
+);
+}
+
+export async function saveOwnedCommercialVerificationRequest(
+profileId: string,
+payload: SaveCommercialVerificationPayload,
+): Promise<CommercialVerificationMutationResponse> {
+return saveOwnedCommercialVerification(
+await getRequiredCommercialCredentials(),
+profileId,
+payload,
+);
+}
+
+export async function submitOwnedCommercialVerificationRequest(
+profileId: string,
+): Promise<CommercialVerificationMutationResponse> {
+return submitOwnedCommercialVerification(
+await getRequiredCommercialCredentials(),
+profileId,
+);
+}
+
+export async function attachOwnedCommercialVerificationPdf(
+profileId: string,
+payload: AttachCommercialVerificationDocumentPayload,
+): Promise<CommercialVerificationMutationResponse> {
+return attachOwnedCommercialVerificationDocument(
 await getRequiredCommercialCredentials(),
 profileId,
 payload,

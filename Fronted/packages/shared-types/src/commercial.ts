@@ -53,6 +53,64 @@ export type CommercialVerificationStatus =
   | 'rejected'
   | 'suspended';
 
+export type CommercialVerificationApplicantType =
+  | 'natural'
+  | 'legal';
+
+export interface CommercialVerificationDocument {
+  id: string;
+  file_id: string;
+  note: string | null;
+  status: 'active' | 'replaced' | 'archived';
+  created_at: string | null;
+}
+
+export interface CommercialVerificationRequest {
+  id: string;
+  commercial_profile_id: string;
+  status: CommercialVerificationStatus;
+  submitted_at: string | null;
+  reviewed_at: string | null;
+  review_reason_code: string | null;
+  review_reason_text: string | null;
+  applicant_type: CommercialVerificationApplicantType | null;
+  legal_name: string | null;
+  tax_id: string | null;
+  tax_id_normalized: string | null;
+  business_address: string | null;
+  review_note: string | null;
+  declaration_accepted_at: string | null;
+  declaration_version: string | null;
+  is_editable: boolean;
+  document: CommercialVerificationDocument | null;
+  created_at: string | null;
+  updated_at: string | null;
+}
+
+export interface SaveCommercialVerificationPayload {
+  applicant_type: CommercialVerificationApplicantType;
+  legal_name: string;
+  tax_id: string;
+  business_address: string;
+  review_note?: string | null;
+  declaration_accepted: true;
+  declaration_version: string;
+}
+
+export interface AttachCommercialVerificationDocumentPayload {
+  file_id: string;
+  note?: string | null;
+}
+
+export interface GetOwnedCommercialVerificationResponse {
+  request: CommercialVerificationRequest | null;
+  verification_status: CommercialVerificationStatus;
+}
+
+export interface CommercialVerificationMutationResponse {
+  request: CommercialVerificationRequest;
+}
+
 export type CommercialCatalogStatus =
   | 'published'
   | 'paused'

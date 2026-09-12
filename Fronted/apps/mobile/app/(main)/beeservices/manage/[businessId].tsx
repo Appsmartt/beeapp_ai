@@ -18,6 +18,7 @@ ClipboardList,
   MessageCircle,
   Package,
   Settings2,
+  ShieldCheck,
 } from 'lucide-react-native';
 import {
   useCallback,
@@ -46,6 +47,7 @@ import {
 buddyServicesManageRequestsRoute,
   buddyServicesManagePaymentMethodsRoute,
   buddyServicesManageProfileRoute,
+buddyServicesManageVerificationRoute,
 } from '../../../../src/features/buddyservices/commercialRoutes';
 import {
   loadOwnedCommercialProfile,
@@ -684,11 +686,76 @@ export default function BuddyServicesManageBusinessScreen() {
             </View>
           </TouchableOpacity>
 
-          <DashboardAction
-            description="Adjunta documentos y consulta el estado de revisión."
-            Icon={FileCheck2}
-            title="Verificación"
-          />
+          <TouchableOpacity
+            accessibilityHint="Solicita la verificación del negocio y consulta el estado de tu solicitud"
+            accessibilityLabel="Verificación"
+            accessibilityRole="button"
+            activeOpacity={0.82}
+            onPress={() => {
+              router.push(
+                buddyServicesManageVerificationRoute(profile.id),
+              );
+            }}
+            style={{
+              backgroundColor: '#FFFFFF',
+              borderColor: '#E7DDF2',
+              borderRadius: 16,
+              borderWidth: 1,
+              marginBottom: 11,
+              padding: 15,
+            }}
+          >
+            <View
+              style={{
+                alignItems: 'center',
+                flexDirection: 'row',
+              }}
+            >
+              <View
+                style={{
+                  alignItems: 'center',
+                  backgroundColor: '#F0E8FA',
+                  borderRadius: 12,
+                  height: 42,
+                  justifyContent: 'center',
+                  width: 42,
+                }}
+              >
+                <FileCheck2
+                  color="#6D3FA9"
+                  size={20}
+                />
+              </View>
+
+              <View
+                style={{
+                  flex: 1,
+                  marginLeft: 12,
+                }}
+              >
+                <Text
+                  style={{
+                    color: '#261743',
+                    fontSize: 15,
+                    fontWeight: '800',
+                  }}
+                >
+                  Verificación
+                </Text>
+
+                <Text
+                  style={{
+                    color: '#786593',
+                    fontSize: 12,
+                    lineHeight: 18,
+                    marginTop: 3,
+                  }}
+                >
+                  Solicita la verificación de tu negocio y consulta el estado de tu solicitud.
+                </Text>
+              </View>
+            </View>
+          </TouchableOpacity>
 
           <TouchableOpacity
             accessibilityHint="Administra los catálogos de este negocio"
