@@ -261,7 +261,6 @@ def _search_commercial_profiles(
                     .eq("is_public", True)
                     .eq("is_available", True)
                     .eq("is_phone_public", True)
-                    .neq("owner_id", str(user_id))
                     .limit(limit)
                     .execute()
                 )
@@ -281,7 +280,6 @@ def _search_commercial_profiles(
                     .select(COMMERCIAL_PROFILE_COLUMNS)
                     .eq("is_public", True)
                     .eq("is_available", True)
-                    .neq("owner_id", str(user_id))
                     .or_(
                         (
                             f"display_name.ilike.%{query}%,"

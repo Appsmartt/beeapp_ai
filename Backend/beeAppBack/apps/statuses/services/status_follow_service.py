@@ -7,6 +7,7 @@ from postgrest import CountMethod
 
 from beeAppBack.core.supabase_client import (
     execute_with_supabase_admin_retry,
+    get_supabase_user_client,
 )
 
 from apps.statuses.exceptions import (
@@ -1093,6 +1094,7 @@ def _display_name_for_profile(
 def discover_follow_targets(
     *,
     user_id: str,
+    access_token: str,
     query: str,
     limit: int = 20,
     cursor: str | None = None,
@@ -1114,20 +1116,22 @@ def discover_follow_targets(
     normalized_cursor = str(cursor).strip() if cursor else None
 
     try:
-        response = execute_with_supabase_admin_retry(
-            lambda client: (
-                client
-                .rpc(
-                    "status_discover_follow_targets",
-                    {
-                        "p_follower_profile_id": str(user_id),
-                        "p_query": normalized_query,
-                        "p_limit": normalized_limit,
-                        "p_cursor": normalized_cursor,
-                    },
-                )
-                .execute()
-            ),
+        response = (
+            get_supabase_user_client(
+                access_token=access_token,
+            )
+            .rpc(
+                "status_discover_follow_targets",
+                {
+                    "p_follower_actor_type": "profile",
+                    "p_follower_profile_id": str(user_id),
+                    "p_follower_commercial_profile_id": None,
+                    "p_query": normalized_query,
+                    "p_limit": normalized_limit,
+                    "p_cursor": normalized_cursor,
+                },
+            )
+            .execute()
         )
         rows = _response_rows(response)
     except StatusFollowValidationError:
