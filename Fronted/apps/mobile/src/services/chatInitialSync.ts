@@ -274,8 +274,6 @@ export async function synchronizeInitialPrivateChats(
     auth,
   } = await getChatSyncAuth();
 
-  await hydrateChatConversations(userId);
-
   await bootstrapChat(auth);
 
   const identitiesResponse = await getChatIdentities(auth);
@@ -292,6 +290,11 @@ export async function synchronizeInitialPrivateChats(
       'No fue posible encontrar tu identidad privada de Chat.',
     );
   }
+
+  await hydrateChatConversations(
+    userId,
+    privateIdentity.id,
+  );
 
   onProgress?.({
     phase: 'inbox',

@@ -21,13 +21,16 @@ import {
   colors,
 } from '@beeapp/design-system';
 import {
+  bootstrapChat,
   getChatGroupInvites,
+  getChatIdentities,
   respondToChatGroupInvite,
 } from '@beeapp/api-client';
 
 import ScreenSafeArea from '../../../src/components/layout/ScreenSafeArea';
 import {
   useModuleNav,
+  useScreenParams,
 } from '../../../src/components/embedded/EmbeddedNavContext';
 import ModuleNotificationBell from '../../../src/components/ModuleNotificationBell';
 
@@ -100,9 +103,101 @@ type PinAction = {
 
 export default function ChatListScreen() {
   const router = useModuleNav();
+  const params = useScreenParams();
+
+  const context = String(params.context || '').trim();
+  const businessId = String(params.businessId || '').trim();
+  const isCommercialContext = (
+    context === 'commercial'
+    && Boolean(businessId)
+  );
+
+  const [commercialIdentityId, setCommercialIdentityId] = useState<
+    string | null
+  >(null);
+  const [commercialIdentityError, setCommercialIdentityError] = useState<
+    string | null
+  >(null);
+  const [commercialIdentityLoading, setCommercialIdentityLoading] = useState(
+    isCommercialContext,
+  );
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const resolveCommercialIdentity = async () => {
+      if (!isCommercialContext) {
+        setCommercialIdentityId(null);
+        setCommercialIdentityError(null);
+        setCommercialIdentityLoading(false);
+        return;
+      }
+
+      try {
+        setCommercialIdentityLoading(true);
+        setCommercialIdentityError(null);
+
+        const auth = await getValidSessionCredentials();
+
+        if (!auth || auth.scheme !== 'Bearer') {
+          throw new Error(
+            'Tu sesión expiró. Inicia sesión nuevamente.',
+          );
+        }
+
+        await bootstrapChat(auth);
+
+        const response = await getChatIdentities(auth);
+        const identity = response.identities.find(
+          (item) => (
+            item.identity_type === 'commercial_profile'
+            && item.commercial_profile_id === businessId
+            && item.is_active
+          ),
+        );
+
+        if (!identity) {
+          throw new Error(
+            'No fue posible preparar la identidad de Chat de este negocio.',
+          );
+        }
+
+        if (!cancelled) {
+          setCommercialIdentityId(identity.id);
+        }
+      } catch (error) {
+        if (!cancelled) {
+          setCommercialIdentityError(
+            error instanceof Error
+              ? error.message
+              : 'No fue posible preparar los chats del negocio.',
+          );
+          setCommercialIdentityId(null);
+        }
+      } finally {
+        if (!cancelled) {
+          setCommercialIdentityLoading(false);
+        }
+      }
+    };
+
+    void resolveCommercialIdentity();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    businessId,
+    isCommercialContext,
+  ]);
+
+  const requestedIdentityId = isCommercialContext
+    ? commercialIdentityId
+    : null;
+
   const {
     conversations,
-    privateIdentityId,
+    activeIdentityId,
     loading,
     refreshing,
     error,
@@ -113,7 +208,12 @@ export default function ChatListScreen() {
     restoreConversation,
     setProtected,
     isProtected,
-  } = useChatConversations();
+  } = useChatConversations({
+    autoLoad: !isCommercialContext || Boolean(
+      commercialIdentityId,
+    ),
+    identityId: requestedIdentityId,
+  });
 
   const [menuChat, setMenuChat] = useState<
     ChatListItemModel | null
@@ -190,7 +290,11 @@ export default function ChatListScreen() {
     error: statusesError,
     refresh: refreshStatuses,
     backgrounds: statusBackgrounds,
-  } = useStatuses();
+  } = useStatuses({
+    commercialProfileId: isCommercialContext
+      ? businessId
+      : null,
+  });
 
   const [publishingStatus, setPublishingStatus] = useState(false);
 
@@ -281,7 +385,7 @@ export default function ChatListScreen() {
           const response = await getChatGroupInvites(
             auth,
             {
-              identityId: privateIdentityId || undefined,
+              identityId: activeIdentityId || undefined,
               status: 'pending',
               limit: 100,
               offset: 0,
@@ -308,9 +412,17 @@ export default function ChatListScreen() {
         }
 
         if (socialActivityTab === 'followers') {
-          const response = await loadStatusFollowers({
-            limit: 50,
-          });
+          const response = await loadStatusFollowers(
+            isCommercialContext
+              ? {
+                  actor_type: 'commercial_profile',
+                  commercial_profile_id: businessId,
+                  limit: 50,
+                }
+              : {
+                  limit: 50,
+                },
+          );
 
           if (!cancelled) {
             setSocialFollowers(response.items);
@@ -349,7 +461,9 @@ export default function ChatListScreen() {
       cancelled = true;
     };
   }, [
-    privateIdentityId,
+    activeIdentityId,
+    businessId,
+    isCommercialContext,
     socialActivityOpen,
     socialActivityTab,
   ]);
@@ -471,6 +585,13 @@ export default function ChatListScreen() {
         online: chat.online
           ? 'true'
           : 'false',
+        ...(isCommercialContext
+          ? {
+              context: 'commercial',
+              businessId,
+              identityId: activeIdentityId || '',
+            }
+          : {}),
       },
     });
   };
@@ -734,6 +855,12 @@ export default function ChatListScreen() {
             kind: draft.media.kind,
             caption: draft.caption,
             editor_metadata: draft.editorMetadata,
+            ...(isCommercialContext
+              ? {
+                  actor_type: 'commercial_profile' as const,
+                  actor_commercial_profile_id: businessId,
+                }
+              : {}),
             duration_seconds: (
               draft.media.kind === 'video'
                 ? draft.media.durationSeconds ?? undefined
@@ -770,6 +897,12 @@ export default function ChatListScreen() {
           text_background_id: selectedBackground.id,
           caption: draft.caption,
           editor_metadata: draft.editorMetadata,
+          ...(isCommercialContext
+            ? {
+                actor_type: 'commercial_profile' as const,
+                actor_commercial_profile_id: businessId,
+              }
+            : {}),
         });
       }
 
@@ -925,7 +1058,10 @@ export default function ChatListScreen() {
             />
           ) : null}
 
-          {loading && conversations.length === 0 ? (
+          {(
+            commercialIdentityLoading
+            || (loading && conversations.length === 0)
+          ) ? (
             <View style={styles.loadingState}>
               <ActivityIndicator
                 size="large"
@@ -938,10 +1074,10 @@ export default function ChatListScreen() {
             </View>
           ) : (
             <View style={styles.listWrap}>
-              {error ? (
+              {commercialIdentityError || error ? (
                 <View style={styles.errorBox}>
                   <Text style={styles.errorText}>
-                    {error}
+                    {commercialIdentityError || error}
                   </Text>
 
                   <TouchableOpacity
@@ -972,6 +1108,13 @@ export default function ChatListScreen() {
                       kind: isGroupsTab
                         ? 'group'
                         : 'direct',
+                      ...(isCommercialContext
+                        ? {
+                            context: 'commercial',
+                            businessId,
+                            identityId: activeIdentityId || '',
+                          }
+                        : {}),
                     },
                   });
                 }}
@@ -1018,7 +1161,7 @@ export default function ChatListScreen() {
         visible={viewerIndex !== null}
         statuses={statuses}
         index={viewerIndex ?? 0}
-        senderIdentityId={privateIdentityId}
+        senderIdentityId={activeIdentityId}
         onChangeIndex={setViewerIndex}
         onClose={() => {
           setViewerIndex(null);
@@ -1053,6 +1196,15 @@ export default function ChatListScreen() {
       <SocialActivitySheet
         visible={socialActivityOpen}
         activeTab={socialActivityTab}
+        allowedTabs={
+          isCommercialContext
+            ? [
+                'invites',
+                'followers',
+                'following',
+              ]
+            : undefined
+        }
         invites={socialInvites}
         requests={socialRequests}
         followers={socialFollowers}
@@ -1287,11 +1439,35 @@ export default function ChatListScreen() {
         visible={createMenuOpen}
         onNewChat={() => {
           setCreateMenuOpen(false);
-          router.push('/(main)/chat/new');
+
+          router.push(
+            isCommercialContext
+              ? {
+                  pathname: '/(main)/chat/new',
+                  params: {
+                    context: 'commercial',
+                    businessId,
+                    identityId: activeIdentityId || '',
+                  },
+                }
+              : '/(main)/chat/new',
+          );
         }}
         onNewGroup={() => {
           setCreateMenuOpen(false);
-          router.push('/(main)/chat/new-group');
+
+          router.push(
+            isCommercialContext
+              ? {
+                  pathname: '/(main)/chat/new-group',
+                  params: {
+                    context: 'commercial',
+                    businessId,
+                    identityId: activeIdentityId || '',
+                  },
+                }
+              : '/(main)/chat/new-group',
+          );
         }}
         onDiscoverPeople={() => {
           setCreateMenuOpen(false);

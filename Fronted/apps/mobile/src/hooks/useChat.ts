@@ -387,6 +387,7 @@ export async function getPrivateChatIdentityId(): Promise<string> {
 export interface UseChatConversationsOptions {
   autoLoad?: boolean;
   includeArchived?: boolean;
+  identityId?: string | null;
 }
 
 export interface UseChatConversationsResult {
@@ -394,7 +395,7 @@ export interface UseChatConversationsResult {
   loading: boolean;
   refreshing: boolean;
   error: string | null;
-  privateIdentityId: string | null;
+  activeIdentityId: string | null;
   loadConversations: (
     options?: {
       refresh?: boolean;
@@ -459,8 +460,12 @@ export interface UseChatConversationsResult {
 export function useChatConversations(
   {
     autoLoad = true,
+    identityId: requestedIdentityId = null,
   }: UseChatConversationsOptions = {},
 ): UseChatConversationsResult {
+  const normalizedRequestedIdentityId = String(
+    requestedIdentityId || '',
+  ).trim() || null;
   const [rawConversations, setRawConversations] = useState<
     ChatConversation[]
   >(
@@ -468,7 +473,7 @@ export function useChatConversations(
   );
 
   const [currentUserId, setCurrentUserId] = useState('');
-  const [privateIdentityId, setPrivateIdentityId] = useState<
+  const [activeIdentityId, setActiveIdentityId] = useState<
     string | null
   >(null);
 
@@ -490,9 +495,14 @@ export function useChatConversations(
     setRawConversations(sorted);
   }, []);
 
-  const resolvePrivateIdentityId = useCallback(async (
+  const resolveActiveIdentityId = useCallback(async (
     token: AuthCredentials,
   ) => {
+    if (normalizedRequestedIdentityId) {
+      setActiveIdentityId(normalizedRequestedIdentityId);
+      return normalizedRequestedIdentityId;
+    }
+
     await bootstrapChat(token);
 
     const response = await getChatIdentities(token);
@@ -510,10 +520,10 @@ export function useChatConversations(
       );
     }
 
-    setPrivateIdentityId(identity.id);
+    setActiveIdentityId(identity.id);
 
     return identity.id;
-  }, []);
+  }, [normalizedRequestedIdentityId]);
 
   const loadConversations = useCallback(async (
     options: {
@@ -552,8 +562,14 @@ export function useChatConversations(
         token,
       } = await getChatAuthContext();
 
+      const identityId = (
+        activeIdentityId
+        || await resolveActiveIdentityId(token)
+      );
+
       const cachedConversations = await hydrateChatConversations(
         activeUserId,
+        identityId,
       );
 
       if (
@@ -588,11 +604,6 @@ export function useChatConversations(
           )
         ));
       }
-
-      const identityId = (
-        privateIdentityId
-        || await resolvePrivateIdentityId(token)
-      );
 
       const response = await getChatInbox(
         token,
@@ -653,8 +664,8 @@ export function useChatConversations(
       }
     }
   }, [
-    privateIdentityId,
-    resolvePrivateIdentityId,
+    activeIdentityId,
+    resolveActiveIdentityId,
     synchronizeConversations,
   ]);
 
@@ -722,8 +733,8 @@ export function useChatConversations(
     } = await getChatAuthContext();
 
     const senderIdentityId = (
-      privateIdentityId
-      || await resolvePrivateIdentityId(token)
+      activeIdentityId
+      || await resolveActiveIdentityId(token)
     );
 
     const response = await createDirectChatConversation(
@@ -745,8 +756,8 @@ export function useChatConversations(
       isChatConversationProtected(response.conversation.id),
     );
   }, [
-    privateIdentityId,
-    resolvePrivateIdentityId,
+    activeIdentityId,
+    resolveActiveIdentityId,
     synchronizeConversations,
   ]);
 
@@ -772,8 +783,8 @@ export function useChatConversations(
     } = await getChatAuthContext();
 
     const creatorIdentityId = (
-      privateIdentityId
-      || await resolvePrivateIdentityId(token)
+      activeIdentityId
+      || await resolveActiveIdentityId(token)
     );
 
     const created = await createChatGroup(
@@ -848,8 +859,8 @@ export function useChatConversations(
       inviteFailures,
     };
   }, [
-    privateIdentityId,
-    resolvePrivateIdentityId,
+    activeIdentityId,
+    resolveActiveIdentityId,
     synchronizeConversations,
   ]);
 
@@ -921,8 +932,8 @@ export function useChatConversations(
     } = await getChatAuthContext();
 
     const actorIdentityId = (
-      privateIdentityId
-      || await resolvePrivateIdentityId(token)
+      activeIdentityId
+      || await resolveActiveIdentityId(token)
     );
 
     const response = await updateChatGroup(
@@ -958,8 +969,8 @@ export function useChatConversations(
       isChatConversationProtected(response.conversation.id),
     );
   }, [
-    privateIdentityId,
-    resolvePrivateIdentityId,
+    activeIdentityId,
+    resolveActiveIdentityId,
     synchronizeConversations,
   ]);
 
@@ -977,8 +988,8 @@ export function useChatConversations(
     const { token } = await getChatAuthContext();
 
     const identityId = (
-      privateIdentityId
-      || await resolvePrivateIdentityId(token)
+      activeIdentityId
+      || await resolveActiveIdentityId(token)
     );
 
     await clearChatConversation(
@@ -992,8 +1003,8 @@ export function useChatConversations(
     removeChatConversation(normalizedConversationId);
     setRawConversations(getStoredConversations());
   }, [
-    privateIdentityId,
-    resolvePrivateIdentityId,
+    activeIdentityId,
+    resolveActiveIdentityId,
   ]);
 
   const archiveConversation = useCallback(async (
@@ -1125,7 +1136,7 @@ export function useChatConversations(
     loading,
     refreshing,
     error,
-    privateIdentityId,
+    activeIdentityId,
     loadConversations,
     createDirectConversation,
     createGroupConversation,
@@ -1145,6 +1156,7 @@ export interface UseChatMessagesOptions {
   conversationId: string | null | undefined;
   conversationIsAi?: boolean;
   autoLoad?: boolean;
+  identityId?: string | null;
 }
 
 export interface UseChatMessagesResult {
@@ -1152,7 +1164,7 @@ export interface UseChatMessagesResult {
   participants: ChatParticipant[];
   conversation: ChatConversation | null;
   currentUserId: string;
-  privateIdentityId: string | null;
+  activeIdentityId: string | null;
   postingIdentityId: string | null;
   loading: boolean;
   refreshing: boolean;
@@ -1204,14 +1216,18 @@ export function useChatMessages(
     conversationId,
     conversationIsAi = false,
     autoLoad = true,
+    identityId: requestedIdentityId = null,
   }: UseChatMessagesOptions,
 ): UseChatMessagesResult {
+  const normalizedRequestedIdentityId = String(
+    requestedIdentityId || '',
+  ).trim() || null;
   const normalizedConversationId = String(
     conversationId || '',
   ).trim();
 
   const [currentUserId, setCurrentUserId] = useState('');
-  const [privateIdentityId, setPrivateIdentityId] = useState<
+  const [activeIdentityId, setActiveIdentityId] = useState<
     string | null
   >(null);
 
@@ -1270,9 +1286,14 @@ export function useChatMessages(
   const requestIdRef = useRef(0);
   const hydrationRequestIdRef = useRef(0);
 
-  const resolvePrivateIdentityId = useCallback(async (
+  const resolveActiveIdentityId = useCallback(async (
     token: AuthCredentials,
   ) => {
+    if (normalizedRequestedIdentityId) {
+      setActiveIdentityId(normalizedRequestedIdentityId);
+      return normalizedRequestedIdentityId;
+    }
+
     await bootstrapChat(token);
 
     const response = await getChatIdentities(token);
@@ -1290,10 +1311,10 @@ export function useChatMessages(
       );
     }
 
-    setPrivateIdentityId(identity.id);
+    setActiveIdentityId(identity.id);
 
     return identity.id;
-  }, []);
+  }, [normalizedRequestedIdentityId]);
 
   const synchronizeMessages = useCallback((
     nextMessages: ChatMessage[],
@@ -1343,8 +1364,18 @@ export function useChatMessages(
 
     hydrationRequestIdRef.current = hydrationRequestId;
 
+    const {
+      token,
+    } = await getChatAuthContext();
+
+    const identityId = (
+      activeIdentityId
+      || await resolveActiveIdentityId(token)
+    );
+
     const cachedMessages = await hydrateChatMessages(
       activeUserId,
+      identityId,
       normalizedConversationId,
     );
 
@@ -1368,7 +1399,9 @@ export function useChatMessages(
 
     return cachedMessages;
   }, [
+    activeIdentityId,
     normalizedConversationId,
+    resolveActiveIdentityId,
   ]);
 
   const applyConversation = useCallback((
@@ -1599,8 +1632,8 @@ export function useChatMessages(
 
       if (!isLoadingHistory) {
         const identityId = (
-          privateIdentityId
-          || await resolvePrivateIdentityId(token)
+          activeIdentityId
+          || await resolveActiveIdentityId(token)
         );
 
         void markLatestMessageAsRead(
@@ -1647,9 +1680,9 @@ export function useChatMessages(
     hydrateCachedMessages,
     markLatestMessageAsRead,
     normalizedConversationId,
-    privateIdentityId,
+    activeIdentityId,
     rawMessages.length,
-    resolvePrivateIdentityId,
+    resolveActiveIdentityId,
     synchronizeMessages,
   ]);
 
@@ -1677,7 +1710,7 @@ export function useChatMessages(
           return;
         }
 
-        await resolvePrivateIdentityId(token);
+        await resolveActiveIdentityId(token);
 
         if (cancelled) {
           return;
@@ -1720,7 +1753,7 @@ export function useChatMessages(
     loadMessages,
     loadParticipants,
     normalizedConversationId,
-    resolvePrivateIdentityId,
+    resolveActiveIdentityId,
   ]);
 
   useEffect(() => {
@@ -1892,8 +1925,8 @@ export function useChatMessages(
       await hydrateCachedMessages(activeUserId);
 
       const senderIdentityId = (
-        privateIdentityId
-        || await resolvePrivateIdentityId(token)
+        activeIdentityId
+        || await resolveActiveIdentityId(token)
       );
 
       const response = await sendChatMessage(
@@ -1948,8 +1981,8 @@ export function useChatMessages(
     conversationIsAi,
     hydrateCachedMessages,
     normalizedConversationId,
-    privateIdentityId,
-    resolvePrivateIdentityId,
+    activeIdentityId,
+    resolveActiveIdentityId,
   ]);
 
   const addParticipants = useCallback(async (
@@ -1988,8 +2021,8 @@ export function useChatMessages(
     const { token } = await getChatAuthContext();
 
     const actorIdentityId = (
-      privateIdentityId
-      || await resolvePrivateIdentityId(token)
+      activeIdentityId
+      || await resolveActiveIdentityId(token)
     );
 
     const results = await Promise.allSettled(
@@ -2034,8 +2067,8 @@ export function useChatMessages(
     loadParticipants,
     normalizedConversationId,
     participants,
-    privateIdentityId,
-    resolvePrivateIdentityId,
+    activeIdentityId,
+    resolveActiveIdentityId,
   ]);
 
   const removeParticipant = useCallback(async (
@@ -2070,8 +2103,8 @@ export function useChatMessages(
     const { token } = await getChatAuthContext();
 
     const actorIdentityId = (
-      privateIdentityId
-      || await resolvePrivateIdentityId(token)
+      activeIdentityId
+      || await resolveActiveIdentityId(token)
     );
 
     await removeChatGroupParticipant(
@@ -2096,8 +2129,8 @@ export function useChatMessages(
     loadConversation,
     loadParticipants,
     normalizedConversationId,
-    privateIdentityId,
-    resolvePrivateIdentityId,
+    activeIdentityId,
+    resolveActiveIdentityId,
   ]);
 
   const leaveGroup = useCallback(async () => {
@@ -2123,8 +2156,8 @@ export function useChatMessages(
     const { token } = await getChatAuthContext();
 
     const identityId = (
-      privateIdentityId
-      || await resolvePrivateIdentityId(token)
+      activeIdentityId
+      || await resolveActiveIdentityId(token)
     );
 
     await leaveChatGroup(
@@ -2140,8 +2173,8 @@ export function useChatMessages(
     conversation?.conversation_type,
     conversation?.permissions?.can_leave_group,
     normalizedConversationId,
-    privateIdentityId,
-    resolvePrivateIdentityId,
+    activeIdentityId,
+    resolveActiveIdentityId,
   ]);
 
   const unsupportedMessageAction = useCallback(
@@ -2182,7 +2215,7 @@ export function useChatMessages(
     participants,
     conversation,
     currentUserId,
-    privateIdentityId,
+    activeIdentityId,
     postingIdentityId,
     loading,
     refreshing,

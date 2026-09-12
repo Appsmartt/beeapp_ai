@@ -50,6 +50,18 @@ export default function ChatProfileScreen() {
   const params = useScreenParams();
 
   const chatId = String(params.id || '').trim();
+  const context = String(params.context || '').trim();
+  const businessId = String(params.businessId || '').trim();
+  const requestedIdentityId = String(
+    params.identityId || '',
+  ).trim() || null;
+
+  const isCommercialContext = (
+    context === 'commercial'
+    && Boolean(businessId)
+    && Boolean(requestedIdentityId)
+  );
+
   const isNewlyCreatedGroup = (
     params.newlyCreated === 'true'
   );
@@ -59,7 +71,7 @@ export default function ChatProfileScreen() {
     participants,
     loading,
     error,
-    privateIdentityId,
+    activeIdentityId,
     loadConversation,
     loadParticipants,
     addParticipants,
@@ -68,12 +80,14 @@ export default function ChatProfileScreen() {
   } = useChatMessages({
     conversationId: chatId || null,
     autoLoad: Boolean(chatId),
+    identityId: requestedIdentityId,
   });
 
   const {
     updateConversation,
   } = useChatConversations({
     autoLoad: false,
+    identityId: requestedIdentityId,
   });
 
   const [muted, setMuted] = useState(false);
@@ -254,7 +268,18 @@ export default function ChatProfileScreen() {
           onPress: () => {
             void leaveGroup()
               .then(() => {
-                router.replace('/(main)/chat');
+                router.replace(
+                  isCommercialContext
+                    ? {
+                        pathname: '/(main)/chat',
+                        params: {
+                          context: 'commercial',
+                          businessId,
+                          identityId: requestedIdentityId || '',
+                        },
+                      }
+                    : '/(main)/chat',
+                );
               })
               .catch((leaveError) => {
                 Alert.alert(
@@ -475,7 +500,7 @@ export default function ChatProfileScreen() {
 
           <MemberListSection
             members={activeParticipants}
-            currentIdentityId={privateIdentityId}
+            currentIdentityId={activeIdentityId}
             canInvite={Boolean(
               permissions?.can_invite_members,
             )}

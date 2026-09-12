@@ -20,6 +20,7 @@ interface ChatCreateMenuProps {
   onNewChat: () => void;
   onNewGroup: () => void;
   onDiscoverPeople: () => void;
+  showDiscoverPeople?: boolean;
   onClose: () => void;
 }
 
@@ -28,6 +29,7 @@ export default function ChatCreateMenu({
   onNewChat,
   onNewGroup,
   onDiscoverPeople,
+  showDiscoverPeople = true,
   onClose,
 }: ChatCreateMenuProps) {
   const options = [
@@ -41,11 +43,15 @@ export default function ChatCreateMenu({
       label: 'Nuevo grupo',
       onPress: onNewGroup,
     },
-    {
-      icon: Search,
-      label: 'Descubrir personas',
-      onPress: onDiscoverPeople,
-    },
+    ...(showDiscoverPeople
+      ? [
+          {
+            icon: Search,
+            label: 'Descubrir personas',
+            onPress: onDiscoverPeople,
+          },
+        ]
+      : []),
   ];
 
   return (

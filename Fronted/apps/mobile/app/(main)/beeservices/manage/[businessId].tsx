@@ -758,6 +758,81 @@ export default function BuddyServicesManageBusinessScreen() {
           </TouchableOpacity>
 
           <TouchableOpacity
+            accessibilityHint="Gestiona las conversaciones y los estados de tu negocio con tus clientes"
+            accessibilityLabel="Chats"
+            accessibilityRole="button"
+            activeOpacity={0.82}
+            onPress={() => {
+              router.push({
+                pathname: '/(main)/chat',
+                params: {
+                  context: 'commercial',
+                  businessId: profile.id,
+                },
+              });
+            }}
+            style={{
+              backgroundColor: '#FFFFFF',
+              borderColor: '#E7DDF2',
+              borderRadius: 16,
+              borderWidth: 1,
+              marginBottom: 11,
+              padding: 15,
+            }}
+          >
+            <View
+              style={{
+                alignItems: 'center',
+                flexDirection: 'row',
+              }}
+            >
+              <View
+                style={{
+                  alignItems: 'center',
+                  backgroundColor: '#F6EAFE',
+                  borderRadius: 12,
+                  height: 42,
+                  justifyContent: 'center',
+                  width: 42,
+                }}
+              >
+                <MessageCircle
+                  color="#7427D5"
+                  size={20}
+                />
+              </View>
+
+              <View
+                style={{
+                  flex: 1,
+                  marginLeft: 12,
+                }}
+              >
+                <Text
+                  style={{
+                    color: '#261743',
+                    fontSize: 15,
+                    fontWeight: '800',
+                  }}
+                >
+                  Chats
+                </Text>
+
+                <Text
+                  style={{
+                    color: '#786593',
+                    fontSize: 12,
+                    lineHeight: 18,
+                    marginTop: 3,
+                  }}
+                >
+                  Gestiona las conversaciones y los estados de tu negocio con tus clientes.
+                </Text>
+              </View>
+            </View>
+          </TouchableOpacity>
+
+          <TouchableOpacity
             accessibilityHint="Administra los catálogos de este negocio"
             accessibilityLabel="Catálogos"
             accessibilityRole="button"
@@ -971,12 +1046,6 @@ Revisa compras, servicios y reservas recibidas.
 </TouchableOpacity>
 
 
-
-          <DashboardAction
-            description="Próximamente podrás gestionar conversaciones del negocio."
-            Icon={MessageCircle}
-            title="Abrir chats"
-          />
 
           <TouchableOpacity
             accessibilityHint="Configura disponibilidad, holds y costo de domicilio"
