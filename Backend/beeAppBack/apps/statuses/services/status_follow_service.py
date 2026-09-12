@@ -37,6 +37,7 @@ COMMERCIAL_PROFILE_COLUMNS = (
 def request_follow(
     *,
     user_id: str,
+    access_token: str,
     target_actor_type: str,
     target_profile_id: str | None = None,
     target_commercial_profile_id: str | None = None,
@@ -63,28 +64,30 @@ def request_follow(
     )
 
     try:
-        response = execute_with_supabase_admin_retry(
-            lambda client: (
-                client
-                .rpc(
-                    "status_request_follow",
-                    {
-                        "p_follower_profile_id": str(user_id),
-                        "p_target_actor_type": normalized_type,
-                        "p_target_profile_id": (
-                            str(target_profile_id)
-                            if target_profile_id
-                            else None
-                        ),
-                        "p_target_commercial_profile_id": (
-                            str(target_commercial_profile_id)
-                            if target_commercial_profile_id
-                            else None
-                        ),
-                    },
-                )
-                .execute()
-            ),
+        response = (
+            get_supabase_user_client(
+                access_token=access_token,
+            )
+            .rpc(
+                "status_request_follow",
+                {
+                    "p_follower_actor_type": "profile",
+                    "p_follower_profile_id": str(user_id),
+                    "p_follower_commercial_profile_id": None,
+                    "p_target_actor_type": normalized_type,
+                    "p_target_profile_id": (
+                        str(target_profile_id)
+                        if target_profile_id
+                        else None
+                    ),
+                    "p_target_commercial_profile_id": (
+                        str(target_commercial_profile_id)
+                        if target_commercial_profile_id
+                        else None
+                    ),
+                },
+            )
+            .execute()
         )
 
         follow = _extract_first_row(response)
