@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import re
 from typing import Any
 
@@ -26,6 +27,8 @@ CHAT_IDENTITY_COLUMNS = (
     "id,owner_id,identity_type,profile_id,"
     "commercial_profile_id,is_active"
 )
+
+logger = logging.getLogger(__name__)
 
 MAX_SEARCH_LIMIT = 20
 PHONE_SUFFIX_MIN_LENGTH = 4
@@ -70,11 +73,30 @@ def search_chat_recipients(
 
     phone_digits = _normalize_phone_digits(normalized_query)
 
+    logger.info(
+        "chat_recipient_search_started",
+        extra={
+            "user_id": str(user_id),
+            "query": normalized_query,
+            "limit": normalized_limit,
+            "is_phone_search": phone_digits is not None,
+        },
+    )
+
     private_results = _search_private_profiles(
         user_id=user_id,
         query=normalized_query,
         phone_digits=phone_digits,
         limit=normalized_limit,
+    )
+
+    logger.info(
+        "chat_recipient_search_private_complete",
+        extra={
+            "user_id": str(user_id),
+            "query": normalized_query,
+            "result_count": len(private_results),
+        },
     )
 
     commercial_results = _search_commercial_profiles(
@@ -84,11 +106,29 @@ def search_chat_recipients(
         limit=normalized_limit,
     )
 
+    logger.info(
+        "chat_recipient_search_commercial_complete",
+        extra={
+            "user_id": str(user_id),
+            "query": normalized_query,
+            "result_count": len(commercial_results),
+        },
+    )
+
     merged_results = _deduplicate_and_sort_results(
         results=[
             *private_results,
             *commercial_results,
         ],
+    )
+
+    logger.info(
+        "chat_recipient_search_complete",
+        extra={
+            "user_id": str(user_id),
+            "query": normalized_query,
+            "result_count": len(merged_results),
+        },
     )
 
     return {
@@ -188,6 +228,15 @@ def _search_private_profiles(
         raise
 
     except Exception as error:
+        logger.exception(
+            "chat_recipient_search_private_failed",
+            extra={
+                "user_id": str(user_id),
+                "query": query,
+                "limit": int(limit),
+                "is_phone_search": phone_digits is not None,
+            },
+        )
         raise ChatRecipientNotFoundError(
             f"Could not search private chat recipients: {error}"
         ) from error
@@ -302,8 +351,17 @@ def _search_commercial_profiles(
         raise
 
     except Exception as error:
+        logger.exception(
+            "chat_recipient_search_commercial_failed",
+            extra={
+                "user_id": str(user_id),
+                "query": query,
+                "limit": int(limit),
+                "is_phone_search": phone_digits is not None,
+            },
+        )
         raise ChatRecipientNotFoundError(
-            "Could not search commercial chat recipients."
+            f"Could not search commercial chat recipients: {error}"
         ) from error
 
 

@@ -161,6 +161,8 @@ export default function ConversationScreen() {
   const scrollRef = useRef<ScrollView | null>(null);
   const loadingMoreRef = useRef(false);
   const startCallInFlightRef = useRef(false);
+  const resolvedAttachmentMessageIdsRef = useRef<Set<string>>(new Set());
+  const initialMessageSentRef = useRef<string | null>(null);
 
   const chatName = (
     conversation?.name?.trim()
@@ -313,23 +315,33 @@ export default function ConversationScreen() {
     let cancelled = false;
 
     if (!activeIdentityId) {
-      setAttachmentUrlsByMessageId({});
+      resolvedAttachmentMessageIdsRef.current.clear();
+      setAttachmentUrlsByMessageId((current) => (
+        Object.keys(current).length > 0 ? {} : current
+      ));
+
       return () => {
         cancelled = true;
       };
     }
 
     const messagesNeedingAttachmentAccess = messages.filter(
-      (message) => (
-        (
-          message.type === 'image'
-          || message.type === 'audio'
-          || message.type === 'file'
-        )
-        && !message.mediaUrl
-        && Boolean(message.raw.attachments?.[0]?.file_id)
-        && !attachmentUrlsByMessageId[message.id]
-      ),
+      (message) => {
+        const needsAttachmentAccess = (
+          (
+            message.type === 'image'
+            || message.type === 'audio'
+            || message.type === 'file'
+          )
+          && !message.mediaUrl
+          && Boolean(message.raw.attachments?.[0]?.file_id)
+        );
+
+        return (
+          needsAttachmentAccess
+          && !resolvedAttachmentMessageIdsRef.current.has(message.id)
+        );
+      },
     );
 
     if (!messagesNeedingAttachmentAccess.length) {
@@ -338,38 +350,71 @@ export default function ConversationScreen() {
       };
     }
 
+    messagesNeedingAttachmentAccess.forEach((message) => {
+      resolvedAttachmentMessageIdsRef.current.add(message.id);
+    });
+
     const resolveAttachmentUrls = async () => {
       try {
         const auth = await getValidSessionCredentials();
 
         if (!auth) {
+          messagesNeedingAttachmentAccess.forEach((message) => {
+            resolvedAttachmentMessageIdsRef.current.delete(message.id);
+          });
           return;
         }
 
-        const entries = await Promise.all(
-          messagesNeedingAttachmentAccess.map(async (
-            message,
-          ) => {
+        const results = await Promise.allSettled(
+          messagesNeedingAttachmentAccess.map(async (message) => {
             const access = await getChatMessageAttachmentAccess(
               auth,
               message.id,
               activeIdentityId,
             );
 
-            return [
-              message.id,
-              access.url,
-            ] as const;
+            return [message.id, access.url] as const;
           }),
         );
 
+        const entries = results.flatMap((result, index) => {
+          if (result.status === 'fulfilled') {
+            return [result.value];
+          }
+
+          resolvedAttachmentMessageIdsRef.current.delete(
+            messagesNeedingAttachmentAccess[index].id,
+          );
+
+          console.warn(
+            '[chat attachment access] no fue posible resolver URL',
+            result.reason,
+          );
+
+          return [];
+        });
+
         if (!cancelled && entries.length > 0) {
-          setAttachmentUrlsByMessageId((current) => ({
-            ...current,
-            ...Object.fromEntries(entries),
-          }));
+          setAttachmentUrlsByMessageId((current) => {
+            const nextEntries = entries.filter(
+              ([messageId, url]) => current[messageId] !== url,
+            );
+
+            if (!nextEntries.length) {
+              return current;
+            }
+
+            return {
+              ...current,
+              ...Object.fromEntries(nextEntries),
+            };
+          });
         }
       } catch (attachmentAccessError) {
+        messagesNeedingAttachmentAccess.forEach((message) => {
+          resolvedAttachmentMessageIdsRef.current.delete(message.id);
+        });
+
         console.warn(
           '[chat attachment access] no fue posible resolver URL',
           attachmentAccessError,
@@ -384,7 +429,6 @@ export default function ConversationScreen() {
     };
   }, [
     activeIdentityId,
-    attachmentUrlsByMessageId,
     messages,
   ]);
 
@@ -462,6 +506,14 @@ export default function ConversationScreen() {
       return;
     }
 
+    const initialMessageKey = `${chatId}:${initialMessage}`;
+
+    if (initialMessageSentRef.current === initialMessageKey) {
+      return;
+    }
+
+    initialMessageSentRef.current = initialMessageKey;
+
     void sendMessage({
       content: initialMessage,
     })
@@ -469,6 +521,7 @@ export default function ConversationScreen() {
         scrollToBottom();
       })
       .catch(() => {
+        initialMessageSentRef.current = null;
         // El hook expone el error para renderizarlo en pantalla.
       });
   }, [

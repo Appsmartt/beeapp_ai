@@ -1,3 +1,5 @@
+import logging
+
 from rest_framework import status
 from rest_framework.response import Response
 
@@ -118,6 +120,9 @@ from apps.storage.exceptions import (
     StorageQuotaExceededError,
     StorageUploadError,
 )
+
+
+logger = logging.getLogger(__name__)
 
 
 def _unauthorized_response() -> Response:
@@ -416,6 +421,24 @@ class ChatRecipientSearchView(AuthenticatedAPIView):
                     "detail": str(error),
                 },
                 status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        except Exception:
+            logger.exception(
+                "chat_recipient_search_request_failed",
+                extra={
+                    "query": serializer.validated_data.get("q"),
+                    "limit": serializer.validated_data.get("limit"),
+                },
+            )
+            return Response(
+                {
+                    "detail": (
+                        "No pudimos completar la búsqueda. "
+                        "Inténtalo nuevamente."
+                    ),
+                },
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
             )
 
         return Response(
