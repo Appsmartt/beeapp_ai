@@ -232,6 +232,15 @@ class StatusFollowCreateSerializer(serializers.Serializer):
 
 
 class StatusFollowListQuerySerializer(serializers.Serializer):
+    actor_type = serializers.ChoiceField(
+        choices=STATUS_ACTOR_TYPES,
+        required=False,
+        default="profile",
+    )
+    commercial_profile_id = serializers.UUIDField(
+        required=False,
+        allow_null=True,
+    )
     limit = serializers.IntegerField(
         required=False,
         default=20,
@@ -257,20 +266,6 @@ class StatusFollowListQuerySerializer(serializers.Serializer):
             )
 
         return value
-
-
-class StatusFollowersQuerySerializer(
-    StatusFollowListQuerySerializer,
-):
-    actor_type = serializers.ChoiceField(
-        choices=STATUS_ACTOR_TYPES,
-        required=False,
-        default="profile",
-    )
-    commercial_profile_id = serializers.UUIDField(
-        required=False,
-        allow_null=True,
-    )
 
     def validate(self, attrs: dict) -> dict:
         actor_type = attrs["actor_type"]
@@ -300,6 +295,12 @@ class StatusFollowersQuerySerializer(
             )
 
         return attrs
+
+
+class StatusFollowersQuerySerializer(
+    StatusFollowListQuerySerializer,
+):
+    pass
 
 
 class StatusFollowTargetSerializer(serializers.Serializer):

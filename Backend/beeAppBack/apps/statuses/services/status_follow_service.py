@@ -19,9 +19,11 @@ from apps.statuses.exceptions import (
 
 
 FOLLOW_COLUMNS = (
-    "id,follower_profile_id,target_actor_type,target_profile_id,"
-    "target_commercial_profile_id,state,requested_at,responded_at,"
-    "accepted_at,rejected_at,created_at,updated_at"
+    "id,follower_actor_type,follower_profile_id,"
+    "follower_commercial_profile_id,target_actor_type,"
+    "target_profile_id,target_commercial_profile_id,state,"
+    "requested_at,responded_at,accepted_at,rejected_at,"
+    "created_at,updated_at"
 )
 
 PROFILE_COLUMNS = "id,first_name,last_name"
@@ -558,21 +560,44 @@ def _raise_follow_rpc_error(
 def list_following(
     *,
     user_id: str,
+    actor_type: str = "profile",
+    commercial_profile_id: str | None = None,
     limit: int = 20,
     cursor: str | None = None,
 ) -> dict[str, Any]:
     """
-    Lista cuentas que el usuario autenticado sigue y cuyos estados puede ver.
+    Lista cuentas que sigue el perfil personal autenticado o un perfil
+    comercial administrado por el usuario autenticado.
 
     Solo devuelve relaciones accepted; las solicitudes pending no son
     seguimientos activos todavía.
     """
+    normalized_actor_type = _normalize_actor_type(actor_type)
+
+    if normalized_actor_type == "profile":
+        follower_profile_id = str(user_id)
+        follower_commercial_profile_id = None
+    else:
+        commercial = _get_commercial_profile(
+            commercial_profile_id=str(commercial_profile_id),
+        )
+
+        if str(commercial["owner_id"]) != str(user_id):
+            raise StatusFollowAccessError(
+                "You cannot access following of this commercial profile."
+            )
+
+        follower_profile_id = None
+        follower_commercial_profile_id = str(
+            commercial_profile_id
+        )
+
     return _list_and_serialize_follow_list(
         user_id=user_id,
         mode="following",
-        actor_type=None,
-        commercial_profile_id=None,
-        target_profile_id=None,
+        actor_type=normalized_actor_type,
+        commercial_profile_id=follower_commercial_profile_id,
+        target_profile_id=follower_profile_id,
         limit=limit,
         cursor=cursor,
     )
@@ -687,10 +712,22 @@ def _apply_follow_list_filters(
     target_profile_id: str | None,
 ):
     if mode == "following":
+        query = query.eq("state", "accepted")
+
+        if actor_type == "commercial_profile":
+            return (
+                query
+                .eq("follower_actor_type", "commercial_profile")
+                .eq(
+                    "follower_commercial_profile_id",
+                    str(commercial_profile_id),
+                )
+            )
+
         return (
             query
-            .eq("follower_profile_id", str(user_id))
-            .eq("state", "accepted")
+            .eq("follower_actor_type", "profile")
+            .eq("follower_profile_id", str(target_profile_id))
         )
 
     if mode == "followers":
@@ -864,7 +901,12 @@ def _serialize_follow_list(
                     row["target_commercial_profile_id"]
                 )
         else:
-            profile_ids.append(row["follower_profile_id"])
+            if row["follower_actor_type"] == "profile":
+                profile_ids.append(row["follower_profile_id"])
+            else:
+                commercial_profile_ids.append(
+                    row["follower_commercial_profile_id"]
+                )
 
     profiles_by_id = _get_profiles_for_follow_list(
         profile_ids=profile_ids,
@@ -983,22 +1025,45 @@ def _serialize_follow_list_target(
             ),
         }
 
-    profile = profiles_by_id.get(row["follower_profile_id"])
+    if row["follower_actor_type"] == "profile":
+        profile = profiles_by_id.get(row["follower_profile_id"])
 
-    if not profile:
+        if not profile:
+            return None
+
+        return {
+            "actor_type": "profile",
+            "profile_id": str(profile["id"]),
+            "commercial_profile_id": None,
+            "display_name": _display_name_for_profile(profile),
+            "avatar_file_id": (
+                str(profile["avatar_file_id"])
+                if profile.get("avatar_file_id")
+                else None
+            ),
+            "is_available": True,
+        }
+
+    commercial = commercials_by_id.get(
+        row["follower_commercial_profile_id"]
+    )
+
+    if not commercial:
         return None
 
     return {
-        "actor_type": "profile",
-        "profile_id": str(profile["id"]),
-        "commercial_profile_id": None,
-        "display_name": _display_name_for_profile(profile),
+        "actor_type": "commercial_profile",
+        "profile_id": None,
+        "commercial_profile_id": str(commercial["id"]),
+        "display_name": commercial["display_name"],
         "avatar_file_id": (
-            str(profile["avatar_file_id"])
-            if profile.get("avatar_file_id")
+            str(commercial["logo_file_id"])
+            if commercial.get("logo_file_id")
             else None
         ),
-        "is_available": True,
+        "is_available": bool(
+            commercial.get("is_available", False)
+        ),
     }
 
 

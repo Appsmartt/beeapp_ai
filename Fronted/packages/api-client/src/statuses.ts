@@ -166,6 +166,8 @@ export async function getStatusFollowing(
 ): Promise<GetStatusFollowingResponse> {
   return api.get<GetStatusFollowingResponse>(
     `/statuses/follows/following/${toQueryString({
+      actor_type: query.actor_type,
+      commercial_profile_id: query.commercial_profile_id,
       limit: query.limit,
       cursor: query.cursor,
     })}`,

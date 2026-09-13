@@ -404,9 +404,17 @@ export default function ChatListScreen() {
           return;
         }
 
-        const response = await loadStatusFollowing({
-          limit: 50,
-        });
+        const response = await loadStatusFollowing(
+          isCommercialContext
+            ? {
+                actor_type: 'commercial_profile',
+                commercial_profile_id: businessId,
+                limit: 50,
+              }
+            : {
+                limit: 50,
+              },
+        );
 
         if (!cancelled) {
           setSocialFollowing(response.items);
