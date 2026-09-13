@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import logging
+
 from datetime import UTC, datetime
 from typing import Any
 
@@ -47,6 +49,9 @@ COMMERCIAL_OFFER_IMAGE_COLUMNS = (
 )
 
 MAX_COMMERCIAL_OFFER_ACTIVE_IMAGES = 5
+
+
+logger = logging.getLogger(__name__)
 
 
 def _get_user_supabase_client(
@@ -277,11 +282,26 @@ def _validate_offer_image_file(
     user_id: str,
     file_id: str,
 ) -> dict[str, Any]:
+    logger.info(
+        "Commercial offer image validation started: user_id=%s file_id=%s",
+        user_id,
+        file_id,
+    )
+
     try:
         file_record = get_owned_file(
             user_id=str(user_id),
             file_id=str(file_id),
             include_trashed=True,
+        )
+
+        logger.info(
+            "Commercial offer image file resolved: user_id=%s file_id=%s status=%s kind=%s trashed_at=%s",
+            user_id,
+            file_id,
+            file_record.get("status"),
+            file_record.get("kind"),
+            file_record.get("trashed_at"),
         )
 
         if file_record.get("status") != "ready":
@@ -314,6 +334,12 @@ def _validate_offer_image_file(
         ) from error
 
     except Exception as error:
+        logger.exception(
+            "Commercial offer image file validation failed: user_id=%s file_id=%s error=%s",
+            user_id,
+            file_id,
+            str(error),
+        )
         raise CommercialOperationError(
             "Could not validate offer image file.",
             code="COMMERCIAL_OFFER_IMAGE_FILE_LOOKUP_FAILED",
@@ -1174,7 +1200,7 @@ def add_commercial_offer_image(
                 .execute()
             )
 
-            if primary_response.data:
+            if getattr(primary_response, "data", None):
                 raise CommercialStateError(
                     "An active primary image already exists.",
                     code="COMMERCIAL_OFFER_PRIMARY_IMAGE_EXISTS",
@@ -1244,6 +1270,14 @@ def add_commercial_offer_image(
         raise
 
     except Exception as error:
+        logger.exception(
+            "Commercial offer image add failed: profile_id=%s offer_id=%s file_id=%s payload_keys=%s error=%s",
+            commercial_profile_id,
+            offer_id,
+            payload.get("file_id"),
+            sorted(payload.keys()),
+            str(error),
+        )
         raise CommercialOperationError(
             "Could not add commercial offer image.",
             code="COMMERCIAL_OFFER_IMAGE_CREATE_FAILED",
@@ -1428,7 +1462,7 @@ def restore_commercial_offer_image(
                 .execute()
             )
 
-            if active_primary_response.data:
+            if getattr(active_primary_response, "data", None):
                 raise CommercialStateError(
                     "An active primary image already exists.",
                     code="COMMERCIAL_OFFER_PRIMARY_IMAGE_EXISTS",
