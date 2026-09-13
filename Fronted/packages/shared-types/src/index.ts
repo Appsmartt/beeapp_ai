@@ -2250,6 +2250,8 @@ export interface StatusFollowDiscoverQuery {
 }
 
 export interface StatusFollowListQuery {
+  actor_type?: StatusActorType;
+  commercial_profile_id?: string;
   limit?: number;
   cursor?: string;
 }
