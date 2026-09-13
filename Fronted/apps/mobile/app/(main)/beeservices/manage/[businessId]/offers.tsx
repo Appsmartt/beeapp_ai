@@ -1,5 +1,6 @@
 import {
   ActivityIndicator,
+  Image,
   Modal,
   ScrollView,
   Switch,
@@ -13,9 +14,13 @@ import {
   Box,
   BriefcaseBusiness,
   Check,
+  ChevronLeft,
+  ChevronRight,
+  ImagePlus,
   PackagePlus,
   Plus,
   Save,
+  Trash2,
   X,
 } from 'lucide-react-native';
 import {
@@ -28,6 +33,7 @@ import {
   useLocalSearchParams,
   useRouter,
 } from 'expo-router';
+import * as ImagePicker from 'expo-image-picker';
 
 import type {
   CommercialCatalog,
@@ -47,9 +53,23 @@ import {
 } from '../../../../../src/features/buddyservices/commercialRoutes';
 import {
   createOwnedOffer,
+  createOwnedOfferImage,
   loadOwnedCommercialCatalogs,
   loadOwnedCommercialOffers,
+  loadOwnedCommercialProfile,
 } from '../../../../../src/services/commercialService';
+import {
+  ensureCommercialOfferImageCount,
+  getCommercialOfferImageSlotsRemaining,
+  LocalCommercialOfferImage,
+  localCommercialOfferImageFromPicker,
+  moveCommercialOfferImage,
+  uploadCommercialOfferImageFile,
+  validateLocalCommercialOfferImage,
+} from '../../../../../src/services/commercialOfferImageService';
+import {
+  getValidSessionCredentials,
+} from '../../../../../src/services/authSession';
 
 type OfferEditorState = {
   catalogId: string;
@@ -187,7 +207,7 @@ function createOfferEditor(
     title: '',
     description: '',
     pricingStrategy: 'fixed',
-    basePriceAmount: '',
+    basePriceAmount: '1',
     trackInventory: false,
     stockQuantity: '',
     requiresBooking: false,
@@ -195,6 +215,41 @@ function createOfferEditor(
     paymentPolicy: 'not_required',
     modalities: [],
   };
+}
+
+function normalizeDigits(
+  value: string,
+): string {
+  return value.replace(/\D/g, '');
+}
+
+function normalizePriceInput(
+  value: string,
+): string {
+  return normalizeDigits(value);
+}
+
+function formatPriceInput(
+  value: string,
+): string {
+  const normalizedValue = normalizePriceInput(value);
+
+  if (!normalizedValue) {
+    return '';
+  }
+
+  return Number(normalizedValue).toLocaleString('es-CO');
+}
+
+function toSafeInteger(
+  value: string,
+  fallback: number,
+): number {
+  const parsedValue = Number(normalizeDigits(value));
+
+  return Number.isInteger(parsedValue)
+    ? parsedValue
+    : fallback;
 }
 
 function formatMoney(
@@ -255,6 +310,9 @@ export default function BuddyServicesManageOffersScreen() {
   const [offers, setOffers] = useState<
     CommercialOwnedOffer[]
   >([]);
+  const [enabledModalities, setEnabledModalities] = useState<
+    CommercialModality[]
+  >([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [errorMessage, setErrorMessage] = useState<
@@ -264,6 +322,12 @@ export default function BuddyServicesManageOffersScreen() {
   const [editorError, setEditorError] = useState<string | null>(
     null,
   );
+  const [selectedImages, setSelectedImages] = useState<
+    LocalCommercialOfferImage[]
+  >([]);
+  const [creationProgress, setCreationProgress] = useState<
+    string | null
+  >(null);
 
   const loadData = useCallback(async () => {
     if (!businessId) {
@@ -281,6 +345,7 @@ export default function BuddyServicesManageOffersScreen() {
       const [
         catalogsResponse,
         offersResponse,
+        profileResponse,
       ] = await Promise.all([
         loadOwnedCommercialCatalogs(
           businessId,
@@ -294,15 +359,22 @@ export default function BuddyServicesManageOffersScreen() {
             include_archived: false,
           },
         ),
+        loadOwnedCommercialProfile(businessId),
       ]);
 
+      const activeProfileModalities = profileResponse.profile.modalities
+        .filter((record) => record.status !== 'archived')
+        .map((record) => record.modality);
+
       setCatalogs(catalogsResponse.catalogs);
+      setEnabledModalities(activeProfileModalities);
       setOffers(offersResponse.offers);
     } catch (error) {
       const uiError = toCommercialUiError(error);
 
       setErrorMessage(uiError.message);
       setCatalogs([]);
+      setEnabledModalities([]);
       setOffers([]);
     } finally {
       setIsLoading(false);
@@ -323,6 +395,12 @@ export default function BuddyServicesManageOffersScreen() {
     [catalogs],
   );
 
+  const availableModalities = useMemo(() => (
+    MODALITIES.filter((option) => (
+      enabledModalities.includes(option.value)
+    ))
+  ), [enabledModalities]);
+
   const closeEditor = useCallback(() => {
     if (isSaving) {
       return;
@@ -330,6 +408,7 @@ export default function BuddyServicesManageOffersScreen() {
 
     setEditor(null);
     setEditorError(null);
+    setSelectedImages([]);
   }, [isSaving]);
 
   const toggleModality = useCallback((
@@ -357,6 +436,102 @@ export default function BuddyServicesManageOffersScreen() {
       };
     });
   }, []);
+
+  const selectOfferImages = useCallback(async () => {
+    if (isSaving) {
+      return;
+    }
+
+    const availableSlots = getCommercialOfferImageSlotsRemaining(
+      selectedImages.length,
+    );
+
+    if (availableSlots === 0) {
+      setEditorError(
+        'Cada producto o servicio permite máximo 5 imágenes.',
+      );
+      return;
+    }
+
+    setEditorError(null);
+
+    const permission = (
+      await ImagePicker.requestMediaLibraryPermissionsAsync()
+    );
+
+    if (!permission.granted) {
+      setEditorError(
+        'Necesitamos permiso para seleccionar imágenes.',
+      );
+      return;
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      allowsEditing: false,
+      allowsMultipleSelection: true,
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      quality: 0.9,
+      selectionLimit: availableSlots,
+    });
+
+    if (result.canceled) {
+      return;
+    }
+
+    try {
+      const nextImages = result.assets
+        .slice(0, availableSlots)
+        .map(localCommercialOfferImageFromPicker);
+
+      nextImages.forEach(validateLocalCommercialOfferImage);
+
+      const mergedImages = [
+        ...selectedImages,
+        ...nextImages,
+      ];
+
+      ensureCommercialOfferImageCount(mergedImages.length);
+      setSelectedImages(mergedImages);
+    } catch (error) {
+      const message = error instanceof Error
+        ? error.message
+        : 'No fue posible preparar las imágenes seleccionadas.';
+
+      setEditorError(message);
+    }
+  }, [
+    isSaving,
+    selectedImages,
+  ]);
+
+  const removeSelectedOfferImage = useCallback((
+    imageIndex: number,
+  ) => {
+    if (isSaving) {
+      return;
+    }
+
+    setSelectedImages((currentImages) => (
+      currentImages.filter((_, index) => index !== imageIndex)
+    ));
+  }, [isSaving]);
+
+  const moveSelectedOfferImage = useCallback((
+    fromIndex: number,
+    toIndex: number,
+  ) => {
+    if (isSaving) {
+      return;
+    }
+
+    setSelectedImages((currentImages) => (
+      moveCommercialOfferImage(
+        currentImages,
+        fromIndex,
+        toIndex,
+      )
+    ));
+  }, [isSaving]);
 
   const saveOffer = useCallback(async () => {
     if (!editor || !businessId) {
@@ -391,11 +566,11 @@ export default function BuddyServicesManageOffersScreen() {
       && (
         parsedAmount === null
         || !Number.isInteger(parsedAmount)
-        || parsedAmount < 0
+        || parsedAmount < 1
       )
     ) {
       setEditorError(
-        'El precio fijo o desde requiere un monto entero válido.',
+        'El precio fijo o desde debe ser mínimo de $1.',
       );
       return;
     }
@@ -428,12 +603,12 @@ export default function BuddyServicesManageOffersScreen() {
       && (
         parsedDurationMinutes === null
         || !Number.isInteger(parsedDurationMinutes)
-        || parsedDurationMinutes < 5
+        || parsedDurationMinutes < 15
         || parsedDurationMinutes > 1440
       )
     ) {
       setEditorError(
-        'El servicio reservable requiere duración entre 5 y 1440 minutos.',
+        'El servicio reservable requiere duración entre 15 y 1440 minutos.',
       );
       return;
     }
@@ -442,7 +617,13 @@ export default function BuddyServicesManageOffersScreen() {
     setEditorError(null);
 
     try {
-      await createOwnedOffer(
+      setCreationProgress(
+        editor.offerKind === 'product'
+          ? 'Creando producto…'
+          : 'Creando servicio…',
+      );
+
+      const createResponse = await createOwnedOffer(
         businessId,
         {
           catalog_id: editor.catalogId,
@@ -486,6 +667,99 @@ export default function BuddyServicesManageOffersScreen() {
         },
       );
 
+      const createdOffer = createResponse.offer;
+
+      if (selectedImages.length > 0) {
+        const credentials = await getValidSessionCredentials();
+
+        if (!credentials) {
+          await loadData();
+          closeEditor();
+          const recoveryNotice = (
+            'La oferta fue creada, pero tu sesión expiró antes '
+            + 'de subir las fotos. Complétalas desde esta pantalla.'
+          );
+
+          router.push({
+            pathname: (
+              '/(main)/beeservices/manage/[businessId]/offers/[offerId]'
+            ),
+            params: {
+              businessId,
+              notice: recoveryNotice,
+              offerId: createdOffer.id,
+            },
+          });
+
+          return;
+        }
+
+        for (
+          let imageIndex = 0;
+          imageIndex < selectedImages.length;
+          imageIndex += 1
+        ) {
+          const selectedImage = selectedImages[imageIndex];
+
+          if (!selectedImage) {
+            continue;
+          }
+
+          try {
+            setCreationProgress(
+              `Subiendo foto ${imageIndex + 1} de ${selectedImages.length}…`,
+            );
+
+            const uploadedFile = await uploadCommercialOfferImageFile(
+              credentials,
+              selectedImage,
+            );
+
+            setCreationProgress(
+              `Guardando foto ${imageIndex + 1} de ${selectedImages.length}…`,
+            );
+
+            await createOwnedOfferImage(
+              businessId,
+              createdOffer.id,
+              {
+                file_id: uploadedFile.id,
+                is_primary: imageIndex === 0,
+                sort_order: imageIndex,
+              },
+            );
+          } catch (imageError) {
+            const imageUiError = toCommercialUiError(imageError);
+
+            await loadData();
+            closeEditor();
+            const recoveryNotice = (
+              `La oferta fue creada, pero no se pudo guardar `
+              + `la foto ${imageIndex + 1}. `
+              + `${imageUiError.message} `
+              + 'Puedes completar las fotos desde esta pantalla.'
+            );
+
+            router.push({
+              pathname: (
+                '/(main)/beeservices/manage/[businessId]/offers/[offerId]'
+              ),
+              params: {
+                businessId,
+                notice: recoveryNotice,
+                offerId: createdOffer.id,
+              },
+            });
+
+            return;
+          }
+        }
+      }
+
+      setCreationProgress(
+        'Actualizando productos y servicios…',
+      );
+
       closeEditor();
       await loadData();
     } catch (error) {
@@ -493,6 +767,7 @@ export default function BuddyServicesManageOffersScreen() {
 
       setEditorError(uiError.message);
     } finally {
+      setCreationProgress(null);
       setIsSaving(false);
     }
   }, [
@@ -500,6 +775,8 @@ export default function BuddyServicesManageOffersScreen() {
     closeEditor,
     editor,
     loadData,
+    router,
+    selectedImages,
   ]);
 
   const activeEditor = editor;
@@ -563,6 +840,7 @@ export default function BuddyServicesManageOffersScreen() {
           }
           onPress={() => {
             setEditorError(null);
+            setSelectedImages([]);
             setEditor(createOfferEditor(catalogs));
           }}
           style={{
@@ -1329,35 +1607,143 @@ export default function BuddyServicesManageOffersScreen() {
 
             {editor?.pricingStrategy === 'fixed'
             || editor?.pricingStrategy === 'starting_at' ? (
-              <TextInput
-                accessibilityLabel="Precio en pesos colombianos"
-                editable={!isSaving}
-                keyboardType="number-pad"
-                onChangeText={(value) => {
-                  setEditor((currentEditor) => (
-                    currentEditor
-                      ? {
-                        ...currentEditor,
-                        basePriceAmount: value,
-                      }
-                      : currentEditor
-                  ));
-                }}
-                placeholder="Ejemplo: 50000"
-                placeholderTextColor="#A692B7"
+              <View
                 style={{
-                  backgroundColor: '#FFFFFF',
-                  borderColor: '#DCCBEE',
-                  borderRadius: 13,
-                  borderWidth: 1,
-                  color: '#261743',
-                  fontSize: 14,
+                  alignItems: 'center',
+                  flexDirection: 'row',
+                  gap: 8,
                   marginTop: 10,
-                  minHeight: 48,
-                  paddingHorizontal: 13,
                 }}
-                value={editor?.basePriceAmount || ''}
-              />
+              >
+                <TouchableOpacity
+                  accessibilityLabel="Restar mil pesos"
+                  accessibilityRole="button"
+                  activeOpacity={0.82}
+                  disabled={isSaving}
+                  onPress={() => {
+                    setEditor((currentEditor) => {
+                      if (!currentEditor) {
+                        return currentEditor;
+                      }
+
+                      const nextValue = (
+                        toSafeInteger(
+                          currentEditor.basePriceAmount,
+                          0,
+                        ) - 1000
+                      );
+
+                      if (nextValue < 1) {
+                        setEditorError(
+                          'El precio mínimo permitido es $1.',
+                        );
+
+                        return currentEditor;
+                      }
+
+                      return {
+                        ...currentEditor,
+                        basePriceAmount: String(nextValue),
+                      };
+                    });
+                  }}
+                  style={{
+                    alignItems: 'center',
+                    backgroundColor: '#F4EDFC',
+                    borderColor: '#DCCBEE',
+                    borderRadius: 24,
+                    borderWidth: 1,
+                    height: 48,
+                    justifyContent: 'center',
+                    opacity: isSaving ? 0.55 : 1,
+                    width: 48,
+                  }}
+                >
+                  <Text
+                    style={{
+                      color: '#54209E',
+                      fontSize: 23,
+                      fontWeight: '800',
+                    }}
+                  >
+                    −
+                  </Text>
+                </TouchableOpacity>
+
+                <TextInput
+                  accessibilityLabel="Precio en pesos colombianos"
+                  editable={!isSaving}
+                  keyboardType="number-pad"
+                  onChangeText={(value) => {
+                    setEditor((currentEditor) => (
+                      currentEditor
+                        ? {
+                          ...currentEditor,
+                          basePriceAmount: normalizePriceInput(value),
+                        }
+                        : currentEditor
+                    ));
+                  }}
+                  placeholder="0"
+                  placeholderTextColor="#A692B7"
+                  style={{
+                    backgroundColor: '#FFFFFF',
+                    borderColor: '#DCCBEE',
+                    borderRadius: 12,
+                    borderWidth: 1,
+                    color: '#261743',
+                    fontSize: 15,
+                    fontWeight: '800',
+                    height: 48,
+                    paddingHorizontal: 13,
+                    textAlign: 'center',
+                  }}
+                  value={formatPriceInput(editor?.basePriceAmount || '')}
+                />
+
+                <TouchableOpacity
+                  accessibilityLabel="Sumar mil pesos"
+                  accessibilityRole="button"
+                  activeOpacity={0.82}
+                  disabled={isSaving}
+                  onPress={() => {
+                    setEditor((currentEditor) => (
+                      currentEditor
+                        ? {
+                          ...currentEditor,
+                          basePriceAmount: String(
+                            toSafeInteger(
+                              currentEditor.basePriceAmount,
+                              0,
+                            ) + 1000,
+                          ),
+                        }
+                        : currentEditor
+                    ));
+                  }}
+                  style={{
+                    alignItems: 'center',
+                    backgroundColor: '#F4EDFC',
+                    borderColor: '#DCCBEE',
+                    borderRadius: 24,
+                    borderWidth: 1,
+                    height: 48,
+                    justifyContent: 'center',
+                    opacity: isSaving ? 0.55 : 1,
+                    width: 48,
+                  }}
+                >
+                  <Text
+                    style={{
+                      color: '#54209E',
+                      fontSize: 23,
+                      fontWeight: '800',
+                    }}
+                  >
+                    +
+                  </Text>
+                </TouchableOpacity>
+              </View>
             ) : null}
 
             {editor?.offerKind === 'product' ? (
@@ -1389,7 +1775,15 @@ export default function BuddyServicesManageOffersScreen() {
                           ? {
                             ...currentEditor,
                             stockQuantity: value
-                              ? currentEditor.stockQuantity
+                              ? String(
+                                Math.max(
+                                  0,
+                                  toSafeInteger(
+                                    currentEditor.stockQuantity,
+                                    0,
+                                  ),
+                                ),
+                              )
                               : '',
                             trackInventory: value,
                           }
@@ -1401,35 +1795,143 @@ export default function BuddyServicesManageOffersScreen() {
                 </View>
 
                 {editor.trackInventory ? (
-                  <TextInput
-                    accessibilityLabel="Cantidad de inventario"
-                    editable={!isSaving}
-                    keyboardType="number-pad"
-                    onChangeText={(value) => {
-                      setEditor((currentEditor) => (
-                        currentEditor
-                          ? {
-                            ...currentEditor,
-                            stockQuantity: value,
-                          }
-                          : currentEditor
-                      ));
-                    }}
-                    placeholder="Cantidad disponible"
-                    placeholderTextColor="#A692B7"
+                  <View
                     style={{
-                      backgroundColor: '#FFFFFF',
-                      borderColor: '#DCCBEE',
-                      borderRadius: 13,
-                      borderWidth: 1,
-                      color: '#261743',
-                      fontSize: 14,
+                      alignItems: 'center',
+                      flexDirection: 'row',
+                      gap: 8,
                       marginTop: 10,
-                      minHeight: 48,
-                      paddingHorizontal: 13,
                     }}
-                    value={activeEditor?.stockQuantity || ''}
-                  />
+                  >
+                    <TouchableOpacity
+                      accessibilityLabel="Restar diez unidades de inventario"
+                      accessibilityRole="button"
+                      activeOpacity={0.82}
+                      disabled={isSaving}
+                      onPress={() => {
+                        setEditor((currentEditor) => {
+                          if (!currentEditor) {
+                            return currentEditor;
+                          }
+
+                          const nextValue = (
+                            toSafeInteger(
+                              currentEditor.stockQuantity,
+                              0,
+                            ) - 10
+                          );
+
+                          if (nextValue < 0) {
+                            setEditorError(
+                              'El inventario no puede ser inferior a 0.',
+                            );
+
+                            return currentEditor;
+                          }
+
+                          return {
+                            ...currentEditor,
+                            stockQuantity: String(nextValue),
+                          };
+                        });
+                      }}
+                      style={{
+                        alignItems: 'center',
+                        backgroundColor: '#F4EDFC',
+                        borderColor: '#DCCBEE',
+                        borderRadius: 24,
+                        borderWidth: 1,
+                        height: 48,
+                        justifyContent: 'center',
+                        opacity: isSaving ? 0.55 : 1,
+                        width: 48,
+                      }}
+                    >
+                      <Text
+                        style={{
+                          color: '#54209E',
+                          fontSize: 23,
+                          fontWeight: '800',
+                        }}
+                      >
+                        −
+                      </Text>
+                    </TouchableOpacity>
+
+                    <TextInput
+                      accessibilityLabel="Cantidad de inventario"
+                      editable={!isSaving}
+                      keyboardType="number-pad"
+                      onChangeText={(value) => {
+                        setEditor((currentEditor) => (
+                          currentEditor
+                            ? {
+                              ...currentEditor,
+                              stockQuantity: normalizeDigits(value),
+                            }
+                            : currentEditor
+                        ));
+                      }}
+                      placeholder="0"
+                      placeholderTextColor="#A692B7"
+                      style={{
+                        backgroundColor: '#FFFFFF',
+                        borderColor: '#DCCBEE',
+                        borderRadius: 12,
+                        borderWidth: 1,
+                        color: '#261743',
+                            fontSize: 15,
+                        fontWeight: '800',
+                        height: 48,
+                        paddingHorizontal: 13,
+                        textAlign: 'center',
+                      }}
+                      value={activeEditor?.stockQuantity || ''}
+                    />
+
+                    <TouchableOpacity
+                      accessibilityLabel="Sumar diez unidades de inventario"
+                      accessibilityRole="button"
+                      activeOpacity={0.82}
+                      disabled={isSaving}
+                      onPress={() => {
+                        setEditor((currentEditor) => (
+                          currentEditor
+                            ? {
+                              ...currentEditor,
+                              stockQuantity: String(
+                                toSafeInteger(
+                                  currentEditor.stockQuantity,
+                                  0,
+                                ) + 10,
+                              ),
+                            }
+                            : currentEditor
+                        ));
+                      }}
+                      style={{
+                        alignItems: 'center',
+                        backgroundColor: '#F4EDFC',
+                        borderColor: '#DCCBEE',
+                        borderRadius: 24,
+                        borderWidth: 1,
+                        height: 48,
+                        justifyContent: 'center',
+                        opacity: isSaving ? 0.55 : 1,
+                        width: 48,
+                      }}
+                    >
+                      <Text
+                        style={{
+                          color: '#54209E',
+                          fontSize: 23,
+                          fontWeight: '800',
+                        }}
+                      >
+                        +
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
                 ) : null}
               </>
             ) : (
@@ -1461,7 +1963,15 @@ export default function BuddyServicesManageOffersScreen() {
                           ? {
                             ...currentEditor,
                             durationMinutes: value
-                              ? currentEditor.durationMinutes
+                              ? String(
+                                Math.max(
+                                  15,
+                                  toSafeInteger(
+                                    currentEditor.durationMinutes,
+                                    15,
+                                  ),
+                                ),
+                              )
                               : '',
                             requiresBooking: value,
                           }
@@ -1473,35 +1983,170 @@ export default function BuddyServicesManageOffersScreen() {
                 </View>
 
                 {activeEditor?.requiresBooking ? (
-                  <TextInput
-                    accessibilityLabel="Duración en minutos"
-                    editable={!isSaving}
-                    keyboardType="number-pad"
-                    onChangeText={(value) => {
-                      setEditor((currentEditor) => (
-                        currentEditor
-                          ? {
-                            ...currentEditor,
-                            durationMinutes: value,
-                          }
-                          : currentEditor
-                      ));
-                    }}
-                    placeholder="Duración en minutos"
-                    placeholderTextColor="#A692B7"
+                  <View
                     style={{
-                      backgroundColor: '#FFFFFF',
-                      borderColor: '#DCCBEE',
-                      borderRadius: 13,
-                      borderWidth: 1,
-                      color: '#261743',
-                      fontSize: 14,
+                      alignItems: 'center',
+                      flexDirection: 'row',
+                      gap: 8,
                       marginTop: 10,
-                      minHeight: 48,
-                      paddingHorizontal: 13,
                     }}
-                    value={activeEditor?.durationMinutes || ''}
-                  />
+                  >
+                    <TouchableOpacity
+                      accessibilityLabel="Restar cinco minutos de duración"
+                      accessibilityRole="button"
+                      activeOpacity={0.82}
+                      disabled={isSaving}
+                      onPress={() => {
+                        setEditor((currentEditor) => {
+                          if (!currentEditor) {
+                            return currentEditor;
+                          }
+
+                          const nextValue = (
+                            toSafeInteger(
+                              currentEditor.durationMinutes,
+                              15,
+                            ) - 5
+                          );
+
+                          if (nextValue < 15) {
+                            setEditorError(
+                              'La duración mínima para reservas es de 15 minutos.',
+                            );
+
+                            return currentEditor;
+                          }
+
+                          return {
+                            ...currentEditor,
+                            durationMinutes: String(nextValue),
+                          };
+                        });
+                      }}
+                      style={{
+                        alignItems: 'center',
+                        backgroundColor: '#F4EDFC',
+                        borderColor: '#DCCBEE',
+                        borderRadius: 24,
+                        borderWidth: 1,
+                        height: 48,
+                        justifyContent: 'center',
+                        opacity: isSaving ? 0.55 : 1,
+                        width: 48,
+                      }}
+                    >
+                      <Text
+                        style={{
+                          color: '#54209E',
+                          fontSize: 23,
+                          fontWeight: '800',
+                        }}
+                      >
+                        −
+                      </Text>
+                    </TouchableOpacity>
+
+                    <View
+                      style={{
+                        backgroundColor: '#FFFFFF',
+                        borderColor: '#DCCBEE',
+                        borderRadius: 12,
+                        borderWidth: 1,
+                        flexDirection: 'row',
+                        height: 48,
+                        width: 112,
+                      }}
+                    >
+                      <TextInput
+                        accessibilityLabel="Duración en minutos"
+                        editable={!isSaving}
+                        keyboardType="number-pad"
+                        onChangeText={(value) => {
+                          setEditor((currentEditor) => (
+                            currentEditor
+                              ? {
+                                ...currentEditor,
+                                durationMinutes: normalizeDigits(value),
+                              }
+                              : currentEditor
+                          ));
+                        }}
+                        placeholder="15"
+                        placeholderTextColor="#A692B7"
+                        style={{
+                          color: '#261743',
+                          flex: 1,
+                          fontSize: 15,
+                          fontWeight: '800',
+                          paddingHorizontal: 13,
+                          textAlign: 'center',
+                        }}
+                        value={activeEditor?.durationMinutes || ''}
+                      />
+
+                      <View
+                        pointerEvents="none"
+                        style={{
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          paddingRight: 12,
+                        }}
+                      >
+                        <Text
+                          style={{
+                            color: '#7D6A92',
+                            fontSize: 12,
+                            fontWeight: '800',
+                          }}
+                        >
+                          min
+                        </Text>
+                      </View>
+                    </View>
+
+                    <TouchableOpacity
+                      accessibilityLabel="Sumar cinco minutos de duración"
+                      accessibilityRole="button"
+                      activeOpacity={0.82}
+                      disabled={isSaving}
+                      onPress={() => {
+                        setEditor((currentEditor) => (
+                          currentEditor
+                            ? {
+                              ...currentEditor,
+                              durationMinutes: String(
+                                toSafeInteger(
+                                  currentEditor.durationMinutes,
+                                  15,
+                                ) + 5,
+                              ),
+                            }
+                            : currentEditor
+                        ));
+                      }}
+                      style={{
+                        alignItems: 'center',
+                        backgroundColor: '#F4EDFC',
+                        borderColor: '#DCCBEE',
+                        borderRadius: 24,
+                        borderWidth: 1,
+                        height: 48,
+                        justifyContent: 'center',
+                        opacity: isSaving ? 0.55 : 1,
+                        width: 48,
+                      }}
+                    >
+                      <Text
+                        style={{
+                          color: '#54209E',
+                          fontSize: 23,
+                          fontWeight: '800',
+                        }}
+                      >
+                        +
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
                 ) : null}
 
                 <Text
@@ -1596,7 +2241,7 @@ export default function BuddyServicesManageOffersScreen() {
                 marginTop: 9,
               }}
             >
-              {MODALITIES.map((option) => {
+              {availableModalities.map((option) => {
                 const isSelected = (
                   editor?.modalities.includes(option.value)
                   || false
@@ -1653,6 +2298,243 @@ export default function BuddyServicesManageOffersScreen() {
               })}
             </View>
 
+            {availableModalities.length === 0 ? (
+              <Text
+                style={{
+                  color: '#786593',
+                  fontSize: 12,
+                  lineHeight: 18,
+                  marginTop: 9,
+                }}
+              >
+                Este negocio no tiene modalidades habilitadas. '
+                + 'Puedes crear la oferta sin seleccionar una modalidad '
+                + 'o configurarlas desde el perfil comercial.'
+              </Text>
+            ) : null}
+
+            <View
+              style={{
+                alignItems: 'center',
+                flexDirection: 'row',
+                justifyContent: 'space-between',
+                marginTop: 22,
+              }}
+            >
+              <View>
+                <Text
+                  style={{
+                    color: '#261743',
+                    fontSize: 14,
+                    fontWeight: '800',
+                  }}
+                >
+                  Fotos opcionales
+                </Text>
+
+                <Text
+                  style={{
+                    color: '#786593',
+                    fontSize: 12,
+                    marginTop: 3,
+                  }}
+                >
+                  {selectedImages.length}/5. La primera será la portada.
+                </Text>
+              </View>
+
+              <TouchableOpacity
+                accessibilityLabel="Seleccionar fotos de la oferta"
+                accessibilityRole="button"
+                activeOpacity={0.82}
+                disabled={isSaving || selectedImages.length >= 5}
+                onPress={() => {
+                  void selectOfferImages();
+                }}
+                style={{
+                  alignItems: 'center',
+                  backgroundColor: '#F4EDFC',
+                  borderColor: '#C9A8E8',
+                  borderRadius: 12,
+                  borderWidth: 1,
+                  flexDirection: 'row',
+                  minHeight: 38,
+                  opacity: (
+                    isSaving || selectedImages.length >= 5
+                  )
+                    ? 0.55
+                    : 1,
+                  paddingHorizontal: 11,
+                }}
+              >
+                <ImagePlus
+                  color="#54209E"
+                  size={17}
+                />
+
+                <Text
+                  style={{
+                    color: '#54209E',
+                    fontSize: 12,
+                    fontWeight: '800',
+                    marginLeft: 6,
+                  }}
+                >
+                  Agregar
+                </Text>
+              </TouchableOpacity>
+            </View>
+
+            {selectedImages.length === 0 ? (
+              <Text
+                style={{
+                  color: '#786593',
+                  fontSize: 12,
+                  lineHeight: 18,
+                  marginTop: 10,
+                }}
+              >
+                Puedes agregar fotos ahora o desde la edición después.
+              </Text>
+            ) : (
+              <ScrollView
+                contentContainerStyle={{
+                  gap: 10,
+                  paddingTop: 12,
+                }}
+                horizontal
+                showsHorizontalScrollIndicator={false}
+              >
+                {selectedImages.map((image, index) => (
+                  <View
+                    key={`${image.uri}-${index}`}
+                    style={{
+                      backgroundColor: '#FFFFFF',
+                      borderColor: index === 0
+                        ? '#7427D5'
+                        : '#E7DDF2',
+                      borderRadius: 14,
+                      borderWidth: index === 0 ? 2 : 1,
+                      overflow: 'hidden',
+                      width: 132,
+                    }}
+                  >
+                    <Image
+                      source={{ uri: image.uri }}
+                      style={{
+                        backgroundColor: '#F6EAFE',
+                        height: 94,
+                        width: 128,
+                      }}
+                    />
+
+                    <View
+                      style={{
+                        padding: 8,
+                      }}
+                    >
+                      <Text
+                        style={{
+                          color: index === 0
+                            ? '#54209E'
+                            : '#786593',
+                          fontSize: 11,
+                          fontWeight: '800',
+                        }}
+                      >
+                        {index === 0
+                          ? 'Portada'
+                          : `Foto ${index + 1}`}
+                      </Text>
+
+                      <View
+                        style={{
+                          alignItems: 'center',
+                          flexDirection: 'row',
+                          justifyContent: 'space-between',
+                          marginTop: 8,
+                        }}
+                      >
+                        <TouchableOpacity
+                          accessibilityLabel={`Mover foto ${index + 1} a la izquierda`}
+                          accessibilityRole="button"
+                          activeOpacity={0.82}
+                          disabled={isSaving || index === 0}
+                          onPress={() => {
+                            moveSelectedOfferImage(
+                              index,
+                              index - 1,
+                            );
+                          }}
+                          style={{
+                            opacity: (
+                              isSaving || index === 0
+                            )
+                              ? 0.35
+                              : 1,
+                            padding: 3,
+                          }}
+                        >
+                          <ChevronLeft
+                            color="#54209E"
+                            size={18}
+                          />
+                        </TouchableOpacity>
+
+                        <TouchableOpacity
+                          accessibilityLabel={`Eliminar foto ${index + 1}`}
+                          accessibilityRole="button"
+                          activeOpacity={0.82}
+                          disabled={isSaving}
+                          onPress={() => {
+                            removeSelectedOfferImage(index);
+                          }}
+                          style={{
+                            padding: 3,
+                          }}
+                        >
+                          <Trash2
+                            color="#B42318"
+                            size={17}
+                          />
+                        </TouchableOpacity>
+
+                        <TouchableOpacity
+                          accessibilityLabel={`Mover foto ${index + 1} a la derecha`}
+                          accessibilityRole="button"
+                          activeOpacity={0.82}
+                          disabled={
+                            isSaving
+                            || index === selectedImages.length - 1
+                          }
+                          onPress={() => {
+                            moveSelectedOfferImage(
+                              index,
+                              index + 1,
+                            );
+                          }}
+                          style={{
+                            opacity: (
+                              isSaving
+                              || index === selectedImages.length - 1
+                            )
+                              ? 0.35
+                              : 1,
+                            padding: 3,
+                          }}
+                        >
+                          <ChevronRight
+                            color="#54209E"
+                            size={18}
+                          />
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+                  </View>
+                ))}
+              </ScrollView>
+            )}
+
             <TouchableOpacity
               accessibilityLabel="Crear oferta"
               accessibilityRole="button"
@@ -1696,6 +2578,65 @@ void saveOffer();
               </Text>
             </TouchableOpacity>
           </ScrollView>
+        </View>
+      </Modal>
+
+      <Modal
+        animationType="fade"
+        transparent
+        visible={Boolean(creationProgress)}
+      >
+        <View
+          style={{
+            alignItems: 'center',
+            backgroundColor: 'rgba(38, 23, 67, 0.54)',
+            flex: 1,
+            justifyContent: 'center',
+            paddingHorizontal: 28,
+          }}
+        >
+          <View
+            accessibilityLiveRegion="polite"
+            accessibilityRole="alert"
+            style={{
+              alignItems: 'center',
+              backgroundColor: '#FFFFFF',
+              borderRadius: 20,
+              maxWidth: 330,
+              paddingHorizontal: 24,
+              paddingVertical: 26,
+              width: '100%',
+            }}
+          >
+            <ActivityIndicator
+              color="#7427D5"
+              size="large"
+            />
+
+            <Text
+              style={{
+                color: '#261743',
+                fontSize: 17,
+                fontWeight: '900',
+                marginTop: 17,
+                textAlign: 'center',
+              }}
+            >
+              Guardando oferta
+            </Text>
+
+            <Text
+              style={{
+                color: '#786593',
+                fontSize: 14,
+                lineHeight: 21,
+                marginTop: 8,
+                textAlign: 'center',
+              }}
+            >
+              {creationProgress}
+            </Text>
+          </View>
         </View>
       </Modal>
     </ScreenSafeArea>

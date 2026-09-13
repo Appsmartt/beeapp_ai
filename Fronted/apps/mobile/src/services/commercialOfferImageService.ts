@@ -6,6 +6,9 @@ import type {
   CommercialOfferImage,
   StorageFile,
 } from '@beeapp/shared-types';
+import type * as ImagePicker from 'expo-image-picker';
+
+export const MAX_COMMERCIAL_OFFER_IMAGES = 5;
 
 export const MAX_COMMERCIAL_OFFER_IMAGE_SIZE_BYTES =
 5 * 1024 * 1024;
@@ -21,6 +24,69 @@ export interface LocalCommercialOfferImage {
   name: string;
   mimeType: string;
   sizeBytes?: number | null;
+}
+
+export function getCommercialOfferImageSlotsRemaining(
+  imageCount: number,
+): number {
+  return Math.max(
+    0,
+    MAX_COMMERCIAL_OFFER_IMAGES - Math.max(0, imageCount),
+  );
+}
+
+export function ensureCommercialOfferImageCount(
+  imageCount: number,
+): void {
+  if (imageCount > MAX_COMMERCIAL_OFFER_IMAGES) {
+    throw new Error(
+      'Cada producto o servicio permite máximo 5 imágenes.',
+    );
+  }
+}
+
+export function localCommercialOfferImageFromPicker(
+  asset: ImagePicker.ImagePickerAsset,
+): LocalCommercialOfferImage {
+  const extension = asset.mimeType === 'image/png'
+    ? 'png'
+    : asset.mimeType === 'image/webp'
+      ? 'webp'
+      : 'jpg';
+
+  return {
+    uri: asset.uri,
+    name: asset.fileName || `oferta-${Date.now()}.${extension}`,
+    mimeType: asset.mimeType || 'image/jpeg',
+    sizeBytes: asset.fileSize,
+  };
+}
+
+export function moveCommercialOfferImage<T>(
+  images: T[],
+  fromIndex: number,
+  toIndex: number,
+): T[] {
+  if (
+    fromIndex < 0
+    || toIndex < 0
+    || fromIndex >= images.length
+    || toIndex >= images.length
+    || fromIndex === toIndex
+  ) {
+    return [...images];
+  }
+
+  const reorderedImages = [...images];
+  const [movedImage] = reorderedImages.splice(fromIndex, 1);
+
+  if (movedImage === undefined) {
+    return [...images];
+  }
+
+  reorderedImages.splice(toIndex, 0, movedImage);
+
+  return reorderedImages;
 }
 
 function getFileExtension(
