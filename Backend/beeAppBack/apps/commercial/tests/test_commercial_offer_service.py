@@ -307,6 +307,171 @@ class CommercialOfferStateTests(SimpleTestCase):
         )
 
 
+class CommercialOfferImageLimitTests(SimpleTestCase):
+    @patch(
+        "apps.commercial.services."
+        "commercial_offer_service._validate_offer_image_file"
+    )
+    @patch(
+        "apps.commercial.services."
+        "commercial_offer_service._get_user_supabase_client"
+    )
+    @patch(
+        "apps.commercial.services."
+        "commercial_offer_service.get_owned_commercial_offer"
+    )
+    def test_add_image_rejects_when_five_active_images_exist(
+        self,
+        get_offer_mock,
+        get_client_mock,
+        validate_file_mock,
+    ):
+        from apps.commercial.exceptions import (
+            CommercialValidationError,
+        )
+        from apps.commercial.services.commercial_offer_service import (
+            add_commercial_offer_image,
+        )
+
+        get_offer_mock.return_value = {
+            "id": "offer-1",
+            "status": "published",
+        }
+
+        class Response:
+            count = 5
+            data = []
+
+        class Query:
+            def select(self, *_args, **_kwargs):
+                return self
+
+            def eq(self, *_args, **_kwargs):
+                return self
+
+            def is_(self, *_args, **_kwargs):
+                return self
+
+            def execute(self):
+                return Response()
+
+        class Client:
+            def table(self, _table_name):
+                return Query()
+
+        get_client_mock.return_value = Client()
+
+        with self.assertRaises(CommercialValidationError) as context:
+            add_commercial_offer_image(
+                user_id="user-1",
+                access_token="token-1",
+                commercial_profile_id="profile-1",
+                offer_id="offer-1",
+                payload={
+                    "file_id": (
+                        "00000000-0000-0000-0000-000000000002"
+                    ),
+                    "sort_order": 5,
+                    "is_primary": False,
+                },
+            )
+
+        self.assertEqual(
+            context.exception.code,
+            "COMMERCIAL_OFFER_IMAGE_LIMIT_REACHED",
+        )
+
+
+class CommercialOfferImageRestoreLimitTests(SimpleTestCase):
+    @patch(
+        "apps.commercial.services."
+        "commercial_offer_service._get_user_supabase_client"
+    )
+    @patch(
+        "apps.commercial.services."
+        "commercial_offer_service.get_owned_commercial_offer"
+    )
+    def test_restore_image_rejects_when_five_active_images_exist(
+        self,
+        get_offer_mock,
+        get_client_mock,
+    ):
+        from apps.commercial.exceptions import (
+            CommercialValidationError,
+        )
+        from apps.commercial.services.commercial_offer_service import (
+            restore_commercial_offer_image,
+        )
+
+        get_offer_mock.return_value = {
+            "id": "offer-1",
+            "status": "published",
+        }
+
+        class ImageResponse:
+            data = {
+                "id": "image-archived-1",
+                "commercial_offer_id": "offer-1",
+                "file_id": (
+                    "00000000-0000-0000-0000-000000000002"
+                ),
+                "sort_order": 0,
+                "is_primary": False,
+                "status": "archived",
+                "archived_at": "2026-09-13T00:00:00+00:00",
+            }
+
+        class CountResponse:
+            count = 5
+            data = []
+
+        class Query:
+            def __init__(self, response):
+                self.response = response
+
+            def select(self, *_args, **_kwargs):
+                return self
+
+            def eq(self, *_args, **_kwargs):
+                return self
+
+            def is_(self, *_args, **_kwargs):
+                return self
+
+            def maybe_single(self):
+                return self
+
+            def execute(self):
+                return self.response
+
+        class Client:
+            def table(self, table_name):
+                if table_name == "commercial_offer_images":
+                    if not hasattr(self, "calls"):
+                        self.calls = 0
+                    self.calls += 1
+                    if self.calls == 1:
+                        return Query(ImageResponse())
+                    return Query(CountResponse())
+                return Query(CountResponse())
+
+        get_client_mock.return_value = Client()
+
+        with self.assertRaises(CommercialValidationError) as context:
+            restore_commercial_offer_image(
+                user_id="user-1",
+                access_token="token-1",
+                commercial_profile_id="profile-1",
+                offer_id="offer-1",
+                image_id="image-archived-1",
+            )
+
+        self.assertEqual(
+            context.exception.code,
+            "COMMERCIAL_OFFER_IMAGE_LIMIT_REACHED",
+        )
+
+
 class CommercialOfferAuditEntityTests(SimpleTestCase):
     @patch(
         "apps.commercial.services."
@@ -366,6 +531,11 @@ class CommercialOfferAuditEntityTests(SimpleTestCase):
             "apps.commercial.services."
             "commercial_offer_service."
             "_validate_offer_image_file"
+        ), patch(
+            "apps.commercial.services."
+            "commercial_offer_service."
+            "_count_active_commercial_offer_images",
+            return_value=0,
         ), patch(
             "apps.commercial.services."
             "commercial_offer_service."

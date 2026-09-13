@@ -12,6 +12,8 @@ import {
   ArrowLeft,
   Box,
   BriefcaseBusiness,
+  ChevronLeft,
+  ChevronRight,
   CirclePause,
   Eye,
   EyeOff,
@@ -52,11 +54,16 @@ import {
   publishOwnedOffer,
   restoreOwnedOffer,
   setOwnedOfferPrimaryImage,
+  updateOwnedOfferImage,
 } from '../../../../../../src/services/commercialService';
 import {
-  LocalCommercialOfferImage,
+  ensureCommercialOfferImageCount,
+  getCommercialOfferImageSlotsRemaining,
+  localCommercialOfferImageFromPicker,
+  moveCommercialOfferImage,
   sortCommercialOfferImages,
   uploadCommercialOfferImageFile,
+  validateLocalCommercialOfferImage,
 } from '../../../../../../src/services/commercialOfferImageService';
 import {
   getValidSessionCredentials,
@@ -230,32 +237,18 @@ function imageActionCopy(
   };
 }
 
-function localImageFromPicker(
-  asset: ImagePicker.ImagePickerAsset,
-): LocalCommercialOfferImage {
-  const extension = asset.mimeType === 'image/png'
-    ? 'png'
-    : asset.mimeType === 'image/webp'
-      ? 'webp'
-      : 'jpg';
-
-  return {
-    uri: asset.uri,
-    name: asset.fileName || `oferta-${Date.now()}.${extension}`,
-    mimeType: asset.mimeType || 'image/jpeg',
-    sizeBytes: asset.fileSize,
-  };
-}
 
 export default function BuddyServicesManageOfferScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{
     businessId?: string | string[];
     offerId?: string | string[];
+    notice?: string | string[];
   }>();
 
   const businessId = getParam(params.businessId);
   const offerId = getParam(params.offerId);
+  const recoveryNotice = getParam(params.notice);
 
   const [offer, setOffer] = useState<
     CommercialOwnedOffer | null
@@ -311,39 +304,77 @@ export default function BuddyServicesManageOfferScreen() {
     void loadOffer();
   }, [loadOffer]);
 
+  useEffect(() => {
+    if (recoveryNotice) {
+      setErrorMessage(recoveryNotice);
+    }
+  }, [recoveryNotice]);
+
   const selectAndUploadImage = useCallback(async () => {
     if (!offer || !businessId || offer.status === 'archived') {
       return;
     }
 
+    const activeImages = sortCommercialOfferImages(
+      offer.images.filter(
+        (image) => image.status !== 'archived',
+      ),
+    );
+    const availableSlots = getCommercialOfferImageSlotsRemaining(
+      activeImages.length,
+    );
+
+    if (availableSlots === 0) {
+      setErrorMessage(
+        'Cada producto o servicio permite máximo 5 imágenes.',
+      );
+      return;
+    }
+
     setErrorMessage(null);
 
-    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    const permission = (
+      await ImagePicker.requestMediaLibraryPermissionsAsync()
+    );
 
     if (!permission.granted) {
       setErrorMessage(
-        'Necesitamos permiso para seleccionar una imagen.',
+        'Necesitamos permiso para seleccionar imágenes.',
       );
       return;
     }
 
     const result = await ImagePicker.launchImageLibraryAsync({
       allowsEditing: false,
+      allowsMultipleSelection: true,
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
       quality: 0.9,
-      selectionLimit: 1,
+      selectionLimit: availableSlots,
     });
 
     if (result.canceled) {
       return;
     }
 
-    const asset = result.assets[0];
+    const selectedImages = result.assets
+      .slice(0, availableSlots)
+      .map(localCommercialOfferImageFromPicker);
 
-    if (!asset) {
-      setErrorMessage(
-        'No fue posible leer la imagen seleccionada.',
+    try {
+      ensureCommercialOfferImageCount(
+        activeImages.length + selectedImages.length,
       );
+      selectedImages.forEach(validateLocalCommercialOfferImage);
+    } catch (error) {
+      const message = error instanceof Error
+        ? error.message
+        : 'No fue posible preparar las imágenes seleccionadas.';
+
+      setErrorMessage(message);
+      return;
+    }
+
+    if (selectedImages.length === 0) {
       return;
     }
 
@@ -358,24 +389,35 @@ export default function BuddyServicesManageOfferScreen() {
         );
       }
 
-      const uploadedFile = await uploadCommercialOfferImageFile(
-        credentials,
-        localImageFromPicker(asset),
-      );
+      for (
+        let imageIndex = 0;
+        imageIndex < selectedImages.length;
+        imageIndex += 1
+      ) {
+        const selectedImage = selectedImages[imageIndex];
 
-      const activeImages = offer.images.filter(
-        (image) => image.status !== 'archived',
-      );
+        if (!selectedImage) {
+          continue;
+        }
 
-      await createOwnedOfferImage(
-        businessId,
-        offer.id,
-        {
-          file_id: uploadedFile.id,
-          is_primary: activeImages.length === 0,
-          sort_order: activeImages.length,
-        },
-      );
+        const uploadedFile = await uploadCommercialOfferImageFile(
+          credentials,
+          selectedImage,
+        );
+
+        await createOwnedOfferImage(
+          businessId,
+          offer.id,
+          {
+            file_id: uploadedFile.id,
+            is_primary: (
+              activeImages.length === 0
+              && imageIndex === 0
+            ),
+            sort_order: activeImages.length + imageIndex,
+          },
+        );
+      }
 
       await loadOffer();
     } catch (error) {
@@ -387,6 +429,92 @@ export default function BuddyServicesManageOfferScreen() {
     }
   }, [
     businessId,
+    loadOffer,
+    offer,
+  ]);
+
+  const moveOfferImage = useCallback(async (
+    fromIndex: number,
+    toIndex: number,
+  ) => {
+    if (
+      !offer
+      || !businessId
+      || isSaving
+      || isUploadingImage
+      || offer.status === 'archived'
+    ) {
+      return;
+    }
+
+    const currentImages = sortCommercialOfferImages(
+      offer.images.filter(
+        (image) => image.status !== 'archived',
+      ),
+    );
+    const reorderedImages = moveCommercialOfferImage(
+      currentImages,
+      fromIndex,
+      toIndex,
+    );
+
+    if (
+      reorderedImages.length !== currentImages.length
+      || reorderedImages.every(
+        (image, index) => image.id === currentImages[index]?.id,
+      )
+    ) {
+      return;
+    }
+
+    setIsSaving(true);
+    setErrorMessage(null);
+
+    try {
+      for (
+        let imageIndex = 0;
+        imageIndex < reorderedImages.length;
+        imageIndex += 1
+      ) {
+        const image = reorderedImages[imageIndex];
+
+        if (
+          image
+          && image.sort_order !== imageIndex
+        ) {
+          await updateOwnedOfferImage(
+            businessId,
+            offer.id,
+            image.id,
+            {
+              sort_order: imageIndex,
+            },
+          );
+        }
+      }
+
+      const firstImage = reorderedImages[0];
+
+      if (firstImage && !firstImage.is_primary) {
+        await setOwnedOfferPrimaryImage(
+          businessId,
+          offer.id,
+          firstImage.id,
+        );
+      }
+
+      await loadOffer();
+    } catch (error) {
+      const uiError = toCommercialUiError(error);
+
+      setErrorMessage(uiError.message);
+    } finally {
+      setIsSaving(false);
+    }
+  }, [
+    businessId,
+    isSaving,
+    isUploadingImage,
     loadOffer,
     offer,
   ]);
@@ -763,15 +891,27 @@ export default function BuddyServicesManageOfferScreen() {
               marginTop: 24,
             }}
           >
-            <Text
-              style={{
-                color: '#261743',
-                fontSize: 17,
-                fontWeight: '900',
-              }}
-            >
-              Imágenes
-            </Text>
+            <View>
+              <Text
+                style={{
+                  color: '#261743',
+                  fontSize: 17,
+                  fontWeight: '900',
+                }}
+              >
+                Imágenes
+              </Text>
+
+              <Text
+                style={{
+                  color: '#786593',
+                  fontSize: 12,
+                  marginTop: 2,
+                }}
+              >
+                {activeImages.length}/5. La primera es la portada.
+              </Text>
+            </View>
 
             <TouchableOpacity
               accessibilityLabel="Agregar imagen a la oferta"
@@ -781,6 +921,7 @@ export default function BuddyServicesManageOfferScreen() {
                 isSaving
                 || isUploadingImage
                 || offer.status === 'archived'
+                || activeImages.length >= 5
               }
               onPress={() => {
                 void selectAndUploadImage();
@@ -795,6 +936,7 @@ export default function BuddyServicesManageOfferScreen() {
                   isSaving
                   || isUploadingImage
                   || offer.status === 'archived'
+                  || activeImages.length >= 5
                 )
                   ? 0.55
                   : 1,
@@ -821,7 +963,11 @@ export default function BuddyServicesManageOfferScreen() {
                   marginLeft: 6,
                 }}
               >
-                {isUploadingImage ? 'Subiendo…' : 'Agregar'}
+                {isUploadingImage
+                  ? 'Subiendo…'
+                  : activeImages.length >= 5
+                    ? 'Máximo'
+                    : 'Agregar'}
               </Text>
             </TouchableOpacity>
           </View>
@@ -846,7 +992,7 @@ export default function BuddyServicesManageOfferScreen() {
               horizontal
               showsHorizontalScrollIndicator={false}
             >
-              {activeImages.map((image) => (
+              {activeImages.map((image, imageIndex) => (
                 <View
                   key={image.id}
                   style={{
@@ -893,17 +1039,94 @@ export default function BuddyServicesManageOfferScreen() {
                       padding: 9,
                     }}
                   >
-                    {image.is_primary ? (
-                      <Text
+                    <Text
+                      style={{
+                        color: image.is_primary
+                          ? '#54209E'
+                          : '#786593',
+                        fontSize: 11,
+                        fontWeight: '900',
+                      }}
+                    >
+                      {image.is_primary
+                        ? 'Portada'
+                        : `Foto ${imageIndex + 1}`}
+                    </Text>
+
+                    <View
+                      style={{
+                        alignItems: 'center',
+                        flexDirection: 'row',
+                        justifyContent: 'space-between',
+                        marginTop: 8,
+                      }}
+                    >
+                      <TouchableOpacity
+                        accessibilityLabel={`Mover foto ${imageIndex + 1} a la izquierda`}
+                        accessibilityRole="button"
+                        activeOpacity={0.82}
+                        disabled={
+                          isSaving
+                          || isUploadingImage
+                          || imageIndex === 0
+                        }
+                        onPress={() => {
+                          void moveOfferImage(
+                            imageIndex,
+                            imageIndex - 1,
+                          );
+                        }}
                         style={{
-                          color: '#54209E',
-                          fontSize: 11,
-                          fontWeight: '900',
+                          opacity: (
+                            isSaving
+                            || isUploadingImage
+                            || imageIndex === 0
+                          )
+                            ? 0.35
+                            : 1,
+                          padding: 3,
                         }}
                       >
-                        Principal
-                      </Text>
-                    ) : (
+                        <ChevronLeft
+                          color="#54209E"
+                          size={18}
+                        />
+                      </TouchableOpacity>
+
+                      <TouchableOpacity
+                        accessibilityLabel={`Mover foto ${imageIndex + 1} a la derecha`}
+                        accessibilityRole="button"
+                        activeOpacity={0.82}
+                        disabled={
+                          isSaving
+                          || isUploadingImage
+                          || imageIndex === activeImages.length - 1
+                        }
+                        onPress={() => {
+                          void moveOfferImage(
+                            imageIndex,
+                            imageIndex + 1,
+                          );
+                        }}
+                        style={{
+                          opacity: (
+                            isSaving
+                            || isUploadingImage
+                            || imageIndex === activeImages.length - 1
+                          )
+                            ? 0.35
+                            : 1,
+                          padding: 3,
+                        }}
+                      >
+                        <ChevronRight
+                          color="#54209E"
+                          size={18}
+                        />
+                      </TouchableOpacity>
+                    </View>
+
+                    {!image.is_primary ? (
                       <TouchableOpacity
                         accessibilityLabel="Marcar como imagen principal"
                         accessibilityRole="button"
@@ -918,6 +1141,7 @@ export default function BuddyServicesManageOfferScreen() {
                         style={{
                           alignItems: 'center',
                           flexDirection: 'row',
+                          marginTop: 8,
                         }}
                       >
                         <Star
@@ -936,7 +1160,7 @@ export default function BuddyServicesManageOfferScreen() {
                           Hacer principal
                         </Text>
                       </TouchableOpacity>
-                    )}
+                    ) : null}
 
                     <TouchableOpacity
                       accessibilityLabel="Archivar imagen"

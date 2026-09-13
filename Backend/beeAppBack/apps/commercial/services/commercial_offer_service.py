@@ -46,6 +46,8 @@ COMMERCIAL_OFFER_IMAGE_COLUMNS = (
     "archived_at,created_at,updated_at"
 )
 
+MAX_COMMERCIAL_OFFER_ACTIVE_IMAGES = 5
+
 
 def _get_user_supabase_client(
     *,
@@ -110,9 +112,6 @@ def _get_offer_relations(
         .eq("commercial_offer_id", str(offer_id))
         .order("created_at")
     )
-
-    if not include_archived_images:
-        modalities_query = modalities_query.eq("status", "active")
 
     modalities_response = modalities_query.execute()
 
@@ -319,6 +318,45 @@ def _validate_offer_image_file(
             "Could not validate offer image file.",
             code="COMMERCIAL_OFFER_IMAGE_FILE_LOOKUP_FAILED",
         ) from error
+
+
+
+def _count_active_commercial_offer_images(
+    *,
+    supabase,
+    offer_id: str,
+) -> int:
+    response = (
+        supabase.table("commercial_offer_images")
+        .select("id", count="exact")
+        .eq("commercial_offer_id", str(offer_id))
+        .eq("status", "active")
+        .is_("archived_at", "null")
+        .execute()
+    )
+
+    return int(response.count or 0)
+
+
+def _ensure_commercial_offer_image_capacity(
+    *,
+    supabase,
+    offer_id: str,
+) -> None:
+    active_image_count = _count_active_commercial_offer_images(
+        supabase=supabase,
+        offer_id=str(offer_id),
+    )
+
+    if active_image_count >= MAX_COMMERCIAL_OFFER_ACTIVE_IMAGES:
+        raise CommercialValidationError(
+            "Each commercial offer can have at most 5 active images.",
+            code="COMMERCIAL_OFFER_IMAGE_LIMIT_REACHED",
+            details={
+                "max_active_images": MAX_COMMERCIAL_OFFER_ACTIVE_IMAGES,
+                "active_image_count": active_image_count,
+            },
+        )
 
 
 def list_owned_commercial_offers(
@@ -1120,6 +1158,11 @@ def add_commercial_offer_image(
             access_token=access_token,
         )
 
+        _ensure_commercial_offer_image_capacity(
+            supabase=supabase,
+            offer_id=str(offer_id),
+        )
+
         if payload["is_primary"]:
             primary_response = (
                 supabase.table("commercial_offer_images")
@@ -1369,6 +1412,11 @@ def restore_commercial_offer_image(
                 code="COMMERCIAL_OFFER_IMAGE_NOT_ARCHIVED",
             )
 
+        _ensure_commercial_offer_image_capacity(
+            supabase=supabase,
+            offer_id=str(offer_id),
+        )
+
         if image["is_primary"]:
             active_primary_response = (
                 supabase.table("commercial_offer_images")
@@ -1444,6 +1492,7 @@ def restore_commercial_offer_image(
         CommercialNotFoundError,
         CommercialOperationError,
         CommercialStateError,
+        CommercialValidationError,
     ):
         raise
 
