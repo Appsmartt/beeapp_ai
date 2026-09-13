@@ -3,7 +3,9 @@ import {
   Image,
   Modal,
   ScrollView,
+  Switch,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
 } from 'react-native';
@@ -18,9 +20,13 @@ import {
   Eye,
   EyeOff,
   ImagePlus,
+  Minus,
   PackageSearch,
+  Pencil,
   PlayCircle,
+  Plus,
   RotateCcw,
+  Save,
   Star,
 } from 'lucide-react-native';
 import {
@@ -35,6 +41,7 @@ import {
 import * as ImagePicker from 'expo-image-picker';
 
 import type {
+  CommercialModality,
   CommercialOfferImage,
   CommercialOwnedOffer,
 } from '@beeapp/shared-types';
@@ -45,16 +52,20 @@ import {
 } from '../../../../../../src/features/buddyservices/commercialErrors';
 import {
   archiveOwnedOffer,
-  archiveOwnedOfferImage,
   createOwnedOfferImage,
+  deleteOwnedOfferImage,
   disableOwnedOffer,
   enableOwnedOffer,
   loadOwnedCommercialOffer,
+  loadOwnedCommercialProfile,
   pauseOwnedOffer,
   publishOwnedOffer,
   restoreOwnedOffer,
   setOwnedOfferPrimaryImage,
+  updateOwnedOffer,
   updateOwnedOfferImage,
+  updateOwnedOfferModalities,
+  adjustOwnedOfferInventory,
 } from '../../../../../../src/services/commercialService';
 import {
   ensureCommercialOfferImageCount,
@@ -83,13 +94,59 @@ type OfferActionConfirmation = {
 } | null;
 
 type ImageAction =
-  | 'archive'
+  | 'delete'
   | 'primary';
 
 type ImageActionConfirmation = {
   action: ImageAction;
   image: CommercialOfferImage;
 } | null;
+
+type OfferEditor = {
+  basePriceAmount: string;
+  description: string;
+  durationMinutes: string;
+  paymentPolicy:
+    | 'not_required'
+    | 'required_before_confirmation'
+    | 'required_after_service'
+    | 'to_be_agreed';
+  pricingStrategy:
+    | 'fixed'
+    | 'starting_at'
+    | 'free'
+    | 'to_be_confirmed';
+  requiresBooking: boolean;
+  selectedModalities: CommercialModality[];
+  stockQuantity: string;
+  title: string;
+  trackInventory: boolean;
+};
+
+function createOfferEditor(
+  offer: CommercialOwnedOffer,
+): OfferEditor {
+  return {
+    basePriceAmount: offer.base_price_amount === null
+      ? ''
+      : String(offer.base_price_amount),
+    description: offer.description || '',
+    durationMinutes: offer.duration_minutes === null
+      ? ''
+      : String(offer.duration_minutes),
+    paymentPolicy: offer.payment_policy || 'to_be_agreed',
+    pricingStrategy: offer.pricing_strategy,
+    requiresBooking: offer.requires_booking,
+    selectedModalities: offer.modalities
+      .filter((item) => item.status !== 'archived')
+      .map((item) => item.modality),
+    stockQuantity: offer.stock_quantity === null
+      ? ''
+      : String(offer.stock_quantity),
+    title: offer.title,
+    trackInventory: offer.track_inventory,
+  };
+}
 
 function getParam(
   value: string | string[] | undefined,
@@ -227,12 +284,12 @@ function imageActionCopy(
   }
 
   return {
-    title: 'Archivar imagen',
+    title: 'Eliminar imagen',
     description: (
-      'La imagen dejará de aparecer en la oferta. '
-      + 'Podrás restaurarla desde imágenes archivadas.'
+      'Esta imagen se eliminará definitivamente de la oferta. '
+      + 'Esta acción no se puede deshacer.'
     ),
-    confirmLabel: 'Archivar imagen',
+    confirmLabel: 'Eliminar imagen',
     color: '#B42318',
   };
 }
@@ -256,6 +313,12 @@ export default function BuddyServicesManageOfferScreen() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [isUploadingImage, setIsUploadingImage] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editor, setEditor] = useState<OfferEditor | null>(null);
+  const [inventoryDelta, setInventoryDelta] = useState('1');
+  const [enabledModalities, setEnabledModalities] = useState<
+    CommercialModality[]
+  >([]);
   const [errorMessage, setErrorMessage] = useState<
     string | null
   >(null);
@@ -281,16 +344,36 @@ export default function BuddyServicesManageOfferScreen() {
     setErrorMessage(null);
 
     try {
-      const response = await loadOwnedCommercialOffer(
-        businessId,
-        offerId,
-      );
+      const [
+        offerResponse,
+        profileResponse,
+      ] = await Promise.all([
+        loadOwnedCommercialOffer(
+          businessId,
+          offerId,
+        ),
+        loadOwnedCommercialProfile(businessId),
+      ]);
 
-      setOffer(response.offer);
+      const activeModalities = profileResponse.profile.modalities
+        .filter((record) => record.status !== 'archived')
+        .map((record) => record.modality);
+
+      const nextEditor = createOfferEditor(offerResponse.offer);
+
+      setOffer(offerResponse.offer);
+      setEnabledModalities(activeModalities);
+      setEditor({
+        ...nextEditor,
+        selectedModalities: nextEditor.selectedModalities.filter(
+          (modality) => activeModalities.includes(modality),
+        ),
+      });
     } catch (error) {
       const uiError = toCommercialUiError(error);
 
       setErrorMessage(uiError.message);
+      setEnabledModalities([]);
       setOffer(null);
     } finally {
       setIsLoading(false);
@@ -309,6 +392,231 @@ export default function BuddyServicesManageOfferScreen() {
       setErrorMessage(recoveryNotice);
     }
   }, [recoveryNotice]);
+
+  const startEditing = useCallback(() => {
+    if (!offer || offer.status === 'archived') {
+      return;
+    }
+
+    setEditor(createOfferEditor(offer));
+    setInventoryDelta('1');
+    setErrorMessage(null);
+    setIsEditing(true);
+  }, [offer]);
+
+  const cancelEditing = useCallback(() => {
+    if (offer) {
+      setEditor(createOfferEditor(offer));
+    }
+
+    setInventoryDelta('1');
+    setErrorMessage(null);
+    setIsEditing(false);
+  }, [offer]);
+
+  const saveOfferChanges = useCallback(async () => {
+    if (
+      !offer
+      || !editor
+      || !businessId
+      || offer.status === 'archived'
+    ) {
+      return;
+    }
+
+    const title = editor.title.trim();
+    const description = editor.description.trim();
+    const requiresPrice = (
+      editor.pricingStrategy === 'fixed'
+      || editor.pricingStrategy === 'starting_at'
+    );
+    const parsedPrice = Number(editor.basePriceAmount);
+    const parsedStock = Number(editor.stockQuantity);
+    const parsedDuration = Number(editor.durationMinutes);
+
+    if (!title) {
+      setErrorMessage('Escribe el nombre de la oferta.');
+      return;
+    }
+
+    if (
+      requiresPrice
+      && (
+        !Number.isInteger(parsedPrice)
+        || parsedPrice < 0
+      )
+    ) {
+      setErrorMessage(
+        'Escribe un valor entero igual o mayor que cero.',
+      );
+      return;
+    }
+
+    if (
+      offer.offer_kind === 'product'
+      && editor.trackInventory
+      && (
+        !Number.isInteger(parsedStock)
+        || parsedStock < 0
+      )
+    ) {
+      setErrorMessage(
+        'El inventario inicial debe ser un número entero igual o mayor que cero.',
+      );
+      return;
+    }
+
+    if (
+      offer.offer_kind === 'service'
+      && editor.requiresBooking
+      && (
+        !Number.isInteger(parsedDuration)
+        || parsedDuration <= 0
+      )
+    ) {
+      setErrorMessage(
+        'La duración debe ser un número entero mayor que cero.',
+      );
+      return;
+    }
+
+    const validModalities = editor.selectedModalities.filter(
+      (modality) => enabledModalities.includes(modality),
+    );
+
+    if (validModalities.length === 0) {
+      setErrorMessage(
+        'Selecciona al menos una modalidad activa del negocio.',
+      );
+      return;
+    }
+
+    setIsSaving(true);
+    setErrorMessage(null);
+
+    try {
+      await updateOwnedOffer(
+        businessId,
+        offer.id,
+        {
+          title,
+          description: description || null,
+          pricing_strategy: editor.pricingStrategy,
+          base_price_amount: requiresPrice
+            ? parsedPrice
+            : null,
+          track_inventory: offer.offer_kind === 'product'
+            ? editor.trackInventory
+            : false,
+          stock_quantity: offer.offer_kind === 'product'
+            ? (
+              editor.trackInventory
+              ? (
+                offer.track_inventory
+                ? offer.stock_quantity
+                : parsedStock
+              )
+              : null
+            )
+            : null,
+          requires_booking: offer.offer_kind === 'service'
+            ? editor.requiresBooking
+            : false,
+          duration_minutes: (
+            offer.offer_kind === 'service'
+            && editor.requiresBooking
+          )
+            ? parsedDuration
+            : null,
+          payment_policy: offer.offer_kind === 'service'
+            ? editor.paymentPolicy
+            : null,
+        },
+      );
+
+      await updateOwnedOfferModalities(
+        businessId,
+        offer.id,
+        {
+          modalities: validModalities,
+        },
+      );
+
+      setIsEditing(false);
+      await loadOffer();
+    } catch (error) {
+      const uiError = toCommercialUiError(error);
+
+      setErrorMessage(uiError.message);
+    } finally {
+      setIsSaving(false);
+    }
+  }, [
+    businessId,
+    editor,
+    enabledModalities,
+    loadOffer,
+    offer,
+  ]);
+
+  const adjustOfferInventory = useCallback(async (
+    direction: 'increase' | 'decrease',
+  ) => {
+    if (
+      !offer
+      || !businessId
+      || offer.offer_kind !== 'product'
+      || !offer.track_inventory
+      || offer.status === 'archived'
+    ) {
+      return;
+    }
+
+    const parsedDelta = Number(inventoryDelta);
+    const quantityDelta = direction === 'increase'
+      ? parsedDelta
+      : -parsedDelta;
+
+    if (
+      !Number.isInteger(parsedDelta)
+      || parsedDelta <= 0
+    ) {
+      setErrorMessage(
+        'Escribe una cantidad entera mayor que cero.',
+      );
+      return;
+    }
+
+    setIsSaving(true);
+    setErrorMessage(null);
+
+    try {
+      await adjustOwnedOfferInventory(
+        businessId,
+        offer.id,
+        {
+          quantity_delta: quantityDelta,
+          reason_code: direction === 'increase'
+            ? 'manual_increment'
+            : 'manual_decrement',
+          reason_text: 'Ajuste manual desde la administración de la oferta.',
+        },
+      );
+
+      await loadOffer();
+    } catch (error) {
+      const uiError = toCommercialUiError(error);
+
+      setErrorMessage(uiError.message);
+    } finally {
+      setIsSaving(false);
+    }
+  }, [
+    businessId,
+    inventoryDelta,
+    loadOffer,
+    offer,
+  ]);
 
   const selectAndUploadImage = useCallback(async () => {
     if (!offer || !businessId || offer.status === 'archived') {
@@ -597,7 +905,7 @@ export default function BuddyServicesManageOfferScreen() {
           imageActionConfirmation.image.id,
         );
       } else {
-        await archiveOwnedOfferImage(
+        await deleteOwnedOfferImage(
           businessId,
           offer.id,
           imageActionConfirmation.image.id,
@@ -831,7 +1139,9 @@ export default function BuddyServicesManageOfferScreen() {
                     fontWeight: '900',
                   }}
                 >
-                  {offer.title}
+                  {offer.offer_kind === 'product'
+                    ? 'Producto'
+                    : 'Servicio'}
                 </Text>
 
                 <Text
@@ -841,23 +1151,1027 @@ export default function BuddyServicesManageOfferScreen() {
                     marginTop: 4,
                   }}
                 >
-                  {offer.offer_kind === 'product'
-                    ? 'Producto'
-                    : 'Servicio'}
+                  {isEditing
+                    ? 'Editando información'
+                    : offer.status === 'archived'
+                      ? 'Archivado'
+                      : 'Información de la oferta'}
                 </Text>
               </View>
+
+              {!isEditing && offer.status !== 'archived' ? (
+                <TouchableOpacity
+                  accessibilityLabel="Editar oferta"
+                  accessibilityRole="button"
+                  activeOpacity={0.82}
+                  disabled={isSaving || isUploadingImage}
+                  onPress={startEditing}
+                  style={{
+                    alignItems: 'center',
+                    backgroundColor: '#F4EDF9',
+                    borderRadius: 11,
+                    flexDirection: 'row',
+                    opacity: isSaving || isUploadingImage ? 0.55 : 1,
+                    paddingHorizontal: 10,
+                    paddingVertical: 8,
+                  }}
+                >
+                  <Pencil
+                    color="#54209E"
+                    size={15}
+                  />
+
+                  <Text
+                    style={{
+                      color: '#54209E',
+                      fontSize: 12,
+                      fontWeight: '800',
+                      marginLeft: 5,
+                    }}
+                  >
+                    Editar
+                  </Text>
+                </TouchableOpacity>
+              ) : null}
             </View>
 
-            <Text
-              style={{
-                color: '#4E3B68',
-                fontSize: 17,
-                fontWeight: '900',
-                marginTop: 17,
-              }}
-            >
-              {priceCopy(offer)}
-            </Text>
+            {isEditing && editor ? (
+              <View
+                style={{
+                  marginTop: 18,
+                }}
+              >
+                <Text
+                  style={{
+                    color: '#4E3B68',
+                    fontSize: 13,
+                    fontWeight: '800',
+                    marginBottom: 7,
+                  }}
+                >
+                  Nombre
+                </Text>
+
+                <TextInput
+                  accessibilityLabel="Nombre de la oferta"
+                  autoCapitalize="sentences"
+                  editable={!isSaving}
+                  maxLength={200}
+                  onChangeText={(value) => {
+                    setEditor((current) => current
+                      ? {
+                        ...current,
+                        title: value,
+                      }
+                      : current);
+                  }}
+                  placeholder="Nombre de la oferta"
+                  placeholderTextColor="#A89AB9"
+                  style={{
+                    backgroundColor: '#FFFCF9',
+                    borderColor: '#DCCDED',
+                    borderRadius: 12,
+                    borderWidth: 1,
+                    color: '#261743',
+                    fontSize: 15,
+                    minHeight: 46,
+                    paddingHorizontal: 13,
+                  }}
+                  value={editor.title}
+                />
+
+                <Text
+                  style={{
+                    color: '#4E3B68',
+                    fontSize: 13,
+                    fontWeight: '800',
+                    marginBottom: 7,
+                    marginTop: 15,
+                  }}
+                >
+                  Descripción
+                </Text>
+
+                <TextInput
+                  accessibilityLabel="Descripción de la oferta"
+                  autoCapitalize="sentences"
+                  editable={!isSaving}
+                  maxLength={6000}
+                  multiline
+                  onChangeText={(value) => {
+                    setEditor((current) => current
+                      ? {
+                        ...current,
+                        description: value,
+                      }
+                      : current);
+                  }}
+                  placeholder="Describe tu oferta"
+                  placeholderTextColor="#A89AB9"
+                  style={{
+                    backgroundColor: '#FFFCF9',
+                    borderColor: '#DCCDED',
+                    borderRadius: 12,
+                    borderWidth: 1,
+                    color: '#261743',
+                    fontSize: 15,
+                    minHeight: 94,
+                    paddingHorizontal: 13,
+                    paddingTop: 12,
+                    textAlignVertical: 'top',
+                  }}
+                  value={editor.description}
+                />
+
+                <Text
+                  style={{
+                    color: '#4E3B68',
+                    fontSize: 13,
+                    fontWeight: '800',
+                    marginBottom: 8,
+                    marginTop: 15,
+                  }}
+                >
+                  Precio
+                </Text>
+
+                <View
+                  style={{
+                    flexDirection: 'row',
+                    flexWrap: 'wrap',
+                    gap: 8,
+                  }}
+                >
+                  {[
+                    {
+                      id: 'fixed',
+                      label: 'Valor fijo',
+                    },
+                    {
+                      id: 'starting_at',
+                      label: 'Desde',
+                    },
+                    {
+                      id: 'free',
+                      label: 'Gratis',
+                    },
+                    {
+                      id: 'to_be_confirmed',
+                      label: 'Cotizar',
+                    },
+                  ].map((strategy) => {
+                    const isSelected = (
+                      editor.pricingStrategy === strategy.id
+                    );
+
+                    return (
+                      <TouchableOpacity
+                        key={strategy.id}
+                        accessibilityLabel={strategy.label}
+                        accessibilityRole="button"
+                        activeOpacity={0.82}
+                        disabled={isSaving}
+                        onPress={() => {
+                          setEditor((current) => current
+                            ? {
+                              ...current,
+                              pricingStrategy: strategy.id as OfferEditor['pricingStrategy'],
+                            }
+                            : current);
+                        }}
+                        style={{
+                          backgroundColor: isSelected
+                            ? '#7427D5'
+                            : '#F4EDF9',
+                          borderRadius: 11,
+                          opacity: isSaving ? 0.55 : 1,
+                          paddingHorizontal: 11,
+                          paddingVertical: 9,
+                        }}
+                      >
+                        <Text
+                          style={{
+                            color: isSelected
+                              ? '#FFFFFF'
+                              : '#54209E',
+                            fontSize: 12,
+                            fontWeight: '800',
+                          }}
+                        >
+                          {strategy.label}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+
+                {(
+                  editor.pricingStrategy === 'fixed'
+                  || editor.pricingStrategy === 'starting_at'
+                ) ? (
+                  <View
+                    style={{
+                      marginTop: 11,
+                    }}
+                  >
+                    <Text
+                      style={{
+                        color: '#786593',
+                        fontSize: 12,
+                        marginBottom: 6,
+                      }}
+                    >
+                      Valor en pesos colombianos
+                    </Text>
+
+                    <TextInput
+                      accessibilityLabel="Valor de la oferta en pesos colombianos"
+                      editable={!isSaving}
+                      keyboardType="number-pad"
+                      maxLength={14}
+                      onChangeText={(value) => {
+                        setEditor((current) => current
+                          ? {
+                            ...current,
+                            basePriceAmount: value.replace(/[^0-9]/g, ''),
+                          }
+                          : current);
+                      }}
+                      placeholder="0"
+                      placeholderTextColor="#A89AB9"
+                      style={{
+                        backgroundColor: '#FFFCF9',
+                        borderColor: '#DCCDED',
+                        borderRadius: 12,
+                        borderWidth: 1,
+                        color: '#261743',
+                        fontSize: 16,
+                        fontWeight: '800',
+                        minHeight: 46,
+                        paddingHorizontal: 13,
+                      }}
+                      value={editor.basePriceAmount}
+                    />
+                  </View>
+                ) : null}
+
+                {offer.offer_kind === 'product' ? (
+                  <View
+                    style={{
+                      backgroundColor: '#F9F6FC',
+                      borderColor: '#E7DDF2',
+                      borderRadius: 14,
+                      borderWidth: 1,
+                      marginTop: 20,
+                      padding: 13,
+                    }}
+                  >
+                    <View
+                      style={{
+                        alignItems: 'center',
+                        flexDirection: 'row',
+                        justifyContent: 'space-between',
+                      }}
+                    >
+                      <View
+                        style={{
+                          flex: 1,
+                          paddingRight: 12,
+                        }}
+                      >
+                        <Text
+                          style={{
+                            color: '#4E3B68',
+                            fontSize: 14,
+                            fontWeight: '900',
+                          }}
+                        >
+                          Controlar inventario
+                        </Text>
+
+                        <Text
+                          style={{
+                            color: '#786593',
+                            fontSize: 12,
+                            lineHeight: 18,
+                            marginTop: 4,
+                          }}
+                        >
+                          Activa el control para administrar existencias de este producto.
+                        </Text>
+                      </View>
+
+                      <Switch
+                        accessibilityLabel="Controlar inventario"
+                        disabled={isSaving}
+                        onValueChange={(value) => {
+                          setEditor((current) => current
+                            ? {
+                              ...current,
+                              stockQuantity: value && !current.stockQuantity
+                                ? '0'
+                                : current.stockQuantity,
+                              trackInventory: value,
+                            }
+                            : current);
+                        }}
+                        thumbColor={editor.trackInventory
+                          ? '#7427D5'
+                          : '#FFFFFF'}
+                        trackColor={{
+                          false: '#DCCDED',
+                          true: '#D6B8F5',
+                        }}
+                        value={editor.trackInventory}
+                      />
+                    </View>
+
+                    {editor.trackInventory && !offer.track_inventory ? (
+                      <View
+                        style={{
+                          marginTop: 14,
+                        }}
+                      >
+                        <Text
+                          style={{
+                            color: '#786593',
+                            fontSize: 12,
+                            marginBottom: 6,
+                          }}
+                        >
+                          Inventario inicial
+                        </Text>
+
+                        <TextInput
+                          accessibilityLabel="Inventario inicial"
+                          editable={!isSaving}
+                          keyboardType="number-pad"
+                          maxLength={10}
+                          onChangeText={(value) => {
+                            setEditor((current) => current
+                              ? {
+                                ...current,
+                                stockQuantity: value.replace(/[^0-9]/g, ''),
+                              }
+                              : current);
+                          }}
+                          placeholder="0"
+                          placeholderTextColor="#A89AB9"
+                          style={{
+                            backgroundColor: '#FFFFFF',
+                            borderColor: '#DCCDED',
+                            borderRadius: 12,
+                            borderWidth: 1,
+                            color: '#261743',
+                            fontSize: 16,
+                            fontWeight: '800',
+                            minHeight: 46,
+                            paddingHorizontal: 13,
+                          }}
+                          value={editor.stockQuantity}
+                        />
+                      </View>
+                    ) : null}
+
+                    {offer.track_inventory && editor.trackInventory ? (
+                      <View
+                        style={{
+                          marginTop: 15,
+                        }}
+                      >
+                        <Text
+                          style={{
+                            color: '#4E3B68',
+                            fontSize: 13,
+                            fontWeight: '900',
+                          }}
+                        >
+                          Existencias actuales: {offer.stock_quantity ?? 0}
+                        </Text>
+
+                        <Text
+                          style={{
+                            color: '#786593',
+                            fontSize: 12,
+                            marginBottom: 7,
+                            marginTop: 10,
+                          }}
+                        >
+                          Cantidad para ajustar
+                        </Text>
+
+                        <TextInput
+                          accessibilityLabel="Cantidad para ajustar inventario"
+                          editable={!isSaving}
+                          keyboardType="number-pad"
+                          maxLength={10}
+                          onChangeText={(value) => {
+                            setInventoryDelta(
+                              value.replace(/[^0-9]/g, ''),
+                            );
+                          }}
+                          placeholder="1"
+                          placeholderTextColor="#A89AB9"
+                          style={{
+                            backgroundColor: '#FFFFFF',
+                            borderColor: '#DCCDED',
+                            borderRadius: 12,
+                            borderWidth: 1,
+                            color: '#261743',
+                            fontSize: 16,
+                            fontWeight: '800',
+                            minHeight: 46,
+                            paddingHorizontal: 13,
+                          }}
+                          value={inventoryDelta}
+                        />
+
+                        <View
+                          style={{
+                            flexDirection: 'row',
+                            gap: 10,
+                            marginTop: 10,
+                          }}
+                        >
+                          <TouchableOpacity
+                            accessibilityLabel="Restar inventario"
+                            accessibilityRole="button"
+                            activeOpacity={0.82}
+                            disabled={isSaving || isUploadingImage}
+                            onPress={() => {
+                              void adjustOfferInventory('decrease');
+                            }}
+                            style={{
+                              alignItems: 'center',
+                              backgroundColor: '#FFF0F0',
+                              borderRadius: 12,
+                              flex: 1,
+                              flexDirection: 'row',
+                              justifyContent: 'center',
+                              minHeight: 44,
+                              opacity: isSaving || isUploadingImage
+                                ? 0.55
+                                : 1,
+                            }}
+                          >
+                            <Minus
+                              color="#B42318"
+                              size={17}
+                            />
+
+                            <Text
+                              style={{
+                                color: '#B42318',
+                                fontSize: 13,
+                                fontWeight: '800',
+                                marginLeft: 7,
+                              }}
+                            >
+                              Restar
+                            </Text>
+                          </TouchableOpacity>
+
+                          <TouchableOpacity
+                            accessibilityLabel="Agregar inventario"
+                            accessibilityRole="button"
+                            activeOpacity={0.82}
+                            disabled={isSaving || isUploadingImage}
+                            onPress={() => {
+                              void adjustOfferInventory('increase');
+                            }}
+                            style={{
+                              alignItems: 'center',
+                              backgroundColor: '#E8F7EE',
+                              borderRadius: 12,
+                              flex: 1,
+                              flexDirection: 'row',
+                              justifyContent: 'center',
+                              minHeight: 44,
+                              opacity: isSaving || isUploadingImage
+                                ? 0.55
+                                : 1,
+                            }}
+                          >
+                            <Plus
+                              color="#177245"
+                              size={17}
+                            />
+
+                            <Text
+                              style={{
+                                color: '#177245',
+                                fontSize: 13,
+                                fontWeight: '800',
+                                marginLeft: 7,
+                              }}
+                            >
+                              Agregar
+                            </Text>
+                          </TouchableOpacity>
+                        </View>
+                      </View>
+                    ) : null}
+                  </View>
+                ) : null}
+
+                {offer.offer_kind === 'service' ? (
+                  <View
+                    style={{
+                      backgroundColor: '#F9F6FC',
+                      borderColor: '#E7DDF2',
+                      borderRadius: 14,
+                      borderWidth: 1,
+                      marginTop: 20,
+                      padding: 13,
+                    }}
+                  >
+                    <View
+                      style={{
+                        alignItems: 'center',
+                        flexDirection: 'row',
+                        justifyContent: 'space-between',
+                      }}
+                    >
+                      <View
+                        style={{
+                          flex: 1,
+                          paddingRight: 12,
+                        }}
+                      >
+                        <Text
+                          style={{
+                            color: '#4E3B68',
+                            fontSize: 14,
+                            fontWeight: '900',
+                          }}
+                        >
+                          Requiere reserva
+                        </Text>
+
+                        <Text
+                          style={{
+                            color: '#786593',
+                            fontSize: 12,
+                            lineHeight: 18,
+                            marginTop: 4,
+                          }}
+                        >
+                          Activa la reserva si el cliente debe elegir un horario.
+                        </Text>
+                      </View>
+
+                      <Switch
+                        accessibilityLabel="Requiere reserva"
+                        disabled={isSaving}
+                        onValueChange={(value) => {
+                          setEditor((current) => current
+                            ? {
+                              ...current,
+                              durationMinutes: value && !current.durationMinutes
+                                ? '30'
+                                : current.durationMinutes,
+                              requiresBooking: value,
+                            }
+                            : current);
+                        }}
+                        thumbColor={editor.requiresBooking
+                          ? '#7427D5'
+                          : '#FFFFFF'}
+                        trackColor={{
+                          false: '#DCCDED',
+                          true: '#D6B8F5',
+                        }}
+                        value={editor.requiresBooking}
+                      />
+                    </View>
+
+                    {editor.requiresBooking ? (
+                      <View
+                        style={{
+                          marginTop: 14,
+                        }}
+                      >
+                        <Text
+                          style={{
+                            color: '#786593',
+                            fontSize: 12,
+                            marginBottom: 6,
+                          }}
+                        >
+                          Duración en minutos
+                        </Text>
+
+                        <TextInput
+                          accessibilityLabel="Duración del servicio en minutos"
+                          editable={!isSaving}
+                          keyboardType="number-pad"
+                          maxLength={6}
+                          onChangeText={(value) => {
+                            setEditor((current) => current
+                              ? {
+                                ...current,
+                                durationMinutes: value.replace(/[^0-9]/g, ''),
+                              }
+                              : current);
+                          }}
+                          placeholder="30"
+                          placeholderTextColor="#A89AB9"
+                          style={{
+                            backgroundColor: '#FFFFFF',
+                            borderColor: '#DCCDED',
+                            borderRadius: 12,
+                            borderWidth: 1,
+                            color: '#261743',
+                            fontSize: 16,
+                            fontWeight: '800',
+                            minHeight: 46,
+                            paddingHorizontal: 13,
+                          }}
+                          value={editor.durationMinutes}
+                        />
+                      </View>
+                    ) : null}
+
+                    <Text
+                      style={{
+                        color: '#4E3B68',
+                        fontSize: 13,
+                        fontWeight: '900',
+                        marginBottom: 8,
+                        marginTop: 18,
+                      }}
+                    >
+                      Política de pago
+                    </Text>
+
+                    <View
+                      style={{
+                        gap: 8,
+                      }}
+                    >
+                      {[
+                        {
+                          id: 'not_required',
+                          label: 'No requiere pago',
+                        },
+                        {
+                          id: 'required_before_confirmation',
+                          label: 'Antes de confirmar',
+                        },
+                        {
+                          id: 'required_after_service',
+                          label: 'Después del servicio',
+                        },
+                        {
+                          id: 'to_be_agreed',
+                          label: 'A convenir',
+                        },
+                      ].map((policy) => {
+                        const isSelected = (
+                          editor.paymentPolicy === policy.id
+                        );
+
+                        return (
+                          <TouchableOpacity
+                            key={policy.id}
+                            accessibilityLabel={policy.label}
+                            accessibilityRole="button"
+                            activeOpacity={0.82}
+                            disabled={isSaving}
+                            onPress={() => {
+                              setEditor((current) => current
+                                ? {
+                                  ...current,
+                                  paymentPolicy: policy.id as OfferEditor['paymentPolicy'],
+                                }
+                                : current);
+                            }}
+                            style={{
+                              alignItems: 'center',
+                              backgroundColor: isSelected
+                                ? '#7427D5'
+                                : '#FFFFFF',
+                              borderColor: isSelected
+                                ? '#7427D5'
+                                : '#DCCDED',
+                              borderRadius: 11,
+                              borderWidth: 1,
+                              flexDirection: 'row',
+                              minHeight: 42,
+                              opacity: isSaving ? 0.55 : 1,
+                              paddingHorizontal: 12,
+                            }}
+                          >
+                            <View
+                              style={{
+                                backgroundColor: isSelected
+                                  ? '#FFFFFF'
+                                  : '#E7DDF2',
+                                borderRadius: 7,
+                                height: 14,
+                                marginRight: 9,
+                                width: 14,
+                              }}
+                            />
+
+                            <Text
+                              style={{
+                                color: isSelected
+                                  ? '#FFFFFF'
+                                  : '#54209E',
+                                fontSize: 13,
+                                fontWeight: '800',
+                              }}
+                            >
+                              {policy.label}
+                            </Text>
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </View>
+                  </View>
+                ) : null}
+
+                <View
+                  style={{
+                    backgroundColor: '#F9F6FC',
+                    borderColor: '#E7DDF2',
+                    borderRadius: 14,
+                    borderWidth: 1,
+                    marginTop: 20,
+                    padding: 13,
+                  }}
+                >
+                  <Text
+                    style={{
+                      color: '#4E3B68',
+                      fontSize: 14,
+                      fontWeight: '900',
+                    }}
+                  >
+                    Modalidades
+                  </Text>
+
+                  <Text
+                    style={{
+                      color: '#786593',
+                      fontSize: 12,
+                      lineHeight: 18,
+                      marginTop: 4,
+                    }}
+                  >
+                    Selecciona cómo pueden solicitar esta oferta.
+                  </Text>
+
+                  <View
+                    style={{
+                      flexDirection: 'row',
+                      flexWrap: 'wrap',
+                      gap: 8,
+                      marginTop: 13,
+                    }}
+                  >
+                    {[
+                      {
+                        id: 'at_establishment',
+                        label: 'En establecimiento',
+                      },
+                      {
+                        id: 'in_person',
+                        label: 'Presencial',
+                      },
+                      {
+                        id: 'virtual',
+                        label: 'Virtual',
+                      },
+                      {
+                        id: 'home_visit',
+                        label: 'A domicilio',
+                      },
+                      {
+                        id: 'delivery',
+                        label: 'Entrega',
+                      },
+                      {
+                        id: 'pickup',
+                        label: 'Recogida',
+                      },
+                      {
+                        id: 'phone_call',
+                        label: 'Llamada',
+                      },
+                      {
+                        id: 'buddy_chat',
+                        label: 'Chat BeeApp',
+                      },
+                    ].filter((modality) => (
+                      enabledModalities.includes(
+                        modality.id as CommercialModality,
+                      )
+                    )).map((modality) => {
+                      const selectedModality = (
+                        modality.id as CommercialModality
+                      );
+                      const isSelected = editor.selectedModalities.includes(
+                        selectedModality,
+                      );
+
+                      return (
+                        <TouchableOpacity
+                          key={modality.id}
+                          accessibilityLabel={modality.label}
+                          accessibilityRole="button"
+                          activeOpacity={0.82}
+                          disabled={isSaving}
+                          onPress={() => {
+                            setEditor((current) => {
+                              if (!current) {
+                                return current;
+                              }
+
+                              const selectedModalities = (
+                                current.selectedModalities.includes(
+                                  selectedModality,
+                                )
+                                  ? current.selectedModalities.filter(
+                                    (item) => item !== selectedModality,
+                                  )
+                                  : [
+                                    ...current.selectedModalities,
+                                    selectedModality,
+                                  ]
+                              );
+
+                              return {
+                                ...current,
+                                selectedModalities,
+                              };
+                            });
+                          }}
+                          style={{
+                            backgroundColor: isSelected
+                              ? '#7427D5'
+                              : '#FFFFFF',
+                            borderColor: isSelected
+                              ? '#7427D5'
+                              : '#DCCDED',
+                            borderRadius: 11,
+                            borderWidth: 1,
+                            opacity: isSaving ? 0.55 : 1,
+                            paddingHorizontal: 11,
+                            paddingVertical: 9,
+                          }}
+                        >
+                          <Text
+                            style={{
+                              color: isSelected
+                                ? '#FFFFFF'
+                                : '#54209E',
+                              fontSize: 12,
+                              fontWeight: '800',
+                            }}
+                          >
+                            {modality.label}
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+
+                  {enabledModalities.length === 0 ? (
+                    <Text
+                      style={{
+                        color: '#9A5B00',
+                        fontSize: 12,
+                        lineHeight: 18,
+                        marginTop: 12,
+                      }}
+                    >
+                      Configura modalidades activas en el perfil del negocio antes de asignarlas a esta oferta.
+                    </Text>
+                  ) : null}
+                </View>
+
+                <View
+                  style={{
+                    flexDirection: 'row',
+                    gap: 10,
+                    marginTop: 20,
+                  }}
+                >
+                  <TouchableOpacity
+                    accessibilityLabel="Cancelar edición de oferta"
+                    accessibilityRole="button"
+                    activeOpacity={0.82}
+                    disabled={isSaving || isUploadingImage}
+                    onPress={cancelEditing}
+                    style={{
+                      alignItems: 'center',
+                      backgroundColor: '#F4EDF9',
+                      borderRadius: 12,
+                      flex: 1,
+                      justifyContent: 'center',
+                      minHeight: 46,
+                      opacity: isSaving || isUploadingImage ? 0.55 : 1,
+                    }}
+                  >
+                    <Text
+                      style={{
+                        color: '#54209E',
+                        fontSize: 13,
+                        fontWeight: '800',
+                      }}
+                    >
+                      Cancelar
+                    </Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    accessibilityLabel="Guardar cambios de oferta"
+                    accessibilityRole="button"
+                    activeOpacity={0.82}
+                    disabled={isSaving || isUploadingImage}
+                    onPress={() => {
+                      void saveOfferChanges();
+                    }}
+                    style={{
+                      alignItems: 'center',
+                      backgroundColor: '#7427D5',
+                      borderRadius: 12,
+                      flex: 1,
+                      flexDirection: 'row',
+                      justifyContent: 'center',
+                      minHeight: 46,
+                      opacity: isSaving || isUploadingImage ? 0.55 : 1,
+                    }}
+                  >
+                    {isSaving ? (
+                      <ActivityIndicator
+                        color="#FFFFFF"
+                        size="small"
+                      />
+                    ) : (
+                      <Save
+                        color="#FFFFFF"
+                        size={16}
+                      />
+                    )}
+
+                    <Text
+                      style={{
+                        color: '#FFFFFF',
+                        fontSize: 13,
+                        fontWeight: '800',
+                        marginLeft: 7,
+                      }}
+                    >
+                      Guardar
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+
+              </View>
+            ) : (
+              <View
+                style={{
+                  marginTop: 17,
+                }}
+              >
+                <Text
+                  style={{
+                    color: '#261743',
+                    fontSize: 18,
+                    fontWeight: '900',
+                  }}
+                >
+                  {offer.title}
+                </Text>
+
+                {offer.description ? (
+                  <Text
+                    style={{
+                      color: '#786593',
+                      fontSize: 13,
+                      lineHeight: 19,
+                      marginTop: 8,
+                    }}
+                  >
+                    {offer.description}
+                  </Text>
+                ) : null}
+
+                <Text
+                  style={{
+                    color: '#4E3B68',
+                    fontSize: 17,
+                    fontWeight: '900',
+                    marginTop: 17,
+                  }}
+                >
+                  {priceCopy(offer)}
+                </Text>
+              </View>
+            )}
           </View>
 
           {errorMessage ? (
@@ -1163,13 +2477,13 @@ export default function BuddyServicesManageOfferScreen() {
                     ) : null}
 
                     <TouchableOpacity
-                      accessibilityLabel="Archivar imagen"
+                      accessibilityLabel="Eliminar imagen"
                       accessibilityRole="button"
                       activeOpacity={0.82}
                       disabled={isSaving || isUploadingImage}
                       onPress={() => {
                         setImageActionConfirmation({
-                          action: 'archive',
+                          action: 'delete',
                           image,
                         });
                       }}
@@ -1192,7 +2506,7 @@ export default function BuddyServicesManageOfferScreen() {
                           marginLeft: 5,
                         }}
                       >
-                        Archivar
+                        Eliminar
                       </Text>
                     </TouchableOpacity>
                   </View>

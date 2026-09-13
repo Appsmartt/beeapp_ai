@@ -105,9 +105,87 @@ def _serialize_offer(
     }
 
 
+def _create_owned_offer_image_signed_url(
+    *,
+    supabase,
+    user_id: str,
+    image: dict[str, Any],
+) -> dict[str, Any]:
+    serialized_image = {
+        "id": str(image["id"]),
+        "file_id": str(image["file_id"]),
+        "display_name": None,
+        "mime_type": None,
+        "sort_order": image.get("sort_order"),
+        "is_primary": bool(image.get("is_primary")),
+        "status": image.get("status", "active"),
+        "archived_at": image.get("archived_at"),
+        "created_at": image.get("created_at"),
+        "updated_at": image.get("updated_at"),
+        "url": None,
+        "url_expires_in_seconds": 3600,
+    }
+
+    try:
+        file_record = get_owned_file(
+            user_id=str(user_id),
+            file_id=str(image["file_id"]),
+            include_trashed=True,
+        )
+
+        bucket_id = str(file_record.get("bucket_id") or "").strip()
+        storage_path = str(
+            file_record.get("storage_path") or ""
+        ).strip()
+
+        serialized_image["display_name"] = (
+            file_record.get("display_name")
+        )
+        serialized_image["mime_type"] = file_record.get("mime_type")
+
+        if (
+            file_record.get("status") != "ready"
+            or file_record.get("trashed_at") is not None
+            or not bucket_id
+            or not storage_path
+        ):
+            return serialized_image
+
+    except Exception:
+        return serialized_image
+
+    try:
+        response = (
+            supabase.storage.from_(bucket_id).create_signed_url(
+                storage_path,
+                3600,
+            )
+        )
+
+        signed_url = getattr(response, "signed_url", None)
+
+        if not signed_url and isinstance(response, dict):
+            signed_url = (
+                response.get("signedURL")
+                or response.get("signed_url")
+            )
+
+        if signed_url:
+            serialized_image["url"] = str(signed_url)
+
+    except Exception:
+        logger.warning(
+            "Could not create signed URL for commercial offer image: image_id=%s",
+            image.get("id"),
+        )
+
+    return serialized_image
+
+
 def _get_offer_relations(
     *,
     supabase,
+    user_id: str,
     offer_id: str,
     include_archived_images: bool = True,
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
@@ -134,9 +212,18 @@ def _get_offer_relations(
 
     images_response = images_query.execute()
 
+    images = [
+        _create_owned_offer_image_signed_url(
+            supabase=supabase,
+            user_id=str(user_id),
+            image=image,
+        )
+        for image in (images_response.data or [])
+    ]
+
     return (
         modalities_response.data or [],
-        images_response.data or [],
+        images,
     )
 
 
@@ -436,6 +523,7 @@ def list_owned_commercial_offers(
         for offer in offers:
             modalities, images = _get_offer_relations(
                 supabase=supabase,
+                user_id=str(user_id),
                 offer_id=str(offer["id"]),
                 include_archived_images=include_archived,
             )
@@ -505,6 +593,7 @@ def get_owned_commercial_offer(
 
         modalities, images = _get_offer_relations(
             supabase=supabase,
+            user_id=str(user_id),
             offer_id=str(offer_id),
             include_archived_images=True,
         )
@@ -1281,6 +1370,116 @@ def add_commercial_offer_image(
         raise CommercialOperationError(
             "Could not add commercial offer image.",
             code="COMMERCIAL_OFFER_IMAGE_CREATE_FAILED",
+        ) from error
+
+
+def delete_commercial_offer_image(
+    *,
+    user_id: str,
+    access_token: str,
+    commercial_profile_id: str,
+    offer_id: str,
+    image_id: str,
+) -> None:
+    get_owned_commercial_offer(
+        user_id=str(user_id),
+        access_token=access_token,
+        commercial_profile_id=str(commercial_profile_id),
+        offer_id=str(offer_id),
+    )
+
+    try:
+        supabase = _get_user_supabase_client(
+            access_token=access_token,
+        )
+
+        image_response = (
+            supabase.table("commercial_offer_images")
+            .select(COMMERCIAL_OFFER_IMAGE_COLUMNS)
+            .eq("id", str(image_id))
+            .eq("commercial_offer_id", str(offer_id))
+            .maybe_single()
+            .execute()
+        )
+
+        image = image_response.data
+
+        if not image:
+            raise CommercialNotFoundError(
+                "Commercial offer image was not found.",
+                code="COMMERCIAL_OFFER_IMAGE_NOT_FOUND",
+            )
+
+        was_primary = bool(image.get("is_primary"))
+
+        delete_response = (
+            supabase.table("commercial_offer_images")
+            .delete()
+            .eq("id", str(image_id))
+            .eq("commercial_offer_id", str(offer_id))
+            .execute()
+        )
+
+        if not delete_response.data:
+            raise CommercialOperationError(
+                "Commercial offer image could not be deleted.",
+                code="COMMERCIAL_OFFER_IMAGE_DELETE_FAILED",
+            )
+
+        if was_primary:
+            next_image_response = (
+                supabase.table("commercial_offer_images")
+                .select("id")
+                .eq("commercial_offer_id", str(offer_id))
+                .eq("status", "active")
+                .order("sort_order")
+                .order("created_at")
+                .limit(1)
+                .maybe_single()
+                .execute()
+            )
+
+            next_image = next_image_response.data
+
+            if next_image:
+                set_commercial_offer_primary_image(
+                    user_id=str(user_id),
+                    access_token=access_token,
+                    commercial_profile_id=str(commercial_profile_id),
+                    offer_id=str(offer_id),
+                    image_id=str(next_image["id"]),
+                )
+
+        _write_offer_audit_event(
+            supabase=supabase,
+            commercial_profile_id=str(commercial_profile_id),
+            actor_profile_id=str(user_id),
+            offer_id=str(offer_id),
+            action="offer.image_deleted",
+            entity_type="commercial_offer_image",
+            entity_id=str(image_id),
+            previous_state=str(image.get("status") or "active"),
+            new_state=None,
+            metadata={
+                "file_id": str(image["file_id"]),
+                "was_primary": was_primary,
+            },
+            reference_type="commercial_offer_image",
+            reference_id=str(image_id),
+        )
+
+    except (
+        CommercialAccessError,
+        CommercialNotFoundError,
+        CommercialOperationError,
+        CommercialStateError,
+    ):
+        raise
+
+    except Exception as error:
+        raise CommercialOperationError(
+            "Could not delete commercial offer image.",
+            code="COMMERCIAL_OFFER_IMAGE_DELETE_FAILED",
         ) from error
 
 
