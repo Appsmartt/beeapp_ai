@@ -4,6 +4,7 @@ import {
   useRef,
   useState,
 } from 'react';
+import type { AuthCredentials } from '@beeapp/shared-types';
 import {
   ActivityIndicator,
   Dimensions,
@@ -22,6 +23,8 @@ import {
   RtcSurfaceView,
 } from 'react-native-agora';
 import {
+  ApiRequestError,
+  cancelCallJoinAttempt,
   confirmCallJoined,
   endCall,
   getCallDetail,
@@ -45,7 +48,9 @@ import {
   useScreenParams,
 } from '../../../src/components/embedded/EmbeddedNavContext';
 import {
+  getSessionCredentials,
   getValidSessionCredentials,
+  refreshAuthSession,
 } from '../../../src/services/authSession';
 import {
   clearActiveCallCredentials,
@@ -80,6 +85,45 @@ function getErrorMessage(
   }
 
   return fallback;
+}
+
+async function withCallSessionRetry<T>(
+  operation: (
+    auth: AuthCredentials,
+  ) => Promise<T>,
+): Promise<T> {
+  const auth = await getValidSessionCredentials();
+
+  if (!auth) {
+    throw new Error(
+      'Tu sesión expiró. Inicia sesión nuevamente.',
+    );
+  }
+
+  try {
+    return await operation(auth);
+  } catch (error) {
+    if (
+      !(
+        error instanceof ApiRequestError
+        && error.status === 401
+      )
+    ) {
+      throw error;
+    }
+
+    const refreshedSession = await refreshAuthSession();
+
+    if (!refreshedSession) {
+      throw new Error(
+        'Tu sesión expiró. Inicia sesión nuevamente.',
+      );
+    }
+
+    return operation(
+      getSessionCredentials(refreshedSession),
+    );
+  }
 }
 
 async function requestRequiredPermissions(
@@ -218,13 +262,11 @@ export default function CallScreen() {
         && callId
         && actorIdentityId
       ) {
-        const auth = await getValidSessionCredentials();
-
-        if (auth) {
-          await endCall(auth, callId, {
+        await withCallSessionRetry((auth) => (
+          endCall(auth, callId, {
             actor_identity_id: actorIdentityId,
-          });
-        }
+          })
+        ));
       }
     } catch (error) {
       console.warn(
@@ -283,18 +325,17 @@ export default function CallScreen() {
           'Conectado. Esperando al otro participante...',
         );
 
-        void getValidSessionCredentials()
-          .then((auth) => {
-            if (!auth || !callId || !actorIdentityId) {
-              throw new Error(
-                'No se pudo confirmar la sesión de llamada.',
-              );
-            }
+        void withCallSessionRetry((auth) => {
+          if (!callId || !actorIdentityId) {
+            throw new Error(
+              'No se pudo confirmar la sesión de llamada.',
+            );
+          }
 
-            return confirmCallJoined(auth, callId, {
-              actor_identity_id: actorIdentityId,
-            });
-          })
+          return confirmCallJoined(auth, callId, {
+            actor_identity_id: actorIdentityId,
+          });
+        })
           .then(() => {
             console.log(
               '[VOX] Llamada confirmada en backend.',
@@ -306,6 +347,25 @@ export default function CallScreen() {
               '[VOX] No se pudo confirmar llamada en backend.',
               error,
             );
+
+            if (!callId || !actorIdentityId) {
+              return;
+            }
+
+            void withCallSessionRetry((auth) => (
+              cancelCallJoinAttempt(auth, callId, {
+                actor_identity_id: actorIdentityId,
+                failure_reason: getErrorMessage(
+                  error,
+                  'confirm_joined_failed',
+                ),
+              })
+            )).catch((cancelError) => {
+              console.warn(
+                '[VOX] No se pudo cancelar el intento de unión.',
+                cancelError,
+              );
+            });
           });
       },
 
@@ -358,18 +418,17 @@ export default function CallScreen() {
           { callId },
         );
 
-        void getValidSessionCredentials()
-          .then((auth) => {
-            if (!auth || !callId || !actorIdentityId) {
-              throw new Error(
-                'No hay sesión activa para renovar el token.',
-              );
-            }
+        void withCallSessionRetry((auth) => {
+          if (!callId || !actorIdentityId) {
+            throw new Error(
+              'No hay sesión activa para renovar el token.',
+            );
+          }
 
-            return refreshCallToken(auth, callId, {
-              actor_identity_id: actorIdentityId,
-            });
-          })
+          return refreshCallToken(auth, callId, {
+            actor_identity_id: actorIdentityId,
+          });
+        })
           .then((response) => {
             engine.renewToken(response.agora.token);
 
@@ -488,14 +547,6 @@ export default function CallScreen() {
         'Solicitando credenciales de llamada...',
       );
 
-      const auth = await getValidSessionCredentials();
-
-      if (!auth) {
-        throw new Error(
-          'Tu sesión expiró. Inicia sesión nuevamente.',
-        );
-      }
-
       const cachedCredentials = getActiveCallCredentials();
 
       const credentials = (
@@ -504,9 +555,11 @@ export default function CallScreen() {
           === actorIdentityId
           ? cachedCredentials.agora
           : (
-              await refreshCallToken(auth, callId, {
-                actor_identity_id: actorIdentityId,
-              })
+              await withCallSessionRetry((auth) => (
+                refreshCallToken(auth, callId, {
+                  actor_identity_id: actorIdentityId,
+                })
+              ))
             ).agora
       );
 
@@ -605,17 +658,17 @@ export default function CallScreen() {
       }
 
       try {
-        const auth = await getValidSessionCredentials();
-
-        if (!auth || cancelled || endingRef.current) {
+        if (cancelled || endingRef.current) {
           return;
         }
 
-        const detail = await getCallDetail(
-          auth,
-          callId,
-          actorIdentityId,
-        );
+        const detail = await withCallSessionRetry((auth) => (
+          getCallDetail(
+            auth,
+            callId,
+            actorIdentityId,
+          )
+        ));
 
         const callStatus = String(
           detail.call?.status || '',

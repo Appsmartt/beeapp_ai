@@ -2,6 +2,7 @@ import {
   useEffect,
   useState,
 } from 'react';
+import type { AuthCredentials } from '@beeapp/shared-types';
 import {
   ActivityIndicator,
   Modal,
@@ -17,6 +18,7 @@ import {
   Video,
 } from 'lucide-react-native';
 import {
+  ApiRequestError,
   declineCall,
   getCallDetail,
   joinCall,
@@ -24,7 +26,9 @@ import {
 import { colors } from '@beeapp/design-system';
 
 import {
+  getSessionCredentials,
   getValidSessionCredentials,
+  refreshAuthSession,
 } from '../../services/authSession';
 import {
   setActiveCallCredentials,
@@ -53,6 +57,45 @@ function isJoinableStatus(
   status: unknown,
 ): boolean {
   return status === 'ringing' || status === 'active';
+}
+
+async function withIncomingCallSessionRetry<T>(
+  operation: (
+    auth: AuthCredentials,
+  ) => Promise<T>,
+): Promise<T> {
+  const auth = await getValidSessionCredentials();
+
+  if (!auth) {
+    throw new Error(
+      'Tu sesión expiró. Inicia sesión nuevamente.',
+    );
+  }
+
+  try {
+    return await operation(auth);
+  } catch (error) {
+    if (
+      !(
+        error instanceof ApiRequestError
+        && error.status === 401
+      )
+    ) {
+      throw error;
+    }
+
+    const refreshedSession = await refreshAuthSession();
+
+    if (!refreshedSession) {
+      throw new Error(
+        'Tu sesión expiró. Inicia sesión nuevamente.',
+      );
+    }
+
+    return operation(
+      getSessionCredentials(refreshedSession),
+    );
+  }
 }
 
 export default function IncomingCallModal({
@@ -96,18 +139,14 @@ export default function IncomingCallModal({
     try {
       setAction('accepting');
 
-      const auth = await getValidSessionCredentials();
-
-      if (!auth) {
-        throw new Error(
-          'Tu sesión expiró. Inicia sesión nuevamente.',
-        );
-      }
-
-      const detail = await getCallDetail(
-        auth,
-        call.callId,
-        actorIdentityId,
+      const detail = await withIncomingCallSessionRetry(
+        (auth) => (
+          getCallDetail(
+            auth,
+            call.callId,
+            actorIdentityId,
+          )
+        ),
       );
 
       if (!isJoinableStatus(detail.call?.status)) {
@@ -115,12 +154,16 @@ export default function IncomingCallModal({
         return;
       }
 
-      const credentials = await joinCall(
-        auth,
-        call.callId,
-        {
-          actor_identity_id: actorIdentityId,
-        },
+      const credentials = await withIncomingCallSessionRetry(
+        (auth) => (
+          joinCall(
+            auth,
+            call.callId,
+            {
+              actor_identity_id: actorIdentityId,
+            },
+          )
+        ),
       );
 
       await stopIncomingCallRingtone();
@@ -146,21 +189,15 @@ export default function IncomingCallModal({
     try {
       setAction('declining');
 
-      const auth = await getValidSessionCredentials();
-
-      if (!auth) {
-        throw new Error(
-          'Tu sesión expiró. Inicia sesión nuevamente.',
-        );
-      }
-
-      await declineCall(
-        auth,
-        call.callId,
-        {
-          actor_identity_id: actorIdentityId,
-        },
-      );
+      await withIncomingCallSessionRetry((auth) => (
+        declineCall(
+          auth,
+          call.callId,
+          {
+            actor_identity_id: actorIdentityId,
+          },
+        )
+      ));
     } catch {
       /*
        * Si el backend ya cambió el estado, de todos modos quitamos la UI
