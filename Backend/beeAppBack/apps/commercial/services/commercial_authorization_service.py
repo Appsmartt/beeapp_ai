@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import logging
+
 from typing import Any
 
 from beeAppBack.core.supabase_client import (
@@ -12,6 +14,9 @@ from apps.commercial.exceptions import (
     CommercialOperationError,
     CommercialProfileNotFoundError,
 )
+
+
+logger = logging.getLogger(__name__)
 
 
 COMMERCIAL_PROFILE_OWNER_COLUMNS = (
@@ -80,7 +85,16 @@ def require_commercial_profile_owner(
         commercial_profile_id=str(commercial_profile_id),
     )
 
-    if str(profile.get("owner_id")) != str(user_id):
+    expected_owner_id = str(profile.get("owner_id") or "")
+    authenticated_user_id = str(user_id or "")
+
+    if expected_owner_id != authenticated_user_id:
+        logger.warning(
+            "Commercial profile access denied: profile_id=%s owner_id=%s authenticated_user_id=%s",
+            commercial_profile_id,
+            expected_owner_id,
+            authenticated_user_id,
+        )
         raise CommercialAccessError(
             "You cannot manage this commercial profile.",
             code="COMMERCIAL_PROFILE_NOT_OWNED_BY_USER",
