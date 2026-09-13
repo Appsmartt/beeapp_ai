@@ -1127,7 +1127,19 @@ class CommercialProfileOfferImagesView(
         serializer = CreateCommercialOfferImageSerializer(
             data=request.data,
         )
-        serializer.is_valid(raise_exception=True)
+
+        if not serializer.is_valid():
+            logger.warning(
+                "Commercial offer image serializer validation failed: profile_id=%s offer_id=%s payload_keys=%s errors=%s",
+                profile_id,
+                offer_id,
+                sorted(request.data.keys()) if hasattr(request.data, "keys") else [],
+                serializer.errors,
+            )
+            return Response(
+                serializer.errors,
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
         try:
             (
