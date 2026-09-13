@@ -125,6 +125,17 @@ businessId: requireId(businessId, 'el negocio'),
 };
 }
 
+export function buddyServicesManageArchivedOffersRoute(
+businessId: string,
+): Href {
+return {
+pathname: '/(main)/beeservices/manage/[businessId]/offers/archived',
+params: {
+businessId: requireId(businessId, 'el negocio'),
+},
+};
+}
+
 export function buddyServicesManageCatalogsRoute(
 businessId: string,
 ): Href {

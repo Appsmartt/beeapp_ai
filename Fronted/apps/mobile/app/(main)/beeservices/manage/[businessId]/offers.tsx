@@ -10,6 +10,7 @@ import {
   View,
 } from 'react-native';
 import {
+  ArchiveRestore,
   ArrowLeft,
   Box,
   BriefcaseBusiness,
@@ -49,6 +50,7 @@ import {
   toCommercialUiError,
 } from '../../../../../src/features/buddyservices/commercialErrors';
 import {
+  buddyServicesManageArchivedOffersRoute,
   buddyServicesManageOfferRoute,
 } from '../../../../../src/features/buddyservices/commercialRoutes';
 import {
@@ -368,7 +370,11 @@ export default function BuddyServicesManageOffersScreen() {
 
       setCatalogs(catalogsResponse.catalogs);
       setEnabledModalities(activeProfileModalities);
-      setOffers(offersResponse.offers);
+      setOffers(
+        offersResponse.offers.filter(
+          (offer) => offer.status !== 'archived',
+        ),
+      );
     } catch (error) {
       const uiError = toCommercialUiError(error);
 
@@ -1016,6 +1022,47 @@ export default function BuddyServicesManageOffersScreen() {
             Los productos y servicios nuevos se crean
             pausados hasta que decidas publicarlos.
           </Text>
+
+          <TouchableOpacity
+            accessibilityLabel="Ver productos y servicios archivados"
+            accessibilityRole="button"
+            activeOpacity={0.82}
+            disabled={isSaving}
+            onPress={() => {
+              router.push(
+                buddyServicesManageArchivedOffersRoute(
+                  businessId,
+                ),
+              );
+            }}
+            style={{
+              alignItems: 'center',
+              alignSelf: 'flex-start',
+              backgroundColor: '#F4EDF9',
+              borderRadius: 12,
+              flexDirection: 'row',
+              marginTop: 14,
+              minHeight: 42,
+              opacity: isSaving ? 0.55 : 1,
+              paddingHorizontal: 13,
+            }}
+          >
+            <ArchiveRestore
+              color="#7427D5"
+              size={17}
+            />
+
+            <Text
+              style={{
+                color: '#7427D5',
+                fontSize: 13,
+                fontWeight: '800',
+                marginLeft: 7,
+              }}
+            >
+              Archivados
+            </Text>
+          </TouchableOpacity>
 
           {offers.length === 0 ? (
             <View

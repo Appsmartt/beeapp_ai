@@ -83,6 +83,7 @@ from apps.commercial.services.commercial_offer_service import (
     archive_commercial_offer,
     archive_commercial_offer_image,
     create_commercial_offer,
+    delete_commercial_offer_image,
     disable_commercial_offer,
     enable_commercial_offer,
     get_owned_commercial_offer,
@@ -1426,6 +1427,45 @@ class CommercialProfileOfferImageDetailView(
         )
 
 
+
+
+    def delete(
+        self,
+        request,
+        profile_id,
+        offer_id,
+        image_id,
+    ):
+        try:
+            (
+                authenticated_user,
+                access_token,
+            ) = self.get_authenticated_user_and_access_token(
+                request
+            )
+
+            delete_commercial_offer_image(
+                user_id=str(authenticated_user.id),
+                access_token=access_token,
+                commercial_profile_id=str(profile_id),
+                offer_id=str(offer_id),
+                image_id=str(image_id),
+            )
+
+        except AccountAuthenticationError:
+            return Response(
+                {
+                    "detail": "Invalid or expired access token.",
+                },
+                status=status.HTTP_401_UNAUTHORIZED,
+            )
+
+        except CommercialError as error:
+            return commercial_error_response(error)
+
+        return Response(
+            status=status.HTTP_204_NO_CONTENT,
+        )
 
 
 class CommercialProfileOfferEnableView(

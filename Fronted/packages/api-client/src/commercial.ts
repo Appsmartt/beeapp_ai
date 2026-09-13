@@ -697,6 +697,22 @@ undefined,
 );
 }
 
+export function deleteOwnedCommercialOfferImage(
+auth: AuthCredentials,
+profileId: string,
+offerId: string,
+imageId: string,
+): Promise<void> {
+return api.delete<void>(
+ownedOfferImagePath(
+profileId,
+offerId,
+imageId,
+),
+{ auth },
+);
+}
+
 export function updateOwnedCommercialOfferImage(
 auth: AuthCredentials,
 profileId: string,

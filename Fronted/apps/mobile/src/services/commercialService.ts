@@ -8,6 +8,7 @@ adjustOwnedCommercialOfferInventory,
 archiveOwnedCommercialOffer,
 archiveOwnedCommercialOfferImage,
 createOwnedCommercialOfferImage,
+deleteOwnedCommercialOfferImage,
 restoreOwnedCommercialOfferImage,
 setOwnedCommercialOfferPrimaryImage,
 updateOwnedCommercialOfferImage,
@@ -566,6 +567,19 @@ await getRequiredCommercialCredentials(),
 profileId,
 offerId,
 payload,
+);
+}
+
+export async function deleteOwnedOfferImage(
+profileId: string,
+offerId: string,
+imageId: string,
+): Promise<void> {
+await deleteOwnedCommercialOfferImage(
+await getRequiredCommercialCredentials(),
+profileId,
+offerId,
+imageId,
 );
 }
 
