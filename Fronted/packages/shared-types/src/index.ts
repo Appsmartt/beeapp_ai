@@ -131,6 +131,7 @@ export interface VerifyPhoneOtpMobileResponse {
   message: string;
   session: SupabaseAuthSession;
   user: MobileAuthenticatedUser;
+  device_session_id: string;
 }
 
 export interface AuthCredentials {

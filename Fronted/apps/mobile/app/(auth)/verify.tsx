@@ -230,7 +230,20 @@ export default function VerifyScreen() {
         deviceSessionId: response.device_session_id,
       });
 
-      void registerCurrentDeviceForPushNotifications();
+      setMessage(
+        'Configurando notificaciones del dispositivo…',
+      );
+
+      const pushToken = (
+        await registerCurrentDeviceForPushNotifications()
+      );
+
+      if (!pushToken) {
+        throw new Error(
+          'No fue posible activar las notificaciones. '
+          + 'Verifica los permisos de notificaciones e inténtalo de nuevo.',
+        );
+      }
 
       router.replace('/');
     } catch (requestError) {
