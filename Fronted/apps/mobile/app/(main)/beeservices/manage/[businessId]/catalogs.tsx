@@ -50,7 +50,6 @@ type CatalogEditorState = {
   catalog: CommercialCatalog | null;
   name: string;
   description: string;
-  sortOrder: string;
 } | null;
 
 type CatalogAction =
@@ -134,7 +133,6 @@ function createNewCatalogEditor(): CatalogEditorState {
     catalog: null,
     name: '',
     description: '',
-    sortOrder: '0',
   };
 }
 
@@ -145,7 +143,6 @@ function createExistingCatalogEditor(
     catalog,
     name: catalog.name,
     description: catalog.description || '',
-    sortOrder: String(catalog.sort_order),
   };
 }
 
@@ -260,22 +257,18 @@ export default function BuddyServicesManageCatalogsScreen() {
     }
 
     const normalizedName = editor.name.trim();
-    const parsedSortOrder = Number(editor.sortOrder.trim());
 
     if (!normalizedName) {
       setEditorError('Escribe el nombre del catálogo.');
       return;
     }
 
-    if (
-      !Number.isInteger(parsedSortOrder)
-      || parsedSortOrder < 0
-    ) {
-      setEditorError(
-        'El orden debe ser un número entero igual o mayor que cero.',
-      );
-      return;
-    }
+    const nextSortOrder = catalogs.reduce(
+      (highestSortOrder, catalog) => (
+        Math.max(highestSortOrder, catalog.sort_order)
+      ),
+      -1,
+    ) + 1;
 
     setIsSaving(true);
     setEditorError(null);
@@ -290,7 +283,7 @@ export default function BuddyServicesManageCatalogsScreen() {
             description: normalizeOptionalText(
               editor.description,
             ),
-            sort_order: parsedSortOrder,
+            sort_order: editor.catalog.sort_order,
           },
         );
       } else {
@@ -301,7 +294,7 @@ export default function BuddyServicesManageCatalogsScreen() {
             description: normalizeOptionalText(
               editor.description,
             ),
-            sort_order: parsedSortOrder,
+            sort_order: nextSortOrder,
             status: 'published',
           },
         );
@@ -561,6 +554,51 @@ export default function BuddyServicesManageCatalogsScreen() {
             negocio autorizado.
           </Text>
 
+          <TouchableOpacity
+            accessibilityLabel="Ver catálogos archivados"
+            accessibilityRole="button"
+            activeOpacity={0.82}
+            disabled={isSaving}
+            onPress={() => {
+              router.push({
+                pathname: (
+                  '/(main)/beeservices/manage/[businessId]/'
+                  + 'catalogs/archived'
+                ),
+                params: {
+                  businessId,
+                },
+              });
+            }}
+            style={{
+              alignItems: 'center',
+              alignSelf: 'flex-start',
+              backgroundColor: '#F4EDF9',
+              borderRadius: 12,
+              flexDirection: 'row',
+              marginTop: 16,
+              minHeight: 42,
+              opacity: isSaving ? 0.55 : 1,
+              paddingHorizontal: 13,
+            }}
+          >
+            <Archive
+              color="#7427D5"
+              size={17}
+            />
+
+            <Text
+              style={{
+                color: '#7427D5',
+                fontSize: 13,
+                fontWeight: '800',
+                marginLeft: 7,
+              }}
+            >
+              Ver archivados
+            </Text>
+          </TouchableOpacity>
+
           {catalogs.length === 0 ? (
             <View
               style={{
@@ -751,14 +789,6 @@ export default function BuddyServicesManageCatalogsScreen() {
                         {statusCopy.label}
                       </Text>
 
-                      <Text
-                        style={{
-                          color: '#786593',
-                          fontSize: 12,
-                        }}
-                      >
-                        {`Orden ${catalog.sort_order}`}
-                      </Text>
                     </View>
 
                     <View
@@ -1194,36 +1224,6 @@ export default function BuddyServicesManageCatalogsScreen() {
                 textAlignVertical: 'top',
               }}
               value={editor?.description || ''}
-            />
-
-            <TextInput
-              accessibilityLabel="Orden del catálogo"
-              editable={!isSaving}
-              keyboardType="number-pad"
-              onChangeText={(value) => {
-                setEditor((currentEditor) => (
-                  currentEditor
-                    ? {
-                      ...currentEditor,
-                      sortOrder: value,
-                    }
-                    : currentEditor
-                ));
-              }}
-              placeholder="0"
-              placeholderTextColor="#A692B7"
-              style={{
-                backgroundColor: '#FFFFFF',
-                borderColor: '#DCCBEE',
-                borderRadius: 13,
-                borderWidth: 1,
-                color: '#261743',
-                fontSize: 14,
-                marginTop: 10,
-                minHeight: 48,
-                paddingHorizontal: 13,
-              }}
-              value={editor?.sortOrder || ''}
             />
 
             <TouchableOpacity
