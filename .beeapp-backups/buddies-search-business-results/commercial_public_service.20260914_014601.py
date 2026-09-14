@@ -1223,12 +1223,12 @@ def list_public_commercial_product_feed(
 
     try:
         def operation(client):
-            matching_profiles: list[dict[str, Any]] = []
+            matching_profile_ids: list[str] = []
 
             if normalized_search:
                 profiles_response = (
                     client.table("commercial_profiles")
-                    .select(PUBLIC_PROFILE_COLUMNS)
+                    .select("id")
                     .or_(
                         (
                             f"display_name.ilike.%{normalized_search}%,"
@@ -1238,13 +1238,14 @@ def list_public_commercial_product_feed(
                     )
                     .execute()
                 )
-                matching_profiles = _response_rows(profiles_response)
 
-            matching_profile_ids = {
-                str(profile["id"])
-                for profile in matching_profiles
-                if profile.get("id")
-            }
+                matching_profile_ids = list(
+                    dict.fromkeys(
+                        str(profile["id"])
+                        for profile in _response_rows(profiles_response)
+                        if profile.get("id")
+                    )
+                )
 
             offers_response = (
                 client.table("commercial_offers")
@@ -1256,11 +1257,11 @@ def list_public_commercial_product_feed(
             offers = _response_rows(offers_response)
 
             if not normalized_search:
-                return offers, []
+                return offers
 
             normalized_search_folded = normalized_search.casefold()
 
-            matching_offers = [
+            return [
                 offer
                 for offer in offers
                 if (
@@ -1273,11 +1274,7 @@ def list_public_commercial_product_feed(
                 )
             ]
 
-            return matching_offers, matching_profiles
-
-        offers, matching_profiles = execute_with_supabase_admin_retry(
-            operation
-        )
+        offers = execute_with_supabase_admin_retry(operation)
 
         offers = [
             offer
@@ -1287,7 +1284,6 @@ def list_public_commercial_product_feed(
 
         if normalized_search:
             normalized_search_folded = normalized_search.casefold()
-
             offers.sort(
                 key=lambda offer: (
                     normalized_search_folded
@@ -1297,20 +1293,6 @@ def list_public_commercial_product_feed(
                         offer.get("description") or ""
                     ).casefold(),
                     str(offer.get("title") or "").casefold(),
-                )
-            )
-
-            matching_profiles.sort(
-                key=lambda profile: (
-                    normalized_search_folded
-                    not in str(
-                        profile.get("display_name") or ""
-                    ).casefold(),
-                    normalized_search_folded
-                    not in str(
-                        profile.get("description") or ""
-                    ).casefold(),
-                    str(profile.get("display_name") or "").casefold(),
                 )
             )
         else:
@@ -1329,14 +1311,7 @@ def list_public_commercial_product_feed(
         next_offset = normalized_offset + len(page)
         has_more = next_offset < count
 
-        profiles_count = len(matching_profiles)
-        profiles_page = matching_profiles[
-            normalized_offset:normalized_offset + normalized_limit
-        ]
-        profiles_next_offset = normalized_offset + len(profiles_page)
-        profiles_has_more = profiles_next_offset < profiles_count
-
-        result = {
+        return {
             "offers": _enrich_public_offers(page),
             "count": count,
             "limit": normalized_limit,
@@ -1345,24 +1320,6 @@ def list_public_commercial_product_feed(
             "has_more": has_more,
             "seed": normalized_seed,
         }
-
-        if normalized_search:
-            result.update(
-                {
-                    "profiles": _enrich_public_profiles(
-                        profiles_page,
-                    ),
-                    "profiles_count": profiles_count,
-                    "profiles_next_offset": (
-                        profiles_next_offset
-                        if profiles_has_more
-                        else None
-                    ),
-                    "profiles_has_more": profiles_has_more,
-                }
-            )
-
-        return result
     except CommercialOperationError:
         raise
     except Exception as error:

@@ -27,7 +27,6 @@ import {
 
 import type {
   CommercialPublicOffer,
-  CommercialPublicProfile,
 } from '@beeapp/shared-types';
 
 import ScreenSafeArea from '../../../src/components/layout/ScreenSafeArea';
@@ -36,13 +35,11 @@ import BeeServicesHeader from '../../../src/components/beeservices/BeeServicesHe
 import BeeServicesAiSearchCard from '../../../src/components/beeservices/BeeServicesAiSearchCard';
 import BeeServicesBusinessCard from '../../../src/components/beeservices/BeeServicesBusinessCard';
 import CommercialOfferCard from '../../../src/components/buddyservices/CommercialOfferCard';
-import CommercialRecentBusinesses from '../../../src/components/buddyservices/CommercialRecentBusinesses';
 import {
   buddyServicesCreateBusinessRoute,
   buddyServicesMyBusinessesRoute,
   buddyServicesMyPurchasesRoute,
   buddyServicesPublicOfferRoute,
-  buddyServicesPublicProfileRoute,
 } from '../../../src/features/buddyservices/commercialRoutes';
 import {
   toCommercialUiError,
@@ -73,10 +70,6 @@ export default function BeeServicesScreen() {
   const [search, setSearch] = useState('');
   const [activeSearch, setActiveSearch] = useState('');
   const searchRequestVersionRef = useRef(0);
-  const [searchProfiles, setSearchProfiles] = useState<
-    CommercialPublicProfile[]
-  >([]);
-  const [hasMoreSearchProfiles, setHasMoreSearchProfiles] = useState(false);
   const [productFeed, setProductFeed] = useState<
     CommercialPublicOffer[]
   >([]);
@@ -122,10 +115,6 @@ export default function BeeServicesScreen() {
       setProductFeed(response.offers);
       setProductFeedSeed(response.seed);
       setHasMoreProducts(response.has_more);
-      setSearchProfiles(response.profiles || []);
-      setHasMoreSearchProfiles(
-        Boolean(response.profiles_has_more),
-      );
       setActiveSearch(normalizedSearch);
       setError(null);
     } catch (loadError) {
@@ -134,9 +123,7 @@ export default function BeeServicesScreen() {
       }
 
       setProductFeed([]);
-      setSearchProfiles([]);
       setHasMoreProducts(false);
-      setHasMoreSearchProfiles(false);
       setError(toCommercialUiError(loadError));
     } finally {
       if (requestVersion === searchRequestVersionRef.current) {
@@ -202,10 +189,7 @@ export default function BeeServicesScreen() {
     if (
       loadingMoreProducts
       || loadingProductFeed
-      || (
-        !hasMoreProducts
-        && (!activeSearch || !hasMoreSearchProfiles)
-      )
+      || !hasMoreProducts
     ) {
       return;
     }
@@ -240,24 +224,6 @@ export default function BeeServicesScreen() {
           ),
         ];
       });
-      if (activeSearch) {
-        setSearchProfiles((current) => {
-          const existingIds = new Set(
-            current.map((profile) => profile.id),
-          );
-
-          return [
-            ...current,
-            ...(response.profiles || []).filter(
-              (profile) => !existingIds.has(profile.id),
-            ),
-          ];
-        });
-        setHasMoreSearchProfiles(
-          Boolean(response.profiles_has_more),
-        );
-      }
-
       setProductFeedSeed(response.seed);
       setHasMoreProducts(response.has_more);
       setError(null);
@@ -584,21 +550,11 @@ accessibilityRole="alert"
               </View>
             ) : null}
 
-            {!loadingProductFeed && activeSearch
-              && searchProfiles.length > 0 ? (
-              <CommercialRecentBusinesses
-                profiles={searchProfiles}
-                onPressProfile={(profile) => router.push(
-                  buddyServicesPublicProfileRoute(profile.id),
-                )}
-              />
-            ) : null}
-
             {!loadingProductFeed && productFeed.length > 0 ? (
               <View style={beeStyles.section}>
                 <Text style={beeStyles.sectionTitle}>
                   {activeSearch
-                    ? 'Productos y servicios'
+                    ? `Resultados para “${activeSearch}”`
                     : 'Productos y servicios destacados'}
                 </Text>
 
