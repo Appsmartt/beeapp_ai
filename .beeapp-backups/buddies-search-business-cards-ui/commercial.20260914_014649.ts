@@ -366,10 +366,6 @@ export interface GetPublicCommercialProductFeedResponse {
   next_offset: number | null;
   has_more: boolean;
   seed: string;
-  profiles?: CommercialPublicProfile[];
-  profiles_count?: number;
-  profiles_next_offset?: number | null;
-  profiles_has_more?: boolean;
 }
 
 export interface GetPublicCommercialProfilesResponse {

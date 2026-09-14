@@ -1349,9 +1349,16 @@ def list_public_commercial_product_feed(
         if normalized_search:
             result.update(
                 {
-                    "profiles": _enrich_public_profiles(
-                        profiles_page,
-                    ),
+                    "profiles": [
+                        _serialize_public_profile(
+                            profile=profile,
+                            categories=[],
+                            modalities=[],
+                            logo_url=None,
+                            logo_url_expires_in_seconds=None,
+                        )
+                        for profile in profiles_page
+                    ],
                     "profiles_count": profiles_count,
                     "profiles_next_offset": (
                         profiles_next_offset
