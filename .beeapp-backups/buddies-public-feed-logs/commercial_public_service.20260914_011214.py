@@ -1213,32 +1213,98 @@ def list_public_commercial_product_feed(
     offset: int = 0,
 ) -> dict[str, Any]:
     import hashlib
-    import secrets
 
-    normalized_seed = str(seed or "").strip() or secrets.token_urlsafe(18)
+    normalized_seed = str(seed or "default").strip()
     normalized_limit = max(1, min(int(limit), 20))
     normalized_offset = max(0, int(offset))
 
     try:
         def operation(client):
-            response = (
-                client.table("commercial_offers")
-                .select(PUBLIC_OFFER_COLUMNS)
-                .eq("is_available", True)
+            profiles_response = (
+                _public_profile_query(client)
+                .select("id")
                 .execute()
             )
-            return _response_rows(response)
+            profile_ids = list(
+                dict.fromkeys(
+                    str(profile["id"])
+                    for profile in _response_rows(profiles_response)
+                    if profile.get("id")
+                )
+            )
 
-        offers = execute_with_supabase_admin_retry(operation)
+            if not profile_ids:
+                return [], set(), set()
 
+            catalogs_response = (
+                client.table("commercial_catalogs")
+                .select("id,commercial_profile_id")
+                .in_("commercial_profile_id", profile_ids)
+                .eq("status", "published")
+                .is_("archived_at", "null")
+                .execute()
+            )
+            catalog_rows = _response_rows(catalogs_response)
+            valid_profile_catalog_pairs = {
+                (
+                    str(catalog.get("commercial_profile_id") or ""),
+                    str(catalog["id"]),
+                )
+                for catalog in catalog_rows
+                if (
+                    catalog.get("id")
+                    and str(
+                        catalog.get("commercial_profile_id") or ""
+                    ) in profile_ids
+                    and catalog.get("status") == "published"
+                    and catalog.get("archived_at") is None
+                )
+            }
+            catalog_ids = {
+                catalog_id
+                for _profile_id, catalog_id
+                in valid_profile_catalog_pairs
+            }
+
+            if not catalog_ids:
+                return [], set(), set()
+
+            offers_response = (
+                client.table("commercial_offers")
+                .select(PUBLIC_OFFER_COLUMNS)
+                .in_("commercial_profile_id", profile_ids)
+                .in_("catalog_id", list(catalog_ids))
+                .eq("offer_kind", "product")
+                .eq("status", "published")
+                .eq("is_available", True)
+                .is_("archived_at", "null")
+                .execute()
+            )
+            return (
+                _response_rows(offers_response),
+                set(profile_ids),
+                valid_profile_catalog_pairs,
+            )
+
+        offers, profile_ids, valid_profile_catalog_pairs = (
+            execute_with_supabase_admin_retry(operation)
+        )
         offers = [
             offer
             for offer in offers
             if (
-                bool(offer.get("is_available"))
+                str(offer.get("commercial_profile_id") or "")
+                in profile_ids
+                and (
+                    str(offer.get("commercial_profile_id") or ""),
+                    str(offer.get("catalog_id") or ""),
+                ) in valid_profile_catalog_pairs
+                and offer.get("offer_kind") == "product"
+                and offer.get("status") == "published"
+                and bool(offer.get("is_available"))
+                and offer.get("archived_at") is None
             )
         ]
-
         offers.sort(
             key=lambda offer: hashlib.sha256(
                 f"{normalized_seed}:{offer.get('id', '')}".encode(
