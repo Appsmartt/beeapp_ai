@@ -14,9 +14,11 @@ import type {
   GetPublicCommercialCatalogsResponse,
   GetPublicCommercialOfferResponse,
   GetPublicCommercialOffersResponse,
+  GetPublicCommercialProductFeedResponse,
   GetPublicCommercialProfileResponse,
   GetPublicCommercialProfilesResponse,
   PublicCommercialOffersQuery,
+  PublicCommercialProductFeedQuery,
   PublicCommercialProfilesQuery,
   PublicCommercialCategoriesQuery,
 CreateCommercialProfilePayload,
@@ -250,6 +252,16 @@ export function getPublicCommercialOffers(
 ): Promise<GetPublicCommercialOffersResponse> {
   return api.get<GetPublicCommercialOffersResponse>(
     `${publicProfilePath(profileId)}offers/${toQueryString(query)}`,
+    { auth },
+  );
+}
+
+export function getPublicCommercialProductFeed(
+  auth: AuthCredentials,
+  query: PublicCommercialProductFeedQuery = {},
+): Promise<GetPublicCommercialProductFeedResponse> {
+  return api.get<GetPublicCommercialProductFeedResponse>(
+    `/commercial/public/offers/feed/${toQueryString(query)}`,
     { auth },
   );
 }

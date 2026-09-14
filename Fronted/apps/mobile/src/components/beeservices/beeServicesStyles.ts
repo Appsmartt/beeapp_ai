@@ -28,6 +28,23 @@ export const styles = StyleSheet.create({
         justifyContent: 'space-between',
         marginBottom: 24,
     },
+    headerBackButton: {
+        width: 42,
+        height: 42,
+        borderRadius: 14,
+        alignItems: 'center',
+        justifyContent: 'center',
+        marginRight: 10,
+        backgroundColor: '#F6EAFE',
+        borderWidth: 1,
+        borderColor: '#E8D1F1',
+    },
+    headerMenuButton: {
+        width: 42,
+        height: 42,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
     headerTextColumn: {
         flex: 1,
         paddingRight: 12,

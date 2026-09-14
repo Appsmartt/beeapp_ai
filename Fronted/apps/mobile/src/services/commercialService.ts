@@ -37,6 +37,7 @@ getOwnedCommercialProfiles,
   getPublicCommercialCatalogs,
   getPublicCommercialOffer,
   getPublicCommercialOffers,
+  getPublicCommercialProductFeed,
   getPublicCommercialProfile,
   updateCommercialProfile,
 updateCommercialProfilePublication,
@@ -100,6 +101,7 @@ GetOwnedCommercialProfilesResponse,
   GetPublicCommercialCatalogsResponse,
   GetPublicCommercialOfferResponse,
   GetPublicCommercialOffersResponse,
+  GetPublicCommercialProductFeedResponse,
   GetPublicCommercialProfileResponse,
   GetPublicCommercialProfilesResponse,
   UpdateCommercialCatalogPayload,
@@ -107,6 +109,7 @@ UpdateCommercialProfilePayload,
 UpdateCommercialProfilePublicationPayload,
 UpdateCommercialProfilePublicationResponse,
 PublicCommercialOffersQuery,
+  PublicCommercialProductFeedQuery,
   UpdateCommercialCatalogResponse,
 UpdateCommercialProfileResponse,
 PublicCommercialProfilesQuery,
@@ -234,6 +237,15 @@ export async function loadPublicCommercialOffers(
   return getPublicCommercialOffers(
     await getRequiredCommercialCredentials(),
     profileId,
+    query,
+  );
+}
+
+export async function loadPublicCommercialProductFeed(
+  query: PublicCommercialProductFeedQuery = {},
+): Promise<GetPublicCommercialProductFeedResponse> {
+  return getPublicCommercialProductFeed(
+    await getRequiredCommercialCredentials(),
     query,
   );
 }

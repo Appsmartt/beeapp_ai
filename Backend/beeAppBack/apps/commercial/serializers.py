@@ -683,6 +683,26 @@ COMMERCIAL_PUBLIC_OFFER_KINDS = enum_values(
 )
 
 
+class PublicCommercialProductFeedQuerySerializer(serializers.Serializer):
+    seed = serializers.CharField(
+        required=False,
+        allow_blank=False,
+        max_length=128,
+        trim_whitespace=True,
+    )
+    limit = serializers.IntegerField(
+        required=False,
+        default=4,
+        min_value=1,
+        max_value=20,
+    )
+    offset = serializers.IntegerField(
+        required=False,
+        default=0,
+        min_value=0,
+    )
+
+
 class PublicCommercialOffersQuerySerializer(serializers.Serializer):
     catalog_id = serializers.UUIDField(required=False)
     offer_kind = serializers.ChoiceField(
