@@ -352,7 +352,6 @@ export interface PublicCommercialOffersQuery {
 }
 
 export interface PublicCommercialProductFeedQuery {
-  search?: string;
   seed?: string;
   limit?: number;
   offset?: number;

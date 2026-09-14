@@ -1,7 +1,5 @@
 import {
   useCallback,
-  useEffect,
-  useRef,
   useState,
 } from 'react';
 import {
@@ -56,8 +54,6 @@ import {
 const INITIAL_PRODUCT_FEED_LIMIT = 4;
 const NEXT_PRODUCT_FEED_LIMIT = 2;
 const PRODUCT_FEED_END_REACHED_THRESHOLD = 140;
-const SEARCH_DEBOUNCE_MS = 350;
-const MINIMUM_SEARCH_LENGTH = 2;
 
 function getInitialError(): CommercialUiError | null {
   return null;
@@ -68,8 +64,6 @@ export default function BeeServicesScreen() {
 
   const [sideMenuVisible, setSideMenuVisible] = useState(false);
   const [search, setSearch] = useState('');
-  const [activeSearch, setActiveSearch] = useState('');
-  const searchRequestVersionRef = useRef(0);
   const [productFeed, setProductFeed] = useState<
     CommercialPublicOffer[]
   >([]);
@@ -86,49 +80,27 @@ export default function BeeServicesScreen() {
   );
 
   const loadProductFeed = useCallback(async (
-    options: {
-      search?: string;
-      seed?: string;
-    } = {},
+    seed?: string,
   ) => {
-    const normalizedSearch = String(
-      options.search || '',
-    ).trim();
-    const requestVersion = searchRequestVersionRef.current;
-
     setLoadingProductFeed(true);
 
     try {
       const response = await loadPublicCommercialProductFeed({
         limit: INITIAL_PRODUCT_FEED_LIMIT,
         offset: 0,
-        search: normalizedSearch || undefined,
-        seed: normalizedSearch
-          ? undefined
-          : options.seed,
+        seed,
       });
-
-      if (requestVersion !== searchRequestVersionRef.current) {
-        return;
-      }
 
       setProductFeed(response.offers);
       setProductFeedSeed(response.seed);
       setHasMoreProducts(response.has_more);
-      setActiveSearch(normalizedSearch);
       setError(null);
     } catch (loadError) {
-      if (requestVersion !== searchRequestVersionRef.current) {
-        return;
-      }
-
       setProductFeed([]);
       setHasMoreProducts(false);
       setError(toCommercialUiError(loadError));
     } finally {
-      if (requestVersion === searchRequestVersionRef.current) {
-        setLoadingProductFeed(false);
-      }
+      setLoadingProductFeed(false);
     }
   }, []);
 
@@ -153,36 +125,30 @@ export default function BeeServicesScreen() {
 
   const handleRetry = useCallback(() => {
     setError(null);
-    searchRequestVersionRef.current += 1;
-    void loadProductFeed({
-      search: activeSearch || undefined,
-    });
+    void loadProductFeed();
     void loadOwnedProfilesState();
   }, [
-    activeSearch,
     loadOwnedProfilesState,
     loadProductFeed,
+    productFeedSeed,
   ]);
 
   const handleRefresh = useCallback(async () => {
     setRefreshing(true);
     setError(null);
-    searchRequestVersionRef.current += 1;
 
     try {
       await Promise.all([
-        loadProductFeed({
-          search: activeSearch || undefined,
-        }),
+        loadProductFeed(),
         loadOwnedProfilesState(),
       ]);
     } finally {
       setRefreshing(false);
     }
   }, [
-    activeSearch,
     loadOwnedProfilesState,
     loadProductFeed,
+    productFeedSeed,
   ]);
 
   const handleLoadMoreProducts = useCallback(async () => {
@@ -194,23 +160,14 @@ export default function BeeServicesScreen() {
       return;
     }
 
-    const requestVersion = searchRequestVersionRef.current;
-
     setLoadingMoreProducts(true);
 
     try {
       const response = await loadPublicCommercialProductFeed({
         limit: NEXT_PRODUCT_FEED_LIMIT,
         offset: productFeed.length,
-        search: activeSearch || undefined,
-        seed: activeSearch
-          ? undefined
-          : productFeedSeed || undefined,
+        seed: productFeedSeed || undefined,
       });
-
-      if (requestVersion !== searchRequestVersionRef.current) {
-        return;
-      }
 
       setProductFeed((current) => {
         const existingIds = new Set(
@@ -228,16 +185,11 @@ export default function BeeServicesScreen() {
       setHasMoreProducts(response.has_more);
       setError(null);
     } catch (loadError) {
-      if (requestVersion === searchRequestVersionRef.current) {
-        setError(toCommercialUiError(loadError));
-      }
+      setError(toCommercialUiError(loadError));
     } finally {
-      if (requestVersion === searchRequestVersionRef.current) {
-        setLoadingMoreProducts(false);
-      }
+      setLoadingMoreProducts(false);
     }
   }, [
-    activeSearch,
     hasMoreProducts,
     loadingMoreProducts,
     loadingProductFeed,
@@ -245,57 +197,30 @@ export default function BeeServicesScreen() {
     productFeedSeed,
   ]);
 
-  const runSearch = useCallback((value: string) => {
-    const normalizedSearch = value.trim();
-
-    searchRequestVersionRef.current += 1;
-
-    if (!normalizedSearch) {
-      setActiveSearch('');
-      setError(null);
-      void loadProductFeed();
-      return;
-    }
-
-    if (normalizedSearch.length < MINIMUM_SEARCH_LENGTH) {
-      setActiveSearch('');
-      setError(null);
-      return;
-    }
-
-    setError(null);
-    void loadProductFeed({
-      search: normalizedSearch,
-    });
-  }, [loadProductFeed]);
-
-  useEffect(() => {
+  const handleSearch = useCallback(() => {
     const normalizedSearch = search.trim();
 
     if (!normalizedSearch) {
+      setError({
+        title: "Escribe lo que buscas",
+        message: (
+          "Ingresa el nombre de un negocio, producto "
+          + "o servicio para continuar."
+        ),
+        retryable: false,
+      });
       return;
     }
 
-    if (normalizedSearch.length < MINIMUM_SEARCH_LENGTH) {
-      searchRequestVersionRef.current += 1;
-      setActiveSearch('');
-      setLoadingProductFeed(false);
-      setLoadingMoreProducts(false);
-      setHasMoreProducts(false);
-      setError(null);
-      return;
-    }
-
-    const timer = setTimeout(() => {
-      runSearch(normalizedSearch);
-    }, SEARCH_DEBOUNCE_MS);
-
-    return () => clearTimeout(timer);
-  }, [runSearch, search]);
-
-  const handleSearch = useCallback(() => {
-    runSearch(search);
-  }, [runSearch, search]);
+    setError({
+      title: 'Búsqueda próximamente',
+      message: (
+        'Estamos preparando la búsqueda general de '
+        + 'productos y servicios.'
+      ),
+      retryable: false,
+    });
+  }, [search]);
 
   const handleBusinessAction = useCallback(() => {
     router.push(buddyServicesMyBusinessesRoute());
@@ -476,12 +401,6 @@ disabled: isInitialLoading,
                 />
               </TouchableOpacity>
             </View>
-
-            {search.trim().length === 1 ? (
-              <Text style={localStyles.searchHint}>
-                Escribe al menos 2 caracteres para buscar.
-              </Text>
-            ) : null}
           </View>
 
           {error ? (
@@ -522,9 +441,7 @@ accessibilityRole="alert"
                 />
 
                 <Text style={localStyles.loadingText}>
-                  {activeSearch
-                    ? 'Buscando coincidencias…'
-                    : 'Cargando productos y servicios…'}
+                  Cargando productos y servicios…
                 </Text>
               </View>
             ) : null}
@@ -537,15 +454,11 @@ accessibilityRole="alert"
                 />
 
                 <Text style={localStyles.locationEmptyTitle}>
-                  {activeSearch
-                    ? 'No encontramos coincidencias'
-                    : 'Aún no hay productos disponibles'}
+                  Aún no hay productos disponibles
                 </Text>
 
                 <Text style={localStyles.locationEmptyText}>
-                  {activeSearch
-                    ? 'Prueba con otro nombre, producto o servicio.'
-                    : 'Vuelve a intentarlo más tarde.'}
+                  Vuelve a intentarlo más tarde.
                 </Text>
               </View>
             ) : null}
@@ -553,9 +466,7 @@ accessibilityRole="alert"
             {!loadingProductFeed && productFeed.length > 0 ? (
               <View style={beeStyles.section}>
                 <Text style={beeStyles.sectionTitle}>
-                  {activeSearch
-                    ? `Resultados para “${activeSearch}”`
-                    : 'Productos y servicios destacados'}
+                  Productos y servicios destacados
                 </Text>
 
                 {productFeed.map((offer) => (
@@ -581,9 +492,7 @@ accessibilityRole="alert"
                     />
 
                     <Text style={localStyles.loadingMoreText}>
-                      {activeSearch
-                        ? 'Cargando más resultados…'
-                        : 'Cargando más productos…'}
+                      Cargando más productos…
                     </Text>
                   </View>
                 ) : null}
@@ -600,12 +509,8 @@ accessibilityRole="alert"
                     </Text>
 
                     <Text style={localStyles.feedEndText}>
-                      {activeSearch
-                        ? 'Ya viste todas las coincidencias disponibles.'
-                        : (
-                          'Ya viste todos los productos disponibles. '
-                          + 'Vuelve pronto para descubrir nuevas opciones.'
-                        )}
+                      Ya viste todos los productos disponibles.
+                      Vuelve pronto para descubrir nuevas opciones.
                     </Text>
                   </View>
                 ) : null}
@@ -661,13 +566,6 @@ const localStyles = StyleSheet.create({
   },
   searchButtonDisabled: {
     opacity: 0.55,
-  },
-  searchHint: {
-    color: '#886B9F',
-    fontSize: 12,
-    lineHeight: 17,
-    marginTop: 7,
-    paddingHorizontal: 2,
   },
   loadingMoreRow: {
     alignItems: 'center',

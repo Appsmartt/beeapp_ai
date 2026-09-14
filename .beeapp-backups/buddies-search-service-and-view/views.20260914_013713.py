@@ -1988,7 +1988,6 @@ class PublicCommercialProductFeedView(AuthenticatedAPIView):
             self.get_authenticated_user(request)
 
             result = list_public_commercial_product_feed(
-                search=serializer.validated_data.get("search"),
                 seed=serializer.validated_data.get("seed"),
                 limit=serializer.validated_data["limit"],
                 offset=serializer.validated_data["offset"],
