@@ -4,6 +4,9 @@ import logging
 
 from datetime import UTC, datetime
 from typing import Any
+from urllib.parse import quote
+
+from beeAppBack.core.supabase_client import _get_required_env
 
 from apps.commercial.exceptions import (
     CommercialAccessError,
@@ -143,15 +146,22 @@ def _create_owned_offer_image_signed_url(
         )
         serialized_image["mime_type"] = file_record.get("mime_type")
 
-        if (
-            file_record.get("status") != "ready"
-            or file_record.get("trashed_at") is not None
-            or not bucket_id
-            or not storage_path
-        ):
-            return serialized_image
-
     except Exception:
+        logger.exception(
+            "Commercial offer image file lookup failed: "
+            "image_id=%s file_id=%s user_id=%s",
+            image.get("id"),
+            image.get("file_id"),
+            user_id,
+        )
+        return serialized_image
+
+    if (
+        file_record.get("status") != "ready"
+        or file_record.get("trashed_at") is not None
+        or not bucket_id
+        or not storage_path
+    ):
         return serialized_image
 
     try:
@@ -184,9 +194,17 @@ def _create_owned_offer_image_signed_url(
                     or getattr(response, "publicUrl", None)
                 )
 
-            if public_url:
-                serialized_image["url"] = str(public_url)
-                serialized_image["url_expires_in_seconds"] = None
+            if not public_url:
+                supabase_url = _get_required_env(
+                    "SUPABASE_URL",
+                ).strip().rstrip("/")
+                public_url = (
+                    f"{supabase_url}/storage/v1/object/public/"
+                    f"{bucket_id}/{quote(storage_path, safe='/')}"
+                )
+
+            serialized_image["url"] = str(public_url)
+            serialized_image["url_expires_in_seconds"] = None
         else:
             response = (
                 supabase.storage.from_(bucket_id).create_signed_url(
@@ -1453,33 +1471,36 @@ def delete_commercial_offer_image(
 
         was_primary = bool(image.get("is_primary"))
 
-        delete_response = (
+        if image.get("status") == "archived":
+            raise CommercialStateError(
+                "Commercial offer image is already archived.",
+                code="COMMERCIAL_OFFER_IMAGE_ALREADY_ARCHIVED",
+            )
+
+        archive_response = (
             supabase.table("commercial_offer_images")
-            .delete()
+            .update(
+                {
+                    "status": "archived",
+                    "archived_at": datetime.now(UTC).isoformat(),
+                }
+            )
             .eq("id", str(image_id))
             .eq("commercial_offer_id", str(offer_id))
+            .eq("status", "active")
             .execute()
         )
 
-        remaining_image_response = (
-            supabase.table("commercial_offer_images")
-            .select("id")
-            .eq("id", str(image_id))
-            .eq("commercial_offer_id", str(offer_id))
-            .maybe_single()
-            .execute()
-        )
+        archived_rows = getattr(archive_response, "data", None) or []
 
-        if remaining_image_response.data:
+        if not archived_rows:
             logger.error(
-                "Commercial offer image still exists after delete: "
-                "profile_id=%s offer_id=%s image_id=%s file_id=%s "
-                "delete_response_data=%r",
+                "Commercial offer image archive returned no rows: "
+                "profile_id=%s offer_id=%s image_id=%s file_id=%s",
                 commercial_profile_id,
                 offer_id,
                 image_id,
                 image.get("file_id"),
-                getattr(delete_response, "data", None),
             )
             raise CommercialOperationError(
                 "Commercial offer image could not be deleted.",
@@ -1487,7 +1508,7 @@ def delete_commercial_offer_image(
             )
 
         logger.info(
-            "Commercial offer image relation deleted: "
+            "Commercial offer image archived by delete request: "
             "profile_id=%s offer_id=%s image_id=%s file_id=%s was_primary=%s",
             commercial_profile_id,
             offer_id,

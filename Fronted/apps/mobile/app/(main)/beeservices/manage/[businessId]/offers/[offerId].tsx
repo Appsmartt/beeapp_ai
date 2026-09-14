@@ -2322,13 +2322,15 @@ export default function BuddyServicesManageOfferScreen() {
                 >
                   {image.url ? (
                     <Image
+                      accessibilityIgnoresInvertColors
+                      resizeMode="cover"
                       source={{
                         uri: image.url,
                       }}
                       style={{
                         backgroundColor: '#F6EAFE',
                         height: 112,
-                        width: 142,
+                        width: '100%',
                       }}
                     />
                   ) : (
