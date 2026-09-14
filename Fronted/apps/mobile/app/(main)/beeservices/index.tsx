@@ -1,7 +1,5 @@
 import {
   useCallback,
-  useEffect,
-  useRef,
   useState,
 } from 'react';
 import {
@@ -19,7 +17,6 @@ import {
   PlusCircle,
   Search,
   Store,
-  X,
 } from 'lucide-react-native';
 import {
   useFocusEffect,
@@ -27,10 +24,7 @@ import {
 } from 'expo-router';
 
 import type {
-  CommercialCategory,
-  CommercialCity,
-  CommercialCountry,
-  CommercialPublicProfile,
+  CommercialPublicOffer,
 } from '@beeapp/shared-types';
 
 import ScreenSafeArea from '../../../src/components/layout/ScreenSafeArea';
@@ -38,40 +32,26 @@ import HomeSideMenu from '../../../src/components/home/HomeSideMenu';
 import BeeServicesHeader from '../../../src/components/beeservices/BeeServicesHeader';
 import BeeServicesAiSearchCard from '../../../src/components/beeservices/BeeServicesAiSearchCard';
 import BeeServicesBusinessCard from '../../../src/components/beeservices/BeeServicesBusinessCard';
-import CommercialCategoryGrid from '../../../src/components/buddyservices/CommercialCategoryGrid';
-import CommercialLocationSelector from '../../../src/components/buddyservices/CommercialLocationSelector';
-import CommercialRecentBusinesses from '../../../src/components/buddyservices/CommercialRecentBusinesses';
+import CommercialOfferCard from '../../../src/components/buddyservices/CommercialOfferCard';
 import {
   buddyServicesCreateBusinessRoute,
   buddyServicesMyBusinessesRoute,
   buddyServicesMyPurchasesRoute,
-  buddyServicesPublicProfileRoute,
-  buddyServicesResultsRoute,
+  buddyServicesPublicOfferRoute,
 } from '../../../src/features/buddyservices/commercialRoutes';
 import {
   toCommercialUiError,
   type CommercialUiError,
 } from '../../../src/features/buddyservices/commercialErrors';
 import {
-  loadCommercialCities,
-  loadCommercialCountries,
   loadOwnedCommercialProfiles,
-  loadPublicCommercialCategories,
-  loadPublicCommercialProfiles,
+  loadPublicCommercialProductFeed,
 } from '../../../src/services/commercialService';
 import {
   styles as beeStyles,
 } from '../../../src/components/beeservices/beeServicesStyles';
 
-const DEFAULT_COUNTRY_CODE = 'CO';
-const RECENT_PROFILES_LIMIT = 10;
-
-type HomeData = {
-  categories: CommercialCategory[];
-  profiles: CommercialPublicProfile[];
-  hasOwnedProfiles: boolean;
-  hasResolvedOwnedProfiles: boolean;
-};
+const PRODUCT_FEED_LIMIT = 12;
 
 function getInitialError(): CommercialUiError | null {
   return null;
@@ -81,198 +61,74 @@ export default function BeeServicesScreen() {
   const router = useRouter();
 
   const [sideMenuVisible, setSideMenuVisible] = useState(false);
-  const [countries, setCountries] = useState<
-    CommercialCountry[]
-  >([]);
-  const [cities, setCities] = useState<CommercialCity[]>([]);
-  const [countryCode, setCountryCode] = useState(
-    DEFAULT_COUNTRY_CODE,
-  );
-  const [city, setCity] = useState<string | null>(null);
   const [search, setSearch] = useState('');
+  const [productFeed, setProductFeed] = useState<
+    CommercialPublicOffer[]
+  >([]);
+  const [productFeedSeed, setProductFeedSeed] = useState('');
+  const [loadingProductFeed, setLoadingProductFeed] = useState(true);
+  const [loadingMoreProducts, setLoadingMoreProducts] = useState(false);
+  const [hasMoreProducts, setHasMoreProducts] = useState(true);
 
-  const [homeData, setHomeData] = useState<HomeData>({
-    categories: [],
-    profiles: [],
-    hasOwnedProfiles: false,
-    hasResolvedOwnedProfiles: false,
-  });
+  const [, setHasOwnedProfiles] = useState(false);
 
-  const [loadingCountries, setLoadingCountries] = useState(true);
-  const [loadingCities, setLoadingCities] = useState(false);
-  const [loadingHome, setLoadingHome] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<CommercialUiError | null>(
     getInitialError,
   );
-  const [showCreateBusinessNotice, setShowCreateBusinessNotice] =
-    useState(false);
-  const createBusinessNoticeTimerRef = useRef<
-    ReturnType<typeof setTimeout> | null
-  >(null);
 
-  const loadCountries = useCallback(async () => {
-    setLoadingCountries(true);
-
-    try {
-      const response = await loadCommercialCountries();
-
-      setCountries(response.countries);
-
-      const supportsDefaultCountry = response.countries.some(
-        (item) => item.country_code === DEFAULT_COUNTRY_CODE,
-      );
-
-      if (!supportsDefaultCountry && response.countries[0]) {
-        setCountryCode(response.countries[0].country_code);
-      }
-    } catch (loadError) {
-      setError(toCommercialUiError(loadError));
-    } finally {
-      setLoadingCountries(false);
-    }
-  }, []);
-
-  const loadCities = useCallback(async (
-    selectedCountryCode: string,
+  const loadProductFeed = useCallback(async (
+    seed?: string,
   ) => {
-    if (!selectedCountryCode) {
-      setCities([]);
-      setCity(null);
-      return;
-    }
-
-    setLoadingCities(true);
+    setLoadingProductFeed(true);
 
     try {
-      const response = await loadCommercialCities(
-        selectedCountryCode,
-      );
+      const response = await loadPublicCommercialProductFeed({
+        limit: PRODUCT_FEED_LIMIT,
+        offset: 0,
+        seed,
+      });
 
-      setCities(response.cities);
+      setProductFeed(response.offers);
+      setProductFeedSeed(response.seed);
+      setHasMoreProducts(response.has_more);
+      setError(null);
     } catch (loadError) {
-      setCities([]);
+      setProductFeed([]);
+      setHasMoreProducts(false);
       setError(toCommercialUiError(loadError));
     } finally {
-      setLoadingCities(false);
+      setLoadingProductFeed(false);
     }
   }, []);
 
   const loadOwnedProfilesState = useCallback(async () => {
     try {
       const response = await loadOwnedCommercialProfiles();
-
-      setHomeData((current) => ({
-        ...current,
-        hasOwnedProfiles: response.profiles.length > 0,
-        hasResolvedOwnedProfiles: true,
-      }));
+      setHasOwnedProfiles(response.profiles.length > 0);
     } catch {
-      setHomeData((current) => ({
-        ...current,
-        hasResolvedOwnedProfiles: true,
-      }));
+      setHasOwnedProfiles(false);
     }
   }, []);
-
-  const loadHomeData = useCallback(async (
-    selectedCountryCode: string,
-    selectedCity: string,
-  ) => {
-    setLoadingHome(true);
-    setError(null);
-
-    try {
-      const [
-        categoriesResponse,
-        profilesResponse,
-      ] = await Promise.all([
-        loadPublicCommercialCategories({
-          country_code: selectedCountryCode,
-          city: selectedCity,
-        }),
-        loadPublicCommercialProfiles({
-          country_code: selectedCountryCode,
-          city: selectedCity,
-          ordering: 'recent',
-          limit: RECENT_PROFILES_LIMIT,
-          offset: 0,
-        }),
-      ]);
-
-      setHomeData((current) => ({
-        ...current,
-        categories: categoriesResponse.categories,
-        profiles: profilesResponse.profiles,
-      }));
-    } catch (loadError) {
-      setError(toCommercialUiError(loadError));
-    } finally {
-      setLoadingHome(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    void loadCountries();
-  }, [loadCountries]);
 
   useFocusEffect(
     useCallback(() => {
+      void loadProductFeed();
       void loadOwnedProfilesState();
-    }, [loadOwnedProfilesState]),
+    }, [
+      loadOwnedProfilesState,
+      loadProductFeed,
+    ]),
   );
-
-  useEffect(() => {
-    return () => {
-      if (createBusinessNoticeTimerRef.current) {
-        clearTimeout(createBusinessNoticeTimerRef.current);
-      }
-    };
-  }, []);
-
-  useEffect(() => {
-    setCity(null);
-    setHomeData((current) => ({
-      ...current,
-      categories: [],
-      profiles: [],
-    }));
-
-    void loadCities(countryCode);
-  }, [countryCode, loadCities]);
-
-  useEffect(() => {
-    if (!city) {
-      return;
-    }
-
-    void loadHomeData(countryCode, city);
-  }, [city, countryCode, loadHomeData]);
 
   const handleRetry = useCallback(() => {
     setError(null);
-
-    if (!countries.length) {
-      void loadCountries();
-    }
-
-    if (countryCode) {
-      void loadCities(countryCode);
-    }
-
+    void loadProductFeed(productFeedSeed || undefined);
     void loadOwnedProfilesState();
-
-    if (city) {
-      void loadHomeData(countryCode, city);
-    }
   }, [
-    city,
-    countryCode,
-    countries.length,
-    loadCities,
-    loadCountries,
-    loadHomeData,
     loadOwnedProfilesState,
+    loadProductFeed,
+    productFeedSeed,
   ]);
 
   const handleRefresh = useCallback(async () => {
@@ -280,161 +136,95 @@ export default function BeeServicesScreen() {
     setError(null);
 
     try {
-      await loadCountries();
-      await loadCities(countryCode);
-      await loadOwnedProfilesState();
-
-      if (city) {
-        await loadHomeData(countryCode, city);
-      }
+      await Promise.all([
+        loadProductFeed(productFeedSeed || undefined),
+        loadOwnedProfilesState(),
+      ]);
     } finally {
       setRefreshing(false);
     }
   }, [
-    city,
-    countryCode,
-    loadCities,
-    loadCountries,
-    loadHomeData,
     loadOwnedProfilesState,
+    loadProductFeed,
+    productFeedSeed,
   ]);
 
-  const handleSelectCountry = useCallback(
-    (nextCountryCode: string) => {
-      if (nextCountryCode === countryCode) {
-        return;
-      }
-
-      setCountryCode(nextCountryCode);
-    },
-    [countryCode],
-  );
-
-  const handleSelectCity = useCallback(
-    (nextCity: string) => {
-      if (nextCity === city) {
-        return;
-      }
-
-      setCity(nextCity);
-      setError(null);
-    },
-    [city],
-  );
-
-  const openResults = useCallback((
-    options: {
-      categoryId?: string;
-      search?: string;
-    } = {},
-  ) => {
-    if (!city) {
-      setError({
-        title: 'Selecciona una ciudad',
-        message: (
-          'Elige una ciudad antes de buscar negocios '
-          + 'o explorar categorías.'
-        ),
-        retryable: false,
-      });
+  const handleLoadMoreProducts = useCallback(async () => {
+    if (
+      loadingMoreProducts
+      || loadingProductFeed
+      || !hasMoreProducts
+    ) {
       return;
     }
 
-    router.push(
-      buddyServicesResultsRoute({
-        countryCode,
-        city,
-        categoryId: options.categoryId,
-        search: options.search,
-      }),
-    );
-  }, [city, countryCode, router]);
+    setLoadingMoreProducts(true);
+
+    try {
+      const response = await loadPublicCommercialProductFeed({
+        limit: PRODUCT_FEED_LIMIT,
+        offset: productFeed.length,
+        seed: productFeedSeed || undefined,
+      });
+
+      setProductFeed((current) => {
+        const existingIds = new Set(
+          current.map((offer) => offer.id),
+        );
+
+        return [
+          ...current,
+          ...response.offers.filter(
+            (offer) => !existingIds.has(offer.id),
+          ),
+        ];
+      });
+      setProductFeedSeed(response.seed);
+      setHasMoreProducts(response.has_more);
+      setError(null);
+    } catch (loadError) {
+      setError(toCommercialUiError(loadError));
+    } finally {
+      setLoadingMoreProducts(false);
+    }
+  }, [
+    hasMoreProducts,
+    loadingMoreProducts,
+    loadingProductFeed,
+    productFeed.length,
+    productFeedSeed,
+  ]);
 
   const handleSearch = useCallback(() => {
     const normalizedSearch = search.trim();
 
     if (!normalizedSearch) {
       setError({
-        title: 'Escribe lo que buscas',
+        title: "Escribe lo que buscas",
         message: (
-          'Ingresa el nombre de un negocio, producto '
-          + 'o servicio para continuar.'
+          "Ingresa el nombre de un negocio, producto "
+          + "o servicio para continuar."
         ),
         retryable: false,
       });
       return;
     }
 
-    openResults({
-      search: normalizedSearch,
+    setError({
+      title: 'Búsqueda próximamente',
+      message: (
+        'Estamos preparando la búsqueda general de '
+        + 'productos y servicios.'
+      ),
+      retryable: false,
     });
-  }, [openResults, search]);
-
-  const handleCategoryPress = useCallback((
-    category: CommercialCategory,
-  ) => {
-    openResults({
-      categoryId: category.id,
-    });
-  }, [openResults]);
-
-  const handleProfilePress = useCallback((
-    profile: CommercialPublicProfile,
-  ) => {
-    router.push(
-      buddyServicesPublicProfileRoute(profile.id),
-    );
-  }, [router]);
-
-  const dismissCreateBusinessNotice = useCallback(() => {
-    if (createBusinessNoticeTimerRef.current) {
-      clearTimeout(createBusinessNoticeTimerRef.current);
-      createBusinessNoticeTimerRef.current = null;
-    }
-
-    setShowCreateBusinessNotice(false);
-  }, []);
-
-  const showCreateBusinessNoticeForFiveSeconds = useCallback(() => {
-    if (createBusinessNoticeTimerRef.current) {
-      clearTimeout(createBusinessNoticeTimerRef.current);
-    }
-
-    setShowCreateBusinessNotice(true);
-    createBusinessNoticeTimerRef.current = setTimeout(() => {
-      createBusinessNoticeTimerRef.current = null;
-      setShowCreateBusinessNotice(false);
-    }, 5000);
-  }, []);
+  }, [search]);
 
   const handleBusinessAction = useCallback(() => {
-    if (!homeData.hasResolvedOwnedProfiles) {
-      return;
-    }
+    router.push(buddyServicesMyBusinessesRoute());
+  }, [router]);
 
-    if (homeData.hasOwnedProfiles) {
-      router.push(buddyServicesMyBusinessesRoute());
-      return;
-    }
-
-    showCreateBusinessNoticeForFiveSeconds();
-  }, [
-    homeData.hasOwnedProfiles,
-    homeData.hasResolvedOwnedProfiles,
-    router,
-    showCreateBusinessNoticeForFiveSeconds,
-  ]);
-
-  const handleCreateBusinessFromNotice = useCallback(() => {
-    dismissCreateBusinessNotice();
-    router.push(buddyServicesCreateBusinessRoute());
-  }, [dismissCreateBusinessNotice, router]);
-
-  const hasLocation = Boolean(city);
-  const isInitialLoading = (
-    loadingCountries
-    || loadingCities
-  );
+  const isInitialLoading = loadingProductFeed;
 
   return (
     <ScreenSafeArea style={beeStyles.safeArea}>
@@ -453,23 +243,22 @@ export default function BeeServicesScreen() {
           showsVerticalScrollIndicator={false}
         >
           <BeeServicesHeader
+            onBackToMainPress={() => router.replace("/(main)")}
             onMenuPress={() => setSideMenuVisible(true)}
           />
 
-          <CommercialLocationSelector
-            cities={cities}
-            countries={countries}
-            countryCode={countryCode}
-            city={city}
-            disabled={loadingHome}
-            loadingCities={loadingCities}
-            loadingCountries={loadingCountries}
-            onSelectCity={handleSelectCity}
-            onSelectCountry={handleSelectCountry}
-          />
 
           <BeeServicesAiSearchCard
-            onPressSearch={() => openResults()}
+            onPressSearch={() => {
+              setError({
+                title: 'Búsqueda próximamente',
+                message: (
+                  'Estamos preparando la búsqueda general de '
+                  + 'productos y servicios.'
+                ),
+                retryable: false,
+              });
+            }}
             onPressVoice={() => {
               setError({
                 title: 'Búsqueda por voz próximamente',
@@ -556,65 +345,42 @@ disabled: isInitialLoading,
               </TouchableOpacity>
 
               <TouchableOpacity
-                accessibilityLabel={
-                  homeData.hasOwnedProfiles
-                    ? 'Abrir mis negocios'
-                    : 'Crear mi primer perfil comercial'
-                }
+                accessibilityLabel="Abrir mis negocios"
                 accessibilityRole="button"
                 activeOpacity={0.78}
                 onPress={handleBusinessAction}
                 style={beeStyles.quickActionCard}
               >
                 <View style={beeStyles.quickActionIconWrap}>
-                  {homeData.hasOwnedProfiles ? (
-                    <Store
-                      color="#7B2DD9"
-                      size={17}
-                    />
-                  ) : (
-                    <PlusCircle
-                      color="#7B2DD9"
-                      size={17}
-                    />
-                  )}
-                </View>
-
-                <Text style={beeStyles.quickActionLabel}>
-                  {homeData.hasOwnedProfiles
-                    ? 'Mis negocios'
-                    : 'Crear negocio'}
-                </Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                accessibilityLabel="Ver todos los resultados"
-accessibilityHint={
-hasLocation
-? 'Abre los resultados para la ciudad seleccionada.'
-: 'Selecciona una ciudad antes de explorar resultados.'
-}
-                accessibilityRole="button"
-accessibilityState={{
-disabled: !hasLocation,
-}}
-                activeOpacity={0.78}
-                disabled={!hasLocation}
-                onPress={() => openResults()}
-                style={[
-                  beeStyles.quickActionCard,
-                  !hasLocation && localStyles.disabledAction,
-                ]}
-              >
-                <View style={beeStyles.quickActionIconWrap}>
-                  <Search
+                  <Store
                     color="#7B2DD9"
                     size={17}
                   />
                 </View>
 
                 <Text style={beeStyles.quickActionLabel}>
-                  Explorar
+                  Mis negocios
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                accessibilityLabel="Crear negocio"
+                accessibilityRole="button"
+                activeOpacity={0.78}
+                onPress={() => router.push(
+                  buddyServicesCreateBusinessRoute(),
+                )}
+                style={beeStyles.quickActionCard}
+              >
+                <View style={beeStyles.quickActionIconWrap}>
+                  <PlusCircle
+                    color="#7B2DD9"
+                    size={17}
+                  />
+                </View>
+
+                <Text style={beeStyles.quickActionLabel}>
+                  Crear negocio
                 </Text>
               </TouchableOpacity>
             </View>
@@ -650,72 +416,81 @@ accessibilityRole="alert"
             </View>
           ) : null}
 
-          {!hasLocation && !error ? (
-            <View style={localStyles.locationEmptyState}>
-              <Store
-                color="#7B2DD9"
-                size={25}
-              />
+            {loadingProductFeed ? (
+              <View style={localStyles.loadingCard}>
+                <ActivityIndicator
+                  color="#7427D5"
+                  size="small"
+                />
 
-              <Text style={localStyles.locationEmptyTitle}>
-                Elige una ciudad para comenzar
-              </Text>
+                <Text style={localStyles.loadingText}>
+                  Cargando productos y servicios…
+                </Text>
+              </View>
+            ) : null}
 
-              <Text style={localStyles.locationEmptyText}>
-                Mostraremos negocios y categorías disponibles
-                en la ciudad seleccionada.
-              </Text>
-            </View>
-          ) : null}
+            {!loadingProductFeed && !error && productFeed.length === 0 ? (
+              <View style={localStyles.locationEmptyState}>
+                <Store
+                  color="#7B2DD9"
+                  size={25}
+                />
 
-          {hasLocation && loadingHome ? (
-            <View style={localStyles.loadingCard}>
-              <ActivityIndicator
-                color="#7427D5"
-                size="small"
-              />
+                <Text style={localStyles.locationEmptyTitle}>
+                  Aún no hay productos disponibles
+                </Text>
 
-              <Text style={localStyles.loadingText}>
-                Cargando negocios en {city}…
-              </Text>
-            </View>
-          ) : null}
+                <Text style={localStyles.locationEmptyText}>
+                  Vuelve a intentarlo más tarde.
+                </Text>
+              </View>
+            ) : null}
 
-          {hasLocation && !loadingHome ? (
-            <>
-              <CommercialCategoryGrid
-                categories={homeData.categories}
-                disabled={false}
-                onPressCategory={handleCategoryPress}
-              />
+            {!loadingProductFeed && productFeed.length > 0 ? (
+              <View style={beeStyles.section}>
+                <Text style={beeStyles.sectionTitle}>
+                  Productos y servicios destacados
+                </Text>
 
-              <CommercialRecentBusinesses
-                onPressProfile={handleProfilePress}
-                profiles={homeData.profiles}
-              />
-
-              {(
-                homeData.categories.length === 0
-                && homeData.profiles.length === 0
-                && !error
-              ) ? (
-                <View style={localStyles.locationEmptyState}>
-                  <Store
-                    color="#7B2DD9"
-                    size={25}
+                {productFeed.map((offer) => (
+                  <CommercialOfferCard
+                    key={offer.id}
+                    offer={offer}
+                    onPress={(selectedOffer) => router.push(
+                      buddyServicesPublicOfferRoute(
+                        selectedOffer.id,
+                      ),
+                    )}
                   />
+                ))}
 
-                  <Text style={localStyles.locationEmptyTitle}>
-                    Aún no hay negocios disponibles
-                  </Text>
-
-                  <Text style={localStyles.locationEmptyText}>
-                    Prueba con otra ciudad o vuelve más tarde.
-                  </Text>
-                </View>
-              ) : null}
-            </>
-          ) : null}
+                {hasMoreProducts ? (
+                  <TouchableOpacity
+                    accessibilityLabel="Cargar más productos y servicios"
+                    accessibilityRole="button"
+                    activeOpacity={0.8}
+                    disabled={loadingMoreProducts}
+                    onPress={handleLoadMoreProducts}
+                    style={[
+                      localStyles.loadMoreButton,
+                      loadingMoreProducts
+                        && localStyles.searchButtonDisabled,
+                    ]}
+                  >
+                    {loadingMoreProducts ? (
+                      <ActivityIndicator
+                        color="#FFFFFF"
+                        size="small"
+                      />
+                    ) : (
+                      <Text style={localStyles.loadMoreButtonText}>
+                        Cargar más
+                      </Text>
+                    )}
+                  </TouchableOpacity>
+                ) : null}
+              </View>
+            ) : null}
 
           <View style={beeStyles.footer}>
             <Text style={beeStyles.footerText}>
@@ -725,57 +500,6 @@ accessibilityRole="alert"
             <View style={beeStyles.footerLine} />
           </View>
         </ScrollView>
-
-        {showCreateBusinessNotice ? (
-          <View
-            accessibilityLiveRegion="polite"
-            accessibilityRole="alert"
-            style={localStyles.createBusinessNotice}
-          >
-            <View style={localStyles.createBusinessNoticeIcon}>
-              <Store
-                color="#7427D5"
-                size={20}
-              />
-            </View>
-
-            <View style={localStyles.createBusinessNoticeContent}>
-              <Text style={localStyles.createBusinessNoticeTitle}>
-                Crea tu perfil comercial
-              </Text>
-
-              <Text style={localStyles.createBusinessNoticeMessage}>
-                Primero crea un perfil comercial para comenzar a gestionar
-                tu negocio.
-              </Text>
-
-              <TouchableOpacity
-                accessibilityLabel="Crear perfil comercial"
-                accessibilityRole="button"
-                activeOpacity={0.82}
-                onPress={handleCreateBusinessFromNotice}
-                style={localStyles.createBusinessNoticeAction}
-              >
-                <Text style={localStyles.createBusinessNoticeActionText}>
-                  Crear perfil
-                </Text>
-              </TouchableOpacity>
-            </View>
-
-            <TouchableOpacity
-              accessibilityLabel="Cerrar aviso"
-              accessibilityRole="button"
-              activeOpacity={0.8}
-              onPress={dismissCreateBusinessNotice}
-              style={localStyles.createBusinessNoticeClose}
-            >
-              <X
-                color="#786593"
-                size={18}
-              />
-            </TouchableOpacity>
-          </View>
-        ) : null}
 
         <HomeSideMenu
           onClose={() => setSideMenuVisible(false)}
@@ -818,6 +542,20 @@ const localStyles = StyleSheet.create({
   searchButtonDisabled: {
     opacity: 0.55,
   },
+    loadMoreButton: {
+      alignItems: 'center',
+      backgroundColor: '#7427D5',
+      borderRadius: 12,
+      justifyContent: 'center',
+      marginTop: 4,
+      minHeight: 46,
+      paddingHorizontal: 18,
+    },
+    loadMoreButtonText: {
+      color: '#FFFFFF',
+      fontSize: 13,
+      fontWeight: '800',
+    },
   disabledAction: {
     opacity: 0.5,
   },

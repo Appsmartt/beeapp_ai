@@ -66,6 +66,7 @@ from apps.commercial.views import (
     PublicCommercialProfileDetailView,
     PublicCommercialProfilesView,
     PublicCommercialCatalogsView,
+    PublicCommercialProductFeedView,
     PublicCommercialOffersView,
     PublicCommercialOfferDetailView,
 )
@@ -191,6 +192,11 @@ urlpatterns = [
         "public/profiles/<uuid:profile_id>/offers/",
         PublicCommercialOffersView.as_view(),
         name="public-commercial-profile-offers",
+    ),
+    path(
+        "public/offers/feed/",
+        PublicCommercialProductFeedView.as_view(),
+        name="public-commercial-product-feed",
     ),
     path(
         "public/offers/<uuid:offer_id>/",

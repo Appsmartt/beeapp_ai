@@ -46,6 +46,7 @@ from apps.commercial.serializers import (
     PublicCommercialCategoriesQuerySerializer,
     PublicCommercialCitiesQuerySerializer,
     PublicCommercialProfilesQuerySerializer,
+    PublicCommercialProductFeedQuerySerializer,
     PublicCommercialOffersQuerySerializer,
 )
 from apps.commercial.services.commercial_chat_conversation_service import (
@@ -118,6 +119,7 @@ from apps.commercial.services.commercial_public_service import (
     list_public_categories,
     list_public_cities,
     list_public_commercial_catalogs,
+    list_public_commercial_product_feed,
     list_public_commercial_offers,
     list_public_commercial_profiles,
     list_public_countries,
@@ -1969,6 +1971,39 @@ class PublicCommercialCatalogsView(AuthenticatedAPIView):
                 "commercial_profile_id": str(profile_id),
                 "catalogs": catalogs,
             },
+            status=status.HTTP_200_OK,
+        )
+
+
+class PublicCommercialProductFeedView(AuthenticatedAPIView):
+    throttle_classes = [CommercialExploreThrottle]
+
+    def get(self, request):
+        serializer = PublicCommercialProductFeedQuerySerializer(
+            data=request.query_params,
+        )
+        serializer.is_valid(raise_exception=True)
+
+        try:
+            self.get_authenticated_user(request)
+
+            result = list_public_commercial_product_feed(
+                seed=serializer.validated_data.get("seed"),
+                limit=serializer.validated_data["limit"],
+                offset=serializer.validated_data["offset"],
+            )
+        except AccountAuthenticationError:
+            return Response(
+                {
+                    "detail": "Invalid or expired access token.",
+                },
+                status=status.HTTP_401_UNAUTHORIZED,
+            )
+        except CommercialError as error:
+            return commercial_error_response(error)
+
+        return Response(
+            result,
             status=status.HTTP_200_OK,
         )
 

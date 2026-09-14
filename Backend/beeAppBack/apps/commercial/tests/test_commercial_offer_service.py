@@ -563,3 +563,371 @@ class CommercialOfferAuditEntityTests(SimpleTestCase):
             audit_mock.call_args.kwargs["entity_id"],
             "image-1",
         )
+
+# BuddyServices global product feed tests
+class PublicCommercialProductFeedSerializerTests(SimpleTestCase):
+    def test_accepts_default_feed_query(self):
+        from apps.commercial.serializers import (
+            PublicCommercialProductFeedQuerySerializer,
+        )
+
+        serializer = PublicCommercialProductFeedQuerySerializer(
+            data={},
+        )
+
+        self.assertTrue(serializer.is_valid(), serializer.errors)
+        self.assertEqual(
+            serializer.validated_data["limit"],
+            4,
+        )
+        self.assertEqual(
+            serializer.validated_data["offset"],
+            0,
+        )
+
+    def test_accepts_valid_seed_and_incremental_limit(self):
+        from apps.commercial.serializers import (
+            PublicCommercialProductFeedQuerySerializer,
+        )
+
+        serializer = PublicCommercialProductFeedQuerySerializer(
+            data={
+                "seed": "feed-session-20260913",
+                "limit": 2,
+                "offset": 4,
+            },
+        )
+
+        self.assertTrue(serializer.is_valid(), serializer.errors)
+        self.assertEqual(
+            serializer.validated_data["seed"],
+            "feed-session-20260913",
+        )
+        self.assertEqual(
+            serializer.validated_data["limit"],
+            2,
+        )
+        self.assertEqual(
+            serializer.validated_data["offset"],
+            4,
+        )
+
+    def test_rejects_seed_that_is_too_long(self):
+        from apps.commercial.serializers import (
+            PublicCommercialProductFeedQuerySerializer,
+        )
+
+        serializer = PublicCommercialProductFeedQuerySerializer(
+            data={
+                "seed": "a" * 129,
+            },
+        )
+
+        self.assertFalse(serializer.is_valid())
+        self.assertIn("seed", serializer.errors)
+
+    def test_rejects_limit_above_feed_cap(self):
+        from apps.commercial.serializers import (
+            PublicCommercialProductFeedQuerySerializer,
+        )
+
+        serializer = PublicCommercialProductFeedQuerySerializer(
+            data={
+                "limit": 21,
+            },
+        )
+
+        self.assertFalse(serializer.is_valid())
+        self.assertIn("limit", serializer.errors)
+
+
+class PublicCommercialProductFeedServiceTests(SimpleTestCase):
+    @patch(
+        "apps.commercial.services."
+        "commercial_public_service."
+        "execute_with_supabase_admin_retry"
+    )
+    def test_feed_returns_only_visible_products_with_pagination(
+        self,
+        retry_mock,
+    ):
+        from apps.commercial.services.commercial_public_service import (
+            list_public_commercial_product_feed,
+        )
+
+        profiles = [
+            {
+                "id": "profile-visible",
+                "is_public": True,
+                "is_available": True,
+                "publication_status": "published",
+                "archived_at": None,
+                "suspended_at": None,
+            },
+            {
+                "id": "profile-private",
+                "is_public": False,
+                "is_available": True,
+                "publication_status": "published",
+                "archived_at": None,
+                "suspended_at": None,
+            },
+        ]
+
+        catalogs = [
+            {
+                "id": "catalog-visible",
+                "commercial_profile_id": "profile-visible",
+                "status": "published",
+                "archived_at": None,
+            },
+            {
+                "id": "catalog-paused",
+                "commercial_profile_id": "profile-visible",
+                "status": "paused",
+                "archived_at": None,
+            },
+        ]
+
+        offers = [
+            {
+                "id": "product-1",
+                "commercial_profile_id": "profile-visible",
+                "catalog_id": "catalog-visible",
+                "offer_kind": "product",
+                "status": "published",
+                "is_available": True,
+                "archived_at": None,
+            },
+            {
+                "id": "product-2",
+                "commercial_profile_id": "profile-visible",
+                "catalog_id": "catalog-visible",
+                "offer_kind": "product",
+                "status": "published",
+                "is_available": True,
+                "archived_at": None,
+            },
+            {
+                "id": "service-1",
+                "commercial_profile_id": "profile-visible",
+                "catalog_id": "catalog-visible",
+                "offer_kind": "service",
+                "status": "published",
+                "is_available": True,
+                "archived_at": None,
+            },
+            {
+                "id": "product-paused",
+                "commercial_profile_id": "profile-visible",
+                "catalog_id": "catalog-visible",
+                "offer_kind": "product",
+                "status": "paused",
+                "is_available": True,
+                "archived_at": None,
+            },
+            {
+                "id": "product-unavailable",
+                "commercial_profile_id": "profile-visible",
+                "catalog_id": "catalog-visible",
+                "offer_kind": "product",
+                "status": "published",
+                "is_available": False,
+                "archived_at": None,
+            },
+            {
+                "id": "product-paused-catalog",
+                "commercial_profile_id": "profile-visible",
+                "catalog_id": "catalog-paused",
+                "offer_kind": "product",
+                "status": "published",
+                "is_available": True,
+                "archived_at": None,
+            },
+            {
+                "id": "product-private-profile",
+                "commercial_profile_id": "profile-private",
+                "catalog_id": "catalog-visible",
+                "offer_kind": "product",
+                "status": "published",
+                "is_available": True,
+                "archived_at": None,
+            },
+        ]
+
+        class Response:
+            def __init__(self, data):
+                self.data = data
+
+        class Query:
+            def __init__(self, table_name):
+                self.table_name = table_name
+
+            def select(self, *_args, **_kwargs):
+                return self
+
+            def eq(self, *_args, **_kwargs):
+                return self
+
+            def is_(self, *_args, **_kwargs):
+                return self
+
+            def in_(self, *_args, **_kwargs):
+                return self
+
+            def order(self, *_args, **_kwargs):
+                return self
+
+            def execute(self):
+                rows = {
+                    "commercial_profiles": profiles,
+                    "commercial_catalogs": catalogs,
+                    "commercial_offers": offers,
+                    "commercial_offer_modalities": [],
+                    "commercial_offer_images": [],
+                    "files": [],
+                }[self.table_name]
+                return Response(rows)
+
+        class Client:
+            def table(self, table_name):
+                return Query(table_name)
+
+        retry_mock.side_effect = lambda operation: operation(Client())
+
+        with patch(
+            "apps.commercial.services."
+            "commercial_public_service."
+            "_enrich_public_offers",
+            side_effect=lambda rows: rows,
+        ):
+            result = list_public_commercial_product_feed(
+                seed="same-seed",
+                limit=1,
+                offset=0,
+            )
+
+        self.assertEqual(result["count"], 2)
+        self.assertEqual(len(result["offers"]), 1)
+        self.assertTrue(result["has_more"])
+        self.assertEqual(result["next_offset"], 1)
+        self.assertTrue(
+            result["offers"][0]["id"] in {
+                "product-1",
+                "product-2",
+            }
+        )
+
+    @patch(
+        "apps.commercial.services."
+        "commercial_public_service."
+        "execute_with_supabase_admin_retry"
+    )
+    def test_feed_order_is_stable_for_same_seed(
+        self,
+        retry_mock,
+    ):
+        from apps.commercial.services.commercial_public_service import (
+            list_public_commercial_product_feed,
+        )
+
+        rows = [
+            {
+                "id": f"product-{number}",
+                "commercial_profile_id": "profile-1",
+                "catalog_id": "catalog-1",
+                "offer_kind": "product",
+                "status": "published",
+                "is_available": True,
+                "archived_at": None,
+            }
+            for number in range(1, 6)
+        ]
+
+        class Response:
+            def __init__(self, data):
+                self.data = data
+
+        class Query:
+            def __init__(self, table_name):
+                self.table_name = table_name
+
+            def select(self, *_args, **_kwargs):
+                return self
+
+            def eq(self, *_args, **_kwargs):
+                return self
+
+            def is_(self, *_args, **_kwargs):
+                return self
+
+            def in_(self, *_args, **_kwargs):
+                return self
+
+            def order(self, *_args, **_kwargs):
+                return self
+
+            def execute(self):
+                data = {
+                    "commercial_profiles": [
+                        {
+                            "id": "profile-1",
+                            "is_public": True,
+                            "is_available": True,
+                            "publication_status": "published",
+                            "archived_at": None,
+                            "suspended_at": None,
+                        }
+                    ],
+                    "commercial_catalogs": [
+                        {
+                            "id": "catalog-1",
+                            "commercial_profile_id": "profile-1",
+                            "status": "published",
+                            "archived_at": None,
+                        }
+                    ],
+                    "commercial_offers": rows,
+                    "commercial_offer_modalities": [],
+                    "commercial_offer_images": [],
+                    "files": [],
+                }[self.table_name]
+                return Response(data)
+
+        class Client:
+            def table(self, table_name):
+                return Query(table_name)
+
+        retry_mock.side_effect = lambda operation: operation(Client())
+
+        with patch(
+            "apps.commercial.services."
+            "commercial_public_service."
+            "_enrich_public_offers",
+            side_effect=lambda items: items,
+        ):
+            first = list_public_commercial_product_feed(
+                seed="stable-seed",
+                limit=5,
+                offset=0,
+            )
+            second = list_public_commercial_product_feed(
+                seed="stable-seed",
+                limit=5,
+                offset=0,
+            )
+            third = list_public_commercial_product_feed(
+                seed="different-seed",
+                limit=5,
+                offset=0,
+            )
+
+        first_ids = [item["id"] for item in first["offers"]]
+        second_ids = [item["id"] for item in second["offers"]]
+        third_ids = [item["id"] for item in third["offers"]]
+
+        self.assertEqual(first_ids, second_ids)
+        self.assertEqual(len(first_ids), 5)
+        self.assertFalse(first["has_more"])
+        self.assertIsNone(first["next_offset"])
+        self.assertNotEqual(first_ids, third_ids)

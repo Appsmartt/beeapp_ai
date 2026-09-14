@@ -351,6 +351,22 @@ export interface PublicCommercialOffersQuery {
   offset?: number;
 }
 
+export interface PublicCommercialProductFeedQuery {
+  seed?: string;
+  limit?: number;
+  offset?: number;
+}
+
+export interface GetPublicCommercialProductFeedResponse {
+  offers: CommercialPublicOffer[];
+  count: number;
+  limit: number;
+  offset: number;
+  next_offset: number | null;
+  has_more: boolean;
+  seed: string;
+}
+
 export interface GetPublicCommercialProfilesResponse {
   profiles: CommercialPublicProfile[];
   count: number;

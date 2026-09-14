@@ -1,44 +1,56 @@
 import { View, Text, TouchableOpacity } from 'react-native';
-import { Menu } from 'lucide-react-native';
+import { ChevronLeft, Menu } from 'lucide-react-native';
 import { colors } from '@beeapp/design-system';
 import { styles } from './beeServicesStyles';
 
 interface BeeServicesHeaderProps {
-    onMenuPress: () => void;
+  onBackToMainPress: () => void;
+  onMenuPress: () => void;
 }
 
 export default function BeeServicesHeader({
-    onMenuPress,
-    }: BeeServicesHeaderProps) {
-    return (
-        <View style={styles.header}>
-        <View style={styles.headerTextColumn}>
-            <Text style={styles.headerTitle}>BuddyServices</Text>
+  onBackToMainPress,
+  onMenuPress,
+}: BeeServicesHeaderProps) {
+  return (
+    <View style={styles.header}>
+      <TouchableOpacity
+        accessibilityLabel="Volver al menú principal"
+        accessibilityRole="button"
+        activeOpacity={0.76}
+        hitSlop={10}
+        onPress={onBackToMainPress}
+        style={styles.headerBackButton}
+      >
+        <ChevronLeft
+          color="#7427D5"
+          size={23}
+          strokeWidth={2.7}
+        />
+      </TouchableOpacity>
 
-            <Text style={styles.headerSubtitle}>
-            Conecta necesidades con soluciones
-            </Text>
-        </View>
+      <View style={styles.headerTextColumn}>
+        <Text style={styles.headerTitle}>BuddyServices</Text>
 
-        <TouchableOpacity
-            onPress={onMenuPress}
-            activeOpacity={0.7}
-            accessibilityRole="button"
-            accessibilityLabel="Abrir menú"
-            hitSlop={10}
-            style={{
-            width: 42,
-            height: 42,
-            alignItems: 'center',
-            justifyContent: 'center',
-            }}
-        >
-            <Menu
-            size={27}
-            color={colors.neutral.text}
-            strokeWidth={2.2}
-            />
-        </TouchableOpacity>
-        </View>
-    );
+        <Text style={styles.headerSubtitle}>
+          Conecta necesidades con soluciones
+        </Text>
+      </View>
+
+      <TouchableOpacity
+        accessibilityLabel="Abrir menú"
+        accessibilityRole="button"
+        activeOpacity={0.7}
+        hitSlop={10}
+        onPress={onMenuPress}
+        style={styles.headerMenuButton}
+      >
+        <Menu
+          color={colors.neutral.text}
+          size={27}
+          strokeWidth={2.2}
+        />
+      </TouchableOpacity>
+    </View>
+  );
 }
