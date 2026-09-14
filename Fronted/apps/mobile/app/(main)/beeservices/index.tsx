@@ -271,48 +271,6 @@ export default function BeeServicesScreen() {
             }}
           />
 
-          <View style={localStyles.searchSection}>
-            <Text style={beeStyles.sectionTitle}>
-              Busca negocios y servicios
-            </Text>
-
-            <View style={localStyles.searchRow}>
-              <TextInput
-                accessibilityLabel="Buscar negocios, productos o servicios"
-                autoCapitalize="sentences"
-                editable={!isInitialLoading}
-                onChangeText={setSearch}
-                onSubmitEditing={handleSearch}
-                placeholder="Ej. técnico, barbería, comida…"
-                placeholderTextColor="#9B87AE"
-                returnKeyType="search"
-                style={localStyles.searchInput}
-                value={search}
-              />
-
-              <TouchableOpacity
-                accessibilityLabel="Buscar"
-                accessibilityRole="button"
-accessibilityState={{
-disabled: isInitialLoading,
-}}
-                activeOpacity={0.8}
-                disabled={isInitialLoading}
-                onPress={handleSearch}
-                style={[
-                  localStyles.searchButton,
-                  isInitialLoading
-                    && localStyles.searchButtonDisabled,
-                ]}
-              >
-                <Search
-                  color="#FFFFFF"
-                  size={20}
-                />
-              </TouchableOpacity>
-            </View>
-          </View>
-
           <BeeServicesBusinessCard
             onPress={handleBusinessAction}
           />
@@ -382,6 +340,48 @@ disabled: isInitialLoading,
                 <Text style={beeStyles.quickActionLabel}>
                   Crear negocio
                 </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          <View style={localStyles.searchSection}>
+            <Text style={beeStyles.sectionTitle}>
+              Busca negocios y servicios
+            </Text>
+
+            <View style={localStyles.searchRow}>
+              <TextInput
+                accessibilityLabel="Buscar negocios, productos o servicios"
+                autoCapitalize="sentences"
+                editable={!isInitialLoading}
+                onChangeText={setSearch}
+                onSubmitEditing={handleSearch}
+                placeholder="Ej. técnico, barbería, comida…"
+                placeholderTextColor="#9B87AE"
+                returnKeyType="search"
+                style={localStyles.searchInput}
+                value={search}
+              />
+
+              <TouchableOpacity
+                accessibilityLabel="Buscar"
+                accessibilityRole="button"
+accessibilityState={{
+disabled: isInitialLoading,
+}}
+                activeOpacity={0.8}
+                disabled={isInitialLoading}
+                onPress={handleSearch}
+                style={[
+                  localStyles.searchButton,
+                  isInitialLoading
+                    && localStyles.searchButtonDisabled,
+                ]}
+              >
+                <Search
+                  color="#FFFFFF"
+                  size={20}
+                />
               </TouchableOpacity>
             </View>
           </View>
