@@ -51,9 +51,7 @@ import {
   styles as beeStyles,
 } from '../../../src/components/beeservices/beeServicesStyles';
 
-const INITIAL_PRODUCT_FEED_LIMIT = 4;
-const NEXT_PRODUCT_FEED_LIMIT = 2;
-const PRODUCT_FEED_END_REACHED_THRESHOLD = 140;
+const PRODUCT_FEED_LIMIT = 12;
 
 function getInitialError(): CommercialUiError | null {
   return null;
@@ -86,7 +84,7 @@ export default function BeeServicesScreen() {
 
     try {
       const response = await loadPublicCommercialProductFeed({
-        limit: INITIAL_PRODUCT_FEED_LIMIT,
+        limit: PRODUCT_FEED_LIMIT,
         offset: 0,
         seed,
       });
@@ -125,7 +123,7 @@ export default function BeeServicesScreen() {
 
   const handleRetry = useCallback(() => {
     setError(null);
-    void loadProductFeed();
+    void loadProductFeed(productFeedSeed || undefined);
     void loadOwnedProfilesState();
   }, [
     loadOwnedProfilesState,
@@ -139,7 +137,7 @@ export default function BeeServicesScreen() {
 
     try {
       await Promise.all([
-        loadProductFeed(),
+        loadProductFeed(productFeedSeed || undefined),
         loadOwnedProfilesState(),
       ]);
     } finally {
@@ -164,7 +162,7 @@ export default function BeeServicesScreen() {
 
     try {
       const response = await loadPublicCommercialProductFeed({
-        limit: NEXT_PRODUCT_FEED_LIMIT,
+        limit: PRODUCT_FEED_LIMIT,
         offset: productFeed.length,
         seed: productFeedSeed || undefined,
       });
@@ -243,21 +241,6 @@ export default function BeeServicesScreen() {
             />
           }
           showsVerticalScrollIndicator={false}
-          onScroll={({ nativeEvent }) => {
-            const distanceToEnd = (
-              nativeEvent.contentSize.height
-              - nativeEvent.layoutMeasurement.height
-              - nativeEvent.contentOffset.y
-            );
-
-            if (
-              distanceToEnd
-              <= PRODUCT_FEED_END_REACHED_THRESHOLD
-            ) {
-              void handleLoadMoreProducts();
-            }
-          }}
-          scrollEventThrottle={160}
         >
           <BeeServicesHeader
             onBackToMainPress={() => router.replace("/(main)")}
@@ -481,38 +464,30 @@ accessibilityRole="alert"
                   />
                 ))}
 
-                {loadingMoreProducts ? (
-                  <View
-                    accessibilityLiveRegion="polite"
-                    style={localStyles.loadingMoreRow}
+                {hasMoreProducts ? (
+                  <TouchableOpacity
+                    accessibilityLabel="Cargar más productos y servicios"
+                    accessibilityRole="button"
+                    activeOpacity={0.8}
+                    disabled={loadingMoreProducts}
+                    onPress={handleLoadMoreProducts}
+                    style={[
+                      localStyles.loadMoreButton,
+                      loadingMoreProducts
+                        && localStyles.searchButtonDisabled,
+                    ]}
                   >
-                    <ActivityIndicator
-                      color="#7427D5"
-                      size="small"
-                    />
-
-                    <Text style={localStyles.loadingMoreText}>
-                      Cargando más productos…
-                    </Text>
-                  </View>
-                ) : null}
-
-                {!hasMoreProducts && !loadingMoreProducts ? (
-                  <View
-                    accessibilityLiveRegion="polite"
-                    style={localStyles.feedEndCard}
-                  >
-                    <View style={localStyles.feedEndLine} />
-
-                    <Text style={localStyles.feedEndTitle}>
-                      Eso es todo por ahora
-                    </Text>
-
-                    <Text style={localStyles.feedEndText}>
-                      Ya viste todos los productos disponibles.
-                      Vuelve pronto para descubrir nuevas opciones.
-                    </Text>
-                  </View>
+                    {loadingMoreProducts ? (
+                      <ActivityIndicator
+                        color="#FFFFFF"
+                        size="small"
+                      />
+                    ) : (
+                      <Text style={localStyles.loadMoreButtonText}>
+                        Cargar más
+                      </Text>
+                    )}
+                  </TouchableOpacity>
                 ) : null}
               </View>
             ) : null}
@@ -567,48 +542,20 @@ const localStyles = StyleSheet.create({
   searchButtonDisabled: {
     opacity: 0.55,
   },
-  loadingMoreRow: {
-    alignItems: 'center',
-    flexDirection: 'row',
-    justifyContent: 'center',
-    marginTop: 16,
-    minHeight: 42,
-  },
-  loadingMoreText: {
-    color: '#6A5585',
-    fontSize: 13,
-    fontWeight: '700',
-    marginLeft: 9,
-  },
-  feedEndCard: {
-    alignItems: 'center',
-    backgroundColor: '#FBF8FE',
-    borderColor: '#E8DDF4',
-    borderRadius: 16,
-    borderWidth: 1,
-    marginTop: 16,
-    paddingHorizontal: 20,
-    paddingVertical: 18,
-  },
-  feedEndLine: {
-    backgroundColor: '#CDA8EE',
-    borderRadius: 999,
-    height: 4,
-    marginBottom: 11,
-    width: 42,
-  },
-  feedEndTitle: {
-    color: '#432064',
-    fontSize: 14,
-    fontWeight: '800',
-  },
-  feedEndText: {
-    color: '#786593',
-    fontSize: 12,
-    lineHeight: 18,
-    marginTop: 5,
-    textAlign: 'center',
-  },
+    loadMoreButton: {
+      alignItems: 'center',
+      backgroundColor: '#7427D5',
+      borderRadius: 12,
+      justifyContent: 'center',
+      marginTop: 4,
+      minHeight: 46,
+      paddingHorizontal: 18,
+    },
+    loadMoreButtonText: {
+      color: '#FFFFFF',
+      fontSize: 13,
+      fontWeight: '800',
+    },
   disabledAction: {
     opacity: 0.5,
   },

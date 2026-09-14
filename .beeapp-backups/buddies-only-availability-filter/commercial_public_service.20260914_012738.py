@@ -1225,6 +1225,7 @@ def list_public_commercial_product_feed(
                 client.table("commercial_offers")
                 .select(PUBLIC_OFFER_COLUMNS)
                 .eq("is_available", True)
+                .is_("archived_at", "null")
                 .execute()
             )
             return _response_rows(response)
@@ -1236,6 +1237,8 @@ def list_public_commercial_product_feed(
             for offer in offers
             if (
                 bool(offer.get("is_available"))
+                and offer.get("archived_at") is None
+                and offer.get("offer_kind") in {"product", "service"}
             )
         ]
 
