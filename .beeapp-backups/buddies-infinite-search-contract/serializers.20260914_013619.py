@@ -684,13 +684,6 @@ COMMERCIAL_PUBLIC_OFFER_KINDS = enum_values(
 
 
 class PublicCommercialProductFeedQuerySerializer(serializers.Serializer):
-    search = serializers.CharField(
-        required=False,
-        allow_blank=False,
-        min_length=2,
-        max_length=160,
-        trim_whitespace=True,
-    )
     seed = serializers.CharField(
         required=False,
         allow_blank=False,

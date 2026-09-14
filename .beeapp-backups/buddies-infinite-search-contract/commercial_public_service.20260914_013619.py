@@ -1208,7 +1208,6 @@ def list_public_commercial_catalogs(
 
 def list_public_commercial_product_feed(
     *,
-    search: str | None = None,
     seed: str | None = None,
     limit: int = 4,
     offset: int = 0,
@@ -1216,93 +1215,37 @@ def list_public_commercial_product_feed(
     import hashlib
     import secrets
 
-    normalized_search = str(search or "").strip()
     normalized_seed = str(seed or "").strip() or secrets.token_urlsafe(18)
     normalized_limit = max(1, min(int(limit), 20))
     normalized_offset = max(0, int(offset))
 
     try:
         def operation(client):
-            matching_profile_ids: list[str] = []
-
-            if normalized_search:
-                profiles_response = (
-                    client.table("commercial_profiles")
-                    .select("id")
-                    .or_(
-                        (
-                            f"display_name.ilike.%{normalized_search}%,"
-                            f"description.ilike.%{normalized_search}%,"
-                            f"custom_activity_text.ilike.%{normalized_search}%"
-                        )
-                    )
-                    .execute()
-                )
-
-                matching_profile_ids = list(
-                    dict.fromkeys(
-                        str(profile["id"])
-                        for profile in _response_rows(profiles_response)
-                        if profile.get("id")
-                    )
-                )
-
-            offers_response = (
+            response = (
                 client.table("commercial_offers")
                 .select(PUBLIC_OFFER_COLUMNS)
                 .eq("is_available", True)
                 .execute()
             )
-
-            offers = _response_rows(offers_response)
-
-            if not normalized_search:
-                return offers
-
-            normalized_search_folded = normalized_search.casefold()
-
-            return [
-                offer
-                for offer in offers
-                if (
-                    str(offer.get("commercial_profile_id") or "")
-                    in matching_profile_ids
-                    or normalized_search_folded
-                    in str(offer.get("title") or "").casefold()
-                    or normalized_search_folded
-                    in str(offer.get("description") or "").casefold()
-                )
-            ]
+            return _response_rows(response)
 
         offers = execute_with_supabase_admin_retry(operation)
 
         offers = [
             offer
             for offer in offers
-            if bool(offer.get("is_available"))
+            if (
+                bool(offer.get("is_available"))
+            )
         ]
 
-        if normalized_search:
-            normalized_search_folded = normalized_search.casefold()
-            offers.sort(
-                key=lambda offer: (
-                    normalized_search_folded
-                    not in str(offer.get("title") or "").casefold(),
-                    normalized_search_folded
-                    not in str(
-                        offer.get("description") or ""
-                    ).casefold(),
-                    str(offer.get("title") or "").casefold(),
+        offers.sort(
+            key=lambda offer: hashlib.sha256(
+                f"{normalized_seed}:{offer.get('id', '')}".encode(
+                    "utf-8"
                 )
-            )
-        else:
-            offers.sort(
-                key=lambda offer: hashlib.sha256(
-                    f"{normalized_seed}:{offer.get('id', '')}".encode(
-                        "utf-8"
-                    )
-                ).hexdigest()
-            )
+            ).hexdigest()
+        )
 
         count = len(offers)
         page = offers[
@@ -1327,6 +1270,7 @@ def list_public_commercial_product_feed(
             "Could not retrieve public commercial product feed.",
             code="COMMERCIAL_PUBLIC_PRODUCT_FEED_LOOKUP_FAILED",
         ) from error
+
 
 def list_public_commercial_offers(
     *,
