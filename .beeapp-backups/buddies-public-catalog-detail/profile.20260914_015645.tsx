@@ -44,7 +44,6 @@ import {
   type CommercialUiError,
 } from '../../../../src/features/buddyservices/commercialErrors';
 import {
-  buddyServicesPublicCatalogRoute,
   buddyServicesPublicOfferRoute,
 } from '../../../../src/features/buddyservices/commercialRoutes';
 import {
@@ -127,10 +126,8 @@ function ProfileLogo({
 
 function CatalogList({
   catalogs,
-  onPressCatalog,
 }: {
   catalogs: CommercialCatalog[];
-  onPressCatalog: (catalog: CommercialCatalog) => void;
 }) {
   if (catalogs.length === 0) {
     return (
@@ -143,12 +140,8 @@ function CatalogList({
   return (
     <View style={styles.catalogList}>
       {catalogs.map((catalog) => (
-        <TouchableOpacity
+        <View
           key={catalog.id}
-          accessibilityLabel={`Ver catálogo ${catalog.name}`}
-          accessibilityRole="button"
-          activeOpacity={0.8}
-          onPress={() => onPressCatalog(catalog)}
           style={styles.catalogCard}
         >
           <View style={styles.catalogIcon}>
@@ -177,7 +170,7 @@ function CatalogList({
             color="#8A72B2"
             size={20}
           />
-        </TouchableOpacity>
+        </View>
       ))}
     </View>
   );
@@ -537,7 +530,7 @@ export default function BuddyServicesPublicProfileScreen() {
           <View style={styles.tabs}>
             <ProfileTabButton
               active={activeTab === 'home'}
-              label="Productos"
+              label="Inicio"
               onPress={() => setActiveTab('home')}
             />
 
@@ -582,15 +575,7 @@ export default function BuddyServicesPublicProfileScreen() {
                 Catálogos publicados
               </Text>
 
-              <CatalogList
-                catalogs={catalogs}
-                onPressCatalog={(catalog) => router.push(
-                  buddyServicesPublicCatalogRoute(
-                    profileId,
-                    catalog.id,
-                  ),
-                )}
-              />
+              <CatalogList catalogs={catalogs} />
             </View>
           ) : null}
 

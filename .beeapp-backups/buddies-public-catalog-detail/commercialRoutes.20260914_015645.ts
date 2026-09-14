@@ -60,21 +60,6 @@ export function buddyServicesPublicProfileRoute(
   };
 }
 
-export function buddyServicesPublicCatalogRoute(
-  profileId: string,
-  catalogId: string,
-): Href {
-  return {
-    pathname: (
-      '/(main)/beeservices/profile/[profileId]/catalog/[catalogId]'
-    ),
-    params: {
-      profileId: requireId(profileId, 'el negocio'),
-      catalogId: requireId(catalogId, 'el catálogo'),
-    },
-  };
-}
-
 export function buddyServicesPublicOfferRoute(
   offerId: string,
 ): Href {
