@@ -24,6 +24,10 @@ from apps.commercial.exceptions import (
 from apps.commercial.services.commercial_authorization_service import (
     require_commercial_profile_owner,
 )
+from apps.commercial.services.commercial_public_media_service import (
+    COMMERCIAL_PUBLIC_IMAGES_BUCKET,
+    public_commercial_image_url,
+)
 from apps.storage.exceptions import (
     StorageFileNotFoundError,
 )
@@ -1182,6 +1186,69 @@ def update_commercial_profile_publication(
         ) from error
 
 
+def _attach_commercial_logo_url(
+    *,
+    profile: dict[str, Any],
+) -> None:
+    profile["logo_url"] = None
+    profile["logo_url_expires_in_seconds"] = None
+
+    logo_file_id = profile.get("logo_file_id")
+
+    if not logo_file_id:
+        return
+
+    try:
+        file_record = get_owned_file(
+            user_id=str(profile["owner_id"]),
+            file_id=str(logo_file_id),
+            include_trashed=True,
+        )
+    except Exception:
+        return
+
+    if (
+        file_record.get("kind") != "image"
+        or file_record.get("status") != "ready"
+        or file_record.get("trashed_at") is not None
+    ):
+        return
+
+    bucket_id = str(file_record.get("bucket_id") or "").strip()
+    storage_path = str(
+        file_record.get("storage_path") or ""
+    ).strip()
+
+    if not bucket_id or not storage_path:
+        return
+
+    try:
+        if bucket_id == COMMERCIAL_PUBLIC_IMAGES_BUCKET:
+            profile["logo_url"] = public_commercial_image_url(
+                storage_path,
+            )
+            return
+
+        response = (
+            get_supabase_admin_client()
+            .storage.from_(bucket_id)
+            .create_signed_url(storage_path, 3600)
+        )
+        signed_url = getattr(response, "signed_url", None)
+
+        if not signed_url and isinstance(response, dict):
+            signed_url = (
+                response.get("signedURL")
+                or response.get("signed_url")
+            )
+
+        if signed_url:
+            profile["logo_url"] = str(signed_url)
+            profile["logo_url_expires_in_seconds"] = 3600
+    except Exception:
+        return
+
+
 def _attach_profile_relations(
     *,
     profile: dict[str, Any],
@@ -1251,6 +1318,7 @@ def _attach_profile_relations(
         modalities_response.data or []
     )
     enriched_profile["hours"] = hours_response.data or []
+    _attach_commercial_logo_url(profile=enriched_profile)
 
     return enriched_profile
 

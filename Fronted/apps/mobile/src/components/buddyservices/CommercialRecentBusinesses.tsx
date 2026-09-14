@@ -1,4 +1,5 @@
 import {
+  Image,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -64,6 +65,16 @@ function BusinessLogo({
 }: {
   profile: CommercialPublicProfile;
 }) {
+  if (profile.logo_url) {
+    return (
+      <Image
+        accessibilityLabel={`Logo de ${profile.display_name}`}
+        source={{ uri: profile.logo_url }}
+        style={styles.logoImage}
+      />
+    );
+  }
+
   if (profile.logo_file_id) {
     return (
       <View style={styles.logoFallback}>
@@ -192,6 +203,12 @@ const styles = StyleSheet.create({
     minHeight: 104,
     paddingHorizontal: 14,
     paddingVertical: 14,
+  },
+  logoImage: {
+    backgroundColor: '#F6EAFE',
+    borderRadius: 15,
+    height: 56,
+    width: 56,
   },
   logoFallback: {
     alignItems: 'center',

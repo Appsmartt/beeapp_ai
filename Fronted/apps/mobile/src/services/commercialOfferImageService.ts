@@ -1,5 +1,5 @@
 import {
-  uploadStorageFile,
+  uploadCommercialPublicImage,
 } from '@beeapp/api-client';
 import type {
   AuthCredentials,
@@ -187,7 +187,7 @@ export async function uploadCommercialOfferImageFile(
 ): Promise<StorageFile> {
   validateLocalCommercialOfferImage(image);
 
-  const response = await uploadStorageFile(
+  const response = await uploadCommercialPublicImage(
     credentials,
     createImageFormData(image),
   );

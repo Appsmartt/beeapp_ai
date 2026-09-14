@@ -428,6 +428,11 @@ class StorageUploadView(AuthenticatedAPIView):
             )
 
         except StorageUploadError as error:
+            logger.exception(
+                "Storage upload failed: user_id=%s detail=%s",
+                request.user.id,
+                str(error),
+            )
             return Response(
                 {
                     "detail": str(error),

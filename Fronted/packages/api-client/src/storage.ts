@@ -168,6 +168,17 @@ export async function uploadStorageFiles(
     );
 }
 
+export async function uploadCommercialPublicImage(
+  auth: AuthCredentials,
+  formData: FormData,
+): Promise<CreateStorageUploadResponse> {
+  return api.upload<CreateStorageUploadResponse>(
+    '/commercial/public-images/upload/',
+    formData,
+    { auth },
+  );
+}
+
 export const uploadStorageFile = uploadStorageFiles;
 
 export function getStorageFileAccess(

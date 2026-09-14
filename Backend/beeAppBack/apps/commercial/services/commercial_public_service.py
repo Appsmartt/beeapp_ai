@@ -41,6 +41,10 @@ PUBLIC_PROFILE_CATEGORY_COLUMNS = (
     "commercial_profile_id,commercial_category_id,sort_order"
 )
 
+PUBLIC_LOGO_FILE_COLUMNS = (
+    "id,bucket_id,storage_path,kind,status,trashed_at"
+)
+
 
 def _response_rows(response) -> list[dict[str, Any]]:
     if response is None:
@@ -220,12 +224,50 @@ def _get_categories_by_ids(
     }
 
 
+def _get_logo_files_by_profile_ids(
+    *,
+    profiles: list[dict[str, Any]],
+) -> dict[str, dict[str, Any]]:
+    logo_file_ids = list(
+        dict.fromkeys(
+            str(profile["logo_file_id"])
+            for profile in profiles
+            if profile.get("logo_file_id")
+        )
+    )
+
+    if not logo_file_ids:
+        return {}
+
+    try:
+        response = execute_with_supabase_admin_retry(
+            lambda client: (
+                client.table("files")
+                .select(PUBLIC_LOGO_FILE_COLUMNS)
+                .in_("id", logo_file_ids)
+                .eq("kind", "image")
+                .eq("status", "ready")
+                .is_("trashed_at", "null")
+                .execute()
+            )
+        )
+    except Exception:
+        return {}
+
+    return {
+        str(file_record["id"]): file_record
+        for file_record in _response_rows(response)
+        if file_record.get("id")
+    }
+
+
 def _serialize_public_profile(
     *,
     profile: dict[str, Any],
     modalities: list[str],
     categories: list[dict[str, Any]] | None = None,
     category: dict[str, Any] | None = None,
+    logo_file: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     if categories is None:
         categories = [category] if category is not None else []
@@ -233,6 +275,14 @@ def _serialize_public_profile(
     is_verified = (
         profile.get("verification_status") == "verified"
         and bool(profile.get("verification_badge_visible"))
+    )
+
+    logo_url, logo_url_expires_in_seconds = (
+        _create_public_file_url(
+            file_record=logo_file,
+        )
+        if logo_file
+        else (None, None)
     )
 
     return {
@@ -299,6 +349,10 @@ def _serialize_public_profile(
             if profile.get("logo_file_id")
             else None
         ),
+        "logo_url": logo_url,
+        "logo_url_expires_in_seconds": (
+            logo_url_expires_in_seconds
+        ),
         "modalities": modalities,
         "delivery_fee_mode": profile.get(
             "delivery_fee_mode"
@@ -323,6 +377,9 @@ def _enrich_public_profiles(
 
     modalities_by_profile_id = _get_modalities_by_profile_ids(
         profile_ids=profile_ids,
+    )
+    logo_files_by_id = _get_logo_files_by_profile_ids(
+        profiles=profiles,
     )
     category_ids_by_profile_id = (
         _get_category_ids_by_profile_ids(
@@ -355,6 +412,9 @@ def _enrich_public_profiles(
                 )
                 if category_id in categories_by_id
             ],
+            logo_file=logo_files_by_id.get(
+                str(profile.get("logo_file_id") or "")
+            ),
         )
         for profile in profiles
     ]
@@ -841,16 +901,42 @@ def _get_offer_modalities_by_offer_ids(
     return dict(result)
 
 
-def _create_public_file_signed_url(
+def _extract_storage_url(response) -> str | None:
+    if isinstance(response, dict):
+        nested_data = response.get("data")
+        candidates = (
+            response.get("publicUrl"),
+            response.get("public_url"),
+            nested_data.get("publicUrl")
+            if isinstance(nested_data, dict)
+            else None,
+            nested_data.get("public_url")
+            if isinstance(nested_data, dict)
+            else None,
+        )
+    else:
+        candidates = (
+            getattr(response, "public_url", None),
+            getattr(response, "publicUrl", None),
+        )
+
+    for candidate in candidates:
+        if candidate:
+            return str(candidate)
+
+    return None
+
+
+def _create_public_file_url(
     *,
     file_record: dict[str, Any],
-) -> str | None:
+) -> tuple[str | None, int | None]:
     if (
         file_record.get("kind") != "image"
         or file_record.get("status") != "ready"
         or file_record.get("trashed_at") is not None
     ):
-        return None
+        return None, None
 
     bucket_id = str(file_record.get("bucket_id") or "").strip()
     storage_path = str(
@@ -858,9 +944,19 @@ def _create_public_file_signed_url(
     ).strip()
 
     if not bucket_id or not storage_path:
-        return None
+        return None, None
 
     try:
+        if bucket_id == "beeapp-commercial-images":
+            response = execute_with_supabase_admin_retry(
+                lambda client: (
+                    client.storage.from_(bucket_id).get_public_url(
+                        storage_path,
+                    )
+                )
+            )
+            return _extract_storage_url(response), None
+
         response = execute_with_supabase_admin_retry(
             lambda client: (
                 client.storage.from_(bucket_id).create_signed_url(
@@ -878,9 +974,12 @@ def _create_public_file_signed_url(
                 or response.get("signed_url")
             )
 
-        return str(signed_url) if signed_url else None
+        return (
+            str(signed_url) if signed_url else None,
+            PUBLIC_IMAGE_SIGNED_URL_EXPIRES_IN_SECONDS,
+        )
     except Exception:
-        return None
+        return None, None
 
 
 def _get_offer_images_by_offer_ids(
@@ -951,6 +1050,12 @@ def _get_offer_images_by_offer_ids(
             if not file_record:
                 continue
 
+            image_url, url_expires_in_seconds = (
+                _create_public_file_url(
+                    file_record=file_record,
+                )
+            )
+
             result[
                 str(image["commercial_offer_id"])
             ].append(
@@ -966,11 +1071,9 @@ def _get_offer_images_by_offer_ids(
                     "is_primary": bool(
                         image.get("is_primary")
                     ),
-                    "url": _create_public_file_signed_url(
-                        file_record=file_record,
-                    ),
+                    "url": image_url,
                     "url_expires_in_seconds": (
-                        PUBLIC_IMAGE_SIGNED_URL_EXPIRES_IN_SECONDS
+                        url_expires_in_seconds
                     ),
                 }
             )

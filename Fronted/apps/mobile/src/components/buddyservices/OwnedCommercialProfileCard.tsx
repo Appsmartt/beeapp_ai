@@ -168,6 +168,7 @@ export default function OwnedCommercialProfileCard({
           <CommercialLogoAvatar
             displayName={profile.display_name}
             logoFileId={profile.logo_file_id}
+            logoUrl={profile.logo_url}
             size={56}
           />
 

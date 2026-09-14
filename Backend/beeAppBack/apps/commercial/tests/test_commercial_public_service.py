@@ -1,3 +1,5 @@
+from unittest.mock import patch
+
 from django.test import SimpleTestCase
 
 from apps.commercial.services.commercial_public_service import (
@@ -84,6 +86,100 @@ class CommercialPublicProfileSerializationTests(
         self.assertEqual(
             serialized["contact"]["email"],
             "privado@example.com",
+        )
+
+    def test_returns_null_logo_url_without_logo_file(self):
+        serialized = _serialize_public_profile(
+            profile=self._profile(),
+            modalities=[],
+            category=None,
+        )
+
+        self.assertIsNone(serialized["logo_file_id"])
+        self.assertIsNone(serialized["logo_url"])
+        self.assertIsNone(
+            serialized["logo_url_expires_in_seconds"]
+        )
+
+    def test_returns_public_logo_url_without_expiration(self):
+        logo_file = {
+            "id": "logo-file-id",
+            "bucket_id": "beeapp-commercial-images",
+            "storage_path": "user-id/logo.png",
+            "kind": "image",
+            "status": "ready",
+            "trashed_at": None,
+        }
+
+        with patch(
+            "apps.commercial.services.commercial_public_service."
+            "_create_public_file_url",
+            return_value=(
+                "https://example.supabase.co/storage/v1/object/"
+                "public/beeapp-commercial-images/user-id/logo.png",
+                None,
+            ),
+        ) as create_url:
+            serialized = _serialize_public_profile(
+                profile=self._profile(
+                    logo_file_id="logo-file-id",
+                ),
+                modalities=[],
+                category=None,
+                logo_file=logo_file,
+            )
+
+        self.assertEqual(
+            serialized["logo_url"],
+            "https://example.supabase.co/storage/v1/object/"
+            "public/beeapp-commercial-images/user-id/logo.png",
+        )
+        self.assertIsNone(
+            serialized["logo_url_expires_in_seconds"]
+        )
+        create_url.assert_called_once_with(
+            file_record=logo_file,
+        )
+
+    def test_returns_signed_logo_url_for_private_legacy_file(self):
+        logo_file = {
+            "id": "legacy-logo-file-id",
+            "bucket_id": "beeapp-files",
+            "storage_path": "user-id/legacy-logo.png",
+            "kind": "image",
+            "status": "ready",
+            "trashed_at": None,
+        }
+
+        with patch(
+            "apps.commercial.services.commercial_public_service."
+            "_create_public_file_url",
+            return_value=(
+                "https://example.supabase.co/storage/v1/object/sign/"
+                "beeapp-files/user-id/legacy-logo.png?token=test",
+                300,
+            ),
+        ) as create_url:
+            serialized = _serialize_public_profile(
+                profile=self._profile(
+                    logo_file_id="legacy-logo-file-id",
+                ),
+                modalities=[],
+                category=None,
+                logo_file=logo_file,
+            )
+
+        self.assertEqual(
+            serialized["logo_url"],
+            "https://example.supabase.co/storage/v1/object/sign/"
+            "beeapp-files/user-id/legacy-logo.png?token=test",
+        )
+        self.assertEqual(
+            serialized["logo_url_expires_in_seconds"],
+            300,
+        )
+        create_url.assert_called_once_with(
+            file_record=logo_file,
         )
 
     def test_verification_badge_requires_verified_status_and_flag(self):
@@ -302,6 +398,9 @@ class CommercialPublicProfileCountCompatibilityTests(SimpleTestCase):
             return_value=Response(),
         ), patch(
             "apps.commercial.services.commercial_public_service._get_modalities_by_profile_ids",
+            return_value={},
+        ), patch(
+            "apps.commercial.services.commercial_public_service._get_logo_files_by_profile_ids",
             return_value={},
         ), patch(
             "apps.commercial.services.commercial_public_service._get_categories_by_ids",

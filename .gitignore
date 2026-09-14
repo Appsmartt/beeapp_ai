@@ -44,3 +44,11 @@ Backend/beeAppBack/beeapp_call_chat_test_results/
 **/beeapp_contexto_llamadas*.txt
 **/beeapp_backend_llamadas_push*.txt
 **/beeapp_pendiente_llamada_entrante*.txt
+
+.turbo/
+tmp/
+__pycache__/
+*.pyc
+*_exploration.txt
+*_review.txt
+*_validation.txt
