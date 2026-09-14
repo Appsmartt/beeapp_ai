@@ -186,6 +186,8 @@ export interface CommercialPublicProfile {
   location: CommercialPublicLocation;
   contact: CommercialPublicContact;
   logo_file_id: string | null;
+  logo_url: string | null;
+  logo_url_expires_in_seconds: number | null;
   modalities: CommercialModality[];
   delivery_fee_mode:
     | 'not_offered'
@@ -227,6 +229,8 @@ category?: CommercialCategory | null;
   public_email: string | null;
   is_email_public: boolean;
   logo_file_id: string | null;
+  logo_url: string | null;
+  logo_url_expires_in_seconds: number | null;
   is_public: boolean;
   is_available: boolean;
   cash_on_delivery_enabled: boolean;

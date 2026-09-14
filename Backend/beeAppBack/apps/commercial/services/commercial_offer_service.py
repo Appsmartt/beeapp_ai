@@ -155,28 +155,69 @@ def _create_owned_offer_image_signed_url(
         return serialized_image
 
     try:
-        response = (
-            supabase.storage.from_(bucket_id).create_signed_url(
-                storage_path,
-                3600,
-            )
-        )
-
-        signed_url = getattr(response, "signed_url", None)
-
-        if not signed_url and isinstance(response, dict):
-            signed_url = (
-                response.get("signedURL")
-                or response.get("signed_url")
+        if bucket_id == "beeapp-commercial-images":
+            response = (
+                supabase.storage.from_(bucket_id).get_public_url(
+                    storage_path,
+                )
             )
 
-        if signed_url:
-            serialized_image["url"] = str(signed_url)
+            if isinstance(response, dict):
+                response_data = response.get("data")
+                public_url = (
+                    response.get("publicUrl")
+                    or response.get("public_url")
+                    or (
+                        response_data.get("publicUrl")
+                        if isinstance(response_data, dict)
+                        else None
+                    )
+                    or (
+                        response_data.get("public_url")
+                        if isinstance(response_data, dict)
+                        else None
+                    )
+                )
+            else:
+                public_url = (
+                    getattr(response, "public_url", None)
+                    or getattr(response, "publicUrl", None)
+                )
 
-    except Exception:
-        logger.warning(
-            "Could not create signed URL for commercial offer image: image_id=%s",
+            if public_url:
+                serialized_image["url"] = str(public_url)
+                serialized_image["url_expires_in_seconds"] = None
+        else:
+            response = (
+                supabase.storage.from_(bucket_id).create_signed_url(
+                    storage_path,
+                    3600,
+                )
+            )
+
+            signed_url = getattr(response, "signed_url", None)
+
+            if not signed_url and isinstance(response, dict):
+                signed_url = (
+                    response.get("signedURL")
+                    or response.get("signed_url")
+                )
+
+            if signed_url:
+                serialized_image["url"] = str(signed_url)
+
+    except Exception as error:
+        logger.exception(
+            "Commercial offer image URL generation failed: "
+            "image_id=%s file_id=%s bucket_id=%s storage_path=%s "
+            "file_status=%s file_trashed_at=%s error=%r",
             image.get("id"),
+            image.get("file_id"),
+            bucket_id,
+            storage_path,
+            file_record.get("status"),
+            file_record.get("trashed_at"),
+            error,
         )
 
     return serialized_image
@@ -1420,11 +1461,40 @@ def delete_commercial_offer_image(
             .execute()
         )
 
-        if not delete_response.data:
+        remaining_image_response = (
+            supabase.table("commercial_offer_images")
+            .select("id")
+            .eq("id", str(image_id))
+            .eq("commercial_offer_id", str(offer_id))
+            .maybe_single()
+            .execute()
+        )
+
+        if remaining_image_response.data:
+            logger.error(
+                "Commercial offer image still exists after delete: "
+                "profile_id=%s offer_id=%s image_id=%s file_id=%s "
+                "delete_response_data=%r",
+                commercial_profile_id,
+                offer_id,
+                image_id,
+                image.get("file_id"),
+                getattr(delete_response, "data", None),
+            )
             raise CommercialOperationError(
                 "Commercial offer image could not be deleted.",
                 code="COMMERCIAL_OFFER_IMAGE_DELETE_FAILED",
             )
+
+        logger.info(
+            "Commercial offer image relation deleted: "
+            "profile_id=%s offer_id=%s image_id=%s file_id=%s was_primary=%s",
+            commercial_profile_id,
+            offer_id,
+            image_id,
+            image.get("file_id"),
+            was_primary,
+        )
 
         if was_primary:
             next_image_response = (
@@ -1477,6 +1547,14 @@ def delete_commercial_offer_image(
         raise
 
     except Exception as error:
+        logger.exception(
+            "Commercial offer image delete failed: "
+            "profile_id=%s offer_id=%s image_id=%s error=%r",
+            commercial_profile_id,
+            offer_id,
+            image_id,
+            error,
+        )
         raise CommercialOperationError(
             "Could not delete commercial offer image.",
             code="COMMERCIAL_OFFER_IMAGE_DELETE_FAILED",

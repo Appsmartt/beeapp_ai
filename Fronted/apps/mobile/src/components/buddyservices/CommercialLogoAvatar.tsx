@@ -19,6 +19,7 @@ import {
 interface CommercialLogoAvatarProps {
   displayName: string;
   logoFileId: string | null;
+  logoUrl?: string | null;
   size?: number;
 }
 
@@ -37,12 +38,21 @@ function getInitials(value: string): string {
 export default function CommercialLogoAvatar({
   displayName,
   logoFileId,
+  logoUrl: providedLogoUrl = null,
   size = 56,
 }: CommercialLogoAvatarProps) {
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
+
+    if (providedLogoUrl) {
+      setLogoUrl(providedLogoUrl);
+
+      return () => {
+        cancelled = true;
+      };
+    }
 
     setLogoUrl(null);
 
@@ -80,7 +90,7 @@ export default function CommercialLogoAvatar({
     return () => {
       cancelled = true;
     };
-  }, [logoFileId]);
+  }, [logoFileId, providedLogoUrl]);
 
   const avatarStyle = {
     borderRadius: size / 2,

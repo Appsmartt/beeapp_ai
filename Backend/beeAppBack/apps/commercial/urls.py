@@ -30,6 +30,7 @@ from apps.commercial.verification_views import (
 
 from apps.commercial.views import (
     CommercialProfileChatView,
+    CommercialPublicImageUploadView,
     CommercialCategoriesView,
     CommercialProfileDetailView,
     CommercialProfilePublicationView,
@@ -195,6 +196,11 @@ urlpatterns = [
         "public/offers/<uuid:offer_id>/",
         PublicCommercialOfferDetailView.as_view(),
         name="public-commercial-offer-detail",
+    ),
+    path(
+        "public-images/upload/",
+        CommercialPublicImageUploadView.as_view(),
+        name="commercial-public-image-upload",
     ),
     path(
         "categories/",
