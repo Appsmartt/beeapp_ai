@@ -1,0 +1,12 @@
+# Copia las reglas de .gitignore relevantes para no subir basura.
+.git
+**/node_modules
+**/.expo
+**/.turbo
+*.log
+
+# No subir la copia raíz de Firebase.
+Fronted/apps/mobile/google-services.json
+
+# Incluir explícitamente el archivo que Gradle necesita.
+!Fronted/apps/mobile/android/app/google-services.json
