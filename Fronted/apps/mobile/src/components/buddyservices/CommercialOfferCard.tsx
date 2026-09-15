@@ -9,7 +9,6 @@ import {
   CalendarDays,
   ChevronRight,
   Package,
-  ShoppingCart,
   Wrench,
 } from 'lucide-react-native';
 
@@ -179,10 +178,9 @@ export default function CommercialOfferCard({
           onPress={() => onQuickAddToCart(offer)}
           style={styles.quickAddButton}
         >
-          <ShoppingCart
-            color="#7427D5"
-            size={19}
-          />
+          <Text style={styles.quickAddText}>
+            +
+          </Text>
         </TouchableOpacity>
       ) : (
         <View style={styles.chevronBox}>
@@ -275,5 +273,12 @@ const styles = StyleSheet.create({
     height: 36,
     justifyContent: 'center',
     width: 36,
+  },
+  quickAddText: {
+    color: '#7427D5',
+    fontSize: 24,
+    fontWeight: '500',
+    lineHeight: 26,
+    marginTop: -2,
   },
 });

@@ -393,40 +393,9 @@ export default function BuddyServicesPublicProfileScreen() {
 
     const result = addBusinessCartProduct(cartProduct);
 
-    if (result.kind === 'added') {
-      return;
+    if (result.kind === 'conflict') {
+      replaceBusinessCartWithProduct(cartProduct);
     }
-
-    const {
-      currentCommercialProfileName,
-      incomingCommercialProfileName,
-    } = result.conflict;
-
-    Alert.alert(
-      'Carrito de otro negocio',
-      (
-        `Tu carrito actual pertenece a ${currentCommercialProfileName}. `
-        + `Para agregar productos de ${incomingCommercialProfileName} `
-        + 'debes iniciar una nueva solicitud.'
-      ),
-      [
-        {
-          text: 'Mantener',
-          style: 'default',
-        },
-        {
-          text: 'Vaciar e iniciar otro',
-          style: 'destructive',
-          onPress: () => {
-            replaceBusinessCartWithProduct(cartProduct);
-          },
-        },
-        {
-          text: 'Cancelar',
-          style: 'cancel',
-        },
-      ],
-    );
   }, [profile]);
 
   const handleMessage = useCallback(() => {
