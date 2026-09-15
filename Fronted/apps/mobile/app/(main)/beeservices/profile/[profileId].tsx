@@ -24,6 +24,7 @@ import {
   MapPin,
   MessageCircle,
   Phone,
+  ShoppingCart,
   Store,
 } from 'lucide-react-native';
 import {
@@ -44,6 +45,7 @@ import {
   type CommercialUiError,
 } from '../../../../src/features/buddyservices/commercialErrors';
 import {
+  buddyServicesCartRoute,
   buddyServicesPublicCatalogRoute,
   buddyServicesPublicOfferRoute,
 } from '../../../../src/features/buddyservices/commercialRoutes';
@@ -52,9 +54,22 @@ import {
   loadPublicCommercialOffers,
   loadPublicCommercialProfile,
 } from '../../../../src/services/commercialService';
+import {
+  addBusinessCartProduct,
+  getBusinessCart,
+  getBusinessCartItemCount,
+  replaceBusinessCartWithProduct,
+  subscribeBusinessCart,
+  type AddBusinessCartProductInput,
+  type BusinessCart,
+} from '../../../../src/features/buddyservices/cart/businessCartStore';
+import {
+  getDefaultRequestedModality,
+} from '../../../../src/features/buddyservices/commercialOfferAction';
 
 type ProfileTab =
-  | 'home'
+  | 'products'
+  | 'services'
   | 'catalogs'
   | 'information';
 
@@ -192,7 +207,7 @@ export default function BuddyServicesPublicProfileScreen() {
   const profileId = normalizeParam(params.profileId);
 
   const [activeTab, setActiveTab] = useState<ProfileTab>(
-    'home',
+    'products',
   );
   const [profile, setProfile] = useState<
     CommercialPublicProfile | null
@@ -208,6 +223,33 @@ export default function BuddyServicesPublicProfileScreen() {
   const [error, setError] = useState<CommercialUiError | null>(
     null,
   );
+  const [cart, setCart] = useState<BusinessCart | null>(
+    () => getBusinessCart(),
+  );
+
+  useEffect(() => (
+    subscribeBusinessCart((change) => {
+      setCart(change.cart);
+    })
+  ), []);
+
+  const products = useMemo(() => (
+    offers.filter((offer) => offer.offer_kind === 'product')
+  ), [offers]);
+
+  const services = useMemo(() => (
+    offers.filter((offer) => offer.offer_kind === 'service')
+  ), [offers]);
+
+  const cartItemCount = useMemo(() => (
+    cart?.commercialProfileId === profileId
+      ? getBusinessCartItemCount()
+      : 0
+  ), [cart, profileId]);
+
+  const cartBadgeLabel = cartItemCount > 99
+    ? '99+'
+    : String(cartItemCount);
 
   const publicPhone = useMemo(() => {
     if (
@@ -320,6 +362,72 @@ export default function BuddyServicesPublicProfileScreen() {
       buddyServicesPublicOfferRoute(offer.id),
     );
   }, [router]);
+
+  const handleQuickAddProduct = useCallback((
+    offer: CommercialPublicOffer,
+  ) => {
+    if (offer.offer_kind !== 'product' || !profile) {
+      return;
+    }
+
+    const imageUrl = (
+      offer.images.find((image) => image.is_primary)?.url
+      || offer.images[0]?.url
+      || null
+    );
+
+    const cartProduct: AddBusinessCartProductInput = {
+      commercialOfferId: offer.id,
+      commercialProfileId: offer.commercial_profile_id,
+      commercialProfileName: profile.display_name,
+      title: offer.title,
+      quantity: 1,
+      pricingStrategy: offer.pricing_strategy,
+      unitPriceAmount: offer.base_price_amount,
+      currencyCode: offer.currency_code,
+      requestedModality: getDefaultRequestedModality(offer),
+      imageUrl,
+      deliveryFeeMode: profile.delivery_fee_mode || 'not_offered',
+      deliveryFeeAmount: null,
+    };
+
+    const result = addBusinessCartProduct(cartProduct);
+
+    if (result.kind === 'added') {
+      return;
+    }
+
+    const {
+      currentCommercialProfileName,
+      incomingCommercialProfileName,
+    } = result.conflict;
+
+    Alert.alert(
+      'Carrito de otro negocio',
+      (
+        `Tu carrito actual pertenece a ${currentCommercialProfileName}. `
+        + `Para agregar productos de ${incomingCommercialProfileName} `
+        + 'debes iniciar una nueva solicitud.'
+      ),
+      [
+        {
+          text: 'Mantener',
+          style: 'default',
+        },
+        {
+          text: 'Vaciar e iniciar otro',
+          style: 'destructive',
+          onPress: () => {
+            replaceBusinessCartWithProduct(cartProduct);
+          },
+        },
+        {
+          text: 'Cancelar',
+          style: 'cancel',
+        },
+      ],
+    );
+  }, [profile]);
 
   const handleMessage = useCallback(() => {
     Alert.alert(
@@ -517,10 +625,10 @@ export default function BuddyServicesPublicProfileScreen() {
             </TouchableOpacity>
 
             <TouchableOpacity
-              accessibilityLabel="Ver ofertas del negocio"
+              accessibilityLabel="Ver productos del negocio"
               accessibilityRole="button"
               activeOpacity={0.8}
-              onPress={() => setActiveTab('home')}
+              onPress={() => setActiveTab('products')}
               style={styles.offersButton}
             >
               <Store
@@ -529,16 +637,26 @@ export default function BuddyServicesPublicProfileScreen() {
               />
 
               <Text style={styles.offersButtonText}>
-                Ver ofertas
+                Ver productos
               </Text>
             </TouchableOpacity>
           </View>
 
-          <View style={styles.tabs}>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.tabs}
+          >
             <ProfileTabButton
-              active={activeTab === 'home'}
+              active={activeTab === 'products'}
               label="Productos"
-              onPress={() => setActiveTab('home')}
+              onPress={() => setActiveTab('products')}
+            />
+
+            <ProfileTabButton
+              active={activeTab === 'services'}
+              label="Servicios"
+              onPress={() => setActiveTab('services')}
             />
 
             <ProfileTabButton
@@ -552,16 +670,39 @@ export default function BuddyServicesPublicProfileScreen() {
               label="Información"
               onPress={() => setActiveTab('information')}
             />
-          </View>
+          </ScrollView>
 
-          {activeTab === 'home' ? (
+          {activeTab === 'products' ? (
             <View style={styles.tabContent}>
               <Text style={styles.sectionTitle}>
-                Ofertas publicadas
+                Productos
               </Text>
 
-              {offers.length > 0 ? (
-                offers.map((offer) => (
+              {products.length > 0 ? (
+                products.map((offer) => (
+                  <CommercialOfferCard
+                    key={offer.id}
+                    offer={offer}
+                    onPress={handleOfferPress}
+                    onQuickAddToCart={handleQuickAddProduct}
+                  />
+                ))
+              ) : (
+                <Text style={styles.tabEmptyText}>
+                  Este negocio aún no tiene productos publicados.
+                </Text>
+              )}
+            </View>
+          ) : null}
+
+          {activeTab === 'services' ? (
+            <View style={styles.tabContent}>
+              <Text style={styles.sectionTitle}>
+                Servicios
+              </Text>
+
+              {services.length > 0 ? (
+                services.map((offer) => (
                   <CommercialOfferCard
                     key={offer.id}
                     offer={offer}
@@ -570,7 +711,7 @@ export default function BuddyServicesPublicProfileScreen() {
                 ))
               ) : (
                 <Text style={styles.tabEmptyText}>
-                  Este negocio aún no tiene ofertas publicadas.
+                  Este negocio aún no tiene servicios publicados.
                 </Text>
               )}
             </View>
@@ -650,6 +791,28 @@ export default function BuddyServicesPublicProfileScreen() {
             </View>
           ) : null}
         </ScrollView>
+
+        {cartItemCount > 0 ? (
+          <TouchableOpacity
+            accessibilityLabel={
+              `Ir al carrito, ${cartItemCount} artículo${
+                cartItemCount === 1 ? '' : 's'
+              }`
+            }
+            accessibilityRole="button"
+            activeOpacity={0.86}
+            onPress={() => router.push(buddyServicesCartRoute())}
+            style={styles.cartFloatingButton}
+          >
+            <ShoppingCart color="#FFFFFF" size={23} />
+
+            <View style={styles.cartBadge}>
+              <Text style={styles.cartBadgeText}>
+                {cartBadgeLabel}
+              </Text>
+            </View>
+          </TouchableOpacity>
+        ) : null}
       </View>
     </ScreenSafeArea>
   );
@@ -751,7 +914,7 @@ const styles = StyleSheet.create({
     width: 42,
   },
   content: {
-    paddingBottom: 36,
+    paddingBottom: 112,
     paddingHorizontal: 20,
     paddingTop: 21,
   },
@@ -907,16 +1070,18 @@ const styles = StyleSheet.create({
   tabs: {
     borderBottomColor: '#EDE4F2',
     borderBottomWidth: 1,
-    flexDirection: 'row',
+    gap: 4,
     marginTop: 25,
+    paddingRight: 8,
   },
   tabButton: {
     alignItems: 'center',
     borderBottomColor: 'transparent',
     borderBottomWidth: 2,
-    flex: 1,
-    minHeight: 43,
     justifyContent: 'center',
+    minHeight: 43,
+    minWidth: 96,
+    paddingHorizontal: 10,
   },
   tabButtonActive: {
     borderBottomColor: '#7427D5',
@@ -1019,6 +1184,46 @@ const styles = StyleSheet.create({
     fontSize: 12,
     lineHeight: 18,
     marginTop: 10,
+  },
+  cartFloatingButton: {
+    alignItems: 'center',
+    backgroundColor: '#7427D5',
+    borderColor: '#FFFFFF',
+    borderRadius: 29,
+    borderWidth: 3,
+    bottom: 24,
+    elevation: 7,
+    height: 58,
+    justifyContent: 'center',
+    position: 'absolute',
+    right: 22,
+    shadowColor: '#38294E',
+    shadowOffset: {
+      height: 5,
+      width: 0,
+    },
+    shadowOpacity: 0.2,
+    shadowRadius: 9,
+    width: 58,
+  },
+  cartBadge: {
+    alignItems: 'center',
+    backgroundColor: '#D6424D',
+    borderColor: '#FFFFFF',
+    borderRadius: 12,
+    borderWidth: 2,
+    height: 24,
+    justifyContent: 'center',
+    minWidth: 24,
+    paddingHorizontal: 5,
+    position: 'absolute',
+    right: -6,
+    top: -6,
+  },
+  cartBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 11,
+    fontWeight: '800',
   },
   primaryButton: {
     backgroundColor: '#7427D5',
