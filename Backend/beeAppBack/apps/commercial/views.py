@@ -2038,8 +2038,10 @@ class PublicCommercialOffersView(AuthenticatedAPIView):
                 modality=serializer.validated_data.get(
                     "modality"
                 ),
-                requires_booking=serializer.validated_data.get(
-                    "requires_booking"
+                requires_booking=(
+                    serializer.validated_data["requires_booking"]
+                    if "requires_booking" in request.query_params
+                    else None
                 ),
                 limit=serializer.validated_data["limit"],
                 offset=serializer.validated_data["offset"],
