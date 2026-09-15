@@ -9,6 +9,7 @@ import {
   CalendarDays,
   ChevronRight,
   Package,
+  ShoppingCart,
   Wrench,
 } from 'lucide-react-native';
 
@@ -19,6 +20,9 @@ import type {
 interface CommercialOfferCardProps {
   offer: CommercialPublicOffer;
   onPress: (
+    offer: CommercialPublicOffer,
+  ) => void;
+  onQuickAddToCart?: (
     offer: CommercialPublicOffer,
   ) => void;
 }
@@ -87,88 +91,108 @@ function getPrimaryImage(
 export default function CommercialOfferCard({
   offer,
   onPress,
+  onQuickAddToCart,
 }: CommercialOfferCardProps) {
   const imageUrl = getPrimaryImage(offer);
   const isProduct = offer.offer_kind === 'product';
 
   return (
-    <TouchableOpacity
-      accessibilityLabel={
-        `Ver ${getOfferKindLabel(offer)} ${offer.title}`
-      }
-      accessibilityRole="button"
-      activeOpacity={0.8}
-      onPress={() => onPress(offer)}
-      style={styles.card}
-    >
-      <View style={styles.imageBox}>
-        {imageUrl ? (
-          <Image
-            accessibilityIgnoresInvertColors
-            resizeMode="cover"
-            source={{
-              uri: imageUrl,
-            }}
-            style={styles.image}
-          />
-        ) : (
-          isProduct ? (
-            <Package
-              color="#7B2DD9"
-              size={26}
+    <View style={styles.card}>
+      <TouchableOpacity
+        accessibilityLabel={
+          `Ver ${getOfferKindLabel(offer)} ${offer.title}`
+        }
+        accessibilityRole="button"
+        activeOpacity={0.8}
+        onPress={() => onPress(offer)}
+        style={styles.cardMainAction}
+      >
+        <View style={styles.imageBox}>
+          {imageUrl ? (
+            <Image
+              accessibilityIgnoresInvertColors
+              resizeMode="cover"
+              source={{
+                uri: imageUrl,
+              }}
+              style={styles.image}
             />
           ) : (
-            <Wrench
-              color="#7B2DD9"
-              size={26}
-            />
-          )
-        )}
-      </View>
-
-      <View style={styles.content}>
-        <View style={styles.topRow}>
-          <Text
-            numberOfLines={1}
-            style={styles.kind}
-          >
-            {getOfferKindLabel(offer)}
-          </Text>
-
-          {offer.requires_booking ? (
-            <CalendarDays
-              color="#7642AE"
-              size={15}
-            />
-          ) : null}
+            isProduct ? (
+              <Package
+                color="#7B2DD9"
+                size={26}
+              />
+            ) : (
+              <Wrench
+                color="#7B2DD9"
+                size={26}
+              />
+            )
+          )}
         </View>
 
-        <Text
-          numberOfLines={2}
-          style={styles.title}
-        >
-          {offer.title}
-        </Text>
+        <View style={styles.content}>
+          <View style={styles.topRow}>
+            <Text
+              numberOfLines={1}
+              style={styles.kind}
+            >
+              {getOfferKindLabel(offer)}
+            </Text>
 
-        {offer.description ? (
+            {offer.requires_booking ? (
+              <CalendarDays
+                color="#7642AE"
+                size={15}
+              />
+            ) : null}
+          </View>
+
           <Text
             numberOfLines={2}
-            style={styles.description}
+            style={styles.title}
           >
-            {offer.description}
+            {offer.title}
           </Text>
-        ) : null}
 
-        <Text style={styles.price}>
-          {getPriceLabel(offer)}
-        </Text>
-      </View>
+          {offer.description ? (
+            <Text
+              numberOfLines={2}
+              style={styles.description}
+            >
+              {offer.description}
+            </Text>
+          ) : null}
 
-      <ChevronRight
-        color="#8A72B2"
-        size={21}
-      />
-    </TouchableOpacity>
+          <Text style={styles.price}>
+            {getPriceLabel(offer)}
+          </Text>
+        </View>
+      </TouchableOpacity>
+
+      {isProduct && onQuickAddToCart ? (
+        <TouchableOpacity
+          accessibilityLabel={`Agregar ${offer.title} al carrito`}
+          accessibilityRole="button"
+          activeOpacity={0.8}
+          onPress={() => onQuickAddToCart(offer)}
+          style={styles.quickAddButton}
+        >
+          <ShoppingCart
+            color="#7427D5"
+            size={19}
+          />
+        </TouchableOpacity>
+      ) : (
+        <View style={styles.chevronBox}>
+          <ChevronRight
+            color="#8A72B2"
+            size={21}
+          />
+        </View>
+      )}
+    </View>
   );
 }
 
@@ -184,6 +208,17 @@ const styles = StyleSheet.create({
     minHeight: 112,
     paddingHorizontal: 14,
     paddingVertical: 13,
+  },
+  cardMainAction: {
+    alignItems: 'center',
+    flex: 1,
+    flexDirection: 'row',
+  },
+  chevronBox: {
+    alignItems: 'center',
+    height: 36,
+    justifyContent: 'center',
+    width: 36,
   },
   imageBox: {
     alignItems: 'center',
@@ -230,5 +265,15 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '800',
     marginTop: 7,
+  },
+  quickAddButton: {
+    alignItems: 'center',
+    backgroundColor: '#F4EAFE',
+    borderColor: '#DEC7F0',
+    borderRadius: 18,
+    borderWidth: 1,
+    height: 36,
+    justifyContent: 'center',
+    width: 36,
   },
 });

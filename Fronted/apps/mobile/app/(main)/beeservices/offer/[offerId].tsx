@@ -21,6 +21,7 @@ import {
   Clock3,
   Package,
   ShoppingBag,
+  Store,
   Wrench,
 } from 'lucide-react-native';
 import {
@@ -54,6 +55,7 @@ import {
 import {
   buddyServicesBookingRequestRoute,
   buddyServicesCartRoute,
+  buddyServicesPublicProfileRoute,
   buddyServicesServiceRequestRoute,
 } from '../../../../src/features/buddyservices/commercialRoutes';
 
@@ -233,6 +235,18 @@ export default function BuddyServicesPublicOfferScreen() {
 
     router.replace('/(main)/beeservices');
   }, [router]);
+
+  const handleViewBusinessProfile = useCallback(() => {
+    if (!offer?.commercial_profile_id) {
+      return;
+    }
+
+    router.push(
+      buddyServicesPublicProfileRoute(
+        offer.commercial_profile_id,
+      ),
+    );
+  }, [offer?.commercial_profile_id, router]);
 
   const handleCommercialAction = useCallback(async () => {
     if (!offer) {
@@ -429,7 +443,15 @@ export default function BuddyServicesPublicOfferScreen() {
             {isProduct ? 'Producto' : 'Servicio'}
           </Text>
 
-          <View style={styles.headerSpacer} />
+          <TouchableOpacity
+            accessibilityLabel="Ver perfil del comercio"
+            accessibilityRole="button"
+            activeOpacity={0.78}
+            onPress={handleViewBusinessProfile}
+            style={styles.businessProfileHeaderButton}
+          >
+            <Store color="#623D8B" size={20} />
+          </TouchableOpacity>
         </View>
 
         <ScrollView
@@ -648,7 +670,14 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     textAlign: 'center',
   },
-  headerSpacer: {
+  businessProfileHeaderButton: {
+    alignItems: 'center',
+    backgroundColor: '#F4EAFE',
+    borderColor: '#DEC7F0',
+    borderRadius: 21,
+    borderWidth: 1,
+    height: 42,
+    justifyContent: 'center',
     width: 42,
   },
   content: {
