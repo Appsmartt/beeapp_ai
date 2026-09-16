@@ -389,6 +389,20 @@ deliveryOptions.amount,
 deliveryOptions.mode,
 ]);
 
+
+const deliveryAddressRequired = Boolean(
+cart?.requestedModality === 'delivery'
+&& !cart.deliveryAddress?.trim(),
+);
+
+const canContinue = Boolean(
+cart
+&& summary
+&& !submitting
+&& cart.requestedModality
+&& !deliveryAddressRequired,
+);
+
 const handleBack = useCallback(() => {
 if (router.canGoBack()) {
 router.back();
@@ -746,8 +760,12 @@ selected
 Datos de entrega
 </Text>
 
+<Text style={styles.deliveryRequiredHint}>
+La dirección es obligatoria para domicilio.
+</Text>
+
 <TextInput
-accessibilityLabel="Dirección de entrega"
+accessibilityLabel="Dirección de entrega obligatoria"
 onChangeText={(deliveryAddress) => {
 setCartUpdateNotice(null);
 updateBusinessCartRequestDetails({
@@ -756,7 +774,10 @@ deliveryAddress,
 }}
 placeholder="Dirección de entrega"
 placeholderTextColor="#9C8BAF"
-style={styles.input}
+style={[
+styles.input,
+deliveryAddressRequired ? styles.inputRequired : null,
+]}
 value={cart.deliveryAddress || ''}
 />
 
@@ -868,14 +889,14 @@ submitting
 accessibilityRole="button"
 accessibilityState={{
 busy: submitting,
-disabled: submitting,
+disabled: !canContinue,
 }}
 activeOpacity={0.85}
-disabled={submitting}
+disabled={!canContinue}
 onPress={handleContinue}
 style={[
 styles.continueButton,
-submitting
+!canContinue
 ? styles.continueButtonDisabled
 : null,
 ]}
@@ -1142,6 +1163,16 @@ paddingHorizontal: 13,
 },
 inputSpacing: {
 marginTop: 10,
+},
+deliveryRequiredHint: {
+color: '#B42318',
+fontSize: 13,
+fontWeight: '700',
+marginBottom: 10,
+},
+inputRequired: {
+borderColor: '#D92D20',
+borderWidth: 1.5,
 },
 noteInput: {
 backgroundColor: '#FFFFFF',
