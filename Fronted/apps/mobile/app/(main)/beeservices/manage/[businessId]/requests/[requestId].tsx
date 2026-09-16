@@ -783,6 +783,41 @@ itemProposalUnitPrice,
 runAction,
 ]);
 
+const confirmAcceptItem = useCallback((
+item: CommercialRequestDetail['items'][number],
+) => {
+if (item.lifecycle_status !== 'pending_business') {
+return;
+}
+
+Alert.alert(
+'Aceptar ítem',
+`¿Aceptar ${item.title} con las condiciones actuales?`,
+[
+{
+text: 'Cancelar',
+style: 'cancel',
+},
+{
+text: 'Aceptar',
+onPress: () => {
+void runAction(
+`close-item:accept:${item.id}`,
+() => closeCommercialRequestItem(
+item.id,
+{
+action: 'accept',
+reason_code: null,
+},
+),
+'El ítem fue aceptado.',
+);
+},
+},
+],
+);
+}, [runAction]);
+
 const confirmCloseItem = useCallback((
 item: CommercialRequestDetail['items'][number],
 action: 'reject' | 'withdraw',
@@ -1318,10 +1353,27 @@ Nota específica del cliente
 </Text>
 </View>
 ) : null}
-{isMixedRequest
-&& formalContext?.actor_role === 'business_owner'
+{formalContext?.actor_role === 'business_owner'
 && item.lifecycle_status === 'pending_business' ? (
 <View style={styles.itemActions}>
+{item.pricing_strategy === 'fixed' ? (
+<TouchableOpacity
+accessibilityLabel={`Aceptar ${item.title}`}
+accessibilityRole="button"
+disabled={pendingAction !== null}
+onPress={() => confirmAcceptItem(item)}
+style={[
+styles.itemActionPrimary,
+pendingAction !== null ? styles.disabledButton : null,
+]}
+>
+<Text style={styles.itemActionPrimaryText}>
+{pendingAction === `close-item:accept:${item.id}`
+? 'Aceptando...'
+: 'Aceptar ítem'}
+</Text>
+</TouchableOpacity>
+) : (
 <TouchableOpacity
 accessibilityLabel={`Crear propuesta para ${item.title}`}
 accessibilityRole="button"
@@ -1336,6 +1388,7 @@ pendingAction !== null ? styles.disabledButton : null,
 Crear propuesta
 </Text>
 </TouchableOpacity>
+)}
 
 <TouchableOpacity
 accessibilityLabel={`Rechazar ${item.title}`}
@@ -1369,8 +1422,8 @@ Retirar ítem
 </View>
 ) : null}
 
-{isMixedRequest
-&& formalContext?.actor_role === 'business_owner'
+{formalContext?.actor_role === 'business_owner'
+&& item.pricing_strategy !== 'fixed'
 && expandedItemProposalId === item.id ? (
 <View style={styles.itemProposalForm}>
 <Text style={styles.itemHistoryTitle}>
