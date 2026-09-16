@@ -14,6 +14,7 @@ from apps.commercial.request_operations_views import (
     OwnedCommercialRequestsView,
 )
 from apps.commercial.request_item_views import (
+    CommercialRequestItemFixedAcceptView,
     CommercialRequestItemCloseView,
     CommercialRequestItemOperationalStatusView,
     CommercialRequestItemProposalAcceptView,
@@ -152,6 +153,11 @@ urlpatterns = [
         "item-proposals/<uuid:proposal_id>/withdraw/",
         CommercialRequestItemProposalWithdrawView.as_view(),
         name="commercial-request-item-proposal-withdraw",
+    ),
+    path(
+        "request-items/<uuid:item_id>/accept-fixed/",
+        CommercialRequestItemFixedAcceptView.as_view(),
+        name="commercial-request-item-accept-fixed",
     ),
     path(
         "request-items/<uuid:item_id>/close/",

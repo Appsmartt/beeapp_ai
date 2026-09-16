@@ -2665,7 +2665,7 @@ class CreateCommercialRequestItemProposalSerializer(
 
 class CloseCommercialRequestItemSerializer(serializers.Serializer):
     action = serializers.ChoiceField(
-        choices=("reject", "withdraw"),
+        choices=("reject",),
     )
     reason_code = serializers.CharField(
         required=False,

@@ -57,6 +57,7 @@ import {
 toCommercialReservationStartsAtIso,
 } from '../../../../../../src/features/buddyservices/commercialReservationDateTime';
 import {
+acceptCommercialFixedRequestItem,
 closeCommercialRequestItem,
 completeOwnedCommercialRequest,
 createCommercialItemProposal,
@@ -648,6 +649,11 @@ setItemProposalNote('');
 const handleOpenItemProposal = useCallback((
 item: CommercialRequestDetail['items'][number],
 ) => {
+if (item.pricing_strategy === 'fixed') {
+resetItemProposalForm();
+return;
+}
+
 setActionError(null);
 setExpandedItemProposalId(item.id);
 setItemProposalQuantity(String(item.quantity));
@@ -678,6 +684,11 @@ if (
 || formalContext?.actor_role !== 'business_owner'
 || item.lifecycle_status !== 'pending_business'
 ) {
+return;
+}
+
+if (item.pricing_strategy === 'fixed') {
+resetItemProposalForm();
 return;
 }
 
@@ -803,12 +814,8 @@ text: 'Aceptar',
 onPress: () => {
 void runAction(
 `close-item:accept:${item.id}`,
-() => closeCommercialRequestItem(
+() => acceptCommercialFixedRequestItem(
 item.id,
-{
-action: 'accept',
-reason_code: null,
-},
 ),
 'El ítem fue aceptado.',
 );
@@ -820,41 +827,29 @@ reason_code: null,
 
 const confirmCloseItem = useCallback((
 item: CommercialRequestDetail['items'][number],
-action: 'reject' | 'withdraw',
 ) => {
-const actionLabel = action === 'reject'
-? 'Rechazar ítem'
-: 'Retirar ítem';
-const message = action === 'reject'
-? 'El ítem quedará rechazado y no podrá reabrirse en esta solicitud.'
-: 'El ítem quedará retirado y no podrá reabrirse en esta solicitud.';
-
 Alert.alert(
-actionLabel,
-message,
+'Rechazar ítem',
+'El ítem quedará rechazado y no podrá reabrirse en esta solicitud.',
 [
 {
 text: 'Cancelar',
 style: 'cancel',
 },
 {
-text: action === 'reject' ? 'Rechazar' : 'Retirar',
+text: 'Rechazar',
 style: 'destructive',
 onPress: () => {
 void runAction(
-`close-item:${action}:${item.id}`,
+`close-item:reject:${item.id}`,
 () => closeCommercialRequestItem(
 item.id,
 {
-action,
-reason_code: action === 'reject'
-? 'rejected_by_business'
-: 'withdrawn_by_business',
+action: 'reject',
+reason_code: 'rejected_by_business',
 },
 ),
-action === 'reject'
-? 'El ítem fue rechazado.'
-: 'El ítem fue retirado.',
+'El ítem fue rechazado.',
 );
 },
 },
@@ -1394,7 +1389,7 @@ Crear propuesta
 accessibilityLabel={`Rechazar ${item.title}`}
 accessibilityRole="button"
 disabled={pendingAction !== null}
-onPress={() => confirmCloseItem(item, 'reject')}
+onPress={() => confirmCloseItem(item)}
 style={[
 styles.itemActionDanger,
 pendingAction !== null ? styles.disabledButton : null,
@@ -1405,20 +1400,6 @@ Rechazar ítem
 </Text>
 </TouchableOpacity>
 
-<TouchableOpacity
-accessibilityLabel={`Retirar ${item.title}`}
-accessibilityRole="button"
-disabled={pendingAction !== null}
-onPress={() => confirmCloseItem(item, 'withdraw')}
-style={[
-styles.itemActionSecondary,
-pendingAction !== null ? styles.disabledButton : null,
-]}
->
-<Text style={styles.itemActionSecondaryText}>
-Retirar ítem
-</Text>
-</TouchableOpacity>
 </View>
 ) : null}
 
@@ -1705,7 +1686,10 @@ requestDetail.total_amount,
 })()}
 
 {!isMixedRequest
-&& formalContext?.permissions.can_create_proposal ? (
+&& formalContext?.permissions.can_create_proposal
+&& requestDetail.items.some(
+(item) => item.pricing_strategy !== 'fixed',
+) ? (
 <View style={styles.section}>
 <Text style={styles.sectionTitle}>
 Crear propuesta
