@@ -130,44 +130,6 @@ bank_account: 'Cuenta bancaria',
 return labels[value] || 'Método de pago';
 }
 
-function paymentDetailLabel(
-key: string,
-paymentMethodType: string,
-): string {
-const labels: Record<string, string> = {
-banco: 'Banco',
-dato_de_pago: 'Tipo de dato',
-numero_de_cuenta: 'Número de cuenta',
-numero_de_documento: 'Número de documento',
-numero_o_llave: (
-paymentMethodType === 'nequi'
-? 'Número Nequi'
-: paymentMethodType === 'daviplata'
-? 'Número Daviplata'
-: paymentMethodType === 'breb'
-? 'Llave Bre-B'
-: 'Dato de pago'
-),
-tipo_de_cuenta: 'Tipo de cuenta',
-tipo_de_documento: 'Tipo de documento',
-titular: 'Titular',
-};
-
-return labels[key] || key.replace(/_/g, ' ');
-}
-
-function paymentDetailValue(value: unknown): string | null {
-if (
-value === null
-|| value === undefined
-|| (typeof value === 'string' && !value.trim())
-) {
-return null;
-}
-
-return String(value).trim();
-}
-
 function statusLabel(value: string): string {
 const labels: Record<string, string> = {
 draft: 'Borrador',
@@ -1460,69 +1422,21 @@ style={styles.paymentMethodHeader}
 </TouchableOpacity>
 
 {isPaymentMethodExpanded ? (
-<View style={styles.paymentMethodContent}>
-{(() => {
-const paymentDetails = Object.entries(
-method.public_details || {},
-)
-.map(([key, value]) => ({
-key,
-label: paymentDetailLabel(
-key,
-method.payment_method_type,
-),
-value: paymentDetailValue(value),
-}))
-.filter(
-(
-detail,
-): detail is {
-key: string;
-label: string;
-value: string;
-} => detail.value !== null,
-);
-
-return paymentDetails.length ? (
 <>
-<Text style={styles.paymentMethodDetailsCaption}>
-Datos para pagar
+{Object.keys(method.public_details || {}).length > 0 ? (
+<Text style={styles.paymentMethodDetails}>
+{Object.entries(method.public_details)
+.map(([key, value]) => `${key}: ${String(value)}`)
+.join(' · ')}
 </Text>
-
-{paymentDetails.map((detail, index) => (
-<View
-key={detail.key}
-style={[
-styles.paymentMethodDetailRow,
-index < paymentDetails.length - 1
-? styles.paymentMethodDetailRowSeparated
-: null,
-]}
->
-<Text style={styles.paymentMethodDetailLabel}>
-{detail.label}
-</Text>
-<Text
-selectable
-style={styles.paymentMethodDetailValue}
->
-{detail.value}
-</Text>
-</View>
-))}
-</>
-) : null;
-})()}
+) : null}
 
 {method.public_instructions ? (
-<View style={styles.paymentMethodInstructionsBox}>
-<Info color="#6A3CA0" size={16} />
 <Text style={styles.paymentMethodInstructions}>
 {method.public_instructions}
 </Text>
-</View>
 ) : null}
-</View>
+</>
 ) : null}
 </View>
 );
@@ -2182,53 +2096,13 @@ color: '#3A245B',
 fontSize: 14,
 fontWeight: '800',
 },
-paymentMethodContent: {
-borderTopColor: '#EEE5F8',
-borderTopWidth: 1,
-gap: 8,
-marginTop: 7,
-paddingTop: 9,
-},
-paymentMethodDetailsCaption: {
-color: '#80679F',
-fontSize: 10,
-fontWeight: '900',
-letterSpacing: 0.8,
-textTransform: 'uppercase',
-},
-paymentMethodDetailRow: {
-gap: 2,
-paddingVertical: 3,
-},
-paymentMethodDetailRowSeparated: {
-borderBottomColor: '#F1EBF8',
-borderBottomWidth: 1,
-paddingBottom: 8,
-},
-paymentMethodDetailLabel: {
-color: '#80679F',
-fontSize: 11,
-fontWeight: '800',
-letterSpacing: 0.2,
-},
-paymentMethodDetailValue: {
-color: '#3A245B',
-fontSize: 14,
-fontWeight: '800',
-lineHeight: 20,
-},
-paymentMethodInstructionsBox: {
-alignItems: 'flex-start',
-backgroundColor: '#F7F2FC',
-borderRadius: 8,
-flexDirection: 'row',
-gap: 7,
-marginTop: 2,
-padding: 9,
+paymentMethodDetails: {
+color: '#5F477E',
+fontSize: 13,
+lineHeight: 18,
 },
 paymentMethodInstructions: {
 color: '#4B3566',
-flex: 1,
 fontSize: 13,
 lineHeight: 19,
 },

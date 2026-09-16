@@ -1461,10 +1461,7 @@ style={styles.paymentMethodHeader}
 
 {isPaymentMethodExpanded ? (
 <View style={styles.paymentMethodContent}>
-{(() => {
-const paymentDetails = Object.entries(
-method.public_details || {},
-)
+{Object.entries(method.public_details || {})
 .map(([key, value]) => ({
 key,
 label: paymentDetailLabel(
@@ -1473,28 +1470,13 @@ method.payment_method_type,
 ),
 value: paymentDetailValue(value),
 }))
-.filter(
-(
-detail,
-): detail is {
-key: string;
-label: string;
-value: string;
-} => detail.value !== null,
-);
-
-return paymentDetails.length ? (
-<>
-<Text style={styles.paymentMethodDetailsCaption}>
-Datos para pagar
-</Text>
-
-{paymentDetails.map((detail, index) => (
+.filter((detail) => detail.value !== null)
+.map((detail, index, details) => (
 <View
 key={detail.key}
 style={[
 styles.paymentMethodDetailRow,
-index < paymentDetails.length - 1
+index < details.length - 1
 ? styles.paymentMethodDetailRowSeparated
 : null,
 ]}
@@ -1510,9 +1492,14 @@ style={styles.paymentMethodDetailValue}
 </Text>
 </View>
 ))}
-</>
-) : null;
-})()}
+
+{Object.keys(method.public_details || {}).some(
+([, value]) => paymentDetailValue(value) !== null,
+) ? (
+<Text style={styles.paymentMethodDetailsCaption}>
+Datos para pagar
+</Text>
+) : null}
 
 {method.public_instructions ? (
 <View style={styles.paymentMethodInstructionsBox}>
@@ -2194,6 +2181,7 @@ color: '#80679F',
 fontSize: 10,
 fontWeight: '900',
 letterSpacing: 0.8,
+order: -1,
 textTransform: 'uppercase',
 },
 paymentMethodDetailRow: {
