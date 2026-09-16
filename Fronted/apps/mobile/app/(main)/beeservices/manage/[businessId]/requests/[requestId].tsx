@@ -24,6 +24,9 @@ import {
 useLocalSearchParams,
 useRouter,
 } from 'expo-router';
+import * as WebBrowser from 'expo-web-browser';
+import * as FileSystem from 'expo-file-system';
+import * as Sharing from 'expo-sharing';
 
 import type {
 CommercialRequestDetail,
@@ -241,9 +244,6 @@ const [itemProposalTimezone, setItemProposalTimezone] = useState('');
 const [itemProposalNote, setItemProposalNote] = useState('');
 const [proofRejectionReason, setProofRejectionReason] = useState('');
 const [expandedProofId, setExpandedProofId] = useState<string | null>(
-null,
-);
-const [proofAccessUrl, setProofAccessUrl] = useState<string | null>(
 null,
 );
 const [proofAccessName, setProofAccessName] = useState<string | null>(
@@ -885,26 +885,66 @@ void runAction(
 
 const handleOpenPaymentProof = useCallback((
 paymentProofId: string,
+download = false,
 ) => {
 void runAction(
-`open-proof:${paymentProofId}`,
+`${download ? 'download' : 'open'}-proof:${paymentProofId}`,
 async () => {
 const access = await loadCommercialPaymentProofAccess(
 paymentProofId,
+{ download },
 );
 
 setExpandedProofId(paymentProofId);
-setProofAccessUrl(access.url);
 setProofAccessName(access.file.display_name);
+
+if (!download) {
+await WebBrowser.openBrowserAsync(access.url);
+return access;
+}
+
+if (!FileSystem.cacheDirectory) {
+throw new Error('No fue posible preparar la descarga del comprobante.');
+}
+
+const safeName = (
+access.file.display_name
+.replace(/[^a-zA-Z0-9._-]/g, '_')
+|| 'comprobante.pdf'
+);
+const localUri = `${FileSystem.cacheDirectory}${safeName}`;
+const downloadResult = await FileSystem.downloadAsync(
+access.url,
+localUri,
+);
+
+if (!downloadResult?.uri) {
+throw new Error('No fue posible descargar el comprobante.');
+}
+
+if (!(await Sharing.isAvailableAsync())) {
+await WebBrowser.openBrowserAsync(access.url);
+return access;
+}
+
+await Sharing.shareAsync(downloadResult.uri, {
+dialogTitle: 'Guardar o compartir comprobante',
+mimeType: access.file.mime_type || 'application/pdf',
+UTI: 'com.adobe.pdf',
+});
+
 return access;
 },
-'La evidencia privada está disponible durante unos minutos.',
+download
+? 'El comprobante está listo para guardar o compartir.'
+: 'El comprobante se abrió en un visor seguro.',
 );
 }, [runAction]);
 
 const confirmReviewPaymentProof = useCallback((
 paymentProofId: string,
 decision: 'confirmed' | 'rejected',
+isFinalAttempt = false,
 ) => {
 const isRejected = decision === 'rejected';
 const normalizedReason = proofRejectionReason.trim();
@@ -925,8 +965,16 @@ Alert.alert(
 isRejected ? 'Rechazar comprobante' : 'Aprobar comprobante',
 isRejected
 ? (
+isFinalAttempt
+? (
+'Este es el tercer y último intento. Si rechazas el '
++ 'comprobante, la solicitud será cancelada y se '
++ 'liberarán los holds correspondientes.'
+)
+: (
 'El cliente podrá reemplazar el comprobante si aún '
 + 'tiene intentos disponibles.'
+)
 )
 : (
 'Confirma que el pago fue verificado. Los ítems '
@@ -968,6 +1016,36 @@ isRejected
 proofRejectionReason,
 runAction,
 ]);
+
+const paymentProofs = formalContext?.payment_proofs || [];
+const paymentAttempts = formalContext?.payment_attempts || {
+attempts_used: paymentProofs.length,
+attempts_remaining: Math.max(3 - paymentProofs.length, 0),
+max_attempts: 3,
+active_submitted_proof_id: (
+paymentProofs.find((proof) => proof.status === 'submitted')?.id
+|| null
+),
+can_submit_payment_proof: false,
+can_replace_payment_proof: false,
+is_exhausted: paymentProofs.length >= 3,
+cancelled_after_max_attempts: (
+requestDetail?.status === 'cancelled'
+&& paymentProofs.length >= 3
+),
+};
+
+const getPaymentProofAttemptNumber = (
+proof: CommercialRequestDetailContext['payment_proofs'][number],
+): number => {
+const index = paymentProofs.findIndex(
+(candidate) => candidate.id === proof.id,
+);
+
+return proof.attempt_number || (
+index >= 0 ? index + 1 : 1
+);
+};
 
 const getOperationalTransitions = (
 item: CommercialRequestDetail['items'][number],
@@ -1875,36 +1953,46 @@ pendingAction !== null
 </View>
 ) : null}
 
-{isMixedRequest
-&& formalContext?.actor_role === 'business_owner'
-&& formalContext.payment_options ? (
+{formalContext?.actor_role === 'business_owner' ? (
 <View style={styles.section}>
 <Text style={styles.sectionTitle}>
 Pago y comprobantes
 </Text>
 <Text style={styles.row}>
-Intentos usados: {formalContext.payment_options.attempts_used}
+Intentos: {paymentAttempts.attempts_used}/{
+paymentAttempts.max_attempts
+}
 </Text>
 <Text style={styles.row}>
 Intentos disponibles: {
-formalContext.payment_options.attempts_remaining
+paymentAttempts.attempts_remaining
 }
 </Text>
-{formalContext.payment_options.cash_on_delivery_available ? (
-<Text style={styles.row}>
-El comercio tiene pago contraentrega habilitado.
+{paymentAttempts.cancelled_after_max_attempts ? (
+<Text style={styles.itemHistoryText}>
+La solicitud fue cancelada porque se rechazó el último comprobante.
 </Text>
 ) : null}
-{formalContext.payment_proofs.length === 0 ? (
+{paymentProofs.length === 0 ? (
 <Text style={styles.row}>
 Aún no hay comprobantes enviados por el cliente.
 </Text>
 ) : (
 <View style={styles.itemHistory}>
-{formalContext.payment_proofs.map((proof) => (
+{paymentProofs.map((proof) => {
+const attemptNumber = getPaymentProofAttemptNumber(proof);
+const maxAttempts = proof.max_attempts || paymentAttempts.max_attempts;
+const isFinalAttempt = proof.is_final_attempt || (
+attemptNumber >= maxAttempts
+);
+
+return (
 <View key={proof.id} style={styles.itemHistoryCard}>
 <Text style={styles.itemHistoryText}>
 Comprobante: {proof.status}
+</Text>
+<Text style={styles.itemHistoryText}>
+Intento {attemptNumber}/{maxAttempts}
 </Text>
 {proof.payment_reference ? (
 <Text style={styles.itemHistoryText}>
@@ -1923,8 +2011,9 @@ Motivo de rechazo: {proof.rejection_reason}
 ) : null}
 {proof.status === 'submitted' ? (
 <>
+<View style={styles.itemActionRow}>
 <TouchableOpacity
-accessibilityLabel="Abrir evidencia privada del comprobante"
+accessibilityLabel="Ver comprobante de pago"
 accessibilityRole="button"
 disabled={pendingAction !== null}
 onPress={() => handleOpenPaymentProof(proof.id)}
@@ -1935,22 +2024,31 @@ pendingAction !== null ? styles.disabledButton : null,
 >
 <Text style={styles.itemActionSecondaryText}>
 {pendingAction === `open-proof:${proof.id}`
-? 'Abriendo evidencia...'
-: 'Abrir evidencia privada'}
+? 'Abriendo comprobante...'
+: 'Ver comprobante'}
 </Text>
 </TouchableOpacity>
-{expandedProofId === proof.id && proofAccessUrl ? (
-<View style={styles.proofAccessCard}>
-<Text style={styles.itemHistoryText}>
-{proofAccessName || 'Evidencia disponible'}
+<TouchableOpacity
+accessibilityLabel="Descargar comprobante de pago"
+accessibilityRole="button"
+disabled={pendingAction !== null}
+onPress={() => handleOpenPaymentProof(proof.id, true)}
+style={[
+styles.itemActionSecondary,
+pendingAction !== null ? styles.disabledButton : null,
+]}
+>
+<Text style={styles.itemActionSecondaryText}>
+{pendingAction === `download-proof:${proof.id}`
+? 'Preparando descarga...'
+: 'Descargar'}
 </Text>
-<Text selectable style={styles.proofAccessUrl}>
-{proofAccessUrl}
-</Text>
-<Text style={styles.proofAccessHint}>
-La URL es temporal y sólo debe usarse para revisar este comprobante.
-</Text>
+</TouchableOpacity>
 </View>
+{expandedProofId === proof.id && proofAccessName ? (
+<Text style={styles.proofAccessHint}>
+Archivo disponible: {proofAccessName}
+</Text>
 ) : null}
 <TextInput
 accessibilityLabel="Motivo para rechazar comprobante"
@@ -1990,6 +2088,7 @@ pendingAction !== null
 onPress={() => confirmReviewPaymentProof(
 proof.id,
 'rejected',
+isFinalAttempt,
 )}
 style={[
 styles.itemActionDanger,
@@ -2007,7 +2106,8 @@ Rechazar
 </>
 ) : null}
 </View>
-))}
+);
+})}
 </View>
 )}
 </View>
@@ -2485,11 +2585,6 @@ borderWidth: 1,
 gap: 5,
 marginTop: 8,
 padding: 9,
-},
-proofAccessUrl: {
-color: '#5420A5',
-fontSize: 11,
-lineHeight: 16,
 },
 proofAccessHint: {
 color: '#6E6281',
