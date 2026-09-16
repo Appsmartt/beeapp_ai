@@ -49,6 +49,87 @@ function isNetworkLikeError(error: Error): boolean {
   ].some((fragment) => message.includes(fragment));
 }
 
+function getCommercialValidationUiError(
+  detail: string,
+): CommercialUiError {
+  const normalizedDetail = detail.toLowerCase();
+
+  if (
+    [
+      'stock',
+      'inventory',
+      'insufficient',
+      'out of stock',
+      'sin inventario',
+      'sin stock',
+    ].some((fragment) => normalizedDetail.includes(fragment))
+  ) {
+    return createCommercialUiError(
+      'CONFLICT',
+      'Inventario no disponible',
+      'El negocio ya no tiene unidades suficientes para esta solicitud. Revisa el carrito e inténtalo nuevamente.',
+      true,
+    );
+  }
+
+  if (
+    [
+      'different business',
+      'same business',
+      'commercial profile',
+      'otro negocio',
+    ].some((fragment) => normalizedDetail.includes(fragment))
+  ) {
+    return createCommercialUiError(
+      'CONFLICT',
+      'Carrito de otro negocio',
+      'Todos los productos y servicios de una solicitud deben pertenecer al mismo negocio.',
+      false,
+    );
+  }
+
+  if (
+    [
+      'closed',
+      'withdrawn',
+      'rejected',
+      'cannot modify',
+      'ítem cerrado',
+      'item closed',
+    ].some((fragment) => normalizedDetail.includes(fragment))
+  ) {
+    return createCommercialUiError(
+      'CONFLICT',
+      'Ítem ya cerrado',
+      'Este ítem ya no admite cambios. Para solicitarlo nuevamente, crea una solicitud nueva.',
+      false,
+    );
+  }
+
+  if (
+    [
+      'offer unavailable',
+      'offer inactive',
+      'offer not available',
+      'oferta no disponible',
+    ].some((fragment) => normalizedDetail.includes(fragment))
+  ) {
+    return createCommercialUiError(
+      'NOT_FOUND',
+      'Oferta no disponible',
+      'Una oferta del carrito ya no está disponible. Revísala o elimínala antes de continuar.',
+      false,
+    );
+  }
+
+  return createCommercialUiError(
+    'UNKNOWN_ERROR',
+    'Información por revisar',
+    'No fue posible enviar la solicitud con la información actual. Revisa el carrito e inténtalo nuevamente.',
+    false,
+  );
+}
+
 export function toCommercialUiError(
   error: unknown,
 ): CommercialUiError {
@@ -117,12 +198,14 @@ export function toCommercialUiError(
       },
     );
 
+    if ([400, 422].includes(error.status)) {
+      return getCommercialValidationUiError(diagnosticDetail);
+    }
+
     return createCommercialUiError(
       'UNKNOWN_ERROR',
       'No fue posible completar la operación',
-      diagnosticDetail || (
-        'Revisa la información e inténtalo nuevamente.'
-      ),
+      'Ocurrió un problema al procesar la solicitud. Inténtalo nuevamente.',
       false,
     );
   }

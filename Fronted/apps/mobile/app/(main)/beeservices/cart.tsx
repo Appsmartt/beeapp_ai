@@ -15,7 +15,6 @@ View,
 } from 'react-native';
 import {
 ArrowLeft,
-CalendarClock,
 Minus,
 Package,
 Plus,
@@ -138,6 +137,28 @@ modality,
 ): modality is CommercialModality => Boolean(modality)),
 ),
 );
+}
+
+function getCartItemsSectionTitle(
+summary: ReturnType<typeof getBusinessCartSummary>,
+): string {
+if (summary.productLineCount > 0 && summary.serviceLineCount > 0) {
+return 'Productos y servicios';
+}
+
+if (summary.serviceLineCount > 0) {
+return 'Servicios';
+}
+
+return 'Productos';
+}
+
+function getRemoveItemDialogTitle(
+line: BusinessCartLine,
+): string {
+return line.offerKind === 'service'
+? 'Eliminar servicio'
+: 'Eliminar producto';
 }
 
 function getDeliveryFeeOptions(
@@ -617,14 +638,14 @@ size={20}
 />
 
 <Text style={styles.businessBannerText}>
-Los productos de esta solicitud pertenecen a
+Los ítems de esta solicitud pertenecen a
 {` ${cart.commercialProfileName}.`}
 </Text>
 </View>
 
 <View style={styles.section}>
 <Text style={styles.sectionTitle}>
-Productos
+{getCartItemsSectionTitle(summary)}
 </Text>
 
 {cart.lines.map((line) => (
@@ -651,7 +672,7 @@ updateBusinessCartLineComment(line.id, value);
 }}
 onRemove={() => {
 Alert.alert(
-'Eliminar producto',
+getRemoveItemDialogTitle(line),
 `¿Quieres eliminar ${line.title} de la solicitud?`,
 [
 {

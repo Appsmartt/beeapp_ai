@@ -83,6 +83,9 @@ export default function BuddyServicesBookingRequestScreen() {
   const [offer, setOffer] = useState<CommercialPublicOffer | null>(
     null,
   );
+  const [commercialProfileName, setCommercialProfileName] = useState(
+    'Este negocio',
+  );
   const [timezone, setTimezone] = useState('');
   const [requestedModality, setRequestedModality] = useState<
     CommercialModality | null
@@ -143,6 +146,9 @@ export default function BuddyServicesBookingRequestScreen() {
       const nextTimezone = String(
         profileResponse.profile.timezone || '',
       ).trim();
+      const nextCommercialProfileName = String(
+        profileResponse.profile.display_name || '',
+      ).trim();
 
       if (!isValidCommercialTimezone(nextTimezone)) {
         setOffer(null);
@@ -159,6 +165,9 @@ export default function BuddyServicesBookingRequestScreen() {
       }
 
       setOffer(nextOffer);
+      setCommercialProfileName(
+        nextCommercialProfileName || 'Este negocio',
+      );
       setTimezone(nextTimezone);
       setRequestedModality((currentModality) => (
         currentModality
@@ -369,10 +378,7 @@ export default function BuddyServicesBookingRequestScreen() {
     const cartService: AddBusinessCartServiceInput = {
       commercialOfferId: offer.id,
       commercialProfileId: offer.commercial_profile_id,
-      commercialProfileName: (
-        offer.commercial_profile_name
-        || 'Este negocio'
-      ),
+      commercialProfileName,
       title: offer.title,
       quantity: 1,
       pricingStrategy: offer.pricing_strategy,
@@ -456,6 +462,7 @@ export default function BuddyServicesBookingRequestScreen() {
       ],
     );
   }, [
+    commercialProfileName,
     customerNote,
     deliveryAddress,
     deliveryReference,
