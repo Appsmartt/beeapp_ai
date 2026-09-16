@@ -1218,7 +1218,7 @@ export interface UpdateCommercialRequestItemOperationalStatusPayload {
 
 export interface PaymentProofSubmissionPayload {
   file_id: string;
-  payment_method_id: string;
+  payment_method_id?: string | null;
   payment_reference?: string | null;
   note?: string | null;
 }

@@ -47,4 +47,14 @@ sizeBytes: MAX_COMMERCIAL_PAYMENT_PROOF_SIZE_BYTES + 1,
 'Debe rechazar comprobantes mayores a 50 MB.',
 );
 
+expectThrows(
+() => validateCommercialPaymentProof({
+uri: 'file:///tmp/comprobante.jpg',
+name: 'comprobante.jpg',
+mimeType: 'image/jpeg',
+sizeBytes: 1024,
+}),
+'Debe rechazar comprobantes que no sean PDF.',
+);
+
 console.log('commercial payment proof service: OK');

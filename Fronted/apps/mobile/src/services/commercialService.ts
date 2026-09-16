@@ -55,6 +55,7 @@ completeCommercialRequest,
 acceptCommercialRequestProposal,
 rejectCommercialRequestProposal,
 withdrawCommercialRequestProposal,
+submitCommercialPaymentProof,
 replaceCommercialPaymentProof,
 getOwnedCommercialVerification,
 saveOwnedCommercialVerification,
@@ -139,6 +140,8 @@ CompleteCommercialRequestResponse,
 CommercialRequestProposalMutationResponse,
 RejectCommercialRequestProposalPayload,
 WithdrawCommercialRequestProposalPayload,
+PaymentProofSubmissionPayload,
+PaymentProofSubmissionResponse,
 ReplaceCommercialPaymentProofPayload,
 ReplaceCommercialPaymentProofResponse,
 AttachCommercialVerificationDocumentPayload,
@@ -890,6 +893,17 @@ payload: WithdrawCommercialRequestProposalPayload = {},
 return withdrawCommercialRequestProposal(
 await getRequiredCommercialCredentials(),
 proposalId,
+payload,
+);
+}
+
+export async function submitCommercialPaymentProofForRequest(
+requestId: string,
+payload: PaymentProofSubmissionPayload,
+): Promise<PaymentProofSubmissionResponse> {
+return submitCommercialPaymentProof(
+await getRequiredCommercialCredentials(),
+requestId,
 payload,
 );
 }

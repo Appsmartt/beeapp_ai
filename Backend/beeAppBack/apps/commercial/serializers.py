@@ -2796,7 +2796,10 @@ class ReviewCommercialPaymentProofSerializer(serializers.Serializer):
 
 class SubmitCommercialPaymentProofSerializer(serializers.Serializer):
     file_id = serializers.UUIDField()
-    payment_method_id = serializers.UUIDField()
+    payment_method_id = serializers.UUIDField(
+        required=False,
+        allow_null=True,
+    )
     payment_reference = serializers.CharField(
         required=False,
         allow_blank=True,

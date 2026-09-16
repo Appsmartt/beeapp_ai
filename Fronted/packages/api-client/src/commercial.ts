@@ -71,6 +71,8 @@ CompleteCommercialRequestResponse,
 CommercialRequestProposalMutationResponse,
 RejectCommercialRequestProposalPayload,
 WithdrawCommercialRequestProposalPayload,
+PaymentProofSubmissionPayload,
+PaymentProofSubmissionResponse,
 ReplaceCommercialPaymentProofPayload,
 ReplaceCommercialPaymentProofResponse,
 
@@ -1221,6 +1223,18 @@ export function updateCommercialRequestItemOperationalStatus(
   );
 }
 
+
+export function submitCommercialPaymentProof(
+  auth: AuthCredentials,
+  requestId: string,
+  payload: PaymentProofSubmissionPayload,
+): Promise<PaymentProofSubmissionResponse> {
+  return api.post<PaymentProofSubmissionResponse>(
+    `${commercialRequestPath(requestId)}payment-proofs/`,
+    payload,
+    { auth },
+  );
+}
 
 export function reviewCommercialPaymentProof(
   auth: AuthCredentials,

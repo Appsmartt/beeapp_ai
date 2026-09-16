@@ -55,6 +55,35 @@ class CommercialPaymentProofServiceTests(SimpleTestCase):
             },
         )
 
+    @patch(
+        "apps.commercial.services.commercial_payment_proof_service."
+        "execute_commercial_rpc"
+    )
+    def test_allows_submission_without_payment_method(
+        self,
+        execute_rpc,
+    ):
+        execute_rpc.return_value = "proof-123"
+
+        result = submit_commercial_payment_proof(
+            access_token="client-token",
+            commerce_request_id="request-123",
+            file_id="file-123",
+        )
+
+        execute_rpc.assert_called_once_with(
+            access_token="client-token",
+            function_name="commerce_submit_payment_proof",
+            parameters={
+                "p_commerce_request_id": "request-123",
+                "p_file_id": "file-123",
+                "p_payment_method_id": None,
+                "p_payment_reference": None,
+                "p_note": None,
+            },
+        )
+        self.assertEqual(result["payment_proof_id"], "proof-123")
+
     def test_rejects_missing_token(self):
         with self.assertRaises(CommercialAuthenticationError):
             submit_commercial_payment_proof(
@@ -111,11 +140,6 @@ class CommercialPaymentProofViewTests(SimpleTestCase):
             "/api/commercial/requests/request-123/payment-proofs/",
             {
                 "file_id": "11111111-1111-1111-1111-111111111111",
-                "payment_method_id": (
-                    "22222222-2222-2222-2222-222222222222"
-                ),
-                "payment_reference": " REF-001 ",
-                "note": " Pago realizado ",
             },
             format="json",
         )
@@ -135,9 +159,7 @@ class CommercialPaymentProofViewTests(SimpleTestCase):
             access_token="authenticated-token",
             commerce_request_id="request-123",
             file_id=UUID("11111111-1111-1111-1111-111111111111"),
-            payment_method_id=UUID(
-                "22222222-2222-2222-2222-222222222222"
-            ),
-            payment_reference="REF-001",
-            note="Pago realizado",
+            payment_method_id=None,
+            payment_reference=None,
+            note=None,
         )
