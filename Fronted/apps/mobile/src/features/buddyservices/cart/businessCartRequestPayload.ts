@@ -25,10 +25,10 @@ function normalizeOptionalRequestText(
   value: string | null | undefined,
   maxLength = 3000,
 ): string | undefined {
-  const normalized = String(value || '').trim();
+  const rawValue = String(value || '');
 
-  return normalized
-    ? normalized.slice(0, maxLength)
+  return rawValue.trim()
+    ? rawValue.slice(0, maxLength)
     : undefined;
 }
 
