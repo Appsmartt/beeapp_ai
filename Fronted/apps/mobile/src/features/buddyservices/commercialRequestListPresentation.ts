@@ -11,6 +11,10 @@ export type CommercialRequestListStatusTone =
 export function getCommercialRequestListTypeLabel(
 requestType: CommercialRequestListItem['request_type'],
 ): string {
+if (requestType === 'mixed_request') {
+return 'Compra y reserva';
+}
+
 if (requestType === 'service_request') {
 return 'Servicio';
 }

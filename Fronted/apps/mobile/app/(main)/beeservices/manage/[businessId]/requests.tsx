@@ -55,6 +55,64 @@ loadOwnedCommercialRequests,
 
 const REQUEST_LIST_LIMIT = 25;
 
+type CommercialRequestFilterKey =
+| 'all'
+| 'needs_business'
+| 'waiting_customer'
+| 'payment_pending'
+| 'payment_review'
+| 'in_progress'
+| 'completed'
+| 'cancelled';
+
+interface CommercialRequestFilter {
+key: CommercialRequestFilterKey;
+label: string;
+statuses?: Array<CommercialRequestListItem['status']>;
+}
+
+const COMMERCIAL_REQUEST_FILTERS: CommercialRequestFilter[] = [
+{
+key: 'all',
+label: 'Todas',
+},
+{
+key: 'needs_business',
+label: 'Requiere respuesta',
+statuses: ['submitted', 'under_review'],
+},
+{
+key: 'waiting_customer',
+label: 'Esperando cliente',
+statuses: ['proposal_sent', 'accepted'],
+},
+{
+key: 'payment_pending',
+label: 'Pendiente de pago',
+statuses: ['payment_pending'],
+},
+{
+key: 'payment_review',
+label: 'Comprobante por revisar',
+statuses: ['payment_submitted'],
+},
+{
+key: 'in_progress',
+label: 'Confirmadas/en proceso',
+statuses: ['confirmed'],
+},
+{
+key: 'completed',
+label: 'Completadas',
+statuses: ['completed'],
+},
+{
+key: 'cancelled',
+label: 'Canceladas',
+statuses: ['cancelled', 'rejected', 'expired'],
+},
+];
+
 function normalizeBusinessId(
 value: string | string[] | undefined,
 ): string {
@@ -72,7 +130,10 @@ requestType,
 requestType: CommercialRequestListItem['request_type'];
 },
 ) {
-if (requestType === 'booking_request') {
+if (
+requestType === 'booking_request'
+|| requestType === 'mixed_request'
+) {
 return <CalendarDays color="#7427D5" size={19} />;
 }
 
@@ -99,6 +160,13 @@ const [refreshing, setRefreshing] = useState(false);
 const [error, setError] = useState<CommercialUiError | null>(
 null,
 );
+const [activeFilter, setActiveFilter] = useState<
+CommercialRequestFilterKey
+>('all');
+
+const selectedFilter = COMMERCIAL_REQUEST_FILTERS.find(
+(filter) => filter.key === activeFilter,
+) || COMMERCIAL_REQUEST_FILTERS[0];
 
 const loadRequests = useCallback(async () => {
 if (!businessId) {
@@ -120,6 +188,7 @@ businessId,
 {
 limit: REQUEST_LIST_LIMIT,
 offset: 0,
+statuses: selectedFilter.statuses,
 },
 );
 
@@ -129,7 +198,7 @@ setError(toCommercialUiError(loadError));
 } finally {
 setLoading(false);
 }
-}, [businessId]);
+}, [businessId, selectedFilter.statuses]);
 
 useEffect(() => {
 void loadRequests();
@@ -257,14 +326,48 @@ Compras, servicios y reservas recibidas por tu negocio.
 </View>
 </View>
 
+<ScrollView
+contentContainerStyle={styles.filterContent}
+horizontal
+showsHorizontalScrollIndicator={false}
+style={styles.filterScroll}
+>
+{COMMERCIAL_REQUEST_FILTERS.map((filter) => {
+const isActive = filter.key === activeFilter;
+
+return (
+<TouchableOpacity
+key={filter.key}
+accessibilityLabel={`Filtrar solicitudes: ${filter.label}`}
+accessibilityRole="button"
+activeOpacity={0.82}
+onPress={() => {
+setActiveFilter(filter.key);
+}}
+style={[
+styles.filterButton,
+isActive ? styles.filterButtonActive : null,
+]}
+>
+<Text style={[
+styles.filterButtonText,
+isActive ? styles.filterButtonTextActive : null,
+]}>
+{filter.label}
+</Text>
+</TouchableOpacity>
+);
+})}
+</ScrollView>
+
 {requests.length === 0 ? (
 <View style={styles.emptyState}>
 <ClipboardList color="#7427D5" size={36} />
 <Text style={styles.emptyTitle}>
-Aún no tienes solicitudes
+No hay solicitudes en este filtro
 </Text>
 <Text style={styles.emptyText}>
-Las solicitudes recibidas aparecerán aquí para que puedas revisarlas.
+Las solicitudes que coincidan con este estado aparecerán aquí.
 </Text>
 </View>
 ) : (
@@ -378,7 +481,34 @@ header: {
 alignItems: 'center',
 flexDirection: 'row',
 gap: 12,
-marginBottom: 22,
+marginBottom: 16,
+},
+filterScroll: {
+marginBottom: 18,
+},
+filterContent: {
+gap: 8,
+paddingRight: 20,
+},
+filterButton: {
+backgroundColor: '#FFFFFF',
+borderColor: '#DED5E7',
+borderRadius: 999,
+borderWidth: 1,
+paddingHorizontal: 13,
+paddingVertical: 9,
+},
+filterButtonActive: {
+backgroundColor: '#7427D5',
+borderColor: '#7427D5',
+},
+filterButtonText: {
+color: '#5D4D6C',
+fontSize: 12,
+fontWeight: '700',
+},
+filterButtonTextActive: {
+color: '#FFFFFF',
 },
 backButton: {
 alignItems: 'center',

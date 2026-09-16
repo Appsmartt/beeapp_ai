@@ -845,6 +845,22 @@ offer_snapshot: Record<string, unknown>;
 original_terms: Record<string, unknown>;
 created_at: string;
 updated_at: string | null;
+  customer_note?: string | null;
+  lifecycle_status?: CommercialRequestItemLifecycleStatus | string;
+  lifecycle_updated_at?: string | null;
+  final_unit_price_amount?: number | null;
+  final_quantity?: number | null;
+  final_line_total_amount?: number | null;
+  final_modality?: CommercialModality | null;
+  final_starts_at?: string | null;
+  final_ends_at?: string | null;
+  final_timezone?: string | null;
+  final_terms?: Record<string, unknown>;
+  closed_at?: string | null;
+  closed_by_profile_id?: string | null;
+  close_reason?: string | null;
+  track_inventory?: boolean;
+  stock_quantity?: number | null;
 }
 
 export interface CommercialRequestDetail {
@@ -910,6 +926,10 @@ export interface CommercialRequestProposal {
   responded_at: string | null;
   responded_by_profile_id: string | null;
   created_at: string;
+  commerce_request_item_id?: string | null;
+  proposed_quantity?: number | null;
+  proposed_unit_price_amount?: number | null;
+  proposed_line_total_amount?: number | null;
 }
 
 export interface CommercialRequestTimelineEvent {
@@ -1019,6 +1039,13 @@ export interface CommercialReservation {
   no_show_reason: string | null;
   created_at: string;
   updated_at: string;
+  commerce_request_item_id?: string | null;
+  cancelled_at?: string | null;
+  cancelled_by_profile_id?: string | null;
+  cancellation_reason?: string | null;
+  rejected_at?: string | null;
+  rejected_by_profile_id?: string | null;
+  rejection_reason?: string | null;
 }
 
 export interface CommercialDispute {
@@ -1051,6 +1078,18 @@ export interface CommercialRequestDetailContext {
   timeline: CommercialRequestTimeline;
   payment_proofs: CommercialPaymentProof[];
   reservation: CommercialReservation | null;
+  reservations?: CommercialReservation[];
+  payment_options?: {
+    commerce_request_id: string;
+    request_status: CommercialRequestStatus | string;
+    payment_eligible: boolean;
+    cash_on_delivery_available: boolean;
+    attempts_used: number;
+    attempts_remaining: number;
+    active_submitted_proof_id: string | null;
+    can_submit_payment_proof: boolean;
+    manual_payment_methods: CommercialPaymentMethodPublic[];
+  } | null;
   dispute: CommercialDispute | null;
 }
 
@@ -1112,6 +1151,71 @@ export interface CreateCommercialRequestProposalResponse {
   };
 }
 
+
+export type CommercialRequestItemLifecycleStatus =
+  | 'pending_business'
+  | 'pending_customer'
+  | 'accepted'
+  | 'rejected'
+  | 'withdrawn'
+  | 'payment_pending'
+  | 'payment_submitted'
+  | 'confirmed'
+  | 'preparing'
+  | 'ready_for_pickup'
+  | 'shipped'
+  | 'delivered'
+  | 'in_progress'
+  | 'completed'
+  | 'no_show'
+  | 'cancelled'
+  | 'expired';
+
+export interface CreateCommercialRequestItemProposalPayload {
+  proposed_quantity?: number | null;
+  proposed_unit_price_amount?: number | null;
+  requested_modality?: CommercialModality | null;
+  proposed_starts_at?: string | null;
+  proposed_ends_at?: string | null;
+  timezone?: string | null;
+  note?: string | null;
+}
+
+export interface CommercialRequestItemMutationResponse {
+  commerce_request_id: string;
+  commerce_request_item_id: string;
+  item_status: CommercialRequestItemLifecycleStatus | string;
+  request: Record<string, unknown>;
+  proposal_id?: string | null;
+  proposal_status?: string | null;
+  reservation_id?: string | null;
+  reservation_hold_expires_at?: string | null;
+  previous_item_status?: CommercialRequestItemLifecycleStatus | string;
+}
+
+export interface CloseCommercialRequestItemPayload {
+  action: 'reject' | 'withdraw';
+  reason_code?: string | null;
+  reason_text?: string | null;
+}
+
+export interface WithdrawCommercialRequestItemProposalPayload {
+  reason_text?: string | null;
+}
+
+export interface UpdateCommercialRequestItemOperationalStatusPayload {
+  next_status:
+    | 'preparing'
+    | 'ready_for_pickup'
+    | 'shipped'
+    | 'delivered'
+    | 'in_progress'
+    | 'completed'
+    | 'no_show'
+    | 'cancelled';
+  reason_text?: string | null;
+}
+
 export interface PaymentProofSubmissionPayload {
   file_id: string;
   payment_method_id: string;
@@ -1133,6 +1237,28 @@ export interface ReviewCommercialPaymentProofPayload {
 export interface ReviewCommercialPaymentProofResponse {
   payment_proof_id: string;
   status: 'confirmed' | 'rejected';
+  request_id?: string | null;
+  request_status?: CommercialRequestStatus | string | null;
+  attempts_used?: number | null;
+  attempts_remaining?: number | null;
+  released_inventory_hold_count?: number | null;
+  cancelled_reservation_count?: number | null;
+  confirmed_item_count?: number | null;
+  confirmed_reservation_count?: number | null;
+}
+
+export interface CommercialPaymentProofAccessResponse {
+  payment_proof_id: string;
+  file: {
+    id: string;
+    display_name: string;
+    original_name: string;
+    mime_type: string;
+    size_bytes: number;
+  };
+  url: string;
+  expires_in_seconds: number;
+  download: boolean;
 }
 
 export interface GetOwnedCommercialRequestsResponse

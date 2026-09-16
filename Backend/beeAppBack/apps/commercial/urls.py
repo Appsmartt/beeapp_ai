@@ -13,12 +13,22 @@ from apps.commercial.request_operations_views import (
     CommercialRequestTimelineView,
     OwnedCommercialRequestsView,
 )
+from apps.commercial.request_item_views import (
+    CommercialRequestItemCloseView,
+    CommercialRequestItemOperationalStatusView,
+    CommercialRequestItemProposalAcceptView,
+    CommercialRequestItemProposalCreateView,
+    CommercialRequestItemProposalWithdrawView,
+)
 from apps.commercial.reservation_views import CommercialReservationHoldView
 from apps.commercial.payment_flow_views import (
     CommercialRequestPaymentMethodsView,
     CommercialRequestPaymentView,
 )
 from apps.commercial.payment_proof_views import CommercialPaymentProofsView
+from apps.commercial.payment_proof_access_views import (
+    CommercialPaymentProofAccessView,
+)
 from apps.commercial.payment_proof_review_views import (
     CommercialPaymentProofReviewView,
 )
@@ -129,6 +139,31 @@ urlpatterns = [
         name="commercial-request-proposal-withdraw",
     ),
     path(
+        "request-items/<uuid:item_id>/proposals/",
+        CommercialRequestItemProposalCreateView.as_view(),
+        name="commercial-request-item-proposal-create",
+    ),
+    path(
+        "item-proposals/<uuid:proposal_id>/accept/",
+        CommercialRequestItemProposalAcceptView.as_view(),
+        name="commercial-request-item-proposal-accept",
+    ),
+    path(
+        "item-proposals/<uuid:proposal_id>/withdraw/",
+        CommercialRequestItemProposalWithdrawView.as_view(),
+        name="commercial-request-item-proposal-withdraw",
+    ),
+    path(
+        "request-items/<uuid:item_id>/close/",
+        CommercialRequestItemCloseView.as_view(),
+        name="commercial-request-item-close",
+    ),
+    path(
+        "request-items/<uuid:item_id>/operational-status/",
+        CommercialRequestItemOperationalStatusView.as_view(),
+        name="commercial-request-item-operational-status",
+    ),
+    path(
         "payment-proofs/<uuid:payment_proof_id>/replace/",
         CommercialPaymentProofReplaceView.as_view(),
         name="commercial-payment-proof-replace",
@@ -152,6 +187,11 @@ urlpatterns = [
         "requests/<uuid:request_id>/payment-proofs/",
         CommercialPaymentProofsView.as_view(),
         name="commercial-payment-proofs",
+    ),
+    path(
+        "payment-proofs/<uuid:payment_proof_id>/access/",
+        CommercialPaymentProofAccessView.as_view(),
+        name="commercial-payment-proof-access",
     ),
     path(
         "payment-proofs/<uuid:payment_proof_id>/review/",
