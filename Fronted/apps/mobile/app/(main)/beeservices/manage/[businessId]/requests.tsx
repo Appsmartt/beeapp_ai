@@ -326,6 +326,7 @@ Compras, servicios y reservas recibidas por tu negocio.
 </View>
 </View>
 
+<View style={styles.filterSection}>
 <ScrollView
 contentContainerStyle={styles.filterContent}
 horizontal
@@ -359,6 +360,7 @@ isActive ? styles.filterButtonTextActive : null,
 );
 })}
 </ScrollView>
+</View>
 
 {requests.length === 0 ? (
 <View style={styles.emptyState}>
@@ -483,8 +485,10 @@ flexDirection: 'row',
 gap: 12,
 marginBottom: 16,
 },
+filterSection: {
+marginBottom: 8,
+},
 filterScroll: {
-marginBottom: 4,
 },
 filterContent: {
 gap: 10,
@@ -648,7 +652,6 @@ backgroundColor: '#F5EDFC',
 borderColor: '#E5D9F1',
 borderRadius: 18,
 borderWidth: 1,
-marginTop: 18,
 paddingHorizontal: 24,
 paddingVertical: 34,
 },
