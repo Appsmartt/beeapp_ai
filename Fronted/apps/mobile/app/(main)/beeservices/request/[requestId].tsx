@@ -875,6 +875,34 @@ void runRequestAction(
 }, [runRequestAction]);
 
 const displayedTimeline = formalContext?.timeline || timeline;
+const paymentProofs = formalContext?.payment_proofs || [];
+const paymentAttempts = formalContext?.payment_attempts || {
+attempts_used: paymentProofs.length,
+attempts_remaining: Math.max(3 - paymentProofs.length, 0),
+max_attempts: 3,
+active_submitted_proof_id: (
+paymentProofs.find((proof) => proof.status === 'submitted')?.id
+|| null
+),
+can_submit_payment_proof: false,
+can_replace_payment_proof: false,
+is_exhausted: paymentProofs.length >= 3,
+cancelled_after_max_attempts: (
+requestDetail?.status === 'cancelled'
+&& paymentProofs.length >= 3
+),
+};
+const getPaymentProofAttemptNumber = (
+proof: CommercialRequestDetailContext['payment_proofs'][number],
+): number => {
+const index = paymentProofs.findIndex(
+(candidate) => candidate.id === proof.id,
+);
+
+return proof.attempt_number || (
+index >= 0 ? index + 1 : 1
+);
+};
 const paymentMethods = requestPaymentMethods
 ?? formalContext?.payment_options?.manual_payment_methods
 ?? [];
@@ -1413,8 +1441,50 @@ Aún no hay movimientos registrados.
 </Text>
 ) : null}
 
+{paymentProofs.length > 0 ? (
+<View style={styles.paymentProofNotice}>
+<Text style={styles.paymentProofNoticeTitle}>
+Intentos de comprobante: {paymentAttempts.attempts_used}/{
+paymentAttempts.max_attempts
+}
+</Text>
+<Text style={styles.paymentProofNoticeText}>
+{paymentAttempts.attempts_remaining > 0
+? `Te quedan ${paymentAttempts.attempts_remaining} intento${
+paymentAttempts.attempts_remaining === 1 ? '' : 's'
+} disponible${paymentAttempts.attempts_remaining === 1 ? '' : 's'}.`
+: 'No quedan intentos disponibles para enviar comprobantes.'}
+</Text>
+{paymentProofs.map((proof) => {
+const attemptNumber = getPaymentProofAttemptNumber(proof);
+const maxAttempts = proof.max_attempts || paymentAttempts.max_attempts;
+
+return (
+<Text key={proof.id} style={styles.paymentProofNoticeText}>
+Comprobante {attemptNumber}/{maxAttempts}: {proof.status}
+{proof.rejection_reason
+? ` · Motivo: ${proof.rejection_reason}`
+: ''}
+</Text>
+);
+})}
+</View>
+) : null}
+
+{paymentAttempts.cancelled_after_max_attempts ? (
+<View style={styles.paymentProofNotice}>
+<Text style={styles.paymentProofNoticeTitle}>
+Solicitud cancelada
+</Text>
+<Text style={styles.paymentProofNoticeText}>
+El comercio rechazó el comprobante del tercer intento. La solicitud fue cancelada y no es posible enviar otro comprobante.
+</Text>
+</View>
+) : null}
+
 {requestDetail.status === 'payment_pending'
-&& formalContext?.permissions.can_submit_payment_proof ? (
+&& formalContext?.permissions.can_submit_payment_proof
+&& paymentProofs.length === 0 ? (
 <View
 accessibilityLiveRegion="polite"
 accessibilityRole="alert"
@@ -1427,6 +1497,11 @@ Métodos de pago disponibles
 <Text style={styles.paymentMethodsDescription}>
 Puedes pagar por cualquiera de las siguientes opciones. Luego
 adjunta el comprobante de pago en formato PDF.
+{paymentAttempts.attempts_used > 0
+? ` Este será el intento ${
+paymentAttempts.attempts_used + 1
+}/${paymentAttempts.max_attempts}.`
+: ` Este será el intento 1/${paymentAttempts.max_attempts}.`}
 </Text>
 
 {paymentMethods.length ? (
@@ -1590,6 +1665,9 @@ Comprobante rechazado
 </Text>
 <Text style={styles.paymentProofNoticeText}>
 Adjunta un comprobante corregido en formato PDF para enviarlo nuevamente.
+El próximo envío será el intento {paymentAttempts.attempts_used + 1}/{
+paymentAttempts.max_attempts
+}.
 </Text>
 <TouchableOpacity
 accessibilityLabel="Subir comprobante corregido en PDF"

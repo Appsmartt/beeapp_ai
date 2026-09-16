@@ -982,6 +982,10 @@ export interface CommercialPaymentProof {
   payment_reference: string | null;
   note: string | null;
   status: 'submitted' | 'confirmed' | 'rejected' | 'replaced';
+  attempt_number: number;
+  max_attempts: number;
+  attempts_remaining_after_submission: number;
+  is_final_attempt: boolean;
   rejected_at: string | null;
   rejected_by_profile_id: string | null;
   rejection_reason: string | null;
@@ -1077,6 +1081,16 @@ export interface CommercialRequestDetailContext {
   permissions: CommercialRequestPermissions;
   timeline: CommercialRequestTimeline;
   payment_proofs: CommercialPaymentProof[];
+  payment_attempts: {
+    attempts_used: number;
+    attempts_remaining: number;
+    max_attempts: number;
+    active_submitted_proof_id: string | null;
+    can_submit_payment_proof: boolean;
+    can_replace_payment_proof: boolean;
+    is_exhausted: boolean;
+    cancelled_after_max_attempts: boolean;
+  };
   reservation: CommercialReservation | null;
   reservations?: CommercialReservation[];
   payment_options?: {
@@ -1086,6 +1100,7 @@ export interface CommercialRequestDetailContext {
     cash_on_delivery_available: boolean;
     attempts_used: number;
     attempts_remaining: number;
+    max_attempts?: number;
     active_submitted_proof_id: string | null;
     can_submit_payment_proof: boolean;
     manual_payment_methods: CommercialPaymentMethodPublic[];
