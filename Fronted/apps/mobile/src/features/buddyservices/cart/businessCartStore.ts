@@ -126,8 +126,11 @@ function normalizeOptionalText(
   value: string | null | undefined,
   maxLength: number,
 ): string | null {
-  const normalized = String(value || '').trim();
-  return normalized ? normalized.slice(0, maxLength) : null;
+  const rawValue = String(value || '');
+
+  return rawValue.trim()
+    ? rawValue.slice(0, maxLength)
+    : null;
 }
 
 function normalizeQuantity(value: number | undefined): number {
