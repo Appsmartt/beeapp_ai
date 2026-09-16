@@ -1,5 +1,9 @@
 from __future__ import annotations
 
+import logging
+
+from django.http import QueryDict
+
 from rest_framework import status
 from rest_framework.response import Response
 
@@ -74,6 +78,9 @@ from apps.storage.services.storage_tag_service import (
     replace_file_tags,
     update_tag,
 )
+
+
+logger = logging.getLogger(__name__)
 
 
 class StorageSummaryView(AuthenticatedAPIView):
@@ -377,25 +384,43 @@ class StorageFolderDetailView(AuthenticatedAPIView):
 
 class StorageUploadView(AuthenticatedAPIView):
     def post(self, request):
-        request_data = request.data.copy()
-
-        uploaded_files = request.FILES.getlist("files")
-        single_file = request.FILES.get("file")
-
-        if uploaded_files:
-            request_data.setlist("files", uploaded_files)
-
-        elif single_file:
-            request_data["file"] = single_file
-
-        serializer = UploadStorageFilesSerializer(
-            data=request_data,
-        )
-        serializer.is_valid(raise_exception=True)
-
         try:
-            authenticated_user = self.get_authenticated_user(request)
+            logger.warning(
+                "Storage upload request received: method=%s content_type=%s "
+                "content_length=%s files_keys=%s data_keys=%s",
+                request.method,
+                request.META.get("CONTENT_TYPE", ""),
+                request.META.get("CONTENT_LENGTH", ""),
+                list(request.FILES.keys()),
+                list(request.data.keys()),
+            )
 
+            uploaded_files = request.FILES.getlist("files")
+            single_file = request.FILES.get("file")
+
+            request_data = QueryDict("", mutable=True)
+
+            for key, values in request.data.lists():
+                if key not in {"files", "file"}:
+                    request_data.setlist(key, values)
+
+            logger.warning(
+                "Storage upload request parsed: files_count=%s has_single_file=%s",
+                len(uploaded_files),
+                bool(single_file),
+            )
+
+            if uploaded_files:
+                request_data.setlist("files", uploaded_files)
+            elif single_file:
+                request_data.setlist("file", [single_file])
+
+            serializer = UploadStorageFilesSerializer(
+                data=request_data,
+            )
+            serializer.is_valid(raise_exception=True)
+
+            authenticated_user = self.get_authenticated_user(request)
             folder_id = serializer.validated_data.get("folder_id")
 
             result = upload_multiple_files(
@@ -430,12 +455,26 @@ class StorageUploadView(AuthenticatedAPIView):
         except StorageUploadError as error:
             logger.exception(
                 "Storage upload failed: user_id=%s detail=%s",
-                request.user.id,
+                getattr(request.user, "id", None),
                 str(error),
             )
             return Response(
                 {
                     "detail": str(error),
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        except Exception as error:
+            logger.exception(
+                "Storage upload request failed before completion: "
+                "error_type=%s error=%s",
+                type(error).__name__,
+                str(error),
+            )
+            return Response(
+                {
+                    "detail": "Could not process the selected file.",
                 },
                 status=status.HTTP_400_BAD_REQUEST,
             )
