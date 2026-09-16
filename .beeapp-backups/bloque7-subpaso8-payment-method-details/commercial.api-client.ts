@@ -56,7 +56,6 @@ CreateCommercialRequestPayload,
 CreateCommercialRequestResponse,
 GetCommercialRequestResponse,
 GetCommercialRequestFormalDetailResponse,
-GetCommercialRequestPaymentMethodsResponse,
 CommercialRequestTransitionPayload,
 CommercialRequestTransitionResponse,
 CreateCommercialRequestProposalPayload,
@@ -1039,16 +1038,6 @@ return api.get<GetCommercialRequestFormalDetailResponse>(
 `${commercialRequestPath(requestId)}formal-detail/`,
 { auth },
 );
-}
-
-export function getCommercialRequestPaymentMethods(
-  auth: AuthCredentials,
-  requestId: string,
-): Promise<GetCommercialRequestPaymentMethodsResponse> {
-  return api.get<GetCommercialRequestPaymentMethodsResponse>(
-    `${commercialRequestPath(requestId)}payment-methods/`,
-    { auth },
-  );
 }
 
 export function transitionCommercialRequest(
