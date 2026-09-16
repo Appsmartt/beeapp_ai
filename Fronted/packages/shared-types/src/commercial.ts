@@ -698,7 +698,8 @@ export interface CommercialPaymentMethodMutationResponse {
 export type CommercialRequestType =
   | 'product_order'
   | 'service_request'
-  | 'booking_request';
+  | 'booking_request'
+  | 'mixed_request';
 
 export type CommercialRequestStatus =
   | 'draft'
@@ -724,7 +725,11 @@ export type CommercialDeliveryFeeMode =
 export interface CreateCommercialRequestItemPayload {
   commercial_offer_id: string;
   quantity?: number;
-line_comment?: string;
+  line_comment?: string;
+  requested_modality?: CommercialModality | null;
+  requested_starts_at?: string | null;
+  requested_ends_at?: string | null;
+  timezone?: string | null;
 }
 
 export interface CreateCommercialRequestPayload {

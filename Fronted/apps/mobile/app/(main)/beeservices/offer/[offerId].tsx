@@ -312,25 +312,21 @@ export default function BuddyServicesPublicOfferScreen() {
         'Carrito de otro negocio',
         (
           `Tu carrito actual pertenece a ${currentCommercialProfileName}. `
-          + `Para solicitar a ${incomingCommercialProfileName} `
-          + 'debes iniciar una nueva solicitud.'
+          + `Si continúas, se eliminarán sus ítems y se iniciará un `
+          + `carrito para ${incomingCommercialProfileName}.`
         ),
         [
           {
-            text: 'Mantener',
-            style: 'default',
+            text: 'Mantener carrito',
+            style: 'cancel',
           },
           {
-            text: 'Vaciar e iniciar otro',
+            text: 'Reemplazar carrito',
             style: 'destructive',
             onPress: () => {
               replaceBusinessCartWithProduct(cartProduct);
               router.push(buddyServicesCartRoute());
             },
-          },
-          {
-            text: 'Cancelar',
-            style: 'cancel',
           },
         ],
       );

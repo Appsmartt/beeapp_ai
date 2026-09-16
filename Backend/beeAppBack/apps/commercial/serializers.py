@@ -2330,6 +2330,54 @@ class ListCommercialRequestsQuerySerializer(serializers.Serializer):
 class CreateCommercialRequestItemSerializer(serializers.Serializer):
     commercial_offer_id = serializers.UUIDField()
     quantity = serializers.IntegerField(required=False, min_value=1, default=1)
+    line_comment = serializers.CharField(
+        required=False,
+        allow_blank=True,
+        max_length=1000,
+    )
+    requested_modality = serializers.ChoiceField(
+        choices=(
+            "at_establishment",
+            "in_person",
+            "virtual",
+            "home_visit",
+            "delivery",
+            "pickup",
+            "phone_call",
+            "buddy_chat",
+        ),
+        required=False,
+        allow_null=True,
+    )
+    requested_starts_at = serializers.DateTimeField(
+        required=False,
+        allow_null=True,
+    )
+    requested_ends_at = serializers.DateTimeField(
+        required=False,
+        allow_null=True,
+    )
+    timezone = serializers.CharField(
+        required=False,
+        allow_blank=True,
+        allow_null=True,
+        max_length=100,
+    )
+
+    def validate(self, attrs):
+        starts_at = attrs.get("requested_starts_at")
+        ends_at = attrs.get("requested_ends_at")
+
+        if starts_at and ends_at and ends_at <= starts_at:
+            raise serializers.ValidationError(
+                {
+                    "requested_ends_at": (
+                        "requested_ends_at must be after requested_starts_at."
+                    )
+                }
+            )
+
+        return attrs
 
 class CreateCommercialRequestSerializer(serializers.Serializer):
     request_type = serializers.ChoiceField(
@@ -2337,6 +2385,7 @@ class CreateCommercialRequestSerializer(serializers.Serializer):
             "product_order",
             "service_request",
             "booking_request",
+            "mixed_request",
         )
     )
     commercial_profile_id = serializers.UUIDField()

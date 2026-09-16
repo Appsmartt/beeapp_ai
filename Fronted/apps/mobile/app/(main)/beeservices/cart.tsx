@@ -15,11 +15,13 @@ View,
 } from 'react-native';
 import {
 ArrowLeft,
+CalendarClock,
 Minus,
 Package,
 Plus,
 ShoppingBag,
 Trash2,
+Wrench,
 } from 'lucide-react-native';
 import {
 ApiRequestError,
@@ -40,7 +42,7 @@ import {
 toCommercialUiError,
 } from '../../../src/features/buddyservices/commercialErrors';
 import {
-createProductOrderFromBusinessCart,
+createBusinessCartRequest,
 revalidateBusinessCartAfterRemoteConflict,
 } from '../../../src/services/commercialService';
 import {
@@ -51,6 +53,7 @@ buddyServicesRequestDetailRoute,
 } from '../../../src/features/buddyservices/commercialRoutes';
 import {
 getBusinessCartDeliveryLabel,
+getBusinessCartPresentationLabel,
 getBusinessCartSummary,
 getBusinessCartTotalStateLabel,
 } from '../../../src/features/buddyservices/cart/businessCartSummary';
@@ -99,6 +102,28 @@ buddy_chat: 'Chat Buddy',
 };
 
 return labels[modality];
+}
+
+function formatRequestedServiceDate(
+startsAt: string | null,
+timezone: string | null,
+): string | null {
+if (!startsAt) {
+return null;
+}
+
+try {
+return new Intl.DateTimeFormat(
+'es-CO',
+{
+dateStyle: 'medium',
+timeStyle: 'short',
+...(timezone ? { timeZone: timezone } : {}),
+},
+).format(new Date(startsAt));
+} catch {
+return startsAt;
+}
 }
 
 function getCartModalities(
@@ -167,10 +192,17 @@ return (
 <View style={styles.lineCard}>
 <View style={styles.lineTopRow}>
 <View style={styles.lineIcon}>
+{line.offerKind === 'service' ? (
+<Wrench
+color="#7427D5"
+size={20}
+/>
+) : (
 <Package
 color="#7427D5"
 size={20}
 />
+)}
 </View>
 
 <View style={styles.lineContent}>
@@ -184,6 +216,27 @@ style={styles.lineTitle}
 <Text style={styles.linePrice}>
 {linePriceLabel}
 </Text>
+
+<Text style={styles.lineTypeLabel}>
+{line.offerKind === 'service'
+? line.requiresBooking
+? 'Servicio con reserva'
+: 'Servicio'
+: 'Producto'}
+</Text>
+
+{line.offerKind === 'service'
+&& formatRequestedServiceDate(
+line.requestedStartsAt,
+line.timezone,
+) ? (
+<Text style={styles.lineServiceDate}>
+Fecha y hora solicitadas: {formatRequestedServiceDate(
+line.requestedStartsAt,
+line.timezone,
+)}
+</Text>
+) : null}
 </View>
 
 <TouchableOpacity
@@ -255,7 +308,7 @@ size={16}
 accessibilityLabel={`Comentario para ${line.title}`}
 multiline
 onChangeText={onCommentChange}
-placeholder="Comentario para este producto (opcional)"
+placeholder={`Comentario para este ${line.offerKind === 'service' ? 'servicio' : 'producto'} (opcional)`}
 placeholderTextColor="#9C8BAF"
 style={styles.lineCommentInput}
 value={line.lineComment || ''}
@@ -340,7 +393,7 @@ return;
 
 Alert.alert(
 'Vaciar carrito',
-'Se eliminarán los productos de esta solicitud.',
+'Se eliminarán todos los productos y servicios de esta solicitud.',
 [
 {
 text: 'Cancelar',
@@ -366,7 +419,7 @@ return;
 if (!cart.requestedModality) {
 Alert.alert(
 'Selecciona una modalidad',
-'Elige cómo deseas recibir o atender esta solicitud.',
+'Elige cómo deseas recibir o atender los ítems de esta solicitud.',
 );
 return;
 }
@@ -385,7 +438,7 @@ return;
 setSubmitting(true);
 
 try {
-const response = await createProductOrderFromBusinessCart(
+const response = await createBusinessCartRequest(
 cart,
 getOrCreateBusinessCartSubmissionIdempotencyKey(
 createCommercialRequestIdempotencyKey,
@@ -415,7 +468,7 @@ cart,
 const notice = (
 `${result.updatedLineCount} línea(s) actualizada(s) y `
 + `${result.removedLineCount} línea(s) eliminada(s) por cambios remotos. `
-+ 'Revisa productos, modalidad y resumen antes de continuar.'
++ 'Revisa los ítems, la modalidad y el resumen antes de continuar.'
 );
 
 setCartUpdateNotice(notice);
@@ -473,7 +526,7 @@ Tu carrito está vacío
 </Text>
 
 <Text style={styles.emptyText}>
-Agrega productos de un negocio para crear una
+Agrega productos o servicios de un negocio para crear una
 solicitud formal.
 </Text>
 
@@ -728,15 +781,21 @@ value={cart.customerNote || ''}
 
 <View style={styles.summaryCard}>
 <Text style={styles.summaryTitle}>
-Resumen
+{getBusinessCartPresentationLabel(summary.presentationKind)}
 </Text>
 
 <SummaryRow
-label={`${summary.itemCount} producto${(
-summary.itemCount === 1
+label={`${summary.productItemCount} producto${(
+summary.productItemCount === 1
 ? ''
 : 's'
-)}`}
+)}${summary.serviceItemCount
+? ` · ${summary.serviceItemCount} servicio${(
+summary.serviceItemCount === 1
+? ''
+: 's'
+)}`
+: ''}`}
 value={formatCop(summary.subtotalAmount)}
 />
 
@@ -961,6 +1020,18 @@ color: '#6A2AAE',
 fontSize: 13,
 fontWeight: '800',
 marginTop: 5,
+},
+lineTypeLabel: {
+color: '#7A5D9B',
+fontSize: 12,
+fontWeight: '700',
+marginTop: 4,
+},
+lineServiceDate: {
+color: '#7A5D9B',
+fontSize: 12,
+lineHeight: 17,
+marginTop: 4,
 },
 removeButton: {
 alignItems: 'center',

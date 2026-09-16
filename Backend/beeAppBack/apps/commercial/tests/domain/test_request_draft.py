@@ -188,3 +188,65 @@ class RequestDraftTests(SimpleTestCase):
             )
 
         self.assertEqual(context.exception.code, "delivery_not_offered")
+
+
+    def test_mixed_request_accepts_products_and_services_from_one_business(self):
+        draft = build_request_draft(
+            {
+                "request_type": "mixed_request",
+                "commercial_profile_id": "business-1",
+                "requested_modality": "at_establishment",
+                "delivery_fee_mode": "not_offered",
+                "items": [
+                    product_item(
+                        business_id="business-1",
+                        offer_id="offer-product-1",
+                        price=12000,
+                        quantity=2,
+                    ),
+                    service_item(
+                        requires_booking=False,
+                        duration_minutes=30,
+                    ),
+                    {
+                        **service_item(
+                            requires_booking=True,
+                            duration_minutes=60,
+                        ),
+                        "commercial_offer_id": "offer-service-booking-1",
+                    },
+                ],
+            }
+        )
+
+        self.assertEqual(draft.request_type, "mixed_request")
+        self.assertEqual(len(draft.items), 3)
+        self.assertEqual(
+            {item.offer_kind for item in draft.items},
+            {"product", "service"},
+        )
+        self.assertTrue(draft.items[2].requires_booking)
+
+    def test_mixed_request_rejects_items_from_another_business(self):
+        with self.assertRaises(CommercialValidationError) as context:
+            build_request_draft(
+                {
+                    "request_type": "mixed_request",
+                    "commercial_profile_id": "business-1",
+                    "delivery_fee_mode": "not_offered",
+                    "items": [
+                        product_item(
+                            business_id="business-1",
+                            offer_id="offer-product-1",
+                        ),
+                        service_item(),
+                        {
+                            **service_item(),
+                            "commercial_offer_id": "offer-service-2",
+                            "commercial_profile_id": "business-2",
+                        },
+                    ],
+                }
+            )
+
+        self.assertEqual(context.exception.code, "mixed_business_cart")
