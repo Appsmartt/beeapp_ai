@@ -16,6 +16,8 @@ View,
 import {
 ArrowLeft,
 CheckCircle2,
+ChevronDown,
+ChevronUp,
 CircleDashed,
 Clock3,
 FileText,
@@ -113,6 +115,17 @@ buddy_chat: 'Chat Buddy',
 };
 
 return value ? labels[value] || value : 'Por confirmar';
+}
+
+function paymentMethodTypeLabel(value: string): string {
+const labels: Record<string, string> = {
+nequi: 'Nequi',
+daviplata: 'Daviplata',
+breb: 'Bre-B',
+bank_account: 'Cuenta bancaria',
+};
+
+return labels[value] || 'Método de pago';
 }
 
 function statusLabel(value: string): string {
@@ -493,6 +506,9 @@ CommercialUiError | null
 const [pendingAction, setPendingAction] = useState<
 string | null
 >(null);
+const [expandedPaymentMethodId, setExpandedPaymentMethodId] = useState<
+string | null
+>(null);
 const [loading, setLoading] = useState(true);
 const [refreshing, setRefreshing] = useState(false);
 const [error, setError] = useState<CommercialUiError | null>(
@@ -599,27 +615,18 @@ void runRequestAction(
 );
 }, [runRequestAction]);
 
+const togglePaymentMethodDetails = useCallback((paymentMethodId: string) => {
+setExpandedPaymentMethodId((currentId) => (
+currentId === paymentMethodId ? null : paymentMethodId
+));
+}, []);
+
 const handleSubmitPaymentProof = useCallback(async () => {
 if (
 pendingAction !== null
 || !requestId
 || !formalContext?.permissions.can_submit_payment_proof
 ) {
-return;
-}
-
-const paymentOptions = formalContext.payment_options;
-const paymentMethods = paymentOptions?.manual_payment_methods || [];
-
-if (!paymentOptions?.payment_eligible || paymentMethods.length === 0) {
-setActionError({
-title: 'Pago no disponible',
-message: (
-'El comercio no tiene métodos de pago manuales disponibles '
-+ 'para recibir el comprobante.'
-),
-retryable: true,
-});
 return;
 }
 
@@ -1371,12 +1378,36 @@ adjunta el comprobante de pago en formato PDF.
 
 {paymentMethods.length ? (
 <View style={styles.paymentMethodsList}>
-{paymentMethods.map((method) => (
+{paymentMethods.map((method) => {
+const isPaymentMethodExpanded = expandedPaymentMethodId === method.id;
+
+return (
 <View key={method.id} style={styles.paymentMethodCard}>
+<TouchableOpacity
+accessibilityLabel={`${paymentMethodTypeLabel(method.payment_method_type)}: ${method.display_name}`}
+accessibilityRole="button"
+accessibilityState={{ expanded: isPaymentMethodExpanded }}
+activeOpacity={0.8}
+onPress={() => togglePaymentMethodDetails(method.id)}
+style={styles.paymentMethodHeader}
+>
+<View style={styles.paymentMethodHeaderText}>
+<Text style={styles.paymentMethodType}>
+{paymentMethodTypeLabel(method.payment_method_type)}
+</Text>
 <Text style={styles.paymentMethodName}>
 {method.display_name}
 </Text>
+</View>
+{isPaymentMethodExpanded ? (
+<ChevronUp color="#6A3CA0" size={20} />
+) : (
+<ChevronDown color="#6A3CA0" size={20} />
+)}
+</TouchableOpacity>
 
+{isPaymentMethodExpanded ? (
+<>
 {Object.keys(method.public_details || {}).length > 0 ? (
 <Text style={styles.paymentMethodDetails}>
 {Object.entries(method.public_details)
@@ -1390,8 +1421,11 @@ adjunta el comprobante de pago en formato PDF.
 {method.public_instructions}
 </Text>
 ) : null}
+</>
+) : null}
 </View>
-))}
+);
+})}
 </View>
 ) : (
 <Text style={styles.paymentMethodsUnavailable}>
@@ -1404,28 +1438,16 @@ accessibilityLabel="Subir comprobante de pago en PDF"
 accessibilityRole="button"
 accessibilityState={{
 busy: pendingAction === 'submit-proof',
-disabled: (
-pendingAction !== null
-|| !formalContext.payment_options?.payment_eligible
-|| paymentMethods.length === 0
-),
+disabled: pendingAction !== null,
 }}
 activeOpacity={0.85}
-disabled={
-pendingAction !== null
-|| !formalContext.payment_options?.payment_eligible
-|| paymentMethods.length === 0
-}
+disabled={pendingAction !== null}
 onPress={() => {
 void handleSubmitPaymentProof();
 }}
 style={[
 styles.paymentProofSubmitButton,
-(
 pendingAction !== null
-|| !formalContext.payment_options?.payment_eligible
-|| paymentMethods.length === 0
-)
 ? styles.actionButtonDisabled
 : null,
 ]}
@@ -2038,6 +2060,21 @@ borderRadius: 10,
 borderWidth: 1,
 gap: 4,
 padding: 11,
+},
+paymentMethodHeader: {
+alignItems: 'center',
+flexDirection: 'row',
+justifyContent: 'space-between',
+},
+paymentMethodHeaderText: {
+flex: 1,
+paddingRight: 10,
+},
+paymentMethodType: {
+color: '#7A6696',
+fontSize: 12,
+fontWeight: '700',
+marginBottom: 2,
 },
 paymentMethodName: {
 color: '#3A245B',
