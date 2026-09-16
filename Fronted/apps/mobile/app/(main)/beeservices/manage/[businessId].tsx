@@ -18,7 +18,6 @@ ClipboardList,
   MessageCircle,
   Package,
   Settings2,
-  ShieldCheck,
 } from 'lucide-react-native';
 import {
   useCallback,
@@ -53,82 +52,6 @@ import {
   loadOwnedCommercialProfile,
 } from '../../../../src/services/commercialService';
 
-interface DashboardActionProps {
-  title: string;
-  description: string;
-  Icon: typeof Building2;
-}
-
-function DashboardAction({
-  title,
-  description,
-  Icon,
-}: DashboardActionProps) {
-  return (
-    <View
-      accessibilityLabel={title}
-      style={{
-        backgroundColor: '#FFFFFF',
-        borderColor: '#E7DDF2',
-        borderRadius: 16,
-        borderWidth: 1,
-        marginBottom: 11,
-        padding: 15,
-      }}
-    >
-      <View
-        style={{
-          alignItems: 'center',
-          flexDirection: 'row',
-        }}
-      >
-        <View
-          style={{
-            alignItems: 'center',
-            backgroundColor: '#F6EAFE',
-            borderRadius: 12,
-            height: 42,
-            justifyContent: 'center',
-            width: 42,
-          }}
-        >
-          <Icon
-            color="#7427D5"
-            size={20}
-          />
-        </View>
-
-        <View
-          style={{
-            flex: 1,
-            marginLeft: 12,
-          }}
-        >
-          <Text
-            style={{
-              color: '#261743',
-              fontSize: 15,
-              fontWeight: '800',
-            }}
-          >
-            {title}
-          </Text>
-
-          <Text
-            style={{
-              color: '#786593',
-              fontSize: 12,
-              lineHeight: 18,
-              marginTop: 3,
-            }}
-          >
-            {description}
-          </Text>
-        </View>
-      </View>
-    </View>
-  );
-}
 
 function publicationLabel(
   profile: CommercialOwnedProfile,
