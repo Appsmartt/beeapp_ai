@@ -5,6 +5,7 @@ from django.test import SimpleTestCase
 from apps.commercial.exceptions import CommercialValidationError
 from apps.commercial.services.commercial_request_item_service import (
     accept_commercial_request_item_proposal,
+    accept_fixed_commercial_request_item,
     close_commercial_request_item,
     create_commercial_request_item_proposal,
     update_commercial_request_item_operational_status,
@@ -85,27 +86,51 @@ class CommercialRequestItemServiceTests(SimpleTestCase):
         "apps.commercial.services."
         "commercial_request_item_service.execute_commercial_rpc"
     )
-    def test_closes_item(self, execute_rpc):
+    def test_accepts_fixed_item(self, execute_rpc):
         execute_rpc.return_value = {
             "commerce_request_item_id": self.item_id,
-            "item_status": "withdrawn",
+            "item_status": "accepted",
+        }
+
+        result = accept_fixed_commercial_request_item(
+            access_token="owner-token",
+            item_id=self.item_id,
+        )
+
+        self.assertEqual(result["item_status"], "accepted")
+        execute_rpc.assert_called_once_with(
+            access_token="owner-token",
+            function_name="commerce_accept_fixed_request_item",
+            parameters={
+                "p_commerce_request_item_id": self.item_id,
+            },
+        )
+
+    @patch(
+        "apps.commercial.services."
+        "commercial_request_item_service.execute_commercial_rpc"
+    )
+    def test_rejects_item(self, execute_rpc):
+        execute_rpc.return_value = {
+            "commerce_request_item_id": self.item_id,
+            "item_status": "rejected",
         }
 
         result = close_commercial_request_item(
             access_token="owner-token",
             item_id=self.item_id,
-            action="withdraw",
+            action="reject",
             reason_code="not_available",
             reason_text="Sin disponibilidad.",
         )
 
-        self.assertEqual(result["item_status"], "withdrawn")
+        self.assertEqual(result["item_status"], "rejected")
         execute_rpc.assert_called_once_with(
             access_token="owner-token",
             function_name="commerce_close_request_item",
             parameters={
                 "p_commerce_request_item_id": self.item_id,
-                "p_action": "withdraw",
+                "p_action": "reject",
                 "p_reason_code": "not_available",
                 "p_reason_text": "Sin disponibilidad.",
             },

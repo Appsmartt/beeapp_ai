@@ -146,6 +146,30 @@ def accept_commercial_request_item_proposal(
     )
 
 
+
+def accept_fixed_commercial_request_item(
+    *,
+    access_token: str | None,
+    item_id: str | UUID | None,
+) -> dict[str, Any]:
+    token = _required_token(access_token)
+    normalized_item_id = _required_id(
+        item_id,
+        field="commerce_request_item_id",
+    )
+    result = execute_commercial_rpc(
+        access_token=token,
+        function_name="commerce_accept_fixed_request_item",
+        parameters={
+            "p_commerce_request_item_id": normalized_item_id,
+        },
+    )
+    return _json_result(
+        result,
+        code="COMMERCE_FIXED_REQUEST_ITEM_ACCEPT_FAILED",
+        message="Commercial fixed request item acceptance returned an invalid response.",
+    )
+
 def close_commercial_request_item(
     *,
     access_token: str | None,
@@ -160,7 +184,7 @@ def close_commercial_request_item(
         field="commerce_request_item_id",
     )
     normalized_action = str(action or "").strip().lower()
-    if normalized_action not in {"reject", "withdraw"}:
+    if normalized_action != "reject":
         raise CommercialValidationError(
             "Commercial request item close action is invalid.",
             code="COMMERCE_REQUEST_ITEM_CLOSE_ACTION_INVALID",

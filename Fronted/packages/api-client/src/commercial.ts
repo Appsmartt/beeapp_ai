@@ -1185,6 +1185,18 @@ export function withdrawCommercialRequestItemProposal(
   );
 }
 
+
+export function acceptCommercialRequestFixedItem(
+  auth: AuthCredentials,
+  itemId: string,
+): Promise<CommercialRequestItemMutationResponse> {
+  return api.post<CommercialRequestItemMutationResponse>(
+    `${commercialRequestItemPath(itemId)}accept-fixed/`,
+    undefined,
+    { auth },
+  );
+}
+
 export function closeCommercialRequestItem(
   auth: AuthCredentials,
   itemId: string,

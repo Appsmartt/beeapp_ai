@@ -63,6 +63,7 @@ attachOwnedCommercialVerificationDocument,
 ApiRequestError,
 createCommercialRequestItemProposal,
 acceptCommercialRequestItemProposal,
+acceptCommercialRequestFixedItem,
 withdrawCommercialRequestItemProposal,
 closeCommercialRequestItem as closeCommercialRequestItemApi,
 updateCommercialRequestItemOperationalStatus,
@@ -933,6 +934,16 @@ export async function withdrawCommercialItemProposal(
     await getRequiredCommercialCredentials(),
     proposalId,
     payload,
+  );
+}
+
+
+export async function acceptCommercialFixedRequestItem(
+  itemId: string,
+): Promise<CommercialRequestItemMutationResponse> {
+  return acceptCommercialRequestFixedItem(
+    await getRequiredCommercialCredentials(),
+    itemId,
   );
 }
 
