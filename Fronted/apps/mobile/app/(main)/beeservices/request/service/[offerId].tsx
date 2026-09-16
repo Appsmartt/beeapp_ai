@@ -55,6 +55,7 @@ isNonBookableServiceOffer,
 } from '../../../../../src/features/buddyservices/serviceRequestFlow';
 import {
 loadPublicCommercialOffer,
+loadPublicCommercialProfile,
 } from '../../../../../src/services/commercialService';
 
 function normalizeParam(
@@ -112,6 +113,9 @@ const offerId = normalizeParam(params.offerId);
 const [offer, setOffer] = useState<CommercialPublicOffer | null>(
 null,
 );
+const [commercialProfileName, setCommercialProfileName] = useState(
+'Este negocio',
+);
 const [requestedModality, setRequestedModality] = useState<
 CommercialModality | null
 >(null);
@@ -120,6 +124,7 @@ const [deliveryAddress, setDeliveryAddress] = useState('');
 const [deliveryReference, setDeliveryReference] = useState('');
 const [loading, setLoading] = useState(true);
 const [refreshing, setRefreshing] = useState(false);
+const [submitting, setSubmitting] = useState(false);
 const [error, setError] = useState<CommercialUiError | null>(
 null,
 );
@@ -156,6 +161,12 @@ setError(null);
 try {
 const response = await loadPublicCommercialOffer(offerId);
 const nextOffer = response.offer;
+const profileResponse = await loadPublicCommercialProfile(
+nextOffer.commercial_profile_id,
+);
+const nextCommercialProfileName = String(
+profileResponse.profile.display_name || '',
+).trim();
 
 if (!isNonBookableServiceOffer(nextOffer)) {
 setOffer(null);
@@ -172,6 +183,9 @@ return;
 }
 
 setOffer(nextOffer);
+setCommercialProfileName(
+nextCommercialProfileName || 'Este negocio',
+);
 setRequestedModality((currentModality) => (
 currentModality
 && nextOffer.modalities.includes(currentModality)
@@ -209,7 +223,7 @@ router.replace('/(main)/beeservices');
 }, [router]);
 
 const handleSubmit = useCallback(() => {
-if (!offer || !requestedModality) {
+if (!offer || !requestedModality || submitting) {
 return;
 }
 
@@ -224,13 +238,13 @@ Alert.alert(
 return;
 }
 
+setSubmitting(true);
+
+try {
 const cartService: AddBusinessCartServiceInput = {
 commercialOfferId: offer.id,
 commercialProfileId: offer.commercial_profile_id,
-commercialProfileName: (
-offer.commercial_profile_name
-|| 'Este negocio'
-),
+commercialProfileName,
 title: offer.title,
 quantity: 1,
 pricingStrategy: offer.pricing_strategy,
@@ -313,13 +327,18 @@ router.push(buddyServicesCartRoute());
 },
 ],
 );
+} finally {
+setSubmitting(false);
+}
 }, [
+commercialProfileName,
 customerNote,
 deliveryAddress,
 deliveryReference,
 offer,
 requestedModality,
 router,
+submitting,
 ]);
 
 if (loading && !offer) {
