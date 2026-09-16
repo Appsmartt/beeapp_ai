@@ -27,6 +27,11 @@ unitPriceAmount: 10000,
 currencyCode: 'COP',
 requestedModality: 'delivery',
 imageUrl: null,
+requiresBooking: false,
+durationMinutes: null,
+requestedStartsAt: null,
+requestedEndsAt: null,
+timezone: null,
 ...overrides,
 };
 }

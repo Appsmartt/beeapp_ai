@@ -151,6 +151,7 @@ type RevalidateBusinessCartLinesResult,
 } from '../features/buddyservices/cart/businessCartStore';
 
 import {
+buildBusinessCartRequestPayload,
 buildProductOrderPayload,
 buildServiceRequestPayload,
 type BuildServiceRequestPayloadInput,
@@ -709,6 +710,17 @@ paymentMethodId,
 }
 
 
+export async function createBusinessCartRequest(
+cart: BusinessCart,
+idempotencyKey: string,
+): Promise<CreateCommercialRequestResponse> {
+return submitCommercialRequest(
+await getRequiredCommercialCredentials(),
+idempotencyKey,
+buildBusinessCartRequestPayload(cart),
+);
+}
+
 export async function createProductOrderFromBusinessCart(
 cart: BusinessCart,
 idempotencyKey: string,
@@ -903,7 +915,7 @@ if (result.status === 'fulfilled') {
 const { offer } = result.value;
 
 const isUnavailable = (
-offer.offer_kind !== 'product'
+offer.offer_kind !== line.offerKind
 || offer.commercial_profile_id !== cart.commercialProfileId
 );
 

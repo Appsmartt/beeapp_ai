@@ -2,7 +2,6 @@ import {
   useCallback,
   useEffect,
   useMemo,
-  useRef,
   useState,
 } from 'react';
 import {
@@ -26,9 +25,6 @@ import {
   Clock3,
   X,
 } from 'lucide-react-native';
-import {
-  ApiRequestError,
-} from '@beeapp/api-client';
 import {
   useLocalSearchParams,
   useRouter,
@@ -54,13 +50,15 @@ import {
   toCommercialReservationStartsAtIso,
 } from '../../../../../src/features/buddyservices/commercialReservationDateTime';
 import {
-  createCommercialRequestIdempotencyKey,
-} from '../../../../../src/features/buddyservices/cart/businessCartRequestPayload';
-import {
-  buddyServicesRequestDetailRoute,
+  buddyServicesCartRoute,
 } from '../../../../../src/features/buddyservices/commercialRoutes';
 import {
-  createBookingRequest,
+  addBusinessCartService,
+  replaceBusinessCartWithService,
+  updateBusinessCartRequestDetails,
+  type AddBusinessCartServiceInput,
+} from '../../../../../src/features/buddyservices/cart/businessCartStore';
+import {
   loadPublicCommercialOffer,
   loadPublicCommercialProfile,
 } from '../../../../../src/services/commercialService';
@@ -104,12 +102,6 @@ export default function BuddyServicesBookingRequestScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<CommercialUiError | null>(null);
-  const [submitting, setSubmitting] = useState(false);
-  const submissionIdempotencyKeyRef = useRef<string | null>(null);
-
-  const invalidateSubmissionIdempotencyKey = useCallback(() => {
-    submissionIdempotencyKeyRef.current = null;
-  }, []);
 
   const loadBookingContext = useCallback(async () => {
     if (!offerId) {
@@ -286,20 +278,17 @@ export default function BuddyServicesBookingRequestScreen() {
       return;
     }
 
-    invalidateSubmissionIdempotencyKey();
     setLocalDate(pendingDate);
     setIsDatePickerVisible(false);
   }, [
-    invalidateSubmissionIdempotencyKey,
     pendingDate,
     todayIso,
   ]);
 
   const selectTime = useCallback((value: string) => {
-    invalidateSubmissionIdempotencyKey();
     setLocalTime(value);
     setIsTimePickerVisible(false);
-  }, [invalidateSubmissionIdempotencyKey]);
+  }, []);
 
   const requestedDateLabel = useMemo(() => {
     if (!localDate.trim() || !localTime.trim() || !timezone) {
@@ -332,83 +321,149 @@ export default function BuddyServicesBookingRequestScreen() {
     && localDate.trim()
     && localTime.trim()
     && timezone
-    && !submitting
     && (
       requestedModality !== 'delivery'
       || deliveryAddress.trim()
     )
   );
 
-  const handleSubmit = useCallback(async () => {
-    if (!offer || !requestedModality || submitting) {
+  const handleSubmit = useCallback(() => {
+    if (!offer || !requestedModality) {
       return;
     }
 
-    const idempotencyKey = (
-      submissionIdempotencyKeyRef.current
-      || createCommercialRequestIdempotencyKey()
-    );
+    if (
+      requestedModality === 'delivery'
+      && !deliveryAddress.trim()
+    ) {
+      Alert.alert(
+        'Dirección requerida',
+        'Ingresa la dirección para la entrega a domicilio.',
+      );
+      return;
+    }
 
-    submissionIdempotencyKeyRef.current = idempotencyKey;
-    setSubmitting(true);
+    let requestedStartsAt: string;
 
     try {
-      const response = await createBookingRequest(
-        {
-          commercialOfferId: offer.id,
-          commercialProfileId: offer.commercial_profile_id,
-          requestedModality,
-          customerNote,
-          deliveryAddress,
-          deliveryReference,
-          localDate,
-          localTime,
-          timezone,
-        },
-        idempotencyKey,
-      );
-
-      submissionIdempotencyKeyRef.current = null;
-
-      router.replace(
-        buddyServicesRequestDetailRoute(
-          response.request.request_id,
-        ),
-      );
+      requestedStartsAt = toCommercialReservationStartsAtIso({
+        localDate,
+        localTime,
+        timezone,
+      });
     } catch (submitError) {
       const uiError = toCommercialUiError(submitError);
-      const shouldRefresh = (
-        submitError instanceof ApiRequestError
-        && [400, 404, 409, 422].includes(submitError.status)
-      );
-
-      if (shouldRefresh) {
-        try {
-          await loadBookingContext();
-          Alert.alert(
-            'Información actualizada',
-            `${uiError.message} Revisa la información antes de reenviar.`,
-          );
-        } catch {
-          Alert.alert(uiError.title, uiError.message);
-        }
-      } else {
-        Alert.alert(uiError.title, uiError.message);
-      }
-    } finally {
-      setSubmitting(false);
+      Alert.alert(uiError.title, uiError.message);
+      return;
     }
+
+    const requestedEndsAt = (
+      offer.duration_minutes && offer.duration_minutes > 0
+        ? new Date(
+          new Date(requestedStartsAt).getTime()
+          + (offer.duration_minutes * 60 * 1000),
+        ).toISOString()
+        : null
+    );
+
+    const cartService: AddBusinessCartServiceInput = {
+      commercialOfferId: offer.id,
+      commercialProfileId: offer.commercial_profile_id,
+      commercialProfileName: (
+        offer.commercial_profile_name
+        || 'Este negocio'
+      ),
+      title: offer.title,
+      quantity: 1,
+      pricingStrategy: offer.pricing_strategy,
+      unitPriceAmount: offer.base_price_amount,
+      currencyCode: offer.currency_code,
+      requestedModality,
+      imageUrl: (
+        offer.images.find((image) => image.is_primary)?.url
+        || offer.images[0]?.url
+        || null
+      ),
+      deliveryFeeMode: 'not_offered',
+      deliveryFeeAmount: null,
+      requiresBooking: true,
+      durationMinutes: offer.duration_minutes,
+      requestedStartsAt,
+      requestedEndsAt,
+      timezone,
+    };
+
+    const result = addBusinessCartService(cartService);
+
+    if (result.kind === 'added') {
+      updateBusinessCartRequestDetails({
+        requestedModality,
+        customerNote,
+        deliveryAddress: (
+          requestedModality === 'delivery'
+            ? deliveryAddress
+            : null
+        ),
+        deliveryReference: (
+          requestedModality === 'delivery'
+            ? deliveryReference
+            : null
+        ),
+      });
+      router.push(buddyServicesCartRoute());
+      return;
+    }
+
+    const {
+      currentCommercialProfileName,
+      incomingCommercialProfileName,
+    } = result.conflict;
+
+    Alert.alert(
+      'Carrito de otro negocio',
+      (
+        `Tu carrito actual pertenece a ${currentCommercialProfileName}. `
+        + `Si continúas, se eliminarán sus ítems y se iniciará un `
+        + `carrito para ${incomingCommercialProfileName}.`
+      ),
+      [
+        {
+          text: 'Mantener carrito',
+          style: 'cancel',
+        },
+        {
+          text: 'Reemplazar carrito',
+          style: 'destructive',
+          onPress: () => {
+            replaceBusinessCartWithService(cartService);
+            updateBusinessCartRequestDetails({
+              requestedModality,
+              customerNote,
+              deliveryAddress: (
+                requestedModality === 'delivery'
+                  ? deliveryAddress
+                  : null
+              ),
+              deliveryReference: (
+                requestedModality === 'delivery'
+                  ? deliveryReference
+                  : null
+              ),
+            });
+            router.push(buddyServicesCartRoute());
+          },
+        },
+      ],
+    );
   }, [
     customerNote,
     deliveryAddress,
     deliveryReference,
-    loadBookingContext,
     localDate,
     localTime,
     offer,
     requestedModality,
     router,
-    submitting,
     timezone,
   ]);
 
@@ -599,7 +654,6 @@ selected: requestedModality === modality,
 }}
               key={modality}
               onPress={() => {
-                invalidateSubmissionIdempotencyKey();
                 setRequestedModality(modality);
               }}
               style={[
@@ -625,10 +679,7 @@ selected: requestedModality === modality,
             <TextInput
               accessibilityLabel="Dirección de entrega"
               multiline
-              onChangeText={(value) => {
-                invalidateSubmissionIdempotencyKey();
-                setDeliveryAddress(value);
-              }}
+              onChangeText={setDeliveryAddress}
               placeholder="Dirección"
               placeholderTextColor="#8D8497"
               style={styles.input}
@@ -638,10 +689,7 @@ selected: requestedModality === modality,
             <TextInput
               accessibilityLabel="Referencia de entrega"
               multiline
-              onChangeText={(value) => {
-                invalidateSubmissionIdempotencyKey();
-                setDeliveryReference(value);
-              }}
+              onChangeText={setDeliveryReference}
               placeholder="Referencia o indicaciones"
               placeholderTextColor="#8D8497"
               style={styles.input}
@@ -658,10 +706,7 @@ selected: requestedModality === modality,
           <TextInput
             accessibilityLabel="Necesidad o comentario"
             multiline
-            onChangeText={(value) => {
-              invalidateSubmissionIdempotencyKey();
-              setCustomerNote(value);
-            }}
+            onChangeText={setCustomerNote}
             placeholder="Describe lo que necesitas"
             placeholderTextColor="#8D8497"
             style={[styles.input, styles.multilineInput]}
@@ -676,26 +721,21 @@ selected: requestedModality === modality,
         </View>
 
         <TouchableOpacity
-          accessibilityLabel="Enviar solicitud de fecha"
+          accessibilityLabel="Agregar reserva al carrito"
           accessibilityRole="button"
 accessibilityState={{
-busy: submitting,
 disabled: !canSubmit,
 }}
           disabled={!canSubmit}
-          onPress={() => void handleSubmit()}
+          onPress={handleSubmit}
           style={[
             styles.primaryButton,
             !canSubmit ? styles.disabledButton : null,
           ]}
         >
-          {submitting ? (
-            <ActivityIndicator color="#FFFFFF" size="small" />
-          ) : (
-            <Text style={styles.primaryButtonText}>
-              Enviar solicitud de fecha
-            </Text>
-          )}
+          <Text style={styles.primaryButtonText}>
+            Agregar reserva al carrito
+          </Text>
         </TouchableOpacity>
       </ScrollView>
 

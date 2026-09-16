@@ -9,12 +9,14 @@ from apps.commercial.exceptions import CommercialValidationError
 REQUEST_TYPE_PRODUCT_ORDER = "product_order"
 REQUEST_TYPE_SERVICE_REQUEST = "service_request"
 REQUEST_TYPE_BOOKING_REQUEST = "booking_request"
+REQUEST_TYPE_MIXED_REQUEST = "mixed_request"
 
 REQUEST_TYPES = frozenset(
     {
         REQUEST_TYPE_PRODUCT_ORDER,
         REQUEST_TYPE_SERVICE_REQUEST,
         REQUEST_TYPE_BOOKING_REQUEST,
+        REQUEST_TYPE_MIXED_REQUEST,
     }
 )
 
@@ -334,6 +336,12 @@ def build_request_draft(payload: dict[str, Any]) -> RequestDraft:
                 code="product_order_items_invalid",
                 message="product_order accepts only product items.",
             )
+    elif request_type == REQUEST_TYPE_MIXED_REQUEST:
+        if not kinds.issubset({"product", "service"}):
+            raise CommercialValidationError(
+                code="mixed_request_items_invalid",
+                message="mixed_request accepts only product and service items.",
+            )
     else:
         if len(items) != 1 or kinds != {"service"}:
             raise CommercialValidationError(
@@ -341,13 +349,19 @@ def build_request_draft(payload: dict[str, Any]) -> RequestDraft:
                 message="Service and booking requests require one service item.",
             )
 
-    if request_type == REQUEST_TYPE_BOOKING_REQUEST and not items[0].requires_booking:
+    if (
+        request_type == REQUEST_TYPE_BOOKING_REQUEST
+        and not items[0].requires_booking
+    ):
         raise CommercialValidationError(
             code="booking_offer_required",
             message="booking_request requires a service configured for booking.",
         )
 
-    if request_type == REQUEST_TYPE_SERVICE_REQUEST and items[0].requires_booking:
+    if (
+        request_type == REQUEST_TYPE_SERVICE_REQUEST
+        and items[0].requires_booking
+    ):
         raise CommercialValidationError(
             code="booking_request_required",
             message="Bookable services must use booking_request.",

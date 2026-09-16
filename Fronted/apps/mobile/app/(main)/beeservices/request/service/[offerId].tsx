@@ -2,7 +2,6 @@ import {
 useCallback,
 useEffect,
 useMemo,
-useRef,
 useState,
 } from 'react';
 import {
@@ -22,9 +21,6 @@ CheckCircle2,
 Wrench,
 } from 'lucide-react-native';
 import {
-ApiRequestError,
-} from '@beeapp/api-client';
-import {
 useLocalSearchParams,
 useRouter,
 } from 'expo-router';
@@ -40,21 +36,24 @@ toCommercialUiError,
 type CommercialUiError,
 } from '../../../../../src/features/buddyservices/commercialErrors';
 import {
-createCommercialRequestIdempotencyKey,
 } from '../../../../../src/features/buddyservices/cart/businessCartRequestPayload';
 import {
-buddyServicesRequestDetailRoute,
+buddyServicesCartRoute,
 } from '../../../../../src/features/buddyservices/commercialRoutes';
+import {
+addBusinessCartService,
+replaceBusinessCartWithService,
+updateBusinessCartRequestDetails,
+type AddBusinessCartServiceInput,
+} from '../../../../../src/features/buddyservices/cart/businessCartStore';
 
 import {
 canSubmitServiceRequest,
 getServiceRequestPriceHint,
 getServiceRequestPriceLabel,
 isNonBookableServiceOffer,
-shouldRefreshServiceOfferAfterError,
 } from '../../../../../src/features/buddyservices/serviceRequestFlow';
 import {
-createServiceRequest,
 loadPublicCommercialOffer,
 } from '../../../../../src/services/commercialService';
 
@@ -121,22 +120,15 @@ const [deliveryAddress, setDeliveryAddress] = useState('');
 const [deliveryReference, setDeliveryReference] = useState('');
 const [loading, setLoading] = useState(true);
 const [refreshing, setRefreshing] = useState(false);
-const [submitting, setSubmitting] = useState(false);
 const [error, setError] = useState<CommercialUiError | null>(
 null,
 );
-const submissionIdempotencyKeyRef = useRef<string | null>(null);
-
-const invalidateSubmissionIdempotencyKey = useCallback(() => {
-submissionIdempotencyKeyRef.current = null;
-}, []);
-
 const canSubmit = useMemo(() => (
 canSubmitServiceRequest({
 offer,
 requestedModality,
 deliveryAddress,
-submitting,
+submitting: false,
 })
 ), [
 deliveryAddress,
@@ -166,7 +158,6 @@ const response = await loadPublicCommercialOffer(offerId);
 const nextOffer = response.offer;
 
 if (!isNonBookableServiceOffer(nextOffer)) {
-submissionIdempotencyKeyRef.current = null;
 setOffer(null);
 setRequestedModality(null);
 setError({
@@ -180,7 +171,6 @@ retryable: false,
 return;
 }
 
-submissionIdempotencyKeyRef.current = null;
 setOffer(nextOffer);
 setRequestedModality((currentModality) => (
 currentModality
@@ -218,8 +208,8 @@ return;
 router.replace('/(main)/beeservices');
 }, [router]);
 
-const handleSubmit = useCallback(async () => {
-if (!offer || !requestedModality || submitting) {
+const handleSubmit = useCallback(() => {
+if (!offer || !requestedModality) {
 return;
 }
 
@@ -234,72 +224,102 @@ Alert.alert(
 return;
 }
 
-const idempotencyKey = (
-submissionIdempotencyKeyRef.current
-|| createCommercialRequestIdempotencyKey()
-);
-
-submissionIdempotencyKeyRef.current = idempotencyKey;
-setSubmitting(true);
-
-try {
-const response = await createServiceRequest(
-{
+const cartService: AddBusinessCartServiceInput = {
 commercialOfferId: offer.id,
 commercialProfileId: offer.commercial_profile_id,
+commercialProfileName: (
+offer.commercial_profile_name
+|| 'Este negocio'
+),
+title: offer.title,
+quantity: 1,
+pricingStrategy: offer.pricing_strategy,
+unitPriceAmount: offer.base_price_amount,
+currencyCode: offer.currency_code,
+requestedModality,
+imageUrl: (
+offer.images.find((image) => image.is_primary)?.url
+|| offer.images[0]?.url
+|| null
+),
+deliveryFeeMode: 'not_offered',
+deliveryFeeAmount: null,
+requiresBooking: false,
+durationMinutes: offer.duration_minutes,
+requestedStartsAt: null,
+requestedEndsAt: null,
+timezone: null,
+};
+
+const result = addBusinessCartService(cartService);
+
+if (result.kind === 'added') {
+updateBusinessCartRequestDetails({
 requestedModality,
 customerNote,
-deliveryAddress,
-deliveryReference,
-},
-idempotencyKey,
-);
-
-submissionIdempotencyKeyRef.current = null;
-
-router.replace(
-buddyServicesRequestDetailRoute(
-response.request.request_id,
+deliveryAddress: (
+requestedModality === 'delivery'
+? deliveryAddress
+: null
 ),
-);
-} catch (submitError) {
-const uiError = toCommercialUiError(submitError);
-const shouldRefreshOffer = (
-submitError instanceof ApiRequestError
-&& shouldRefreshServiceOfferAfterError(submitError.status)
-);
+deliveryReference: (
+requestedModality === 'delivery'
+? deliveryReference
+: null
+),
+});
+router.push(buddyServicesCartRoute());
+return;
+}
 
-if (shouldRefreshOffer) {
-try {
-await loadOffer();
+const {
+currentCommercialProfileName,
+incomingCommercialProfileName,
+} = result.conflict;
 
 Alert.alert(
-'Información actualizada',
+'Carrito de otro negocio',
 (
-`${uiError.message} `
-+ 'Revisa el servicio y la modalidad antes de reenviar '
-+ 'la solicitud.'
+`Tu carrito actual pertenece a ${currentCommercialProfileName}. `
++ `Si continúas, se eliminarán sus ítems y se iniciará un `
++ `carrito para ${incomingCommercialProfileName}.`
 ),
+[
+{
+text: 'Mantener carrito',
+style: 'cancel',
+},
+{
+text: 'Reemplazar carrito',
+style: 'destructive',
+onPress: () => {
+replaceBusinessCartWithService(cartService);
+updateBusinessCartRequestDetails({
+requestedModality,
+customerNote,
+deliveryAddress: (
+requestedModality === 'delivery'
+? deliveryAddress
+: null
+),
+deliveryReference: (
+requestedModality === 'delivery'
+? deliveryReference
+: null
+),
+});
+router.push(buddyServicesCartRoute());
+},
+},
+],
 );
-} catch {
-Alert.alert(uiError.title, uiError.message);
-}
-} else {
-Alert.alert(uiError.title, uiError.message);
-}
-} finally {
-setSubmitting(false);
-}
 }, [
 customerNote,
 deliveryAddress,
 deliveryReference,
-invalidateSubmissionIdempotencyKey,
-loadOffer,
 offer,
 requestedModality,
 router,
-submitting,
 ]);
 
 if (loading && !offer) {
@@ -444,7 +464,6 @@ selected,
 }}
 activeOpacity={0.8}
 onPress={() => {
-invalidateSubmissionIdempotencyKey();
 setRequestedModality(modality);
 }}
 style={[
@@ -482,10 +501,7 @@ Datos de entrega
 
 <TextInput
 accessibilityLabel="Dirección de entrega"
-onChangeText={(value) => {
-invalidateSubmissionIdempotencyKey();
-setDeliveryAddress(value);
-}}
+onChangeText={setDeliveryAddress}
 placeholder="Dirección de entrega"
 placeholderTextColor="#9C8BAF"
 style={styles.input}
@@ -494,10 +510,7 @@ value={deliveryAddress}
 
 <TextInput
 accessibilityLabel="Referencia de entrega"
-onChangeText={(value) => {
-invalidateSubmissionIdempotencyKey();
-setDeliveryReference(value);
-}}
+onChangeText={setDeliveryReference}
 placeholder="Referencia o indicaciones (opcional)"
 placeholderTextColor="#9C8BAF"
 style={[styles.input, styles.inputSpacing]}
@@ -514,10 +527,7 @@ value={deliveryReference}
 <TextInput
 accessibilityLabel="Necesidad o comentario del servicio"
 multiline
-onChangeText={(value) => {
-invalidateSubmissionIdempotencyKey();
-setCustomerNote(value);
-}}
+onChangeText={setCustomerNote}
 placeholder="Describe lo que necesitas para que el negocio revise tu solicitud."
 placeholderTextColor="#9C8BAF"
 style={styles.noteInput}
@@ -533,13 +543,10 @@ revisarla y aceptar o acordar las condiciones.
 
 <TouchableOpacity
 accessibilityLabel={
-submitting
-? 'Enviando solicitud de servicio'
-: 'Enviar solicitud de servicio'
+'Agregar servicio al carrito'
 }
 accessibilityRole="button"
 accessibilityState={{
-busy: submitting,
 disabled: !canSubmit,
 }}
 activeOpacity={0.85}
@@ -553,9 +560,7 @@ styles.submitButton,
 ]}
 >
 <Text style={styles.submitButtonText}>
-{submitting
-? 'Enviando solicitud...'
-: 'Enviar solicitud'}
+Agregar al carrito
 </Text>
 </TouchableOpacity>
 </ScrollView>
