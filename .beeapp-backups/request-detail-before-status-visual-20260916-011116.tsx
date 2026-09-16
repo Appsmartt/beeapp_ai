@@ -15,19 +15,8 @@ View,
 } from 'react-native';
 import {
 ArrowLeft,
-CheckCircle2,
-CircleDashed,
-Clock3,
-FileText,
-Hourglass,
-Info,
 Package,
-ReceiptText,
-Send,
-ShieldAlert,
 Wrench,
-XCircle,
-type LucideIcon,
 } from 'lucide-react-native';
 import {
 useLocalSearchParams,
@@ -134,239 +123,6 @@ disputed: 'En disputa',
 return labels[value] || value;
 }
 
-
-type RequestStatusTone =
-| 'neutral'
-| 'warning'
-| 'info'
-| 'action'
-| 'success'
-| 'error'
-| 'dispute';
-
-type RequestStatusVisual = {
-detail: string;
-icon: LucideIcon;
-iconColor: string;
-label: string;
-title: string;
-tone: RequestStatusTone;
-};
-
-const requestStatusToneIconColors: Record<RequestStatusTone, string> = {
-neutral: '#5D6471',
-warning: '#915D00',
-info: '#225EA8',
-action: '#6A32B2',
-success: '#1D6B45',
-error: '#9D2435',
-dispute: '#9A3A00',
-};
-
-const requestStatusToneStyleNames: Record<
-RequestStatusTone,
-{
-card: keyof typeof styles;
-detail: keyof typeof styles;
-icon: keyof typeof styles;
-label: keyof typeof styles;
-title: keyof typeof styles;
-}
-> = {
-neutral: {
-card: 'statusVisualCardNeutral',
-detail: 'statusVisualDetailNeutral',
-icon: 'statusVisualIconNeutral',
-label: 'statusVisualLabelNeutral',
-title: 'statusVisualTitleNeutral',
-},
-warning: {
-card: 'statusVisualCardWarning',
-detail: 'statusVisualDetailWarning',
-icon: 'statusVisualIconWarning',
-label: 'statusVisualLabelWarning',
-title: 'statusVisualTitleWarning',
-},
-info: {
-card: 'statusVisualCardInfo',
-detail: 'statusVisualDetailInfo',
-icon: 'statusVisualIconInfo',
-label: 'statusVisualLabelInfo',
-title: 'statusVisualTitleInfo',
-},
-action: {
-card: 'statusVisualCardAction',
-detail: 'statusVisualDetailAction',
-icon: 'statusVisualIconAction',
-label: 'statusVisualLabelAction',
-title: 'statusVisualTitleAction',
-},
-success: {
-card: 'statusVisualCardSuccess',
-detail: 'statusVisualDetailSuccess',
-icon: 'statusVisualIconSuccess',
-label: 'statusVisualLabelSuccess',
-title: 'statusVisualTitleSuccess',
-},
-error: {
-card: 'statusVisualCardError',
-detail: 'statusVisualDetailError',
-icon: 'statusVisualIconError',
-label: 'statusVisualLabelError',
-title: 'statusVisualTitleError',
-},
-dispute: {
-card: 'statusVisualCardDispute',
-detail: 'statusVisualDetailDispute',
-icon: 'statusVisualIconDispute',
-label: 'statusVisualLabelDispute',
-title: 'statusVisualTitleDispute',
-},
-};
-
-function getRequestStatusVisual(
-status: string,
-): RequestStatusVisual {
-const visuals: Record<string, RequestStatusVisual> = {
-draft: {
-detail: 'Aún no has enviado esta solicitud al comercio.',
-icon: FileText,
-label: 'Borrador',
-title: 'Solicitud pendiente de envío',
-tone: 'neutral',
-},
-submitted: {
-detail: (
-'Tu solicitud fue enviada. El comercio debe revisarla '
-+ 'y responder para continuar.'
-),
-icon: Send,
-label: 'Esperando al comercio',
-title: 'Esperando respuesta del comercio',
-tone: 'warning',
-},
-under_review: {
-detail: (
-'El comercio recibió tu solicitud y está revisando '
-+ 'los detalles para responderte.'
-),
-icon: Hourglass,
-label: 'En revisión',
-title: 'El comercio está revisando tu solicitud',
-tone: 'info',
-},
-proposal_sent: {
-detail: (
-'El comercio envió una propuesta. Revisa las condiciones '
-+ 'y acepta o rechaza para continuar.'
-),
-icon: ReceiptText,
-label: 'Acción requerida',
-title: 'Tienes una propuesta para revisar',
-tone: 'action',
-},
-accepted: {
-detail: (
-'Las condiciones fueron aceptadas. Revisa los siguientes '
-+ 'pasos de la solicitud.'
-),
-icon: CheckCircle2,
-label: 'Aceptada',
-title: 'Condiciones aceptadas',
-tone: 'success',
-},
-payment_pending: {
-detail: (
-'Debes completar el pago o seguir las instrucciones '
-+ 'indicadas para que la solicitud pueda avanzar.'
-),
-icon: Clock3,
-label: 'Acción requerida',
-title: 'Pago pendiente',
-tone: 'warning',
-},
-payment_submitted: {
-detail: (
-'Tu comprobante fue enviado. El comercio debe validarlo '
-+ 'antes de confirmar la solicitud.'
-),
-icon: Hourglass,
-label: 'Validación en curso',
-title: 'El comercio está validando tu pago',
-tone: 'info',
-},
-confirmed: {
-detail: (
-'El comercio confirmó la solicitud. Conserva este detalle '
-+ 'para consultar las condiciones acordadas.'
-),
-icon: CheckCircle2,
-label: 'Confirmada',
-title: 'Tu solicitud está confirmada',
-tone: 'success',
-},
-completed: {
-detail: 'El proceso comercial de esta solicitud finalizó correctamente.',
-icon: CheckCircle2,
-label: 'Finalizada',
-title: 'Solicitud completada',
-tone: 'success',
-},
-rejected: {
-detail: (
-'El comercio no puede atender esta solicitud. Consulta el historial '
-+ 'si dejó una razón o detalle adicional.'
-),
-icon: XCircle,
-label: 'No disponible',
-title: 'Solicitud rechazada',
-tone: 'error',
-},
-cancelled: {
-detail: (
-'Esta solicitud fue cancelada y no continuará. '
-+ 'Consulta el historial para ver los detalles disponibles.'
-),
-icon: CircleDashed,
-label: 'Cancelada',
-title: 'Solicitud cancelada',
-tone: 'neutral',
-},
-expired: {
-detail: (
-'El plazo de esta solicitud o de sus condiciones terminó. '
-+ 'Podrás crear una nueva solicitud si aún lo necesitas.'
-),
-icon: Clock3,
-label: 'Plazo finalizado',
-title: 'Solicitud vencida',
-tone: 'neutral',
-},
-disputed: {
-detail: (
-'Esta solicitud tiene una disputa abierta. La información '
-+ 'se conservará mientras se revisa el caso.'
-),
-icon: ShieldAlert,
-label: 'Requiere revisión',
-title: 'Solicitud en disputa',
-tone: 'dispute',
-},
-};
-
-const visual = visuals[status] || {
-detail: 'El estado de esta solicitud fue actualizado.',
-icon: Info,
-label: 'Actualización',
-title: statusLabel(status),
-tone: 'info' as const,
-};
-
-return {
-...visual,
-iconColor: requestStatusToneIconColors[visual.tone],
-};
-}
 
 function formatTimelineDate(
 value: string,
@@ -802,64 +558,18 @@ Solicitud formal
 </View>
 </View>
 
-{(() => {
-const statusVisual = getRequestStatusVisual(
-requestDetail.status,
-);
-const StatusIcon = statusVisual.icon;
-const toneStyles = requestStatusToneStyleNames[statusVisual.tone];
-
-return (
-<View
-accessibilityLabel={
-`${statusVisual.title}. ${statusVisual.detail}`
-}
-accessibilityLiveRegion="polite"
-accessibilityRole="alert"
-style={[
-styles.statusVisualCard,
-styles[toneStyles.card],
-]}
->
-<View style={styles.statusVisualHeader}>
-<View
-style={[
-styles.statusVisualIcon,
-styles[toneStyles.icon],
-]}
->
-<StatusIcon color={statusVisual.iconColor} size={22} />
-</View>
-<View style={styles.statusVisualContent}>
-<Text
-style={[
-styles.statusVisualLabel,
-styles[toneStyles.label],
-]}
->
-{statusVisual.label}
+<View style={styles.statusCard}>
+<Text style={styles.statusLabel}>
+Estado actual
 </Text>
-<Text
-style={[
-styles.statusVisualTitle,
-styles[toneStyles.title],
-]}
->
-{statusVisual.title}
+<Text style={styles.statusValue}>
+{statusLabel(requestDetail.status)}
+</Text>
+<Text style={styles.statusHint}>
+Esta solicitud no es un pedido final hasta que el
+negocio la acepte o acuerde las condiciones.
 </Text>
 </View>
-</View>
-<Text
-style={[
-styles.statusVisualDetail,
-styles[toneStyles.detail],
-]}
->
-{statusVisual.detail}
-</Text>
-</View>
-);
-})()}
 
 {formalContext?.reservation ? (() => {
 const reservationPresentation = presentCommercialReservation(
@@ -1397,154 +1107,26 @@ fontSize: 23,
 fontWeight: '800',
 marginTop: 2,
 },
-statusVisualCard: {
+statusCard: {
+backgroundColor: '#EEE5FF',
 borderRadius: 16,
-borderWidth: 1,
-gap: 12,
 padding: 16,
 },
-statusVisualCardNeutral: {
-backgroundColor: '#F1F3F6',
-borderColor: '#D8DDE5',
-},
-statusVisualCardWarning: {
-backgroundColor: '#FFF5D9',
-borderColor: '#F0CF7A',
-},
-statusVisualCardInfo: {
-backgroundColor: '#EAF4FF',
-borderColor: '#B6D7F7',
-},
-statusVisualCardAction: {
-backgroundColor: '#F1E9FF',
-borderColor: '#D5BAF7',
-},
-statusVisualCardSuccess: {
-backgroundColor: '#E6F6EC',
-borderColor: '#B5E1C4',
-},
-statusVisualCardError: {
-backgroundColor: '#FDE9EB',
-borderColor: '#F0BEC5',
-},
-statusVisualCardDispute: {
-backgroundColor: '#FFF0E2',
-borderColor: '#F3BD88',
-},
-statusVisualHeader: {
-alignItems: 'center',
-flexDirection: 'row',
-gap: 12,
-},
-statusVisualIcon: {
-alignItems: 'center',
-borderRadius: 22,
-height: 44,
-justifyContent: 'center',
-width: 44,
-},
-statusVisualIconNeutral: {
-backgroundColor: '#E0E4EA',
-},
-statusVisualIconWarning: {
-backgroundColor: '#FFE6A8',
-},
-statusVisualIconInfo: {
-backgroundColor: '#D7EAFC',
-},
-statusVisualIconAction: {
-backgroundColor: '#E4D2FF',
-},
-statusVisualIconSuccess: {
-backgroundColor: '#CDEDD8',
-},
-statusVisualIconError: {
-backgroundColor: '#F8D4D9',
-},
-statusVisualIconDispute: {
-backgroundColor: '#FFD4AA',
-},
-statusVisualContent: {
-flex: 1,
-},
-statusVisualLabel: {
-fontSize: 12,
-fontWeight: '800',
-letterSpacing: 0.2,
-textTransform: 'uppercase',
-},
-statusVisualLabelNeutral: {
-color: '#5D6471',
-},
-statusVisualLabelWarning: {
-color: '#915D00',
-},
-statusVisualLabelInfo: {
-color: '#225EA8',
-},
-statusVisualLabelAction: {
-color: '#6A32B2',
-},
-statusVisualLabelSuccess: {
-color: '#1D6B45',
-},
-statusVisualLabelError: {
-color: '#9D2435',
-},
-statusVisualLabelDispute: {
-color: '#9A3A00',
-},
-statusVisualTitle: {
-fontSize: 18,
-fontWeight: '800',
-lineHeight: 24,
-marginTop: 3,
-},
-statusVisualTitleNeutral: {
-color: '#36404E',
-},
-statusVisualTitleWarning: {
-color: '#684400',
-},
-statusVisualTitleInfo: {
-color: '#1A4C87',
-},
-statusVisualTitleAction: {
-color: '#542596',
-},
-statusVisualTitleSuccess: {
-color: '#175A39',
-},
-statusVisualTitleError: {
-color: '#7D1D2B',
-},
-statusVisualTitleDispute: {
-color: '#783000',
-},
-statusVisualDetail: {
+statusLabel: {
+color: '#6E6281',
 fontSize: 13,
-lineHeight: 20,
 },
-statusVisualDetailNeutral: {
-color: '#56606E',
+statusValue: {
+color: '#5420A5',
+fontSize: 20,
+fontWeight: '800',
+marginTop: 4,
 },
-statusVisualDetailWarning: {
-color: '#76520C',
-},
-statusVisualDetailInfo: {
-color: '#315D8F',
-},
-statusVisualDetailAction: {
-color: '#62488A',
-},
-statusVisualDetailSuccess: {
-color: '#346749',
-},
-statusVisualDetailError: {
-color: '#7E3A44',
-},
-statusVisualDetailDispute: {
-color: '#7A4B22',
+statusHint: {
+color: '#5C5071',
+fontSize: 13,
+lineHeight: 19,
+marginTop: 8,
 },
 section: {
 backgroundColor: '#FFFFFF',
