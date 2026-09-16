@@ -993,11 +993,13 @@ void runAction(
 `review-proof:${decision}:${paymentProofId}`,
 () => reviewOwnedCommercialPaymentProof(
 paymentProofId,
-{
+isRejected
+? {
 decision,
-rejection_reason: isRejected
-? normalizedReason
-: null,
+rejection_reason: normalizedReason,
+}
+: {
+decision,
 },
 ),
 isRejected
