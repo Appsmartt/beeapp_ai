@@ -40,8 +40,11 @@ import {
 buddyServicesManageRequestsRoute,
 } from '../../../../../../src/features/buddyservices/commercialRoutes';
 import {
+getCommercialRequestItemFinalPriceLabel,
 getCommercialRequestItemLabel,
+getCommercialRequestItemLifecycleLabel,
 getCommercialRequestItemPriceLabel,
+getCommercialRequestItemStockLabel,
 getCommercialRequestItemsTitle,
 getCommercialRequestLineComment,
 getCommercialRequestTotalLabel,
@@ -54,10 +57,16 @@ import {
 toCommercialReservationStartsAtIso,
 } from '../../../../../../src/features/buddyservices/commercialReservationDateTime';
 import {
+closeCommercialRequestItem,
 completeOwnedCommercialRequest,
+createCommercialItemProposal,
 createCommercialProposal,
 createCommercialReservationHoldForRequest,
+loadCommercialPaymentProofAccess,
 loadCommercialRequestFormalDetail,
+reviewOwnedCommercialPaymentProof,
+updateCommercialItemOperationalStatus,
+withdrawCommercialItemProposal,
 withdrawCommercialProposal,
 } from '../../../../../../src/services/commercialService';
 
@@ -189,6 +198,8 @@ const requestId = normalizeParam(params.requestId);
 const [requestDetail, setRequestDetail] = useState<
 CommercialRequestDetail | null
 >(null);
+
+const isMixedRequest = requestDetail?.request_type === 'mixed_request';
 const [timeline, setTimeline] = useState<
 CommercialRequestTimeline | null
 >(null);
@@ -217,6 +228,26 @@ const [proposalLocalEndTime, setProposalLocalEndTime] = useState('');
 const [proposalTimezone, setProposalTimezone] = useState('');
 const [proposalNote, setProposalNote] = useState('');
 const [proposalTerms, setProposalTerms] = useState('');
+const [expandedItemProposalId, setExpandedItemProposalId] = useState<
+string | null
+>(null);
+const [itemProposalQuantity, setItemProposalQuantity] = useState('');
+const [itemProposalUnitPrice, setItemProposalUnitPrice] = useState('');
+const [itemProposalLocalDate, setItemProposalLocalDate] = useState('');
+const [itemProposalLocalStartTime, setItemProposalLocalStartTime] = useState('');
+const [itemProposalLocalEndTime, setItemProposalLocalEndTime] = useState('');
+const [itemProposalTimezone, setItemProposalTimezone] = useState('');
+const [itemProposalNote, setItemProposalNote] = useState('');
+const [proofRejectionReason, setProofRejectionReason] = useState('');
+const [expandedProofId, setExpandedProofId] = useState<string | null>(
+null,
+);
+const [proofAccessUrl, setProofAccessUrl] = useState<string | null>(
+null,
+);
+const [proofAccessName, setProofAccessName] = useState<string | null>(
+null,
+);
 
 const loadRequest = useCallback(async () => {
 if (!businessId || !requestId) {
@@ -577,6 +608,428 @@ requestId,
 runAction,
 ]);
 
+
+const parseItemProposalQuantity = (
+value: string,
+): number | null => {
+const normalizedValue = value.trim();
+
+if (!normalizedValue) {
+return null;
+}
+
+const parsedValue = Number(normalizedValue);
+
+if (
+!Number.isFinite(parsedValue)
+|| !Number.isInteger(parsedValue)
+|| parsedValue < 1
+|| parsedValue > 999
+) {
+throw new Error(
+'La cantidad debe ser un número entero entre 1 y 999.',
+);
+}
+
+return parsedValue;
+};
+
+const resetItemProposalForm = useCallback(() => {
+setExpandedItemProposalId(null);
+setItemProposalQuantity('');
+setItemProposalUnitPrice('');
+setItemProposalLocalDate('');
+setItemProposalLocalStartTime('');
+setItemProposalLocalEndTime('');
+setItemProposalTimezone('');
+setItemProposalNote('');
+}, []);
+
+const handleOpenItemProposal = useCallback((
+item: CommercialRequestDetail['items'][number],
+) => {
+setActionError(null);
+setExpandedItemProposalId(item.id);
+setItemProposalQuantity(String(item.quantity));
+setItemProposalUnitPrice(
+item.pricing_strategy === 'free'
+? '0'
+: (
+item.unit_price_amount === null
+|| item.unit_price_amount === undefined
+? ''
+: String(item.unit_price_amount)
+),
+);
+setItemProposalLocalDate('');
+setItemProposalLocalStartTime('');
+setItemProposalLocalEndTime('');
+setItemProposalTimezone(
+formalContext?.business.timezone || 'America/Bogota',
+);
+setItemProposalNote('');
+}, [formalContext?.business.timezone]);
+
+const handleCreateItemProposal = useCallback((
+item: CommercialRequestDetail['items'][number],
+) => {
+if (
+!isMixedRequest
+|| formalContext?.actor_role !== 'business_owner'
+|| item.lifecycle_status !== 'pending_business'
+) {
+return;
+}
+
+void runAction(
+`item-proposal:${item.id}`,
+async () => {
+const quantity = parseItemProposalQuantity(
+itemProposalQuantity,
+);
+const unitPrice = parseProposalAmount(
+itemProposalUnitPrice,
+'El precio unitario',
+);
+const isService = item.offer_kind === 'service';
+
+if (
+item.pricing_strategy !== 'free'
+&& unitPrice === null
+) {
+throw new Error(
+'Ingresa el precio unitario propuesto en COP.',
+);
+}
+
+if (
+item.pricing_strategy === 'fixed'
+&& unitPrice !== item.unit_price_amount
+) {
+throw new Error(
+'El precio de un producto fixed no se puede modificar.',
+);
+}
+
+let startsAt: string | null = null;
+let endsAt: string | null = null;
+
+if (isService) {
+if (
+!itemProposalLocalDate.trim()
+|| !itemProposalLocalStartTime.trim()
+|| !itemProposalTimezone.trim()
+) {
+throw new Error(
+'Para un servicio debes indicar fecha, hora de inicio y zona horaria.',
+);
+}
+
+startsAt = toCommercialReservationStartsAtIso({
+localDate: itemProposalLocalDate,
+localTime: itemProposalLocalStartTime,
+timezone: itemProposalTimezone,
+});
+
+if (itemProposalLocalEndTime.trim()) {
+endsAt = toCommercialReservationStartsAtIso({
+localDate: itemProposalLocalDate,
+localTime: itemProposalLocalEndTime,
+timezone: itemProposalTimezone,
+});
+
+if (
+new Date(endsAt).getTime()
+<= new Date(startsAt).getTime()
+) {
+throw new Error(
+'La hora de fin debe ser posterior a la hora de inicio.',
+);
+}
+}
+}
+
+return createCommercialItemProposal(
+item.id,
+{
+proposed_quantity: quantity,
+proposed_unit_price_amount: (
+item.pricing_strategy === 'free'
+? 0
+: unitPrice
+),
+requested_modality: item.modality,
+proposed_starts_at: startsAt,
+proposed_ends_at: endsAt,
+timezone: isService
+? itemProposalTimezone.trim()
+: null,
+note: itemProposalNote.trim() || null,
+},
+);
+},
+'La propuesta del ítem fue enviada al cliente.',
+);
+}, [
+formalContext?.actor_role,
+isMixedRequest,
+itemProposalLocalDate,
+itemProposalLocalEndTime,
+itemProposalLocalStartTime,
+itemProposalNote,
+itemProposalQuantity,
+itemProposalTimezone,
+itemProposalUnitPrice,
+runAction,
+]);
+
+const confirmCloseItem = useCallback((
+item: CommercialRequestDetail['items'][number],
+action: 'reject' | 'withdraw',
+) => {
+const actionLabel = action === 'reject'
+? 'Rechazar ítem'
+: 'Retirar ítem';
+const message = action === 'reject'
+? 'El ítem quedará rechazado y no podrá reabrirse en esta solicitud.'
+: 'El ítem quedará retirado y no podrá reabrirse en esta solicitud.';
+
+Alert.alert(
+actionLabel,
+message,
+[
+{
+text: 'Cancelar',
+style: 'cancel',
+},
+{
+text: action === 'reject' ? 'Rechazar' : 'Retirar',
+style: 'destructive',
+onPress: () => {
+void runAction(
+`close-item:${action}:${item.id}`,
+() => closeCommercialRequestItem(
+item.id,
+{
+action,
+reason_code: action === 'reject'
+? 'rejected_by_business'
+: 'withdrawn_by_business',
+},
+),
+action === 'reject'
+? 'El ítem fue rechazado.'
+: 'El ítem fue retirado.',
+);
+},
+},
+],
+);
+}, [runAction]);
+
+const confirmWithdrawItemProposal = useCallback((
+proposalId: string,
+) => {
+Alert.alert(
+'Retirar propuesta del ítem',
+'La propuesta pendiente dejará de estar disponible para el cliente.',
+[
+{
+text: 'Cancelar',
+style: 'cancel',
+},
+{
+text: 'Retirar propuesta',
+style: 'destructive',
+onPress: () => {
+void runAction(
+`withdraw-item-proposal:${proposalId}`,
+() => withdrawCommercialItemProposal(proposalId, {}),
+'La propuesta del ítem fue retirada.',
+);
+},
+},
+],
+);
+}, [runAction]);
+
+const handleOpenPaymentProof = useCallback((
+paymentProofId: string,
+) => {
+void runAction(
+`open-proof:${paymentProofId}`,
+async () => {
+const access = await loadCommercialPaymentProofAccess(
+paymentProofId,
+);
+
+setExpandedProofId(paymentProofId);
+setProofAccessUrl(access.url);
+setProofAccessName(access.file.display_name);
+return access;
+},
+'La evidencia privada está disponible durante unos minutos.',
+);
+}, [runAction]);
+
+const confirmReviewPaymentProof = useCallback((
+paymentProofId: string,
+decision: 'confirmed' | 'rejected',
+) => {
+const isRejected = decision === 'rejected';
+const normalizedReason = proofRejectionReason.trim();
+
+if (isRejected && !normalizedReason) {
+setActionError({
+title: 'Motivo obligatorio',
+message: (
+'Indica el motivo del rechazo antes de rechazar '
++ 'un comprobante.'
+),
+retryable: false,
+});
+return;
+}
+
+Alert.alert(
+isRejected ? 'Rechazar comprobante' : 'Aprobar comprobante',
+isRejected
+? (
+'El cliente podrá reemplazar el comprobante si aún '
++ 'tiene intentos disponibles.'
+)
+: (
+'Confirma que el pago fue verificado. Los ítems '
++ 'aceptados avanzarán a confirmados.'
+),
+[
+{
+text: 'Cancelar',
+style: 'cancel',
+},
+{
+text: isRejected ? 'Rechazar' : 'Aprobar',
+style: isRejected ? 'destructive' : 'default',
+onPress: () => {
+void runAction(
+`review-proof:${decision}:${paymentProofId}`,
+() => reviewOwnedCommercialPaymentProof(
+paymentProofId,
+{
+decision,
+rejection_reason: isRejected
+? normalizedReason
+: null,
+},
+),
+isRejected
+? (
+'El comprobante fue rechazado. Si se agotaron los '
++ 'tres intentos, la solicitud fue cancelada y se '
++ 'liberaron los holds correspondientes.'
+)
+: 'El comprobante fue aprobado y la solicitud fue confirmada.',
+);
+},
+},
+],
+);
+}, [
+proofRejectionReason,
+runAction,
+]);
+
+const getOperationalTransitions = (
+item: CommercialRequestDetail['items'][number],
+): Array<{ label: string; nextStatus: string }> => {
+const currentStatus = String(item.lifecycle_status || '');
+
+if (item.offer_kind === 'product') {
+if (currentStatus === 'confirmed') {
+return [{ label: 'Marcar preparando', nextStatus: 'preparing' }];
+}
+
+if (currentStatus === 'preparing') {
+return [
+{ label: 'Listo para recoger', nextStatus: 'ready_for_pickup' },
+{ label: 'Marcar enviado', nextStatus: 'shipped' },
+];
+}
+
+if (currentStatus === 'ready_for_pickup') {
+return [
+{ label: 'Marcar entregado', nextStatus: 'delivered' },
+{ label: 'Marcar completado', nextStatus: 'completed' },
+];
+}
+
+if (currentStatus === 'shipped') {
+return [{ label: 'Marcar entregado', nextStatus: 'delivered' }];
+}
+
+if (currentStatus === 'delivered') {
+return [{ label: 'Marcar completado', nextStatus: 'completed' }];
+}
+
+return [];
+}
+
+if (currentStatus === 'confirmed') {
+return [
+{ label: 'Iniciar servicio', nextStatus: 'in_progress' },
+{ label: 'Marcar no asistió', nextStatus: 'no_show' },
+{ label: 'Cancelar servicio', nextStatus: 'cancelled' },
+];
+}
+
+if (currentStatus === 'in_progress') {
+return [{ label: 'Completar servicio', nextStatus: 'completed' }];
+}
+
+return [];
+};
+
+const confirmOperationalTransition = useCallback((
+item: CommercialRequestDetail['items'][number],
+nextStatus: string,
+label: string,
+) => {
+Alert.alert(
+label,
+`Confirma el cambio operativo del ítem "${item.title}".`,
+[
+{
+text: 'Cancelar',
+style: 'cancel',
+},
+{
+text: 'Confirmar',
+onPress: () => {
+void runAction(
+`operational:${item.id}:${nextStatus}`,
+() => updateCommercialItemOperationalStatus(
+item.id,
+{
+next_status: nextStatus as (
+| 'preparing'
+| 'ready_for_pickup'
+| 'shipped'
+| 'delivered'
+| 'in_progress'
+| 'completed'
+| 'no_show'
+| 'cancelled'
+),
+},
+),
+'El estado operativo del ítem fue actualizado.',
+);
+},
+},
+],
+);
+}, [runAction]);
+
 const confirmWithdrawProposal = useCallback((
 proposalId: string,
 ) => {
@@ -765,6 +1218,21 @@ Referencia: {requestDetail.delivery_reference}
 {requestDetail.items.map((item) => {
 const lineComment = getCommercialRequestLineComment(item);
 const isService = item.offer_kind === 'service';
+const stockLabel = getCommercialRequestItemStockLabel(item);
+const finalPriceLabel = getCommercialRequestItemFinalPriceLabel(
+item,
+formatCop,
+);
+const itemProposals = timeline?.proposals.filter(
+(proposal) => proposal.commerce_request_item_id === item.id,
+) || [];
+const itemReservations = (
+formalContext?.reservations || []
+).filter(
+(reservation) => (
+reservation.commerce_request_item_id === item.id
+),
+);
 
 return (
 <View key={item.id} style={styles.itemCard}>
@@ -781,20 +1249,381 @@ return (
 <Text style={styles.itemMeta}>
 {getCommercialRequestItemLabel(item)}
 </Text>
+{isMixedRequest ? (
+<Text style={styles.itemStatus}>
+{getCommercialRequestItemLifecycleLabel(
+item.lifecycle_status,
+)}
+</Text>
+) : null}
 <Text style={styles.itemMeta}>
-Cantidad: {item.quantity}
+Cantidad solicitada: {item.quantity}
 </Text>
 <Text style={styles.itemMeta}>
 {getCommercialRequestItemPriceLabel(item, formatCop)}
 </Text>
+{stockLabel ? (
+<Text style={styles.itemMeta}>
+{stockLabel}
+</Text>
+) : null}
+{item.final_quantity !== null
+&& item.final_quantity !== undefined ? (
+<Text style={styles.itemMeta}>
+Cantidad acordada: {item.final_quantity}
+</Text>
+) : null}
+{finalPriceLabel ? (
+<Text style={styles.itemFinalPrice}>
+{finalPriceLabel}
+</Text>
+) : null}
+{item.final_modality ? (
+<Text style={styles.itemMeta}>
+Modalidad acordada: {modalityLabel(item.final_modality)}
+</Text>
+) : null}
+{item.final_starts_at ? (
+<Text style={styles.itemMeta}>
+Inicio acordado: {formatTimelineDate(item.final_starts_at)}
+</Text>
+) : null}
+{item.final_ends_at ? (
+<Text style={styles.itemMeta}>
+Fin acordado: {formatTimelineDate(item.final_ends_at)}
+</Text>
+) : null}
+{item.close_reason ? (
+<Text style={styles.itemCloseReason}>
+Resultado: {item.close_reason}
+</Text>
+) : null}
 {lineComment ? (
 <View style={styles.lineCommentBox}>
 <Text style={styles.lineCommentLabel}>
-Comentario de la solicitud
+Comentario del cliente
 </Text>
 <Text style={styles.lineCommentText}>
 {lineComment}
 </Text>
+</View>
+) : null}
+{item.customer_note ? (
+<View style={styles.lineCommentBox}>
+<Text style={styles.lineCommentLabel}>
+Nota específica del cliente
+</Text>
+<Text style={styles.lineCommentText}>
+{item.customer_note}
+</Text>
+</View>
+) : null}
+{isMixedRequest
+&& formalContext?.actor_role === 'business_owner'
+&& item.lifecycle_status === 'pending_business' ? (
+<View style={styles.itemActions}>
+<TouchableOpacity
+accessibilityLabel={`Crear propuesta para ${item.title}`}
+accessibilityRole="button"
+disabled={pendingAction !== null}
+onPress={() => handleOpenItemProposal(item)}
+style={[
+styles.itemActionPrimary,
+pendingAction !== null ? styles.disabledButton : null,
+]}
+>
+<Text style={styles.itemActionPrimaryText}>
+Crear propuesta
+</Text>
+</TouchableOpacity>
+
+<TouchableOpacity
+accessibilityLabel={`Rechazar ${item.title}`}
+accessibilityRole="button"
+disabled={pendingAction !== null}
+onPress={() => confirmCloseItem(item, 'reject')}
+style={[
+styles.itemActionDanger,
+pendingAction !== null ? styles.disabledButton : null,
+]}
+>
+<Text style={styles.itemActionDangerText}>
+Rechazar ítem
+</Text>
+</TouchableOpacity>
+
+<TouchableOpacity
+accessibilityLabel={`Retirar ${item.title}`}
+accessibilityRole="button"
+disabled={pendingAction !== null}
+onPress={() => confirmCloseItem(item, 'withdraw')}
+style={[
+styles.itemActionSecondary,
+pendingAction !== null ? styles.disabledButton : null,
+]}
+>
+<Text style={styles.itemActionSecondaryText}>
+Retirar ítem
+</Text>
+</TouchableOpacity>
+</View>
+) : null}
+
+{isMixedRequest
+&& formalContext?.actor_role === 'business_owner'
+&& expandedItemProposalId === item.id ? (
+<View style={styles.itemProposalForm}>
+<Text style={styles.itemHistoryTitle}>
+Propuesta para este ítem
+</Text>
+<TextInput
+accessibilityLabel={`Cantidad propuesta para ${item.title}`}
+keyboardType="numeric"
+onChangeText={setItemProposalQuantity}
+placeholder="Cantidad"
+placeholderTextColor="#9B90AA"
+style={styles.input}
+value={itemProposalQuantity}
+/>
+<TextInput
+accessibilityLabel={`Precio unitario propuesto para ${item.title}`}
+keyboardType="numeric"
+onChangeText={setItemProposalUnitPrice}
+placeholder="Precio unitario COP"
+placeholderTextColor="#9B90AA"
+style={styles.input}
+value={itemProposalUnitPrice}
+/>
+{isService ? (
+<>
+<TextInput
+accessibilityLabel={`Fecha propuesta para ${item.title}`}
+autoCapitalize="none"
+keyboardType="numbers-and-punctuation"
+onChangeText={setItemProposalLocalDate}
+placeholder="Fecha: AAAA-MM-DD"
+placeholderTextColor="#9B90AA"
+style={styles.input}
+value={itemProposalLocalDate}
+/>
+<TextInput
+accessibilityLabel={`Hora de inicio propuesta para ${item.title}`}
+autoCapitalize="none"
+keyboardType="numbers-and-punctuation"
+onChangeText={setItemProposalLocalStartTime}
+placeholder="Inicio: HH:MM"
+placeholderTextColor="#9B90AA"
+style={styles.input}
+value={itemProposalLocalStartTime}
+/>
+<TextInput
+accessibilityLabel={`Hora de fin propuesta para ${item.title}`}
+autoCapitalize="none"
+keyboardType="numbers-and-punctuation"
+onChangeText={setItemProposalLocalEndTime}
+placeholder="Fin opcional: HH:MM"
+placeholderTextColor="#9B90AA"
+style={styles.input}
+value={itemProposalLocalEndTime}
+/>
+<TextInput
+accessibilityLabel={`Zona horaria propuesta para ${item.title}`}
+autoCapitalize="none"
+onChangeText={setItemProposalTimezone}
+placeholder="Zona horaria IANA"
+placeholderTextColor="#9B90AA"
+style={styles.input}
+value={itemProposalTimezone}
+/>
+</>
+) : null}
+<TextInput
+accessibilityLabel={`Comentario de propuesta para ${item.title}`}
+multiline
+onChangeText={setItemProposalNote}
+placeholder="Comentario opcional"
+placeholderTextColor="#9B90AA"
+style={[styles.input, styles.multilineInput]}
+textAlignVertical="top"
+value={itemProposalNote}
+/>
+<View style={styles.itemActionRow}>
+<TouchableOpacity
+accessibilityLabel={`Enviar propuesta para ${item.title}`}
+accessibilityRole="button"
+disabled={pendingAction !== null}
+onPress={() => handleCreateItemProposal(item)}
+style={[
+styles.itemActionPrimary,
+pendingAction !== null ? styles.disabledButton : null,
+]}
+>
+<Text style={styles.itemActionPrimaryText}>
+{pendingAction === `item-proposal:${item.id}`
+? 'Enviando...'
+: 'Enviar propuesta'}
+</Text>
+</TouchableOpacity>
+<TouchableOpacity
+accessibilityLabel={`Cancelar propuesta para ${item.title}`}
+accessibilityRole="button"
+disabled={pendingAction !== null}
+onPress={resetItemProposalForm}
+style={[
+styles.itemActionSecondary,
+pendingAction !== null ? styles.disabledButton : null,
+]}
+>
+<Text style={styles.itemActionSecondaryText}>
+Cancelar
+</Text>
+</TouchableOpacity>
+</View>
+</View>
+) : null}
+
+{isMixedRequest && itemProposals.length > 0 ? (
+<View style={styles.itemHistory}>
+<Text style={styles.itemHistoryTitle}>
+Propuestas de este ítem
+</Text>
+{itemProposals.map((proposal) => (
+<View key={proposal.id} style={styles.itemHistoryCard}>
+<Text style={styles.itemHistoryText}>
+Propuesta #{proposal.version_number} · {proposalStatusLabel(
+proposal.status,
+)}
+</Text>
+{proposal.proposed_quantity !== null
+&& proposal.proposed_quantity !== undefined ? (
+<Text style={styles.itemHistoryText}>
+Cantidad propuesta: {proposal.proposed_quantity}
+</Text>
+) : null}
+{proposal.proposed_unit_price_amount !== null
+&& proposal.proposed_unit_price_amount !== undefined ? (
+<Text style={styles.itemHistoryText}>
+Valor unitario: {formatCop(
+proposal.proposed_unit_price_amount,
+)}
+</Text>
+) : null}
+{proposal.proposed_line_total_amount !== null
+&& proposal.proposed_line_total_amount !== undefined ? (
+<Text style={styles.itemHistoryText}>
+Total propuesto: {formatCop(
+proposal.proposed_line_total_amount,
+)}
+</Text>
+) : null}
+{proposal.proposed_starts_at ? (
+<Text style={styles.itemHistoryText}>
+Inicio: {formatTimelineDate(proposal.proposed_starts_at)}
+</Text>
+) : null}
+{proposal.proposed_ends_at ? (
+<Text style={styles.itemHistoryText}>
+Fin: {formatTimelineDate(proposal.proposed_ends_at)}
+</Text>
+) : null}
+{proposal.requested_modality ? (
+<Text style={styles.itemHistoryText}>
+Modalidad: {modalityLabel(
+proposal.requested_modality,
+)}
+</Text>
+) : null}
+{proposal.note ? (
+<Text style={styles.itemHistoryText}>
+{proposal.note}
+</Text>
+) : null}
+{formalContext?.actor_role === 'business_owner'
+&& proposal.status === 'pending'
+&& proposal.proposed_by_profile_id
+=== requestDetail.client_id ? null : null}
+{formalContext?.actor_role === 'business_owner'
+&& proposal.status === 'pending'
+&& proposal.proposed_by_profile_id !== requestDetail.client_id ? (
+<TouchableOpacity
+accessibilityLabel={`Retirar propuesta ${proposal.version_number} de ${item.title}`}
+accessibilityRole="button"
+disabled={pendingAction !== null}
+onPress={() => confirmWithdrawItemProposal(proposal.id)}
+style={[
+styles.withdrawButton,
+pendingAction !== null ? styles.disabledButton : null,
+]}
+>
+<Text style={styles.withdrawButtonText}>
+{pendingAction === `withdraw-item-proposal:${proposal.id}`
+? 'Retirando...'
+: 'Retirar propuesta'}
+</Text>
+</TouchableOpacity>
+) : null}
+</View>
+))}
+</View>
+) : null}
+{isMixedRequest
+&& formalContext?.actor_role === 'business_owner'
+&& getOperationalTransitions(item).length > 0 ? (
+<View style={styles.itemActions}>
+<Text style={styles.itemHistoryTitle}>
+Estado operativo
+</Text>
+{getOperationalTransitions(item).map((transition) => (
+<TouchableOpacity
+key={transition.nextStatus}
+accessibilityLabel={`${transition.label}: ${item.title}`}
+accessibilityRole="button"
+disabled={pendingAction !== null}
+onPress={() => confirmOperationalTransition(
+item,
+transition.nextStatus,
+transition.label,
+)}
+style={[
+styles.itemActionSecondary,
+pendingAction !== null ? styles.disabledButton : null,
+]}
+>
+<Text style={styles.itemActionSecondaryText}>
+{transition.label}
+</Text>
+</TouchableOpacity>
+))}
+</View>
+) : null}
+
+{isMixedRequest && itemReservations.length > 0 ? (
+<View style={styles.itemHistory}>
+<Text style={styles.itemHistoryTitle}>
+Reservas vinculadas
+</Text>
+{itemReservations.map((reservation) => {
+const presentation = presentCommercialReservation(reservation);
+
+return (
+<View key={reservation.id} style={styles.itemHistoryCard}>
+<Text style={styles.itemHistoryText}>
+{presentation.statusLabel}
+</Text>
+<Text style={styles.itemHistoryText}>
+Inicio: {presentation.startsAtLabel}
+</Text>
+<Text style={styles.itemHistoryText}>
+Fin: {presentation.endsAtLabel}
+</Text>
+{presentation.holdExpiresAtLabel ? (
+<Text style={styles.itemHistoryText}>
+Hold vence: {presentation.holdExpiresAtLabel}
+</Text>
+) : null}
+</View>
+);
+})}
 </View>
 ) : null}
 </View>
@@ -822,7 +1651,8 @@ requestDetail.total_amount,
 );
 })()}
 
-{formalContext?.permissions.can_create_proposal ? (
+{!isMixedRequest
+&& formalContext?.permissions.can_create_proposal ? (
 <View style={styles.section}>
 <Text style={styles.sectionTitle}>
 Crear propuesta
@@ -941,7 +1771,8 @@ pendingAction !== null
 </View>
 ) : null}
 
-{formalContext?.permissions.can_create_reservation_hold ? (
+{!isMixedRequest
+&& formalContext?.permissions.can_create_reservation_hold ? (
 <View style={styles.section}>
 <Text style={styles.sectionTitle}>
 Crear hold temporal
@@ -1007,6 +1838,144 @@ pendingAction !== null
 </View>
 ) : null}
 
+{isMixedRequest
+&& formalContext?.actor_role === 'business_owner'
+&& formalContext.payment_options ? (
+<View style={styles.section}>
+<Text style={styles.sectionTitle}>
+Pago y comprobantes
+</Text>
+<Text style={styles.row}>
+Intentos usados: {formalContext.payment_options.attempts_used}
+</Text>
+<Text style={styles.row}>
+Intentos disponibles: {
+formalContext.payment_options.attempts_remaining
+}
+</Text>
+{formalContext.payment_options.cash_on_delivery_available ? (
+<Text style={styles.row}>
+El comercio tiene pago contraentrega habilitado.
+</Text>
+) : null}
+{formalContext.payment_proofs.length === 0 ? (
+<Text style={styles.row}>
+Aún no hay comprobantes enviados por el cliente.
+</Text>
+) : (
+<View style={styles.itemHistory}>
+{formalContext.payment_proofs.map((proof) => (
+<View key={proof.id} style={styles.itemHistoryCard}>
+<Text style={styles.itemHistoryText}>
+Comprobante: {proof.status}
+</Text>
+{proof.payment_reference ? (
+<Text style={styles.itemHistoryText}>
+Referencia: {proof.payment_reference}
+</Text>
+) : null}
+{proof.note ? (
+<Text style={styles.itemHistoryText}>
+Nota: {proof.note}
+</Text>
+) : null}
+{proof.rejection_reason ? (
+<Text style={styles.itemHistoryText}>
+Motivo de rechazo: {proof.rejection_reason}
+</Text>
+) : null}
+{proof.status === 'submitted' ? (
+<>
+<TouchableOpacity
+accessibilityLabel="Abrir evidencia privada del comprobante"
+accessibilityRole="button"
+disabled={pendingAction !== null}
+onPress={() => handleOpenPaymentProof(proof.id)}
+style={[
+styles.itemActionSecondary,
+pendingAction !== null ? styles.disabledButton : null,
+]}
+>
+<Text style={styles.itemActionSecondaryText}>
+{pendingAction === `open-proof:${proof.id}`
+? 'Abriendo evidencia...'
+: 'Abrir evidencia privada'}
+</Text>
+</TouchableOpacity>
+{expandedProofId === proof.id && proofAccessUrl ? (
+<View style={styles.proofAccessCard}>
+<Text style={styles.itemHistoryText}>
+{proofAccessName || 'Evidencia disponible'}
+</Text>
+<Text selectable style={styles.proofAccessUrl}>
+{proofAccessUrl}
+</Text>
+<Text style={styles.proofAccessHint}>
+La URL es temporal y sólo debe usarse para revisar este comprobante.
+</Text>
+</View>
+) : null}
+<TextInput
+accessibilityLabel="Motivo para rechazar comprobante"
+multiline
+onChangeText={setProofRejectionReason}
+placeholder="Motivo obligatorio si rechazas"
+placeholderTextColor="#9B90AA"
+style={[styles.input, styles.multilineInput]}
+textAlignVertical="top"
+value={proofRejectionReason}
+/>
+<View style={styles.itemActionRow}>
+<TouchableOpacity
+accessibilityLabel="Aprobar comprobante"
+accessibilityRole="button"
+disabled={pendingAction !== null}
+onPress={() => confirmReviewPaymentProof(
+proof.id,
+'confirmed',
+)}
+style={[
+styles.itemActionPrimary,
+pendingAction !== null ? styles.disabledButton : null,
+]}
+>
+<Text style={styles.itemActionPrimaryText}>
+Aprobar
+</Text>
+</TouchableOpacity>
+<TouchableOpacity
+accessibilityLabel="Rechazar comprobante"
+accessibilityRole="button"
+disabled={
+pendingAction !== null
+|| !proofRejectionReason.trim()
+}
+onPress={() => confirmReviewPaymentProof(
+proof.id,
+'rejected',
+)}
+style={[
+styles.itemActionDanger,
+pendingAction !== null
+|| !proofRejectionReason.trim()
+? styles.disabledButton
+: null,
+]}
+>
+<Text style={styles.itemActionDangerText}>
+Rechazar
+</Text>
+</TouchableOpacity>
+</View>
+</>
+) : null}
+</View>
+))}
+</View>
+)}
+</View>
+) : null}
+
 {actionError ? (
 <View style={styles.actionErrorCard}>
 <Text style={styles.actionErrorTitle}>
@@ -1018,7 +1987,8 @@ pendingAction !== null
 </View>
 ) : null}
 
-{formalContext?.permissions.can_complete ? (
+{!isMixedRequest
+&& formalContext?.permissions.can_complete ? (
 <View style={styles.section}>
 <Text style={styles.sectionTitle}>
 Acciones
@@ -1053,12 +2023,16 @@ pendingAction !== null
 Historial y propuestas
 </Text>
 
-{timeline.proposals.length > 0 ? (
+{timeline.proposals.filter(
+(proposal) => !proposal.commerce_request_item_id,
+).length > 0 ? (
 <View style={styles.timelineGroup}>
 <Text style={styles.timelineGroupTitle}>
 Propuestas
 </Text>
-{timeline.proposals.map((proposal) => (
+{timeline.proposals.filter(
+(proposal) => !proposal.commerce_request_item_id,
+).map((proposal) => (
 <View key={proposal.id} style={styles.timelineCard}>
 <Text style={styles.timelineTitle}>
 Propuesta #{proposal.version_number} · {proposalStatusLabel(
@@ -1358,6 +2332,132 @@ fontWeight: '700',
 itemMeta: {
 color: '#6E6281',
 fontSize: 14,
+},
+itemStatus: {
+color: '#5420A5',
+fontSize: 13,
+fontWeight: '800',
+lineHeight: 19,
+},
+itemFinalPrice: {
+color: '#2E7D4F',
+fontSize: 14,
+fontWeight: '800',
+},
+itemCloseReason: {
+color: '#7A3B46',
+fontSize: 13,
+fontWeight: '700',
+lineHeight: 19,
+},
+itemHistory: {
+borderTopColor: '#EEE8F3',
+borderTopWidth: 1,
+gap: 7,
+marginTop: 8,
+paddingTop: 10,
+},
+itemHistoryTitle: {
+color: '#5C5071',
+fontSize: 13,
+fontWeight: '800',
+},
+itemHistoryCard: {
+backgroundColor: '#FAF8FC',
+borderColor: '#EAE4F1',
+borderRadius: 9,
+borderWidth: 1,
+gap: 3,
+padding: 9,
+},
+itemHistoryText: {
+color: '#625572',
+fontSize: 12,
+lineHeight: 18,
+},
+itemActions: {
+borderTopColor: '#EEE8F3',
+borderTopWidth: 1,
+gap: 8,
+marginTop: 10,
+paddingTop: 10,
+},
+itemActionRow: {
+flexDirection: 'row',
+gap: 8,
+},
+itemProposalForm: {
+backgroundColor: '#F7F2FC',
+borderColor: '#E3D7F0',
+borderRadius: 10,
+borderWidth: 1,
+gap: 9,
+marginTop: 10,
+padding: 11,
+},
+itemActionPrimary: {
+alignItems: 'center',
+backgroundColor: '#5420A5',
+borderRadius: 9,
+flex: 1,
+justifyContent: 'center',
+minHeight: 42,
+paddingHorizontal: 12,
+paddingVertical: 9,
+},
+itemActionPrimaryText: {
+color: '#FFFFFF',
+fontSize: 13,
+fontWeight: '800',
+},
+itemActionSecondary: {
+alignItems: 'center',
+backgroundColor: '#EEE7F3',
+borderRadius: 9,
+justifyContent: 'center',
+minHeight: 42,
+paddingHorizontal: 12,
+paddingVertical: 9,
+},
+itemActionSecondaryText: {
+color: '#5D4D6C',
+fontSize: 13,
+fontWeight: '800',
+},
+itemActionDanger: {
+alignItems: 'center',
+backgroundColor: '#FCE3E5',
+borderColor: '#EABBC0',
+borderRadius: 9,
+borderWidth: 1,
+justifyContent: 'center',
+minHeight: 42,
+paddingHorizontal: 12,
+paddingVertical: 9,
+},
+itemActionDangerText: {
+color: '#8A2533',
+fontSize: 13,
+fontWeight: '800',
+},
+proofAccessCard: {
+backgroundColor: '#F5F0FA',
+borderColor: '#DDD0EA',
+borderRadius: 8,
+borderWidth: 1,
+gap: 5,
+marginTop: 8,
+padding: 9,
+},
+proofAccessUrl: {
+color: '#5420A5',
+fontSize: 11,
+lineHeight: 16,
+},
+proofAccessHint: {
+color: '#6E6281',
+fontSize: 11,
+lineHeight: 16,
 },
 lineCommentBox: {
 backgroundColor: '#F8F4FC',

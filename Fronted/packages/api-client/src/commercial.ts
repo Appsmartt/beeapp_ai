@@ -78,6 +78,14 @@ ReplaceCommercialPaymentProofResponse,
   CommercialVerificationMutationResponse,
   GetOwnedCommercialVerificationResponse,
   SaveCommercialVerificationPayload,
+  CreateCommercialRequestItemProposalPayload,
+  CommercialRequestItemMutationResponse,
+  CloseCommercialRequestItemPayload,
+  WithdrawCommercialRequestItemProposalPayload,
+  UpdateCommercialRequestItemOperationalStatusPayload,
+  ReviewCommercialPaymentProofPayload,
+  ReviewCommercialPaymentProofResponse,
+  CommercialPaymentProofAccessResponse,
 } from '@beeapp/shared-types';
 
 import { api } from './client';
@@ -1109,6 +1117,128 @@ export function withdrawCommercialRequestProposal(
   return api.post<CommercialRequestProposalMutationResponse>(
     `${commercialProposalPath(proposalId)}withdraw/`,
     payload,
+    { auth },
+  );
+}
+
+
+function commercialRequestItemPath(itemId: string): string {
+  const normalizedItemId = String(itemId || '').trim();
+
+  if (!normalizedItemId) {
+    throw new Error(
+      'No fue posible identificar el ítem de la solicitud.',
+    );
+  }
+
+  return `/commercial/request-items/${encodeURIComponent(
+    normalizedItemId,
+  )}/`;
+}
+
+function commercialItemProposalPath(proposalId: string): string {
+  const normalizedProposalId = String(proposalId || '').trim();
+
+  if (!normalizedProposalId) {
+    throw new Error(
+      'No fue posible identificar la propuesta por ítem.',
+    );
+  }
+
+  return `/commercial/item-proposals/${encodeURIComponent(
+    normalizedProposalId,
+  )}/`;
+}
+
+export function createCommercialRequestItemProposal(
+  auth: AuthCredentials,
+  itemId: string,
+  payload: CreateCommercialRequestItemProposalPayload,
+): Promise<CommercialRequestItemMutationResponse> {
+  return api.post<CommercialRequestItemMutationResponse>(
+    `${commercialRequestItemPath(itemId)}proposals/`,
+    payload,
+    { auth },
+  );
+}
+
+export function acceptCommercialRequestItemProposal(
+  auth: AuthCredentials,
+  proposalId: string,
+): Promise<CommercialRequestItemMutationResponse> {
+  return api.post<CommercialRequestItemMutationResponse>(
+    `${commercialItemProposalPath(proposalId)}accept/`,
+    undefined,
+    { auth },
+  );
+}
+
+export function withdrawCommercialRequestItemProposal(
+  auth: AuthCredentials,
+  proposalId: string,
+  payload: WithdrawCommercialRequestItemProposalPayload = {},
+): Promise<CommercialRequestItemMutationResponse> {
+  return api.post<CommercialRequestItemMutationResponse>(
+    `${commercialItemProposalPath(proposalId)}withdraw/`,
+    payload,
+    { auth },
+  );
+}
+
+export function closeCommercialRequestItem(
+  auth: AuthCredentials,
+  itemId: string,
+  payload: CloseCommercialRequestItemPayload,
+): Promise<CommercialRequestItemMutationResponse> {
+  return api.post<CommercialRequestItemMutationResponse>(
+    `${commercialRequestItemPath(itemId)}close/`,
+    payload,
+    { auth },
+  );
+}
+
+export function updateCommercialRequestItemOperationalStatus(
+  auth: AuthCredentials,
+  itemId: string,
+  payload: UpdateCommercialRequestItemOperationalStatusPayload,
+): Promise<CommercialRequestItemMutationResponse> {
+  return api.post<CommercialRequestItemMutationResponse>(
+    `${commercialRequestItemPath(itemId)}operational-status/`,
+    payload,
+    { auth },
+  );
+}
+
+
+export function reviewCommercialPaymentProof(
+  auth: AuthCredentials,
+  paymentProofId: string,
+  payload: ReviewCommercialPaymentProofPayload,
+): Promise<ReviewCommercialPaymentProofResponse> {
+  return api.post<ReviewCommercialPaymentProofResponse>(
+    `${commercialPaymentProofPath(paymentProofId)}review/`,
+    payload,
+    { auth },
+  );
+}
+
+export function getCommercialPaymentProofAccess(
+  auth: AuthCredentials,
+  paymentProofId: string,
+  options: { download?: boolean } = {},
+): Promise<CommercialPaymentProofAccessResponse> {
+  const searchParams = new URLSearchParams();
+
+  if (options.download) {
+    searchParams.set('download', 'true');
+  }
+
+  const query = searchParams.toString();
+
+  return api.get<CommercialPaymentProofAccessResponse>(
+    `${commercialPaymentProofPath(paymentProofId)}access/${
+      query ? `?${query}` : ''
+    }`,
     { auth },
   );
 }

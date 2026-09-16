@@ -61,6 +61,13 @@ saveOwnedCommercialVerification,
 submitOwnedCommercialVerification,
 attachOwnedCommercialVerificationDocument,
 ApiRequestError,
+createCommercialRequestItemProposal,
+acceptCommercialRequestItemProposal,
+withdrawCommercialRequestItemProposal,
+closeCommercialRequestItem as closeCommercialRequestItemApi,
+updateCommercialRequestItemOperationalStatus,
+reviewCommercialPaymentProof,
+getCommercialPaymentProofAccess,
 } from '@beeapp/api-client';
 
 import type {
@@ -137,6 +144,14 @@ AttachCommercialVerificationDocumentPayload,
 CommercialVerificationMutationResponse,
 GetOwnedCommercialVerificationResponse,
 SaveCommercialVerificationPayload,
+CreateCommercialRequestItemProposalPayload,
+CommercialRequestItemMutationResponse,
+CloseCommercialRequestItemPayload,
+WithdrawCommercialRequestItemProposalPayload,
+UpdateCommercialRequestItemOperationalStatusPayload,
+ReviewCommercialPaymentProofPayload,
+ReviewCommercialPaymentProofResponse,
+CommercialPaymentProofAccessResponse,
 } from '@beeapp/shared-types';
 
 import {
@@ -887,6 +902,83 @@ await getRequiredCommercialCredentials(),
 paymentProofId,
 payload,
 );
+}
+
+
+export async function createCommercialItemProposal(
+  itemId: string,
+  payload: CreateCommercialRequestItemProposalPayload,
+): Promise<CommercialRequestItemMutationResponse> {
+  return createCommercialRequestItemProposal(
+    await getRequiredCommercialCredentials(),
+    itemId,
+    payload,
+  );
+}
+
+export async function acceptCommercialItemProposal(
+  proposalId: string,
+): Promise<CommercialRequestItemMutationResponse> {
+  return acceptCommercialRequestItemProposal(
+    await getRequiredCommercialCredentials(),
+    proposalId,
+  );
+}
+
+export async function withdrawCommercialItemProposal(
+  proposalId: string,
+  payload: WithdrawCommercialRequestItemProposalPayload = {},
+): Promise<CommercialRequestItemMutationResponse> {
+  return withdrawCommercialRequestItemProposal(
+    await getRequiredCommercialCredentials(),
+    proposalId,
+    payload,
+  );
+}
+
+export async function closeCommercialRequestItem(
+  itemId: string,
+  payload: CloseCommercialRequestItemPayload,
+): Promise<CommercialRequestItemMutationResponse> {
+  return closeCommercialRequestItemApi(
+    await getRequiredCommercialCredentials(),
+    itemId,
+    payload,
+  );
+}
+
+export async function updateCommercialItemOperationalStatus(
+  itemId: string,
+  payload: UpdateCommercialRequestItemOperationalStatusPayload,
+): Promise<CommercialRequestItemMutationResponse> {
+  return updateCommercialRequestItemOperationalStatus(
+    await getRequiredCommercialCredentials(),
+    itemId,
+    payload,
+  );
+}
+
+
+export async function reviewOwnedCommercialPaymentProof(
+  paymentProofId: string,
+  payload: ReviewCommercialPaymentProofPayload,
+): Promise<ReviewCommercialPaymentProofResponse> {
+  return reviewCommercialPaymentProof(
+    await getRequiredCommercialCredentials(),
+    paymentProofId,
+    payload,
+  );
+}
+
+export async function loadCommercialPaymentProofAccess(
+  paymentProofId: string,
+  options: { download?: boolean } = {},
+): Promise<CommercialPaymentProofAccessResponse> {
+  return getCommercialPaymentProofAccess(
+    await getRequiredCommercialCredentials(),
+    paymentProofId,
+    options,
+  );
 }
 
 export async function revalidateBusinessCartAfterRemoteConflict(

@@ -15,11 +15,70 @@ if (requestType === 'service_request') {
 return 'Servicio solicitado';
 }
 
+if (requestType === 'mixed_request') {
+return 'Compra y reserva';
+}
+
 if (requestType === 'booking_request') {
 return 'Reserva solicitada';
 }
 
 return 'Productos solicitados';
+}
+
+export function getCommercialRequestItemLifecycleLabel(
+status: string | null | undefined,
+): string {
+const labels: Record<string, string> = {
+pending_business: 'Requiere respuesta del comercio',
+pending_customer: 'Esperando decisión del cliente',
+accepted: 'Términos aceptados',
+rejected: 'Ítem rechazado',
+withdrawn: 'Ítem retirado',
+payment_pending: 'Pendiente de pago',
+payment_submitted: 'Comprobante en revisión',
+confirmed: 'Confirmado',
+preparing: 'Preparando',
+ready_for_pickup: 'Listo para recoger',
+shipped: 'Enviado',
+delivered: 'Entregado',
+in_progress: 'En curso',
+completed: 'Completado',
+no_show: 'No asistió',
+cancelled: 'Cancelado',
+expired: 'Vencido',
+};
+
+return labels[String(status || '')] || 'Estado por confirmar';
+}
+
+export function getCommercialRequestItemFinalPriceLabel(
+item: CommercialRequestDetailItem,
+formatCurrency: (amount: number | null) => string,
+): string | null {
+if (item.final_line_total_amount === null
+|| item.final_line_total_amount === undefined) {
+return null;
+}
+
+return `Total acordado: ${formatCurrency(
+item.final_line_total_amount,
+)}`;
+}
+
+export function getCommercialRequestItemStockLabel(
+item: CommercialRequestDetailItem,
+): string | null {
+if (!item.track_inventory) {
+return null;
+}
+
+if (item.stock_quantity === null
+|| item.stock_quantity === undefined) {
+return 'Inventario controlado';
+}
+
+return `Stock al crear solicitud: ${item.stock_quantity}`;
 }
 
 export function getCommercialRequestItemLabel(
