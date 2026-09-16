@@ -48,7 +48,6 @@ getCommercialRequests,
 getOwnedCommercialRequests,
 getCommercialRequestTimeline,
 getCommercialRequestFormalDetail,
-getCommercialRequestPaymentMethods,
 transitionCommercialRequest,
 createCommercialRequestProposal,
 createCommercialReservationHold,
@@ -130,7 +129,6 @@ GetCommercialRequestsResponse,
 GetOwnedCommercialRequestsResponse,
 GetCommercialRequestTimelineResponse,
 GetCommercialRequestFormalDetailResponse,
-GetCommercialRequestPaymentMethodsResponse,
 CommercialRequestTransitionPayload,
 CommercialRequestTransitionResponse,
 CreateCommercialRequestProposalPayload,
@@ -819,15 +817,6 @@ export async function loadCommercialRequestFormalDetail(
 requestId: string,
 ): Promise<GetCommercialRequestFormalDetailResponse> {
 return getCommercialRequestFormalDetail(
-await getRequiredCommercialCredentials(),
-requestId,
-);
-}
-
-export async function loadCommercialRequestPaymentMethods(
-requestId: string,
-): Promise<GetCommercialRequestPaymentMethodsResponse> {
-return getCommercialRequestPaymentMethods(
 await getRequiredCommercialCredentials(),
 requestId,
 );

@@ -39,7 +39,6 @@ import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system';
 
 import type {
-CommercialPaymentMethodPublic,
 CommercialRequestDetail,
 CommercialRequestDetailContext,
 CommercialRequestTimeline,
@@ -65,7 +64,6 @@ getCommercialRequestTotalState,
 import {
 acceptCommercialProposal,
 loadCommercialRequestFormalDetail,
-loadCommercialRequestPaymentMethods,
 rejectCommercialProposal,
 replaceRejectedCommercialPaymentProof,
 submitCommercialPaymentProofForRequest,
@@ -511,9 +509,6 @@ string | null
 const [expandedPaymentMethodId, setExpandedPaymentMethodId] = useState<
 string | null
 >(null);
-const [requestPaymentMethods, setRequestPaymentMethods] = useState<
-CommercialPaymentMethodPublic[] | null
->(null);
 const [loading, setLoading] = useState(true);
 const [refreshing, setRefreshing] = useState(false);
 const [error, setError] = useState<CommercialUiError | null>(
@@ -543,22 +538,12 @@ setRequestDetail(response.request);
 setFormalContext(response.context);
 setTimeline(response.context.timeline);
 setTimelineError(null);
-
-try {
-const paymentMethodsResponse = await loadCommercialRequestPaymentMethods(
-requestId,
-);
-setRequestPaymentMethods(paymentMethodsResponse.payment_methods);
-} catch {
-setRequestPaymentMethods(null);
-}
 } catch (loadError) {
 setError(toCommercialUiError(loadError));
 setRequestDetail(null);
 setFormalContext(null);
 setTimeline(null);
 setTimelineError(null);
-setRequestPaymentMethods(null);
 } finally {
 setLoading(false);
 }
@@ -837,9 +822,9 @@ void runRequestAction(
 }, [runRequestAction]);
 
 const displayedTimeline = formalContext?.timeline || timeline;
-const paymentMethods = requestPaymentMethods
-?? formalContext?.payment_options?.manual_payment_methods
-?? [];
+const paymentMethods = (
+formalContext?.payment_options?.manual_payment_methods || []
+);
 
 const formatProposalDateTime = (
 value: string | null,
