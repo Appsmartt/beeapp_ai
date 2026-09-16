@@ -31,7 +31,7 @@ def submit_commercial_payment_proof(
     access_token: str | None,
     commerce_request_id: str | UUID,
     file_id: str | UUID,
-    payment_method_id: str | UUID,
+    payment_method_id: str | UUID | None = None,
     payment_reference: str | None = None,
     note: str | None = None,
 ) -> dict[str, str]:
@@ -43,7 +43,11 @@ def submit_commercial_payment_proof(
         parameters={
             "p_commerce_request_id": str(commerce_request_id),
             "p_file_id": str(file_id),
-            "p_payment_method_id": str(payment_method_id),
+            "p_payment_method_id": (
+                str(payment_method_id)
+                if payment_method_id is not None
+                else None
+            ),
             "p_payment_reference": (
                 str(payment_reference).strip()
                 if payment_reference is not None

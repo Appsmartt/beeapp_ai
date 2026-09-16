@@ -31,9 +31,9 @@ class CommercialPaymentProofsView(AuthenticatedAPIView):
                 access_token=access_token,
                 commerce_request_id=request_id,
                 file_id=serializer.validated_data["file_id"],
-                payment_method_id=serializer.validated_data[
+                payment_method_id=serializer.validated_data.get(
                     "payment_method_id"
-                ],
+                ),
                 payment_reference=serializer.validated_data.get(
                     "payment_reference"
                 ),

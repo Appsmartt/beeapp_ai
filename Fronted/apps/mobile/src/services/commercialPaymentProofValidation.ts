@@ -3,9 +3,6 @@ export const MAX_COMMERCIAL_PAYMENT_PROOF_SIZE_BYTES =
 
 const ALLOWED_COMMERCIAL_PAYMENT_PROOF_MIME_TYPES = new Set([
 'application/pdf',
-'image/jpeg',
-'image/png',
-'image/webp',
 ]);
 
 export interface UploadableCommercialPaymentProof {
@@ -36,7 +33,7 @@ if (
 !ALLOWED_COMMERCIAL_PAYMENT_PROOF_MIME_TYPES.has(mimeType)
 ) {
 throw new Error(
-'Selecciona un comprobante en formato PDF, JPG, PNG o WEBP.',
+'Selecciona un comprobante en formato PDF.',
 );
 }
 

@@ -64,6 +64,7 @@ acceptCommercialProposal,
 loadCommercialRequestFormalDetail,
 rejectCommercialProposal,
 replaceRejectedCommercialPaymentProof,
+submitCommercialPaymentProofForRequest,
 } from '../../../../src/services/commercialService';
 import {
 uploadCommercialPaymentProof,
@@ -147,7 +148,7 @@ type RequestStatusTone =
 type RequestStatusVisual = {
 detail: string;
 icon: LucideIcon;
-iconColor: string;
+iconColor?: string;
 label: string;
 title: string;
 tone: RequestStatusTone;
@@ -163,14 +164,59 @@ error: '#9D2435',
 dispute: '#9A3A00',
 };
 
+type RequestStatusCardStyleName =
+| 'statusVisualCardNeutral'
+| 'statusVisualCardWarning'
+| 'statusVisualCardInfo'
+| 'statusVisualCardAction'
+| 'statusVisualCardSuccess'
+| 'statusVisualCardError'
+| 'statusVisualCardDispute';
+
+type RequestStatusIconStyleName =
+| 'statusVisualIconNeutral'
+| 'statusVisualIconWarning'
+| 'statusVisualIconInfo'
+| 'statusVisualIconAction'
+| 'statusVisualIconSuccess'
+| 'statusVisualIconError'
+| 'statusVisualIconDispute';
+
+type RequestStatusLabelStyleName =
+| 'statusVisualLabelNeutral'
+| 'statusVisualLabelWarning'
+| 'statusVisualLabelInfo'
+| 'statusVisualLabelAction'
+| 'statusVisualLabelSuccess'
+| 'statusVisualLabelError'
+| 'statusVisualLabelDispute';
+
+type RequestStatusTitleStyleName =
+| 'statusVisualTitleNeutral'
+| 'statusVisualTitleWarning'
+| 'statusVisualTitleInfo'
+| 'statusVisualTitleAction'
+| 'statusVisualTitleSuccess'
+| 'statusVisualTitleError'
+| 'statusVisualTitleDispute';
+
+type RequestStatusDetailStyleName =
+| 'statusVisualDetailNeutral'
+| 'statusVisualDetailWarning'
+| 'statusVisualDetailInfo'
+| 'statusVisualDetailAction'
+| 'statusVisualDetailSuccess'
+| 'statusVisualDetailError'
+| 'statusVisualDetailDispute';
+
 const requestStatusToneStyleNames: Record<
 RequestStatusTone,
 {
-card: keyof typeof styles;
-detail: keyof typeof styles;
-icon: keyof typeof styles;
-label: keyof typeof styles;
-title: keyof typeof styles;
+card: RequestStatusCardStyleName;
+detail: RequestStatusDetailStyleName;
+icon: RequestStatusIconStyleName;
+label: RequestStatusLabelStyleName;
+title: RequestStatusTitleStyleName;
 }
 > = {
 neutral: {
@@ -553,10 +599,27 @@ void runRequestAction(
 );
 }, [runRequestAction]);
 
-const handleReplacePaymentProof = useCallback(async (
-paymentProofId: string,
-) => {
-if (pendingAction !== null) {
+const handleSubmitPaymentProof = useCallback(async () => {
+if (
+pendingAction !== null
+|| !requestId
+|| !formalContext?.permissions.can_submit_payment_proof
+) {
+return;
+}
+
+const paymentOptions = formalContext.payment_options;
+const paymentMethods = paymentOptions?.manual_payment_methods || [];
+
+if (!paymentOptions?.payment_eligible || paymentMethods.length === 0) {
+setActionError({
+title: 'Pago no disponible',
+message: (
+'El comercio no tiene métodos de pago manuales disponibles '
++ 'para recibir el comprobante.'
+),
+retryable: true,
+});
 return;
 }
 
@@ -564,12 +627,95 @@ let selectedProofUri: string | null = null;
 
 try {
 const result = await DocumentPicker.getDocumentAsync({
-type: [
-'application/pdf',
-'image/jpeg',
-'image/png',
-'image/webp',
-],
+type: 'application/pdf',
+copyToCacheDirectory: true,
+multiple: false,
+});
+
+if (result.canceled || !result.assets[0]) {
+return;
+}
+
+const asset = result.assets[0];
+selectedProofUri = asset.uri;
+
+setPendingAction('submit-proof');
+setActionError(null);
+
+const credentials = await getValidSessionCredentials();
+
+if (!credentials) {
+throw new Error(
+'Tu sesión venció. Inicia sesión nuevamente.',
+);
+}
+
+const uploadedFile = await uploadCommercialPaymentProof(
+credentials,
+{
+uri: asset.uri,
+name: asset.name || 'comprobante.pdf',
+mimeType: asset.mimeType || 'application/pdf',
+sizeBytes: asset.size ?? null,
+},
+);
+
+await submitCommercialPaymentProofForRequest(
+requestId,
+{
+file_id: uploadedFile.id,
+},
+);
+
+Alert.alert(
+'Comprobante enviado',
+'Tu comprobante fue enviado para revisión del comercio.',
+);
+await loadRequest();
+} catch (submitError) {
+setActionError(toCommercialUiError(submitError));
+} finally {
+if (
+selectedProofUri
+&& FileSystem.cacheDirectory
+&& selectedProofUri.startsWith(FileSystem.cacheDirectory)
+) {
+try {
+await FileSystem.deleteAsync(
+selectedProofUri,
+{
+idempotent: true,
+},
+);
+} catch {
+// La limpieza temporal no debe afectar el resultado comercial.
+}
+}
+
+setPendingAction(null);
+}
+}, [
+formalContext,
+loadRequest,
+pendingAction,
+requestId,
+]);
+
+const handleReplacePaymentProof = useCallback(async (
+paymentProofId: string,
+) => {
+if (
+pendingAction !== null
+|| !formalContext?.permissions.can_replace_payment_proof
+) {
+return;
+}
+
+let selectedProofUri: string | null = null;
+
+try {
+const result = await DocumentPicker.getDocumentAsync({
+type: 'application/pdf',
 copyToCacheDirectory: true,
 multiple: false,
 });
@@ -596,11 +742,8 @@ const uploadedFile = await uploadCommercialPaymentProof(
 credentials,
 {
 uri: asset.uri,
-name: asset.name || 'comprobante',
-mimeType: (
-asset.mimeType
-|| 'application/octet-stream'
-),
+name: asset.name || 'comprobante.pdf',
+mimeType: asset.mimeType || 'application/pdf',
 sizeBytes: asset.size ?? null,
 },
 );
@@ -640,6 +783,7 @@ idempotent: true,
 setPendingAction(null);
 }
 }, [
+formalContext,
 loadRequest,
 pendingAction,
 ]);
@@ -671,6 +815,9 @@ void runRequestAction(
 }, [runRequestAction]);
 
 const displayedTimeline = formalContext?.timeline || timeline;
+const paymentMethods = (
+formalContext?.payment_options?.manual_payment_methods || []
+);
 
 const formatProposalDateTime = (
 value: string | null,
@@ -1206,6 +1353,93 @@ Aún no hay movimientos registrados.
 </Text>
 ) : null}
 
+{requestDetail.status === 'payment_pending'
+&& formalContext?.permissions.can_submit_payment_proof ? (
+<View
+accessibilityLiveRegion="polite"
+accessibilityRole="alert"
+style={styles.paymentMethodsCard}
+>
+<Text style={styles.paymentMethodsTitle}>
+Métodos de pago disponibles
+</Text>
+
+<Text style={styles.paymentMethodsDescription}>
+Puedes pagar por cualquiera de las siguientes opciones. Luego
+adjunta el comprobante de pago en formato PDF.
+</Text>
+
+{paymentMethods.length ? (
+<View style={styles.paymentMethodsList}>
+{paymentMethods.map((method) => (
+<View key={method.id} style={styles.paymentMethodCard}>
+<Text style={styles.paymentMethodName}>
+{method.display_name}
+</Text>
+
+{Object.keys(method.public_details || {}).length > 0 ? (
+<Text style={styles.paymentMethodDetails}>
+{Object.entries(method.public_details)
+.map(([key, value]) => `${key}: ${String(value)}`)
+.join(' · ')}
+</Text>
+) : null}
+
+{method.public_instructions ? (
+<Text style={styles.paymentMethodInstructions}>
+{method.public_instructions}
+</Text>
+) : null}
+</View>
+))}
+</View>
+) : (
+<Text style={styles.paymentMethodsUnavailable}>
+El comercio aún no tiene métodos de pago disponibles.
+</Text>
+)}
+
+<TouchableOpacity
+accessibilityLabel="Subir comprobante de pago en PDF"
+accessibilityRole="button"
+accessibilityState={{
+busy: pendingAction === 'submit-proof',
+disabled: (
+pendingAction !== null
+|| !formalContext.payment_options?.payment_eligible
+|| paymentMethods.length === 0
+),
+}}
+activeOpacity={0.85}
+disabled={
+pendingAction !== null
+|| !formalContext.payment_options?.payment_eligible
+|| paymentMethods.length === 0
+}
+onPress={() => {
+void handleSubmitPaymentProof();
+}}
+style={[
+styles.paymentProofSubmitButton,
+(
+pendingAction !== null
+|| !formalContext.payment_options?.payment_eligible
+|| paymentMethods.length === 0
+)
+? styles.actionButtonDisabled
+: null,
+]}
+>
+<FileText color="#FFFFFF" size={18} />
+<Text style={styles.paymentProofSubmitButtonText}>
+{pendingAction === 'submit-proof'
+? 'Enviando comprobante...'
+: 'Subir comprobante de pago'}
+</Text>
+</TouchableOpacity>
+</View>
+) : null}
+
 {(() => {
 const rejectedPaymentProofEvents = displayedTimeline.events
 .filter(
@@ -1219,7 +1453,10 @@ const latestRejectedPaymentProofEvent = (
 rejectedPaymentProofEvents[0]
 );
 
-return latestRejectedPaymentProofEvent ? (
+return (
+latestRejectedPaymentProofEvent
+&& formalContext?.permissions.can_replace_payment_proof
+) ? (
 <View
 accessibilityLiveRegion="polite"
 accessibilityRole="alert"
@@ -1229,10 +1466,10 @@ style={styles.paymentProofNotice}
 Comprobante rechazado
 </Text>
 <Text style={styles.paymentProofNoticeText}>
-Selecciona un comprobante corregido para enviarlo nuevamente.
+Adjunta un comprobante corregido en formato PDF para enviarlo nuevamente.
 </Text>
 <TouchableOpacity
-accessibilityLabel="Reemplazar comprobante de pago"
+accessibilityLabel="Subir comprobante corregido en PDF"
 accessibilityRole="button"
 accessibilityState={{
 busy: pendingAction?.startsWith('replace-proof:') || false,
@@ -1266,7 +1503,7 @@ pendingAction !== null
 <Text style={styles.paymentProofButtonText}>
 {pendingAction?.startsWith('replace-proof:')
 ? 'Enviando comprobante...'
-: 'Reemplazar comprobante'}
+: 'Subir comprobante corregido'}
 </Text>
 </TouchableOpacity>
 </View>
@@ -1771,5 +2008,71 @@ paymentProofButtonText: {
 color: '#805110',
 fontSize: 12,
 fontWeight: '800',
+},
+paymentMethodsCard: {
+backgroundColor: '#F4EDFF',
+borderColor: '#CDB7EE',
+borderRadius: 14,
+borderWidth: 1,
+gap: 9,
+marginTop: 8,
+padding: 14,
+},
+paymentMethodsTitle: {
+color: '#43206F',
+fontSize: 16,
+fontWeight: '900',
+},
+paymentMethodsDescription: {
+color: '#614A81',
+fontSize: 13,
+lineHeight: 19,
+},
+paymentMethodsList: {
+gap: 8,
+},
+paymentMethodCard: {
+backgroundColor: '#FFFFFF',
+borderColor: '#E4D8F4',
+borderRadius: 10,
+borderWidth: 1,
+gap: 4,
+padding: 11,
+},
+paymentMethodName: {
+color: '#3A245B',
+fontSize: 14,
+fontWeight: '800',
+},
+paymentMethodDetails: {
+color: '#5F477E',
+fontSize: 13,
+lineHeight: 18,
+},
+paymentMethodInstructions: {
+color: '#4B3566',
+fontSize: 13,
+lineHeight: 19,
+},
+paymentMethodsUnavailable: {
+color: '#8A2533',
+fontSize: 13,
+lineHeight: 19,
+},
+paymentProofSubmitButton: {
+alignItems: 'center',
+backgroundColor: '#7427D5',
+borderRadius: 11,
+flexDirection: 'row',
+justifyContent: 'center',
+marginTop: 4,
+minHeight: 48,
+paddingHorizontal: 16,
+},
+paymentProofSubmitButtonText: {
+color: '#FFFFFF',
+fontSize: 14,
+fontWeight: '900',
+marginLeft: 8,
 },
 });
