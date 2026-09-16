@@ -457,8 +457,6 @@ new_category_names?: string[];
   public_email?: string | null;
   is_email_public?: boolean;
   logo_file_id?: string | null;
-  is_public?: boolean;
-  is_available?: boolean;
   modalities: CommercialModality[];
   hours?: CommercialProfileHour[];
 }

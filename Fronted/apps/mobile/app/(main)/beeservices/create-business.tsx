@@ -663,8 +663,6 @@ const totalSelectedCategories = (
         ...(uploadedLogo
           ? { logo_file_id: uploadedLogo.id }
           : {}),
-        is_public: false,
-        is_available: true,
         modalities,
         hours: [],
       };
@@ -693,7 +691,7 @@ const totalSelectedCategories = (
         },
       );
 
-      const response = await createOwnedCommercialProfile(
+      await createOwnedCommercialProfile(
         payload,
       );
 
@@ -811,9 +809,9 @@ const totalSelectedCategories = (
             marginTop: 7,
           }}
         >
-          Se creará inicialmente como borrador privado.
+          Se creará privado e inactivo.
           {'\n'}
-          Podrás completar su configuración antes de publicar.
+          Completa su configuración y publícalo desde Administración cuando esté listo.
         </Text>
 
         {formError ? (

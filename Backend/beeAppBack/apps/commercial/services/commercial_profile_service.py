@@ -583,8 +583,9 @@ def create_commercial_profile(
             "public_email": payload.get("public_email"),
             "is_email_public": payload["is_email_public"],
             "logo_file_id": logo_file_id,
-            "is_public": payload["is_public"],
-            "is_available": payload["is_available"],
+            "publication_status": "paused",
+            "is_public": False,
+            "is_available": False,
         }
 
         profile_response = (
