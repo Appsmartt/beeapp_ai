@@ -55,6 +55,7 @@ presentCommercialReservation,
 } from '../../../../src/features/buddyservices/commercialReservationPresentation';
 import {
 getCommercialRequestItemLabel,
+getCommercialRequestItemLifecycleLabel,
 getCommercialRequestItemPriceLabel,
 getCommercialRequestItemsTitle,
 getCommercialRequestLineComment,
@@ -1183,6 +1184,20 @@ Referencia: {requestDetail.delivery_reference}
 {requestDetail.items.map((item) => {
 const lineComment = getCommercialRequestLineComment(item);
 const isService = item.offer_kind === 'service';
+const lifecycleStatus = String(item.lifecycle_status || '');
+const isItemAccepted = [
+'accepted',
+'payment_pending',
+'payment_submitted',
+'confirmed',
+'preparing',
+'ready_for_pickup',
+'shipped',
+'delivered',
+'in_progress',
+'completed',
+].includes(lifecycleStatus);
+const isItemRejected = lifecycleStatus === 'rejected';
 
 return (
 <View key={item.id} style={styles.itemCard}>
@@ -1197,9 +1212,29 @@ return (
 </Text>
 </View>
 
-<Text style={styles.itemMeta}>
-{getCommercialRequestItemLabel(item)}
+<View style={[
+styles.itemLifecycleBadge,
+isItemAccepted
+? styles.itemLifecycleBadgeAccepted
+: isItemRejected
+? styles.itemLifecycleBadgeRejected
+: styles.itemLifecycleBadgePending,
+]}>
+<Text style={[
+styles.itemLifecycleBadgeText,
+isItemAccepted
+? styles.itemLifecycleBadgeTextAccepted
+: isItemRejected
+? styles.itemLifecycleBadgeTextRejected
+: styles.itemLifecycleBadgeTextPending,
+]}>
+{isItemAccepted
+? `${getCommercialRequestItemLabel(item)} aceptado`
+: isItemRejected
+? `${getCommercialRequestItemLabel(item)} rechazado`
+: getCommercialRequestItemLifecycleLabel(lifecycleStatus)}
 </Text>
+</View>
 
 <Text style={styles.itemMeta}>
 Cantidad: {item.quantity}
@@ -2021,6 +2056,39 @@ fontWeight: '700',
 itemMeta: {
 color: '#6E6281',
 fontSize: 14,
+},
+itemLifecycleBadge: {
+alignSelf: 'flex-start',
+borderRadius: 999,
+borderWidth: 1,
+marginTop: 2,
+paddingHorizontal: 9,
+paddingVertical: 4,
+},
+itemLifecycleBadgeAccepted: {
+backgroundColor: '#E4F5EA',
+borderColor: '#9ACFA9',
+},
+itemLifecycleBadgeRejected: {
+backgroundColor: '#FDE8EA',
+borderColor: '#EAB5BC',
+},
+itemLifecycleBadgePending: {
+backgroundColor: '#F2EDF8',
+borderColor: '#D8CBE8',
+},
+itemLifecycleBadgeText: {
+fontSize: 12,
+fontWeight: '800',
+},
+itemLifecycleBadgeTextAccepted: {
+color: '#21643A',
+},
+itemLifecycleBadgeTextRejected: {
+color: '#8A2533',
+},
+itemLifecycleBadgeTextPending: {
+color: '#5E467B',
 },
 itemHint: {
 color: '#806899',
