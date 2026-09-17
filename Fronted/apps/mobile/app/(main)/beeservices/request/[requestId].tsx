@@ -550,6 +550,9 @@ string | null
 const [expandedPaymentMethodId, setExpandedPaymentMethodId] = useState<
 string | null
 >(null);
+const [selectedPaymentMethodId, setSelectedPaymentMethodId] = useState<
+string | null
+>(null);
 const [requestPaymentMethods, setRequestPaymentMethods] = useState<
 CommercialPaymentMethodPublic[] | null
 >(null);
@@ -587,9 +590,23 @@ try {
 const paymentMethodsResponse = await loadCommercialRequestPaymentMethods(
 requestId,
 );
-setRequestPaymentMethods(paymentMethodsResponse.payment_methods);
+const methods = paymentMethodsResponse.payment_methods;
+
+setRequestPaymentMethods(methods);
+setSelectedPaymentMethodId((currentId) => (
+methods.some((method) => method.id === currentId)
+? currentId
+: methods[0]?.id || null
+));
+setExpandedPaymentMethodId((currentId) => (
+methods.some((method) => method.id === currentId)
+? currentId
+: methods[0]?.id || null
+));
 } catch {
 setRequestPaymentMethods(null);
+setSelectedPaymentMethodId(null);
+setExpandedPaymentMethodId(null);
 }
 } catch (loadError) {
 setError(toCommercialUiError(loadError));
@@ -669,10 +686,9 @@ void runRequestAction(
 );
 }, [runRequestAction]);
 
-const togglePaymentMethodDetails = useCallback((paymentMethodId: string) => {
-setExpandedPaymentMethodId((currentId) => (
-currentId === paymentMethodId ? null : paymentMethodId
-));
+const selectPaymentMethod = useCallback((paymentMethodId: string) => {
+setSelectedPaymentMethodId(paymentMethodId);
+setExpandedPaymentMethodId(paymentMethodId);
 }, []);
 
 const handleSubmitPaymentProof = useCallback(async () => {
@@ -680,7 +696,21 @@ if (
 pendingAction !== null
 || !requestId
 || !formalContext?.permissions.can_submit_payment_proof
+|| !selectedPaymentMethodId
 ) {
+if (
+formalContext?.permissions.can_submit_payment_proof
+&& !selectedPaymentMethodId
+) {
+setActionError({
+title: 'Método de pago no disponible',
+message: (
+'El comercio no tiene un método de pago disponible '
++ 'para recibir el comprobante.'
+),
+retryable: true,
+});
+}
 return;
 }
 
@@ -725,6 +755,7 @@ await submitCommercialPaymentProofForRequest(
 requestId,
 {
 file_id: uploadedFile.id,
+payment_method_id: selectedPaymentMethodId,
 },
 );
 
@@ -760,6 +791,7 @@ formalContext,
 loadRequest,
 pendingAction,
 requestId,
+selectedPaymentMethodId,
 ]);
 
 const handleReplacePaymentProof = useCallback(async (
@@ -1549,9 +1581,12 @@ return (
 <TouchableOpacity
 accessibilityLabel={`${paymentMethodTypeLabel(method.payment_method_type)}: ${method.display_name}`}
 accessibilityRole="button"
-accessibilityState={{ expanded: isPaymentMethodExpanded }}
+accessibilityState={{
+expanded: isPaymentMethodExpanded,
+selected: selectedPaymentMethodId === method.id,
+}}
 activeOpacity={0.8}
-onPress={() => togglePaymentMethodDetails(method.id)}
+onPress={() => selectPaymentMethod(method.id)}
 style={styles.paymentMethodHeader}
 >
 <View style={styles.paymentMethodHeaderText}>
@@ -1649,10 +1684,10 @@ accessibilityLabel="Subir comprobante de pago en PDF"
 accessibilityRole="button"
 accessibilityState={{
 busy: pendingAction === 'submit-proof',
-disabled: pendingAction !== null,
+disabled: pendingAction !== null || !selectedPaymentMethodId,
 }}
 activeOpacity={0.85}
-disabled={pendingAction !== null}
+disabled={pendingAction !== null || !selectedPaymentMethodId}
 onPress={() => {
 void handleSubmitPaymentProof();
 }}
