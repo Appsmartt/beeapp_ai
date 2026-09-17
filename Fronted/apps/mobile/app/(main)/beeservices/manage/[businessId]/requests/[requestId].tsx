@@ -64,7 +64,6 @@ acceptCommercialFixedRequestItem,
 closeCommercialRequestItem,
 completeOwnedCommercialRequest,
 createCommercialItemProposal,
-createCommercialProposal,
 createCommercialReservationHoldForRequest,
 loadCommercialPaymentProofAccess,
 loadCommercialRequestFormalDetail,
@@ -224,14 +223,6 @@ string | null
 const [holdLocalDate, setHoldLocalDate] = useState('');
 const [holdLocalTime, setHoldLocalTime] = useState('');
 const [holdTimezone, setHoldTimezone] = useState('');
-const [proposalSubtotal, setProposalSubtotal] = useState('');
-const [proposalDeliveryFee, setProposalDeliveryFee] = useState('');
-const [proposalLocalDate, setProposalLocalDate] = useState('');
-const [proposalLocalStartTime, setProposalLocalStartTime] = useState('');
-const [proposalLocalEndTime, setProposalLocalEndTime] = useState('');
-const [proposalTimezone, setProposalTimezone] = useState('');
-const [proposalNote, setProposalNote] = useState('');
-const [proposalTerms, setProposalTerms] = useState('');
 const [expandedItemProposalId, setExpandedItemProposalId] = useState<
 string | null
 >(null);
@@ -295,28 +286,6 @@ currentTimezone.trim()
 || response.context.business.timezone
 || response.context.reservation?.timezone
 || 'America/Bogota'
-));
-setProposalTimezone((currentTimezone) => (
-currentTimezone.trim()
-|| response.context.business.timezone
-|| response.context.reservation?.timezone
-|| 'America/Bogota'
-));
-setProposalSubtotal((currentValue) => (
-currentValue.trim()
-|| (
-response.request.subtotal_amount === null
-? ''
-: String(response.request.subtotal_amount)
-)
-));
-setProposalDeliveryFee((currentValue) => (
-currentValue.trim()
-|| (
-response.request.delivery_fee_amount === null
-? ''
-: String(response.request.delivery_fee_amount)
-)
 ));
 } catch (loadError) {
 setError(toCommercialUiError(loadError));
@@ -403,152 +372,6 @@ throw new Error(
 
 return parsedAmount;
 };
-
-const proposalTotalPreview = (() => {
-try {
-const subtotal = parseProposalAmount(
-proposalSubtotal,
-'El subtotal',
-);
-const deliveryFee = parseProposalAmount(
-proposalDeliveryFee,
-'El valor de domicilio',
-);
-
-return (
-subtotal === null && deliveryFee === null
-? null
-: (subtotal || 0) + (deliveryFee || 0)
-);
-} catch {
-return null;
-}
-})();
-
-const hasProposalContent = Boolean(
-proposalSubtotal.trim()
-|| proposalDeliveryFee.trim()
-|| proposalLocalDate.trim()
-|| proposalLocalStartTime.trim()
-|| proposalLocalEndTime.trim()
-|| proposalNote.trim()
-|| proposalTerms.trim()
-);
-
-const handleCreateProposal = useCallback(() => {
-if (
-!formalContext?.permissions.can_create_proposal
-|| !requestDetail
-) {
-return;
-}
-
-if (!hasProposalContent) {
-setActionError({
-title: 'Completa la propuesta',
-message: (
-'Agrega un monto, un horario completo, una nota o '
-+ 'condiciones antes de enviarla.'
-),
-retryable: false,
-});
-return;
-}
-
-const requestedModality = requestDetail.requested_modality;
-
-void runAction(
-'create-proposal',
-async () => {
-const subtotalAmount = parseProposalAmount(
-proposalSubtotal,
-'El subtotal',
-);
-const deliveryFeeAmount = parseProposalAmount(
-proposalDeliveryFee,
-'El valor de domicilio',
-);
-const hasScheduleValue = Boolean(
-proposalLocalDate.trim()
-|| proposalLocalStartTime.trim()
-|| proposalLocalEndTime.trim()
-);
-
-let proposedStartsAt: string | null = null;
-let proposedEndsAt: string | null = null;
-
-if (hasScheduleValue) {
-if (
-!proposalLocalDate.trim()
-|| !proposalLocalStartTime.trim()
-|| !proposalLocalEndTime.trim()
-) {
-throw new Error(
-'Completa fecha, hora de inicio y hora de fin para proponer un horario.',
-);
-}
-
-proposedStartsAt = toCommercialReservationStartsAtIso({
-localDate: proposalLocalDate,
-localTime: proposalLocalStartTime,
-timezone: proposalTimezone,
-});
-proposedEndsAt = toCommercialReservationStartsAtIso({
-localDate: proposalLocalDate,
-localTime: proposalLocalEndTime,
-timezone: proposalTimezone,
-});
-
-if (
-new Date(proposedEndsAt).getTime()
-<= new Date(proposedStartsAt).getTime()
-) {
-throw new Error(
-'La hora de fin debe ser posterior a la hora de inicio.',
-);
-}
-}
-
-return createCommercialProposal(
-requestId,
-{
-delivery_fee_amount: deliveryFeeAmount,
-note: proposalNote.trim() || null,
-proposed_ends_at: proposedEndsAt,
-proposed_starts_at: proposedStartsAt,
-requested_modality: requestedModality,
-subtotal_amount: subtotalAmount,
-terms_snapshot: proposalTerms.trim()
-? { general: proposalTerms.trim() }
-: {},
-timezone: hasScheduleValue
-? proposalTimezone.trim()
-: null,
-total_amount: (
-subtotalAmount === null && deliveryFeeAmount === null
-? null
-: (subtotalAmount || 0) + (deliveryFeeAmount || 0)
-),
-},
-);
-},
-'La propuesta fue enviada al cliente para su revisión.',
-);
-}, [
-formalContext?.permissions.can_create_proposal,
-hasProposalContent,
-proposalDeliveryFee,
-proposalLocalDate,
-proposalLocalEndTime,
-proposalLocalStartTime,
-proposalNote,
-proposalSubtotal,
-proposalTerms,
-proposalTimezone,
-requestDetail,
-requestId,
-runAction,
-]);
 
 const handleCreateReservationHold = useCallback(() => {
 if (!formalContext?.permissions.can_create_reservation_hold) {
@@ -1766,129 +1589,6 @@ requestDetail.total_amount,
 })()}
 
 {!isMixedRequest
-&& formalContext?.permissions.can_create_proposal
-&& requestDetail.items.some(
-(item) => item.pricing_strategy !== 'fixed',
-) ? (
-<View style={styles.section}>
-<Text style={styles.sectionTitle}>
-Crear propuesta
-</Text>
-<Text style={styles.row}>
-La propuesta no confirma el servicio. El cliente debe revisarla y aceptarla.
-</Text>
-<Text style={styles.row}>
-Modalidad: {modalityLabel(requestDetail.requested_modality)}
-</Text>
-<TextInput
-accessibilityLabel="Subtotal de la propuesta"
-keyboardType="numeric"
-onChangeText={setProposalSubtotal}
-placeholder="Subtotal en COP"
-placeholderTextColor="#9B90AA"
-style={styles.input}
-value={proposalSubtotal}
-/>
-<TextInput
-accessibilityLabel="Valor de domicilio de la propuesta"
-keyboardType="numeric"
-onChangeText={setProposalDeliveryFee}
-placeholder="Domicilio en COP"
-placeholderTextColor="#9B90AA"
-style={styles.input}
-value={proposalDeliveryFee}
-/>
-<Text style={styles.proposalTotalPreview}>
-Total propuesto: {formatCop(proposalTotalPreview)}
-</Text>
-<Text style={styles.inputHint}>
-El horario es opcional; si lo propones, completa fecha, inicio y fin.
-</Text>
-<TextInput
-accessibilityLabel="Fecha propuesta"
-autoCapitalize="none"
-keyboardType="numbers-and-punctuation"
-onChangeText={setProposalLocalDate}
-placeholder="Fecha: AAAA-MM-DD"
-placeholderTextColor="#9B90AA"
-style={styles.input}
-value={proposalLocalDate}
-/>
-<TextInput
-accessibilityLabel="Hora de inicio propuesta"
-autoCapitalize="none"
-keyboardType="numbers-and-punctuation"
-onChangeText={setProposalLocalStartTime}
-placeholder="Inicio: HH:MM"
-placeholderTextColor="#9B90AA"
-style={styles.input}
-value={proposalLocalStartTime}
-/>
-<TextInput
-accessibilityLabel="Hora de fin propuesta"
-autoCapitalize="none"
-keyboardType="numbers-and-punctuation"
-onChangeText={setProposalLocalEndTime}
-placeholder="Fin: HH:MM"
-placeholderTextColor="#9B90AA"
-style={styles.input}
-value={proposalLocalEndTime}
-/>
-<TextInput
-accessibilityLabel="Zona horaria de la propuesta"
-autoCapitalize="none"
-onChangeText={setProposalTimezone}
-placeholder="Zona horaria IANA"
-placeholderTextColor="#9B90AA"
-style={styles.input}
-value={proposalTimezone}
-/>
-<TextInput
-accessibilityLabel="Nota de la propuesta"
-multiline
-onChangeText={setProposalNote}
-placeholder="Nota opcional para el cliente"
-placeholderTextColor="#9B90AA"
-style={[styles.input, styles.multilineInput]}
-textAlignVertical="top"
-value={proposalNote}
-/>
-<TextInput
-accessibilityLabel="Términos de la propuesta"
-multiline
-onChangeText={setProposalTerms}
-placeholder="Términos o condiciones opcionales"
-placeholderTextColor="#9B90AA"
-style={[styles.input, styles.multilineInput]}
-textAlignVertical="top"
-value={proposalTerms}
-/>
-<TouchableOpacity
-accessibilityLabel="Enviar propuesta al cliente"
-accessibilityRole="button"
-disabled={
-pendingAction !== null
-|| !hasProposalContent
-}
-onPress={handleCreateProposal}
-style={[
-styles.proposalButton,
-pendingAction !== null
-|| !hasProposalContent
-? styles.disabledButton
-: null,
-]}
->
-<Text style={styles.proposalButtonText}>
-{pendingAction === 'create-proposal'
-? 'Enviando propuesta...'
-: 'Enviar propuesta'}
-</Text>
-</TouchableOpacity>
-</View>
-) : null}
-
-{!isMixedRequest
 && formalContext?.permissions.can_create_reservation_hold ? (
 <View style={styles.section}>
 <Text style={styles.sectionTitle}>
@@ -2432,11 +2132,7 @@ color: '#FFFFFF',
 fontSize: 15,
 fontWeight: '800',
 },
-proposalTotalPreview: {
-color: '#5420A5',
-fontSize: 15,
-fontWeight: '800',
-},
+
 inputHint: {
 color: '#806899',
 fontSize: 13,
