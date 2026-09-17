@@ -1265,7 +1265,11 @@ export default function BuddyServicesManageOffersScreen() {
                       >
                         {offer.offer_kind === 'product'
                           ? offer.track_inventory
-                            ? `Stock ${offer.stock_quantity ?? 0}`
+                            ? (
+                              `Total ${offer.stock_quantity ?? 0} · `
+                              + `Apartado ${offer.reserved_inventory ?? 0} · `
+                              + `Disponible ${offer.available_inventory ?? 0}`
+                            )
                             : 'Sin inventario'
                           : offer.requires_booking
                             ? `${offer.duration_minutes} min`

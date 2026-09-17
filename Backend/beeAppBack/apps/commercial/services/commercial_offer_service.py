@@ -79,6 +79,8 @@ def _serialize_offer(
     offer: dict[str, Any],
     modalities: list[dict[str, Any]] | None = None,
     images: list[dict[str, Any]] | None = None,
+    reserved_inventory: int | None = None,
+    available_inventory: int | None = None,
 ) -> dict[str, Any]:
     return {
         "id": str(offer["id"]),
@@ -98,6 +100,8 @@ def _serialize_offer(
         "archived_at": offer.get("archived_at"),
         "track_inventory": bool(offer["track_inventory"]),
         "stock_quantity": offer.get("stock_quantity"),
+        "reserved_inventory": reserved_inventory,
+        "available_inventory": available_inventory,
         "duration_minutes": offer.get("duration_minutes"),
         "requires_booking": bool(offer["requires_booking"]),
         "payment_policy": offer.get("payment_policy"),
@@ -586,11 +590,39 @@ def list_owned_commercial_offers(
                 offer_id=str(offer["id"]),
                 include_archived_images=include_archived,
             )
+            reserved_inventory = None
+            available_inventory = None
+
+            if (
+                offer.get("offer_kind") == "product"
+                and bool(offer.get("track_inventory"))
+            ):
+                hold_response = (
+                    supabase.table("commerce_inventory_holds")
+                    .select("quantity")
+                    .eq("commercial_offer_id", str(offer["id"]))
+                    .eq("status", "active")
+                    .gt("expires_at", datetime.now(UTC).isoformat())
+                    .execute()
+                )
+
+                reserved_inventory = sum(
+                    int(row.get("quantity") or 0)
+                    for row in (hold_response.data or [])
+                )
+                available_inventory = max(
+                    int(offer.get("stock_quantity") or 0)
+                    - reserved_inventory,
+                    0,
+                )
+
             result.append(
                 _serialize_offer(
                     offer=offer,
                     modalities=modalities,
                     images=images,
+                    reserved_inventory=reserved_inventory,
+                    available_inventory=available_inventory,
                 )
             )
 
@@ -657,10 +689,38 @@ def get_owned_commercial_offer(
             include_archived_images=True,
         )
 
+        reserved_inventory = None
+        available_inventory = None
+
+        if (
+            offer.get("offer_kind") == "product"
+            and bool(offer.get("track_inventory"))
+        ):
+            hold_response = (
+                supabase.table("commerce_inventory_holds")
+                .select("quantity")
+                .eq("commercial_offer_id", str(offer["id"]))
+                .eq("status", "active")
+                .gt("expires_at", datetime.now(UTC).isoformat())
+                .execute()
+            )
+
+            reserved_inventory = sum(
+                int(row.get("quantity") or 0)
+                for row in (hold_response.data or [])
+            )
+            available_inventory = max(
+                int(offer.get("stock_quantity") or 0)
+                - reserved_inventory,
+                0,
+            )
+
         return _serialize_offer(
             offer=offer,
             modalities=modalities,
             images=images,
+            reserved_inventory=reserved_inventory,
+            available_inventory=available_inventory,
         )
 
     except (
