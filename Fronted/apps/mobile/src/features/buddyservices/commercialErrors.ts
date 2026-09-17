@@ -130,10 +130,54 @@ function getCommercialValidationUiError(
   );
 }
 
+function getApiErrorCode(
+  error: ApiRequestError,
+): string | null {
+  const value = error.body?.code;
+
+  return typeof value === 'string' && value.trim()
+    ? value.trim()
+    : null;
+}
+
+export function isCommercialInventoryInsufficientError(
+  error: unknown,
+): boolean {
+  if (!(error instanceof ApiRequestError)) {
+    return false;
+  }
+
+  const code = getApiErrorCode(error);
+  const detail = error.message.toLowerCase();
+
+  return (
+    code === 'COMMERCE_INSUFFICIENT_STOCK'
+    || code === 'COMMERCE_INSUFFICIENT_INVENTORY'
+    || (
+      error.status === 409
+      && [
+        'insufficient available stock',
+        'insufficient inventory',
+        'stock insufficient',
+        'inventory insufficient',
+      ].some((fragment) => detail.includes(fragment))
+    )
+  );
+}
+
 export function toCommercialUiError(
   error: unknown,
 ): CommercialUiError {
   if (error instanceof ApiRequestError) {
+    if (isCommercialInventoryInsufficientError(error)) {
+      return createCommercialUiError(
+        'CONFLICT',
+        'Inventario no disponible',
+        'El negocio ya no tiene unidades suficientes para esta solicitud. Ajusta las cantidades del carrito e inténtalo nuevamente.',
+        true,
+      );
+    }
+
     if (error.status === 401) {
       return createCommercialUiError(
         'SESSION_EXPIRED',
