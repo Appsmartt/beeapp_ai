@@ -147,6 +147,32 @@ def accept_commercial_request_item_proposal(
 
 
 
+def reject_commercial_request_item_proposal(
+    *,
+    access_token: str | None,
+    item_id: str | UUID | None,
+    reason_text: str | None = None,
+) -> dict[str, Any]:
+    token = _required_token(access_token)
+    normalized_item_id = _required_id(
+        item_id,
+        field="commerce_request_item_id",
+    )
+    result = execute_commercial_rpc(
+        access_token=token,
+        function_name="commerce_reject_item_proposal",
+        parameters={
+            "p_commerce_request_item_id": normalized_item_id,
+            "p_reason_text": _optional_text(reason_text),
+        },
+    )
+    return _json_result(
+        result,
+        code="COMMERCE_ITEM_PROPOSAL_REJECT_FAILED",
+        message="Commercial request item proposal rejection returned an invalid response.",
+    )
+
+
 def accept_fixed_commercial_request_item(
     *,
     access_token: str | None,

@@ -19,6 +19,7 @@ from apps.commercial.request_item_views import (
     CommercialRequestItemOperationalStatusView,
     CommercialRequestItemProposalAcceptView,
     CommercialRequestItemProposalCreateView,
+    CommercialRequestItemProposalRejectView,
     CommercialRequestItemProposalWithdrawView,
 )
 from apps.commercial.reservation_views import CommercialReservationHoldView
@@ -148,6 +149,11 @@ urlpatterns = [
         "item-proposals/<uuid:proposal_id>/accept/",
         CommercialRequestItemProposalAcceptView.as_view(),
         name="commercial-request-item-proposal-accept",
+    ),
+    path(
+        "request-items/<uuid:item_id>/proposal-reject/",
+        CommercialRequestItemProposalRejectView.as_view(),
+        name="commercial-request-item-proposal-reject",
     ),
     path(
         "item-proposals/<uuid:proposal_id>/withdraw/",

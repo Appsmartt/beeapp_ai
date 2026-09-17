@@ -19,6 +19,7 @@ from apps.commercial.services.commercial_request_item_service import (
     accept_fixed_commercial_request_item,
     close_commercial_request_item,
     create_commercial_request_item_proposal,
+    reject_commercial_request_item_proposal,
     update_commercial_request_item_operational_status,
     withdraw_commercial_request_item_proposal,
 )
@@ -67,6 +68,34 @@ class CommercialRequestItemProposalAcceptView(
             result = accept_commercial_request_item_proposal(
                 access_token=access_token,
                 proposal_id=str(proposal_id),
+            )
+        except CommercialError as error:
+            return commercial_error_response(error)
+
+        return Response(result, status=status.HTTP_200_OK)
+
+
+class CommercialRequestItemProposalRejectView(
+    AuthenticatedAPIView,
+):
+    throttle_classes = [CommercialNegotiationThrottle]
+
+    def post(self, request, item_id):
+        serializer = WithdrawCommercialRequestItemProposalSerializer(
+            data=request.data,
+        )
+        serializer.is_valid(raise_exception=True)
+
+        try:
+            _, access_token = (
+                self.get_authenticated_user_and_access_token(request)
+            )
+            result = reject_commercial_request_item_proposal(
+                access_token=access_token,
+                item_id=str(item_id),
+                reason_text=serializer.validated_data.get(
+                    "reason_text",
+                ),
             )
         except CommercialError as error:
             return commercial_error_response(error)

@@ -8,6 +8,7 @@ from apps.commercial.services.commercial_request_item_service import (
     accept_fixed_commercial_request_item,
     close_commercial_request_item,
     create_commercial_request_item_proposal,
+    reject_commercial_request_item_proposal,
     update_commercial_request_item_operational_status,
     withdraw_commercial_request_item_proposal,
 )
@@ -79,6 +80,33 @@ class CommercialRequestItemServiceTests(SimpleTestCase):
             function_name="commerce_accept_item_proposal",
             parameters={
                 "p_commerce_request_proposal_id": self.proposal_id,
+            },
+        )
+
+    @patch(
+        "apps.commercial.services."
+        "commercial_request_item_service.execute_commercial_rpc"
+    )
+    def test_rejects_item_proposal_as_customer(self, execute_rpc):
+        execute_rpc.return_value = {
+            "commerce_request_item_id": self.item_id,
+            "proposal_status": "rejected",
+            "item_status": "rejected",
+        }
+
+        result = reject_commercial_request_item_proposal(
+            access_token="client-token",
+            item_id=self.item_id,
+            reason_text="No acepto estas condiciones.",
+        )
+
+        self.assertEqual(result["item_status"], "rejected")
+        execute_rpc.assert_called_once_with(
+            access_token="client-token",
+            function_name="commerce_reject_item_proposal",
+            parameters={
+                "p_commerce_request_item_id": self.item_id,
+                "p_reason_text": "No acepto estas condiciones.",
             },
         )
 
