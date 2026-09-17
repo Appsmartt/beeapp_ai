@@ -348,11 +348,25 @@ setPendingAction(null);
 }
 }, [loadRequest]);
 
+const normalizeCopInput = (value: string): string => (
+value.replace(/[^0-9]/g, '')
+);
+
+const formatCopInput = (value: string): string => {
+const digits = normalizeCopInput(value);
+
+if (!digits) {
+return '';
+}
+
+return Number(digits).toLocaleString('es-CO');
+};
+
 const parseProposalAmount = (
 value: string,
 fieldLabel: string,
 ): number | null => {
-const normalizedValue = value.trim();
+const normalizedValue = normalizeCopInput(value);
 
 if (!normalizedValue) {
 return null;
@@ -487,7 +501,7 @@ item.pricing_strategy === 'free'
 item.unit_price_amount === null
 || item.unit_price_amount === undefined
 ? ''
-: String(item.unit_price_amount)
+: formatCopInput(String(item.unit_price_amount))
 ),
 );
 setItemProposalLocalDate('');
@@ -498,6 +512,53 @@ formalContext?.business.timezone || 'America/Bogota',
 );
 setItemProposalNote('');
 }, [formalContext?.business.timezone]);
+
+const proposalPreview = (() => {
+if (!requestDetail || !expandedItemProposalId) {
+return null;
+}
+
+const item = requestDetail.items.find(
+(candidate) => candidate.id === expandedItemProposalId,
+);
+
+if (!item) {
+return null;
+}
+
+try {
+const quantity = parseItemProposalQuantity(itemProposalQuantity);
+const unitPrice = item.pricing_strategy === 'free'
+? 0
+: parseProposalAmount(
+itemProposalUnitPrice,
+'El precio unitario',
+);
+
+if (
+quantity === null
+|| unitPrice === null
+) {
+return null;
+}
+
+const currentItemTotal = item.line_total_amount || 0;
+const originalSubtotal = requestDetail.subtotal_amount || 0;
+const subtotalAmount = (
+originalSubtotal
+- currentItemTotal
++ (quantity * unitPrice)
+);
+const deliveryFeeAmount = requestDetail.delivery_fee_amount || 0;
+
+return {
+subtotalAmount,
+totalAmount: subtotalAmount + deliveryFeeAmount,
+};
+} catch {
+return null;
+}
+})();
 
 const handleCreateItemProposal = useCallback((
 item: CommercialRequestDetail['items'][number],
@@ -1325,7 +1386,9 @@ value={itemProposalQuantity}
 <TextInput
 accessibilityLabel={`Precio unitario propuesto para ${item.title}`}
 keyboardType="numeric"
-onChangeText={setItemProposalUnitPrice}
+onChangeText={(value) => {
+setItemProposalUnitPrice(formatCopInput(value));
+}}
 placeholder="Precio unitario COP"
 placeholderTextColor="#9B90AA"
 style={styles.input}
@@ -1570,18 +1633,30 @@ Hold vence: {presentation.holdExpiresAtLabel}
 
 {(() => {
 const totalState = getCommercialRequestTotalState(requestDetail);
+const subtotalAmount = (
+proposalPreview?.subtotalAmount
+?? requestDetail.subtotal_amount
+);
+const totalAmount = (
+proposalPreview?.totalAmount
+?? requestDetail.total_amount
+);
 
 return (
 <View style={styles.totalCard}>
 <Text style={styles.totalRow}>
-Subtotal: {formatCop(requestDetail.subtotal_amount)}
+{proposalPreview ? 'Subtotal propuesto' : 'Subtotal'}: {formatCop(
+subtotalAmount,
+)}
 </Text>
 <Text style={styles.totalRow}>
 Domicilio: {formatCop(requestDetail.delivery_fee_amount)}
 </Text>
 <Text style={styles.totalValue}>
-{getCommercialRequestTotalLabel(totalState)}: {formatCop(
-requestDetail.total_amount,
+{proposalPreview
+? 'Total estimado propuesto'
+: getCommercialRequestTotalLabel(totalState)}: {formatCop(
+totalAmount,
 )}
 </Text>
 </View>
