@@ -1070,12 +1070,11 @@ title: offer.title,
 pricingStrategy: offer.pricing_strategy,
 unitPriceAmount: offer.base_price_amount,
 requestedModality: (
-line.requestedModality
-&& offer.modalities.includes(line.requestedModality)
-? line.requestedModality
+cart.requestedModality
+&& offer.modalities.includes(cart.requestedModality)
+? cart.requestedModality
 : offer.modalities[0] || null
 ),
-availableModalities: offer.modalities,
 imageUrl: (
 offer.images.find((image) => image.is_primary)?.url
 || offer.images[0]?.url

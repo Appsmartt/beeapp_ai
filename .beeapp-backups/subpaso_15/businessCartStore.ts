@@ -23,7 +23,6 @@ export type BusinessCartLine = {
   unitPriceAmount: number | null;
   currencyCode: 'COP';
   requestedModality: CommercialModality | null;
-  availableModalities: CommercialModality[];
   imageUrl: string | null;
   requiresBooking: boolean;
   durationMinutes: number | null;
@@ -58,7 +57,6 @@ export type AddBusinessCartLineInput = {
   unitPriceAmount: number | null;
   currencyCode: 'COP';
   requestedModality?: CommercialModality | null;
-  availableModalities?: CommercialModality[];
   imageUrl?: string | null;
   deliveryFeeMode?: CommercialDeliveryFeeMode | null;
   deliveryFeeAmount?: number | null;
@@ -254,23 +252,6 @@ function isOfferKind(
   return value === 'product' || value === 'service';
 }
 
-function normalizeModalities(
-  values: CommercialModality[] | null | undefined,
-  fallback: CommercialModality | null,
-): CommercialModality[] {
-  const normalized = Array.isArray(values)
-    ? values.filter(isCommercialModality)
-    : [];
-
-  const unique = Array.from(new Set(normalized));
-
-  if (fallback && isCommercialModality(fallback) && !unique.includes(fallback)) {
-    unique.push(fallback);
-  }
-
-  return unique;
-}
-
 function normalizeDeliveryFeeAmount(
   value: unknown,
   deliveryFeeMode: CommercialDeliveryFeeMode,
@@ -356,10 +337,6 @@ function normalizeLine(
       && isCommercialModality(input.requestedModality)
         ? input.requestedModality
         : null
-    ),
-    availableModalities: normalizeModalities(
-      input.availableModalities,
-      input.requestedModality || null,
     ),
     imageUrl: normalizeOptionalText(input.imageUrl, 2000),
     requiresBooking,
@@ -522,10 +499,6 @@ function normalizePersistedCart(
         && isCommercialModality(line.requestedModality)
           ? line.requestedModality
           : null
-      ),
-      availableModalities: normalizeModalities(
-        line.availableModalities,
-        line.requestedModality || null,
       ),
       imageUrl: normalizeOptionalText(line.imageUrl, 2000),
       requiresBooking: Boolean(line.requiresBooking),
@@ -917,11 +890,8 @@ export function updateBusinessCartBookingDetails(
             : (
               details.requestedModality
               && isCommercialModality(details.requestedModality)
-              && line.availableModalities.includes(
-                details.requestedModality,
-              )
                 ? details.requestedModality
-                : line.requestedModality
+                : null
             )
         ),
         requestedStartsAt,
@@ -1097,7 +1067,6 @@ export type RevalidateBusinessCartLineInput = {
   pricingStrategy: CommercialPricingStrategy;
   unitPriceAmount: number | null;
   requestedModality: CommercialModality | null;
-  availableModalities: CommercialModality[];
   imageUrl: string | null;
 };
 
@@ -1161,10 +1130,6 @@ export function revalidateBusinessCartLines(
           && isCommercialModality(update.requestedModality)
             ? update.requestedModality
             : null
-        ),
-        availableModalities: normalizeModalities(
-          update.availableModalities,
-          update.requestedModality,
         ),
         imageUrl: normalizeOptionalText(update.imageUrl, 2000),
       };

@@ -44,11 +44,8 @@ import {
 } from '../../../../src/services/commercialService';
 import {
   addBusinessCartProduct,
-  addBusinessCartService,
   replaceBusinessCartWithProduct,
-  replaceBusinessCartWithService,
   type AddBusinessCartProductInput,
-  type AddBusinessCartServiceInput,
 } from '../../../../src/features/buddyservices/cart/businessCartStore';
 import {
   getCommercialOfferAction,
@@ -56,6 +53,7 @@ import {
   getDefaultRequestedModality,
 } from '../../../../src/features/buddyservices/commercialOfferAction';
 import {
+  buddyServicesBookingRequestRoute,
   buddyServicesCartRoute,
   buddyServicesPublicProfileRoute,
   buddyServicesServiceRequestRoute,
@@ -257,6 +255,13 @@ export default function BuddyServicesPublicOfferScreen() {
 
     const action = getCommercialOfferAction(offer);
 
+    if (action === 'request_booking') {
+      router.push(
+        buddyServicesBookingRequestRoute(offer.id),
+      );
+      return;
+    }
+
     if (action === 'request_service') {
       router.push(
         buddyServicesServiceRequestRoute(offer.id),
@@ -268,65 +273,6 @@ export default function BuddyServicesPublicOfferScreen() {
       const profileResponse = await loadPublicCommercialProfile(
         offer.commercial_profile_id,
       );
-
-      if (offer.offer_kind === 'service' && offer.requires_booking) {
-        const cartService: AddBusinessCartServiceInput = {
-          commercialOfferId: offer.id,
-          commercialProfileId: offer.commercial_profile_id,
-          commercialProfileName: profileResponse.profile.display_name,
-          title: offer.title,
-          quantity: 1,
-          pricingStrategy: offer.pricing_strategy,
-          unitPriceAmount: offer.base_price_amount,
-          currencyCode: offer.currency_code,
-          requestedModality: getDefaultRequestedModality(offer),
-          availableModalities: offer.modalities,
-          imageUrl: primaryImageUrl,
-          deliveryFeeMode: 'not_offered',
-          deliveryFeeAmount: null,
-          requiresBooking: true,
-          durationMinutes: offer.duration_minutes,
-          requestedStartsAt: null,
-          requestedEndsAt: null,
-          timezone: String(profileResponse.profile.timezone || '').trim() || null,
-        };
-
-        const result = addBusinessCartService(cartService);
-
-        if (result.kind === 'added') {
-          router.push(buddyServicesCartRoute());
-          return;
-        }
-
-        const {
-          currentCommercialProfileName,
-          incomingCommercialProfileName,
-        } = result.conflict;
-
-        Alert.alert(
-          'Carrito de otro negocio',
-          (
-            `Tu carrito actual pertenece a ${currentCommercialProfileName}. `
-            + `Si continúas, se eliminarán sus ítems y se iniciará un `
-            + `carrito para ${incomingCommercialProfileName}.`
-          ),
-          [
-            {
-              text: 'Mantener carrito',
-              style: 'cancel',
-            },
-            {
-              text: 'Reemplazar carrito',
-              style: 'destructive',
-              onPress: () => {
-                replaceBusinessCartWithService(cartService);
-                router.push(buddyServicesCartRoute());
-              },
-            },
-          ],
-        );
-        return;
-      }
 
       const cartProduct: AddBusinessCartProductInput = {
         commercialOfferId: offer.id,

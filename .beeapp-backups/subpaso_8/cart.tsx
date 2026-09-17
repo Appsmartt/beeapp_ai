@@ -15,7 +15,6 @@ View,
 } from 'react-native';
 import {
 ArrowLeft,
-CalendarClock,
 Minus,
 Package,
 Plus,
@@ -38,10 +37,6 @@ CommercialModality,
 } from '@beeapp/shared-types';
 
 import ScreenSafeArea from '../../../src/components/layout/ScreenSafeArea';
-import {
-formatCommercialReservationDateTime,
-toCommercialReservationStartsAtIso,
-} from '../../../src/features/buddyservices/commercialReservationDateTime';
 import {
 isCommercialInventoryInsufficientError,
 toCommercialUiError,
@@ -67,7 +62,6 @@ clearBusinessCart,
 getBusinessCart,
 getOrCreateBusinessCartSubmissionIdempotencyKey,
 subscribeBusinessCart,
-updateBusinessCartBookingDetails,
 updateBusinessCartLineComment,
 updateBusinessCartLineQuantity,
 updateBusinessCartRequestDetails,
@@ -192,53 +186,14 @@ line,
 onDecrease,
 onIncrease,
 onCommentChange,
-onBookingDetailsChange,
-onBookingModalityChange,
 onRemove,
 }: {
 line: BusinessCartLine;
 onDecrease: () => void;
 onIncrease: () => void;
 onCommentChange: (value: string) => void;
-onBookingDetailsChange: (
-localDate: string,
-localTime: string,
-) => void;
-onBookingModalityChange: (modality: CommercialModality) => void;
 onRemove: () => void;
 }) {
-const isBookingLine = (
-line.offerKind === 'service' && line.requiresBooking
-);
-const [bookingDate, setBookingDate] = useState('');
-const [bookingTime, setBookingTime] = useState('');
-
-useEffect(() => {
-if (!line.requestedStartsAt || !line.timezone) {
-return;
-}
-
-const startsAt = new Date(line.requestedStartsAt);
-const dateParts = new Intl.DateTimeFormat('en-GB', {
-day: '2-digit',
-month: '2-digit',
-timeZone: line.timezone,
-year: 'numeric',
-}).formatToParts(startsAt);
-const part = (type: string) => (
-dateParts.find((item) => item.type === type)?.value || ''
-);
-const nextDate = `${part('year')}-${part('month')}-${part('day')}`;
-const nextTime = new Intl.DateTimeFormat('en-GB', {
-hour: '2-digit',
-hour12: false,
-minute: '2-digit',
-timeZone: line.timezone,
-}).format(startsAt);
-
-setBookingDate(nextDate);
-setBookingTime(nextTime);
-}, [line.requestedStartsAt, line.timezone]);
 const lineAmount = (
 line.pricingStrategy === 'free'
 ? 0
@@ -371,108 +326,6 @@ size={16}
 </View>
 </View>
 
-{isBookingLine ? (
-<View style={styles.bookingEditor}>
-<View style={styles.bookingEditorHeader}>
-<CalendarClock color="#7427D5" size={18} />
-<Text style={styles.bookingEditorTitle}>
-Configura tu reserva
-</Text>
-</View>
-
-<Text style={styles.bookingEditorHint}>
-Propón fecha y hora. El comercio podrá aceptar, rechazar o negociar las condiciones.
-</Text>
-
-<Text style={styles.bookingFieldLabel}>
-Modalidad
-</Text>
-
-<View style={styles.bookingModalitiesWrap}>
-{line.availableModalities.map((modality) => {
-const selected = line.requestedModality === modality;
-
-return (
-<TouchableOpacity
-key={modality}
-accessibilityLabel={`Seleccionar ${modalityLabel(modality)}`}
-accessibilityRole="button"
-accessibilityState={{ selected }}
-activeOpacity={0.8}
-onPress={() => onBookingModalityChange(modality)}
-style={[
-styles.bookingModalityButton,
-selected ? styles.bookingModalityButtonSelected : null,
-]}
->
-<Text style={[
-styles.bookingModalityButtonText,
-selected ? styles.bookingModalityButtonTextSelected : null,
-]}>
-{modalityLabel(modality)}
-</Text>
-</TouchableOpacity>
-);
-})}
-</View>
-
-<Text style={styles.bookingFieldLabel}>
-Fecha solicitada
-</Text>
-
-<TextInput
-accessibilityLabel={`Fecha solicitada para ${line.title}`}
-autoCapitalize="none"
-keyboardType="numbers-and-punctuation"
-onChangeText={(value) => {
-setBookingDate(value);
-onBookingDetailsChange(value, bookingTime);
-}}
-placeholder="AAAA-MM-DD"
-placeholderTextColor="#9C8BAF"
-style={styles.bookingInput}
-value={bookingDate}
-/>
-
-<Text style={styles.bookingFieldLabel}>
-Hora solicitada
-</Text>
-
-<TextInput
-accessibilityLabel={`Hora solicitada para ${line.title}`}
-autoCapitalize="none"
-keyboardType="numbers-and-punctuation"
-onChangeText={(value) => {
-setBookingTime(value);
-onBookingDetailsChange(bookingDate, value);
-}}
-placeholder="HH:MM"
-placeholderTextColor="#9C8BAF"
-style={styles.bookingInput}
-value={bookingTime}
-/>
-
-{!line.timezone ? (
-<Text style={styles.bookingPendingText}>
-No se encontró una zona horaria válida para este negocio.
-</Text>
-) : null}
-
-{line.requestedStartsAt && line.timezone ? (
-<Text style={styles.bookingPreview}>
-Fecha propuesta: {formatCommercialReservationDateTime(
-line.requestedStartsAt,
-line.timezone,
-)}
-</Text>
-) : (
-<Text style={styles.bookingPendingText}>
-Selecciona una fecha y hora futura para continuar.
-</Text>
-)}
-</View>
-) : null}
-
 <TextInput
 accessibilityLabel={`Comentario para ${line.title}`}
 multiline
@@ -543,25 +396,12 @@ cart?.requestedModality === 'delivery'
 && !cart.deliveryAddress?.trim(),
 );
 
-const bookingLinesIncomplete = Boolean(
-cart?.lines.some((line) => (
-line.offerKind === 'service'
-&& line.requiresBooking
-&& (
-!line.requestedModality
-|| !line.requestedStartsAt
-|| !line.timezone
-)
-)),
-);
-
 const canContinue = Boolean(
 cart
 && summary
 && !submitting
 && cart.requestedModality
-&& !deliveryAddressRequired
-&& !bookingLinesIncomplete,
+&& !deliveryAddressRequired,
 );
 
 const handleBack = useCallback(() => {
@@ -849,51 +689,6 @@ onCommentChange={(value) => {
 setCartUpdateNotice(null);
 updateBusinessCartLineComment(line.id, value);
 }}
-onBookingDetailsChange={(localDate, localTime) => {
-if (
-line.offerKind !== 'service'
-|| !line.requiresBooking
-|| !line.timezone
-|| !localDate.trim()
-|| !localTime.trim()
-) {
-return;
-}
-
-try {
-const requestedStartsAt = toCommercialReservationStartsAtIso({
-localDate,
-localTime,
-timezone: line.timezone,
-});
-const requestedEndsAt = line.durationMinutes
-? new Date(
-new Date(requestedStartsAt).getTime()
-+ (line.durationMinutes * 60 * 1000),
-).toISOString()
-: null;
-
-setCartUpdateNotice(null);
-updateBusinessCartBookingDetails(line.id, {
-requestedStartsAt,
-requestedEndsAt,
-timezone: line.timezone,
-});
-} catch {
-setCartUpdateNotice(
-'Usa una fecha futura AAAA-MM-DD y una hora HH:MM válidas.',
-);
-}
-}}
-onBookingModalityChange={(requestedModality) => {
-setCartUpdateNotice(null);
-updateBusinessCartBookingDetails(line.id, {
-requestedModality,
-});
-updateBusinessCartRequestDetails({
-requestedModality,
-});
-}}
 onRemove={() => {
 Alert.alert(
 getRemoveItemDialogTitle(line),
@@ -918,7 +713,7 @@ removeBusinessCartLine(line.id);
 ))}
 </View>
 
-{modalities.length > 0 && summary.presentationKind !== 'reservation' ? (
+{modalities.length > 0 ? (
 <View style={styles.section}>
 <Text style={styles.sectionTitle}>
 Modalidad de atención
@@ -1323,94 +1118,6 @@ fontSize: 14,
 fontWeight: '800',
 minWidth: 39,
 textAlign: 'center',
-},
-bookingEditor: {
-backgroundColor: '#F8F2FD',
-borderColor: '#E5D5F3',
-borderRadius: 13,
-borderWidth: 1,
-marginTop: 14,
-padding: 12,
-},
-bookingEditorHeader: {
-alignItems: 'center',
-flexDirection: 'row',
-},
-bookingEditorTitle: {
-color: '#4E286E',
-fontSize: 13,
-fontWeight: '900',
-marginLeft: 7,
-},
-bookingEditorHint: {
-color: '#755B8D',
-fontSize: 12,
-lineHeight: 17,
-marginTop: 7,
-},
-bookingModalityText: {
-color: '#623A83',
-fontSize: 12,
-fontWeight: '800',
-lineHeight: 18,
-marginTop: 9,
-},
-bookingModalitiesWrap: {
-flexDirection: 'row',
-flexWrap: 'wrap',
-gap: 8,
-marginTop: 7,
-},
-bookingModalityButton: {
-backgroundColor: '#FFFFFF',
-borderColor: '#DCCBEF',
-borderRadius: 16,
-borderWidth: 1,
-paddingHorizontal: 11,
-paddingVertical: 8,
-},
-bookingModalityButtonSelected: {
-backgroundColor: '#7427D5',
-borderColor: '#7427D5',
-},
-bookingModalityButtonText: {
-color: '#623D8B',
-fontSize: 12,
-fontWeight: '800',
-},
-bookingModalityButtonTextSelected: {
-color: '#FFFFFF',
-},
-bookingFieldLabel: {
-color: '#604678',
-fontSize: 12,
-fontWeight: '800',
-marginTop: 12,
-},
-bookingInput: {
-backgroundColor: '#FFFFFF',
-borderColor: '#DBC9EC',
-borderRadius: 10,
-borderWidth: 1,
-color: '#38294E',
-fontSize: 13,
-marginTop: 6,
-minHeight: 44,
-paddingHorizontal: 11,
-},
-bookingPreview: {
-color: '#623A83',
-fontSize: 12,
-fontWeight: '800',
-lineHeight: 18,
-marginTop: 12,
-},
-bookingPendingText: {
-color: '#A22020',
-fontSize: 12,
-fontWeight: '700',
-lineHeight: 18,
-marginTop: 12,
 },
 lineCommentInput: {
 backgroundColor: '#FBF9FE',
