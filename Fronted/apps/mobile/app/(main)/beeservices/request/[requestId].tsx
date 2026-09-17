@@ -10,6 +10,7 @@ RefreshControl,
 ScrollView,
 StyleSheet,
 Text,
+TextInput,
 TouchableOpacity,
 View,
 } from 'react-native';
@@ -64,9 +65,12 @@ getCommercialRequestTotalState,
 } from '../../../../src/features/buddyservices/commercialRequestDetailPresentation';
 
 import {
+acceptCommercialItemProposal,
 acceptCommercialProposal,
+createCommercialItemProposal,
 loadCommercialRequestFormalDetail,
 loadCommercialRequestPaymentMethods,
+rejectCommercialItemProposal,
 rejectCommercialProposal,
 replaceRejectedCommercialPaymentProof,
 submitCommercialPaymentProofForRequest,
@@ -547,6 +551,12 @@ CommercialUiError | null
 const [pendingAction, setPendingAction] = useState<
 string | null
 >(null);
+const [counterOfferItemId, setCounterOfferItemId] = useState<
+string | null
+>(null);
+const [counterOfferQuantity, setCounterOfferQuantity] = useState('');
+const [counterOfferUnitPrice, setCounterOfferUnitPrice] = useState('');
+const [counterOfferNote, setCounterOfferNote] = useState('');
 const [expandedPaymentMethodId, setExpandedPaymentMethodId] = useState<
 string | null
 >(null);
@@ -685,6 +695,156 @@ void runRequestAction(
 ],
 );
 }, [runRequestAction]);
+
+const normalizeCopInput = (value: string): string => (
+value.replace(/[^0-9]/g, '')
+);
+
+const formatCopInput = (value: string): string => {
+const digits = normalizeCopInput(value);
+
+return digits
+? Number(digits).toLocaleString('es-CO')
+: '';
+};
+
+const resetCounterOffer = useCallback(() => {
+setCounterOfferItemId(null);
+setCounterOfferQuantity('');
+setCounterOfferUnitPrice('');
+setCounterOfferNote('');
+}, []);
+
+const openCounterOffer = useCallback((
+item: CommercialRequestDetail['items'][number],
+proposal: CommercialRequestTimeline['proposals'][number],
+) => {
+setActionError(null);
+setCounterOfferItemId(item.id);
+setCounterOfferQuantity(
+String(proposal.proposed_quantity ?? item.quantity),
+);
+setCounterOfferUnitPrice(
+proposal.proposed_unit_price_amount === null
+|| proposal.proposed_unit_price_amount === undefined
+? ''
+: formatCopInput(String(proposal.proposed_unit_price_amount)),
+);
+setCounterOfferNote('');
+}, []);
+
+const confirmAcceptItemProposal = useCallback((
+proposalId: string,
+) => {
+Alert.alert(
+'Aceptar propuesta',
+'¿Deseas aceptar estas condiciones para el producto?',
+[
+{
+text: 'Cancelar',
+style: 'cancel',
+},
+{
+text: 'Aceptar',
+onPress: () => {
+void runRequestAction(
+`accept-item:${proposalId}`,
+() => acceptCommercialItemProposal(proposalId),
+'La propuesta fue aceptada.',
+);
+},
+},
+],
+);
+}, [runRequestAction]);
+
+const confirmRejectItemProposal = useCallback((
+itemId: string,
+) => {
+Alert.alert(
+'Rechazar oferta',
+'El producto quedará rechazado y no continuará en esta solicitud.',
+[
+{
+text: 'Cancelar',
+style: 'cancel',
+},
+{
+text: 'Rechazar oferta',
+style: 'destructive',
+onPress: () => {
+void runRequestAction(
+`reject-item:${itemId}`,
+() => rejectCommercialItemProposal(itemId, {}),
+'La oferta fue rechazada.',
+);
+},
+},
+],
+);
+}, [runRequestAction]);
+
+const submitCounterOffer = useCallback((
+item: CommercialRequestDetail['items'][number],
+) => {
+const quantity = Number(counterOfferQuantity.trim());
+const unitPrice = Number(normalizeCopInput(counterOfferUnitPrice));
+
+if (
+!Number.isInteger(quantity)
+|| quantity < 1
+|| quantity > 999
+) {
+setActionError({
+title: 'Cantidad no válida',
+message: 'Ingresa una cantidad entera entre 1 y 999.',
+retryable: false,
+});
+return;
+}
+
+if (
+item.pricing_strategy !== 'free'
+&& (
+!Number.isInteger(unitPrice)
+|| unitPrice < 0
+)
+) {
+setActionError({
+title: 'Precio no válido',
+message: 'Ingresa un precio unitario válido en COP.',
+retryable: false,
+});
+return;
+}
+
+void runRequestAction(
+`counter-item:${item.id}`,
+async () => {
+await createCommercialItemProposal(
+item.id,
+{
+proposed_quantity: quantity,
+proposed_unit_price_amount: (
+item.pricing_strategy === 'free'
+? 0
+: unitPrice
+),
+requested_modality: item.modality,
+note: counterOfferNote.trim() || null,
+},
+);
+resetCounterOffer();
+},
+'Tu contraoferta fue enviada al comercio.',
+);
+}, [
+counterOfferNote,
+counterOfferQuantity,
+counterOfferUnitPrice,
+resetCounterOffer,
+runRequestAction,
+]);
 
 const selectPaymentMethod = useCallback((paymentMethodId: string) => {
 setSelectedPaymentMethodId(paymentMethodId);
@@ -1287,6 +1447,193 @@ El valor “desde” no es un total final.
 El negocio confirmará el valor dentro de la solicitud.
 </Text>
 ) : null}
+
+{(() => {
+const itemProposals = (
+displayedTimeline?.proposals.filter(
+(proposal) => proposal.commerce_request_item_id === item.id,
+) || []
+);
+const pendingProposal = itemProposals.find(
+(proposal) => proposal.status === 'pending',
+);
+const canRespondToPendingProposal = Boolean(
+pendingProposal
+&& pendingProposal.proposed_by_profile_id !== requestDetail.client_id
+&& lifecycleStatus === 'pending_customer',
+);
+
+return (
+<>
+{itemProposals.length > 0 ? (
+<View style={styles.itemProposalHistory}>
+<Text style={styles.itemProposalTitle}>
+Propuestas del producto
+</Text>
+{itemProposals.map((proposal) => (
+<View key={proposal.id} style={styles.itemProposalCard}>
+<Text style={styles.itemProposalText}>
+Propuesta #{proposal.version_number} · {proposalStatusLabel(
+proposal.status,
+)}
+</Text>
+{proposal.proposed_quantity !== null
+&& proposal.proposed_quantity !== undefined ? (
+<Text style={styles.itemProposalText}>
+Cantidad propuesta: {proposal.proposed_quantity}
+</Text>
+) : null}
+{proposal.proposed_unit_price_amount !== null
+&& proposal.proposed_unit_price_amount !== undefined ? (
+<Text style={styles.itemProposalText}>
+Valor unitario: {formatCop(
+proposal.proposed_unit_price_amount,
+)}
+</Text>
+) : null}
+{proposal.proposed_line_total_amount !== null
+&& proposal.proposed_line_total_amount !== undefined ? (
+<Text style={styles.itemProposalText}>
+Total propuesto: {formatCop(
+proposal.proposed_line_total_amount,
+)}
+</Text>
+) : null}
+{proposal.note ? (
+<Text style={styles.itemProposalText}>
+Comentario: {proposal.note}
+</Text>
+) : null}
+</View>
+))}
+</View>
+) : null}
+
+{canRespondToPendingProposal && pendingProposal ? (
+<View style={styles.proposalActions}>
+<TouchableOpacity
+accessibilityLabel={`Aceptar propuesta para ${item.title}`}
+accessibilityRole="button"
+disabled={pendingAction !== null}
+onPress={() => confirmAcceptItemProposal(pendingProposal.id)}
+style={[
+styles.proposalAcceptButton,
+pendingAction !== null ? styles.actionButtonDisabled : null,
+]}
+>
+<Text style={styles.proposalAcceptButtonText}>
+{pendingAction === `accept-item:${pendingProposal.id}`
+? 'Aceptando...'
+: 'Aceptar propuesta'}
+</Text>
+</TouchableOpacity>
+
+<TouchableOpacity
+accessibilityLabel={`Negociar propuesta para ${item.title}`}
+accessibilityRole="button"
+disabled={pendingAction !== null}
+onPress={() => openCounterOffer(item, pendingProposal)}
+style={[
+styles.proposalCounterButton,
+pendingAction !== null ? styles.actionButtonDisabled : null,
+]}
+>
+<Text style={styles.proposalCounterButtonText}>
+Negociar oferta
+</Text>
+</TouchableOpacity>
+
+<TouchableOpacity
+accessibilityLabel={`Rechazar propuesta para ${item.title}`}
+accessibilityRole="button"
+disabled={pendingAction !== null}
+onPress={() => confirmRejectItemProposal(item.id)}
+style={[
+styles.proposalRejectButton,
+pendingAction !== null ? styles.actionButtonDisabled : null,
+]}
+>
+<Text style={styles.proposalRejectButtonText}>
+{pendingAction === `reject-item:${item.id}`
+? 'Rechazando...'
+: 'Rechazar oferta'}
+</Text>
+</TouchableOpacity>
+</View>
+) : null}
+
+{counterOfferItemId === item.id ? (
+<View style={styles.counterOfferForm}>
+<Text style={styles.itemProposalTitle}>
+Tu contraoferta
+</Text>
+<TextInput
+accessibilityLabel={`Cantidad contraofertada para ${item.title}`}
+keyboardType="numeric"
+onChangeText={setCounterOfferQuantity}
+placeholder="Cantidad"
+placeholderTextColor="#9B90AA"
+style={styles.counterOfferInput}
+value={counterOfferQuantity}
+/>
+<TextInput
+accessibilityLabel={`Precio unitario contraofertado para ${item.title}`}
+keyboardType="numeric"
+onChangeText={(value) => {
+setCounterOfferUnitPrice(formatCopInput(value));
+}}
+placeholder="Precio unitario COP"
+placeholderTextColor="#9B90AA"
+style={styles.counterOfferInput}
+value={counterOfferUnitPrice}
+/>
+<TextInput
+accessibilityLabel={`Comentario de contraoferta para ${item.title}`}
+multiline
+onChangeText={setCounterOfferNote}
+placeholder="Comentario opcional"
+placeholderTextColor="#9B90AA"
+style={[styles.counterOfferInput, styles.counterOfferMultilineInput]}
+textAlignVertical="top"
+value={counterOfferNote}
+/>
+<View style={styles.proposalActions}>
+<TouchableOpacity
+accessibilityLabel={`Enviar contraoferta para ${item.title}`}
+accessibilityRole="button"
+disabled={pendingAction !== null}
+onPress={() => submitCounterOffer(item)}
+style={[
+styles.proposalCounterButton,
+pendingAction !== null ? styles.actionButtonDisabled : null,
+]}
+>
+<Text style={styles.proposalCounterButtonText}>
+{pendingAction === `counter-item:${item.id}`
+? 'Enviando...'
+: 'Enviar contraoferta'}
+</Text>
+</TouchableOpacity>
+<TouchableOpacity
+accessibilityLabel={`Cancelar contraoferta para ${item.title}`}
+accessibilityRole="button"
+disabled={pendingAction !== null}
+onPress={resetCounterOffer}
+style={[
+styles.proposalRejectButton,
+pendingAction !== null ? styles.actionButtonDisabled : null,
+]}
+>
+<Text style={styles.proposalRejectButtonText}>
+Cancelar
+</Text>
+</TouchableOpacity>
+</View>
+</View>
+) : null}
+</>
+);
+})()}
 
 {lineComment ? (
 <View style={styles.lineCommentBox}>
@@ -2267,6 +2614,62 @@ proposalAcceptButtonText: {
 color: '#21643A',
 fontSize: 12,
 fontWeight: '800',
+},
+proposalCounterButton: {
+backgroundColor: '#EEE3FF',
+borderRadius: 8,
+paddingHorizontal: 10,
+paddingVertical: 8,
+},
+proposalCounterButtonText: {
+color: '#5B259B',
+fontSize: 12,
+fontWeight: '800',
+},
+itemProposalHistory: {
+gap: 8,
+marginTop: 10,
+},
+itemProposalTitle: {
+color: '#5C5071',
+fontSize: 13,
+fontWeight: '800',
+},
+itemProposalCard: {
+backgroundColor: '#F8F4FC',
+borderColor: '#E7DDF0',
+borderRadius: 10,
+borderWidth: 1,
+gap: 3,
+padding: 10,
+},
+itemProposalText: {
+color: '#5C5071',
+fontSize: 13,
+lineHeight: 18,
+},
+counterOfferForm: {
+backgroundColor: '#F6F0FF',
+borderColor: '#D9C2FB',
+borderRadius: 10,
+borderWidth: 1,
+gap: 8,
+marginTop: 10,
+padding: 10,
+},
+counterOfferInput: {
+backgroundColor: '#FFFFFF',
+borderColor: '#D8CBE8',
+borderRadius: 8,
+borderWidth: 1,
+color: '#38294E',
+fontSize: 14,
+paddingHorizontal: 10,
+paddingVertical: 9,
+},
+counterOfferMultilineInput: {
+minHeight: 80,
+textAlignVertical: 'top',
 },
 proposalRejectButton: {
 backgroundColor: '#FCE3E5',

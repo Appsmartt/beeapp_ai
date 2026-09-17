@@ -7,6 +7,7 @@ from apps.commercial.request_item_views import (
     CommercialRequestItemCloseView,
     CommercialRequestItemOperationalStatusView,
     CommercialRequestItemProposalCreateView,
+    CommercialRequestItemProposalRejectView,
 )
 
 
@@ -49,6 +50,38 @@ class CommercialRequestItemViewsTests(SimpleTestCase):
         self.assertEqual(response.status_code, 201)
         self.assertEqual(response.data["status"], "pending")
         create_proposal.assert_called_once()
+
+    @patch(
+        "apps.commercial.request_item_views."
+        "reject_commercial_request_item_proposal"
+    )
+    def test_rejects_item_proposal_as_customer(self, reject_proposal):
+        reject_proposal.return_value = {
+            "commerce_request_item_id": self.item_id,
+            "proposal_status": "rejected",
+            "item_status": "rejected",
+        }
+        request = APIRequestFactory().post(
+            f"/api/commercial/request-items/{self.item_id}/proposal-reject/",
+            {
+                "reason_text": "No acepto estas condiciones.",
+            },
+            format="json",
+        )
+
+        with patch.object(
+            CommercialRequestItemProposalRejectView,
+            "get_authenticated_user_and_access_token",
+            return_value=(self.User(), "client-token"),
+        ):
+            response = CommercialRequestItemProposalRejectView.as_view()(
+                request,
+                item_id=self.item_id,
+            )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["item_status"], "rejected")
+        reject_proposal.assert_called_once()
 
     @patch(
         "apps.commercial.request_item_views."

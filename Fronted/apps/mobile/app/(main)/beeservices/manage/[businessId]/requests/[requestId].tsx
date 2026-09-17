@@ -564,8 +564,7 @@ const handleCreateItemProposal = useCallback((
 item: CommercialRequestDetail['items'][number],
 ) => {
 if (
-!isMixedRequest
-|| formalContext?.actor_role !== 'business_owner'
+formalContext?.actor_role !== 'business_owner'
 || item.lifecycle_status !== 'pending_business'
 ) {
 return;
@@ -667,7 +666,6 @@ note: itemProposalNote.trim() || null,
 );
 }, [
 formalContext?.actor_role,
-isMixedRequest,
 itemProposalLocalDate,
 itemProposalLocalEndTime,
 itemProposalLocalStartTime,

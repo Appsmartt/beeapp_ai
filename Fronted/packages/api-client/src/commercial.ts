@@ -1186,6 +1186,18 @@ export function acceptCommercialRequestItemProposal(
   );
 }
 
+export function rejectCommercialRequestItemProposal(
+  auth: AuthCredentials,
+  itemId: string,
+  payload: WithdrawCommercialRequestItemProposalPayload = {},
+): Promise<CommercialRequestItemMutationResponse> {
+  return api.post<CommercialRequestItemMutationResponse>(
+    `${commercialRequestItemPath(itemId)}proposal-reject/`,
+    payload,
+    { auth },
+  );
+}
+
 export function withdrawCommercialRequestItemProposal(
   auth: AuthCredentials,
   proposalId: string,
