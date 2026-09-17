@@ -1,14 +1,11 @@
 import {
 useCallback,
 useEffect,
-useMemo,
 useState,
 } from 'react';
 import {
 ActivityIndicator,
 Alert,
-Modal,
-Pressable,
 RefreshControl,
 ScrollView,
 StyleSheet,
@@ -19,11 +16,8 @@ View,
 } from 'react-native';
 import {
 ArrowLeft,
-CalendarClock,
 CheckCircle2,
 ChevronDown,
-ChevronLeft,
-ChevronRight,
 ChevronUp,
 CircleDashed,
 Clock3,
@@ -35,7 +29,6 @@ ReceiptText,
 Send,
 ShieldAlert,
 Wrench,
-X,
 XCircle,
 type LucideIcon,
 } from 'lucide-react-native';
@@ -61,10 +54,6 @@ type CommercialUiError,
 import {
 presentCommercialReservation,
 } from '../../../../src/features/buddyservices/commercialReservationPresentation';
-import {
-formatCommercialReservationDateTime,
-toCommercialReservationStartsAtIso,
-} from '../../../../src/features/buddyservices/commercialReservationDateTime';
 import {
 getCommercialRequestItemLabel,
 getCommercialRequestItemLifecycleLabel,
@@ -523,64 +512,6 @@ payment_proof_confirmed: 'Comprobante confirmado',
 return labels[eventType] || 'Actualización de solicitud';
 }
 
-function getOriginalBookingTerm(
-item: CommercialRequestDetail['items'][number],
-key: 'requested_starts_at' | 'requested_ends_at' | 'timezone',
-): string | null {
-const value = item.original_terms?.[key];
-
-return typeof value === 'string' && value.trim()
-? value.trim()
-: null;
-}
-
-function getLocalDateAndTime(
-value: string | null,
-timezone: string | null,
-): { date: string; time: string } | null {
-if (!value || !timezone) {
-return null;
-}
-
-const date = new Date(value);
-
-if (Number.isNaN(date.getTime())) {
-return null;
-}
-
-const parts = new Intl.DateTimeFormat(
-'en-CA',
-{
-day: '2-digit',
-hour: '2-digit',
-hour12: false,
-minute: '2-digit',
-month: '2-digit',
-timeZone: timezone,
-year: 'numeric',
-},
-).formatToParts(date);
-
-const getPart = (type: string): string => (
-parts.find((part) => part.type === type)?.value || ''
-);
-
-const year = getPart('year');
-const month = getPart('month');
-const day = getPart('day');
-const hour = getPart('hour');
-const minute = getPart('minute');
-
-if (!year || !month || !day || !hour || !minute) {
-return null;
-}
-
-return {
-date: `${year}-${month}-${day}`,
-time: `${hour}:${minute}`,
-};
-}
-
 function proposalStatusLabel(status: string): string {
 const labels: Record<string, string> = {
 pending: 'Pendiente',
@@ -625,16 +556,6 @@ string | null
 >(null);
 const [counterOfferQuantity, setCounterOfferQuantity] = useState('');
 const [counterOfferUnitPrice, setCounterOfferUnitPrice] = useState('');
-const [counterOfferLocalDate, setCounterOfferLocalDate] = useState('');
-const [counterOfferLocalTime, setCounterOfferLocalTime] = useState('');
-const [counterOfferTimezone, setCounterOfferTimezone] = useState('');
-const [isCounterOfferDatePickerVisible, setIsCounterOfferDatePickerVisible] = useState(false);
-const [isCounterOfferTimePickerVisible, setIsCounterOfferTimePickerVisible] = useState(false);
-const [counterOfferCalendarMonth, setCounterOfferCalendarMonth] = useState(() => {
-const now = new Date();
-return new Date(now.getFullYear(), now.getMonth(), 1);
-});
-const [pendingCounterOfferDate, setPendingCounterOfferDate] = useState('');
 const [counterOfferNote, setCounterOfferNote] = useState('');
 const [expandedPaymentMethodId, setExpandedPaymentMethodId] = useState<
 string | null
@@ -791,153 +712,26 @@ const resetCounterOffer = useCallback(() => {
 setCounterOfferItemId(null);
 setCounterOfferQuantity('');
 setCounterOfferUnitPrice('');
-setCounterOfferLocalDate('');
-setCounterOfferLocalTime('');
-setCounterOfferTimezone('');
-setIsCounterOfferDatePickerVisible(false);
-setIsCounterOfferTimePickerVisible(false);
-setPendingCounterOfferDate('');
 setCounterOfferNote('');
-}, []);
-
-const todayIso = useMemo(() => {
-const now = new Date();
-const year = now.getFullYear();
-const month = String(now.getMonth() + 1).padStart(2, '0');
-const day = String(now.getDate()).padStart(2, '0');
-
-return `${year}-${month}-${day}`;
-}, []);
-
-const counterOfferDateFieldLabel = useMemo(() => {
-if (!counterOfferLocalDate) {
-return 'Selecciona una fecha';
-}
-
-const [year, month, day] = counterOfferLocalDate.split('-').map(Number);
-const value = new Date(year, month - 1, day);
-
-return new Intl.DateTimeFormat('es-CO', {
-day: 'numeric',
-month: 'long',
-weekday: 'long',
-year: 'numeric',
-}).format(value);
-}, [counterOfferLocalDate]);
-
-const counterOfferCalendarMonthLabel = useMemo(() => (
-new Intl.DateTimeFormat('es-CO', {
-month: 'long',
-year: 'numeric',
-}).format(counterOfferCalendarMonth)
-), [counterOfferCalendarMonth]);
-
-const counterOfferCalendarDays = useMemo(() => {
-const year = counterOfferCalendarMonth.getFullYear();
-const month = counterOfferCalendarMonth.getMonth();
-const firstWeekday = new Date(year, month, 1).getDay();
-const leadingEmptyDays = (firstWeekday + 6) % 7;
-const totalDays = new Date(year, month + 1, 0).getDate();
-const days: Array<number | null> = Array.from(
-{ length: leadingEmptyDays },
-() => null,
-);
-
-for (let day = 1; day <= totalDays; day += 1) {
-days.push(day);
-}
-
-return days;
-}, [counterOfferCalendarMonth]);
-
-const counterOfferTimeOptions = useMemo(() => (
-Array.from({ length: 48 }, (_, index) => {
-const hour = String(Math.floor(index / 2)).padStart(2, '0');
-const minute = index % 2 === 0 ? '00' : '30';
-
-return `${hour}:${minute}`;
-})
-), []);
-
-const openCounterOfferDatePicker = useCallback(() => {
-const initialDate = (
-counterOfferLocalDate && counterOfferLocalDate >= todayIso
-? counterOfferLocalDate
-: todayIso
-);
-const [year, month] = initialDate.split('-').map(Number);
-
-setPendingCounterOfferDate(initialDate);
-setCounterOfferCalendarMonth(new Date(year, month - 1, 1));
-setIsCounterOfferDatePickerVisible(true);
-}, [counterOfferLocalDate, todayIso]);
-
-const selectCounterOfferCalendarDate = useCallback((day: number) => {
-const year = counterOfferCalendarMonth.getFullYear();
-const month = String(
-counterOfferCalendarMonth.getMonth() + 1,
-).padStart(2, '0');
-
-setPendingCounterOfferDate(
-`${year}-${month}-${String(day).padStart(2, '0')}`,
-);
-}, [counterOfferCalendarMonth]);
-
-const confirmCounterOfferDate = useCallback(() => {
-if (!pendingCounterOfferDate || pendingCounterOfferDate < todayIso) {
-return;
-}
-
-setCounterOfferLocalDate(pendingCounterOfferDate);
-setIsCounterOfferDatePickerVisible(false);
-}, [pendingCounterOfferDate, todayIso]);
-
-const selectCounterOfferTime = useCallback((value: string) => {
-setCounterOfferLocalTime(value);
-setIsCounterOfferTimePickerVisible(false);
 }, []);
 
 const openCounterOffer = useCallback((
 item: CommercialRequestDetail['items'][number],
 proposal: CommercialRequestTimeline['proposals'][number],
 ) => {
-const isBooking = (
-requestDetail?.request_type === 'booking_request'
-&& item.offer_kind === 'service'
-);
-const timezone = proposal.timezone
-|| getOriginalBookingTerm(item, 'timezone')
-|| formalContext?.business.timezone
-|| 'America/Bogota';
-const startsAt = proposal.proposed_starts_at
-|| getOriginalBookingTerm(item, 'requested_starts_at');
-const localStart = getLocalDateAndTime(startsAt, timezone);
-
 setActionError(null);
 setCounterOfferItemId(item.id);
 setCounterOfferQuantity(
-String(isBooking ? item.quantity : (
-proposal.proposed_quantity ?? item.quantity
-)),
+String(proposal.proposed_quantity ?? item.quantity),
 );
 setCounterOfferUnitPrice(
-isBooking
-? ''
-: (
 proposal.proposed_unit_price_amount === null
 || proposal.proposed_unit_price_amount === undefined
 ? ''
-: formatCopInput(String(proposal.proposed_unit_price_amount))
-),
+: formatCopInput(String(proposal.proposed_unit_price_amount)),
 );
-setCounterOfferLocalDate(localStart?.date || '');
-setCounterOfferLocalTime(localStart?.time || '');
-setCounterOfferTimezone(timezone);
 setCounterOfferNote('');
-}, [
-formalContext?.business.timezone,
-requestDetail?.request_type,
-]);
+}, []);
 
 const confirmAcceptItemProposal = useCallback((
 proposalId: string,
@@ -993,20 +787,8 @@ void runRequestAction(
 const submitCounterOffer = useCallback((
 item: CommercialRequestDetail['items'][number],
 ) => {
-const isBooking = (
-requestDetail?.request_type === 'booking_request'
-&& item.offer_kind === 'service'
-);
-const quantity = isBooking
-? item.quantity
-: Number(counterOfferQuantity.trim());
-const unitPrice = isBooking
-? null
-: (
-item.pricing_strategy === 'free'
-? 0
-: Number(normalizeCopInput(counterOfferUnitPrice))
-);
+const quantity = Number(counterOfferQuantity.trim());
+const unitPrice = Number(normalizeCopInput(counterOfferUnitPrice));
 
 if (
 !Number.isInteger(quantity)
@@ -1022,8 +804,7 @@ return;
 }
 
 if (
-!isBooking
-&& item.pricing_strategy !== 'free'
+item.pricing_strategy !== 'free'
 && (
 !Number.isInteger(unitPrice)
 || unitPrice < 0
@@ -1037,48 +818,6 @@ retryable: false,
 return;
 }
 
-let startsAt: string | null = null;
-let endsAt: string | null = null;
-
-if (isBooking) {
-if (
-!counterOfferLocalDate.trim()
-|| !counterOfferLocalTime.trim()
-|| !counterOfferTimezone.trim()
-) {
-setActionError({
-title: 'Horario requerido',
-message: 'Selecciona fecha y hora de inicio para la reserva.',
-retryable: false,
-});
-return;
-}
-
-if (!item.duration_minutes || item.duration_minutes < 1) {
-setActionError({
-title: 'Duración no disponible',
-message: 'No fue posible identificar la duración del servicio.',
-retryable: false,
-});
-return;
-}
-
-try {
-startsAt = toCommercialReservationStartsAtIso({
-localDate: counterOfferLocalDate,
-localTime: counterOfferLocalTime,
-timezone: counterOfferTimezone,
-});
-endsAt = new Date(
-new Date(startsAt).getTime()
-+ (item.duration_minutes * 60 * 1000),
-).toISOString();
-} catch (scheduleError) {
-setActionError(toCommercialUiError(scheduleError));
-return;
-}
-}
-
 void runRequestAction(
 `counter-item:${item.id}`,
 async () => {
@@ -1086,11 +825,12 @@ await createCommercialItemProposal(
 item.id,
 {
 proposed_quantity: quantity,
-proposed_unit_price_amount: unitPrice,
+proposed_unit_price_amount: (
+item.pricing_strategy === 'free'
+? 0
+: unitPrice
+),
 requested_modality: item.modality,
-proposed_starts_at: startsAt,
-proposed_ends_at: endsAt,
-timezone: isBooking ? counterOfferTimezone : null,
 note: counterOfferNote.trim() || null,
 },
 );
@@ -1099,13 +839,9 @@ resetCounterOffer();
 'Tu contraoferta fue enviada al comercio.',
 );
 }, [
-counterOfferLocalDate,
-counterOfferLocalTime,
 counterOfferNote,
 counterOfferQuantity,
-counterOfferTimezone,
 counterOfferUnitPrice,
-requestDetail?.request_type,
 resetCounterOffer,
 runRequestAction,
 ]);
@@ -1831,78 +1567,6 @@ pendingAction !== null ? styles.actionButtonDisabled : null,
 <Text style={styles.itemProposalTitle}>
 Tu contraoferta
 </Text>
-{requestDetail.request_type === 'booking_request'
-&& item.offer_kind === 'service' ? (
-<>
-<Text style={styles.counterOfferFixedPrice}>
-Precio fijo conservado: {formatCop(item.unit_price_amount)}
-</Text>
-
-<Text style={styles.counterOfferFieldLabel}>Fecha</Text>
-<TouchableOpacity
-accessibilityLabel={`Seleccionar fecha de contraoferta para ${item.title}`}
-accessibilityRole="button"
-activeOpacity={0.82}
-onPress={openCounterOfferDatePicker}
-style={styles.counterOfferPickerField}
->
-<CalendarClock color="#7427D5" size={20} />
-<Text
-style={[
-styles.counterOfferPickerFieldText,
-!counterOfferLocalDate
-? styles.counterOfferPickerPlaceholderText
-: null,
-]}
->
-{counterOfferDateFieldLabel}
-</Text>
-<ChevronRight color="#79688C" size={20} />
-</TouchableOpacity>
-
-<Text style={styles.counterOfferFieldLabel}>Hora de inicio</Text>
-<TouchableOpacity
-accessibilityLabel={`Seleccionar hora de contraoferta para ${item.title}`}
-accessibilityRole="button"
-activeOpacity={0.82}
-onPress={() => setIsCounterOfferTimePickerVisible(true)}
-style={styles.counterOfferPickerField}
->
-<Clock3 color="#7427D5" size={20} />
-<Text
-style={[
-styles.counterOfferPickerFieldText,
-!counterOfferLocalTime
-? styles.counterOfferPickerPlaceholderText
-: null,
-]}
->
-{counterOfferLocalTime || 'Selecciona una hora'}
-</Text>
-<ChevronRight color="#79688C" size={20} />
-</TouchableOpacity>
-
-<Text style={styles.counterOfferTimezone}>
-Zona horaria del negocio: {counterOfferTimezone}
-</Text>
-
-{counterOfferLocalDate
-&& counterOfferLocalTime
-&& counterOfferTimezone ? (
-<Text style={styles.counterOfferPreview}>
-Vista previa: {formatCommercialReservationDateTime(
-toCommercialReservationStartsAtIso({
-localDate: counterOfferLocalDate,
-localTime: counterOfferLocalTime,
-timezone: counterOfferTimezone,
-}),
-counterOfferTimezone,
-)}
-</Text>
-) : null}
-</>
-) : (
-<>
 <TextInput
 accessibilityLabel={`Cantidad contraofertada para ${item.title}`}
 keyboardType="numeric"
@@ -1923,8 +1587,6 @@ placeholderTextColor="#9B90AA"
 style={styles.counterOfferInput}
 value={counterOfferUnitPrice}
 />
-</>
-)}
 <TextInput
 accessibilityLabel={`Comentario de contraoferta para ${item.title}`}
 multiline
@@ -2490,224 +2152,6 @@ Comentario
 </View>
 ) : null}
 </ScrollView>
-
-<Modal
-animationType="slide"
-onRequestClose={() => setIsCounterOfferDatePickerVisible(false)}
-transparent
-visible={isCounterOfferDatePickerVisible}
->
-<Pressable
-onPress={() => setIsCounterOfferDatePickerVisible(false)}
-style={styles.counterOfferModalBackdrop}
->
-<Pressable
-onPress={(event) => event.stopPropagation()}
-style={styles.counterOfferModalSheet}
->
-<View style={styles.counterOfferModalHeader}>
-<View style={styles.counterOfferModalHeaderText}>
-<Text style={styles.counterOfferModalTitle}>
-Elige una fecha
-</Text>
-<Text style={styles.counterOfferModalSubtitle}>
-Selecciona la fecha de tu contraoferta.
-</Text>
-</View>
-<TouchableOpacity
-accessibilityLabel="Cerrar selector de fecha"
-accessibilityRole="button"
-hitSlop={10}
-onPress={() => setIsCounterOfferDatePickerVisible(false)}
-style={styles.counterOfferModalCloseButton}
->
-<X color="#523C70" size={21} />
-</TouchableOpacity>
-</View>
-
-<View style={styles.counterOfferCalendarNavigation}>
-<TouchableOpacity
-accessibilityLabel="Mes anterior"
-accessibilityRole="button"
-onPress={() => setCounterOfferCalendarMonth((current) => (
-new Date(
-current.getFullYear(),
-current.getMonth() - 1,
-1,
-)
-))}
-style={styles.counterOfferCalendarNavigationButton}
->
-<ChevronLeft color="#523C70" size={22} />
-</TouchableOpacity>
-<Text style={styles.counterOfferCalendarMonthLabel}>
-{counterOfferCalendarMonthLabel}
-</Text>
-<TouchableOpacity
-accessibilityLabel="Mes siguiente"
-accessibilityRole="button"
-onPress={() => setCounterOfferCalendarMonth((current) => (
-new Date(
-current.getFullYear(),
-current.getMonth() + 1,
-1,
-)
-))}
-style={styles.counterOfferCalendarNavigationButton}
->
-<ChevronRight color="#523C70" size={22} />
-</TouchableOpacity>
-</View>
-
-<View style={styles.counterOfferWeekdayRow}>
-{['L', 'M', 'X', 'J', 'V', 'S', 'D'].map((day) => (
-<Text key={day} style={styles.counterOfferWeekdayLabel}>
-{day}
-</Text>
-))}
-</View>
-
-<View style={styles.counterOfferCalendarGrid}>
-{counterOfferCalendarDays.map((day, index) => {
-if (!day) {
-return (
-<View
-key={`empty-${index}`}
-style={styles.counterOfferCalendarDayCell}
-/>
-);
-}
-
-const year = counterOfferCalendarMonth.getFullYear();
-const month = String(
-counterOfferCalendarMonth.getMonth() + 1,
-).padStart(2, '0');
-const isoDate = `${year}-${month}-${String(day).padStart(2, '0')}`;
-const isDisabled = isoDate < todayIso;
-const isSelected = isoDate === pendingCounterOfferDate;
-
-return (
-<TouchableOpacity
-accessibilityLabel={`Seleccionar día ${day}`}
-accessibilityRole="button"
-accessibilityState={{
-disabled: isDisabled,
-selected: isSelected,
-}}
-disabled={isDisabled}
-key={isoDate}
-onPress={() => selectCounterOfferCalendarDate(day)}
-style={[
-styles.counterOfferCalendarDayCell,
-isSelected ? styles.counterOfferCalendarDaySelected : null,
-]}
->
-<Text
-style={[
-styles.counterOfferCalendarDayText,
-isDisabled ? styles.counterOfferCalendarDayDisabledText : null,
-isSelected ? styles.counterOfferCalendarDaySelectedText : null,
-]}
->
-{day}
-</Text>
-</TouchableOpacity>
-);
-})}
-</View>
-
-<TouchableOpacity
-accessibilityLabel="Confirmar fecha de contraoferta"
-accessibilityRole="button"
-disabled={
-!pendingCounterOfferDate
-|| pendingCounterOfferDate < todayIso
-}
-onPress={confirmCounterOfferDate}
-style={[
-styles.counterOfferModalPrimaryButton,
-!pendingCounterOfferDate
-|| pendingCounterOfferDate < todayIso
-? styles.actionButtonDisabled
-: null,
-]}
->
-<Text style={styles.counterOfferModalPrimaryButtonText}>
-Confirmar fecha
-</Text>
-</TouchableOpacity>
-</Pressable>
-</Pressable>
-</Modal>
-
-<Modal
-animationType="slide"
-onRequestClose={() => setIsCounterOfferTimePickerVisible(false)}
-transparent
-visible={isCounterOfferTimePickerVisible}
->
-<Pressable
-onPress={() => setIsCounterOfferTimePickerVisible(false)}
-style={styles.counterOfferModalBackdrop}
->
-<Pressable
-onPress={(event) => event.stopPropagation()}
-style={styles.counterOfferModalSheet}
->
-<View style={styles.counterOfferModalHeader}>
-<View style={styles.counterOfferModalHeaderText}>
-<Text style={styles.counterOfferModalTitle}>
-Elige una hora
-</Text>
-<Text style={styles.counterOfferModalSubtitle}>
-Selecciona la hora de inicio de tu contraoferta.
-</Text>
-</View>
-<TouchableOpacity
-accessibilityLabel="Cerrar selector de hora"
-accessibilityRole="button"
-hitSlop={10}
-onPress={() => setIsCounterOfferTimePickerVisible(false)}
-style={styles.counterOfferModalCloseButton}
->
-<X color="#523C70" size={21} />
-</TouchableOpacity>
-</View>
-
-<ScrollView
-contentContainerStyle={styles.counterOfferTimeOptionsGrid}
-showsVerticalScrollIndicator={false}
->
-{counterOfferTimeOptions.map((option) => {
-const isSelected = option === counterOfferLocalTime;
-
-return (
-<TouchableOpacity
-accessibilityLabel={`Elegir hora ${option}`}
-accessibilityRole="button"
-accessibilityState={{ selected: isSelected }}
-key={option}
-onPress={() => selectCounterOfferTime(option)}
-style={[
-styles.counterOfferTimeOption,
-isSelected ? styles.counterOfferTimeOptionSelected : null,
-]}
->
-<Text
-style={[
-styles.counterOfferTimeOptionText,
-isSelected ? styles.counterOfferTimeOptionSelectedText : null,
-]}
->
-{option}
-</Text>
-</TouchableOpacity>
-);
-})}
-</ScrollView>
-</Pressable>
-</Pressable>
-</Modal>
 </ScreenSafeArea>
 );
 }
@@ -3212,194 +2656,6 @@ borderWidth: 1,
 gap: 8,
 marginTop: 10,
 padding: 10,
-},
-counterOfferFixedPrice: {
-color: '#2E7D4F',
-fontSize: 14,
-fontWeight: '800',
-},
-counterOfferFieldLabel: {
-color: '#4A3E58',
-fontSize: 13,
-fontWeight: '700',
-marginTop: 4,
-},
-counterOfferPickerField: {
-alignItems: 'center',
-backgroundColor: '#FFFFFF',
-borderColor: '#DCCBEE',
-borderRadius: 13,
-borderWidth: 1,
-flexDirection: 'row',
-gap: 10,
-minHeight: 52,
-paddingHorizontal: 14,
-},
-counterOfferPickerFieldText: {
-color: '#372849',
-flex: 1,
-fontSize: 14,
-fontWeight: '700',
-},
-counterOfferPickerPlaceholderText: {
-color: '#8D8497',
-fontWeight: '500',
-},
-counterOfferTimezone: {
-color: '#6E6281',
-fontSize: 13,
-lineHeight: 19,
-},
-counterOfferPreview: {
-color: '#5B4A69',
-fontSize: 13,
-lineHeight: 19,
-},
-counterOfferModalBackdrop: {
-backgroundColor: 'rgba(24, 11, 49, 0.44)',
-flex: 1,
-justifyContent: 'flex-end',
-},
-counterOfferModalSheet: {
-backgroundColor: '#FFFFFF',
-borderTopLeftRadius: 26,
-borderTopRightRadius: 26,
-maxHeight: '88%',
-paddingBottom: 28,
-},
-counterOfferModalHeader: {
-alignItems: 'flex-start',
-borderBottomColor: '#F0EAF3',
-borderBottomWidth: 1,
-flexDirection: 'row',
-justifyContent: 'space-between',
-paddingHorizontal: 20,
-paddingVertical: 18,
-},
-counterOfferModalHeaderText: {
-flex: 1,
-paddingRight: 12,
-},
-counterOfferModalTitle: {
-color: '#261743',
-fontSize: 17,
-fontWeight: '800',
-},
-counterOfferModalSubtitle: {
-color: '#786593',
-fontSize: 12,
-lineHeight: 18,
-marginTop: 4,
-},
-counterOfferModalCloseButton: {
-alignItems: 'center',
-height: 34,
-justifyContent: 'center',
-width: 34,
-},
-counterOfferCalendarNavigation: {
-alignItems: 'center',
-flexDirection: 'row',
-justifyContent: 'space-between',
-paddingHorizontal: 20,
-paddingTop: 18,
-},
-counterOfferCalendarNavigationButton: {
-alignItems: 'center',
-borderColor: '#E8DDF0',
-borderRadius: 18,
-borderWidth: 1,
-height: 36,
-justifyContent: 'center',
-width: 36,
-},
-counterOfferCalendarMonthLabel: {
-color: '#372849',
-fontSize: 15,
-fontWeight: '800',
-textTransform: 'capitalize',
-},
-counterOfferWeekdayRow: {
-flexDirection: 'row',
-paddingHorizontal: 16,
-paddingTop: 18,
-},
-counterOfferWeekdayLabel: {
-color: '#8A7B98',
-flex: 1,
-fontSize: 12,
-fontWeight: '800',
-textAlign: 'center',
-},
-counterOfferCalendarGrid: {
-flexDirection: 'row',
-flexWrap: 'wrap',
-paddingHorizontal: 16,
-paddingTop: 10,
-},
-counterOfferCalendarDayCell: {
-alignItems: 'center',
-height: 42,
-justifyContent: 'center',
-marginVertical: 2,
-width: '14.2857%',
-},
-counterOfferCalendarDaySelected: {
-backgroundColor: '#7427D5',
-borderRadius: 21,
-},
-counterOfferCalendarDayText: {
-color: '#3D2E4D',
-fontSize: 14,
-fontWeight: '700',
-},
-counterOfferCalendarDayDisabledText: {
-color: '#C7BDCE',
-},
-counterOfferCalendarDaySelectedText: {
-color: '#FFFFFF',
-},
-counterOfferModalPrimaryButton: {
-alignItems: 'center',
-backgroundColor: '#7427D5',
-borderRadius: 14,
-justifyContent: 'center',
-marginHorizontal: 20,
-marginTop: 20,
-minHeight: 52,
-},
-counterOfferModalPrimaryButtonText: {
-color: '#FFFFFF',
-fontSize: 15,
-fontWeight: '800',
-},
-counterOfferTimeOptionsGrid: {
-flexDirection: 'row',
-flexWrap: 'wrap',
-gap: 10,
-padding: 20,
-},
-counterOfferTimeOption: {
-alignItems: 'center',
-backgroundColor: '#FFFFFF',
-borderColor: '#DCCBEE',
-borderRadius: 12,
-borderWidth: 1,
-justifyContent: 'center',
-minHeight: 46,
-width: '30.8%',
-},
-counterOfferTimeOptionSelected: {
-backgroundColor: '#7427D5',
-borderColor: '#7427D5',
-},
-counterOfferTimeOptionText: {
-color: '#4A3E58',
-fontSize: 14,
-fontWeight: '800',
-},
-counterOfferTimeOptionSelectedText: {
-color: '#FFFFFF',
 },
 counterOfferInput: {
 backgroundColor: '#FFFFFF',
