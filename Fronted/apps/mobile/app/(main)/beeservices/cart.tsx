@@ -6,6 +6,8 @@ useState,
 } from 'react';
 import {
 Alert,
+Modal,
+Pressable,
 ScrollView,
 StyleSheet,
 Text,
@@ -16,12 +18,16 @@ View,
 import {
 ArrowLeft,
 CalendarClock,
+ChevronLeft,
+ChevronRight,
+Clock3,
 Minus,
 Package,
 Plus,
 ShoppingBag,
 Trash2,
 Wrench,
+X,
 } from 'lucide-react-native';
 import {
 ApiRequestError,
@@ -38,6 +44,7 @@ CommercialModality,
 } from '@beeapp/shared-types';
 
 import ScreenSafeArea from '../../../src/components/layout/ScreenSafeArea';
+import CircularTimePicker from '../../../src/components/buddyservices/CircularTimePicker';
 import {
 formatCommercialReservationDateTime,
 toCommercialReservationStartsAtIso,
@@ -212,6 +219,13 @@ line.offerKind === 'service' && line.requiresBooking
 );
 const [bookingDate, setBookingDate] = useState('');
 const [bookingTime, setBookingTime] = useState('');
+const [isDatePickerVisible, setIsDatePickerVisible] = useState(false);
+const [isTimePickerVisible, setIsTimePickerVisible] = useState(false);
+const [pendingDate, setPendingDate] = useState('');
+const [calendarMonth, setCalendarMonth] = useState(() => {
+const now = new Date();
+return new Date(now.getFullYear(), now.getMonth(), 1);
+});
 
 useEffect(() => {
 if (!line.requestedStartsAt || !line.timezone) {
@@ -239,6 +253,102 @@ timeZone: line.timezone,
 setBookingDate(nextDate);
 setBookingTime(nextTime);
 }, [line.requestedStartsAt, line.timezone]);
+const todayIso = useMemo(() => {
+const now = new Date();
+const year = now.getFullYear();
+const month = String(now.getMonth() + 1).padStart(2, '0');
+const day = String(now.getDate()).padStart(2, '0');
+
+return `${year}-${month}-${day}`;
+}, []);
+
+const bookingDateLabel = useMemo(() => {
+if (!bookingDate) {
+return 'Selecciona una fecha';
+}
+
+const [year, month, day] = bookingDate.split('-').map(Number);
+const value = new Date(year, month - 1, day);
+
+return new Intl.DateTimeFormat('es-CO', {
+day: 'numeric',
+month: 'long',
+weekday: 'long',
+year: 'numeric',
+}).format(value);
+}, [bookingDate]);
+
+const calendarMonthLabel = useMemo(() => (
+new Intl.DateTimeFormat('es-CO', {
+month: 'long',
+year: 'numeric',
+}).format(calendarMonth)
+), [calendarMonth]);
+
+const calendarDays = useMemo(() => {
+const year = calendarMonth.getFullYear();
+const month = calendarMonth.getMonth();
+const firstWeekday = new Date(year, month, 1).getDay();
+const leadingEmptyDays = (firstWeekday + 6) % 7;
+const totalDays = new Date(year, month + 1, 0).getDate();
+const days: Array<number | null> = Array.from(
+{ length: leadingEmptyDays },
+() => null,
+);
+
+for (let day = 1; day <= totalDays; day += 1) {
+days.push(day);
+}
+
+return days;
+}, [calendarMonth]);
+
+const openDatePicker = useCallback(() => {
+const initialDate = bookingDate || todayIso;
+const [year, month] = initialDate.split('-').map(Number);
+
+setPendingDate(initialDate);
+setCalendarMonth(new Date(year, month - 1, 1));
+setIsDatePickerVisible(true);
+}, [bookingDate, todayIso]);
+
+const selectCalendarDate = useCallback((day: number) => {
+const year = calendarMonth.getFullYear();
+const month = String(calendarMonth.getMonth() + 1).padStart(2, '0');
+
+setPendingDate(`${year}-${month}-${String(day).padStart(2, '0')}`);
+}, [calendarMonth]);
+
+const confirmDate = useCallback(() => {
+if (!pendingDate || pendingDate < todayIso) {
+return;
+}
+
+setBookingDate(pendingDate);
+setIsDatePickerVisible(false);
+
+if (bookingTime.trim()) {
+onBookingDetailsChange(pendingDate, bookingTime);
+}
+}, [
+bookingTime,
+onBookingDetailsChange,
+pendingDate,
+todayIso,
+]);
+
+const confirmTime = useCallback((value: string) => {
+setBookingTime(value);
+setIsTimePickerVisible(false);
+
+if (bookingDate.trim()) {
+onBookingDetailsChange(bookingDate, value);
+}
+}, [
+bookingDate,
+onBookingDetailsChange,
+]);
+
 const lineAmount = (
 line.pricingStrategy === 'free'
 ? 0
@@ -256,6 +366,7 @@ line.pricingStrategy === 'starting_at'
 );
 
 return (
+<>
 <View style={styles.lineCard}>
 <View style={styles.lineTopRow}>
 <View style={styles.lineIcon}>
@@ -420,37 +531,45 @@ selected ? styles.bookingModalityButtonTextSelected : null,
 Fecha solicitada
 </Text>
 
-<TextInput
-accessibilityLabel={`Fecha solicitada para ${line.title}`}
-autoCapitalize="none"
-keyboardType="numbers-and-punctuation"
-onChangeText={(value) => {
-setBookingDate(value);
-onBookingDetailsChange(value, bookingTime);
-}}
-placeholder="AAAA-MM-DD"
-placeholderTextColor="#9C8BAF"
-style={styles.bookingInput}
-value={bookingDate}
-/>
+<TouchableOpacity
+accessibilityHint="Abre el calendario para elegir la fecha de la reserva"
+accessibilityLabel={`Seleccionar fecha solicitada para ${line.title}`}
+accessibilityRole="button"
+activeOpacity={0.82}
+onPress={openDatePicker}
+style={styles.bookingPickerField}
+>
+<CalendarClock color="#7427D5" size={20} />
+<Text style={[
+styles.bookingPickerFieldText,
+!bookingDate ? styles.bookingPickerPlaceholderText : null,
+]}>
+{bookingDateLabel}
+</Text>
+<ChevronRight color="#79688C" size={20} />
+</TouchableOpacity>
 
 <Text style={styles.bookingFieldLabel}>
 Hora solicitada
 </Text>
 
-<TextInput
-accessibilityLabel={`Hora solicitada para ${line.title}`}
-autoCapitalize="none"
-keyboardType="numbers-and-punctuation"
-onChangeText={(value) => {
-setBookingTime(value);
-onBookingDetailsChange(bookingDate, value);
-}}
-placeholder="HH:MM"
-placeholderTextColor="#9C8BAF"
-style={styles.bookingInput}
-value={bookingTime}
-/>
+<TouchableOpacity
+accessibilityHint="Abre el selector de hora para tu reserva"
+accessibilityLabel={`Seleccionar hora solicitada para ${line.title}`}
+accessibilityRole="button"
+activeOpacity={0.82}
+onPress={() => setIsTimePickerVisible(true)}
+style={styles.bookingPickerField}
+>
+<Clock3 color="#7427D5" size={20} />
+<Text style={[
+styles.bookingPickerFieldText,
+!bookingTime ? styles.bookingPickerPlaceholderText : null,
+]}>
+{bookingTime || 'Selecciona una hora'}
+</Text>
+<ChevronRight color="#79688C" size={20} />
+</TouchableOpacity>
 
 {!line.timezone ? (
 <Text style={styles.bookingPendingText}>
@@ -483,6 +602,194 @@ style={styles.lineCommentInput}
 value={line.lineComment || ''}
 />
 </View>
+
+<Modal
+animationType="slide"
+onRequestClose={() => setIsDatePickerVisible(false)}
+transparent
+visible={isDatePickerVisible}
+>
+<Pressable
+onPress={() => setIsDatePickerVisible(false)}
+style={styles.bookingModalBackdrop}
+>
+<Pressable
+onPress={(event) => event.stopPropagation()}
+style={styles.bookingModalSheet}
+>
+<View style={styles.bookingModalHeader}>
+<View style={styles.bookingModalHeaderText}>
+<Text style={styles.bookingModalTitle}>
+Elige una fecha
+</Text>
+<Text style={styles.bookingModalSubtitle}>
+Selecciona el día propuesto para tu reserva.
+</Text>
+</View>
+
+<TouchableOpacity
+accessibilityLabel="Cerrar calendario"
+accessibilityRole="button"
+hitSlop={10}
+onPress={() => setIsDatePickerVisible(false)}
+style={styles.bookingModalCloseButton}
+>
+<X color="#523C70" size={21} />
+</TouchableOpacity>
+</View>
+
+<View style={styles.bookingCalendarNavigation}>
+<TouchableOpacity
+accessibilityLabel="Mes anterior"
+accessibilityRole="button"
+accessibilityState={{
+disabled: (
+calendarMonth.getFullYear() === new Date().getFullYear()
+&& calendarMonth.getMonth() === new Date().getMonth()
+),
+}}
+disabled={
+calendarMonth.getFullYear() === new Date().getFullYear()
+&& calendarMonth.getMonth() === new Date().getMonth()
+}
+onPress={() => setCalendarMonth((current) => (
+new Date(
+current.getFullYear(),
+current.getMonth() - 1,
+1,
+)
+))}
+style={[
+styles.bookingCalendarNavigationButton,
+calendarMonth.getFullYear() === new Date().getFullYear()
+&& calendarMonth.getMonth() === new Date().getMonth()
+? styles.bookingCalendarNavigationButtonDisabled
+: null,
+]}
+>
+<ChevronLeft
+color={
+calendarMonth.getFullYear() === new Date().getFullYear()
+&& calendarMonth.getMonth() === new Date().getMonth()
+? '#B9ACC9'
+: '#523C70'
+}
+size={22}
+/>
+</TouchableOpacity>
+
+<Text style={styles.bookingCalendarMonthLabel}>
+{calendarMonthLabel}
+</Text>
+
+<TouchableOpacity
+accessibilityLabel="Mes siguiente"
+accessibilityRole="button"
+onPress={() => setCalendarMonth((current) => (
+new Date(
+current.getFullYear(),
+current.getMonth() + 1,
+1,
+)
+))}
+style={styles.bookingCalendarNavigationButton}
+>
+<ChevronRight color="#523C70" size={22} />
+</TouchableOpacity>
+</View>
+
+<View style={styles.bookingWeekdayRow}>
+{['L', 'M', 'X', 'J', 'V', 'S', 'D'].map((day) => (
+<Text key={day} style={styles.bookingWeekdayLabel}>
+{day}
+</Text>
+))}
+</View>
+
+<View style={styles.bookingCalendarGrid}>
+{calendarDays.map((day, index) => {
+if (!day) {
+return (
+<View
+key={`empty-${index}`}
+style={styles.bookingCalendarDayCell}
+/>
+);
+}
+
+const year = calendarMonth.getFullYear();
+const month = String(
+calendarMonth.getMonth() + 1,
+).padStart(2, '0');
+const isoDate = (
+`${year}-${month}-${String(day).padStart(2, '0')}`
+);
+const isDisabled = isoDate < todayIso;
+const isSelected = isoDate === pendingDate;
+
+return (
+<TouchableOpacity
+accessibilityLabel={`Seleccionar día ${day}`}
+accessibilityRole="button"
+accessibilityState={{
+disabled: isDisabled,
+selected: isSelected,
+}}
+disabled={isDisabled}
+key={isoDate}
+onPress={() => selectCalendarDate(day)}
+style={[
+styles.bookingCalendarDayCell,
+isSelected ? styles.bookingCalendarDaySelected : null,
+]}
+>
+<Text
+style={[
+styles.bookingCalendarDayText,
+isDisabled
+? styles.bookingCalendarDayDisabledText
+: null,
+isSelected
+? styles.bookingCalendarDaySelectedText
+: null,
+]}
+>
+{day}
+</Text>
+</TouchableOpacity>
+);
+})}
+</View>
+
+<TouchableOpacity
+accessibilityLabel="Confirmar fecha de reserva"
+accessibilityRole="button"
+disabled={!pendingDate || pendingDate < todayIso}
+onPress={confirmDate}
+style={[
+styles.bookingModalPrimaryButton,
+!pendingDate || pendingDate < todayIso
+? styles.bookingModalPrimaryButtonDisabled
+: null,
+]}
+>
+<Text style={styles.bookingModalPrimaryButtonText}>
+Confirmar fecha
+</Text>
+</TouchableOpacity>
+</Pressable>
+</Pressable>
+</Modal>
+
+<CircularTimePicker
+initialValue={bookingTime || '09:00'}
+onClose={() => setIsTimePickerVisible(false)}
+onConfirm={confirmTime}
+subtitle="Selecciona la hora propuesta para tu reserva."
+title="Elige una hora"
+visible={isTimePickerVisible}
+/>
+</>
 );
 }
 
@@ -1387,16 +1694,152 @@ fontSize: 12,
 fontWeight: '800',
 marginTop: 12,
 },
-bookingInput: {
+bookingPickerField: {
+alignItems: 'center',
 backgroundColor: '#FFFFFF',
 borderColor: '#DBC9EC',
 borderRadius: 10,
 borderWidth: 1,
-color: '#38294E',
-fontSize: 13,
+flexDirection: 'row',
+gap: 10,
 marginTop: 6,
-minHeight: 44,
+minHeight: 48,
 paddingHorizontal: 11,
+},
+bookingPickerFieldText: {
+color: '#38294E',
+flex: 1,
+fontSize: 13,
+fontWeight: '700',
+},
+bookingPickerPlaceholderText: {
+color: '#9C8BAF',
+fontWeight: '500',
+},
+bookingModalBackdrop: {
+backgroundColor: 'rgba(24, 11, 49, 0.44)',
+flex: 1,
+justifyContent: 'flex-end',
+},
+bookingModalSheet: {
+backgroundColor: '#FFFFFF',
+borderTopLeftRadius: 26,
+borderTopRightRadius: 26,
+maxHeight: '88%',
+paddingBottom: 28,
+},
+bookingModalHeader: {
+alignItems: 'flex-start',
+borderBottomColor: '#F0EAF3',
+borderBottomWidth: 1,
+flexDirection: 'row',
+justifyContent: 'space-between',
+paddingHorizontal: 20,
+paddingVertical: 18,
+},
+bookingModalHeaderText: {
+flex: 1,
+paddingRight: 12,
+},
+bookingModalTitle: {
+color: '#261743',
+fontSize: 17,
+fontWeight: '800',
+},
+bookingModalSubtitle: {
+color: '#786593',
+fontSize: 12,
+lineHeight: 18,
+marginTop: 4,
+},
+bookingModalCloseButton: {
+alignItems: 'center',
+height: 34,
+justifyContent: 'center',
+width: 34,
+},
+bookingCalendarNavigation: {
+alignItems: 'center',
+flexDirection: 'row',
+justifyContent: 'space-between',
+paddingHorizontal: 20,
+paddingTop: 18,
+},
+bookingCalendarNavigationButton: {
+alignItems: 'center',
+borderColor: '#E8DDF0',
+borderRadius: 18,
+borderWidth: 1,
+height: 36,
+justifyContent: 'center',
+width: 36,
+},
+bookingCalendarNavigationButtonDisabled: {
+backgroundColor: '#F6F2F8',
+borderColor: '#EEE7F3',
+},
+bookingCalendarMonthLabel: {
+color: '#372849',
+fontSize: 15,
+fontWeight: '800',
+textTransform: 'capitalize',
+},
+bookingWeekdayRow: {
+flexDirection: 'row',
+paddingHorizontal: 16,
+paddingTop: 18,
+},
+bookingWeekdayLabel: {
+color: '#8A7B98',
+flex: 1,
+fontSize: 12,
+fontWeight: '800',
+textAlign: 'center',
+},
+bookingCalendarGrid: {
+flexDirection: 'row',
+flexWrap: 'wrap',
+paddingHorizontal: 16,
+paddingTop: 10,
+},
+bookingCalendarDayCell: {
+alignItems: 'center',
+height: 42,
+justifyContent: 'center',
+marginVertical: 2,
+width: '14.2857%',
+},
+bookingCalendarDaySelected: {
+backgroundColor: '#7427D5',
+borderRadius: 21,
+},
+bookingCalendarDayText: {
+color: '#3D2E4D',
+fontSize: 14,
+fontWeight: '700',
+},
+bookingCalendarDayDisabledText: {
+color: '#C7BDCE',
+},
+bookingCalendarDaySelectedText: {
+color: '#FFFFFF',
+},
+bookingModalPrimaryButton: {
+alignItems: 'center',
+backgroundColor: '#7427D5',
+borderRadius: 14,
+justifyContent: 'center',
+marginHorizontal: 20,
+marginTop: 20,
+minHeight: 52,
+},
+bookingModalPrimaryButtonDisabled: {
+backgroundColor: '#B9A9CB',
+},
+bookingModalPrimaryButtonText: {
+color: '#FFFFFF',
+fontSize: 14,
+fontWeight: '800',
 },
 bookingPreview: {
 color: '#623A83',
