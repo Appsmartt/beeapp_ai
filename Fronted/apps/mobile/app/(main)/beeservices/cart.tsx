@@ -38,6 +38,7 @@ CommercialModality,
 
 import ScreenSafeArea from '../../../src/components/layout/ScreenSafeArea';
 import {
+isCommercialInventoryInsufficientError,
 toCommercialUiError,
 } from '../../../src/features/buddyservices/commercialErrors';
 import {
@@ -489,8 +490,12 @@ response.request.request_id,
 );
 } catch (error) {
 const uiError = toCommercialUiError(error);
+const isInsufficientInventory = (
+isCommercialInventoryInsufficientError(error)
+);
 const shouldRevalidate = (
-error instanceof ApiRequestError
+!isInsufficientInventory
+&& error instanceof ApiRequestError
 && [400, 404, 409, 422].includes(error.status)
 );
 
