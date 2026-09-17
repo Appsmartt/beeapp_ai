@@ -1,14 +1,11 @@
 import {
 useCallback,
 useEffect,
-useMemo,
 useState,
 } from 'react';
 import {
 ActivityIndicator,
 Alert,
-Modal,
-Pressable,
 RefreshControl,
 ScrollView,
 StyleSheet,
@@ -19,14 +16,9 @@ View,
 } from 'react-native';
 import {
 ArrowLeft,
-CalendarClock,
-ChevronLeft,
-ChevronRight,
-Clock3,
 ClipboardList,
 Package,
 Wrench,
-X,
 } from 'lucide-react-native';
 import {
 useLocalSearchParams,
@@ -65,7 +57,6 @@ import {
 presentCommercialReservation,
 } from '../../../../../../src/features/buddyservices/commercialReservationPresentation';
 import {
-formatCommercialReservationDateTime,
 toCommercialReservationStartsAtIso,
 } from '../../../../../../src/features/buddyservices/commercialReservationDateTime';
 import {
@@ -300,13 +291,6 @@ const [itemProposalLocalDate, setItemProposalLocalDate] = useState('');
 const [itemProposalLocalStartTime, setItemProposalLocalStartTime] = useState('');
 const [itemProposalLocalEndTime, setItemProposalLocalEndTime] = useState('');
 const [itemProposalTimezone, setItemProposalTimezone] = useState('');
-const [isItemProposalDatePickerVisible, setIsItemProposalDatePickerVisible] = useState(false);
-const [isItemProposalTimePickerVisible, setIsItemProposalTimePickerVisible] = useState(false);
-const [itemProposalCalendarMonth, setItemProposalCalendarMonth] = useState(() => {
-const now = new Date();
-return new Date(now.getFullYear(), now.getMonth(), 1);
-});
-const [pendingItemProposalDate, setPendingItemProposalDate] = useState('');
 const [itemProposalNote, setItemProposalNote] = useState('');
 const [proofRejectionReason, setProofRejectionReason] = useState('');
 const [expandedProofId, setExpandedProofId] = useState<string | null>(
@@ -555,110 +539,7 @@ setItemProposalLocalDate('');
 setItemProposalLocalStartTime('');
 setItemProposalLocalEndTime('');
 setItemProposalTimezone('');
-setIsItemProposalDatePickerVisible(false);
-setIsItemProposalTimePickerVisible(false);
-setPendingItemProposalDate('');
 setItemProposalNote('');
-}, []);
-
-const todayIso = useMemo(() => {
-const now = new Date();
-const year = now.getFullYear();
-const month = String(now.getMonth() + 1).padStart(2, '0');
-const day = String(now.getDate()).padStart(2, '0');
-
-return `${year}-${month}-${day}`;
-}, []);
-
-const itemProposalDateFieldLabel = useMemo(() => {
-if (!itemProposalLocalDate) {
-return 'Selecciona una fecha';
-}
-
-const [year, month, day] = itemProposalLocalDate.split('-').map(Number);
-const value = new Date(year, month - 1, day);
-
-return new Intl.DateTimeFormat('es-CO', {
-day: 'numeric',
-month: 'long',
-weekday: 'long',
-year: 'numeric',
-}).format(value);
-}, [itemProposalLocalDate]);
-
-const itemProposalCalendarMonthLabel = useMemo(() => (
-new Intl.DateTimeFormat('es-CO', {
-month: 'long',
-year: 'numeric',
-}).format(itemProposalCalendarMonth)
-), [itemProposalCalendarMonth]);
-
-const itemProposalCalendarDays = useMemo(() => {
-const year = itemProposalCalendarMonth.getFullYear();
-const month = itemProposalCalendarMonth.getMonth();
-const firstWeekday = new Date(year, month, 1).getDay();
-const leadingEmptyDays = (firstWeekday + 6) % 7;
-const totalDays = new Date(year, month + 1, 0).getDate();
-const days: Array<number | null> = Array.from(
-{ length: leadingEmptyDays },
-() => null,
-);
-
-for (let day = 1; day <= totalDays; day += 1) {
-days.push(day);
-}
-
-return days;
-}, [itemProposalCalendarMonth]);
-
-const itemProposalTimeOptions = useMemo(() => (
-Array.from({ length: 48 }, (_, index) => {
-const hour = String(Math.floor(index / 2)).padStart(2, '0');
-const minute = index % 2 === 0 ? '00' : '30';
-
-return `${hour}:${minute}`;
-})
-), []);
-
-const openItemProposalDatePicker = useCallback(() => {
-const initialDate = (
-itemProposalLocalDate && itemProposalLocalDate >= todayIso
-? itemProposalLocalDate
-: todayIso
-);
-const [year, month] = initialDate.split('-').map(Number);
-
-setPendingItemProposalDate(initialDate);
-setItemProposalCalendarMonth(new Date(year, month - 1, 1));
-setIsItemProposalDatePickerVisible(true);
-}, [itemProposalLocalDate, todayIso]);
-
-const selectItemProposalCalendarDate = useCallback((day: number) => {
-const year = itemProposalCalendarMonth.getFullYear();
-const month = String(
-itemProposalCalendarMonth.getMonth() + 1,
-).padStart(2, '0');
-
-setPendingItemProposalDate(
-`${year}-${month}-${String(day).padStart(2, '0')}`,
-);
-}, [itemProposalCalendarMonth]);
-
-const confirmItemProposalDate = useCallback(() => {
-if (
-!pendingItemProposalDate
-|| pendingItemProposalDate < todayIso
-) {
-return;
-}
-
-setItemProposalLocalDate(pendingItemProposalDate);
-setIsItemProposalDatePickerVisible(false);
-}, [pendingItemProposalDate, todayIso]);
-
-const selectItemProposalTime = useCallback((value: string) => {
-setItemProposalLocalStartTime(value);
-setIsItemProposalTimePickerVisible(false);
 }, []);
 
 const handleOpenItemProposal = useCallback((
@@ -850,21 +731,7 @@ localTime: itemProposalLocalStartTime,
 timezone: itemProposalTimezone,
 });
 
-if (
-requestDetail?.request_type === 'booking_request'
-&& item.requires_booking
-) {
-if (!item.duration_minutes || item.duration_minutes < 1) {
-throw new Error(
-'No fue posible identificar la duración de la reserva.',
-);
-}
-
-endsAt = new Date(
-new Date(startsAt).getTime()
-+ (item.duration_minutes * 60 * 1000),
-).toISOString();
-} else if (itemProposalLocalEndTime.trim()) {
+if (itemProposalLocalEndTime.trim()) {
 endsAt = toCommercialReservationStartsAtIso({
 localDate: itemProposalLocalDate,
 localTime: itemProposalLocalEndTime,
@@ -1774,73 +1641,6 @@ Precio fijo conservado: {formatCop(item.unit_price_amount)}
 </Text>
 )}
 {isService ? (
-requestDetail.request_type === 'booking_request'
-&& item.requires_booking ? (
-<>
-<Text style={styles.pickerFieldLabel}>Fecha</Text>
-<TouchableOpacity
-accessibilityLabel={`Seleccionar fecha propuesta para ${item.title}`}
-accessibilityRole="button"
-activeOpacity={0.82}
-onPress={openItemProposalDatePicker}
-style={styles.pickerField}
->
-<CalendarClock color="#7427D5" size={20} />
-<Text
-style={[
-styles.pickerFieldText,
-!itemProposalLocalDate
-? styles.pickerPlaceholderText
-: null,
-]}
->
-{itemProposalDateFieldLabel}
-</Text>
-<ChevronRight color="#79688C" size={20} />
-</TouchableOpacity>
-
-<Text style={styles.pickerFieldLabel}>Hora de inicio</Text>
-<TouchableOpacity
-accessibilityLabel={`Seleccionar hora de inicio propuesta para ${item.title}`}
-accessibilityRole="button"
-activeOpacity={0.82}
-onPress={() => setIsItemProposalTimePickerVisible(true)}
-style={styles.pickerField}
->
-<Clock3 color="#7427D5" size={20} />
-<Text
-style={[
-styles.pickerFieldText,
-!itemProposalLocalStartTime
-? styles.pickerPlaceholderText
-: null,
-]}
->
-{itemProposalLocalStartTime || 'Selecciona una hora'}
-</Text>
-<ChevronRight color="#79688C" size={20} />
-</TouchableOpacity>
-
-<Text style={styles.itemMeta}>
-Zona horaria del negocio: {itemProposalTimezone}
-</Text>
-
-{itemProposalLocalDate
-&& itemProposalLocalStartTime
-&& itemProposalTimezone ? (
-<Text style={styles.inputHint}>
-Vista previa: {formatCommercialReservationDateTime(
-toCommercialReservationStartsAtIso({
-localDate: itemProposalLocalDate,
-localTime: itemProposalLocalStartTime,
-timezone: itemProposalTimezone,
-}),
-itemProposalTimezone,
-)}
-</Text>
-) : null}
-</>
-) : (
 <>
 <TextInput
 accessibilityLabel={`Fecha propuesta para ${item.title}`}
@@ -1882,7 +1682,6 @@ style={styles.input}
 value={itemProposalTimezone}
 />
 </>
-)
 ) : null}
 <TextInput
 accessibilityLabel={`Comentario de propuesta para ${item.title}`}
@@ -2542,224 +2341,6 @@ Comentario del cliente
 </View>
 ) : null}
 </ScrollView>
-
-<Modal
-animationType="slide"
-onRequestClose={() => setIsItemProposalDatePickerVisible(false)}
-transparent
-visible={isItemProposalDatePickerVisible}
->
-<Pressable
-onPress={() => setIsItemProposalDatePickerVisible(false)}
-style={styles.modalBackdrop}
->
-<Pressable
-onPress={(event) => event.stopPropagation()}
-style={styles.modalSheet}
->
-<View style={styles.modalHeader}>
-<View style={styles.modalHeaderText}>
-<Text style={styles.modalTitle}>
-Elige una fecha
-</Text>
-<Text style={styles.modalSubtitle}>
-Selecciona la fecha propuesta para la reserva.
-</Text>
-</View>
-<TouchableOpacity
-accessibilityLabel="Cerrar selector de fecha"
-accessibilityRole="button"
-hitSlop={10}
-onPress={() => setIsItemProposalDatePickerVisible(false)}
-style={styles.modalCloseButton}
->
-<X color="#523C70" size={21} />
-</TouchableOpacity>
-</View>
-
-<View style={styles.calendarNavigation}>
-<TouchableOpacity
-accessibilityLabel="Mes anterior"
-accessibilityRole="button"
-onPress={() => setItemProposalCalendarMonth((current) => (
-new Date(
-current.getFullYear(),
-current.getMonth() - 1,
-1,
-)
-))}
-style={styles.calendarNavigationButton}
->
-<ChevronLeft color="#523C70" size={22} />
-</TouchableOpacity>
-<Text style={styles.calendarMonthLabel}>
-{itemProposalCalendarMonthLabel}
-</Text>
-<TouchableOpacity
-accessibilityLabel="Mes siguiente"
-accessibilityRole="button"
-onPress={() => setItemProposalCalendarMonth((current) => (
-new Date(
-current.getFullYear(),
-current.getMonth() + 1,
-1,
-)
-))}
-style={styles.calendarNavigationButton}
->
-<ChevronRight color="#523C70" size={22} />
-</TouchableOpacity>
-</View>
-
-<View style={styles.weekdayRow}>
-{['L', 'M', 'X', 'J', 'V', 'S', 'D'].map((day) => (
-<Text key={day} style={styles.weekdayLabel}>
-{day}
-</Text>
-))}
-</View>
-
-<View style={styles.calendarGrid}>
-{itemProposalCalendarDays.map((day, index) => {
-if (!day) {
-return (
-<View
-key={`empty-${index}`}
-style={styles.calendarDayCell}
-/>
-);
-}
-
-const year = itemProposalCalendarMonth.getFullYear();
-const month = String(
-itemProposalCalendarMonth.getMonth() + 1,
-).padStart(2, '0');
-const isoDate = `${year}-${month}-${String(day).padStart(2, '0')}`;
-const isDisabled = isoDate < todayIso;
-const isSelected = isoDate === pendingItemProposalDate;
-
-return (
-<TouchableOpacity
-accessibilityLabel={`Seleccionar día ${day}`}
-accessibilityRole="button"
-accessibilityState={{
-disabled: isDisabled,
-selected: isSelected,
-}}
-disabled={isDisabled}
-key={isoDate}
-onPress={() => selectItemProposalCalendarDate(day)}
-style={[
-styles.calendarDayCell,
-isSelected ? styles.calendarDaySelected : null,
-]}
->
-<Text
-style={[
-styles.calendarDayText,
-isDisabled ? styles.calendarDayDisabledText : null,
-isSelected ? styles.calendarDaySelectedText : null,
-]}
->
-{day}
-</Text>
-</TouchableOpacity>
-);
-})}
-</View>
-
-<TouchableOpacity
-accessibilityLabel="Confirmar fecha propuesta"
-accessibilityRole="button"
-disabled={
-!pendingItemProposalDate
-|| pendingItemProposalDate < todayIso
-}
-onPress={confirmItemProposalDate}
-style={[
-styles.modalPrimaryButton,
-!pendingItemProposalDate
-|| pendingItemProposalDate < todayIso
-? styles.disabledButton
-: null,
-]}
->
-<Text style={styles.modalPrimaryButtonText}>
-Confirmar fecha
-</Text>
-</TouchableOpacity>
-</Pressable>
-</Pressable>
-</Modal>
-
-<Modal
-animationType="slide"
-onRequestClose={() => setIsItemProposalTimePickerVisible(false)}
-transparent
-visible={isItemProposalTimePickerVisible}
->
-<Pressable
-onPress={() => setIsItemProposalTimePickerVisible(false)}
-style={styles.modalBackdrop}
->
-<Pressable
-onPress={(event) => event.stopPropagation()}
-style={styles.modalSheet}
->
-<View style={styles.modalHeader}>
-<View style={styles.modalHeaderText}>
-<Text style={styles.modalTitle}>
-Elige una hora
-</Text>
-<Text style={styles.modalSubtitle}>
-Selecciona la hora de inicio propuesta para la reserva.
-</Text>
-</View>
-<TouchableOpacity
-accessibilityLabel="Cerrar selector de hora"
-accessibilityRole="button"
-hitSlop={10}
-onPress={() => setIsItemProposalTimePickerVisible(false)}
-style={styles.modalCloseButton}
->
-<X color="#523C70" size={21} />
-</TouchableOpacity>
-</View>
-
-<ScrollView
-contentContainerStyle={styles.timeOptionsGrid}
-showsVerticalScrollIndicator={false}
->
-{itemProposalTimeOptions.map((option) => {
-const isSelected = option === itemProposalLocalStartTime;
-
-return (
-<TouchableOpacity
-accessibilityLabel={`Elegir hora ${option}`}
-accessibilityRole="button"
-accessibilityState={{ selected: isSelected }}
-key={option}
-onPress={() => selectItemProposalTime(option)}
-style={[
-styles.timeOption,
-isSelected ? styles.timeOptionSelected : null,
-]}
->
-<Text
-style={[
-styles.timeOptionText,
-isSelected ? styles.timeOptionSelectedText : null,
-]}
->
-{option}
-</Text>
-</TouchableOpacity>
-);
-})}
-</ScrollView>
-</Pressable>
-</Pressable>
-</Modal>
 </ScreenSafeArea>
 );
 }
@@ -2924,179 +2505,6 @@ fontSize: 15,
 fontWeight: '800',
 },
 
-pickerFieldLabel: {
-color: '#4A3E58',
-fontSize: 13,
-fontWeight: '700',
-marginTop: 4,
-},
-pickerField: {
-alignItems: 'center',
-backgroundColor: '#FFFFFF',
-borderColor: '#DCCBEE',
-borderRadius: 13,
-borderWidth: 1,
-flexDirection: 'row',
-gap: 10,
-minHeight: 52,
-paddingHorizontal: 14,
-},
-pickerFieldText: {
-color: '#372849',
-flex: 1,
-fontSize: 14,
-fontWeight: '700',
-},
-pickerPlaceholderText: {
-color: '#8D8497',
-fontWeight: '500',
-},
-modalBackdrop: {
-backgroundColor: 'rgba(24, 11, 49, 0.44)',
-flex: 1,
-justifyContent: 'flex-end',
-},
-modalSheet: {
-backgroundColor: '#FFFFFF',
-borderTopLeftRadius: 26,
-borderTopRightRadius: 26,
-maxHeight: '88%',
-paddingBottom: 28,
-},
-modalHeader: {
-alignItems: 'flex-start',
-borderBottomColor: '#F0EAF3',
-borderBottomWidth: 1,
-flexDirection: 'row',
-justifyContent: 'space-between',
-paddingHorizontal: 20,
-paddingVertical: 18,
-},
-modalHeaderText: {
-flex: 1,
-paddingRight: 12,
-},
-modalTitle: {
-color: '#261743',
-fontSize: 17,
-fontWeight: '800',
-},
-modalSubtitle: {
-color: '#786593',
-fontSize: 12,
-lineHeight: 18,
-marginTop: 4,
-},
-modalCloseButton: {
-alignItems: 'center',
-height: 34,
-justifyContent: 'center',
-width: 34,
-},
-calendarNavigation: {
-alignItems: 'center',
-flexDirection: 'row',
-justifyContent: 'space-between',
-paddingHorizontal: 20,
-paddingTop: 18,
-},
-calendarNavigationButton: {
-alignItems: 'center',
-borderColor: '#E8DDF0',
-borderRadius: 18,
-borderWidth: 1,
-height: 36,
-justifyContent: 'center',
-width: 36,
-},
-calendarMonthLabel: {
-color: '#372849',
-fontSize: 15,
-fontWeight: '800',
-textTransform: 'capitalize',
-},
-weekdayRow: {
-flexDirection: 'row',
-paddingHorizontal: 16,
-paddingTop: 18,
-},
-weekdayLabel: {
-color: '#8A7B98',
-flex: 1,
-fontSize: 12,
-fontWeight: '800',
-textAlign: 'center',
-},
-calendarGrid: {
-flexDirection: 'row',
-flexWrap: 'wrap',
-paddingHorizontal: 16,
-paddingTop: 10,
-},
-calendarDayCell: {
-alignItems: 'center',
-height: 42,
-justifyContent: 'center',
-marginVertical: 2,
-width: '14.2857%',
-},
-calendarDaySelected: {
-backgroundColor: '#7427D5',
-borderRadius: 21,
-},
-calendarDayText: {
-color: '#3D2E4D',
-fontSize: 14,
-fontWeight: '700',
-},
-calendarDayDisabledText: {
-color: '#C7BDCE',
-},
-calendarDaySelectedText: {
-color: '#FFFFFF',
-},
-modalPrimaryButton: {
-alignItems: 'center',
-backgroundColor: '#7427D5',
-borderRadius: 14,
-justifyContent: 'center',
-marginHorizontal: 20,
-marginTop: 20,
-minHeight: 52,
-},
-modalPrimaryButtonText: {
-color: '#FFFFFF',
-fontSize: 15,
-fontWeight: '800',
-},
-timeOptionsGrid: {
-flexDirection: 'row',
-flexWrap: 'wrap',
-gap: 10,
-padding: 20,
-},
-timeOption: {
-alignItems: 'center',
-backgroundColor: '#FFFFFF',
-borderColor: '#DCCBEE',
-borderRadius: 12,
-borderWidth: 1,
-justifyContent: 'center',
-minHeight: 46,
-width: '30.8%',
-},
-timeOptionSelected: {
-backgroundColor: '#7427D5',
-borderColor: '#7427D5',
-},
-timeOptionText: {
-color: '#4A3E58',
-fontSize: 14,
-fontWeight: '800',
-},
-timeOptionSelectedText: {
-color: '#FFFFFF',
-},
 inputHint: {
 color: '#806899',
 fontSize: 13,
