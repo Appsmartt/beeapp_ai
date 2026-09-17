@@ -154,64 +154,6 @@ timeStyle: 'short',
 ).format(date);
 }
 
-function getOriginalBookingTerm(
-item: CommercialRequestDetail['items'][number],
-key: 'requested_starts_at' | 'requested_ends_at' | 'timezone',
-): string | null {
-const value = item.original_terms?.[key];
-
-return typeof value === 'string' && value.trim()
-? value.trim()
-: null;
-}
-
-function getLocalDateAndTime(
-value: string | null,
-timezone: string | null,
-): { date: string; time: string } | null {
-if (!value || !timezone) {
-return null;
-}
-
-const date = new Date(value);
-
-if (Number.isNaN(date.getTime())) {
-return null;
-}
-
-const parts = new Intl.DateTimeFormat(
-'en-CA',
-{
-day: '2-digit',
-hour: '2-digit',
-hour12: false,
-minute: '2-digit',
-month: '2-digit',
-timeZone: timezone,
-year: 'numeric',
-},
-).formatToParts(date);
-
-const getPart = (type: string): string => (
-parts.find((part) => part.type === type)?.value || ''
-);
-
-const year = getPart('year');
-const month = getPart('month');
-const day = getPart('day');
-const hour = getPart('hour');
-const minute = getPart('minute');
-
-if (!year || !month || !day || !hour || !minute) {
-return null;
-}
-
-return {
-date: `${year}-${month}-${day}`,
-time: `${hour}:${minute}`,
-};
-}
-
 function proposalStatusLabel(status: string): string {
 const labels: Record<string, string> = {
 pending: 'Pendiente',
@@ -545,36 +487,10 @@ setItemProposalNote('');
 const handleOpenItemProposal = useCallback((
 item: CommercialRequestDetail['items'][number],
 ) => {
-const isFixedBooking = (
-item.pricing_strategy === 'fixed'
-&& item.offer_kind === 'service'
-&& item.requires_booking
-);
-
-if (item.pricing_strategy === 'fixed' && !isFixedBooking) {
+if (item.pricing_strategy === 'fixed') {
 resetItemProposalForm();
 return;
 }
-
-const originalTimezone = getOriginalBookingTerm(item, 'timezone')
-|| formalContext?.business.timezone
-|| 'America/Bogota';
-const originalStart = getOriginalBookingTerm(
-item,
-'requested_starts_at',
-);
-const originalEnd = getOriginalBookingTerm(
-item,
-'requested_ends_at',
-);
-const localStart = getLocalDateAndTime(
-originalStart,
-originalTimezone,
-);
-const localEnd = getLocalDateAndTime(
-originalEnd,
-originalTimezone,
-);
 
 setActionError(null);
 setExpandedItemProposalId(item.id);
@@ -589,12 +505,14 @@ item.unit_price_amount === null
 : formatCopInput(String(item.unit_price_amount))
 ),
 );
-setItemProposalLocalDate(localStart?.date || '');
-setItemProposalLocalStartTime(localStart?.time || '');
-setItemProposalLocalEndTime(localEnd?.time || '');
-setItemProposalTimezone(originalTimezone);
+setItemProposalLocalDate('');
+setItemProposalLocalStartTime('');
+setItemProposalLocalEndTime('');
+setItemProposalTimezone(
+formalContext?.business.timezone || 'America/Bogota',
+);
 setItemProposalNote('');
-}, [formalContext?.business.timezone, resetItemProposalForm]);
+}, [formalContext?.business.timezone]);
 
 const proposalPreview = (() => {
 if (!requestDetail || !expandedItemProposalId) {
@@ -611,20 +529,11 @@ return null;
 
 try {
 const quantity = parseItemProposalQuantity(itemProposalQuantity);
-const isFixedBooking = (
-item.pricing_strategy === 'fixed'
-&& item.offer_kind === 'service'
-&& item.requires_booking
-);
-const unitPrice = isFixedBooking
-? item.unit_price_amount
-: (
-item.pricing_strategy === 'free'
+const unitPrice = item.pricing_strategy === 'free'
 ? 0
 : parseProposalAmount(
 itemProposalUnitPrice,
 'El precio unitario',
-)
 );
 
 if (
@@ -662,13 +571,7 @@ formalContext?.actor_role !== 'business_owner'
 return;
 }
 
-const isFixedBooking = (
-item.pricing_strategy === 'fixed'
-&& item.offer_kind === 'service'
-&& item.requires_booking
-);
-
-if (item.pricing_strategy === 'fixed' && !isFixedBooking) {
+if (item.pricing_strategy === 'fixed') {
 resetItemProposalForm();
 return;
 }
@@ -679,21 +582,14 @@ async () => {
 const quantity = parseItemProposalQuantity(
 itemProposalQuantity,
 );
-const isService = item.offer_kind === 'service';
-const unitPrice = isFixedBooking
-? null
-: (
-item.pricing_strategy === 'free'
-? 0
-: parseProposalAmount(
+const unitPrice = parseProposalAmount(
 itemProposalUnitPrice,
 'El precio unitario',
-)
 );
+const isService = item.offer_kind === 'service';
 
 if (
-!isFixedBooking
-&& item.pricing_strategy !== 'free'
+item.pricing_strategy !== 'free'
 && unitPrice === null
 ) {
 throw new Error(
@@ -702,8 +598,7 @@ throw new Error(
 }
 
 if (
-!isFixedBooking
-&& item.pricing_strategy === 'fixed'
+item.pricing_strategy === 'fixed'
 && unitPrice !== item.unit_price_amount
 ) {
 throw new Error(
@@ -753,7 +648,11 @@ return createCommercialItemProposal(
 item.id,
 {
 proposed_quantity: quantity,
-proposed_unit_price_amount: unitPrice,
+proposed_unit_price_amount: (
+item.pricing_strategy === 'free'
+? 0
+: unitPrice
+),
 requested_modality: item.modality,
 proposed_starts_at: startsAt,
 proposed_ends_at: endsAt,
@@ -1440,38 +1339,6 @@ Fin acordado: {formatTimelineDate(item.final_ends_at)}
 Resultado: {item.close_reason}
 </Text>
 ) : null}
-{requestDetail.request_type === 'booking_request'
-&& item.offer_kind === 'service'
-&& item.requires_booking ? (
-<View style={styles.lineCommentBox}>
-<Text style={styles.lineCommentLabel}>
-Fecha y hora solicitadas por el cliente
-</Text>
-{getOriginalBookingTerm(item, 'requested_starts_at') ? (
-<Text style={styles.lineCommentText}>
-Inicio: {formatTimelineDate(
-getOriginalBookingTerm(item, 'requested_starts_at') || '',
-)}
-</Text>
-) : (
-<Text style={styles.lineCommentText}>
-Inicio: No disponible
-</Text>
-)}
-{getOriginalBookingTerm(item, 'requested_ends_at') ? (
-<Text style={styles.lineCommentText}>
-Fin: {formatTimelineDate(
-getOriginalBookingTerm(item, 'requested_ends_at') || '',
-)}
-</Text>
-) : null}
-{getOriginalBookingTerm(item, 'timezone') ? (
-<Text style={styles.lineCommentText}>
-Zona horaria: {getOriginalBookingTerm(item, 'timezone')}
-</Text>
-) : null}
-</View>
-) : null}
 {lineComment ? (
 <View style={styles.lineCommentBox}>
 <Text style={styles.lineCommentLabel}>
@@ -1496,7 +1363,6 @@ Nota específica del cliente
 && item.lifecycle_status === 'pending_business' ? (
 <View style={styles.itemActions}>
 {item.pricing_strategy === 'fixed' ? (
-<>
 <TouchableOpacity
 accessibilityLabel={`Aceptar ${item.title}`}
 accessibilityRole="button"
@@ -1513,25 +1379,6 @@ pendingAction !== null ? styles.disabledButton : null,
 : 'Aceptar ítem'}
 </Text>
 </TouchableOpacity>
-{requestDetail.request_type === 'booking_request'
-&& item.offer_kind === 'service'
-&& item.requires_booking ? (
-<TouchableOpacity
-accessibilityLabel={`Negociar ${item.title}`}
-accessibilityRole="button"
-disabled={pendingAction !== null}
-onPress={() => handleOpenItemProposal(item)}
-style={[
-styles.itemActionSecondary,
-pendingAction !== null ? styles.disabledButton : null,
-]}
->
-<Text style={styles.itemActionSecondaryText}>
-Negociar
-</Text>
-</TouchableOpacity>
-) : null}
-</>
 ) : canAcceptCustomerCounteroffer
 && pendingCustomerCounteroffer ? (
 <>
@@ -1605,10 +1452,7 @@ Rechazar ítem
 ) : null}
 
 {formalContext?.actor_role === 'business_owner'
-&& (
-item.pricing_strategy !== 'fixed'
-|| (item.offer_kind === 'service' && item.requires_booking)
-)
+&& item.pricing_strategy !== 'fixed'
 && expandedItemProposalId === item.id ? (
 <View style={styles.itemProposalForm}>
 <Text style={styles.itemHistoryTitle}>
@@ -1623,7 +1467,6 @@ placeholderTextColor="#9B90AA"
 style={styles.input}
 value={itemProposalQuantity}
 />
-{item.pricing_strategy !== 'fixed' ? (
 <TextInput
 accessibilityLabel={`Precio unitario propuesto para ${item.title}`}
 keyboardType="numeric"
@@ -1635,11 +1478,6 @@ placeholderTextColor="#9B90AA"
 style={styles.input}
 value={itemProposalUnitPrice}
 />
-) : (
-<Text style={styles.itemMeta}>
-Precio fijo conservado: {formatCop(item.unit_price_amount)}
-</Text>
-)}
 {isService ? (
 <>
 <TextInput
