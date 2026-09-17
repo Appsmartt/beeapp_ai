@@ -307,6 +307,8 @@ export interface CommercialOwnedOffer {
   archived_at: string | null;
   track_inventory: boolean;
   stock_quantity: number | null;
+  reserved_inventory: number | null;
+  available_inventory: number | null;
   duration_minutes: number | null;
   requires_booking: boolean;
   payment_policy: CommercialPaymentPolicy | null;
