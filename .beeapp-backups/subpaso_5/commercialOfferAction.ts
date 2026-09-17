@@ -10,7 +10,11 @@ export type CommercialOfferAction =
 export function getCommercialOfferAction(
 offer: CommercialPublicOffer,
 ): CommercialOfferAction {
-if (offer.offer_kind === 'product' || offer.requires_booking) {
+if (offer.requires_booking) {
+return 'request_booking';
+}
+
+if (offer.offer_kind === 'product') {
 return 'add_to_cart';
 }
 

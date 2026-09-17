@@ -280,7 +280,6 @@ export default function BuddyServicesPublicOfferScreen() {
           unitPriceAmount: offer.base_price_amount,
           currencyCode: offer.currency_code,
           requestedModality: getDefaultRequestedModality(offer),
-          availableModalities: offer.modalities,
           imageUrl: primaryImageUrl,
           deliveryFeeMode: 'not_offered',
           deliveryFeeAmount: null,

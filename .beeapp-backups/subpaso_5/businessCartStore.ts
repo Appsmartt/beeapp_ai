@@ -23,7 +23,6 @@ export type BusinessCartLine = {
   unitPriceAmount: number | null;
   currencyCode: 'COP';
   requestedModality: CommercialModality | null;
-  availableModalities: CommercialModality[];
   imageUrl: string | null;
   requiresBooking: boolean;
   durationMinutes: number | null;
@@ -58,7 +57,6 @@ export type AddBusinessCartLineInput = {
   unitPriceAmount: number | null;
   currencyCode: 'COP';
   requestedModality?: CommercialModality | null;
-  availableModalities?: CommercialModality[];
   imageUrl?: string | null;
   deliveryFeeMode?: CommercialDeliveryFeeMode | null;
   deliveryFeeAmount?: number | null;
@@ -254,23 +252,6 @@ function isOfferKind(
   return value === 'product' || value === 'service';
 }
 
-function normalizeModalities(
-  values: CommercialModality[] | null | undefined,
-  fallback: CommercialModality | null,
-): CommercialModality[] {
-  const normalized = Array.isArray(values)
-    ? values.filter(isCommercialModality)
-    : [];
-
-  const unique = Array.from(new Set(normalized));
-
-  if (fallback && isCommercialModality(fallback) && !unique.includes(fallback)) {
-    unique.push(fallback);
-  }
-
-  return unique;
-}
-
 function normalizeDeliveryFeeAmount(
   value: unknown,
   deliveryFeeMode: CommercialDeliveryFeeMode,
@@ -328,6 +309,15 @@ function normalizeLine(
     );
   }
 
+  if (requiresBooking && (
+    !requestedStartsAt
+    || !timezone
+  )) {
+    throw new Error(
+      'Selecciona fecha, hora y zona horaria para el servicio.',
+    );
+  }
+
   if (
     requestedStartsAt
     && requestedEndsAt
@@ -356,10 +346,6 @@ function normalizeLine(
       && isCommercialModality(input.requestedModality)
         ? input.requestedModality
         : null
-    ),
-    availableModalities: normalizeModalities(
-      input.availableModalities,
-      input.requestedModality || null,
     ),
     imageUrl: normalizeOptionalText(input.imageUrl, 2000),
     requiresBooking,
@@ -439,6 +425,7 @@ function isValidCartLine(
       || !endsAt
       || Date.parse(endsAt) > Date.parse(startsAt)
     )
+    && (!line.requiresBooking || Boolean(startsAt && timezone))
   );
 }
 
@@ -522,10 +509,6 @@ function normalizePersistedCart(
         && isCommercialModality(line.requestedModality)
           ? line.requestedModality
           : null
-      ),
-      availableModalities: normalizeModalities(
-        line.availableModalities,
-        line.requestedModality || null,
       ),
       imageUrl: normalizeOptionalText(line.imageUrl, 2000),
       requiresBooking: Boolean(line.requiresBooking),
@@ -859,79 +842,6 @@ export function updateBusinessCartLineQuantity(
   });
 }
 
-export function updateBusinessCartBookingDetails(
-  lineId: string,
-  details: {
-    requestedModality?: CommercialModality | null;
-    requestedStartsAt?: string | null;
-    requestedEndsAt?: string | null;
-    timezone?: string | null;
-  },
-): void {
-  if (!activeCart) {
-    return;
-  }
-
-  const normalizedLineId = normalizeId(lineId);
-
-  updateCart({
-    ...activeCart,
-    lines: activeCart.lines.map((line) => {
-      if (
-        line.id !== normalizedLineId
-        || line.offerKind !== 'service'
-        || !line.requiresBooking
-      ) {
-        return line;
-      }
-
-      const requestedStartsAt = (
-        details.requestedStartsAt === undefined
-          ? line.requestedStartsAt
-          : normalizeIsoDateTime(details.requestedStartsAt)
-      );
-      const requestedEndsAt = (
-        details.requestedEndsAt === undefined
-          ? line.requestedEndsAt
-          : normalizeIsoDateTime(details.requestedEndsAt)
-      );
-      const timezone = (
-        details.timezone === undefined
-          ? line.timezone
-          : normalizeOptionalText(details.timezone, 100)
-      );
-
-      if (
-        requestedStartsAt
-        && requestedEndsAt
-        && Date.parse(requestedEndsAt) <= Date.parse(requestedStartsAt)
-      ) {
-        return line;
-      }
-
-      return {
-        ...line,
-        requestedModality: (
-          details.requestedModality === undefined
-            ? line.requestedModality
-            : (
-              details.requestedModality
-              && isCommercialModality(details.requestedModality)
-              && line.availableModalities.includes(
-                details.requestedModality,
-              )
-                ? details.requestedModality
-                : line.requestedModality
-            )
-        ),
-        requestedStartsAt,
-        requestedEndsAt,
-        timezone,
-      };
-    }),
-  });
-}
-
 export function updateBusinessCartLineComment(
   lineId: string,
   lineComment: string | null | undefined,
@@ -1097,7 +1007,6 @@ export type RevalidateBusinessCartLineInput = {
   pricingStrategy: CommercialPricingStrategy;
   unitPriceAmount: number | null;
   requestedModality: CommercialModality | null;
-  availableModalities: CommercialModality[];
   imageUrl: string | null;
 };
 
@@ -1161,10 +1070,6 @@ export function revalidateBusinessCartLines(
           && isCommercialModality(update.requestedModality)
             ? update.requestedModality
             : null
-        ),
-        availableModalities: normalizeModalities(
-          update.availableModalities,
-          update.requestedModality,
         ),
         imageUrl: normalizeOptionalText(update.imageUrl, 2000),
       };

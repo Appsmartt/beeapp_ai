@@ -917,11 +917,8 @@ export function updateBusinessCartBookingDetails(
             : (
               details.requestedModality
               && isCommercialModality(details.requestedModality)
-              && line.availableModalities.includes(
-                details.requestedModality,
-              )
                 ? details.requestedModality
-                : line.requestedModality
+                : null
             )
         ),
         requestedStartsAt,

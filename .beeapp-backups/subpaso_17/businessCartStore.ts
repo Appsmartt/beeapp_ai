@@ -917,11 +917,8 @@ export function updateBusinessCartBookingDetails(
             : (
               details.requestedModality
               && isCommercialModality(details.requestedModality)
-              && line.availableModalities.includes(
-                details.requestedModality,
-              )
                 ? details.requestedModality
-                : line.requestedModality
+                : null
             )
         ),
         requestedStartsAt,
@@ -1097,7 +1094,6 @@ export type RevalidateBusinessCartLineInput = {
   pricingStrategy: CommercialPricingStrategy;
   unitPriceAmount: number | null;
   requestedModality: CommercialModality | null;
-  availableModalities: CommercialModality[];
   imageUrl: string | null;
 };
 
@@ -1161,10 +1157,6 @@ export function revalidateBusinessCartLines(
           && isCommercialModality(update.requestedModality)
             ? update.requestedModality
             : null
-        ),
-        availableModalities: normalizeModalities(
-          update.availableModalities,
-          update.requestedModality,
         ),
         imageUrl: normalizeOptionalText(update.imageUrl, 2000),
       };

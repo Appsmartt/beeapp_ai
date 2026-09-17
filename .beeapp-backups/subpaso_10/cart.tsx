@@ -16,6 +16,7 @@ View,
 import {
 ArrowLeft,
 CalendarClock,
+Clock3,
 Minus,
 Package,
 Plus,
@@ -193,7 +194,6 @@ onDecrease,
 onIncrease,
 onCommentChange,
 onBookingDetailsChange,
-onBookingModalityChange,
 onRemove,
 }: {
 line: BusinessCartLine;
@@ -204,7 +204,6 @@ onBookingDetailsChange: (
 localDate: string,
 localTime: string,
 ) => void;
-onBookingModalityChange: (modality: CommercialModality) => void;
 onRemove: () => void;
 }) {
 const isBookingLine = (
@@ -215,29 +214,30 @@ const [bookingTime, setBookingTime] = useState('');
 
 useEffect(() => {
 if (!line.requestedStartsAt || !line.timezone) {
+setBookingDate('');
+setBookingTime('');
 return;
 }
 
 const startsAt = new Date(line.requestedStartsAt);
-const dateParts = new Intl.DateTimeFormat('en-GB', {
+
+setBookingDate(
+new Intl.DateTimeFormat('en-CA', {
 day: '2-digit',
 month: '2-digit',
 timeZone: line.timezone,
 year: 'numeric',
-}).formatToParts(startsAt);
-const part = (type: string) => (
-dateParts.find((item) => item.type === type)?.value || ''
+}).format(startsAt),
 );
-const nextDate = `${part('year')}-${part('month')}-${part('day')}`;
-const nextTime = new Intl.DateTimeFormat('en-GB', {
+
+setBookingTime(
+new Intl.DateTimeFormat('en-GB', {
 hour: '2-digit',
 hour12: false,
 minute: '2-digit',
 timeZone: line.timezone,
-}).format(startsAt);
-
-setBookingDate(nextDate);
-setBookingTime(nextTime);
+}).format(startsAt),
+);
 }, [line.requestedStartsAt, line.timezone]);
 const lineAmount = (
 line.pricingStrategy === 'free'
@@ -383,38 +383,6 @@ Configura tu reserva
 <Text style={styles.bookingEditorHint}>
 Propón fecha y hora. El comercio podrá aceptar, rechazar o negociar las condiciones.
 </Text>
-
-<Text style={styles.bookingFieldLabel}>
-Modalidad
-</Text>
-
-<View style={styles.bookingModalitiesWrap}>
-{line.availableModalities.map((modality) => {
-const selected = line.requestedModality === modality;
-
-return (
-<TouchableOpacity
-key={modality}
-accessibilityLabel={`Seleccionar ${modalityLabel(modality)}`}
-accessibilityRole="button"
-accessibilityState={{ selected }}
-activeOpacity={0.8}
-onPress={() => onBookingModalityChange(modality)}
-style={[
-styles.bookingModalityButton,
-selected ? styles.bookingModalityButtonSelected : null,
-]}
->
-<Text style={[
-styles.bookingModalityButtonText,
-selected ? styles.bookingModalityButtonTextSelected : null,
-]}>
-{modalityLabel(modality)}
-</Text>
-</TouchableOpacity>
-);
-})}
-</View>
 
 <Text style={styles.bookingFieldLabel}>
 Fecha solicitada
@@ -885,15 +853,6 @@ setCartUpdateNotice(
 );
 }
 }}
-onBookingModalityChange={(requestedModality) => {
-setCartUpdateNotice(null);
-updateBusinessCartBookingDetails(line.id, {
-requestedModality,
-});
-updateBusinessCartRequestDetails({
-requestedModality,
-});
-}}
 onRemove={() => {
 Alert.alert(
 getRemoveItemDialogTitle(line),
@@ -918,7 +877,7 @@ removeBusinessCartLine(line.id);
 ))}
 </View>
 
-{modalities.length > 0 && summary.presentationKind !== 'reservation' ? (
+{modalities.length > 0 ? (
 <View style={styles.section}>
 <Text style={styles.sectionTitle}>
 Modalidad de atención
@@ -1347,39 +1306,6 @@ color: '#755B8D',
 fontSize: 12,
 lineHeight: 17,
 marginTop: 7,
-},
-bookingModalityText: {
-color: '#623A83',
-fontSize: 12,
-fontWeight: '800',
-lineHeight: 18,
-marginTop: 9,
-},
-bookingModalitiesWrap: {
-flexDirection: 'row',
-flexWrap: 'wrap',
-gap: 8,
-marginTop: 7,
-},
-bookingModalityButton: {
-backgroundColor: '#FFFFFF',
-borderColor: '#DCCBEF',
-borderRadius: 16,
-borderWidth: 1,
-paddingHorizontal: 11,
-paddingVertical: 8,
-},
-bookingModalityButtonSelected: {
-backgroundColor: '#7427D5',
-borderColor: '#7427D5',
-},
-bookingModalityButtonText: {
-color: '#623D8B',
-fontSize: 12,
-fontWeight: '800',
-},
-bookingModalityButtonTextSelected: {
-color: '#FFFFFF',
 },
 bookingFieldLabel: {
 color: '#604678',

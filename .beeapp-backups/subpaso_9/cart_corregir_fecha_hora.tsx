@@ -16,6 +16,7 @@ View,
 import {
 ArrowLeft,
 CalendarClock,
+Clock3,
 Minus,
 Package,
 Plus,
@@ -192,19 +193,16 @@ line,
 onDecrease,
 onIncrease,
 onCommentChange,
-onBookingDetailsChange,
-onBookingModalityChange,
+onBookingDateChange,
+onBookingTimeChange,
 onRemove,
 }: {
 line: BusinessCartLine;
 onDecrease: () => void;
 onIncrease: () => void;
 onCommentChange: (value: string) => void;
-onBookingDetailsChange: (
-localDate: string,
-localTime: string,
-) => void;
-onBookingModalityChange: (modality: CommercialModality) => void;
+onBookingDateChange: (value: string) => void;
+onBookingTimeChange: (value: string) => void;
 onRemove: () => void;
 }) {
 const isBookingLine = (
@@ -215,29 +213,30 @@ const [bookingTime, setBookingTime] = useState('');
 
 useEffect(() => {
 if (!line.requestedStartsAt || !line.timezone) {
+setBookingDate('');
+setBookingTime('');
 return;
 }
 
 const startsAt = new Date(line.requestedStartsAt);
-const dateParts = new Intl.DateTimeFormat('en-GB', {
+
+setBookingDate(
+new Intl.DateTimeFormat('en-CA', {
 day: '2-digit',
 month: '2-digit',
 timeZone: line.timezone,
 year: 'numeric',
-}).formatToParts(startsAt);
-const part = (type: string) => (
-dateParts.find((item) => item.type === type)?.value || ''
+}).format(startsAt),
 );
-const nextDate = `${part('year')}-${part('month')}-${part('day')}`;
-const nextTime = new Intl.DateTimeFormat('en-GB', {
+
+setBookingTime(
+new Intl.DateTimeFormat('en-GB', {
 hour: '2-digit',
 hour12: false,
 minute: '2-digit',
 timeZone: line.timezone,
-}).format(startsAt);
-
-setBookingDate(nextDate);
-setBookingTime(nextTime);
+}).format(startsAt),
+);
 }, [line.requestedStartsAt, line.timezone]);
 const lineAmount = (
 line.pricingStrategy === 'free'
@@ -385,38 +384,6 @@ Propón fecha y hora. El comercio podrá aceptar, rechazar o negociar las condic
 </Text>
 
 <Text style={styles.bookingFieldLabel}>
-Modalidad
-</Text>
-
-<View style={styles.bookingModalitiesWrap}>
-{line.availableModalities.map((modality) => {
-const selected = line.requestedModality === modality;
-
-return (
-<TouchableOpacity
-key={modality}
-accessibilityLabel={`Seleccionar ${modalityLabel(modality)}`}
-accessibilityRole="button"
-accessibilityState={{ selected }}
-activeOpacity={0.8}
-onPress={() => onBookingModalityChange(modality)}
-style={[
-styles.bookingModalityButton,
-selected ? styles.bookingModalityButtonSelected : null,
-]}
->
-<Text style={[
-styles.bookingModalityButtonText,
-selected ? styles.bookingModalityButtonTextSelected : null,
-]}>
-{modalityLabel(modality)}
-</Text>
-</TouchableOpacity>
-);
-})}
-</View>
-
-<Text style={styles.bookingFieldLabel}>
 Fecha solicitada
 </Text>
 
@@ -426,7 +393,7 @@ autoCapitalize="none"
 keyboardType="numbers-and-punctuation"
 onChangeText={(value) => {
 setBookingDate(value);
-onBookingDetailsChange(value, bookingTime);
+onBookingDateChange(value);
 }}
 placeholder="AAAA-MM-DD"
 placeholderTextColor="#9C8BAF"
@@ -444,7 +411,7 @@ autoCapitalize="none"
 keyboardType="numbers-and-punctuation"
 onChangeText={(value) => {
 setBookingTime(value);
-onBookingDetailsChange(bookingDate, value);
+onBookingTimeChange(value);
 }}
 placeholder="HH:MM"
 placeholderTextColor="#9C8BAF"
@@ -564,6 +531,47 @@ cart
 && !bookingLinesIncomplete,
 );
 
+const updateBookingFromDraft = useCallback((
+line: BusinessCartLine,
+localDate: string,
+localTime: string,
+) => {
+if (
+line.offerKind !== 'service'
+|| !line.requiresBooking
+|| !line.timezone
+|| !localDate.trim()
+|| !localTime.trim()
+) {
+return;
+}
+
+try {
+const requestedStartsAt = toCommercialReservationStartsAtIso({
+localDate,
+localTime,
+timezone: line.timezone,
+});
+const requestedEndsAt = line.durationMinutes
+? new Date(
+new Date(requestedStartsAt).getTime()
++ (line.durationMinutes * 60 * 1000),
+).toISOString()
+: null;
+
+setCartUpdateNotice(null);
+updateBusinessCartBookingDetails(line.id, {
+requestedStartsAt,
+requestedEndsAt,
+timezone: line.timezone,
+});
+} catch {
+setCartUpdateNotice(
+'Usa una fecha futura AAAA-MM-DD y una hora HH:MM válidas.',
+);
+}
+}, []);
+
 const handleBack = useCallback(() => {
 if (router.canGoBack()) {
 router.back();
@@ -577,10 +585,24 @@ const handleSelectModality = useCallback((
 modality: CommercialModality,
 ) => {
 setCartUpdateNotice(null);
+
+if (cart) {
+cart.lines.forEach((line) => {
+if (
+line.offerKind === 'service'
+&& line.requiresBooking
+) {
+updateBusinessCartBookingDetails(line.id, {
+requestedModality: modality,
+});
+}
+});
+}
+
 updateBusinessCartRequestDetails({
 requestedModality: modality,
 });
-}, []);
+}, [cart]);
 
 const handleClear = useCallback(() => {
 if (!cart) {
@@ -849,50 +871,29 @@ onCommentChange={(value) => {
 setCartUpdateNotice(null);
 updateBusinessCartLineComment(line.id, value);
 }}
-onBookingDetailsChange={(localDate, localTime) => {
-if (
-line.offerKind !== 'service'
-|| !line.requiresBooking
-|| !line.timezone
-|| !localDate.trim()
-|| !localTime.trim()
-) {
-return;
-}
+onBookingDateChange={(localDate) => {
+const currentTime = line.requestedStartsAt && line.timezone
+? new Intl.DateTimeFormat('en-GB', {
+hour: '2-digit',
+hour12: false,
+minute: '2-digit',
+timeZone: line.timezone,
+}).format(new Date(line.requestedStartsAt))
+: '';
 
-try {
-const requestedStartsAt = toCommercialReservationStartsAtIso({
-localDate,
-localTime,
-timezone: line.timezone,
-});
-const requestedEndsAt = line.durationMinutes
-? new Date(
-new Date(requestedStartsAt).getTime()
-+ (line.durationMinutes * 60 * 1000),
-).toISOString()
-: null;
-
-setCartUpdateNotice(null);
-updateBusinessCartBookingDetails(line.id, {
-requestedStartsAt,
-requestedEndsAt,
-timezone: line.timezone,
-});
-} catch {
-setCartUpdateNotice(
-'Usa una fecha futura AAAA-MM-DD y una hora HH:MM válidas.',
-);
-}
+updateBookingFromDraft(line, localDate, currentTime);
 }}
-onBookingModalityChange={(requestedModality) => {
-setCartUpdateNotice(null);
-updateBusinessCartBookingDetails(line.id, {
-requestedModality,
-});
-updateBusinessCartRequestDetails({
-requestedModality,
-});
+onBookingTimeChange={(localTime) => {
+const currentDate = line.requestedStartsAt && line.timezone
+? new Intl.DateTimeFormat('en-CA', {
+day: '2-digit',
+month: '2-digit',
+timeZone: line.timezone,
+year: 'numeric',
+}).format(new Date(line.requestedStartsAt))
+: '';
+
+updateBookingFromDraft(line, currentDate, localTime);
 }}
 onRemove={() => {
 Alert.alert(
@@ -918,7 +919,7 @@ removeBusinessCartLine(line.id);
 ))}
 </View>
 
-{modalities.length > 0 && summary.presentationKind !== 'reservation' ? (
+{modalities.length > 0 ? (
 <View style={styles.section}>
 <Text style={styles.sectionTitle}>
 Modalidad de atención
@@ -1347,39 +1348,6 @@ color: '#755B8D',
 fontSize: 12,
 lineHeight: 17,
 marginTop: 7,
-},
-bookingModalityText: {
-color: '#623A83',
-fontSize: 12,
-fontWeight: '800',
-lineHeight: 18,
-marginTop: 9,
-},
-bookingModalitiesWrap: {
-flexDirection: 'row',
-flexWrap: 'wrap',
-gap: 8,
-marginTop: 7,
-},
-bookingModalityButton: {
-backgroundColor: '#FFFFFF',
-borderColor: '#DCCBEF',
-borderRadius: 16,
-borderWidth: 1,
-paddingHorizontal: 11,
-paddingVertical: 8,
-},
-bookingModalityButtonSelected: {
-backgroundColor: '#7427D5',
-borderColor: '#7427D5',
-},
-bookingModalityButtonText: {
-color: '#623D8B',
-fontSize: 12,
-fontWeight: '800',
-},
-bookingModalityButtonTextSelected: {
-color: '#FFFFFF',
 },
 bookingFieldLabel: {
 color: '#604678',
