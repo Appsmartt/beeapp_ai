@@ -61,7 +61,6 @@ toCommercialReservationStartsAtIso,
 } from '../../../../../../src/features/buddyservices/commercialReservationDateTime';
 import {
 acceptCommercialFixedRequestItem,
-acceptCommercialItemProposal,
 closeCommercialRequestItem,
 completeOwnedCommercialRequest,
 createCommercialItemProposal,
@@ -677,32 +676,6 @@ itemProposalUnitPrice,
 runAction,
 ]);
 
-const confirmAcceptCustomerCounteroffer = useCallback((
-    item: CommercialRequestDetail['items'][number],
-    proposalId: string,
-) => {
-    Alert.alert(
-        'Aceptar contraoferta',
-        `¿Aceptar la contraoferta del cliente para ${item.title}?`,
-        [
-            {
-                text: 'Cancelar',
-                style: 'cancel',
-            },
-            {
-                text: 'Aceptar propuesta',
-                onPress: () => {
-                    void runAction(
-                        `accept-item-proposal:${proposalId}`,
-                        () => acceptCommercialItemProposal(proposalId),
-                        'La contraoferta fue aceptada y el ítem quedó aceptado.',
-                    );
-                },
-            },
-        ],
-    );
-}, [runAction]);
-
 const confirmAcceptItem = useCallback((
 item: CommercialRequestDetail['items'][number],
 ) => {
@@ -1245,28 +1218,6 @@ formatCop,
 const itemProposals = timeline?.proposals.filter(
 (proposal) => proposal.commerce_request_item_id === item.id,
 ) || [];
-const isNegotiableUndefinedPriceProduct = (
-item.offer_kind === 'product'
-&& (
-item.pricing_strategy === 'starting_at'
-|| item.pricing_strategy === 'to_be_confirmed'
-)
-);
-const pendingCustomerCounteroffer = itemProposals.find(
-(proposal) => (
-proposal.status === 'pending'
-&& proposal.proposed_by_profile_id === requestDetail.client_id
-),
-);
-const canAcceptCustomerCounteroffer = (
-isNegotiableUndefinedPriceProduct
-&& item.lifecycle_status === 'pending_business'
-&& Boolean(pendingCustomerCounteroffer)
-);
-const showItemProposalHistory = (
-isMixedRequest
-|| isNegotiableUndefinedPriceProduct
-);
 const itemReservations = (
 formalContext?.reservations || []
 ).filter(
@@ -1379,43 +1330,6 @@ pendingAction !== null ? styles.disabledButton : null,
 : 'Aceptar ítem'}
 </Text>
 </TouchableOpacity>
-) : canAcceptCustomerCounteroffer
-&& pendingCustomerCounteroffer ? (
-<>
-<TouchableOpacity
-accessibilityLabel={`Aceptar contraoferta para ${item.title}`}
-accessibilityRole="button"
-disabled={pendingAction !== null}
-onPress={() => confirmAcceptCustomerCounteroffer(
-item,
-pendingCustomerCounteroffer.id,
-)}
-style={[
-styles.itemActionPrimary,
-pendingAction !== null ? styles.disabledButton : null,
-]}
->
-<Text style={styles.itemActionPrimaryText}>
-{pendingAction === `accept-item-proposal:${pendingCustomerCounteroffer.id}`
-? 'Aceptando...'
-: 'Aceptar propuesta'}
-</Text>
-</TouchableOpacity>
-<TouchableOpacity
-accessibilityLabel={`Crear contraoferta para ${item.title}`}
-accessibilityRole="button"
-disabled={pendingAction !== null}
-onPress={() => handleOpenItemProposal(item)}
-style={[
-styles.itemActionSecondary,
-pendingAction !== null ? styles.disabledButton : null,
-]}
->
-<Text style={styles.itemActionSecondaryText}>
-Crear contraoferta
-</Text>
-</TouchableOpacity>
-</>
 ) : (
 <TouchableOpacity
 accessibilityLabel={`Crear propuesta para ${item.title}`}
@@ -1566,7 +1480,7 @@ Cancelar
 </View>
 ) : null}
 
-{showItemProposalHistory && itemProposals.length > 0 ? (
+{isMixedRequest && itemProposals.length > 0 ? (
 <View style={styles.itemHistory}>
 <Text style={styles.itemHistoryTitle}>
 Propuestas de este ítem
