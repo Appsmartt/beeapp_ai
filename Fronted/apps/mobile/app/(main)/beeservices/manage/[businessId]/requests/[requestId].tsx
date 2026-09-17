@@ -1631,32 +1631,83 @@ Hold vence: {presentation.holdExpiresAtLabel}
 
 {(() => {
 const totalState = getCommercialRequestTotalState(requestDetail);
-const subtotalAmount = (
-proposalPreview?.subtotalAmount
-?? requestDetail.subtotal_amount
+
+const pendingItemProposals = new Map(
+timeline?.proposals
+.filter(
+(proposal) => (
+proposal.status === 'pending'
+&& proposal.commerce_request_item_id
+),
+)
+.map((proposal) => [
+proposal.commerce_request_item_id,
+proposal,
+]) || [],
 );
-const totalAmount = (
+
+const hasPendingItemProposal = pendingItemProposals.size > 0;
+
+const pendingProposalSubtotalAmount = requestDetail.items.reduce(
+(subtotal, item) => {
+const pendingProposal = pendingItemProposals.get(item.id);
+const displayedLineTotalAmount = (
+pendingProposal?.proposed_line_total_amount
+?? item.line_total_amount
+?? 0
+);
+
+return subtotal + displayedLineTotalAmount;
+},
+0,
+);
+
+const displayedSubtotalAmount = (
+proposalPreview?.subtotalAmount
+?? (
+hasPendingItemProposal
+? pendingProposalSubtotalAmount
+: requestDetail.subtotal_amount
+)
+);
+
+const displayedTotalAmount = (
 proposalPreview?.totalAmount
-?? requestDetail.total_amount
+?? (
+hasPendingItemProposal
+? pendingProposalSubtotalAmount
++ (requestDetail.delivery_fee_amount || 0)
+: requestDetail.total_amount
+)
+);
+
+const isProposalTotalDisplayed = (
+proposalPreview !== null
+|| hasPendingItemProposal
 );
 
 return (
 <View style={styles.totalCard}>
 <Text style={styles.totalRow}>
-{proposalPreview ? 'Subtotal propuesto' : 'Subtotal'}: {formatCop(
-subtotalAmount,
-)}
+{isProposalTotalDisplayed
+? 'Subtotal propuesto'
+: 'Subtotal'}: {formatCop(displayedSubtotalAmount)}
 </Text>
 <Text style={styles.totalRow}>
 Domicilio: {formatCop(requestDetail.delivery_fee_amount)}
 </Text>
 <Text style={styles.totalValue}>
-{proposalPreview
-? 'Total estimado propuesto'
+{isProposalTotalDisplayed
+? 'Total propuesto'
 : getCommercialRequestTotalLabel(totalState)}: {formatCop(
-totalAmount,
+displayedTotalAmount,
 )}
 </Text>
+{hasPendingItemProposal ? (
+<Text style={styles.itemStatus}>
+Propuesta enviada. Esperando respuesta del cliente.
+</Text>
+) : null}
 </View>
 );
 })()}
