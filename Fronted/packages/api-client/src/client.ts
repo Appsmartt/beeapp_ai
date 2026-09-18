@@ -74,7 +74,7 @@ export function resetUnauthorizedRequestNotification(): void {
     unauthorizedRequestNotified = false;
 }
 
-function notifyUnauthorizedAuthenticatedRequest(
+export function notifyUnauthorizedAuthenticatedRequest(
     error: ApiRequestError,
 ): void {
     if (unauthorizedRequestNotified) {

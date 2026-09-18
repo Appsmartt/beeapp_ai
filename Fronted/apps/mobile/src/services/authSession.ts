@@ -2,6 +2,7 @@ import * as SecureStore from 'expo-secure-store';
 import {
   ApiRequestError,
   getCurrentProfile,
+  notifyUnauthorizedAuthenticatedRequest,
   refreshSession,
 } from '@beeapp/api-client';
 import type {
@@ -124,9 +125,14 @@ export async function refreshAuthSession(): Promise<
   } catch (error) {
     if (
       error instanceof ApiRequestError
-      && error.status === 401
+      && (
+        error.status === 400
+        || error.status === 401
+        || error.status === 403
+      )
     ) {
       await clearAuthSession();
+      notifyUnauthorizedAuthenticatedRequest(error);
       return null;
     }
 

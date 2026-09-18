@@ -283,7 +283,7 @@ function SessionRevocationHandler() {
         </Text>
 
         <Text style={sessionRevokedStyles.description}>
-          Tu cuenta se inició en otro dispositivo. Por seguridad,
+          Tu sesión venció, fue revocada o ya no es válida. Por seguridad,
           cerramos esta sesión.
         </Text>
 
