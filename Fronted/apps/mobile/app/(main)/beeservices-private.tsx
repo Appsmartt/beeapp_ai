@@ -16,7 +16,6 @@ import {
 } from 'react-native';
 import {
   ClipboardList,
-  PlusCircle,
   Search,
   Store,
 } from 'lucide-react-native';
@@ -34,12 +33,9 @@ import ScreenSafeArea from '../../src/components/layout/ScreenSafeArea';
 import HomeSideMenu from '../../src/components/home/HomeSideMenu';
 import BeeServicesHeader from '../../src/components/beeservices/BeeServicesHeader';
 import BeeServicesAiSearchCard from '../../src/components/beeservices/BeeServicesAiSearchCard';
-import BeeServicesBusinessCard from '../../src/components/beeservices/BeeServicesBusinessCard';
 import CommercialOfferCard from '../../src/components/buddyservices/CommercialOfferCard';
 import CommercialRecentBusinesses from '../../src/components/buddyservices/CommercialRecentBusinesses';
 import {
-  buddyServicesCreateBusinessRoute,
-  buddyServicesMyBusinessesRoute,
   buddyServicesMyPurchasesRoute,
   buddyServicesPublicOfferRoute,
   buddyServicesPublicProfileRoute,
@@ -331,10 +327,6 @@ export default function BeeServicesPrivateScreen() {
     runSearch(search);
   }, [runSearch, search]);
 
-  const handleBusinessAction = useCallback(() => {
-    router.push(buddyServicesMyBusinessesRoute());
-  }, [router]);
-
   const isInitialLoading = loadingProductFeed;
 
   return (
@@ -369,7 +361,7 @@ export default function BeeServicesPrivateScreen() {
           scrollEventThrottle={160}
         >
           <BeeServicesHeader
-            title="BuddyService privado"
+            title="Buddyservice"
             onBackToMainPress={() => router.replace("/(main)")}
             onMenuPress={() => setSideMenuVisible(true)}
           />
@@ -398,78 +390,33 @@ export default function BeeServicesPrivateScreen() {
             }}
           />
 
-          <BeeServicesBusinessCard
-            onPress={handleBusinessAction}
-          />
-
-          <View style={beeStyles.section}>
-            <Text style={beeStyles.sectionTitle}>
-              Accesos rápidos
-            </Text>
-
-            <View style={beeStyles.quickActionsRow}>
-              <TouchableOpacity
-                accessibilityLabel="Ver mis compras y reservas"
-                accessibilityRole="button"
-                activeOpacity={0.78}
-                onPress={() => router.push(
-                  buddyServicesMyPurchasesRoute(),
-                )}
-                style={beeStyles.quickActionCard}
-              >
-                <View style={beeStyles.quickActionIconWrap}>
-                  <ClipboardList
-                    color="#7B2DD9"
-                    size={17}
-                  />
-                </View>
-
-                <Text style={beeStyles.quickActionLabel}>
-                  Mis compras
-                </Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                accessibilityLabel="Abrir mis negocios"
-                accessibilityRole="button"
-                activeOpacity={0.78}
-                onPress={handleBusinessAction}
-                style={beeStyles.quickActionCard}
-              >
-                <View style={beeStyles.quickActionIconWrap}>
-                  <Store
-                    color="#7B2DD9"
-                    size={17}
-                  />
-                </View>
-
-                <Text style={beeStyles.quickActionLabel}>
-                  Mis negocios
-                </Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                accessibilityLabel="Crear negocio"
-                accessibilityRole="button"
-                activeOpacity={0.78}
-                onPress={() => router.push(
-                  buddyServicesCreateBusinessRoute(),
-                )}
-                style={beeStyles.quickActionCard}
-              >
-                <View style={beeStyles.quickActionIconWrap}>
-                  <PlusCircle
-                    color="#7B2DD9"
-                    size={17}
-                  />
-                </View>
-
-                <Text style={beeStyles.quickActionLabel}>
-                  Crear negocio
-                </Text>
-              </TouchableOpacity>
+          <TouchableOpacity
+            accessibilityLabel="Ver mis compras y reservas"
+            accessibilityRole="button"
+            activeOpacity={0.8}
+            onPress={() => router.push(
+              buddyServicesMyPurchasesRoute(),
+            )}
+            style={localStyles.purchasesButton}
+          >
+            <View style={localStyles.purchasesIconWrap}>
+              <ClipboardList
+                color="#FFFFFF"
+                size={18}
+                strokeWidth={2.4}
+              />
             </View>
-          </View>
+
+            <View style={localStyles.purchasesTextColumn}>
+              <Text style={localStyles.purchasesLabel}>
+                Mis compras y reservas
+              </Text>
+
+              <Text style={localStyles.purchasesHint}>
+                Consulta el estado de tus solicitudes
+              </Text>
+            </View>
+          </TouchableOpacity>
 
           <View style={localStyles.searchSection}>
             <Text style={beeStyles.sectionTitle}>
@@ -676,6 +623,51 @@ accessibilityRole="alert"
 }
 
 const localStyles = StyleSheet.create({
+  purchasesButton: {
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    backgroundColor: '#FFFFFF',
+    borderColor: '#E2D6F0',
+    borderRadius: 17,
+    borderWidth: 1,
+    flexDirection: 'row',
+    marginBottom: 27,
+    paddingBottom: 11,
+    paddingLeft: 11,
+    paddingRight: 16,
+    paddingTop: 11,
+    shadowColor: '#5F52C5',
+    shadowOffset: {
+      height: 4,
+      width: 0,
+    },
+    shadowOpacity: 0.08,
+    shadowRadius: 10,
+    elevation: 2,
+  },
+  purchasesIconWrap: {
+    alignItems: 'center',
+    backgroundColor: '#7567D9',
+    borderRadius: 12,
+    height: 37,
+    justifyContent: 'center',
+    width: 37,
+  },
+  purchasesTextColumn: {
+    marginLeft: 10,
+  },
+  purchasesLabel: {
+    color: '#26314D',
+    fontSize: 13,
+    fontWeight: '800',
+    lineHeight: 17,
+  },
+  purchasesHint: {
+    color: '#6C7892',
+    fontSize: 11,
+    lineHeight: 15,
+    marginTop: 1,
+  },
   searchSection: {
     marginBottom: 27,
   },
