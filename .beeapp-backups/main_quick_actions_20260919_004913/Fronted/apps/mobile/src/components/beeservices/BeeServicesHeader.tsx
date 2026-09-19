@@ -6,13 +6,11 @@ import { styles } from './beeServicesStyles';
 interface BeeServicesHeaderProps {
   onBackToMainPress: () => void;
   onMenuPress: () => void;
-  title?: string;
 }
 
 export default function BeeServicesHeader({
   onBackToMainPress,
   onMenuPress,
-  title = 'BuddyServices',
 }: BeeServicesHeaderProps) {
   return (
     <View style={styles.header}>
@@ -32,7 +30,7 @@ export default function BeeServicesHeader({
       </TouchableOpacity>
 
       <View style={styles.headerTextColumn}>
-        <Text style={styles.headerTitle}>{title}</Text>
+        <Text style={styles.headerTitle}>BuddyServices</Text>
 
         <Text style={styles.headerSubtitle}>
           Conecta necesidades con soluciones
