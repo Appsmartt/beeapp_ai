@@ -16,8 +16,6 @@ import {
 } from 'react-native';
 import {
   ClipboardList,
-  LayoutGrid,
-  List,
   Search,
   Store,
 } from 'lucide-react-native';
@@ -68,9 +66,6 @@ export default function BeeServicesPrivateScreen() {
   const router = useRouter();
 
   const [sideMenuVisible, setSideMenuVisible] = useState(false);
-  const [offerViewMode, setOfferViewMode] = useState<'grid' | 'list'>(
-    'grid',
-  );
   const [search, setSearch] = useState('');
   const [activeSearch, setActiveSearch] = useState('');
   const searchRequestVersionRef = useRef(0);
@@ -549,90 +544,23 @@ accessibilityRole="alert"
 
             {!loadingProductFeed && productFeed.length > 0 ? (
               <View style={beeStyles.section}>
-                <View style={localStyles.feedHeader}>
-                  <Text style={beeStyles.sectionTitle}>
-                    {activeSearch
-                      ? 'Productos y servicios'
-                      : 'Productos y servicios destacados'}
-                  </Text>
+                <Text style={beeStyles.sectionTitle}>
+                  {activeSearch
+                    ? 'Productos y servicios'
+                    : 'Productos y servicios destacados'}
+                </Text>
 
-                  <View
-                    accessibilityLabel="Cambiar vista de productos y servicios"
-                    accessibilityRole="tablist"
-                    style={localStyles.viewModeControl}
-                  >
-                    <TouchableOpacity
-                      accessibilityLabel="Ver productos y servicios en grilla"
-                      accessibilityRole="tab"
-                      accessibilityState={{
-                        selected: offerViewMode === 'grid',
-                      }}
-                      activeOpacity={0.8}
-                      onPress={() => setOfferViewMode('grid')}
-                      style={[
-                        localStyles.viewModeButton,
-                        offerViewMode === 'grid'
-                          && localStyles.viewModeButtonActive,
-                      ]}
-                    >
-                      <LayoutGrid
-                        color={
-                          offerViewMode === 'grid'
-                            ? '#FFFFFF'
-                            : '#7A579D'
-                        }
-                        size={17}
-                        strokeWidth={2.3}
-                      />
-                    </TouchableOpacity>
-
-                    <TouchableOpacity
-                      accessibilityLabel="Ver productos y servicios en lista"
-                      accessibilityRole="tab"
-                      accessibilityState={{
-                        selected: offerViewMode === 'list',
-                      }}
-                      activeOpacity={0.8}
-                      onPress={() => setOfferViewMode('list')}
-                      style={[
-                        localStyles.viewModeButton,
-                        offerViewMode === 'list'
-                          && localStyles.viewModeButtonActive,
-                      ]}
-                    >
-                      <List
-                        color={
-                          offerViewMode === 'list'
-                            ? '#FFFFFF'
-                            : '#7A579D'
-                        }
-                        size={18}
-                        strokeWidth={2.3}
-                      />
-                    </TouchableOpacity>
-                  </View>
-                </View>
-
-                <View
-                  style={[
-                    localStyles.offerFeed,
-                    offerViewMode === 'grid'
-                      && localStyles.offerFeedGrid,
-                  ]}
-                >
-                  {productFeed.map((offer) => (
-                    <CommercialOfferCard
-                      key={offer.id}
-                      offer={offer}
-                      onPress={(selectedOffer) => router.push(
-                        buddyServicesPublicOfferRoute(
-                          selectedOffer.id,
-                        ),
-                      )}
-                      variant={offerViewMode}
-                    />
-                  ))}
-                </View>
+                {productFeed.map((offer) => (
+                  <CommercialOfferCard
+                    key={offer.id}
+                    offer={offer}
+                    onPress={(selectedOffer) => router.push(
+                      buddyServicesPublicOfferRoute(
+                        selectedOffer.id,
+                      ),
+                    )}
+                  />
+                ))}
 
                 {loadingMoreProducts ? (
                   <View
@@ -777,38 +705,6 @@ const localStyles = StyleSheet.create({
     lineHeight: 17,
     marginTop: 7,
     paddingHorizontal: 2,
-  },
-  feedHeader: {
-    alignItems: 'center',
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 12,
-  },
-  viewModeControl: {
-    backgroundColor: '#F7F1FB',
-    borderColor: '#E7D9F0',
-    borderRadius: 12,
-    borderWidth: 1,
-    flexDirection: 'row',
-    padding: 3,
-  },
-  viewModeButton: {
-    alignItems: 'center',
-    borderRadius: 9,
-    height: 32,
-    justifyContent: 'center',
-    width: 32,
-  },
-  viewModeButtonActive: {
-    backgroundColor: '#7427D5',
-  },
-  offerFeed: {
-    width: '100%',
-  },
-  offerFeedGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'space-between',
   },
   loadingMoreRow: {
     alignItems: 'center',

@@ -24,7 +24,6 @@ interface CommercialOfferCardProps {
   onQuickAddToCart?: (
     offer: CommercialPublicOffer,
   ) => void;
-  variant?: 'grid' | 'list';
 }
 
 function formatCop(
@@ -82,10 +81,8 @@ function getPrimaryImage(
   offer: CommercialPublicOffer,
 ): string | null {
   return (
-    offer.images.find(
-      (image) => image.is_primary && Boolean(image.url),
-    )?.url
-    || offer.images.find((image) => Boolean(image.url))?.url
+    offer.images.find((image) => image.is_primary)?.url
+    || offer.images[0]?.url
     || null
   );
 }
@@ -94,17 +91,12 @@ export default function CommercialOfferCard({
   offer,
   onPress,
   onQuickAddToCart,
-  variant = 'list',
 }: CommercialOfferCardProps) {
   const imageUrl = getPrimaryImage(offer);
-  const isGrid = variant === 'grid';
   const isProduct = offer.offer_kind === 'product';
 
   return (
-    <View style={[
-      styles.card,
-      isGrid && styles.cardGrid,
-    ]}>
+    <View style={styles.card}>
       <TouchableOpacity
         accessibilityLabel={
           `Ver ${getOfferKindLabel(offer)} ${offer.title}`
@@ -112,15 +104,9 @@ export default function CommercialOfferCard({
         accessibilityRole="button"
         activeOpacity={0.8}
         onPress={() => onPress(offer)}
-        style={[
-          styles.cardMainAction,
-          isGrid && styles.cardMainActionGrid,
-        ]}
+        style={styles.cardMainAction}
       >
-        <View style={[
-          styles.imageBox,
-          isGrid && styles.imageBoxGrid,
-        ]}>
+        <View style={styles.imageBox}>
           {imageUrl ? (
             <Image
               accessibilityIgnoresInvertColors
@@ -145,10 +131,7 @@ export default function CommercialOfferCard({
           )}
         </View>
 
-        <View style={[
-          styles.content,
-          isGrid && styles.contentGrid,
-        ]}>
+        <View style={styles.content}>
           <View style={styles.topRow}>
             <Text
               numberOfLines={1}
@@ -167,36 +150,27 @@ export default function CommercialOfferCard({
 
           <Text
             numberOfLines={2}
-            style={[
-              styles.title,
-              isGrid && styles.titleGrid,
-            ]}
+            style={styles.title}
           >
             {offer.title}
           </Text>
 
           {offer.description ? (
             <Text
-              numberOfLines={isGrid ? 1 : 2}
-              style={[
-                styles.description,
-                isGrid && styles.descriptionGrid,
-              ]}
+              numberOfLines={2}
+              style={styles.description}
             >
               {offer.description}
             </Text>
           ) : null}
 
-          <Text style={[
-            styles.price,
-            isGrid && styles.priceGrid,
-          ]}>
+          <Text style={styles.price}>
             {getPriceLabel(offer)}
           </Text>
         </View>
       </TouchableOpacity>
 
-      {!isGrid && isProduct && onQuickAddToCart ? (
+      {isProduct && onQuickAddToCart ? (
         <TouchableOpacity
           accessibilityLabel={`Agregar ${offer.title} al carrito`}
           accessibilityRole="button"
@@ -208,14 +182,14 @@ export default function CommercialOfferCard({
             +
           </Text>
         </TouchableOpacity>
-      ) : !isGrid ? (
+      ) : (
         <View style={styles.chevronBox}>
           <ChevronRight
             color="#8A72B2"
             size={21}
           />
         </View>
-      ) : null}
+      )}
     </View>
   );
 }
@@ -233,21 +207,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 13,
   },
-  cardGrid: {
-    alignItems: 'stretch',
-    marginBottom: 12,
-    minHeight: 0,
-    padding: 0,
-    width: '48.5%',
-  },
   cardMainAction: {
     alignItems: 'center',
     flex: 1,
     flexDirection: 'row',
-  },
-  cardMainActionGrid: {
-    alignItems: 'stretch',
-    flexDirection: 'column',
   },
   chevronBox: {
     alignItems: 'center',
@@ -264,14 +227,6 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     width: 62,
   },
-  imageBoxGrid: {
-    borderBottomLeftRadius: 0,
-    borderBottomRightRadius: 0,
-    borderTopLeftRadius: 17,
-    borderTopRightRadius: 17,
-    height: 132,
-    width: '100%',
-  },
   image: {
     height: '100%',
     width: '100%',
@@ -279,12 +234,6 @@ const styles = StyleSheet.create({
   content: {
     flex: 1,
     marginHorizontal: 12,
-  },
-  contentGrid: {
-    marginHorizontal: 0,
-    minHeight: 116,
-    paddingHorizontal: 11,
-    paddingVertical: 10,
   },
   topRow: {
     alignItems: 'center',
@@ -303,29 +252,17 @@ const styles = StyleSheet.create({
     lineHeight: 20,
     marginTop: 3,
   },
-  titleGrid: {
-    fontSize: 13,
-    lineHeight: 17,
-  },
   description: {
     color: '#786593',
     fontSize: 12,
     lineHeight: 16,
     marginTop: 3,
   },
-  descriptionGrid: {
-    fontSize: 11,
-    lineHeight: 15,
-  },
   price: {
     color: '#6527AA',
     fontSize: 13,
     fontWeight: '800',
     marginTop: 7,
-  },
-  priceGrid: {
-    fontSize: 12,
-    marginTop: 6,
   },
   quickAddButton: {
     alignItems: 'center',
