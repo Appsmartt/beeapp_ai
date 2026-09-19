@@ -3,7 +3,7 @@ import { View, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { spacing } from '@beeapp/design-system';
-import MainQuickActions from '../../src/components/MainQuickActions';
+import VoiceAssistantFab from '../../src/components/VoiceAssistantFab';
 import HomeHeader from '../../src/components/home/HomeHeader';
 import HomeSideMenu from '../../src/components/home/HomeSideMenu';
 import EmbeddedModuleHost from '../../src/components/embedded/EmbeddedModuleHost';
@@ -77,7 +77,7 @@ export default function HomeScreen() {
         onStackDepthChange={(depth) => setIsDetailView(depth > 0)}
       />
 
-      {!isDetailView && <MainQuickActions />}
+      {!isDetailView && <VoiceAssistantFab />}
 
       <HomeSideMenu
         visible={sideMenuVisible}
