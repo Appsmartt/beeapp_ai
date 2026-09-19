@@ -31,7 +31,7 @@ export default function HomeScreen() {
   );
 
   const [activeModuleId, setActiveModuleId] = useState<string>(
-    OVERVIEW_MODULE_ID,
+    'chat',
   );
   const [moduleTarget, setModuleTarget] = useState<{
     path: string;
