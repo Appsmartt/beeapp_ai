@@ -1249,11 +1249,44 @@ def list_public_commercial_product_feed(
             offers_response = (
                 client.table("commercial_offers")
                 .select(PUBLIC_OFFER_COLUMNS)
+                .eq("status", "published")
                 .eq("is_available", True)
+                .is_("archived_at", "null")
                 .execute()
             )
 
             offers = _response_rows(offers_response)
+
+            catalog_ids = list(
+                dict.fromkeys(
+                    str(offer["catalog_id"])
+                    for offer in offers
+                    if offer.get("catalog_id")
+                )
+            )
+
+            if catalog_ids:
+                catalogs_response = (
+                    client.table("commercial_catalogs")
+                    .select("id")
+                    .in_("id", catalog_ids)
+                    .eq("status", "published")
+                    .is_("archived_at", "null")
+                    .execute()
+                )
+                published_catalog_ids = {
+                    str(catalog["id"])
+                    for catalog in _response_rows(catalogs_response)
+                    if catalog.get("id")
+                }
+                offers = [
+                    offer
+                    for offer in offers
+                    if str(offer.get("catalog_id"))
+                    in published_catalog_ids
+                ]
+            else:
+                offers = []
 
             if not normalized_search:
                 return offers, []

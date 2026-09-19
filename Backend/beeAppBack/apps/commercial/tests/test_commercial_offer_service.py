@@ -647,7 +647,7 @@ class PublicCommercialProductFeedServiceTests(SimpleTestCase):
         "commercial_public_service."
         "execute_with_supabase_admin_retry"
     )
-    def test_feed_returns_only_visible_products_with_pagination(
+    def test_feed_returns_only_visible_offers_with_pagination(
         self,
         retry_mock,
     ):
@@ -762,17 +762,21 @@ class PublicCommercialProductFeedServiceTests(SimpleTestCase):
         class Query:
             def __init__(self, table_name):
                 self.table_name = table_name
+                self.filters = []
 
             def select(self, *_args, **_kwargs):
                 return self
 
-            def eq(self, *_args, **_kwargs):
+            def eq(self, column, value):
+                self.filters.append(("eq", column, value))
                 return self
 
-            def is_(self, *_args, **_kwargs):
+            def is_(self, column, value):
+                self.filters.append(("is", column, value))
                 return self
 
-            def in_(self, *_args, **_kwargs):
+            def in_(self, column, values):
+                self.filters.append(("in", column, set(values)))
                 return self
 
             def order(self, *_args, **_kwargs):
@@ -787,6 +791,44 @@ class PublicCommercialProductFeedServiceTests(SimpleTestCase):
                     "commercial_offer_images": [],
                     "files": [],
                 }[self.table_name]
+
+                for filter_kind, column, value in self.filters:
+                    if filter_kind == "eq":
+                        rows = [
+                            row for row in rows
+                            if row.get(column) == value
+                        ]
+                    elif filter_kind == "is":
+                        expected = None if value == "null" else value
+                        rows = [
+                            row for row in rows
+                            if row.get(column) is expected
+                        ]
+                    else:
+                        rows = [
+                            row for row in rows
+                            if row.get(column) in value
+                        ]
+
+                if self.table_name == "commercial_offers":
+                    public_profile_ids = {
+                        str(profile["id"])
+                        for profile in profiles
+                        if (
+                            profile.get("is_public") is True
+                            and profile.get("is_available") is True
+                            and profile.get("publication_status")
+                            == "published"
+                            and profile.get("archived_at") is None
+                            and profile.get("suspended_at") is None
+                        )
+                    }
+                    rows = [
+                        row for row in rows
+                        if str(row.get("commercial_profile_id"))
+                        in public_profile_ids
+                    ]
+
                 return Response(rows)
 
         class Client:
@@ -807,7 +849,7 @@ class PublicCommercialProductFeedServiceTests(SimpleTestCase):
                 offset=0,
             )
 
-        self.assertEqual(result["count"], 2)
+        self.assertEqual(result["count"], 3)
         self.assertEqual(len(result["offers"]), 1)
         self.assertTrue(result["has_more"])
         self.assertEqual(result["next_offset"], 1)
@@ -815,7 +857,188 @@ class PublicCommercialProductFeedServiceTests(SimpleTestCase):
             result["offers"][0]["id"] in {
                 "product-1",
                 "product-2",
+                "service-1",
             }
+        )
+
+    @patch(
+        "apps.commercial.services."
+        "commercial_public_service."
+        "execute_with_supabase_admin_retry"
+    )
+    def test_search_excludes_inactive_offers_and_catalogs(
+        self,
+        retry_mock,
+    ):
+        from apps.commercial.services.commercial_public_service import (
+            list_public_commercial_product_feed,
+        )
+
+        profiles = [
+            {
+                "id": "profile-cafe",
+                "display_name": "Café Central",
+                "description": "Café y postres",
+                "custom_activity_text": "Cafetería",
+                "is_public": True,
+                "is_available": True,
+                "publication_status": "published",
+                "archived_at": None,
+                "suspended_at": None,
+            }
+        ]
+
+        catalogs = [
+            {
+                "id": "catalog-public",
+                "commercial_profile_id": "profile-cafe",
+                "status": "published",
+                "archived_at": None,
+            },
+            {
+                "id": "catalog-paused",
+                "commercial_profile_id": "profile-cafe",
+                "status": "paused",
+                "archived_at": None,
+            },
+        ]
+
+        offers = [
+            {
+                "id": "offer-visible",
+                "commercial_profile_id": "profile-cafe",
+                "catalog_id": "catalog-public",
+                "offer_kind": "product",
+                "title": "Café especial",
+                "description": "Café de origen",
+                "status": "published",
+                "is_available": True,
+                "archived_at": None,
+            },
+            {
+                "id": "offer-paused",
+                "commercial_profile_id": "profile-cafe",
+                "catalog_id": "catalog-public",
+                "offer_kind": "product",
+                "title": "Café pausado",
+                "description": "No debe aparecer",
+                "status": "paused",
+                "is_available": True,
+                "archived_at": None,
+            },
+            {
+                "id": "offer-unavailable",
+                "commercial_profile_id": "profile-cafe",
+                "catalog_id": "catalog-public",
+                "offer_kind": "product",
+                "title": "Café no disponible",
+                "description": "No debe aparecer",
+                "status": "published",
+                "is_available": False,
+                "archived_at": None,
+            },
+            {
+                "id": "offer-paused-catalog",
+                "commercial_profile_id": "profile-cafe",
+                "catalog_id": "catalog-paused",
+                "offer_kind": "product",
+                "title": "Café de catálogo pausado",
+                "description": "No debe aparecer",
+                "status": "published",
+                "is_available": True,
+                "archived_at": None,
+            },
+        ]
+
+        class Response:
+            def __init__(self, data):
+                self.data = data
+
+        class Query:
+            def __init__(self, table_name):
+                self.table_name = table_name
+                self.filters = []
+
+            def select(self, *_args, **_kwargs):
+                return self
+
+            def eq(self, column, value):
+                self.filters.append(("eq", column, value))
+                return self
+
+            def is_(self, column, value):
+                self.filters.append(("is", column, value))
+                return self
+
+            def in_(self, column, values):
+                self.filters.append(("in", column, set(values)))
+                return self
+
+            def or_(self, *_args, **_kwargs):
+                return self
+
+            def execute(self):
+                rows = {
+                    "commercial_profiles": profiles,
+                    "commercial_catalogs": catalogs,
+                    "commercial_offers": offers,
+                    "commercial_offer_modalities": [],
+                    "commercial_offer_images": [],
+                    "files": [],
+                }[self.table_name]
+
+                for filter_kind, column, value in self.filters:
+                    if filter_kind == "eq":
+                        rows = [
+                            row for row in rows
+                            if row.get(column) == value
+                        ]
+                    elif filter_kind == "is":
+                        expected = None if value == "null" else value
+                        rows = [
+                            row for row in rows
+                            if row.get(column) is expected
+                        ]
+                    else:
+                        rows = [
+                            row for row in rows
+                            if row.get(column) in value
+                        ]
+
+                return Response(rows)
+
+        class Client:
+            def table(self, table_name):
+                return Query(table_name)
+
+        retry_mock.side_effect = lambda operation: operation(Client())
+
+        with patch(
+            "apps.commercial.services."
+            "commercial_public_service."
+            "_enrich_public_offers",
+            side_effect=lambda rows: rows,
+        ), patch(
+            "apps.commercial.services."
+            "commercial_public_service."
+            "_enrich_public_profiles",
+            side_effect=lambda rows: rows,
+        ):
+            result = list_public_commercial_product_feed(
+                search="cafe",
+                limit=4,
+                offset=0,
+            )
+
+        self.assertEqual(result["count"], 1)
+        self.assertEqual(
+            [offer["id"] for offer in result["offers"]],
+            ["offer-visible"],
+        )
+        self.assertEqual(result["profiles_count"], 1)
+        self.assertEqual(
+            [profile["id"] for profile in result["profiles"]],
+            ["profile-cafe"],
         )
 
     @patch(
