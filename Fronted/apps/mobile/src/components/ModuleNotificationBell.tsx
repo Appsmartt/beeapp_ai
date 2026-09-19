@@ -24,6 +24,7 @@ import {
   X,
 } from 'lucide-react-native';
 import { colors } from '@beeapp/design-system';
+import ModuleQuickMenu from './ModuleQuickMenu';
 import {
   getNotifications,
   markAllNotificationsAsRead,
@@ -263,6 +264,8 @@ export default function ModuleNotificationBell({
 
   return (
     <>
+      <ModuleQuickMenu />
+
       <TouchableOpacity
         style={styles.bellButton}
         activeOpacity={0.7}
