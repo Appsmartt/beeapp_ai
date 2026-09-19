@@ -77,7 +77,7 @@ export default function HomeScreen() {
         onStackDepthChange={(depth) => setIsDetailView(depth > 0)}
       />
 
-      <VoiceAssistantFab />
+      {!isDetailView && <VoiceAssistantFab />}
 
       <HomeSideMenu
         visible={sideMenuVisible}
