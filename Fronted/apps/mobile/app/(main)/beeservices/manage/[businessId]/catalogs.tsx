@@ -37,6 +37,9 @@ import {
   toCommercialUiError,
 } from '../../../../../src/features/buddyservices/commercialErrors';
 import {
+  buddyServicesManageOffersRoute,
+} from '../../../../../src/features/buddyservices/commercialRoutes';
+import {
   archiveOwnedCatalog,
   createOwnedCatalog,
   loadOwnedCommercialCatalogs,
@@ -711,9 +714,23 @@ export default function BuddyServicesManageCatalogsScreen() {
                         justifyContent: 'space-between',
                       }}
                     >
-                      <View
+                      <TouchableOpacity
+                        accessibilityHint="Abre los productos y servicios de este catálogo"
+                        accessibilityLabel={`Abrir ${catalog.name}`}
+                        accessibilityRole="button"
+                        activeOpacity={0.82}
+                        disabled={isSaving}
+                        onPress={() => {
+                          router.push(
+                            buddyServicesManageOffersRoute(
+                              businessId,
+                              catalog.id,
+                            ),
+                          );
+                        }}
                         style={{
                           flex: 1,
+                          opacity: isSaving ? 0.55 : 1,
                           paddingRight: 12,
                         }}
                       >
@@ -741,7 +758,7 @@ export default function BuddyServicesManageCatalogsScreen() {
                             {catalog.description}
                           </Text>
                         ) : null}
-                      </View>
+                      </TouchableOpacity>
 
                       <TouchableOpacity
                         accessibilityLabel={`Editar ${catalog.name}`}

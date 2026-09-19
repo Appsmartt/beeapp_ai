@@ -16,7 +16,6 @@ ClipboardList,
   Layers3,
   MapPin,
   MessageCircle,
-  Package,
   Settings2,
 } from 'lucide-react-native';
 import {
@@ -41,7 +40,6 @@ import {
 import {
   buddyServicesManageCatalogsRoute,
   buddyServicesManageHoursRoute,
-  buddyServicesManageOffersRoute,
   buddyServicesManageOperationRoute,
 buddyServicesManageRequestsRoute,
   buddyServicesManagePaymentMethodsRoute,
@@ -756,8 +754,8 @@ export default function BuddyServicesManageBusinessScreen() {
           </TouchableOpacity>
 
           <TouchableOpacity
-            accessibilityHint="Administra los catálogos de este negocio"
-            accessibilityLabel="Catálogos"
+            accessibilityHint="Organiza catálogos y entra a sus productos y servicios"
+            accessibilityLabel="Catálogos y productos"
             accessibilityRole="button"
             activeOpacity={0.82}
             onPress={() => {
@@ -809,7 +807,7 @@ export default function BuddyServicesManageBusinessScreen() {
                     fontWeight: '800',
                   }}
                 >
-                  Catálogos
+                  Catálogos y productos
                 </Text>
 
                 <Text
@@ -820,78 +818,7 @@ export default function BuddyServicesManageBusinessScreen() {
                     marginTop: 3,
                   }}
                 >
-                  Organiza las ofertas publicadas por catálogo.
-                </Text>
-              </View>
-            </View>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            accessibilityHint="Administra productos y servicios del negocio"
-            accessibilityLabel="Productos y servicios"
-            accessibilityRole="button"
-            activeOpacity={0.82}
-            onPress={() => {
-              router.push(
-                buddyServicesManageOffersRoute(profile.id),
-              );
-            }}
-            style={{
-              backgroundColor: '#FFFFFF',
-              borderColor: '#E7DDF2',
-              borderRadius: 16,
-              borderWidth: 1,
-              marginBottom: 11,
-              padding: 15,
-            }}
-          >
-            <View
-              style={{
-                alignItems: 'center',
-                flexDirection: 'row',
-              }}
-            >
-              <View
-                style={{
-                  alignItems: 'center',
-                  backgroundColor: '#F6EAFE',
-                  borderRadius: 12,
-                  height: 42,
-                  justifyContent: 'center',
-                  width: 42,
-                }}
-              >
-                <Package
-                  color="#7427D5"
-                  size={20}
-                />
-              </View>
-
-              <View
-                style={{
-                  flex: 1,
-                  marginLeft: 12,
-                }}
-              >
-                <Text
-                  style={{
-                    color: '#261743',
-                    fontSize: 15,
-                    fontWeight: '800',
-                  }}
-                >
-                  Productos y servicios
-                </Text>
-
-                <Text
-                  style={{
-                    color: '#786593',
-                    fontSize: 12,
-                    lineHeight: 18,
-                    marginTop: 3,
-                  }}
-                >
-                  Crea y administra productos y servicios.
+                  Organiza catálogos y sus productos o servicios.
                 </Text>
               </View>
             </View>

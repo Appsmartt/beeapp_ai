@@ -184,7 +184,7 @@ const MODALITIES: Array<{
   },
 ];
 
-function normalizeBusinessId(
+function normalizeRouteParam(
   value: string | string[] | undefined,
 ): string {
   const selectedValue = Array.isArray(value)
@@ -195,16 +195,14 @@ function normalizeBusinessId(
 }
 
 function createOfferEditor(
-  catalogs: CommercialCatalog[],
+  catalogId: string,
 ): OfferEditorState {
-  const firstCatalog = catalogs[0];
-
-  if (!firstCatalog) {
+  if (!catalogId) {
     return null;
   }
 
   return {
-    catalogId: firstCatalog.id,
+    catalogId,
     offerKind: 'product',
     title: '',
     description: '',
@@ -302,9 +300,11 @@ export default function BuddyServicesManageOffersScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{
     businessId?: string | string[];
+    catalogId?: string | string[];
   }>();
 
-  const businessId = normalizeBusinessId(params.businessId);
+  const businessId = normalizeRouteParam(params.businessId);
+  const catalogId = normalizeRouteParam(params.catalogId);
 
   const [catalogs, setCatalogs] = useState<
     CommercialCatalog[]
@@ -332,9 +332,9 @@ export default function BuddyServicesManageOffersScreen() {
   >(null);
 
   const loadData = useCallback(async () => {
-    if (!businessId) {
+    if (!businessId || !catalogId) {
       setErrorMessage(
-        'No fue posible identificar el negocio solicitado.',
+        'No fue posible identificar el catálogo solicitado.',
       );
       setIsLoading(false);
       return;
@@ -368,11 +368,24 @@ export default function BuddyServicesManageOffersScreen() {
         .filter((record) => record.status !== 'archived')
         .map((record) => record.modality);
 
-      setCatalogs(catalogsResponse.catalogs);
+      const selectedCatalog = catalogsResponse.catalogs.find(
+        (catalog) => catalog.id === catalogId,
+      );
+
+      if (!selectedCatalog) {
+        throw new Error(
+          'El catálogo seleccionado no está disponible para este negocio.',
+        );
+      }
+
+      setCatalogs([selectedCatalog]);
       setEnabledModalities(activeProfileModalities);
       setOffers(
         offersResponse.offers.filter(
-          (offer) => offer.status !== 'archived',
+          (offer) => (
+            offer.status !== 'archived'
+            && offer.catalog_id === catalogId
+          ),
         ),
       );
     } catch (error) {
@@ -385,21 +398,16 @@ export default function BuddyServicesManageOffersScreen() {
     } finally {
       setIsLoading(false);
     }
-  }, [businessId]);
+  }, [
+    businessId,
+    catalogId,
+  ]);
 
   useEffect(() => {
     void loadData();
   }, [loadData]);
 
-  const catalogNamesById = useMemo(
-    () => new Map(
-      catalogs.map((catalog) => [
-        catalog.id,
-        catalog.name,
-      ]),
-    ),
-    [catalogs],
-  );
+  const selectedCatalog = catalogs[0] || null;
 
   const availableModalities = useMemo(() => (
     MODALITIES.filter((option) => (
@@ -825,15 +833,39 @@ export default function BuddyServicesManageOffersScreen() {
           />
         </TouchableOpacity>
 
-        <Text
+        <View
           style={{
-            color: '#261743',
-            fontSize: 18,
-            fontWeight: '800',
+            alignItems: 'center',
+            flex: 1,
+            paddingHorizontal: 12,
           }}
         >
-          Productos y servicios
-        </Text>
+          <Text
+            numberOfLines={1}
+            style={{
+              color: '#261743',
+              fontSize: 18,
+              fontWeight: '800',
+              textAlign: 'center',
+            }}
+          >
+            Productos y servicios
+          </Text>
+
+          {selectedCatalog ? (
+            <Text
+              numberOfLines={1}
+              style={{
+                color: '#786593',
+                fontSize: 12,
+                marginTop: 2,
+                textAlign: 'center',
+              }}
+            >
+              {selectedCatalog.name}
+            </Text>
+          ) : null}
+        </View>
 
         <TouchableOpacity
           accessibilityLabel="Crear producto o servicio"
@@ -842,12 +874,12 @@ export default function BuddyServicesManageOffersScreen() {
           disabled={
             isLoading
             || isSaving
-            || catalogs.length === 0
+            || !catalogId
           }
           onPress={() => {
             setEditorError(null);
             setSelectedImages([]);
-            setEditor(createOfferEditor(catalogs));
+            setEditor(createOfferEditor(catalogId));
           }}
           style={{
             alignItems: 'center',
@@ -858,7 +890,7 @@ export default function BuddyServicesManageOffersScreen() {
             opacity: (
               isLoading
               || isSaving
-              || catalogs.length === 0
+              || !catalogId
             )
               ? 0.55
               : 1,
@@ -1095,7 +1127,7 @@ export default function BuddyServicesManageOffersScreen() {
                 activeOpacity={0.82}
                 onPress={() => {
                   setEditorError(null);
-                  setEditor(createOfferEditor(catalogs));
+                  setEditor(createOfferEditor(catalogId));
                 }}
                 style={{
                   alignItems: 'center',
@@ -1211,9 +1243,7 @@ export default function BuddyServicesManageOffersScreen() {
                             marginTop: 4,
                           }}
                         >
-                          {catalogNamesById.get(
-                            offer.catalog_id,
-                          ) || 'Catálogo'}
+                          {selectedCatalog?.name || 'Catálogo'}
                         </Text>
                       </View>
                     </View>
@@ -1441,75 +1471,6 @@ export default function BuddyServicesManageOffersScreen() {
                       }}
                     >
                       {option.label}
-                    </Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
-
-            <Text
-              style={{
-                color: '#261743',
-                fontSize: 14,
-                fontWeight: '800',
-                marginTop: 19,
-              }}
-            >
-              Catálogo
-            </Text>
-
-            <View
-              style={{
-                flexDirection: 'row',
-                flexWrap: 'wrap',
-                gap: 8,
-                marginTop: 9,
-              }}
-            >
-              {catalogs.map((catalog) => {
-                const isSelected = editor?.catalogId === catalog.id;
-
-                return (
-                  <TouchableOpacity
-                    accessibilityLabel={`Catálogo ${catalog.name}`}
-                    accessibilityRole="button"
-                    activeOpacity={0.82}
-                    disabled={isSaving}
-                    key={catalog.id}
-                    onPress={() => {
-                      setEditor((currentEditor) => (
-                        currentEditor
-                          ? {
-                            ...currentEditor,
-                            catalogId: catalog.id,
-                          }
-                          : currentEditor
-                      ));
-                    }}
-                    style={{
-                      backgroundColor: isSelected
-                        ? '#EBDCFD'
-                        : '#FFFFFF',
-                      borderColor: isSelected
-                        ? '#7427D5'
-                        : '#DCCBEE',
-                      borderRadius: 99,
-                      borderWidth: 1,
-                      opacity: isSaving ? 0.55 : 1,
-                      paddingHorizontal: 12,
-                      paddingVertical: 8,
-                    }}
-                  >
-                    <Text
-                      style={{
-                        color: isSelected
-                          ? '#54209E'
-                          : '#4E3B68',
-                        fontSize: 12,
-                        fontWeight: '700',
-                      }}
-                    >
-                      {catalog.name}
                     </Text>
                   </TouchableOpacity>
                 );

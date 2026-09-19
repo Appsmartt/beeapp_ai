@@ -131,11 +131,13 @@ businessId: requireId(businessId, 'el negocio'),
 
 export function buddyServicesManageOffersRoute(
 businessId: string,
+catalogId: string,
 ): Href {
 return {
 pathname: '/(main)/beeservices/manage/[businessId]/offers',
 params: {
 businessId: requireId(businessId, 'el negocio'),
+catalogId: requireId(catalogId, 'el catálogo'),
 },
 };
 }
