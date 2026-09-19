@@ -7,7 +7,7 @@ import {
   View,
 } from 'react-native';
 import {
-  Store,
+  ShoppingCart,
   ShoppingBag,
   Sparkles,
   UserRound,
@@ -82,7 +82,7 @@ export default function VoiceAssistantFab() {
           accessibilityLabel="Negocio"
           accessibilityHint="Próximamente"
         >
-          <Store
+          <ShoppingCart
             size={20}
             color="#5D9D8C"
             strokeWidth={2.1}

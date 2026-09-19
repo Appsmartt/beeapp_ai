@@ -1,6 +1,6 @@
 import { useState, useRef, useCallback } from 'react';
 import { View, StyleSheet, TouchableOpacity, Text, Platform, Animated } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useRouter, useSegments } from 'expo-router';
 import { colors } from '@beeapp/design-system';
 import {
   Bell,
@@ -48,7 +48,9 @@ const getIconForModule = (module: string | undefined, kind: string | undefined, 
 };
 
 export default function FloatingTabBar({ onOpenNotificationTarget }: FloatingTabBarProps) {
-  return null;
+  const router = useRouter();
+  const segments = useSegments();
+
   const [voiceVisible, setVoiceVisible] = useState(false);
   const [popover, setPopover] = useState<'general' | 'chats' | null>(null);
   const [readIds, setReadIds] = useState<string[]>([]);
@@ -71,6 +73,14 @@ export default function FloatingTabBar({ onOpenNotificationTarget }: FloatingTab
       Animated.timing(rightIconAnim, { toValue: 1, duration: 150, useNativeDriver: true }).start();
     });
   }, [rightIconAnim]);
+
+  const isMainChatsRoute =
+    segments.length === 1 &&
+    segments[0] === '(main)';
+
+  if (!isMainChatsRoute) {
+    return null;
+  }
 
   const handleSelectItem = (item: TickerItem) => {
     setPopover(null);
