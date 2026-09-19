@@ -71,6 +71,10 @@ COMMERCIAL_PROFILE_CATEGORY_COLUMNS = (
     "commercial_profile_id,commercial_category_id,sort_order"
 )
 
+COMMERCIAL_PROFILE_SOCIAL_LINK_COLUMNS = (
+    "id,commercial_profile_id,platform,url,created_at,updated_at"
+)
+
 
 def list_commercial_categories(
     *,
@@ -664,6 +668,30 @@ def create_commercial_profile(
                     "Supabase did not create all profile hours."
                 )
 
+        social_links_to_insert = [
+            {
+                "commercial_profile_id": created_profile_id,
+                "platform": link["platform"],
+                "url": link["url"],
+            }
+            for link in (payload.get("social_links") or [])
+        ]
+
+        if social_links_to_insert:
+            social_links_response = (
+                supabase.table("commercial_profile_social_links")
+                .insert(social_links_to_insert)
+                .execute()
+            )
+
+            if (
+                len(social_links_response.data or [])
+                != len(social_links_to_insert)
+            ):
+                raise CommercialProfileCreateError(
+                    "Supabase did not create all profile social links."
+                )
+
         return get_owned_commercial_profile_with_access_token(
             access_token=normalized_access_token,
             profile_id=created_profile_id,
@@ -879,6 +907,7 @@ def update_commercial_profile(
     has_category_ids = "category_ids" in payload
     has_modalities = "modalities" in payload
     has_hours = "hours" in payload
+    has_social_links = "social_links" in payload
 
     profile_payload = {
         key: (
@@ -973,6 +1002,14 @@ def update_commercial_profile(
                 access_token=normalized_access_token,
                 profile_id=str(profile_id),
                 hours=payload["hours"],
+            )
+
+        if has_social_links:
+            _replace_commercial_profile_social_links(
+                user_id=str(user_id),
+                access_token=normalized_access_token,
+                profile_id=str(profile_id),
+                social_links=payload["social_links"],
             )
 
         return get_owned_commercial_profile_with_access_token(
@@ -1280,6 +1317,13 @@ def _attach_profile_relations(
         .order("opens_at")
         .execute()
     )
+    social_links_response = (
+        admin_supabase.table("commercial_profile_social_links")
+        .select(COMMERCIAL_PROFILE_SOCIAL_LINK_COLUMNS)
+        .eq("commercial_profile_id", profile_id)
+        .order("platform")
+        .execute()
+    )
 
     categories = categories_response.data or []
     category_ids = [
@@ -1319,6 +1363,9 @@ def _attach_profile_relations(
         modalities_response.data or []
     )
     enriched_profile["hours"] = hours_response.data or []
+    enriched_profile["social_links"] = (
+        social_links_response.data or []
+    )
     _attach_commercial_logo_url(profile=enriched_profile)
 
     return enriched_profile
@@ -1459,6 +1506,57 @@ def _replace_commercial_profile_modalities(
     except Exception as error:
         raise CommercialProfileUpdateError(
             "Could not update profile modalities."
+        ) from error
+
+
+def _replace_commercial_profile_social_links(
+    *,
+    user_id: str,
+    access_token: str,
+    profile_id: str,
+    social_links: list[dict[str, Any]],
+) -> None:
+    try:
+        del user_id
+
+        supabase = get_supabase_user_client(
+            access_token=access_token,
+        )
+
+        (
+            supabase.table("commercial_profile_social_links")
+            .delete()
+            .eq("commercial_profile_id", str(profile_id))
+            .execute()
+        )
+
+        if social_links:
+            response = (
+                supabase.table("commercial_profile_social_links")
+                .insert(
+                    [
+                        {
+                            "commercial_profile_id": str(profile_id),
+                            "platform": link["platform"],
+                            "url": link["url"],
+                        }
+                        for link in social_links
+                    ]
+                )
+                .execute()
+            )
+
+            if len(response.data or []) != len(social_links):
+                raise CommercialProfileUpdateError(
+                    "Could not update all profile social links."
+                )
+
+    except CommercialProfileUpdateError:
+        raise
+
+    except Exception as error:
+        raise CommercialProfileUpdateError(
+            "Could not update profile social links."
         ) from error
 
 

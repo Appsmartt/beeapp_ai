@@ -172,3 +172,63 @@ class CommercialProfileUpdateAccessTokenTests(
                     "display_name": "Nuevo nombre",
                 },
             )
+
+
+    def test_accepts_empty_social_links_for_removal(self):
+        from apps.commercial.serializers import (
+            UpdateCommercialProfileSerializer,
+        )
+
+        serializer = UpdateCommercialProfileSerializer(
+            data={
+                "social_links": [],
+            }
+        )
+
+        self.assertTrue(serializer.is_valid(), serializer.errors)
+        self.assertEqual(
+            serializer.validated_data["social_links"],
+            [],
+        )
+
+    def test_rejects_invalid_social_link_url(self):
+        from apps.commercial.serializers import (
+            UpdateCommercialProfileSerializer,
+        )
+
+        serializer = UpdateCommercialProfileSerializer(
+            data={
+                "social_links": [
+                    {
+                        "platform": "website",
+                        "url": "beeapp.co",
+                    },
+                ],
+            }
+        )
+
+        self.assertFalse(serializer.is_valid())
+        self.assertIn("social_links", serializer.errors)
+
+    def test_rejects_duplicate_social_link_platforms(self):
+        from apps.commercial.serializers import (
+            UpdateCommercialProfileSerializer,
+        )
+
+        serializer = UpdateCommercialProfileSerializer(
+            data={
+                "social_links": [
+                    {
+                        "platform": "facebook",
+                        "url": "https://facebook.com/beeapp",
+                    },
+                    {
+                        "platform": "facebook",
+                        "url": "https://facebook.com/beeapp-alt",
+                    },
+                ],
+            }
+        )
+
+        self.assertFalse(serializer.is_valid())
+        self.assertIn("social_links", serializer.errors)

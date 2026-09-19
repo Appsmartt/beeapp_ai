@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import re
 
+from urllib.parse import urlparse
+
 from rest_framework import serializers
 
 from apps.commercial.enums import (
@@ -32,6 +34,15 @@ COMMERCIAL_PROFILE_MODALITIES = enum_values(
 COUNTRY_CODE_PATTERN = re.compile(r"^[A-Za-z]{2}$")
 PHONE_DIAL_CODE_PATTERN = re.compile(r"^\+?[0-9]{1,9}$")
 PHONE_NUMBER_PATTERN = re.compile(r"^[0-9]{4,20}$")
+COMMERCIAL_SOCIAL_PLATFORMS = (
+    "instagram",
+    "facebook",
+    "linkedin",
+    "tiktok",
+    "youtube",
+    "threads",
+    "website",
+)
 
 
 def normalize_optional_text(
@@ -144,6 +155,30 @@ class CommercialProfileHourSerializer(serializers.Serializer):
             )
 
         return attrs
+
+
+class CommercialProfileSocialLinkSerializer(serializers.Serializer):
+    platform = serializers.ChoiceField(
+        choices=COMMERCIAL_SOCIAL_PLATFORMS,
+    )
+    url = serializers.CharField(
+        max_length=2048,
+        trim_whitespace=True,
+    )
+
+    def validate_url(self, value: str) -> str:
+        normalized_value = value.strip()
+        parsed_url = urlparse(normalized_value)
+
+        if (
+            parsed_url.scheme not in ("http", "https")
+            or not parsed_url.netloc
+        ):
+            raise serializers.ValidationError(
+                "A complete HTTP or HTTPS URL is required."
+            )
+
+        return normalized_value
 
 
 class CreateCommercialProfileSerializer(serializers.Serializer):
@@ -274,6 +309,11 @@ class CreateCommercialProfileSerializer(serializers.Serializer):
         required=False,
         default=list,
     )
+    social_links = CommercialProfileSocialLinkSerializer(
+        many=True,
+        required=False,
+        default=list,
+    )
 
     def validate_display_name(self, value: str) -> str:
         normalized_value = value.strip()
@@ -395,6 +435,19 @@ class CreateCommercialProfileSerializer(serializers.Serializer):
         if len(value) != len(set(value)):
             raise serializers.ValidationError(
                 "Modalities cannot be repeated."
+            )
+
+        return value
+
+    def validate_social_links(
+        self,
+        value: list[dict],
+    ) -> list[dict]:
+        platforms = [link["platform"] for link in value]
+
+        if len(platforms) != len(set(platforms)):
+            raise serializers.ValidationError(
+                "Only one URL is allowed for each platform."
             )
 
         return value
@@ -879,6 +932,11 @@ class UpdateCommercialProfileSerializer(serializers.Serializer):
         required=False,
         allow_empty=True,
     )
+    social_links = CommercialProfileSocialLinkSerializer(
+        many=True,
+        required=False,
+        allow_empty=True,
+    )
 
     def validate_category_ids(self, value: list) -> list:
         if len(value) != len(set(value)):
@@ -1004,6 +1062,19 @@ class UpdateCommercialProfileSerializer(serializers.Serializer):
         if len(value) != len(set(value)):
             raise serializers.ValidationError(
                 "Modalities cannot be repeated."
+            )
+
+        return value
+
+    def validate_social_links(
+        self,
+        value: list[dict],
+    ) -> list[dict]:
+        platforms = [link["platform"] for link in value]
+
+        if len(platforms) != len(set(platforms)):
+            raise serializers.ValidationError(
+                "Only one URL is allowed for each platform."
             )
 
         return value

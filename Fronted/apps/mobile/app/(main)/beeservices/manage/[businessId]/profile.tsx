@@ -37,9 +37,14 @@ import type {
   CommercialModality,
   CommercialOfferType,
   CommercialOwnedProfile,
+  CommercialProfileSocialLink,
 } from '@beeapp/shared-types';
 
 import CommercialLogoAvatar from '../../../../../src/components/buddyservices/CommercialLogoAvatar';
+import CommercialSocialLinksEditor, {
+  findInvalidCommercialSocialLink,
+  normalizeCommercialSocialLinks,
+} from '../../../../../src/components/buddyservices/CommercialSocialLinksEditor';
 import ScreenSafeArea from '../../../../../src/components/layout/ScreenSafeArea';
 import {
   LocalCommercialLogo,
@@ -168,6 +173,9 @@ export default function BuddyServicesManageProfileScreen() {
   const [isPhonePublic, setIsPhonePublic] = useState(false);
   const [publicEmail, setPublicEmail] = useState('');
   const [isEmailPublic, setIsEmailPublic] = useState(false);
+  const [socialLinks, setSocialLinks] = useState<
+    CommercialProfileSocialLink[]
+  >([]);
   const [categoryIds, setCategoryIds] = useState<string[]>([]);
   const [categoryDetailsById, setCategoryDetailsById] = useState<
     Record<string, CommercialCategory>
@@ -236,6 +244,7 @@ export default function BuddyServicesManageProfileScreen() {
     setIsPhonePublic(nextProfile.is_phone_public);
     setPublicEmail(nextProfile.public_email || '');
     setIsEmailPublic(nextProfile.is_email_public);
+    setSocialLinks(nextProfile.social_links || []);
     setCategoryIds(nextProfile.category_ids ?? []);
     setCategoryDetailsById((currentCategoriesById) => {
       const nextCategoriesById = {
@@ -533,6 +542,12 @@ export default function BuddyServicesManageProfileScreen() {
     const normalizedAddress = optionalText(address);
     const normalizedPhoneNumber = optionalText(phoneNumber);
     const normalizedPublicEmail = optionalText(publicEmail);
+    const normalizedSocialLinks = normalizeCommercialSocialLinks(
+      socialLinks,
+    );
+    const invalidSocialLink = findInvalidCommercialSocialLink(
+      socialLinks,
+    );
 
     const nextFieldErrors: Partial<Record<
       'displayName' | 'description' | 'city' | 'categories' | 'modalities',
@@ -594,6 +609,13 @@ export default function BuddyServicesManageProfileScreen() {
       return;
     }
 
+    if (invalidSocialLink) {
+      setErrorMessage(
+        'Cada red social debe usar una URL completa que comience por https:// o http://.',
+      );
+      return;
+    }
+
     setIsSaving(true);
     setErrorMessage(null);
 
@@ -639,6 +661,7 @@ export default function BuddyServicesManageProfileScreen() {
             : profile.logo_file_id,
           modalities,
           hours: profile.hours,
+          social_links: normalizedSocialLinks,
         },
       );
 
@@ -672,6 +695,7 @@ export default function BuddyServicesManageProfileScreen() {
     profile,
     publicEmail,
     router,
+    socialLinks,
   ]);
 
   return (
@@ -1548,6 +1572,12 @@ export default function BuddyServicesManageProfileScreen() {
               value={isEmailPublic}
             />
           </View>
+
+          <CommercialSocialLinksEditor
+            disabled={isSaving}
+            links={socialLinks}
+            onChange={setSocialLinks}
+          />
 
           <Text
             style={{

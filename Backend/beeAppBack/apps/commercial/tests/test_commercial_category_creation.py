@@ -465,3 +465,75 @@ class CreateCommercialProfileCategorySerializerTests(TestCase):
             "custom_activity_text",
             serializer.errors,
         )
+
+
+    def test_accepts_commercial_social_links(self):
+        serializer = CreateCommercialProfileSerializer(
+            data={
+                **self.base_payload(),
+                "new_category_names": ["Reparación de drones"],
+                "social_links": [
+                    {
+                        "platform": "instagram",
+                        "url": "  https://instagram.com/beeapp  ",
+                    },
+                    {
+                        "platform": "website",
+                        "url": "https://beeapp.co",
+                    },
+                ],
+            }
+        )
+
+        self.assertTrue(serializer.is_valid(), serializer.errors)
+        self.assertEqual(
+            serializer.validated_data["social_links"],
+            [
+                {
+                    "platform": "instagram",
+                    "url": "https://instagram.com/beeapp",
+                },
+                {
+                    "platform": "website",
+                    "url": "https://beeapp.co",
+                },
+            ],
+        )
+
+    def test_rejects_invalid_commercial_social_link_url(self):
+        serializer = CreateCommercialProfileSerializer(
+            data={
+                **self.base_payload(),
+                "new_category_names": ["Reparación de drones"],
+                "social_links": [
+                    {
+                        "platform": "instagram",
+                        "url": "instagram.com/beeapp",
+                    },
+                ],
+            }
+        )
+
+        self.assertFalse(serializer.is_valid())
+        self.assertIn("social_links", serializer.errors)
+
+    def test_rejects_duplicate_commercial_social_platforms(self):
+        serializer = CreateCommercialProfileSerializer(
+            data={
+                **self.base_payload(),
+                "new_category_names": ["Reparación de drones"],
+                "social_links": [
+                    {
+                        "platform": "instagram",
+                        "url": "https://instagram.com/beeapp",
+                    },
+                    {
+                        "platform": "instagram",
+                        "url": "https://instagram.com/beeapp-alt",
+                    },
+                ],
+            }
+        )
+
+        self.assertFalse(serializer.is_valid())
+        self.assertIn("social_links", serializer.errors)
