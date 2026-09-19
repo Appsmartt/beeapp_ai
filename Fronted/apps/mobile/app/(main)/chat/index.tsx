@@ -1490,35 +1490,52 @@ export default function ChatListScreen() {
 
 const styles = StyleSheet.create({
   safeArea: {
-    backgroundColor: colors.neutral.gray50,
+    backgroundColor: '#FBF9FE',
     flex: 1,
   },
   container: {
+    backgroundColor: '#FAF8FD',
     flex: 1,
   },
   header: {
     alignItems: 'center',
-    backgroundColor: colors.neutral.white,
+    backgroundColor: '#FDFBFF',
+    borderBottomColor: '#E3D9F0',
+    borderBottomWidth: 1,
     flexDirection: 'row',
     justifyContent: 'space-between',
+    marginHorizontal: 12,
+    marginTop: 10,
     paddingBottom: 12,
-    paddingHorizontal: 20,
-    paddingTop: 16,
+    paddingHorizontal: 14,
+    paddingTop: 12,
+    borderRadius: 22,
+    shadowColor: '#B29ACE',
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    shadowOpacity: 0.08,
+    shadowRadius: 9,
+    elevation: 2,
   },
   title: {
-    color: colors.neutral.text,
-    fontSize: 24,
+    color: '#40304F',
+    fontSize: 23,
     fontWeight: '800',
+    letterSpacing: -0.3,
   },
   headerActions: {
     alignItems: 'center',
     flexDirection: 'row',
-    gap: 6,
+    gap: 7,
   },
   newChatBtn: {
     alignItems: 'center',
-    backgroundColor: colors.neutral.gray100,
-    borderRadius: 12,
+    backgroundColor: '#F4ECFC',
+    borderColor: '#DDCFEE',
+    borderRadius: 14,
+    borderWidth: 1,
     height: 40,
     justifyContent: 'center',
     width: 40,
@@ -1528,6 +1545,7 @@ const styles = StyleSheet.create({
     flex: 1,
     gap: 12,
     justifyContent: 'center',
+    paddingBottom: 100,
   },
   loadingText: {
     color: colors.neutral.gray600,
@@ -1536,6 +1554,7 @@ const styles = StyleSheet.create({
   },
   listWrap: {
     flex: 1,
+    paddingTop: 4,
   },
   errorBox: {
     alignItems: 'center',
@@ -1558,8 +1577,14 @@ const styles = StyleSheet.create({
   },
   emptyOverlay: {
     alignItems: 'center',
+    backgroundColor: '#FCFAFF',
+    borderColor: '#E9E1F4',
+    borderRadius: 22,
+    borderWidth: 1,
+    marginHorizontal: 16,
+    marginTop: 18,
     paddingHorizontal: 36,
-    paddingVertical: 48,
+    paddingVertical: 44,
   },
   emptyTitle: {
     color: colors.neutral.text,
@@ -1575,7 +1600,15 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   statusesSection: {
-    backgroundColor: colors.neutral.white,
+    backgroundColor: '#FCFAFF',
+    borderBottomColor: '#E8DEEF',
+    borderBottomWidth: 1,
+    borderTopColor: '#EEE8F6',
+    borderTopWidth: 1,
+    marginHorizontal: 12,
+    marginTop: 10,
+    borderRadius: 20,
+    overflow: 'hidden',
   },
   statusesInlineState: {
     alignItems: 'center',
@@ -1583,6 +1616,7 @@ const styles = StyleSheet.create({
     gap: 8,
     minHeight: 82,
     paddingHorizontal: 20,
+    paddingVertical: 8,
   },
   statusesInlineText: {
     color: colors.neutral.gray600,

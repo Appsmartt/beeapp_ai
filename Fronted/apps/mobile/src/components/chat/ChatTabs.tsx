@@ -71,28 +71,39 @@ export default function ChatTabs({
 
 const styles = StyleSheet.create({
   row: {
-    backgroundColor: colors.neutral.white,
-    borderBottomColor: colors.neutral.gray100,
-    borderBottomWidth: 1,
+    backgroundColor: '#EEE7FA',
+    borderColor: '#D9C8EE',
+    borderRadius: 17,
+    borderWidth: 1,
     flexDirection: 'row',
+    marginHorizontal: 16,
+    marginTop: 10,
+    padding: 4,
   },
   tab: {
     alignItems: 'center',
-    borderBottomColor: 'transparent',
-    borderBottomWidth: 2,
+    borderRadius: 13,
     flex: 1,
-    paddingVertical: 12,
+    paddingVertical: 10,
   },
   tabActive: {
-    borderBottomColor: colors.brand.primary,
+    backgroundColor: colors.neutral.white,
+    elevation: 2,
+    shadowColor: '#A38AC7',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.12,
+    shadowRadius: 4,
   },
   label: {
-    color: colors.neutral.gray600,
-    fontSize: 14,
-    fontWeight: '400',
+    color: '#836C9B',
+    fontSize: 13,
+    fontWeight: '600',
   },
   labelActive: {
-    color: colors.brand.primary,
-    fontWeight: '600',
+    color: '#6E4C9E',
+    fontWeight: '800',
   },
 });

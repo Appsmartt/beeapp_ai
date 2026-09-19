@@ -6,8 +6,6 @@ import { colors, spacing } from '@beeapp/design-system';
 import VoiceAssistantFab from '../../src/components/VoiceAssistantFab';
 import HomeHeader from '../../src/components/home/HomeHeader';
 import HomeSideMenu from '../../src/components/home/HomeSideMenu';
-import ModuleSwitcherRow from '../../src/components/home/ModuleSwitcherRow';
-import HomeCustomizeModal from '../../src/components/home/HomeCustomizeModal';
 import EmbeddedModuleHost from '../../src/components/embedded/EmbeddedModuleHost';
 import {
   CUSTOMIZABLE_MODULES,
@@ -22,14 +20,7 @@ export default function HomeScreen() {
 
   const [sideMenuVisible, setSideMenuVisible] = useState(false);
 
-  const [selectedModuleIds, setSelectedModuleIds] = useState<string[]>(
-    DEFAULT_MODULE_IDS,
-  );
-  const [isCustomizing, setIsCustomizing] = useState(false);
-  const [tempSelectedModuleIds, setTempSelectedModuleIds] = useState<string[]>(
-    DEFAULT_MODULE_IDS,
-  );
-
+  const selectedModuleIds = DEFAULT_MODULE_IDS;
   const [activeModuleId, setActiveModuleId] = useState<string>(
     'chat',
   );
@@ -59,20 +50,6 @@ export default function HomeScreen() {
     setIsDetailView(false);
   };
 
-  const openCustomize = () => {
-    setTempSelectedModuleIds([...selectedModuleIds]);
-    setIsCustomizing(true);
-  };
-
-  const saveCustomize = () => {
-    setSelectedModuleIds(tempSelectedModuleIds);
-    setIsCustomizing(false);
-
-    if (activeModuleId === OVERVIEW_MODULE_ID) {
-      setOpenSeq((sequence) => sequence + 1);
-    }
-  };
-
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
       {!isDetailView && (
@@ -81,13 +58,6 @@ export default function HomeScreen() {
             <HomeHeader onMenuPress={() => setSideMenuVisible(true)} />
           </View>
 
-          <ModuleSwitcherRow
-            selectedModuleIds={selectedModuleIds}
-            activeModuleId={activeModuleId}
-            hideOverview={activeModuleId === OVERVIEW_MODULE_ID}
-            onSelect={openModule}
-            onCustomize={openCustomize}
-          />
         </>
       )}
 
@@ -114,13 +84,6 @@ export default function HomeScreen() {
         onClose={() => setSideMenuVisible(false)}
       />
 
-      <HomeCustomizeModal
-        visible={isCustomizing}
-        selectedIds={tempSelectedModuleIds}
-        onChangeSelected={setTempSelectedModuleIds}
-        onCancel={() => setIsCustomizing(false)}
-        onSave={saveCustomize}
-      />
     </View>
   );
 }

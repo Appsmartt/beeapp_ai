@@ -1,129 +1,94 @@
-import { useEffect, useRef, useState } from 'react';
 import {
-  TouchableOpacity,
+  useState,
+} from 'react';
+import {
   StyleSheet,
-  Animated,
-  PanResponder,
-  useWindowDimensions,
+  TouchableOpacity,
+  View,
 } from 'react-native';
+import {
+  Store,
+  ShoppingBag,
+  Sparkles,
+  UserRound,
+} from 'lucide-react-native';
 import { colors } from '@beeapp/design-system';
-import { Mic } from 'lucide-react-native';
+
 import VoiceAssistantScreen from './assistant/VoiceAssistantScreen';
 
 export default function VoiceAssistantFab() {
   const [voiceVisible, setVoiceVisible] = useState(false);
-  const { width: windowWidth, height: windowHeight } = useWindowDimensions();
-
-  // Looping pulse glow animation
-  const pulseAnim = useRef(new Animated.Value(1)).current;
-  useEffect(() => {
-    const pulseLoop = Animated.loop(
-      Animated.sequence([
-        Animated.timing(pulseAnim, { toValue: 1.25, duration: 1000, useNativeDriver: true }),
-        Animated.timing(pulseAnim, { toValue: 1, duration: 1000, useNativeDriver: true }),
-      ])
-    );
-    pulseLoop.start();
-    return () => pulseLoop.stop();
-  }, [pulseAnim]);
-
-  // Position offsets for dragging (0,0 corresponds to left: 20, bottom: 24)
-  const pan = useRef(new Animated.ValueXY({ x: 0, y: 0 })).current;
-  const scaleAnim = useRef(new Animated.Value(1)).current;
-  const opacityAnim = useRef(new Animated.Value(1)).current;
-
-  // Track drag position state for PanResponder
-  const currentOffset = useRef({ x: 0, y: 0 });
-
-  const panResponder = useRef(
-    PanResponder.create({
-      onStartShouldSetPanResponder: () => true,
-      onMoveShouldSetPanResponder: (_, gestureState) =>
-        Math.abs(gestureState.dx) > 4 || Math.abs(gestureState.dy) > 4,
-      onPanResponderGrant: () => {
-        pan.setOffset({ x: currentOffset.current.x, y: currentOffset.current.y });
-        pan.setValue({ x: 0, y: 0 });
-        Animated.parallel([
-          Animated.timing(scaleAnim, { toValue: 1.1, duration: 150, useNativeDriver: true }),
-          Animated.timing(opacityAnim, { toValue: 0.7, duration: 150, useNativeDriver: true }),
-        ]).start();
-      },
-      onPanResponderMove: Animated.event([null, { dx: pan.x, dy: pan.y }], {
-        useNativeDriver: false,
-      }),
-      onPanResponderRelease: (_, gestureState) => {
-        pan.flattenOffset();
-        Animated.parallel([
-          Animated.timing(scaleAnim, { toValue: 1.0, duration: 150, useNativeDriver: true }),
-          Animated.timing(opacityAnim, { toValue: 1.0, duration: 150, useNativeDriver: true }),
-        ]).start();
-
-        const isTap = Math.abs(gestureState.dx) < 6 && Math.abs(gestureState.dy) < 6;
-        if (isTap) {
-          setVoiceVisible(true);
-          return;
-        }
-
-        // Calculate clamped and snapped final position
-        const rawX = currentOffset.current.x + gestureState.dx;
-        const rawY = currentOffset.current.y + gestureState.dy;
-
-        // Boundaries: X min = 0, X max = windowWidth - 104 (right 20px)
-        const maxX = windowWidth - 104;
-        const minY = -(windowHeight - 160);
-        const maxY = 0;
-
-        const clampedY = Math.min(Math.max(rawY, minY), maxY);
-
-        // Snap X to left edge (0) or right edge (maxX)
-        const absoluteX = 20 + rawX;
-        const targetX = absoluteX + 32 < windowWidth / 2 ? 0 : Math.max(0, maxX);
-
-        currentOffset.current = { x: targetX, y: clampedY };
-
-        Animated.spring(pan, {
-          toValue: { x: targetX, y: clampedY },
-          friction: 6,
-          tension: 40,
-          useNativeDriver: true,
-        }).start();
-      },
-    })
-  ).current;
 
   return (
     <>
-      <Animated.View
-        style={[
-          styles.fabWrapper,
-          {
-            transform: [
-              { translateX: pan.x },
-              { translateY: pan.y },
-              { scale: scaleAnim },
-            ],
-            opacity: opacityAnim,
-          },
-        ]}
-        {...panResponder.panHandlers}
+      <View
+        style={styles.floatingMenu}
+        accessibilityLabel="Accesos rápidos"
       >
-        <Animated.View
-          style={[
-            styles.pulseGlow,
-            {
-              transform: [{ scale: pulseAnim }],
-            },
-          ]}
-        />
         <TouchableOpacity
-          style={styles.fabBtn}
-          activeOpacity={0.85}
-          onPress={() => setVoiceVisible(true)}
-          accessibilityLabel="Asistente de IA por voz"
+          style={[
+            styles.actionButton,
+            styles.profileButton,
+          ]}
+          activeOpacity={0.76}
+          accessibilityLabel="Perfil"
+          accessibilityHint="Próximamente"
         >
-          <Mic size={28} color={colors.neutral.white} />
+          <UserRound
+            size={22}
+            color="#7C6AA5"
+            strokeWidth={2.1}
+          />
         </TouchableOpacity>
-      </Animated.View>
+
+        <TouchableOpacity
+          style={[
+            styles.actionButton,
+            styles.aiButton,
+          ]}
+          activeOpacity={0.8}
+          onPress={() => setVoiceVisible(true)}
+          accessibilityLabel="Abrir asistente de IA"
+        >
+          <Sparkles
+            size={23}
+            color={colors.neutral.white}
+            strokeWidth={2.2}
+          />
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[
+            styles.actionButton,
+            styles.shopButton,
+          ]}
+          activeOpacity={0.76}
+          accessibilityLabel="Comprar"
+          accessibilityHint="Próximamente"
+        >
+          <ShoppingBag
+            size={20}
+            color="#C58B72"
+            strokeWidth={2.1}
+          />
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[
+            styles.actionButton,
+            styles.businessButton,
+          ]}
+          activeOpacity={0.76}
+          accessibilityLabel="Negocio"
+          accessibilityHint="Próximamente"
+        >
+          <Store
+            size={20}
+            color="#5D9D8C"
+            strokeWidth={2.1}
+          />
+        </TouchableOpacity>
+      </View>
 
       <VoiceAssistantScreen
         visible={voiceVisible}
@@ -134,35 +99,66 @@ export default function VoiceAssistantFab() {
 }
 
 const styles = StyleSheet.create({
-  fabWrapper: {
+  floatingMenu: {
+    alignItems: 'center',
+    alignSelf: 'center',
+    width: '70%',
+    backgroundColor: 'rgba(255, 255, 255, 0.96)',
+    borderColor: '#E7DFF5',
+    borderRadius: 28,
+    borderWidth: 1,
+    bottom: 20,
+    elevation: 10,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingHorizontal: 13,
+    paddingVertical: 12,
     position: 'absolute',
-    left: 20,
-    bottom: 24,
-    width: 64,
-    height: 64,
+    shadowColor: '#8D73C9',
+    shadowOffset: {
+      width: 0,
+      height: 6,
+    },
+    shadowOpacity: 0.22,
+    shadowRadius: 13,
     zIndex: 999,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
-  pulseGlow: {
-    position: 'absolute',
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    backgroundColor: colors.brand.primary,
-    opacity: 0.3,
-  },
-  fabBtn: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    backgroundColor: colors.brand.primary,
+  actionButton: {
     alignItems: 'center',
+    borderRadius: 18,
+    height: 52,
     justifyContent: 'center',
-    elevation: 6,
-    shadowColor: colors.brand.primary,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.35,
-    shadowRadius: 8,
+    width: 52,
+  },
+  profileButton: {
+    backgroundColor: '#F1ECFA',
+    borderColor: '#E2D8F2',
+    borderWidth: 1,
+  },
+  aiButton: {
+    backgroundColor: '#8D73C9',
+    elevation: 4,
+    shadowColor: '#8D73C9',
+    shadowOffset: {
+      width: 0,
+      height: 3,
+    },
+    shadowOpacity: 0.34,
+    shadowRadius: 6,
+    transform: [
+      {
+        translateY: -5,
+      },
+    ],
+  },
+  shopButton: {
+    backgroundColor: '#FBEDE7',
+    borderColor: '#F5DCD1',
+    borderWidth: 1,
+  },
+  businessButton: {
+    backgroundColor: '#E6F4EF',
+    borderColor: '#D2EAE1',
+    borderWidth: 1,
   },
 });
