@@ -35,8 +35,13 @@ import type {
   CommercialCategory,
   CommercialModality,
   CommercialOfferType,
+  CommercialProfileSocialLink,
 } from '@beeapp/shared-types';
 
+import CommercialSocialLinksEditor, {
+  findInvalidCommercialSocialLink,
+  normalizeCommercialSocialLinks,
+} from '../../../src/components/buddyservices/CommercialSocialLinksEditor';
 import ScreenSafeArea from '../../../src/components/layout/ScreenSafeArea';
 import {
   toCommercialUiError,
@@ -174,6 +179,9 @@ const latestCategorySearchRequestRef = useRef(0);
   const [isPhonePublic, setIsPhonePublic] = useState(false);
   const [publicEmail, setPublicEmail] = useState('');
   const [isEmailPublic, setIsEmailPublic] = useState(false);
+  const [socialLinks, setSocialLinks] = useState<
+    CommercialProfileSocialLink[]
+  >([]);
   const [modalities, setModalities] = useState<
     CommercialModality[]
   >([]);
@@ -561,6 +569,12 @@ const totalSelectedCategories = (
     const normalizedPublicEmail = normalizeOptionalText(
       publicEmail,
     );
+    const normalizedSocialLinks = normalizeCommercialSocialLinks(
+      socialLinks,
+    );
+    const invalidSocialLink = findInvalidCommercialSocialLink(
+      socialLinks,
+    );
 
     const nextFieldErrors: Partial<
       Record<RequiredFieldKey, string>
@@ -601,6 +615,13 @@ const totalSelectedCategories = (
 
     if (Object.keys(nextFieldErrors).length > 0) {
       setFieldErrors(nextFieldErrors);
+      return;
+    }
+
+    if (invalidSocialLink) {
+      setFormError(
+        'Cada red social debe usar una URL completa que comience por https:// o http://.',
+      );
       return;
     }
 
@@ -665,6 +686,9 @@ const totalSelectedCategories = (
           : {}),
         modalities,
         hours: [],
+        ...(normalizedSocialLinks.length > 0
+          ? { social_links: normalizedSocialLinks }
+          : {}),
       };
 
       console.info(
@@ -688,6 +712,7 @@ const totalSelectedCategories = (
           logoFileId: payload.logo_file_id ?? null,
           modalities: payload.modalities,
           hoursCount: payload.hours?.length ?? 0,
+          socialLinksCount: payload.social_links?.length ?? 0,
         },
       );
 
@@ -725,6 +750,7 @@ const totalSelectedCategories = (
     phoneNumber,
     publicEmail,
     router,
+    socialLinks,
   ]);
 
   return (
@@ -1831,6 +1857,12 @@ const totalSelectedCategories = (
             value={isEmailPublic}
           />
         </View>
+
+        <CommercialSocialLinksEditor
+          disabled={isSubmitting}
+          links={socialLinks}
+          onChange={setSocialLinks}
+        />
 
         <TouchableOpacity
           accessibilityLabel="Crear perfil comercial"

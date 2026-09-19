@@ -153,6 +153,24 @@ export interface CommercialPublicContact {
   is_email_public: boolean;
 }
 
+export type CommercialSocialPlatform =
+  | 'instagram'
+  | 'facebook'
+  | 'linkedin'
+  | 'tiktok'
+  | 'youtube'
+  | 'threads'
+  | 'website';
+
+export interface CommercialProfileSocialLink {
+  id?: string;
+  commercial_profile_id?: string;
+  platform: CommercialSocialPlatform;
+  url: string;
+  created_at?: string;
+  updated_at?: string;
+}
+
 export interface CommercialProfileHour {
   id?: string;
   commercial_profile_id?: string;
@@ -253,6 +271,7 @@ category?: CommercialCategory | null;
   suspension_reason: string | null;
   modalities: CommercialProfileModalityRecord[];
   hours: CommercialProfileHour[];
+  social_links: CommercialProfileSocialLink[];
   created_at: string | null;
   updated_at: string | null;
 }
@@ -461,6 +480,7 @@ new_category_names?: string[];
   logo_file_id?: string | null;
   modalities: CommercialModality[];
   hours?: CommercialProfileHour[];
+  social_links?: CommercialProfileSocialLink[];
 }
 
 export interface UpdateCommercialProfilePayload {
@@ -491,6 +511,7 @@ export interface UpdateCommercialProfilePayload {
   delivery_currency_code?: string;
   modalities?: CommercialModality[];
   hours?: CommercialProfileHour[];
+  social_links?: CommercialProfileSocialLink[];
 }
 
 export interface CreateCommercialProfileResponse {

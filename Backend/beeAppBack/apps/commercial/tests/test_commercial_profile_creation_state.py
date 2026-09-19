@@ -72,6 +72,7 @@ class FakeSupabase:
                 "commercial_profile_categories",
                 "commercial_profile_modalities",
                 "commercial_profile_hours",
+                "commercial_profile_social_links",
                 "commercial_categories",
             )
         }
@@ -168,5 +169,88 @@ class CreateCommercialProfileInitialStateTests(TestCase):
                     "is_public": False,
                     "is_available": False,
                 }
+            ],
+        )
+
+
+    def test_new_profile_creates_its_social_links(self):
+        supabase = FakeSupabase()
+
+        payload = {
+            "offer_type": "services",
+            "category_ids": [
+                "11111111-1111-1111-1111-111111111111",
+            ],
+            "custom_activity_text": None,
+            "display_name": "Negocio con redes",
+            "description": "Descripción de prueba",
+            "country_code": "CO",
+            "city": "Bogotá",
+            "address": None,
+            "neighborhood": None,
+            "location_reference": None,
+            "is_address_public": False,
+            "phone_dial_code": None,
+            "phone_number": None,
+            "is_phone_public": False,
+            "public_email": None,
+            "is_email_public": False,
+            "logo_file_id": None,
+            "is_public": False,
+            "is_available": False,
+            "modalities": ["virtual"],
+            "hours": [],
+            "social_links": [
+                {
+                    "platform": "instagram",
+                    "url": "https://instagram.com/beeapp",
+                },
+                {
+                    "platform": "website",
+                    "url": "https://beeapp.co",
+                },
+            ],
+        }
+
+        with patch(
+            "apps.commercial.services."
+            "commercial_profile_service."
+            "get_supabase_user_client",
+            return_value=supabase,
+        ), patch(
+            "apps.commercial.services."
+            "commercial_profile_service."
+            "validate_commercial_categories",
+            return_value=payload["category_ids"],
+        ), patch(
+            "apps.commercial.services."
+            "commercial_profile_service."
+            "get_owned_commercial_profile_with_access_token",
+            return_value={"id": "profile-1"},
+        ):
+            profile = create_commercial_profile(
+                user_id="22222222-2222-2222-2222-222222222222",
+                access_token="test-access-token",
+                payload=payload,
+            )
+
+        self.assertEqual(profile, {"id": "profile-1"})
+        self.assertEqual(
+            supabase.tables[
+                "commercial_profile_social_links"
+            ].inserted_payloads,
+            [
+                [
+                    {
+                        "commercial_profile_id": "profile-1",
+                        "platform": "instagram",
+                        "url": "https://instagram.com/beeapp",
+                    },
+                    {
+                        "commercial_profile_id": "profile-1",
+                        "platform": "website",
+                        "url": "https://beeapp.co",
+                    },
+                ]
             ],
         )
