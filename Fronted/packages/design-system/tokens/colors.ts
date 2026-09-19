@@ -1,36 +1,33 @@
 /**
- * Brand & design system colors.
- * Brand palette (Light mode ONLY):
- * - Primary Purple (fondo): #6025d2
- * - Dark Purple (acentos):  #5B2CD9
- * - White:                   #FFFFFF
- * - Texto principal:         #1A1A2E
+ * Paleta global BeeApp.
+ * Predomina una base azul-lila pastel, luminosa y de baja saturación.
+ * Las claves se preservan para mantener la compatibilidad visual y funcional.
  */
 export const colors = {
   brand: {
-    primary: '#6025d2',
-    dark: '#5B2CD9',
+    primary: '#7567D9',
+    dark: '#5F52C5',
     white: '#FFFFFF',
-    textPrimary: '#1A1A2E',
+    textPrimary: '#26314D',
   },
   neutral: {
     white: '#FFFFFF',
-    text: '#1A1A2E',
-    gray50: '#F8F9FA',
-    gray100: '#F1F3F5',
-    gray200: '#E9ECEF',
-    gray300: '#DEE2E6',
-    gray400: '#CED4DA',
-    gray500: '#ADB5BD',
-    gray600: '#6C757D',
-    gray700: '#495057',
-    gray800: '#343A40',
-    gray900: '#212529',
+    text: '#26314D',
+    gray50: '#F7F8FF',
+    gray100: '#EEF2FF',
+    gray200: '#DDE4F4',
+    gray300: '#CBD5EA',
+    gray400: '#AEBBD2',
+    gray500: '#7D89A2',
+    gray600: '#64708A',
+    gray700: '#4D5870',
+    gray800: '#35405A',
+    gray900: '#222B43',
   },
   semantic: {
-    success: '#4CAF50',
-    warning: '#FF9800',
-    error: '#F44336',
-    info: '#2196F3',
+    success: '#62A98E',
+    warning: '#D69A4B',
+    error: '#D85A70',
+    info: '#668FCE',
   },
 };

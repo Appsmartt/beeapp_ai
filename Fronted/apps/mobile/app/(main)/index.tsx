@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { View, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { colors, spacing } from '@beeapp/design-system';
+import { spacing } from '@beeapp/design-system';
 import VoiceAssistantFab from '../../src/components/VoiceAssistantFab';
 import HomeHeader from '../../src/components/home/HomeHeader';
 import HomeSideMenu from '../../src/components/home/HomeSideMenu';
@@ -91,7 +91,7 @@ export default function HomeScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.neutral.gray50,
+    backgroundColor: '#F7F8FF',
   },
   topSection: {
     paddingHorizontal: 20,

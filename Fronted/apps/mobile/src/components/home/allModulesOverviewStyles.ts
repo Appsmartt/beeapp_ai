@@ -22,13 +22,13 @@ export const styles = StyleSheet.create({
     borderRadius: 8,
   },
   beeServicesCard: {
-    backgroundColor: '#FAF5FF',
+    backgroundColor: '#F4F6FF',
     borderRadius: 20,
     borderWidth: 1.5,
-    borderColor: 'rgba(124, 58, 237, 0.40)',
+    borderColor: 'rgba(117, 103, 217, 0.32)',
     padding: 16,
     marginBottom: 16,
-    shadowColor: 'rgba(124, 58, 237, 1)',
+    shadowColor: 'rgba(95, 82, 197, 1)',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.15,
     shadowRadius: 12,
@@ -43,7 +43,7 @@ export const styles = StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: 14,
-    backgroundColor: 'rgba(124, 58, 237, 0.12)',
+    backgroundColor: 'rgba(117, 103, 217, 0.11)',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -75,7 +75,7 @@ export const styles = StyleSheet.create({
     marginTop: 10,
   },
   beeMetricBadge: {
-    backgroundColor: 'rgba(124, 58, 237, 0.10)',
+    backgroundColor: 'rgba(117, 103, 217, 0.09)',
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: 10,
@@ -91,7 +91,7 @@ export const styles = StyleSheet.create({
     marginTop: 12,
     paddingTop: 10,
     borderTopWidth: 1,
-    borderTopColor: 'rgba(124, 58, 237, 0.15)',
+    borderTopColor: 'rgba(117, 103, 217, 0.14)',
   },
   beeHighlightItem: {
     flexDirection: 'row',
@@ -116,10 +116,10 @@ export const styles = StyleSheet.create({
     justifyContent: 'space-between',
     padding: 14,
     borderRadius: 16,
-    backgroundColor: '#F9F5FF',
+    backgroundColor: '#F3F5FF',
     borderWidth: 1,
-    borderColor: 'rgba(216, 180, 254, 0.7)',
-    shadowColor: 'rgba(109, 40, 217, 1)',
+    borderColor: 'rgba(203, 213, 234, 0.92)',
+    shadowColor: 'rgba(95, 82, 197, 1)',
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.16,
     shadowRadius: 16,
@@ -149,14 +149,14 @@ export const styles = StyleSheet.create({
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: 999,
-    backgroundColor: 'rgba(124, 58, 237, 0.10)',
+    backgroundColor: 'rgba(117, 103, 217, 0.09)',
     borderWidth: 1,
-    borderColor: 'rgba(124, 58, 237, 0.45)',
+    borderColor: 'rgba(117, 103, 217, 0.36)',
   },
   aiStatusText: {
     fontSize: 10,
     fontWeight: '500',
-    color: '#7C3AED',
+    color: '#665AC0',
   },
   aiDescription: {
     fontSize: 11,
@@ -170,7 +170,7 @@ export const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingTop: 8,
     borderTopWidth: 1,
-    borderTopColor: 'rgba(124, 58, 237, 0.18)',
+    borderTopColor: 'rgba(117, 103, 217, 0.16)',
     marginTop: 10,
   },
   aiFooterText: {
@@ -184,11 +184,11 @@ export const styles = StyleSheet.create({
     width: 28,
     height: 28,
     borderRadius: 14,
-    backgroundColor: '#EDE9FE',
+    backgroundColor: '#E9EDFF',
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
-    borderColor: 'rgba(124, 58, 237, 0.60)',
+    borderColor: 'rgba(117, 103, 217, 0.46)',
   },
 
   cardHeaderRow: {
@@ -225,7 +225,7 @@ export const styles = StyleSheet.create({
     color: colors.neutral.gray700,
   },
   badgePillRed: {
-    backgroundColor: '#FEF2F2',
+    backgroundColor: '#FFF2F5',
     paddingHorizontal: 7,
     paddingVertical: 2,
     borderRadius: 8,
@@ -233,10 +233,10 @@ export const styles = StyleSheet.create({
   badgeTextRed: {
     fontSize: 10,
     fontWeight: '400',
-    color: '#EF4444',
+    color: '#D85A70',
   },
   badgePillOrange: {
-    backgroundColor: '#FEF2F2',
+    backgroundColor: '#FFF2F5',
     paddingHorizontal: 7,
     paddingVertical: 2,
     borderRadius: 8,
@@ -244,7 +244,7 @@ export const styles = StyleSheet.create({
   badgeTextOrange: {
     fontSize: 10,
     fontWeight: '400',
-    color: '#EF4444',
+    color: '#D85A70',
   },
 
   cardTitle: {
@@ -313,7 +313,7 @@ export const styles = StyleSheet.create({
   },
   progressBarFill: {
     height: 4,
-    backgroundColor: 'rgba(124, 58, 237, 0.50)',
+    backgroundColor: 'rgba(117, 103, 217, 0.42)',
     borderRadius: 2,
   },
 

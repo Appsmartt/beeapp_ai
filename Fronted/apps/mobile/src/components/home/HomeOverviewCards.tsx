@@ -7,8 +7,8 @@ export function HomeActivityCard() {
   return (
     <View style={styles.activityCard}>
       <View style={styles.activityItem}>
-        <View style={[styles.activityIconBadge, { backgroundColor: '#EBF5FF' }]}>
-          <Mail size={16} color="#1E88E5" />
+        <View style={[styles.activityIconBadge, { backgroundColor: '#EAF2FF' }]}>
+          <Mail size={16} color="#668FCE" />
         </View>
         <View style={styles.activityTextWrap}>
           <Text style={styles.activityTitle}>Correo de Carlos "Reunión de avance"</Text>
@@ -18,8 +18,8 @@ export function HomeActivityCard() {
       </View>
 
       <View style={styles.activityItem}>
-        <View style={[styles.activityIconBadge, { backgroundColor: '#FEF3C7' }]}>
-          <FileText size={16} color="#D97706" />
+        <View style={[styles.activityIconBadge, { backgroundColor: '#FFF3DC' }]}>
+          <FileText size={16} color="#C78335" />
         </View>
         <View style={styles.activityTextWrap}>
           <Text style={styles.activityTitle}>Nota creada "Ideas de mercadeo"</Text>
@@ -29,8 +29,8 @@ export function HomeActivityCard() {
       </View>
 
       <View style={[styles.activityItem, { borderBottomWidth: 0 }]}>
-        <View style={[styles.activityIconBadge, { backgroundColor: '#E8F5E9' }]}>
-          <MessageCircle size={16} color="#2E7D32" />
+        <View style={[styles.activityIconBadge, { backgroundColor: '#EAF7F0' }]}>
+          <MessageCircle size={16} color="#4D9A7B" />
         </View>
         <View style={styles.activityTextWrap}>
           <Text style={styles.activityTitle}>Mensaje de Whatsapp "Cliente aceptó oferta"</Text>

@@ -67,7 +67,7 @@ export default function MusicSelector({
 }
 
 const styles = StyleSheet.create({
-  backdrop: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(26, 26, 46, 0.35)' },
+  backdrop: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(34, 43, 67, 0.34)' },
   backdropTouch: { ...StyleSheet.absoluteFillObject },
   sheet: {
     maxHeight: '65%',

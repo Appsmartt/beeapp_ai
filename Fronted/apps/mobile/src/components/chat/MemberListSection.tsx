@@ -217,7 +217,7 @@ function RealGroupMemberList({
                     size={12}
                     color={
                       member.role === 'owner'
-                        ? '#B7791F'
+                        ? '#B17A35'
                         : colors.brand.primary
                     }
                   />
@@ -391,8 +391,8 @@ const styles = StyleSheet.create({
   },
   avatar: {
     alignItems: 'center',
-    backgroundColor: '#F3E8FF',
-    borderColor: '#DDD6FE',
+    backgroundColor: '#EEF2FF',
+    borderColor: '#D7DFF2',
     borderRadius: 20,
     borderWidth: 1,
     height: 40,

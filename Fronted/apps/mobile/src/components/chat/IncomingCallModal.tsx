@@ -358,7 +358,7 @@ export default function IncomingCallModal({
 const styles = StyleSheet.create({
   overlay: {
     alignItems: 'center',
-    backgroundColor: 'rgba(17, 16, 30, 0.62)',
+    backgroundColor: 'rgba(34, 43, 67, 0.58)',
     flex: 1,
     justifyContent: 'flex-start',
     paddingHorizontal: 18,
@@ -373,7 +373,7 @@ const styles = StyleSheet.create({
     paddingBottom: 24,
     paddingHorizontal: 22,
     paddingTop: 12,
-    shadowColor: '#000',
+    shadowColor: '#8D9ABE',
     shadowOffset: {
       height: 10,
       width: 0,
@@ -442,7 +442,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.semantic.error,
   },
   acceptButton: {
-    backgroundColor: '#16A34A',
+    backgroundColor: '#4D9A7B',
   },
   buttonDisabled: {
     opacity: 0.6,

@@ -36,7 +36,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 7,
     borderRadius: radii.full,
-    backgroundColor: 'rgba(26, 26, 46, 0.55)',
+    backgroundColor: 'rgba(34, 43, 67, 0.55)',
   },
   title: { flexShrink: 1, fontSize: 12, fontWeight: '400', color: colors.neutral.white },
 });

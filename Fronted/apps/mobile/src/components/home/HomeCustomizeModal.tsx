@@ -97,7 +97,7 @@ const styles = StyleSheet.create({
   },
   modalBackdrop: {
     flex: 1,
-    backgroundColor: 'rgba(26, 26, 46, 0.4)',
+    backgroundColor: 'rgba(34, 43, 67, 0.38)',
     justifyContent: 'flex-end',
   },
   modalSheet: {

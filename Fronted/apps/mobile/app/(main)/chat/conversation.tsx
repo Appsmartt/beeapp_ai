@@ -1480,7 +1480,7 @@ export default function ConversationScreen() {
 const styles = StyleSheet.create({
   callStartingOverlay: {
     alignItems: 'center',
-    backgroundColor: 'rgba(17, 16, 30, 0.48)',
+    backgroundColor: 'rgba(34, 43, 67, 0.42)',
     flex: 1,
     justifyContent: 'center',
     padding: 24,
@@ -1493,7 +1493,7 @@ const styles = StyleSheet.create({
     maxWidth: 320,
     paddingHorizontal: 28,
     paddingVertical: 26,
-    shadowColor: '#000',
+    shadowColor: '#8D9ABE',
     shadowOffset: {
       height: 8,
       width: 0,
@@ -1544,19 +1544,19 @@ const styles = StyleSheet.create({
     paddingVertical: 20,
   },
   announcementBanner: {
-    backgroundColor: '#FFF7ED',
-    borderBottomColor: '#FED7AA',
+    backgroundColor: '#FFF5E8',
+    borderBottomColor: '#F2D1A2',
     borderBottomWidth: 1,
     paddingHorizontal: 18,
     paddingVertical: 9,
   },
   announcementBannerText: {
-    color: '#9A3412',
+    color: '#9A6230',
     fontSize: 12,
     fontWeight: '800',
   },
   announcementBannerDescription: {
-    color: '#9A3412',
+    color: '#9A6230',
     fontSize: 11,
     lineHeight: 16,
     marginTop: 2,
@@ -1577,8 +1577,8 @@ const styles = StyleSheet.create({
   },
   errorBox: {
     alignItems: 'center',
-    backgroundColor: '#FEF2F2',
-    borderColor: '#FECACA',
+    backgroundColor: '#FFF2F5',
+    borderColor: '#F3C4CC',
     borderRadius: 10,
     borderWidth: 1,
     marginBottom: 14,

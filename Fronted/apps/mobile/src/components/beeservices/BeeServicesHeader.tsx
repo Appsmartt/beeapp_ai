@@ -23,7 +23,7 @@ export default function BeeServicesHeader({
         style={styles.headerBackButton}
       >
         <ChevronLeft
-          color="#7427D5"
+          color="#7567D9"
           size={23}
           strokeWidth={2.7}
         />

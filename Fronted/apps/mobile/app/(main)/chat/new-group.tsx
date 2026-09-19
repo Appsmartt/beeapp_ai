@@ -336,8 +336,8 @@ const styles = StyleSheet.create({
   iconWrap: {
     alignItems: 'center',
     alignSelf: 'center',
-    backgroundColor: '#F3E8FF',
-    borderColor: '#DDD6FE',
+    backgroundColor: '#EEF2FF',
+    borderColor: '#D7DFF2',
     borderRadius: 28,
     borderWidth: 1,
     height: 56,
@@ -400,7 +400,7 @@ const styles = StyleSheet.create({
   },
   policyIcon: {
     alignItems: 'center',
-    backgroundColor: '#F3E8FF',
+    backgroundColor: '#EEF2FF',
     borderRadius: 18,
     height: 36,
     justifyContent: 'center',
@@ -448,7 +448,7 @@ const styles = StyleSheet.create({
   },
   loadingOverlay: {
     alignItems: 'center',
-    backgroundColor: 'rgba(26, 26, 46, 0.36)',
+    backgroundColor: 'rgba(34, 43, 67, 0.34)',
     flex: 1,
     justifyContent: 'center',
     padding: 24,

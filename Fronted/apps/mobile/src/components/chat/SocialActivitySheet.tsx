@@ -561,7 +561,7 @@ export default function SocialActivitySheet({
 
 const styles = StyleSheet.create({
   backdrop: {
-    backgroundColor: 'rgba(30, 16, 60, 0.34)',
+    backgroundColor: 'rgba(34, 43, 67, 0.34)',
     flex: 1,
     justifyContent: 'flex-end',
   },
@@ -576,7 +576,7 @@ const styles = StyleSheet.create({
   },
   handle: {
     alignSelf: 'center',
-    backgroundColor: '#DCD3EE',
+    backgroundColor: '#D5DDF1',
     borderRadius: 3,
     height: 5,
     marginBottom: 16,
@@ -613,7 +613,7 @@ const styles = StyleSheet.create({
     width: 32,
   },
   tabs: {
-    backgroundColor: '#F6F3FB',
+    backgroundColor: '#F3F5FF',
     borderRadius: 14,
     flexDirection: 'row',
     marginTop: 18,
@@ -647,8 +647,8 @@ const styles = StyleSheet.create({
   },
   card: {
     alignItems: 'flex-start',
-    backgroundColor: '#FBFAFD',
-    borderColor: '#ECE6F6',
+    backgroundColor: '#F9FAFF',
+    borderColor: '#E0E6F4',
     borderRadius: 18,
     borderWidth: 1,
     flexDirection: 'row',
@@ -658,7 +658,7 @@ const styles = StyleSheet.create({
   },
   groupAvatar: {
     alignItems: 'center',
-    backgroundColor: '#EEE7FF',
+    backgroundColor: '#EEF2FF',
     borderRadius: 22,
     height: 44,
     justifyContent: 'center',
@@ -666,7 +666,7 @@ const styles = StyleSheet.create({
   },
   personAvatar: {
     alignItems: 'center',
-    backgroundColor: '#E9F5FF',
+    backgroundColor: '#EAF2FF',
     borderRadius: 22,
     height: 44,
     justifyContent: 'center',
@@ -710,7 +710,7 @@ const styles = StyleSheet.create({
   secondaryButton: {
     alignItems: 'center',
     backgroundColor: colors.neutral.white,
-    borderColor: '#DED6EA',
+    borderColor: '#D7DFF2',
     borderRadius: 12,
     borderWidth: 1,
     justifyContent: 'center',
@@ -747,7 +747,7 @@ const styles = StyleSheet.create({
   },
   emptyIcon: {
     alignItems: 'center',
-    backgroundColor: '#F0EAFF',
+    backgroundColor: '#EEF2FF',
     borderRadius: 26,
     height: 52,
     justifyContent: 'center',

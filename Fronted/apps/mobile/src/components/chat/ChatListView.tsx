@@ -142,8 +142,8 @@ const styles = StyleSheet.create({
   },
   archivedRow: {
     alignItems: 'center',
-    backgroundColor: '#FFF1EB',
-    borderColor: '#F2D5C8',
+    backgroundColor: '#EEF4FF',
+    borderColor: '#D7E1F4',
     borderRadius: 18,
     borderWidth: 1,
     flexDirection: 'row',
@@ -151,7 +151,7 @@ const styles = StyleSheet.create({
     marginBottom: 8,
     paddingHorizontal: 14,
     paddingVertical: 12,
-    shadowColor: '#D4A28E',
+    shadowColor: '#9DAACD',
     shadowOffset: {
       width: 0,
       height: 3,
@@ -162,8 +162,8 @@ const styles = StyleSheet.create({
   },
   archivedIcon: {
     alignItems: 'center',
-    backgroundColor: '#FBE1D5',
-    borderColor: '#F0C7B5',
+    backgroundColor: '#E4ECFF',
+    borderColor: '#CBD9F3',
     borderRadius: 13,
     borderWidth: 1,
     height: 40,
@@ -175,12 +175,12 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   archivedTitle: {
-    color: '#7A4D45',
+    color: '#3F527B',
     fontSize: 14,
     fontWeight: '700',
   },
   archivedSubtitle: {
-    color: '#A17068',
+    color: '#7080A0',
     fontSize: 12,
     marginTop: 2,
   },

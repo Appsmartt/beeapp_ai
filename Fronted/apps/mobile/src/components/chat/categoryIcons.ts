@@ -28,6 +28,6 @@ export const CATEGORY_COLORS = [
   '#FCE7F3',
   '#ECFDF5',
   '#FEF3C7',
-  '#F3E8FF',
+  '#EEF2FF',
   colors.neutral.gray100,
 ];

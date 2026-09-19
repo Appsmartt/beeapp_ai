@@ -150,7 +150,7 @@ const styles = StyleSheet.create({
   chipActive: { backgroundColor: colors.brand.primary },
   chipText: { fontSize: 11, color: colors.neutral.gray700, fontWeight: '500' },
   chipTextActive: { color: colors.neutral.white },
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(34,43,67,0.44)', justifyContent: 'flex-end' },
   modalContent: { backgroundColor: colors.neutral.white, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, maxHeight: '60%' },
   modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
   modalTitle: { fontSize: 16, fontWeight: '700', color: colors.neutral.text },

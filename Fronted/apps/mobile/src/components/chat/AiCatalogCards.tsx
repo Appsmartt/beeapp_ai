@@ -52,7 +52,7 @@ export default function AiCatalogCards({ onContact }: AiCatalogCardsProps) {
               <View style={styles.priceRatingRow}>
                 <Text style={styles.priceText}>{priceLabel}</Text>
                 <View style={styles.ratingBox}>
-                  <Star size={12} color="#D97706" fill="#D97706" style={{ marginRight: 2 }} />
+                  <Star size={12} color="#C78335" fill="#C78335" style={{ marginRight: 2 }} />
                   <Text style={styles.ratingText}>{item.rating}</Text>
                 </View>
               </View>
@@ -111,7 +111,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.neutral.gray200,
     padding: 12,
-    shadowColor: '#000',
+    shadowColor: '#8D9ABE',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.05,
     shadowRadius: 4,

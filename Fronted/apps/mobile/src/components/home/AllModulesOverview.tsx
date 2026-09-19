@@ -476,7 +476,7 @@ export default function AllModulesOverview() {
               >
                 <Sparkles
                   size={18}
-                  color="#7C3AED"
+                  color="#665AC0"
                 />
 
                 <Text style={styles.aiTitle}>
@@ -531,7 +531,7 @@ export default function AllModulesOverview() {
             <View style={styles.aiBotCircle}>
               <Bot
                 size={16}
-                color="#7C3AED"
+                color="#665AC0"
               />
             </View>
           </View>
@@ -546,7 +546,7 @@ export default function AllModulesOverview() {
             <View style={styles.cardHeaderRow}>
               <MessageCircle
                 size={26}
-                color="#7C3AED"
+                color="#665AC0"
               />
             </View>
 
@@ -725,12 +725,12 @@ export default function AllModulesOverview() {
                 {nextCalendarEvent.isVirtual ? (
                   <Video
                     size={13}
-                    color="#6025D2B3"
+                    color="#7567D9B3"
                   />
                 ) : (
                   <Calendar
                     size={13}
-                    color="#6025D2B3"
+                    color="#7567D9B3"
                   />
                 )}
 
@@ -765,7 +765,7 @@ export default function AllModulesOverview() {
             <View style={styles.cardHeaderRow}>
               <FileText
                 size={26}
-                color="#7C3AED"
+                color="#665AC0"
               />
             </View>
 
