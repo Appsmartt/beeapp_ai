@@ -646,7 +646,7 @@ export default function AddMemberModal(
 
 const styles = StyleSheet.create({
   backdrop: {
-    backgroundColor: 'rgba(26, 26, 46, 0.4)',
+    backgroundColor: 'rgba(34, 43, 67, 0.38)',
     flex: 1,
     justifyContent: 'flex-end',
   },
@@ -734,8 +734,8 @@ const styles = StyleSheet.create({
   },
   avatar: {
     alignItems: 'center',
-    backgroundColor: '#F3E8FF',
-    borderColor: '#DDD6FE',
+    backgroundColor: '#EEF2FF',
+    borderColor: '#D7DFF2',
     borderRadius: 20,
     borderWidth: 1,
     height: 40,

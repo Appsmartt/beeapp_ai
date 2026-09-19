@@ -71,8 +71,8 @@ export default function ChatTabs({
 
 const styles = StyleSheet.create({
   row: {
-    backgroundColor: '#EEE7FA',
-    borderColor: '#D9C8EE',
+    backgroundColor: '#EEF2FF',
+    borderColor: '#D7DFF2',
     borderRadius: 17,
     borderWidth: 1,
     flexDirection: 'row',
@@ -89,7 +89,7 @@ const styles = StyleSheet.create({
   tabActive: {
     backgroundColor: colors.neutral.white,
     elevation: 2,
-    shadowColor: '#A38AC7',
+    shadowColor: '#9CA9CF',
     shadowOffset: {
       width: 0,
       height: 2,
@@ -98,12 +98,12 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
   },
   label: {
-    color: '#836C9B',
+    color: '#697792',
     fontSize: 13,
     fontWeight: '600',
   },
   labelActive: {
-    color: '#6E4C9E',
+    color: '#6056B8',
     fontWeight: '800',
   },
 });

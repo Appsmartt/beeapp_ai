@@ -181,7 +181,7 @@ export default function StatusCirclesRow({
 const styles = StyleSheet.create({
   container: {
     paddingVertical: 14,
-    backgroundColor: '#FCFAFF',
+    backgroundColor: '#F9FAFF',
   },
   scroll: {
     alignItems: 'center',
@@ -196,12 +196,12 @@ const styles = StyleSheet.create({
     width: 56,
     height: 56,
     borderRadius: 28,
-    backgroundColor: '#F4E8FA',
+    backgroundColor: '#EEF2FF',
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 2,
-    borderColor: '#D8BFE9',
-    shadowColor: '#9CAED8',
+    borderColor: '#D7DFF2',
+    shadowColor: '#9CA9CF',
     shadowOffset: {
       width: 0,
       height: 3,
@@ -213,7 +213,7 @@ const styles = StyleSheet.create({
   userText: {
     fontSize: 13,
     fontWeight: '700',
-    color: '#7B5E9F',
+    color: '#665AC0',
   },
   addBadge: {
     position: 'absolute',
@@ -222,9 +222,9 @@ const styles = StyleSheet.create({
     width: 20,
     height: 20,
     borderRadius: 10,
-    backgroundColor: '#C78EBA',
+    backgroundColor: '#A88BC5',
     borderWidth: 2,
-    borderColor: '#FCFAFF',
+    borderColor: '#F9FAFF',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -236,8 +236,8 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#EEF5FF',
-    shadowColor: '#A68ABF',
+    backgroundColor: '#EEF4FF',
+    shadowColor: '#9CA9CF',
     shadowOffset: {
       width: 0,
       height: 3,
@@ -247,10 +247,10 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   circleUnseen: {
-    borderColor: '#86A9DC',
+    borderColor: '#9FB6E0',
   },
   circleViewed: {
-    borderColor: '#D5DFEA',
+    borderColor: '#D7E1F0',
   },
   innerCircle: {
     flex: 1,
@@ -259,13 +259,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.55)',
+    borderColor: 'rgba(255, 255, 255, 0.62)',
   },
   initials: {
     fontSize: 14,
     fontWeight: '700',
     color: colors.neutral.white,
-    textShadowColor: 'rgba(47, 39, 70, 0.18)',
+    textShadowColor: 'rgba(38, 49, 77, 0.18)',
     textShadowOffset: {
       width: 0,
       height: 1,
@@ -276,7 +276,7 @@ const styles = StyleSheet.create({
     marginTop: 7,
     fontSize: 11,
     fontWeight: '600',
-    color: '#6C7891',
+    color: '#687892',
     textAlign: 'center',
   },
   placeholderWrap: {
@@ -286,7 +286,7 @@ const styles = StyleSheet.create({
     width: 56,
     height: 56,
     borderRadius: 28,
-    backgroundColor: '#E8F1FC',
+    backgroundColor: '#EAF2FF',
   },
   placeholderLabel: {
     width: 42,

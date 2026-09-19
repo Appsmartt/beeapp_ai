@@ -94,7 +94,7 @@ export default function ForwardMessageModal({
 const styles = StyleSheet.create({
   backdrop: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    backgroundColor: 'rgba(34, 43, 67, 0.44)',
     justifyContent: 'center',
     padding: 20,
   },
@@ -103,7 +103,7 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     maxHeight: 440,
     padding: 16,
-    shadowColor: '#000',
+    shadowColor: '#8D9ABE',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.15,
     shadowRadius: 10,
@@ -157,7 +157,7 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: '#F3E8FF',
+    backgroundColor: '#EEF2FF',
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 10,

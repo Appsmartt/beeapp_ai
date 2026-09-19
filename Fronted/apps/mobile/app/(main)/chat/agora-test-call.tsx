@@ -507,7 +507,7 @@ export default function AgoraTestCallScreen() {
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: '#11101E',
+    backgroundColor: '#222B43',
     flex: 1,
   },
   content: {
@@ -540,11 +540,11 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   errorText: {
-    color: '#FCA5A5',
+    color: '#F4A3B3',
   },
   voiceState: {
     alignItems: 'center',
-    backgroundColor: '#242236',
+    backgroundColor: '#303B5A',
     borderRadius: 20,
     flex: 1,
     justifyContent: 'center',
@@ -556,7 +556,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   videoArea: {
-    backgroundColor: '#242236',
+    backgroundColor: '#303B5A',
     borderRadius: 20,
     flex: 1,
     minHeight: 280,
@@ -587,7 +587,7 @@ const styles = StyleSheet.create({
   },
   controlButton: {
     alignItems: 'center',
-    backgroundColor: '#403C5F',
+    backgroundColor: '#465373',
     borderRadius: 12,
     justifyContent: 'center',
     minHeight: 46,

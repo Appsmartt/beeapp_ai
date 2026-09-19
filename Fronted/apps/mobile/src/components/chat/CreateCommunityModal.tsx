@@ -94,7 +94,7 @@ export default function CreateCommunityModal({ visible, onCreate, onClose }: Cre
 }
 
 const styles = StyleSheet.create({
-  backdrop: { flex: 1, backgroundColor: 'rgba(26, 26, 46, 0.4)', justifyContent: 'flex-end' },
+  backdrop: { flex: 1, backgroundColor: 'rgba(34, 43, 67, 0.38)', justifyContent: 'flex-end' },
   backdropTouch: { flex: 1 },
   sheet: {
     backgroundColor: colors.neutral.white,

@@ -220,7 +220,7 @@ export default function ChatOptionsSheet({
 
 const styles = StyleSheet.create({
   modalBg: {
-    backgroundColor: 'rgba(26, 26, 46, 0.4)',
+    backgroundColor: 'rgba(34, 43, 67, 0.38)',
     flex: 1,
     justifyContent: 'flex-end',
   },

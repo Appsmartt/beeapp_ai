@@ -294,7 +294,7 @@ export default function MessageBubble({
                     styles.replyText,
                     {
                       color: isUser
-                        ? '#E2D8FF'
+                        ? '#E6E3FF'
                         : colors.neutral.gray600,
                     },
                   ]}
@@ -312,7 +312,7 @@ export default function MessageBubble({
                 styles.destroyedText,
                 {
                   color: isUser
-                    ? '#E2D8FF'
+                    ? '#E6E3FF'
                     : colors.neutral.gray500,
                 },
               ]}
@@ -405,7 +405,7 @@ export default function MessageBubble({
                         styles.fileSize,
                         {
                           color: isUser
-                            ? '#DDD6FE'
+                            ? '#DDE3FF'
                             : colors.neutral.gray600,
                         },
                       ]}
@@ -493,7 +493,7 @@ export default function MessageBubble({
                         styles.audioDuration,
                         {
                           color: isUser
-                            ? '#E2D8FF'
+                            ? '#E6E3FF'
                             : colors.neutral.gray600,
                         },
                       ]}
@@ -508,7 +508,7 @@ export default function MessageBubble({
                         styles.audioError,
                         {
                           color: isUser
-                            ? '#FEE2E2'
+                            ? '#FFE1E8'
                             : colors.semantic.error,
                         },
                       ]}
@@ -528,7 +528,7 @@ export default function MessageBubble({
                   styles.editedText,
                   {
                     color: isUser
-                      ? '#DDD6FE'
+                      ? '#DDE3FF'
                       : colors.neutral.gray500,
                   },
                 ]}
@@ -553,14 +553,14 @@ export default function MessageBubble({
                 {status === 'sent' ? (
                   <Check
                     size={12}
-                    color="#DDD6FE"
+                    color="#DDE3FF"
                   />
                 ) : null}
 
                 {status === 'delivered' ? (
                   <CheckCheck
                     size={12}
-                    color="#DDD6FE"
+                    color="#DDE3FF"
                   />
                 ) : null}
 
@@ -618,7 +618,7 @@ const styles = StyleSheet.create({
     paddingBottom: 6,
     paddingHorizontal: 12,
     paddingTop: 10,
-    shadowColor: '#000',
+    shadowColor: '#8D9ABE',
     shadowOffset: {
       height: 1,
       width: 0,
@@ -678,7 +678,7 @@ const styles = StyleSheet.create({
     padding: 6,
   },
   replyUser: {
-    backgroundColor: '#5219C4',
+    backgroundColor: '#5F52C5',
   },
   replyOther: {
     backgroundColor: colors.neutral.gray50,

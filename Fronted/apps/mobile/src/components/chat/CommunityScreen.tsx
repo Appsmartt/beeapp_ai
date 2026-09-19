@@ -50,7 +50,7 @@ export default function CommunityScreen() {
       authorId: CURRENT_USER_ID,
       authorName: 'Santiago Valencia',
       authorInitials: 'SV',
-      authorColor: '#F3E8FF',
+      authorColor: '#EEF2FF',
       text,
       timestamp: 'Ahora',
       reactions: { like: 0, love: 0, laugh: 0 },

@@ -292,7 +292,7 @@ export default function DiscoverPeopleModal({
 
 const styles = StyleSheet.create({
   backdrop: {
-    backgroundColor: 'rgba(30, 16, 60, 0.34)',
+    backgroundColor: 'rgba(34, 43, 67, 0.34)',
     flex: 1,
     justifyContent: 'flex-end',
   },
@@ -307,7 +307,7 @@ const styles = StyleSheet.create({
   },
   handle: {
     alignSelf: 'center',
-    backgroundColor: '#DCD3EE',
+    backgroundColor: '#D5DDF1',
     borderRadius: 3,
     height: 5,
     marginBottom: 16,
@@ -339,8 +339,8 @@ const styles = StyleSheet.create({
   },
   searchBox: {
     alignItems: 'center',
-    backgroundColor: '#F8F6FC',
-    borderColor: '#E7DFFF',
+    backgroundColor: '#F7F8FF',
+    borderColor: '#D7DFF2',
     borderRadius: radii.lg,
     borderWidth: 1,
     flexDirection: 'row',
@@ -368,7 +368,7 @@ const styles = StyleSheet.create({
   },
   avatar: {
     alignItems: 'center',
-    backgroundColor: '#EEE7FF',
+    backgroundColor: '#EEF2FF',
     borderRadius: 22,
     height: 44,
     justifyContent: 'center',
@@ -404,7 +404,7 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
   },
   followButtonMuted: {
-    backgroundColor: '#F1EDFA',
+    backgroundColor: '#F3F5FF',
   },
   followButtonText: {
     color: colors.neutral.white,
@@ -422,7 +422,7 @@ const styles = StyleSheet.create({
   },
   stateIcon: {
     alignItems: 'center',
-    backgroundColor: '#F0EAFF',
+    backgroundColor: '#EEF2FF',
     borderRadius: 26,
     height: 52,
     justifyContent: 'center',

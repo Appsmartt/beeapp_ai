@@ -1081,13 +1081,13 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   voiceContainer: {
-    backgroundColor: '#4C1D95',
+    backgroundColor: '#5F52C5',
   },
   videoContainer: {
-    backgroundColor: '#11101E',
+    backgroundColor: '#222B43',
   },
   errorContainer: {
-    backgroundColor: '#11101E',
+    backgroundColor: '#222B43',
     flex: 1,
   },
   errorContent: {
@@ -1159,7 +1159,7 @@ const styles = StyleSheet.create({
     borderWidth: 5,
     height: 152,
     justifyContent: 'center',
-    shadowColor: '#000',
+    shadowColor: '#8D9ABE',
     shadowOffset: {
       height: 10,
       width: 0,
@@ -1188,7 +1188,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   videoArea: {
-    backgroundColor: '#242236',
+    backgroundColor: '#303B5A',
     borderRadius: 22,
     height: '100%',
     maxHeight: 560,
@@ -1206,7 +1206,7 @@ const styles = StyleSheet.create({
   },
   avatarCircle: {
     alignItems: 'center',
-    backgroundColor: '#5B21B6',
+    backgroundColor: '#665AC0',
     borderRadius: 42,
     height: 84,
     justifyContent: 'center',
@@ -1229,7 +1229,7 @@ const styles = StyleSheet.create({
     marginTop: 7,
   },
   localVideo: {
-    backgroundColor: '#171625',
+    backgroundColor: '#29334F',
     borderColor: colors.neutral.white,
     borderRadius: 13,
     borderWidth: 2,
@@ -1242,7 +1242,7 @@ const styles = StyleSheet.create({
   },
   localVideoOff: {
     alignItems: 'center',
-    backgroundColor: '#302E44',
+    backgroundColor: '#3A4667',
     borderColor: colors.neutral.white,
     borderRadius: 13,
     borderWidth: 2,
@@ -1265,8 +1265,8 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   errorCard: {
-    backgroundColor: 'rgba(127, 29, 29, 0.84)',
-    borderColor: 'rgba(254, 202, 202, 0.58)',
+    backgroundColor: 'rgba(166, 54, 79, 0.78)',
+    borderColor: 'rgba(255, 211, 221, 0.64)',
     borderRadius: 12,
     borderWidth: 1,
     marginTop: 24,
@@ -1274,7 +1274,7 @@ const styles = StyleSheet.create({
     padding: 13,
   },
   errorCardText: {
-    color: '#FEE2E2',
+    color: '#FFE1E8',
     fontSize: 12,
     lineHeight: 18,
     textAlign: 'center',
@@ -1311,7 +1311,7 @@ const styles = StyleSheet.create({
     height: 62,
     justifyContent: 'center',
     marginLeft: 4,
-    shadowColor: '#000',
+    shadowColor: '#8D9ABE',
     shadowOffset: {
       height: 5,
       width: 0,

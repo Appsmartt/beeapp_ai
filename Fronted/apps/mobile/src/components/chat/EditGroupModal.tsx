@@ -260,7 +260,7 @@ export default function EditGroupModal({
 
 const styles = StyleSheet.create({
   backdrop: {
-    backgroundColor: 'rgba(26, 26, 46, 0.4)',
+    backgroundColor: 'rgba(34, 43, 67, 0.38)',
     flex: 1,
     justifyContent: 'flex-end',
   },
@@ -334,7 +334,7 @@ const styles = StyleSheet.create({
   },
   policyIcon: {
     alignItems: 'center',
-    backgroundColor: '#F3E8FF',
+    backgroundColor: '#EEF2FF',
     borderRadius: 18,
     height: 36,
     justifyContent: 'center',

@@ -63,7 +63,7 @@ export default function SearchFilterMenu({ anchor, activeFilter, onSelect, onClo
 const styles = StyleSheet.create({
   backdrop: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.08)',
+    backgroundColor: 'rgba(34, 43, 67, 0.10)',
   },
   menu: {
     position: 'absolute',
@@ -73,7 +73,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.neutral.gray200,
     paddingVertical: spacing.sm,
-    shadowColor: '#000',
+    shadowColor: '#8D9ABE',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.12,
     shadowRadius: 10,
@@ -97,7 +97,7 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   itemActive: {
-    backgroundColor: '#F9F5FF',
+    backgroundColor: '#F3F5FF',
   },
   itemText: {
     fontSize: 13,

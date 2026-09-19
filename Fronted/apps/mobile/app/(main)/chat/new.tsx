@@ -474,8 +474,8 @@ const styles = StyleSheet.create({
   },
   avatarCircle: {
     alignItems: 'center',
-    backgroundColor: '#F3E8FF',
-    borderColor: '#DDD6FE',
+    backgroundColor: '#EEF2FF',
+    borderColor: '#D7DFF2',
     borderRadius: 20,
     borderWidth: 1,
     height: 40,
@@ -512,7 +512,7 @@ const styles = StyleSheet.create({
   },
   loadingOverlay: {
     alignItems: 'center',
-    backgroundColor: 'rgba(26, 26, 46, 0.36)',
+    backgroundColor: 'rgba(34, 43, 67, 0.34)',
     flex: 1,
     justifyContent: 'center',
     padding: 24,

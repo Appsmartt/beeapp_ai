@@ -1,20 +1,20 @@
 import { StyleSheet } from 'react-native';
 import { colors, spacing } from '@beeapp/design-system';
 
-const BEE_PURPLE = '#7427D5';
-const BEE_PURPLE_DARK = '#5E1ABF';
-const BEE_PURPLE_LIGHT = '#F6EAFE';
-const BEE_PURPLE_BORDER = '#E8D1F1';
-const BEE_TEXT = '#261743';
+const BEE_PURPLE = '#7567D9';
+const BEE_PURPLE_DARK = '#5F52C5';
+const BEE_PURPLE_LIGHT = '#EEF2FF';
+const BEE_PURPLE_BORDER = '#D7DFF2';
+const BEE_TEXT = '#26314D';
 
 export const styles = StyleSheet.create({
     safeArea: {
         flex: 1,
-        backgroundColor: '#FFFCF9',
+        backgroundColor: '#F7F8FF',
     },
     container: {
         flex: 1,
-        backgroundColor: '#FFFCF9',
+        backgroundColor: '#F7F8FF',
     },
     content: {
         paddingHorizontal: 20,
@@ -60,20 +60,20 @@ export const styles = StyleSheet.create({
         fontSize: 13,
         lineHeight: 18,
         fontWeight: '400',
-        color: '#7865AD',
+        color: '#6C7892',
     },
     avatar: {
         width: 42,
         height: 42,
         borderRadius: 21,
-        backgroundColor: '#E6C7EE',
+        backgroundColor: '#E7ECFF',
         alignItems: 'center',
         justifyContent: 'center',
     },
     avatarText: {
         fontSize: 15,
         fontWeight: '600',
-        color: '#6F409B',
+        color: '#6558B4',
     },
 
     aiSearchCard: {
@@ -98,7 +98,7 @@ export const styles = StyleSheet.create({
         borderRadius: 95,
         right: -78,
         top: 18,
-        backgroundColor: 'rgba(173, 92, 255, 0.28)',
+        backgroundColor: 'rgba(150, 161, 255, 0.28)',
     },
     aiGlowSmall: {
         position: 'absolute',
@@ -107,7 +107,7 @@ export const styles = StyleSheet.create({
         borderRadius: 58,
         right: -12,
         top: 36,
-        backgroundColor: 'rgba(202, 137, 255, 0.16)',
+        backgroundColor: 'rgba(190, 202, 255, 0.24)',
     },
     aiSearchTitle: {
         fontSize: 18,
@@ -145,7 +145,7 @@ export const styles = StyleSheet.create({
         fontSize: 12,
         lineHeight: 17,
         fontWeight: '400',
-        color: '#695E78',
+        color: '#697792',
     },
     voiceButton: {
         width: 34,
@@ -175,7 +175,7 @@ export const styles = StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'center',
         backgroundColor: colors.neutral.white,
-        shadowColor: '#A788B2',
+        shadowColor: '#9CA9CF',
         shadowOffset: { width: 0, height: 3 },
         shadowOpacity: 0.08,
         shadowRadius: 7,
@@ -197,7 +197,7 @@ export const styles = StyleSheet.create({
         fontSize: 12,
         lineHeight: 17,
         fontWeight: '400',
-        color: '#8A68B5',
+        color: '#6D6DB4',
     },
     businessArrowButton: {
         width: 36,
@@ -230,9 +230,9 @@ export const styles = StyleSheet.create({
         justifyContent: 'center',
         borderRadius: 14,
         borderWidth: 1,
-        borderColor: '#EEE8F1',
+        borderColor: '#E0E6F4',
         backgroundColor: colors.neutral.white,
-        shadowColor: '#2A1A45',
+        shadowColor: '#8D9ABE',
         shadowOffset: { width: 0, height: 3 },
         shadowOpacity: 0.04,
         shadowRadius: 8,
@@ -251,7 +251,7 @@ export const styles = StyleSheet.create({
         fontSize: 11,
         lineHeight: 14,
         fontWeight: '500',
-        color: '#38294E',
+        color: '#394561',
         textAlign: 'center',
     },
 
@@ -266,12 +266,12 @@ export const styles = StyleSheet.create({
         minHeight: 138,
         borderRadius: 18,
         borderWidth: 1,
-        borderColor: '#F0EAF3',
+        borderColor: '#E0E6F4',
         backgroundColor: colors.neutral.white,
         paddingHorizontal: 18,
         paddingTop: 19,
         paddingBottom: 16,
-        shadowColor: '#2A1A45',
+        shadowColor: '#8D9ABE',
         shadowOffset: { width: 0, height: 4 },
         shadowOpacity: 0.07,
         shadowRadius: 9,
@@ -290,14 +290,14 @@ export const styles = StyleSheet.create({
         fontSize: 15,
         lineHeight: 20,
         fontWeight: '700',
-        color: '#2D2141',
+        color: '#303B5A',
     },
     categorySubtitle: {
         marginTop: 3,
         fontSize: 11,
         lineHeight: 15,
         fontWeight: '400',
-        color: '#8A72B2',
+        color: '#6C7892',
     },
 
     footer: {
@@ -309,13 +309,13 @@ export const styles = StyleSheet.create({
         fontSize: 10,
         lineHeight: 14,
         fontWeight: '400',
-        color: '#594C67',
+        color: '#68738C',
     },
     footerLine: {
         width: 34,
         height: 3,
         borderRadius: 2,
         marginTop: 6,
-        backgroundColor: '#D8AEE5',
+        backgroundColor: '#C8D4F2',
     },
 });

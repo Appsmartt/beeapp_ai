@@ -1490,17 +1490,17 @@ export default function ChatListScreen() {
 
 const styles = StyleSheet.create({
   safeArea: {
-    backgroundColor: '#FBF9FE',
+    backgroundColor: '#F7F8FF',
     flex: 1,
   },
   container: {
-    backgroundColor: '#FAF8FD',
+    backgroundColor: '#F4F6FF',
     flex: 1,
   },
   header: {
     alignItems: 'center',
-    backgroundColor: '#FDFBFF',
-    borderBottomColor: '#E3D9F0',
+    backgroundColor: '#FFFFFF',
+    borderBottomColor: '#DDE4F4',
     borderBottomWidth: 1,
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -1510,7 +1510,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingTop: 12,
     borderRadius: 22,
-    shadowColor: '#B29ACE',
+    shadowColor: '#9CA9CF',
     shadowOffset: {
       width: 0,
       height: 4,
@@ -1520,7 +1520,7 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   title: {
-    color: '#40304F',
+    color: '#303B5A',
     fontSize: 23,
     fontWeight: '800',
     letterSpacing: -0.3,
@@ -1532,8 +1532,8 @@ const styles = StyleSheet.create({
   },
   newChatBtn: {
     alignItems: 'center',
-    backgroundColor: '#F4ECFC',
-    borderColor: '#DDCFEE',
+    backgroundColor: '#EEF2FF',
+    borderColor: '#D7DFF2',
     borderRadius: 14,
     borderWidth: 1,
     height: 40,
@@ -1558,8 +1558,8 @@ const styles = StyleSheet.create({
   },
   errorBox: {
     alignItems: 'center',
-    backgroundColor: '#FEF2F2',
-    borderBottomColor: '#FECACA',
+    backgroundColor: '#FFF2F5',
+    borderBottomColor: '#F3C4CC',
     borderBottomWidth: 1,
     paddingHorizontal: 20,
     paddingVertical: 10,
@@ -1577,8 +1577,8 @@ const styles = StyleSheet.create({
   },
   emptyOverlay: {
     alignItems: 'center',
-    backgroundColor: '#FCFAFF',
-    borderColor: '#E9E1F4',
+    backgroundColor: '#F9FAFF',
+    borderColor: '#E0E6F4',
     borderRadius: 22,
     borderWidth: 1,
     marginHorizontal: 16,
@@ -1600,10 +1600,10 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   statusesSection: {
-    backgroundColor: '#FCFAFF',
-    borderBottomColor: '#E8DEEF',
+    backgroundColor: '#F9FAFF',
+    borderBottomColor: '#DDE4F4',
     borderBottomWidth: 1,
-    borderTopColor: '#EEE8F6',
+    borderTopColor: '#E7ECF7',
     borderTopWidth: 1,
     marginHorizontal: 12,
     marginTop: 10,

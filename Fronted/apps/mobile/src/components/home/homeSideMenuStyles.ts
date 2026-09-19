@@ -8,7 +8,7 @@ export const sideMenuStyles = StyleSheet.create({
   overlay: {
     flex: 1,
     flexDirection: 'row',
-    backgroundColor: 'rgba(26, 26, 46, 0.45)',
+    backgroundColor: 'rgba(34, 43, 67, 0.42)',
   },
   backdrop: {
     flex: 1,

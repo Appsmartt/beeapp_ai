@@ -680,8 +680,8 @@ const styles = StyleSheet.create({
     paddingBottom: 140,
   },
   createdGroupBox: {
-    backgroundColor: '#ECFDF5',
-    borderColor: '#A7F3D0',
+    backgroundColor: '#EAF7F0',
+    borderColor: '#BFE6D2',
     borderRadius: 10,
     borderWidth: 1,
     marginHorizontal: spacing.md,
@@ -689,12 +689,12 @@ const styles = StyleSheet.create({
     padding: 12,
   },
   createdGroupTitle: {
-    color: '#166534',
+    color: '#3E866A',
     fontSize: 13,
     fontWeight: '800',
   },
   createdGroupText: {
-    color: '#166534',
+    color: '#3E866A',
     fontSize: 12,
     lineHeight: 18,
     marginTop: 4,
@@ -735,7 +735,7 @@ const styles = StyleSheet.create({
   },
   postingPolicyIcon: {
     alignItems: 'center',
-    backgroundColor: '#F3E8FF',
+    backgroundColor: '#EEF2FF',
     borderRadius: 18,
     height: 36,
     justifyContent: 'center',
@@ -765,8 +765,8 @@ const styles = StyleSheet.create({
   },
   errorBox: {
     alignItems: 'center',
-    backgroundColor: '#FEF2F2',
-    borderColor: '#FECACA',
+    backgroundColor: '#FFF2F5',
+    borderColor: '#F3C4CC',
     borderRadius: 10,
     borderWidth: 1,
     marginHorizontal: spacing.md,

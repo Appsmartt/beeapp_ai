@@ -649,7 +649,7 @@ const styles = StyleSheet.create({
   },
   previewFileIcon: {
     alignItems: 'center',
-    backgroundColor: '#F0EAFF',
+    backgroundColor: '#EEF2FF',
     borderRadius: 8,
     height: 48,
     justifyContent: 'center',

@@ -101,7 +101,7 @@ export default function ChatCreateMenu({
 
 const styles = StyleSheet.create({
   backdrop: {
-    backgroundColor: 'rgba(26, 26, 46, 0.2)',
+    backgroundColor: 'rgba(34, 43, 67, 0.22)',
     flex: 1,
   },
   menu: {

@@ -103,7 +103,7 @@ export default function ChatMessageMenuModal({
                 activeOpacity={0.7}
                 onPress={() => onSelectAction('destroy')}
               >
-                <Bomb size={18} color="#EF4444" />
+                <Bomb size={18} color="#D85A70" />
                 <Text style={[styles.menuText, styles.destroyText]}>Destruir</Text>
               </TouchableOpacity>
             </View>
@@ -117,7 +117,7 @@ export default function ChatMessageMenuModal({
 const styles = StyleSheet.create({
   backdrop: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.4)',
+    backgroundColor: 'rgba(34, 43, 67, 0.38)',
     justifyContent: 'center',
     alignItems: 'center',
     padding: 24,
@@ -127,7 +127,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.neutral.white,
     borderRadius: 20,
     paddingVertical: 6,
-    shadowColor: '#000',
+    shadowColor: '#8D9ABE',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.15,
     shadowRadius: 10,
@@ -151,6 +151,6 @@ const styles = StyleSheet.create({
     color: colors.neutral.text,
   },
   destroyText: {
-    color: '#EF4444',
+    color: '#D85A70',
   },
 });
