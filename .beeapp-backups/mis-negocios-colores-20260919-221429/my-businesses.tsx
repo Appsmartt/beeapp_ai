@@ -175,7 +175,7 @@ export default function BuddyServicesMyBusinessesScreen() {
   return (
     <ScreenSafeArea
       style={{
-        backgroundColor: "#F7F8FF",
+        backgroundColor: "#FFFCF9",
         flex: 1,
       }}
     >
@@ -195,19 +195,19 @@ export default function BuddyServicesMyBusinessesScreen() {
           onPress={() => router.back()}
           style={{
             alignItems: "center",
-            backgroundColor: "#EEF2FF",
+            backgroundColor: "#F4EDF9",
             borderRadius: 14,
             height: 42,
             justifyContent: "center",
             width: 42,
           }}
         >
-          <ArrowLeft color="#5F52C5" size={21} />
+          <ArrowLeft color="#3D245E" size={21} />
         </TouchableOpacity>
 
         <Text
           style={{
-            color: "#26314D",
+            color: "#261743",
             fontSize: 19,
             fontWeight: "800",
           }}
@@ -256,7 +256,7 @@ export default function BuddyServicesMyBusinessesScreen() {
             >
               <Text
                 style={{
-                  color: "#26314D",
+                  color: "#261743",
                   fontSize: 25,
                   fontWeight: "900",
                   letterSpacing: -0.5,
@@ -267,7 +267,7 @@ export default function BuddyServicesMyBusinessesScreen() {
 
               <Text
                 style={{
-                  color: "#6C7892",
+                  color: "#786593",
                   fontSize: 14,
                   lineHeight: 21,
                   marginTop: 7,
@@ -280,7 +280,7 @@ export default function BuddyServicesMyBusinessesScreen() {
             <View
               style={{
                 alignItems: "center",
-                backgroundColor: "#EEF2FF",
+                backgroundColor: "#F1ECFA",
                 borderRadius: 15,
                 justifyContent: "center",
                 minHeight: 48,
@@ -290,7 +290,7 @@ export default function BuddyServicesMyBusinessesScreen() {
             >
               <Text
                 style={{
-                  color: "#7567D9",
+                  color: "#7427D5",
                   fontSize: 16,
                   fontWeight: "900",
                 }}
@@ -300,7 +300,7 @@ export default function BuddyServicesMyBusinessesScreen() {
 
               <Text
                 style={{
-                  color: "#6C7892",
+                  color: "#786593",
                   fontSize: 10,
                   fontWeight: "800",
                   marginTop: 1,
@@ -329,8 +329,8 @@ export default function BuddyServicesMyBusinessesScreen() {
                 }}
                 style={{
                   alignItems: "center",
-                  backgroundColor: "#EEF2FF",
-                  borderColor: "#D7DFF2",
+                  backgroundColor: "#F8F4FF",
+                  borderColor: "#CDB8EC",
                   borderRadius: 20,
                   borderStyle: "dashed",
                   borderWidth: 1.5,
@@ -344,7 +344,7 @@ export default function BuddyServicesMyBusinessesScreen() {
                 <View
                   style={{
                     alignItems: "center",
-                    backgroundColor: "#7567D9",
+                    backgroundColor: "#7427D5",
                     borderRadius: 13,
                     height: 38,
                     justifyContent: "center",
@@ -361,7 +361,7 @@ export default function BuddyServicesMyBusinessesScreen() {
                 >
                   <Text
                     style={{
-                      color: "#5F52C5",
+                      color: "#3D245E",
                       fontSize: 14,
                       fontWeight: "900",
                     }}
@@ -371,7 +371,7 @@ export default function BuddyServicesMyBusinessesScreen() {
 
                   <Text
                     style={{
-                      color: "#6C7892",
+                      color: "#786593",
                       fontSize: 11,
                       marginTop: 2,
                     }}
@@ -418,8 +418,8 @@ export default function BuddyServicesMyBusinessesScreen() {
                 }}
                 style={{
                   alignItems: "center",
-                  backgroundColor: "#EEF2FF",
-                  borderColor: "#D7DFF2",
+                  backgroundColor: "#F8F2FF",
+                  borderColor: "#D8C8EE",
                   borderRadius: 24,
                   borderStyle: "dashed",
                   borderWidth: 1.5,
@@ -433,7 +433,7 @@ export default function BuddyServicesMyBusinessesScreen() {
                 <View
                   style={{
                     alignItems: "center",
-                    backgroundColor: "#7567D9",
+                    backgroundColor: "#7427D5",
                     borderRadius: 16,
                     height: 54,
                     justifyContent: "center",
@@ -451,7 +451,7 @@ export default function BuddyServicesMyBusinessesScreen() {
                 >
                   <Text
                     style={{
-                      color: "#26314D",
+                      color: "#261743",
                       fontSize: 17,
                       fontWeight: "900",
                     }}
@@ -461,7 +461,7 @@ export default function BuddyServicesMyBusinessesScreen() {
 
                   <Text
                     style={{
-                      color: "#6C7892",
+                      color: "#786593",
                       fontSize: 13,
                       lineHeight: 19,
                       marginTop: 4,
@@ -484,14 +484,14 @@ export default function BuddyServicesMyBusinessesScreen() {
       >
         <View
           style={{
-            backgroundColor: "rgba(38, 49, 77, 0.48)",
+            backgroundColor: "rgba(38, 23, 67, 0.48)",
             flex: 1,
             justifyContent: "flex-end",
           }}
         >
           <View
             style={{
-              backgroundColor: "#F7F8FF",
+              backgroundColor: "#FFFCF9",
               borderTopLeftRadius: 28,
               borderTopRightRadius: 28,
               paddingBottom: 30,
@@ -533,20 +533,20 @@ export default function BuddyServicesMyBusinessesScreen() {
                 onPress={closePublicationModal}
                 style={{
                   alignItems: "center",
-                  backgroundColor: "#EEF2FF",
+                  backgroundColor: "#F4EDF9",
                   borderRadius: 14,
                   height: 40,
                   justifyContent: "center",
                   width: 40,
                 }}
               >
-                <X color="#5F52C5" size={20} />
+                <X color="#3D245E" size={20} />
               </TouchableOpacity>
             </View>
 
             <Text
               style={{
-                color: "#26314D",
+                color: "#261743",
                 fontSize: 21,
                 fontWeight: "900",
                 marginTop: 18,
@@ -561,7 +561,7 @@ export default function BuddyServicesMyBusinessesScreen() {
 
             <Text
               style={{
-                color: "#6C7892",
+                color: "#786593",
                 fontSize: 14,
                 lineHeight: 21,
                 marginTop: 8,
@@ -611,7 +611,7 @@ export default function BuddyServicesMyBusinessesScreen() {
 
                 <Text
                   style={{
-                    color: "#5F52C5",
+                    color: "#3D245E",
                     fontSize: 13,
                     fontWeight: "800",
                     marginBottom: 8,
@@ -634,7 +634,7 @@ export default function BuddyServicesMyBusinessesScreen() {
                     borderColor: "#D9CEE5",
                     borderRadius: 13,
                     borderWidth: 1,
-                    color: "#26314D",
+                    color: "#261743",
                     fontSize: 14,
                     minHeight: 98,
                     padding: 13,
@@ -659,7 +659,7 @@ export default function BuddyServicesMyBusinessesScreen() {
                 onPress={closePublicationModal}
                 style={{
                   alignItems: "center",
-                  backgroundColor: "#EEF2FF",
+                  backgroundColor: "#F4EDF9",
                   borderRadius: 13,
                   flex: 1,
                   justifyContent: "center",
@@ -669,7 +669,7 @@ export default function BuddyServicesMyBusinessesScreen() {
               >
                 <Text
                   style={{
-                    color: "#5F52C5",
+                    color: "#3D245E",
                     fontSize: 14,
                     fontWeight: "800",
                   }}

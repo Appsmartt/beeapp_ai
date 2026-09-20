@@ -133,13 +133,13 @@ export default function OwnedCommercialProfileGridCard({
             displayName={profile.display_name}
             logoFileId={profile.logo_file_id}
             logoUrl={profile.logo_url}
-            size={84}
+            size={62}
           />
 
           <View
             style={{
               flex: 1,
-              marginLeft: 14,
+              marginLeft: 12,
               minWidth: 0,
             }}
           >
