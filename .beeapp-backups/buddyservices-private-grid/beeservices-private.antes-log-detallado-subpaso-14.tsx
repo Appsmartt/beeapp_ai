@@ -121,26 +121,22 @@ export default function BeeServicesPrivateScreen() {
       }
 
       console.log(
-        '[BuddyService private feed] image diagnostics',
-        JSON.stringify(
-          response.offers.map((offer) => ({
-            id: offer.id,
-            title: offer.title,
-            offerKind: offer.offer_kind,
-            imageCount: offer.images.length,
-            images: offer.images.map((image) => ({
-              id: image.id,
-              fileId: image.file_id,
-              isPrimary: image.is_primary,
-              mimeType: image.mime_type,
-              sortOrder: image.sort_order,
-              url: image.url,
-              urlExpiresInSeconds: image.url_expires_in_seconds,
-            })),
+        '[BuddyService private feed] offers received',
+        response.offers.map((offer) => ({
+          id: offer.id,
+          title: offer.title,
+          offerKind: offer.offer_kind,
+          imageCount: offer.images.length,
+          images: offer.images.map((image) => ({
+            id: image.id,
+            fileId: image.file_id,
+            isPrimary: image.is_primary,
+            mimeType: image.mime_type,
+            sortOrder: image.sort_order,
+            url: image.url,
+            urlExpiresInSeconds: image.url_expires_in_seconds,
           })),
-          null,
-          2,
-        ),
+        })),
       );
 
       setProductFeed(response.offers);
