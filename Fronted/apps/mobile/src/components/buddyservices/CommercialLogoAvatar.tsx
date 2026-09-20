@@ -21,6 +21,9 @@ interface CommercialLogoAvatarProps {
   logoFileId: string | null;
   logoUrl?: string | null;
   size?: number;
+  width?: number;
+  height?: number;
+  borderRadius?: number;
 }
 
 function getInitials(value: string): string {
@@ -40,6 +43,9 @@ export default function CommercialLogoAvatar({
   logoFileId,
   logoUrl: providedLogoUrl = null,
   size = 56,
+  width,
+  height,
+  borderRadius,
 }: CommercialLogoAvatarProps) {
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
 
@@ -92,10 +98,13 @@ export default function CommercialLogoAvatar({
     };
   }, [logoFileId, providedLogoUrl]);
 
+  const avatarWidth = width ?? size;
+  const avatarHeight = height ?? size;
+
   const avatarStyle = {
-    borderRadius: size / 2,
-    height: size,
-    width: size,
+    borderRadius: borderRadius ?? Math.min(avatarWidth, avatarHeight) / 2,
+    height: avatarHeight,
+    width: avatarWidth,
   };
 
   return (
@@ -123,7 +132,7 @@ export default function CommercialLogoAvatar({
             {
               fontSize: Math.max(
                 13,
-                Math.round(size * 0.31),
+                Math.round(Math.min(avatarWidth, avatarHeight) * 0.31),
               ),
             },
           ]}
