@@ -28,6 +28,8 @@ import { toCommercialUiError } from "../../../src/features/buddyservices/commerc
 import {
   buddyServicesCommercialRoute,
   buddyServicesCreateBusinessRoute,
+  buddyServicesManageProfileRoute,
+  buddyServicesPublicProfileRoute,
 } from "../../../src/features/buddyservices/commercialRoutes";
 import {
   loadOwnedCommercialProfiles,
@@ -382,9 +384,7 @@ export default function BuddyServicesMyBusinessesScreen() {
           ) : (
             <View
               style={{
-                flexDirection: "row",
-                flexWrap: "wrap",
-                gap: 12,
+                gap: 16,
                 marginTop: 22,
               }}
             >
@@ -392,11 +392,17 @@ export default function BuddyServicesMyBusinessesScreen() {
                 <OwnedCommercialProfileGridCard
                   isUpdating={updatingProfileId === profile.id}
                   key={profile.id}
+                  onEdit={() => {
+                    router.push(buddyServicesManageProfileRoute(profile.id));
+                  }}
                   onPress={() => {
                     router.push(buddyServicesCommercialRoute(profile.id));
                   }}
                   onTogglePublication={() => {
                     openPublicationModal(profile);
+                  }}
+                  onView={() => {
+                    router.push(buddyServicesPublicProfileRoute(profile.id));
                   }}
                   profile={profile}
                 />
@@ -412,53 +418,58 @@ export default function BuddyServicesMyBusinessesScreen() {
                 }}
                 style={{
                   alignItems: "center",
-                  backgroundColor: "#F8F4FF",
-                  borderColor: "#CDB8EC",
-                  borderRadius: 22,
+                  backgroundColor: "#F8F2FF",
+                  borderColor: "#D8C8EE",
+                  borderRadius: 24,
                   borderStyle: "dashed",
                   borderWidth: 1.5,
-                  justifyContent: "center",
-                  minHeight: 238,
-                  paddingHorizontal: 12,
-                  width: "48%",
+                  flexDirection: "row",
+                  justifyContent: "flex-start",
+                  minHeight: 112,
+                  paddingHorizontal: 18,
+                  width: "100%",
                 }}
               >
                 <View
                   style={{
                     alignItems: "center",
                     backgroundColor: "#7427D5",
-                    borderRadius: 15,
-                    height: 46,
+                    borderRadius: 16,
+                    height: 54,
                     justifyContent: "center",
-                    width: 46,
+                    width: 54,
                   }}
                 >
                   <Plus color="#FFFFFF" size={23} />
                 </View>
 
-                <Text
+                <View
                   style={{
-                    color: "#3D245E",
-                    fontSize: 14,
-                    fontWeight: "900",
-                    marginTop: 13,
-                    textAlign: "center",
+                    flex: 1,
+                    marginLeft: 14,
                   }}
                 >
-                  Crear negocio
-                </Text>
+                  <Text
+                    style={{
+                      color: "#261743",
+                      fontSize: 17,
+                      fontWeight: "900",
+                    }}
+                  >
+                    Crear negocio
+                  </Text>
 
-                <Text
-                  style={{
-                    color: "#786593",
-                    fontSize: 11,
-                    lineHeight: 16,
-                    marginTop: 5,
-                    textAlign: "center",
-                  }}
-                >
-                  Agrega otro espacio para vender.
-                </Text>
+                  <Text
+                    style={{
+                      color: "#786593",
+                      fontSize: 13,
+                      lineHeight: 19,
+                      marginTop: 4,
+                    }}
+                  >
+                    Agrega otro espacio para vender, prestar servicios o compartir tu proyecto.
+                  </Text>
+                </View>
               </TouchableOpacity>
             </View>
           )}
