@@ -21,6 +21,19 @@ import CalendarEditScreen from '../../../app/(main)/calendar/edit';
 // Contactos ya no es un módulo: solo su detalle sigue registrado, porque se
 // abre desde la pestaña Contactos del módulo de Chat
 import ContactDetailScreen from '../../../app/(main)/contacts/detail';
+import BuddyServicesManageBusinessScreen from '../../../app/(main)/beeservices/manage/[businessId]';
+import BuddyServicesManageProfileScreen from '../../../app/(main)/beeservices/manage/[businessId]/profile';
+import BuddyServicesManageHoursScreen from '../../../app/(main)/beeservices/manage/[businessId]/hours';
+import BuddyServicesOperationScreen from '../../../app/(main)/beeservices/manage/[businessId]/operation';
+import BuddyServicesManagePaymentMethodsScreen from '../../../app/(main)/beeservices/manage/[businessId]/payment-methods';
+import CommercialVerificationScreen from '../../../app/(main)/beeservices/manage/[businessId]/verification';
+import BuddyServicesManageRequestsScreen from '../../../app/(main)/beeservices/manage/[businessId]/requests';
+import BuddyServicesManageRequestDetailScreen from '../../../app/(main)/beeservices/manage/[businessId]/requests/[requestId]';
+import BuddyServicesManageCatalogsScreen from '../../../app/(main)/beeservices/manage/[businessId]/catalogs';
+import BuddyServicesArchivedCatalogsScreen from '../../../app/(main)/beeservices/manage/[businessId]/catalogs/archived';
+import BuddyServicesManageOffersScreen from '../../../app/(main)/beeservices/manage/[businessId]/offers';
+import BuddyServicesManageOfferScreen from '../../../app/(main)/beeservices/manage/[businessId]/offers/[offerId]';
+import BuddyServicesArchivedOffersScreen from '../../../app/(main)/beeservices/manage/[businessId]/offers/archived';
 import AllModulesOverview from '../home/AllModulesOverview';
 import { OVERVIEW_MODULE_ID } from '../home/homeModules';
 
@@ -55,6 +68,19 @@ export const EMBEDDED_SCREENS: Record<string, ComponentType<any>> = {
   '/(main)/calendar/detail': CalendarDetailScreen,
   '/(main)/calendar/edit': CalendarEditScreen,
   '/(main)/contacts/detail': ContactDetailScreen,
+  '/(main)/beeservices/manage/[businessId]': BuddyServicesManageBusinessScreen,
+  '/(main)/beeservices/manage/[businessId]/profile': BuddyServicesManageProfileScreen,
+  '/(main)/beeservices/manage/[businessId]/hours': BuddyServicesManageHoursScreen,
+  '/(main)/beeservices/manage/[businessId]/operation': BuddyServicesOperationScreen,
+  '/(main)/beeservices/manage/[businessId]/payment-methods': BuddyServicesManagePaymentMethodsScreen,
+  '/(main)/beeservices/manage/[businessId]/verification': CommercialVerificationScreen,
+  '/(main)/beeservices/manage/[businessId]/requests': BuddyServicesManageRequestsScreen,
+  '/(main)/beeservices/manage/[businessId]/requests/[requestId]': BuddyServicesManageRequestDetailScreen,
+  '/(main)/beeservices/manage/[businessId]/catalogs': BuddyServicesManageCatalogsScreen,
+  '/(main)/beeservices/manage/[businessId]/catalogs/archived': BuddyServicesArchivedCatalogsScreen,
+  '/(main)/beeservices/manage/[businessId]/offers': BuddyServicesManageOffersScreen,
+  '/(main)/beeservices/manage/[businessId]/offers/[offerId]': BuddyServicesManageOfferScreen,
+  '/(main)/beeservices/manage/[businessId]/offers/archived': BuddyServicesArchivedOffersScreen,
 };
 
 /** Root path of each quick-access module (ids from MODULES_POOL). */

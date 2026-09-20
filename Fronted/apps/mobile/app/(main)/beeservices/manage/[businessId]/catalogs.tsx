@@ -12,6 +12,7 @@ import {
   Archive,
   Edit3,
   FolderPlus,
+  Layers3,
   Plus,
   PauseCircle,
   PlayCircle,
@@ -24,9 +25,9 @@ import {
   useState,
 } from 'react';
 import {
-  useLocalSearchParams,
-  useRouter,
-} from 'expo-router';
+  useModuleNav,
+  useScreenParams,
+} from '../../../../../src/components/embedded/EmbeddedNavContext';
 
 import type {
   CommercialCatalog,
@@ -184,10 +185,10 @@ function catalogStatusCopy(
 }
 
 export default function BuddyServicesManageCatalogsScreen() {
-  const router = useRouter();
-  const params = useLocalSearchParams<{
+  const router = useModuleNav();
+  const params = useScreenParams() as {
     businessId?: string | string[];
-  }>();
+  };
 
   const businessId = normalizeBusinessId(params.businessId);
 
@@ -209,6 +210,9 @@ export default function BuddyServicesManageCatalogsScreen() {
   const [editorError, setEditorError] = useState<
     string | null
   >(null);
+  const publishedCatalogCount = catalogs.filter(
+    (catalog) => catalog.status === 'published',
+  ).length;
 
   const loadCatalogs = useCallback(async () => {
     if (!businessId) {
@@ -383,7 +387,7 @@ export default function BuddyServicesManageCatalogsScreen() {
           alignItems: 'center',
           flexDirection: 'row',
           justifyContent: 'space-between',
-          paddingHorizontal: 18,
+          paddingHorizontal: 20,
           paddingTop: 10,
         }}
       >
@@ -409,15 +413,35 @@ export default function BuddyServicesManageCatalogsScreen() {
           />
         </TouchableOpacity>
 
-        <Text
+        <View
           style={{
-            color: '#261743',
-            fontSize: 18,
-            fontWeight: '800',
+            flex: 1,
+            marginLeft: 12,
           }}
         >
-          Catálogos
-        </Text>
+          <Text
+            style={{
+              color: '#88709E',
+              fontSize: 11,
+              fontWeight: '900',
+              letterSpacing: 0.7,
+            }}
+          >
+            ORGANIZACIÓN COMERCIAL
+          </Text>
+
+          <Text
+            style={{
+              color: '#261743',
+              fontSize: 24,
+              fontWeight: '900',
+              letterSpacing: -0.5,
+              marginTop: 2,
+            }}
+          >
+            Catálogos
+          </Text>
+        </View>
 
         <TouchableOpacity
           accessibilityLabel="Crear catálogo"
@@ -529,33 +553,129 @@ export default function BuddyServicesManageCatalogsScreen() {
       ) : (
         <ScrollView
           contentContainerStyle={{
-            paddingBottom: 38,
-            paddingHorizontal: 18,
-            paddingTop: 22,
+            paddingBottom: 118,
+            paddingHorizontal: 20,
+            paddingTop: 20,
           }}
           showsVerticalScrollIndicator={false}
         >
-          <Text
+          <View
             style={{
-              color: '#261743',
-              fontSize: 22,
-              fontWeight: '900',
+              alignItems: 'center',
+              backgroundColor: '#261743',
+              borderRadius: 20,
+              flexDirection: 'row',
+              padding: 18,
             }}
           >
-            Organiza tus catálogos
-          </Text>
+            <View
+              style={{
+                flex: 1,
+                paddingRight: 14,
+              }}
+            >
+              <Text
+                style={{
+                  color: '#FFFFFF',
+                  fontSize: 17,
+                  fontWeight: '900',
+                }}
+              >
+                Organiza tu vitrina
+              </Text>
 
-          <Text
+              <Text
+                style={{
+                  color: '#DCC8FF',
+                  fontSize: 13,
+                  lineHeight: 19,
+                  marginTop: 5,
+                }}
+              >
+                Agrupa ofertas para mantener productos y servicios claros.
+              </Text>
+            </View>
+
+            <View
+              style={{
+                alignItems: 'center',
+                backgroundColor: '#3C2860',
+                borderColor: '#5A3D87',
+                borderRadius: 16,
+                borderWidth: 1,
+                minWidth: 76,
+                paddingHorizontal: 10,
+                paddingVertical: 11,
+              }}
+            >
+              <Text
+                style={{
+                  color: '#FFFFFF',
+                  fontSize: 22,
+                  fontWeight: '900',
+                }}
+              >
+                {catalogs.length}
+              </Text>
+
+              <Text
+                style={{
+                  color: '#DCC8FF',
+                  fontSize: 10,
+                  fontWeight: '800',
+                  marginTop: 2,
+                }}
+              >
+                {catalogs.length === 1 ? 'catálogo' : 'catálogos'}
+              </Text>
+            </View>
+          </View>
+
+          <View
             style={{
-              color: '#786593',
-              fontSize: 14,
-              lineHeight: 21,
-              marginTop: 6,
+              alignItems: 'center',
+              flexDirection: 'row',
+              justifyContent: 'space-between',
+              marginTop: 14,
             }}
           >
-            Las ofertas se crean dentro de un catálogo del
-            negocio autorizado.
-          </Text>
+            <View
+              style={{
+                alignItems: 'center',
+                backgroundColor: '#EAF7EE',
+                borderColor: '#CDEBD7',
+                borderRadius: 999,
+                borderWidth: 1,
+                flexDirection: 'row',
+                minHeight: 34,
+                paddingHorizontal: 11,
+              }}
+            >
+              <View
+                style={{
+                  backgroundColor: '#177245',
+                  borderRadius: 4,
+                  height: 8,
+                  marginRight: 7,
+                  width: 8,
+                }}
+              />
+
+              <Text
+                style={{
+                  color: '#177245',
+                  fontSize: 12,
+                  fontWeight: '800',
+                }}
+              >
+                {publishedCatalogCount === 1
+                  ? '1 publicado'
+                  : `${publishedCatalogCount} publicados`}
+              </Text>
+            </View>
+
+            <Layers3 color="#7427D5" size={20} />
+          </View>
 
           <TouchableOpacity
             accessibilityLabel="Ver catálogos archivados"
@@ -579,8 +699,8 @@ export default function BuddyServicesManageCatalogsScreen() {
               backgroundColor: '#F4EDF9',
               borderRadius: 12,
               flexDirection: 'row',
-              marginTop: 16,
-              minHeight: 42,
+              marginTop: 14,
+              minHeight: 38,
               opacity: isSaving ? 0.55 : 1,
               paddingHorizontal: 13,
             }}
@@ -689,7 +809,7 @@ export default function BuddyServicesManageCatalogsScreen() {
           ) : (
             <View
               style={{
-                marginTop: 20,
+                marginTop: 18,
               }}
             >
               {catalogs.map((catalog) => {
@@ -701,10 +821,18 @@ export default function BuddyServicesManageCatalogsScreen() {
                     style={{
                       backgroundColor: '#FFFFFF',
                       borderColor: '#E7DDF2',
-                      borderRadius: 17,
+                      borderRadius: 18,
                       borderWidth: 1,
                       marginBottom: 12,
-                      padding: 15,
+                      padding: 16,
+                      shadowColor: '#38294E',
+                      shadowOffset: {
+                        width: 0,
+                        height: 3,
+                      },
+                      shadowOpacity: 0.05,
+                      shadowRadius: 10,
+                      elevation: 2,
                     }}
                   >
                     <View

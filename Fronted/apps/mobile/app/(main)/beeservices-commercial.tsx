@@ -1,11 +1,12 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useState,
+} from "react";
 import {
   ActivityIndicator,
-  RefreshControl,
-  ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
@@ -13,53 +14,90 @@ import {
   ClipboardList,
   MessageCircle,
   PackageSearch,
-  PlusCircle,
-  Search,
   Store,
   Wrench,
 } from "lucide-react-native";
-import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
+import {
+  useFocusEffect,
+  useLocalSearchParams,
+  useRouter,
+} from "expo-router";
 
 import type {
   CommercialOwnedProfile,
-  CommercialPublicOffer,
-  CommercialPublicProfile,
 } from "@beeapp/shared-types";
 
 import ScreenSafeArea from "../../src/components/layout/ScreenSafeArea";
 import HomeSideMenu from "../../src/components/home/HomeSideMenu";
 import BeeServicesHeader from "../../src/components/beeservices/BeeServicesHeader";
-import BeeServicesAiSearchCard from "../../src/components/beeservices/BeeServicesAiSearchCard";
-import BeeServicesBusinessCard from "../../src/components/beeservices/BeeServicesBusinessCard";
-import CommercialOfferCard from "../../src/components/buddyservices/CommercialOfferCard";
-import CommercialRecentBusinesses from "../../src/components/buddyservices/CommercialRecentBusinesses";
+import EmbeddedModuleHost from "../../src/components/embedded/EmbeddedModuleHost";
 import {
-  buddyServicesCreateBusinessRoute,
-  buddyServicesManageBusinessRoute,
   buddyServicesMyBusinessesRoute,
-  buddyServicesMyPurchasesRoute,
-  buddyServicesPublicOfferRoute,
-  buddyServicesPublicProfileRoute,
 } from "../../src/features/buddyservices/commercialRoutes";
 import {
   toCommercialUiError,
-  type CommercialUiError,
 } from "../../src/features/buddyservices/commercialErrors";
 import {
   loadOwnedCommercialProfile,
-  loadOwnedCommercialProfiles,
-  loadPublicCommercialProductFeed,
 } from "../../src/services/commercialService";
 import { styles as beeStyles } from "../../src/components/beeservices/beeServicesStyles";
 
-const INITIAL_PRODUCT_FEED_LIMIT = 4;
-const NEXT_PRODUCT_FEED_LIMIT = 2;
-const PRODUCT_FEED_END_REACHED_THRESHOLD = 140;
-const SEARCH_DEBOUNCE_MS = 350;
-const MINIMUM_SEARCH_LENGTH = 2;
+type CommercialWorkspaceModule =
+  | "chat"
+  | "requests"
+  | "catalogs"
+  | "manage";
 
-function getInitialError(): CommercialUiError | null {
-  return null;
+type CommercialModuleConfig = {
+  accessibilityHint: string;
+  accessibilityLabel: string;
+  icon: "chat" | "requests" | "catalogs" | "manage";
+  rootPath?: string;
+};
+
+const COMMERCIAL_MODULES: Record<
+  CommercialWorkspaceModule,
+  CommercialModuleConfig
+> = {
+  chat: {
+    accessibilityHint: "Reinicia los chats del negocio",
+    accessibilityLabel: "Chats del negocio",
+    icon: "chat",
+  },
+  requests: {
+    accessibilityHint: "Reinicia las solicitudes del negocio",
+    accessibilityLabel: "Solicitudes del negocio",
+    icon: "requests",
+    rootPath: "/(main)/beeservices/manage/[businessId]/requests",
+  },
+  catalogs: {
+    accessibilityHint: "Reinicia los catálogos del negocio",
+    accessibilityLabel: "Catálogos y productos del negocio",
+    icon: "catalogs",
+    rootPath: "/(main)/beeservices/manage/[businessId]/catalogs",
+  },
+  manage: {
+    accessibilityHint: "Reinicia la gestión del negocio",
+    accessibilityLabel: "Gestión del negocio",
+    icon: "manage",
+    rootPath: "/(main)/beeservices/manage/[businessId]",
+  },
+};
+
+function moduleLabel(module: CommercialWorkspaceModule): string {
+  if (module === "chat") {
+    return "Chats";
+  }
+
+  if (module === "requests") {
+    return "Solicitudes";
+  }
+
+  if (module === "catalogs") {
+    return "Catálogos";
+  }
+
+  return "Gestión";
 }
 
 export default function BeeServicesCommercialScreen() {
@@ -67,6 +105,7 @@ export default function BeeServicesCommercialScreen() {
   const params = useLocalSearchParams<{
     businessId?: string | string[];
   }>();
+
   const routeBusinessId = Array.isArray(params.businessId)
     ? params.businessId[0]
     : params.businessId;
@@ -78,89 +117,22 @@ export default function BeeServicesCommercialScreen() {
   const [selectedBusinessError, setSelectedBusinessError] = useState<
     string | null
   >(null);
-  const [search, setSearch] = useState("");
-  const [activeSearch, setActiveSearch] = useState("");
-  const searchRequestVersionRef = useRef(0);
-  const [searchProfiles, setSearchProfiles] = useState<
-    CommercialPublicProfile[]
-  >([]);
-  const [hasMoreSearchProfiles, setHasMoreSearchProfiles] = useState(false);
-  const [productFeed, setProductFeed] = useState<CommercialPublicOffer[]>([]);
-  const [productFeedSeed, setProductFeedSeed] = useState("");
-  const [loadingProductFeed, setLoadingProductFeed] = useState(true);
-  const [loadingMoreProducts, setLoadingMoreProducts] = useState(false);
-  const [hasMoreProducts, setHasMoreProducts] = useState(true);
-
-  const [, setHasOwnedProfiles] = useState(false);
-
-  const [refreshing, setRefreshing] = useState(false);
-  const [error, setError] = useState<CommercialUiError | null>(getInitialError);
-
-  const loadProductFeed = useCallback(
-    async (
-      options: {
-        search?: string;
-        seed?: string;
-      } = {},
-    ) => {
-      const normalizedSearch = String(options.search || "").trim();
-      const requestVersion = searchRequestVersionRef.current;
-
-      setLoadingProductFeed(true);
-
-      try {
-        const response = await loadPublicCommercialProductFeed({
-          limit: INITIAL_PRODUCT_FEED_LIMIT,
-          offset: 0,
-          search: normalizedSearch || undefined,
-          seed: normalizedSearch ? undefined : options.seed,
-        });
-
-        if (requestVersion !== searchRequestVersionRef.current) {
-          return;
-        }
-
-        setProductFeed(response.offers);
-        setProductFeedSeed(response.seed);
-        setHasMoreProducts(response.has_more);
-        setSearchProfiles(response.profiles || []);
-        setHasMoreSearchProfiles(Boolean(response.profiles_has_more));
-        setActiveSearch(normalizedSearch);
-        setError(null);
-      } catch (loadError) {
-        if (requestVersion !== searchRequestVersionRef.current) {
-          return;
-        }
-
-        setProductFeed([]);
-        setSearchProfiles([]);
-        setHasMoreProducts(false);
-        setHasMoreSearchProfiles(false);
-        setError(toCommercialUiError(loadError));
-      } finally {
-        if (requestVersion === searchRequestVersionRef.current) {
-          setLoadingProductFeed(false);
-        }
-      }
-    },
-    [],
+  const [loadingBusiness, setLoadingBusiness] = useState(
+    Boolean(selectedBusinessId),
   );
-
-  const loadOwnedProfilesState = useCallback(async () => {
-    try {
-      const response = await loadOwnedCommercialProfiles();
-      setHasOwnedProfiles(response.profiles.length > 0);
-    } catch {
-      setHasOwnedProfiles(false);
-    }
-  }, []);
+  const [activeModule, setActiveModule] =
+    useState<CommercialWorkspaceModule>("chat");
+  const [moduleReloadKey, setModuleReloadKey] = useState(0);
 
   const loadSelectedBusiness = useCallback(async () => {
     if (!selectedBusinessId) {
       setSelectedBusiness(null);
       setSelectedBusinessError(null);
+      setLoadingBusiness(false);
       return;
     }
+
+    setLoadingBusiness(true);
 
     try {
       const response = await loadOwnedCommercialProfile(selectedBusinessId);
@@ -170,199 +142,144 @@ export default function BeeServicesCommercialScreen() {
     } catch (loadError) {
       setSelectedBusiness(null);
       setSelectedBusinessError(toCommercialUiError(loadError).message);
+    } finally {
+      setLoadingBusiness(false);
     }
   }, [selectedBusinessId]);
 
   useFocusEffect(
     useCallback(() => {
-      void loadProductFeed();
-      void loadOwnedProfilesState();
       void loadSelectedBusiness();
-    }, [loadOwnedProfilesState, loadProductFeed, loadSelectedBusiness]),
-  );
-
-  const handleRetry = useCallback(() => {
-    setError(null);
-    searchRequestVersionRef.current += 1;
-    void loadProductFeed({
-      search: activeSearch || undefined,
-    });
-    void loadOwnedProfilesState();
-  }, [activeSearch, loadOwnedProfilesState, loadProductFeed]);
-
-  const handleRefresh = useCallback(async () => {
-    setRefreshing(true);
-    setError(null);
-    searchRequestVersionRef.current += 1;
-
-    try {
-      await Promise.all([
-        loadProductFeed({
-          search: activeSearch || undefined,
-        }),
-        loadOwnedProfilesState(),
-      ]);
-    } finally {
-      setRefreshing(false);
-    }
-  }, [activeSearch, loadOwnedProfilesState, loadProductFeed]);
-
-  const handleLoadMoreProducts = useCallback(async () => {
-    if (
-      loadingMoreProducts ||
-      loadingProductFeed ||
-      (!hasMoreProducts && (!activeSearch || !hasMoreSearchProfiles))
-    ) {
-      return;
-    }
-
-    const requestVersion = searchRequestVersionRef.current;
-
-    setLoadingMoreProducts(true);
-
-    try {
-      const response = await loadPublicCommercialProductFeed({
-        limit: NEXT_PRODUCT_FEED_LIMIT,
-        offset: productFeed.length,
-        search: activeSearch || undefined,
-        seed: activeSearch ? undefined : productFeedSeed || undefined,
-      });
-
-      if (requestVersion !== searchRequestVersionRef.current) {
-        return;
-      }
-
-      setProductFeed((current) => {
-        const existingIds = new Set(current.map((offer) => offer.id));
-
-        return [
-          ...current,
-          ...response.offers.filter((offer) => !existingIds.has(offer.id)),
-        ];
-      });
-      if (activeSearch) {
-        setSearchProfiles((current) => {
-          const existingIds = new Set(current.map((profile) => profile.id));
-
-          return [
-            ...current,
-            ...(response.profiles || []).filter(
-              (profile) => !existingIds.has(profile.id),
-            ),
-          ];
-        });
-        setHasMoreSearchProfiles(Boolean(response.profiles_has_more));
-      }
-
-      setProductFeedSeed(response.seed);
-      setHasMoreProducts(response.has_more);
-      setError(null);
-    } catch (loadError) {
-      if (requestVersion === searchRequestVersionRef.current) {
-        setError(toCommercialUiError(loadError));
-      }
-    } finally {
-      if (requestVersion === searchRequestVersionRef.current) {
-        setLoadingMoreProducts(false);
-      }
-    }
-  }, [
-    activeSearch,
-    hasMoreProducts,
-    loadingMoreProducts,
-    loadingProductFeed,
-    productFeed.length,
-    productFeedSeed,
-  ]);
-
-  const runSearch = useCallback(
-    (value: string) => {
-      const normalizedSearch = value.trim();
-
-      searchRequestVersionRef.current += 1;
-
-      if (!normalizedSearch) {
-        setActiveSearch("");
-        setError(null);
-        void loadProductFeed();
-        return;
-      }
-
-      if (normalizedSearch.length < MINIMUM_SEARCH_LENGTH) {
-        setActiveSearch("");
-        setError(null);
-        return;
-      }
-
-      setError(null);
-      void loadProductFeed({
-        search: normalizedSearch,
-      });
-    },
-    [loadProductFeed],
+    }, [loadSelectedBusiness]),
   );
 
   useEffect(() => {
-    const normalizedSearch = search.trim();
-
-    if (!normalizedSearch) {
-      return;
-    }
-
-    if (normalizedSearch.length < MINIMUM_SEARCH_LENGTH) {
-      searchRequestVersionRef.current += 1;
-      setActiveSearch("");
-      setLoadingProductFeed(false);
-      setLoadingMoreProducts(false);
-      setHasMoreProducts(false);
-      setError(null);
-      return;
-    }
-
-    const timer = setTimeout(() => {
-      runSearch(normalizedSearch);
-    }, SEARCH_DEBOUNCE_MS);
-
-    return () => clearTimeout(timer);
-  }, [runSearch, search]);
-
-  const handleSearch = useCallback(() => {
-    runSearch(search);
-  }, [runSearch, search]);
+    setActiveModule("chat");
+    setModuleReloadKey((current) => current + 1);
+  }, [selectedBusinessId]);
 
   const handleBusinessAction = useCallback(() => {
     router.push(buddyServicesMyBusinessesRoute());
   }, [router]);
 
-  const isInitialLoading = loadingProductFeed;
+  const openCommercialModule = useCallback((
+    nextModule: CommercialWorkspaceModule,
+  ) => {
+    setActiveModule(nextModule);
+    setModuleReloadKey((current) => current + 1);
+  }, []);
+
+  const renderModuleIcon = useCallback((
+    module: CommercialWorkspaceModule,
+    isActive: boolean,
+  ) => {
+    if (module === "chat") {
+      return (
+        <MessageCircle
+          color={isActive ? "#FFFFFF" : "#7C6AA5"}
+          size={21}
+          strokeWidth={2.1}
+        />
+      );
+    }
+
+    if (module === "requests") {
+      return (
+        <ClipboardList
+          color={isActive ? "#FFFFFF" : "#6D4DA0"}
+          size={22}
+          strokeWidth={2.15}
+        />
+      );
+    }
+
+    if (module === "catalogs") {
+      return (
+        <PackageSearch
+          color={isActive ? "#FFFFFF" : "#C58B72"}
+          size={20}
+          strokeWidth={2.1}
+        />
+      );
+    }
+
+    return (
+      <Wrench
+        color={isActive ? "#FFFFFF" : "#5D9D8C"}
+        size={20}
+        strokeWidth={2.1}
+      />
+    );
+  }, []);
+
+  const renderWorkspace = () => {
+    if (loadingBusiness) {
+      return (
+        <View style={localStyles.centeredState}>
+          <ActivityIndicator color="#7427D5" size="large" />
+          <Text style={localStyles.centeredStateText}>
+            Preparando el espacio de trabajo…
+          </Text>
+        </View>
+      );
+    }
+
+    if (!selectedBusinessId || selectedBusinessError || !selectedBusiness) {
+      return (
+        <View style={localStyles.centeredState}>
+          <Store color="#7427D5" size={36} />
+
+          <Text style={localStyles.emptyStateTitle}>
+            Selecciona un negocio
+          </Text>
+
+          <Text style={localStyles.emptyStateText}>
+            {selectedBusinessError
+              ? selectedBusinessError
+              : "Elige el negocio que quieres administrar para abrir sus chats, solicitudes y catálogos."}
+          </Text>
+
+          <TouchableOpacity
+            accessibilityLabel="Abrir mis negocios"
+            accessibilityRole="button"
+            activeOpacity={0.82}
+            onPress={handleBusinessAction}
+            style={localStyles.primaryButton}
+          >
+            <Text style={localStyles.primaryButtonText}>
+              Ver mis negocios
+            </Text>
+          </TouchableOpacity>
+        </View>
+      );
+    }
+
+    const config = COMMERCIAL_MODULES[activeModule];
+    const rootParams = activeModule === "chat"
+      ? {
+          businessId: selectedBusinessId,
+          context: "commercial",
+        }
+      : {
+          businessId: selectedBusinessId,
+        };
+
+    return (
+      <View style={localStyles.workspace}>
+        <EmbeddedModuleHost
+          key={`${activeModule}-${moduleReloadKey}-${selectedBusinessId}`}
+          moduleId="chat"
+          rootParams={rootParams}
+          rootPathOverride={config.rootPath}
+        />
+      </View>
+    );
+  };
 
   return (
     <ScreenSafeArea style={beeStyles.safeArea}>
       <View style={beeStyles.container}>
-        <ScrollView
-          contentContainerStyle={[beeStyles.content, localStyles.scrollContent]}
-          keyboardShouldPersistTaps="handled"
-          refreshControl={
-            <RefreshControl
-              colors={["#7427D5"]}
-              onRefresh={handleRefresh}
-              refreshing={refreshing}
-              tintColor="#7427D5"
-            />
-          }
-          showsVerticalScrollIndicator={false}
-          onScroll={({ nativeEvent }) => {
-            const distanceToEnd =
-              nativeEvent.contentSize.height -
-              nativeEvent.layoutMeasurement.height -
-              nativeEvent.contentOffset.y;
-
-            if (distanceToEnd <= PRODUCT_FEED_END_REACHED_THRESHOLD) {
-              void handleLoadMoreProducts();
-            }
-          }}
-          scrollEventThrottle={160}
-        >
+        <View style={localStyles.headerWrap}>
           <BeeServicesHeader
             title="BuddyService"
             onBackToMainPress={() => router.replace("/(main)")}
@@ -376,310 +293,52 @@ export default function BeeServicesCommercialScreen() {
             selectedBusinessName={selectedBusiness?.display_name}
           />
 
-          <BeeServicesAiSearchCard
-            onPressSearch={() => {
-              setError({
-                title: "Búsqueda próximamente",
-                message:
-                  "Estamos preparando la búsqueda general de " +
-                  "productos y servicios.",
-                retryable: false,
-              });
-            }}
-            onPressVoice={() => {
-              setError({
-                title: "Búsqueda por voz próximamente",
-                message:
-                  "Por ahora usa la búsqueda manual " +
-                  "para encontrar negocios y servicios.",
-                retryable: false,
-              });
-            }}
-          />
-
-          <BeeServicesBusinessCard onPress={handleBusinessAction} />
-
-          <View style={beeStyles.section}>
-            <Text style={beeStyles.sectionTitle}>Accesos rápidos</Text>
-
-            <View style={beeStyles.quickActionsRow}>
-              <TouchableOpacity
-                accessibilityLabel="Ver mis compras y reservas"
-                accessibilityRole="button"
-                activeOpacity={0.78}
-                onPress={() => router.push(buddyServicesMyPurchasesRoute())}
-                style={beeStyles.quickActionCard}
-              >
-                <View style={beeStyles.quickActionIconWrap}>
-                  <ClipboardList color="#7B2DD9" size={17} />
-                </View>
-
-                <Text style={beeStyles.quickActionLabel}>Mis compras</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                accessibilityLabel="Abrir mis negocios"
-                accessibilityRole="button"
-                activeOpacity={0.78}
-                onPress={handleBusinessAction}
-                style={beeStyles.quickActionCard}
-              >
-                <View style={beeStyles.quickActionIconWrap}>
-                  <Store color="#7B2DD9" size={17} />
-                </View>
-
-                <Text style={beeStyles.quickActionLabel}>Mis negocios</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                accessibilityLabel="Crear negocio"
-                accessibilityRole="button"
-                activeOpacity={0.78}
-                onPress={() => router.push(buddyServicesCreateBusinessRoute())}
-                style={beeStyles.quickActionCard}
-              >
-                <View style={beeStyles.quickActionIconWrap}>
-                  <PlusCircle color="#7B2DD9" size={17} />
-                </View>
-
-                <Text style={beeStyles.quickActionLabel}>Crear negocio</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-
-          <View style={localStyles.searchSection}>
-            <Text style={beeStyles.sectionTitle}>
-              Busca negocios y servicios
+          <View style={localStyles.moduleCaption}>
+            <Text style={localStyles.moduleCaptionText}>
+              {moduleLabel(activeModule)}
             </Text>
 
-            <View style={localStyles.searchRow}>
-              <TextInput
-                accessibilityLabel="Buscar negocios, productos o servicios"
-                autoCapitalize="sentences"
-                editable={!isInitialLoading}
-                onChangeText={setSearch}
-                onSubmitEditing={handleSearch}
-                placeholder="Ej. técnico, barbería, comida…"
-                placeholderTextColor="#9B87AE"
-                returnKeyType="search"
-                style={localStyles.searchInput}
-                value={search}
-              />
-
-              <TouchableOpacity
-                accessibilityLabel="Buscar"
-                accessibilityRole="button"
-                accessibilityState={{
-                  disabled: isInitialLoading,
-                }}
-                activeOpacity={0.8}
-                disabled={isInitialLoading}
-                onPress={handleSearch}
-                style={[
-                  localStyles.searchButton,
-                  isInitialLoading && localStyles.searchButtonDisabled,
-                ]}
+            {selectedBusiness ? (
+              <Text
+                numberOfLines={1}
+                style={localStyles.businessCaptionText}
               >
-                <Search color="#FFFFFF" size={20} />
-              </TouchableOpacity>
-            </View>
-
-            {search.trim().length === 1 ? (
-              <Text style={localStyles.searchHint}>
-                Escribe al menos 2 caracteres para buscar.
+                {selectedBusiness.display_name}
               </Text>
             ) : null}
           </View>
+        </View>
 
-          {error ? (
-            <View
-              accessibilityLiveRegion="polite"
-              accessibilityRole="alert"
-              style={localStyles.errorCard}
-            >
-              <Text style={localStyles.errorTitle}>{error.title}</Text>
-
-              <Text style={localStyles.errorMessage}>{error.message}</Text>
-
-              {error.retryable ? (
-                <TouchableOpacity
-                  accessibilityLabel="Reintentar carga de BuddyServices"
-                  accessibilityRole="button"
-                  activeOpacity={0.8}
-                  onPress={handleRetry}
-                  style={localStyles.retryButton}
-                >
-                  <Text style={localStyles.retryButtonText}>Reintentar</Text>
-                </TouchableOpacity>
-              ) : null}
-            </View>
-          ) : null}
-
-          {loadingProductFeed ? (
-            <View style={localStyles.loadingCard}>
-              <ActivityIndicator color="#7427D5" size="small" />
-
-              <Text style={localStyles.loadingText}>
-                {activeSearch
-                  ? "Buscando coincidencias…"
-                  : "Cargando productos y servicios…"}
-              </Text>
-            </View>
-          ) : null}
-
-          {!loadingProductFeed && !error && productFeed.length === 0 ? (
-            <View style={localStyles.locationEmptyState}>
-              <Store color="#7B2DD9" size={25} />
-
-              <Text style={localStyles.locationEmptyTitle}>
-                {activeSearch
-                  ? "No encontramos coincidencias"
-                  : "Aún no hay productos disponibles"}
-              </Text>
-
-              <Text style={localStyles.locationEmptyText}>
-                {activeSearch
-                  ? "Prueba con otro nombre, producto o servicio."
-                  : "Vuelve a intentarlo más tarde."}
-              </Text>
-            </View>
-          ) : null}
-
-          {!loadingProductFeed && activeSearch && searchProfiles.length > 0 ? (
-            <CommercialRecentBusinesses
-              profiles={searchProfiles}
-              onPressProfile={(profile) =>
-                router.push(buddyServicesPublicProfileRoute(profile.id))
-              }
-            />
-          ) : null}
-
-          {!loadingProductFeed && productFeed.length > 0 ? (
-            <View style={beeStyles.section}>
-              <Text style={beeStyles.sectionTitle}>
-                {activeSearch
-                  ? "Productos y servicios"
-                  : "Productos y servicios destacados"}
-              </Text>
-
-              {productFeed.map((offer) => (
-                <CommercialOfferCard
-                  key={offer.id}
-                  offer={offer}
-                  onPress={(selectedOffer) =>
-                    router.push(buddyServicesPublicOfferRoute(selectedOffer.id))
-                  }
-                />
-              ))}
-
-              {loadingMoreProducts ? (
-                <View
-                  accessibilityLiveRegion="polite"
-                  style={localStyles.loadingMoreRow}
-                >
-                  <ActivityIndicator color="#7427D5" size="small" />
-
-                  <Text style={localStyles.loadingMoreText}>
-                    {activeSearch
-                      ? "Cargando más resultados…"
-                      : "Cargando más productos…"}
-                  </Text>
-                </View>
-              ) : null}
-
-              {!hasMoreProducts && !loadingMoreProducts ? (
-                <View
-                  accessibilityLiveRegion="polite"
-                  style={localStyles.feedEndCard}
-                >
-                  <View style={localStyles.feedEndLine} />
-
-                  <Text style={localStyles.feedEndTitle}>
-                    Eso es todo por ahora
-                  </Text>
-
-                  <Text style={localStyles.feedEndText}>
-                    {activeSearch
-                      ? "Ya viste todas las coincidencias disponibles."
-                      : "Ya viste todos los productos disponibles. " +
-                        "Vuelve pronto para descubrir nuevas opciones."}
-                  </Text>
-                </View>
-              ) : null}
-            </View>
-          ) : null}
-
-          <View style={beeStyles.footer}>
-            <Text style={beeStyles.footerText}>
-              Impulsando economías locales con Buddy AI
-            </Text>
-
-            <View style={beeStyles.footerLine} />
-          </View>
-        </ScrollView>
+        {renderWorkspace()}
 
         <View
-          accessibilityLabel="Accesos rápidos de negocio"
+          accessibilityLabel="Menú de trabajo del negocio"
           style={localStyles.floatingBusinessMenu}
         >
-          <TouchableOpacity
-            accessibilityHint="Próximamente"
-            accessibilityLabel="Chat del negocio"
-            accessibilityRole="button"
-            activeOpacity={0.76}
-            style={[
-              localStyles.floatingBusinessAction,
-              localStyles.chatBusinessAction,
-            ]}
-          >
-            <MessageCircle color="#7C6AA5" size={21} strokeWidth={2.1} />
-          </TouchableOpacity>
+          {(
+            ["chat", "requests", "catalogs", "manage"] as CommercialWorkspaceModule[]
+          ).map((module) => {
+            const config = COMMERCIAL_MODULES[module];
+            const isActive = activeModule === module;
 
-          <TouchableOpacity
-            accessibilityHint="Próximamente"
-            accessibilityLabel="Solicitudes del negocio"
-            accessibilityRole="button"
-            activeOpacity={0.8}
-            style={[
-              localStyles.floatingBusinessAction,
-              localStyles.requestsBusinessAction,
-            ]}
-          >
-            <ClipboardList color="#FFFFFF" size={22} strokeWidth={2.15} />
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            accessibilityHint="Próximamente"
-            accessibilityLabel="Productos y servicios del negocio"
-            accessibilityRole="button"
-            activeOpacity={0.76}
-            style={[
-              localStyles.floatingBusinessAction,
-              localStyles.productsBusinessAction,
-            ]}
-          >
-            <PackageSearch color="#C58B72" size={20} strokeWidth={2.1} />
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            accessibilityHint="Próximamente"
-            accessibilityLabel="Herramientas del negocio"
-            accessibilityRole="button"
-            activeOpacity={0.76}
-            onPress={() => {
-              if (selectedBusinessId) {
-                router.push(
-                  buddyServicesManageBusinessRoute(selectedBusinessId),
-                );
-              }
-            }}
-            style={[
-              localStyles.floatingBusinessAction,
-              localStyles.toolsBusinessAction,
-            ]}
-          >
-            <Wrench color="#5D9D8C" size={20} strokeWidth={2.1} />
-          </TouchableOpacity>
+            return (
+              <TouchableOpacity
+                key={module}
+                accessibilityHint={config.accessibilityHint}
+                accessibilityLabel={config.accessibilityLabel}
+                accessibilityRole="button"
+                activeOpacity={0.78}
+                onPress={() => openCommercialModule(module)}
+                style={[
+                  localStyles.floatingBusinessAction,
+                  localStyles[`${module}BusinessAction`],
+                  isActive && localStyles.floatingBusinessActionActive,
+                ]}
+              >
+                {renderModuleIcon(module, isActive)}
+              </TouchableOpacity>
+            );
+          })}
         </View>
 
         <HomeSideMenu
@@ -692,13 +351,78 @@ export default function BeeServicesCommercialScreen() {
 }
 
 const localStyles = StyleSheet.create({
-  scrollContent: {
-    paddingBottom: 132,
+  headerWrap: {
+    backgroundColor: "#FFFCF9",
+    borderBottomColor: "#EEE7F3",
+    borderBottomWidth: 1,
+  },
+  moduleCaption: {
+    alignItems: "baseline",
+    flexDirection: "row",
+    paddingBottom: 10,
+    paddingHorizontal: 20,
+  },
+  moduleCaptionText: {
+    color: "#38294E",
+    fontSize: 14,
+    fontWeight: "900",
+  },
+  businessCaptionText: {
+    color: "#836C98",
+    flex: 1,
+    fontSize: 12,
+    fontWeight: "600",
+    marginLeft: 8,
+  },
+  workspace: {
+    backgroundColor: "#F8F7FC",
+    flex: 1,
+    paddingBottom: 94,
+  },
+  centeredState: {
+    alignItems: "center",
+    backgroundColor: "#F8F7FC",
+    flex: 1,
+    justifyContent: "center",
+    paddingHorizontal: 30,
+    paddingBottom: 94,
+  },
+  centeredStateText: {
+    color: "#6D5C7B",
+    fontSize: 14,
+    marginTop: 14,
+    textAlign: "center",
+  },
+  emptyStateTitle: {
+    color: "#38294E",
+    fontSize: 20,
+    fontWeight: "900",
+    marginTop: 15,
+    textAlign: "center",
+  },
+  emptyStateText: {
+    color: "#6D5C7B",
+    fontSize: 14,
+    lineHeight: 21,
+    marginTop: 8,
+    textAlign: "center",
+  },
+  primaryButton: {
+    backgroundColor: "#7427D5",
+    borderRadius: 14,
+    marginTop: 22,
+    paddingHorizontal: 18,
+    paddingVertical: 13,
+  },
+  primaryButtonText: {
+    color: "#FFFFFF",
+    fontSize: 14,
+    fontWeight: "800",
   },
   floatingBusinessMenu: {
     alignItems: "center",
     alignSelf: "center",
-    backgroundColor: "rgba(255, 255, 255, 0.96)",
+    backgroundColor: "rgba(255, 255, 255, 0.98)",
     borderColor: "#E7DFF5",
     borderRadius: 28,
     borderWidth: 1,
@@ -726,20 +450,15 @@ const localStyles = StyleSheet.create({
     justifyContent: "center",
     width: 52,
   },
-  chatBusinessAction: {
-    backgroundColor: "#F1ECFA",
-    borderColor: "#E2D8F2",
-    borderWidth: 1,
-  },
-  requestsBusinessAction: {
-    backgroundColor: "#8D73C9",
+  floatingBusinessActionActive: {
+    backgroundColor: "#7427D5",
     elevation: 4,
-    shadowColor: "#8D73C9",
+    shadowColor: "#7427D5",
     shadowOffset: {
       width: 0,
       height: 3,
     },
-    shadowOpacity: 0.34,
+    shadowOpacity: 0.3,
     shadowRadius: 6,
     transform: [
       {
@@ -747,237 +466,24 @@ const localStyles = StyleSheet.create({
       },
     ],
   },
-  productsBusinessAction: {
+  chatBusinessAction: {
+    backgroundColor: "#F1ECFA",
+    borderColor: "#E2D8F2",
+    borderWidth: 1,
+  },
+  requestsBusinessAction: {
+    backgroundColor: "#EEE7F8",
+    borderColor: "#E0D5F2",
+    borderWidth: 1,
+  },
+  catalogsBusinessAction: {
     backgroundColor: "#FBEDE7",
     borderColor: "#F5DCD1",
     borderWidth: 1,
   },
-  toolsBusinessAction: {
+  manageBusinessAction: {
     backgroundColor: "#E6F4EF",
     borderColor: "#D2EAE1",
     borderWidth: 1,
-  },
-  searchSection: {
-    marginBottom: 27,
-  },
-  searchRow: {
-    alignItems: "center",
-    flexDirection: "row",
-  },
-  searchInput: {
-    backgroundColor: "#FFFFFF",
-    borderColor: "#EAE1F1",
-    borderBottomLeftRadius: 14,
-    borderTopLeftRadius: 14,
-    borderWidth: 1,
-    color: "#38294E",
-    flex: 1,
-    fontSize: 14,
-    minHeight: 49,
-    paddingHorizontal: 14,
-  },
-  searchButton: {
-    alignItems: "center",
-    backgroundColor: "#7427D5",
-    borderBottomRightRadius: 14,
-    borderTopRightRadius: 14,
-    height: 49,
-    justifyContent: "center",
-    width: 52,
-  },
-  searchButtonDisabled: {
-    opacity: 0.55,
-  },
-  searchHint: {
-    color: "#886B9F",
-    fontSize: 12,
-    lineHeight: 17,
-    marginTop: 7,
-    paddingHorizontal: 2,
-  },
-  loadingMoreRow: {
-    alignItems: "center",
-    flexDirection: "row",
-    justifyContent: "center",
-    marginTop: 16,
-    minHeight: 42,
-  },
-  loadingMoreText: {
-    color: "#6A5585",
-    fontSize: 13,
-    fontWeight: "700",
-    marginLeft: 9,
-  },
-  feedEndCard: {
-    alignItems: "center",
-    backgroundColor: "#FBF8FE",
-    borderColor: "#E8DDF4",
-    borderRadius: 16,
-    borderWidth: 1,
-    marginTop: 16,
-    paddingHorizontal: 20,
-    paddingVertical: 18,
-  },
-  feedEndLine: {
-    backgroundColor: "#CDA8EE",
-    borderRadius: 999,
-    height: 4,
-    marginBottom: 11,
-    width: 42,
-  },
-  feedEndTitle: {
-    color: "#432064",
-    fontSize: 14,
-    fontWeight: "800",
-  },
-  feedEndText: {
-    color: "#786593",
-    fontSize: 12,
-    lineHeight: 18,
-    marginTop: 5,
-    textAlign: "center",
-  },
-  disabledAction: {
-    opacity: 0.5,
-  },
-  createBusinessNotice: {
-    alignItems: "flex-start",
-    backgroundColor: "#FFFFFF",
-    borderColor: "#D9C2F0",
-    borderRadius: 18,
-    borderWidth: 1,
-    bottom: 24,
-    elevation: 8,
-    flexDirection: "row",
-    left: 18,
-    padding: 14,
-    position: "absolute",
-    right: 18,
-    shadowColor: "#3D245E",
-    shadowOffset: {
-      height: 5,
-      width: 0,
-    },
-    shadowOpacity: 0.16,
-    shadowRadius: 12,
-    zIndex: 10,
-  },
-  createBusinessNoticeIcon: {
-    alignItems: "center",
-    backgroundColor: "#F6EAFE",
-    borderRadius: 14,
-    height: 42,
-    justifyContent: "center",
-    marginRight: 11,
-    width: 42,
-  },
-  createBusinessNoticeContent: {
-    flex: 1,
-    paddingRight: 5,
-  },
-  createBusinessNoticeTitle: {
-    color: "#261743",
-    fontSize: 14,
-    fontWeight: "800",
-  },
-  createBusinessNoticeMessage: {
-    color: "#786593",
-    fontSize: 12,
-    lineHeight: 18,
-    marginTop: 4,
-  },
-  createBusinessNoticeAction: {
-    alignSelf: "flex-start",
-    backgroundColor: "#7427D5",
-    borderRadius: 10,
-    marginTop: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-  },
-  createBusinessNoticeActionText: {
-    color: "#FFFFFF",
-    fontSize: 12,
-    fontWeight: "800",
-  },
-  createBusinessNoticeClose: {
-    alignItems: "center",
-    height: 28,
-    justifyContent: "center",
-    marginLeft: 2,
-    marginTop: -3,
-    width: 28,
-  },
-  errorCard: {
-    backgroundColor: "#FFF4F4",
-    borderColor: "#F2C9CC",
-    borderRadius: 16,
-    borderWidth: 1,
-    marginBottom: 22,
-    padding: 16,
-  },
-  errorTitle: {
-    color: "#A82A3A",
-    fontSize: 15,
-    fontWeight: "800",
-  },
-  errorMessage: {
-    color: "#78404A",
-    fontSize: 13,
-    lineHeight: 19,
-    marginTop: 5,
-  },
-  retryButton: {
-    alignSelf: "flex-start",
-    backgroundColor: "#A82A3A",
-    borderRadius: 10,
-    marginTop: 13,
-    paddingHorizontal: 13,
-    paddingVertical: 9,
-  },
-  retryButtonText: {
-    color: "#FFFFFF",
-    fontSize: 12,
-    fontWeight: "700",
-  },
-  locationEmptyState: {
-    alignItems: "center",
-    backgroundColor: "#F9F3FC",
-    borderColor: "#E8D1F1",
-    borderRadius: 18,
-    borderStyle: "dashed",
-    borderWidth: 1,
-    marginBottom: 26,
-    paddingHorizontal: 23,
-    paddingVertical: 25,
-  },
-  locationEmptyTitle: {
-    color: "#38294E",
-    fontSize: 15,
-    fontWeight: "800",
-    marginTop: 10,
-    textAlign: "center",
-  },
-  locationEmptyText: {
-    color: "#866D9F",
-    fontSize: 13,
-    lineHeight: 19,
-    marginTop: 6,
-    textAlign: "center",
-  },
-  loadingCard: {
-    alignItems: "center",
-    backgroundColor: "#F9F3FC",
-    borderRadius: 16,
-    flexDirection: "row",
-    justifyContent: "center",
-    marginBottom: 26,
-    minHeight: 84,
-    paddingHorizontal: 16,
-  },
-  loadingText: {
-    color: "#674D85",
-    fontSize: 13,
-    fontWeight: "600",
-    marginLeft: 10,
   },
 });

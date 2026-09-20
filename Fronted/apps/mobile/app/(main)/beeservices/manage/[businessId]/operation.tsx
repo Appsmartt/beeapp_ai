@@ -17,9 +17,9 @@ import {
   useState,
 } from 'react';
 import {
-  useLocalSearchParams,
-  useRouter,
-} from 'expo-router';
+  useModuleNav,
+  useScreenParams,
+} from '../../../../../src/components/embedded/EmbeddedNavContext';
 
 import type {
   CommercialOwnedProfile,
@@ -98,10 +98,10 @@ function toSafeDeliveryMode(
 }
 
 export default function BuddyServicesOperationScreen() {
-  const router = useRouter();
-  const params = useLocalSearchParams<{
+  const router = useModuleNav();
+  const params = useScreenParams() as {
     businessId?: string | string[];
-  }>();
+  };
 
   const businessId = normalizeBusinessId(params.businessId);
 

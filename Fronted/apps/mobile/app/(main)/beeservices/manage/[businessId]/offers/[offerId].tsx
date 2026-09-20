@@ -34,11 +34,12 @@ import {
   useEffect,
   useState,
 } from 'react';
-import {
-  useLocalSearchParams,
-  useRouter,
-} from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
+
+import {
+  useModuleNav,
+  useScreenParams,
+} from '../../../../../../src/components/embedded/EmbeddedNavContext';
 
 import type {
   CommercialModality,
@@ -296,12 +297,12 @@ function imageActionCopy(
 
 
 export default function BuddyServicesManageOfferScreen() {
-  const router = useRouter();
-  const params = useLocalSearchParams<{
+  const router = useModuleNav();
+  const params = useScreenParams() as {
     businessId?: string | string[];
     offerId?: string | string[];
     notice?: string | string[];
-  }>();
+  };
 
   const businessId = getParam(params.businessId);
   const offerId = getParam(params.offerId);

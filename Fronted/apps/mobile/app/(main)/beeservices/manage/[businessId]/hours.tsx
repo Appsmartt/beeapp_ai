@@ -20,9 +20,9 @@ import {
   useState,
 } from 'react';
 import {
-  useLocalSearchParams,
-  useRouter,
-} from 'expo-router';
+  useModuleNav,
+  useScreenParams,
+} from '../../../../../src/components/embedded/EmbeddedNavContext';
 
 import type {
   CommercialOwnedProfile,
@@ -221,10 +221,10 @@ export default function BuddyServicesManageHoursScreen() {
     '[BEEAPP_HOURS_DEBUG] Render de hours.tsx iniciado',
   );
 
-  const router = useRouter();
-  const params = useLocalSearchParams<{
+  const router = useModuleNav();
+  const params = useScreenParams() as {
     businessId?: string | string[];
-  }>();
+  };
 
   const businessId = normalizeBusinessId(params.businessId);
 

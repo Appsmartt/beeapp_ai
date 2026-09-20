@@ -15,8 +15,12 @@ import {
   Upload,
 } from "lucide-react-native";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useLocalSearchParams, useRouter } from "expo-router";
 import * as DocumentPicker from "expo-document-picker";
+
+import {
+  useModuleNav,
+  useScreenParams,
+} from '../../../../../src/components/embedded/EmbeddedNavContext';
 
 import type { CommercialVerificationRequest } from "@beeapp/shared-types";
 
@@ -66,10 +70,10 @@ function verificationLabel(
 }
 
 export default function CommercialVerificationScreen() {
-  const router = useRouter();
-  const params = useLocalSearchParams<{
+  const router = useModuleNav();
+  const params = useScreenParams() as {
     businessId?: string | string[];
-  }>();
+  };
 
   const businessId = Array.isArray(params.businessId)
     ? params.businessId[0]

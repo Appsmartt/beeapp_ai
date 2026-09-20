@@ -30,11 +30,12 @@ import {
   useMemo,
   useState,
 } from 'react';
-import {
-  useLocalSearchParams,
-  useRouter,
-} from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
+
+import {
+  useModuleNav,
+  useScreenParams,
+} from '../../../../../src/components/embedded/EmbeddedNavContext';
 
 import type {
   CommercialCatalog,
@@ -297,11 +298,11 @@ function offerStatusCopy(
 }
 
 export default function BuddyServicesManageOffersScreen() {
-  const router = useRouter();
-  const params = useLocalSearchParams<{
+  const router = useModuleNav();
+  const params = useScreenParams() as {
     businessId?: string | string[];
     catalogId?: string | string[];
-  }>();
+  };
 
   const businessId = normalizeRouteParam(params.businessId);
   const catalogId = normalizeRouteParam(params.catalogId);

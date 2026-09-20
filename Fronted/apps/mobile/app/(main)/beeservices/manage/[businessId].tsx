@@ -15,7 +15,6 @@ ClipboardList,
   FileCheck2,
   Layers3,
   MapPin,
-  MessageCircle,
   Settings2,
 } from 'lucide-react-native';
 import {
@@ -24,9 +23,9 @@ import {
   useState,
 } from 'react';
 import {
-  useLocalSearchParams,
-  useRouter,
-} from 'expo-router';
+  useModuleNav,
+  useScreenParams,
+} from '../../../../src/components/embedded/EmbeddedNavContext';
 
 import type {
   CommercialOwnedProfile,
@@ -70,10 +69,10 @@ function publicationLabel(
 }
 
 export default function BuddyServicesManageBusinessScreen() {
-  const router = useRouter();
-  const params = useLocalSearchParams<{
+  const router = useModuleNav();
+  const params = useScreenParams() as {
     businessId?: string | string[];
-  }>();
+  };
 
   const businessId = Array.isArray(params.businessId)
     ? params.businessId[0]
@@ -133,7 +132,7 @@ export default function BuddyServicesManageBusinessScreen() {
           alignItems: 'center',
           flexDirection: 'row',
           justifyContent: 'space-between',
-          paddingHorizontal: 18,
+          paddingHorizontal: 20,
           paddingTop: 10,
         }}
       >
@@ -157,15 +156,35 @@ export default function BuddyServicesManageBusinessScreen() {
           />
         </TouchableOpacity>
 
-        <Text
+        <View
           style={{
-            color: '#261743',
-            fontSize: 19,
-            fontWeight: '800',
+            flex: 1,
+            marginLeft: 12,
           }}
         >
-          Gestión del negocio
-        </Text>
+          <Text
+            style={{
+              color: '#88709E',
+              fontSize: 11,
+              fontWeight: '900',
+              letterSpacing: 0.7,
+            }}
+          >
+            OPERACIÓN COMERCIAL
+          </Text>
+
+          <Text
+            style={{
+              color: '#261743',
+              fontSize: 24,
+              fontWeight: '900',
+              letterSpacing: -0.5,
+              marginTop: 2,
+            }}
+          >
+            Gestión
+          </Text>
+        </View>
 
         <View
           style={{
@@ -264,17 +283,17 @@ export default function BuddyServicesManageBusinessScreen() {
       ) : (
         <ScrollView
           contentContainerStyle={{
-            paddingBottom: 34,
-            paddingHorizontal: 18,
-            paddingTop: 21,
+            paddingBottom: 118,
+            paddingHorizontal: 20,
+            paddingTop: 20,
           }}
           showsVerticalScrollIndicator={false}
         >
           <View
             style={{
               backgroundColor: '#261743',
-              borderRadius: 20,
-              padding: 18,
+              borderRadius: 22,
+              padding: 20,
             }}
           >
             <View
@@ -394,11 +413,19 @@ export default function BuddyServicesManageBusinessScreen() {
             }}
             style={{
               backgroundColor: '#FFFFFF',
-              borderColor: '#E7DDF2',
-              borderRadius: 16,
+              borderColor: '#EAE3F0',
+              borderRadius: 18,
               borderWidth: 1,
-              marginBottom: 11,
-              padding: 15,
+              marginBottom: 12,
+              padding: 16,
+              shadowColor: '#38294E',
+              shadowOffset: {
+                width: 0,
+                height: 3,
+              },
+              shadowOpacity: 0.05,
+              shadowRadius: 10,
+              elevation: 2,
             }}
           >
             <View
@@ -475,11 +502,19 @@ export default function BuddyServicesManageBusinessScreen() {
             }}
             style={{
               backgroundColor: '#FFFFFF',
-              borderColor: '#E7DDF2',
-              borderRadius: 16,
+              borderColor: '#EAE3F0',
+              borderRadius: 18,
               borderWidth: 1,
-              marginBottom: 11,
-              padding: 15,
+              marginBottom: 12,
+              padding: 16,
+              shadowColor: '#38294E',
+              shadowOffset: {
+                width: 0,
+                height: 3,
+              },
+              shadowOpacity: 0.05,
+              shadowRadius: 10,
+              elevation: 2,
             }}
           >
             <View
@@ -548,11 +583,19 @@ export default function BuddyServicesManageBusinessScreen() {
             }}
             style={{
               backgroundColor: '#FFFFFF',
-              borderColor: '#E7DDF2',
-              borderRadius: 16,
+              borderColor: '#EAE3F0',
+              borderRadius: 18,
               borderWidth: 1,
-              marginBottom: 11,
-              padding: 15,
+              marginBottom: 12,
+              padding: 16,
+              shadowColor: '#38294E',
+              shadowOffset: {
+                width: 0,
+                height: 3,
+              },
+              shadowOpacity: 0.05,
+              shadowRadius: 10,
+              elevation: 2,
             }}
           >
             <View
@@ -619,11 +662,19 @@ export default function BuddyServicesManageBusinessScreen() {
             }}
             style={{
               backgroundColor: '#FFFFFF',
-              borderColor: '#E7DDF2',
-              borderRadius: 16,
+              borderColor: '#EAE3F0',
+              borderRadius: 18,
               borderWidth: 1,
-              marginBottom: 11,
-              padding: 15,
+              marginBottom: 12,
+              padding: 16,
+              shadowColor: '#38294E',
+              shadowOffset: {
+                width: 0,
+                height: 3,
+              },
+              shadowOpacity: 0.05,
+              shadowRadius: 10,
+              elevation: 2,
             }}
           >
             <View
@@ -678,80 +729,6 @@ export default function BuddyServicesManageBusinessScreen() {
             </View>
           </TouchableOpacity>
 
-          <TouchableOpacity
-            accessibilityHint="Gestiona las conversaciones y los estados de tu negocio con tus clientes"
-            accessibilityLabel="Chats"
-            accessibilityRole="button"
-            activeOpacity={0.82}
-            onPress={() => {
-              router.push({
-                pathname: '/(main)/chat',
-                params: {
-                  context: 'commercial',
-                  businessId: profile.id,
-                },
-              });
-            }}
-            style={{
-              backgroundColor: '#FFFFFF',
-              borderColor: '#E7DDF2',
-              borderRadius: 16,
-              borderWidth: 1,
-              marginBottom: 11,
-              padding: 15,
-            }}
-          >
-            <View
-              style={{
-                alignItems: 'center',
-                flexDirection: 'row',
-              }}
-            >
-              <View
-                style={{
-                  alignItems: 'center',
-                  backgroundColor: '#F6EAFE',
-                  borderRadius: 12,
-                  height: 42,
-                  justifyContent: 'center',
-                  width: 42,
-                }}
-              >
-                <MessageCircle
-                  color="#7427D5"
-                  size={20}
-                />
-              </View>
-
-              <View
-                style={{
-                  flex: 1,
-                  marginLeft: 12,
-                }}
-              >
-                <Text
-                  style={{
-                    color: '#261743',
-                    fontSize: 15,
-                    fontWeight: '800',
-                  }}
-                >
-                  Chats
-                </Text>
-
-                <Text
-                  style={{
-                    color: '#786593',
-                    fontSize: 12,
-                    lineHeight: 18,
-                    marginTop: 3,
-                  }}
-                >
-                  Gestiona las conversaciones y los estados de tu negocio con tus clientes.
-                </Text>
-              </View>
-            </View>
-          </TouchableOpacity>
 
           <TouchableOpacity
             accessibilityHint="Organiza catálogos y entra a sus productos y servicios"
@@ -765,11 +742,19 @@ export default function BuddyServicesManageBusinessScreen() {
             }}
             style={{
               backgroundColor: '#FFFFFF',
-              borderColor: '#E7DDF2',
-              borderRadius: 16,
+              borderColor: '#EAE3F0',
+              borderRadius: 18,
               borderWidth: 1,
-              marginBottom: 11,
-              padding: 15,
+              marginBottom: 12,
+              padding: 16,
+              shadowColor: '#38294E',
+              shadowOffset: {
+                width: 0,
+                height: 3,
+              },
+              shadowOpacity: 0.05,
+              shadowRadius: 10,
+              elevation: 2,
             }}
           >
             <View
@@ -909,11 +894,19 @@ Revisa compras, servicios y reservas recibidas.
             }}
             style={{
               backgroundColor: '#FFFFFF',
-              borderColor: '#E7DDF2',
-              borderRadius: 16,
+              borderColor: '#EAE3F0',
+              borderRadius: 18,
               borderWidth: 1,
-              marginBottom: 11,
-              padding: 15,
+              marginBottom: 12,
+              padding: 16,
+              shadowColor: '#38294E',
+              shadowOffset: {
+                width: 0,
+                height: 3,
+              },
+              shadowOpacity: 0.05,
+              shadowRadius: 10,
+              elevation: 2,
             }}
           >
             <View
