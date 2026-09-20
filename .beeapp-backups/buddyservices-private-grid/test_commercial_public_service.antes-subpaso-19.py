@@ -101,20 +101,6 @@ class CommercialPublicProfileSerializationTests(
             serialized["logo_url_expires_in_seconds"]
         )
 
-    def test_extracts_public_url_when_supabase_returns_string(self):
-        from apps.commercial.services.commercial_public_service import (
-            _extract_storage_url,
-        )
-
-        self.assertEqual(
-            _extract_storage_url(
-                'https://example.supabase.co/storage/v1/object/public/'
-                'beeapp-commercial-images/user-id/image.jpg'
-            ),
-            'https://example.supabase.co/storage/v1/object/public/'
-            'beeapp-commercial-images/user-id/image.jpg',
-        )
-
     def test_returns_public_logo_url_without_expiration(self):
         logo_file = {
             "id": "logo-file-id",

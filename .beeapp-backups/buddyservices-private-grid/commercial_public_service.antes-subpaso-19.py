@@ -902,10 +902,6 @@ def _get_offer_modalities_by_offer_ids(
 
 
 def _extract_storage_url(response) -> str | None:
-    if isinstance(response, str):
-        normalized_url = response.strip()
-        return normalized_url or None
-
     if isinstance(response, dict):
         nested_data = response.get("data")
         candidates = (
