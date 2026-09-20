@@ -1,21 +1,15 @@
-import {
-  useState,
-} from 'react';
-import { useRouter } from 'expo-router';
-import {
-  StyleSheet,
-  TouchableOpacity,
-  View,
-} from 'react-native';
+import { useState } from "react";
+import { useRouter } from "expo-router";
+import { StyleSheet, TouchableOpacity, View } from "react-native";
 import {
   ShoppingCart,
   ShoppingBag,
   Sparkles,
   UserRound,
-} from 'lucide-react-native';
-import { colors } from '@beeapp/design-system';
+} from "lucide-react-native";
+import { colors } from "@beeapp/design-system";
 
-import VoiceAssistantScreen from './assistant/VoiceAssistantScreen';
+import VoiceAssistantScreen from "./assistant/VoiceAssistantScreen";
 
 export default function MainQuickActions() {
   const router = useRouter();
@@ -23,74 +17,43 @@ export default function MainQuickActions() {
 
   return (
     <>
-      <View
-        style={styles.floatingMenu}
-        accessibilityLabel="Accesos rápidos"
-      >
+      <View style={styles.floatingMenu} accessibilityLabel="Accesos rápidos">
         <TouchableOpacity
-          style={[
-            styles.actionButton,
-            styles.profileButton,
-          ]}
+          style={[styles.actionButton, styles.profileButton]}
           activeOpacity={0.76}
           accessibilityLabel="Perfil"
           accessibilityHint="Próximamente"
         >
-          <UserRound
-            size={22}
-            color="#7C6AA5"
-            strokeWidth={2.1}
-          />
+          <UserRound size={22} color="#7C6AA5" strokeWidth={2.1} />
         </TouchableOpacity>
 
         <TouchableOpacity
-          style={[
-            styles.actionButton,
-            styles.aiButton,
-          ]}
+          style={[styles.actionButton, styles.aiButton]}
           activeOpacity={0.8}
           onPress={() => setVoiceVisible(true)}
           accessibilityLabel="Abrir asistente de IA"
         >
-          <Sparkles
-            size={23}
-            color={colors.neutral.white}
-            strokeWidth={2.2}
-          />
+          <Sparkles size={23} color={colors.neutral.white} strokeWidth={2.2} />
         </TouchableOpacity>
 
         <TouchableOpacity
-          style={[
-            styles.actionButton,
-            styles.shopButton,
-          ]}
+          style={[styles.actionButton, styles.shopButton]}
           activeOpacity={0.76}
-          onPress={() => router.push('/(main)/beeservices-commercial')}
+          onPress={() => router.push("/(main)/beeservices/my-businesses")}
           accessibilityLabel="Abrir BuddyService comercial"
           accessibilityHint="Abre la pestaña comercial de BuddyService"
         >
-          <ShoppingBag
-            size={20}
-            color="#C58B72"
-            strokeWidth={2.1}
-          />
+          <ShoppingBag size={20} color="#C58B72" strokeWidth={2.1} />
         </TouchableOpacity>
 
         <TouchableOpacity
-          style={[
-            styles.actionButton,
-            styles.businessButton,
-          ]}
+          style={[styles.actionButton, styles.businessButton]}
           activeOpacity={0.76}
-          onPress={() => router.push('/(main)/beeservices-private')}
+          onPress={() => router.push("/(main)/beeservices-private")}
           accessibilityLabel="Abrir BuddyService privado"
           accessibilityHint="Abre la pestaña privada de BuddyService"
         >
-          <ShoppingCart
-            size={20}
-            color="#5D9D8C"
-            strokeWidth={2.1}
-          />
+          <ShoppingCart size={20} color="#5D9D8C" strokeWidth={2.1} />
         </TouchableOpacity>
       </View>
 
@@ -104,21 +67,21 @@ export default function MainQuickActions() {
 
 const styles = StyleSheet.create({
   floatingMenu: {
-    alignItems: 'center',
-    alignSelf: 'center',
-    width: '70%',
-    backgroundColor: 'rgba(255, 255, 255, 0.96)',
-    borderColor: '#E7DFF5',
+    alignItems: "center",
+    alignSelf: "center",
+    width: "70%",
+    backgroundColor: "rgba(255, 255, 255, 0.96)",
+    borderColor: "#E7DFF5",
     borderRadius: 28,
     borderWidth: 1,
     bottom: 20,
     elevation: 10,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    justifyContent: "space-between",
     paddingHorizontal: 13,
     paddingVertical: 12,
-    position: 'absolute',
-    shadowColor: '#8D73C9',
+    position: "absolute",
+    shadowColor: "#8D73C9",
     shadowOffset: {
       width: 0,
       height: 6,
@@ -128,21 +91,21 @@ const styles = StyleSheet.create({
     zIndex: 999,
   },
   actionButton: {
-    alignItems: 'center',
+    alignItems: "center",
     borderRadius: 18,
     height: 52,
-    justifyContent: 'center',
+    justifyContent: "center",
     width: 52,
   },
   profileButton: {
-    backgroundColor: '#F1ECFA',
-    borderColor: '#E2D8F2',
+    backgroundColor: "#F1ECFA",
+    borderColor: "#E2D8F2",
     borderWidth: 1,
   },
   aiButton: {
-    backgroundColor: '#8D73C9',
+    backgroundColor: "#8D73C9",
     elevation: 4,
-    shadowColor: '#8D73C9',
+    shadowColor: "#8D73C9",
     shadowOffset: {
       width: 0,
       height: 3,
@@ -156,13 +119,13 @@ const styles = StyleSheet.create({
     ],
   },
   shopButton: {
-    backgroundColor: '#FBEDE7',
-    borderColor: '#F5DCD1',
+    backgroundColor: "#FBEDE7",
+    borderColor: "#F5DCD1",
     borderWidth: 1,
   },
   businessButton: {
-    backgroundColor: '#E6F4EF',
-    borderColor: '#D2EAE1',
+    backgroundColor: "#E6F4EF",
+    borderColor: "#D2EAE1",
     borderWidth: 1,
   },
 });
