@@ -130,10 +130,12 @@ export default function OwnedCommercialProfileGridCard({
           }}
         >
           <CommercialLogoAvatar
+            borderRadius={18}
             displayName={profile.display_name}
+            height={84}
             logoFileId={profile.logo_file_id}
             logoUrl={profile.logo_url}
-            size={84}
+            width={108}
           />
 
           <View
