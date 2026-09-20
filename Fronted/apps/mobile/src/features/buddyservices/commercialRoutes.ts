@@ -1,61 +1,58 @@
-import type { Href } from 'expo-router';
+import type { Href } from "expo-router";
 
-function requireId(
-  value: string,
-  label: string,
-): string {
-  const normalized = String(value || '').trim();
+function requireId(value: string, label: string): string {
+  const normalized = String(value || "").trim();
 
   if (!normalized) {
-    throw new Error(
-      `No fue posible identificar ${label}.`,
-    );
+    throw new Error(`No fue posible identificar ${label}.`);
   }
 
   return normalized;
 }
 
 export function buddyServicesHomeRoute(): Href {
-  return '/(main)/beeservices';
+  return "/(main)/beeservices";
 }
 
-export function buddyServicesResultsRoute(
-  params: {
-    countryCode: string;
-    city: string;
-    categoryId?: string;
-    search?: string;
-  },
-): Href {
+export function buddyServicesCommercialRoute(businessId: string): Href {
   return {
-    pathname: '/(main)/beeservices/results',
+    pathname: "/(main)/beeservices-commercial",
     params: {
-      countryCode: requireId(params.countryCode, 'el país'),
-      city: requireId(params.city, 'la ciudad'),
+      businessId: requireId(businessId, "el negocio"),
+    },
+  };
+}
+
+export function buddyServicesResultsRoute(params: {
+  countryCode: string;
+  city: string;
+  categoryId?: string;
+  search?: string;
+}): Href {
+  return {
+    pathname: "/(main)/beeservices/results",
+    params: {
+      countryCode: requireId(params.countryCode, "el país"),
+      city: requireId(params.city, "la ciudad"),
       ...(params.categoryId
         ? {
-          categoryId: requireId(
-            params.categoryId,
-            'la categoría',
-          ),
-        }
+            categoryId: requireId(params.categoryId, "la categoría"),
+          }
         : {}),
       ...(params.search?.trim()
         ? {
-          search: params.search.trim(),
-        }
+            search: params.search.trim(),
+          }
         : {}),
     },
   };
 }
 
-export function buddyServicesPublicProfileRoute(
-  profileId: string,
-): Href {
+export function buddyServicesPublicProfileRoute(profileId: string): Href {
   return {
-    pathname: '/(main)/beeservices/profile/[profileId]',
+    pathname: "/(main)/beeservices/profile/[profileId]",
     params: {
-      profileId: requireId(profileId, 'el negocio'),
+      profileId: requireId(profileId, "el negocio"),
     },
   };
 }
@@ -65,213 +62,186 @@ export function buddyServicesPublicCatalogRoute(
   catalogId: string,
 ): Href {
   return {
-    pathname: (
-      '/(main)/beeservices/profile/[profileId]/catalog/[catalogId]'
-    ),
+    pathname: "/(main)/beeservices/profile/[profileId]/catalog/[catalogId]",
     params: {
-      profileId: requireId(profileId, 'el negocio'),
-      catalogId: requireId(catalogId, 'el catálogo'),
+      profileId: requireId(profileId, "el negocio"),
+      catalogId: requireId(catalogId, "el catálogo"),
     },
   };
 }
 
-export function buddyServicesPublicOfferRoute(
-  offerId: string,
-): Href {
+export function buddyServicesPublicOfferRoute(offerId: string): Href {
   return {
-    pathname: '/(main)/beeservices/offer/[offerId]',
+    pathname: "/(main)/beeservices/offer/[offerId]",
     params: {
-      offerId: requireId(offerId, 'la oferta'),
+      offerId: requireId(offerId, "la oferta"),
     },
   };
 }
 
 export function buddyServicesMyBusinessesRoute(): Href {
-  return '/(main)/beeservices/my-businesses';
+  return "/(main)/beeservices/my-businesses";
 }
 
 export function buddyServicesCreateBusinessRoute(): Href {
-  return '/(main)/beeservices/create-business';
+  return "/(main)/beeservices/create-business";
 }
 
-export function buddyServicesManageBusinessRoute(
-businessId: string,
-): Href {
-return {
-pathname: '/(main)/beeservices/manage/[businessId]',
-params: {
-businessId: requireId(businessId, 'el negocio'),
-},
-};
+export function buddyServicesManageBusinessRoute(businessId: string): Href {
+  return {
+    pathname: "/(main)/beeservices/manage/[businessId]",
+    params: {
+      businessId: requireId(businessId, "el negocio"),
+    },
+  };
 }
 
 export function buddyServicesManageOfferRoute(
-businessId: string,
-offerId: string,
-): Href {
-return {
-pathname: '/(main)/beeservices/manage/[businessId]/offers/[offerId]',
-params: {
-businessId: requireId(businessId, 'el negocio'),
-offerId: requireId(offerId, 'la oferta'),
-},
-};
-}
-
-export function buddyServicesManagePaymentMethodsRoute(
-businessId: string,
-): Href {
-return {
-pathname: '/(main)/beeservices/manage/[businessId]/payment-methods',
-params: {
-businessId: requireId(businessId, 'el negocio'),
-},
-};
-}
-
-export function buddyServicesManageOffersRoute(
-businessId: string,
-catalogId: string,
-): Href {
-return {
-pathname: '/(main)/beeservices/manage/[businessId]/offers',
-params: {
-businessId: requireId(businessId, 'el negocio'),
-catalogId: requireId(catalogId, 'el catálogo'),
-},
-};
-}
-
-export function buddyServicesManageArchivedOffersRoute(
-businessId: string,
-): Href {
-return {
-pathname: '/(main)/beeservices/manage/[businessId]/offers/archived',
-params: {
-businessId: requireId(businessId, 'el negocio'),
-},
-};
-}
-
-export function buddyServicesManageCatalogsRoute(
-businessId: string,
-): Href {
-return {
-pathname: '/(main)/beeservices/manage/[businessId]/catalogs',
-params: {
-businessId: requireId(businessId, 'el negocio'),
-},
-};
-}
-
-export function buddyServicesManageProfileRoute(
-businessId: string,
-): Href {
-return {
-pathname: '/(main)/beeservices/manage/[businessId]/profile',
-params: {
-businessId: requireId(businessId, 'el negocio'),
-},
-};
-}
-
-export function buddyServicesManageHoursRoute(
-businessId: string,
-): Href {
-return {
-pathname: '/(main)/beeservices/manage/[businessId]/hours',
-params: {
-businessId: requireId(businessId, 'el negocio'),
-},
-};
-}
-
-export function buddyServicesManageVerificationRoute(
-businessId: string,
-): Href {
-return {
-pathname: "/(main)/beeservices/manage/[businessId]/verification",
-params: {
-businessId: requireId(businessId, "el negocio"),
-},
-};
-}
-
-export function buddyServicesManageOperationRoute(
-businessId: string,
-): Href {
-return {
-pathname: '/(main)/beeservices/manage/[businessId]/operation',
-params: {
-businessId: requireId(businessId, 'el negocio'),
-},
-};
-}
-
-export function buddyServicesManageRequestsRoute(
-businessId: string,
-): Href {
-return {
-pathname: '/(main)/beeservices/manage/[businessId]/requests',
-params: {
-businessId: requireId(businessId, 'el negocio'),
-},
-};
-}
-
-export function buddyServicesManageRequestDetailRoute(
-businessId: string,
-requestId: string,
-): Href {
-return {
-pathname: (
-'/(main)/beeservices/manage/[businessId]/requests/[requestId]'
-),
-params: {
-businessId: requireId(businessId, 'el negocio'),
-requestId: requireId(requestId, 'la solicitud'),
-},
-};
-}
-
-export function buddyServicesMyPurchasesRoute(): Href {
-  return '/(main)/beeservices/my-purchases';
-}
-
-export function buddyServicesCartRoute(): Href {
-  return '/(main)/beeservices/cart';
-}
-
-export function buddyServicesServiceRequestRoute(
+  businessId: string,
   offerId: string,
 ): Href {
   return {
-    pathname: '/(main)/beeservices/request/service/[offerId]',
+    pathname: "/(main)/beeservices/manage/[businessId]/offers/[offerId]",
     params: {
-      offerId: requireId(offerId, 'la oferta'),
+      businessId: requireId(businessId, "el negocio"),
+      offerId: requireId(offerId, "la oferta"),
     },
   };
 }
 
-export function buddyServicesBookingRequestRoute(
-offerId: string,
+export function buddyServicesManagePaymentMethodsRoute(
+  businessId: string,
 ): Href {
-return {
-pathname: '/(main)/beeservices/request/booking/[offerId]',
-params: {
-offerId: requireId(offerId, 'la oferta'),
-},
-};
+  return {
+    pathname: "/(main)/beeservices/manage/[businessId]/payment-methods",
+    params: {
+      businessId: requireId(businessId, "el negocio"),
+    },
+  };
 }
 
-export function buddyServicesRequestDetailRoute(
+export function buddyServicesManageOffersRoute(
+  businessId: string,
+  catalogId: string,
+): Href {
+  return {
+    pathname: "/(main)/beeservices/manage/[businessId]/offers",
+    params: {
+      businessId: requireId(businessId, "el negocio"),
+      catalogId: requireId(catalogId, "el catálogo"),
+    },
+  };
+}
+
+export function buddyServicesManageArchivedOffersRoute(
+  businessId: string,
+): Href {
+  return {
+    pathname: "/(main)/beeservices/manage/[businessId]/offers/archived",
+    params: {
+      businessId: requireId(businessId, "el negocio"),
+    },
+  };
+}
+
+export function buddyServicesManageCatalogsRoute(businessId: string): Href {
+  return {
+    pathname: "/(main)/beeservices/manage/[businessId]/catalogs",
+    params: {
+      businessId: requireId(businessId, "el negocio"),
+    },
+  };
+}
+
+export function buddyServicesManageProfileRoute(businessId: string): Href {
+  return {
+    pathname: "/(main)/beeservices/manage/[businessId]/profile",
+    params: {
+      businessId: requireId(businessId, "el negocio"),
+    },
+  };
+}
+
+export function buddyServicesManageHoursRoute(businessId: string): Href {
+  return {
+    pathname: "/(main)/beeservices/manage/[businessId]/hours",
+    params: {
+      businessId: requireId(businessId, "el negocio"),
+    },
+  };
+}
+
+export function buddyServicesManageVerificationRoute(businessId: string): Href {
+  return {
+    pathname: "/(main)/beeservices/manage/[businessId]/verification",
+    params: {
+      businessId: requireId(businessId, "el negocio"),
+    },
+  };
+}
+
+export function buddyServicesManageOperationRoute(businessId: string): Href {
+  return {
+    pathname: "/(main)/beeservices/manage/[businessId]/operation",
+    params: {
+      businessId: requireId(businessId, "el negocio"),
+    },
+  };
+}
+
+export function buddyServicesManageRequestsRoute(businessId: string): Href {
+  return {
+    pathname: "/(main)/beeservices/manage/[businessId]/requests",
+    params: {
+      businessId: requireId(businessId, "el negocio"),
+    },
+  };
+}
+
+export function buddyServicesManageRequestDetailRoute(
+  businessId: string,
   requestId: string,
 ): Href {
   return {
-    pathname: '/(main)/beeservices/request/[requestId]',
+    pathname: "/(main)/beeservices/manage/[businessId]/requests/[requestId]",
     params: {
-      requestId: requireId(requestId, 'la solicitud'),
+      businessId: requireId(businessId, "el negocio"),
+      requestId: requireId(requestId, "la solicitud"),
     },
   };
 }
 
+export function buddyServicesMyPurchasesRoute(): Href {
+  return "/(main)/beeservices/my-purchases";
+}
+
+export function buddyServicesCartRoute(): Href {
+  return "/(main)/beeservices/cart";
+}
+
+export function buddyServicesServiceRequestRoute(offerId: string): Href {
+  return {
+    pathname: "/(main)/beeservices/request/service/[offerId]",
+    params: {
+      offerId: requireId(offerId, "la oferta"),
+    },
+  };
+}
+
+export function buddyServicesBookingRequestRoute(offerId: string): Href {
+  return {
+    pathname: "/(main)/beeservices/request/booking/[offerId]",
+    params: {
+      offerId: requireId(offerId, "la oferta"),
+    },
+  };
+}
+
+export function buddyServicesRequestDetailRoute(requestId: string): Href {
+  return {
+    pathname: "/(main)/beeservices/request/[requestId]",
+    params: {
+      requestId: requireId(requestId, "la solicitud"),
+    },
+  };
+}
