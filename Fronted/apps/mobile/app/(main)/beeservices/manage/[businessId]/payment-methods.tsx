@@ -28,9 +28,9 @@ import {
   useState,
 } from 'react';
 import {
-  useLocalSearchParams,
-  useRouter,
-} from 'expo-router';
+  useModuleNav,
+  useScreenParams,
+} from '../../../../../src/components/embedded/EmbeddedNavContext';
 
 import type {
   CommercialBankAccount,
@@ -195,10 +195,10 @@ function inputStyle(marginTop = 10) {
 }
 
 export default function BuddyServicesPaymentMethodsScreen() {
-  const router = useRouter();
-  const params = useLocalSearchParams<{
+  const router = useModuleNav();
+  const params = useScreenParams() as {
     businessId?: string | string[];
-  }>();
+  };
 
   const businessId = normalizeBusinessId(params.businessId);
 

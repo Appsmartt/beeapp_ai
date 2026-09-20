@@ -28,13 +28,14 @@ Package,
 Wrench,
 X,
 } from 'lucide-react-native';
-import {
-useLocalSearchParams,
-useRouter,
-} from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
 import * as FileSystem from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
+
+import {
+  useModuleNav,
+  useScreenParams,
+} from '../../../../../../src/components/embedded/EmbeddedNavContext';
 
 import type {
 CommercialRequestDetail,
@@ -257,11 +258,11 @@ return labels[eventType] || 'Actualización de solicitud';
 }
 
 export default function BuddyServicesManageRequestDetailScreen() {
-const router = useRouter();
-const params = useLocalSearchParams<{
+const router = useModuleNav();
+const params = useScreenParams() as {
 businessId?: string | string[];
 requestId?: string | string[];
-}>();
+};
 
 const businessId = normalizeParam(params.businessId);
 const requestId = normalizeParam(params.requestId);
@@ -389,7 +390,7 @@ setRefreshing(false);
 }, [loadRequest]);
 
 const handleBack = useCallback(() => {
-if (router.canGoBack()) {
+if (router.canGoBack) {
 router.back();
 return;
 }

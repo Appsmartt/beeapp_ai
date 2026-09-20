@@ -26,11 +26,12 @@ import {
   useRef,
   useState,
 } from 'react';
-import {
-  useLocalSearchParams,
-  useRouter,
-} from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
+
+import {
+  useModuleNav,
+  useScreenParams,
+} from '../../../../../src/components/embedded/EmbeddedNavContext';
 
 import type {
   CommercialCategory,
@@ -138,10 +139,10 @@ function optionalText(
 }
 
 export default function BuddyServicesManageProfileScreen() {
-  const router = useRouter();
-  const params = useLocalSearchParams<{
+  const router = useModuleNav();
+  const params = useScreenParams() as {
     businessId?: string | string[];
-  }>();
+  };
 
   const businessId = normalizeBusinessId(params.businessId);
 

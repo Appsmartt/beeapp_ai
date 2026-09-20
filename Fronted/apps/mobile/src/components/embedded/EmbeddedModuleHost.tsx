@@ -15,6 +15,7 @@ interface EmbeddedModuleHostProps {
   initialPath?: string;
   initialParams?: Record<string, any>;
   rootParams?: Record<string, any>;
+  rootPathOverride?: string;
   /** Notifies Home screen of navigation depth (0 = root list, >0 = detail screen) */
   onStackDepthChange?: (depth: number) => void;
 }
@@ -30,10 +31,16 @@ export default function EmbeddedModuleHost({
   initialPath,
   initialParams,
   rootParams,
+  rootPathOverride,
   onStackDepthChange,
 }: EmbeddedModuleHostProps) {
   const realRouter = useRouter();
-  const rootPath = MODULE_ROOTS[moduleId];
+  const rootPath = rootPathOverride || MODULE_ROOTS[moduleId];
+
+  if (!rootPath) {
+    return null;
+  }
+
   const [stack, setStack] = useState<StackEntry[]>(() => {
     const base: StackEntry[] = [{ path: rootPath, params: rootParams ?? {} }];
     if (initialPath && initialPath !== rootPath && EMBEDDED_SCREENS[initialPath]) {
