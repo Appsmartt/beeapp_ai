@@ -10,6 +10,7 @@ import {
   View,
 } from "react-native";
 import {
+  ChevronRight,
   ClipboardList,
   MessageCircle,
   PackageSearch,
@@ -363,17 +364,66 @@ export default function BeeServicesCommercialScreen() {
           scrollEventThrottle={160}
         >
           <BeeServicesHeader
-            title="BuddyService"
+            title="BuddyService comercial"
             onBackToMainPress={() => router.replace("/(main)")}
-            onChangeBusinessPress={
-              selectedBusiness || selectedBusinessError
-                ? handleBusinessAction
-                : undefined
-            }
             onMenuPress={() => setSideMenuVisible(true)}
-            selectedBusinessError={selectedBusinessError}
-            selectedBusinessName={selectedBusiness?.display_name}
           />
+
+          {selectedBusiness ? (
+            <View style={localStyles.selectedBusinessCard}>
+              <View style={localStyles.selectedBusinessIcon}>
+                <Store color="#7427D5" size={19} />
+              </View>
+
+              <View style={localStyles.selectedBusinessContent}>
+                <Text style={localStyles.selectedBusinessLabel}>
+                  Negocio seleccionado
+                </Text>
+
+                <Text
+                  numberOfLines={1}
+                  style={localStyles.selectedBusinessName}
+                >
+                  {selectedBusiness.display_name}
+                </Text>
+
+                <Text
+                  numberOfLines={1}
+                  style={localStyles.selectedBusinessMeta}
+                >
+                  {`${selectedBusiness.city}, ${selectedBusiness.country_code}`}
+                </Text>
+              </View>
+
+              <TouchableOpacity
+                accessibilityLabel="Cambiar negocio seleccionado"
+                accessibilityRole="button"
+                activeOpacity={0.8}
+                onPress={handleBusinessAction}
+                style={localStyles.changeBusinessButton}
+              >
+                <Text style={localStyles.changeBusinessText}>Cambiar</Text>
+
+                <ChevronRight color="#7427D5" size={16} />
+              </TouchableOpacity>
+            </View>
+          ) : selectedBusinessError ? (
+            <TouchableOpacity
+              accessibilityLabel="Elegir otro negocio"
+              accessibilityRole="button"
+              activeOpacity={0.8}
+              onPress={handleBusinessAction}
+              style={localStyles.selectedBusinessErrorCard}
+            >
+              <Store color="#9A5B00" size={18} />
+
+              <Text style={localStyles.selectedBusinessErrorText}>
+                {selectedBusinessError}
+              </Text>
+
+              <ChevronRight color="#9A5B00" size={17} />
+            </TouchableOpacity>
+          ) : null}
 
           <BeeServicesAiSearchCard
             onPressSearch={() => {
@@ -748,6 +798,75 @@ const localStyles = StyleSheet.create({
     backgroundColor: "#E6F4EF",
     borderColor: "#D2EAE1",
     borderWidth: 1,
+  },
+  selectedBusinessCard: {
+    alignItems: "center",
+    backgroundColor: "#F9F5FF",
+    borderColor: "#DECDF3",
+    borderRadius: 18,
+    borderWidth: 1,
+    flexDirection: "row",
+    marginBottom: 18,
+    padding: 13,
+  },
+  selectedBusinessIcon: {
+    alignItems: "center",
+    backgroundColor: "#EDE1FB",
+    borderRadius: 13,
+    height: 42,
+    justifyContent: "center",
+    width: 42,
+  },
+  selectedBusinessContent: {
+    flex: 1,
+    marginLeft: 10,
+    minWidth: 0,
+  },
+  selectedBusinessLabel: {
+    color: "#7D6099",
+    fontSize: 10,
+    fontWeight: "800",
+    textTransform: "uppercase",
+  },
+  selectedBusinessName: {
+    color: "#321650",
+    fontSize: 14,
+    fontWeight: "900",
+    marginTop: 2,
+  },
+  selectedBusinessMeta: {
+    color: "#786593",
+    fontSize: 11,
+    marginTop: 2,
+  },
+  changeBusinessButton: {
+    alignItems: "center",
+    flexDirection: "row",
+    marginLeft: 8,
+    paddingVertical: 8,
+  },
+  changeBusinessText: {
+    color: "#7427D5",
+    fontSize: 12,
+    fontWeight: "800",
+    marginRight: 1,
+  },
+  selectedBusinessErrorCard: {
+    alignItems: "center",
+    backgroundColor: "#FFF8E9",
+    borderColor: "#F1D490",
+    borderRadius: 16,
+    borderWidth: 1,
+    flexDirection: "row",
+    marginBottom: 18,
+    padding: 13,
+  },
+  selectedBusinessErrorText: {
+    color: "#7A4800",
+    flex: 1,
+    fontSize: 12,
+    lineHeight: 17,
+    marginHorizontal: 9,
   },
   searchSection: {
     marginBottom: 27,
