@@ -12,12 +12,9 @@ import {
 import {
   ChevronRight,
   ClipboardList,
-  MessageCircle,
-  PackageSearch,
   PlusCircle,
   Search,
   Store,
-  Wrench,
 } from "lucide-react-native";
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 
@@ -340,7 +337,7 @@ export default function BeeServicesCommercialScreen() {
     <ScreenSafeArea style={beeStyles.safeArea}>
       <View style={beeStyles.container}>
         <ScrollView
-          contentContainerStyle={[beeStyles.content, localStyles.scrollContent]}
+          contentContainerStyle={beeStyles.content}
           keyboardShouldPersistTaps="handled"
           refreshControl={
             <RefreshControl
@@ -667,63 +664,6 @@ export default function BeeServicesCommercialScreen() {
           </View>
         </ScrollView>
 
-        <View
-          accessibilityLabel="Accesos rápidos de negocio"
-          style={localStyles.floatingBusinessMenu}
-        >
-          <TouchableOpacity
-            accessibilityHint="Próximamente"
-            accessibilityLabel="Chat del negocio"
-            accessibilityRole="button"
-            activeOpacity={0.76}
-            style={[
-              localStyles.floatingBusinessAction,
-              localStyles.chatBusinessAction,
-            ]}
-          >
-            <MessageCircle color="#7C6AA5" size={21} strokeWidth={2.1} />
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            accessibilityHint="Próximamente"
-            accessibilityLabel="Solicitudes del negocio"
-            accessibilityRole="button"
-            activeOpacity={0.8}
-            style={[
-              localStyles.floatingBusinessAction,
-              localStyles.requestsBusinessAction,
-            ]}
-          >
-            <ClipboardList color="#FFFFFF" size={22} strokeWidth={2.15} />
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            accessibilityHint="Próximamente"
-            accessibilityLabel="Productos y servicios del negocio"
-            accessibilityRole="button"
-            activeOpacity={0.76}
-            style={[
-              localStyles.floatingBusinessAction,
-              localStyles.productsBusinessAction,
-            ]}
-          >
-            <PackageSearch color="#C58B72" size={20} strokeWidth={2.1} />
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            accessibilityHint="Próximamente"
-            accessibilityLabel="Herramientas del negocio"
-            accessibilityRole="button"
-            activeOpacity={0.76}
-            style={[
-              localStyles.floatingBusinessAction,
-              localStyles.toolsBusinessAction,
-            ]}
-          >
-            <Wrench color="#5D9D8C" size={20} strokeWidth={2.1} />
-          </TouchableOpacity>
-        </View>
-
         <HomeSideMenu
           onClose={() => setSideMenuVisible(false)}
           visible={sideMenuVisible}
@@ -734,71 +674,6 @@ export default function BeeServicesCommercialScreen() {
 }
 
 const localStyles = StyleSheet.create({
-  scrollContent: {
-    paddingBottom: 132,
-  },
-  floatingBusinessMenu: {
-    alignItems: "center",
-    alignSelf: "center",
-    backgroundColor: "rgba(255, 255, 255, 0.96)",
-    borderColor: "#E7DFF5",
-    borderRadius: 28,
-    borderWidth: 1,
-    bottom: 20,
-    elevation: 10,
-    flexDirection: "row",
-    justifyContent: "space-between",
-    paddingHorizontal: 13,
-    paddingVertical: 12,
-    position: "absolute",
-    shadowColor: "#8D73C9",
-    shadowOffset: {
-      width: 0,
-      height: 6,
-    },
-    shadowOpacity: 0.22,
-    shadowRadius: 13,
-    width: "70%",
-    zIndex: 20,
-  },
-  floatingBusinessAction: {
-    alignItems: "center",
-    borderRadius: 18,
-    height: 52,
-    justifyContent: "center",
-    width: 52,
-  },
-  chatBusinessAction: {
-    backgroundColor: "#F1ECFA",
-    borderColor: "#E2D8F2",
-    borderWidth: 1,
-  },
-  requestsBusinessAction: {
-    backgroundColor: "#8D73C9",
-    elevation: 4,
-    shadowColor: "#8D73C9",
-    shadowOffset: {
-      width: 0,
-      height: 3,
-    },
-    shadowOpacity: 0.34,
-    shadowRadius: 6,
-    transform: [
-      {
-        translateY: -5,
-      },
-    ],
-  },
-  productsBusinessAction: {
-    backgroundColor: "#FBEDE7",
-    borderColor: "#F5DCD1",
-    borderWidth: 1,
-  },
-  toolsBusinessAction: {
-    backgroundColor: "#E6F4EF",
-    borderColor: "#D2EAE1",
-    borderWidth: 1,
-  },
   selectedBusinessCard: {
     alignItems: "center",
     backgroundColor: "#F9F5FF",
