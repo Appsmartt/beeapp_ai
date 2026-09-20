@@ -26,8 +26,8 @@ import OwnedCommercialProfilesState from "../../../src/components/buddyservices/
 import ScreenSafeArea from "../../../src/components/layout/ScreenSafeArea";
 import { toCommercialUiError } from "../../../src/features/buddyservices/commercialErrors";
 import {
-  buddyServicesCommercialRoute,
   buddyServicesCreateBusinessRoute,
+  buddyServicesManageBusinessRoute,
 } from "../../../src/features/buddyservices/commercialRoutes";
 import {
   loadOwnedCommercialProfiles,
@@ -393,7 +393,7 @@ export default function BuddyServicesMyBusinessesScreen() {
                   isUpdating={updatingProfileId === profile.id}
                   key={profile.id}
                   onPress={() => {
-                    router.push(buddyServicesCommercialRoute(profile.id));
+                    router.push(buddyServicesManageBusinessRoute(profile.id));
                   }}
                   onTogglePublication={() => {
                     openPublicationModal(profile);
