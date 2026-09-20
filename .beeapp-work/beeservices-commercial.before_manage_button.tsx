@@ -35,7 +35,6 @@ import CommercialOfferCard from "../../src/components/buddyservices/CommercialOf
 import CommercialRecentBusinesses from "../../src/components/buddyservices/CommercialRecentBusinesses";
 import {
   buddyServicesCreateBusinessRoute,
-  buddyServicesManageBusinessRoute,
   buddyServicesMyBusinessesRoute,
   buddyServicesMyPurchasesRoute,
   buddyServicesPublicOfferRoute,
@@ -666,13 +665,6 @@ export default function BeeServicesCommercialScreen() {
             accessibilityLabel="Herramientas del negocio"
             accessibilityRole="button"
             activeOpacity={0.76}
-            onPress={() => {
-              if (selectedBusinessId) {
-                router.push(
-                  buddyServicesManageBusinessRoute(selectedBusinessId),
-                );
-              }
-            }}
             style={[
               localStyles.floatingBusinessAction,
               localStyles.toolsBusinessAction,
