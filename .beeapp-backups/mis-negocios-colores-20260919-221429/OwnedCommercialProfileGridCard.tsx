@@ -99,11 +99,11 @@ export default function OwnedCommercialProfileGridCard({
     <View
       style={{
         backgroundColor: "#FFFFFF",
-        borderColor: isArchived ? "#D7DFF2" : "#E0E6F4",
+        borderColor: isArchived ? "#D8C8EE" : "#E6DDF4",
         borderRadius: 24,
         borderWidth: 1,
         overflow: "hidden",
-        shadowColor: "#26314D",
+        shadowColor: "#261743",
         shadowOffset: {
           height: 8,
           width: 0,
@@ -133,13 +133,13 @@ export default function OwnedCommercialProfileGridCard({
             displayName={profile.display_name}
             logoFileId={profile.logo_file_id}
             logoUrl={profile.logo_url}
-            size={84}
+            size={62}
           />
 
           <View
             style={{
               flex: 1,
-              marginLeft: 14,
+              marginLeft: 12,
               minWidth: 0,
             }}
           >
@@ -153,7 +153,7 @@ export default function OwnedCommercialProfileGridCard({
               <Text
                 numberOfLines={2}
                 style={{
-                  color: "#26314D",
+                  color: "#261743",
                   flex: 1,
                   fontSize: 18,
                   fontWeight: "900",
@@ -189,12 +189,12 @@ export default function OwnedCommercialProfileGridCard({
                 marginTop: 5,
               }}
             >
-              <MapPin color="#6C7892" size={15} />
+              <MapPin color="#786593" size={15} />
 
               <Text
                 numberOfLines={1}
                 style={{
-                  color: "#6C7892",
+                  color: "#786593",
                   flex: 1,
                   fontSize: 13,
                   marginLeft: 5,
@@ -235,7 +235,7 @@ export default function OwnedCommercialProfileGridCard({
         <Text
           numberOfLines={2}
           style={{
-            color: "#6C7892",
+            color: "#786593",
             fontSize: 13,
             lineHeight: 19,
             marginTop: 14,
@@ -364,7 +364,7 @@ export default function OwnedCommercialProfileGridCard({
 
       <View
         style={{
-          borderTopColor: "#E0E6F4",
+          borderTopColor: "#E6DDF4",
           borderTopWidth: 1,
           flexDirection: "row",
           gap: 8,
@@ -379,7 +379,7 @@ export default function OwnedCommercialProfileGridCard({
           onPress={onPress}
           style={{
             alignItems: "center",
-            backgroundColor: "#7567D9",
+            backgroundColor: "#7427D5",
             borderRadius: 13,
             flex: 1.45,
             flexDirection: "row",
@@ -410,8 +410,8 @@ export default function OwnedCommercialProfileGridCard({
           onPress={onEdit}
           style={{
             alignItems: "center",
-            backgroundColor: "#EEF2FF",
-            borderColor: "#D7DFF2",
+            backgroundColor: "#F5EEFC",
+            borderColor: "#D8C8EE",
             borderRadius: 13,
             borderWidth: 1,
             flex: 1,
@@ -419,7 +419,7 @@ export default function OwnedCommercialProfileGridCard({
             minHeight: 46,
           }}
         >
-          <FilePenLine color="#7567D9" size={18} />
+          <FilePenLine color="#7427D5" size={18} />
         </TouchableOpacity>
 
         <TouchableOpacity
@@ -429,8 +429,8 @@ export default function OwnedCommercialProfileGridCard({
           onPress={onView}
           style={{
             alignItems: "center",
-            backgroundColor: "#EEF2FF",
-            borderColor: "#D7DFF2",
+            backgroundColor: "#F5EEFC",
+            borderColor: "#D8C8EE",
             borderRadius: 13,
             borderWidth: 1,
             flex: 1,
@@ -438,7 +438,7 @@ export default function OwnedCommercialProfileGridCard({
             minHeight: 46,
           }}
         >
-          <Eye color="#7567D9" size={19} />
+          <Eye color="#7427D5" size={19} />
         </TouchableOpacity>
       </View>
     </View>

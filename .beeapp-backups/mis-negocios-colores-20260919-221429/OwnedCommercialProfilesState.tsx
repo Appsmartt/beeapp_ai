@@ -30,13 +30,13 @@ export default function OwnedCommercialProfilesState({
         }}
       >
         <ActivityIndicator
-          color="#7567D9"
+          color="#7427D5"
           size="large"
         />
 
         <Text
           style={{
-            color: '#6C7892',
+            color: '#786593',
             fontSize: 14,
             marginTop: 15,
             textAlign: 'center',
@@ -59,7 +59,7 @@ export default function OwnedCommercialProfilesState({
       <View
         style={{
           alignItems: 'center',
-          backgroundColor: '#EEF2FF',
+          backgroundColor: '#F6EAFE',
           borderRadius: 30,
           height: 60,
           justifyContent: 'center',
@@ -67,14 +67,14 @@ export default function OwnedCommercialProfilesState({
         }}
       >
         <Building2
-          color="#7567D9"
+          color="#7427D5"
           size={28}
         />
       </View>
 
       <Text
         style={{
-          color: '#26314D',
+          color: '#261743',
           fontSize: 18,
           fontWeight: '800',
           marginTop: 18,
@@ -88,7 +88,7 @@ export default function OwnedCommercialProfilesState({
 
       <Text
         style={{
-          color: '#6C7892',
+          color: '#786593',
           fontSize: 14,
           lineHeight: 21,
           marginTop: 9,
@@ -110,7 +110,7 @@ export default function OwnedCommercialProfilesState({
           onPress={onRetry}
           style={{
             alignItems: 'center',
-            backgroundColor: '#7567D9',
+            backgroundColor: '#7427D5',
             borderRadius: 13,
             flexDirection: 'row',
             marginTop: 23,
