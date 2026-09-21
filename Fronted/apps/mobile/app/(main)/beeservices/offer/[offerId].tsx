@@ -69,6 +69,8 @@ import {
   openCommercialDirectConversation,
 } from '../../../../src/hooks/useChat';
 
+const OFFER_DESCRIPTION_PREVIEW_LENGTH = 100;
+
 function normalizeParam(
   value: string | string[] | undefined,
 ): string {
@@ -212,6 +214,9 @@ export default function BuddyServicesPublicOfferScreen() {
   const [addingToCart, setAddingToCart] = useState(false);
   const [imageBoxWidth, setImageBoxWidth] = useState(0);
   const [activeImageIndex, setActiveImageIndex] = useState(0);
+  const [isDescriptionExpanded, setIsDescriptionExpanded] = (
+    useState(false)
+  );
   const imageCarouselRef = useRef<FlatList<CommercialOfferImageWithUrl>>(
     null,
   );
@@ -234,8 +239,31 @@ export default function BuddyServicesPublicOfferScreen() {
       : null
   ), [offer]);
 
+  const descriptionContent = useMemo(() => {
+    const description = String(offer?.description || '');
+
+    if (!description.trim()) {
+      return {
+        canToggle: false,
+        text: '',
+      };
+    }
+
+    const canToggle = (
+      description.length > OFFER_DESCRIPTION_PREVIEW_LENGTH
+    );
+
+    return {
+      canToggle,
+      text: canToggle && !isDescriptionExpanded
+        ? `${description.slice(0, OFFER_DESCRIPTION_PREVIEW_LENGTH)}…`
+        : description,
+    };
+  }, [isDescriptionExpanded, offer?.description]);
+
   useEffect(() => {
     setActiveImageIndex(0);
+    setIsDescriptionExpanded(false);
   }, [offer?.id]);
 
   const handleImageBoxLayout = useCallback((event: {
@@ -804,15 +832,35 @@ export default function BuddyServicesPublicOfferScreen() {
             </Text>
           ) : null}
 
-          {offer.description ? (
+          {descriptionContent.text ? (
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>
                 Descripción
               </Text>
 
               <Text style={styles.description}>
-                {offer.description}
+                {descriptionContent.text}
               </Text>
+
+              {descriptionContent.canToggle ? (
+                <TouchableOpacity
+                  accessibilityLabel={
+                    isDescriptionExpanded
+                      ? 'Contraer descripción'
+                      : 'Ver descripción completa'
+                  }
+                  accessibilityRole="button"
+                  activeOpacity={0.78}
+                  onPress={() => setIsDescriptionExpanded(
+                    (current) => !current,
+                  )}
+                  style={styles.descriptionToggleButton}
+                >
+                  <Text style={styles.descriptionToggleText}>
+                    {isDescriptionExpanded ? 'Ver menos' : 'Ver más'}
+                  </Text>
+                </TouchableOpacity>
+              ) : null}
             </View>
           ) : null}
 
@@ -1128,6 +1176,17 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '800',
     marginBottom: 9,
+  },
+  descriptionToggleButton: {
+    alignSelf: 'flex-start',
+    marginTop: 8,
+    paddingHorizontal: 2,
+    paddingVertical: 4,
+  },
+  descriptionToggleText: {
+    color: '#7427D5',
+    fontSize: 14,
+    fontWeight: '700',
   },
   description: {
     color: '#59496B',
