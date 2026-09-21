@@ -450,7 +450,33 @@ class CommercialProfileChatView(AuthenticatedAPIView):
                 status=status.HTTP_401_UNAUTHORIZED,
             )
         except CommercialError as error:
+            logger.warning(
+                'commercial_chat_open_rejected '
+                'profile_id=%s error_type=%s error=%s',
+                profile_id,
+                type(error).__name__,
+                str(error),
+            )
             return commercial_error_response(error)
+        except Exception as error:
+            logger.exception(
+                'commercial_chat_open_failed '
+                'profile_id=%s user_id=%s error_type=%s',
+                profile_id,
+                getattr(request.user, 'id', None),
+                type(error).__name__,
+            )
+            return Response(
+                {
+                    'code': 'COMMERCIAL_CHAT_OPEN_FAILED',
+                    'message': (
+                        'No fue posible abrir el chat con el negocio. '
+                        'Inténtalo nuevamente.'
+                    ),
+                    'details': None,
+                },
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
 
         serializer = CommercialChatConversationSerializer(result)
         return Response(

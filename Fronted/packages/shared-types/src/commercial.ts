@@ -405,6 +405,13 @@ export interface GetPublicCommercialProfileResponse {
   profile: CommercialPublicProfile;
 }
 
+export interface CommercialProfileChatResponse {
+  conversation_id: string;
+  commercial_profile_id: string;
+  client_profile_id: string;
+  created: boolean;
+}
+
 export interface GetPublicCommercialCatalogsResponse {
   commercial_profile_id: string;
   catalogs: CommercialCatalog[];

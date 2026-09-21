@@ -2,12 +2,16 @@ import {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  FlatList,
   Image,
+  NativeScrollEvent,
+  NativeSyntheticEvent,
   RefreshControl,
   ScrollView,
   StyleSheet,
@@ -19,6 +23,7 @@ import {
   ArrowLeft,
   CalendarClock,
   Clock3,
+  MessageCircle,
   Package,
   ShoppingBag,
   Store,
@@ -30,6 +35,7 @@ import {
 } from 'expo-router';
 
 import type {
+  CommercialOfferImage,
   CommercialPublicOffer,
 } from '@beeapp/shared-types';
 
@@ -56,10 +62,12 @@ import {
   getDefaultRequestedModality,
 } from '../../../../src/features/buddyservices/commercialOfferAction';
 import {
-  buddyServicesCartRoute,
   buddyServicesPublicProfileRoute,
   buddyServicesServiceRequestRoute,
 } from '../../../../src/features/buddyservices/commercialRoutes';
+import {
+  openCommercialDirectConversation,
+} from '../../../../src/hooks/useChat';
 
 function normalizeParam(
   value: string | string[] | undefined,
@@ -148,14 +156,40 @@ function modalityLabel(value: string): string {
   return labels[value] || value;
 }
 
+type CommercialOfferImageWithUrl = CommercialOfferImage & {
+  url: string;
+};
+
+function getOrderedOfferImages(
+  offer: CommercialPublicOffer,
+): CommercialOfferImageWithUrl[] {
+  const validImages = offer.images.filter((
+    image,
+  ): image is CommercialOfferImageWithUrl => (
+    typeof image.url === 'string'
+    && Boolean(image.url.trim())
+  ));
+
+  return [...validImages].sort((firstImage, secondImage) => {
+    if (firstImage.is_primary !== secondImage.is_primary) {
+      return firstImage.is_primary ? -1 : 1;
+    }
+
+    const firstOrder = firstImage.sort_order ?? Number.MAX_SAFE_INTEGER;
+    const secondOrder = secondImage.sort_order ?? Number.MAX_SAFE_INTEGER;
+
+    if (firstOrder !== secondOrder) {
+      return firstOrder - secondOrder;
+    }
+
+    return firstImage.id.localeCompare(secondImage.id);
+  });
+}
+
 function getPrimaryImageUrl(
   offer: CommercialPublicOffer,
 ): string | null {
-  return (
-    offer.images.find((image) => image.is_primary)?.url
-    || offer.images[0]?.url
-    || null
-  );
+  return getOrderedOfferImages(offer)[0]?.url || null;
 }
 
 export default function BuddyServicesPublicOfferScreen() {
@@ -174,6 +208,19 @@ export default function BuddyServicesPublicOfferScreen() {
   const [error, setError] = useState<CommercialUiError | null>(
     null,
   );
+  const [openingChat, setOpeningChat] = useState(false);
+  const [addingToCart, setAddingToCart] = useState(false);
+  const [imageBoxWidth, setImageBoxWidth] = useState(0);
+  const [activeImageIndex, setActiveImageIndex] = useState(0);
+  const imageCarouselRef = useRef<FlatList<CommercialOfferImageWithUrl>>(
+    null,
+  );
+
+  const orderedImages = useMemo(() => (
+    offer
+      ? getOrderedOfferImages(offer)
+      : []
+  ), [offer]);
 
   const primaryImageUrl = useMemo(() => (
     offer
@@ -186,6 +233,56 @@ export default function BuddyServicesPublicOfferScreen() {
       ? paymentPolicyLabel(offer)
       : null
   ), [offer]);
+
+  useEffect(() => {
+    setActiveImageIndex(0);
+  }, [offer?.id]);
+
+  const handleImageBoxLayout = useCallback((event: {
+    nativeEvent: {
+      layout: {
+        width: number;
+      };
+    };
+  }) => {
+    const nextWidth = Math.round(event.nativeEvent.layout.width);
+
+    if (nextWidth > 0 && nextWidth !== imageBoxWidth) {
+      setImageBoxWidth(nextWidth);
+    }
+  }, [imageBoxWidth]);
+
+  const handleImageMomentumScrollEnd = useCallback((
+    event: NativeSyntheticEvent<NativeScrollEvent>,
+  ) => {
+    if (!imageBoxWidth || orderedImages.length < 2) {
+      return;
+    }
+
+    const nextIndex = Math.round(
+      event.nativeEvent.contentOffset.x / imageBoxWidth,
+    );
+
+    if (nextIndex <= 0) {
+      setActiveImageIndex(orderedImages.length - 1);
+      imageCarouselRef.current?.scrollToIndex({
+        animated: false,
+        index: orderedImages.length,
+      });
+      return;
+    }
+
+    if (nextIndex >= orderedImages.length + 1) {
+      setActiveImageIndex(0);
+      imageCarouselRef.current?.scrollToIndex({
+        animated: false,
+        index: 1,
+      });
+      return;
+    }
+
+    setActiveImageIndex(nextIndex - 1);
+  }, [imageBoxWidth, orderedImages.length]);
 
   const loadOffer = useCallback(async () => {
     if (!offerId) {
@@ -250,8 +347,49 @@ export default function BuddyServicesPublicOfferScreen() {
     );
   }, [offer?.commercial_profile_id, router]);
 
+  const handleOpenCommercialChat = useCallback(async () => {
+    if (!offer || openingChat) {
+      return;
+    }
+
+    try {
+      setOpeningChat(true);
+
+      const result = await openCommercialDirectConversation(
+        offer.commercial_profile_id,
+      );
+
+      router.push({
+        pathname: '/(main)/chat/conversation',
+        params: {
+          id: result.conversationId,
+          name: result.displayName,
+          isGroup: 'false',
+          isAi: 'false',
+          online: 'false',
+          focusComposer: 'true',
+        },
+      });
+    } catch (chatError) {
+      const uiError = toCommercialUiError(chatError);
+
+      Alert.alert(
+        uiError.title || 'No fue posible abrir el chat',
+        uiError.message || (
+          'Inténtalo nuevamente en unos momentos.'
+        ),
+      );
+    } finally {
+      setOpeningChat(false);
+    }
+  }, [
+    offer,
+    openingChat,
+    router,
+  ]);
+
   const handleCommercialAction = useCallback(async () => {
-    if (!offer) {
+    if (!offer || addingToCart) {
       return;
     }
 
@@ -265,6 +403,8 @@ export default function BuddyServicesPublicOfferScreen() {
     }
 
     try {
+      setAddingToCart(true);
+
       const profileResponse = await loadPublicCommercialProfile(
         offer.commercial_profile_id,
       );
@@ -294,7 +434,11 @@ export default function BuddyServicesPublicOfferScreen() {
         const result = addBusinessCartService(cartService);
 
         if (result.kind === 'added') {
-          router.push(buddyServicesCartRoute());
+          router.push(
+            buddyServicesPublicProfileRoute(
+              offer.commercial_profile_id,
+            ),
+          );
           return;
         }
 
@@ -320,7 +464,11 @@ export default function BuddyServicesPublicOfferScreen() {
               style: 'destructive',
               onPress: () => {
                 replaceBusinessCartWithService(cartService);
-                router.push(buddyServicesCartRoute());
+                router.push(
+                  buddyServicesPublicProfileRoute(
+                    offer.commercial_profile_id,
+                  ),
+                );
               },
             },
           ],
@@ -353,7 +501,11 @@ export default function BuddyServicesPublicOfferScreen() {
       const result = addBusinessCartProduct(cartProduct);
 
       if (result.kind === 'added') {
-        router.push(buddyServicesCartRoute());
+        router.push(
+          buddyServicesPublicProfileRoute(
+            offer.commercial_profile_id,
+          ),
+        );
         return;
       }
 
@@ -379,7 +531,11 @@ export default function BuddyServicesPublicOfferScreen() {
             style: 'destructive',
             onPress: () => {
               replaceBusinessCartWithProduct(cartProduct);
-              router.push(buddyServicesCartRoute());
+              router.push(
+                buddyServicesPublicProfileRoute(
+                  offer.commercial_profile_id,
+                ),
+              );
             },
           },
         ],
@@ -391,8 +547,11 @@ export default function BuddyServicesPublicOfferScreen() {
         uiError.title,
         uiError.message,
       );
+    } finally {
+      setAddingToCart(false);
     }
   }, [
+    addingToCart,
     offer,
     primaryImageUrl,
     router,
@@ -516,17 +675,84 @@ export default function BuddyServicesPublicOfferScreen() {
           }
           showsVerticalScrollIndicator={false}
         >
-          <View style={styles.imageBox}>
-            {primaryImageUrl ? (
-              <Image
-                accessibilityIgnoresInvertColors
-                resizeMode="cover"
-                source={{
-                  uri: primaryImageUrl,
-                }}
-                style={styles.image}
-              />
-            ) : isProduct ? (
+          <View
+            onLayout={handleImageBoxLayout}
+            style={styles.imageBox}
+          >
+            {orderedImages.length > 0 && imageBoxWidth > 0 ? (
+              <>
+                <FlatList
+                  data={
+                    orderedImages.length > 1
+                      ? [
+                        orderedImages[orderedImages.length - 1],
+                        ...orderedImages,
+                        orderedImages[0],
+                      ]
+                      : orderedImages
+                  }
+                  decelerationRate="fast"
+                  disableIntervalMomentum
+                  getItemLayout={(_, index) => ({
+                    index,
+                    length: imageBoxWidth,
+                    offset: imageBoxWidth * index,
+                  })}
+                  horizontal
+                  initialScrollIndex={
+                    orderedImages.length > 1
+                      ? 1
+                      : 0
+                  }
+                  key={`offer-images-${offer.id}-${imageBoxWidth}`}
+                  ref={imageCarouselRef}
+                  keyExtractor={(image, index) => (
+                    `${image.id}-${index}`
+                  )}
+                  onMomentumScrollEnd={handleImageMomentumScrollEnd}
+                  pagingEnabled
+                  renderItem={({ item }) => (
+                    <Image
+                      accessibilityIgnoresInvertColors
+                      resizeMode="cover"
+                      source={{
+                        uri: item.url,
+                      }}
+                      style={[
+                        styles.image,
+                        {
+                          width: imageBoxWidth,
+                        },
+                      ]}
+                    />
+                  )}
+                  showsHorizontalScrollIndicator={false}
+                  style={styles.imageCarousel}
+                />
+
+                {orderedImages.length > 1 ? (
+                  <View
+                    accessibilityLabel={
+                      `Imagen ${activeImageIndex + 1} de `
+                      + `${orderedImages.length}`
+                    }
+                    accessibilityRole="text"
+                    style={styles.imageIndicators}
+                  >
+                    {orderedImages.map((image, index) => (
+                      <View
+                        key={image.id}
+                        style={[
+                          styles.imageIndicator,
+                          index === activeImageIndex
+                            && styles.imageIndicatorActive,
+                        ]}
+                      />
+                    ))}
+                  </View>
+                ) : null}
+              </>
+            ) : orderedImages.length > 0 ? null : isProduct ? (
               <Package
                 color="#7B2DD9"
                 size={58}
@@ -673,15 +899,82 @@ export default function BuddyServicesPublicOfferScreen() {
             </View>
           ) : null}
 
+          <View style={styles.businessCard}>
+            <View style={styles.businessCardIcon}>
+              <Store
+                color="#7427D5"
+                size={20}
+              />
+            </View>
+
+            <View style={styles.businessCardContent}>
+              <Text style={styles.businessCardTitle}>
+                ¿Tienes preguntas?
+              </Text>
+
+              <Text style={styles.businessCardText}>
+                Escribe directamente al negocio antes de continuar.
+              </Text>
+            </View>
+
+            <TouchableOpacity
+              accessibilityLabel="Abrir chat con el negocio"
+              accessibilityRole="button"
+              activeOpacity={0.8}
+              disabled={openingChat}
+              onPress={() => void handleOpenCommercialChat()}
+              style={[
+                styles.chatButton,
+                openingChat && styles.chatButtonDisabled,
+              ]}
+            >
+              {openingChat ? (
+                <ActivityIndicator
+                  color="#7427D5"
+                  size="small"
+                />
+              ) : (
+                <MessageCircle
+                  color="#7427D5"
+                  size={18}
+                />
+              )}
+
+              <Text style={styles.chatButtonText}>
+                Chat
+              </Text>
+            </TouchableOpacity>
+          </View>
+
           <TouchableOpacity
-            accessibilityLabel={actionLabel}
+            accessibilityLabel={(
+              addingToCart
+                ? 'Agregando al carrito'
+                : actionLabel
+            )}
             accessibilityRole="button"
             activeOpacity={0.8}
-            onPress={handleCommercialAction}
-            style={styles.actionButton}
+            disabled={addingToCart}
+            onPress={() => void handleCommercialAction()}
+            style={[
+              styles.actionButton,
+              addingToCart && styles.actionButtonDisabled,
+            ]}
           >
+            {addingToCart ? (
+              <ActivityIndicator
+                color="#FFFFFF"
+                size="small"
+              />
+            ) : (
+              <ShoppingBag
+                color="#FFFFFF"
+                size={19}
+              />
+            )}
+
             <Text style={styles.actionButtonText}>
-              {actionLabel}
+              {addingToCart ? 'Agregando...' : actionLabel}
             </Text>
           </TouchableOpacity>
         </ScrollView>
@@ -769,9 +1062,32 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     width: '100%',
   },
-  image: {
+  imageCarousel: {
     height: '100%',
     width: '100%',
+  },
+  image: {
+    height: '100%',
+  },
+  imageIndicators: {
+    alignItems: 'center',
+    bottom: 12,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    left: 16,
+    position: 'absolute',
+    right: 16,
+  },
+  imageIndicator: {
+    backgroundColor: 'rgba(255, 255, 255, 0.58)',
+    borderRadius: 4,
+    height: 7,
+    marginHorizontal: 3,
+    width: 7,
+  },
+  imageIndicatorActive: {
+    backgroundColor: '#7427D5',
+    width: 20,
   },
   kindRow: {
     alignItems: 'center',
@@ -891,6 +1207,68 @@ const styles = StyleSheet.create({
     lineHeight: 18,
     marginTop: 8,
   },
+  businessCard: {
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    borderColor: '#E9DEF3',
+    borderRadius: 20,
+    borderWidth: 1,
+    flexDirection: 'row',
+    marginTop: 20,
+    padding: 14,
+    shadowColor: '#4A286E',
+    shadowOffset: {
+      width: 0,
+      height: 8,
+    },
+    shadowOpacity: 0.08,
+    shadowRadius: 16,
+    elevation: 3,
+  },
+  businessCardIcon: {
+    alignItems: 'center',
+    backgroundColor: '#F4EAFE',
+    borderRadius: 15,
+    height: 46,
+    justifyContent: 'center',
+    marginRight: 11,
+    width: 46,
+  },
+  businessCardContent: {
+    flex: 1,
+  },
+  businessCardTitle: {
+    color: '#2D2141',
+    fontSize: 14,
+    fontWeight: '800',
+  },
+  businessCardText: {
+    color: '#786593',
+    fontSize: 12,
+    lineHeight: 17,
+    marginTop: 3,
+  },
+  chatButton: {
+    alignItems: 'center',
+    backgroundColor: '#F7F0FF',
+    borderColor: '#DEC7F0',
+    borderRadius: 14,
+    borderWidth: 1,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    marginLeft: 10,
+    minHeight: 42,
+    paddingHorizontal: 12,
+  },
+  chatButtonDisabled: {
+    opacity: 0.65,
+  },
+  chatButtonText: {
+    color: '#6527AA',
+    fontSize: 13,
+    fontWeight: '800',
+    marginLeft: 6,
+  },
   actionButton: {
     alignItems: 'center',
     backgroundColor: '#7427D5',
@@ -898,6 +1276,9 @@ const styles = StyleSheet.create({
     marginTop: 28,
     minHeight: 51,
     justifyContent: 'center',
+  },
+  actionButtonDisabled: {
+    opacity: 0.72,
   },
   actionButtonText: {
     color: '#FFFFFF',

@@ -86,6 +86,7 @@ export default function ConversationScreen() {
   const requestedIdentityId = String(
     params.identityId || '',
   ).trim() || null;
+  const focusComposer = params.focusComposer === 'true';
 
   const isCommercialContext = (
     context === 'commercial'
@@ -1387,6 +1388,7 @@ export default function ConversationScreen() {
             onSendVoiceNote={handleSendVoiceNote}
             onSendAttachment={handleSendAttachment}
             uploadingAttachment={uploadingAttachment}
+            shouldFocus={focusComposer}
             value={
               editingMessage
                 ? editingText
