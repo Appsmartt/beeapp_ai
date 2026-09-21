@@ -5,6 +5,7 @@ import {
 } from 'react';
 import {
   Image as ReactNativeImage,
+  InteractionManager,
   Platform,
   StyleSheet,
   Text,
@@ -60,6 +61,7 @@ interface WriteBarProps {
   onChangeText?: (text: string) => void;
   disabled?: boolean;
   uploadingAttachment?: boolean;
+  shouldFocus?: boolean;
 }
 
 function formatRecordingTime(
@@ -116,6 +118,7 @@ export default function WriteBar({
   onChangeText,
   disabled = false,
   uploadingAttachment = false,
+  shouldFocus = false,
 }: WriteBarProps) {
   const [internalText, setInternalText] = useState('');
   const text = value !== undefined ? value : internalText;
@@ -125,10 +128,35 @@ export default function WriteBar({
   const [isRecording, setIsRecording] = useState(false);
   const [recordTime, setRecordTime] = useState(0);
 
+  const inputRef = useRef<TextInput | null>(null);
   const recordingRef = useRef<Audio.Recording | null>(null);
   const recordInterval = useRef<
     ReturnType<typeof setInterval> | null
   >(null);
+
+  useEffect(() => {
+    if (
+      !shouldFocus
+      || disabled
+      || uploadingAttachment
+      || isRecording
+    ) {
+      return;
+    }
+
+    const task = InteractionManager.runAfterInteractions(() => {
+      inputRef.current?.focus();
+    });
+
+    return () => {
+      task.cancel();
+    };
+  }, [
+    disabled,
+    isRecording,
+    shouldFocus,
+    uploadingAttachment,
+  ]);
 
   useEffect(() => {
     if (!isRecording) {
@@ -564,6 +592,7 @@ export default function WriteBar({
             </TouchableOpacity>
 
             <TextInput
+              ref={inputRef}
               style={styles.textInput}
               placeholder={
                 uploadingAttachment

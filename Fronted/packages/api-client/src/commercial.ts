@@ -16,6 +16,7 @@ import type {
   GetPublicCommercialOffersResponse,
   GetPublicCommercialProductFeedResponse,
   GetPublicCommercialProfileResponse,
+  CommercialProfileChatResponse,
   GetPublicCommercialProfilesResponse,
   PublicCommercialOffersQuery,
   PublicCommercialProductFeedQuery,
@@ -233,6 +234,29 @@ export function getPublicCommercialProfiles(
   return api.get<GetPublicCommercialProfilesResponse>(
     `/commercial/public/profiles/${toQueryString(query)}`,
     { auth },
+  );
+}
+
+export function openCommercialProfileChat(
+  auth: AuthCredentials,
+  profileId: string,
+): Promise<CommercialProfileChatResponse> {
+  const normalizedProfileId = String(profileId || '').trim();
+
+  if (!normalizedProfileId) {
+    throw new Error(
+      'No fue posible identificar el negocio para abrir el chat.',
+    );
+  }
+
+  return api.post<CommercialProfileChatResponse>(
+    `/commercial/profiles/${encodeURIComponent(
+      normalizedProfileId,
+    )}/chat/`,
+    {},
+    {
+      auth,
+    },
   );
 }
 
