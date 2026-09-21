@@ -457,7 +457,6 @@ export default function ConversationScreen() {
         const needsAttachmentAccess = (
           (
             message.type === 'image'
-            || message.type === 'audio'
             || message.type === 'file'
           )
           && !message.mediaUrl
@@ -558,6 +557,47 @@ export default function ConversationScreen() {
     activeIdentityId,
     messages,
   ]);
+
+  const requestFreshAudioUrl = async (
+    messageId: string,
+  ): Promise<string> => {
+    const normalizedMessageId = String(messageId || '').trim();
+
+    if (!normalizedMessageId || !activeIdentityId) {
+      throw new Error(
+        'No fue posible identificar la nota de voz.',
+      );
+    }
+
+    const auth = await getValidSessionCredentials();
+
+    if (!auth) {
+      throw new Error(
+        'Tu sesión expiró. Inicia sesión nuevamente.',
+      );
+    }
+
+    const access = await getChatMessageAttachmentAccess(
+      auth,
+      normalizedMessageId,
+      activeIdentityId,
+    );
+
+    const nextUrl = String(access.url || '').trim();
+
+    if (!/^https?:\/\//i.test(nextUrl)) {
+      throw new Error(
+        'La nota de voz no tiene una URL de reproducción válida.',
+      );
+    }
+
+    setAttachmentUrlsByMessageId((current) => ({
+      ...current,
+      [normalizedMessageId]: nextUrl,
+    }));
+
+    return nextUrl;
+  };
 
   const headerAvatarUrl = (
     contactAvatarUrl
@@ -1370,9 +1410,22 @@ export default function ConversationScreen() {
                     type={message.type}
                     text={message.text}
                     mediaUrl={
-                      message.mediaUrl
-                      || attachmentUrlsByMessageId[message.id]
-                      || undefined
+                      message.type === 'audio'
+                        ? (
+                            attachmentUrlsByMessageId[message.id]
+                            || undefined
+                          )
+                        : (
+                            message.mediaUrl
+                            || attachmentUrlsByMessageId[message.id]
+                            || undefined
+                          )
+                    }
+                    messageId={message.id}
+                    onRequestAudioUrl={
+                      message.type === 'audio'
+                        ? requestFreshAudioUrl
+                        : undefined
                     }
                     fileName={message.fileName}
                     fileSize={message.fileSize}
