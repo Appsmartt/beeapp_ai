@@ -149,6 +149,7 @@ export function mapStatusStoryToUi(
     authorName,
     authorInitials: getInitials(authorName),
     authorColor: DEFAULT_AUTHOR_COLOR,
+    authorAvatarUrl: story.actor.avatar_url?.trim() || null,
     type,
     text,
     photoUrl: isMedia

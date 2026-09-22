@@ -73,6 +73,7 @@ export interface StatusItem {
   /** Avatar mock: iniciales sobre un color de fondo */
   authorInitials: string;
   authorColor: string;
+  authorAvatarUrl?: string | null;
   type: 'photo' | 'gif' | 'video' | 'text';
   text: string;
   /** null en los estados de solo texto */
