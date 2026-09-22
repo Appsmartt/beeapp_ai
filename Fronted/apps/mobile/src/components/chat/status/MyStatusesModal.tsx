@@ -1,4 +1,5 @@
 import {
+  ActivityIndicator,
   FlatList,
   Image,
   Modal,
@@ -9,12 +10,18 @@ import {
 } from 'react-native';
 import {
   useMemo,
+  useState,
 } from 'react';
+import {
+  useSafeAreaInsets,
+} from 'react-native-safe-area-context';
 import {
   Camera,
   ChevronLeft,
+  Eye,
   FileText,
   Play,
+  Trash2,
 } from 'lucide-react-native';
 import {
   colors,
@@ -32,6 +39,7 @@ interface MyStatusesModalProps {
   onOpenStatus: (status: StatusItem) => void;
   onCreateText: () => void;
   onOpenCamera: () => void;
+  onArchiveStatus: (statusId: string) => Promise<void>;
   onClose: () => void;
 }
 
@@ -86,8 +94,17 @@ export default function MyStatusesModal({
   onOpenStatus,
   onCreateText,
   onOpenCamera,
+  onArchiveStatus,
   onClose,
 }: MyStatusesModalProps) {
+  const insets = useSafeAreaInsets();
+  const [archivingStatusId, setArchivingStatusId] = useState<string | null>(
+    null,
+  );
+  const [archiveConfirmationStatus, setArchiveConfirmationStatus] = useState<
+    StatusItem | null
+  >(null);
+  const [archiveError, setArchiveError] = useState<string | null>(null);
   const sortedStatuses = useMemo(
     () => [...statuses].sort((first, second) => (
       new Date(second.createdAt || 0).getTime()
@@ -95,6 +112,36 @@ export default function MyStatusesModal({
     )),
     [statuses],
   );
+
+  const openArchiveConfirmation = (status: StatusItem) => {
+    if (archivingStatusId) {
+      return;
+    }
+
+    setArchiveError(null);
+    setArchiveConfirmationStatus(status);
+  };
+
+  const handleArchiveStatus = async () => {
+    if (!archiveConfirmationStatus || archivingStatusId) {
+      return;
+    }
+
+    try {
+      setArchivingStatusId(archiveConfirmationStatus.id);
+      setArchiveError(null);
+      await onArchiveStatus(archiveConfirmationStatus.id);
+      setArchiveConfirmationStatus(null);
+    } catch (archiveError) {
+      setArchiveError(
+        archiveError instanceof Error
+          ? archiveError.message
+          : 'No fue posible eliminar el estado. Inténtalo nuevamente.',
+      );
+    } finally {
+      setArchivingStatusId(null);
+    }
+  };
 
   return (
     <Modal
@@ -104,7 +151,14 @@ export default function MyStatusesModal({
       statusBarTranslucent
     >
       <ScreenSafeArea style={styles.screen}>
-        <View style={styles.header}>
+        <View
+          style={[
+            styles.header,
+            {
+              marginTop: (insets.top / 2) + spacing.sm,
+            },
+          ]}
+        >
           <TouchableOpacity
             style={styles.backButton}
             onPress={onClose}
@@ -130,12 +184,13 @@ export default function MyStatusesModal({
             const isMedia = Boolean(item.photoUrl);
 
             return (
-              <TouchableOpacity
-                style={styles.row}
-                onPress={() => onOpenStatus(item)}
-                activeOpacity={0.78}
-                accessibilityLabel={`Abrir estado publicado ${formatPublishedAt(item.createdAt)}`}
-              >
+              <View style={styles.row}>
+                <TouchableOpacity
+                  style={styles.rowContent}
+                  onPress={() => onOpenStatus(item)}
+                  activeOpacity={0.78}
+                  accessibilityLabel={`Abrir estado publicado ${formatPublishedAt(item.createdAt)}`}
+                >
                 <View style={styles.previewWrap}>
                   {item.type === 'video' ? (
                     <View style={styles.videoPreview}>
@@ -189,12 +244,122 @@ export default function MyStatusesModal({
                         : 'Foto'
                     )}
                   </Text>
+
+                  <View style={styles.viewerCountRow}>
+                    <Eye
+                      size={14}
+                      color={colors.neutral.gray600}
+                    />
+                    <Text style={styles.viewerCountText}>
+                      Visto por {item.viewerCount ?? 0}
+                    </Text>
+                  </View>
                 </View>
-              </TouchableOpacity>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.archiveStatusButton}
+                  onPress={() => {
+                    openArchiveConfirmation(item);
+                  }}
+                  disabled={archivingStatusId === item.id}
+                  activeOpacity={0.8}
+                  accessibilityLabel="Eliminar este estado"
+                >
+                  <Trash2
+                    size={19}
+                    color={colors.semantic.error}
+                  />
+                </TouchableOpacity>
+              </View>
             );
           }}
           ListFooterComponent={<View style={styles.footerSpace} />}
         />
+
+        {archiveConfirmationStatus ? (
+          <View style={styles.archiveConfirmationOverlay}>
+            <TouchableOpacity
+              style={styles.archiveConfirmationBackdrop}
+              activeOpacity={1}
+              onPress={() => {
+                if (!archivingStatusId) {
+                  setArchiveConfirmationStatus(null);
+                }
+              }}
+            />
+
+            <View style={styles.archiveConfirmationCard}>
+              <View style={styles.archiveConfirmationIcon}>
+                <Trash2
+                  size={26}
+                  color={colors.semantic.error}
+                />
+              </View>
+
+              <Text style={styles.archiveConfirmationTitle}>
+                ¿Eliminar este estado?
+              </Text>
+
+              <Text style={styles.archiveConfirmationDescription}>
+                Tu estado dejará de estar visible para otras personas.
+              </Text>
+
+              {archiveError ? (
+                <Text style={styles.archiveConfirmationError}>
+                  {archiveError}
+                </Text>
+              ) : null}
+
+              <View style={styles.archiveConfirmationActions}>
+                <TouchableOpacity
+                  style={styles.archiveCancelButton}
+                  onPress={() => {
+                    if (!archivingStatusId) {
+                      setArchiveConfirmationStatus(null);
+                    }
+                  }}
+                  disabled={Boolean(archivingStatusId)}
+                  activeOpacity={0.8}
+                >
+                  <Text style={styles.archiveCancelButtonText}>
+                    Cancelar
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.archiveConfirmButton}
+                  onPress={() => {
+                    void handleArchiveStatus();
+                  }}
+                  disabled={Boolean(archivingStatusId)}
+                  activeOpacity={0.8}
+                  accessibilityLabel={
+                    archivingStatusId
+                      ? 'Eliminando estado'
+                      : 'Eliminar este estado'
+                  }
+                >
+                  {archivingStatusId ? (
+                    <View style={styles.archiveLoadingContent}>
+                      <ActivityIndicator
+                        size="small"
+                        color={colors.neutral.white}
+                      />
+                      <Text style={styles.archiveConfirmButtonText}>
+                        Eliminando...
+                      </Text>
+                    </View>
+                  ) : (
+                    <Text style={styles.archiveConfirmButtonText}>
+                      Eliminar
+                    </Text>
+                  )}
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        ) : null}
 
         <View style={styles.floatingActions}>
           <TouchableOpacity
@@ -263,6 +428,22 @@ const styles = StyleSheet.create({
     minHeight: 88,
     paddingVertical: spacing.sm,
   },
+  rowContent: {
+    alignItems: 'center',
+    flex: 1,
+    flexDirection: 'row',
+  },
+  archiveStatusButton: {
+    alignItems: 'center',
+    backgroundColor: 'rgba(220,38,38,0.10)',
+    borderColor: 'rgba(220,38,38,0.30)',
+    borderRadius: 18,
+    borderWidth: 1,
+    height: 38,
+    justifyContent: 'center',
+    marginLeft: spacing.sm,
+    width: 38,
+  },
   previewWrap: {
     backgroundColor: colors.neutral.gray100,
     borderRadius: 30,
@@ -307,8 +488,104 @@ const styles = StyleSheet.create({
     lineHeight: 18,
     marginTop: 3,
   },
+  viewerCountRow: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: 5,
+    marginTop: 6,
+  },
+  viewerCountText: {
+    color: colors.neutral.gray600,
+    fontSize: 12,
+    fontWeight: '600',
+  },
   footerSpace: {
     height: 112,
+  },
+  archiveConfirmationOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: spacing.lg,
+  },
+  archiveConfirmationBackdrop: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(34, 43, 67, 0.56)',
+  },
+  archiveConfirmationCard: {
+    alignItems: 'center',
+    backgroundColor: colors.neutral.white,
+    borderRadius: 24,
+    elevation: 12,
+    maxWidth: 360,
+    padding: spacing.lg,
+    width: '100%',
+  },
+  archiveConfirmationIcon: {
+    alignItems: 'center',
+    backgroundColor: 'rgba(220, 38, 38, 0.12)',
+    borderRadius: 28,
+    height: 56,
+    justifyContent: 'center',
+    marginBottom: spacing.md,
+    width: 56,
+  },
+  archiveConfirmationTitle: {
+    color: colors.neutral.text,
+    fontSize: 19,
+    fontWeight: '700',
+    textAlign: 'center',
+  },
+  archiveConfirmationDescription: {
+    color: colors.neutral.gray600,
+    fontSize: 14,
+    lineHeight: 20,
+    marginTop: spacing.sm,
+    textAlign: 'center',
+  },
+  archiveConfirmationError: {
+    color: colors.semantic.error,
+    fontSize: 13,
+    lineHeight: 18,
+    marginTop: spacing.sm,
+    textAlign: 'center',
+  },
+  archiveConfirmationActions: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+    marginTop: spacing.lg,
+    width: '100%',
+  },
+  archiveCancelButton: {
+    alignItems: 'center',
+    backgroundColor: colors.neutral.gray100,
+    borderRadius: 12,
+    flex: 1,
+    justifyContent: 'center',
+    minHeight: 44,
+  },
+  archiveCancelButtonText: {
+    color: colors.neutral.text,
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  archiveConfirmButton: {
+    alignItems: 'center',
+    backgroundColor: colors.semantic.error,
+    borderRadius: 12,
+    flex: 1,
+    justifyContent: 'center',
+    minHeight: 44,
+  },
+  archiveLoadingContent: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: spacing.xs,
+  },
+  archiveConfirmButtonText: {
+    color: colors.neutral.white,
+    fontSize: 14,
+    fontWeight: '700',
   },
   floatingActions: {
     alignItems: 'flex-end',
