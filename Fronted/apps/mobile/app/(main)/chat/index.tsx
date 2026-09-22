@@ -67,6 +67,9 @@ import {
 import {
   prepareStatusMediaForUpload,
 } from '../../../src/services/statusMediaPreparation';
+import {
+  logStatusVideoDiagnostic,
+} from '../../../src/services/statusVideoDiagnostics';
 
 import {
   acceptStatusFollow,
@@ -997,7 +1000,21 @@ export default function ChatListScreen() {
           mimeType: draft.media.mimeType,
           kind: draft.media.kind,
           durationSeconds: draft.media.durationSeconds,
+          traceId: draft.media.traceId,
+          source: draft.media.source,
         });
+
+        if (preparedMedia.kind === 'video') {
+          logStatusVideoDiagnostic({
+            traceId: draft.media.traceId?.trim() || 'status-video-unknown',
+            stage: 'upload_started',
+            source: draft.media.source || 'unknown',
+            name: preparedMedia.name,
+            mimeType: preparedMedia.mimeType,
+            sizeBytes: preparedMedia.sizeBytes,
+            durationSeconds: preparedMedia.durationSeconds,
+          });
+        }
 
         setStatusPublishingPhase('uploading');
 
@@ -1024,6 +1041,18 @@ export default function ChatListScreen() {
             mimeType: preparedMedia.mimeType,
           },
         );
+
+        if (preparedMedia.kind === 'video') {
+          logStatusVideoDiagnostic({
+            traceId: draft.media.traceId?.trim() || 'status-video-unknown',
+            stage: 'upload_completed',
+            source: draft.media.source || 'unknown',
+            name: preparedMedia.name,
+            mimeType: preparedMedia.mimeType,
+            sizeBytes: preparedMedia.sizeBytes,
+            durationSeconds: preparedMedia.durationSeconds,
+          });
+        }
       } else {
         const normalizedColor = draft.backgroundColor
           .trim()

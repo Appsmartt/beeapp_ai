@@ -1,9 +1,14 @@
 import * as FileSystem from 'expo-file-system';
 import {
+  logStatusVideoDiagnostic,
+} from './statusVideoDiagnostics';
+import {
   getVideoMetaData,
   Image as ImageCompressor,
-  Video as VideoCompressor,
 } from 'react-native-compressor';
+import {
+  transcodeStatusVideoToMp4,
+} from './statusVideoTranscoder';
 
 export type StatusMediaKind = 'image' | 'gif' | 'video';
 
@@ -13,6 +18,8 @@ export type StatusMediaPreparationInput = {
   mimeType: string;
   kind: StatusMediaKind;
   durationSeconds: number | null;
+  traceId?: string | null;
+  source?: 'camera' | 'gallery' | 'unknown';
 };
 
 export type PreparedStatusMedia = {
@@ -32,7 +39,6 @@ export const MAX_STATUS_VIDEO_DURATION_SECONDS = 90;
 const STATUS_IMAGE_COMPRESSION_QUALITY = 0.82;
 const STATUS_IMAGE_MAX_WIDTH = 2160;
 const STATUS_IMAGE_MAX_HEIGHT = 2160;
-const STATUS_VIDEO_MAX_DIMENSION = 720;
 
 function normalizeFileName(
   name: string,
@@ -182,61 +188,129 @@ async function prepareGif(
 async function prepareVideo(
   input: StatusMediaPreparationInput,
 ): Promise<PreparedStatusMedia> {
-  const durationSeconds = validateVideoDuration(
-    input.durationSeconds,
+  const traceId = (
+    input.traceId?.trim()
+    || `status-video-${Date.now()}`
   );
-  const compressedUri = await VideoCompressor.compress(
-    input.uri,
-    {
-      compressionMethod: 'manual',
-      maxSize: STATUS_VIDEO_MAX_DIMENSION,
-      minimumFileSizeForCompress: 0,
-    },
-  );
-  const [
-    sizeBytes,
-    compressedMetadata,
-  ] = await Promise.all([
-    getFileSizeBytes(compressedUri),
-    getVideoMetaData(compressedUri),
-  ]);
+  const source = input.source || 'unknown';
 
-  const normalizedExtension = (
-    compressedMetadata.extension
-    .trim()
-    .toLowerCase()
-    .replace(/^\./, '')
-  );
+  try {
+    logStatusVideoDiagnostic({
+      traceId,
+      stage: 'preparation_started',
+      source,
+      name: input.name,
+      mimeType: input.mimeType,
+      durationSeconds: input.durationSeconds,
+    });
 
-  if (
-    normalizedExtension !== 'mp4'
-    || compressedMetadata.duration <= 0
-    || compressedMetadata.width <= 0
-    || compressedMetadata.height <= 0
-  ) {
-    throw new Error(
-      'No fue posible preparar un video MP4 compatible para el estado.',
+    const [
+      sourceSizeBytes,
+      sourceMetadata,
+    ] = await Promise.all([
+      getFileSizeBytes(input.uri),
+      getVideoMetaData(input.uri),
+    ]);
+
+    logStatusVideoDiagnostic({
+      traceId,
+      stage: 'source_metadata_loaded',
+      source,
+      name: input.name,
+      mimeType: input.mimeType,
+      extension: sourceMetadata.extension,
+      sizeBytes: sourceSizeBytes,
+      durationSeconds: sourceMetadata.duration / 1000,
+      width: sourceMetadata.width,
+      height: sourceMetadata.height,
+    });
+
+    const durationSeconds = validateVideoDuration(
+      input.durationSeconds,
     );
-  }
 
-  if (sizeBytes > MAX_STATUS_VIDEO_SIZE_BYTES) {
+    logStatusVideoDiagnostic({
+      traceId,
+      stage: 'compression_started',
+      source,
+      name: input.name,
+      mimeType: input.mimeType,
+      sizeBytes: sourceSizeBytes,
+      durationSeconds,
+      width: sourceMetadata.width,
+      height: sourceMetadata.height,
+    });
+
+    const transcodedVideo = await transcodeStatusVideoToMp4(
+      input.uri,
+    );
+    const compressedUri = transcodedVideo.uri;
+    const sizeBytes = (
+      transcodedVideo.sizeBytes
+      ?? await getFileSizeBytes(compressedUri)
+    );
+    const compressedName = getCompressedVideoName(input.name);
+
+    if (sizeBytes <= 0) {
+      throw new Error(
+        'No fue posible verificar el archivo comprimido para el estado.',
+      );
+    }
+
+    logStatusVideoDiagnostic({
+      traceId,
+      stage: 'compressed_metadata_loaded',
+      source,
+      name: compressedName,
+      mimeType: 'video/mp4',
+      extension: 'mp4',
+      sizeBytes,
+      durationSeconds,
+      width: sourceMetadata.width,
+      height: sourceMetadata.height,
+    });
+
+    if (sizeBytes > MAX_STATUS_VIDEO_SIZE_BYTES) {
     throw new Error(
       'No fue posible reducir el video a un máximo de 40 MiB. Recorta el video o selecciona uno más liviano.',
     );
   }
 
-  return {
-    uri: compressedUri,
-    name: getCompressedVideoName(input.name),
-    mimeType: 'video/mp4',
-    sizeBytes,
-    kind: 'video',
-    durationSeconds: normalizeDurationSeconds(
-      compressedMetadata.duration > 0
-        ? compressedMetadata.duration / 1000
-        : durationSeconds,
-    ),
-  };
+    const preparedMedia = {
+      uri: compressedUri,
+      name: compressedName,
+      mimeType: 'video/mp4',
+      sizeBytes,
+      kind: 'video' as const,
+      durationSeconds,
+    };
+
+    logStatusVideoDiagnostic({
+      traceId,
+      stage: 'preparation_completed',
+      source,
+      name: preparedMedia.name,
+      mimeType: preparedMedia.mimeType,
+      extension: 'mp4',
+      sizeBytes: preparedMedia.sizeBytes,
+      durationSeconds: preparedMedia.durationSeconds,
+      width: sourceMetadata.width,
+      height: sourceMetadata.height,
+    });
+
+    return preparedMedia;
+  } catch (error) {
+    logStatusVideoDiagnostic({
+      traceId,
+      stage: 'failed',
+      source,
+      name: input.name,
+      mimeType: input.mimeType,
+      durationSeconds: input.durationSeconds,
+      error,
+    });
+    throw error;
+  }
 }
 
 export async function prepareStatusMediaForUpload(

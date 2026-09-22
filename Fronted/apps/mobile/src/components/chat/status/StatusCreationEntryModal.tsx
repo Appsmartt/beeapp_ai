@@ -41,6 +41,10 @@ import {
   toSelectedStatusMedia,
 } from './statusMedia';
 import {
+  createStatusVideoTraceId,
+  logStatusVideoDiagnostic,
+} from '../../../services/statusVideoDiagnostics';
+import {
   loadRecentStatusMedia,
   requestRecentStatusMediaPermission,
   type RecentStatusMediaAsset,
@@ -241,6 +245,16 @@ export default function StatusCreationEntryModal({
       setSelectingId(asset.id);
 
       const uri = asset.uri;
+      const traceId = createStatusVideoTraceId();
+
+      logStatusVideoDiagnostic({
+        traceId,
+        stage: 'gallery_selection_started',
+        source: 'gallery',
+        name: asset.filename,
+        durationSeconds: asset.duration / 1000,
+      });
+
       const extension = asset.filename
         .split('.')
         .pop()
@@ -275,8 +289,20 @@ export default function StatusCreationEntryModal({
               ? asset.duration
               : null
           ),
+          traceId,
+          source: 'gallery',
         }),
       );
+
+      logStatusVideoDiagnostic({
+        traceId,
+        stage: 'gallery_selection_completed',
+        source: 'gallery',
+        name: asset.filename,
+        mimeType,
+        extension,
+        durationSeconds: asset.duration / 1000,
+      });
     } catch (selectionError) {
       Alert.alert(
         'No fue posible abrir el archivo',
