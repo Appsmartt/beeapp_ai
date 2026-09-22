@@ -27,6 +27,7 @@ import {
 
 interface StatusCirclesRowProps {
   statuses: StatusItem[];
+  hasOwnStatus: boolean;
   showLoadingPlaceholders?: boolean;
   onCreate: () => void;
   onOpen: (index: number) => void;
@@ -98,6 +99,7 @@ function StatusLoadingPlaceholders() {
  */
 export default function StatusCirclesRow({
   statuses,
+  hasOwnStatus,
   showLoadingPlaceholders = false,
   onCreate,
   onOpen,
@@ -115,7 +117,14 @@ export default function StatusCirclesRow({
             onPress={onCreate}
             accessibilityLabel="Crear tu estado"
           >
-            <View style={styles.userCircle}>
+            <View
+              style={[
+                styles.userCircle,
+                hasOwnStatus
+                  ? styles.userCircleActive
+                  : styles.userCircleInactive,
+              ]}
+            >
               <Text style={styles.userText}>
                 {CURRENT_USER.initials}
               </Text>
@@ -209,6 +218,12 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.12,
     shadowRadius: 6,
     elevation: 2,
+  },
+  userCircleActive: {
+    borderColor: '#9FB6E0',
+  },
+  userCircleInactive: {
+    borderColor: '#D7DFF2',
   },
   userText: {
     fontSize: 13,

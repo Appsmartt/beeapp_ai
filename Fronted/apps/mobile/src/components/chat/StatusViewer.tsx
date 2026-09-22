@@ -22,6 +22,7 @@ import { runOnJS } from 'react-native-reanimated';
 import { ResizeMode, Video } from 'expo-av';
 import { colors, spacing, radii } from '@beeapp/design-system';
 import {
+  ChevronUp,
   Eye,
   Send,
   ShoppingBag,
@@ -48,6 +49,7 @@ interface StatusViewerProps {
   index: number;
   senderIdentityId: string | null;
   onChangeIndex: (index: number) => void;
+  onStatusViewed: (statusId: string) => void;
   onClose: () => void;
 }
 
@@ -57,6 +59,7 @@ export default function StatusViewer({
   index,
   senderIdentityId,
   onChangeIndex,
+  onStatusViewed,
   onClose,
 }: StatusViewerProps) {
   const progress = useRef(new Animated.Value(0)).current;
@@ -69,6 +72,8 @@ export default function StatusViewer({
   const [replyBody, setReplyBody] = useState('');
   const [replySending, setReplySending] = useState(false);
   const [replyError, setReplyError] = useState<string | null>(null);
+  const [mediaReady, setMediaReady] = useState(false);
+  const [isPressing, setIsPressing] = useState(false);
   const status = statuses[index];
 
   const goNext = () => (index < statuses.length - 1 ? onChangeIndex(index + 1) : onClose());
@@ -96,9 +101,26 @@ export default function StatusViewer({
     setReplyBody('');
     setReplySending(false);
     setReplyError(null);
+    setIsPressing(false);
+    setMediaReady(
+      status.type !== 'photo'
+      && status.type !== 'gif'
+      && status.type !== 'video',
+    );
     elapsed.current = 0;
     progress.setValue(0);
-  }, [visible, index, status?.id]);
+
+  }, [visible, index, onStatusViewed, status?.id]);
+
+  useEffect(() => {
+    if (!visible || !status || !mediaReady) {
+      return;
+    }
+
+    if (!status.isOwn && status.viewedBy === undefined) {
+      onStatusViewed(status.id);
+    }
+  }, [mediaReady, onStatusViewed, status?.id, visible]);
 
   // La hoja de "Visto por" pausa el avance y lo reanuda con el tiempo restante
   useEffect(() => {
@@ -107,6 +129,8 @@ export default function StatusViewer({
       || !status
       || viewersOpen
       || replyOpen
+      || isPressing
+      || !mediaReady
     ) {
       return;
     }
@@ -119,7 +143,7 @@ export default function StatusViewer({
     });
     animation.start(({ finished }) => finished && goNext());
     return () => animation.stop();
-  }, [visible, index, status?.id, viewersOpen]);
+  }, [visible, index, isPressing, mediaReady, replyOpen, status?.id, viewersOpen]);
 
   if (!status) return null;
 
@@ -130,7 +154,8 @@ export default function StatusViewer({
   );
   const hasMedia = isPhoto || isVideo;
   const isOwnStatus = (
-    status.authorId === 'me'
+    Boolean(status.isOwn)
+    || status.authorId === 'me'
     || status.viewedBy !== undefined
   );
   const background = status.bgColor ?? colors.neutral.text;
@@ -280,6 +305,17 @@ export default function StatusViewer({
             )}
 
             <TouchableOpacity style={styles.tapLeft} onPress={goPrev} activeOpacity={1} />
+            <TouchableOpacity
+              style={styles.holdArea}
+              onPressIn={() => {
+                setIsPressing(true);
+              }}
+              onPressOut={() => {
+                setIsPressing(false);
+              }}
+              activeOpacity={1}
+              accessible={false}
+            />
             <TouchableOpacity style={styles.tapRight} onPress={goNext} activeOpacity={1} />
 
             <ScreenSafeArea style={styles.overlay} pointerEvents="box-none">
@@ -305,7 +341,13 @@ export default function StatusViewer({
                     source={{ uri: status.photoUrl }}
                     style={styles.photoCard}
                     resizeMode={ResizeMode.COVER}
-                    shouldPlay={visible}
+                    shouldPlay={visible && !isPressing && !viewersOpen && !replyOpen}
+                    onReadyForDisplay={() => {
+                      setMediaReady(true);
+                    }}
+                    onError={() => {
+                      setMediaReady(true);
+                    }}
                     isLooping
                     isMuted={false}
                     useNativeControls={false}
@@ -315,12 +357,34 @@ export default function StatusViewer({
                     source={{ uri: status.photoUrl ?? undefined }}
                     style={styles.photoCard}
                     resizeMode="cover"
+                    onLoadEnd={() => {
+                      setMediaReady(true);
+                    }}
+                    onError={() => {
+                      setMediaReady(true);
+                    }}
                   />
                 ) : null}
                 <View style={[styles.textLayer, { top: `${status.textPosition.y}%`, left: `${status.textPosition.x}%` }]}>
                   <Text style={[styles.statusText, textStyle]}>{status.text}</Text>
                 </View>
               </View>
+
+              {!isOwnStatus && !replyOpen ? (
+                <View
+                  style={styles.replyHint}
+                  pointerEvents="none"
+                >
+                  <ChevronUp
+                    size={16}
+                    color={colors.neutral.white}
+                    strokeWidth={2.4}
+                  />
+                  <Text style={styles.replyHintText}>
+                    Desliza hacia arriba para responder
+                  </Text>
+                </View>
+              ) : null}
 
               {isOwnStatus && (
                 <TouchableOpacity
@@ -487,6 +551,7 @@ const styles = StyleSheet.create({
   softShade: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(34, 43, 67, 0.08)' },
   tapLeft: { position: 'absolute', top: 0, bottom: 0, left: 0, width: '35%' },
   tapRight: { position: 'absolute', top: 0, bottom: 0, right: 0, width: '35%' },
+  holdArea: { position: 'absolute', top: 0, bottom: 0, left: '35%', right: '35%' },
   overlay: { flex: 1 },
   topRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingHorizontal: spacing.sm, paddingTop: spacing.sm },
   closeBtn: { padding: 6 },
@@ -501,6 +566,22 @@ const styles = StyleSheet.create({
   photoCard: { ...StyleSheet.absoluteFillObject, borderRadius: 20, elevation: 10 },
   textLayer: { position: 'absolute', width: '86%', marginLeft: '-43%', transform: [{ translateY: -20 }] },
   statusText: { textAlign: 'center' },
+  replyHint: {
+    alignItems: 'center',
+    alignSelf: 'center',
+    backgroundColor: 'rgba(34, 43, 67, 0.62)',
+    borderRadius: 16,
+    flexDirection: 'row',
+    gap: 5,
+    marginBottom: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  replyHintText: {
+    color: colors.neutral.white,
+    fontSize: 12,
+    fontWeight: '600',
+  },
   viewedByBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 10, backgroundColor: 'rgba(34,43,67,0.62)', marginHorizontal: 20, marginBottom: 12, borderRadius: 16 },
   viewedByText: { fontSize: 13, fontWeight: '600', color: colors.neutral.white },
   productCard: { flexDirection: 'row', alignItems: 'center', gap: 12, marginHorizontal: spacing.md, marginBottom: spacing.lg, backgroundColor: colors.neutral.white, borderRadius: radii.xl, padding: 12, elevation: 6 },
