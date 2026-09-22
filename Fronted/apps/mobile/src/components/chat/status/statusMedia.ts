@@ -10,6 +10,8 @@ export type LocalStatusMediaAsset = {
   mimeType?: string | null;
   fileSize?: number | null;
   duration?: number | null;
+  traceId?: string | null;
+  source?: 'camera' | 'gallery' | 'unknown';
 };
 
 export function inferStatusMediaKind(
@@ -33,9 +35,31 @@ export function inferStatusMediaKind(
   return 'image';
 }
 
+function getStatusVideoDiagnosticMetadata(
+  asset: LocalStatusMediaAsset | ImagePicker.ImagePickerAsset,
+): {
+  traceId: string | null;
+  source: 'camera' | 'gallery' | 'unknown';
+} {
+  if (!('traceId' in asset) && !('source' in asset)) {
+    return {
+      traceId: null,
+      source: 'unknown',
+    };
+  }
+
+  const diagnosticAsset = asset as LocalStatusMediaAsset;
+
+  return {
+    traceId: diagnosticAsset.traceId ?? null,
+    source: diagnosticAsset.source ?? 'unknown',
+  };
+}
+
 export function toSelectedStatusMedia(
   asset: LocalStatusMediaAsset | ImagePicker.ImagePickerAsset,
 ): SelectedStatusMedia {
+  const diagnosticMetadata = getStatusVideoDiagnosticMetadata(asset);
   const provisionalName = asset.fileName?.trim() || 'estado';
   const provisionalMimeType = asset.mimeType?.trim() || '';
   const kind = inferStatusMediaKind(
@@ -77,5 +101,7 @@ export function toSelectedStatusMedia(
     sizeBytes: asset.fileSize ?? null,
     kind,
     durationSeconds,
+    traceId: diagnosticMetadata.traceId,
+    source: diagnosticMetadata.source,
   };
 }

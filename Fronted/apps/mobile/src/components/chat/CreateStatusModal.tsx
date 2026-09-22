@@ -71,6 +71,8 @@ export interface SelectedStatusMedia {
   sizeBytes: number | null;
   kind: 'image' | 'gif' | 'video';
   durationSeconds: number | null;
+  traceId?: string | null;
+  source?: 'camera' | 'gallery' | 'unknown';
 }
 
 export type StatusPublishingPhase =

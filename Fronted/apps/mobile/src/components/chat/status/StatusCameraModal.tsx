@@ -30,6 +30,10 @@ import {
 } from '@beeapp/design-system';
 
 import ScreenSafeArea from '../../layout/ScreenSafeArea';
+import {
+  createStatusVideoTraceId,
+  logStatusVideoDiagnostic,
+} from '../../../services/statusVideoDiagnostics';
 
 type StatusCameraMode = 'picture' | 'video';
 
@@ -38,6 +42,8 @@ type CapturedStatusMedia = {
   fileName: string;
   mimeType: string;
   duration: number | null;
+  traceId?: string | null;
+  source?: 'camera';
 };
 
 interface StatusCameraModalProps {
@@ -129,6 +135,14 @@ export default function StatusCameraModal({
       setCapturing(true);
       setCameraError(null);
       recordingStartedAtRef.current = Date.now();
+      const traceId = createStatusVideoTraceId();
+
+      logStatusVideoDiagnostic({
+        traceId,
+        stage: 'camera_capture_started',
+        source: 'camera',
+        mimeType: 'video/mp4',
+      });
 
       const recording = await cameraRef.current.recordAsync({
         maxDuration: MAX_STATUS_VIDEO_DURATION_SECONDS,
@@ -143,11 +157,24 @@ export default function StatusCameraModal({
         Date.now() - (recordingStartedAtRef.current || Date.now()),
       );
 
+      const fileName = getCaptureFileName('video');
+
+      logStatusVideoDiagnostic({
+        traceId,
+        stage: 'camera_capture_completed',
+        source: 'camera',
+        name: fileName,
+        mimeType: 'video/mp4',
+        durationSeconds: durationMilliseconds / 1000,
+      });
+
       onCapture({
         uri: recording.uri,
-        fileName: getCaptureFileName('video'),
+        fileName,
         mimeType: 'video/mp4',
         duration: durationMilliseconds,
+        traceId,
+        source: 'camera',
       });
     } catch (recordingError) {
       setCameraError(
