@@ -26,6 +26,7 @@ import {
   Eye,
   Send,
   ShoppingBag,
+  Trash2,
   X,
 } from 'lucide-react-native';
 import ScreenSafeArea from '../layout/ScreenSafeArea';
@@ -50,6 +51,7 @@ interface StatusViewerProps {
   senderIdentityId: string | null;
   onChangeIndex: (index: number) => void;
   onStatusViewed: (statusId: string) => void;
+  onArchiveStatus: (statusId: string) => Promise<void>;
   onClose: () => void;
 }
 
@@ -60,6 +62,7 @@ export default function StatusViewer({
   senderIdentityId,
   onChangeIndex,
   onStatusViewed,
+  onArchiveStatus,
   onClose,
 }: StatusViewerProps) {
   const progress = useRef(new Animated.Value(0)).current;
@@ -72,6 +75,9 @@ export default function StatusViewer({
   const [replyBody, setReplyBody] = useState('');
   const [replySending, setReplySending] = useState(false);
   const [replyError, setReplyError] = useState<string | null>(null);
+  const [archivingStatus, setArchivingStatus] = useState(false);
+  const [archiveConfirmationOpen, setArchiveConfirmationOpen] = useState(false);
+  const [archiveError, setArchiveError] = useState<string | null>(null);
   const [mediaReady, setMediaReady] = useState(false);
   const [isPressing, setIsPressing] = useState(false);
   const status = statuses[index];
@@ -101,6 +107,9 @@ export default function StatusViewer({
     setReplyBody('');
     setReplySending(false);
     setReplyError(null);
+    setArchivingStatus(false);
+    setArchiveConfirmationOpen(false);
+    setArchiveError(null);
     setIsPressing(false);
     setMediaReady(
       status.type !== 'photo'
@@ -190,6 +199,36 @@ export default function StatusViewer({
       );
     } finally {
       setViewersLoading(false);
+    }
+  };
+
+  const openArchiveConfirmation = () => {
+    if (!isOwnStatus || archivingStatus) {
+      return;
+    }
+
+    setArchiveError(null);
+    setArchiveConfirmationOpen(true);
+  };
+
+  const handleArchiveStatus = async () => {
+    if (archivingStatus) {
+      return;
+    }
+
+    try {
+      setArchivingStatus(true);
+      setArchiveError(null);
+      await onArchiveStatus(status.id);
+      setArchiveConfirmationOpen(false);
+    } catch (archiveError) {
+      setArchiveError(
+        archiveError instanceof Error
+          ? archiveError.message
+          : 'No fue posible eliminar el estado. Inténtalo nuevamente.',
+      );
+    } finally {
+      setArchivingStatus(false);
     }
   };
 
@@ -327,9 +366,46 @@ export default function StatusViewer({
                   <Text style={styles.avatarText}>{status.authorInitials}</Text>
                 </View>
                 <View style={styles.authorTexts}>
-                  <Text style={[styles.authorName, onDark && styles.onDarkText]} numberOfLines={1}>{status.authorName}</Text>
-                  <Text style={[styles.timestamp, onDark && styles.onDarkMuted]}>{status.timestamp}</Text>
+                  <Text
+                    style={[
+                      styles.authorName,
+                      onDark && styles.onDarkText,
+                    ]}
+                    numberOfLines={1}
+                  >
+                    {status.authorName}
+                  </Text>
+                  <Text
+                    style={[
+                      styles.timestamp,
+                      onDark && styles.onDarkMuted,
+                    ]}
+                  >
+                    {status.timestamp}
+                  </Text>
                 </View>
+
+                {isOwnStatus ? (
+                  <TouchableOpacity
+                    style={styles.headerArchiveStatusButton}
+                    onPress={openArchiveConfirmation}
+                    disabled={archivingStatus}
+                    activeOpacity={0.8}
+                    accessibilityLabel="Eliminar este estado"
+                  >
+                    {archivingStatus ? (
+                      <ActivityIndicator
+                        size="small"
+                        color={colors.semantic.error}
+                      />
+                    ) : (
+                      <Trash2
+                        size={18}
+                        color={colors.semantic.error}
+                      />
+                    )}
+                  </TouchableOpacity>
+                ) : null}
               </View>
 
               <StatusProgressPills count={statuses.length} index={index} progress={progress} onDark={onDark} />
@@ -387,23 +463,45 @@ export default function StatusViewer({
               ) : null}
 
               {isOwnStatus && (
-                <TouchableOpacity
-                  style={styles.viewedByBar}
-                  onPress={() => {
-                    setViewersOpen(true);
-                    void loadViewers();
-                  }}
-                  activeOpacity={0.8}
-                >
-                  <Eye size={16} color={colors.neutral.white} />
-                  <Text style={styles.viewedByText}>
-                    Visto por {
-                      status.viewerCount
-                      ?? status.viewedBy?.length
-                      ?? 0
-                    }
-                  </Text>
-                </TouchableOpacity>
+                <View style={styles.ownStatusActions}>
+                  <TouchableOpacity
+                    style={styles.viewedByBar}
+                    onPress={() => {
+                      setViewersOpen(true);
+                      void loadViewers();
+                    }}
+                    activeOpacity={0.8}
+                  >
+                    <Eye size={16} color={colors.neutral.white} />
+                    <Text style={styles.viewedByText}>
+                      Visto por {
+                        status.viewerCount
+                        ?? status.viewedBy?.length
+                        ?? 0
+                      }
+                    </Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={styles.viewerArchiveStatusButton}
+                    onPress={openArchiveConfirmation}
+                    disabled={archivingStatus}
+                    activeOpacity={0.8}
+                    accessibilityLabel="Eliminar este estado"
+                  >
+                    {archivingStatus ? (
+                      <ActivityIndicator
+                        size="small"
+                        color={colors.semantic.error}
+                      />
+                    ) : (
+                      <Trash2
+                        size={19}
+                        color={colors.semantic.error}
+                      />
+                    )}
+                  </TouchableOpacity>
+                </View>
               )}
 
               {!!product && !productHidden && (
@@ -524,6 +622,80 @@ export default function StatusViewer({
           </KeyboardAvoidingView>
         ) : null}
 
+        {archiveConfirmationOpen ? (
+          <View style={styles.archiveConfirmationOverlay}>
+            <TouchableOpacity
+              style={styles.archiveConfirmationBackdrop}
+              activeOpacity={1}
+              onPress={() => {
+                if (!archivingStatus) {
+                  setArchiveConfirmationOpen(false);
+                }
+              }}
+            />
+
+            <View style={styles.archiveConfirmationCard}>
+              <View style={styles.archiveConfirmationIcon}>
+                <Trash2
+                  size={26}
+                  color={colors.semantic.error}
+                />
+              </View>
+
+              <Text style={styles.archiveConfirmationTitle}>
+                ¿Eliminar este estado?
+              </Text>
+
+              <Text style={styles.archiveConfirmationDescription}>
+                Tu estado dejará de estar visible para otras personas.
+              </Text>
+
+              {archiveError ? (
+                <Text style={styles.archiveConfirmationError}>
+                  {archiveError}
+                </Text>
+              ) : null}
+
+              <View style={styles.archiveConfirmationActions}>
+                <TouchableOpacity
+                  style={styles.archiveCancelButton}
+                  onPress={() => {
+                    if (!archivingStatus) {
+                      setArchiveConfirmationOpen(false);
+                    }
+                  }}
+                  disabled={archivingStatus}
+                  activeOpacity={0.8}
+                >
+                  <Text style={styles.archiveCancelButtonText}>
+                    Cancelar
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.archiveConfirmButton}
+                  onPress={() => {
+                    void handleArchiveStatus();
+                  }}
+                  disabled={archivingStatus}
+                  activeOpacity={0.8}
+                >
+                  {archivingStatus ? (
+                    <ActivityIndicator
+                      size="small"
+                      color={colors.neutral.white}
+                    />
+                  ) : (
+                    <Text style={styles.archiveConfirmButtonText}>
+                      Eliminar
+                    </Text>
+                  )}
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        ) : null}
+
         <StatusViewersSheet
           visible={viewersOpen}
           viewedBy={viewedBy}
@@ -555,6 +727,16 @@ const styles = StyleSheet.create({
   overlay: { flex: 1 },
   topRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingHorizontal: spacing.sm, paddingTop: spacing.sm },
   closeBtn: { padding: 6 },
+  headerArchiveStatusButton: {
+    alignItems: 'center',
+    backgroundColor: 'rgba(220,38,38,0.16)',
+    borderColor: 'rgba(220,38,38,0.56)',
+    borderRadius: 18,
+    borderWidth: 1,
+    height: 36,
+    justifyContent: 'center',
+    width: 36,
+  },
   avatar: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
   avatarText: { fontSize: 13, fontWeight: '600', color: colors.brand.primary },
   authorTexts: { flex: 1 },
@@ -582,7 +764,43 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '600',
   },
-  viewedByBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 10, backgroundColor: 'rgba(34,43,67,0.62)', marginHorizontal: 20, marginBottom: 12, borderRadius: 16 },
+  ownStatusActions: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: spacing.sm,
+    marginHorizontal: spacing.lg,
+    marginBottom: spacing.sm,
+  },
+  viewedByBar: {
+    alignItems: 'center',
+    backgroundColor: 'rgba(34,43,67,0.62)',
+    borderRadius: 16,
+    flex: 1,
+    flexDirection: 'row',
+    gap: 8,
+    justifyContent: 'center',
+    paddingVertical: 10,
+  },
+  archiveStatusButton: {
+    alignItems: 'center',
+    backgroundColor: 'rgba(220,38,38,0.16)',
+    borderColor: 'rgba(220,38,38,0.56)',
+    borderRadius: 16,
+    borderWidth: 1,
+    height: 40,
+    justifyContent: 'center',
+    width: 46,
+  },
+  viewerArchiveStatusButton: {
+    alignItems: 'center',
+    backgroundColor: 'rgba(220,38,38,0.16)',
+    borderColor: 'rgba(220,38,38,0.56)',
+    borderRadius: 16,
+    borderWidth: 1,
+    height: 40,
+    justifyContent: 'center',
+    width: 46,
+  },
   viewedByText: { fontSize: 13, fontWeight: '600', color: colors.neutral.white },
   productCard: { flexDirection: 'row', alignItems: 'center', gap: 12, marginHorizontal: spacing.md, marginBottom: spacing.lg, backgroundColor: colors.neutral.white, borderRadius: radii.xl, padding: 12, elevation: 6 },
   productThumb: { width: 44, height: 44, borderRadius: radii.md, backgroundColor: `${colors.brand.primary}1A`, alignItems: 'center', justifyContent: 'center' },
@@ -591,6 +809,88 @@ const styles = StyleSheet.create({
   productPrice: { fontSize: 13, fontWeight: '400', color: colors.neutral.gray600, marginTop: 2 },
   contactBtn: { backgroundColor: colors.brand.primary, borderRadius: radii.md, paddingHorizontal: 14, paddingVertical: 9 },
   contactBtnText: { fontSize: 13, fontWeight: '600', color: colors.neutral.white },
+  archiveConfirmationOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: spacing.lg,
+  },
+  archiveConfirmationBackdrop: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(34, 43, 67, 0.56)',
+  },
+  archiveConfirmationCard: {
+    alignItems: 'center',
+    backgroundColor: colors.neutral.white,
+    borderRadius: radii.xl,
+    elevation: 12,
+    maxWidth: 360,
+    padding: spacing.lg,
+    width: '100%',
+  },
+  archiveConfirmationIcon: {
+    alignItems: 'center',
+    backgroundColor: 'rgba(220, 38, 38, 0.12)',
+    borderRadius: 28,
+    height: 56,
+    justifyContent: 'center',
+    marginBottom: spacing.md,
+    width: 56,
+  },
+  archiveConfirmationTitle: {
+    color: colors.neutral.text,
+    fontSize: 19,
+    fontWeight: '700',
+    textAlign: 'center',
+  },
+  archiveConfirmationDescription: {
+    color: colors.neutral.gray600,
+    fontSize: 14,
+    lineHeight: 20,
+    marginTop: spacing.sm,
+    textAlign: 'center',
+  },
+  archiveConfirmationError: {
+    color: colors.semantic.error,
+    fontSize: 13,
+    lineHeight: 18,
+    marginTop: spacing.sm,
+    textAlign: 'center',
+  },
+  archiveConfirmationActions: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+    marginTop: spacing.lg,
+    width: '100%',
+  },
+  archiveCancelButton: {
+    alignItems: 'center',
+    backgroundColor: colors.neutral.gray100,
+    borderRadius: radii.md,
+    flex: 1,
+    justifyContent: 'center',
+    minHeight: 44,
+    paddingHorizontal: spacing.md,
+  },
+  archiveCancelButtonText: {
+    color: colors.neutral.text,
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  archiveConfirmButton: {
+    alignItems: 'center',
+    backgroundColor: colors.semantic.error,
+    borderRadius: radii.md,
+    flex: 1,
+    justifyContent: 'center',
+    minHeight: 44,
+    paddingHorizontal: spacing.md,
+  },
+  archiveConfirmButtonText: {
+    color: colors.neutral.white,
+    fontSize: 14,
+    fontWeight: '700',
+  },
   replyOverlay: {
     ...StyleSheet.absoluteFillObject,
     justifyContent: 'flex-end',

@@ -65,6 +65,7 @@ import {
 } from '../../../src/hooks/useStatuses';
 import {
   acceptStatusFollow,
+  archiveCurrentStatus,
   followStatusTarget,
   loadStatusFollowers,
   loadStatusFollowing,
@@ -312,10 +313,6 @@ export default function ChatListScreen() {
   const [initialStatusMode, setInitialStatusMode] = useState<
     'chooser' | 'editor' | 'text'
   >('chooser');
-  const [
-    statusCameraRequestId,
-    setStatusCameraRequestId,
-  ] = useState(0);
 
   const isGroupsTab = activeTab === 'groups';
 
@@ -890,9 +887,27 @@ export default function ChatListScreen() {
     setViewerIndex(index);
   };
 
-  const openStatusCamera = () => {
+  const openStatusCreationFromMyStatuses = () => {
+    setMyStatusesOpen(false);
     setStatusCreationEntryOpen(true);
-    setStatusCameraRequestId((current) => current + 1);
+  };
+
+  const handleArchiveStatus = async (
+    statusId: string,
+    returnToMyStatuses: boolean,
+  ) => {
+    try {
+      await archiveCurrentStatus(statusId);
+      setViewerIndex(null);
+      setMyStatusesOpen(returnToMyStatuses);
+      await refreshStatuses();
+    } catch (archiveError) {
+      throw new Error(
+        archiveError instanceof Error
+          ? archiveError.message
+          : 'No fue posible eliminar el estado.',
+      );
+    }
   };
 
   const handlePublishStatus = async (
@@ -1220,6 +1235,9 @@ export default function ChatListScreen() {
         senderIdentityId={activeIdentityId}
         onChangeIndex={setViewerIndex}
         onStatusViewed={handleStatusViewed}
+        onArchiveStatus={(statusId) => (
+          handleArchiveStatus(statusId, false)
+        )}
         onClose={() => {
           setViewerIndex(null);
         }}
@@ -1227,7 +1245,6 @@ export default function ChatListScreen() {
 
       <StatusCreationEntryModal
         visible={statusCreationEntryOpen}
-        cameraRequestId={statusCameraRequestId}
         onChooseText={() => {
           openStatusEditor({
             mode: 'text',
@@ -1254,7 +1271,10 @@ export default function ChatListScreen() {
             mode: 'text',
           });
         }}
-        onOpenCamera={openStatusCamera}
+        onOpenCamera={openStatusCreationFromMyStatuses}
+        onArchiveStatus={(statusId) => (
+          handleArchiveStatus(statusId, false)
+        )}
         onClose={() => {
           setMyStatusesOpen(false);
         }}
