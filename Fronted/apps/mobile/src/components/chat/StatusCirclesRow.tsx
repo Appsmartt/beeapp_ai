@@ -1,6 +1,7 @@
 import {
   Animated,
   Easing,
+  Image,
   ScrollView,
   StyleSheet,
   Text,
@@ -10,6 +11,7 @@ import {
 import {
   useEffect,
   useRef,
+  useState,
 } from 'react';
 import {
   colors,
@@ -34,6 +36,50 @@ interface StatusCirclesRowProps {
 }
 
 const LOADING_PLACEHOLDERS = [0, 1, 2];
+
+function StatusAvatar({
+  status,
+}: {
+  status: StatusItem;
+}) {
+  const [avatarFailed, setAvatarFailed] = useState(false);
+  const avatarUrl = status.authorAvatarUrl?.trim() || null;
+  const showAvatar = Boolean(
+    avatarUrl
+    && !avatarFailed,
+  );
+
+  useEffect(() => {
+    setAvatarFailed(false);
+  }, [avatarUrl]);
+
+  return (
+    <View
+      style={[
+        styles.innerCircle,
+        {
+          backgroundColor: status.authorColor,
+        },
+      ]}
+    >
+      {showAvatar ? (
+        <Image
+          source={{
+            uri: avatarUrl as string,
+          }}
+          style={styles.avatarImage}
+          onError={() => {
+            setAvatarFailed(true);
+          }}
+        />
+      ) : (
+        <Text style={styles.initials}>
+          {status.authorInitials}
+        </Text>
+      )}
+    </View>
+  );
+}
 
 function StatusLoadingPlaceholders() {
   const opacity = useRef(
@@ -162,18 +208,7 @@ export default function StatusCirclesRow({
                       : styles.circleUnseen,
                   ]}
                 >
-                  <View
-                    style={[
-                      styles.innerCircle,
-                      {
-                        backgroundColor: status.authorColor,
-                      },
-                    ]}
-                  >
-                    <Text style={styles.initials}>
-                      {status.authorInitials}
-                    </Text>
-                  </View>
+                  <StatusAvatar status={status} />
                 </View>
               </TouchableOpacity>
               <Text style={styles.name} numberOfLines={1}>
@@ -275,6 +310,11 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.62)',
+  },
+  avatarImage: {
+    height: '100%',
+    width: '100%',
+    borderRadius: 24,
   },
   initials: {
     fontSize: 14,
