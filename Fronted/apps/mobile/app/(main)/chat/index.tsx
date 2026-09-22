@@ -261,11 +261,13 @@ export default function ChatListScreen() {
 
   const {
     statuses,
+    circleStatuses,
     ownStatuses,
     loading: statusesLoading,
     refreshing: statusesRefreshing,
     error: statusesError,
     refresh: refreshStatuses,
+    markStatusViewedLocally,
     backgrounds: statusBackgrounds,
   } = useStatuses({
     commercialProfileId: isCommercialContext
@@ -278,6 +280,22 @@ export default function ChatListScreen() {
   const [viewerIndex, setViewerIndex] = useState<
     number | null
   >(null);
+
+  const handleStatusViewed = (statusId: string) => {
+    const status = statuses.find(
+      (item) => item.id === statusId,
+    );
+
+    if (!status || status.isOwn || status.viewed) {
+      return;
+    }
+
+    markStatusViewedLocally(statusId);
+
+    void registerStatusView(statusId).catch(() => {
+      // La interfaz conserva la vista local para evitar bordes obsoletos.
+    });
+  };
 
   const [creatingStatus, setCreatingStatus] = useState(false);
   const [
@@ -1041,23 +1059,32 @@ export default function ChatListScreen() {
 
         <View style={styles.statusesSection}>
           <StatusCirclesRow
-            statuses={statuses}
+            statuses={circleStatuses}
+            hasOwnStatus={ownStatuses.length > 0}
             showLoadingPlaceholders={
-              statusesLoading && statuses.length === 0
+              statusesLoading && circleStatuses.length === 0
             }
             onCreate={handleStatusCirclePress}
             onOpen={(index) => {
-              const selectedStatus = statuses[index];
+              const selectedCircleStatus = circleStatuses[index];
 
-              if (selectedStatus) {
-                void registerStatusView(
-                  selectedStatus.id,
-                ).catch(() => {
-                  // El dueño no puede registrar su propia vista.
-                });
+              if (!selectedCircleStatus) {
+                return;
               }
 
-              setViewerIndex(index);
+              const statusIndex = statuses.findIndex(
+                (status) => status.id === selectedCircleStatus.id,
+              );
+
+              if (statusIndex < 0) {
+                return;
+              }
+
+              handleStatusViewed(
+                selectedCircleStatus.id,
+              );
+
+              setViewerIndex(statusIndex);
             }}
           />
 
@@ -1192,6 +1219,7 @@ export default function ChatListScreen() {
         index={viewerIndex ?? 0}
         senderIdentityId={activeIdentityId}
         onChangeIndex={setViewerIndex}
+        onStatusViewed={handleStatusViewed}
         onClose={() => {
           setViewerIndex(null);
         }}

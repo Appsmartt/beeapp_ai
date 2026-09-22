@@ -74,18 +74,73 @@ function mapStoriesToUi(
   ));
 }
 
+function groupStatusesForCircles(
+  statuses: StatusItem[],
+): StatusItem[] {
+  const statusesByAuthor = new Map<
+    string,
+    StatusItem[]
+  >();
+
+  statuses
+    .filter((status) => !status.isOwn)
+    .forEach((status) => {
+      const authorStatuses = (
+        statusesByAuthor.get(status.authorId)
+        || []
+      );
+
+      authorStatuses.push(status);
+      statusesByAuthor.set(
+        status.authorId,
+        authorStatuses,
+      );
+    });
+
+  return [...statusesByAuthor.values()]
+    .map((authorStatuses) => {
+      const latestStatus = authorStatuses[0];
+      const unseenStatus = authorStatuses.find(
+        (status) => !status.viewed,
+      );
+
+      return {
+        latestStatus,
+        circleStatus: unseenStatus || latestStatus,
+      };
+    })
+    .filter((group): group is {
+      latestStatus: StatusItem;
+      circleStatus: StatusItem;
+    } => Boolean(
+      group.latestStatus
+      && group.circleStatus,
+    ))
+    .sort((first, second) => (
+      new Date(
+        second.latestStatus.createdAt || 0,
+      ).getTime()
+      - new Date(
+        first.latestStatus.createdAt || 0,
+      ).getTime()
+    ))
+    .map((group) => group.circleStatus);
+}
+
 export interface UseStatusesOptions {
   commercialProfileId?: string | null;
 }
 
 export interface UseStatusesResult {
   statuses: StatusItem[];
+  circleStatuses: StatusItem[];
   ownStatuses: StatusItem[];
   backgrounds: StatusTextBackground[];
   loading: boolean;
   refreshing: boolean;
   error: string | null;
   refresh: () => Promise<void>;
+  markStatusViewedLocally: (statusId: string) => void;
 }
 
 export function useStatuses(
@@ -103,6 +158,9 @@ export function useStatuses(
   const [ownStatuses, setOwnStatuses] = useState<StatusItem[]>(
     [],
   );
+  const [circleStatuses, setCircleStatuses] = useState<
+    StatusItem[]
+  >([]);
   const [backgrounds, setBackgrounds] = useState<
     StatusTextBackground[]
   >([]);
@@ -164,14 +222,17 @@ export function useStatuses(
           - new Date(first.createdAt || 0).getTime()
         ));
 
+        const mappedStatuses = mapStoriesToUi(
+          sortedStories,
+          backgroundsResponse.backgrounds,
+        );
+
         setBackgrounds(backgroundsResponse.backgrounds);
         setOwnStatuses(mappedOwnStatuses);
-        setStatuses(
-          mapStoriesToUi(
-            sortedStories,
-            backgroundsResponse.backgrounds,
-          ),
+        setCircleStatuses(
+          groupStatusesForCircles(mappedStatuses),
         );
+        setStatuses(mappedStatuses);
       } catch (loadError) {
         setError(
           loadError instanceof Error
@@ -201,13 +262,37 @@ export function useStatuses(
     [load],
   );
 
+  const markStatusViewedLocally = useCallback(
+    (statusId: string) => {
+      setStatuses((currentStatuses) => {
+        const nextStatuses = currentStatuses.map((status) => (
+          status.id === statusId && !status.isOwn
+            ? {
+                ...status,
+                viewed: true,
+              }
+            : status
+        ));
+
+        setCircleStatuses(
+          groupStatusesForCircles(nextStatuses),
+        );
+
+        return nextStatuses;
+      });
+    },
+    [],
+  );
+
   return {
     statuses,
+    circleStatuses,
     ownStatuses,
     backgrounds,
     loading,
     refreshing,
     error,
     refresh,
+    markStatusViewedLocally,
   };
 }
