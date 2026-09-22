@@ -96,6 +96,8 @@ export interface StatusItem {
   stickerLayers?: StatusStickerLayer[];
   music?: StatusMusic | null;
   timestamp: string;
+  createdAt?: string;
+  isOwn?: boolean;
   viewed: boolean;
   visibility?: 'all' | 'selected' | 'category';
   selectedContactIds?: string[];

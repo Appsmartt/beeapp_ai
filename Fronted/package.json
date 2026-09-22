@@ -12,7 +12,9 @@
     "dev": "turbo dev",
     "lint": "turbo lint",
     "type-check": "turbo type-check",
-    "clean": "turbo clean"
+    "clean": "turbo clean",
+    "android": "expo run:android",
+    "ios": "expo run:ios"
   },
   "devDependencies": {
     "expo": "~51.0.0",
@@ -34,6 +36,11 @@
     "expo-constants": "~16.0.2",
     "expo-device": "~6.0.2",
     "expo-document-picker": "~12.0.2",
-    "expo-notifications": "~0.28.19"
-  }
+    "expo-media-library": "~16.0.5",
+    "expo-notifications": "~0.28.19",
+    "expo": "~51.0.28",
+    "react": "18.2.0",
+    "react-native": "0.74.5"
+  },
+  "version": "1.0.0"
 }

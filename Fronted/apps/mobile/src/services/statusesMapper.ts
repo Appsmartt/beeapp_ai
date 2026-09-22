@@ -169,6 +169,8 @@ export function mapStatusStoryToUi(
     textWeight: '400',
     textColor: DEFAULT_TEXT_COLOR,
     timestamp: formatRelativeTime(story.created_at),
+    createdAt: story.created_at,
+    isOwn: story.is_owner,
     viewed: story.is_viewed,
     viewedBy: story.is_owner
       ? []

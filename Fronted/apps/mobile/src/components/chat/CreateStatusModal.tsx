@@ -1,5 +1,6 @@
 import {
   useEffect,
+  useRef,
   useState,
 } from 'react';
 import {
@@ -73,6 +74,8 @@ export interface StatusEditorPublishDraft {
 interface CreateStatusModalProps {
   visible: boolean;
   backgrounds: StatusTextBackground[];
+  initialMedia?: SelectedStatusMedia | null;
+  initialMode?: 'chooser' | 'editor' | 'text';
   isPublishing?: boolean;
   onPublish: (
     draft: StatusEditorPublishDraft,
@@ -185,6 +188,8 @@ function serializeEditorMetadata(
 export default function CreateStatusModal({
   visible,
   backgrounds,
+  initialMedia = null,
+  initialMode = 'chooser',
   isPublishing = false,
   onPublish,
   onClose,
@@ -192,6 +197,7 @@ export default function CreateStatusModal({
   const [media, setMedia] = useState<
     SelectedStatusMedia | null
   >(null);
+  const wasVisibleRef = useRef(false);
   const [bgColor, setBgColor] = useState(
     backgrounds[0]?.hex_color || STATUS_BG_COLORS[0],
   );
@@ -227,10 +233,17 @@ export default function CreateStatusModal({
 
   useEffect(() => {
     if (!visible) {
+      wasVisibleRef.current = false;
       return;
     }
 
-    setMedia(null);
+    if (wasVisibleRef.current) {
+      return;
+    }
+
+    wasVisibleRef.current = true;
+
+    setMedia(initialMedia);
     setBgColor(
       backgrounds[0]?.hex_color
       || STATUS_BG_COLORS[0],
@@ -238,10 +251,19 @@ export default function CreateStatusModal({
     setLastTextColor(STATUS_TEXT_COLORS[0]);
     setSheet(null);
     setMentionQuery(null);
-    setEditorMode('chooser');
+    setEditorMode(
+      initialMedia || initialMode === 'editor' || initialMode === 'text'
+        ? 'editor'
+        : 'chooser',
+    );
     setEditingTextId(null);
     layers.reset(STATUS_TEXT_COLORS[0]);
-  }, [visible]);
+  }, [
+    backgrounds,
+    initialMedia,
+    initialMode,
+    visible,
+  ]);
 
   const onStageLayout = (
     event: LayoutChangeEvent,
