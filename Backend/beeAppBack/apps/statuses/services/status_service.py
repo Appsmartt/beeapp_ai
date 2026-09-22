@@ -1305,9 +1305,9 @@ def _raise_status_operation_error(
         or "STATUS_VIDEO_MIME_TYPE_NOT_ALLOWED" in message
         or "STATUS_GIF_MIME_TYPE_NOT_ALLOWED" in message
         or "STATUS_IMAGE_MAX_SIZE_10_MB" in message
-        or "STATUS_VIDEO_MAX_SIZE_50_MB" in message
+        or "STATUS_VIDEO_MAX_SIZE_40_MB" in message
         or "STATUS_GIF_MAX_SIZE_10_MB" in message
-        or "STATUS_VIDEO_DURATION_MAX_120_SECONDS" in message
+        or "STATUS_VIDEO_DURATION_MAX_90_SECONDS" in message
         or "STATUS_GIF_DURATION_MAX_120_SECONDS" in message
     ):
         raise StatusMediaError(

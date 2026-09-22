@@ -21,8 +21,8 @@ STATUS_MEDIA_SIGNED_URL_TTL_SECONDS = 300
 
 MAX_STATUS_IMAGE_SIZE_BYTES = 10 * 1024 * 1024
 MAX_STATUS_GIF_SIZE_BYTES = 10 * 1024 * 1024
-MAX_STATUS_VIDEO_SIZE_BYTES = 50 * 1024 * 1024
-MAX_STATUS_VIDEO_DURATION_SECONDS = 120
+MAX_STATUS_VIDEO_SIZE_BYTES = 40 * 1024 * 1024
+MAX_STATUS_VIDEO_DURATION_SECONDS = 90
 
 STATUS_IMAGE_MIME_TYPES = {
     "image/jpeg",
@@ -359,7 +359,7 @@ def _normalize_duration(
 
         if normalized_duration > MAX_STATUS_VIDEO_DURATION_SECONDS:
             raise StatusMediaError(
-                "Video stories cannot exceed 120 seconds."
+                "Video stories cannot exceed 90 seconds."
             )
 
         return round(normalized_duration, 3)

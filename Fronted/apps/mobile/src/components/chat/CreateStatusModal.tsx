@@ -4,6 +4,7 @@ import {
   useState,
 } from 'react';
 import {
+  ActivityIndicator,
   Alert,
   Image,
   Keyboard,
@@ -72,6 +73,13 @@ export interface SelectedStatusMedia {
   durationSeconds: number | null;
 }
 
+export type StatusPublishingPhase =
+  | 'idle'
+  | 'preparing_image'
+  | 'preparing_video'
+  | 'uploading'
+  | 'error';
+
 export interface StatusEditorPublishDraft {
   textContent: string;
   backgroundColor: string;
@@ -86,6 +94,9 @@ interface CreateStatusModalProps {
   initialMedia?: SelectedStatusMedia | null;
   initialMode?: 'chooser' | 'editor' | 'text';
   isPublishing?: boolean;
+  publishingPhase?: StatusPublishingPhase;
+  publishingMessage?: string | null;
+  onDismissPublishingError?: () => void;
   onPublish: (
     draft: StatusEditorPublishDraft,
   ) => Promise<void> | void;
@@ -205,6 +216,9 @@ export default function CreateStatusModal({
   initialMedia = null,
   initialMode = 'chooser',
   isPublishing = false,
+  publishingPhase = 'idle',
+  publishingMessage = null,
+  onDismissPublishingError,
   onPublish,
   onClose,
 }: CreateStatusModalProps) {
@@ -664,6 +678,54 @@ export default function CreateStatusModal({
               }
             }}
           >
+            {publishingPhase !== 'idle' ? (
+              <View style={styles.publishStateOverlay}>
+                <View style={styles.publishStateCard}>
+                  {publishingPhase !== 'error' ? (
+                    <ActivityIndicator
+                      size="small"
+                      color={colors.brand.primary}
+                    />
+                  ) : null}
+
+                  <Text style={styles.publishStateTitle}>
+                    {publishingPhase === 'preparing_image'
+                      ? 'Preparando imagen...'
+                      : publishingPhase === 'preparing_video'
+                        ? 'Comprimiendo video con audio...'
+                        : publishingPhase === 'uploading'
+                          ? 'Publicando historia...'
+                          : 'No fue posible publicar'}
+                  </Text>
+
+                  <Text style={styles.publishStateMessage}>
+                    {publishingMessage
+                      || (publishingPhase === 'preparing_image'
+                        ? 'Optimizando la imagen antes de subirla.'
+                        : publishingPhase === 'preparing_video'
+                          ? 'Manteniendo el audio y preparando el video.'
+                          : publishingPhase === 'uploading'
+                            ? 'Subiendo tu historia de forma segura.'
+                            : 'Inténtalo nuevamente.')}
+                  </Text>
+
+                  {publishingPhase === 'error'
+                  && onDismissPublishingError ? (
+                    <TouchableOpacity
+                      style={styles.publishStateAction}
+                      onPress={onDismissPublishingError}
+                      activeOpacity={0.8}
+                      accessibilityLabel="Cerrar mensaje de error de publicación"
+                    >
+                      <Text style={styles.publishStateActionText}>
+                        Entendido
+                      </Text>
+                    </TouchableOpacity>
+                  ) : null}
+                </View>
+              </View>
+            ) : null}
+
             {media?.kind === 'video' ? (
               <Video
                 source={{
@@ -673,7 +735,7 @@ export default function CreateStatusModal({
                 resizeMode={ResizeMode.COVER}
                 isLooping
                 shouldPlay
-                isMuted
+                isMuted={false}
               />
             ) : media ? (
               <Image
@@ -973,4 +1035,52 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   photo: StyleSheet.absoluteFillObject,
+  publishStateOverlay: {
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.84)',
+    bottom: 0,
+    justifyContent: 'center',
+    left: 0,
+    padding: spacing.lg,
+    position: 'absolute',
+    right: 0,
+    top: 0,
+    zIndex: 20,
+  },
+  publishStateCard: {
+    alignItems: 'center',
+    backgroundColor: colors.neutral.white,
+    borderColor: `${colors.brand.primary}24`,
+    borderRadius: radii.xl,
+    borderWidth: 1,
+    maxWidth: 320,
+    padding: spacing.lg,
+    width: '100%',
+  },
+  publishStateTitle: {
+    color: colors.neutral.text,
+    fontSize: 16,
+    fontWeight: '700',
+    marginTop: spacing.sm,
+    textAlign: 'center',
+  },
+  publishStateMessage: {
+    color: colors.neutral.gray600,
+    fontSize: 13,
+    lineHeight: 19,
+    marginTop: spacing.xs,
+    textAlign: 'center',
+  },
+  publishStateAction: {
+    backgroundColor: colors.brand.primary,
+    borderRadius: radii.lg,
+    marginTop: spacing.md,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.sm,
+  },
+  publishStateActionText: {
+    color: colors.neutral.white,
+    fontSize: 14,
+    fontWeight: '700',
+  },
 });

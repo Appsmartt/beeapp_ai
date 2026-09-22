@@ -85,6 +85,7 @@ export default function StatusViewer({
   const [archiveConfirmationOpen, setArchiveConfirmationOpen] = useState(false);
   const [archiveError, setArchiveError] = useState<string | null>(null);
   const [mediaReady, setMediaReady] = useState(false);
+  const [mediaError, setMediaError] = useState<string | null>(null);
   const [isPressing, setIsPressing] = useState(false);
   const {
     fontsLoaded,
@@ -120,6 +121,7 @@ export default function StatusViewer({
     setArchiveConfirmationOpen(false);
     setArchiveError(null);
     setIsPressing(false);
+    setMediaError(null);
     setMediaReady(
       status.type !== 'photo'
       && status.type !== 'gif'
@@ -442,16 +444,34 @@ export default function StatusViewer({
                     resizeMode={ResizeMode.COVER}
                     shouldPlay={visible && !isPressing && !viewersOpen && !replyOpen}
                     onReadyForDisplay={() => {
+                      setMediaError(null);
                       setMediaReady(true);
                     }}
-                    onError={() => {
-                      setMediaReady(true);
+                    onError={(error) => {
+                      setMediaReady(false);
+                      setMediaError(
+                        error
+                        || 'No fue posible reproducir este video.',
+                      );
                     }}
                     isLooping
                     isMuted={false}
                     useNativeControls={false}
                   />
-                ) : isPhoto ? (
+                ) : null}
+
+                {mediaError ? (
+                  <View style={styles.mediaErrorCard}>
+                    <Text style={styles.mediaErrorTitle}>
+                      No fue posible reproducir el video
+                    </Text>
+                    <Text style={styles.mediaErrorMessage}>
+                      {mediaError}
+                    </Text>
+                  </View>
+                ) : null}
+
+                {isPhoto ? (
                   <Image
                     source={{ uri: status.photoUrl ?? undefined }}
                     style={styles.photoCard}
@@ -785,6 +805,28 @@ const styles = StyleSheet.create({
   screen: { flex: 1 },
   blurLayer: StyleSheet.absoluteFillObject,
   blurTint: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(34, 43, 67, 0.42)' },
+  mediaErrorCard: {
+    alignSelf: 'center',
+    backgroundColor: colors.neutral.white,
+    borderColor: `${colors.semantic.error}30`,
+    borderRadius: radii.xl,
+    borderWidth: 1,
+    marginHorizontal: spacing.lg,
+    padding: spacing.md,
+  },
+  mediaErrorTitle: {
+    color: colors.semantic.error,
+    fontSize: 15,
+    fontWeight: '700',
+    textAlign: 'center',
+  },
+  mediaErrorMessage: {
+    color: colors.neutral.gray600,
+    fontSize: 13,
+    lineHeight: 19,
+    marginTop: spacing.xs,
+    textAlign: 'center',
+  },
   videoBackground: { ...StyleSheet.absoluteFillObject, backgroundColor: colors.neutral.text },
   softShade: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(34, 43, 67, 0.08)' },
   tapLeft: { position: 'absolute', top: 0, bottom: 0, left: 0, width: '35%' },
