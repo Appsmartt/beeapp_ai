@@ -61,7 +61,7 @@ export function useStatusLayers(
     (
       color: string,
       withInitialText = true,
-    ) => {
+    ): string | null => {
       const first = withInitialText
         ? newTextLayer(0, color, defaultFontFamily)
         : null;
@@ -78,8 +78,12 @@ export function useStatusLayers(
             }
           : null,
       );
+
+      return first?.id ?? null;
     },
-    [],
+    [
+      defaultFontFamily,
+    ],
   );
 
   const addText = useCallback(() => {

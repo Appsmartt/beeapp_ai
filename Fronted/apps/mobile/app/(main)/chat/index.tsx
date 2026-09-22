@@ -998,22 +998,25 @@ export default function ChatListScreen() {
           .trim()
           .toUpperCase();
 
-        const selectedBackground = statusBackgrounds.find(
-          (background) => (
-            background.hex_color.toUpperCase()
-            === normalizedColor
-          ),
-        ) || statusBackgrounds[0];
+        const selectedBackground = (
+          statusBackgrounds.find(
+            (background) => (
+              background.hex_color.toUpperCase()
+              === normalizedColor
+            ),
+          )
+          || statusBackgrounds[0]
+        );
 
         if (!selectedBackground) {
           throw new Error(
-            'No hay fondos de texto disponibles. Inténtalo nuevamente.',
+            'No hay fondos de texto activos disponibles. Inténtalo nuevamente.',
           );
         }
 
         await publishTextStatus({
           kind: 'text',
-          text_content: draft.textContent,
+          text_content: draft.textContent.trim(),
           text_background_id: selectedBackground.id,
           caption: draft.caption,
           editor_metadata: draft.editorMetadata,
