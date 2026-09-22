@@ -37,15 +37,6 @@ export async function requestRecentStatusMediaPermission(): Promise<boolean> {
   return permission.granted;
 }
 
-export async function resolveRecentStatusMediaUri(
-  assetId: string,
-  fallbackUri: string,
-): Promise<string> {
-  const info = await MediaLibrary.getAssetInfoAsync(assetId);
-
-  return info.localUri || info.uri || fallbackUri;
-}
-
 export async function loadRecentStatusMedia(
   after?: string,
 ): Promise<{

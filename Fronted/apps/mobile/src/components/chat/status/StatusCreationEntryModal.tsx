@@ -17,8 +17,8 @@ import {
 import * as ImagePicker from 'expo-image-picker';
 import {
   Camera,
-  FileText,
   Image as ImageIcon,
+  Pencil,
   Play,
   X,
 } from 'lucide-react-native';
@@ -27,6 +27,8 @@ import {
   radii,
   spacing,
 } from '@beeapp/design-system';
+
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import ScreenSafeArea from '../../layout/ScreenSafeArea';
 import type {
@@ -38,7 +40,6 @@ import {
 import {
   loadRecentStatusMedia,
   requestRecentStatusMediaPermission,
-  resolveRecentStatusMediaUri,
   type RecentStatusMediaAsset,
 } from '../../../services/statusMediaLibrary';
 
@@ -49,6 +50,17 @@ interface StatusCreationEntryModalProps {
   onSelectMedia: (media: SelectedStatusMedia) => void;
   onClose: () => void;
 }
+
+type StatusCreationGridItem =
+  | {
+      type: 'camera';
+      id: 'camera';
+    }
+  | {
+      type: 'media';
+      asset: RecentStatusMediaAsset;
+      id: string;
+    };
 
 function formatVideoDuration(durationMilliseconds: number): string {
   const totalSeconds = Math.max(
@@ -68,6 +80,7 @@ export default function StatusCreationEntryModal({
   onSelectMedia,
   onClose,
 }: StatusCreationEntryModalProps) {
+  const insets = useSafeAreaInsets();
   const [assets, setAssets] = useState<RecentStatusMediaAsset[]>(
     [],
   );
@@ -209,10 +222,7 @@ export default function StatusCreationEntryModal({
     try {
       setSelectingId(asset.id);
 
-      const uri = await resolveRecentStatusMediaUri(
-        asset.id,
-        asset.uri,
-      );
+      const uri = asset.uri;
       const extension = asset.filename
         .split('.')
         .pop()
@@ -253,54 +263,91 @@ export default function StatusCreationEntryModal({
     }
   };
 
-  const renderAsset = ({
+  const gridItems: StatusCreationGridItem[] = [
+    {
+      type: 'camera',
+      id: 'camera',
+    },
+    ...assets.map((asset) => ({
+      type: 'media' as const,
+      asset,
+      id: asset.id,
+    })),
+  ];
+
+  const renderGridItem = ({
     item,
   }: {
-    item: RecentStatusMediaAsset;
-  }) => (
-    <TouchableOpacity
-      style={styles.mediaTile}
-      onPress={() => {
-        void handleSelectAsset(item);
-      }}
-      activeOpacity={0.8}
-      disabled={Boolean(selectingId)}
-      accessibilityLabel={
-        item.mediaType === 'video'
-          ? `Seleccionar video ${item.filename}`
-          : `Seleccionar imagen ${item.filename}`
-      }
-    >
-      <Image
-        source={{
-          uri: item.uri,
-        }}
-        style={styles.mediaImage}
-      />
-
-      {item.mediaType === 'video' ? (
-        <View style={styles.videoBadge}>
-          <Play
-            size={11}
+    item: StatusCreationGridItem;
+  }) => {
+    if (item.type === 'camera') {
+      return (
+        <TouchableOpacity
+          style={styles.cameraGridTile}
+          onPress={() => {
+            void handleOpenCamera();
+          }}
+          activeOpacity={0.8}
+          accessibilityLabel="Abrir cámara para crear estado"
+        >
+          <Camera
+            size={30}
             color={colors.neutral.white}
-            fill={colors.neutral.white}
           />
-          <Text style={styles.videoDuration}>
-            {formatVideoDuration(item.duration)}
+          <Text style={styles.cameraGridLabel}>
+            Cámara
           </Text>
-        </View>
-      ) : null}
+        </TouchableOpacity>
+      );
+    }
 
-      {selectingId === item.id ? (
-        <View style={styles.mediaLoading}>
-          <ActivityIndicator
-            size="small"
-            color={colors.neutral.white}
-          />
-        </View>
-      ) : null}
-    </TouchableOpacity>
-  );
+    const { asset } = item;
+
+    return (
+      <TouchableOpacity
+        style={styles.mediaTile}
+        onPress={() => {
+          void handleSelectAsset(asset);
+        }}
+        activeOpacity={0.8}
+        disabled={Boolean(selectingId)}
+        accessibilityLabel={
+          asset.mediaType === 'video'
+            ? `Seleccionar video ${asset.filename}`
+            : `Seleccionar imagen ${asset.filename}`
+        }
+      >
+        <Image
+          source={{
+            uri: asset.uri,
+          }}
+          style={styles.mediaImage}
+        />
+
+        {asset.mediaType === 'video' ? (
+          <View style={styles.videoBadge}>
+            <Play
+              size={11}
+              color={colors.neutral.white}
+              fill={colors.neutral.white}
+            />
+            <Text style={styles.videoDuration}>
+              {formatVideoDuration(asset.duration)}
+            </Text>
+          </View>
+        ) : null}
+
+        {selectingId === asset.id ? (
+          <View style={styles.mediaLoading}>
+            <ActivityIndicator
+              size="small"
+              color={colors.neutral.white}
+            />
+          </View>
+        ) : null}
+      </TouchableOpacity>
+    );
+  };
 
   return (
     <Modal
@@ -310,7 +357,14 @@ export default function StatusCreationEntryModal({
       statusBarTranslucent
     >
       <ScreenSafeArea style={styles.screen}>
-        <View style={styles.header}>
+        <View
+          style={[
+            styles.header,
+            {
+              marginTop: (insets.top / 2) + spacing.sm,
+            },
+          ]}
+        >
           <TouchableOpacity
             style={styles.closeButton}
             onPress={onClose}
@@ -332,48 +386,17 @@ export default function StatusCreationEntryModal({
 
         <View style={styles.actions}>
           <TouchableOpacity
-            style={styles.actionItem}
+            style={styles.textActionButton}
             onPress={onChooseText}
             activeOpacity={0.8}
             accessibilityLabel="Crear estado de texto"
           >
-            <View
-              style={[
-                styles.actionIcon,
-                styles.textActionIcon,
-              ]}
-            >
-              <FileText
-                size={27}
-                color={colors.brand.primary}
-              />
-            </View>
-            <Text style={styles.actionLabel}>
+            <Pencil
+              size={20}
+              color={colors.brand.primary}
+            />
+            <Text style={styles.textActionLabel}>
               Texto
-            </Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.actionItem}
-            onPress={() => {
-              void handleOpenCamera();
-            }}
-            activeOpacity={0.8}
-            accessibilityLabel="Abrir cámara para crear estado"
-          >
-            <View
-              style={[
-                styles.actionIcon,
-                styles.cameraActionIcon,
-              ]}
-            >
-              <Camera
-                size={27}
-                color={colors.neutral.white}
-              />
-            </View>
-            <Text style={styles.actionLabel}>
-              Cámara
             </Text>
           </TouchableOpacity>
         </View>
@@ -440,29 +463,12 @@ export default function StatusCreationEntryModal({
           </View>
         ) : (
           <FlatList
-            data={assets}
-            renderItem={renderAsset}
+            data={gridItems}
+            renderItem={renderGridItem}
             keyExtractor={(item) => item.id}
             numColumns={3}
-            contentContainerStyle={[
-              styles.grid,
-              assets.length === 0 && styles.emptyGrid,
-            ]}
-            columnWrapperStyle={
-              assets.length > 0
-                ? styles.gridRow
-                : undefined
-            }
-            ListEmptyComponent={
-              <View style={styles.centerState}>
-                <Text style={styles.stateTitle}>
-                  No hay fotos ni videos recientes
-                </Text>
-                <Text style={styles.stateText}>
-                  Toma una foto o video con la cámara para crear tu primer estado.
-                </Text>
-              </View>
-            }
+            contentContainerStyle={styles.grid}
+            columnWrapperStyle={styles.gridRow}
             ListFooterComponent={
               hasNextPage ? (
                 <TouchableOpacity
@@ -489,6 +495,15 @@ export default function StatusCreationEntryModal({
                     </Text>
                   )}
                 </TouchableOpacity>
+              ) : assets.length === 0 ? (
+                <View style={styles.emptyGalleryState}>
+                  <Text style={styles.stateTitle}>
+                    No hay fotos ni videos recientes
+                  </Text>
+                  <Text style={styles.stateText}>
+                    Toma una foto o video con la cámara para crear tu primer estado.
+                  </Text>
+                </View>
               ) : null
             }
           />
@@ -505,12 +520,23 @@ const styles = StyleSheet.create({
   },
   header: {
     alignItems: 'center',
+    backgroundColor: colors.neutral.white,
     borderBottomColor: colors.neutral.gray100,
     borderBottomWidth: 1,
+    borderRadius: radii.xl,
+    elevation: 2,
     flexDirection: 'row',
     justifyContent: 'space-between',
-    minHeight: 60,
+    marginHorizontal: spacing.md,
+    minHeight: 68,
     paddingHorizontal: spacing.sm,
+    shadowColor: colors.neutral.gray500,
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    shadowOpacity: 0.08,
+    shadowRadius: 9,
   },
   closeButton: {
     alignItems: 'center',
@@ -527,32 +553,24 @@ const styles = StyleSheet.create({
     width: 44,
   },
   actions: {
-    flexDirection: 'row',
-    gap: spacing.xl,
+    alignItems: 'flex-start',
     paddingHorizontal: spacing.lg,
     paddingTop: spacing.lg,
   },
-  actionItem: {
+  textActionButton: {
     alignItems: 'center',
-  },
-  actionIcon: {
-    alignItems: 'center',
-    borderRadius: 30,
-    height: 60,
-    justifyContent: 'center',
-    width: 60,
-  },
-  textActionIcon: {
     backgroundColor: `${colors.brand.primary}18`,
+    borderRadius: radii.full,
+    flexDirection: 'row',
+    gap: spacing.xs,
+    minHeight: 42,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
   },
-  cameraActionIcon: {
-    backgroundColor: colors.brand.primary,
-  },
-  actionLabel: {
-    color: colors.neutral.text,
-    fontSize: 13,
-    fontWeight: '600',
-    marginTop: spacing.xs,
+  textActionLabel: {
+    color: colors.brand.primary,
+    fontSize: 14,
+    fontWeight: '700',
   },
   recentHeader: {
     alignItems: 'center',
@@ -572,11 +590,26 @@ const styles = StyleSheet.create({
     gap: 2,
     paddingBottom: spacing.xl,
   },
-  emptyGrid: {
-    flexGrow: 1,
-  },
   gridRow: {
     gap: 2,
+  },
+  emptyGalleryState: {
+    alignItems: 'center',
+    paddingHorizontal: spacing.xl,
+    paddingVertical: spacing.xl,
+  },
+  cameraGridTile: {
+    alignItems: 'center',
+    aspectRatio: 1,
+    backgroundColor: colors.brand.primary,
+    flex: 1,
+    justifyContent: 'center',
+  },
+  cameraGridLabel: {
+    color: colors.neutral.white,
+    fontSize: 13,
+    fontWeight: '700',
+    marginTop: spacing.xs,
   },
   mediaTile: {
     aspectRatio: 1,
