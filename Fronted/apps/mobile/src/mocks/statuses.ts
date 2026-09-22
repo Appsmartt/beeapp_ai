@@ -79,6 +79,8 @@ export interface StatusItem {
   text: string;
   /** null en los estados de solo texto */
   photoUrl: string | null;
+  /** Duración declarada del video en segundos; null para foto, GIF y texto */
+  durationSeconds?: number | null;
   /** Fondo elegido por el autor en los estados de solo texto */
   bgColor: string | null;
   linkedProduct: StatusProductLink | null;

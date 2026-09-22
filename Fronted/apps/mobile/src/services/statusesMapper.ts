@@ -320,6 +320,14 @@ export function mapStatusStoryToUi(
     photoUrl: isMedia
       ? story.media?.url || null
       : null,
+    durationSeconds: (
+      story.kind === 'video'
+      && typeof story.media?.duration_seconds === 'number'
+      && Number.isFinite(story.media.duration_seconds)
+      && story.media.duration_seconds > 0
+    )
+      ? story.media.duration_seconds
+      : null,
     bgColor: isMedia
       ? null
       : (
