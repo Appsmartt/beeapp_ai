@@ -9,6 +9,7 @@ import {
   View,
 } from 'react-native';
 import {
+  useEffect,
   useMemo,
   useState,
 } from 'react';
@@ -32,6 +33,9 @@ import ScreenSafeArea from '../../layout/ScreenSafeArea';
 import type {
   StatusItem,
 } from '../../../mocks/statuses';
+import {
+  getStatusVideoThumbnail,
+} from '../../../services/statusVideoThumbnail';
 
 interface MyStatusesModalProps {
   visible: boolean;
@@ -41,6 +45,56 @@ interface MyStatusesModalProps {
   onOpenCamera: () => void;
   onArchiveStatus: (statusId: string) => Promise<void>;
   onClose: () => void;
+}
+
+function VideoStatusPreview({
+  videoUri,
+}: {
+  videoUri: string | null | undefined;
+}) {
+  const [thumbnailUri, setThumbnailUri] = useState<string | null>(
+    null,
+  );
+
+  useEffect(() => {
+    let isMounted = true;
+
+    setThumbnailUri(null);
+
+    void getStatusVideoThumbnail(videoUri).then(
+      (resolvedThumbnailUri) => {
+        if (isMounted) {
+          setThumbnailUri(resolvedThumbnailUri);
+        }
+      },
+    );
+
+    return () => {
+      isMounted = false;
+    };
+  }, [
+    videoUri,
+  ]);
+
+  return (
+    <View style={styles.videoPreview}>
+      {thumbnailUri ? (
+        <Image
+          source={{
+            uri: thumbnailUri,
+          }}
+          style={styles.previewImage}
+        />
+      ) : null}
+      <View style={styles.videoPlayOverlay}>
+        <Play
+          size={22}
+          color={colors.neutral.white}
+          fill={colors.neutral.white}
+        />
+      </View>
+    </View>
+  );
 }
 
 function formatPublishedAt(createdAt?: string): string {
@@ -193,13 +247,9 @@ export default function MyStatusesModal({
                 >
                 <View style={styles.previewWrap}>
                   {item.type === 'video' ? (
-                    <View style={styles.videoPreview}>
-                      <Play
-                        size={22}
-                        color={colors.neutral.white}
-                        fill={colors.neutral.white}
-                      />
-                    </View>
+                    <VideoStatusPreview
+                      videoUri={item.photoUrl}
+                    />
                   ) : isMedia ? (
                     <Image
                       source={{
@@ -459,6 +509,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: colors.neutral.gray800,
     flex: 1,
+    justifyContent: 'center',
+  },
+  videoPlayOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: 'center',
+    backgroundColor: 'rgba(0, 0, 0, 0.28)',
     justifyContent: 'center',
   },
   textPreview: {
