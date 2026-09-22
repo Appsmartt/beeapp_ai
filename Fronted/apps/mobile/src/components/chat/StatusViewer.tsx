@@ -19,7 +19,11 @@ import {
   GestureHandlerRootView,
 } from 'react-native-gesture-handler';
 import { runOnJS } from 'react-native-reanimated';
-import { ResizeMode, Video } from 'expo-av';
+import {
+  type AVPlaybackStatus,
+  ResizeMode,
+  Video,
+} from 'expo-av';
 import { colors, spacing, radii } from '@beeapp/design-system';
 import {
   ChevronUp,
@@ -142,11 +146,13 @@ export default function StatusViewer({
     }
   }, [mediaReady, onStatusViewed, status?.id, visible]);
 
-  // La hoja de "Visto por" pausa el avance y lo reanuda con el tiempo restante
+  // Fotos, GIF y texto mantienen el tiempo fijo actual.
+  // Los videos avanzan exclusivamente al terminar la reproducción real.
   useEffect(() => {
     if (
       !visible
       || !status
+      || status.type === 'video'
       || viewersOpen
       || replyOpen
       || isPressing
@@ -154,6 +160,7 @@ export default function StatusViewer({
     ) {
       return;
     }
+
     const remaining = STATUS_DURATION * (1 - elapsed.current);
     const animation = Animated.timing(progress, {
       toValue: 1,
@@ -161,9 +168,24 @@ export default function StatusViewer({
       easing: Easing.linear,
       useNativeDriver: false,
     });
-    animation.start(({ finished }) => finished && goNext());
+
+    animation.start(({ finished }) => {
+      if (finished) {
+        goNext();
+      }
+    });
+
     return () => animation.stop();
-  }, [visible, index, isPressing, mediaReady, replyOpen, status?.id, viewersOpen]);
+  }, [
+    visible,
+    index,
+    isPressing,
+    mediaReady,
+    replyOpen,
+    status?.id,
+    status?.type,
+    viewersOpen,
+  ]);
 
   if (!status) return null;
 
@@ -442,10 +464,58 @@ export default function StatusViewer({
                     source={{ uri: status.photoUrl }}
                     style={styles.photoCard}
                     resizeMode={ResizeMode.COVER}
-                    shouldPlay={visible && !isPressing && !viewersOpen && !replyOpen}
+                    shouldPlay={
+                      visible
+                      && !isPressing
+                      && !viewersOpen
+                      && !replyOpen
+                    }
+                    progressUpdateIntervalMillis={100}
                     onReadyForDisplay={() => {
                       setMediaError(null);
                       setMediaReady(true);
+                    }}
+                    onPlaybackStatusUpdate={(
+                      playbackStatus: AVPlaybackStatus,
+                    ) => {
+                      if (!playbackStatus.isLoaded) {
+                        return;
+                      }
+
+                      const fallbackDurationMillis = (
+                        typeof status.durationSeconds === 'number'
+                        && status.durationSeconds > 0
+                      )
+                        ? status.durationSeconds * 1000
+                        : null;
+                      const resolvedDurationMillis = (
+                        typeof playbackStatus.durationMillis === 'number'
+                        && playbackStatus.durationMillis > 0
+                      )
+                        ? playbackStatus.durationMillis
+                        : fallbackDurationMillis;
+
+                      if (
+                        resolvedDurationMillis
+                        && typeof playbackStatus.positionMillis === 'number'
+                      ) {
+                        const normalizedProgress = Math.min(
+                          1,
+                          Math.max(
+                            0,
+                            playbackStatus.positionMillis
+                              / resolvedDurationMillis,
+                          ),
+                        );
+
+                        elapsed.current = normalizedProgress;
+                        progress.setValue(normalizedProgress);
+                      }
+
+                      if (playbackStatus.didJustFinish) {
+                        progress.setValue(1);
+                        goNext();
+                      }
                     }}
                     onError={(error) => {
                       setMediaReady(false);
@@ -454,7 +524,7 @@ export default function StatusViewer({
                         || 'No fue posible reproducir este video.',
                       );
                     }}
-                    isLooping
+                    isLooping={false}
                     isMuted={false}
                     useNativeControls={false}
                   />
