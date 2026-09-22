@@ -37,7 +37,11 @@ import ModuleNotificationBell from '../../../src/components/ModuleNotificationBe
 import ChatListView from '../../../src/components/chat/ChatListView';
 import StatusCirclesRow from '../../../src/components/chat/StatusCirclesRow';
 import StatusViewer from '../../../src/components/chat/StatusViewer';
-import CreateStatusModal from '../../../src/components/chat/CreateStatusModal';
+import CreateStatusModal, {
+  type SelectedStatusMedia,
+} from '../../../src/components/chat/CreateStatusModal';
+import StatusCreationEntryModal from '../../../src/components/chat/status/StatusCreationEntryModal';
+import MyStatusesModal from '../../../src/components/chat/status/MyStatusesModal';
 import ChatTabs, {
   type ChatTab,
 } from '../../../src/components/chat/ChatTabs';
@@ -257,6 +261,7 @@ export default function ChatListScreen() {
 
   const {
     statuses,
+    ownStatuses,
     loading: statusesLoading,
     refreshing: statusesRefreshing,
     error: statusesError,
@@ -275,6 +280,24 @@ export default function ChatListScreen() {
   >(null);
 
   const [creatingStatus, setCreatingStatus] = useState(false);
+  const [
+    statusCreationEntryOpen,
+    setStatusCreationEntryOpen,
+  ] = useState(false);
+  const [
+    myStatusesOpen,
+    setMyStatusesOpen,
+  ] = useState(false);
+  const [initialStatusMedia, setInitialStatusMedia] = useState<
+    SelectedStatusMedia | null
+  >(null);
+  const [initialStatusMode, setInitialStatusMode] = useState<
+    'chooser' | 'editor' | 'text'
+  >('chooser');
+  const [
+    statusCameraRequestId,
+    setStatusCameraRequestId,
+  ] = useState(0);
 
   const isGroupsTab = activeTab === 'groups';
 
@@ -802,6 +825,58 @@ export default function ChatListScreen() {
     ]);
   };
 
+  const openStatusEditor = (
+    options: {
+      media?: SelectedStatusMedia | null;
+      mode?: 'chooser' | 'editor' | 'text';
+    } = {},
+  ) => {
+    setInitialStatusMedia(options.media || null);
+    setInitialStatusMode(
+      options.media
+        ? 'editor'
+        : options.mode || 'chooser',
+    );
+    setStatusCreationEntryOpen(false);
+    setMyStatusesOpen(false);
+    setCreatingStatus(true);
+  };
+
+  const handleStatusCirclePress = () => {
+    if (ownStatuses.length > 0) {
+      setMyStatusesOpen(true);
+      return;
+    }
+
+    setStatusCreationEntryOpen(true);
+  };
+
+  const openOwnStatusInViewer = (statusId: string) => {
+    const index = statuses.findIndex(
+      (status) => status.id === statusId,
+    );
+
+    if (index < 0) {
+      return;
+    }
+
+    const selectedStatus = statuses[index];
+
+    if (selectedStatus) {
+      void registerStatusView(selectedStatus.id).catch(() => {
+        // El dueño no puede registrar su propia vista.
+      });
+    }
+
+    setMyStatusesOpen(false);
+    setViewerIndex(index);
+  };
+
+  const openStatusCamera = () => {
+    setStatusCreationEntryOpen(true);
+    setStatusCameraRequestId((current) => current + 1);
+  };
+
   const handlePublishStatus = async (
     draft: StatusEditorPublishDraft,
   ) => {
@@ -870,6 +945,10 @@ export default function ChatListScreen() {
       }
 
       setCreatingStatus(false);
+      setStatusCreationEntryOpen(false);
+      setMyStatusesOpen(false);
+      setInitialStatusMedia(null);
+      setInitialStatusMode('chooser');
 
       await refreshStatuses();
     } catch (publishError) {
@@ -966,9 +1045,7 @@ export default function ChatListScreen() {
             showLoadingPlaceholders={
               statusesLoading && statuses.length === 0
             }
-            onCreate={() => {
-              setCreatingStatus(true);
-            }}
+            onCreate={handleStatusCirclePress}
             onOpen={(index) => {
               const selectedStatus = statuses[index];
 
@@ -1120,14 +1197,53 @@ export default function ChatListScreen() {
         }}
       />
 
+      <StatusCreationEntryModal
+        visible={statusCreationEntryOpen}
+        cameraRequestId={statusCameraRequestId}
+        onChooseText={() => {
+          openStatusEditor({
+            mode: 'text',
+          });
+        }}
+        onSelectMedia={(media) => {
+          openStatusEditor({
+            media,
+          });
+        }}
+        onClose={() => {
+          setStatusCreationEntryOpen(false);
+        }}
+      />
+
+      <MyStatusesModal
+        visible={myStatusesOpen}
+        statuses={ownStatuses}
+        onOpenStatus={(status) => {
+          openOwnStatusInViewer(status.id);
+        }}
+        onCreateText={() => {
+          openStatusEditor({
+            mode: 'text',
+          });
+        }}
+        onOpenCamera={openStatusCamera}
+        onClose={() => {
+          setMyStatusesOpen(false);
+        }}
+      />
+
       <CreateStatusModal
         visible={creatingStatus}
         backgrounds={statusBackgrounds}
+        initialMedia={initialStatusMedia}
+        initialMode={initialStatusMode}
         isPublishing={publishingStatus}
         onPublish={handlePublishStatus}
         onClose={() => {
           if (!publishingStatus) {
             setCreatingStatus(false);
+            setInitialStatusMedia(null);
+            setInitialStatusMode('chooser');
           }
         }}
       />
@@ -1457,6 +1573,9 @@ export default function ChatListScreen() {
           }
 
           setMenuChat(null);
+        }}
+        onAssignCategory={() => {
+          // La asignación de categorías conserva su flujo existente.
         }}
         onDelete={() => {
           if (menuChat) {

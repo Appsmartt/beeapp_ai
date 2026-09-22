@@ -80,6 +80,7 @@ export interface UseStatusesOptions {
 
 export interface UseStatusesResult {
   statuses: StatusItem[];
+  ownStatuses: StatusItem[];
   backgrounds: StatusTextBackground[];
   loading: boolean;
   refreshing: boolean;
@@ -97,6 +98,9 @@ export function useStatuses(
   ).trim() || null;
 
   const [statuses, setStatuses] = useState<StatusItem[]>(
+    [],
+  );
+  const [ownStatuses, setOwnStatuses] = useState<StatusItem[]>(
     [],
   );
   const [backgrounds, setBackgrounds] = useState<
@@ -152,7 +156,16 @@ export function useStatuses(
             - new Date(first.created_at).getTime()
           ));
 
+        const mappedOwnStatuses = mapStoriesToUi(
+          ownStories,
+          backgroundsResponse.backgrounds,
+        ).sort((first, second) => (
+          new Date(second.createdAt || 0).getTime()
+          - new Date(first.createdAt || 0).getTime()
+        ));
+
         setBackgrounds(backgroundsResponse.backgrounds);
+        setOwnStatuses(mappedOwnStatuses);
         setStatuses(
           mapStoriesToUi(
             sortedStories,
@@ -190,6 +203,7 @@ export function useStatuses(
 
   return {
     statuses,
+    ownStatuses,
     backgrounds,
     loading,
     refreshing,
