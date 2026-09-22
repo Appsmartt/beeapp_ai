@@ -1,7 +1,7 @@
 import { ReactNode } from 'react';
 import { Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { colors, spacing, radii } from '@beeapp/design-system';
-import { Type, ImagePlus, Sticker, Camera, ShoppingBag, X } from 'lucide-react-native';
+import { Type, ImagePlus, Sticker, Camera, X } from 'lucide-react-native';
 import { MAX_IMAGE_LAYERS, MAX_STICKER_LAYERS, MAX_TEXT_LAYERS } from '../../../mocks/statusMedia';
 
 interface StatusToolChipsProps {
@@ -42,7 +42,7 @@ function Chip({ icon, label, onPress, disabled, active, trailing }: ChipProps) {
   );
 }
 
-/** Fila de acciones del editor: capas, stickers, música, foto y producto */
+/** Fila de acciones del editor: texto, imágenes, stickers y foto de fondo. */
 export default function StatusToolChips(props: StatusToolChipsProps) {
   const iconColor = colors.neutral.text;
 
@@ -74,13 +74,6 @@ export default function StatusToolChips(props: StatusToolChipsProps) {
         label={props.hasPhoto ? 'Quitar foto' : 'Foto de fondo'}
         onPress={props.hasPhoto ? props.onRemovePhoto : props.onPickPhoto}
         trailing={props.hasPhoto ? <X size={13} color={colors.neutral.gray600} /> : undefined}
-      />
-
-      <Chip
-        icon={<ShoppingBag size={16} color={colors.neutral.gray500} />}
-        label="Productos · Próximamente"
-        onPress={() => {}}
-        disabled
       />
     </ScrollView>
   );
