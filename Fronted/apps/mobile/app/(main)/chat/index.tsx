@@ -65,6 +65,10 @@ import {
   useStatuses,
 } from '../../../src/hooks/useStatuses';
 import {
+  prepareStatusMediaForUpload,
+} from '../../../src/services/statusMediaPreparation';
+
+import {
   acceptStatusFollow,
   archiveCurrentStatus,
   followStatusTarget,
@@ -281,6 +285,16 @@ export default function ChatListScreen() {
   });
 
   const [publishingStatus, setPublishingStatus] = useState(false);
+  const [statusPublishingPhase, setStatusPublishingPhase] = useState<
+    'idle'
+    | 'preparing_image'
+    | 'preparing_video'
+    | 'uploading'
+    | 'error'
+  >('idle');
+  const [statusPublishingMessage, setStatusPublishingMessage] = useState<
+    string | null
+  >(null);
 
   const [viewerIndex, setViewerIndex] = useState<
     number | null
@@ -968,11 +982,28 @@ export default function ChatListScreen() {
 
     try {
       setPublishingStatus(true);
+      setStatusPublishingMessage(null);
 
       if (draft.media) {
+        setStatusPublishingPhase(
+          draft.media.kind === 'video'
+            ? 'preparing_video'
+            : 'preparing_image',
+        );
+
+        const preparedMedia = await prepareStatusMediaForUpload({
+          uri: draft.media.uri,
+          name: draft.media.name,
+          mimeType: draft.media.mimeType,
+          kind: draft.media.kind,
+          durationSeconds: draft.media.durationSeconds,
+        });
+
+        setStatusPublishingPhase('uploading');
+
         await publishMediaStatus(
           {
-            kind: draft.media.kind,
+            kind: preparedMedia.kind,
             caption: draft.caption,
             editor_metadata: draft.editorMetadata,
             ...(isCommercialContext
@@ -982,15 +1013,15 @@ export default function ChatListScreen() {
                 }
               : {}),
             duration_seconds: (
-              draft.media.kind === 'video'
-                ? draft.media.durationSeconds ?? undefined
+              preparedMedia.kind === 'video'
+                ? preparedMedia.durationSeconds ?? undefined
                 : undefined
             ),
           },
           {
-            uri: draft.media.uri,
-            name: draft.media.name,
-            mimeType: draft.media.mimeType,
+            uri: preparedMedia.uri,
+            name: preparedMedia.name,
+            mimeType: preparedMedia.mimeType,
           },
         );
       } else {
@@ -1014,6 +1045,8 @@ export default function ChatListScreen() {
           );
         }
 
+        setStatusPublishingPhase('uploading');
+
         await publishTextStatus({
           kind: 'text',
           text_content: draft.textContent.trim(),
@@ -1034,11 +1067,13 @@ export default function ChatListScreen() {
       setMyStatusesOpen(false);
       setInitialStatusMedia(null);
       setInitialStatusMode('chooser');
+      setStatusPublishingPhase('idle');
+      setStatusPublishingMessage(null);
 
       await refreshStatuses();
     } catch (publishError) {
-      Alert.alert(
-        'No fue posible publicar el estado',
+      setStatusPublishingPhase('error');
+      setStatusPublishingMessage(
         publishError instanceof Error
           ? publishError.message
           : 'Inténtalo nuevamente.',
@@ -1339,12 +1374,20 @@ export default function ChatListScreen() {
         initialMedia={initialStatusMedia}
         initialMode={initialStatusMode}
         isPublishing={publishingStatus}
+        publishingPhase={statusPublishingPhase}
+        publishingMessage={statusPublishingMessage}
+        onDismissPublishingError={() => {
+          setStatusPublishingPhase('idle');
+          setStatusPublishingMessage(null);
+        }}
         onPublish={handlePublishStatus}
         onClose={() => {
           if (!publishingStatus) {
             setCreatingStatus(false);
             setInitialStatusMedia(null);
             setInitialStatusMode('chooser');
+            setStatusPublishingPhase('idle');
+            setStatusPublishingMessage(null);
           }
         }}
       />

@@ -14,7 +14,9 @@ import {
   useRef,
   useState,
 } from 'react';
-import * as ImagePicker from 'expo-image-picker';
+import {
+  Camera as ExpoCamera,
+} from 'expo-camera';
 import {
   Camera,
   Image as ImageIcon,
@@ -31,6 +33,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import ScreenSafeArea from '../../layout/ScreenSafeArea';
+import StatusCameraModal from './StatusCameraModal';
 import type {
   SelectedStatusMedia,
 } from '../CreateStatusModal';
@@ -62,6 +65,28 @@ type StatusCreationGridItem =
       id: string;
     };
 
+const MAX_STATUS_VIDEO_DURATION_MILLISECONDS = 90 * 1000;
+
+function validateStatusVideoDuration(
+  durationMilliseconds: number | null | undefined,
+): void {
+  if (
+    typeof durationMilliseconds !== 'number'
+    || !Number.isFinite(durationMilliseconds)
+    || durationMilliseconds <= 0
+  ) {
+    throw new Error(
+      'No fue posible obtener la duración del video seleccionado.',
+    );
+  }
+
+  if (durationMilliseconds > MAX_STATUS_VIDEO_DURATION_MILLISECONDS) {
+    throw new Error(
+      'Los videos de estado pueden durar máximo 90 segundos.',
+    );
+  }
+}
+
 function formatVideoDuration(durationMilliseconds: number): string {
   const totalSeconds = Math.max(
     0,
@@ -91,6 +116,8 @@ export default function StatusCreationEntryModal({
   const [endCursor, setEndCursor] = useState<string | undefined>();
   const [hasNextPage, setHasNextPage] = useState(false);
   const [selectingId, setSelectingId] = useState<string | null>(null);
+  const [statusCameraOpen, setStatusCameraOpen] = useState(false);
+  const [microphoneGranted, setMicrophoneGranted] = useState(false);
   const handledCameraRequestIdRef = useRef(0);
 
   const loadAssets = async (
@@ -160,38 +187,29 @@ export default function StatusCreationEntryModal({
 
   const handleOpenCamera = async () => {
     try {
-      const cameraPermission = (
-        await ImagePicker.requestCameraPermissionsAsync()
-      );
+      const [
+        cameraPermission,
+        microphonePermission,
+      ] = await Promise.all([
+        ExpoCamera.requestCameraPermissionsAsync(),
+        ExpoCamera.requestMicrophonePermissionsAsync(),
+      ]);
 
       if (!cameraPermission.granted) {
-        Alert.alert(
-          'Permiso requerido',
-          'Permite el acceso a la cámara para tomar una foto o video para tu estado.',
+        setError(
+          'Permite el acceso a la cámara para tomar fotos o grabar videos para tu estado.',
         );
         return;
       }
 
-      const result = await ImagePicker.launchCameraAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.All,
-        allowsEditing: false,
-        quality: 1,
-        videoMaxDuration: 60,
-      });
-
-      if (result.canceled || !result.assets[0]) {
-        return;
-      }
-
-      onSelectMedia(
-        toSelectedStatusMedia(result.assets[0]),
-      );
+      setMicrophoneGranted(microphonePermission.granted);
+      setError(null);
+      setStatusCameraOpen(true);
     } catch (cameraError) {
-      Alert.alert(
-        'No fue posible abrir la cámara',
+      setError(
         cameraError instanceof Error
           ? cameraError.message
-          : 'Inténtalo nuevamente.',
+          : 'No fue posible abrir la cámara.',
       );
     }
   };
@@ -230,7 +248,11 @@ export default function StatusCreationEntryModal({
         .toLowerCase();
 
       const mimeType = asset.mediaType === 'video'
-        ? 'video/mp4'
+        ? extension === 'mov'
+          ? 'video/quicktime'
+          : extension === 'mp4'
+            ? 'video/mp4'
+            : 'video/*'
         : extension === 'gif'
           ? 'image/gif'
           : extension === 'png'
@@ -238,6 +260,10 @@ export default function StatusCreationEntryModal({
             : extension === 'webp'
               ? 'image/webp'
               : 'image/jpeg';
+
+      if (asset.mediaType === 'video') {
+        validateStatusVideoDuration(asset.duration);
+      }
 
       onSelectMedia(
         toSelectedStatusMedia({
@@ -350,7 +376,30 @@ export default function StatusCreationEntryModal({
   };
 
   return (
-    <Modal
+    <>
+      <StatusCameraModal
+        visible={statusCameraOpen}
+        microphoneGranted={microphoneGranted}
+        onCapture={(capturedMedia) => {
+          if (
+            capturedMedia.duration !== null
+            && capturedMedia.duration > 0
+          ) {
+            validateStatusVideoDuration(capturedMedia.duration);
+          }
+
+          setStatusCameraOpen(false);
+          onSelectMedia(
+            toSelectedStatusMedia(capturedMedia),
+          );
+        }}
+        onClose={() => {
+          setStatusCameraOpen(false);
+          setMicrophoneGranted(false);
+        }}
+      />
+
+      <Modal
       visible={visible}
       animationType="slide"
       onRequestClose={onClose}
@@ -509,7 +558,8 @@ export default function StatusCreationEntryModal({
           />
         )}
       </ScreenSafeArea>
-    </Modal>
+      </Modal>
+    </>
   );
 }
 
