@@ -30,6 +30,7 @@ export interface StatusTextLayer {
   fontSize: number;
   fontWeight: '400' | '700';
   color: string;
+  fontFamily: string;
 }
 
 /** Capa de imagen. Mock: un recuadro de color, no una foto real */
@@ -85,6 +86,8 @@ export interface StatusItem {
   textPosition: StatusTextPosition;
   textSize: number;
   textWeight: '400' | '700';
+  /** Familia elegida por el autor para el texto principal del estado */
+  textFontFamily?: string;
   /** Color elegido por el autor: es dato suyo, no un token del sistema */
   textColor: string;
   /**

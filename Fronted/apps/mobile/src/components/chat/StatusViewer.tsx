@@ -41,6 +41,12 @@ import {
 import {
   mapStatusViewerToUi,
 } from '../../services/statusesMapper';
+import {
+  STATUS_DEFAULT_FONT_FAMILY,
+} from './status/statusTypography';
+import {
+  useStatusTypography,
+} from './status/useStatusTypography';
 
 const STATUS_DURATION = 6000;
 
@@ -80,6 +86,9 @@ export default function StatusViewer({
   const [archiveError, setArchiveError] = useState<string | null>(null);
   const [mediaReady, setMediaReady] = useState(false);
   const [isPressing, setIsPressing] = useState(false);
+  const {
+    fontsLoaded,
+  } = useStatusTypography();
   const status = statuses[index];
 
   const goNext = () => (index < statuses.length - 1 ? onChangeIndex(index + 1) : onClose());
@@ -315,12 +324,26 @@ export default function StatusViewer({
       }
     });
 
-  const textStyle = {
+  const fallbackTextLayers = [{
+    id: 'status_text',
+    content: status.text,
+    x: status.textPosition.x,
+    y: status.textPosition.y,
+    scale: 1,
+    rotation: 0,
     fontSize: status.textSize,
     fontWeight: status.textWeight,
     color: status.textColor,
-    lineHeight: status.textSize * 1.3,
-  } as const;
+    fontFamily: status.textFontFamily
+      || STATUS_DEFAULT_FONT_FAMILY,
+  }];
+
+  const textLayers = (
+    status.textLayers
+    && status.textLayers.length > 0
+  )
+    ? status.textLayers
+    : fallbackTextLayers;
 
   return (
     <Modal visible={visible} animationType="fade" onRequestClose={onClose} statusBarTranslucent>
@@ -441,9 +464,52 @@ export default function StatusViewer({
                     }}
                   />
                 ) : null}
-                <View style={[styles.textLayer, { top: `${status.textPosition.y}%`, left: `${status.textPosition.x}%` }]}>
-                  <Text style={[styles.statusText, textStyle]}>{status.text}</Text>
-                </View>
+                {textLayers.map((layer) => {
+                  const fontFamily = fontsLoaded
+                    ? layer.fontFamily
+                    : STATUS_DEFAULT_FONT_FAMILY;
+
+                  return (
+                    <View
+                      key={layer.id}
+                      style={[
+                        styles.textLayer,
+                        {
+                          top: `${layer.y}%`,
+                          left: `${layer.x}%`,
+                          transform: [
+                            {
+                              translateY: -(
+                                layer.fontSize * 0.65
+                              ),
+                            },
+                            {
+                              rotate: `${layer.rotation}deg`,
+                            },
+                            {
+                              scale: layer.scale,
+                            },
+                          ],
+                        },
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          styles.statusText,
+                          {
+                            color: layer.color,
+                            fontFamily,
+                            fontSize: layer.fontSize,
+                            fontWeight: layer.fontWeight,
+                            lineHeight: layer.fontSize * 1.3,
+                          },
+                        ]}
+                      >
+                        {layer.content}
+                      </Text>
+                    </View>
+                  );
+                })}
               </View>
 
               {!isOwnStatus && !replyOpen ? (
@@ -746,7 +812,7 @@ const styles = StyleSheet.create({
   onDarkMuted: { color: colors.neutral.white, opacity: 0.75 },
   stage: { flex: 1, margin: spacing.lg },
   photoCard: { ...StyleSheet.absoluteFillObject, borderRadius: 20, elevation: 10 },
-  textLayer: { position: 'absolute', width: '86%', marginLeft: '-43%', transform: [{ translateY: -20 }] },
+  textLayer: { position: 'absolute', width: '86%', marginLeft: '-43%' },
   statusText: { textAlign: 'center' },
   replyHint: {
     alignItems: 'center',

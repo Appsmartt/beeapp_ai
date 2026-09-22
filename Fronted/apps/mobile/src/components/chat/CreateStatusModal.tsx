@@ -51,9 +51,15 @@ import type {
 } from '@beeapp/shared-types';
 
 import {
-  STATUS_BG_COLORS,
   STATUS_TEXT_COLORS,
-} from '../../mocks/statuses';
+} from './status/statusTypography';
+import {
+  STATUS_DEFAULT_FONT_FAMILY,
+  STATUS_PASTEL_BACKGROUND_COLORS,
+} from './status/statusTypography';
+import {
+  useStatusTypography,
+} from './status/useStatusTypography';
 
 const MENTION_TOKEN = /@[^@\n]*$/;
 
@@ -150,11 +156,15 @@ function serializeEditorMetadata(
     texts: ReturnType<typeof useStatusLayers>['texts'];
     images: ReturnType<typeof useStatusLayers>['images'];
     stickers: ReturnType<typeof useStatusLayers>['stickers'];
+    textFontFamily: string;
+    backgroundColor: string;
   },
 ): Record<string, unknown> {
   return {
-    version: 1,
+    version: 2,
     mentions: [],
+    background_color: values.backgroundColor,
+    text_font_family: values.textFontFamily,
     text_layers: values.texts
       .filter((layer) => layer.content.trim())
       .map((layer) => ({
@@ -164,6 +174,7 @@ function serializeEditorMetadata(
         y: layer.y,
         font_size: layer.fontSize,
         font_weight: layer.fontWeight,
+        font_family: layer.fontFamily,
         color: layer.color,
         scale: layer.scale,
         rotation: layer.rotation,
@@ -202,11 +213,14 @@ export default function CreateStatusModal({
     SelectedStatusMedia | null
   >(null);
   const wasVisibleRef = useRef(false);
-  const [bgColor, setBgColor] = useState(
-    backgrounds[0]?.hex_color || STATUS_BG_COLORS[0],
+  const [bgColor, setBgColor] = useState<string>(
+    STATUS_PASTEL_BACKGROUND_COLORS[0],
   );
-  const [lastTextColor, setLastTextColor] = useState(
+  const [lastTextColor, setLastTextColor] = useState<string>(
     STATUS_TEXT_COLORS[0],
+  );
+  const [selectedFontFamily, setSelectedFontFamily] = useState(
+    STATUS_DEFAULT_FONT_FAMILY,
   );
   const [sheet, setSheet] = useState<
     'stickers' | null
@@ -226,7 +240,18 @@ export default function CreateStatusModal({
     string | null
   >(null);
 
-  const layers = useStatusLayers(lastTextColor);
+  const {
+    fontsLoaded,
+  } = useStatusTypography();
+
+  const resolvedFontFamily = fontsLoaded
+    ? selectedFontFamily
+    : STATUS_DEFAULT_FONT_FAMILY;
+
+  const layers = useStatusLayers(
+    lastTextColor,
+    resolvedFontFamily,
+  );
   const {
     texts,
     images,
@@ -249,10 +274,10 @@ export default function CreateStatusModal({
 
     setMedia(initialMedia);
     setBgColor(
-      backgrounds[0]?.hex_color
-      || STATUS_BG_COLORS[0],
+      STATUS_PASTEL_BACKGROUND_COLORS[0],
     );
     setLastTextColor(STATUS_TEXT_COLORS[0]);
+    setSelectedFontFamily(STATUS_DEFAULT_FONT_FAMILY);
     setSheet(null);
     setMentionQuery(null);
     const isTextStatus = (
@@ -336,6 +361,11 @@ export default function CreateStatusModal({
         color,
       });
     }
+  };
+
+  const changeTextFontFamily = (fontFamily: string) => {
+    setSelectedFontFamily(fontFamily);
+    layers.setAllTextFontFamilies(fontFamily);
   };
 
   const handlePickMedia = async () => {
@@ -447,6 +477,8 @@ export default function CreateStatusModal({
         texts,
         images,
         stickers,
+        textFontFamily: resolvedFontFamily,
+        backgroundColor: bgColor,
       }),
     });
   };
@@ -463,6 +495,21 @@ export default function CreateStatusModal({
       true,
     );
     setEditorMode('editor');
+    setEditingTextId(null);
+
+    requestAnimationFrame(() => {
+      const initialText = layers.texts[0];
+
+      if (!initialText) {
+        return;
+      }
+
+      layers.setSelection({
+        kind: 'text',
+        id: initialText.id,
+      });
+      setEditingTextId(initialText.id);
+    });
   };
 
   const handleChooseMedia = () => {
@@ -779,14 +826,13 @@ export default function CreateStatusModal({
             }}
             textColor={selectedText?.color ?? lastTextColor}
             onChangeTextColor={changeTextColor}
+            selectedFontFamily={resolvedFontFamily}
+            fontSelectorEnabled={fontsLoaded}
+            onChangeTextFontFamily={changeTextFontFamily}
             showBackgrounds={!isMediaStatus}
-            backgroundColors={
-              backgrounds.length > 0
-                ? backgrounds.map(
-                    (background) => background.hex_color,
-                  )
-                : STATUS_BG_COLORS
-            }
+            backgroundColors={[
+              ...STATUS_PASTEL_BACKGROUND_COLORS,
+            ]}
             bgColor={bgColor}
             onChangeBgColor={setBgColor}
             textCount={texts.length}

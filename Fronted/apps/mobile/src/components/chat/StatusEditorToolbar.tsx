@@ -1,7 +1,25 @@
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
-import { colors, spacing, radii } from '@beeapp/design-system';
-import { Bold, Minus, Plus } from 'lucide-react-native';
-import { STATUS_TEXT_COLORS } from '../../mocks/statuses';
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  TouchableOpacity,
+} from 'react-native';
+import {
+  colors,
+  spacing,
+  radii,
+} from '@beeapp/design-system';
+import {
+  Bold,
+  Minus,
+  Plus,
+  Type,
+} from 'lucide-react-native';
+import {
+  STATUS_FONT_OPTIONS,
+  STATUS_TEXT_COLORS,
+} from './status/statusTypography';
 import StatusToolChips from './status/StatusToolChips';
 
 interface StatusEditorToolbarProps {
@@ -13,6 +31,9 @@ interface StatusEditorToolbarProps {
   onToggleBold: () => void;
   textColor: string;
   onChangeTextColor: (color: string) => void;
+  selectedFontFamily: string;
+  fontSelectorEnabled: boolean;
+  onChangeTextFontFamily: (fontFamily: string) => void;
   /** Background swatches only make sense on a text-only status */
   showBackgrounds: boolean;
   backgroundColors: string[];
@@ -35,7 +56,14 @@ const STEP = 2;
 
 /** Text and content controls of the status editor */
 export default function StatusEditorToolbar(props: StatusEditorToolbarProps) {
-  const { hasTextSelection, textSize, onChangeSize, bold, onToggleBold, textColor } = props;
+  const {
+    hasTextSelection,
+    textSize,
+    onChangeSize,
+    bold,
+    onToggleBold,
+    textColor,
+  } = props;
 
   const clamp = (value: number) =>
     Math.min(STATUS_TEXT_SIZE_MAX, Math.max(STATUS_TEXT_SIZE_MIN, value));
@@ -87,13 +115,102 @@ export default function StatusEditorToolbar(props: StatusEditorToolbarProps) {
         </TouchableOpacity>
 
         <TouchableOpacity
-          style={[styles.boldBtn, bold && styles.boldBtnActive]}
+          style={[
+            styles.boldBtn,
+            bold && styles.boldBtnActive,
+          ]}
           onPress={onToggleBold}
           activeOpacity={0.7}
+          accessibilityLabel={
+            bold
+              ? 'Desactivar negrita'
+              : 'Activar negrita'
+          }
         >
-          <Bold size={16} color={bold ? colors.neutral.white : colors.neutral.text} />
+          <Bold
+            size={16}
+            color={
+              bold
+                ? colors.neutral.white
+                : colors.neutral.text
+            }
+          />
         </TouchableOpacity>
+
       </View>
+
+      <Text style={styles.rowLabel}>
+        Tipo de letra
+      </Text>
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.fontRow}
+        style={[
+          !hasTextSelection && styles.disabled,
+          !props.fontSelectorEnabled && styles.disabled,
+        ]}
+        pointerEvents={
+          hasTextSelection && props.fontSelectorEnabled
+            ? 'auto'
+            : 'none'
+        }
+      >
+        {STATUS_FONT_OPTIONS.map((font) => {
+          const isSelected = (
+            props.selectedFontFamily === font.fontFamily
+          );
+
+          return (
+            <TouchableOpacity
+              key={font.id}
+              style={[
+                styles.fontOption,
+                isSelected && styles.fontOptionActive,
+              ]}
+              onPress={() => {
+                props.onChangeTextFontFamily(
+                  font.fontFamily,
+                );
+              }}
+              activeOpacity={0.8}
+              accessibilityLabel={`Usar tipografía ${font.label}`}
+            >
+              <View style={styles.fontOptionHeader}>
+                <Type
+                  size={14}
+                  color={
+                    isSelected
+                      ? colors.brand.primary
+                      : colors.neutral.gray600
+                  }
+                />
+                <Text
+                  style={[
+                    styles.fontOptionName,
+                    isSelected && styles.fontOptionNameActive,
+                  ]}
+                  numberOfLines={1}
+                >
+                  {font.label}
+                </Text>
+              </View>
+
+              <Text
+                style={[
+                  styles.fontOptionPreview,
+                  {
+                    fontFamily: font.fontFamily,
+                  },
+                ]}
+                numberOfLines={2}
+              >
+                {font.preview}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
+      </ScrollView>
 
       <Text style={styles.rowLabel}>
         {hasTextSelection ? 'Color del texto' : 'Selecciona un texto para editarlo'}
@@ -160,15 +277,56 @@ const styles = StyleSheet.create({
   },
   sizeFill: { height: 4, backgroundColor: colors.brand.primary, borderRadius: radii.full },
   boldBtn: {
-    width: 34,
-    height: 34,
-    borderRadius: radii.md,
-    backgroundColor: colors.neutral.gray100,
     alignItems: 'center',
+    backgroundColor: colors.neutral.gray100,
+    borderRadius: radii.md,
+    height: 34,
     justifyContent: 'center',
+    width: 34,
   },
-  boldBtnActive: { backgroundColor: colors.brand.primary },
+  boldBtnActive: {
+    backgroundColor: colors.brand.primary,
+  },
   rowLabel: { fontSize: 11, fontWeight: '400', color: colors.neutral.gray600, marginTop: 4 },
+  fontRow: {
+    gap: spacing.sm,
+    paddingBottom: 2,
+    paddingRight: spacing.md,
+  },
+  fontOption: {
+    backgroundColor: colors.neutral.gray50,
+    borderColor: colors.neutral.gray200,
+    borderRadius: radii.lg,
+    borderWidth: 1,
+    minHeight: 82,
+    padding: spacing.sm,
+    width: 132,
+  },
+  fontOptionActive: {
+    backgroundColor: `${colors.brand.primary}0D`,
+    borderColor: colors.brand.primary,
+    borderWidth: 2,
+  },
+  fontOptionHeader: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: 5,
+  },
+  fontOptionName: {
+    color: colors.neutral.gray600,
+    flex: 1,
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  fontOptionNameActive: {
+    color: colors.brand.primary,
+  },
+  fontOptionPreview: {
+    color: colors.neutral.text,
+    fontSize: 16,
+    lineHeight: 20,
+    marginTop: 6,
+  },
   swatchRow: { gap: 10, paddingVertical: 2 },
   swatch: {
     width: 28,
