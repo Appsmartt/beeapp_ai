@@ -23,6 +23,7 @@ import {
 import {
   bootstrapChat,
   getChatGroupInvites,
+  getCurrentProfile,
   getChatIdentities,
   respondToChatGroupInvite,
 } from '@beeapp/api-client';
@@ -87,6 +88,9 @@ import type {
 import {
   getValidSessionCredentials,
 } from '../../../src/services/authSession';
+import {
+  getProfileAvatarUrl,
+} from '../../../src/services/profileAvatarService';
 
 import {
   hasPin,
@@ -299,6 +303,9 @@ export default function ChatListScreen() {
   };
 
   const [creatingStatus, setCreatingStatus] = useState(false);
+  const [ownStatusAvatarUrl, setOwnStatusAvatarUrl] = useState<
+    string | null
+  >(null);
   const [
     statusCreationEntryOpen,
     setStatusCreationEntryOpen,
@@ -315,6 +322,48 @@ export default function ChatListScreen() {
   >('chooser');
 
   const isGroupsTab = activeTab === 'groups';
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadOwnStatusAvatar = async () => {
+      try {
+        const credentials = await getValidSessionCredentials();
+
+        if (!credentials) {
+          return;
+        }
+
+        const response = await getCurrentProfile(credentials);
+
+        if (!response.profile.avatar_file_id) {
+          if (isMounted) {
+            setOwnStatusAvatarUrl(null);
+          }
+          return;
+        }
+
+        const avatarAccess = await getProfileAvatarUrl(
+          credentials,
+          response.profile.avatar_file_id,
+        );
+
+        if (isMounted) {
+          setOwnStatusAvatarUrl(avatarAccess.url);
+        }
+      } catch {
+        if (isMounted) {
+          setOwnStatusAvatarUrl(null);
+        }
+      }
+    };
+
+    void loadOwnStatusAvatar();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   useEffect(() => {
     if (!discoverPeopleOpen) {
@@ -1076,6 +1125,7 @@ export default function ChatListScreen() {
           <StatusCirclesRow
             statuses={circleStatuses}
             hasOwnStatus={ownStatuses.length > 0}
+            ownAvatarUrl={ownStatusAvatarUrl}
             showLoadingPlaceholders={
               statusesLoading && circleStatuses.length === 0
             }

@@ -30,6 +30,7 @@ import {
 interface StatusCirclesRowProps {
   statuses: StatusItem[];
   hasOwnStatus: boolean;
+  ownAvatarUrl?: string | null;
   showLoadingPlaceholders?: boolean;
   onCreate: () => void;
   onOpen: (index: number) => void;
@@ -146,6 +147,7 @@ function StatusLoadingPlaceholders() {
 export default function StatusCirclesRow({
   statuses,
   hasOwnStatus,
+  ownAvatarUrl = null,
   showLoadingPlaceholders = false,
   onCreate,
   onOpen,
@@ -171,9 +173,18 @@ export default function StatusCirclesRow({
                   : styles.userCircleInactive,
               ]}
             >
-              <Text style={styles.userText}>
-                {CURRENT_USER.initials}
-              </Text>
+              {ownAvatarUrl ? (
+                <Image
+                  source={{
+                    uri: ownAvatarUrl,
+                  }}
+                  style={styles.ownAvatarImage}
+                />
+              ) : (
+                <Text style={styles.userText}>
+                  {CURRENT_USER.initials}
+                </Text>
+              )}
               <View style={styles.addBadge}>
                 <Plus
                   size={10}
@@ -255,10 +266,16 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   userCircleActive: {
-    borderColor: '#9FB6E0',
+    borderColor: '#A88BC5',
+    borderWidth: 3,
   },
   userCircleInactive: {
     borderColor: '#D7DFF2',
+  },
+  ownAvatarImage: {
+    borderRadius: 28,
+    height: '100%',
+    width: '100%',
   },
   userText: {
     fontSize: 13,
