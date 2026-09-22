@@ -23,6 +23,9 @@ import {
   GestureHandlerRootView,
 } from 'react-native-gesture-handler';
 import {
+  useSafeAreaInsets,
+} from 'react-native-safe-area-context';
+import {
   colors,
   radii,
   spacing,
@@ -194,6 +197,7 @@ export default function CreateStatusModal({
   onPublish,
   onClose,
 }: CreateStatusModalProps) {
+  const insets = useSafeAreaInsets();
   const [media, setMedia] = useState<
     SelectedStatusMedia | null
   >(null);
@@ -251,13 +255,21 @@ export default function CreateStatusModal({
     setLastTextColor(STATUS_TEXT_COLORS[0]);
     setSheet(null);
     setMentionQuery(null);
+    const isTextStatus = (
+      !initialMedia
+      && initialMode === 'text'
+    );
+
     setEditorMode(
-      initialMedia || initialMode === 'editor' || initialMode === 'text'
+      initialMedia || initialMode === 'editor' || isTextStatus
         ? 'editor'
         : 'chooser',
     );
     setEditingTextId(null);
-    layers.reset(STATUS_TEXT_COLORS[0]);
+    layers.reset(
+      STATUS_TEXT_COLORS[0],
+      isTextStatus,
+    );
   }, [
     backgrounds,
     initialMedia,
@@ -446,6 +458,10 @@ export default function CreateStatusModal({
       return;
     }
 
+    layers.reset(
+      STATUS_TEXT_COLORS[0],
+      true,
+    );
     setEditorMode('editor');
   };
 
@@ -553,7 +569,14 @@ export default function CreateStatusModal({
           </ScreenSafeArea>
         ) : (
         <ScreenSafeArea style={styles.screen}>
-          <View style={styles.topBar}>
+          <View
+            style={[
+              styles.topBar,
+              {
+                marginTop: (insets.top / 2) + spacing.sm,
+              },
+            ]}
+          >
             <TouchableOpacity
               onPress={handleClose}
               style={styles.iconBtn}

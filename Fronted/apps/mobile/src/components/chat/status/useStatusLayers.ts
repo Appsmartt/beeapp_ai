@@ -48,17 +48,30 @@ export function useStatusLayers(defaultTextColor: string) {
   const [music, setMusic] = useState<StatusMusic | null>(null);
   const [selection, setSelection] = useState<LayerSelection | null>(null);
 
-  /** Deja el editor con una sola capa de texto vacía, como al abrirlo */
+  /** Reinicia el editor; crea una capa de texto inicial solo cuando el flujo la requiere. */
   const reset = useCallback(
-    (color: string) => {
-      const first = newTextLayer(0, color);
-      setTexts([first]);
+    (
+      color: string,
+      withInitialText = true,
+    ) => {
+      const first = withInitialText
+        ? newTextLayer(0, color)
+        : null;
+
+      setTexts(first ? [first] : []);
       setImages([]);
       setStickers([]);
       setMusic(null);
-      setSelection({ kind: 'text', id: first.id });
+      setSelection(
+        first
+          ? {
+              kind: 'text',
+              id: first.id,
+            }
+          : null,
+      );
     },
-    []
+    [],
   );
 
   const addText = useCallback(() => {
