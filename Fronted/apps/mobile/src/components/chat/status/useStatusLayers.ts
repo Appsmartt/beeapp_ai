@@ -25,7 +25,11 @@ const newId = (prefix: string) => `${prefix}_${Date.now().toString(36)}_${Math.r
 /** Cada capa nueva baja un poco para no caer justo encima de la anterior */
 const stagger = (index: number) => Math.min(80, 42 + index * 9);
 
-const newTextLayer = (index: number, color: string): StatusTextLayer => ({
+const newTextLayer = (
+  index: number,
+  color: string,
+  fontFamily: string,
+): StatusTextLayer => ({
   id: newId('tx'),
   content: '',
   x: 50,
@@ -35,13 +39,17 @@ const newTextLayer = (index: number, color: string): StatusTextLayer => ({
   fontSize: 24,
   fontWeight: '400',
   color,
+  fontFamily,
 });
 
 /**
  * Estado de las capas del editor de estados: textos, imágenes, stickers,
  * música y cuál está seleccionada. Vive aparte para que el modal no crezca.
  */
-export function useStatusLayers(defaultTextColor: string) {
+export function useStatusLayers(
+  defaultTextColor: string,
+  defaultFontFamily: string,
+) {
   const [texts, setTexts] = useState<StatusTextLayer[]>([]);
   const [images, setImages] = useState<StatusImageLayer[]>([]);
   const [stickers, setStickers] = useState<StatusStickerLayer[]>([]);
@@ -55,7 +63,7 @@ export function useStatusLayers(defaultTextColor: string) {
       withInitialText = true,
     ) => {
       const first = withInitialText
-        ? newTextLayer(0, color)
+        ? newTextLayer(0, color, defaultFontFamily)
         : null;
 
       setTexts(first ? [first] : []);
@@ -77,11 +85,18 @@ export function useStatusLayers(defaultTextColor: string) {
   const addText = useCallback(() => {
     setTexts((prev) => {
       if (prev.length >= MAX_TEXT_LAYERS) return prev;
-      const layer = newTextLayer(prev.length, defaultTextColor);
+      const layer = newTextLayer(
+        prev.length,
+        defaultTextColor,
+        defaultFontFamily,
+      );
       setSelection({ kind: 'text', id: layer.id });
       return [...prev, layer];
     });
-  }, [defaultTextColor]);
+  }, [
+    defaultFontFamily,
+    defaultTextColor,
+  ]);
 
   const addImage = useCallback(() => {
     setImages((prev) => {
@@ -119,6 +134,16 @@ export function useStatusLayers(defaultTextColor: string) {
   const patchText = useCallback((id: string, patch: Partial<StatusTextLayer>) => {
     setTexts((prev) => prev.map((layer) => (layer.id === id ? { ...layer, ...patch } : layer)));
   }, []);
+
+  const setAllTextFontFamilies = useCallback(
+    (fontFamily: string) => {
+      setTexts((prev) => prev.map((layer) => ({
+        ...layer,
+        fontFamily,
+      })));
+    },
+    [],
+  );
 
   const moveImage = useCallback((id: string, x: number, y: number) => {
     setImages((prev) => prev.map((layer) => (layer.id === id ? { ...layer, x, y } : layer)));
@@ -203,6 +228,7 @@ export function useStatusLayers(defaultTextColor: string) {
     addImage,
     addSticker,
     patchText,
+    setAllTextFontFamilies,
     moveImage,
     resizeImage,
     moveSticker,
