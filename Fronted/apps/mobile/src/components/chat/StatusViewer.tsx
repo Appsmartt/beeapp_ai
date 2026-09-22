@@ -20,6 +20,9 @@ import {
 } from 'react-native-gesture-handler';
 import { runOnJS } from 'react-native-reanimated';
 import {
+  useSafeAreaInsets,
+} from 'react-native-safe-area-context';
+import {
   type AVPlaybackStatus,
   ResizeMode,
   Video,
@@ -94,6 +97,7 @@ export default function StatusViewer({
   const {
     fontsLoaded,
   } = useStatusTypography();
+  const insets = useSafeAreaInsets();
   const status = statuses[index];
 
   const goNext = () => (index < statuses.length - 1 ? onChangeIndex(index + 1) : onClose());
@@ -405,7 +409,14 @@ export default function StatusViewer({
             <TouchableOpacity style={styles.tapRight} onPress={goNext} activeOpacity={1} />
 
             <ScreenSafeArea style={styles.overlay} pointerEvents="box-none">
-              <View style={styles.topRow}>
+              <View
+                style={[
+                  styles.topRow,
+                  {
+                    marginTop: (insets.top / 2) + spacing.sm,
+                  },
+                ]}
+              >
                 <TouchableOpacity onPress={onClose} style={styles.closeBtn} activeOpacity={0.7}>
                   <X size={22} color={onDark ? colors.neutral.white : colors.neutral.text} />
                 </TouchableOpacity>
@@ -432,27 +443,6 @@ export default function StatusViewer({
                   </Text>
                 </View>
 
-                {isOwnStatus ? (
-                  <TouchableOpacity
-                    style={styles.headerArchiveStatusButton}
-                    onPress={openArchiveConfirmation}
-                    disabled={archivingStatus}
-                    activeOpacity={0.8}
-                    accessibilityLabel="Eliminar este estado"
-                  >
-                    {archivingStatus ? (
-                      <ActivityIndicator
-                        size="small"
-                        color={colors.semantic.error}
-                      />
-                    ) : (
-                      <Trash2
-                        size={18}
-                        color={colors.semantic.error}
-                      />
-                    )}
-                  </TouchableOpacity>
-                ) : null}
               </View>
 
               <StatusProgressPills count={statuses.length} index={index} progress={progress} onDark={onDark} />
@@ -905,16 +895,6 @@ const styles = StyleSheet.create({
   overlay: { flex: 1 },
   topRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingHorizontal: spacing.sm, paddingTop: spacing.sm },
   closeBtn: { padding: 6 },
-  headerArchiveStatusButton: {
-    alignItems: 'center',
-    backgroundColor: 'rgba(220,38,38,0.16)',
-    borderColor: 'rgba(220,38,38,0.56)',
-    borderRadius: 18,
-    borderWidth: 1,
-    height: 36,
-    justifyContent: 'center',
-    width: 36,
-  },
   avatar: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
   avatarText: { fontSize: 13, fontWeight: '600', color: colors.brand.primary },
   authorTexts: { flex: 1 },
