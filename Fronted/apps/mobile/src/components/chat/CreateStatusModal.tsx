@@ -290,10 +290,14 @@ export default function CreateStatusModal({
         ? 'editor'
         : 'chooser',
     );
-    setEditingTextId(null);
-    layers.reset(
+    const initialTextId = layers.reset(
       STATUS_TEXT_COLORS[0],
       isTextStatus,
+    );
+    setEditingTextId(
+      isTextStatus
+        ? initialTextId
+        : null,
     );
   }, [
     backgrounds,
@@ -490,26 +494,12 @@ export default function CreateStatusModal({
       return;
     }
 
-    layers.reset(
+    const initialTextId = layers.reset(
       STATUS_TEXT_COLORS[0],
       true,
     );
     setEditorMode('editor');
-    setEditingTextId(null);
-
-    requestAnimationFrame(() => {
-      const initialText = layers.texts[0];
-
-      if (!initialText) {
-        return;
-      }
-
-      layers.setSelection({
-        kind: 'text',
-        id: initialText.id,
-      });
-      setEditingTextId(initialText.id);
-    });
+    setEditingTextId(initialTextId);
   };
 
   const handleChooseMedia = () => {

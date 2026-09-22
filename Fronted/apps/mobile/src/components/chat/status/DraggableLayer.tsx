@@ -238,6 +238,41 @@ export default function DraggableLayer({
     ],
   }));
 
+  const layerContent = (
+    <Animated.View
+      style={[
+        styles.touchZone,
+        selected
+          ? styles.touchZoneSelected
+          : styles.touchZoneIdle,
+        animatedStyle,
+      ]}
+    >
+      <View
+        style={[
+          styles.layer,
+          style,
+          selected && styles.selected,
+        ]}
+      >
+        {children}
+
+        {selected && !editable ? (
+          <TouchableOpacity
+            style={styles.removeBtn}
+            onPress={onRemove}
+            activeOpacity={0.8}
+          >
+            <X
+              size={12}
+              color={colors.neutral.white}
+            />
+          </TouchableOpacity>
+        ) : null}
+      </View>
+    </Animated.View>
+  );
+
   return (
     <View
       style={StyleSheet.absoluteFill}
@@ -247,40 +282,13 @@ export default function DraggableLayer({
         style={styles.center}
         pointerEvents="box-none"
       >
-        <GestureDetector gesture={gesture}>
-          <Animated.View
-            style={[
-              styles.touchZone,
-              selected
-                ? styles.touchZoneSelected
-                : styles.touchZoneIdle,
-              animatedStyle,
-            ]}
-          >
-            <View
-              style={[
-                styles.layer,
-                style,
-                selected && styles.selected,
-              ]}
-            >
-              {children}
-
-              {selected ? (
-                <TouchableOpacity
-                  style={styles.removeBtn}
-                  onPress={onRemove}
-                  activeOpacity={0.8}
-                >
-                  <X
-                    size={12}
-                    color={colors.neutral.white}
-                  />
-                </TouchableOpacity>
-              ) : null}
-            </View>
-          </Animated.View>
-        </GestureDetector>
+        {editable
+          ? layerContent
+          : (
+            <GestureDetector gesture={gesture}>
+              {layerContent}
+            </GestureDetector>
+          )}
       </View>
     </View>
   );
