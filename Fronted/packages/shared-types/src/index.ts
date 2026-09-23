@@ -2137,6 +2137,36 @@ export interface StatusMedia {
   url_expires_in_seconds: number | null;
 }
 
+export interface StatusImageLayer {
+  id: string;
+  bucket_id: string;
+  storage_path: string;
+  original_name: string;
+  mime_type: string;
+  size_bytes: number;
+  x: number;
+  y: number;
+  scale: number;
+  rotation: number;
+  size: number;
+  sort_order: number;
+  url: string | null;
+  url_expires_in_seconds: number | null;
+}
+
+export interface StatusImageLayerUpload {
+  id: string;
+  uri: string;
+  name: string;
+  mimeType: string;
+  x: number;
+  y: number;
+  scale: number;
+  rotation: number;
+  size: number;
+  sortOrder: number;
+}
+
 export interface StatusStory {
   id: string;
   actor: StatusActor;
@@ -2152,6 +2182,7 @@ export interface StatusStory {
   is_owner: boolean;
   is_viewed: boolean;
   media: StatusMedia | null;
+  image_layers: StatusImageLayer[];
   viewer_count?: number;
   reply_allowed?: boolean;
 }
@@ -2364,6 +2395,7 @@ export interface CreateTextStatusPayload {
   text_content: string;
   text_background_id: string;
   editor_metadata?: Record<string, unknown>;
+  image_layers?: StatusImageLayerUpload[];
 }
 
 export interface CreateMediaStatusPayload {
@@ -2373,6 +2405,7 @@ export interface CreateMediaStatusPayload {
   caption?: string | null;
   editor_metadata?: Record<string, unknown>;
   duration_seconds?: number;
+  image_layers?: StatusImageLayerUpload[];
 }
 
 export interface CreateStatusResponse {

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from decimal import Decimal
 
 from rest_framework import serializers
@@ -21,6 +22,11 @@ MAX_STATUS_CAPTION_LENGTH = 1000
 MAX_STATUS_TEXT_LENGTH = 1000
 MAX_STATUS_MENTIONS = 20
 MAX_STATUS_EDITOR_METADATA_BYTES = 100_000
+MAX_STATUS_IMAGE_LAYERS = 3
+IMAGE_LAYER_FILE_FIELD_NAMES = tuple(
+    f"image_layer_file_{index}"
+    for index in range(MAX_STATUS_IMAGE_LAYERS)
+)
 
 STATUS_IMAGE_MIME_TYPES = {
     "image/jpeg",
@@ -154,6 +160,157 @@ def _validate_editor_metadata(value: dict) -> dict:
         )
 
     return normalized_value
+
+
+
+def _normalize_image_layers_metadata(value) -> list[dict]:
+    if value in (None, "", []):
+        return []
+
+    normalized_value = value
+
+    if isinstance(normalized_value, str):
+        try:
+            normalized_value = json.loads(normalized_value)
+        except json.JSONDecodeError as error:
+            raise serializers.ValidationError(
+                "image_layers_metadata must be valid JSON."
+            ) from error
+
+    if not isinstance(normalized_value, list):
+        raise serializers.ValidationError(
+            "image_layers_metadata must be a JSON list."
+        )
+
+    value = normalized_value
+
+    if len(value) > MAX_STATUS_IMAGE_LAYERS:
+        raise serializers.ValidationError(
+            f"A status can contain at most {MAX_STATUS_IMAGE_LAYERS} image layers."
+        )
+
+    normalized_layers: list[dict] = []
+    expected_sort_orders = set(range(len(value)))
+
+    for index, raw_layer in enumerate(value):
+        if not isinstance(raw_layer, dict):
+            raise serializers.ValidationError(
+                f"image_layers_metadata[{index}] must be an object."
+            )
+
+        layer_id = str(raw_layer.get("id") or "").strip()
+
+        if not layer_id or len(layer_id) > 120:
+            raise serializers.ValidationError(
+                f"image_layers_metadata[{index}].id is invalid."
+            )
+
+        try:
+            x = Decimal(str(raw_layer.get("x")))
+            y = Decimal(str(raw_layer.get("y")))
+            scale = Decimal(str(raw_layer.get("scale")))
+            rotation = Decimal(str(raw_layer.get("rotation")))
+            size = int(raw_layer.get("size"))
+            sort_order = int(raw_layer.get("sort_order"))
+        except (ArithmeticError, TypeError, ValueError) as error:
+            raise serializers.ValidationError(
+                f"image_layers_metadata[{index}] has invalid geometry."
+            ) from error
+
+        if not Decimal("0") <= x <= Decimal("100"):
+            raise serializers.ValidationError(
+                f"image_layers_metadata[{index}].x must be between 0 and 100."
+            )
+
+        if not Decimal("0") <= y <= Decimal("100"):
+            raise serializers.ValidationError(
+                f"image_layers_metadata[{index}].y must be between 0 and 100."
+            )
+
+        if not Decimal("0.5") <= scale <= Decimal("3"):
+            raise serializers.ValidationError(
+                f"image_layers_metadata[{index}].scale must be between 0.5 and 3."
+            )
+
+        if not Decimal("-360") <= rotation <= Decimal("360"):
+            raise serializers.ValidationError(
+                f"image_layers_metadata[{index}].rotation must be between -360 and 360."
+            )
+
+        if not 80 <= size <= 220:
+            raise serializers.ValidationError(
+                f"image_layers_metadata[{index}].size must be between 80 and 220."
+            )
+
+        if sort_order < 0 or sort_order >= MAX_STATUS_IMAGE_LAYERS:
+            raise serializers.ValidationError(
+                f"image_layers_metadata[{index}].sort_order is invalid."
+            )
+
+        normalized_layers.append(
+            {
+                "id": layer_id,
+                "x": x,
+                "y": y,
+                "scale": scale,
+                "rotation": rotation,
+                "size": size,
+                "sort_order": sort_order,
+            }
+        )
+
+    sort_orders = {layer["sort_order"] for layer in normalized_layers}
+
+    if sort_orders != expected_sort_orders:
+        raise serializers.ValidationError(
+            "image_layers_metadata.sort_order must be consecutive from 0."
+        )
+
+    if len({layer["id"] for layer in normalized_layers}) != len(
+        normalized_layers
+    ):
+        raise serializers.ValidationError(
+            "image_layers_metadata ids cannot be repeated."
+        )
+
+    return sorted(
+        normalized_layers,
+        key=lambda layer: layer["sort_order"],
+    )
+
+
+def _validate_image_layer_files(
+    *,
+    layers: list[dict],
+    files: dict,
+) -> list[dict]:
+    expected_fields_by_sort_order = {
+        layer["sort_order"]: f"image_layer_file_{layer['sort_order']}"
+        for layer in layers
+    }
+    provided_fields = {
+        field_name
+        for field_name in IMAGE_LAYER_FILE_FIELD_NAMES
+        if files.get(field_name) is not None
+    }
+    expected_fields = set(expected_fields_by_sort_order.values())
+
+    if provided_fields != expected_fields:
+        raise serializers.ValidationError(
+            {
+                "image_layers_metadata": (
+                    "Each image layer must have exactly one matching file."
+                )
+            }
+        )
+
+    return [
+        {
+            "metadata": layer,
+            "file": files[expected_fields_by_sort_order[layer["sort_order"]]],
+        }
+        for layer in layers
+    ]
 
 
 class StatusTextBackgroundSerializer(serializers.Serializer):
@@ -530,6 +687,22 @@ class StatusCreateSerializer(serializers.Serializer):
         decimal_places=3,
         min_value=Decimal("0.001"),
     )
+    image_layers_metadata = serializers.JSONField(
+        required=False,
+        default=list,
+    )
+    image_layer_file_0 = serializers.FileField(
+        required=False,
+        allow_empty_file=False,
+    )
+    image_layer_file_1 = serializers.FileField(
+        required=False,
+        allow_empty_file=False,
+    )
+    image_layer_file_2 = serializers.FileField(
+        required=False,
+        allow_empty_file=False,
+    )
 
     def validate_caption(self, value: str | None) -> str | None:
         return _normalize_optional_text(value)
@@ -544,6 +717,9 @@ class StatusCreateSerializer(serializers.Serializer):
         normalized = _normalize_editor_metadata(value)
         return _validate_editor_metadata(normalized)
 
+    def validate_image_layers_metadata(self, value) -> list[dict]:
+        return _normalize_image_layers_metadata(value)
+
     def validate(self, attrs: dict) -> dict:
         actor_type = attrs["actor_type"]
         commercial_profile_id = attrs.get(
@@ -554,6 +730,12 @@ class StatusCreateSerializer(serializers.Serializer):
         duration_seconds = attrs.get("duration_seconds")
         text_content = attrs.get("text_content")
         text_background_id = attrs.get("text_background_id")
+        image_layers = attrs.get("image_layers_metadata", [])
+        image_layer_files = _validate_image_layer_files(
+            layers=image_layers,
+            files=attrs,
+        )
+        attrs["image_layer_files"] = image_layer_files
 
         if actor_type == "profile" and commercial_profile_id:
             raise serializers.ValidationError(
@@ -742,6 +924,45 @@ class StatusMediaSerializer(serializers.Serializer):
     )
 
 
+class StatusImageLayerSerializer(serializers.Serializer):
+    id = serializers.UUIDField(read_only=True)
+    bucket_id = serializers.CharField(read_only=True)
+    storage_path = serializers.CharField(read_only=True)
+    original_name = serializers.CharField(read_only=True)
+    mime_type = serializers.CharField(read_only=True)
+    size_bytes = serializers.IntegerField(read_only=True)
+    x = serializers.DecimalField(
+        max_digits=6,
+        decimal_places=3,
+        read_only=True,
+    )
+    y = serializers.DecimalField(
+        max_digits=6,
+        decimal_places=3,
+        read_only=True,
+    )
+    scale = serializers.DecimalField(
+        max_digits=5,
+        decimal_places=3,
+        read_only=True,
+    )
+    rotation = serializers.DecimalField(
+        max_digits=6,
+        decimal_places=3,
+        read_only=True,
+    )
+    size = serializers.IntegerField(read_only=True)
+    sort_order = serializers.IntegerField(read_only=True)
+    url = serializers.URLField(
+        allow_null=True,
+        read_only=True,
+    )
+    url_expires_in_seconds = serializers.IntegerField(
+        allow_null=True,
+        read_only=True,
+    )
+
+
 class StatusStorySerializer(serializers.Serializer):
     id = serializers.UUIDField(read_only=True)
     actor = StatusActorSerializer(read_only=True)
@@ -776,6 +997,10 @@ class StatusStorySerializer(serializers.Serializer):
     is_viewed = serializers.BooleanField(read_only=True)
     media = StatusMediaSerializer(
         allow_null=True,
+        read_only=True,
+    )
+    image_layers = StatusImageLayerSerializer(
+        many=True,
         read_only=True,
     )
     viewer_count = serializers.IntegerField(

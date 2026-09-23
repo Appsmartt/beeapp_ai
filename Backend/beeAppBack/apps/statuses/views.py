@@ -432,6 +432,9 @@ class StatusCollectionView(AuthenticatedAPIView):
                     if duration_seconds is not None
                     else None
                 ),
+                image_layer_files=serializer.validated_data[
+                    "image_layer_files"
+                ],
             )
         except (
             AccountAuthenticationError,
