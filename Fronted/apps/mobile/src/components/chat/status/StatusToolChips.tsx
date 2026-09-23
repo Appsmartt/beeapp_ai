@@ -65,16 +65,17 @@ export default function StatusToolChips(props: StatusToolChipsProps) {
         disabled={props.imageCount >= MAX_IMAGE_LAYERS}
       />
 
-      <Chip
-        icon={<ShoppingBag size={16} color={iconColor} />}
-        label={
-          props.commercialOfferSelected
-            ? 'Cambiar producto o servicio'
-            : 'Producto o servicio'
-        }
-        onPress={props.onOpenCommercialOffer}
-        disabled={!props.canAddCommercialOffer}
-      />
+      {props.canAddCommercialOffer ? (
+        <Chip
+          icon={<ShoppingBag size={16} color={iconColor} />}
+          label={
+            props.commercialOfferSelected
+              ? 'Cambiar producto o servicio'
+              : 'Producto o servicio'
+          }
+          onPress={props.onOpenCommercialOffer}
+        />
+      ) : null}
 
       <Chip
         icon={<Sticker size={16} color={iconColor} />}
