@@ -91,17 +91,6 @@ function validateStatusVideoDuration(
   }
 }
 
-function formatVideoDuration(durationMilliseconds: number): string {
-  const totalSeconds = Math.max(
-    0,
-    Math.floor(durationMilliseconds / 1000),
-  );
-  const minutes = Math.floor(totalSeconds / 60);
-  const seconds = totalSeconds % 60;
-
-  return `${minutes}:${String(seconds).padStart(2, '0')}`;
-}
-
 export default function StatusCreationEntryModal({
   visible,
   cameraRequestId = 0,
@@ -320,10 +309,10 @@ export default function StatusCreationEntryModal({
       type: 'camera',
       id: 'camera',
     },
-    ...assets.map((asset) => ({
+    ...assets.map((asset, index) => ({
       type: 'media' as const,
       asset,
-      id: asset.id,
+      id: `media:${asset.mediaType}:${asset.id}:${asset.uri}:${index}`,
     })),
   ];
 
@@ -383,9 +372,6 @@ export default function StatusCreationEntryModal({
               color={colors.neutral.white}
               fill={colors.neutral.white}
             />
-            <Text style={styles.videoDuration}>
-              {formatVideoDuration(asset.duration)}
-            </Text>
           </View>
         ) : null}
 
