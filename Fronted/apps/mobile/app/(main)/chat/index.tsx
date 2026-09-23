@@ -101,6 +101,9 @@ import {
 import {
   getProfileAvatarUrl,
 } from '../../../src/services/profileAvatarService';
+import {
+  loadOwnedCommercialProfile,
+} from '../../../src/services/commercialService';
 
 import {
   hasPin,
@@ -347,7 +350,23 @@ export default function ChatListScreen() {
     let isMounted = true;
 
     const loadOwnStatusAvatar = async () => {
+      if (isMounted) {
+        setOwnStatusAvatarUrl(null);
+      }
+
       try {
+        if (isCommercialContext) {
+          const response = await loadOwnedCommercialProfile(
+            businessId,
+          );
+          const logoUrl = response.profile.logo_url?.trim() || null;
+
+          if (isMounted) {
+            setOwnStatusAvatarUrl(logoUrl);
+          }
+          return;
+        }
+
         const credentials = await getValidSessionCredentials();
 
         if (!credentials) {
@@ -357,9 +376,6 @@ export default function ChatListScreen() {
         const response = await getCurrentProfile(credentials);
 
         if (!response.profile.avatar_file_id) {
-          if (isMounted) {
-            setOwnStatusAvatarUrl(null);
-          }
           return;
         }
 
@@ -383,7 +399,10 @@ export default function ChatListScreen() {
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [
+    businessId,
+    isCommercialContext,
+  ]);
 
   useEffect(() => {
     if (!discoverPeopleOpen) {
