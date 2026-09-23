@@ -83,6 +83,7 @@ export default function StatusViewer({
   onClose,
 }: StatusViewerProps) {
   const progress = useRef(new Animated.Value(0)).current;
+  const activeStoryIdRef = useRef<string | null>(null);
   const [productHidden, setProductHidden] = useState(false);
   const [viewersOpen, setViewersOpen] = useState(false);
   const [viewedBy, setViewedBy] = useState<StatusViewedBy[]>([]);
@@ -96,13 +97,47 @@ export default function StatusViewer({
   const [archiveConfirmationOpen, setArchiveConfirmationOpen] = useState(false);
   const [archiveError, setArchiveError] = useState<string | null>(null);
   const [mediaReady, setMediaReady] = useState(false);
+  const [loadedImageLayerIds, setLoadedImageLayerIds] = useState<Set<string>>(
+    new Set(),
+  );
   const [mediaError, setMediaError] = useState<string | null>(null);
   const [isPressing, setIsPressing] = useState(false);
+  const [stage, setStage] = useState({
+    width: 0,
+    height: 0,
+  });
   const {
     fontsLoaded,
   } = useStatusTypography();
   const insets = useSafeAreaInsets();
   const status = statuses[index];
+  const imageLayers = status?.imageLayers || [];
+  const loadableImageLayers = imageLayers.filter(
+    (layer) => layer.uri.trim() !== '',
+  );
+  const resourcesReady = (
+    mediaReady
+    && loadedImageLayerIds.size === loadableImageLayers.length
+  );
+
+  const markImageLayerResolved = (
+    storyId: string,
+    layerId: string,
+  ) => {
+    if (activeStoryIdRef.current !== storyId) {
+      return;
+    }
+
+    setLoadedImageLayerIds((currentIds) => {
+      if (currentIds.has(layerId)) {
+        return currentIds;
+      }
+
+      const nextIds = new Set(currentIds);
+      nextIds.add(layerId);
+      return nextIds;
+    });
+  };
 
   const goNext = () => (index < statuses.length - 1 ? onChangeIndex(index + 1) : onClose());
   const goPrev = () => index > 0 && onChangeIndex(index - 1);
@@ -134,6 +169,8 @@ export default function StatusViewer({
     setArchiveError(null);
     setIsPressing(false);
     setMediaError(null);
+    activeStoryIdRef.current = status.id;
+    setLoadedImageLayerIds(new Set());
     setMediaReady(
       status.type !== 'photo'
       && status.type !== 'gif'
@@ -145,14 +182,19 @@ export default function StatusViewer({
   }, [visible, index, onStatusViewed, status?.id]);
 
   useEffect(() => {
-    if (!visible || !status || !mediaReady) {
+    if (!visible || !status || !resourcesReady) {
       return;
     }
 
     if (!status.isOwn && status.viewedBy === undefined) {
       onStatusViewed(status.id);
     }
-  }, [mediaReady, onStatusViewed, status?.id, visible]);
+  }, [
+    onStatusViewed,
+    resourcesReady,
+    status?.id,
+    visible,
+  ]);
 
   // Fotos, GIF y texto mantienen el tiempo fijo actual.
   // Los videos avanzan exclusivamente al terminar la reproducción real.
@@ -164,7 +206,7 @@ export default function StatusViewer({
       || viewersOpen
       || replyOpen
       || isPressing
-      || !mediaReady
+      || !resourcesReady
     ) {
       return;
     }
@@ -188,7 +230,7 @@ export default function StatusViewer({
     visible,
     index,
     isPressing,
-    mediaReady,
+    resourcesReady,
     replyOpen,
     status?.id,
     status?.type,
@@ -377,8 +419,9 @@ export default function StatusViewer({
     ? status.textLayers
     : fallbackTextLayers;
 
-  const imageLayers = status.imageLayers || [];
-  const stickerLayers = status.stickerLayers || [];
+  const stickerLayers = status.imageLayers
+    ? status.stickerLayers || []
+    : [];
 
   return (
     <Modal visible={visible} animationType="fade" onRequestClose={onClose} statusBarTranslucent>
@@ -454,7 +497,21 @@ export default function StatusViewer({
 
               <StatusProgressPills count={statuses.length} index={index} progress={progress} onDark={onDark} />
 
-              <View style={styles.stage} pointerEvents="none">
+              <View
+                style={styles.stage}
+                pointerEvents="none"
+                onLayout={(event) => {
+                  const {
+                    width,
+                    height,
+                  } = event.nativeEvent.layout;
+
+                  setStage({
+                    width,
+                    height,
+                  });
+                }}
+              >
                 {isVideo && status.photoUrl ? (
                   <Video
                     key={status.id}
@@ -463,6 +520,7 @@ export default function StatusViewer({
                     resizeMode={ResizeMode.COVER}
                     shouldPlay={
                       visible
+                      && resourcesReady
                       && !isPressing
                       && !viewersOpen
                       && !replyOpen
@@ -475,7 +533,10 @@ export default function StatusViewer({
                     onPlaybackStatusUpdate={(
                       playbackStatus: AVPlaybackStatus,
                     ) => {
-                      if (!playbackStatus.isLoaded) {
+                      if (
+                        !resourcesReady
+                        || !playbackStatus.isLoaded
+                      ) {
                         return;
                       }
 
@@ -551,36 +612,58 @@ export default function StatusViewer({
                     }}
                   />
                 ) : null}
-                {imageLayers.map((layer) => (
-                  <Image
-                    key={layer.id}
-                    source={{ uri: layer.uri }}
-                    style={[
-                      styles.imageLayer,
-                      {
-                        width: layer.size,
-                        height: layer.size,
-                        left: `${layer.x}%`,
-                        top: `${layer.y}%`,
-                        transform: [
-                          {
-                            translateX: -(layer.size / 2),
-                          },
-                          {
-                            translateY: -(layer.size / 2),
-                          },
-                          {
-                            rotate: `${layer.rotation}deg`,
-                          },
-                          {
-                            scale: layer.scale,
-                          },
-                        ],
-                      },
-                    ]}
-                    resizeMode="cover"
-                  />
-                ))}
+                {loadableImageLayers.map((layer) => {
+                  const stageReady = (
+                    stage.width > 0
+                    && stage.height > 0
+                  );
+
+                  return (
+                    <Image
+                      key={layer.id}
+                      source={{ uri: layer.uri }}
+                      style={[
+                        styles.imageLayer,
+                        {
+                          width: layer.size,
+                          height: layer.size,
+                          left: '50%',
+                          top: '50%',
+                          opacity: stageReady ? 1 : 0,
+                          transform: [
+                            {
+                              translateX: (
+                                ((layer.x - 50) / 100)
+                                * stage.width
+                                - (layer.size / 2)
+                              ),
+                            },
+                            {
+                              translateY: (
+                                ((layer.y - 50) / 100)
+                                * stage.height
+                                - (layer.size / 2)
+                              ),
+                            },
+                            {
+                              rotate: `${layer.rotation}deg`,
+                            },
+                            {
+                              scale: layer.scale,
+                            },
+                          ],
+                        },
+                      ]}
+                      resizeMode="cover"
+                      onLoad={() => {
+                        markImageLayerResolved(status.id, layer.id);
+                      }}
+                      onError={() => {
+                        markImageLayerResolved(status.id, layer.id);
+                      }}
+                    />
+                  );
+                })}
                 {stickerLayers.map((layer) => {
                   const sticker = getSticker(layer.stickerId);
 

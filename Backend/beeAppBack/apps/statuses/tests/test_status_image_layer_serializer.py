@@ -67,6 +67,40 @@ class StatusImageLayerSerializerTests(SimpleTestCase):
         self.assertEqual(decoded_layers[0]["sort_order"], 0)
         self.assertEqual(decoded_layers[0]["size"], 120)
 
+    def test_validated_layer_metadata_is_json_serializable(self):
+        serializer = StatusCreateSerializer(
+            data={
+                "actor_type": "profile",
+                "kind": "image",
+                "file": SimpleUploadedFile(
+                    "principal.jpg",
+                    b"image",
+                    content_type="image/jpeg",
+                ),
+                "image_layers_metadata": [
+                    self.build_layer_metadata()
+                ],
+                "image_layer_file_0": SimpleUploadedFile(
+                    "capa.jpg",
+                    b"image",
+                    content_type="image/jpeg",
+                ),
+            },
+        )
+
+        self.assertTrue(serializer.is_valid(), serializer.errors)
+
+        normalized_layer = serializer.validated_data[
+            "image_layers_metadata"
+        ][0]
+
+        self.assertIsInstance(normalized_layer["x"], float)
+        self.assertIsInstance(normalized_layer["y"], float)
+        self.assertIsInstance(normalized_layer["scale"], float)
+        self.assertIsInstance(normalized_layer["rotation"], float)
+
+        json.dumps(serializer.validated_data["image_layers_metadata"])
+
     def test_layer_file_fields_have_stable_explicit_names(self):
         files = {
             f"image_layer_file_{index}": SimpleUploadedFile(
