@@ -2137,6 +2137,60 @@ export interface StatusMedia {
   url_expires_in_seconds: number | null;
 }
 
+export interface StatusImageLayer {
+  id: string;
+  bucket_id: string;
+  storage_path: string;
+  original_name: string;
+  mime_type: string;
+  size_bytes: number;
+  x: number;
+  y: number;
+  scale: number;
+  rotation: number;
+  size: number;
+  sort_order: number;
+  url: string | null;
+  url_expires_in_seconds: number | null;
+}
+
+export interface StatusImageLayerUpload {
+  id: string;
+  uri: string;
+  name: string;
+  mimeType: string;
+  x: number;
+  y: number;
+  scale: number;
+  rotation: number;
+  size: number;
+  sortOrder: number;
+}
+
+export interface StatusCommercialOfferLink {
+  commercial_offer_id: string;
+  commercial_offer_image_id: string;
+  image_layer_id: string;
+  x: number;
+  y: number;
+  scale: number;
+  rotation: number;
+  size: number;
+
+  commercial_profile_id?: string;
+  offer_title_snapshot?: string;
+  offer_kind_snapshot?: 'product' | 'service';
+
+  image_file_id?: string;
+  image_bucket_id?: string;
+  image_storage_path?: string;
+  image_original_name?: string;
+  image_mime_type?: string;
+  image_size_bytes?: number;
+  image_url?: string | null;
+  image_url_expires_in_seconds?: number | null;
+}
+
 export interface StatusStory {
   id: string;
   actor: StatusActor;
@@ -2152,6 +2206,8 @@ export interface StatusStory {
   is_owner: boolean;
   is_viewed: boolean;
   media: StatusMedia | null;
+  image_layers: StatusImageLayer[];
+  commercial_offer_link?: StatusCommercialOfferLink | null;
   viewer_count?: number;
   reply_allowed?: boolean;
 }
@@ -2364,6 +2420,8 @@ export interface CreateTextStatusPayload {
   text_content: string;
   text_background_id: string;
   editor_metadata?: Record<string, unknown>;
+  image_layers?: StatusImageLayerUpload[];
+  commercial_offer_link?: StatusCommercialOfferLink;
 }
 
 export interface CreateMediaStatusPayload {
@@ -2373,6 +2431,8 @@ export interface CreateMediaStatusPayload {
   caption?: string | null;
   editor_metadata?: Record<string, unknown>;
   duration_seconds?: number;
+  image_layers?: StatusImageLayerUpload[];
+  commercial_offer_link?: StatusCommercialOfferLink;
 }
 
 export interface CreateStatusResponse {

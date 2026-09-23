@@ -171,14 +171,6 @@ async function applyMessageCreatedBroadcast(
           throw error;
         }
 
-        console.log(
-          '[chat realtime][message not visible yet]',
-          {
-            conversationId,
-            messageId,
-            attempt: attempt + 1,
-          },
-        );
       }
     }
 
@@ -209,26 +201,7 @@ async function applyMessageCreatedBroadcast(
       );
     }
 
-    console.log(
-      '[chat realtime][message applied]',
-      {
-        conversationId,
-        messageId,
-      },
-    );
-  } catch (error) {
-    console.warn(
-      '[chat realtime][message fetch failed]',
-      {
-        conversationId,
-        messageId,
-        error: (
-          error instanceof Error
-            ? error.message
-            : String(error)
-        ),
-      },
-    );
+  } catch {
   } finally {
     inFlightMessageIds.delete(messageId);
   }
@@ -240,22 +213,9 @@ async function handleChatBroadcast(
   const event = getBroadcastValue(rawPayload);
 
   if (!event) {
-    console.warn(
-      '[chat realtime][invalid broadcast]',
-      rawPayload,
-    );
     return;
   }
 
-  console.log(
-    '[chat realtime][broadcast]',
-    {
-      eventId: normalizeString(event.event_id),
-      eventType: normalizeString(event.type),
-      conversationId: normalizeString(event.conversation_id),
-      messageId: normalizeString(event.message_id),
-    },
-  );
 
   await applyMessageCreatedBroadcast(event);
 }
@@ -316,16 +276,7 @@ export async function startChatRealtime(): Promise<void> {
           void handleChatBroadcast(message.payload);
         },
       )
-      .subscribe((status, error) => {
-        console.log(
-          '[chat realtime][subscription]',
-          {
-            topic,
-            status,
-            error: error?.message || null,
-          },
-        );
-      });
+      .subscribe();
 
     activeChannel = channel;
   })();

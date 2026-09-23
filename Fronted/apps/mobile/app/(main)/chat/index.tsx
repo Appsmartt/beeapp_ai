@@ -23,6 +23,7 @@ import {
 import {
   bootstrapChat,
   getChatGroupInvites,
+  getCurrentProfile,
   getChatIdentities,
   respondToChatGroupInvite,
 } from '@beeapp/api-client';
@@ -37,7 +38,11 @@ import ModuleNotificationBell from '../../../src/components/ModuleNotificationBe
 import ChatListView from '../../../src/components/chat/ChatListView';
 import StatusCirclesRow from '../../../src/components/chat/StatusCirclesRow';
 import StatusViewer from '../../../src/components/chat/StatusViewer';
-import CreateStatusModal from '../../../src/components/chat/CreateStatusModal';
+import CreateStatusModal, {
+  type SelectedStatusMedia,
+} from '../../../src/components/chat/CreateStatusModal';
+import StatusCreationEntryModal from '../../../src/components/chat/status/StatusCreationEntryModal';
+import MyStatusesModal from '../../../src/components/chat/status/MyStatusesModal';
 import ChatTabs, {
   type ChatTab,
 } from '../../../src/components/chat/ChatTabs';
@@ -60,7 +65,16 @@ import {
   useStatuses,
 } from '../../../src/hooks/useStatuses';
 import {
+  prepareStatusImageLayerForUpload,
+  prepareStatusMediaForUpload,
+} from '../../../src/services/statusMediaPreparation';
+import {
+  logStatusVideoDiagnostic,
+} from '../../../src/services/statusVideoDiagnostics';
+
+import {
   acceptStatusFollow,
+  archiveCurrentStatus,
   followStatusTarget,
   loadStatusFollowers,
   loadStatusFollowing,
@@ -68,6 +82,7 @@ import {
   markStatusViewed as registerStatusView,
   publishMediaStatus,
   publishTextStatus,
+  publishTextStatusWithImageLayers,
   rejectStatusFollow,
   searchStatusFollowTargets,
 } from '../../../src/services/statusesService';
@@ -78,10 +93,17 @@ import type {
   ChatGroupInvite,
   StatusFollowDiscoverItem,
   StatusFollowListItem,
+  StatusImageLayerUpload,
 } from '@beeapp/shared-types';
 import {
   getValidSessionCredentials,
 } from '../../../src/services/authSession';
+import {
+  getProfileAvatarUrl,
+} from '../../../src/services/profileAvatarService';
+import {
+  loadOwnedCommercialProfile,
+} from '../../../src/services/commercialService';
 
 import {
   hasPin,
@@ -257,10 +279,13 @@ export default function ChatListScreen() {
 
   const {
     statuses,
+    circleStatuses,
+    ownStatuses,
     loading: statusesLoading,
     refreshing: statusesRefreshing,
     error: statusesError,
     refresh: refreshStatuses,
+    markStatusViewedLocally,
     backgrounds: statusBackgrounds,
   } = useStatuses({
     commercialProfileId: isCommercialContext
@@ -269,14 +294,115 @@ export default function ChatListScreen() {
   });
 
   const [publishingStatus, setPublishingStatus] = useState(false);
+  const [statusPublishingPhase, setStatusPublishingPhase] = useState<
+    'idle'
+    | 'preparing_image'
+    | 'preparing_video'
+    | 'uploading'
+    | 'error'
+  >('idle');
+  const [statusPublishingMessage, setStatusPublishingMessage] = useState<
+    string | null
+  >(null);
 
   const [viewerIndex, setViewerIndex] = useState<
     number | null
   >(null);
 
+  const handleStatusViewed = (statusId: string) => {
+    const status = statuses.find(
+      (item) => item.id === statusId,
+    );
+
+    if (!status || status.isOwn || status.viewed) {
+      return;
+    }
+
+    markStatusViewedLocally(statusId);
+
+    void registerStatusView(statusId).catch(() => {
+      // La interfaz conserva la vista local para evitar bordes obsoletos.
+    });
+  };
+
   const [creatingStatus, setCreatingStatus] = useState(false);
+  const [ownStatusAvatarUrl, setOwnStatusAvatarUrl] = useState<
+    string | null
+  >(null);
+  const [
+    statusCreationEntryOpen,
+    setStatusCreationEntryOpen,
+  ] = useState(false);
+  const [
+    myStatusesOpen,
+    setMyStatusesOpen,
+  ] = useState(false);
+  const [initialStatusMedia, setInitialStatusMedia] = useState<
+    SelectedStatusMedia | null
+  >(null);
+  const [initialStatusMode, setInitialStatusMode] = useState<
+    'chooser' | 'editor' | 'text'
+  >('chooser');
 
   const isGroupsTab = activeTab === 'groups';
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadOwnStatusAvatar = async () => {
+      if (isMounted) {
+        setOwnStatusAvatarUrl(null);
+      }
+
+      try {
+        if (isCommercialContext) {
+          const response = await loadOwnedCommercialProfile(
+            businessId,
+          );
+          const logoUrl = response.profile.logo_url?.trim() || null;
+
+          if (isMounted) {
+            setOwnStatusAvatarUrl(logoUrl);
+          }
+          return;
+        }
+
+        const credentials = await getValidSessionCredentials();
+
+        if (!credentials) {
+          return;
+        }
+
+        const response = await getCurrentProfile(credentials);
+
+        if (!response.profile.avatar_file_id) {
+          return;
+        }
+
+        const avatarAccess = await getProfileAvatarUrl(
+          credentials,
+          response.profile.avatar_file_id,
+        );
+
+        if (isMounted) {
+          setOwnStatusAvatarUrl(avatarAccess.url);
+        }
+      } catch {
+        if (isMounted) {
+          setOwnStatusAvatarUrl(null);
+        }
+      }
+    };
+
+    void loadOwnStatusAvatar();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [
+    businessId,
+    isCommercialContext,
+  ]);
 
   useEffect(() => {
     if (!discoverPeopleOpen) {
@@ -802,6 +928,76 @@ export default function ChatListScreen() {
     ]);
   };
 
+  const openStatusEditor = (
+    options: {
+      media?: SelectedStatusMedia | null;
+      mode?: 'chooser' | 'editor' | 'text';
+    } = {},
+  ) => {
+    setInitialStatusMedia(options.media || null);
+    setInitialStatusMode(
+      options.media
+        ? 'editor'
+        : options.mode || 'chooser',
+    );
+    setStatusCreationEntryOpen(false);
+    setMyStatusesOpen(false);
+    setCreatingStatus(true);
+  };
+
+  const handleStatusCirclePress = () => {
+    if (ownStatuses.length > 0) {
+      setMyStatusesOpen(true);
+      return;
+    }
+
+    setStatusCreationEntryOpen(true);
+  };
+
+  const openOwnStatusInViewer = (statusId: string) => {
+    const index = statuses.findIndex(
+      (status) => status.id === statusId,
+    );
+
+    if (index < 0) {
+      return;
+    }
+
+    const selectedStatus = statuses[index];
+
+    if (selectedStatus) {
+      void registerStatusView(selectedStatus.id).catch(() => {
+        // El dueño no puede registrar su propia vista.
+      });
+    }
+
+    setMyStatusesOpen(false);
+    setViewerIndex(index);
+  };
+
+  const openStatusCreationFromMyStatuses = () => {
+    setMyStatusesOpen(false);
+    setStatusCreationEntryOpen(true);
+  };
+
+  const handleArchiveStatus = async (
+    statusId: string,
+    returnToMyStatuses: boolean,
+  ) => {
+    try {
+      await archiveCurrentStatus(statusId);
+      setViewerIndex(null);
+      setMyStatusesOpen(returnToMyStatuses);
+      await refreshStatuses();
+    } catch (archiveError) {
+      throw new Error(
+        archiveError instanceof Error
+          ? archiveError.message
+          : 'No fue posible eliminar el estado.',
+      );
+    }
+  };
+
   const handlePublishStatus = async (
     draft: StatusEditorPublishDraft,
   ) => {
@@ -811,13 +1007,77 @@ export default function ChatListScreen() {
 
     try {
       setPublishingStatus(true);
+      setStatusPublishingMessage(null);
+
+      const uploadableImageLayers = draft.imageLayers.filter(
+        (layer) => layer.source !== 'commercial_offer',
+      );
+
+      const imageLayers: StatusImageLayerUpload[] = await Promise.all(
+        uploadableImageLayers.map(async (layer, sortOrder) => {
+          const preparedLayer = await prepareStatusImageLayerForUpload({
+            uri: layer.uri,
+            name: layer.name,
+            mimeType: layer.mimeType,
+          });
+
+          return {
+            id: layer.id,
+            uri: preparedLayer.uri,
+            name: preparedLayer.name,
+            mimeType: preparedLayer.mimeType,
+            x: layer.x,
+            y: layer.y,
+            scale: layer.scale,
+            rotation: layer.rotation,
+            size: layer.size,
+            sortOrder,
+          };
+        }),
+      );
 
       if (draft.media) {
+        setStatusPublishingPhase(
+          draft.media.kind === 'video'
+            ? 'preparing_video'
+            : 'preparing_image',
+        );
+
+        const preparedMedia = await prepareStatusMediaForUpload({
+          uri: draft.media.uri,
+          name: draft.media.name,
+          mimeType: draft.media.mimeType,
+          kind: draft.media.kind,
+          durationSeconds: draft.media.durationSeconds,
+          traceId: draft.media.traceId,
+          source: draft.media.source,
+        });
+
+        if (preparedMedia.kind === 'video') {
+          logStatusVideoDiagnostic({
+            traceId: draft.media.traceId?.trim() || 'status-video-unknown',
+            stage: 'upload_started',
+            source: draft.media.source || 'unknown',
+            name: preparedMedia.name,
+            mimeType: preparedMedia.mimeType,
+            sizeBytes: preparedMedia.sizeBytes,
+            durationSeconds: preparedMedia.durationSeconds,
+          });
+        }
+
+        setStatusPublishingPhase('uploading');
+
         await publishMediaStatus(
           {
-            kind: draft.media.kind,
+            kind: preparedMedia.kind,
             caption: draft.caption,
             editor_metadata: draft.editorMetadata,
+            image_layers: imageLayers,
+            ...(draft.commercialOfferLink
+              ? {
+                  commercial_offer_link: draft.commercialOfferLink,
+                }
+              : {}),
             ...(isCommercialContext
               ? {
                   actor_type: 'commercial_profile' as const,
@@ -825,56 +1085,93 @@ export default function ChatListScreen() {
                 }
               : {}),
             duration_seconds: (
-              draft.media.kind === 'video'
-                ? draft.media.durationSeconds ?? undefined
+              preparedMedia.kind === 'video'
+                ? preparedMedia.durationSeconds ?? undefined
                 : undefined
             ),
           },
           {
-            uri: draft.media.uri,
-            name: draft.media.name,
-            mimeType: draft.media.mimeType,
+            uri: preparedMedia.uri,
+            name: preparedMedia.name,
+            mimeType: preparedMedia.mimeType,
           },
         );
+
+        if (preparedMedia.kind === 'video') {
+          logStatusVideoDiagnostic({
+            traceId: draft.media.traceId?.trim() || 'status-video-unknown',
+            stage: 'upload_completed',
+            source: draft.media.source || 'unknown',
+            name: preparedMedia.name,
+            mimeType: preparedMedia.mimeType,
+            sizeBytes: preparedMedia.sizeBytes,
+            durationSeconds: preparedMedia.durationSeconds,
+          });
+        }
       } else {
         const normalizedColor = draft.backgroundColor
           .trim()
           .toUpperCase();
 
-        const selectedBackground = statusBackgrounds.find(
-          (background) => (
-            background.hex_color.toUpperCase()
-            === normalizedColor
-          ),
-        ) || statusBackgrounds[0];
+        const selectedBackground = (
+          statusBackgrounds.find(
+            (background) => (
+              background.hex_color.toUpperCase()
+              === normalizedColor
+            ),
+          )
+          || statusBackgrounds[0]
+        );
 
         if (!selectedBackground) {
           throw new Error(
-            'No hay fondos de texto disponibles. Inténtalo nuevamente.',
+            'No hay fondos de texto activos disponibles. Inténtalo nuevamente.',
           );
         }
 
-        await publishTextStatus({
-          kind: 'text',
-          text_content: draft.textContent,
+        setStatusPublishingPhase('uploading');
+
+        const textStatusPayload = {
+          kind: 'text' as const,
+          text_content: draft.textContent.trim(),
           text_background_id: selectedBackground.id,
           caption: draft.caption,
           editor_metadata: draft.editorMetadata,
+          image_layers: imageLayers,
+          ...(draft.commercialOfferLink
+            ? {
+                commercial_offer_link: draft.commercialOfferLink,
+              }
+            : {}),
           ...(isCommercialContext
             ? {
                 actor_type: 'commercial_profile' as const,
                 actor_commercial_profile_id: businessId,
               }
             : {}),
-        });
+        };
+
+        if (imageLayers.length > 0) {
+          await publishTextStatusWithImageLayers(
+            textStatusPayload,
+          );
+        } else {
+          await publishTextStatus(textStatusPayload);
+        }
       }
 
       setCreatingStatus(false);
+      setStatusCreationEntryOpen(false);
+      setMyStatusesOpen(false);
+      setInitialStatusMedia(null);
+      setInitialStatusMode('chooser');
+      setStatusPublishingPhase('idle');
+      setStatusPublishingMessage(null);
 
       await refreshStatuses();
     } catch (publishError) {
-      Alert.alert(
-        'No fue posible publicar el estado',
+      setStatusPublishingPhase('error');
+      setStatusPublishingMessage(
         publishError instanceof Error
           ? publishError.message
           : 'Inténtalo nuevamente.',
@@ -962,25 +1259,33 @@ export default function ChatListScreen() {
 
         <View style={styles.statusesSection}>
           <StatusCirclesRow
-            statuses={statuses}
+            statuses={circleStatuses}
+            hasOwnStatus={ownStatuses.length > 0}
+            ownAvatarUrl={ownStatusAvatarUrl}
             showLoadingPlaceholders={
-              statusesLoading && statuses.length === 0
+              statusesLoading && circleStatuses.length === 0
             }
-            onCreate={() => {
-              setCreatingStatus(true);
-            }}
+            onCreate={handleStatusCirclePress}
             onOpen={(index) => {
-              const selectedStatus = statuses[index];
+              const selectedCircleStatus = circleStatuses[index];
 
-              if (selectedStatus) {
-                void registerStatusView(
-                  selectedStatus.id,
-                ).catch(() => {
-                  // El dueño no puede registrar su propia vista.
-                });
+              if (!selectedCircleStatus) {
+                return;
               }
 
-              setViewerIndex(index);
+              const statusIndex = statuses.findIndex(
+                (status) => status.id === selectedCircleStatus.id,
+              );
+
+              if (statusIndex < 0) {
+                return;
+              }
+
+              handleStatusViewed(
+                selectedCircleStatus.id,
+              );
+
+              setViewerIndex(statusIndex);
             }}
           />
 
@@ -1115,19 +1420,77 @@ export default function ChatListScreen() {
         index={viewerIndex ?? 0}
         senderIdentityId={activeIdentityId}
         onChangeIndex={setViewerIndex}
+        onStatusViewed={handleStatusViewed}
+        onArchiveStatus={(statusId) => (
+          handleArchiveStatus(statusId, false)
+        )}
         onClose={() => {
           setViewerIndex(null);
+        }}
+      />
+
+      <StatusCreationEntryModal
+        visible={statusCreationEntryOpen}
+        onChooseText={() => {
+          openStatusEditor({
+            mode: 'text',
+          });
+        }}
+        onSelectMedia={(media) => {
+          openStatusEditor({
+            media,
+          });
+        }}
+        onClose={() => {
+          setStatusCreationEntryOpen(false);
+        }}
+      />
+
+      <MyStatusesModal
+        visible={myStatusesOpen}
+        statuses={ownStatuses}
+        onOpenStatus={(status) => {
+          openOwnStatusInViewer(status.id);
+        }}
+        onCreateText={() => {
+          openStatusEditor({
+            mode: 'text',
+          });
+        }}
+        onOpenCamera={openStatusCreationFromMyStatuses}
+        onArchiveStatus={(statusId) => (
+          handleArchiveStatus(statusId, false)
+        )}
+        onClose={() => {
+          setMyStatusesOpen(false);
         }}
       />
 
       <CreateStatusModal
         visible={creatingStatus}
         backgrounds={statusBackgrounds}
+        initialMedia={initialStatusMedia}
+        initialMode={initialStatusMode}
         isPublishing={publishingStatus}
+        publishingPhase={statusPublishingPhase}
+        publishingMessage={statusPublishingMessage}
+        commercialBusinessId={
+          isCommercialContext
+            ? businessId
+            : null
+        }
+        onDismissPublishingError={() => {
+          setStatusPublishingPhase('idle');
+          setStatusPublishingMessage(null);
+        }}
         onPublish={handlePublishStatus}
         onClose={() => {
           if (!publishingStatus) {
             setCreatingStatus(false);
+            setInitialStatusMedia(null);
+            setInitialStatusMode('chooser');
+            setStatusPublishingPhase('idle');
+            setStatusPublishingMessage(null);
           }
         }}
       />
@@ -1457,6 +1820,9 @@ export default function ChatListScreen() {
           }
 
           setMenuChat(null);
+        }}
+        onAssignCategory={() => {
+          // La asignación de categorías conserva su flujo existente.
         }}
         onDelete={() => {
           if (menuChat) {

@@ -4,6 +4,7 @@ import {
   createMediaStatus,
   createStatusFollow,
   createTextStatus,
+  createTextStatusWithImageLayers,
   deleteStatusFollow,
   discoverStatusFollowTargets,
   getMyStatuses,
@@ -175,6 +176,15 @@ export async function publishTextStatus(
   payload: CreateTextStatusPayload,
 ): Promise<CreateStatusResponse> {
   return createTextStatus(
+    await getRequiredStatusCredentials(),
+    payload,
+  );
+}
+
+export async function publishTextStatusWithImageLayers(
+  payload: CreateTextStatusPayload,
+): Promise<CreateStatusResponse> {
+  return createTextStatusWithImageLayers(
     await getRequiredStatusCredentials(),
     payload,
   );

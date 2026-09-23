@@ -92,7 +92,7 @@ class FindExistingCommercialChatConversationTests(unittest.TestCase):
     def _find(self, link):
         client = FakeSupabaseClient({"commerce_chat_conversations": link})
         with patch(
-            "apps.commercial.services.commercial_chat_conversation_service.get_commercial_user_supabase_client",
+            "apps.commercial.services.commercial_chat_conversation_service.get_supabase_admin_client",
             return_value=client,
         ): 
             return find_existing_commercial_chat_conversation(
@@ -136,7 +136,7 @@ class OpenOrCreateCommercialChatConversationTests(unittest.TestCase):
             "apps.commercial.services.commercial_chat_conversation_service.create_or_get_direct_conversation",
             return_value=self.chat_result,
         ), patch(
-            "apps.commercial.services.commercial_chat_conversation_service.get_commercial_user_supabase_client",
+            "apps.commercial.services.commercial_chat_conversation_service.get_supabase_admin_client",
             return_value=client,
         ): 
             return open_or_create_commercial_chat_conversation(
@@ -217,9 +217,31 @@ class ResolveCommercialChatIdentityContextTests(unittest.TestCase):
         with self.assertRaises(CommercialNotFoundError):
             self._resolve(commercial_profile={**self.commercial_profile, "is_available": False})
 
-    def test_rejects_owner_opening_own_business_chat(self) -> None:
-        with self.assertRaises(CommercialAccessError):
-            self._resolve(client_profile_id=self.owner_profile_id)
+    def test_allows_owner_opening_own_business_chat(self) -> None:
+        owner_profile_identity = {
+            "id": "owner-profile-identity",
+            "identity_type": "profile",
+            "profile_id": self.owner_profile_id,
+        }
+        context = self._resolve(
+            client_profile_id=self.owner_profile_id,
+            client_identities=[
+                owner_profile_identity,
+                self.commercial_identity,
+            ],
+            owner_identities=[
+                owner_profile_identity,
+                self.commercial_identity,
+            ],
+        )
+        self.assertEqual(
+            context["client_identity"]["id"],
+            "owner-profile-identity",
+        )
+        self.assertEqual(
+            context["commercial_identity"]["id"],
+            "business-a-identity",
+        )
 
     def test_rejects_missing_exact_commercial_identity(self) -> None:
         wrong = {"id": "business-b-identity", "identity_type": "commercial_profile", "commercial_profile_id": "business-b"}

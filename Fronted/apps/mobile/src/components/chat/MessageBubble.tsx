@@ -9,6 +9,7 @@ import {
   StyleSheet,
   Image,
   TouchableOpacity,
+  ActivityIndicator,
 } from 'react-native';
 import {
   Audio,
@@ -37,6 +38,10 @@ interface MessageBubbleProps {
   type: 'text' | 'image' | 'file' | 'audio';
   text?: string;
   mediaUrl?: string;
+  messageId?: string;
+  onRequestAudioUrl?: (
+    messageId: string,
+  ) => Promise<string>;
   fileName?: string;
   fileSize?: string;
   audioDuration?: string;
@@ -79,6 +84,8 @@ export default function MessageBubble({
   type,
   text,
   mediaUrl,
+  messageId,
+  onRequestAudioUrl,
   fileName,
   fileSize,
   audioDuration,
@@ -96,9 +103,14 @@ export default function MessageBubble({
   const [playbackDuration, setPlaybackDuration] = useState<
     string | null
   >(null);
+  const [playbackDurationMillis, setPlaybackDurationMillis] =
+    useState(0);
+  const [playbackPositionMillis, setPlaybackPositionMillis] =
+    useState(0);
   const [audioError, setAudioError] = useState<string | null>(
     null,
   );
+  const [isAudioLoading, setIsAudioLoading] = useState(false);
 
   useEffect(() => {
     return () => {
@@ -117,7 +129,10 @@ export default function MessageBubble({
   useEffect(() => {
     setIsPlaying(false);
     setPlaybackDuration(null);
+    setPlaybackDurationMillis(0);
+    setPlaybackPositionMillis(0);
     setAudioError(null);
+    setIsAudioLoading(false);
 
     const sound = soundRef.current;
     soundRef.current = null;
@@ -134,13 +149,20 @@ export default function MessageBubble({
       return;
     }
 
-    if (!mediaUrl) {
-      setAudioError('El audio aún no está disponible.');
-      return;
-    }
+    let audioUrl = mediaUrl;
 
     try {
       setAudioError(null);
+      setIsAudioLoading(true);
+
+      if (!audioUrl && messageId && onRequestAudioUrl) {
+        audioUrl = await onRequestAudioUrl(messageId);
+      }
+
+      if (!audioUrl) {
+        setAudioError('El audio aún no está disponible.');
+        return;
+      }
 
       if (soundRef.current) {
         const statusResult = await soundRef.current.getStatusAsync();
@@ -151,12 +173,14 @@ export default function MessageBubble({
         ) {
           await soundRef.current.pauseAsync();
           setIsPlaying(false);
+          setIsAudioLoading(false);
           return;
         }
 
         if (statusResult.isLoaded) {
           await soundRef.current.playAsync();
           setIsPlaying(true);
+          setIsAudioLoading(false);
           return;
         }
       }
@@ -166,7 +190,7 @@ export default function MessageBubble({
         status: initialStatus,
       } = await Audio.Sound.createAsync(
         {
-          uri: mediaUrl,
+          uri: audioUrl,
         },
         {
           shouldPlay: true,
@@ -181,15 +205,31 @@ export default function MessageBubble({
             setPlaybackDuration(
               formatDuration(nextStatus.durationMillis),
             );
+            setPlaybackDurationMillis(
+              nextStatus.durationMillis,
+            );
+          }
+
+          if (typeof nextStatus.positionMillis === 'number') {
+            setPlaybackPositionMillis(
+              nextStatus.positionMillis,
+            );
           }
 
           setIsPlaying(nextStatus.isPlaying);
 
           if (nextStatus.didJustFinish) {
             setIsPlaying(false);
-            void sound.setPositionAsync(0).catch(() => {
-              // Reiniciar es de mejor esfuerzo.
-            });
+            setIsAudioLoading(false);
+            setPlaybackPositionMillis(0);
+            void (async () => {
+              try {
+                await sound.pauseAsync();
+                await sound.setPositionAsync(0);
+              } catch {
+                // Reiniciar es de mejor esfuerzo.
+              }
+            })();
           }
         },
       );
@@ -203,11 +243,16 @@ export default function MessageBubble({
         setPlaybackDuration(
           formatDuration(initialStatus.durationMillis),
         );
+        setPlaybackDurationMillis(
+          initialStatus.durationMillis,
+        );
       }
 
       setIsPlaying(true);
+      setIsAudioLoading(false);
     } catch (error) {
       setIsPlaying(false);
+      setIsAudioLoading(false);
       setAudioError(
         error instanceof Error
           ? error.message
@@ -215,6 +260,17 @@ export default function MessageBubble({
       );
     }
   };
+
+  const playbackProgress = playbackDurationMillis > 0
+    ? Math.min(
+      1,
+      Math.max(
+        0,
+        playbackPositionMillis / playbackDurationMillis,
+      ),
+    )
+    : 0;
+  const completedWaveBars = Math.round(playbackProgress * 12);
 
   return (
     <View
@@ -436,7 +492,16 @@ export default function MessageBubble({
                           : 'Reproducir nota de voz'
                       }
                     >
-                      {isPlaying ? (
+                      {isAudioLoading ? (
+                        <ActivityIndicator
+                          size="small"
+                          color={
+                            isUser
+                              ? colors.brand.primary
+                              : colors.neutral.text
+                          }
+                        />
+                      ) : isPlaying ? (
                         <Pause
                           size={16}
                           color={
@@ -470,7 +535,7 @@ export default function MessageBubble({
                               styles.waveBar,
                               {
                                 height: 4 + (index * 3) % 10,
-                                backgroundColor: isPlaying
+                                backgroundColor: index < completedWaveBars
                                   ? (
                                       isUser
                                         ? colors.neutral.white
@@ -498,7 +563,7 @@ export default function MessageBubble({
                         },
                       ]}
                     >
-                      {playbackDuration || audioDuration || '0:00'}
+                      {playbackDuration || audioDuration || ''}
                     </Text>
                   </View>
 

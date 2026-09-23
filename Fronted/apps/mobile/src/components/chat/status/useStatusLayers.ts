@@ -6,11 +6,9 @@ import {
   StatusTextLayer,
 } from '../../../mocks/statuses';
 import {
-  IMAGE_LAYER_MIN,
   MAX_IMAGE_LAYERS,
   MAX_STICKER_LAYERS,
   MAX_TEXT_LAYERS,
-  STATUS_IMAGE_COLORS,
 } from '../../../mocks/statusMedia';
 
 export type LayerKind = 'text' | 'image' | 'sticker';
@@ -25,7 +23,11 @@ const newId = (prefix: string) => `${prefix}_${Date.now().toString(36)}_${Math.r
 /** Cada capa nueva baja un poco para no caer justo encima de la anterior */
 const stagger = (index: number) => Math.min(80, 42 + index * 9);
 
-const newTextLayer = (index: number, color: string): StatusTextLayer => ({
+const newTextLayer = (
+  index: number,
+  color: string,
+  fontFamily: string,
+): StatusTextLayer => ({
   id: newId('tx'),
   content: '',
   x: 50,
@@ -35,57 +37,183 @@ const newTextLayer = (index: number, color: string): StatusTextLayer => ({
   fontSize: 24,
   fontWeight: '400',
   color,
+  fontFamily,
 });
 
 /**
  * Estado de las capas del editor de estados: textos, imágenes, stickers,
  * música y cuál está seleccionada. Vive aparte para que el modal no crezca.
  */
-export function useStatusLayers(defaultTextColor: string) {
+export function useStatusLayers(
+  defaultTextColor: string,
+  defaultFontFamily: string,
+) {
   const [texts, setTexts] = useState<StatusTextLayer[]>([]);
   const [images, setImages] = useState<StatusImageLayer[]>([]);
   const [stickers, setStickers] = useState<StatusStickerLayer[]>([]);
   const [music, setMusic] = useState<StatusMusic | null>(null);
   const [selection, setSelection] = useState<LayerSelection | null>(null);
 
-  /** Deja el editor con una sola capa de texto vacía, como al abrirlo */
+  /** Reinicia el editor; crea una capa de texto inicial solo cuando el flujo la requiere. */
   const reset = useCallback(
-    (color: string) => {
-      const first = newTextLayer(0, color);
-      setTexts([first]);
+    (
+      color: string,
+      withInitialText = true,
+    ): string | null => {
+      const first = withInitialText
+        ? newTextLayer(0, color, defaultFontFamily)
+        : null;
+
+      setTexts(first ? [first] : []);
       setImages([]);
       setStickers([]);
       setMusic(null);
-      setSelection({ kind: 'text', id: first.id });
+      setSelection(
+        first
+          ? {
+              kind: 'text',
+              id: first.id,
+            }
+          : null,
+      );
+
+      return first?.id ?? null;
     },
-    []
+    [
+      defaultFontFamily,
+    ],
   );
 
   const addText = useCallback(() => {
     setTexts((prev) => {
       if (prev.length >= MAX_TEXT_LAYERS) return prev;
-      const layer = newTextLayer(prev.length, defaultTextColor);
+      const layer = newTextLayer(
+        prev.length,
+        defaultTextColor,
+        defaultFontFamily,
+      );
       setSelection({ kind: 'text', id: layer.id });
       return [...prev, layer];
     });
-  }, [defaultTextColor]);
+  }, [
+    defaultFontFamily,
+    defaultTextColor,
+  ]);
 
-  const addImage = useCallback(() => {
+  const addImage = useCallback((
+    image: Pick<
+      StatusImageLayer,
+      | 'uri'
+      | 'name'
+      | 'mimeType'
+      | 'sizeBytes'
+      | 'source'
+      | 'commercialOfferImageId'
+      | 'commercialOfferTitle'
+    >,
+  ) => {
     setImages((prev) => {
       if (prev.length >= MAX_IMAGE_LAYERS) return prev;
+      const initialPositions = [
+        { x: 28, y: 30 },
+        { x: 50, y: 50 },
+        { x: 72, y: 70 },
+      ];
+      const initialPosition = (
+        initialPositions[prev.length]
+        || initialPositions[initialPositions.length - 1]
+      );
       const layer: StatusImageLayer = {
         id: newId('im'),
-        x: 50,
-        y: stagger(prev.length),
+        ...image,
+        x: initialPosition.x,
+        y: initialPosition.y,
         scale: 1,
         rotation: 0,
-        size: IMAGE_LAYER_MIN + 40,
-        color: STATUS_IMAGE_COLORS[prev.length % STATUS_IMAGE_COLORS.length],
+        size: 96,
       };
       setSelection({ kind: 'image', id: layer.id });
       return [...prev, layer];
     });
   }, []);
+
+  const upsertCommercialOfferImage = useCallback(
+    (
+      image: Pick<
+        StatusImageLayer,
+        | 'uri'
+        | 'name'
+        | 'mimeType'
+        | 'sizeBytes'
+        | 'commercialOfferImageId'
+        | 'commercialOfferTitle'
+      >,
+    ): string => {
+      const imageLayerId = (
+        `commercial_offer_${image.commercialOfferImageId}`
+      );
+
+      setImages((currentImages) => {
+        const existingLayer = currentImages.find(
+          (layer) => layer.source === 'commercial_offer',
+        );
+
+        if (existingLayer) {
+          const nextImages = currentImages.map((layer) => (
+            layer.id === existingLayer.id
+              ? {
+                  ...layer,
+                  ...image,
+                  id: imageLayerId,
+                  source: 'commercial_offer' as const,
+                }
+              : layer
+          ));
+
+          setSelection({
+            kind: 'image',
+            id: imageLayerId,
+          });
+
+          return nextImages;
+        }
+
+        if (currentImages.length >= MAX_IMAGE_LAYERS) {
+          return currentImages;
+        }
+
+        const initialPositions = [
+          { x: 28, y: 30 },
+          { x: 50, y: 50 },
+          { x: 72, y: 70 },
+        ];
+        const initialPosition = (
+          initialPositions[currentImages.length]
+          || initialPositions[initialPositions.length - 1]
+        );
+        const layer: StatusImageLayer = {
+          id: imageLayerId,
+          ...image,
+          source: 'commercial_offer',
+          x: initialPosition.x,
+          y: initialPosition.y,
+          scale: 1,
+          rotation: 0,
+          size: 96,
+        };
+
+        setSelection({
+          kind: 'image',
+          id: layer.id,
+        });
+
+        return [...currentImages, layer];
+      });
+
+      return imageLayerId;
+    },
+    [],
+  );
 
   const addSticker = useCallback((stickerId: string) => {
     setStickers((prev) => {
@@ -106,6 +234,16 @@ export function useStatusLayers(defaultTextColor: string) {
   const patchText = useCallback((id: string, patch: Partial<StatusTextLayer>) => {
     setTexts((prev) => prev.map((layer) => (layer.id === id ? { ...layer, ...patch } : layer)));
   }, []);
+
+  const setAllTextFontFamilies = useCallback(
+    (fontFamily: string) => {
+      setTexts((prev) => prev.map((layer) => ({
+        ...layer,
+        fontFamily,
+      })));
+    },
+    [],
+  );
 
   const moveImage = useCallback((id: string, x: number, y: number) => {
     setImages((prev) => prev.map((layer) => (layer.id === id ? { ...layer, x, y } : layer)));
@@ -188,8 +326,10 @@ export function useStatusLayers(defaultTextColor: string) {
     reset,
     addText,
     addImage,
+    upsertCommercialOfferImage,
     addSticker,
     patchText,
+    setAllTextFontFamilies,
     moveImage,
     resizeImage,
     moveSticker,

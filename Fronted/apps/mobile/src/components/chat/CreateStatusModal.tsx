@@ -1,8 +1,10 @@
 import {
   useEffect,
+  useRef,
   useState,
 } from 'react';
 import {
+  ActivityIndicator,
   Alert,
   Image,
   Keyboard,
@@ -22,6 +24,9 @@ import {
   GestureHandlerRootView,
 } from 'react-native-gesture-handler';
 import {
+  useSafeAreaInsets,
+} from 'react-native-safe-area-context';
+import {
   colors,
   radii,
   spacing,
@@ -39,6 +44,9 @@ import ImageLayerManager from './status/ImageLayerManager';
 import StickerLayerManager from './status/StickerLayerManager';
 import MentionDropdown from './status/MentionDropdown';
 import StickerPicker from './status/StickerPicker';
+import ProductLinkSelector, {
+  type SelectedCommercialOfferImage,
+} from './ProductLinkSelector';
 import {
   useStatusLayers,
 } from './status/useStatusLayers';
@@ -47,9 +55,15 @@ import type {
 } from '@beeapp/shared-types';
 
 import {
-  STATUS_BG_COLORS,
   STATUS_TEXT_COLORS,
-} from '../../mocks/statuses';
+} from './status/statusTypography';
+import {
+  STATUS_DEFAULT_FONT_FAMILY,
+  STATUS_PASTEL_BACKGROUND_COLORS,
+} from './status/statusTypography';
+import {
+  useStatusTypography,
+} from './status/useStatusTypography';
 
 const MENTION_TOKEN = /@[^@\n]*$/;
 
@@ -60,20 +74,60 @@ export interface SelectedStatusMedia {
   sizeBytes: number | null;
   kind: 'image' | 'gif' | 'video';
   durationSeconds: number | null;
+  traceId?: string | null;
+  source?: 'camera' | 'gallery' | 'unknown';
+}
+
+export type StatusPublishingPhase =
+  | 'idle'
+  | 'preparing_image'
+  | 'preparing_video'
+  | 'uploading'
+  | 'error';
+
+export interface StatusEditorImageLayerDraft {
+  id: string;
+  uri: string;
+  name: string;
+  mimeType: string;
+  x: number;
+  y: number;
+  scale: number;
+  rotation: number;
+  size: number;
+  sortOrder: number;
+  source?: 'local' | 'commercial_offer';
 }
 
 export interface StatusEditorPublishDraft {
   textContent: string;
+  commercialOfferLink: {
+    commercial_offer_id: string;
+    commercial_offer_image_id: string;
+    image_layer_id: string;
+    x: number;
+    y: number;
+    scale: number;
+    rotation: number;
+    size: number;
+  } | null;
   backgroundColor: string;
   caption: string | null;
   media: SelectedStatusMedia | null;
+  imageLayers: StatusEditorImageLayerDraft[];
   editorMetadata: Record<string, unknown>;
 }
 
 interface CreateStatusModalProps {
   visible: boolean;
   backgrounds: StatusTextBackground[];
+  initialMedia?: SelectedStatusMedia | null;
+  initialMode?: 'chooser' | 'editor' | 'text';
   isPublishing?: boolean;
+  publishingPhase?: StatusPublishingPhase;
+  publishingMessage?: string | null;
+  commercialBusinessId?: string | null;
+  onDismissPublishingError?: () => void;
   onPublish: (
     draft: StatusEditorPublishDraft,
   ) => Promise<void> | void;
@@ -144,11 +198,15 @@ function serializeEditorMetadata(
     texts: ReturnType<typeof useStatusLayers>['texts'];
     images: ReturnType<typeof useStatusLayers>['images'];
     stickers: ReturnType<typeof useStatusLayers>['stickers'];
+    textFontFamily: string;
+    backgroundColor: string;
   },
 ): Record<string, unknown> {
   return {
-    version: 1,
+    version: 2,
     mentions: [],
+    background_color: values.backgroundColor,
+    text_font_family: values.textFontFamily,
     text_layers: values.texts
       .filter((layer) => layer.content.trim())
       .map((layer) => ({
@@ -158,6 +216,7 @@ function serializeEditorMetadata(
         y: layer.y,
         font_size: layer.fontSize,
         font_weight: layer.fontWeight,
+        font_family: layer.fontFamily,
         color: layer.color,
         scale: layer.scale,
         rotation: layer.rotation,
@@ -185,22 +244,38 @@ function serializeEditorMetadata(
 export default function CreateStatusModal({
   visible,
   backgrounds,
+  initialMedia = null,
+  initialMode = 'chooser',
   isPublishing = false,
+  publishingPhase = 'idle',
+  publishingMessage = null,
+  commercialBusinessId = null,
+  onDismissPublishingError,
   onPublish,
   onClose,
 }: CreateStatusModalProps) {
+  const insets = useSafeAreaInsets();
   const [media, setMedia] = useState<
     SelectedStatusMedia | null
   >(null);
-  const [bgColor, setBgColor] = useState(
-    backgrounds[0]?.hex_color || STATUS_BG_COLORS[0],
+  const wasVisibleRef = useRef(false);
+  const [bgColor, setBgColor] = useState<string>(
+    STATUS_PASTEL_BACKGROUND_COLORS[0],
   );
-  const [lastTextColor, setLastTextColor] = useState(
+  const [lastTextColor, setLastTextColor] = useState<string>(
     STATUS_TEXT_COLORS[0],
   );
+  const [selectedFontFamily, setSelectedFontFamily] = useState(
+    STATUS_DEFAULT_FONT_FAMILY,
+  );
   const [sheet, setSheet] = useState<
-    'stickers' | null
+    'stickers' | 'commercial_offer' | null
   >(null);
+  const [selectedCommercialOffer, setSelectedCommercialOffer] = useState<{
+    commercialOfferId: string;
+    commercialOfferImageId: string;
+    imageLayerId: string;
+  } | null>(null);
   const [mentionQuery, setMentionQuery] = useState<
     string | null
   >(null);
@@ -216,7 +291,18 @@ export default function CreateStatusModal({
     string | null
   >(null);
 
-  const layers = useStatusLayers(lastTextColor);
+  const {
+    fontsLoaded,
+  } = useStatusTypography();
+
+  const resolvedFontFamily = fontsLoaded
+    ? selectedFontFamily
+    : STATUS_DEFAULT_FONT_FAMILY;
+
+  const layers = useStatusLayers(
+    lastTextColor,
+    resolvedFontFamily,
+  );
   const {
     texts,
     images,
@@ -227,21 +313,50 @@ export default function CreateStatusModal({
 
   useEffect(() => {
     if (!visible) {
+      wasVisibleRef.current = false;
       return;
     }
 
-    setMedia(null);
+    if (wasVisibleRef.current) {
+      return;
+    }
+
+    wasVisibleRef.current = true;
+
+    setMedia(initialMedia);
     setBgColor(
-      backgrounds[0]?.hex_color
-      || STATUS_BG_COLORS[0],
+      STATUS_PASTEL_BACKGROUND_COLORS[0],
     );
     setLastTextColor(STATUS_TEXT_COLORS[0]);
+    setSelectedFontFamily(STATUS_DEFAULT_FONT_FAMILY);
     setSheet(null);
+    setSelectedCommercialOffer(null);
     setMentionQuery(null);
-    setEditorMode('chooser');
-    setEditingTextId(null);
-    layers.reset(STATUS_TEXT_COLORS[0]);
-  }, [visible]);
+    const isTextStatus = (
+      !initialMedia
+      && initialMode === 'text'
+    );
+
+    setEditorMode(
+      initialMedia || initialMode === 'editor' || isTextStatus
+        ? 'editor'
+        : 'chooser',
+    );
+    const initialTextId = layers.reset(
+      STATUS_TEXT_COLORS[0],
+      isTextStatus,
+    );
+    setEditingTextId(
+      isTextStatus
+        ? initialTextId
+        : null,
+    );
+  }, [
+    backgrounds,
+    initialMedia,
+    initialMode,
+    visible,
+  ]);
 
   const onStageLayout = (
     event: LayoutChangeEvent,
@@ -302,6 +417,11 @@ export default function CreateStatusModal({
         color,
       });
     }
+  };
+
+  const changeTextFontFamily = (fontFamily: string) => {
+    setSelectedFontFamily(fontFamily);
+    layers.setAllTextFontFamilies(fontFamily);
   };
 
   const handlePickMedia = async () => {
@@ -381,6 +501,98 @@ export default function CreateStatusModal({
     }
   };
 
+
+  const handlePickImageLayer = async () => {
+    if (isPublishing) {
+      return;
+    }
+
+    try {
+      const permission = (
+        await ImagePicker.requestMediaLibraryPermissionsAsync()
+      );
+
+      if (!permission.granted) {
+        Alert.alert(
+          'Permiso requerido',
+          'Permite el acceso a tus fotos para agregar una imagen al estado.',
+        );
+        return;
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: false,
+        allowsMultipleSelection: false,
+        quality: 1,
+      });
+
+      if (result.canceled || !result.assets[0]) {
+        return;
+      }
+
+      const asset = result.assets[0];
+      const name = asset.fileName?.trim() || 'imagen-adjunta.jpg';
+      const mimeType = (
+        asset.mimeType?.trim().toLowerCase()
+        || 'image/jpeg'
+      );
+
+      layers.addImage({
+        uri: asset.uri,
+        name,
+        mimeType,
+        sizeBytes: asset.fileSize ?? null,
+      });
+      stopTextEditing();
+    } catch (error) {
+      Alert.alert(
+        'No fue posible seleccionar la imagen',
+        error instanceof Error
+          ? error.message
+          : 'Inténtalo nuevamente.',
+      );
+    }
+  };
+
+  const handleSelectCommercialOffer = (
+    selection: SelectedCommercialOfferImage,
+  ) => {
+    if (!commercialBusinessId) {
+      setSheet(null);
+      return;
+    }
+
+    const hasCommercialLayer = images.some(
+      (layer) => layer.source === 'commercial_offer',
+    );
+
+    if (!hasCommercialLayer && images.length >= 3) {
+      Alert.alert(
+        'Límite de imágenes',
+        'El estado ya tiene el máximo de imágenes adjuntas. Elimina una imagen para agregar este producto o servicio.',
+      );
+      return;
+    }
+
+    const imageLayerId = layers.upsertCommercialOfferImage({
+      uri: selection.uri,
+      name: selection.name,
+      mimeType: selection.mimeType,
+      sizeBytes: selection.sizeBytes,
+      commercialOfferImageId: selection.commercialOfferImageId,
+      commercialOfferTitle: selection.offerTitle,
+    });
+
+    setSelectedCommercialOffer({
+      commercialOfferId: selection.commercialOfferId,
+      commercialOfferImageId: selection.commercialOfferImageId,
+      imageLayerId,
+    });
+    setSheet(null);
+    stopTextEditing();
+  };
+
   const hasTextContent = texts.some(
     (layer) => Boolean(layer.content.trim()),
   );
@@ -404,15 +616,51 @@ export default function CreateStatusModal({
       return;
     }
 
+    const commercialLayer = images.find(
+      (layer) => layer.source === 'commercial_offer',
+    );
+    const commercialOfferLink = (
+      commercialBusinessId
+      && selectedCommercialOffer
+      && commercialLayer
+    )
+      ? {
+          commercial_offer_id: selectedCommercialOffer.commercialOfferId,
+          commercial_offer_image_id: selectedCommercialOffer.commercialOfferImageId,
+          image_layer_id: selectedCommercialOffer.imageLayerId,
+          x: commercialLayer.x,
+          y: commercialLayer.y,
+          scale: commercialLayer.scale,
+          rotation: commercialLayer.rotation,
+          size: commercialLayer.size,
+        }
+      : null;
+
     await onPublish({
       textContent,
+      commercialOfferLink,
       backgroundColor: bgColor,
       caption: textContent || null,
       media,
+      imageLayers: images.map((layer, sortOrder) => ({
+        id: layer.id,
+        uri: layer.uri,
+        name: layer.name,
+        mimeType: layer.mimeType,
+        x: layer.x,
+        y: layer.y,
+        scale: layer.scale,
+        rotation: layer.rotation,
+        size: layer.size,
+        sortOrder,
+        source: layer.source || 'local',
+      })),
       editorMetadata: serializeEditorMetadata({
         texts,
         images,
         stickers,
+        textFontFamily: resolvedFontFamily,
+        backgroundColor: bgColor,
       }),
     });
   };
@@ -424,7 +672,12 @@ export default function CreateStatusModal({
       return;
     }
 
+    const initialTextId = layers.reset(
+      STATUS_TEXT_COLORS[0],
+      true,
+    );
     setEditorMode('editor');
+    setEditingTextId(initialTextId);
   };
 
   const handleChooseMedia = () => {
@@ -531,7 +784,14 @@ export default function CreateStatusModal({
           </ScreenSafeArea>
         ) : (
         <ScreenSafeArea style={styles.screen}>
-          <View style={styles.topBar}>
+          <View
+            style={[
+              styles.topBar,
+              {
+                marginTop: (insets.top / 2) + spacing.sm,
+              },
+            ]}
+          >
             <TouchableOpacity
               onPress={handleClose}
               style={styles.iconBtn}
@@ -582,6 +842,54 @@ export default function CreateStatusModal({
               }
             }}
           >
+            {publishingPhase !== 'idle' ? (
+              <View style={styles.publishStateOverlay}>
+                <View style={styles.publishStateCard}>
+                  {publishingPhase !== 'error' ? (
+                    <ActivityIndicator
+                      size="small"
+                      color={colors.brand.primary}
+                    />
+                  ) : null}
+
+                  <Text style={styles.publishStateTitle}>
+                    {publishingPhase === 'preparing_image'
+                      ? 'Preparando imagen...'
+                      : publishingPhase === 'preparing_video'
+                        ? 'Comprimiendo video con audio...'
+                        : publishingPhase === 'uploading'
+                          ? 'Publicando historia...'
+                          : 'No fue posible publicar'}
+                  </Text>
+
+                  <Text style={styles.publishStateMessage}>
+                    {publishingMessage
+                      || (publishingPhase === 'preparing_image'
+                        ? 'Optimizando la imagen antes de subirla.'
+                        : publishingPhase === 'preparing_video'
+                          ? 'Manteniendo el audio y preparando el video.'
+                          : publishingPhase === 'uploading'
+                            ? 'Subiendo tu historia de forma segura.'
+                            : 'Inténtalo nuevamente.')}
+                  </Text>
+
+                  {publishingPhase === 'error'
+                  && onDismissPublishingError ? (
+                    <TouchableOpacity
+                      style={styles.publishStateAction}
+                      onPress={onDismissPublishingError}
+                      activeOpacity={0.8}
+                      accessibilityLabel="Cerrar mensaje de error de publicación"
+                    >
+                      <Text style={styles.publishStateActionText}>
+                        Entendido
+                      </Text>
+                    </TouchableOpacity>
+                  ) : null}
+                </View>
+              </View>
+            ) : null}
+
             {media?.kind === 'video' ? (
               <Video
                 source={{
@@ -591,7 +899,7 @@ export default function CreateStatusModal({
                 resizeMode={ResizeMode.COVER}
                 isLooping
                 shouldPlay
-                isMuted
+                isMuted={false}
               />
             ) : media ? (
               <Image
@@ -629,7 +937,14 @@ export default function CreateStatusModal({
                 );
               }}
               onRemove={(id) => {
+                const removedLayer = images.find(
+                  (layer) => layer.id === id,
+                );
                 layers.removeLayer('image', id);
+
+                if (removedLayer?.source === 'commercial_offer') {
+                  setSelectedCommercialOffer(null);
+                }
               }}
             />
 
@@ -734,20 +1049,28 @@ export default function CreateStatusModal({
             }}
             textColor={selectedText?.color ?? lastTextColor}
             onChangeTextColor={changeTextColor}
+            selectedFontFamily={resolvedFontFamily}
+            fontSelectorEnabled={fontsLoaded}
+            onChangeTextFontFamily={changeTextFontFamily}
             showBackgrounds={!isMediaStatus}
-            backgroundColors={
-              backgrounds.length > 0
-                ? backgrounds.map(
-                    (background) => background.hex_color,
-                  )
-                : STATUS_BG_COLORS
-            }
+            backgroundColors={[
+              ...STATUS_PASTEL_BACKGROUND_COLORS,
+            ]}
             bgColor={bgColor}
             onChangeBgColor={setBgColor}
             textCount={texts.length}
             onAddText={layers.addText}
             imageCount={images.length}
-            onAddImage={layers.addImage}
+            onAddImage={() => {
+              void handlePickImageLayer();
+            }}
+            commercialOfferSelected={Boolean(selectedCommercialOffer)}
+            canAddCommercialOffer={Boolean(commercialBusinessId)}
+            onOpenCommercialOffer={() => {
+              if (commercialBusinessId) {
+                setSheet('commercial_offer');
+              }
+            }}
             stickerCount={stickers.length}
             onOpenStickers={() => {
               setSheet('stickers');
@@ -762,6 +1085,18 @@ export default function CreateStatusModal({
           />
         </ScreenSafeArea>
         )}
+
+        <ProductLinkSelector
+          visible={sheet === 'commercial_offer'}
+          businessId={commercialBusinessId || ''}
+          selectedOfferImageId={
+            selectedCommercialOffer?.commercialOfferImageId
+          }
+          onSelect={handleSelectCommercialOffer}
+          onClose={() => {
+            setSheet(null);
+          }}
+        />
 
         <StickerPicker
           visible={sheet === 'stickers'}
@@ -892,4 +1227,52 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   photo: StyleSheet.absoluteFillObject,
+  publishStateOverlay: {
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.84)',
+    bottom: 0,
+    justifyContent: 'center',
+    left: 0,
+    padding: spacing.lg,
+    position: 'absolute',
+    right: 0,
+    top: 0,
+    zIndex: 20,
+  },
+  publishStateCard: {
+    alignItems: 'center',
+    backgroundColor: colors.neutral.white,
+    borderColor: `${colors.brand.primary}24`,
+    borderRadius: radii.xl,
+    borderWidth: 1,
+    maxWidth: 320,
+    padding: spacing.lg,
+    width: '100%',
+  },
+  publishStateTitle: {
+    color: colors.neutral.text,
+    fontSize: 16,
+    fontWeight: '700',
+    marginTop: spacing.sm,
+    textAlign: 'center',
+  },
+  publishStateMessage: {
+    color: colors.neutral.gray600,
+    fontSize: 13,
+    lineHeight: 19,
+    marginTop: spacing.xs,
+    textAlign: 'center',
+  },
+  publishStateAction: {
+    backgroundColor: colors.brand.primary,
+    borderRadius: radii.lg,
+    marginTop: spacing.md,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.sm,
+  },
+  publishStateActionText: {
+    color: colors.neutral.white,
+    fontSize: 14,
+    fontWeight: '700',
+  },
 });

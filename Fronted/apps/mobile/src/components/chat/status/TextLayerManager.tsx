@@ -114,6 +114,7 @@ export default function TextLayerManager({
           color: layer.color,
           fontSize: layer.fontSize,
           fontWeight: layer.fontWeight,
+          fontFamily: layer.fontFamily,
           lineHeight: layer.fontSize * 1.3,
         } as const;
 

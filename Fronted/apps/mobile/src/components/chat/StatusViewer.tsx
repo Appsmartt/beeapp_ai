@@ -19,26 +19,49 @@ import {
   GestureHandlerRootView,
 } from 'react-native-gesture-handler';
 import { runOnJS } from 'react-native-reanimated';
-import { ResizeMode, Video } from 'expo-av';
+import {
+  useSafeAreaInsets,
+} from 'react-native-safe-area-context';
+import {
+  type AVPlaybackStatus,
+  ResizeMode,
+  Video,
+} from 'expo-av';
 import { colors, spacing, radii } from '@beeapp/design-system';
 import {
+  ChevronUp,
   Eye,
   Send,
-  ShoppingBag,
+  Trash2,
   X,
 } from 'lucide-react-native';
 import ScreenSafeArea from '../layout/ScreenSafeArea';
 import StatusProgressPills from './StatusProgressPills';
 import StatusViewersSheet from './StatusViewersSheet';
 import { StatusItem, StatusViewedBy } from '../../mocks/statuses';
-import { formatPrice } from '../../mocks/myServices';
+import { STICKER_LAYER_SIZE } from '../../mocks/statusMedia';
 import {
   loadStatusViewers,
   replyToStatus,
 } from '../../services/statusesService';
 import {
+  buddyServicesPublicOfferRoute,
+} from '../../features/buddyservices/commercialRoutes';
+import {
   mapStatusViewerToUi,
 } from '../../services/statusesMapper';
+import {
+  STATUS_DEFAULT_FONT_FAMILY,
+} from './status/statusTypography';
+import {
+  getSticker,
+} from './status/stickerCatalog';
+import {
+  useStatusTypography,
+} from './status/useStatusTypography';
+import {
+  useRouter,
+} from 'expo-router';
 
 const STATUS_DURATION = 6000;
 
@@ -48,6 +71,8 @@ interface StatusViewerProps {
   index: number;
   senderIdentityId: string | null;
   onChangeIndex: (index: number) => void;
+  onStatusViewed: (statusId: string) => void;
+  onArchiveStatus: (statusId: string) => Promise<void>;
   onClose: () => void;
 }
 
@@ -57,10 +82,13 @@ export default function StatusViewer({
   index,
   senderIdentityId,
   onChangeIndex,
+  onStatusViewed,
+  onArchiveStatus,
   onClose,
 }: StatusViewerProps) {
   const progress = useRef(new Animated.Value(0)).current;
-  const [productHidden, setProductHidden] = useState(false);
+  const router = useRouter();
+  const activeStoryIdRef = useRef<string | null>(null);
   const [viewersOpen, setViewersOpen] = useState(false);
   const [viewedBy, setViewedBy] = useState<StatusViewedBy[]>([]);
   const [viewersLoading, setViewersLoading] = useState(false);
@@ -69,7 +97,52 @@ export default function StatusViewer({
   const [replyBody, setReplyBody] = useState('');
   const [replySending, setReplySending] = useState(false);
   const [replyError, setReplyError] = useState<string | null>(null);
+  const [archivingStatus, setArchivingStatus] = useState(false);
+  const [archiveConfirmationOpen, setArchiveConfirmationOpen] = useState(false);
+  const [archiveError, setArchiveError] = useState<string | null>(null);
+  const [commercialOfferConfirmationOpen, setCommercialOfferConfirmationOpen] = useState(false);
+  const [mediaReady, setMediaReady] = useState(false);
+  const [loadedImageLayerIds, setLoadedImageLayerIds] = useState<Set<string>>(
+    new Set(),
+  );
+  const [mediaError, setMediaError] = useState<string | null>(null);
+  const [isPressing, setIsPressing] = useState(false);
+  const [stage, setStage] = useState({
+    width: 0,
+    height: 0,
+  });
+  const {
+    fontsLoaded,
+  } = useStatusTypography();
+  const insets = useSafeAreaInsets();
   const status = statuses[index];
+  const imageLayers = status?.imageLayers || [];
+  const loadableImageLayers = imageLayers.filter(
+    (layer) => layer.uri.trim() !== '',
+  );
+  const resourcesReady = (
+    mediaReady
+    && loadedImageLayerIds.size === loadableImageLayers.length
+  );
+
+  const markImageLayerResolved = (
+    storyId: string,
+    layerId: string,
+  ) => {
+    if (activeStoryIdRef.current !== storyId) {
+      return;
+    }
+
+    setLoadedImageLayerIds((currentIds) => {
+      if (currentIds.has(layerId)) {
+        return currentIds;
+      }
+
+      const nextIds = new Set(currentIds);
+      nextIds.add(layerId);
+      return nextIds;
+    });
+  };
 
   const goNext = () => (index < statuses.length - 1 ? onChangeIndex(index + 1) : onClose());
   const goPrev = () => index > 0 && onChangeIndex(index - 1);
@@ -87,7 +160,6 @@ export default function StatusViewer({
   // Al cambiar de estado se vuelve a empezar
   useEffect(() => {
     if (!visible || !status) return;
-    setProductHidden(false);
     setViewersOpen(false);
     setViewedBy([]);
     setViewersLoading(false);
@@ -96,20 +168,54 @@ export default function StatusViewer({
     setReplyBody('');
     setReplySending(false);
     setReplyError(null);
+    setArchivingStatus(false);
+    setArchiveConfirmationOpen(false);
+    setArchiveError(null);
+    setCommercialOfferConfirmationOpen(false);
+    setIsPressing(false);
+    setMediaError(null);
+    activeStoryIdRef.current = status.id;
+    setLoadedImageLayerIds(new Set());
+    setMediaReady(
+      status.type !== 'photo'
+      && status.type !== 'gif'
+      && status.type !== 'video',
+    );
     elapsed.current = 0;
     progress.setValue(0);
-  }, [visible, index, status?.id]);
 
-  // La hoja de "Visto por" pausa el avance y lo reanuda con el tiempo restante
+  }, [visible, index, onStatusViewed, status?.id]);
+
+  useEffect(() => {
+    if (!visible || !status || !resourcesReady) {
+      return;
+    }
+
+    if (!status.isOwn && status.viewedBy === undefined) {
+      onStatusViewed(status.id);
+    }
+  }, [
+    onStatusViewed,
+    resourcesReady,
+    status?.id,
+    visible,
+  ]);
+
+  // Fotos, GIF y texto mantienen el tiempo fijo actual.
+  // Los videos avanzan exclusivamente al terminar la reproducción real.
   useEffect(() => {
     if (
       !visible
       || !status
+      || status.type === 'video'
       || viewersOpen
       || replyOpen
+      || isPressing
+      || !resourcesReady
     ) {
       return;
     }
+
     const remaining = STATUS_DURATION * (1 - elapsed.current);
     const animation = Animated.timing(progress, {
       toValue: 1,
@@ -117,9 +223,24 @@ export default function StatusViewer({
       easing: Easing.linear,
       useNativeDriver: false,
     });
-    animation.start(({ finished }) => finished && goNext());
+
+    animation.start(({ finished }) => {
+      if (finished) {
+        goNext();
+      }
+    });
+
     return () => animation.stop();
-  }, [visible, index, status?.id, viewersOpen]);
+  }, [
+    visible,
+    index,
+    isPressing,
+    resourcesReady,
+    replyOpen,
+    status?.id,
+    status?.type,
+    viewersOpen,
+  ]);
 
   if (!status) return null;
 
@@ -130,7 +251,8 @@ export default function StatusViewer({
   );
   const hasMedia = isPhoto || isVideo;
   const isOwnStatus = (
-    status.authorId === 'me'
+    Boolean(status.isOwn)
+    || status.authorId === 'me'
     || status.viewedBy !== undefined
   );
   const background = status.bgColor ?? colors.neutral.text;
@@ -165,6 +287,36 @@ export default function StatusViewer({
       );
     } finally {
       setViewersLoading(false);
+    }
+  };
+
+  const openArchiveConfirmation = () => {
+    if (!isOwnStatus || archivingStatus) {
+      return;
+    }
+
+    setArchiveError(null);
+    setArchiveConfirmationOpen(true);
+  };
+
+  const handleArchiveStatus = async () => {
+    if (archivingStatus) {
+      return;
+    }
+
+    try {
+      setArchivingStatus(true);
+      setArchiveError(null);
+      await onArchiveStatus(status.id);
+      setArchiveConfirmationOpen(false);
+    } catch (archiveError) {
+      setArchiveError(
+        archiveError instanceof Error
+          ? archiveError.message
+          : 'No fue posible eliminar el estado. Inténtalo nuevamente.',
+      );
+    } finally {
+      setArchivingStatus(false);
     }
   };
 
@@ -243,20 +395,49 @@ export default function StatusViewer({
       }
     });
 
-  const hideProductGesture = Gesture.Pan()
-    .activeOffsetY([-12, 12])
-    .onEnd((event) => {
-      if (event.translationY > 40) {
-        runOnJS(setProductHidden)(true);
-      }
-    });
+  const openCommercialOfferConfirmation = () => {
+    if (!product?.id || !product.imageUrl) {
+      return;
+    }
 
-  const textStyle = {
+    setCommercialOfferConfirmationOpen(true);
+  };
+
+  const openCommercialOffer = () => {
+    if (!product?.id) {
+      return;
+    }
+
+    setCommercialOfferConfirmationOpen(false);
+    router.push(
+      buddyServicesPublicOfferRoute(product.id),
+    );
+  };
+
+  const fallbackTextLayers = [{
+    id: 'status_text',
+    content: status.text,
+    x: status.textPosition.x,
+    y: status.textPosition.y,
+    scale: 1,
+    rotation: 0,
     fontSize: status.textSize,
     fontWeight: status.textWeight,
     color: status.textColor,
-    lineHeight: status.textSize * 1.3,
-  } as const;
+    fontFamily: status.textFontFamily
+      || STATUS_DEFAULT_FONT_FAMILY,
+  }];
+
+  const textLayers = (
+    status.textLayers
+    && status.textLayers.length > 0
+  )
+    ? status.textLayers
+    : fallbackTextLayers;
+
+  const stickerLayers = status.imageLayers
+    ? status.stickerLayers || []
+    : [];
 
   return (
     <Modal visible={visible} animationType="fade" onRequestClose={onClose} statusBarTranslucent>
@@ -280,10 +461,28 @@ export default function StatusViewer({
             )}
 
             <TouchableOpacity style={styles.tapLeft} onPress={goPrev} activeOpacity={1} />
+            <TouchableOpacity
+              style={styles.holdArea}
+              onPressIn={() => {
+                setIsPressing(true);
+              }}
+              onPressOut={() => {
+                setIsPressing(false);
+              }}
+              activeOpacity={1}
+              accessible={false}
+            />
             <TouchableOpacity style={styles.tapRight} onPress={goNext} activeOpacity={1} />
 
             <ScreenSafeArea style={styles.overlay} pointerEvents="box-none">
-              <View style={styles.topRow}>
+              <View
+                style={[
+                  styles.topRow,
+                  {
+                    marginTop: (insets.top / 2) + spacing.sm,
+                  },
+                ]}
+              >
                 <TouchableOpacity onPress={onClose} style={styles.closeBtn} activeOpacity={0.7}>
                   <X size={22} color={onDark ? colors.neutral.white : colors.neutral.text} />
                 </TouchableOpacity>
@@ -291,69 +490,407 @@ export default function StatusViewer({
                   <Text style={styles.avatarText}>{status.authorInitials}</Text>
                 </View>
                 <View style={styles.authorTexts}>
-                  <Text style={[styles.authorName, onDark && styles.onDarkText]} numberOfLines={1}>{status.authorName}</Text>
-                  <Text style={[styles.timestamp, onDark && styles.onDarkMuted]}>{status.timestamp}</Text>
+                  <Text
+                    style={[
+                      styles.authorName,
+                      onDark && styles.onDarkText,
+                    ]}
+                    numberOfLines={1}
+                  >
+                    {status.authorName}
+                  </Text>
+                  <Text
+                    style={[
+                      styles.timestamp,
+                      onDark && styles.onDarkMuted,
+                    ]}
+                  >
+                    {status.timestamp}
+                  </Text>
                 </View>
+
               </View>
 
               <StatusProgressPills count={statuses.length} index={index} progress={progress} onDark={onDark} />
 
-              <View style={styles.stage} pointerEvents="none">
+              <View
+                style={styles.stage}
+                pointerEvents="box-none"
+                onLayout={(event) => {
+                  const {
+                    width,
+                    height,
+                  } = event.nativeEvent.layout;
+
+                  setStage({
+                    width,
+                    height,
+                  });
+                }}
+              >
                 {isVideo && status.photoUrl ? (
                   <Video
                     key={status.id}
                     source={{ uri: status.photoUrl }}
                     style={styles.photoCard}
                     resizeMode={ResizeMode.COVER}
-                    shouldPlay={visible}
-                    isLooping
+                    shouldPlay={
+                      visible
+                      && resourcesReady
+                      && !isPressing
+                      && !viewersOpen
+                      && !replyOpen
+                    }
+                    progressUpdateIntervalMillis={100}
+                    onReadyForDisplay={() => {
+                      setMediaError(null);
+                      setMediaReady(true);
+                    }}
+                    onPlaybackStatusUpdate={(
+                      playbackStatus: AVPlaybackStatus,
+                    ) => {
+                      if (
+                        !resourcesReady
+                        || !playbackStatus.isLoaded
+                      ) {
+                        return;
+                      }
+
+                      const fallbackDurationMillis = (
+                        typeof status.durationSeconds === 'number'
+                        && status.durationSeconds > 0
+                      )
+                        ? status.durationSeconds * 1000
+                        : null;
+                      const resolvedDurationMillis = (
+                        typeof playbackStatus.durationMillis === 'number'
+                        && playbackStatus.durationMillis > 0
+                      )
+                        ? playbackStatus.durationMillis
+                        : fallbackDurationMillis;
+
+                      if (
+                        resolvedDurationMillis
+                        && typeof playbackStatus.positionMillis === 'number'
+                      ) {
+                        const normalizedProgress = Math.min(
+                          1,
+                          Math.max(
+                            0,
+                            playbackStatus.positionMillis
+                              / resolvedDurationMillis,
+                          ),
+                        );
+
+                        elapsed.current = normalizedProgress;
+                        progress.setValue(normalizedProgress);
+                      }
+
+                      if (playbackStatus.didJustFinish) {
+                        progress.setValue(1);
+                        goNext();
+                      }
+                    }}
+                    onError={(error) => {
+                      setMediaReady(false);
+                      setMediaError(
+                        error
+                        || 'No fue posible reproducir este video.',
+                      );
+                    }}
+                    isLooping={false}
                     isMuted={false}
                     useNativeControls={false}
                   />
-                ) : isPhoto ? (
+                ) : null}
+
+                {mediaError ? (
+                  <View style={styles.mediaErrorCard}>
+                    <Text style={styles.mediaErrorTitle}>
+                      No fue posible reproducir el video
+                    </Text>
+                    <Text style={styles.mediaErrorMessage}>
+                      {mediaError}
+                    </Text>
+                  </View>
+                ) : null}
+
+                {isPhoto ? (
                   <Image
                     source={{ uri: status.photoUrl ?? undefined }}
                     style={styles.photoCard}
                     resizeMode="cover"
+                    onLoadEnd={() => {
+                      setMediaReady(true);
+                    }}
+                    onError={() => {
+                      setMediaReady(true);
+                    }}
                   />
                 ) : null}
-                <View style={[styles.textLayer, { top: `${status.textPosition.y}%`, left: `${status.textPosition.x}%` }]}>
-                  <Text style={[styles.statusText, textStyle]}>{status.text}</Text>
-                </View>
+                {loadableImageLayers.map((layer) => {
+                  const stageReady = (
+                    stage.width > 0
+                    && stage.height > 0
+                  );
+
+                  return (
+                    <Image
+                      key={layer.id}
+                      source={{ uri: layer.uri }}
+                      style={[
+                        styles.imageLayer,
+                        {
+                          width: layer.size,
+                          height: layer.size,
+                          left: '50%',
+                          top: '50%',
+                          opacity: stageReady ? 1 : 0,
+                          transform: [
+                            {
+                              translateX: (
+                                ((layer.x - 50) / 100)
+                                * stage.width
+                                - (layer.size / 2)
+                              ),
+                            },
+                            {
+                              translateY: (
+                                ((layer.y - 50) / 100)
+                                * stage.height
+                                - (layer.size / 2)
+                              ),
+                            },
+                            {
+                              rotate: `${layer.rotation}deg`,
+                            },
+                            {
+                              scale: layer.scale,
+                            },
+                          ],
+                        },
+                      ]}
+                      resizeMode="cover"
+                      onLoad={() => {
+                        markImageLayerResolved(status.id, layer.id);
+                      }}
+                      onError={() => {
+                        markImageLayerResolved(status.id, layer.id);
+                      }}
+                    />
+                  );
+                })}
+                {product?.imageUrl ? (
+                  <TouchableOpacity
+                    style={[
+                      styles.commercialOfferLayer,
+                      {
+                        left: '50%',
+                        top: '50%',
+                        transform: [
+                          {
+                            translateX: (
+                              (((product.x ?? 50) - 50) / 100)
+                              * stage.width
+                              - ((product.size ?? 96) / 2)
+                            ),
+                          },
+                          {
+                            translateY: (
+                              (((product.y ?? 50) - 50) / 100)
+                              * stage.height
+                              - ((product.size ?? 96) / 2)
+                            ),
+                          },
+                          {
+                            rotate: `${product.rotation ?? 0}deg`,
+                          },
+                          {
+                            scale: product.scale ?? 1,
+                          },
+                        ],
+                      },
+                    ]}
+                    onPress={openCommercialOfferConfirmation}
+                    activeOpacity={0.88}
+                    accessibilityLabel={`Ver ${product.name}`}
+                  >
+                    <Image
+                      source={{ uri: product.imageUrl }}
+                      style={[
+                        styles.commercialOfferImage,
+                        {
+                          width: product.size ?? 96,
+                          height: product.size ?? 96,
+                        },
+                      ]}
+                      resizeMode="cover"
+                    />
+                    <View style={styles.commercialOfferLabel}>
+                      <Text
+                        style={styles.commercialOfferLabelText}
+                        numberOfLines={2}
+                      >
+                        {product.name}
+                      </Text>
+                    </View>
+                  </TouchableOpacity>
+                ) : null}
+
+                {stickerLayers.map((layer) => {
+                  const sticker = getSticker(layer.stickerId);
+
+                  return (
+                    <View
+                      key={layer.id}
+                      style={[
+                        styles.stickerLayer,
+                        {
+                          left: `${layer.x}%`,
+                          top: `${layer.y}%`,
+                          transform: [
+                            {
+                              translateX: -(
+                                STICKER_LAYER_SIZE / 2
+                              ),
+                            },
+                            {
+                              translateY: -(
+                                STICKER_LAYER_SIZE / 2
+                              ),
+                            },
+                            {
+                              rotate: `${layer.rotation}deg`,
+                            },
+                            {
+                              scale: layer.scale,
+                            },
+                          ],
+                        },
+                      ]}
+                    >
+                      <View
+                        style={[
+                          styles.stickerBubble,
+                          {
+                            backgroundColor: sticker.background,
+                          },
+                        ]}
+                      >
+                        <sticker.Icon
+                          size={44}
+                          color={sticker.color}
+                        />
+                      </View>
+                    </View>
+                  );
+                })}
+                {textLayers.map((layer) => {
+                  const fontFamily = fontsLoaded
+                    ? layer.fontFamily
+                    : STATUS_DEFAULT_FONT_FAMILY;
+
+                  return (
+                    <View
+                      key={layer.id}
+                      style={[
+                        styles.textLayer,
+                        {
+                          top: `${layer.y}%`,
+                          left: `${layer.x}%`,
+                          transform: [
+                            {
+                              translateY: -(
+                                layer.fontSize * 0.65
+                              ),
+                            },
+                            {
+                              rotate: `${layer.rotation}deg`,
+                            },
+                            {
+                              scale: layer.scale,
+                            },
+                          ],
+                        },
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          styles.statusText,
+                          {
+                            color: layer.color,
+                            fontFamily,
+                            fontSize: layer.fontSize,
+                            fontWeight: layer.fontWeight,
+                            lineHeight: layer.fontSize * 1.3,
+                          },
+                        ]}
+                      >
+                        {layer.content}
+                      </Text>
+                    </View>
+                  );
+                })}
               </View>
 
-              {isOwnStatus && (
-                <TouchableOpacity
-                  style={styles.viewedByBar}
-                  onPress={() => {
-                    setViewersOpen(true);
-                    void loadViewers();
-                  }}
-                  activeOpacity={0.8}
+              {!isOwnStatus && !replyOpen ? (
+                <View
+                  style={styles.replyHint}
+                  pointerEvents="none"
                 >
-                  <Eye size={16} color={colors.neutral.white} />
-                  <Text style={styles.viewedByText}>
-                    Visto por {
-                      status.viewerCount
-                      ?? status.viewedBy?.length
-                      ?? 0
-                    }
+                  <ChevronUp
+                    size={16}
+                    color={colors.neutral.white}
+                    strokeWidth={2.4}
+                  />
+                  <Text style={styles.replyHintText}>
+                    Desliza hacia arriba para responder
                   </Text>
-                </TouchableOpacity>
+                </View>
+              ) : null}
+
+              {isOwnStatus && (
+                <View style={styles.ownStatusActions}>
+                  <TouchableOpacity
+                    style={styles.viewedByBar}
+                    onPress={() => {
+                      setViewersOpen(true);
+                      void loadViewers();
+                    }}
+                    activeOpacity={0.8}
+                  >
+                    <Eye size={16} color={colors.neutral.white} />
+                    <Text style={styles.viewedByText}>
+                      Visto por {
+                        status.viewerCount
+                        ?? status.viewedBy?.length
+                        ?? 0
+                      }
+                    </Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={styles.viewerArchiveStatusButton}
+                    onPress={openArchiveConfirmation}
+                    disabled={archivingStatus}
+                    activeOpacity={0.8}
+                    accessibilityLabel="Eliminar este estado"
+                  >
+                    {archivingStatus ? (
+                      <ActivityIndicator
+                        size="small"
+                        color={colors.semantic.error}
+                      />
+                    ) : (
+                      <Trash2
+                        size={19}
+                        color={colors.semantic.error}
+                      />
+                    )}
+                  </TouchableOpacity>
+                </View>
               )}
 
-              {!!product && !productHidden && (
-                <GestureDetector gesture={hideProductGesture}>
-                  <View style={styles.productCard}>
-                    <View style={styles.productThumb}><ShoppingBag size={20} color={colors.brand.primary} /></View>
-                    <View style={styles.productTexts}>
-                      <Text style={styles.productName} numberOfLines={1}>{product.name}</Text>
-                      <Text style={styles.productPrice}>{product.price !== null ? formatPrice(product.price) : 'Cotización'}</Text>
-                    </View>
-                    <TouchableOpacity style={styles.contactBtn} onPress={() => {}} activeOpacity={0.8}><Text style={styles.contactBtnText}>Solicitar</Text></TouchableOpacity>
-                  </View>
-                </GestureDetector>
-              )}
             </ScreenSafeArea>
           </View>
         </GestureDetector>
@@ -460,6 +997,122 @@ export default function StatusViewer({
           </KeyboardAvoidingView>
         ) : null}
 
+        {archiveConfirmationOpen ? (
+          <View style={styles.archiveConfirmationOverlay}>
+            <TouchableOpacity
+              style={styles.archiveConfirmationBackdrop}
+              activeOpacity={1}
+              onPress={() => {
+                if (!archivingStatus) {
+                  setArchiveConfirmationOpen(false);
+                }
+              }}
+            />
+
+            <View style={styles.archiveConfirmationCard}>
+              <View style={styles.archiveConfirmationIcon}>
+                <Trash2
+                  size={26}
+                  color={colors.semantic.error}
+                />
+              </View>
+
+              <Text style={styles.archiveConfirmationTitle}>
+                ¿Eliminar este estado?
+              </Text>
+
+              <Text style={styles.archiveConfirmationDescription}>
+                Tu estado dejará de estar visible para otras personas.
+              </Text>
+
+              {archiveError ? (
+                <Text style={styles.archiveConfirmationError}>
+                  {archiveError}
+                </Text>
+              ) : null}
+
+              <View style={styles.archiveConfirmationActions}>
+                <TouchableOpacity
+                  style={styles.archiveCancelButton}
+                  onPress={() => {
+                    if (!archivingStatus) {
+                      setArchiveConfirmationOpen(false);
+                    }
+                  }}
+                  disabled={archivingStatus}
+                  activeOpacity={0.8}
+                >
+                  <Text style={styles.archiveCancelButtonText}>
+                    Cancelar
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.archiveConfirmButton}
+                  onPress={() => {
+                    void handleArchiveStatus();
+                  }}
+                  disabled={archivingStatus}
+                  activeOpacity={0.8}
+                >
+                  {archivingStatus ? (
+                    <ActivityIndicator
+                      size="small"
+                      color={colors.neutral.white}
+                    />
+                  ) : (
+                    <Text style={styles.archiveConfirmButtonText}>
+                      Eliminar
+                    </Text>
+                  )}
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        ) : null}
+
+        <Modal
+          transparent
+          visible={commercialOfferConfirmationOpen}
+          animationType="fade"
+          onRequestClose={() => {
+            setCommercialOfferConfirmationOpen(false);
+          }}
+        >
+          <View style={styles.commercialOfferConfirmationBackdrop}>
+            <View style={styles.commercialOfferConfirmationCard}>
+              <Text style={styles.commercialOfferConfirmationTitle}>
+                Ver producto o servicio
+              </Text>
+              <Text style={styles.commercialOfferConfirmationMessage}>
+                ¿Quieres ir a {product?.name || 'este producto o servicio'}?
+              </Text>
+              <View style={styles.commercialOfferConfirmationActions}>
+                <TouchableOpacity
+                  style={styles.commercialOfferConfirmationSecondaryButton}
+                  onPress={() => {
+                    setCommercialOfferConfirmationOpen(false);
+                  }}
+                  activeOpacity={0.8}
+                >
+                  <Text style={styles.commercialOfferConfirmationSecondaryText}>
+                    Cancelar
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.commercialOfferConfirmationPrimaryButton}
+                  onPress={openCommercialOffer}
+                  activeOpacity={0.8}
+                >
+                  <Text style={styles.commercialOfferConfirmationPrimaryText}>
+                    Ver
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </Modal>
+
         <StatusViewersSheet
           visible={viewersOpen}
           viewedBy={viewedBy}
@@ -483,10 +1136,33 @@ const styles = StyleSheet.create({
   screen: { flex: 1 },
   blurLayer: StyleSheet.absoluteFillObject,
   blurTint: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(34, 43, 67, 0.42)' },
+  mediaErrorCard: {
+    alignSelf: 'center',
+    backgroundColor: colors.neutral.white,
+    borderColor: `${colors.semantic.error}30`,
+    borderRadius: radii.xl,
+    borderWidth: 1,
+    marginHorizontal: spacing.lg,
+    padding: spacing.md,
+  },
+  mediaErrorTitle: {
+    color: colors.semantic.error,
+    fontSize: 15,
+    fontWeight: '700',
+    textAlign: 'center',
+  },
+  mediaErrorMessage: {
+    color: colors.neutral.gray600,
+    fontSize: 13,
+    lineHeight: 19,
+    marginTop: spacing.xs,
+    textAlign: 'center',
+  },
   videoBackground: { ...StyleSheet.absoluteFillObject, backgroundColor: colors.neutral.text },
   softShade: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(34, 43, 67, 0.08)' },
   tapLeft: { position: 'absolute', top: 0, bottom: 0, left: 0, width: '35%' },
   tapRight: { position: 'absolute', top: 0, bottom: 0, right: 0, width: '35%' },
+  holdArea: { position: 'absolute', top: 0, bottom: 0, left: '35%', right: '35%' },
   overlay: { flex: 1 },
   topRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingHorizontal: spacing.sm, paddingTop: spacing.sm },
   closeBtn: { padding: 6 },
@@ -499,17 +1175,235 @@ const styles = StyleSheet.create({
   onDarkMuted: { color: colors.neutral.white, opacity: 0.75 },
   stage: { flex: 1, margin: spacing.lg },
   photoCard: { ...StyleSheet.absoluteFillObject, borderRadius: 20, elevation: 10 },
-  textLayer: { position: 'absolute', width: '86%', marginLeft: '-43%', transform: [{ translateY: -20 }] },
+  textLayer: { position: 'absolute', width: '86%', marginLeft: '-43%' },
+  imageLayer: {
+    borderRadius: 12,
+    position: 'absolute',
+  },
+  commercialOfferLayer: {
+    alignItems: 'center',
+    position: 'absolute',
+  },
+  commercialOfferImage: {
+    borderRadius: 10,
+  },
+  commercialOfferLabel: {
+    backgroundColor: 'rgba(15, 23, 42, 0.82)',
+    borderRadius: 7,
+    marginTop: 6,
+    maxWidth: 220,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  commercialOfferLabelText: {
+    color: colors.neutral.white,
+    fontSize: 11,
+    fontWeight: '700',
+    textAlign: 'center',
+  },
+  stickerLayer: {
+    position: 'absolute',
+  },
+  stickerBubble: {
+    alignItems: 'center',
+    borderRadius: STICKER_LAYER_SIZE / 2,
+    height: STICKER_LAYER_SIZE,
+    justifyContent: 'center',
+    width: STICKER_LAYER_SIZE,
+  },
   statusText: { textAlign: 'center' },
-  viewedByBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 10, backgroundColor: 'rgba(34,43,67,0.62)', marginHorizontal: 20, marginBottom: 12, borderRadius: 16 },
+  replyHint: {
+    alignItems: 'center',
+    alignSelf: 'center',
+    backgroundColor: 'rgba(34, 43, 67, 0.62)',
+    borderRadius: 16,
+    flexDirection: 'row',
+    gap: 5,
+    marginBottom: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  replyHintText: {
+    color: colors.neutral.white,
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  commercialOfferConfirmationBackdrop: {
+    alignItems: 'center',
+    backgroundColor: 'rgba(15, 23, 42, 0.52)',
+    flex: 1,
+    justifyContent: 'center',
+    padding: 24,
+  },
+  commercialOfferConfirmationCard: {
+    backgroundColor: colors.neutral.white,
+    borderRadius: 20,
+    maxWidth: 360,
+    padding: 20,
+    width: '100%',
+  },
+  commercialOfferConfirmationTitle: {
+    color: colors.neutral.text,
+    fontSize: 17,
+    fontWeight: '800',
+  },
+  commercialOfferConfirmationMessage: {
+    color: colors.neutral.gray600,
+    fontSize: 14,
+    lineHeight: 20,
+    marginTop: 8,
+  },
+  commercialOfferConfirmationActions: {
+    flexDirection: 'row',
+    gap: 10,
+    justifyContent: 'flex-end',
+    marginTop: 20,
+  },
+  commercialOfferConfirmationSecondaryButton: {
+    alignItems: 'center',
+    borderColor: colors.neutral.gray300,
+    borderRadius: 10,
+    borderWidth: 1,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+  },
+  commercialOfferConfirmationSecondaryText: {
+    color: colors.neutral.text,
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  commercialOfferConfirmationPrimaryButton: {
+    alignItems: 'center',
+    backgroundColor: colors.brand.primary,
+    borderRadius: 10,
+    paddingHorizontal: 18,
+    paddingVertical: 10,
+  },
+  commercialOfferConfirmationPrimaryText: {
+    color: colors.neutral.white,
+    fontSize: 13,
+    fontWeight: '800',
+  },
+  ownStatusActions: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: spacing.sm,
+    marginHorizontal: spacing.lg,
+    marginBottom: spacing.sm,
+  },
+  viewedByBar: {
+    alignItems: 'center',
+    backgroundColor: 'rgba(34,43,67,0.62)',
+    borderRadius: 16,
+    flex: 1,
+    flexDirection: 'row',
+    gap: 8,
+    justifyContent: 'center',
+    paddingVertical: 10,
+  },
+  archiveStatusButton: {
+    alignItems: 'center',
+    backgroundColor: 'rgba(220,38,38,0.16)',
+    borderColor: 'rgba(220,38,38,0.56)',
+    borderRadius: 16,
+    borderWidth: 1,
+    height: 40,
+    justifyContent: 'center',
+    width: 46,
+  },
+  viewerArchiveStatusButton: {
+    alignItems: 'center',
+    backgroundColor: 'rgba(220,38,38,0.16)',
+    borderColor: 'rgba(220,38,38,0.56)',
+    borderRadius: 16,
+    borderWidth: 1,
+    height: 40,
+    justifyContent: 'center',
+    width: 46,
+  },
   viewedByText: { fontSize: 13, fontWeight: '600', color: colors.neutral.white },
-  productCard: { flexDirection: 'row', alignItems: 'center', gap: 12, marginHorizontal: spacing.md, marginBottom: spacing.lg, backgroundColor: colors.neutral.white, borderRadius: radii.xl, padding: 12, elevation: 6 },
-  productThumb: { width: 44, height: 44, borderRadius: radii.md, backgroundColor: `${colors.brand.primary}1A`, alignItems: 'center', justifyContent: 'center' },
-  productTexts: { flex: 1 },
-  productName: { fontSize: 14, fontWeight: '400', color: colors.neutral.text },
-  productPrice: { fontSize: 13, fontWeight: '400', color: colors.neutral.gray600, marginTop: 2 },
-  contactBtn: { backgroundColor: colors.brand.primary, borderRadius: radii.md, paddingHorizontal: 14, paddingVertical: 9 },
-  contactBtnText: { fontSize: 13, fontWeight: '600', color: colors.neutral.white },
+  archiveConfirmationOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: spacing.lg,
+  },
+  archiveConfirmationBackdrop: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(34, 43, 67, 0.56)',
+  },
+  archiveConfirmationCard: {
+    alignItems: 'center',
+    backgroundColor: colors.neutral.white,
+    borderRadius: radii.xl,
+    elevation: 12,
+    maxWidth: 360,
+    padding: spacing.lg,
+    width: '100%',
+  },
+  archiveConfirmationIcon: {
+    alignItems: 'center',
+    backgroundColor: 'rgba(220, 38, 38, 0.12)',
+    borderRadius: 28,
+    height: 56,
+    justifyContent: 'center',
+    marginBottom: spacing.md,
+    width: 56,
+  },
+  archiveConfirmationTitle: {
+    color: colors.neutral.text,
+    fontSize: 19,
+    fontWeight: '700',
+    textAlign: 'center',
+  },
+  archiveConfirmationDescription: {
+    color: colors.neutral.gray600,
+    fontSize: 14,
+    lineHeight: 20,
+    marginTop: spacing.sm,
+    textAlign: 'center',
+  },
+  archiveConfirmationError: {
+    color: colors.semantic.error,
+    fontSize: 13,
+    lineHeight: 18,
+    marginTop: spacing.sm,
+    textAlign: 'center',
+  },
+  archiveConfirmationActions: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+    marginTop: spacing.lg,
+    width: '100%',
+  },
+  archiveCancelButton: {
+    alignItems: 'center',
+    backgroundColor: colors.neutral.gray100,
+    borderRadius: radii.md,
+    flex: 1,
+    justifyContent: 'center',
+    minHeight: 44,
+    paddingHorizontal: spacing.md,
+  },
+  archiveCancelButtonText: {
+    color: colors.neutral.text,
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  archiveConfirmButton: {
+    alignItems: 'center',
+    backgroundColor: colors.semantic.error,
+    borderRadius: radii.md,
+    flex: 1,
+    justifyContent: 'center',
+    minHeight: 44,
+    paddingHorizontal: spacing.md,
+  },
+  archiveConfirmButtonText: {
+    color: colors.neutral.white,
+    fontSize: 14,
+    fontWeight: '700',
+  },
   replyOverlay: {
     ...StyleSheet.absoluteFillObject,
     justifyContent: 'flex-end',

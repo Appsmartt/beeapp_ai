@@ -11,6 +11,14 @@ export interface StatusProductLink {
   name: string;
   /** null en servicios: se muestra "Cotización" */
   price: number | null;
+  kind?: 'product' | 'service';
+  imageUrl?: string | null;
+  imageLayerId?: string;
+  x?: number;
+  y?: number;
+  scale?: number;
+  rotation?: number;
+  size?: number;
 }
 
 /** Posición del texto sobre el estado, en porcentaje del alto y ancho */
@@ -30,17 +38,25 @@ export interface StatusTextLayer {
   fontSize: number;
   fontWeight: '400' | '700';
   color: string;
+  fontFamily: string;
 }
 
-/** Capa de imagen. Mock: un recuadro de color, no una foto real */
+/** Capa de imagen seleccionada por el usuario sobre el estado. */
 export interface StatusImageLayer {
   id: string;
+  uri: string;
+  name: string;
+  mimeType: string;
+  sizeBytes: number | null;
   x: number;
   y: number;
   scale: number;
   rotation: number;
   size: number;
-  color: string;
+  color?: string;
+  source?: 'local' | 'commercial_offer';
+  commercialOfferImageId?: string;
+  commercialOfferTitle?: string;
 }
 
 /** Capa de sticker: un ícono de Lucide sobre un círculo de color suave */
@@ -73,10 +89,13 @@ export interface StatusItem {
   /** Avatar mock: iniciales sobre un color de fondo */
   authorInitials: string;
   authorColor: string;
+  authorAvatarUrl?: string | null;
   type: 'photo' | 'gif' | 'video' | 'text';
   text: string;
   /** null en los estados de solo texto */
   photoUrl: string | null;
+  /** Duración declarada del video en segundos; null para foto, GIF y texto */
+  durationSeconds?: number | null;
   /** Fondo elegido por el autor en los estados de solo texto */
   bgColor: string | null;
   linkedProduct: StatusProductLink | null;
@@ -84,6 +103,8 @@ export interface StatusItem {
   textPosition: StatusTextPosition;
   textSize: number;
   textWeight: '400' | '700';
+  /** Familia elegida por el autor para el texto principal del estado */
+  textFontFamily?: string;
   /** Color elegido por el autor: es dato suyo, no un token del sistema */
   textColor: string;
   /**
@@ -96,6 +117,8 @@ export interface StatusItem {
   stickerLayers?: StatusStickerLayer[];
   music?: StatusMusic | null;
   timestamp: string;
+  createdAt?: string;
+  isOwn?: boolean;
   viewed: boolean;
   visibility?: 'all' | 'selected' | 'category';
   selectedContactIds?: string[];

@@ -363,6 +363,44 @@ async function getChatAuthContext(): Promise<{
   };
 }
 
+export async function openCommercialDirectConversation(
+  commercialProfileId: string,
+): Promise<{
+  conversationId: string;
+  displayName: string;
+}> {
+  const normalizedCommercialProfileId = String(
+    commercialProfileId || '',
+  ).trim();
+
+  if (!normalizedCommercialProfileId) {
+    throw new Error(
+      'No fue posible identificar el negocio para abrir el chat.',
+    );
+  }
+
+  const {
+    loadPublicCommercialProfile,
+    openPublicCommercialProfileChat,
+  } = await import('../services/commercialService');
+
+  const [
+    profileResponse,
+    chatResponse,
+  ] = await Promise.all([
+    loadPublicCommercialProfile(normalizedCommercialProfileId),
+    openPublicCommercialProfileChat(normalizedCommercialProfileId),
+  ]);
+
+  return {
+    conversationId: chatResponse.conversation_id,
+    displayName: (
+      profileResponse.profile.display_name
+      || 'Negocio'
+    ),
+  };
+}
+
 export async function getPrivateChatIdentityId(): Promise<string> {
   const {
     token,

@@ -24,6 +24,7 @@ from apps.statuses.services.status_media_service import (
     create_status_media_signed_url,
     delete_status_media_object_safely,
     upload_status_media,
+    upload_status_story_image_layer,
 )
 from apps.statuses.services.status_notification_service import (
     create_status_mention_notifications_safely,
@@ -92,6 +93,8 @@ def create_status_story(
     editor_metadata: dict[str, Any] | None = None,
     uploaded_file=None,
     duration_seconds: float | None = None,
+    image_layer_files: list[dict[str, Any]] | None = None,
+    commercial_offer_link: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """
     Crea una sola historia.
@@ -129,6 +132,7 @@ def create_status_story(
 
     story = None
     uploaded_media: dict[str, Any] | None = None
+    uploaded_image_layers: list[dict[str, Any]] = []
 
     try:
         response = execute_with_supabase_admin_retry(
@@ -211,6 +215,86 @@ def create_status_story(
                     "Supabase did not attach the uploaded media."
                 )
 
+        for image_layer_input in image_layer_files or []:
+            metadata = image_layer_input["metadata"]
+            uploaded_layer = upload_status_story_image_layer(
+                owner_profile_id=owner_profile_id,
+                story_id=str(story["id"]),
+                uploaded_file=image_layer_input["file"],
+                sort_order=int(metadata["sort_order"]),
+            )
+            uploaded_image_layers.append(uploaded_layer)
+
+            layer_response = execute_with_supabase_admin_retry(
+                lambda client, metadata=metadata, uploaded_layer=uploaded_layer: (
+                    client
+                    .rpc(
+                        "status_attach_story_image_layer",
+                        {
+                            "p_story_id": str(story["id"]),
+                            "p_bucket_id": uploaded_layer["bucket_id"],
+                            "p_storage_path": uploaded_layer["storage_path"],
+                            "p_original_name": uploaded_layer["original_name"],
+                            "p_mime_type": uploaded_layer["mime_type"],
+                            "p_size_bytes": uploaded_layer["size_bytes"],
+                            "p_x": metadata["x"],
+                            "p_y": metadata["y"],
+                            "p_scale": metadata["scale"],
+                            "p_rotation": metadata["rotation"],
+                            "p_size": metadata["size"],
+                            "p_sort_order": metadata["sort_order"],
+                        },
+                    )
+                    .execute()
+                ),
+            )
+
+            if not _extract_first_row(layer_response):
+                raise StatusMediaUploadError(
+                    "Supabase did not attach the uploaded image layer."
+                )
+
+        if commercial_offer_link:
+            commercial_link_response = execute_with_supabase_admin_retry(
+                lambda client: (
+                    client
+                    .rpc(
+                        "status_attach_story_commercial_offer",
+                        {
+                            "p_story_id": str(story["id"]),
+                            "p_commercial_offer_id": (
+                                commercial_offer_link[
+                                    "commercial_offer_id"
+                                ]
+                            ),
+                            "p_commercial_offer_image_id": (
+                                commercial_offer_link[
+                                    "commercial_offer_image_id"
+                                ]
+                            ),
+                            "p_image_layer_id": (
+                                commercial_offer_link[
+                                    "image_layer_id"
+                                ]
+                            ),
+                            "p_x": commercial_offer_link["x"],
+                            "p_y": commercial_offer_link["y"],
+                            "p_scale": commercial_offer_link["scale"],
+                            "p_rotation": (
+                                commercial_offer_link["rotation"]
+                            ),
+                            "p_size": commercial_offer_link["size"],
+                        },
+                    )
+                    .execute()
+                ),
+            )
+
+            if not _extract_first_row(commercial_link_response):
+                raise StatusOperationError(
+                    "Supabase did not attach the commercial offer link."
+                )
+
         create_status_mention_notifications_safely(
             story=story,
         )
@@ -240,6 +324,12 @@ def create_status_story(
                 storage_path=uploaded_media["storage_path"],
             )
 
+        for uploaded_layer in uploaded_image_layers:
+            delete_status_media_object_safely(
+                bucket_id=uploaded_layer["bucket_id"],
+                storage_path=uploaded_layer["storage_path"],
+            )
+
         raise
 
     except Exception as error:
@@ -253,6 +343,12 @@ def create_status_story(
             delete_status_media_object_safely(
                 bucket_id=uploaded_media["bucket_id"],
                 storage_path=uploaded_media["storage_path"],
+            )
+
+        for uploaded_layer in uploaded_image_layers:
+            delete_status_media_object_safely(
+                bucket_id=uploaded_layer["bucket_id"],
+                storage_path=uploaded_layer["storage_path"],
             )
 
         _raise_status_operation_error(
@@ -1059,6 +1155,67 @@ def _enrich_story(
     else:
         enriched_story["media"] = None
 
+    raw_image_layers = enriched_story.get("image_layers")
+
+    if isinstance(raw_image_layers, list):
+        enriched_story["image_layers"] = [
+            {
+                **dict(raw_layer),
+                "url": create_status_media_signed_url(
+                    bucket_id=str(raw_layer.get("bucket_id") or ""),
+                    storage_path=str(
+                        raw_layer.get("storage_path") or ""
+                    ),
+                ),
+            }
+            for raw_layer in raw_image_layers
+            if isinstance(raw_layer, dict)
+        ]
+
+        for image_layer in enriched_story["image_layers"]:
+            image_layer["url_expires_in_seconds"] = (
+                STATUS_MEDIA_SIGNED_URL_TTL_SECONDS
+                if image_layer["url"]
+                else None
+            )
+    else:
+        enriched_story["image_layers"] = []
+
+    commercial_offer_link = enriched_story.get(
+        "commercial_offer_link"
+    )
+
+    if isinstance(commercial_offer_link, dict):
+        enriched_commercial_offer_link = dict(
+            commercial_offer_link
+        )
+        enriched_commercial_offer_link["image_url"] = (
+            create_status_media_signed_url(
+                bucket_id=str(
+                    enriched_commercial_offer_link.get(
+                        "image_bucket_id"
+                    ) or ""
+                ),
+                storage_path=str(
+                    enriched_commercial_offer_link.get(
+                        "image_storage_path"
+                    ) or ""
+                ),
+            )
+        )
+        enriched_commercial_offer_link[
+            "image_url_expires_in_seconds"
+        ] = (
+            STATUS_MEDIA_SIGNED_URL_TTL_SECONDS
+            if enriched_commercial_offer_link["image_url"]
+            else None
+        )
+        enriched_story["commercial_offer_link"] = (
+            enriched_commercial_offer_link
+        )
+    else:
+        enriched_story["commercial_offer_link"] = None
+
     if enriched_story.get("is_owner") is True:
         enriched_story["viewer_count"] = _get_story_viewer_count(
             story_id=str(enriched_story["id"]),
@@ -1305,9 +1462,9 @@ def _raise_status_operation_error(
         or "STATUS_VIDEO_MIME_TYPE_NOT_ALLOWED" in message
         or "STATUS_GIF_MIME_TYPE_NOT_ALLOWED" in message
         or "STATUS_IMAGE_MAX_SIZE_10_MB" in message
-        or "STATUS_VIDEO_MAX_SIZE_50_MB" in message
+        or "STATUS_VIDEO_MAX_SIZE_40_MB" in message
         or "STATUS_GIF_MAX_SIZE_10_MB" in message
-        or "STATUS_VIDEO_DURATION_MAX_120_SECONDS" in message
+        or "STATUS_VIDEO_DURATION_MAX_90_SECONDS" in message
         or "STATUS_GIF_DURATION_MAX_120_SECONDS" in message
     ):
         raise StatusMediaError(

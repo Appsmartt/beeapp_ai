@@ -5,9 +5,15 @@ import type {
 } from '@beeapp/shared-types';
 
 import type {
+  StatusImageLayer,
   StatusItem,
+  StatusStickerLayer,
+  StatusTextLayer,
   StatusViewedBy,
 } from '../mocks/statuses';
+import {
+  normalizeStatusFontFamily,
+} from '../components/chat/status/statusTypography';
 
 const DEFAULT_STATUS_BACKGROUND = '#1D3557';
 const DEFAULT_AUTHOR_COLOR = '#F3E8FF';
@@ -95,6 +101,319 @@ function getFirstNonEmptyText(
   );
 }
 
+function isRecord(
+  value: unknown,
+): value is Record<string, unknown> {
+  return Boolean(
+    value
+    && typeof value === 'object'
+    && !Array.isArray(value),
+  );
+}
+
+function asFiniteNumber(
+  value: unknown,
+  fallback: number,
+): number {
+  const normalizedValue = (
+    typeof value === 'number'
+      ? value
+      : (
+        typeof value === 'string'
+          && value.trim() !== ''
+          ? Number(value)
+          : Number.NaN
+      )
+  );
+
+  return Number.isFinite(normalizedValue)
+    ? normalizedValue
+    : fallback;
+}
+
+function clamp(
+  value: number,
+  minimum: number,
+  maximum: number,
+): number {
+  return Math.min(
+    maximum,
+    Math.max(minimum, value),
+  );
+}
+
+function getEditorMetadata(
+  story: StatusStory,
+): Record<string, unknown> {
+  return isRecord(story.editor_metadata)
+    ? story.editor_metadata
+    : {};
+}
+
+function getEditorBackgroundColor(
+  story: StatusStory,
+): string | null {
+  const value = getEditorMetadata(
+    story,
+  ).background_color;
+
+  if (
+    typeof value !== 'string'
+    || !/^#[0-9A-Fa-f]{6}$/.test(value)
+  ) {
+    return null;
+  }
+
+  return value.toUpperCase();
+}
+
+function getTextLayers(
+  story: StatusStory,
+): StatusTextLayer[] {
+  const metadata = getEditorMetadata(story);
+  const rawLayers = metadata.text_layers;
+
+  if (!Array.isArray(rawLayers)) {
+    return [];
+  }
+
+  const metadataFontFamily = normalizeStatusFontFamily(
+    metadata.text_font_family,
+  );
+
+  return rawLayers.flatMap((rawLayer, index) => {
+    if (!isRecord(rawLayer)) {
+      return [];
+    }
+
+    const content = String(
+      rawLayer.content || '',
+    ).trim();
+
+    if (!content) {
+      return [];
+    }
+
+    const fontWeight = (
+      rawLayer.font_weight === '700'
+      || rawLayer.font_weight === 700
+    )
+      ? '700'
+      : '400';
+
+    return [{
+      id: String(rawLayer.id || `text_${index}`),
+      content,
+      x: clamp(
+        asFiniteNumber(rawLayer.x, 50),
+        0,
+        100,
+      ),
+      y: clamp(
+        asFiniteNumber(rawLayer.y, 50),
+        0,
+        100,
+      ),
+      scale: clamp(
+        asFiniteNumber(rawLayer.scale, 1),
+        0.5,
+        3,
+      ),
+      rotation: clamp(
+        asFiniteNumber(rawLayer.rotation, 0),
+        -360,
+        360,
+      ),
+      fontSize: clamp(
+        asFiniteNumber(rawLayer.font_size, 24),
+        12,
+        72,
+      ),
+      fontWeight,
+      color: String(
+        rawLayer.color || DEFAULT_TEXT_COLOR,
+      ),
+      fontFamily: normalizeStatusFontFamily(
+        rawLayer.font_family || metadataFontFamily,
+      ),
+    }];
+  });
+}
+
+function getImageLayers(
+  story: StatusStory,
+): StatusImageLayer[] {
+  if (!Array.isArray(story.image_layers)) {
+    return [];
+  }
+
+  return story.image_layers
+    .flatMap((rawLayer, index) => {
+      const uri = rawLayer.url?.trim() || '';
+
+      if (!uri) {
+        return [];
+      }
+
+      return [{
+        layer: {
+          id: String(rawLayer.id || `image_${index}`),
+          uri,
+          name: String(rawLayer.original_name || 'imagen-adjunta.jpg'),
+          mimeType: String(rawLayer.mime_type || 'image/jpeg'),
+          sizeBytes: (
+            typeof rawLayer.size_bytes === 'number'
+            && Number.isFinite(rawLayer.size_bytes)
+            ? rawLayer.size_bytes
+            : null
+          ),
+          x: clamp(
+            asFiniteNumber(rawLayer.x, 50),
+            0,
+            100,
+          ),
+          y: clamp(
+            asFiniteNumber(rawLayer.y, 50),
+            0,
+            100,
+          ),
+          scale: clamp(
+            asFiniteNumber(rawLayer.scale, 1),
+            0.5,
+            3,
+          ),
+          rotation: clamp(
+            asFiniteNumber(rawLayer.rotation, 0),
+            -360,
+            360,
+          ),
+          size: clamp(
+            asFiniteNumber(rawLayer.size, 120),
+            24,
+            220,
+          ),
+        },
+        sortOrder: asFiniteNumber(rawLayer.sort_order, index),
+      }];
+    })
+    .sort((left, right) => left.sortOrder - right.sortOrder)
+    .map((item) => item.layer);
+}
+
+
+function getStickerLayers(
+  story: StatusStory,
+): StatusStickerLayer[] {
+  const rawLayers = getEditorMetadata(
+    story,
+  ).sticker_layers;
+
+  if (!Array.isArray(rawLayers)) {
+    return [];
+  }
+
+  return rawLayers.flatMap((rawLayer, index) => {
+    if (!isRecord(rawLayer)) {
+      return [];
+    }
+
+    const stickerId = String(
+      rawLayer.sticker_id || '',
+    ).trim();
+
+    if (!stickerId) {
+      return [];
+    }
+
+    return [{
+      id: String(
+        rawLayer.id || `sticker_${index}`,
+      ),
+      stickerId,
+      x: clamp(
+        asFiniteNumber(rawLayer.x, 50),
+        0,
+        100,
+      ),
+      y: clamp(
+        asFiniteNumber(rawLayer.y, 50),
+        0,
+        100,
+      ),
+      scale: clamp(
+        asFiniteNumber(rawLayer.scale, 1),
+        0.5,
+        3,
+      ),
+      rotation: clamp(
+        asFiniteNumber(rawLayer.rotation, 0),
+        -360,
+        360,
+      ),
+    }];
+  });
+}
+
+function getLinkedProduct(
+  story: StatusStory,
+): StatusItem['linkedProduct'] {
+  const link = story.commercial_offer_link;
+
+  if (
+    !link
+    || typeof link.commercial_offer_id !== 'string'
+    || !link.commercial_offer_id.trim()
+    || typeof link.offer_title_snapshot !== 'string'
+    || !link.offer_title_snapshot.trim()
+    || typeof link.image_url !== 'string'
+    || !link.image_url.trim()
+  ) {
+    return null;
+  }
+
+  return {
+    id: link.commercial_offer_id,
+    name: link.offer_title_snapshot.trim(),
+    price: null,
+    kind: (
+      link.offer_kind_snapshot === 'service'
+        ? 'service'
+        : 'product'
+    ),
+    imageUrl: link.image_url.trim(),
+    imageLayerId: String(
+      link.image_layer_id
+      || `commercial_offer_${link.commercial_offer_image_id}`,
+    ),
+    x: clamp(asFiniteNumber(link.x, 50), 0, 100),
+    y: clamp(asFiniteNumber(link.y, 50), 0, 100),
+    scale: clamp(asFiniteNumber(link.scale, 1), 0.5, 3),
+    rotation: clamp(asFiniteNumber(link.rotation, 0), -360, 360),
+    size: clamp(asFiniteNumber(link.size, 96), 24, 220),
+  };
+}
+
+function getLegacyTextLayer(
+  text: string,
+): StatusTextLayer | null {
+  if (!text) {
+    return null;
+  }
+
+  return {
+    id: 'legacy_text',
+    content: text,
+    x: 50,
+    y: 50,
+    scale: 1,
+    rotation: 0,
+    fontSize: 24,
+    fontWeight: '400',
+    color: DEFAULT_TEXT_COLOR,
+    fontFamily: normalizeStatusFontFamily(null),
+  };
+}
+
 export function createStatusBackgroundMap(
   backgrounds: StatusTextBackground[],
 ): Map<string, StatusTextBackground> {
@@ -142,6 +461,17 @@ export function mapStatusStoryToUi(
   );
 
   const text = getFirstNonEmptyText(story);
+  const restoredTextLayers = getTextLayers(story);
+  const textLayers = restoredTextLayers.length > 0
+    ? restoredTextLayers
+    : [
+        getLegacyTextLayer(text),
+      ].filter((
+        layer,
+      ): layer is StatusTextLayer => Boolean(layer));
+  const primaryTextLayer = textLayers[0] || null;
+  const imageLayers = getImageLayers(story);
+  const stickerLayers = getStickerLayers(story);
 
   return {
     id: story.id,
@@ -149,26 +479,45 @@ export function mapStatusStoryToUi(
     authorName,
     authorInitials: getInitials(authorName),
     authorColor: DEFAULT_AUTHOR_COLOR,
+    authorAvatarUrl: story.actor.avatar_url?.trim() || null,
     type,
     text,
     photoUrl: isMedia
       ? story.media?.url || null
       : null,
+    durationSeconds: (
+      story.kind === 'video'
+      && typeof story.media?.duration_seconds === 'number'
+      && Number.isFinite(story.media.duration_seconds)
+      && story.media.duration_seconds > 0
+    )
+      ? story.media.duration_seconds
+      : null,
     bgColor: isMedia
       ? null
-      : resolveTextBackgroundColor(
-          story,
-          backgroundsById,
+      : (
+          getEditorBackgroundColor(story)
+          || resolveTextBackgroundColor(
+            story,
+            backgroundsById,
+          )
         ),
-    linkedProduct: null,
+    linkedProduct: getLinkedProduct(story),
     textPosition: {
-      x: 50,
-      y: 50,
+      x: primaryTextLayer?.x ?? 50,
+      y: primaryTextLayer?.y ?? 50,
     },
-    textSize: 24,
-    textWeight: '400',
-    textColor: DEFAULT_TEXT_COLOR,
+    textSize: primaryTextLayer?.fontSize ?? 24,
+    textWeight: primaryTextLayer?.fontWeight ?? '400',
+    textFontFamily: primaryTextLayer?.fontFamily
+      || normalizeStatusFontFamily(null),
+    textColor: primaryTextLayer?.color ?? DEFAULT_TEXT_COLOR,
+    textLayers,
+    imageLayers,
+    stickerLayers,
     timestamp: formatRelativeTime(story.created_at),
+    createdAt: story.created_at,
+    isOwn: story.is_owner,
     viewed: story.is_viewed,
     viewedBy: story.is_owner
       ? []

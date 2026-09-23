@@ -5,6 +5,7 @@ import {
   ShoppingCart,
   ShoppingBag,
   Sparkles,
+  Store,
   UserRound,
 } from "lucide-react-native";
 import { colors } from "@beeapp/design-system";
@@ -53,7 +54,7 @@ export default function MainQuickActions() {
           accessibilityLabel="Abrir BuddyService privado"
           accessibilityHint="Abre la pestaña privada de BuddyService"
         >
-          <ShoppingCart size={20} color="#5D9D8C" strokeWidth={2.1} />
+          <Store size={20} color="#5D9D8C" strokeWidth={2.1} />
         </TouchableOpacity>
       </View>
 

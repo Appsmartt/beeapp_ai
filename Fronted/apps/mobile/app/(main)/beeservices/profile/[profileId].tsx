@@ -66,6 +66,9 @@ import {
 import {
   getDefaultRequestedModality,
 } from '../../../../src/features/buddyservices/commercialOfferAction';
+import {
+  openCommercialDirectConversation,
+} from '../../../../src/hooks/useChat';
 
 type ProfileTab =
   | 'products'
@@ -226,6 +229,7 @@ export default function BuddyServicesPublicProfileScreen() {
   const [cart, setCart] = useState<BusinessCart | null>(
     () => getBusinessCart(),
   );
+  const [openingChat, setOpeningChat] = useState(false);
 
   useEffect(() => (
     subscribeBusinessCart((change) => {
@@ -425,17 +429,46 @@ export default function BuddyServicesPublicProfileScreen() {
     );
   }, [profile]);
 
-  const handleMessage = useCallback(() => {
-    Alert.alert(
-      'Chat comercial',
-      (
-        'El chat con identidad de negocio se habilitará '
-        + 'en el Bloque 7. Por ahora las solicitudes y '
-        + 'acciones críticas se gestionan desde pantallas '
-        + 'formales.'
-      ),
-    );
-  }, []);
+  const handleMessage = useCallback(async () => {
+    if (!profile || openingChat) {
+      return;
+    }
+
+    try {
+      setOpeningChat(true);
+
+      const result = await openCommercialDirectConversation(
+        profile.id,
+      );
+
+      router.push({
+        pathname: '/(main)/chat/conversation',
+        params: {
+          id: result.conversationId,
+          name: result.displayName,
+          isGroup: 'false',
+          isAi: 'false',
+          online: 'false',
+          focusComposer: 'true',
+        },
+      });
+    } catch (chatError) {
+      const uiError = toCommercialUiError(chatError);
+
+      Alert.alert(
+        uiError.title || 'No fue posible abrir el chat',
+        uiError.message || (
+          'Inténtalo nuevamente en unos momentos.'
+        ),
+      );
+    } finally {
+      setOpeningChat(false);
+    }
+  }, [
+    openingChat,
+    profile,
+    router,
+  ]);
 
   if (loading && !profile) {
     return (
@@ -607,16 +640,27 @@ export default function BuddyServicesPublicProfileScreen() {
               accessibilityLabel="Enviar mensaje al negocio"
               accessibilityRole="button"
               activeOpacity={0.8}
-              onPress={handleMessage}
-              style={styles.messageButton}
+              disabled={openingChat}
+              onPress={() => void handleMessage()}
+              style={[
+                styles.messageButton,
+                openingChat && styles.messageButtonDisabled,
+              ]}
             >
-              <MessageCircle
-                color="#FFFFFF"
-                size={18}
-              />
+              {openingChat ? (
+                <ActivityIndicator
+                  color="#FFFFFF"
+                  size="small"
+                />
+              ) : (
+                <MessageCircle
+                  color="#FFFFFF"
+                  size={18}
+                />
+              )}
 
               <Text style={styles.messageButtonText}>
-                Mensaje
+                {openingChat ? 'Abriendo...' : 'Mensaje'}
               </Text>
             </TouchableOpacity>
 
@@ -1039,6 +1083,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'center',
     minHeight: 48,
+  },
+  messageButtonDisabled: {
+    opacity: 0.7,
   },
   messageButtonText: {
     color: '#FFFFFF',

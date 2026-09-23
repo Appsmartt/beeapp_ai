@@ -432,6 +432,12 @@ class StatusCollectionView(AuthenticatedAPIView):
                     if duration_seconds is not None
                     else None
                 ),
+                image_layer_files=serializer.validated_data[
+                    "image_layer_files"
+                ],
+                commercial_offer_link=serializer.validated_data.get(
+                    "commercial_offer_link"
+                ),
             )
         except (
             AccountAuthenticationError,
