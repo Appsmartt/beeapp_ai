@@ -990,8 +990,12 @@ export default function ChatListScreen() {
       setPublishingStatus(true);
       setStatusPublishingMessage(null);
 
+      const uploadableImageLayers = draft.imageLayers.filter(
+        (layer) => layer.source !== 'commercial_offer',
+      );
+
       const imageLayers: StatusImageLayerUpload[] = await Promise.all(
-        draft.imageLayers.map(async (layer, sortOrder) => {
+        uploadableImageLayers.map(async (layer, sortOrder) => {
           const preparedLayer = await prepareStatusImageLayerForUpload({
             uri: layer.uri,
             name: layer.name,
@@ -1050,6 +1054,11 @@ export default function ChatListScreen() {
             caption: draft.caption,
             editor_metadata: draft.editorMetadata,
             image_layers: imageLayers,
+            ...(draft.commercialOfferLink
+              ? {
+                  commercial_offer_link: draft.commercialOfferLink,
+                }
+              : {}),
             ...(isCommercialContext
               ? {
                   actor_type: 'commercial_profile' as const,
@@ -1110,6 +1119,11 @@ export default function ChatListScreen() {
           caption: draft.caption,
           editor_metadata: draft.editorMetadata,
           image_layers: imageLayers,
+          ...(draft.commercialOfferLink
+            ? {
+                commercial_offer_link: draft.commercialOfferLink,
+              }
+            : {}),
           ...(isCommercialContext
             ? {
                 actor_type: 'commercial_profile' as const,
@@ -1441,6 +1455,11 @@ export default function ChatListScreen() {
         isPublishing={publishingStatus}
         publishingPhase={statusPublishingPhase}
         publishingMessage={statusPublishingMessage}
+        commercialBusinessId={
+          isCommercialContext
+            ? businessId
+            : null
+        }
         onDismissPublishingError={() => {
           setStatusPublishingPhase('idle');
           setStatusPublishingMessage(null);

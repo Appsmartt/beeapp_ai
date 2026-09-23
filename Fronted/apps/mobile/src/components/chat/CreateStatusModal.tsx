@@ -44,11 +44,13 @@ import ImageLayerManager from './status/ImageLayerManager';
 import StickerLayerManager from './status/StickerLayerManager';
 import MentionDropdown from './status/MentionDropdown';
 import StickerPicker from './status/StickerPicker';
+import ProductLinkSelector, {
+  type SelectedCommercialOfferImage,
+} from './ProductLinkSelector';
 import {
   useStatusLayers,
 } from './status/useStatusLayers';
 import type {
-  StatusImageLayerUpload,
   StatusTextBackground,
 } from '@beeapp/shared-types';
 
@@ -83,12 +85,36 @@ export type StatusPublishingPhase =
   | 'uploading'
   | 'error';
 
+export interface StatusEditorImageLayerDraft {
+  id: string;
+  uri: string;
+  name: string;
+  mimeType: string;
+  x: number;
+  y: number;
+  scale: number;
+  rotation: number;
+  size: number;
+  sortOrder: number;
+  source?: 'local' | 'commercial_offer';
+}
+
 export interface StatusEditorPublishDraft {
   textContent: string;
+  commercialOfferLink: {
+    commercial_offer_id: string;
+    commercial_offer_image_id: string;
+    image_layer_id: string;
+    x: number;
+    y: number;
+    scale: number;
+    rotation: number;
+    size: number;
+  } | null;
   backgroundColor: string;
   caption: string | null;
   media: SelectedStatusMedia | null;
-  imageLayers: StatusImageLayerUpload[];
+  imageLayers: StatusEditorImageLayerDraft[];
   editorMetadata: Record<string, unknown>;
 }
 
@@ -100,6 +126,7 @@ interface CreateStatusModalProps {
   isPublishing?: boolean;
   publishingPhase?: StatusPublishingPhase;
   publishingMessage?: string | null;
+  commercialBusinessId?: string | null;
   onDismissPublishingError?: () => void;
   onPublish: (
     draft: StatusEditorPublishDraft,
@@ -222,6 +249,7 @@ export default function CreateStatusModal({
   isPublishing = false,
   publishingPhase = 'idle',
   publishingMessage = null,
+  commercialBusinessId = null,
   onDismissPublishingError,
   onPublish,
   onClose,
@@ -241,8 +269,13 @@ export default function CreateStatusModal({
     STATUS_DEFAULT_FONT_FAMILY,
   );
   const [sheet, setSheet] = useState<
-    'stickers' | null
+    'stickers' | 'commercial_offer' | null
   >(null);
+  const [selectedCommercialOffer, setSelectedCommercialOffer] = useState<{
+    commercialOfferId: string;
+    commercialOfferImageId: string;
+    imageLayerId: string;
+  } | null>(null);
   const [mentionQuery, setMentionQuery] = useState<
     string | null
   >(null);
@@ -297,6 +330,7 @@ export default function CreateStatusModal({
     setLastTextColor(STATUS_TEXT_COLORS[0]);
     setSelectedFontFamily(STATUS_DEFAULT_FONT_FAMILY);
     setSheet(null);
+    setSelectedCommercialOffer(null);
     setMentionQuery(null);
     const isTextStatus = (
       !initialMedia
@@ -521,6 +555,39 @@ export default function CreateStatusModal({
     }
   };
 
+  const handleSelectCommercialOffer = (
+    selection: SelectedCommercialOfferImage,
+  ) => {
+    const hasCommercialLayer = images.some(
+      (layer) => layer.source === 'commercial_offer',
+    );
+
+    if (!hasCommercialLayer && images.length >= 3) {
+      Alert.alert(
+        'Límite de imágenes',
+        'El estado ya tiene el máximo de imágenes adjuntas. Elimina una imagen para agregar este producto o servicio.',
+      );
+      return;
+    }
+
+    const imageLayerId = layers.upsertCommercialOfferImage({
+      uri: selection.uri,
+      name: selection.name,
+      mimeType: selection.mimeType,
+      sizeBytes: selection.sizeBytes,
+      commercialOfferImageId: selection.commercialOfferImageId,
+      commercialOfferTitle: selection.offerTitle,
+    });
+
+    setSelectedCommercialOffer({
+      commercialOfferId: selection.commercialOfferId,
+      commercialOfferImageId: selection.commercialOfferImageId,
+      imageLayerId,
+    });
+    setSheet(null);
+    stopTextEditing();
+  };
+
   const hasTextContent = texts.some(
     (layer) => Boolean(layer.content.trim()),
   );
@@ -544,8 +611,28 @@ export default function CreateStatusModal({
       return;
     }
 
+    const commercialLayer = images.find(
+      (layer) => layer.source === 'commercial_offer',
+    );
+    const commercialOfferLink = (
+      selectedCommercialOffer
+      && commercialLayer
+    )
+      ? {
+          commercial_offer_id: selectedCommercialOffer.commercialOfferId,
+          commercial_offer_image_id: selectedCommercialOffer.commercialOfferImageId,
+          image_layer_id: selectedCommercialOffer.imageLayerId,
+          x: commercialLayer.x,
+          y: commercialLayer.y,
+          scale: commercialLayer.scale,
+          rotation: commercialLayer.rotation,
+          size: commercialLayer.size,
+        }
+      : null;
+
     await onPublish({
       textContent,
+      commercialOfferLink,
       backgroundColor: bgColor,
       caption: textContent || null,
       media,
@@ -560,6 +647,7 @@ export default function CreateStatusModal({
         rotation: layer.rotation,
         size: layer.size,
         sortOrder,
+        source: layer.source || 'local',
       })),
       editorMetadata: serializeEditorMetadata({
         texts,
@@ -843,7 +931,14 @@ export default function CreateStatusModal({
                 );
               }}
               onRemove={(id) => {
+                const removedLayer = images.find(
+                  (layer) => layer.id === id,
+                );
                 layers.removeLayer('image', id);
+
+                if (removedLayer?.source === 'commercial_offer') {
+                  setSelectedCommercialOffer(null);
+                }
               }}
             />
 
@@ -963,6 +1058,13 @@ export default function CreateStatusModal({
             onAddImage={() => {
               void handlePickImageLayer();
             }}
+            commercialOfferSelected={Boolean(selectedCommercialOffer)}
+            canAddCommercialOffer={Boolean(commercialBusinessId)}
+            onOpenCommercialOffer={() => {
+              if (commercialBusinessId) {
+                setSheet('commercial_offer');
+              }
+            }}
             stickerCount={stickers.length}
             onOpenStickers={() => {
               setSheet('stickers');
@@ -977,6 +1079,18 @@ export default function CreateStatusModal({
           />
         </ScreenSafeArea>
         )}
+
+        <ProductLinkSelector
+          visible={sheet === 'commercial_offer'}
+          businessId={commercialBusinessId || ''}
+          selectedOfferImageId={
+            selectedCommercialOffer?.commercialOfferImageId
+          }
+          onSelect={handleSelectCommercialOffer}
+          onClose={() => {
+            setSheet(null);
+          }}
+        />
 
         <StickerPicker
           visible={sheet === 'stickers'}

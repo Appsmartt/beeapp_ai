@@ -103,7 +103,13 @@ export function useStatusLayers(
   const addImage = useCallback((
     image: Pick<
       StatusImageLayer,
-      'uri' | 'name' | 'mimeType' | 'sizeBytes'
+      | 'uri'
+      | 'name'
+      | 'mimeType'
+      | 'sizeBytes'
+      | 'source'
+      | 'commercialOfferImageId'
+      | 'commercialOfferTitle'
     >,
   ) => {
     setImages((prev) => {
@@ -130,6 +136,84 @@ export function useStatusLayers(
       return [...prev, layer];
     });
   }, []);
+
+  const upsertCommercialOfferImage = useCallback(
+    (
+      image: Pick<
+        StatusImageLayer,
+        | 'uri'
+        | 'name'
+        | 'mimeType'
+        | 'sizeBytes'
+        | 'commercialOfferImageId'
+        | 'commercialOfferTitle'
+      >,
+    ): string => {
+      const imageLayerId = (
+        `commercial_offer_${image.commercialOfferImageId}`
+      );
+
+      setImages((currentImages) => {
+        const existingLayer = currentImages.find(
+          (layer) => layer.source === 'commercial_offer',
+        );
+
+        if (existingLayer) {
+          const nextImages = currentImages.map((layer) => (
+            layer.id === existingLayer.id
+              ? {
+                  ...layer,
+                  ...image,
+                  id: imageLayerId,
+                  source: 'commercial_offer' as const,
+                }
+              : layer
+          ));
+
+          setSelection({
+            kind: 'image',
+            id: imageLayerId,
+          });
+
+          return nextImages;
+        }
+
+        if (currentImages.length >= MAX_IMAGE_LAYERS) {
+          return currentImages;
+        }
+
+        const initialPositions = [
+          { x: 28, y: 30 },
+          { x: 50, y: 50 },
+          { x: 72, y: 70 },
+        ];
+        const initialPosition = (
+          initialPositions[currentImages.length]
+          || initialPositions[initialPositions.length - 1]
+        );
+        const layer: StatusImageLayer = {
+          id: imageLayerId,
+          ...image,
+          source: 'commercial_offer',
+          x: initialPosition.x,
+          y: initialPosition.y,
+          scale: 1,
+          rotation: 0,
+          size: 96,
+        };
+
+        setSelection({
+          kind: 'image',
+          id: layer.id,
+        });
+
+        return [...currentImages, layer];
+      });
+
+      return imageLayerId;
+    },
+    [],
+  );
 
   const addSticker = useCallback((stickerId: string) => {
     setStickers((prev) => {
@@ -242,6 +326,7 @@ export function useStatusLayers(
     reset,
     addText,
     addImage,
+    upsertCommercialOfferImage,
     addSticker,
     patchText,
     setAllTextFontFamilies,

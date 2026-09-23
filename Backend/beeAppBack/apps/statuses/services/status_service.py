@@ -94,6 +94,7 @@ def create_status_story(
     uploaded_file=None,
     duration_seconds: float | None = None,
     image_layer_files: list[dict[str, Any]] | None = None,
+    commercial_offer_link: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """
     Crea una sola historia.
@@ -251,6 +252,47 @@ def create_status_story(
             if not _extract_first_row(layer_response):
                 raise StatusMediaUploadError(
                     "Supabase did not attach the uploaded image layer."
+                )
+
+        if commercial_offer_link:
+            commercial_link_response = execute_with_supabase_admin_retry(
+                lambda client: (
+                    client
+                    .rpc(
+                        "status_attach_story_commercial_offer",
+                        {
+                            "p_story_id": str(story["id"]),
+                            "p_commercial_offer_id": (
+                                commercial_offer_link[
+                                    "commercial_offer_id"
+                                ]
+                            ),
+                            "p_commercial_offer_image_id": (
+                                commercial_offer_link[
+                                    "commercial_offer_image_id"
+                                ]
+                            ),
+                            "p_image_layer_id": (
+                                commercial_offer_link[
+                                    "image_layer_id"
+                                ]
+                            ),
+                            "p_x": commercial_offer_link["x"],
+                            "p_y": commercial_offer_link["y"],
+                            "p_scale": commercial_offer_link["scale"],
+                            "p_rotation": (
+                                commercial_offer_link["rotation"]
+                            ),
+                            "p_size": commercial_offer_link["size"],
+                        },
+                    )
+                    .execute()
+                ),
+            )
+
+            if not _extract_first_row(commercial_link_response):
+                raise StatusOperationError(
+                    "Supabase did not attach the commercial offer link."
                 )
 
         create_status_mention_notifications_safely(
@@ -1138,6 +1180,41 @@ def _enrich_story(
             )
     else:
         enriched_story["image_layers"] = []
+
+    commercial_offer_link = enriched_story.get(
+        "commercial_offer_link"
+    )
+
+    if isinstance(commercial_offer_link, dict):
+        enriched_commercial_offer_link = dict(
+            commercial_offer_link
+        )
+        enriched_commercial_offer_link["image_url"] = (
+            create_status_media_signed_url(
+                bucket_id=str(
+                    enriched_commercial_offer_link.get(
+                        "image_bucket_id"
+                    ) or ""
+                ),
+                storage_path=str(
+                    enriched_commercial_offer_link.get(
+                        "image_storage_path"
+                    ) or ""
+                ),
+            )
+        )
+        enriched_commercial_offer_link[
+            "image_url_expires_in_seconds"
+        ] = (
+            STATUS_MEDIA_SIGNED_URL_TTL_SECONDS
+            if enriched_commercial_offer_link["image_url"]
+            else None
+        )
+        enriched_story["commercial_offer_link"] = (
+            enriched_commercial_offer_link
+        )
+    else:
+        enriched_story["commercial_offer_link"] = None
 
     if enriched_story.get("is_owner") is True:
         enriched_story["viewer_count"] = _get_story_viewer_count(

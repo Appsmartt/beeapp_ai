@@ -354,6 +354,45 @@ function getStickerLayers(
   });
 }
 
+function getLinkedProduct(
+  story: StatusStory,
+): StatusItem['linkedProduct'] {
+  const link = story.commercial_offer_link;
+
+  if (
+    !link
+    || typeof link.commercial_offer_id !== 'string'
+    || !link.commercial_offer_id.trim()
+    || typeof link.offer_title_snapshot !== 'string'
+    || !link.offer_title_snapshot.trim()
+    || typeof link.image_url !== 'string'
+    || !link.image_url.trim()
+  ) {
+    return null;
+  }
+
+  return {
+    id: link.commercial_offer_id,
+    name: link.offer_title_snapshot.trim(),
+    price: null,
+    kind: (
+      link.offer_kind_snapshot === 'service'
+        ? 'service'
+        : 'product'
+    ),
+    imageUrl: link.image_url.trim(),
+    imageLayerId: String(
+      link.image_layer_id
+      || `commercial_offer_${link.commercial_offer_image_id}`,
+    ),
+    x: clamp(asFiniteNumber(link.x, 50), 0, 100),
+    y: clamp(asFiniteNumber(link.y, 50), 0, 100),
+    scale: clamp(asFiniteNumber(link.scale, 1), 0.5, 3),
+    rotation: clamp(asFiniteNumber(link.rotation, 0), -360, 360),
+    size: clamp(asFiniteNumber(link.size, 96), 24, 220),
+  };
+}
+
 function getLegacyTextLayer(
   text: string,
 ): StatusTextLayer | null {
@@ -463,7 +502,7 @@ export function mapStatusStoryToUi(
             backgroundsById,
           )
         ),
-    linkedProduct: null,
+    linkedProduct: getLinkedProduct(story),
     textPosition: {
       x: primaryTextLayer?.x ?? 50,
       y: primaryTextLayer?.y ?? 50,

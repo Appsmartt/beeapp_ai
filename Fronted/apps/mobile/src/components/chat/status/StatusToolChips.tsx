@@ -1,7 +1,7 @@
 import { ReactNode } from 'react';
 import { Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { colors, spacing, radii } from '@beeapp/design-system';
-import { Type, ImagePlus, Sticker, Camera, X } from 'lucide-react-native';
+import { Type, ImagePlus, Sticker, Camera, X, ShoppingBag } from 'lucide-react-native';
 import { MAX_IMAGE_LAYERS, MAX_STICKER_LAYERS, MAX_TEXT_LAYERS } from '../../../mocks/statusMedia';
 
 interface StatusToolChipsProps {
@@ -9,6 +9,9 @@ interface StatusToolChipsProps {
   onAddText: () => void;
   imageCount: number;
   onAddImage: () => void;
+  commercialOfferSelected: boolean;
+  canAddCommercialOffer: boolean;
+  onOpenCommercialOffer: () => void;
   stickerCount: number;
   onOpenStickers: () => void;
   hasPhoto: boolean;
@@ -60,6 +63,17 @@ export default function StatusToolChips(props: StatusToolChipsProps) {
         label={`Imagen ${props.imageCount}/${MAX_IMAGE_LAYERS}`}
         onPress={props.onAddImage}
         disabled={props.imageCount >= MAX_IMAGE_LAYERS}
+      />
+
+      <Chip
+        icon={<ShoppingBag size={16} color={iconColor} />}
+        label={
+          props.commercialOfferSelected
+            ? 'Cambiar producto o servicio'
+            : 'Producto o servicio'
+        }
+        onPress={props.onOpenCommercialOffer}
+        disabled={!props.canAddCommercialOffer}
       />
 
       <Chip

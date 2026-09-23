@@ -11,6 +11,14 @@ export interface StatusProductLink {
   name: string;
   /** null en servicios: se muestra "Cotización" */
   price: number | null;
+  kind?: 'product' | 'service';
+  imageUrl?: string | null;
+  imageLayerId?: string;
+  x?: number;
+  y?: number;
+  scale?: number;
+  rotation?: number;
+  size?: number;
 }
 
 /** Posición del texto sobre el estado, en porcentaje del alto y ancho */
@@ -46,6 +54,9 @@ export interface StatusImageLayer {
   rotation: number;
   size: number;
   color?: string;
+  source?: 'local' | 'commercial_offer';
+  commercialOfferImageId?: string;
+  commercialOfferTitle?: string;
 }
 
 /** Capa de sticker: un ícono de Lucide sobre un círculo de color suave */
