@@ -558,6 +558,11 @@ export default function CreateStatusModal({
   const handleSelectCommercialOffer = (
     selection: SelectedCommercialOfferImage,
   ) => {
+    if (!commercialBusinessId) {
+      setSheet(null);
+      return;
+    }
+
     const hasCommercialLayer = images.some(
       (layer) => layer.source === 'commercial_offer',
     );
@@ -615,7 +620,8 @@ export default function CreateStatusModal({
       (layer) => layer.source === 'commercial_offer',
     );
     const commercialOfferLink = (
-      selectedCommercialOffer
+      commercialBusinessId
+      && selectedCommercialOffer
       && commercialLayer
     )
       ? {
