@@ -6,6 +6,7 @@ import type {
 
 import type {
   StatusItem,
+  StatusStickerLayer,
   StatusTextLayer,
   StatusViewedBy,
 } from '../mocks/statuses';
@@ -230,6 +231,59 @@ function getTextLayers(
   });
 }
 
+function getStickerLayers(
+  story: StatusStory,
+): StatusStickerLayer[] {
+  const rawLayers = getEditorMetadata(
+    story,
+  ).sticker_layers;
+
+  if (!Array.isArray(rawLayers)) {
+    return [];
+  }
+
+  return rawLayers.flatMap((rawLayer, index) => {
+    if (!isRecord(rawLayer)) {
+      return [];
+    }
+
+    const stickerId = String(
+      rawLayer.sticker_id || '',
+    ).trim();
+
+    if (!stickerId) {
+      return [];
+    }
+
+    return [{
+      id: String(
+        rawLayer.id || `sticker_${index}`,
+      ),
+      stickerId,
+      x: clamp(
+        asFiniteNumber(rawLayer.x, 50),
+        0,
+        100,
+      ),
+      y: clamp(
+        asFiniteNumber(rawLayer.y, 50),
+        0,
+        100,
+      ),
+      scale: clamp(
+        asFiniteNumber(rawLayer.scale, 1),
+        0.5,
+        3,
+      ),
+      rotation: clamp(
+        asFiniteNumber(rawLayer.rotation, 0),
+        -360,
+        360,
+      ),
+    }];
+  });
+}
+
 function getLegacyTextLayer(
   text: string,
 ): StatusTextLayer | null {
@@ -307,6 +361,7 @@ export function mapStatusStoryToUi(
         layer,
       ): layer is StatusTextLayer => Boolean(layer));
   const primaryTextLayer = textLayers[0] || null;
+  const stickerLayers = getStickerLayers(story);
 
   return {
     id: story.id,
@@ -348,6 +403,7 @@ export function mapStatusStoryToUi(
       || normalizeStatusFontFamily(null),
     textColor: primaryTextLayer?.color ?? DEFAULT_TEXT_COLOR,
     textLayers,
+    stickerLayers,
     timestamp: formatRelativeTime(story.created_at),
     createdAt: story.created_at,
     isOwn: story.is_owner,
