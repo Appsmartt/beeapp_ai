@@ -40,6 +40,7 @@ import ScreenSafeArea from '../layout/ScreenSafeArea';
 import StatusProgressPills from './StatusProgressPills';
 import StatusViewersSheet from './StatusViewersSheet';
 import { StatusItem, StatusViewedBy } from '../../mocks/statuses';
+import { STICKER_LAYER_SIZE } from '../../mocks/statusMedia';
 import { formatPrice } from '../../mocks/myServices';
 import {
   loadStatusViewers,
@@ -51,6 +52,9 @@ import {
 import {
   STATUS_DEFAULT_FONT_FAMILY,
 } from './status/statusTypography';
+import {
+  getSticker,
+} from './status/stickerCatalog';
 import {
   useStatusTypography,
 } from './status/useStatusTypography';
@@ -373,6 +377,8 @@ export default function StatusViewer({
     ? status.textLayers
     : fallbackTextLayers;
 
+  const stickerLayers = status.stickerLayers || [];
+
   return (
     <Modal visible={visible} animationType="fade" onRequestClose={onClose} statusBarTranslucent>
       <GestureHandlerRootView style={styles.root}>
@@ -544,6 +550,54 @@ export default function StatusViewer({
                     }}
                   />
                 ) : null}
+                {stickerLayers.map((layer) => {
+                  const sticker = getSticker(layer.stickerId);
+
+                  return (
+                    <View
+                      key={layer.id}
+                      style={[
+                        styles.stickerLayer,
+                        {
+                          left: `${layer.x}%`,
+                          top: `${layer.y}%`,
+                          transform: [
+                            {
+                              translateX: -(
+                                STICKER_LAYER_SIZE / 2
+                              ),
+                            },
+                            {
+                              translateY: -(
+                                STICKER_LAYER_SIZE / 2
+                              ),
+                            },
+                            {
+                              rotate: `${layer.rotation}deg`,
+                            },
+                            {
+                              scale: layer.scale,
+                            },
+                          ],
+                        },
+                      ]}
+                    >
+                      <View
+                        style={[
+                          styles.stickerBubble,
+                          {
+                            backgroundColor: sticker.background,
+                          },
+                        ]}
+                      >
+                        <sticker.Icon
+                          size={44}
+                          color={sticker.color}
+                        />
+                      </View>
+                    </View>
+                  );
+                })}
                 {textLayers.map((layer) => {
                   const fontFamily = fontsLoaded
                     ? layer.fontFamily
@@ -905,6 +959,16 @@ const styles = StyleSheet.create({
   stage: { flex: 1, margin: spacing.lg },
   photoCard: { ...StyleSheet.absoluteFillObject, borderRadius: 20, elevation: 10 },
   textLayer: { position: 'absolute', width: '86%', marginLeft: '-43%' },
+  stickerLayer: {
+    position: 'absolute',
+  },
+  stickerBubble: {
+    alignItems: 'center',
+    borderRadius: STICKER_LAYER_SIZE / 2,
+    height: STICKER_LAYER_SIZE,
+    justifyContent: 'center',
+    width: STICKER_LAYER_SIZE,
+  },
   statusText: { textAlign: 'center' },
   replyHint: {
     alignItems: 'center',
