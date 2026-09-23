@@ -21,6 +21,7 @@ import type {
   StatusFeedQuery,
   StatusFollowDiscoverQuery,
   StatusFollowListQuery,
+  StatusImageLayerUpload,
   StatusFollowersQuery,
   StatusMineQuery,
   StatusMineResponse,
@@ -81,9 +82,48 @@ function appendOptionalJson(
   formData.append(key, JSON.stringify(value));
 }
 
+function appendImageLayers(
+  formData: FormData,
+  imageLayers: StatusImageLayerUpload[] | undefined,
+): void {
+  if (!imageLayers || imageLayers.length === 0) {
+    return;
+  }
+
+  const sortedLayers = [...imageLayers].sort(
+    (left, right) => left.sortOrder - right.sortOrder,
+  );
+
+  formData.append(
+    'image_layers_metadata',
+    JSON.stringify(
+      sortedLayers.map((layer) => ({
+        id: layer.id,
+        x: layer.x,
+        y: layer.y,
+        scale: layer.scale,
+        rotation: layer.rotation,
+        size: layer.size,
+        sort_order: layer.sortOrder,
+      })),
+    ),
+  );
+
+  sortedLayers.forEach((layer) => {
+    formData.append(
+      `image_layer_file_${layer.sortOrder}`,
+      {
+        uri: layer.uri,
+        name: layer.name,
+        type: layer.mimeType,
+      } as unknown as Blob,
+    );
+  });
+}
+
 function appendActorFields(
   formData: FormData,
-  payload: CreateMediaStatusPayload,
+  payload: CreateMediaStatusPayload | CreateTextStatusPayload,
 ): void {
   if (payload.actor_type) {
     formData.append(
@@ -289,6 +329,43 @@ export async function createTextStatus(
   );
 }
 
+export async function createTextStatusWithImageLayers(
+  auth: AuthCredentials,
+  payload: CreateTextStatusPayload,
+): Promise<CreateStatusResponse> {
+  const formData = new FormData();
+
+  formData.append('kind', payload.kind);
+  appendActorFields(formData, payload);
+  appendOptionalString(
+    formData,
+    'caption',
+    payload.caption,
+  );
+  formData.append(
+    'text_content',
+    payload.text_content,
+  );
+  formData.append(
+    'text_background_id',
+    payload.text_background_id,
+  );
+  appendOptionalJson(
+    formData,
+    'editor_metadata',
+    payload.editor_metadata,
+  );
+  appendImageLayers(formData, payload.image_layers);
+
+  return api.upload<CreateStatusResponse>(
+    '/statuses/',
+    formData,
+    {
+      auth,
+    },
+  );
+}
+
 export async function createMediaStatus(
   auth: AuthCredentials,
   payload: CreateMediaStatusPayload,
@@ -308,6 +385,10 @@ export async function createMediaStatus(
     formData,
     'editor_metadata',
     payload.editor_metadata,
+  );
+  appendImageLayers(
+    formData,
+    payload.image_layers,
   );
 
   if (payload.kind === 'video') {

@@ -10,7 +10,6 @@ import {
   MAX_IMAGE_LAYERS,
   MAX_STICKER_LAYERS,
   MAX_TEXT_LAYERS,
-  STATUS_IMAGE_COLORS,
 } from '../../../mocks/statusMedia';
 
 export type LayerKind = 'text' | 'image' | 'sticker';
@@ -102,17 +101,22 @@ export function useStatusLayers(
     defaultTextColor,
   ]);
 
-  const addImage = useCallback(() => {
+  const addImage = useCallback((
+    image: Pick<
+      StatusImageLayer,
+      'uri' | 'name' | 'mimeType' | 'sizeBytes'
+    >,
+  ) => {
     setImages((prev) => {
       if (prev.length >= MAX_IMAGE_LAYERS) return prev;
       const layer: StatusImageLayer = {
         id: newId('im'),
+        ...image,
         x: 50,
         y: stagger(prev.length),
         scale: 1,
         rotation: 0,
         size: IMAGE_LAYER_MIN + 40,
-        color: STATUS_IMAGE_COLORS[prev.length % STATUS_IMAGE_COLORS.length],
       };
       setSelection({ kind: 'image', id: layer.id });
       return [...prev, layer];

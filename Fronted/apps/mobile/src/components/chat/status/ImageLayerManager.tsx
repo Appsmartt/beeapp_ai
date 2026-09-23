@@ -1,6 +1,6 @@
-import { View, StyleSheet } from 'react-native';
+import { Image, View, StyleSheet } from 'react-native';
 import { TouchableOpacity } from 'react-native-gesture-handler';
-import { ImageIcon, Minus, Plus } from 'lucide-react-native';
+import { Minus, Plus } from 'lucide-react-native';
 import { colors, radii } from '@beeapp/design-system';
 import { StatusImageLayer } from '../../../mocks/statuses';
 import { IMAGE_LAYER_MAX, IMAGE_LAYER_MIN, IMAGE_LAYER_STEP } from '../../../mocks/statusMedia';
@@ -24,8 +24,7 @@ interface ImageLayerManagerProps {
 const clampSize = (size: number) => Math.min(IMAGE_LAYER_MAX, Math.max(IMAGE_LAYER_MIN, size));
 
 /**
- * Capas de imagen del estado. Mock: cada una es un recuadro de color con el
- * ícono de imagen; la seleccionada muestra los botones de tamaño.
+ * Capas de imagen del estado; la seleccionada muestra los botones de tamaño.
  */
 export default function ImageLayerManager({
   layers,
@@ -62,14 +61,14 @@ export default function ImageLayerManager({
             }}
             onRemove={() => onRemove(layer.id)}
           >
-            <View
+            <Image
+              source={{ uri: layer.uri }}
               style={[
-                styles.placeholder,
-                { width: layer.size, height: layer.size, backgroundColor: layer.color },
+                styles.image,
+                { width: layer.size, height: layer.size },
               ]}
-            >
-              <ImageIcon size={Math.max(20, layer.size * 0.28)} color={colors.neutral.gray600} />
-            </View>
+              resizeMode="cover"
+            />
 
             {isSelected && (
               <View style={styles.sizeRow}>
@@ -97,10 +96,8 @@ export default function ImageLayerManager({
 }
 
 const styles = StyleSheet.create({
-  placeholder: {
+  image: {
     borderRadius: radii.md,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   sizeRow: {
     position: 'absolute',

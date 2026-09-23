@@ -48,6 +48,7 @@ import {
   useStatusLayers,
 } from './status/useStatusLayers';
 import type {
+  StatusImageLayerUpload,
   StatusTextBackground,
 } from '@beeapp/shared-types';
 
@@ -87,6 +88,7 @@ export interface StatusEditorPublishDraft {
   backgroundColor: string;
   caption: string | null;
   media: SelectedStatusMedia | null;
+  imageLayers: StatusImageLayerUpload[];
   editorMetadata: Record<string, unknown>;
 }
 
@@ -465,6 +467,60 @@ export default function CreateStatusModal({
     }
   };
 
+
+  const handlePickImageLayer = async () => {
+    if (isPublishing) {
+      return;
+    }
+
+    try {
+      const permission = (
+        await ImagePicker.requestMediaLibraryPermissionsAsync()
+      );
+
+      if (!permission.granted) {
+        Alert.alert(
+          'Permiso requerido',
+          'Permite el acceso a tus fotos para agregar una imagen al estado.',
+        );
+        return;
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: false,
+        allowsMultipleSelection: false,
+        quality: 1,
+      });
+
+      if (result.canceled || !result.assets[0]) {
+        return;
+      }
+
+      const asset = result.assets[0];
+      const name = asset.fileName?.trim() || 'imagen-adjunta.jpg';
+      const mimeType = (
+        asset.mimeType?.trim().toLowerCase()
+        || 'image/jpeg'
+      );
+
+      layers.addImage({
+        uri: asset.uri,
+        name,
+        mimeType,
+        sizeBytes: asset.fileSize ?? null,
+      });
+      stopTextEditing();
+    } catch (error) {
+      Alert.alert(
+        'No fue posible seleccionar la imagen',
+        error instanceof Error
+          ? error.message
+          : 'Inténtalo nuevamente.',
+      );
+    }
+  };
+
   const hasTextContent = texts.some(
     (layer) => Boolean(layer.content.trim()),
   );
@@ -493,6 +549,18 @@ export default function CreateStatusModal({
       backgroundColor: bgColor,
       caption: textContent || null,
       media,
+      imageLayers: images.map((layer, sortOrder) => ({
+        id: layer.id,
+        uri: layer.uri,
+        name: layer.name,
+        mimeType: layer.mimeType,
+        x: layer.x,
+        y: layer.y,
+        scale: layer.scale,
+        rotation: layer.rotation,
+        size: layer.size,
+        sortOrder,
+      })),
       editorMetadata: serializeEditorMetadata({
         texts,
         images,
@@ -892,7 +960,9 @@ export default function CreateStatusModal({
             textCount={texts.length}
             onAddText={layers.addText}
             imageCount={images.length}
-            onAddImage={layers.addImage}
+            onAddImage={() => {
+              void handlePickImageLayer();
+            }}
             stickerCount={stickers.length}
             onOpenStickers={() => {
               setSheet('stickers');

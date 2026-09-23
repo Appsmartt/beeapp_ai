@@ -65,6 +65,7 @@ import {
   useStatuses,
 } from '../../../src/hooks/useStatuses';
 import {
+  prepareStatusImageLayerForUpload,
   prepareStatusMediaForUpload,
 } from '../../../src/services/statusMediaPreparation';
 import {
@@ -81,6 +82,7 @@ import {
   markStatusViewed as registerStatusView,
   publishMediaStatus,
   publishTextStatus,
+  publishTextStatusWithImageLayers,
   rejectStatusFollow,
   searchStatusFollowTargets,
 } from '../../../src/services/statusesService';
@@ -91,6 +93,7 @@ import type {
   ChatGroupInvite,
   StatusFollowDiscoverItem,
   StatusFollowListItem,
+  StatusImageLayerUpload,
 } from '@beeapp/shared-types';
 import {
   getValidSessionCredentials,
@@ -987,6 +990,29 @@ export default function ChatListScreen() {
       setPublishingStatus(true);
       setStatusPublishingMessage(null);
 
+      const imageLayers: StatusImageLayerUpload[] = await Promise.all(
+        draft.imageLayers.map(async (layer, sortOrder) => {
+          const preparedLayer = await prepareStatusImageLayerForUpload({
+            uri: layer.uri,
+            name: layer.name,
+            mimeType: layer.mimeType,
+          });
+
+          return {
+            id: layer.id,
+            uri: preparedLayer.uri,
+            name: preparedLayer.name,
+            mimeType: preparedLayer.mimeType,
+            x: layer.x,
+            y: layer.y,
+            scale: layer.scale,
+            rotation: layer.rotation,
+            size: layer.size,
+            sortOrder,
+          };
+        }),
+      );
+
       if (draft.media) {
         setStatusPublishingPhase(
           draft.media.kind === 'video'
@@ -1023,6 +1049,7 @@ export default function ChatListScreen() {
             kind: preparedMedia.kind,
             caption: draft.caption,
             editor_metadata: draft.editorMetadata,
+            image_layers: imageLayers,
             ...(isCommercialContext
               ? {
                   actor_type: 'commercial_profile' as const,
@@ -1076,19 +1103,28 @@ export default function ChatListScreen() {
 
         setStatusPublishingPhase('uploading');
 
-        await publishTextStatus({
-          kind: 'text',
+        const textStatusPayload = {
+          kind: 'text' as const,
           text_content: draft.textContent.trim(),
           text_background_id: selectedBackground.id,
           caption: draft.caption,
           editor_metadata: draft.editorMetadata,
+          image_layers: imageLayers,
           ...(isCommercialContext
             ? {
                 actor_type: 'commercial_profile' as const,
                 actor_commercial_profile_id: businessId,
               }
             : {}),
-        });
+        };
+
+        if (imageLayers.length > 0) {
+          await publishTextStatusWithImageLayers(
+            textStatusPayload,
+          );
+        } else {
+          await publishTextStatus(textStatusPayload);
+        }
       }
 
       setCreatingStatus(false);

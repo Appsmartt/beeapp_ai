@@ -32,6 +32,7 @@ export type PreparedStatusMedia = {
 };
 
 export const MAX_STATUS_IMAGE_SIZE_BYTES = 30 * 1024 * 1024;
+export const MAX_STATUS_IMAGE_LAYER_SIZE_BYTES = 10 * 1024 * 1024;
 export const MAX_STATUS_GIF_SIZE_BYTES = 10 * 1024 * 1024;
 export const MAX_STATUS_VIDEO_SIZE_BYTES = 40 * 1024 * 1024;
 export const MAX_STATUS_VIDEO_DURATION_SECONDS = 90;
@@ -312,6 +313,38 @@ async function prepareVideo(
     throw error;
   }
 }
+
+export async function prepareStatusImageLayerForUpload(
+  input: Pick<
+    StatusMediaPreparationInput,
+    'uri' | 'name' | 'mimeType'
+  >,
+): Promise<Pick<
+  PreparedStatusMedia,
+  'uri' | 'name' | 'mimeType' | 'sizeBytes'
+>> {
+  const preparedImage = await prepareImage({
+    uri: input.uri,
+    name: input.name,
+    mimeType: input.mimeType,
+    kind: 'image',
+    durationSeconds: null,
+  });
+
+  if (preparedImage.sizeBytes > MAX_STATUS_IMAGE_LAYER_SIZE_BYTES) {
+    throw new Error(
+      'No fue posible reducir la imagen adjunta a un máximo de 10 MiB. Selecciona una imagen más liviana.',
+    );
+  }
+
+  return {
+    uri: preparedImage.uri,
+    name: preparedImage.name,
+    mimeType: preparedImage.mimeType,
+    sizeBytes: preparedImage.sizeBytes,
+  };
+}
+
 
 export async function prepareStatusMediaForUpload(
   input: StatusMediaPreparationInput,

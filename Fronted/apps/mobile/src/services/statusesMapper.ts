@@ -5,6 +5,7 @@ import type {
 } from '@beeapp/shared-types';
 
 import type {
+  StatusImageLayer,
   StatusItem,
   StatusStickerLayer,
   StatusTextLayer,
@@ -231,6 +232,67 @@ function getTextLayers(
   });
 }
 
+function getImageLayers(
+  story: StatusStory,
+): StatusImageLayer[] {
+  if (!Array.isArray(story.image_layers)) {
+    return [];
+  }
+
+  return story.image_layers
+    .flatMap((rawLayer, index) => {
+      const uri = rawLayer.url?.trim() || '';
+
+      if (!uri) {
+        return [];
+      }
+
+      return [{
+        layer: {
+          id: String(rawLayer.id || `image_${index}`),
+          uri,
+          name: String(rawLayer.original_name || 'imagen-adjunta.jpg'),
+          mimeType: String(rawLayer.mime_type || 'image/jpeg'),
+          sizeBytes: (
+            typeof rawLayer.size_bytes === 'number'
+            && Number.isFinite(rawLayer.size_bytes)
+            ? rawLayer.size_bytes
+            : null
+          ),
+          x: clamp(
+            asFiniteNumber(rawLayer.x, 50),
+            0,
+            100,
+          ),
+          y: clamp(
+            asFiniteNumber(rawLayer.y, 50),
+            0,
+            100,
+          ),
+          scale: clamp(
+            asFiniteNumber(rawLayer.scale, 1),
+            0.5,
+            3,
+          ),
+          rotation: clamp(
+            asFiniteNumber(rawLayer.rotation, 0),
+            -360,
+            360,
+          ),
+          size: clamp(
+            asFiniteNumber(rawLayer.size, 120),
+            80,
+            220,
+          ),
+        },
+        sortOrder: asFiniteNumber(rawLayer.sort_order, index),
+      }];
+    })
+    .sort((left, right) => left.sortOrder - right.sortOrder)
+    .map((item) => item.layer);
+}
+
+
 function getStickerLayers(
   story: StatusStory,
 ): StatusStickerLayer[] {
@@ -361,6 +423,7 @@ export function mapStatusStoryToUi(
         layer,
       ): layer is StatusTextLayer => Boolean(layer));
   const primaryTextLayer = textLayers[0] || null;
+  const imageLayers = getImageLayers(story);
   const stickerLayers = getStickerLayers(story);
 
   return {
@@ -403,6 +466,7 @@ export function mapStatusStoryToUi(
       || normalizeStatusFontFamily(null),
     textColor: primaryTextLayer?.color ?? DEFAULT_TEXT_COLOR,
     textLayers,
+    imageLayers,
     stickerLayers,
     timestamp: formatRelativeTime(story.created_at),
     createdAt: story.created_at,

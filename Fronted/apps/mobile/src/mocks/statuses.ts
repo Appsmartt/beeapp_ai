@@ -33,15 +33,19 @@ export interface StatusTextLayer {
   fontFamily: string;
 }
 
-/** Capa de imagen. Mock: un recuadro de color, no una foto real */
+/** Capa de imagen seleccionada por el usuario sobre el estado. */
 export interface StatusImageLayer {
   id: string;
+  uri: string;
+  name: string;
+  mimeType: string;
+  sizeBytes: number | null;
   x: number;
   y: number;
   scale: number;
   rotation: number;
   size: number;
-  color: string;
+  color?: string;
 }
 
 /** Capa de sticker: un ícono de Lucide sobre un círculo de color suave */

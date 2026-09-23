@@ -377,6 +377,7 @@ export default function StatusViewer({
     ? status.textLayers
     : fallbackTextLayers;
 
+  const imageLayers = status.imageLayers || [];
   const stickerLayers = status.stickerLayers || [];
 
   return (
@@ -550,6 +551,36 @@ export default function StatusViewer({
                     }}
                   />
                 ) : null}
+                {imageLayers.map((layer) => (
+                  <Image
+                    key={layer.id}
+                    source={{ uri: layer.uri }}
+                    style={[
+                      styles.imageLayer,
+                      {
+                        width: layer.size,
+                        height: layer.size,
+                        left: `${layer.x}%`,
+                        top: `${layer.y}%`,
+                        transform: [
+                          {
+                            translateX: -(layer.size / 2),
+                          },
+                          {
+                            translateY: -(layer.size / 2),
+                          },
+                          {
+                            rotate: `${layer.rotation}deg`,
+                          },
+                          {
+                            scale: layer.scale,
+                          },
+                        ],
+                      },
+                    ]}
+                    resizeMode="cover"
+                  />
+                ))}
                 {stickerLayers.map((layer) => {
                   const sticker = getSticker(layer.stickerId);
 
@@ -959,6 +990,10 @@ const styles = StyleSheet.create({
   stage: { flex: 1, margin: spacing.lg },
   photoCard: { ...StyleSheet.absoluteFillObject, borderRadius: 20, elevation: 10 },
   textLayer: { position: 'absolute', width: '86%', marginLeft: '-43%' },
+  imageLayer: {
+    borderRadius: 12,
+    position: 'absolute',
+  },
   stickerLayer: {
     position: 'absolute',
   },
