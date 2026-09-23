@@ -115,11 +115,19 @@ function asFiniteNumber(
   value: unknown,
   fallback: number,
 ): number {
-  return (
+  const normalizedValue = (
     typeof value === 'number'
-    && Number.isFinite(value)
-  )
-    ? value
+      ? value
+      : (
+        typeof value === 'string'
+          && value.trim() !== ''
+          ? Number(value)
+          : Number.NaN
+      )
+  );
+
+  return Number.isFinite(normalizedValue)
+    ? normalizedValue
     : fallback;
 }
 
@@ -281,7 +289,7 @@ function getImageLayers(
           ),
           size: clamp(
             asFiniteNumber(rawLayer.size, 120),
-            80,
+            24,
             220,
           ),
         },

@@ -237,9 +237,9 @@ def _normalize_image_layers_metadata(value) -> list[dict]:
                 f"image_layers_metadata[{index}].rotation must be between -360 and 360."
             )
 
-        if not 80 <= size <= 220:
+        if not 24 <= size <= 220:
             raise serializers.ValidationError(
-                f"image_layers_metadata[{index}].size must be between 80 and 220."
+                f"image_layers_metadata[{index}].size must be between 24 and 220."
             )
 
         if sort_order < 0 or sort_order >= MAX_STATUS_IMAGE_LAYERS:
@@ -250,10 +250,10 @@ def _normalize_image_layers_metadata(value) -> list[dict]:
         normalized_layers.append(
             {
                 "id": layer_id,
-                "x": x,
-                "y": y,
-                "scale": scale,
-                "rotation": rotation,
+                "x": float(x),
+                "y": float(y),
+                "scale": float(scale),
+                "rotation": float(rotation),
                 "size": size,
                 "sort_order": sort_order,
             }

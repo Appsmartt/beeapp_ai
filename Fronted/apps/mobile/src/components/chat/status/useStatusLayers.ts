@@ -6,7 +6,6 @@ import {
   StatusTextLayer,
 } from '../../../mocks/statuses';
 import {
-  IMAGE_LAYER_MIN,
   MAX_IMAGE_LAYERS,
   MAX_STICKER_LAYERS,
   MAX_TEXT_LAYERS,
@@ -109,14 +108,23 @@ export function useStatusLayers(
   ) => {
     setImages((prev) => {
       if (prev.length >= MAX_IMAGE_LAYERS) return prev;
+      const initialPositions = [
+        { x: 28, y: 30 },
+        { x: 50, y: 50 },
+        { x: 72, y: 70 },
+      ];
+      const initialPosition = (
+        initialPositions[prev.length]
+        || initialPositions[initialPositions.length - 1]
+      );
       const layer: StatusImageLayer = {
         id: newId('im'),
         ...image,
-        x: 50,
-        y: stagger(prev.length),
+        x: initialPosition.x,
+        y: initialPosition.y,
         scale: 1,
         rotation: 0,
-        size: IMAGE_LAYER_MIN + 40,
+        size: 96,
       };
       setSelection({ kind: 'image', id: layer.id });
       return [...prev, layer];
