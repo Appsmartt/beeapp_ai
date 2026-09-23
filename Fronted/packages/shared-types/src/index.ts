@@ -2167,6 +2167,30 @@ export interface StatusImageLayerUpload {
   sortOrder: number;
 }
 
+export interface StatusCommercialOfferLink {
+  commercial_offer_id: string;
+  commercial_offer_image_id: string;
+  image_layer_id: string;
+  x: number;
+  y: number;
+  scale: number;
+  rotation: number;
+  size: number;
+
+  commercial_profile_id?: string;
+  offer_title_snapshot?: string;
+  offer_kind_snapshot?: 'product' | 'service';
+
+  image_file_id?: string;
+  image_bucket_id?: string;
+  image_storage_path?: string;
+  image_original_name?: string;
+  image_mime_type?: string;
+  image_size_bytes?: number;
+  image_url?: string | null;
+  image_url_expires_in_seconds?: number | null;
+}
+
 export interface StatusStory {
   id: string;
   actor: StatusActor;
@@ -2183,6 +2207,7 @@ export interface StatusStory {
   is_viewed: boolean;
   media: StatusMedia | null;
   image_layers: StatusImageLayer[];
+  commercial_offer_link?: StatusCommercialOfferLink | null;
   viewer_count?: number;
   reply_allowed?: boolean;
 }
@@ -2396,6 +2421,7 @@ export interface CreateTextStatusPayload {
   text_background_id: string;
   editor_metadata?: Record<string, unknown>;
   image_layers?: StatusImageLayerUpload[];
+  commercial_offer_link?: StatusCommercialOfferLink;
 }
 
 export interface CreateMediaStatusPayload {
@@ -2406,6 +2432,7 @@ export interface CreateMediaStatusPayload {
   editor_metadata?: Record<string, unknown>;
   duration_seconds?: number;
   image_layers?: StatusImageLayerUpload[];
+  commercial_offer_link?: StatusCommercialOfferLink;
 }
 
 export interface CreateStatusResponse {

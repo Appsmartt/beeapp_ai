@@ -43,6 +43,9 @@ interface StatusEditorToolbarProps {
   onAddText: () => void;
   imageCount: number;
   onAddImage: () => void;
+  commercialOfferSelected: boolean;
+  canAddCommercialOffer: boolean;
+  onOpenCommercialOffer: () => void;
   stickerCount: number;
   onOpenStickers: () => void;
   hasPhoto: boolean;
@@ -75,6 +78,9 @@ export default function StatusEditorToolbar(props: StatusEditorToolbarProps) {
         onAddText={props.onAddText}
         imageCount={props.imageCount}
         onAddImage={props.onAddImage}
+        commercialOfferSelected={props.commercialOfferSelected}
+        canAddCommercialOffer={props.canAddCommercialOffer}
+        onOpenCommercialOffer={props.onOpenCommercialOffer}
         stickerCount={props.stickerCount}
         onOpenStickers={props.onOpenStickers}
         hasPhoto={props.hasPhoto}

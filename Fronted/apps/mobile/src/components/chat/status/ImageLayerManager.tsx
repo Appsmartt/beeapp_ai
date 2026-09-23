@@ -1,4 +1,4 @@
-import { Image, View, StyleSheet } from 'react-native';
+import { Image, Text, View, StyleSheet } from 'react-native';
 import { TouchableOpacity } from 'react-native-gesture-handler';
 import { Minus, Plus } from 'lucide-react-native';
 import { colors, radii } from '@beeapp/design-system';
@@ -61,14 +61,27 @@ export default function ImageLayerManager({
             }}
             onRemove={() => onRemove(layer.id)}
           >
-            <Image
-              source={{ uri: layer.uri }}
-              style={[
-                styles.image,
-                { width: layer.size, height: layer.size },
-              ]}
-              resizeMode="cover"
-            />
+            <View style={styles.imageContent}>
+              <Image
+                source={{ uri: layer.uri }}
+                style={[
+                  styles.image,
+                  { width: layer.size, height: layer.size },
+                ]}
+                resizeMode="cover"
+              />
+              {layer.source === 'commercial_offer'
+              && layer.commercialOfferTitle ? (
+                <View style={styles.commercialLabel}>
+                  <Text
+                    style={styles.commercialLabelText}
+                    numberOfLines={2}
+                  >
+                    {layer.commercialOfferTitle}
+                  </Text>
+                </View>
+              ) : null}
+            </View>
 
             {isSelected && (
               <View style={styles.sizeRow}>
@@ -96,8 +109,25 @@ export default function ImageLayerManager({
 }
 
 const styles = StyleSheet.create({
+  imageContent: {
+    alignItems: 'center',
+  },
   image: {
     borderRadius: radii.md,
+  },
+  commercialLabel: {
+    backgroundColor: 'rgba(15, 23, 42, 0.82)',
+    borderRadius: radii.sm,
+    marginTop: 6,
+    maxWidth: 220,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  commercialLabelText: {
+    color: colors.neutral.white,
+    fontSize: 11,
+    fontWeight: '700',
+    textAlign: 'center',
   },
   sizeRow: {
     position: 'absolute',

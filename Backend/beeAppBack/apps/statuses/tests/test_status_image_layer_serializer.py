@@ -101,6 +101,62 @@ class StatusImageLayerSerializerTests(SimpleTestCase):
 
         json.dumps(serializer.validated_data["image_layers_metadata"])
 
+    def test_personal_status_rejects_commercial_offer_link(self):
+        serializer = StatusCreateSerializer(
+            data=self.build_text_payload(
+                commercial_offer_link={
+                    "commercial_offer_id": "00000000-0000-0000-0000-000000000010",
+                    "commercial_offer_image_id": "00000000-0000-0000-0000-000000000011",
+                    "image_layer_id": "commercial_offer_00000000",
+                    "x": 50,
+                    "y": 50,
+                    "scale": 1,
+                    "rotation": 0,
+                    "size": 96,
+                },
+            ),
+        )
+
+        self.assertFalse(serializer.is_valid())
+        self.assertIn(
+            "commercial_offer_link",
+            serializer.errors,
+        )
+
+    def test_commercial_status_accepts_valid_commercial_offer_link(self):
+        serializer = StatusCreateSerializer(
+            data={
+                "actor_type": "commercial_profile",
+                "actor_commercial_profile_id": "00000000-0000-0000-0000-000000000020",
+                "kind": "text",
+                "text_content": "Oferta destacada",
+                "text_background_id": "00000000-0000-0000-0000-000000000001",
+                "commercial_offer_link": {
+                    "commercial_offer_id": "00000000-0000-0000-0000-000000000021",
+                    "commercial_offer_image_id": "00000000-0000-0000-0000-000000000022",
+                    "image_layer_id": "commercial_offer_00000000",
+                    "x": 50,
+                    "y": 50,
+                    "scale": 1,
+                    "rotation": 0,
+                    "size": 96,
+                },
+            },
+        )
+
+        self.assertTrue(serializer.is_valid(), serializer.errors)
+
+        link = serializer.validated_data[
+            "commercial_offer_link"
+        ]
+
+        self.assertEqual(
+            link["commercial_offer_id"],
+            "00000000-0000-0000-0000-000000000021",
+        )
+        self.assertEqual(link["size"], 96)
+        self.assertEqual(link["scale"], 1.0)
+
     def test_layer_file_fields_have_stable_explicit_names(self):
         files = {
             f"image_layer_file_{index}": SimpleUploadedFile(

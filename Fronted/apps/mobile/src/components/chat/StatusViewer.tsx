@@ -32,7 +32,6 @@ import {
   ChevronUp,
   Eye,
   Send,
-  ShoppingBag,
   Trash2,
   X,
 } from 'lucide-react-native';
@@ -41,11 +40,13 @@ import StatusProgressPills from './StatusProgressPills';
 import StatusViewersSheet from './StatusViewersSheet';
 import { StatusItem, StatusViewedBy } from '../../mocks/statuses';
 import { STICKER_LAYER_SIZE } from '../../mocks/statusMedia';
-import { formatPrice } from '../../mocks/myServices';
 import {
   loadStatusViewers,
   replyToStatus,
 } from '../../services/statusesService';
+import {
+  buddyServicesPublicOfferRoute,
+} from '../../features/buddyservices/commercialRoutes';
 import {
   mapStatusViewerToUi,
 } from '../../services/statusesMapper';
@@ -58,6 +59,9 @@ import {
 import {
   useStatusTypography,
 } from './status/useStatusTypography';
+import {
+  useRouter,
+} from 'expo-router';
 
 const STATUS_DURATION = 6000;
 
@@ -83,8 +87,8 @@ export default function StatusViewer({
   onClose,
 }: StatusViewerProps) {
   const progress = useRef(new Animated.Value(0)).current;
+  const router = useRouter();
   const activeStoryIdRef = useRef<string | null>(null);
-  const [productHidden, setProductHidden] = useState(false);
   const [viewersOpen, setViewersOpen] = useState(false);
   const [viewedBy, setViewedBy] = useState<StatusViewedBy[]>([]);
   const [viewersLoading, setViewersLoading] = useState(false);
@@ -96,6 +100,7 @@ export default function StatusViewer({
   const [archivingStatus, setArchivingStatus] = useState(false);
   const [archiveConfirmationOpen, setArchiveConfirmationOpen] = useState(false);
   const [archiveError, setArchiveError] = useState<string | null>(null);
+  const [commercialOfferConfirmationOpen, setCommercialOfferConfirmationOpen] = useState(false);
   const [mediaReady, setMediaReady] = useState(false);
   const [loadedImageLayerIds, setLoadedImageLayerIds] = useState<Set<string>>(
     new Set(),
@@ -155,7 +160,6 @@ export default function StatusViewer({
   // Al cambiar de estado se vuelve a empezar
   useEffect(() => {
     if (!visible || !status) return;
-    setProductHidden(false);
     setViewersOpen(false);
     setViewedBy([]);
     setViewersLoading(false);
@@ -167,6 +171,7 @@ export default function StatusViewer({
     setArchivingStatus(false);
     setArchiveConfirmationOpen(false);
     setArchiveError(null);
+    setCommercialOfferConfirmationOpen(false);
     setIsPressing(false);
     setMediaError(null);
     activeStoryIdRef.current = status.id;
@@ -390,13 +395,24 @@ export default function StatusViewer({
       }
     });
 
-  const hideProductGesture = Gesture.Pan()
-    .activeOffsetY([-12, 12])
-    .onEnd((event) => {
-      if (event.translationY > 40) {
-        runOnJS(setProductHidden)(true);
-      }
-    });
+  const openCommercialOfferConfirmation = () => {
+    if (!product?.id || !product.imageUrl) {
+      return;
+    }
+
+    setCommercialOfferConfirmationOpen(true);
+  };
+
+  const openCommercialOffer = () => {
+    if (!product?.id) {
+      return;
+    }
+
+    setCommercialOfferConfirmationOpen(false);
+    router.push(
+      buddyServicesPublicOfferRoute(product.id),
+    );
+  };
 
   const fallbackTextLayers = [{
     id: 'status_text',
@@ -499,7 +515,7 @@ export default function StatusViewer({
 
               <View
                 style={styles.stage}
-                pointerEvents="none"
+                pointerEvents="box-none"
                 onLayout={(event) => {
                   const {
                     width,
@@ -664,6 +680,63 @@ export default function StatusViewer({
                     />
                   );
                 })}
+                {product?.imageUrl ? (
+                  <TouchableOpacity
+                    style={[
+                      styles.commercialOfferLayer,
+                      {
+                        left: '50%',
+                        top: '50%',
+                        transform: [
+                          {
+                            translateX: (
+                              (((product.x ?? 50) - 50) / 100)
+                              * stage.width
+                              - ((product.size ?? 96) / 2)
+                            ),
+                          },
+                          {
+                            translateY: (
+                              (((product.y ?? 50) - 50) / 100)
+                              * stage.height
+                              - ((product.size ?? 96) / 2)
+                            ),
+                          },
+                          {
+                            rotate: `${product.rotation ?? 0}deg`,
+                          },
+                          {
+                            scale: product.scale ?? 1,
+                          },
+                        ],
+                      },
+                    ]}
+                    onPress={openCommercialOfferConfirmation}
+                    activeOpacity={0.88}
+                    accessibilityLabel={`Ver ${product.name}`}
+                  >
+                    <Image
+                      source={{ uri: product.imageUrl }}
+                      style={[
+                        styles.commercialOfferImage,
+                        {
+                          width: product.size ?? 96,
+                          height: product.size ?? 96,
+                        },
+                      ]}
+                      resizeMode="cover"
+                    />
+                    <View style={styles.commercialOfferLabel}>
+                      <Text
+                        style={styles.commercialOfferLabelText}
+                        numberOfLines={2}
+                      >
+                        {product.name}
+                      </Text>
+                    </View>
+                  </TouchableOpacity>
+                ) : null}
+
                 {stickerLayers.map((layer) => {
                   const sticker = getSticker(layer.stickerId);
 
@@ -818,18 +891,6 @@ export default function StatusViewer({
                 </View>
               )}
 
-              {!!product && !productHidden && (
-                <GestureDetector gesture={hideProductGesture}>
-                  <View style={styles.productCard}>
-                    <View style={styles.productThumb}><ShoppingBag size={20} color={colors.brand.primary} /></View>
-                    <View style={styles.productTexts}>
-                      <Text style={styles.productName} numberOfLines={1}>{product.name}</Text>
-                      <Text style={styles.productPrice}>{product.price !== null ? formatPrice(product.price) : 'Cotización'}</Text>
-                    </View>
-                    <TouchableOpacity style={styles.contactBtn} onPress={() => {}} activeOpacity={0.8}><Text style={styles.contactBtnText}>Solicitar</Text></TouchableOpacity>
-                  </View>
-                </GestureDetector>
-              )}
             </ScreenSafeArea>
           </View>
         </GestureDetector>
@@ -1010,6 +1071,48 @@ export default function StatusViewer({
           </View>
         ) : null}
 
+        <Modal
+          transparent
+          visible={commercialOfferConfirmationOpen}
+          animationType="fade"
+          onRequestClose={() => {
+            setCommercialOfferConfirmationOpen(false);
+          }}
+        >
+          <View style={styles.commercialOfferConfirmationBackdrop}>
+            <View style={styles.commercialOfferConfirmationCard}>
+              <Text style={styles.commercialOfferConfirmationTitle}>
+                Ver producto o servicio
+              </Text>
+              <Text style={styles.commercialOfferConfirmationMessage}>
+                ¿Quieres ir a {product?.name || 'este producto o servicio'}?
+              </Text>
+              <View style={styles.commercialOfferConfirmationActions}>
+                <TouchableOpacity
+                  style={styles.commercialOfferConfirmationSecondaryButton}
+                  onPress={() => {
+                    setCommercialOfferConfirmationOpen(false);
+                  }}
+                  activeOpacity={0.8}
+                >
+                  <Text style={styles.commercialOfferConfirmationSecondaryText}>
+                    Cancelar
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.commercialOfferConfirmationPrimaryButton}
+                  onPress={openCommercialOffer}
+                  activeOpacity={0.8}
+                >
+                  <Text style={styles.commercialOfferConfirmationPrimaryText}>
+                    Ver
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </Modal>
+
         <StatusViewersSheet
           visible={viewersOpen}
           viewedBy={viewedBy}
@@ -1077,6 +1180,27 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     position: 'absolute',
   },
+  commercialOfferLayer: {
+    alignItems: 'center',
+    position: 'absolute',
+  },
+  commercialOfferImage: {
+    borderRadius: 10,
+  },
+  commercialOfferLabel: {
+    backgroundColor: 'rgba(15, 23, 42, 0.82)',
+    borderRadius: 7,
+    marginTop: 6,
+    maxWidth: 220,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  commercialOfferLabelText: {
+    color: colors.neutral.white,
+    fontSize: 11,
+    fontWeight: '700',
+    textAlign: 'center',
+  },
   stickerLayer: {
     position: 'absolute',
   },
@@ -1103,6 +1227,62 @@ const styles = StyleSheet.create({
     color: colors.neutral.white,
     fontSize: 12,
     fontWeight: '600',
+  },
+  commercialOfferConfirmationBackdrop: {
+    alignItems: 'center',
+    backgroundColor: 'rgba(15, 23, 42, 0.52)',
+    flex: 1,
+    justifyContent: 'center',
+    padding: 24,
+  },
+  commercialOfferConfirmationCard: {
+    backgroundColor: colors.neutral.white,
+    borderRadius: 20,
+    maxWidth: 360,
+    padding: 20,
+    width: '100%',
+  },
+  commercialOfferConfirmationTitle: {
+    color: colors.neutral.text,
+    fontSize: 17,
+    fontWeight: '800',
+  },
+  commercialOfferConfirmationMessage: {
+    color: colors.neutral.gray600,
+    fontSize: 14,
+    lineHeight: 20,
+    marginTop: 8,
+  },
+  commercialOfferConfirmationActions: {
+    flexDirection: 'row',
+    gap: 10,
+    justifyContent: 'flex-end',
+    marginTop: 20,
+  },
+  commercialOfferConfirmationSecondaryButton: {
+    alignItems: 'center',
+    borderColor: colors.neutral.gray300,
+    borderRadius: 10,
+    borderWidth: 1,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+  },
+  commercialOfferConfirmationSecondaryText: {
+    color: colors.neutral.text,
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  commercialOfferConfirmationPrimaryButton: {
+    alignItems: 'center',
+    backgroundColor: colors.brand.primary,
+    borderRadius: 10,
+    paddingHorizontal: 18,
+    paddingVertical: 10,
+  },
+  commercialOfferConfirmationPrimaryText: {
+    color: colors.neutral.white,
+    fontSize: 13,
+    fontWeight: '800',
   },
   ownStatusActions: {
     alignItems: 'center',
@@ -1142,13 +1322,6 @@ const styles = StyleSheet.create({
     width: 46,
   },
   viewedByText: { fontSize: 13, fontWeight: '600', color: colors.neutral.white },
-  productCard: { flexDirection: 'row', alignItems: 'center', gap: 12, marginHorizontal: spacing.md, marginBottom: spacing.lg, backgroundColor: colors.neutral.white, borderRadius: radii.xl, padding: 12, elevation: 6 },
-  productThumb: { width: 44, height: 44, borderRadius: radii.md, backgroundColor: `${colors.brand.primary}1A`, alignItems: 'center', justifyContent: 'center' },
-  productTexts: { flex: 1 },
-  productName: { fontSize: 14, fontWeight: '400', color: colors.neutral.text },
-  productPrice: { fontSize: 13, fontWeight: '400', color: colors.neutral.gray600, marginTop: 2 },
-  contactBtn: { backgroundColor: colors.brand.primary, borderRadius: radii.md, paddingHorizontal: 14, paddingVertical: 9 },
-  contactBtnText: { fontSize: 13, fontWeight: '600', color: colors.neutral.white },
   archiveConfirmationOverlay: {
     ...StyleSheet.absoluteFillObject,
     alignItems: 'center',

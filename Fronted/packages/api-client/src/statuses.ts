@@ -82,6 +82,20 @@ function appendOptionalJson(
   formData.append(key, JSON.stringify(value));
 }
 
+function appendCommercialOfferLink(
+  formData: FormData,
+  payload: CreateMediaStatusPayload | CreateTextStatusPayload,
+): void {
+  if (!payload.commercial_offer_link) {
+    return;
+  }
+
+  formData.append(
+    'commercial_offer_link',
+    JSON.stringify(payload.commercial_offer_link),
+  );
+}
+
 function appendImageLayers(
   formData: FormData,
   imageLayers: StatusImageLayerUpload[] | undefined,
@@ -355,6 +369,7 @@ export async function createTextStatusWithImageLayers(
     'editor_metadata',
     payload.editor_metadata,
   );
+  appendCommercialOfferLink(formData, payload);
   appendImageLayers(formData, payload.image_layers);
 
   return api.upload<CreateStatusResponse>(
@@ -386,6 +401,7 @@ export async function createMediaStatus(
     'editor_metadata',
     payload.editor_metadata,
   );
+  appendCommercialOfferLink(formData, payload);
   appendImageLayers(
     formData,
     payload.image_layers,
