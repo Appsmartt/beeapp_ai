@@ -27,7 +27,7 @@ export const MAX_IMAGE_LAYERS = 3;
 export const MAX_STICKER_LAYERS = 3;
 
 /** Tamaños de las capas de imagen y sticker, en px */
-export const IMAGE_LAYER_MIN = 80;
+export const IMAGE_LAYER_MIN = 24;
 export const IMAGE_LAYER_MAX = 220;
 export const IMAGE_LAYER_STEP = 20;
 export const STICKER_LAYER_SIZE = 80;

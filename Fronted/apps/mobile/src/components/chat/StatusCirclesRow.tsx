@@ -1,6 +1,7 @@
 import {
   Animated,
   Easing,
+  Image,
   ScrollView,
   StyleSheet,
   Text,
@@ -10,6 +11,7 @@ import {
 import {
   useEffect,
   useRef,
+  useState,
 } from 'react';
 import {
   colors,
@@ -27,12 +29,58 @@ import {
 
 interface StatusCirclesRowProps {
   statuses: StatusItem[];
+  hasOwnStatus: boolean;
+  ownAvatarUrl?: string | null;
   showLoadingPlaceholders?: boolean;
   onCreate: () => void;
   onOpen: (index: number) => void;
 }
 
 const LOADING_PLACEHOLDERS = [0, 1, 2];
+
+function StatusAvatar({
+  status,
+}: {
+  status: StatusItem;
+}) {
+  const [avatarFailed, setAvatarFailed] = useState(false);
+  const avatarUrl = status.authorAvatarUrl?.trim() || null;
+  const showAvatar = Boolean(
+    avatarUrl
+    && !avatarFailed,
+  );
+
+  useEffect(() => {
+    setAvatarFailed(false);
+  }, [avatarUrl]);
+
+  return (
+    <View
+      style={[
+        styles.innerCircle,
+        {
+          backgroundColor: status.authorColor,
+        },
+      ]}
+    >
+      {showAvatar ? (
+        <Image
+          source={{
+            uri: avatarUrl as string,
+          }}
+          style={styles.avatarImage}
+          onError={() => {
+            setAvatarFailed(true);
+          }}
+        />
+      ) : (
+        <Text style={styles.initials}>
+          {status.authorInitials}
+        </Text>
+      )}
+    </View>
+  );
+}
 
 function StatusLoadingPlaceholders() {
   const opacity = useRef(
@@ -98,6 +146,8 @@ function StatusLoadingPlaceholders() {
  */
 export default function StatusCirclesRow({
   statuses,
+  hasOwnStatus,
+  ownAvatarUrl = null,
   showLoadingPlaceholders = false,
   onCreate,
   onOpen,
@@ -115,10 +165,26 @@ export default function StatusCirclesRow({
             onPress={onCreate}
             accessibilityLabel="Crear tu estado"
           >
-            <View style={styles.userCircle}>
-              <Text style={styles.userText}>
-                {CURRENT_USER.initials}
-              </Text>
+            <View
+              style={[
+                styles.userCircle,
+                hasOwnStatus
+                  ? styles.userCircleActive
+                  : styles.userCircleInactive,
+              ]}
+            >
+              {ownAvatarUrl ? (
+                <Image
+                  source={{
+                    uri: ownAvatarUrl,
+                  }}
+                  style={styles.ownAvatarImage}
+                />
+              ) : (
+                <Text style={styles.userText}>
+                  {CURRENT_USER.initials}
+                </Text>
+              )}
               <View style={styles.addBadge}>
                 <Plus
                   size={10}
@@ -153,18 +219,7 @@ export default function StatusCirclesRow({
                       : styles.circleUnseen,
                   ]}
                 >
-                  <View
-                    style={[
-                      styles.innerCircle,
-                      {
-                        backgroundColor: status.authorColor,
-                      },
-                    ]}
-                  >
-                    <Text style={styles.initials}>
-                      {status.authorInitials}
-                    </Text>
-                  </View>
+                  <StatusAvatar status={status} />
                 </View>
               </TouchableOpacity>
               <Text style={styles.name} numberOfLines={1}>
@@ -209,6 +264,18 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.12,
     shadowRadius: 6,
     elevation: 2,
+  },
+  userCircleActive: {
+    borderColor: '#A88BC5',
+    borderWidth: 3,
+  },
+  userCircleInactive: {
+    borderColor: '#D7DFF2',
+  },
+  ownAvatarImage: {
+    borderRadius: 28,
+    height: '100%',
+    width: '100%',
   },
   userText: {
     fontSize: 13,
@@ -260,6 +327,11 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.62)',
+  },
+  avatarImage: {
+    height: '100%',
+    width: '100%',
+    borderRadius: 24,
   },
   initials: {
     fontSize: 14,

@@ -39,6 +39,7 @@ getOwnedCommercialProfiles,
   getPublicCommercialOffers,
   getPublicCommercialProductFeed,
   getPublicCommercialProfile,
+  openCommercialProfileChat,
   updateCommercialProfile,
 updateCommercialProfilePublication,
 updateOwnedCommercialCatalog,
@@ -232,6 +233,15 @@ export async function loadPublicCommercialProfiles(
   return getPublicCommercialProfiles(
     await getRequiredCommercialCredentials(),
     query,
+  );
+}
+
+export async function openPublicCommercialProfileChat(
+  profileId: string,
+) {
+  return openCommercialProfileChat(
+    await getRequiredCommercialCredentials(),
+    profileId,
   );
 }
 

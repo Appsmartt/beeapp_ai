@@ -260,7 +260,6 @@ export async function synchronizeInitialPrivateChats(
     progress: ChatInitialSyncProgress,
   ) => void,
 ): Promise<ChatInitialSyncResult> {
-  console.log('[chat-initial-sync] start');
 
   onProgress?.({
     phase: 'preparing',
@@ -315,19 +314,6 @@ export async function synchronizeInitialPrivateChats(
     inboxResponse.conversations,
   );
 
-  console.log('[chat-initial-sync] inbox loaded', {
-    inboxCount: inboxResponse.conversations.length,
-    selectedCount: selectedConversations.length,
-    directCount: selectedConversations.filter(
-      (conversation) => conversation.conversation_type === 'direct',
-    ).length,
-    groupCount: selectedConversations.filter(
-      (conversation) => conversation.conversation_type === 'group',
-    ).length,
-    conversationIds: selectedConversations.map(
-      (conversation) => conversation.id,
-    ),
-  });
 
   const conversations = await cacheChatConversationAvatars(
     userId,
@@ -360,27 +346,14 @@ export async function synchronizeInitialPrivateChats(
     });
 
     try {
-      console.log('[chat-initial-sync] syncing messages', {
-        conversationId: conversation.id,
-      });
 
       await synchronizeConversationMessages(
         auth,
         conversation,
       );
 
-      console.log('[chat-initial-sync] messages cached', {
-        conversationId: conversation.id,
-      });
-    } catch (error) {
+    } catch {
       failedConversations += 1;
-
-      console.warn('[chat-initial-sync] message sync failed', {
-        conversationId: conversation.id,
-        error: error instanceof Error
-          ? error.message
-          : String(error),
-      });
     }
 
     completedConversations += 1;
@@ -401,11 +374,6 @@ export async function synchronizeInitialPrivateChats(
     failedConversations,
   });
 
-  console.log('[chat-initial-sync] complete', {
-    conversationCount: conversations.length,
-    completedConversations,
-    failedConversations,
-  });
 
   return {
     conversationCount: conversations.length,

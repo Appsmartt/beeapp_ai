@@ -6,6 +6,7 @@ from apps.chat.services.chat_conversation_service import create_or_get_direct_co
 from apps.chat.services.chat_identity_service import sync_chat_identities_for_user
 from apps.commercial.exceptions import CommercialAccessError, CommercialNotFoundError
 from apps.commercial.services.commercial_supabase_service import get_commercial_user_supabase_client
+from beeAppBack.core.supabase_client import get_supabase_admin_client
 
 
 class CommercialChatIdentityContext(TypedDict):
@@ -82,10 +83,6 @@ def resolve_commercial_chat_identity_context(
         )
 
     owner_profile_id = str(commercial_profile["owner_id"])
-    if owner_profile_id == str(client_profile_id):
-        raise CommercialAccessError(
-            "No puedes iniciar una conversación comercial con tu propio negocio."
-        )
 
     client_identities = sync_chat_identities_for_user(
         user_id=str(client_profile_id),
@@ -121,21 +118,22 @@ def find_existing_commercial_chat_conversation(
     client_profile_id: str,
     commercial_profile_id: str,
 ) -> dict[str, Any] | None:
-    client = get_commercial_user_supabase_client(
-        access_token=access_token,
-    )
+    client = get_supabase_admin_client()
     response = (
         client.table("commerce_chat_conversations")
         .select(
-        "conversation_id, commercial_profile_id, client_profile_id, "
-        "created_by_profile_id, created_at, updated_at"
+            "conversation_id, commercial_profile_id, client_profile_id, "
+            "created_by_profile_id, created_at, updated_at"
         )
         .eq("client_profile_id", str(client_profile_id))
         .eq("commercial_profile_id", str(commercial_profile_id))
         .maybe_single()
         .execute()
     )
-    return response.data
+
+    data = getattr(response, 'data', None)
+
+    return data if isinstance(data, dict) else None
 
 
 COMMERCIAL_CHAT_UNIQUE_CONSTRAINT = (
@@ -186,9 +184,7 @@ def open_or_create_commercial_chat_conversation(
     )
     conversation_id = str(chat_result["conversation"]["id"])
 
-    client = get_commercial_user_supabase_client(
-        access_token=access_token,
-    )
+    client = get_supabase_admin_client()
     try:
         client.table("commerce_chat_conversations").insert(
             {

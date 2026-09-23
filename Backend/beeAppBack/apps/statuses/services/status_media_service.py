@@ -21,8 +21,8 @@ STATUS_MEDIA_SIGNED_URL_TTL_SECONDS = 300
 
 MAX_STATUS_IMAGE_SIZE_BYTES = 10 * 1024 * 1024
 MAX_STATUS_GIF_SIZE_BYTES = 10 * 1024 * 1024
-MAX_STATUS_VIDEO_SIZE_BYTES = 50 * 1024 * 1024
-MAX_STATUS_VIDEO_DURATION_SECONDS = 120
+MAX_STATUS_VIDEO_SIZE_BYTES = 40 * 1024 * 1024
+MAX_STATUS_VIDEO_DURATION_SECONDS = 90
 
 STATUS_IMAGE_MIME_TYPES = {
     "image/jpeg",
@@ -200,6 +200,65 @@ def upload_status_media(
         ) from error
 
 
+def upload_status_story_image_layer(
+    *,
+    owner_profile_id: str,
+    story_id: str,
+    uploaded_file,
+    sort_order: int,
+) -> dict[str, Any]:
+    """
+    Sube una capa de imagen privada para una historia existente.
+
+    La capa usa los mismos MIME y límite de 10 MiB de una imagen de estado,
+    pero queda en un prefijo de capas separado del media principal.
+    """
+    validated = validate_status_media_file(
+        uploaded_file=uploaded_file,
+        kind="image",
+    )
+    extension = _safe_extension(
+        filename=validated["original_name"],
+        mime_type=validated["mime_type"],
+    )
+    storage_path = (
+        f"{owner_profile_id}/stories/{story_id}/layers/"
+        f"{sort_order}-{uuid.uuid4().hex}.{extension}"
+    )
+
+    try:
+        uploaded_file.seek(0)
+        response = (
+            get_supabase_admin_client()
+            .storage.from_(STATUS_MEDIA_BUCKET)
+            .upload(
+                path=storage_path,
+                file=uploaded_file.read(),
+                file_options={
+                    "content-type": validated["mime_type"],
+                    "upsert": "false",
+                },
+            )
+        )
+
+        if not response:
+            raise StatusMediaUploadError(
+                "Supabase Storage did not confirm the image layer upload."
+            )
+
+        return {
+            "bucket_id": STATUS_MEDIA_BUCKET,
+            "storage_path": storage_path,
+            **validated,
+        }
+    except StatusMediaUploadError:
+        raise
+    except Exception as error:
+        raise StatusMediaUploadError(
+            f"Could not upload status image layer: {error}"
+        ) from error
+
+
 def delete_status_media_object_safely(
     *,
     bucket_id: str,
@@ -359,7 +418,7 @@ def _normalize_duration(
 
         if normalized_duration > MAX_STATUS_VIDEO_DURATION_SECONDS:
             raise StatusMediaError(
-                "Video stories cannot exceed 120 seconds."
+                "Video stories cannot exceed 90 seconds."
             )
 
         return round(normalized_duration, 3)

@@ -125,9 +125,6 @@ async function getExpoPushToken(): Promise<string | null> {
     const projectId = getEasProjectId();
 
     if (!projectId) {
-        console.warn(
-        'Push no configurado: falta expo.extra.eas.projectId en app.json.',
-        );
         return null;
     }
 
@@ -181,15 +178,6 @@ function waitForPushRegistrationRetry(
     });
 }
 
-function getPushRegistrationErrorMessage(
-    error: unknown,
-): string {
-    if (error instanceof Error && error.message.trim()) {
-        return error.message.trim();
-    }
-
-    return 'Error desconocido al registrar el dispositivo.';
-}
 
 export async function registerCurrentDeviceForPushNotifications(): Promise<
     string | null
@@ -203,17 +191,12 @@ export async function registerCurrentDeviceForPushNotifications(): Promise<
     }
 
     registrationInFlight = (async () => {
-        let lastError: unknown = null;
-
         try {
             await configureAndroidNotificationChannel();
 
             const expoPushToken = await getExpoPushToken();
 
             if (!expoPushToken) {
-                console.warn(
-                    'Push no registrado: no fue posible obtener el token Expo.',
-                );
                 return null;
             }
 
@@ -224,9 +207,6 @@ export async function registerCurrentDeviceForPushNotifications(): Promise<
             ).trim();
 
             if (!deviceSessionId) {
-                console.warn(
-                    'Push no registrado: falta deviceSessionId de la sesión móvil.',
-                );
                 return null;
             }
 
@@ -256,14 +236,6 @@ export async function registerCurrentDeviceForPushNotifications(): Promise<
                         );
                     }
 
-                    console.log(
-                        '[push] Registrando dispositivo.',
-                        {
-                            attempt,
-                            maxAttempts: PUSH_REGISTRATION_MAX_ATTEMPTS,
-                            deviceSessionId,
-                        },
-                    );
 
                     await registerPushDevice(
                         auth,
@@ -277,28 +249,9 @@ export async function registerCurrentDeviceForPushNotifications(): Promise<
 
                     lastRegisteredRegistrationKey = registrationKey;
 
-                    console.log(
-                        '[push] Dispositivo registrado correctamente.',
-                        {
-                            attempt,
-                            deviceSessionId,
-                        },
-                    );
 
                     return expoPushToken;
                 } catch (error) {
-                    lastError = error;
-
-                    console.warn(
-                        '[push] Falló el registro del dispositivo.',
-                        {
-                            attempt,
-                            maxAttempts: PUSH_REGISTRATION_MAX_ATTEMPTS,
-                            deviceSessionId,
-                            error: getPushRegistrationErrorMessage(error),
-                        },
-                    );
-
                     if (
                         attempt
                         < PUSH_REGISTRATION_MAX_ATTEMPTS
@@ -310,17 +263,9 @@ export async function registerCurrentDeviceForPushNotifications(): Promise<
                 }
             }
 
-            console.warn(
-                'No fue posible registrar el dispositivo para push después de 5 intentos.',
-                getPushRegistrationErrorMessage(lastError),
-            );
 
             return null;
         } catch (error) {
-            console.warn(
-                'No fue posible preparar el registro del dispositivo para push.',
-                getPushRegistrationErrorMessage(error),
-            );
 
             return null;
         } finally {

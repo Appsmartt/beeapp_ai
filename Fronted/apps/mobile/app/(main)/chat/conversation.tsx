@@ -68,6 +68,69 @@ import type {
   ChatMessageModel,
 } from '../../../src/services/chatService';
 
+const chatDateFormatter = new Intl.DateTimeFormat(
+  'es-CO',
+  {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+  },
+);
+
+function isSameCalendarDay(
+  leftValue: string,
+  rightValue: string,
+): boolean {
+  const leftDate = new Date(leftValue);
+  const rightDate = new Date(rightValue);
+
+  if (
+    Number.isNaN(leftDate.getTime())
+    || Number.isNaN(rightDate.getTime())
+  ) {
+    return false;
+  }
+
+  return (
+    leftDate.getFullYear() === rightDate.getFullYear()
+    && leftDate.getMonth() === rightDate.getMonth()
+    && leftDate.getDate() === rightDate.getDate()
+  );
+}
+
+function formatMessageDateSeparator(
+  value: string,
+): string {
+  const messageDate = new Date(value);
+
+  if (Number.isNaN(messageDate.getTime())) {
+    return '';
+  }
+
+  const today = new Date();
+
+  if (
+    messageDate.getFullYear() === today.getFullYear()
+    && messageDate.getMonth() === today.getMonth()
+    && messageDate.getDate() === today.getDate()
+  ) {
+    return 'HOY';
+  }
+
+  const yesterday = new Date(today);
+  yesterday.setDate(today.getDate() - 1);
+
+  if (
+    messageDate.getFullYear() === yesterday.getFullYear()
+    && messageDate.getMonth() === yesterday.getMonth()
+    && messageDate.getDate() === yesterday.getDate()
+  ) {
+    return 'AYER';
+  }
+
+  return chatDateFormatter.format(messageDate);
+}
+
 export default function ConversationScreen() {
   const router = useModuleNav();
   const params = useScreenParams();
@@ -86,6 +149,7 @@ export default function ConversationScreen() {
   const requestedIdentityId = String(
     params.identityId || '',
   ).trim() || null;
+  const focusComposer = params.focusComposer === 'true';
 
   const isCommercialContext = (
     context === 'commercial'
@@ -393,7 +457,6 @@ export default function ConversationScreen() {
         const needsAttachmentAccess = (
           (
             message.type === 'image'
-            || message.type === 'audio'
             || message.type === 'file'
           )
           && !message.mediaUrl
@@ -494,6 +557,47 @@ export default function ConversationScreen() {
     activeIdentityId,
     messages,
   ]);
+
+  const requestFreshAudioUrl = async (
+    messageId: string,
+  ): Promise<string> => {
+    const normalizedMessageId = String(messageId || '').trim();
+
+    if (!normalizedMessageId || !activeIdentityId) {
+      throw new Error(
+        'No fue posible identificar la nota de voz.',
+      );
+    }
+
+    const auth = await getValidSessionCredentials();
+
+    if (!auth) {
+      throw new Error(
+        'Tu sesión expiró. Inicia sesión nuevamente.',
+      );
+    }
+
+    const access = await getChatMessageAttachmentAccess(
+      auth,
+      normalizedMessageId,
+      activeIdentityId,
+    );
+
+    const nextUrl = String(access.url || '').trim();
+
+    if (!/^https?:\/\//i.test(nextUrl)) {
+      throw new Error(
+        'La nota de voz no tiene una URL de reproducción válida.',
+      );
+    }
+
+    setAttachmentUrlsByMessageId((current) => ({
+      ...current,
+      [normalizedMessageId]: nextUrl,
+    }));
+
+    return nextUrl;
+  };
 
   const headerAvatarUrl = (
     contactAvatarUrl
@@ -1244,12 +1348,6 @@ export default function ConversationScreen() {
               </Text>
             ) : null}
 
-            <View style={styles.dateSeparator}>
-              <Text style={styles.dateSeparatorText}>
-                HOY
-              </Text>
-            </View>
-
             {error ? (
               <View style={styles.errorBox}>
                 <Text style={styles.errorText}>
@@ -1279,50 +1377,87 @@ export default function ConversationScreen() {
               />
             ) : null}
 
-            {messages.map((message) => (
-              <MessageBubble
-                key={message.id}
-                senderName={message.senderName}
-                senderVerified={message.senderVerified}
-                isUser={message.isUser}
-                isAI={message.isAI}
-                sentByAi={message.sentByAi}
-                type={message.type}
-                text={message.text}
-                mediaUrl={
-                  message.mediaUrl
-                  || attachmentUrlsByMessageId[message.id]
-                  || undefined
-                }
-                fileName={message.fileName}
-                fileSize={message.fileSize}
-                audioDuration={message.audioDuration}
-                status={message.status}
-                time={message.time}
-                replyTo={
-                  message.replyTo
-                    ? {
-                        sender: message.replyTo.sender,
-                        text: message.replyTo.text,
-                      }
-                    : undefined
-                }
-                isEdited={message.isEdited}
-                isDestroyed={message.isDestroyed}
-                isPinned={message.isPinned}
-                onLongPress={() => {
-                  setSelectedMessage(message);
-                }}
-                onContactCatalogItem={(item) => {
-                  void handleSendMessage(
-                    (
-                      `Hola ${item.sellerName}, `
-                      + `estoy interesado en: ${item.productName}`
-                    ),
-                  );
-                }}
-              />
-            ))}
+            {messages.map((message, index) => {
+              const previousMessage = messages[index - 1];
+              const shouldShowDateSeparator = (
+                !previousMessage
+                || !isSameCalendarDay(
+                  message.createdAt,
+                  previousMessage.createdAt,
+                )
+              );
+
+              const dateSeparatorLabel = shouldShowDateSeparator
+                ? formatMessageDateSeparator(message.createdAt)
+                : '';
+
+              return (
+                <View key={message.id}>
+                  {dateSeparatorLabel ? (
+                    <View style={styles.dateSeparator}>
+                      <Text style={styles.dateSeparatorText}>
+                        {dateSeparatorLabel}
+                      </Text>
+                    </View>
+                  ) : null}
+
+                  <MessageBubble
+                    senderName={message.senderName}
+                    senderVerified={message.senderVerified}
+                    isUser={message.isUser}
+                    isAI={message.isAI}
+                    sentByAi={message.sentByAi}
+                    type={message.type}
+                    text={message.text}
+                    mediaUrl={
+                      message.type === 'audio'
+                        ? (
+                            attachmentUrlsByMessageId[message.id]
+                            || undefined
+                          )
+                        : (
+                            message.mediaUrl
+                            || attachmentUrlsByMessageId[message.id]
+                            || undefined
+                          )
+                    }
+                    messageId={message.id}
+                    onRequestAudioUrl={
+                      message.type === 'audio'
+                        ? requestFreshAudioUrl
+                        : undefined
+                    }
+                    fileName={message.fileName}
+                    fileSize={message.fileSize}
+                    audioDuration={message.audioDuration}
+                    status={message.status}
+                    time={message.time}
+                    replyTo={
+                      message.replyTo
+                        ? {
+                          sender: message.replyTo.sender,
+                          text: message.replyTo.text,
+                        }
+                        : undefined
+                    }
+                    isEdited={message.isEdited}
+                    isDestroyed={message.isDestroyed}
+                    isPinned={message.isPinned}
+                    onLongPress={() => {
+                      setSelectedMessage(message);
+                    }}
+                    onContactCatalogItem={(item) => {
+                      void handleSendMessage(
+                        (
+                          `Hola ${item.sellerName}, `
+                          + `estoy interesado en: ${item.productName}`
+                        ),
+                      );
+                    }}
+                  />
+                </View>
+              );
+            })}
 
             {messages.length === 0 && !error ? (
               <View style={styles.emptyState}>
@@ -1387,6 +1522,7 @@ export default function ConversationScreen() {
             onSendVoiceNote={handleSendVoiceNote}
             onSendAttachment={handleSendAttachment}
             uploadingAttachment={uploadingAttachment}
+            shouldFocus={focusComposer}
             value={
               editingMessage
                 ? editingText

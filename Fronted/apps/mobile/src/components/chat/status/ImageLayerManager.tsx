@@ -1,6 +1,6 @@
-import { View, StyleSheet } from 'react-native';
+import { Image, Text, View, StyleSheet } from 'react-native';
 import { TouchableOpacity } from 'react-native-gesture-handler';
-import { ImageIcon, Minus, Plus } from 'lucide-react-native';
+import { Minus, Plus } from 'lucide-react-native';
 import { colors, radii } from '@beeapp/design-system';
 import { StatusImageLayer } from '../../../mocks/statuses';
 import { IMAGE_LAYER_MAX, IMAGE_LAYER_MIN, IMAGE_LAYER_STEP } from '../../../mocks/statusMedia';
@@ -24,8 +24,7 @@ interface ImageLayerManagerProps {
 const clampSize = (size: number) => Math.min(IMAGE_LAYER_MAX, Math.max(IMAGE_LAYER_MIN, size));
 
 /**
- * Capas de imagen del estado. Mock: cada una es un recuadro de color con el
- * ícono de imagen; la seleccionada muestra los botones de tamaño.
+ * Capas de imagen del estado; la seleccionada muestra los botones de tamaño.
  */
 export default function ImageLayerManager({
   layers,
@@ -62,13 +61,26 @@ export default function ImageLayerManager({
             }}
             onRemove={() => onRemove(layer.id)}
           >
-            <View
-              style={[
-                styles.placeholder,
-                { width: layer.size, height: layer.size, backgroundColor: layer.color },
-              ]}
-            >
-              <ImageIcon size={Math.max(20, layer.size * 0.28)} color={colors.neutral.gray600} />
+            <View style={styles.imageContent}>
+              <Image
+                source={{ uri: layer.uri }}
+                style={[
+                  styles.image,
+                  { width: layer.size, height: layer.size },
+                ]}
+                resizeMode="cover"
+              />
+              {layer.source === 'commercial_offer'
+              && layer.commercialOfferTitle ? (
+                <View style={styles.commercialLabel}>
+                  <Text
+                    style={styles.commercialLabelText}
+                    numberOfLines={2}
+                  >
+                    {layer.commercialOfferTitle}
+                  </Text>
+                </View>
+              ) : null}
             </View>
 
             {isSelected && (
@@ -97,10 +109,25 @@ export default function ImageLayerManager({
 }
 
 const styles = StyleSheet.create({
-  placeholder: {
-    borderRadius: radii.md,
+  imageContent: {
     alignItems: 'center',
-    justifyContent: 'center',
+  },
+  image: {
+    borderRadius: radii.md,
+  },
+  commercialLabel: {
+    backgroundColor: 'rgba(15, 23, 42, 0.82)',
+    borderRadius: radii.sm,
+    marginTop: 6,
+    maxWidth: 220,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  commercialLabelText: {
+    color: colors.neutral.white,
+    fontSize: 11,
+    fontWeight: '700',
+    textAlign: 'center',
   },
   sizeRow: {
     position: 'absolute',
