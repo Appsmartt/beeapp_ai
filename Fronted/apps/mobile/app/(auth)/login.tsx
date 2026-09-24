@@ -634,7 +634,7 @@ export default function LoginScreen() {
                   </>
                 )}
 
-                {formMessage ? (
+                {formMessage && !isSubmitting ? (
                   <View style={styles.formMessage}>
                     <Text style={styles.formMessageText}>
                       {formMessage}

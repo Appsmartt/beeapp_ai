@@ -21,9 +21,7 @@ interface CommercialLogoAvatarProps {
   logoFileId: string | null;
   logoUrl?: string | null;
   size?: number;
-  width?: number;
-  height?: number;
-  borderRadius?: number;
+  shape?: "circle" | "rectangle";
 }
 
 function getInitials(value: string): string {
@@ -43,9 +41,7 @@ export default function CommercialLogoAvatar({
   logoFileId,
   logoUrl: providedLogoUrl = null,
   size = 56,
-  width,
-  height,
-  borderRadius,
+  shape = "circle",
 }: CommercialLogoAvatarProps) {
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
 
@@ -98,13 +94,10 @@ export default function CommercialLogoAvatar({
     };
   }, [logoFileId, providedLogoUrl]);
 
-  const avatarWidth = width ?? size;
-  const avatarHeight = height ?? size;
-
   const avatarStyle = {
-    borderRadius: borderRadius ?? Math.min(avatarWidth, avatarHeight) / 2,
-    height: avatarHeight,
-    width: avatarWidth,
+    borderRadius: shape === "rectangle" ? 16 : size / 2,
+    height: shape === "rectangle" ? Math.round(size * 0.76) : size,
+    width: size,
   };
 
   return (
@@ -132,7 +125,7 @@ export default function CommercialLogoAvatar({
             {
               fontSize: Math.max(
                 13,
-                Math.round(Math.min(avatarWidth, avatarHeight) * 0.31),
+                Math.round(size * 0.31),
               ),
             },
           ]}

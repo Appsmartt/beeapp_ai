@@ -20,7 +20,6 @@ import {
   House,
   Mail,
   NotebookPen,
-  Sparkles,
   X,
 } from 'lucide-react-native';
 import { colors } from '@beeapp/design-system';
@@ -32,7 +31,6 @@ type QuickDestination = {
   accentColor: string;
   accentSoft: string;
   accentStrong: string;
-  backgroundColor: string;
   icon: typeof Mail;
   label: string;
   route:
@@ -45,40 +43,36 @@ type QuickDestination = {
 
 const QUICK_DESTINATIONS: QuickDestination[] = [
   {
-    accentColor: '#6F8FD9',
-    accentSoft: '#DCE8FF',
-    accentStrong: '#8FA9E3',
-    backgroundColor: '#F5F8FF',
+    accentColor: '#668FCE',
+    accentSoft: '#EAF2FF',
+    accentStrong: '#D1E0F7',
     icon: Mail,
     label: 'Correos',
     route: '/(main)/mail',
     subtitle: 'Bandeja y cuentas',
   },
   {
-    accentColor: '#9B82C8',
-    accentSoft: '#EDE6FA',
-    accentStrong: '#B29ADD',
-    backgroundColor: '#FAF8FF',
+    accentColor: '#8C70C8',
+    accentSoft: '#F0EBFF',
+    accentStrong: '#DED4F7',
     icon: CalendarDays,
     label: 'Agenda',
     route: '/(main)/calendar',
     subtitle: 'Eventos y reuniones',
   },
   {
-    accentColor: '#D99B82',
-    accentSoft: '#FBE5DC',
-    accentStrong: '#E8B3A0',
-    backgroundColor: '#FFF9F6',
+    accentColor: '#D88772',
+    accentSoft: '#FFF0EB',
+    accentStrong: '#F5D9D0',
     icon: NotebookPen,
     label: 'Notas',
     route: '/(main)/notes',
     subtitle: 'Ideas y pendientes',
   },
   {
-    accentColor: '#78B7A5',
-    accentSoft: '#DDF3EB',
-    accentStrong: '#9ACBBD',
-    backgroundColor: '#F5FCF9',
+    accentColor: '#62A98E',
+    accentSoft: '#E7F6EF',
+    accentStrong: '#CFE9DD',
     icon: Folder,
     label: 'Archivos',
     route: '/(main)/storage',
@@ -141,8 +135,6 @@ export default function ModuleQuickMenu() {
         accessibilityHint="Muestra accesos a correos, agenda, notas y archivos"
       >
         <View style={styles.triggerInner}>
-          <View style={styles.triggerShine} />
-
           <House
             size={19}
             color={colors.neutral.white}
@@ -178,64 +170,44 @@ export default function ModuleQuickMenu() {
                 },
               ]}
             >
-              <View style={styles.hero}>
-                <View style={styles.heroAccentOne} />
-                <View style={styles.heroAccentTwo} />
-                <View style={styles.heroAccentThree} />
-
-                <View style={styles.heroTopRow}>
-                  <View style={styles.heroBrand}>
-                    <View style={styles.heroIconWrap}>
-                      <View style={styles.heroIconGlow} />
-
-                      <House
-                        size={21}
-                        color={colors.brand.primary}
-                        strokeWidth={2.3}
-                      />
-                    </View>
-
-                    <View>
-                      <Text style={styles.heroTitle}>
-                        Accesos rápidos
-                      </Text>
-
-                      <Text style={styles.heroSubtitle}>
-                        Tu espacio de trabajo
-                      </Text>
-                    </View>
-                  </View>
-
-                  <TouchableOpacity
-                    style={styles.closeButton}
-                    activeOpacity={0.75}
-                    onPress={closeMenu}
-                    accessibilityLabel="Cerrar accesos rápidos"
-                  >
-                    <X
-                      size={18}
-                      color={colors.neutral.white}
+              <View style={styles.header}>
+                <View style={styles.headerBrand}>
+                  <View style={styles.headerIconWrap}>
+                    <House
+                      size={20}
+                      color={colors.brand.primary}
                       strokeWidth={2.3}
                     />
-                  </TouchableOpacity>
+                  </View>
+
+                  <View>
+                    <Text style={styles.headerTitle}>
+                      Accesos rápidos
+                    </Text>
+
+                    <Text style={styles.headerSubtitle}>
+                      Tus módulos principales
+                    </Text>
+                  </View>
                 </View>
 
-                <View style={styles.heroMessage}>
-                  <Sparkles
-                    size={15}
-                    color="#FDE68A"
-                    strokeWidth={2.2}
+                <TouchableOpacity
+                  style={styles.closeButton}
+                  activeOpacity={0.75}
+                  onPress={closeMenu}
+                  accessibilityLabel="Cerrar accesos rápidos"
+                >
+                  <X
+                    size={18}
+                    color={colors.neutral.gray600}
+                    strokeWidth={2.3}
                   />
-
-                  <Text style={styles.heroMessageText}>
-                    Todo lo que necesitas, a un toque.
-                  </Text>
-                </View>
+                </TouchableOpacity>
               </View>
 
               <View style={styles.content}>
                 <Text style={styles.sectionLabel}>
-                  IR A UN MÓDULO
+                  MÓDULOS
                 </Text>
 
                 <View style={styles.actions}>
@@ -248,13 +220,11 @@ export default function ModuleQuickMenu() {
                         style={[
                           styles.actionButton,
                           {
-                            backgroundColor:
-                              destination.backgroundColor,
                             borderColor:
-                              `${destination.accentColor}24`,
+                              destination.accentStrong,
                           },
                         ]}
-                        activeOpacity={0.78}
+                        activeOpacity={0.76}
                         onPress={() =>
                           openDestination(destination.route)
                         }
@@ -266,25 +236,15 @@ export default function ModuleQuickMenu() {
                             styles.actionIconWrap,
                             {
                               backgroundColor:
-                                destination.accentColor,
+                                destination.accentSoft,
                               borderColor:
                                 destination.accentStrong,
                             },
                           ]}
                         >
-                          <View
-                            style={[
-                              styles.actionIconShine,
-                              {
-                                backgroundColor:
-                                  destination.accentSoft,
-                              },
-                            ]}
-                          />
-
                           <Icon
                             size={21}
-                            color={colors.neutral.white}
+                            color={destination.accentColor}
                             strokeWidth={2.1}
                           />
                         </View>
@@ -299,21 +259,11 @@ export default function ModuleQuickMenu() {
                           </Text>
                         </View>
 
-                        <View
-                          style={[
-                            styles.chevronWrap,
-                            {
-                              backgroundColor:
-                                `${destination.accentColor}16`,
-                            },
-                          ]}
-                        >
-                          <ChevronRight
-                            size={17}
-                            color={destination.accentColor}
-                            strokeWidth={2.4}
-                          />
-                        </View>
+                        <ChevronRight
+                          size={19}
+                          color={destination.accentColor}
+                          strokeWidth={2.25}
+                        />
                       </TouchableOpacity>
                     );
                   })}
@@ -331,34 +281,26 @@ const styles = StyleSheet.create({
   triggerButton: {
     borderRadius: 14,
     elevation: 4,
-    overflow: 'hidden',
-    shadowColor: '#B29ADD',
+    shadowColor: colors.brand.primary,
     shadowOffset: {
       width: 0,
       height: 3,
     },
-    shadowOpacity: 0.3,
+    shadowOpacity: 0.2,
     shadowRadius: 6,
   },
   triggerInner: {
     alignItems: 'center',
-    backgroundColor: '#8D73C9',
+    backgroundColor: colors.brand.primary,
+    borderColor: '#968BE4',
+    borderRadius: 14,
+    borderWidth: 1,
     height: 38,
     justifyContent: 'center',
-    overflow: 'hidden',
     width: 38,
   },
-  triggerShine: {
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    borderRadius: 17,
-    height: 28,
-    position: 'absolute',
-    right: -8,
-    top: -10,
-    width: 28,
-  },
   overlay: {
-    backgroundColor: 'rgba(47, 39, 70, 0.32)',
+    backgroundColor: 'rgba(34, 43, 67, 0.32)',
     flex: 1,
     flexDirection: 'row',
   },
@@ -366,201 +308,127 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   panel: {
-    backgroundColor: colors.neutral.white,
+    backgroundColor: colors.neutral.gray50,
     borderBottomLeftRadius: 30,
+    borderColor: colors.neutral.gray200,
+    borderLeftWidth: 1,
     borderTopLeftRadius: 30,
     elevation: 16,
     overflow: 'hidden',
-    shadowColor: '#8B7AAB',
+    shadowColor: '#8996B5',
     shadowOffset: {
       width: -7,
       height: 0,
     },
-    shadowOpacity: 0.26,
+    shadowOpacity: 0.18,
     shadowRadius: 22,
     width: PANEL_WIDTH,
   },
-  hero: {
-    backgroundColor: colors.brand.primary,
-    minHeight: 168,
-    overflow: 'hidden',
-    paddingBottom: 21,
+  header: {
+    alignItems: 'center',
+    backgroundColor: colors.neutral.white,
+    borderBottomColor: colors.neutral.gray200,
+    borderBottomWidth: 1,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingBottom: 16,
     paddingHorizontal: 18,
     paddingTop: 24,
   },
-  heroAccentOne: {
-    backgroundColor: '#A88DD3',
-    borderRadius: 88,
-    height: 176,
-    position: 'absolute',
-    right: -56,
-    top: -84,
-    width: 176,
-  },
-  heroAccentTwo: {
-    backgroundColor: '#B9A6DD',
-    borderRadius: 62,
-    bottom: -56,
-    height: 124,
-    position: 'absolute',
-    right: 38,
-    width: 124,
-  },
-  heroAccentThree: {
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    borderRadius: 48,
-    bottom: -42,
-    height: 96,
-    left: -26,
-    position: 'absolute',
-    width: 96,
-  },
-  heroTopRow: {
-    alignItems: 'flex-start',
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-  heroBrand: {
+  headerBrand: {
     alignItems: 'center',
     flexDirection: 'row',
-    gap: 11,
+    flex: 1,
   },
-  heroIconWrap: {
+  headerIconWrap: {
     alignItems: 'center',
-    backgroundColor: colors.neutral.white,
-    borderRadius: 16,
-    elevation: 3,
-    height: 46,
+    backgroundColor: '#F0EDFF',
+    borderColor: '#DDD6FE',
+    borderRadius: 15,
+    borderWidth: 1,
+    height: 44,
     justifyContent: 'center',
-    overflow: 'hidden',
-    shadowColor: '#A68CCB',
-    shadowOffset: {
-      width: 0,
-      height: 3,
-    },
-    shadowOpacity: 0.2,
-    shadowRadius: 7,
-    width: 46,
+    marginRight: 11,
+    width: 44,
   },
-  heroIconGlow: {
-    backgroundColor: '#F0EAFE',
-    borderRadius: 24,
-    height: 35,
-    position: 'absolute',
-    right: -10,
-    top: -10,
-    width: 35,
-  },
-  heroTitle: {
-    color: colors.neutral.white,
+  headerTitle: {
+    color: '#303B5A',
     fontSize: 18,
     fontWeight: '800',
   },
-  heroSubtitle: {
-    color: 'rgba(255, 255, 255, 0.76)',
+  headerSubtitle: {
+    color: '#6C7892',
     fontSize: 11,
     fontWeight: '500',
     marginTop: 3,
   },
   closeButton: {
     alignItems: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.16)',
-    borderColor: 'rgba(255, 255, 255, 0.22)',
+    backgroundColor: colors.neutral.gray50,
+    borderColor: colors.neutral.gray200,
     borderRadius: 12,
     borderWidth: 1,
     height: 36,
     justifyContent: 'center',
     width: 36,
   },
-  heroMessage: {
-    alignItems: 'center',
-    alignSelf: 'flex-start',
-    backgroundColor: 'rgba(255, 255, 255, 0.14)',
-    borderColor: 'rgba(255, 255, 255, 0.18)',
-    borderRadius: 13,
-    borderWidth: 1,
-    flexDirection: 'row',
-    gap: 7,
-    marginTop: 25,
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-  },
-  heroMessageText: {
-    color: colors.neutral.white,
-    fontSize: 11,
-    fontWeight: '600',
-  },
   content: {
+    flex: 1,
     paddingBottom: 28,
-    paddingHorizontal: 16,
+    paddingHorizontal: 14,
     paddingTop: 18,
   },
   sectionLabel: {
     color: colors.neutral.gray500,
     fontSize: 10,
-    fontWeight: '700',
+    fontWeight: '800',
     letterSpacing: 0.8,
     marginBottom: 11,
     marginLeft: 2,
   },
   actions: {
-    gap: 10,
+    gap: 9,
   },
   actionButton: {
     alignItems: 'center',
-    borderRadius: 18,
+    backgroundColor: colors.neutral.white,
+    borderRadius: 20,
     borderWidth: 1,
     flexDirection: 'row',
-    minHeight: 72,
-    paddingHorizontal: 11,
-    paddingVertical: 10,
+    minHeight: 76,
+    paddingHorizontal: 13,
+    paddingVertical: 11,
+    shadowColor: '#AAB7D4',
+    shadowOffset: {
+      width: 0,
+      height: 3,
+    },
+    shadowOpacity: 0.07,
+    shadowRadius: 7,
+    elevation: 1,
   },
   actionIconWrap: {
     alignItems: 'center',
     borderRadius: 15,
     borderWidth: 1,
-    elevation: 3,
-    height: 48,
+    height: 46,
     justifyContent: 'center',
-    overflow: 'hidden',
-    shadowColor: '#1A1A2E',
-    shadowOffset: {
-      width: 0,
-      height: 3,
-    },
-    shadowOpacity: 0.16,
-    shadowRadius: 5,
-    width: 48,
-  },
-  actionIconShine: {
-    borderRadius: 18,
-    height: 32,
-    opacity: 0.3,
-    position: 'absolute',
-    right: -10,
-    top: -12,
-    width: 32,
+    width: 46,
   },
   actionText: {
     flex: 1,
     marginLeft: 12,
+    marginRight: 10,
   },
   actionLabel: {
-    color: colors.neutral.text,
-    fontSize: 14,
-    fontWeight: '800',
+    color: '#303B5A',
+    fontSize: 15,
+    fontWeight: '700',
   },
   actionSubtitle: {
-    color: colors.neutral.gray600,
+    color: '#6C7892',
     fontSize: 11,
     fontWeight: '500',
     marginTop: 3,
-  },
-  chevronWrap: {
-    alignItems: 'center',
-    borderRadius: 11,
-    height: 30,
-    justifyContent: 'center',
-    width: 30,
   },
 });
