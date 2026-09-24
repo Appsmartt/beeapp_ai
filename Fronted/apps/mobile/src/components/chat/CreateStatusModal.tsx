@@ -38,7 +38,9 @@ import {
 } from 'lucide-react-native';
 
 import ScreenSafeArea from '../layout/ScreenSafeArea';
-import StatusEditorToolbar from './StatusEditorToolbar';
+import StatusEditorToolbar, {
+  STATUS_TEXT_SIZE_MIN,
+} from './StatusEditorToolbar';
 import TextLayerManager from './status/TextLayerManager';
 import ImageLayerManager from './status/ImageLayerManager';
 import StickerLayerManager from './status/StickerLayerManager';
@@ -55,6 +57,7 @@ import type {
 } from '@beeapp/shared-types';
 
 import {
+  STATUS_FONT_OPTIONS,
   STATUS_TEXT_COLORS,
 } from './status/statusTypography';
 import {
@@ -419,9 +422,51 @@ export default function CreateStatusModal({
     }
   };
 
-  const changeTextFontFamily = (fontFamily: string) => {
-    setSelectedFontFamily(fontFamily);
-    layers.setAllTextFontFamilies(fontFamily);
+  const changeTextTemplate = (
+    template: (typeof STATUS_FONT_OPTIONS)[number],
+  ) => {
+    if (!selectedText) {
+      return;
+    }
+
+    const stageWidth = stage.width || 360;
+    const stageHeight = stage.height || 640;
+    const longestLineLength = Math.max(
+      1,
+      ...template.sampleText.split('\n').map((line) => line.length),
+    );
+    const lineCount = Math.max(
+      1,
+      template.sampleText.split('\n').length,
+    );
+    const widthBasedFontSize = (
+      (stageWidth * 0.8 - 24)
+      / (longestLineLength * 0.62)
+    );
+    const heightBasedFontSize = (
+      (stageHeight * 0.7)
+      / (lineCount * 1.35)
+    );
+    const initialFontSize = Math.max(
+      STATUS_TEXT_SIZE_MIN,
+      Math.floor(
+        Math.min(
+          widthBasedFontSize,
+          heightBasedFontSize,
+        ),
+      ),
+    );
+
+    setSelectedFontFamily(template.fontFamily);
+    layers.patchText(selectedText.id, {
+      content: template.sampleText,
+      fontFamily: template.fontFamily,
+      fontSize: initialFontSize,
+      scale: 1,
+      rotation: 0,
+    });
+    setEditingTextId(null);
+    setMentionQuery(null);
   };
 
   const handlePickMedia = async () => {
@@ -1051,7 +1096,7 @@ export default function CreateStatusModal({
             onChangeTextColor={changeTextColor}
             selectedFontFamily={resolvedFontFamily}
             fontSelectorEnabled={fontsLoaded}
-            onChangeTextFontFamily={changeTextFontFamily}
+            onChangeTextFontFamily={changeTextTemplate}
             showBackgrounds={!isMediaStatus}
             backgroundColors={[
               ...STATUS_PASTEL_BACKGROUND_COLORS,
