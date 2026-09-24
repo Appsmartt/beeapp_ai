@@ -429,32 +429,9 @@ export default function CreateStatusModal({
       return;
     }
 
-    const stageWidth = stage.width || 360;
-    const stageHeight = stage.height || 640;
-    const longestLineLength = Math.max(
-      1,
-      ...template.sampleText.split('\n').map((line) => line.length),
-    );
-    const lineCount = Math.max(
-      1,
-      template.sampleText.split('\n').length,
-    );
-    const widthBasedFontSize = (
-      (stageWidth * 0.8 - 24)
-      / (longestLineLength * 0.62)
-    );
-    const heightBasedFontSize = (
-      (stageHeight * 0.7)
-      / (lineCount * 1.35)
-    );
     const initialFontSize = Math.max(
       STATUS_TEXT_SIZE_MIN,
-      Math.floor(
-        Math.min(
-          widthBasedFontSize,
-          heightBasedFontSize,
-        ),
-      ),
+      template.templateFontSize,
     );
 
     setSelectedFontFamily(template.fontFamily);
@@ -462,6 +439,8 @@ export default function CreateStatusModal({
       content: template.sampleText,
       fontFamily: template.fontFamily,
       fontSize: initialFontSize,
+      x: 50,
+      y: 50,
       scale: 1,
       rotation: 0,
     });
