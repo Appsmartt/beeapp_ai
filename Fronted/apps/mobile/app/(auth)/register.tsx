@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import {
     ActivityIndicator,
     Alert,
+    Image,
     Keyboard,
     KeyboardAvoidingView,
     Platform,
@@ -29,10 +30,11 @@ import { colors } from '@beeapp/design-system';
 import { registerUser } from '@beeapp/api-client';
 import type { RegisterUserPayload } from '@beeapp/shared-types';
 
-import BuddyLogo from '../../src/components/BuddyLogo';
 import CountryCodeModal from '../../src/components/contacts/CountryCodeModal';
 import ScreenSafeArea from '../../src/components/layout/ScreenSafeArea';
 import { COUNTRIES, type Country } from '../../src/mocks/countries';
+
+const registerLogoSource = require('../../src/assets/short_logo.png');
 
 type FormErrors = {
     firstName?: string;
@@ -211,10 +213,11 @@ export default function RegisterScreen() {
                 </TouchableOpacity>
 
                 <View style={styles.logoContainer}>
-                <BuddyLogo
-                    size={64}
-                    showText={false}
-                    autoStopAfter={2500}
+                <Image
+                    source={registerLogoSource}
+                    style={styles.registerLogo}
+                    resizeMode="contain"
+                    accessibilityLabel="Logo de BeeApp"
                 />
                 </View>
 
@@ -609,6 +612,10 @@ const styles = StyleSheet.create({
     logoContainer: {
         alignItems: 'center',
         marginBottom: 12,
+    },
+    registerLogo: {
+        height: 64,
+        width: 64,
     },
     header: {
         alignItems: 'center',
