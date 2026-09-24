@@ -133,7 +133,8 @@ export default function OwnedCommercialProfileGridCard({
             displayName={profile.display_name}
             logoFileId={profile.logo_file_id}
             logoUrl={profile.logo_url}
-            size={84}
+            shape="rectangle"
+            size={128}
           />
 
           <View
