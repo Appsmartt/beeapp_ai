@@ -25,6 +25,10 @@ import {
 import { colors } from '@beeapp/design-system';
 import VerifiedBadge from '../VerifiedBadge';
 import AiCatalogCards from './AiCatalogCards';
+import StatusStoryReplyPreview from './StatusStoryReplyPreview';
+import type {
+  StatusStory,
+} from '@beeapp/shared-types';
 import {
   type AiSearchResult,
 } from '../../mocks/aiSearchResults';
@@ -51,6 +55,11 @@ interface MessageBubbleProps {
     sender: string;
     text: string;
   };
+  statusStoryReference?: {
+    isAvailable: boolean;
+    status: StatusStory | null;
+  };
+  onPressStatusStory?: () => void;
   showCatalog?: boolean;
   isEdited?: boolean;
   isDestroyed?: boolean;
@@ -92,6 +101,8 @@ export default function MessageBubble({
   status,
   time,
   replyTo,
+  statusStoryReference,
+  onPressStatusStory,
   showCatalog,
   isEdited,
   isDestroyed,
@@ -360,6 +371,15 @@ export default function MessageBubble({
                 </Text>
               </View>
             </View>
+          ) : null}
+
+          {statusStoryReference ? (
+            <StatusStoryReplyPreview
+              isAvailable={statusStoryReference.isAvailable}
+              isUser={isUser}
+              status={statusStoryReference.status}
+              onPress={onPressStatusStory}
+            />
           ) : null}
 
           {isDestroyed ? (

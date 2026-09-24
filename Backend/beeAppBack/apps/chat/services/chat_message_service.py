@@ -1115,7 +1115,14 @@ def _enrich_message_reference(
             include_archived=False,
         )
     except Exception:
-        return unavailable_reference
+        try:
+            story = get_status_story(
+                user_id=str(viewer_user_id),
+                story_id=str(reference_id),
+                include_archived=True,
+            )
+        except Exception:
+            return unavailable_reference
 
     if not story:
         return unavailable_reference

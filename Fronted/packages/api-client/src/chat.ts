@@ -10,6 +10,7 @@ import type {
   ChatParticipant,
   ChatParticipantRole,
   ChatSearchUser,
+  StatusStory,
 } from '@beeapp/shared-types';
 
 import {
@@ -181,6 +182,28 @@ export interface ChatApiReaction {
   identity?: ChatApiIdentitySummary | null;
 }
 
+export interface ChatApiMessageReference {
+  type: string;
+  id: string;
+  is_available: boolean;
+  unavailable_reason?: string | null;
+  status?: unknown;
+}
+
+function isStatusStory(
+  value: unknown,
+): value is StatusStory {
+  return Boolean(
+    value
+    && typeof value === 'object'
+    && !Array.isArray(value)
+    && typeof (value as { id?: unknown }).id === 'string'
+    && typeof (value as { kind?: unknown }).kind === 'string'
+    && typeof (value as { actor?: unknown }).actor === 'object'
+    && (value as { actor?: unknown }).actor !== null,
+  );
+}
+
 export interface ChatApiMessage {
   id: string;
   conversation_id: string;
@@ -192,6 +215,7 @@ export interface ChatApiMessage {
   reference_type: string | null;
   reference_id: string | null;
   metadata: Record<string, unknown>;
+  reference?: ChatApiMessageReference | null;
   sequence_number: number;
   created_at: string;
   updated_at?: string | null;
@@ -544,6 +568,25 @@ function toSharedMessage(
     destroyed_at: message.destroyed_at || null,
     reply_to_id: message.reference_type === 'chat_message'
       ? message.reference_id
+      : null,
+    reference_type: message.reference_type || null,
+    reference_id: message.reference_id || null,
+    reference: message.reference
+      ? {
+          type: message.reference.type,
+          id: message.reference.id,
+          is_available: Boolean(message.reference.is_available),
+          unavailable_reason: (
+            message.reference.unavailable_reason || null
+          ),
+          ...(message.reference.type === 'status_story'
+            ? {
+                status: isStatusStory(message.reference.status)
+                  ? message.reference.status
+                  : null,
+              }
+            : {}),
+        }
       : null,
     reply_to: message.reply_to
       ? {

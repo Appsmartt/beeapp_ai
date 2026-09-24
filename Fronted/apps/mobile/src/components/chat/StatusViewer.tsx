@@ -73,6 +73,7 @@ interface StatusViewerProps {
   onChangeIndex: (index: number) => void;
   onStatusViewed: (statusId: string) => void;
   onArchiveStatus: (statusId: string) => Promise<void>;
+  allowArchive?: boolean;
   onClose: () => void;
 }
 
@@ -84,6 +85,7 @@ export default function StatusViewer({
   onChangeIndex,
   onStatusViewed,
   onArchiveStatus,
+  allowArchive = true,
   onClose,
 }: StatusViewerProps) {
   const progress = useRef(new Animated.Value(0)).current;
@@ -291,7 +293,11 @@ export default function StatusViewer({
   };
 
   const openArchiveConfirmation = () => {
-    if (!isOwnStatus || archivingStatus) {
+    if (
+      !allowArchive
+      || !isOwnStatus
+      || archivingStatus
+    ) {
       return;
     }
 
