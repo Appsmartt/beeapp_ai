@@ -12,8 +12,14 @@ import {
   DMSerifDisplay_400Regular,
 } from '@expo-google-fonts/dm-serif-display';
 import {
+  Lora_600SemiBold,
+} from '@expo-google-fonts/lora';
+import {
   Manrope_600SemiBold,
 } from '@expo-google-fonts/manrope';
+import {
+  Oswald_700Bold,
+} from '@expo-google-fonts/oswald';
 import {
   NunitoSans_600SemiBold,
 } from '@expo-google-fonts/nunito-sans';
@@ -33,7 +39,9 @@ export function useStatusTypography() {
     BebasNeue_400Regular,
     Caveat_600SemiBold,
     DMSerifDisplay_400Regular,
+    Lora_600SemiBold,
     Manrope_600SemiBold,
+    Oswald_700Bold,
     NunitoSans_600SemiBold,
     PlayfairDisplay_700Bold,
     Quicksand_600SemiBold,
