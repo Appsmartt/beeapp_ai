@@ -2598,6 +2598,18 @@ export interface ChatReplyPreview {
   message_type: ChatMessageType;
 }
 
+export interface ChatMessageReference {
+  type: string;
+  id: string;
+  is_available: boolean;
+  unavailable_reason?: string | null;
+}
+
+export interface ChatStatusStoryReference extends ChatMessageReference {
+  type: 'status_story';
+  status?: StatusStory | null;
+}
+
 export interface ChatMessage {
   id: string;
   conversation_id: string;
@@ -2613,6 +2625,9 @@ export interface ChatMessage {
   destroyed_at?: string | null;
   reply_to_id?: string | null;
   reply_to?: ChatReplyPreview | null;
+  reference_type?: string | null;
+  reference_id?: string | null;
+  reference?: ChatMessageReference | ChatStatusStoryReference | null;
   attachments?: ChatAttachment[];
   sender?: ChatProfileSummary | null;
   is_pinned?: boolean;

@@ -343,6 +343,26 @@ class SendChatMessageSerializerTests(SimpleTestCase):
             serializer.errors,
         )
 
+    def test_accepts_status_story_reference(self):
+        serializer = SendChatMessageSerializer(
+            data={
+                "sender_identity_id": (
+                    "11111111-1111-1111-1111-111111111111"
+                ),
+                "message_type": "text",
+                "body": "Responder a la historia",
+                "reference_type": "status_story",
+                "reference_id": (
+                    "22222222-2222-2222-2222-222222222222"
+                ),
+                "metadata": {
+                    "status_reply": True,
+                },
+            }
+        )
+
+        self.assertTrue(serializer.is_valid())
+
     def test_rejects_partial_reference(self):
         serializer = SendChatMessageSerializer(
             data={

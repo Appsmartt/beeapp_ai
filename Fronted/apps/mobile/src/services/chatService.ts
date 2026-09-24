@@ -6,6 +6,7 @@ import type {
   ChatParticipant,
   ChatProfileSummary,
   ChatSearchUser,
+  StatusStory,
 } from '@beeapp/shared-types';
 
 export type ChatListStatus =
@@ -57,6 +58,12 @@ export interface ChatMessageModel {
     sender: string;
     text: string;
   };
+  statusStoryReference?: {
+    id: string;
+    isAvailable: boolean;
+    unavailableReason?: string | null;
+    status: StatusStory | null;
+  };
   isPinned: boolean;
   isEdited: boolean;
   isDestroyed: boolean;
@@ -74,6 +81,15 @@ export interface ChatUserOption {
   verified: boolean;
   online: boolean;
   avatarUrl: string | null;
+}
+
+function isStatusStoryReference(
+  reference: ChatMessage['reference'],
+): reference is Extract<
+  NonNullable<ChatMessage['reference']>,
+  { type: 'status_story' }
+> {
+  return reference?.type === 'status_story';
 }
 
 function fullName(
@@ -394,6 +410,18 @@ export function mapChatMessageToModel(
     status: toUiStatus(message.status),
     time: formatChatTime(message.created_at),
     createdAt: message.created_at,
+    statusStoryReference: (
+      isStatusStoryReference(message.reference)
+      ? {
+          id: message.reference.id,
+          isAvailable: message.reference.is_available,
+          unavailableReason: (
+            message.reference.unavailable_reason || null
+          ),
+          status: message.reference.status || null,
+        }
+      : undefined
+    ),
     replyTo: message.reply_to
       ? {
           id: message.reply_to.id,

@@ -34,6 +34,7 @@ import {
 } from '../../../src/components/embedded/EmbeddedNavContext';
 
 import MessageBubble from '../../../src/components/chat/MessageBubble';
+import StatusViewer from '../../../src/components/chat/StatusViewer';
 import WriteBar from '../../../src/components/chat/WriteBar';
 import AiAutoReplyBanner from '../../../src/components/chat/AiAutoReplyBanner';
 import PinnedMessageBanner from '../../../src/components/chat/PinnedMessageBanner';
@@ -67,6 +68,16 @@ import {
 import type {
   ChatMessageModel,
 } from '../../../src/services/chatService';
+import type {
+  StatusItem,
+} from '../../../src/mocks/statuses';
+import {
+  createStatusBackgroundMap,
+  mapStatusStoryToUi,
+} from '../../../src/services/statusesMapper';
+import {
+  loadStatusTextBackgrounds,
+} from '../../../src/services/statusesService';
 
 const chatDateFormatter = new Intl.DateTimeFormat(
   'es-CO',
@@ -216,6 +227,16 @@ export default function ConversationScreen() {
   ] = useState<Record<string, string>>({});
 
   const [isStartingCall, setIsStartingCall] = useState(false);
+
+  const [
+    selectedStatusStory,
+    setSelectedStatusStory,
+  ] = useState<StatusItem | null>(null);
+
+  const [
+    openingStatusStory,
+    setOpeningStatusStory,
+  ] = useState(false);
 
   const [
     uploadingAttachment,
@@ -1086,6 +1107,41 @@ export default function ConversationScreen() {
     }
   };
 
+  const handleOpenStatusStory = async (
+    statusStory: NonNullable<
+      ChatMessageModel['statusStoryReference']
+    >,
+  ) => {
+    if (
+      openingStatusStory
+      || !statusStory.isAvailable
+      || !statusStory.status
+    ) {
+      return;
+    }
+
+    try {
+      setOpeningStatusStory(true);
+      const response = await loadStatusTextBackgrounds();
+
+      setSelectedStatusStory(
+        mapStatusStoryToUi(
+          statusStory.status,
+          createStatusBackgroundMap(response.backgrounds),
+        ),
+      );
+    } catch {
+      setSelectedStatusStory(
+        mapStatusStoryToUi(
+          statusStory.status,
+          new Map(),
+        ),
+      );
+    } finally {
+      setOpeningStatusStory(false);
+    }
+  };
+
   const handleClearChat = () => {
     Alert.alert(
       'Vaciar chat',
@@ -1127,6 +1183,24 @@ export default function ConversationScreen() {
   return (
     <ScreenSafeArea style={styles.safeArea}>
       <View style={styles.container}>
+        <StatusViewer
+          visible={selectedStatusStory !== null}
+          statuses={
+            selectedStatusStory
+              ? [selectedStatusStory]
+              : []
+          }
+          index={0}
+          senderIdentityId={activeIdentityId}
+          onChangeIndex={() => undefined}
+          onStatusViewed={() => undefined}
+          onArchiveStatus={async () => undefined}
+          allowArchive={false}
+          onClose={() => {
+            setSelectedStatusStory(null);
+          }}
+        />
+
         <Modal
           transparent
           animationType="fade"
@@ -1438,6 +1512,28 @@ export default function ConversationScreen() {
                           sender: message.replyTo.sender,
                           text: message.replyTo.text,
                         }
+                        : undefined
+                    }
+                    statusStoryReference={
+                      message.statusStoryReference
+                        ? {
+                            isAvailable: (
+                              message.statusStoryReference.isAvailable
+                            ),
+                            status: message.statusStoryReference.status,
+                          }
+                        : undefined
+                    }
+                    onPressStatusStory={
+                      !openingStatusStory
+                        && message.statusStoryReference
+                        && message.statusStoryReference.isAvailable
+                        && message.statusStoryReference.status
+                        ? () => {
+                            void handleOpenStatusStory(
+                              message.statusStoryReference!,
+                            );
+                          }
                         : undefined
                     }
                     isEdited={message.isEdited}
