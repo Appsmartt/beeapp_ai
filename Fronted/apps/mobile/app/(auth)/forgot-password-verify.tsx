@@ -5,6 +5,7 @@ import {
     } from 'react';
 import {
     ActivityIndicator,
+    Image,
     Keyboard,
     KeyboardAvoidingView,
     Platform,
@@ -29,8 +30,9 @@ import {
     verifyPasswordReset,
     } from '@beeapp/api-client';
 
-import BuddyLogo from '../../src/components/BuddyLogo';
 import ScreenSafeArea from '../../src/components/layout/ScreenSafeArea';
+
+const recoveryLogoSource = require('../../src/assets/short_logo.png');
 
 
 function getParam(value: string | string[] | undefined): string {
@@ -149,10 +151,11 @@ export default function ForgotPasswordVerifyScreen() {
                 </TouchableOpacity>
 
                 <View style={styles.logoContainer}>
-                <BuddyLogo
-                    size={76}
-                    showText={false}
-                    autoStopAfter={2500}
+                <Image
+                    source={recoveryLogoSource}
+                    style={styles.recoveryLogo}
+                    resizeMode="contain"
+                    accessibilityLabel="Logo de BeeApp"
                 />
                 </View>
 
@@ -289,6 +292,10 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         marginBottom: 14,
         marginTop: Platform.OS === 'ios' ? 28 : 16,
+    },
+    recoveryLogo: {
+        height: 76,
+        width: 76,
     },
     header: {
         alignItems: 'center',

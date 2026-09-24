@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import {
     ActivityIndicator,
+    Image,
     Keyboard,
     KeyboardAvoidingView,
     Platform,
@@ -23,9 +24,10 @@ import {
 import { colors } from '@beeapp/design-system';
 import { confirmPasswordReset } from '@beeapp/api-client';
 
-import BuddyLogo from '../../src/components/BuddyLogo';
 import ScreenSafeArea from '../../src/components/layout/ScreenSafeArea';
 import { clearAuthSession } from '../../src/services/authSession';
+
+const recoveryLogoSource = require('../../src/assets/short_logo.png');
 
 
 const MIN_PASSWORD_LENGTH = 8;
@@ -108,10 +110,11 @@ export default function ResetPasswordScreen() {
             <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
             <View style={styles.content}>
                 <View style={styles.logoContainer}>
-                <BuddyLogo
-                    size={76}
-                    showText={false}
-                    autoStopAfter={2500}
+                <Image
+                    source={recoveryLogoSource}
+                    style={styles.recoveryLogo}
+                    resizeMode="contain"
+                    accessibilityLabel="Logo de BeeApp"
                 />
                 </View>
 
@@ -299,6 +302,10 @@ const styles = StyleSheet.create({
     logoContainer: {
         alignItems: 'center',
         marginBottom: 16,
+    },
+    recoveryLogo: {
+        height: 76,
+        width: 76,
     },
     header: {
         alignItems: 'center',
