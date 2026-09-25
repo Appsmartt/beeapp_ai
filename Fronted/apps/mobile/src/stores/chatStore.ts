@@ -769,6 +769,35 @@ export function removeChatConversation(
 
 }
 
+export function resetChatConversationMessages(
+  conversationId: string,
+): void {
+  const normalizedConversationId = normalizeConversationId(
+    conversationId,
+  );
+
+  if (!normalizedConversationId) {
+    return;
+  }
+
+  const {
+    [normalizedConversationId]: _previousMessages,
+    ...remainingMessages
+  } = messagesByConversationId;
+  const {
+    [normalizedConversationId]: _previousMetadata,
+    ...remainingMetadata
+  } = messageCacheMetadataByConversationId;
+
+  messagesByConversationId = remainingMessages;
+  messageCacheMetadataByConversationId = remainingMetadata;
+
+  notifyChatStore({
+    type: 'messages',
+    conversationId: normalizedConversationId,
+  });
+}
+
 export function getChatMessages(
   conversationId: string,
 ): ChatMessage[] {
