@@ -18,6 +18,9 @@ import {
   subscribeChatPresenceReconnect,
 } from '../services/chatPresenceRealtime';
 
+let realtimeRetryUserId: string | null = null;
+let realtimeRetryAfter = 0;
+
 export function useChatListPresence(
   viewerIdentityId: string | null,
   chats: ChatListItemModel[],
@@ -47,7 +50,7 @@ export function useChatListPresence(
     }
 
     let cancelled = false;
-    let retry: ReturnType<typeof setTimeout> | null = null;
+    let polling: ReturnType<typeof setInterval> | null = null;
     let requestNumber = 0;
     let eventsDuringSnapshot: Record<string, boolean> = {};
     let snapshotPending = true;
@@ -84,10 +87,19 @@ export function useChatListPresence(
           throw new Error('Chat presence session unavailable.');
         }
 
-        await startChatPresenceRealtime(
-          session.user.id,
-          session.session.access_token,
-        );
+        if (realtimeRetryUserId !== session.user.id) {
+          realtimeRetryUserId = session.user.id;
+          realtimeRetryAfter = 0;
+        }
+        if (Date.now() >= realtimeRetryAfter) {
+          realtimeRetryAfter = Date.now() + 60000;
+          void startChatPresenceRealtime(
+            session.user.id,
+            session.session.access_token,
+          ).then(() => {
+            realtimeRetryAfter = 0;
+          }).catch(() => undefined);
+        }
 
         const response = await getChatInboxPresence(
           getSessionCredentials(session),
@@ -117,12 +129,6 @@ export function useChatListPresence(
 
         snapshotPending = false;
         setOnlineByIdentity({});
-        if (!retry) {
-          retry = setTimeout(() => {
-            retry = null;
-            void refresh();
-          }, 10000);
-        }
       }
     };
 
@@ -143,6 +149,11 @@ export function useChatListPresence(
     );
 
     void refresh();
+    polling = setInterval(() => {
+      if (AppState.currentState === 'active') {
+        void refresh();
+      }
+    }, 30000);
 
     return () => {
       cancelled = true;
@@ -150,8 +161,8 @@ export function useChatListPresence(
       unsubscribeEvents();
       unsubscribeReconnect();
       appSubscription.remove();
-      if (retry) {
-        clearTimeout(retry);
+      if (polling) {
+        clearInterval(polling);
       }
     };
   }, [viewerIdentityId, targetKey]);
