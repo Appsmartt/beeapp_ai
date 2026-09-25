@@ -7,6 +7,10 @@ from beeAppBack.core.supabase_client import (
     get_supabase_admin_client,
 )
 
+from apps.statuses.services.status_media_service import (
+    create_status_avatar_signed_url,
+)
+
 from apps.chat.exceptions import (
     ChatIdentityError,
     ChatIdentityNotFoundError,
@@ -19,7 +23,7 @@ CHAT_IDENTITY_COLUMNS = (
 )
 
 PROFILE_COLUMNS = (
-    "id,first_name,last_name"
+    "id,first_name,last_name,avatar_file_id"
 )
 
 COMMERCIAL_PROFILE_COLUMNS = (
@@ -410,7 +414,11 @@ def _serialize_chat_identity(
             if value
         ).strip() or "Usuario BeeApp"
 
-        avatar_file_id = None
+        avatar_file_id = (
+            profile.get("avatar_file_id")
+            if profile
+            else None
+        )
         is_available = True
     else:
         display_name = (
@@ -442,6 +450,13 @@ def _serialize_chat_identity(
         ),
         "display_name": display_name,
         "avatar_file_id": avatar_file_id,
+        "avatar_url": create_status_avatar_signed_url(
+            avatar_file_id=(
+                str(avatar_file_id)
+                if avatar_file_id
+                else None
+            ),
+        ),
         "is_active": bool(identity.get("is_active")),
         "is_available": is_available,
         "created_at": identity.get("created_at"),

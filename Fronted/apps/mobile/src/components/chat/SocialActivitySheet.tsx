@@ -1,5 +1,6 @@
 import {
   ActivityIndicator,
+  Image,
   FlatList,
   Modal,
   StyleSheet,
@@ -19,10 +20,21 @@ import {
 import {
   colors,
 } from '@beeapp/design-system';
+import {
+  useEffect,
+  useState,
+} from 'react';
 import type {
   ChatGroupInvite,
   StatusFollowListItem,
 } from '@beeapp/shared-types';
+
+import {
+  getValidSessionCredentials,
+} from '../../services/authSession';
+import {
+  getProfileAvatarUrl,
+} from '../../services/profileAvatarService';
 
 export type SocialActivityTab =
   | 'invites'
@@ -211,6 +223,9 @@ export default function SocialActivitySheet({
 }: SocialActivitySheetProps) {
   const emptyCopy = getEmptyCopy(activeTab);
   const EmptyIcon = getEmptyIcon(activeTab);
+  const [avatarUrlsByFileId, setAvatarUrlsByFileId] = useState<
+    Record<string, string>
+  >({});
 
   const activeItems = activeTab === 'followers'
     ? followers
@@ -225,20 +240,114 @@ export default function SocialActivitySheet({
       : followingCount,
   );
 
+  useEffect(() => {
+    let cancelled = false;
+
+    const avatarFileIds = Array.from(
+      new Set(
+        [
+          ...invites.map(
+            (invite) => (
+              invite.invited_by_identity?.avatar_file_id || null
+            ),
+          ),
+          ...requests.map((item) => item.target.avatar_file_id),
+          ...followers.map((item) => item.target.avatar_file_id),
+          ...following.map((item) => item.target.avatar_file_id),
+        ].filter((fileId): fileId is string => Boolean(fileId)),
+      ),
+    );
+
+    if (avatarFileIds.length === 0) {
+      setAvatarUrlsByFileId({});
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    const loadAvatarUrls = async () => {
+      try {
+        const credentials = await getValidSessionCredentials();
+
+        if (!credentials) {
+          return;
+        }
+
+        const entries = await Promise.all(
+          avatarFileIds.map(async (fileId) => {
+            try {
+              const access = await getProfileAvatarUrl(
+                credentials,
+                fileId,
+              );
+
+              return [fileId, access.url] as const;
+            } catch {
+              return [fileId, null] as const;
+            }
+          }),
+        );
+
+        if (cancelled) {
+          return;
+        }
+
+        setAvatarUrlsByFileId(
+          Object.fromEntries(
+            entries.filter(
+              (
+                entry,
+              ): entry is readonly [string, string] => Boolean(entry[1]),
+            ),
+          ),
+        );
+      } catch {
+        if (!cancelled) {
+          setAvatarUrlsByFileId({});
+        }
+      }
+    };
+
+    void loadAvatarUrls();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    followers,
+    following,
+    invites,
+    requests,
+  ]);
+
   const renderInvite = ({
     item,
   }: {
     item: ChatGroupInvite;
   }) => {
     const isActing = actingId === item.id;
+    const avatarFileId = item.invited_by_identity?.avatar_file_id || null;
+    const avatarUrl = (
+      item.invited_by_identity?.avatar_url?.trim()
+      || (avatarFileId
+        ? avatarUrlsByFileId[avatarFileId]
+        : null)
+    );
 
     return (
       <View style={styles.card}>
         <View style={styles.groupAvatar}>
-          <Users
-            size={20}
-            color={colors.brand.primary}
-          />
+          {avatarUrl ? (
+            <Image
+              source={{ uri: avatarUrl }}
+              style={styles.avatarImage}
+            />
+          ) : (
+            <Users
+              size={20}
+              color={colors.brand.primary}
+            />
+          )}
         </View>
 
         <View style={styles.copy}>
@@ -309,13 +418,27 @@ export default function SocialActivitySheet({
   }) => {
     const isActing = actingId === item.id;
     const name = item.target.display_name;
+    const avatarFileId = item.target.avatar_file_id;
+    const avatarUrl = (
+      item.target.avatar_url?.trim()
+      || (avatarFileId
+        ? avatarUrlsByFileId[avatarFileId]
+        : null)
+    );
 
     return (
       <View style={styles.card}>
         <View style={styles.personAvatar}>
-          <Text style={styles.avatarText}>
-            {getInitials(name)}
-          </Text>
+          {avatarUrl ? (
+            <Image
+              source={{ uri: avatarUrl }}
+              style={styles.avatarImage}
+            />
+          ) : (
+            <Text style={styles.avatarText}>
+              {getInitials(name)}
+            </Text>
+          )}
         </View>
 
         <View style={styles.copy}>
@@ -386,13 +509,27 @@ export default function SocialActivitySheet({
   }) => {
     const name = item.target.display_name;
     const isFollower = activeTab === 'followers';
+    const avatarFileId = item.target.avatar_file_id;
+    const avatarUrl = (
+      item.target.avatar_url?.trim()
+      || (avatarFileId
+        ? avatarUrlsByFileId[avatarFileId]
+        : null)
+    );
 
     return (
       <View style={styles.followerRow}>
         <View style={styles.personAvatar}>
-          <Text style={styles.avatarText}>
-            {getInitials(name)}
-          </Text>
+          {avatarUrl ? (
+            <Image
+              source={{ uri: avatarUrl }}
+              style={styles.avatarImage}
+            />
+          ) : (
+            <Text style={styles.avatarText}>
+              {getInitials(name)}
+            </Text>
+          )}
         </View>
 
         <View style={styles.copy}>
@@ -662,6 +799,7 @@ const styles = StyleSheet.create({
     borderRadius: 22,
     height: 44,
     justifyContent: 'center',
+    overflow: 'hidden',
     width: 44,
   },
   personAvatar: {
@@ -670,7 +808,12 @@ const styles = StyleSheet.create({
     borderRadius: 22,
     height: 44,
     justifyContent: 'center',
+    overflow: 'hidden',
     width: 44,
+  },
+  avatarImage: {
+    height: '100%',
+    width: '100%',
   },
   avatarText: {
     color: colors.brand.primary,

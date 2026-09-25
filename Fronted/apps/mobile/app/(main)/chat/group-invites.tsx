@@ -1,12 +1,14 @@
 import {
   useCallback,
   useEffect,
+  useMemo,
   useState,
 } from 'react';
 import {
   ActivityIndicator,
   Alert,
   FlatList,
+  Image,
   RefreshControl,
   StyleSheet,
   Text,
@@ -40,6 +42,9 @@ import {
 import {
   getValidSessionCredentials,
 } from '../../../src/services/authSession';
+import {
+  getProfileAvatarUrl,
+} from '../../../src/services/profileAvatarService';
 
 export default function GroupInvitesScreen() {
   const router = useModuleNav();
@@ -60,6 +65,84 @@ export default function GroupInvitesScreen() {
   const [actingInviteId, setActingInviteId] = useState<
     string | null
   >(null);
+  const [avatarUrlsByFileId, setAvatarUrlsByFileId] = useState<
+    Record<string, string>
+  >({});
+
+  const inviterAvatarFileIds = useMemo(
+    () => Array.from(
+      new Set(
+        invites
+          .map(
+            (invite) => (
+              invite.invited_by_identity?.avatar_file_id || null
+            ),
+          )
+          .filter((fileId): fileId is string => Boolean(fileId)),
+      ),
+    ),
+    [invites],
+  );
+
+  useEffect(() => {
+    let cancelled = false;
+
+    if (inviterAvatarFileIds.length === 0) {
+      setAvatarUrlsByFileId({});
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    const loadInviterAvatarUrls = async () => {
+      try {
+        const credentials = await getValidSessionCredentials();
+
+        if (!credentials) {
+          return;
+        }
+
+        const entries = await Promise.all(
+          inviterAvatarFileIds.map(async (fileId) => {
+            try {
+              const access = await getProfileAvatarUrl(
+                credentials,
+                fileId,
+              );
+
+              return [fileId, access.url] as const;
+            } catch {
+              return [fileId, null] as const;
+            }
+          }),
+        );
+
+        if (cancelled) {
+          return;
+        }
+
+        setAvatarUrlsByFileId(
+          Object.fromEntries(
+            entries.filter(
+              (
+                entry,
+              ): entry is readonly [string, string] => Boolean(entry[1]),
+            ),
+          ),
+        );
+      } catch {
+        if (!cancelled) {
+          setAvatarUrlsByFileId({});
+        }
+      }
+    };
+
+    void loadInviterAvatarUrls();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [inviterAvatarFileIds]);
 
   const loadInvites = useCallback(async (
     options: {
@@ -220,14 +303,30 @@ export default function GroupInvitesScreen() {
     );
 
     const isActing = actingInviteId === invite.id;
+    const avatarFileId = (
+      invite.invited_by_identity?.avatar_file_id || null
+    );
+    const avatarUrl = (
+      invite.invited_by_identity?.avatar_url?.trim()
+      || (avatarFileId
+        ? avatarUrlsByFileId[avatarFileId]
+        : null)
+    );
 
     return (
       <View style={styles.inviteCard}>
         <View style={styles.avatar}>
-          <Users
-            size={23}
-            color={colors.brand.primary}
-          />
+          {avatarUrl ? (
+            <Image
+              source={{ uri: avatarUrl }}
+              style={styles.avatarImage}
+            />
+          ) : (
+            <Users
+              size={23}
+              color={colors.brand.primary}
+            />
+          )}
         </View>
 
         <View style={styles.inviteContent}>
@@ -478,7 +577,12 @@ const styles = StyleSheet.create({
     height: 44,
     justifyContent: 'center',
     marginRight: 12,
+    overflow: 'hidden',
     width: 44,
+  },
+  avatarImage: {
+    height: '100%',
+    width: '100%',
   },
   inviteContent: {
     flex: 1,
