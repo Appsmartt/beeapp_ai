@@ -34,6 +34,7 @@ import {
 } from '../../../src/components/embedded/EmbeddedNavContext';
 
 import MessageBubble from '../../../src/components/chat/MessageBubble';
+import ChatImageViewerModal from '../../../src/components/chat/ChatImageViewerModal';
 import StatusViewer from '../../../src/components/chat/StatusViewer';
 import WriteBar from '../../../src/components/chat/WriteBar';
 import AiAutoReplyBanner from '../../../src/components/chat/AiAutoReplyBanner';
@@ -214,6 +215,11 @@ export default function ConversationScreen() {
 
   const [forwardModalOpen, setForwardModalOpen] =
     useState(false);
+  const [viewingChatImage, setViewingChatImage] = useState<{
+    messageId: string;
+    url: string;
+    caption?: string;
+  } | null>(null);
 
   const [toastText, setToastText] =
     useState<string | null>(null);
@@ -461,6 +467,17 @@ export default function ConversationScreen() {
     isGroup,
   ]);
 
+  const attachmentAccessKey = messages
+    .filter((message) => (
+      (message.type === 'image' || message.type === 'file')
+      && !message.mediaUrl
+      && Boolean(message.raw.attachments?.[0]?.file_id)
+    ))
+    .map((message) => (
+      `${message.id}:${message.raw.attachments?.[0]?.file_id}`
+    ))
+    .join('|');
+
   useEffect(() => {
     let cancelled = false;
 
@@ -575,10 +592,13 @@ export default function ConversationScreen() {
 
     return () => {
       cancelled = true;
+      messagesNeedingAttachmentAccess.forEach((message) => {
+        resolvedAttachmentMessageIdsRef.current.delete(message.id);
+      });
     };
   }, [
     activeIdentityId,
-    messages,
+    attachmentAccessKey,
   ]);
 
   const requestFreshAudioUrl = async (
@@ -1500,6 +1520,16 @@ export default function ConversationScreen() {
                           )
                     }
                     messageId={message.id}
+                    onPressImage={message.type === 'image' ? () => {
+                      const url = message.mediaUrl || attachmentUrlsByMessageId[message.id];
+                      if (url) {
+                        setViewingChatImage({
+                          messageId: message.id,
+                          url,
+                          caption: message.text,
+                        });
+                      }
+                    } : undefined}
                     onRequestAudioUrl={
                       message.type === 'audio'
                         ? requestFreshAudioUrl
@@ -1665,6 +1695,12 @@ export default function ConversationScreen() {
             </View>
           </View>
         )}
+
+        <ChatImageViewerModal
+          image={viewingChatImage}
+          identityId={activeIdentityId}
+          onClose={() => setViewingChatImage(null)}
+        />
 
         <ChatMessageMenuModal
           visible={selectedMessage !== null}
