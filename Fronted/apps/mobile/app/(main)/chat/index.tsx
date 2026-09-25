@@ -48,7 +48,6 @@ import ChatTabs, {
 } from '../../../src/components/chat/ChatTabs';
 import ChatOptionsSheet from '../../../src/components/chat/ChatOptionsSheet';
 import ChatCreateMenu from '../../../src/components/chat/ChatCreateMenu';
-import DiscoverPeopleModal from '../../../src/components/chat/DiscoverPeopleModal';
 import SocialActivitySheet, {
   type SocialActivityTab,
 } from '../../../src/components/chat/SocialActivitySheet';
@@ -75,7 +74,6 @@ import {
 import {
   acceptStatusFollow,
   archiveCurrentStatus,
-  followStatusTarget,
   loadStatusFollowers,
   loadStatusFollowing,
   loadStatusFollowRequests,
@@ -84,14 +82,12 @@ import {
   publishTextStatus,
   publishTextStatusWithImageLayers,
   rejectStatusFollow,
-  searchStatusFollowTargets,
 } from '../../../src/services/statusesService';
 import type {
   StatusEditorPublishDraft,
 } from '../../../src/components/chat/CreateStatusModal';
 import type {
   ChatGroupInvite,
-  StatusFollowDiscoverItem,
   StatusFollowListItem,
   StatusImageLayerUpload,
 } from '@beeapp/shared-types';
@@ -265,17 +261,6 @@ export default function ChatListScreen() {
   const [socialLoading, setSocialLoading] = useState(false);
   const [socialError, setSocialError] = useState<string | null>(null);
   const [socialActingId, setSocialActingId] = useState<string | null>(null);
-  const [discoverPeopleOpen, setDiscoverPeopleOpen] = useState(false);
-  const [discoverQuery, setDiscoverQuery] = useState('');
-  const [discoverResults, setDiscoverResults] = useState<
-    StatusFollowDiscoverItem[]
-  >([]);
-  const [discoverLoading, setDiscoverLoading] = useState(false);
-  const [discoverError, setDiscoverError] = useState<string | null>(null);
-  const [followingTargetKey, setFollowingTargetKey] = useState<
-    string | null
-  >(null);
-  const discoverRequestRef = useRef(0);
 
   const {
     statuses,
@@ -404,60 +389,7 @@ export default function ChatListScreen() {
     isCommercialContext,
   ]);
 
-  useEffect(() => {
-    if (!discoverPeopleOpen) {
-      return;
-    }
 
-    const normalizedQuery = discoverQuery.trim();
-
-    if (normalizedQuery.length < 2) {
-      setDiscoverResults([]);
-      setDiscoverError(null);
-      setDiscoverLoading(false);
-      return;
-    }
-
-    const requestId = discoverRequestRef.current + 1;
-    discoverRequestRef.current = requestId;
-
-    const timeoutId = setTimeout(() => {
-      void (async () => {
-        try {
-          setDiscoverLoading(true);
-          setDiscoverError(null);
-
-          const response = await searchStatusFollowTargets({
-            q: normalizedQuery,
-          });
-
-          if (discoverRequestRef.current === requestId) {
-            setDiscoverResults(response.items);
-          }
-        } catch (searchError) {
-          if (discoverRequestRef.current === requestId) {
-            setDiscoverResults([]);
-            setDiscoverError(
-              searchError instanceof Error
-                ? searchError.message
-                : 'No fue posible buscar personas.',
-            );
-          }
-        } finally {
-          if (discoverRequestRef.current === requestId) {
-            setDiscoverLoading(false);
-          }
-        }
-      })();
-    }, 320);
-
-    return () => {
-      clearTimeout(timeoutId);
-    };
-  }, [
-    discoverPeopleOpen,
-    discoverQuery,
-  ]);
 
   useEffect(() => {
     if (!socialActivityOpen) {
@@ -1683,89 +1615,22 @@ export default function ChatListScreen() {
         }}
       />
 
-      <DiscoverPeopleModal
-        visible={discoverPeopleOpen}
-        query={discoverQuery}
-        results={discoverResults}
-        loading={discoverLoading}
-        error={discoverError}
-        followingTargetKey={followingTargetKey}
-        onChangeQuery={setDiscoverQuery}
-        onFollow={(target) => {
-          const targetKey = (
-            target.profile_id
-            || target.commercial_profile_id
-            || target.display_name
-          );
-
-          void (async () => {
-            try {
-              setFollowingTargetKey(targetKey);
-
-              const response = await followStatusTarget({
-                target_actor_type: target.actor_type,
-                target_profile_id: target.profile_id,
-                target_commercial_profile_id: (
-                  target.commercial_profile_id
-                ),
-              });
-
-              setDiscoverResults((current) => (
-                current.map((item) => {
-                  const itemKey = (
-                    item.profile_id
-                    || item.commercial_profile_id
-                    || item.display_name
-                  );
-
-                  return itemKey === targetKey
-                    ? {
-                      ...item,
-                      follow_id: response.follow.id,
-                      follow_state: response.follow.state,
-                    }
-                    : item;
-                })
-              ));
-
-              void refreshStatuses();
-            } catch (followError) {
-              setDiscoverError(
-                followError instanceof Error
-                  ? followError.message
-                  : 'No fue posible seguir esta cuenta.',
-              );
-            } finally {
-              setFollowingTargetKey(null);
-            }
-          })();
-        }}
-        onClose={() => {
-          discoverRequestRef.current += 1;
-          setDiscoverPeopleOpen(false);
-          setDiscoverQuery('');
-          setDiscoverResults([]);
-          setDiscoverError(null);
-          setFollowingTargetKey(null);
-        }}
-      />
-
       <ChatCreateMenu
         visible={createMenuOpen}
-        onNewChat={() => {
+        onPeople={() => {
           setCreateMenuOpen(false);
 
           router.push(
             isCommercialContext
               ? {
-                  pathname: '/(main)/chat/new',
+                  pathname: '/(main)/chat/people',
                   params: {
                     context: 'commercial',
                     businessId,
                     identityId: activeIdentityId || '',
                   },
                 }
-              : '/(main)/chat/new',
+              : '/(main)/chat/people',
           );
         }}
         onNewGroup={() => {
@@ -1783,10 +1648,6 @@ export default function ChatListScreen() {
                 }
               : '/(main)/chat/new-group',
           );
-        }}
-        onDiscoverPeople={() => {
-          setCreateMenuOpen(false);
-          setDiscoverPeopleOpen(true);
         }}
         onClose={() => {
           setCreateMenuOpen(false);

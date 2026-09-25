@@ -13,6 +13,10 @@ from apps.storage.exceptions import (
 from apps.storage.services.storage_file_service import (
     get_owned_file,
 )
+from apps.chat.exceptions import ChatIdentityError
+from apps.chat.services.chat_identity_service import (
+    sync_chat_identities_for_user,
+)
 
 
 MAX_PROFILE_AVATAR_SIZE_BYTES = 5 * 1024 * 1024
@@ -86,6 +90,28 @@ def create_profile(
             raise ProfileCreationError(
                 "Supabase did not return the storage quota."
             )
+
+        try:
+            sync_chat_identities_for_user(
+                user_id=str(auth_user_id),
+            )
+        except ChatIdentityError as error:
+            (
+                supabase.table("storage_quotas")
+                .delete()
+                .eq("user_id", str(auth_user_id))
+                .execute()
+            )
+            (
+                supabase.table("profile")
+                .delete()
+                .eq("id", str(auth_user_id))
+                .execute()
+            )
+            raise ProfileCreationError(
+                "Could not initialize the chat identity "
+                "for the new BeeApp profile."
+            ) from error
 
         return response.data[0]
 

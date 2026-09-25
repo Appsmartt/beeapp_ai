@@ -34,6 +34,10 @@ from apps.storage.exceptions import (
 from apps.storage.services.storage_file_service import (
     get_owned_file,
 )
+from apps.chat.exceptions import ChatIdentityError
+from apps.chat.services.chat_identity_service import (
+    sync_chat_identities_for_user,
+)
 
 
 COMMERCIAL_CATEGORY_COLUMNS = (
@@ -691,6 +695,16 @@ def create_commercial_profile(
                 raise CommercialProfileCreateError(
                     "Supabase did not create all profile social links."
                 )
+
+        try:
+            sync_chat_identities_for_user(
+                user_id=str(user_id),
+            )
+        except ChatIdentityError as error:
+            raise CommercialProfileCreateError(
+                "Could not initialize the chat identity "
+                "for the new commercial profile."
+            ) from error
 
         return get_owned_commercial_profile_with_access_token(
             access_token=normalized_access_token,

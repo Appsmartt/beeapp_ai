@@ -7,6 +7,7 @@ import NoteEditScreen from '../../../app/(main)/notes/edit';
 import ChatListScreen from '../../../app/(main)/chat/index';
 import ChatConversationScreen from '../../../app/(main)/chat/conversation';
 import ChatNewScreen from '../../../app/(main)/chat/new';
+import ChatPeopleScreen from '../../../app/(main)/chat/people';
 import ChatCallScreen from '../../../app/(main)/chat/call';
 import AiSettingsRoute from '../../../app/(main)/chat/ai-settings';
 import ChatProfileRoute from '../../../app/(main)/chat/chat-profile';
@@ -56,6 +57,7 @@ export const EMBEDDED_SCREENS: Record<string, ComponentType<any>> = {
   '/(main)/chat': ChatListScreen,
   '/(main)/chat/conversation': ChatConversationScreen,
   '/(main)/chat/new': ChatNewScreen,
+  '/(main)/chat/people': ChatPeopleScreen,
   '/(main)/chat/call': ChatCallScreen,
   '/(main)/chat/ai-settings': AiSettingsRoute,
   '/(main)/chat/chat-profile': ChatProfileRoute,

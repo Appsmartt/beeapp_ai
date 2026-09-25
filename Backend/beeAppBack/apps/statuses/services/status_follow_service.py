@@ -219,13 +219,44 @@ def unfollow(
 ) -> None:
     """
     Elimina una relación aceptada o cancela una solicitud pendiente.
-    Solo puede hacerlo quien inició el seguimiento.
+    Solo puede hacerlo quien inició el seguimiento, con su identidad
+    personal o con un perfil comercial que le pertenezca.
     """
     follow = _get_follow_by_id(follow_id=follow_id)
+    follower_actor_type = follow["follower_actor_type"]
 
-    if str(follow["follower_profile_id"]) != str(user_id):
-        raise StatusFollowAccessError(
-            "You cannot remove this follow relationship."
+    if follower_actor_type == "profile":
+        if str(follow["follower_profile_id"]) != str(user_id):
+            raise StatusFollowAccessError(
+                "You cannot remove this follow relationship."
+            )
+
+        follower_profile_id = str(user_id)
+        follower_commercial_profile_id = None
+    elif follower_actor_type == "commercial_profile":
+        commercial_profile_id = str(
+            follow.get("follower_commercial_profile_id") or ""
+        )
+
+        if not commercial_profile_id:
+            raise StatusFollowValidationError(
+                "Commercial follower identity is invalid."
+            )
+
+        commercial = _get_commercial_profile(
+            commercial_profile_id=commercial_profile_id,
+        )
+
+        if str(commercial["owner_id"]) != str(user_id):
+            raise StatusFollowAccessError(
+                "You cannot remove this follow relationship."
+            )
+
+        follower_profile_id = None
+        follower_commercial_profile_id = commercial_profile_id
+    else:
+        raise StatusFollowValidationError(
+            "Follower actor type is invalid."
         )
 
     try:
@@ -235,7 +266,11 @@ def unfollow(
                 .rpc(
                     "status_unfollow",
                     {
-                        "p_follower_profile_id": str(user_id),
+                        "p_follower_actor_type": follower_actor_type,
+                        "p_follower_profile_id": follower_profile_id,
+                        "p_follower_commercial_profile_id": (
+                            follower_commercial_profile_id
+                        ),
                         "p_follow_id": str(follow_id),
                     },
                 )
@@ -252,6 +287,7 @@ def unfollow(
         StatusFollowError,
         StatusFollowAccessError,
         StatusFollowNotFoundError,
+        StatusFollowValidationError,
     ):
         raise
 
@@ -541,6 +577,7 @@ def _raise_follow_rpc_error(
         or "STATUS_CANNOT_FOLLOW_SELF" in message
         or "STATUS_CANNOT_FOLLOW_OWN_COMMERCIAL_PROFILE"
         in message
+        or "STATUS_FOLLOWER_NOT_OWNED_BY_USER" in message
     ):
         raise StatusFollowAccessError(
             "You cannot perform this follow operation."
@@ -551,6 +588,7 @@ def _raise_follow_rpc_error(
         or "STATUS_COMMERCIAL_TARGET_REQUIRED" in message
         or "STATUS_TARGET_ACTOR_TYPE_INVALID" in message
         or "STATUS_FOLLOW_NOT_PENDING" in message
+        or "STATUS_FOLLOWER_ACTOR_TYPE_INVALID" in message
     ):
         raise StatusFollowValidationError(
             "The follow operation is not valid in its current state."
@@ -1221,7 +1259,7 @@ def discover_follow_targets(
                 access_token=access_token,
             )
             .rpc(
-                "status_discover_follow_targets",
+                "status_discover_people_targets",
                 {
                     "p_follower_actor_type": "profile",
                     "p_follower_profile_id": str(user_id),
@@ -1275,6 +1313,11 @@ def discover_follow_targets(
             "commercial_profile_id": (
                 str(row["commercial_profile_id"])
                 if row.get("commercial_profile_id")
+                else None
+            ),
+            "identity_id": (
+                str(row["identity_id"])
+                if row.get("identity_id")
                 else None
             ),
             "display_name": row["display_name"],

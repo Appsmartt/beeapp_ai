@@ -2294,6 +2294,7 @@ export interface StatusFollowDiscoverItem {
   actor_type: StatusActorType;
   profile_id: string | null;
   commercial_profile_id: string | null;
+  identity_id: string | null;
   display_name: string;
   avatar_file_id: string | null;
   follow_id: string | null;
