@@ -12,6 +12,7 @@ import {
 import { colors } from '@beeapp/design-system';
 import { ChevronLeft, Phone, Video, MoreVertical, Bot, SlidersHorizontal } from 'lucide-react-native';
 import VerifiedBadge from '../VerifiedBadge';
+import { formatChatLastSeen } from '../../services/formatChatLastSeen';
 
 interface ConversationHeaderProps {
   chatName: string;
@@ -20,6 +21,8 @@ interface ConversationHeaderProps {
   isGroup: boolean;
   isVerified: boolean;
   online: boolean;
+  presenceLoading: boolean;
+  lastSeenAt: string | null;
   groupMemberCount: number;
   menuOpen: boolean;
   onBack: () => void;
@@ -36,6 +39,8 @@ export default function ConversationHeader({
   isGroup,
   isVerified,
   online,
+  presenceLoading,
+  lastSeenAt,
   groupMemberCount,
   onBack,
   onOpenProfile,
@@ -44,6 +49,14 @@ export default function ConversationHeader({
   onToggleMenu,
 }: ConversationHeaderProps) {
   const [avatarFailed, setAvatarFailed] = useState(false);
+  const [now, setNow] = useState(Date.now());
+
+  useEffect(() => {
+    if (isAI || isGroup || online || presenceLoading || !lastSeenAt) return;
+    setNow(Date.now());
+    const timer = setInterval(() => setNow(Date.now()), 30000);
+    return () => clearInterval(timer);
+  }, [isAI, isGroup, online, presenceLoading, lastSeenAt]);
 
   useEffect(() => {
     setAvatarFailed(false);
@@ -113,9 +126,11 @@ export default function ConversationHeader({
                 ? 'Asistente de Buddy · siempre disponible'
                 : isGroup
                 ? `${groupMemberCount} participantes`
+                : presenceLoading
+                ? 'Consultando conexión…'
                 : online
                 ? 'En línea'
-                : 'Últ. vez hace 1 hora'}
+                : formatChatLastSeen(lastSeenAt, now)}
             </Text>
           </View>
         </TouchableOpacity>
