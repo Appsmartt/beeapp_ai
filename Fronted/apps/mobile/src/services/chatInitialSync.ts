@@ -320,18 +320,7 @@ export async function synchronizeInitialPrivateChats(
     selectedConversations,
   );
 
-  replaceChatConversationsSnapshot(
-    conversations,
-    {
-      lastSyncedAt: new Date().toISOString(),
-      /*
-       * Este bootstrap solo conserva 10 chats directos y 5 grupos.
-       * Por eso no es un snapshot completo del inbox y no puede
-       * eliminar caches de conversaciones que no se seleccionaron.
-       */
-      removeStaleMessageCaches: false,
-    },
-  );
+  replaceChatConversationsSnapshot(conversations);
 
   let completedConversations = 0;
   let failedConversations = 0;

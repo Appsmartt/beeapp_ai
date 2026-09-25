@@ -53,8 +53,6 @@ import {
   getChatMessages as getStoredMessages,
   getChatMessagesCacheMetadata,
   getProtectedConversationIds,
-  hydrateChatConversations,
-  hydrateChatMessages,
   isChatConversationArchived,
   isChatConversationProtected,
   removeChatConversation,
@@ -610,10 +608,6 @@ export function useChatConversations(
         || await resolveActiveIdentityId(token)
       );
 
-      const cachedConversations = await hydrateChatConversations(
-        activeUserId,
-        identityId,
-      );
 
       if (
         requestedNetwork
@@ -624,29 +618,6 @@ export function useChatConversations(
 
       setCurrentUserId(activeUserId);
 
-      if (cachedConversations.length > 0) {
-        setRawConversations(cachedConversations);
-      }
-
-      const shouldUseNetwork = (
-        requestedNetwork
-        || cachedConversations.length === 0
-      );
-
-      if (!shouldUseNetwork) {
-        return cachedConversations.map((conversation) => (
-          mapConversationToListItem(
-            {
-              ...conversation,
-              is_archived: isChatConversationArchived(
-                conversation.id,
-              ),
-            },
-            activeUserId,
-            isChatConversationProtected(conversation.id),
-          )
-        ));
-      }
 
       const response = await getChatInbox(
         token,
@@ -717,37 +688,13 @@ export function useChatConversations(
       return;
     }
 
-    let cancelled = false;
 
-    const loadCacheThenRefresh = async () => {
-      try {
-        await loadConversations({
-          network: false,
-        });
-      } catch {
-        // La UI conserva cualquier dato disponible en caché.
-      }
+    void loadConversations({
+      network: true,
+    }).catch(() => {
+      // El hook conserva el error para mostrarlo en pantalla.
+    });
 
-      if (cancelled) {
-        return;
-      }
-
-      /*
-       * La actualización remota no bloquea la primera pintura:
-       * el inbox cacheado ya está visible mientras se reconcilia.
-       */
-      void loadConversations({
-        network: true,
-      }).catch(() => {
-        // La caché sigue disponible si la red falla.
-      });
-    };
-
-    void loadCacheThenRefresh();
-
-    return () => {
-      cancelled = true;
-    };
   }, [
     autoLoad,
     loadConversations,
@@ -1404,58 +1351,6 @@ export function useChatMessages(
     normalizedConversationId,
   ]);
 
-  const hydrateCachedMessages = useCallback(async (
-    activeUserId: string,
-  ) => {
-    if (!normalizedConversationId) {
-      return [];
-    }
-
-    const hydrationRequestId = (
-      hydrationRequestIdRef.current + 1
-    );
-
-    hydrationRequestIdRef.current = hydrationRequestId;
-
-    const {
-      token,
-    } = await getChatAuthContext();
-
-    const identityId = (
-      activeIdentityId
-      || await resolveActiveIdentityId(token)
-    );
-
-    const cachedMessages = await hydrateChatMessages(
-      activeUserId,
-      identityId,
-      normalizedConversationId,
-    );
-
-    if (
-      hydrationRequestId
-      !== hydrationRequestIdRef.current
-    ) {
-      return [];
-    }
-
-    const cacheMetadata = getChatMessagesCacheMetadata(
-      normalizedConversationId,
-    );
-
-    setCurrentUserId(activeUserId);
-    setRawMessages(cachedMessages);
-    setHasMore(cacheMetadata.hasMore);
-    setNextBeforeSequence(
-      cacheMetadata.nextBeforeSequence,
-    );
-
-    return cachedMessages;
-  }, [
-    activeIdentityId,
-    normalizedConversationId,
-    resolveActiveIdentityId,
-  ]);
 
   const applyConversation = useCallback((
     nextConversation: ChatConversation,
@@ -1614,9 +1509,6 @@ export function useChatMessages(
         token,
       } = await getChatAuthContext();
 
-      const cachedMessages = await hydrateCachedMessages(
-        activeUserId,
-      );
 
       if (
         shouldUseNetwork
@@ -1625,17 +1517,6 @@ export function useChatMessages(
         return [];
       }
 
-      if (!shouldUseNetwork) {
-        return cachedMessages.map((message) => (
-          mapChatMessageToModel(
-            message,
-            activeUserId,
-            {
-              conversationIsAi,
-            },
-          )
-        ));
-      }
 
       const response = await retryChatRequest(
         () => getChatMessages(
@@ -1729,7 +1610,6 @@ export function useChatMessages(
     }
   }, [
     conversationIsAi,
-    hydrateCachedMessages,
     markLatestMessageAsRead,
     normalizedConversationId,
     activeIdentityId,
@@ -1747,15 +1627,8 @@ export function useChatMessages(
     const initializeConversation = async () => {
       try {
         const {
-          currentUserId: activeUserId,
           token,
         } = await getChatAuthContext();
-
-        if (cancelled) {
-          return;
-        }
-
-        await hydrateCachedMessages(activeUserId);
 
         if (cancelled) {
           return;
@@ -1799,7 +1672,6 @@ export function useChatMessages(
     };
   }, [
     autoLoad,
-    hydrateCachedMessages,
     loadConversation,
     loadMessages,
     loadParticipants,
@@ -1970,7 +1842,6 @@ export function useChatMessages(
         token,
       } = await getChatAuthContext();
 
-      await hydrateCachedMessages(activeUserId);
 
       const senderIdentityId = (
         activeIdentityId
@@ -2030,7 +1901,6 @@ export function useChatMessages(
   }, [
     conversation,
     conversationIsAi,
-    hydrateCachedMessages,
     normalizedConversationId,
     activeIdentityId,
     resolveActiveIdentityId,
@@ -2068,7 +1938,6 @@ export function useChatMessages(
         token,
       } = await getChatAuthContext();
 
-      await hydrateCachedMessages(activeUserId);
 
       const senderIdentityId = (
         activeIdentityId
@@ -2123,7 +1992,6 @@ export function useChatMessages(
   }, [
     conversation,
     conversationIsAi,
-    hydrateCachedMessages,
     normalizedConversationId,
     activeIdentityId,
     resolveActiveIdentityId,
