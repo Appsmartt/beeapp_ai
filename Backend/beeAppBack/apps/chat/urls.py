@@ -1,5 +1,10 @@
 from django.urls import path
 
+from apps.chat.presence_views import (
+    ChatPresenceSnapshotView,
+    ChatPresenceStateView,
+)
+
 from apps.chat.views import (
     ChatBootstrapView,
     ChatSyncBootstrapView,
@@ -66,6 +71,16 @@ urlpatterns = [
         "contacts/<uuid:identity_id>/profile/",
         ChatContactProfileView.as_view(),
         name="chat-contact-profile",
+    ),
+    path(
+        "presence/state/",
+        ChatPresenceStateView.as_view(),
+        name="chat-presence-state",
+    ),
+    path(
+        "presence/snapshot/",
+        ChatPresenceSnapshotView.as_view(),
+        name="chat-presence-snapshot",
     ),
     path(
         "inbox/",

@@ -56,6 +56,7 @@ import PinLockModal from '../../../src/components/security/PinLockModal';
 import {
   useChatConversations,
 } from '../../../src/hooks/useChat';
+import { useChatListPresence } from '../../../src/hooks/useChatListPresence';
 import type {
   ChatListItemModel,
 } from '../../../src/services/chatService';
@@ -616,9 +617,7 @@ export default function ChatListScreen() {
         isAi: chat.isAI
           ? 'true'
           : 'false',
-        online: chat.online
-          ? 'true'
-          : 'false',
+        online: 'false',
         ...(isCommercialContext
           ? {
               context: 'commercial',
@@ -1117,6 +1116,20 @@ export default function ChatListScreen() {
     ? groupChats
     : directChats;
 
+  const onlineByIdentity = useChatListPresence(
+    activeIdentityId,
+    visibleListChats,
+  );
+  const chatsWithLivePresence = visibleListChats.map((chat) => ({
+    ...chat,
+    online: Boolean(
+      !chat.isGroup
+      && !chat.isAI
+      && chat.raw.other_identity_id
+      && onlineByIdentity[chat.raw.other_identity_id]
+    ),
+  }));
+
   const archivedCount = isGroupsTab
     ? archivedGroupCount
     : archivedDirectCount;
@@ -1286,7 +1299,7 @@ export default function ChatListScreen() {
                     ? undefined
                     : aiChat
                 }
-                chats={visibleListChats}
+                chats={chatsWithLivePresence}
                 archivedCount={archivedCount}
                 archivedLabel={archivedLabel}
                 archivedSubtitle={archivedSubtitle}

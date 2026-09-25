@@ -8,6 +8,7 @@ export * from './calendar';
 export * from './integrations';
 export * from './mail';
 export * from './chat';
+export * from './chatPresence';
 export * from './calls';
 
 export * from './commercial';

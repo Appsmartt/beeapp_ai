@@ -31,6 +31,7 @@ import ScreenSafeArea from "../../src/components/layout/ScreenSafeArea";
 import HomeSideMenu from "../../src/components/home/HomeSideMenu";
 import BeeServicesHeader from "../../src/components/beeservices/BeeServicesHeader";
 import EmbeddedModuleHost from "../../src/components/embedded/EmbeddedModuleHost";
+import CommercialChatPresenceController from "../../src/components/chat/CommercialChatPresenceController";
 import {
   buddyServicesMyBusinessesRoute,
 } from "../../src/features/buddyservices/commercialRoutes";
@@ -112,6 +113,7 @@ export default function BeeServicesCommercialScreen() {
   const selectedBusinessId = String(routeBusinessId || "").trim();
 
   const [sideMenuVisible, setSideMenuVisible] = useState(false);
+  const [workspaceFocused, setWorkspaceFocused] = useState(false);
   const [selectedBusiness, setSelectedBusiness] =
     useState<CommercialOwnedProfile | null>(null);
   const [selectedBusinessError, setSelectedBusinessError] = useState<
@@ -123,6 +125,13 @@ export default function BeeServicesCommercialScreen() {
   const [activeModule, setActiveModule] =
     useState<CommercialWorkspaceModule>("chat");
   const [moduleReloadKey, setModuleReloadKey] = useState(0);
+
+  useFocusEffect(
+    useCallback(() => {
+      setWorkspaceFocused(true);
+      return () => setWorkspaceFocused(false);
+    }, []),
+  );
 
   const loadSelectedBusiness = useCallback(async () => {
     if (!selectedBusinessId) {
@@ -278,6 +287,12 @@ export default function BeeServicesCommercialScreen() {
 
   return (
     <ScreenSafeArea style={beeStyles.safeArea}>
+      {selectedBusiness?.id === selectedBusinessId ? (
+        <CommercialChatPresenceController
+          businessId={selectedBusinessId}
+          focused={workspaceFocused}
+        />
+      ) : null}
       <View style={beeStyles.container}>
         <View style={localStyles.headerWrap}>
           <BeeServicesHeader
