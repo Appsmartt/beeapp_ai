@@ -129,6 +129,11 @@ class CreateCommercialProfileInitialStateTests(TestCase):
         ), patch(
             "apps.commercial.services."
             "commercial_profile_service."
+            "sync_chat_identities_for_user",
+            return_value=[],
+        ) as sync_chat_identities, patch(
+            "apps.commercial.services."
+            "commercial_profile_service."
             "get_owned_commercial_profile_with_access_token",
             return_value={"id": "profile-1"},
         ):
@@ -139,6 +144,9 @@ class CreateCommercialProfileInitialStateTests(TestCase):
             )
 
         self.assertEqual(profile, {"id": "profile-1"})
+        sync_chat_identities.assert_called_once_with(
+            user_id="22222222-2222-2222-2222-222222222222",
+        )
         self.assertEqual(
             supabase.tables["commercial_profiles"].inserted_payloads,
             [
@@ -225,6 +233,11 @@ class CreateCommercialProfileInitialStateTests(TestCase):
         ), patch(
             "apps.commercial.services."
             "commercial_profile_service."
+            "sync_chat_identities_for_user",
+            return_value=[],
+        ) as sync_chat_identities, patch(
+            "apps.commercial.services."
+            "commercial_profile_service."
             "get_owned_commercial_profile_with_access_token",
             return_value={"id": "profile-1"},
         ):
@@ -235,6 +248,9 @@ class CreateCommercialProfileInitialStateTests(TestCase):
             )
 
         self.assertEqual(profile, {"id": "profile-1"})
+        sync_chat_identities.assert_called_once_with(
+            user_id="22222222-2222-2222-2222-222222222222",
+        )
         self.assertEqual(
             supabase.tables[
                 "commercial_profile_social_links"

@@ -716,6 +716,10 @@ class StatusFollowDiscoverItemSerializer(serializers.Serializer):
         allow_null=True,
         read_only=True,
     )
+    identity_id = serializers.UUIDField(
+        allow_null=True,
+        read_only=True,
+    )
     display_name = serializers.CharField(read_only=True)
     avatar_file_id = serializers.UUIDField(
         allow_null=True,
