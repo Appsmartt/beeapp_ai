@@ -6,30 +6,9 @@ import type {
   ChatRealtimeEvent,
 } from '@beeapp/shared-types';
 
-const CHAT_INBOX_CACHE_PREFIX = 'beeapp.chat.inbox.v3';
-const CHAT_MESSAGES_CACHE_PREFIX = 'beeapp.chat.messages.v4';
 const CHAT_ARCHIVED_CONVERSATIONS_PREFIX = (
   'beeapp.chat.archived-conversations.v2'
 );
-
-const CHAT_INBOX_CACHE_VERSION = 3;
-const CHAT_MESSAGES_CACHE_VERSION = 4;
-const MAX_PERSISTED_MESSAGES_PER_CONVERSATION = 300;
-
-interface ChatInboxCachePayload {
-  version: number;
-  conversations: ChatConversation[];
-  lastSyncedAt: string | null;
-}
-
-interface ChatMessagesCachePayload {
-  version: number;
-  conversationId: string;
-  messages: ChatMessage[];
-  nextBeforeSequence: number | null;
-  hasMore: boolean;
-  lastSyncedAt: string | null;
-}
 
 interface ChatMessagesCacheMetadata {
   nextBeforeSequence: number | null;
@@ -134,37 +113,6 @@ function rememberChatEvent(
   return true;
 }
 
-function getInboxCacheKey(
-  userId: string,
-  identityId: string,
-): string {
-  return (
-    `${CHAT_INBOX_CACHE_PREFIX}.${userId}.`
-    + `${identityId}`
-  );
-}
-
-function getMessagesCacheKey(
-  userId: string,
-  identityId: string,
-  conversationId: string,
-): string {
-  return (
-    `${CHAT_MESSAGES_CACHE_PREFIX}.${userId}.`
-    + `${identityId}.${conversationId}`
-  );
-}
-
-function getMessagesCachePrefix(
-  userId: string,
-  identityId: string,
-): string {
-  return (
-    `${CHAT_MESSAGES_CACHE_PREFIX}.${userId}.`
-    + `${identityId}.`
-  );
-}
-
 function getArchivedConversationsCacheKey(
   userId: string,
   identityId: string,
@@ -189,18 +137,6 @@ function normalizeConversationId(
   conversationId: string,
 ): string {
   return String(conversationId || '').trim();
-}
-
-function normalizeConversationIds(
-  conversationIds: string[],
-): string[] {
-  return Array.from(
-    new Set(
-      conversationIds
-        .map(normalizeConversationId)
-        .filter(Boolean),
-    ),
-  );
 }
 
 function getConversationTimestamp(
@@ -468,31 +404,6 @@ function getMessageCacheMetadata(
     || getDefaultMessageCacheMetadata()
   );
 }
-
-function persistConversations(
-  lastSyncedAt: string | null = null,
-): void {
-  if (!activeUserId || !activeIdentityId) {
-    return;
-  }
-
-  const payload: ChatInboxCachePayload = {
-    version: CHAT_INBOX_CACHE_VERSION,
-    conversations,
-    lastSyncedAt,
-  };
-
-  void AsyncStorage.setItem(
-    getInboxCacheKey(
-      activeUserId,
-      activeIdentityId,
-    ),
-    JSON.stringify(payload),
-  ).catch(() => {
-    // Cache persistence must never block chat usage.
-  });
-}
-
 function persistArchivedConversationIds(): void {
   if (!activeUserId || !activeIdentityId) {
     return;
@@ -508,55 +419,6 @@ function persistArchivedConversationIds(): void {
     // Archive persistence must never block chat usage.
   });
 }
-
-function persistMessages(
-  conversationId: string,
-): void {
-  if (!activeUserId || !activeIdentityId) {
-    return;
-  }
-
-  const normalizedConversationId = normalizeConversationId(
-    conversationId,
-  );
-
-  if (!normalizedConversationId) {
-    return;
-  }
-
-  const messages = getChatMessages(
-    normalizedConversationId,
-  );
-
-  const metadata = getMessageCacheMetadata(
-    normalizedConversationId,
-  );
-
-  const persistedMessages = messages.slice(
-    -MAX_PERSISTED_MESSAGES_PER_CONVERSATION,
-  );
-
-  const payload: ChatMessagesCachePayload = {
-    version: CHAT_MESSAGES_CACHE_VERSION,
-    conversationId: normalizedConversationId,
-    messages: persistedMessages,
-    nextBeforeSequence: metadata.nextBeforeSequence,
-    hasMore: metadata.hasMore,
-    lastSyncedAt: metadata.lastSyncedAt,
-  };
-
-  void AsyncStorage.setItem(
-    getMessagesCacheKey(
-      activeUserId,
-      activeIdentityId,
-      normalizedConversationId,
-    ),
-    JSON.stringify(payload),
-  ).catch(() => {
-    // Cache persistence must never block chat usage.
-  });
-}
-
 function clearInMemoryChatData(): void {
   conversations = [];
   messagesByConversationId = {};
@@ -571,45 +433,6 @@ function clearInMemoryChatData(): void {
   });
 }
 
-function removeMessageCachesNotInSnapshot(
-  userId: string,
-  identityId: string,
-  conversationIds: string[],
-): void {
-  const validConversationIds = new Set(
-    normalizeConversationIds(conversationIds),
-  );
-
-  void AsyncStorage.getAllKeys()
-    .then((keys) => {
-      const messageCachePrefix = getMessagesCachePrefix(
-        userId,
-        identityId,
-      );
-
-      const staleKeys = keys.filter((key) => {
-        if (!key.startsWith(messageCachePrefix)) {
-          return false;
-        }
-
-        const conversationId = key.slice(
-          messageCachePrefix.length,
-        );
-
-        return !validConversationIds.has(conversationId);
-      });
-
-      if (!staleKeys.length) {
-        return;
-      }
-
-      return AsyncStorage.multiRemove(staleKeys);
-    })
-    .catch(() => {
-      // Snapshot cleanup must never block chat usage.
-    });
-}
-
 export async function hydrateChatConversations(
   userId: string,
   identityId: string,
@@ -617,98 +440,16 @@ export async function hydrateChatConversations(
   const normalizedUserId = userId.trim();
   const normalizedIdentityId = identityId.trim();
 
-  if (!normalizedUserId || !normalizedIdentityId) {
-    clearInMemoryChatData();
-
-    return conversations;
-  }
-
   if (
-    activeUserId === normalizedUserId
-    && activeIdentityId === normalizedIdentityId
+    activeUserId !== normalizedUserId
+    || activeIdentityId !== normalizedIdentityId
   ) {
-    return conversations;
+    clearInMemoryChatData();
+    activeUserId = normalizedUserId || null;
+    activeIdentityId = normalizedIdentityId || null;
   }
 
-  clearInMemoryChatData();
-  activeUserId = normalizedUserId;
-  activeIdentityId = normalizedIdentityId;
-
-  try {
-    const [
-      serializedConversations,
-      serializedArchivedConversationIds,
-    ] = await Promise.all([
-      AsyncStorage.getItem(
-        getInboxCacheKey(
-          normalizedUserId,
-          normalizedIdentityId,
-        ),
-      ),
-      AsyncStorage.getItem(
-        getArchivedConversationsCacheKey(
-          normalizedUserId,
-          normalizedIdentityId,
-        ),
-      ),
-    ]);
-
-    if (serializedArchivedConversationIds) {
-      try {
-        const parsedArchivedIds = JSON.parse(
-          serializedArchivedConversationIds,
-        );
-
-        if (Array.isArray(parsedArchivedIds)) {
-          archivedConversationIds = normalizeConversationIds(
-            parsedArchivedIds,
-          );
-        }
-      } catch {
-        archivedConversationIds = [];
-      }
-    }
-
-    if (!serializedConversations) {
-      return conversations;
-    }
-
-    const parsedPayload = JSON.parse(
-      serializedConversations,
-    ) as Partial<ChatInboxCachePayload>;
-
-    const validPayload = (
-      parsedPayload
-      && parsedPayload.version === CHAT_INBOX_CACHE_VERSION
-      && Array.isArray(parsedPayload.conversations)
-    );
-
-    if (!validPayload) {
-      await AsyncStorage.removeItem(
-        getInboxCacheKey(
-          normalizedUserId,
-          normalizedIdentityId,
-        ),
-      );
-
-      return conversations;
-    }
-
-    conversations = normalizeConversations(
-      parsedPayload.conversations as ChatConversation[],
-    );
-
-    notifyChatStore({
-      type: 'conversations',
-      conversationIds: conversations.map(
-        (conversation) => conversation.id,
-      ),
-    });
-
-    return conversations;
-  } catch {
-    return conversations;
-  }
+  return conversations;
 }
 
 export async function hydrateChatMessages(
@@ -718,15 +459,9 @@ export async function hydrateChatMessages(
 ): Promise<ChatMessage[]> {
   const normalizedUserId = userId.trim();
   const normalizedIdentityId = identityId.trim();
-  const normalizedConversationId = normalizeConversationId(
-    conversationId,
-  );
+  const normalizedConversationId = normalizeConversationId(conversationId);
 
-  if (
-    !normalizedUserId
-    || !normalizedIdentityId
-    || !normalizedConversationId
-  ) {
+  if (!normalizedConversationId) {
     return [];
   }
 
@@ -740,105 +475,7 @@ export async function hydrateChatMessages(
     );
   }
 
-  if (
-    Object.prototype.hasOwnProperty.call(
-      messagesByConversationId,
-      normalizedConversationId,
-    )
-  ) {
-    return getChatMessages(normalizedConversationId);
-  }
-
-  try {
-    const serializedPayload = await AsyncStorage.getItem(
-      getMessagesCacheKey(
-        normalizedUserId,
-        normalizedIdentityId,
-        normalizedConversationId,
-      ),
-    );
-
-    if (!serializedPayload) {
-      messagesByConversationId = {
-        ...messagesByConversationId,
-        [normalizedConversationId]: [],
-      };
-
-      return [];
-    }
-
-    const parsedPayload = JSON.parse(
-      serializedPayload,
-    ) as Partial<ChatMessagesCachePayload>;
-
-    const validPayload = (
-      parsedPayload
-      && parsedPayload.version === CHAT_MESSAGES_CACHE_VERSION
-      && parsedPayload.conversationId === normalizedConversationId
-      && Array.isArray(parsedPayload.messages)
-    );
-
-    if (!validPayload) {
-      await AsyncStorage.removeItem(
-        getMessagesCacheKey(
-          normalizedUserId,
-          normalizedIdentityId,
-          normalizedConversationId,
-        ),
-      );
-
-      messagesByConversationId = {
-        ...messagesByConversationId,
-        [normalizedConversationId]: [],
-      };
-
-      return [];
-    }
-
-    const hydratedMessages = normalizeMessages(
-      parsedPayload.messages as ChatMessage[],
-    );
-
-    messagesByConversationId = {
-      ...messagesByConversationId,
-      [normalizedConversationId]: hydratedMessages,
-    };
-
-    notifyChatStore({
-      type: 'messages',
-      conversationId: normalizedConversationId,
-    });
-
-    messageCacheMetadataByConversationId = {
-      ...messageCacheMetadataByConversationId,
-      [normalizedConversationId]: {
-        nextBeforeSequence: (
-          typeof parsedPayload.nextBeforeSequence === 'number'
-          && Number.isFinite(
-            parsedPayload.nextBeforeSequence,
-          )
-            ? parsedPayload.nextBeforeSequence
-            : null
-        ),
-        hasMore: Boolean(parsedPayload.hasMore),
-        lastSyncedAt: (
-          typeof parsedPayload.lastSyncedAt === 'string'
-          && parsedPayload.lastSyncedAt.trim()
-            ? parsedPayload.lastSyncedAt
-            : null
-        ),
-      },
-    };
-
-    return hydratedMessages;
-  } catch {
-    messagesByConversationId = {
-      ...messagesByConversationId,
-      [normalizedConversationId]: [],
-    };
-
-    return [];
-  }
+  return getChatMessages(normalizedConversationId);
 }
 
 export async function clearChatConversationsCache(
@@ -852,30 +489,6 @@ export async function clearChatConversationsCache(
     || ''
   ).trim();
 
-  if (targetUserId && targetIdentityId) {
-    const messageCachePrefix = getMessagesCachePrefix(
-      targetUserId,
-      targetIdentityId,
-    );
-
-    const keys = await AsyncStorage.getAllKeys();
-
-    const keysToRemove = keys.filter((key) => (
-      key === getInboxCacheKey(
-        targetUserId,
-        targetIdentityId,
-      )
-      || key === getArchivedConversationsCacheKey(
-        targetUserId,
-        targetIdentityId,
-      )
-      || key.startsWith(messageCachePrefix)
-    ));
-
-    if (keysToRemove.length > 0) {
-      await AsyncStorage.multiRemove(keysToRemove);
-    }
-  }
 
   if (
     (!userId && !identityId)
@@ -907,14 +520,6 @@ export async function clearChatMessagesCache(
     return;
   }
 
-  await AsyncStorage.removeItem(
-    getMessagesCacheKey(
-      normalizedUserId,
-      normalizedIdentityId,
-      normalizedConversationId,
-    ),
-  );
-
   if (
     activeUserId === normalizedUserId
     && activeIdentityId === normalizedIdentityId
@@ -942,7 +547,6 @@ export function setChatConversations(
   nextConversations: ChatConversation[],
 ): void {
   conversations = normalizeConversations(nextConversations);
-  persistConversations();
 
   notifyChatStore({
     type: 'conversations',
@@ -954,20 +558,9 @@ export function setChatConversations(
 
 export function replaceChatConversationsSnapshot(
   nextConversations: ChatConversation[],
-  options: {
-    lastSyncedAt?: string | null;
-    removeStaleMessageCaches?: boolean;
-  } = {},
 ): void {
   conversations = normalizeConversations(nextConversations);
 
-  const lastSyncedAt = (
-    options.lastSyncedAt === undefined
-      ? new Date().toISOString()
-      : options.lastSyncedAt
-  );
-
-  persistConversations(lastSyncedAt);
 
   notifyChatStore({
     type: 'conversations',
@@ -976,17 +569,6 @@ export function replaceChatConversationsSnapshot(
     ),
   });
 
-  if (
-    options.removeStaleMessageCaches !== false
-    && activeUserId
-    && activeIdentityId
-  ) {
-    removeMessageCachesNotInSnapshot(
-      activeUserId,
-      activeIdentityId,
-      conversations.map((conversation) => conversation.id),
-    );
-  }
 }
 
 export function upsertChatConversation(
@@ -1178,7 +760,6 @@ export function removeChatConversation(
     (id) => id !== normalizedConversationId,
   );
 
-  persistConversations();
   persistArchivedConversationIds();
 
   notifyChatStore({
@@ -1186,21 +767,6 @@ export function removeChatConversation(
     conversationId: normalizedConversationId,
   });
 
-  if (
-    activeUserId
-    && activeIdentityId
-    && normalizedConversationId
-  ) {
-    void AsyncStorage.removeItem(
-      getMessagesCacheKey(
-        activeUserId,
-        activeIdentityId,
-        normalizedConversationId,
-      ),
-    ).catch(() => {
-      // Cache cleanup must never block chat usage.
-    });
-  }
 }
 
 export function getChatMessages(
@@ -1261,7 +827,6 @@ export function setChatMessagesCacheMetadata(
     },
   };
 
-  persistMessages(normalizedConversationId);
 
   notifyChatStore({
     type: 'messages',
@@ -1312,7 +877,6 @@ export function setChatMessages(
     },
   };
 
-  persistMessages(normalizedConversationId);
 
   notifyChatStore({
     type: 'messages',
