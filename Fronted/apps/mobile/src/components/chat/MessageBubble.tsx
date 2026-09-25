@@ -65,6 +65,7 @@ interface MessageBubbleProps {
   isDestroyed?: boolean;
   isPinned?: boolean;
   onLongPress?: () => void;
+  onPressImage?: () => void;
   onContactCatalogItem?: (
     item: AiSearchResult,
   ) => void;
@@ -107,6 +108,7 @@ export default function MessageBubble({
   isEdited,
   isDestroyed,
   onLongPress,
+  onPressImage,
   onContactCatalogItem,
 }: MessageBubbleProps) {
   const soundRef = useRef<Audio.Sound | null>(null);
@@ -413,13 +415,18 @@ export default function MessageBubble({
               {type === 'image' ? (
                 <View style={styles.imageWrapper}>
                   {mediaUrl ? (
-                    <Image
-                      source={{
-                        uri: mediaUrl,
-                      }}
-                      style={styles.image}
-                      resizeMode="cover"
-                    />
+                    <TouchableOpacity
+                      activeOpacity={0.85}
+                      accessibilityRole="button"
+                      accessibilityLabel="Ampliar imagen del chat"
+                      onPress={onPressImage}
+                    >
+                      <Image
+                        source={{ uri: mediaUrl }}
+                        style={styles.image}
+                        resizeMode="cover"
+                      />
+                    </TouchableOpacity>
                   ) : (
                     <View style={styles.imagePlaceholder}>
                       <Text style={styles.imagePlaceholderText}>
