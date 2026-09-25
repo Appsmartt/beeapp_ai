@@ -778,9 +778,13 @@ class StatusFollowRequestsView(AuthenticatedAPIView):
 
         try:
             authenticated_user = self.get_authenticated_user(request)
+            follow_request_query = {
+                "limit": serializer.validated_data["limit"],
+                "cursor": serializer.validated_data.get("cursor"),
+            }
             result = list_received_follow_requests(
                 user_id=str(authenticated_user.id),
-                **serializer.validated_data,
+                **follow_request_query,
             )
         except (
             AccountAuthenticationError,
@@ -789,7 +793,6 @@ class StatusFollowRequestsView(AuthenticatedAPIView):
             return _unauthorized_response()
         except StatusFollowError as error:
             return _follow_error_response(error)
-
         return Response(
             {
                 "items": StatusFollowListItemSerializer(
