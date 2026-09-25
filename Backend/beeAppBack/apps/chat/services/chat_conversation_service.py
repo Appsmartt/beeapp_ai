@@ -248,6 +248,27 @@ def _attach_commercial_inbox_metadata(
         conversation["is_commercial"] = commercial_link is not None
         conversation["commercial"] = commercial_link
 
+        if not commercial_link:
+            continue
+
+        if not conversation.get("other_identity_type"):
+            conversation["other_identity_type"] = "commercial_profile"
+
+        if not conversation.get("other_commercial_profile_id"):
+            conversation["other_commercial_profile_id"] = (
+                commercial_link["commercial_profile_id"]
+            )
+
+        if not conversation.get("other_display_name"):
+            conversation["other_display_name"] = (
+                commercial_link["display_name"]
+            )
+
+        if not conversation.get("other_logo_file_id"):
+            conversation["other_logo_file_id"] = (
+                commercial_link.get("logo_file_id")
+            )
+
 
 def _load_commercial_inbox_links(
     *,
