@@ -1,4 +1,4 @@
-import { View, Text, StyleSheet, TextInput, TouchableOpacity } from 'react-native';
+import { Image, View, Text, StyleSheet, TextInput, TouchableOpacity } from 'react-native';
 import { colors, spacing } from '@beeapp/design-system';
 import { Camera } from 'lucide-react-native';
 
@@ -10,7 +10,8 @@ interface ChatProfileHeaderProps {
   /** Cargo y empresa (individual) o conteo de miembros (grupo) */
   meta: string;
   initials: string;
-  /** Mock: groups can "change" the photo, nothing is uploaded */
+  avatarUrl?: string | null;
+  photoChangeDisabled?: boolean;
   onChangePhoto: () => void;
 }
 
@@ -21,13 +22,23 @@ export default function ChatProfileHeader({
   onChangeName,
   meta,
   initials,
+  avatarUrl,
+  photoChangeDisabled = false,
   onChangePhoto,
 }: ChatProfileHeaderProps) {
   return (
     <View style={styles.wrap}>
       <View style={styles.avatarWrap}>
         <View style={styles.avatar}>
-          <Text style={styles.avatarText}>{initials}</Text>
+          {avatarUrl ? (
+            <Image
+              source={{ uri: avatarUrl }}
+              style={styles.avatarImage}
+              accessibilityLabel={`Foto de ${name}`}
+            />
+          ) : (
+            <Text style={styles.avatarText}>{initials}</Text>
+          )}
         </View>
 
         {isGroup && (
@@ -35,6 +46,8 @@ export default function ChatProfileHeader({
             style={styles.cameraBtn}
             onPress={onChangePhoto}
             activeOpacity={0.8}
+            disabled={photoChangeDisabled}
+            accessibilityState={{ disabled: photoChangeDisabled }}
             accessibilityLabel="Cambiar la foto del grupo"
           >
             <Camera size={16} color={colors.neutral.white} />
@@ -81,6 +94,11 @@ const styles = StyleSheet.create({
     backgroundColor: '#EEF2FF',
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  avatarImage: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 50,
   },
   avatarText: {
     fontSize: 32,

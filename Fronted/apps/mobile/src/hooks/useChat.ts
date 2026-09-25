@@ -469,6 +469,7 @@ export interface UseChatConversationsResult {
       name?: string;
       description?: string | null;
       postingPolicy?: ChatGroupPostingPolicy;
+      imageFileId?: string | null;
       isMuted?: boolean;
       isArchived?: boolean;
       isPinned?: boolean;
@@ -912,6 +913,7 @@ export function useChatConversations(
       name?: string;
       description?: string | null;
       postingPolicy?: ChatGroupPostingPolicy;
+      imageFileId?: string | null;
       isMuted?: boolean;
       isArchived?: boolean;
       isPinned?: boolean;
@@ -996,6 +998,11 @@ export function useChatConversations(
         ...(payload.postingPolicy !== undefined
           ? {
               posting_policy: payload.postingPolicy,
+            }
+          : {}),
+        ...(payload.imageFileId !== undefined
+          ? {
+              image_file_id: payload.imageFileId,
             }
           : {}),
       },

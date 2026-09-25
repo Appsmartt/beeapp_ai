@@ -1,3 +1,5 @@
+import * as ImagePicker from 'expo-image-picker';
+
 import {
   useEffect,
   useMemo,
@@ -6,6 +8,7 @@ import {
 import {
   ActivityIndicator,
   Alert,
+  AlertButton,
   ScrollView,
   StyleSheet,
   Switch,
@@ -16,7 +19,6 @@ import {
 import {
   BellOff,
   ChevronLeft,
-  Image as ImageIcon,
   LogOut,
   MessageSquareText,
 } from 'lucide-react-native';
@@ -26,6 +28,7 @@ import {
 } from '@beeapp/design-system';
 
 import {
+  getStorageFileAccess,
   updateChatConversationNotifications,
 } from '@beeapp/api-client';
 
@@ -51,6 +54,9 @@ import {
 import {
   getInitials,
 } from '../../services/chatService';
+import {
+  uploadGroupPhoto,
+} from '../../services/groupPhotoService';
 
 export default function ChatProfileScreen() {
   const router = useModuleNav();
@@ -104,6 +110,8 @@ export default function ChatProfileScreen() {
   ] = useState(false);
   const [addMemberModal, setAddMemberModal] = useState(false);
   const [editGroupModal, setEditGroupModal] = useState(false);
+  const [updatingGroupPhoto, setUpdatingGroupPhoto] = useState(false);
+  const [groupPhotoUrl, setGroupPhotoUrl] = useState<string | null>(null);
   const [updatingPostingPolicy, setUpdatingPostingPolicy] = useState(false);
 
   const isGroup = (
@@ -144,6 +152,48 @@ export default function ChatProfileScreen() {
     setMuted(Boolean(conversation?.is_muted));
   }, [
     conversation?.is_muted,
+  ]);
+
+  useEffect(() => {
+    let isMounted = true;
+    const imageFileId = conversation?.image_file_id || null;
+
+    if (!imageFileId) {
+      setGroupPhotoUrl(null);
+      return () => {
+        isMounted = false;
+      };
+    }
+
+    void getValidSessionCredentials()
+      .then((credentials) => {
+        if (!credentials) {
+          throw new Error(
+            'No hay una sesión válida para cargar la foto del grupo.',
+          );
+        }
+
+        return getStorageFileAccess(
+          credentials,
+          imageFileId,
+        );
+      })
+      .then((access) => {
+        if (isMounted) {
+          setGroupPhotoUrl(access.url);
+        }
+      })
+      .catch(() => {
+        if (isMounted) {
+          setGroupPhotoUrl(null);
+        }
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [
+    conversation?.image_file_id,
   ]);
 
   const reloadGroupData = async () => {
@@ -193,6 +243,136 @@ export default function ChatProfileScreen() {
           },
         },
       ],
+    );
+  };
+
+  const applyGroupPhoto = async (
+    imageFileId: string | null,
+  ) => {
+    await updateConversation(chatId, {
+      imageFileId,
+    });
+
+    await reloadGroupData();
+  };
+
+  const updateGroupPhoto = async (
+    imageFileId: string | null,
+  ) => {
+    if (!permissions?.can_update_group || updatingGroupPhoto) {
+      return;
+    }
+
+    try {
+      setUpdatingGroupPhoto(true);
+      await applyGroupPhoto(imageFileId);
+    } catch (updateError) {
+      Alert.alert(
+        'No fue posible actualizar la foto del grupo',
+        updateError instanceof Error
+          ? updateError.message
+          : 'Inténtalo nuevamente.',
+      );
+    } finally {
+      setUpdatingGroupPhoto(false);
+    }
+  };
+
+  const handleSelectGroupPhoto = async () => {
+    if (!permissions?.can_update_group || updatingGroupPhoto) {
+      return;
+    }
+
+    try {
+      setUpdatingGroupPhoto(true);
+
+      const permission = await ImagePicker
+        .requestMediaLibraryPermissionsAsync();
+
+      if (!permission.granted) {
+        Alert.alert(
+          'Permiso necesario',
+          'Permite el acceso a tu galería para seleccionar la foto del grupo.',
+        );
+        return;
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.9,
+      });
+
+      if (result.canceled || !result.assets[0]) {
+        return;
+      }
+
+      const asset = result.assets[0];
+      const credentials = await getValidSessionCredentials();
+
+      if (!credentials) {
+        throw new Error(
+          'No hay una sesión válida para actualizar la foto del grupo.',
+        );
+      }
+
+      const fileId = await uploadGroupPhoto(credentials, {
+        uri: asset.uri,
+        name: asset.fileName || 'foto-grupo.jpg',
+        mimeType: asset.mimeType,
+        sizeBytes: asset.fileSize,
+      });
+
+      await applyGroupPhoto(fileId);
+    } catch (selectionError) {
+      Alert.alert(
+        'No fue posible seleccionar la foto',
+        selectionError instanceof Error
+          ? selectionError.message
+          : 'Inténtalo nuevamente.',
+      );
+    } finally {
+      setUpdatingGroupPhoto(false);
+    }
+  };
+
+  const handleChangeGroupPhoto = () => {
+    if (!permissions?.can_update_group) {
+      Alert.alert(
+        'Sin permiso',
+        'Solo el owner puede editar este grupo.',
+      );
+      return;
+    }
+
+    const actions: AlertButton[] = [
+      {
+        text: 'Elegir de la galería',
+        onPress: () => {
+          void handleSelectGroupPhoto();
+        },
+      },
+      {
+        text: 'Cancelar',
+        style: 'cancel',
+      },
+    ];
+
+    if (conversation?.image_file_id) {
+      actions.splice(1, 0, {
+        text: 'Eliminar foto',
+        style: 'destructive' as const,
+        onPress: () => {
+          void updateGroupPhoto(null);
+        },
+      });
+    }
+
+    Alert.alert(
+      'Foto del grupo',
+      'Elige una acción para la foto del grupo.',
+      actions,
     );
   };
 
@@ -488,16 +668,22 @@ export default function ChatProfileScreen() {
                 : 'miembros'}`
             }
             initials={getInitials(groupName)}
-            onChangePhoto={() => {
-              Alert.alert(
-                'Foto del grupo',
-                (
-                  'La carga de foto se conectará cuando '
-                  + 'implementemos el flujo de Storage.'
-                ),
-              );
-            }}
+            avatarUrl={groupPhotoUrl}
+            photoChangeDisabled={updatingGroupPhoto}
+            onChangePhoto={handleChangeGroupPhoto}
           />
+
+          {updatingGroupPhoto ? (
+            <View style={styles.groupPhotoLoading}>
+              <ActivityIndicator
+                size="small"
+                color={colors.brand.primary}
+              />
+              <Text style={styles.groupPhotoLoadingText}>
+                Actualizando foto del grupo...
+              </Text>
+            </View>
+          ) : null}
 
           {groupDescription ? (
             <View style={styles.descriptionBox}>
@@ -589,20 +775,6 @@ export default function ChatProfileScreen() {
               );
             }}
             disabled={updatingNotifications}
-          />
-
-          <ChatProfileRow
-            icon={ImageIcon}
-            label="Archivos multimedia compartidos"
-            onPress={() => {
-              Alert.alert(
-                'Archivos compartidos',
-                (
-                  'Esta vista se conectará cuando agreguemos '
-                  + 'el explorador de adjuntos de Chat.'
-                ),
-              );
-            }}
           />
 
           <View style={styles.divider} />
@@ -698,6 +870,17 @@ const styles = StyleSheet.create({
     fontSize: 12,
     lineHeight: 18,
     marginTop: 4,
+  },
+  groupPhotoLoading: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.xs,
+    marginBottom: spacing.sm,
+  },
+  groupPhotoLoadingText: {
+    color: colors.neutral.gray600,
+    fontSize: 13,
   },
   descriptionBox: {
     backgroundColor: colors.neutral.gray50,
