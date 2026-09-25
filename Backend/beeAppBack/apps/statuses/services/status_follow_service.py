@@ -215,6 +215,7 @@ def reject_follow_request(
 def unfollow(
     *,
     user_id: str,
+    access_token: str,
     follow_id: str,
 ) -> None:
     """
@@ -260,22 +261,22 @@ def unfollow(
         )
 
     try:
-        response = execute_with_supabase_admin_retry(
-            lambda client: (
-                client
-                .rpc(
-                    "status_unfollow",
-                    {
-                        "p_follower_actor_type": follower_actor_type,
-                        "p_follower_profile_id": follower_profile_id,
-                        "p_follower_commercial_profile_id": (
-                            follower_commercial_profile_id
-                        ),
-                        "p_follow_id": str(follow_id),
-                    },
-                )
-                .execute()
-            ),
+        response = (
+            get_supabase_user_client(
+                access_token=access_token,
+            )
+            .rpc(
+                "status_unfollow",
+                {
+                    "p_follower_actor_type": follower_actor_type,
+                    "p_follower_profile_id": follower_profile_id,
+                    "p_follower_commercial_profile_id": (
+                        follower_commercial_profile_id
+                    ),
+                    "p_follow_id": str(follow_id),
+                },
+            )
+            .execute()
         )
 
         if getattr(response, "data", None) is not True:
@@ -1325,6 +1326,13 @@ def discover_follow_targets(
                 str(row["avatar_file_id"])
                 if row.get("avatar_file_id")
                 else None
+            ),
+            "avatar_url": create_status_avatar_signed_url(
+                avatar_file_id=(
+                    str(row["avatar_file_id"])
+                    if row.get("avatar_file_id")
+                    else None
+                ),
             ),
             "follow_id": (
                 str(row["follow_id"])

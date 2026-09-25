@@ -88,6 +88,14 @@ class DiscoverFollowTargetsTests(TestCase):
             "apps.statuses.services.status_follow_service."
             "get_supabase_user_client",
             return_value=supabase,
+        ), patch(
+            "apps.statuses.services.status_follow_service."
+            "create_status_avatar_signed_url",
+            side_effect=lambda *, avatar_file_id: (
+                f"https://signed.example/{avatar_file_id}"
+                if avatar_file_id
+                else None
+            ),
         ):
             result = discover_follow_targets(
                 user_id="77777777-7777-7777-7777-777777777777",
@@ -142,6 +150,10 @@ class DiscoverFollowTargetsTests(TestCase):
                     "avatar_file_id": (
                         "33333333-3333-3333-3333-333333333333"
                     ),
+                    "avatar_url": (
+                        "https://signed.example/"
+                        "33333333-3333-3333-3333-333333333333"
+                    ),
                     "follow_id": (
                         "44444444-4444-4444-4444-444444444444"
                     ),
@@ -158,6 +170,7 @@ class DiscoverFollowTargetsTests(TestCase):
                     ),
                     "display_name": "Negocio de prueba",
                     "avatar_file_id": None,
+                    "avatar_url": None,
                     "follow_id": None,
                     "follow_state": None,
                 },
@@ -174,23 +187,20 @@ class UnfollowTests(TestCase):
         class FakeResponse:
             data = True
 
-        def fake_execute_with_retry(operation):
-            class FakeClient:
-                def rpc(self, function_name, payload):
-                    rpc_calls.append(
-                        {
-                            "function_name": function_name,
-                            "payload": payload,
-                        }
-                    )
+        class FakeClient:
+            def rpc(self, function_name, payload):
+                rpc_calls.append(
+                    {
+                        "function_name": function_name,
+                        "payload": payload,
+                    }
+                )
 
-                    class FakeQuery:
-                        def execute(self):
-                            return FakeResponse()
+                class FakeQuery:
+                    def execute(self):
+                        return FakeResponse()
 
-                    return FakeQuery()
-
-            return operation(FakeClient())
+                return FakeQuery()
 
         follow = {
             "id": follow_id,
@@ -211,17 +221,22 @@ class UnfollowTests(TestCase):
             return_value=follow,
         ), patch(
             "apps.statuses.services.status_follow_service."
-            "execute_with_supabase_admin_retry",
-            side_effect=fake_execute_with_retry,
-        ):
+            "get_supabase_user_client",
+            return_value=FakeClient(),
+        ) as get_user_client:
             from apps.statuses.services.status_follow_service import (
                 unfollow,
             )
 
             unfollow(
                 user_id=user_id,
+                access_token="test-access-token",
                 follow_id=follow_id,
             )
+
+        get_user_client.assert_called_once_with(
+            access_token="test-access-token",
+        )
 
         self.assertEqual(
             rpc_calls,
@@ -249,23 +264,20 @@ class UnfollowTests(TestCase):
         class FakeResponse:
             data = True
 
-        def fake_execute_with_retry(operation):
-            class FakeClient:
-                def rpc(self, function_name, payload):
-                    rpc_calls.append(
-                        {
-                            "function_name": function_name,
-                            "payload": payload,
-                        }
-                    )
+        class FakeClient:
+            def rpc(self, function_name, payload):
+                rpc_calls.append(
+                    {
+                        "function_name": function_name,
+                        "payload": payload,
+                    }
+                )
 
-                    class FakeQuery:
-                        def execute(self):
-                            return FakeResponse()
+                class FakeQuery:
+                    def execute(self):
+                        return FakeResponse()
 
-                    return FakeQuery()
-
-            return operation(FakeClient())
+                return FakeQuery()
 
         follow = {
             "id": follow_id,
@@ -295,17 +307,22 @@ class UnfollowTests(TestCase):
             },
         ), patch(
             "apps.statuses.services.status_follow_service."
-            "execute_with_supabase_admin_retry",
-            side_effect=fake_execute_with_retry,
-        ):
+            "get_supabase_user_client",
+            return_value=FakeClient(),
+        ) as get_user_client:
             from apps.statuses.services.status_follow_service import (
                 unfollow,
             )
 
             unfollow(
                 user_id=user_id,
+                access_token="test-access-token",
                 follow_id=follow_id,
             )
+
+        get_user_client.assert_called_once_with(
+            access_token="test-access-token",
+        )
 
         self.assertEqual(
             rpc_calls,

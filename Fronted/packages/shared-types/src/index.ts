@@ -2297,6 +2297,7 @@ export interface StatusFollowDiscoverItem {
   identity_id: string | null;
   display_name: string;
   avatar_file_id: string | null;
+  avatar_url: string | null;
   follow_id: string | null;
   follow_state: StatusFollowState | null;
 }

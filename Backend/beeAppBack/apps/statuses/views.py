@@ -834,9 +834,15 @@ class StatusFollowDetailView(AuthenticatedAPIView):
 
     def delete(self, request, follow_id):
         try:
-            authenticated_user = self.get_authenticated_user(request)
+            (
+                authenticated_user,
+                access_token,
+            ) = self.get_authenticated_user_and_access_token(
+                request
+            )
             unfollow(
                 user_id=str(authenticated_user.id),
+                access_token=access_token,
                 follow_id=str(follow_id),
             )
         except (

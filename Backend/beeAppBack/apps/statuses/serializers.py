@@ -725,6 +725,10 @@ class StatusFollowDiscoverItemSerializer(serializers.Serializer):
         allow_null=True,
         read_only=True,
     )
+    avatar_url = serializers.URLField(
+        allow_null=True,
+        read_only=True,
+    )
     follow_id = serializers.UUIDField(
         allow_null=True,
         read_only=True,
