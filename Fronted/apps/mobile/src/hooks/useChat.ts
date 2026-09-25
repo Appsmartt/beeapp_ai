@@ -53,6 +53,7 @@ import {
   getChatMessages as getStoredMessages,
   getChatMessagesCacheMetadata,
   getProtectedConversationIds,
+  resetChatConversationMessages,
   isChatConversationArchived,
   isChatConversationProtected,
   removeChatConversation,
@@ -67,6 +68,7 @@ import {
 } from '../stores/chatStore';
 
 const DEFAULT_LIMIT = 50;
+const HISTORY_PAGE_LIMIT = 20;
 const MAX_CHAT_REQUEST_ATTEMPTS = 3;
 const CHAT_RETRY_BASE_DELAY_MS = 350;
 
@@ -1167,6 +1169,7 @@ export interface UseChatMessagesResult {
   sending: boolean;
   loadingMore: boolean;
   hasMore: boolean;
+  initialLoadingPhase: 'conversation' | 'messages' | 'ready';
   error: string | null;
   loadMessages: (
     options?: {
@@ -1233,11 +1236,7 @@ export function useChatMessages(
 
   const [rawMessages, setRawMessages] = useState<
     ChatMessage[]
-  >(
-    normalizedConversationId
-      ? getStoredMessages(normalizedConversationId)
-      : [],
-  );
+  >([]);
 
   const [participants, setParticipants] = useState<
     ChatParticipant[]
@@ -1248,22 +1247,20 @@ export function useChatMessages(
   >(null);
 
   const [loading, setLoading] = useState(
-    Boolean(normalizedConversationId)
-    && getStoredMessages(normalizedConversationId).length === 0,
+    Boolean(normalizedConversationId),
   );
 
   const [refreshing, setRefreshing] = useState(false);
   const [sending, setSending] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
+  const [initialLoadingPhase, setInitialLoadingPhase] = useState<
+    'conversation' | 'messages' | 'ready'
+  >(normalizedConversationId ? 'conversation' : 'ready');
 
-  const initialMetadata = normalizedConversationId
-    ? getChatMessagesCacheMetadata(
-        normalizedConversationId,
-      )
-    : {
-        hasMore: false,
-        nextBeforeSequence: null,
-      };
+  const initialMetadata = {
+    hasMore: false,
+    nextBeforeSequence: null,
+  };
 
   const [hasMore, setHasMore] = useState(
     initialMetadata.hasMore,
@@ -1285,11 +1282,14 @@ export function useChatMessages(
 
   const requestIdRef = useRef(0);
   const hydrationRequestIdRef = useRef(0);
+  const openedChatConversationRef = useRef<string | null>(null);
+  const activeMessageIdentityRef = useRef<string | null>(null);
 
   const resolveActiveIdentityId = useCallback(async (
     token: AuthCredentials,
   ) => {
     if (normalizedRequestedIdentityId) {
+      activeMessageIdentityRef.current = normalizedRequestedIdentityId;
       setActiveIdentityId(normalizedRequestedIdentityId);
       return normalizedRequestedIdentityId;
     }
@@ -1311,6 +1311,7 @@ export function useChatMessages(
       );
     }
 
+    activeMessageIdentityRef.current = identity.id;
     setActiveIdentityId(identity.id);
 
     return identity.id;
@@ -1523,7 +1524,9 @@ export function useChatMessages(
           token,
           normalizedConversationId,
           {
-            limit: DEFAULT_LIMIT,
+            limit: isLoadingHistory
+              ? HISTORY_PAGE_LIMIT
+              : DEFAULT_LIMIT,
             beforeSequence: options.beforeSequence,
           },
         ),
@@ -1546,17 +1549,31 @@ export function useChatMessages(
         response.messages,
       );
 
+      const previousMetadata = getChatMessagesCacheMetadata(
+        normalizedConversationId,
+      );
+      const keepHistoryCursor = (
+        !isLoadingHistory
+        && currentMessages.length > DEFAULT_LIMIT
+        && previousMetadata.nextBeforeSequence !== null
+      );
+      const pageLimit = isLoadingHistory
+        ? HISTORY_PAGE_LIMIT
+        : DEFAULT_LIMIT;
       const hasOlderMessages = (
-        response.next_before_sequence !== null
+        response.messages.length === pageLimit
+        && response.next_before_sequence !== null
       );
 
       synchronizeMessages(
         mergedMessages,
         {
-          nextBeforeSequence: (
-            response.next_before_sequence
-          ),
-          hasMore: hasOlderMessages,
+          nextBeforeSequence: keepHistoryCursor
+            ? previousMetadata.nextBeforeSequence
+            : response.next_before_sequence,
+          hasMore: keepHistoryCursor
+            ? previousMetadata.hasMore
+            : hasOlderMessages,
           lastSyncedAt: new Date().toISOString(),
         },
       );
@@ -1565,7 +1582,7 @@ export function useChatMessages(
 
       if (!isLoadingHistory) {
         const identityId = (
-          activeIdentityId
+          activeMessageIdentityRef.current
           || await resolveActiveIdentityId(token)
         );
 
@@ -1612,7 +1629,6 @@ export function useChatMessages(
     conversationIsAi,
     markLatestMessageAsRead,
     normalizedConversationId,
-    activeIdentityId,
     resolveActiveIdentityId,
     synchronizeMessages,
   ]);
@@ -1640,6 +1656,12 @@ export function useChatMessages(
           return;
         }
 
+        resetChatConversationMessages(normalizedConversationId);
+        openedChatConversationRef.current = normalizedConversationId;
+        setRawMessages([]);
+        setHasMore(false);
+        setNextBeforeSequence(null);
+
         await Promise.all([
           loadConversation(),
           loadParticipants(),
@@ -1649,17 +1671,21 @@ export function useChatMessages(
           return;
         }
 
+        setInitialLoadingPhase('messages');
+
         /*
-         * Los mensajes cacheados ya se mostraron. Esta consulta actualiza
-         * la conversación desde red sin bloquear la primera pintura.
+         * Cada entrada descarga la primera página sin reutilizar
+         * mensajes de una apertura anterior.
          */
-        void loadMessages({
+        await loadMessages({
           network: true,
-        }).catch(() => {
-          // Si falla la red, se conservan los mensajes locales.
         });
       } catch {
-        // El hook conserva el error para mostrarlo en pantalla.
+        // El hook conserva el error y permite reintentar.
+      } finally {
+        if (!cancelled) {
+          setInitialLoadingPhase('ready');
+        }
       }
     };
 
@@ -1733,26 +1759,20 @@ export function useChatMessages(
   ]);
 
   useEffect(() => {
-    setRawMessages(
-      normalizedConversationId
-        ? getStoredMessages(normalizedConversationId)
-        : [],
-    );
-
-    const metadata = normalizedConversationId
-      ? getChatMessagesCacheMetadata(
-          normalizedConversationId,
-        )
-      : {
-          hasMore: false,
-          nextBeforeSequence: null,
-        };
-
-    setHasMore(metadata.hasMore);
-    setNextBeforeSequence(
-      metadata.nextBeforeSequence,
-    );
+    setRawMessages([]);
+    setHasMore(false);
+    setNextBeforeSequence(null);
     setError(null);
+
+    return () => {
+      if (
+        openedChatConversationRef.current
+        === normalizedConversationId
+      ) {
+        resetChatConversationMessages(normalizedConversationId);
+      }
+      openedChatConversationRef.current = null;
+    };
   }, [
     normalizedConversationId,
   ]);
@@ -2234,6 +2254,7 @@ export function useChatMessages(
     sending,
     loadingMore,
     hasMore,
+    initialLoadingPhase,
     error,
     loadMessages,
     loadMore,

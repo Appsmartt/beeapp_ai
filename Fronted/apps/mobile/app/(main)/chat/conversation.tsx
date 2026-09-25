@@ -6,6 +6,7 @@ import {
 import {
   ActivityIndicator,
   Alert,
+  Image,
   Modal,
   RefreshControl,
   ScrollView,
@@ -178,6 +179,7 @@ export default function ConversationScreen() {
     sending,
     loadingMore,
     hasMore,
+    initialLoadingPhase,
     activeIdentityId,
     error,
     loadMessages,
@@ -232,6 +234,7 @@ export default function ConversationScreen() {
     setAttachmentUrlsByMessageId,
   ] = useState<Record<string, string>>({});
 
+  const [initialImagesReady, setInitialImagesReady] = useState(false);
   const [isStartingCall, setIsStartingCall] = useState(false);
 
   const [
@@ -251,9 +254,18 @@ export default function ConversationScreen() {
 
   const scrollRef = useRef<ScrollView | null>(null);
   const loadingMoreRef = useRef(false);
+  const chatContentHeightRef = useRef(0);
+  const chatScrollOffsetRef = useRef(0);
+  const initialChatScrollDoneRef = useRef(false);
+  const initialChatScrollScheduledRef = useRef(false);
+  const preserveHistoryScrollRef = useRef(false);
+  const historyMessageCountRef = useRef(0);
+  const userDraggedChatRef = useRef(false);
+  const followLatestMessagesRef = useRef(true);
   const startCallInFlightRef = useRef(false);
   const resolvedAttachmentMessageIdsRef = useRef<Set<string>>(new Set());
   const initialMessageSentRef = useRef<string | null>(null);
+  const initialImagesStartedRef = useRef(false);
 
   const isGroup = (
     conversation?.conversation_type === 'group'
@@ -601,6 +613,89 @@ export default function ConversationScreen() {
     attachmentAccessKey,
   ]);
 
+  useEffect(() => {
+    if (
+      initialLoadingPhase !== 'ready'
+      || initialImagesStartedRef.current
+    ) {
+      return;
+    }
+
+    initialImagesStartedRef.current = true;
+    let cancelled = false;
+    const initialImages = messages
+      .slice(-50)
+      .filter((message) => message.type === 'image');
+
+    const prepareInitialImages = async () => {
+      try {
+        const needsAccess = initialImages.some(
+          (message) => (
+            !message.mediaUrl
+            && !attachmentUrlsByMessageId[message.id]
+            && Boolean(message.raw.attachments?.[0]?.file_id)
+          ),
+        );
+        const auth = needsAccess
+          ? await getValidSessionCredentials()
+          : null;
+
+        for (let index = 0; index < initialImages.length; index += 5) {
+          if (cancelled) {
+            return;
+          }
+
+          const batch = initialImages.slice(index, index + 5);
+          await Promise.allSettled(batch.map(async (message) => {
+            let url = (
+              message.mediaUrl
+              || attachmentUrlsByMessageId[message.id]
+              || ''
+            );
+
+            if (
+              !url
+              && auth
+              && activeIdentityId
+              && message.raw.attachments?.[0]?.file_id
+            ) {
+              const access = await getChatMessageAttachmentAccess(
+                auth,
+                message.id,
+                activeIdentityId,
+              );
+              url = access.url;
+              if (!cancelled) {
+                setAttachmentUrlsByMessageId((current) => ({
+                  ...current,
+                  [message.id]: url,
+                }));
+              }
+            }
+
+            if (url) {
+              await Image.prefetch(url);
+            }
+          }));
+        }
+      } finally {
+        if (!cancelled) {
+          setInitialImagesReady(true);
+        }
+      }
+    };
+
+    void prepareInitialImages().catch(() => {
+      if (!cancelled) {
+        setInitialImagesReady(true);
+      }
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [initialLoadingPhase]);
+
   const requestFreshAudioUrl = async (
     messageId: string,
   ): Promise<string> => {
@@ -683,6 +778,10 @@ export default function ConversationScreen() {
   ) => {
     if (
       offsetY > 80
+      || !initialChatScrollDoneRef.current
+      || !userDraggedChatRef.current
+      || initialLoadingPhase !== 'ready'
+      || !initialImagesReady
       || loadingMoreRef.current
       || loadingMore
       || !hasMore
@@ -691,9 +790,13 @@ export default function ConversationScreen() {
     }
 
     loadingMoreRef.current = true;
+    userDraggedChatRef.current = false;
+    preserveHistoryScrollRef.current = true;
+    historyMessageCountRef.current = messages.length;
 
     void loadMore()
       .catch(() => {
+        preserveHistoryScrollRef.current = false;
         // El hook conserva el error para mostrarlo en pantalla.
       })
       .finally(() => {
@@ -702,10 +805,57 @@ export default function ConversationScreen() {
   };
 
   useEffect(() => {
-    if (messages.length > 0) {
+    if (
+      preserveHistoryScrollRef.current
+      && !loadingMore
+      && messages.length <= historyMessageCountRef.current
+    ) {
+      preserveHistoryScrollRef.current = false;
+    }
+  }, [loadingMore, messages.length]);
+
+  const handleChatContentSizeChange = (
+    _width: number,
+    height: number,
+  ) => {
+    const previousHeight = chatContentHeightRef.current;
+    chatContentHeightRef.current = height;
+
+    if (preserveHistoryScrollRef.current) {
+      if (
+        messages.length > historyMessageCountRef.current
+        && height > previousHeight
+      ) {
+        scrollRef.current?.scrollTo({
+          y: chatScrollOffsetRef.current + height - previousHeight,
+          animated: false,
+        });
+        preserveHistoryScrollRef.current = false;
+      }
+      return;
+    }
+
+    if (
+      !initialChatScrollDoneRef.current
+      && !initialChatScrollScheduledRef.current
+      && messages.length > 0
+    ) {
+      initialChatScrollScheduledRef.current = true;
+      scrollToBottom();
+      setTimeout(() => {
+        initialChatScrollDoneRef.current = true;
+      }, 220);
+      return;
+    }
+
+    if (
+      initialChatScrollDoneRef.current
+      && followLatestMessagesRef.current
+      && !loadingMore
+    ) {
       scrollToBottom();
     }
-  }, [messages.length]);
+  };
 
   useEffect(() => {
     const initialMessage = String(
@@ -1226,6 +1376,69 @@ export default function ConversationScreen() {
         <Modal
           transparent
           animationType="fade"
+          visible={Boolean(chatId) && (
+            initialLoadingPhase !== 'ready'
+            || !initialImagesReady
+          )}
+          onRequestClose={() => undefined}
+        >
+          <View style={styles.chatOpeningOverlay}>
+            <View style={styles.chatOpeningCard}>
+              <View style={styles.chatOpeningIcon}>
+                <ActivityIndicator
+                  size="large"
+                  color={colors.brand.primary}
+                />
+              </View>
+              <Text style={styles.chatOpeningTitle}>
+                Preparando tu chat
+              </Text>
+              <Text style={styles.chatOpeningDescription}>
+                Estamos dejando tu conversación lista.
+              </Text>
+              {[
+                ['conversation', 'Preparando conversación'],
+                ['messages', 'Cargando mensajes'],
+                ['images', 'Preparando imágenes'],
+              ].map(([phase, label], index) => {
+                const currentIndex = initialLoadingPhase === 'conversation'
+                  ? 0
+                  : initialLoadingPhase === 'messages'
+                    ? 1
+                    : 2;
+                return (
+                  <View
+                    key={phase}
+                    style={styles.chatOpeningStep}
+                  >
+                    <View
+                      style={[
+                        styles.chatOpeningStepDot,
+                        index <= currentIndex
+                          ? styles.chatOpeningStepDotActive
+                          : null,
+                      ]}
+                    />
+                    <Text
+                      style={[
+                        styles.chatOpeningStepText,
+                        index === currentIndex
+                          ? styles.chatOpeningStepTextActive
+                          : null,
+                      ]}
+                    >
+                      {label}
+                    </Text>
+                  </View>
+                );
+              })}
+            </View>
+          </View>
+        </Modal>
+
+        <Modal
+          transparent
+          animationType="fade"
           visible={isStartingCall}
           onRequestClose={() => undefined}
         >
@@ -1407,11 +1620,26 @@ export default function ConversationScreen() {
             contentContainerStyle={
               styles.chatScrollContent
             }
-            onContentSizeChange={scrollToBottom}
+            onContentSizeChange={handleChatContentSizeChange}
+            onScrollBeginDrag={() => {
+              userDraggedChatRef.current = true;
+            }}
             onScroll={(event) => {
-              handleChatScroll(
-                event.nativeEvent.contentOffset.y,
-              );
+              const {
+                contentOffset,
+                contentSize,
+                layoutMeasurement,
+              } = event.nativeEvent;
+              const offsetY = contentOffset.y;
+              chatScrollOffsetRef.current = offsetY;
+              if (userDraggedChatRef.current) {
+                followLatestMessagesRef.current = (
+                  contentSize.height
+                  - layoutMeasurement.height
+                  - offsetY < 120
+                );
+              }
+              handleChatScroll(offsetY);
             }}
             scrollEventThrottle={120}
             showsVerticalScrollIndicator={false}
@@ -1750,6 +1978,71 @@ export default function ConversationScreen() {
 }
 
 const styles = StyleSheet.create({
+  chatOpeningOverlay: {
+    alignItems: 'center',
+    backgroundColor: 'rgba(25, 31, 53, 0.55)',
+    flex: 1,
+    justifyContent: 'center',
+    padding: 24,
+  },
+  chatOpeningCard: {
+    backgroundColor: colors.neutral.white,
+    borderRadius: 24,
+    elevation: 14,
+    maxWidth: 340,
+    padding: 26,
+    shadowColor: '#263052',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.22,
+    shadowRadius: 20,
+    width: '100%',
+  },
+  chatOpeningIcon: {
+    alignItems: 'center',
+    alignSelf: 'center',
+    backgroundColor: colors.neutral.gray50,
+    borderRadius: 32,
+    height: 64,
+    justifyContent: 'center',
+    marginBottom: 14,
+    width: 64,
+  },
+  chatOpeningTitle: {
+    color: colors.neutral.text,
+    fontSize: 20,
+    fontWeight: '800',
+    textAlign: 'center',
+  },
+  chatOpeningDescription: {
+    color: colors.neutral.gray600,
+    fontSize: 13,
+    marginBottom: 20,
+    marginTop: 6,
+    textAlign: 'center',
+  },
+  chatOpeningStep: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    marginTop: 12,
+  },
+  chatOpeningStepDot: {
+    backgroundColor: colors.neutral.gray200,
+    borderRadius: 6,
+    height: 10,
+    marginRight: 12,
+    width: 10,
+  },
+  chatOpeningStepDotActive: {
+    backgroundColor: colors.brand.primary,
+  },
+  chatOpeningStepText: {
+    color: colors.neutral.gray500,
+    fontSize: 13,
+  },
+  chatOpeningStepTextActive: {
+    color: colors.neutral.text,
+    fontWeight: '700',
+  },
   callStartingOverlay: {
     alignItems: 'center',
     backgroundColor: 'rgba(34, 43, 67, 0.42)',
