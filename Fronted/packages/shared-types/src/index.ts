@@ -2276,6 +2276,7 @@ export interface StatusFollowTarget {
   commercial_profile_id: string | null;
   display_name: string;
   avatar_file_id: string | null;
+  avatar_url: string | null;
   is_available: boolean;
 }
 
@@ -2696,6 +2697,7 @@ export interface ChatIdentitySummary {
   commercial_profile_id: string | null;
   display_name: string;
   avatar_file_id: string | null;
+  avatar_url?: string | null;
   is_active: boolean;
   is_available: boolean;
 }

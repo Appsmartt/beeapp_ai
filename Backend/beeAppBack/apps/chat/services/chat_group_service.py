@@ -1155,6 +1155,7 @@ def _get_identities_by_ids(
                 "commercial_profile_id": None,
                 "display_name": "User",
                 "avatar_file_id": None,
+                "avatar_url": None,
                 "is_active": False,
                 "is_available": False,
             }

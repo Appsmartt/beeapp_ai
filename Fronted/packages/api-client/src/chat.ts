@@ -845,6 +845,7 @@ function toSharedIdentitySummary(
     ),
     display_name: identity.display_name,
     avatar_file_id: identity.avatar_file_id,
+    avatar_url: identity.avatar_url || null,
     is_active: Boolean(identity.is_active),
     is_available: Boolean(identity.is_available),
   };

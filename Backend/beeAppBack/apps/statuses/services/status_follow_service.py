@@ -10,6 +10,10 @@ from beeAppBack.core.supabase_client import (
     get_supabase_user_client,
 )
 
+from apps.statuses.services.status_media_service import (
+    create_status_avatar_signed_url,
+)
+
 from apps.statuses.exceptions import (
     StatusFollowAccessError,
     StatusFollowError,
@@ -1000,6 +1004,13 @@ def _serialize_follow_list_target(
                     if profile.get("avatar_file_id")
                     else None
                 ),
+                "avatar_url": create_status_avatar_signed_url(
+                    avatar_file_id=(
+                        str(profile["avatar_file_id"])
+                        if profile.get("avatar_file_id")
+                        else None
+                    ),
+                ),
                 "is_available": True,
             }
 
@@ -1019,6 +1030,13 @@ def _serialize_follow_list_target(
                 str(commercial["logo_file_id"])
                 if commercial.get("logo_file_id")
                 else None
+            ),
+            "avatar_url": create_status_avatar_signed_url(
+                avatar_file_id=(
+                    str(commercial["logo_file_id"])
+                    if commercial.get("logo_file_id")
+                    else None
+                ),
             ),
             "is_available": bool(
                 commercial.get("is_available", False)
@@ -1041,6 +1059,13 @@ def _serialize_follow_list_target(
                 if profile.get("avatar_file_id")
                 else None
             ),
+            "avatar_url": create_status_avatar_signed_url(
+                avatar_file_id=(
+                    str(profile["avatar_file_id"])
+                    if profile.get("avatar_file_id")
+                    else None
+                ),
+            ),
             "is_available": True,
         }
 
@@ -1060,6 +1085,13 @@ def _serialize_follow_list_target(
             str(commercial["logo_file_id"])
             if commercial.get("logo_file_id")
             else None
+        ),
+        "avatar_url": create_status_avatar_signed_url(
+            avatar_file_id=(
+                str(commercial["logo_file_id"])
+                if commercial.get("logo_file_id")
+                else None
+            ),
         ),
         "is_available": bool(
             commercial.get("is_available", False)
