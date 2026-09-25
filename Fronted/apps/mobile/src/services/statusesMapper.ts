@@ -476,6 +476,7 @@ export function mapStatusStoryToUi(
   return {
     id: story.id,
     authorId: story.actor.actor_id,
+    authorActorType: story.actor.actor_type,
     authorName,
     authorInitials: getInitials(authorName),
     authorColor: DEFAULT_AUTHOR_COLOR,
