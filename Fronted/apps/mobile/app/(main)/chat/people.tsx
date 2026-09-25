@@ -37,6 +37,7 @@ import {
   useScreenParams,
 } from '../../../src/components/embedded/EmbeddedNavContext';
 import VerifiedBadge from '../../../src/components/VerifiedBadge';
+import PeopleAvatar from '../../../src/components/chat/PeopleAvatar';
 import {
   useChatConversations,
 } from '../../../src/hooks/useChat';
@@ -54,6 +55,7 @@ type UnifiedPerson = {
   identityId: string | null;
   displayName: string;
   avatarFileId: string | null;
+  avatarUrl: string | null;
   followId: string | null;
   followState: 'pending' | 'accepted' | 'rejected' | null;
   isAvailable: boolean;
@@ -84,18 +86,6 @@ function getActorKey(
   }
 
   return null;
-}
-
-function getInitials(name: string): string {
-  const initials = name
-    .trim()
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((part) => part.charAt(0).toUpperCase())
-    .join('');
-
-  return initials || '?';
 }
 
 function getFollowLabel(
@@ -157,6 +147,7 @@ function mapSocialTarget(
     identityId: target.identity_id,
     displayName: target.display_name,
     avatarFileId: target.avatar_file_id,
+    avatarUrl: target.avatar_url,
     followId: target.follow_id,
     followState: target.follow_state,
     isAvailable: true,
@@ -314,8 +305,10 @@ export default function PeopleScreen() {
   };
 
   const handleStartChat = async (person: UnifiedPerson) => {
+    const identityId = person.identityId;
+
     if (
-      !person.identityId
+      !identityId
       || chattingPersonKey
       || followingPersonKey
     ) {
@@ -326,7 +319,7 @@ export default function PeopleScreen() {
       setChattingPersonKey(person.key);
 
       const conversation = await createDirectConversation(
-        person.identityId,
+        identityId,
       );
 
       openConversation({
@@ -422,10 +415,9 @@ export default function PeopleScreen() {
   };
 
   const handleConfirmRemoval = async () => {
-    if (
-      !confirmation
-      || !confirmation.person.followId
-    ) {
+    const followId = confirmation?.person.followId;
+
+    if (!confirmation || !followId) {
       return;
     }
 
@@ -437,7 +429,7 @@ export default function PeopleScreen() {
     try {
       setFollowingPersonKey(person.key);
 
-      await removeStatusFollow(person.followId);
+      await removeStatusFollow(followId);
 
       updatePersonFollow(
         person.key,
@@ -532,11 +524,12 @@ export default function PeopleScreen() {
 
           return (
             <View style={styles.personRow}>
-              <View style={styles.avatar}>
-                <Text style={styles.avatarText}>
-                  {getInitials(item.displayName)}
-                </Text>
-              </View>
+              <PeopleAvatar
+                displayName={item.displayName}
+                avatarFileId={item.avatarFileId}
+                avatarUrl={item.avatarUrl}
+                size={44}
+              />
 
               <View style={styles.personCopy}>
                 <View style={styles.personNameRow}>
@@ -909,21 +902,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 12,
   },
-  avatar: {
-    alignItems: 'center',
-    backgroundColor: '#EEF2FF',
-    borderColor: '#D7DFF2',
-    borderRadius: 22,
-    borderWidth: 1,
-    height: 44,
-    justifyContent: 'center',
-    width: 44,
-  },
-  avatarText: {
-    color: colors.brand.primary,
-    fontSize: 13,
-    fontWeight: '700',
-  },
   personCopy: {
     flex: 1,
     minWidth: 0,
@@ -945,7 +923,8 @@ const styles = StyleSheet.create({
     marginTop: 3,
   },
   actions: {
-    alignItems: 'flex-end',
+    alignItems: 'center',
+    flexDirection: 'row',
     gap: 7,
   },
   chatButton: {
@@ -955,7 +934,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 5,
     justifyContent: 'center',
-    minWidth: 86,
+    minWidth: 76,
     paddingHorizontal: 10,
     paddingVertical: 8,
   },
@@ -971,7 +950,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 5,
     justifyContent: 'center',
-    minWidth: 86,
+    minWidth: 76,
     paddingHorizontal: 10,
     paddingVertical: 8,
   },
