@@ -105,8 +105,15 @@ class ChatCommercialInboxIntegrationTests(SimpleTestCase):
         expected_conversation = {
             "id": "conversation-1",
             "last_message_at": "2026-09-09T06:00:00+00:00",
+            "name": None,
+            "description": None,
+            "image_file_id": None,
             "is_commercial": True,
             "commercial": commercial_link,
+            "other_identity_type": "commercial_profile",
+            "other_commercial_profile_id": "business-1",
+            "other_display_name": "Negocio Uno",
+            "other_logo_file_id": "logo-1",
             "avatar_url": "https://cdn.example/logo-1",
         }
         expected_inbox = {
@@ -253,6 +260,80 @@ class ChatCommercialInboxMetadataTests(SimpleTestCase):
 
         self.assertTrue(conversations[0]["is_commercial"])
         self.assertEqual(conversations[0]["commercial"], commercial_link)
+
+    def test_populates_missing_flat_commercial_identity_fields(self):
+        conversations = [
+            {"id": "conversation-commercial"},
+        ]
+        commercial_link = {
+            "commercial_profile_id": "business-1",
+            "client_profile_id": "client-1",
+            "owner_profile_id": "owner-1",
+            "display_name": "Negocio Uno",
+            "logo_file_id": "logo-1",
+        }
+
+        _attach_commercial_inbox_metadata(
+            conversations=conversations,
+            commercial_links_by_conversation_id={
+                "conversation-commercial": commercial_link,
+            },
+        )
+
+        self.assertEqual(
+            conversations[0]["other_identity_type"],
+            "commercial_profile",
+        )
+        self.assertEqual(
+            conversations[0]["other_commercial_profile_id"],
+            "business-1",
+        )
+        self.assertEqual(
+            conversations[0]["other_display_name"],
+            "Negocio Uno",
+        )
+        self.assertEqual(
+            conversations[0]["other_logo_file_id"],
+            "logo-1",
+        )
+
+    def test_preserves_flat_identity_fields_returned_by_rpc(self):
+        conversations = [
+            {
+                "id": "conversation-commercial",
+                "other_identity_type": "commercial_profile",
+                "other_commercial_profile_id": "business-rpc",
+                "other_display_name": "Nombre RPC",
+                "other_logo_file_id": "logo-rpc",
+            },
+        ]
+        commercial_link = {
+            "commercial_profile_id": "business-link",
+            "client_profile_id": "client-1",
+            "owner_profile_id": "owner-1",
+            "display_name": "Nombre enlace",
+            "logo_file_id": "logo-link",
+        }
+
+        _attach_commercial_inbox_metadata(
+            conversations=conversations,
+            commercial_links_by_conversation_id={
+                "conversation-commercial": commercial_link,
+            },
+        )
+
+        self.assertEqual(
+            conversations[0]["other_commercial_profile_id"],
+            "business-rpc",
+        )
+        self.assertEqual(
+            conversations[0]["other_display_name"],
+            "Nombre RPC",
+        )
+        self.assertEqual(
+            conversations[0]["other_logo_file_id"],
+            "logo-rpc",
+        )
 
     def test_marks_non_commercial_conversation_with_null_context(self):
         conversations = [
