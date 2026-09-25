@@ -6,6 +6,7 @@ export interface ChatIdentityPresence {
   identity_id: string;
   is_online: boolean;
   expires_at: string | null;
+  last_seen_at?: string | null;
 }
 
 function requirePresenceAuth(

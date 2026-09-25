@@ -19,6 +19,58 @@ IDENTITY = "11111111-1111-4111-8111-111111111111"
 OTHER_IDENTITY = "22222222-2222-4222-8222-222222222222"
 
 
+class ChatPresenceServiceContractTests(SimpleTestCase):
+    def test_snapshot_passes_last_seen_and_missing_value(self):
+        from apps.chat.services.chat_presence_service import (
+            list_chat_inbox_presence,
+        )
+
+        rows = [
+            {
+                "identity_id": OTHER_IDENTITY,
+                "is_online": False,
+                "expires_at": None,
+                "last_seen_at": "2026-09-25T18:30:00+00:00",
+            },
+            {
+                "identity_id": IDENTITY,
+                "is_online": False,
+                "expires_at": None,
+                "last_seen_at": None,
+            },
+        ]
+        response = SimpleNamespace(data=rows)
+        rpc_result = SimpleNamespace(execute=lambda: response)
+        client = SimpleNamespace(rpc=lambda name, args: rpc_result)
+
+        with patch(
+            "apps.chat.services.chat_presence_service.get_owned_chat_identity"
+        ), patch(
+            "apps.chat.services.chat_presence_service.get_supabase_user_client",
+            return_value=client,
+        ), patch.object(
+            client,
+            "rpc",
+            wraps=client.rpc,
+        ) as rpc:
+            result = list_chat_inbox_presence(
+                user_id=IDENTITY,
+                access_token="test-token",
+                viewer_identity_id=IDENTITY,
+                target_identity_ids=[OTHER_IDENTITY],
+            )
+
+        rpc.assert_called_once_with(
+            "chat_presence_list_with_last_seen",
+            {
+                "p_viewer_identity_id": IDENTITY,
+                "p_target_identity_ids": [OTHER_IDENTITY],
+            },
+        )
+        self.assertEqual(result[0]["last_seen_at"], rows[0]["last_seen_at"])
+        self.assertIsNone(result[1]["last_seen_at"])
+
+
 class ChatPresenceViewTests(SimpleTestCase):
     def setUp(self):
         self.factory = APIRequestFactory()

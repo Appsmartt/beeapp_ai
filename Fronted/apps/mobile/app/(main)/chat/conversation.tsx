@@ -44,6 +44,7 @@ import ChatMessageMenuModal, {
 } from '../../../src/components/chat/ChatMessageMenuModal';
 import AiCatalogModal from '../../../src/components/chat/AiCatalogModal';
 import ConversationHeader from '../../../src/components/chat/ConversationHeader';
+import { useConversationPresence } from '../../../src/hooks/useConversationPresence';
 import {
   ConversationOverlayMenu,
   ConversationPreviews,
@@ -154,7 +155,6 @@ export default function ConversationScreen() {
 
   const isGroupFromRoute = params.isGroup === 'true';
   const isAiFromRoute = params.isAi === 'true';
-  const onlineFromRoute = params.online === 'true';
   const context = String(params.context || '').trim();
   const businessId = String(params.businessId || '').trim();
   const requestedIdentityId = String(
@@ -328,11 +328,6 @@ export default function ConversationScreen() {
     )
   );
 
-  const online = (
-    conversation?.direct_profile?.is_online
-    ?? onlineFromRoute
-  );
-
   const isVerified = Boolean(
     conversation?.direct_profile?.is_verified,
   );
@@ -369,7 +364,14 @@ export default function ConversationScreen() {
 
   const contactIdentityId = (
     contactParticipant?.identity_id
+    || conversation?.other_identity_id
     || null
+  );
+
+  const conversationPresence = useConversationPresence(
+    activeIdentityId,
+    contactIdentityId,
+    !isGroup && !isAI && Boolean(chatId),
   );
 
   const contactDisplayName = (
@@ -1230,7 +1232,9 @@ export default function ConversationScreen() {
           isAI={isAI}
           isGroup={isGroup}
           isVerified={isVerified}
-          online={online}
+          online={conversationPresence.online}
+          presenceLoading={conversationPresence.loading}
+          lastSeenAt={conversationPresence.lastSeenAt}
           groupMemberCount={
             participants.length
             || conversation?.participants?.length

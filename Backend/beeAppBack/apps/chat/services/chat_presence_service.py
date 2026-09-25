@@ -63,7 +63,7 @@ def list_chat_inbox_presence(
             access_token=access_token,
         )
         .rpc(
-            "chat_presence_list_for_inbox",
+            "chat_presence_list_with_last_seen",
             {
                 "p_viewer_identity_id": viewer_identity_id,
                 "p_target_identity_ids": target_identity_ids,
@@ -82,6 +82,7 @@ def list_chat_inbox_presence(
             "identity_id": str(row["identity_id"]),
             "is_online": row["is_online"] is True,
             "expires_at": row.get("expires_at"),
+            "last_seen_at": row.get("last_seen_at"),
         }
         for row in rows
         if isinstance(row, dict) and row.get("identity_id")
