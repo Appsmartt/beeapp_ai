@@ -28,6 +28,7 @@ import {
 
 import AppLockScreen from '../src/components/security/AppLockScreen';
 import IncomingCallModal from '../src/components/chat/IncomingCallModal';
+import PrivateChatPresenceController from '../src/components/chat/PrivateChatPresenceController';
 import {
   getPrivateChatIdentityId,
 } from '../src/hooks/useChat';
@@ -603,6 +604,7 @@ export default function RootLayout() {
       <SafeAreaProvider>
         <SessionRevocationHandler />
         <AppPushNotifications />
+        <PrivateChatPresenceController />
 
         <Stack
           screenOptions={{
