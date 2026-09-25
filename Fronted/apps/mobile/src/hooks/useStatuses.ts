@@ -83,7 +83,10 @@ function groupStatusesForCircles(
   >();
 
   statuses
-    .filter((status) => !status.isOwn)
+    .filter((status) => (
+      !status.isOwn
+      || status.authorActorType === 'commercial_profile'
+    ))
     .forEach((status) => {
       const authorStatuses = (
         statusesByAuthor.get(status.authorId)

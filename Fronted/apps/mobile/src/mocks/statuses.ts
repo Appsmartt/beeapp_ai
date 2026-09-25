@@ -85,6 +85,7 @@ export interface StatusViewedBy {
 export interface StatusItem {
   id: string;
   authorId: string;
+  authorActorType?: 'profile' | 'commercial_profile';
   authorName: string;
   /** Avatar mock: iniciales sobre un color de fondo */
   authorInitials: string;
