@@ -347,6 +347,35 @@ async function applyMessageCreatedBroadcast(
   }
 }
 
+
+export function applyChatMessageIdPush(
+  data: Record<string, unknown>,
+): void {
+  const module = normalizeString(data.module);
+  const type = normalizeString(data.event_type || data.type);
+  const conversationId = normalizeString(data.conversation_id);
+  const messageId = normalizeString(data.message_id);
+
+  if (
+    module !== 'chat'
+    || (
+      type
+      && type !== 'chat.message.created'
+      && type !== 'chat_message'
+    )
+    || !conversationId
+    || !messageId
+  ) {
+    return;
+  }
+
+  void applyMessageCreatedBroadcast({
+    type: 'message.created',
+    conversation_id: conversationId,
+    message_id: messageId,
+  });
+}
+
 async function applyMessageReceiptBroadcast(
   event: ChatSyncBroadcast,
 ): Promise<void> {
