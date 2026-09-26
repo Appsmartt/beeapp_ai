@@ -6,6 +6,7 @@ import {
 import {
   ActivityIndicator,
   Alert,
+  AppState,
   Image,
   Modal,
   RefreshControl,
@@ -24,11 +25,14 @@ import {
   getActiveConversationCall,
   getChatContactProfile,
   getChatMessageAttachmentAccess,
+  markChatConversationRead,
   getStorageFileAccess,
   startCall,
 } from '@beeapp/api-client';
 
 import ScreenSafeArea from '../../../src/components/layout/ScreenSafeArea';
+import { getLatestIncomingChatMessage } from '../../../src/services/chatMessageReceipts';
+import { getChatConversations, getChatMessages, upsertChatConversation } from '../../../src/stores/chatStore';
 import {
   useModuleNav,
   useScreenParams,
@@ -181,6 +185,7 @@ export default function ConversationScreen() {
     hasMore,
     initialLoadingPhase,
     activeIdentityId,
+    currentUserId,
     error,
     loadMessages,
     loadMore,
@@ -193,6 +198,104 @@ export default function ConversationScreen() {
     conversationIsAi: isAiFromRoute,
     identityId: requestedIdentityId,
   });
+
+  const lastRealtimeReadMessageIdRef = useRef<string | null>(null);
+  const realtimeReadInFlightRef = useRef(false);
+  const realtimeReadPendingRef = useRef(false);
+  const activeReadConversationRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    activeReadConversationRef.current = chatId;
+    lastRealtimeReadMessageIdRef.current = null;
+    return () => {
+      activeReadConversationRef.current = null;
+    };
+  }, [chatId]);
+
+  useEffect(() => {
+    if (
+      !chatId
+      || !activeIdentityId
+      || !currentUserId
+      || !messages.length
+      || initialLoadingPhase !== 'ready'
+      || AppState.currentState !== 'active'
+    ) {
+      return;
+    }
+
+    if (realtimeReadInFlightRef.current) {
+      realtimeReadPendingRef.current = true;
+      return;
+    }
+
+    realtimeReadInFlightRef.current = true;
+    void (async () => {
+      try {
+        do {
+          realtimeReadPendingRef.current = false;
+          if (
+            activeReadConversationRef.current !== chatId
+            || AppState.currentState !== 'active'
+          ) break;
+
+          const incoming = getLatestIncomingChatMessage(
+            getChatMessages(chatId),
+            activeIdentityId,
+            currentUserId,
+          );
+          if (
+            !incoming
+            || incoming.id === lastRealtimeReadMessageIdRef.current
+          ) continue;
+
+          const credentials = await getValidSessionCredentials();
+          if (
+            !credentials
+            || activeReadConversationRef.current !== chatId
+          ) break;
+
+          await markChatConversationRead(
+            credentials,
+            chatId,
+            {
+              identity_id: activeIdentityId,
+              last_read_message_id: incoming.id,
+            },
+          );
+          if (activeReadConversationRef.current !== chatId) break;
+
+          lastRealtimeReadMessageIdRef.current = incoming.id;
+          const current = getChatConversations().find(
+            (item) => item.id === chatId,
+          );
+          if (current?.last_message?.id === incoming.id) {
+            upsertChatConversation({
+              ...current,
+              unread_count: 0,
+              own_participant: current.own_participant
+                ? {
+                    ...current.own_participant,
+                    unread_count: 0,
+                    last_read_message_id: incoming.id,
+                  }
+                : current.own_participant,
+            });
+          }
+        } while (realtimeReadPendingRef.current);
+      } catch {
+        // Un fallo de lectura no debe impedir mostrar mensajes.
+      } finally {
+        realtimeReadInFlightRef.current = false;
+      }
+    })();
+  }, [
+    activeIdentityId,
+    chatId,
+    currentUserId,
+    initialLoadingPhase,
+    messages,
+  ]);
 
   const [aiAutoReply, setAiAutoReply] =
     useState(false);

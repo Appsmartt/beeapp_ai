@@ -354,10 +354,21 @@ function mergeConversation(
     ? current
     : incoming;
 
+  const readVersion = [current, incoming].find((item) => (
+    item.last_message?.id === newest.last_message?.id
+    && item.own_participant?.last_read_message_id
+      === item.last_message?.id
+    && item.unread_count === 0
+  ));
+
   return {
     ...oldest,
     ...newest,
     id: newest.id,
+    unread_count: readVersion ? 0 : newest.unread_count,
+    own_participant: readVersion
+      ? readVersion.own_participant
+      : newest.own_participant,
     participants: (
       newest.participants?.length
         ? newest.participants

@@ -541,6 +541,13 @@ def mark_chat_conversation_read(
                 "Conversation could not be marked as read."
             )
 
+        try:
+            bump_inbox_cache_version(identity_id=str(identity_id))
+        except Exception:
+            logger.warning(
+                "chat_read_inbox_cache_invalidation_failed",
+                extra={"identity_id": str(identity_id)},
+            )
         return True
 
     except (
