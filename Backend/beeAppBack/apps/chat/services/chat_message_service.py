@@ -416,6 +416,79 @@ def send_chat_message(
         ) from error
 
 
+
+def mark_chat_conversation_delivered(
+    *,
+    user_id: str,
+    access_token: str,
+    conversation_id: str,
+    identity_id: str,
+    last_delivered_message_id: str,
+) -> bool:
+    try:
+        get_owned_chat_identity(
+            user_id=user_id,
+            identity_id=identity_id,
+        )
+        _require_identity_active_participant(
+            conversation_id=conversation_id,
+            identity_id=identity_id,
+        )
+
+        message = _get_message_row(
+            message_id=last_delivered_message_id,
+        )
+        if str(message["conversation_id"]) != str(conversation_id):
+            raise ChatMessageNotFoundError(
+                "The selected message does not belong to this conversation."
+            )
+
+        response = (
+            _user_supabase(access_token=access_token)
+            .rpc(
+                "mark_chat_conversation_delivered",
+                {
+                    "p_conversation_id": str(conversation_id),
+                    "p_identity_id": str(identity_id),
+                    "p_last_delivered_message_id": str(
+                        last_delivered_message_id
+                    ),
+                },
+            )
+            .execute()
+        )
+        if response.data is not True:
+            raise ChatMessageError(
+                "Conversation could not be marked as delivered."
+            )
+        return True
+
+    except (
+        ChatConversationAccessError,
+        ChatConversationNotFoundError,
+        ChatMessageNotFoundError,
+        ChatMessageError,
+    ):
+        raise
+    except Exception as error:
+        detail = str(error)
+        if "CHAT_LAST_DELIVERED_MESSAGE_NOT_IN_CONVERSATION" in detail:
+            raise ChatMessageNotFoundError(
+                "The selected message does not belong to this conversation."
+            ) from error
+        if "CHAT_IDENTITY_CANNOT_RECEIVE_THIS_CONVERSATION" in detail:
+            raise ChatConversationAccessError(
+                "The selected identity cannot receive this conversation."
+            ) from error
+        if "AUTHENTICATION_REQUIRED" in detail:
+            raise ChatConversationAccessError(
+                "A valid user access token is required."
+            ) from error
+        raise ChatMessageError(
+            f"Could not mark conversation as delivered: {detail}"
+        ) from error
+
+
 def mark_chat_conversation_read(
     *,
     user_id: str,

@@ -45,6 +45,7 @@ from apps.chat.serializers import (
     DeactivateChatGroupSerializer,
     DeleteReactionQuerySerializer,
     LeaveChatGroupSerializer,
+    MarkConversationDeliveredSerializer,
     MarkConversationReadSerializer,
     RemoveChatGroupParticipantSerializer,
     RespondToChatGroupInviteSerializer,
@@ -89,6 +90,9 @@ from apps.chat.services.chat_identity_service import (
     list_chat_identities,
     sync_chat_identities_for_user,
 )
+from apps.chat.services.chat_receipt_service import (
+    attach_chat_inbox_receipts,
+)
 from apps.chat.services.chat_recipient_search_service import (
     search_chat_recipients,
 )
@@ -105,6 +109,7 @@ from apps.chat.services.chat_message_service import (
     get_chat_message_readers,
     list_conversation_messages,
     list_message_reactions,
+    mark_chat_conversation_delivered,
     mark_chat_conversation_read,
     send_chat_message,
 )
@@ -533,6 +538,28 @@ class ChatInboxView(AuthenticatedAPIView):
                     else None
                 ),
             )
+
+            try:
+                inbox = attach_chat_inbox_receipts(
+                    inbox=inbox,
+                    identity_id=str(
+                        serializer.validated_data["identity_id"]
+                    ),
+                )
+            except Exception:
+                logger.warning(
+                    "Could not enrich chat inbox message receipts."
+                )
+                inbox = {
+                    **inbox,
+                    "conversations": [
+                        {
+                            **row,
+                            "last_message_receipt_status": "sent",
+                        }
+                        for row in inbox.get("conversations", [])
+                    ],
+                }
 
         except AccountAuthenticationError:
             return _unauthorized_response()
@@ -1102,6 +1129,61 @@ class ChatConversationAttachmentUploadView(
         return Response(
             result,
             status=status.HTTP_201_CREATED,
+        )
+
+
+class ChatConversationDeliveredView(AuthenticatedAPIView):
+    """
+    POST /api/chat/conversations/<conversation_id>/delivered/
+    """
+
+    def post(self, request, conversation_id):
+        serializer = MarkConversationDeliveredSerializer(
+            data=request.data,
+        )
+        serializer.is_valid(raise_exception=True)
+
+        try:
+            authenticated_user = self.get_authenticated_user(request)
+            access_token = _get_access_token(request)
+            marked = mark_chat_conversation_delivered(
+                user_id=str(authenticated_user.id),
+                access_token=access_token,
+                conversation_id=str(conversation_id),
+                identity_id=str(
+                    serializer.validated_data["identity_id"]
+                ),
+                last_delivered_message_id=str(
+                    serializer.validated_data[
+                        "last_delivered_message_id"
+                    ]
+                ),
+            )
+        except AccountAuthenticationError:
+            return _unauthorized_response()
+        except ChatConversationAccessError:
+            return Response(
+                {
+                    "detail": (
+                        "The selected identity cannot receive this "
+                        "conversation."
+                    ),
+                },
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        except ChatConversationNotFoundError:
+            return _conversation_not_found_response()
+        except ChatMessageNotFoundError:
+            return _message_not_found_response()
+        except ChatMessageError as error:
+            return Response(
+                {"detail": str(error)},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        return Response(
+            {"marked": marked},
+            status=status.HTTP_200_OK,
         )
 
 

@@ -19,6 +19,7 @@ interface ChatListItemProps {
   avatarUrl?: string | null;
   verified?: boolean;
   status: 'sent' | 'delivered' | 'read';
+  isOwnLastMessage: boolean;
   online?: boolean;
   isPinned?: boolean;
   isMuted?: boolean;
@@ -36,6 +37,7 @@ export default function ChatListItem({
   avatarUrl,
   verified,
   status,
+  isOwnLastMessage,
   online,
   isPinned,
   isMuted,
@@ -122,11 +124,11 @@ export default function ChatListItem({
               <Text style={styles.unreadBadgeText}>{unreadCount}</Text>
             </View>
           ) : (
-            !isProtected && (
+            !isProtected && isOwnLastMessage && (
               <View style={styles.statusCheck}>
-                {status === 'sent' && <Check size={14} color={colors.neutral.gray500} />}
-                {status === 'delivered' && <CheckCheck size={14} color={colors.neutral.gray500} />}
-                {status === 'read' && <CheckCheck size={14} color={colors.brand.primary} />}
+                {status === 'sent' && <Check size={15} color={colors.neutral.gray500} />}
+                {status === 'delivered' && <CheckCheck size={15} color={colors.neutral.gray600} />}
+                {status === 'read' && <CheckCheck size={15} color={colors.brand.primary} />}
               </View>
             )
           )}

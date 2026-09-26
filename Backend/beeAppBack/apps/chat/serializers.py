@@ -509,6 +509,11 @@ class SendChatMessageSerializer(serializers.Serializer):
         return attrs
 
 
+class MarkConversationDeliveredSerializer(serializers.Serializer):
+    identity_id = serializers.UUIDField()
+    last_delivered_message_id = serializers.UUIDField()
+
+
 class MarkConversationReadSerializer(serializers.Serializer):
     identity_id = serializers.UUIDField()
     last_read_message_id = serializers.UUIDField()

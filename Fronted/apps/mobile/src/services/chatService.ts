@@ -22,6 +22,7 @@ export interface ChatListItemModel {
   unreadCount: number;
   isGroup: boolean;
   status: ChatListStatus;
+  isOwnLastMessage: boolean;
   online: boolean;
   isPinned: boolean;
   isMuted: boolean;
@@ -323,8 +324,18 @@ export function mapConversationToListItem(
     : '';
 
   const lastMessageIsCurrentUser = Boolean(
-    lastMessage?.sender_id
-    && lastMessage.sender_id === currentUserId,
+    lastMessage
+    && (
+      lastMessage.sender_identity_id
+        ? (
+            conversation.own_participant?.identity_id
+            === lastMessage.sender_identity_id
+          )
+        : (
+            lastMessage.sender_id
+            && lastMessage.sender_id === currentUserId
+          )
+    ),
   );
 
   const lastMessageText = (
@@ -352,6 +363,7 @@ export function mapConversationToListItem(
     status: toUiStatus(
       lastMessage?.status || 'sent',
     ),
+    isOwnLastMessage: lastMessageIsCurrentUser,
     online: Boolean(directProfile?.is_online),
     isPinned: Boolean(conversation.is_pinned),
     isMuted: Boolean(conversation.is_muted),

@@ -13,6 +13,7 @@ import {
   getChatConversation,
   getChatIdentities,
   getChatInbox,
+  getChatMessage,
   getChatMessages,
   getChatParticipants,
   inviteToChatGroup,
@@ -44,6 +45,12 @@ import {
   type ChatMessageModel,
   type ChatUserOption,
 } from '../services/chatService';
+import {
+  getLatestIncomingChatMessage,
+} from '../services/chatMessageReceipts';
+import {
+  getChatMessageReceiptStatus,
+} from '../services/chatReceiptStatus';
 import {
   uploadChatAttachmentMessage,
   type UploadableChatAttachment,
@@ -532,10 +539,40 @@ export function useChatConversations(
   const synchronizeConversations = useCallback((
     nextConversations: ChatConversation[],
   ) => {
-    const sorted = sortConversations(nextConversations);
+    const existingById = new Map(
+      getStoredConversations().map((item) => [item.id, item]),
+    );
+    const merged = nextConversations.map((incoming) => {
+      const current = existingById.get(incoming.id);
+      if (!current) {
+        return incoming;
+      }
+
+      const combined = mergeConversation(current, incoming);
+      const hasFullParticipants = (
+        current.participants?.some((participant) => (
+          !participant.id.startsWith('own:')
+          && Boolean(participant.joined_at)
+        )) ?? false
+      );
+      return {
+        ...combined,
+        participants: hasFullParticipants
+          ? current.participants
+          : combined.participants,
+        own_participant: (
+          incoming.own_participant?.id.startsWith('own:')
+          && current.own_participant
+          && !current.own_participant.id.startsWith('own:')
+            ? current.own_participant
+            : combined.own_participant
+        ),
+      };
+    });
+    const sorted = sortConversations(merged);
 
     setChatConversations(sorted);
-    setRawConversations(sorted);
+    setRawConversations(getStoredConversations());
   }, []);
 
   const resolveActiveIdentityId = useCallback(async (
@@ -644,7 +681,7 @@ export function useChatConversations(
        * consulta la red solo cuando necesita sincronizarse.
        */
 
-      return response.conversations.map((conversation) => (
+      return getStoredConversations().map((conversation) => (
         mapConversationToListItem(
           {
             ...conversation,
@@ -1427,16 +1464,19 @@ export function useChatMessages(
     token: AuthCredentials,
     identityId: string,
     messagesToMark: ChatMessage[],
+    recipientUserId: string,
   ) => {
     if (!normalizedConversationId || !messagesToMark.length) {
       return;
     }
 
-    const latestMessage = messagesToMark[
-      messagesToMark.length - 1
-    ];
+    const latestMessage = getLatestIncomingChatMessage(
+      messagesToMark,
+      identityId,
+      recipientUserId,
+    );
 
-    if (!latestMessage?.id) {
+    if (!latestMessage) {
       return;
     }
 
@@ -1590,6 +1630,7 @@ export function useChatMessages(
           token,
           identityId,
           mergedMessages,
+          activeUserId,
         );
       }
 
@@ -1751,6 +1792,17 @@ export function useChatMessages(
               ? mergeConversation(current, nextConversation)
               : nextConversation
           ));
+
+          const completeParticipants = (
+            nextConversation.participants || []
+          ).filter((participant) => (
+            Boolean(participant.joined_at)
+            && !participant.id.startsWith('own:')
+          ));
+
+          if (completeParticipants.length) {
+            setParticipants(completeParticipants);
+          }
         }
       }
     });
@@ -2218,24 +2270,118 @@ export function useChatMessages(
     [],
   );
 
+  const [remoteCursorSequences, setRemoteCursorSequences] =
+    useState<Record<string, number>>({});
+  const attemptedCursorIdsRef = useRef<Set<string>>(new Set());
+
+  useEffect(() => {
+    attemptedCursorIdsRef.current.clear();
+    setRemoteCursorSequences({});
+  }, [normalizedConversationId]);
+
+  useEffect(() => {
+    const loadedIds = new Set(
+      rawMessages.map((message) => message.id),
+    );
+    const cursorIds = new Set<string>();
+    participants.forEach((participant) => {
+      if (participant.last_read_message_id) {
+        cursorIds.add(participant.last_read_message_id);
+      }
+      if (participant.last_delivered_message_id) {
+        cursorIds.add(participant.last_delivered_message_id);
+      }
+    });
+    const missingIds = [...cursorIds].filter((id) => (
+      !loadedIds.has(id)
+      && remoteCursorSequences[id] === undefined
+      && !attemptedCursorIdsRef.current.has(id)
+    ));
+
+    if (!missingIds.length) {
+      return;
+    }
+
+    missingIds.forEach((id) => {
+      attemptedCursorIdsRef.current.add(id);
+    });
+    let cancelled = false;
+    void (async () => {
+      try {
+        const { token } = await getChatAuthContext();
+        const resolved = await Promise.all(
+          missingIds.map(async (id) => {
+            try {
+              const { message } = await getChatMessage(token, id);
+              return [id, message.sequence_number] as const;
+            } catch {
+              return null;
+            }
+          }),
+        );
+        if (!cancelled) {
+          setRemoteCursorSequences((current) => {
+            const next = { ...current };
+            resolved.forEach((entry) => {
+              if (entry && typeof entry[1] === 'number') {
+                next[entry[0]] = entry[1];
+              }
+            });
+            return next;
+          });
+        }
+      } catch {
+        // No se infiere un acuse sin secuencia comprobada.
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [participants, rawMessages, remoteCursorSequences]);
+
   const messages = useMemo(() => {
     if (!currentUserId) {
       return [];
     }
 
-    return rawMessages.map((message) => (
-      mapChatMessageToModel(
+    const cursorSequences: Record<string, number> = {
+      ...remoteCursorSequences,
+    };
+    rawMessages.forEach((message) => {
+      if (typeof message.sequence_number === 'number') {
+        cursorSequences[message.id] = message.sequence_number;
+      }
+    });
+
+    return rawMessages.map((message) => {
+      const model = mapChatMessageToModel(
         message,
         currentUserId,
-        {
-          conversationIsAi,
-        },
-      )
-    ));
+        { conversationIsAi },
+      );
+
+      if (!model.isUser || conversationIsAi) {
+        return model;
+      }
+
+      return {
+        ...model,
+        status: getChatMessageReceiptStatus(
+          message,
+          participants,
+          message.sender_identity_id || activeIdentityId || '',
+          cursorSequences,
+        ),
+      };
+    });
   }, [
+    activeIdentityId,
     conversationIsAi,
     currentUserId,
+    participants,
     rawMessages,
+    remoteCursorSequences,
   ]);
 
   const clearError = useCallback(() => {

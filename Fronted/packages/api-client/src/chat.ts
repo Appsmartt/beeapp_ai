@@ -105,6 +105,7 @@ export interface ChatApiInboxConversation {
   last_message_preview: string | null;
   last_message_at: string | null;
   last_message_sender_identity_id: string | null;
+  last_message_receipt_status?: 'sent' | 'delivered' | 'read';
   unread_count: number;
   last_read_message_id: string | null;
   last_read_at: string | null;
@@ -550,6 +551,7 @@ function toSharedMessage(
   return {
     id: message.id,
     conversation_id: message.conversation_id,
+    sender_identity_id: message.sender_identity_id,
     sender_id: (
       message.sender_user_id
       || message.sender_identity?.profile_id
@@ -736,11 +738,19 @@ function toSharedInboxConversation(
           sender_id: (
             conversation.last_message_sender_identity_id
           ),
+          sender_identity_id: (
+            conversation.last_message_sender_identity_id
+          ),
           message_type: toUiMessageType(
             conversation.last_message_type,
           ),
           content: conversation.last_message_preview || '',
-          status: 'sent',
+          status: (
+            conversation.last_message_receipt_status === 'read'
+            || conversation.last_message_receipt_status === 'delivered'
+              ? conversation.last_message_receipt_status
+              : 'sent'
+          ),
           created_at: conversation.last_message_at || '',
           attachments: [],
           sender: null,
@@ -1404,6 +1414,27 @@ export async function getChatMessageAttachmentAccess(
       identity_id: normalizedIdentityId,
       download,
     })}`,
+    {
+      auth: requireBearerAuth(auth),
+    },
+  );
+}
+
+export async function markChatConversationDelivered(
+  auth: AuthCredentials,
+  conversationId: string,
+  payload: {
+    identity_id: string;
+    last_delivered_message_id: string;
+  },
+): Promise<{
+  marked: boolean;
+}> {
+  return api.post<{
+    marked: boolean;
+  }>(
+    `${conversationPath(conversationId)}delivered/`,
+    payload,
     {
       auth: requireBearerAuth(auth),
     },

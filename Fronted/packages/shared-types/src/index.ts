@@ -2617,6 +2617,7 @@ export interface ChatMessage {
   id: string;
   conversation_id: string;
   sender_id: string | null;
+  sender_identity_id?: string | null;
   sequence_number?: number;
   message_type: ChatMessageType;
   content: string;
