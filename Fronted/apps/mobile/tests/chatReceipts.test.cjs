@@ -159,3 +159,39 @@ test('store: un mensaje realmente nuevo no hereda lectura del anterior', () => {
   assert.equal(store.getChatConversations()[0].last_message.id, 'message-4');
   assert.equal(store.getChatConversations()[0].last_message.status, 'sent');
 });
+
+test('store: respuesta antigua no recupera no leídos tras lectura confirmada', () => {
+  const store = loadChatStore();
+  const own = {
+    id: 'participant-own',
+    identity_id: 'identity-own',
+    unread_count: 0,
+    last_read_message_id: 'message-3',
+  };
+  const base = {
+    id: 'conversation-1',
+    conversation_type: 'direct',
+    created_at: '2026-09-01T00:00:00Z',
+    updated_at: message.created_at,
+    last_message_at: message.created_at,
+    last_message: { ...message, sender_identity_id: 'identity-other' },
+    unread_count: 0,
+    own_participant: own,
+  };
+  store.setChatConversations([base]);
+  store.upsertChatConversation({
+    ...base,
+    unread_count: 1,
+    own_participant: { ...own, unread_count: 1, last_read_message_id: null },
+  });
+  assert.equal(store.getChatConversations()[0].unread_count, 0);
+  assert.equal(store.getChatConversations()[0].own_participant.last_read_message_id, 'message-3');
+  store.upsertChatConversation({
+    ...base,
+    updated_at: '2026-09-03T00:00:00Z',
+    last_message_at: '2026-09-03T00:00:00Z',
+    last_message: { ...message, id: 'message-4', created_at: '2026-09-03T00:00:00Z' },
+    unread_count: 1,
+  });
+  assert.equal(store.getChatConversations()[0].unread_count, 1);
+});

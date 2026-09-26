@@ -4,7 +4,9 @@ import {
 } from '@supabase/supabase-js';
 import {
   getChatIdentities,
+  getChatInbox,
   getChatMessage,
+  getChatMessages as fetchChatMessages,
   getChatParticipants,
   markChatConversationDelivered,
 } from '@beeapp/api-client';
@@ -16,6 +18,7 @@ import {
 import {
   getChatConversations,
   getChatMessages,
+  setChatMessages,
   updateChatConversationLastMessage,
   upsertChatConversation,
   upsertChatMessage,
@@ -111,6 +114,82 @@ function getBroadcastValue(
   }
 
   return value as ChatSyncBroadcast;
+}
+
+async function reconcileIncomingChatInbox(
+  credentials: ReturnType<typeof getSessionCredentials>,
+  conversationId: string,
+  messageId: string,
+): Promise<void> {
+  const { identities } = await getChatIdentities(credentials);
+  const activeIdentities = identities.filter(
+    (identity) => identity.is_active,
+  );
+
+  await Promise.all(activeIdentities.map(async (identity) => {
+    try {
+      const { conversations } = await getChatInbox(
+        credentials,
+        identity.id,
+        { limit: 100 },
+      );
+      const incoming = conversations.find(
+        (item) => (
+          item.id === conversationId
+          && item.last_message?.id === messageId
+        ),
+      );
+      if (!incoming) return;
+
+      const current = getChatConversations().find(
+        (item) => item.id === conversationId,
+      );
+      if (current?.last_message?.id !== messageId) {
+        const currentSequence = current?.last_message?.sequence_number;
+        const incomingSequence = incoming.last_message?.sequence_number;
+        const currentTime = Date.parse(
+          current?.last_message_at
+          || current?.last_message?.created_at
+          || '',
+        );
+        const incomingTime = Date.parse(
+          incoming.last_message_at
+          || incoming.last_message?.created_at
+          || '',
+        );
+        if (
+          (
+            typeof currentSequence === 'number'
+            && typeof incomingSequence === 'number'
+            && currentSequence > incomingSequence
+          )
+          || (
+            Number.isFinite(currentTime)
+            && Number.isFinite(incomingTime)
+            && currentTime > incomingTime
+          )
+        ) return;
+      }
+
+      const completeParticipants = (
+        current?.participants?.filter(
+          (participant) => (
+            Boolean(participant.joined_at)
+            && !participant.id.startsWith('own:')
+          ),
+        ) || []
+      );
+      upsertChatConversation({
+        ...current,
+        ...incoming,
+        participants: completeParticipants.length
+          ? completeParticipants
+          : incoming.participants,
+      });
+    } catch {
+      // Un fallo de inbox no debe impedir recibir el mensaje.
+    }
+  }));
 }
 
 async function applyMessageCreatedBroadcast(
@@ -257,6 +336,11 @@ async function applyMessageCreatedBroadcast(
       // La resolución de identidad no bloquea mensajes recibidos.
     }
 
+    await reconcileIncomingChatInbox(
+      getSessionCredentials(authSession),
+      conversationId,
+      messageId,
+    );
   } catch {
   } finally {
     inFlightMessageIds.delete(messageId);
@@ -455,6 +539,73 @@ async function handleChatBroadcast(
   await applyMessageCreatedBroadcast(event);
 }
 
+async function reconcileCachedChatsAfterSubscribe(): Promise<void> {
+  const session = await getValidAuthSession();
+  if (!session) return;
+
+  const credentials = getSessionCredentials(session);
+  const { identities } = await getChatIdentities(credentials);
+  await Promise.all(identities.filter(
+    (identity) => identity.is_active,
+  ).map(async (identity) => {
+    try {
+      const { conversations } = await getChatInbox(
+        credentials, identity.id, { limit: 100 },
+      );
+      for (const incoming of conversations) {
+        const current = getChatConversations().find(
+          (item) => item.id === incoming.id,
+        );
+        const currentTime = Date.parse(current?.last_message_at || '');
+        const incomingTime = Date.parse(incoming.last_message_at || '');
+        if (
+          current
+          && Number.isFinite(currentTime)
+          && Number.isFinite(incomingTime)
+          && currentTime > incomingTime
+        ) continue;
+
+        const cachedMessages = getChatMessages(incoming.id);
+        upsertChatConversation({
+          ...current,
+          ...incoming,
+          participants: current?.participants?.some(
+            (participant) => Boolean(participant.joined_at),
+          ) ? current.participants : incoming.participants,
+        });
+        if (!cachedMessages.length) continue;
+
+        try {
+          const [page, participantResponse] = await Promise.all([
+            fetchChatMessages(credentials, incoming.id, { limit: 50 }),
+            getChatParticipants(credentials, incoming.id),
+          ]);
+          const byId = new Map(
+            cachedMessages.map((message) => [message.id, message]),
+          );
+          page.messages.forEach((message) => {
+            byId.set(message.id, message);
+          });
+          setChatMessages(incoming.id, [...byId.values()]);
+          const latest = getChatConversations().find(
+            (item) => item.id === incoming.id,
+          );
+          if (latest) {
+            upsertChatConversation({
+              ...latest,
+              participants: participantResponse.participants,
+            });
+          }
+        } catch {
+          // La recuperación no bloquea los eventos posteriores.
+        }
+      }
+    } catch {
+      // Una identidad no bloquea las demás.
+    }
+  }));
+}
+
 export async function startChatRealtime(): Promise<void> {
   const authSession = await getValidAuthSession();
 
@@ -511,7 +662,24 @@ export async function startChatRealtime(): Promise<void> {
           void handleChatBroadcast(message.payload);
         },
       )
-      .subscribe();
+      .subscribe((status, error) => {
+        if (status === 'SUBSCRIBED') {
+          void reconcileCachedChatsAfterSubscribe().catch(() => {
+            // La conexión sigue activa aunque falle la recuperación.
+          });
+        }
+        if (
+          status === 'CHANNEL_ERROR'
+          || status === 'TIMED_OUT'
+          || status === 'CLOSED'
+        ) {
+          console.warn(
+            '[chat realtime] estado del canal',
+            status,
+            error,
+          );
+        }
+      });
 
     activeChannel = channel;
   })();
