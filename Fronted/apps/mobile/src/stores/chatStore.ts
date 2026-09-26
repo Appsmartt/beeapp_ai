@@ -299,6 +299,46 @@ function normalizeMessages(
   );
 }
 
+function mergeSameMessageReceipt(
+  newest: ChatMessage | null | undefined,
+  oldest: ChatMessage | null | undefined,
+): ChatMessage | null {
+  if (!newest) {
+    return oldest || null;
+  }
+
+  if (!oldest || newest.id !== oldest.id) {
+    return newest;
+  }
+
+  const receiptRank = {
+    failed: -1,
+    sent: 0,
+    delivered: 1,
+    read: 2,
+  } as const;
+
+  const status = (
+    receiptRank[oldest.status] > receiptRank[newest.status]
+      ? oldest.status
+      : newest.status
+  );
+
+  return {
+    ...oldest,
+    ...newest,
+    status,
+    sender_identity_id: (
+      newest.sender_identity_id
+      || oldest.sender_identity_id
+    ),
+    sequence_number: (
+      newest.sequence_number
+      ?? oldest.sequence_number
+    ),
+  };
+}
+
 function mergeConversation(
   current: ChatConversation,
   incoming: ChatConversation,
@@ -306,7 +346,7 @@ function mergeConversation(
   const currentTimestamp = getConversationTimestamp(current);
   const incomingTimestamp = getConversationTimestamp(incoming);
 
-  const newest = incomingTimestamp >= currentTimestamp
+  const newest = incomingTimestamp > currentTimestamp
     ? incoming
     : current;
 
@@ -323,10 +363,9 @@ function mergeConversation(
         ? newest.participants
         : oldest.participants
     ),
-    last_message: (
-      newest.last_message
-      || oldest.last_message
-      || null
+    last_message: mergeSameMessageReceipt(
+      newest.last_message,
+      oldest.last_message,
     ),
     last_message_at: (
       newest.last_message_at

@@ -16,6 +16,7 @@ from apps.chat.views import (
     ChatConversationMessagesView,
     ChatConversationNotificationsView,
     ChatConversationParticipantsView,
+    ChatConversationDeliveredView,
     ChatConversationReadView,
     ChatDirectConversationsView,
     ChatGroupConversationInvitesView,
@@ -122,6 +123,11 @@ urlpatterns = [
         "conversations/<uuid:conversation_id>/attachments/",
         ChatConversationAttachmentUploadView.as_view(),
         name="chat-conversation-attachment-upload",
+    ),
+    path(
+        "conversations/<uuid:conversation_id>/delivered/",
+        ChatConversationDeliveredView.as_view(),
+        name="chat-conversation-delivered",
     ),
     path(
         "conversations/<uuid:conversation_id>/read/",

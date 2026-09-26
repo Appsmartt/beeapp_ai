@@ -81,6 +81,7 @@ export default function ChatListView({
           avatarUrl={chat.avatarUrl}
           verified={chat.verified}
           status={chat.status}
+          isOwnLastMessage={chat.isOwnLastMessage}
           online={chat.online}
           isPinned={chat.isPinned}
           isMuted={chat.isMuted}

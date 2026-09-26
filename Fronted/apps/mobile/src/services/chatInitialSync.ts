@@ -3,6 +3,7 @@ import {
   getChatIdentities,
   getChatInbox,
   getChatMessages,
+  markChatConversationDelivered,
 } from '@beeapp/api-client';
 import type {
   AuthCredentials,
@@ -10,6 +11,9 @@ import type {
   ChatMessage,
 } from '@beeapp/shared-types';
 
+import {
+  getLatestIncomingChatMessage,
+} from './chatMessageReceipts';
 import {
   getValidAuthSession,
   getValidSessionCredentials,
@@ -176,6 +180,8 @@ async function getChatSyncAuth(): Promise<{
 async function synchronizeConversationMessages(
   auth: AuthCredentials,
   conversation: ChatConversation,
+  recipientIdentityId?: string,
+  recipientUserId?: string,
 ): Promise<void> {
   const cutoff = getInitialSyncCutoff();
 
@@ -253,6 +259,29 @@ async function synchronizeConversationMessages(
       lastSyncedAt: new Date().toISOString(),
     },
   );
+
+  if (recipientIdentityId && recipientUserId) {
+    const latestIncoming = getLatestIncomingChatMessage(
+      uniqueMessages,
+      recipientIdentityId,
+      recipientUserId,
+    );
+
+    if (latestIncoming) {
+      try {
+        await markChatConversationDelivered(
+          auth,
+          conversation.id,
+          {
+            identity_id: recipientIdentityId,
+            last_delivered_message_id: latestIncoming.id,
+          },
+        );
+      } catch {
+        // Un acuse fallido no invalida mensajes sincronizados.
+      }
+    }
+  }
 }
 
 export async function synchronizeInitialPrivateChats(
@@ -339,6 +368,8 @@ export async function synchronizeInitialPrivateChats(
       await synchronizeConversationMessages(
         auth,
         conversation,
+        privateIdentity.id,
+        userId,
       );
 
     } catch {

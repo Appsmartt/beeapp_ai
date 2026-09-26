@@ -644,22 +644,22 @@ export default function MessageBubble({
               <View style={styles.statusCheck}>
                 {status === 'sent' ? (
                   <Check
-                    size={12}
+                    size={14}
                     color="#DDE3FF"
                   />
                 ) : null}
 
                 {status === 'delivered' ? (
                   <CheckCheck
-                    size={12}
-                    color="#DDE3FF"
+                    size={14}
+                    color={colors.neutral.white}
                   />
                 ) : null}
 
                 {status === 'read' ? (
                   <CheckCheck
-                    size={12}
-                    color={colors.neutral.white}
+                    size={14}
+                    color="#75F0D0"
                   />
                 ) : null}
               </View>

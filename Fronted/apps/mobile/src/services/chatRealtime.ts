@@ -3,7 +3,10 @@ import {
   type RealtimeChannel,
 } from '@supabase/supabase-js';
 import {
+  getChatIdentities,
   getChatMessage,
+  getChatParticipants,
+  markChatConversationDelivered,
 } from '@beeapp/api-client';
 
 import {
@@ -12,9 +15,14 @@ import {
 } from './authSession';
 import {
   getChatConversations,
+  getChatMessages,
   updateChatConversationLastMessage,
+  upsertChatConversation,
   upsertChatMessage,
 } from '../stores/chatStore';
+import {
+  getChatMessageReceiptStatus,
+} from './chatReceiptStatus';
 
 const supabaseUrl = String(
   process.env.EXPO_PUBLIC_SUPABASE_URL || '',
@@ -201,9 +209,231 @@ async function applyMessageCreatedBroadcast(
       );
     }
 
+    try {
+      const credentials = getSessionCredentials(authSession);
+      const [identitiesResponse, participantsResponse] = (
+        await Promise.all([
+          getChatIdentities(credentials),
+          getChatParticipants(credentials, conversationId),
+        ])
+      );
+      const ownedIds = new Set(
+        identitiesResponse.identities
+          .filter((identity) => identity.is_active)
+          .map((identity) => identity.id),
+      );
+      const recipients = participantsResponse.participants.filter(
+        (participant) => (
+          ownedIds.has(participant.identity_id)
+          && participant.left_at === null
+          && participant.removed_at === null
+          && participant.identity_id
+            !== message.sender_identity_id
+          && (
+            !message.sender_identity_id
+              ? message.sender_id !== authSession.user.id
+              : true
+          )
+        ),
+      );
+
+      await Promise.all(
+        recipients.map(async (participant) => {
+          try {
+            await markChatConversationDelivered(
+              credentials,
+              conversationId,
+              {
+                identity_id: participant.identity_id,
+                last_delivered_message_id: message.id,
+              },
+            );
+          } catch {
+            // Un acuse fallido no impide recibir el mensaje.
+          }
+        }),
+      );
+    } catch {
+      // La resolución de identidad no bloquea mensajes recibidos.
+    }
+
   } catch {
   } finally {
     inFlightMessageIds.delete(messageId);
+  }
+}
+
+async function applyMessageReceiptBroadcast(
+  event: ChatSyncBroadcast,
+): Promise<void> {
+  if (normalizeString(event.type) !== 'participant.upsert') {
+    return;
+  }
+
+  const payload = (
+    event.payload
+    && typeof event.payload === 'object'
+    && !Array.isArray(event.payload)
+      ? event.payload as Record<string, unknown>
+      : null
+  );
+
+  if (payload?.reason !== 'message_receipt') {
+    return;
+  }
+
+  const conversationId = normalizeString(
+    event.conversation_id,
+  );
+  const conversation = getChatConversations().find(
+    (item) => item.id === conversationId,
+  );
+
+  if (!conversation) {
+    return;
+  }
+
+  try {
+    const session = await getValidAuthSession();
+    if (!session) {
+      return;
+    }
+
+    const credentials = getSessionCredentials(session);
+    const { participants } = await getChatParticipants(
+      credentials,
+      conversationId,
+    );
+    const current = getChatConversations().find(
+      (item) => item.id === conversationId,
+    );
+    if (!current) {
+      return;
+    }
+
+    const lastMessage = current.last_message;
+    const ownIdentityId = current.own_participant?.identity_id;
+    const isOwnLastMessage = Boolean(
+      lastMessage
+      && ownIdentityId
+      && lastMessage.sender_identity_id === ownIdentityId
+    );
+
+    if (!isOwnLastMessage || !lastMessage || !ownIdentityId) {
+      upsertChatConversation({
+        ...current,
+        participants,
+      });
+      return;
+    }
+
+    const storedMessages = getChatMessages(conversationId);
+    const sequenceById: Record<string, number> = {};
+    storedMessages.forEach((message) => {
+      if (
+        typeof message.sequence_number === 'number'
+        && Number.isFinite(message.sequence_number)
+      ) {
+        sequenceById[message.id] = message.sequence_number;
+      }
+    });
+
+    let receiptMessage = (
+      storedMessages.find((message) => (
+        message.id === lastMessage.id
+      ))
+      || lastMessage
+    );
+    if (
+      typeof receiptMessage.sequence_number !== 'number'
+      || !Number.isFinite(receiptMessage.sequence_number)
+    ) {
+      const response = await getChatMessage(
+        credentials,
+        lastMessage.id,
+      );
+      if (response.message.conversation_id !== conversationId) {
+        return;
+      }
+      receiptMessage = response.message;
+    }
+    if (
+      typeof receiptMessage.sequence_number === 'number'
+      && Number.isFinite(receiptMessage.sequence_number)
+    ) {
+      sequenceById[receiptMessage.id] =
+        receiptMessage.sequence_number;
+    }
+
+    const cursorIds = new Set<string>();
+    participants.forEach((participant) => {
+      if (
+        participant.identity_id === ownIdentityId
+        || participant.left_at != null
+        || participant.removed_at != null
+      ) {
+        return;
+      }
+      if (participant.last_read_message_id) {
+        cursorIds.add(participant.last_read_message_id);
+      }
+      if (participant.last_delivered_message_id) {
+        cursorIds.add(participant.last_delivered_message_id);
+      }
+    });
+    await Promise.all(
+      [...cursorIds]
+        .filter((id) => sequenceById[id] === undefined)
+        .map(async (id) => {
+          try {
+            const { message } = await getChatMessage(
+              credentials,
+              id,
+            );
+            if (
+              message.conversation_id === conversationId
+              && typeof message.sequence_number === 'number'
+              && Number.isFinite(message.sequence_number)
+            ) {
+              sequenceById[id] = message.sequence_number;
+            }
+          } catch {
+            // Sin secuencia verificada no se infiere un acuse.
+          }
+        }),
+    );
+
+    const latest = getChatConversations().find(
+      (item) => item.id === conversationId,
+    );
+    if (!latest) {
+      return;
+    }
+    if (latest.last_message?.id !== lastMessage.id) {
+      upsertChatConversation({
+        ...latest,
+        participants,
+      });
+      return;
+    }
+
+    const status = getChatMessageReceiptStatus(
+      receiptMessage,
+      participants,
+      ownIdentityId,
+      sequenceById,
+    );
+    upsertChatConversation({
+      ...latest,
+      participants,
+      last_message: {
+        ...latest.last_message,
+        sequence_number: receiptMessage.sequence_number,
+        status,
+      },
+    });
+  } catch {
+    // Un recibo no debe impedir procesar mensajes posteriores.
   }
 }
 
@@ -216,6 +446,11 @@ async function handleChatBroadcast(
     return;
   }
 
+
+  if (normalizeString(event.type) === 'participant.upsert') {
+    await applyMessageReceiptBroadcast(event);
+    return;
+  }
 
   await applyMessageCreatedBroadcast(event);
 }
