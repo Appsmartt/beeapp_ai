@@ -55,6 +55,7 @@ import {
   applyChatRealtimeEvent,
 } from '../src/stores/chatStore';
 import {
+  applyChatMessageIdPush,
   startChatRealtime,
   stopChatRealtime,
 } from '../src/services/chatRealtime';
@@ -480,6 +481,8 @@ function AppPushNotifications() {
 
       if (chatEvent) {
         applyChatRealtimeEvent(chatEvent);
+      } else {
+        applyChatMessageIdPush(notificationData);
       }
 
       const incoming = getIncomingCallFromData(
@@ -503,6 +506,8 @@ function AppPushNotifications() {
 
       if (chatEvent) {
         applyChatRealtimeEvent(chatEvent);
+      } else {
+        applyChatMessageIdPush(data);
       }
 
       const chatConversationId = getChatPushConversationId(

@@ -37,6 +37,7 @@ import {
   getValidAuthSession,
   getValidSessionCredentials,
 } from '../services/authSession';
+import { startChatRealtime } from '../services/chatRealtime';
 import {
   mapChatMessageToModel,
   mapChatSearchUser,
@@ -1690,6 +1691,10 @@ export function useChatMessages(
         if (cancelled) {
           return;
         }
+
+        void startChatRealtime().catch(() => {
+          // Un fallo de Realtime no impide cargar el historial del chat.
+        });
 
         await resolveActiveIdentityId(token);
 
