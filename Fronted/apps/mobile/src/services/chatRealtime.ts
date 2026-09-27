@@ -19,6 +19,7 @@ import {
   getActiveChatStoreIdentityId,
   getChatConversations,
   getChatMessages,
+  setChatConversations,
   setChatMessages,
   updateChatConversationLastMessage,
   updateDirectChatReceipt,
@@ -215,6 +216,36 @@ async function reconcileIncomingChatInbox(
           ? completeParticipants
           : incoming.participants,
       });
+
+      // The inbox owns the unread count. A same-message store merge can
+      // otherwise keep the count from the earlier preview update.
+      const stored = getChatConversations().find(
+        (item) => item.id === conversationId,
+      );
+      const alreadyReadLatestMessage = Boolean(
+        stored?.unread_count === 0
+        && stored.own_participant?.last_read_message_id === messageId,
+      );
+      if (
+        stored?.last_message?.id === messageId
+        && !alreadyReadLatestMessage
+        && stored.unread_count !== incoming.unread_count
+      ) {
+        setChatConversations(getChatConversations().map((item) => (
+          item.id === conversationId
+            ? {
+                ...item,
+                unread_count: incoming.unread_count,
+                own_participant: item.own_participant
+                  ? {
+                      ...item.own_participant,
+                      unread_count: incoming.unread_count,
+                    }
+                  : item.own_participant,
+              }
+            : item
+        )));
+      }
     } catch {
       // Un fallo de inbox no debe impedir recibir el mensaje.
     }
@@ -301,19 +332,46 @@ async function applyMessageCreatedBroadcast(
       return;
     }
 
+    const alreadyStored = getChatMessages(conversationId).some(
+      (item) => item.id === messageId,
+    );
+    const conversation = getChatConversations().find(
+      (item) => item.id === conversationId,
+    );
+    const activeIdentityId = getActiveChatStoreIdentityId();
+    const lastSequence = conversation?.last_message?.sequence_number;
+    const incomingSequence = message.sequence_number;
+    const isNewerMessage = (
+      typeof lastSequence === 'number'
+      && typeof incomingSequence === 'number'
+        ? incomingSequence > lastSequence
+        : !conversation?.last_message
+          || Date.parse(message.created_at) > Date.parse(
+            conversation.last_message.created_at,
+          )
+    );
+
     upsertChatMessage(
       conversationId,
       message,
     );
 
-    const conversation = getChatConversations().find(
-      (item) => item.id === conversationId,
-    );
-
     if (conversation) {
+      const isIncomingForActiveIdentity = Boolean(
+        activeIdentityId
+        && conversation.own_participant?.identity_id === activeIdentityId
+        && (
+          message.sender_identity_id
+            ? message.sender_identity_id !== activeIdentityId
+            : message.sender_id !== authSession.user.id
+        ),
+      );
       updateChatConversationLastMessage(
         conversationId,
         message,
+        !alreadyStored
+          && isNewerMessage
+          && isIncomingForActiveIdentity,
       );
     }
 
