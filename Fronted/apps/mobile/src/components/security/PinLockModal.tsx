@@ -9,11 +9,13 @@ interface PinLockModalProps {
   visible: boolean;
   itemName?: string;
   onClose: () => void;
-  onSuccess: () => void;
+  onSuccess: (pin?: string) => void;
+  verifyPin?: (pin: string) => Promise<void>;
 }
 
-export default function PinLockModal({ visible, itemName, onClose, onSuccess }: PinLockModalProps) {
+export default function PinLockModal({ visible, itemName, onClose, onSuccess, verifyPin }: PinLockModalProps) {
   const [error, setError] = useState<string | null>(null);
+  const [verifying, setVerifying] = useState(false);
   const [success, setSuccess] = useState<string | null>(null);
 
   useEffect(() => {
@@ -23,13 +25,35 @@ export default function PinLockModal({ visible, itemName, onClose, onSuccess }: 
     }
   }, [visible]);
 
-  const handleComplete = (pin: string) => {
+  const handleComplete = async (pin: string) => {
+    if (verifying) return;
+
+    if (verifyPin) {
+      setVerifying(true);
+      setError(null);
+      try {
+        await verifyPin(pin);
+        setSuccess('PIN correcto, abriendo...');
+        onSuccess(pin);
+      } catch (failure) {
+        setSuccess(null);
+        setError(
+          failure instanceof Error
+            ? failure.message
+            : 'No fue posible verificar el PIN. Inténtalo de nuevo.',
+        );
+      } finally {
+        setVerifying(false);
+      }
+      return;
+    }
+
     if (isPinCorrect(pin)) {
       setError(null);
       setSuccess('PIN correcto, abriendo...');
       setTimeout(() => {
         setSuccess(null);
-        onSuccess();
+        onSuccess(pin);
       }, 500);
     } else {
       setSuccess(null);
