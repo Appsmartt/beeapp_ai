@@ -87,3 +87,29 @@ def verify_account_security_pin(*, user_id: str, pin: str) -> str:
         raise AccountSecurityPinStorageError(
             "Could not verify PIN."
         ) from error
+
+
+def replace_account_security_pin(*, user_id: str, pin: str) -> bool:
+    try:
+        response = (
+            get_supabase_admin_client()
+            .rpc(
+                "replace_account_security_pin",
+                {
+                    "p_user_id": user_id,
+                    "p_pin_digest": _pin_digest(pin),
+                },
+            )
+            .execute()
+        )
+        if not isinstance(response.data, bool):
+            raise AccountSecurityPinStorageError(
+                "Unexpected PIN replacement response."
+            )
+        return response.data
+    except AccountSecurityPinStorageError:
+        raise
+    except Exception as error:
+        raise AccountSecurityPinStorageError(
+            "Could not replace PIN."
+        ) from error

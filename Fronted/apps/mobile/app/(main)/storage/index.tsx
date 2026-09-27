@@ -15,6 +15,9 @@ import * as DocumentPicker from 'expo-document-picker';
 import { useNavigation } from 'expo-router';
 
 import {
+  ApiRequestError,
+  getAccountSecurityPinStatus,
+  verifyAccountSecurityPin,
   createStorageFileShare,
   createStorageFolder,
   createStorageTag,
@@ -66,7 +69,6 @@ import {
 import PinLockModal from '../../../src/components/security/PinLockModal';
 import {
   getProtectedIds,
-  hasPin,
   isProtected,
   setProtected,
 } from '../../../src/stores/pinStore';
@@ -492,16 +494,24 @@ export default function StorageIndexScreen() {
     openItemContent(item);
   };
 
-  const handleToggleProtect = (
+  const handleToggleProtect = async (
     item: StorageItem,
   ) => {
-    if (!hasPin()) {
+    try {
+      const auth = await getValidSessionCredentials();
+      if (!auth) throw new Error('No hay sesión activa.');
+      const pinStatus = await getAccountSecurityPinStatus(auth);
+      if (!pinStatus.configured) {
+        Alert.alert(
+          'Configura tu PIN',
+          'Primero crea tu PIN en Perfil → Seguridad.',
+        );
+        return;
+      }
+    } catch {
       Alert.alert(
-        'Configura tu PIN',
-        (
-          'Primero crea tu PIN de protección en '
-          + 'Perfil → Seguridad.'
-        ),
+        'No pudimos consultar tu PIN',
+        'Comprueba tu conexión e inténtalo de nuevo.',
       );
       return;
     }
@@ -1192,6 +1202,22 @@ export default function StorageIndexScreen() {
         <PinLockModal
           visible={!!lockedItem}
           itemName={lockedItem?.name}
+          verifyPin={async (pin) => {
+            const auth = await getValidSessionCredentials();
+            if (!auth) throw new Error('No hay sesión activa.');
+            try {
+              const result = await verifyAccountSecurityPin(auth, pin);
+              if (!result.verified) throw new Error('PIN incorrecto.');
+            } catch (cause) {
+              if (cause instanceof ApiRequestError && cause.status === 429) {
+                throw new Error('Demasiados intentos. Inténtalo en 15 minutos.');
+              }
+              if (cause instanceof ApiRequestError && cause.status === 403) {
+                throw new Error('PIN incorrecto. Inténtalo de nuevo.');
+              }
+              throw new Error('No pudimos verificar el PIN. Comprueba tu conexión.');
+            }
+          }}
           onClose={() => setLockedItem(null)}
           onSuccess={() => {
             const item = lockedItem;

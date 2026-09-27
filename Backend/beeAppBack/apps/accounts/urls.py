@@ -2,6 +2,8 @@ from django.urls import path
 
 from apps.accounts.views import (
     AccountSecurityPinConfigureView,
+    AccountSecurityPinPasswordVerifyView,
+    AccountSecurityPinReplaceView,
     AccountSecurityPinStatusView,
     AccountSecurityPinVerifyView,
     CurrentProfileView,
@@ -89,6 +91,16 @@ urlpatterns = [
         "me/security-pin/verify/",
         AccountSecurityPinVerifyView.as_view(),
         name="account-security-pin-verify",
+    ),
+    path(
+        "me/security-pin/verify-password/",
+        AccountSecurityPinPasswordVerifyView.as_view(),
+        name="account-security-pin-verify-password",
+    ),
+    path(
+        "me/security-pin/replace/",
+        AccountSecurityPinReplaceView.as_view(),
+        name="account-security-pin-replace",
     ),
     path(
         "me/",

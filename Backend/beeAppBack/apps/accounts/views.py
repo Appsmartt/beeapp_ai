@@ -26,6 +26,8 @@ from apps.accounts.exceptions import (
 )
 from apps.accounts.serializers import (
     AccountSecurityPinSerializer,
+    AccountSecurityPinPasswordSerializer,
+    AccountSecurityPinReplaceSerializer,
     LoginUserSerializer,
     PasswordResetConfirmSerializer,
     PasswordResetRequestSerializer,
@@ -43,6 +45,7 @@ from apps.accounts.services.account_security_pin_service import (
     AccountSecurityPinStorageError,
     account_security_pin_is_configured,
     configure_account_security_pin,
+    replace_account_security_pin,
     verify_account_security_pin,
 )
 from apps.accounts.services.auth_session_service import (
@@ -356,6 +359,87 @@ class AccountSecurityPinVerifyView(AuthenticatedAPIView):
                 status=status.HTTP_403_FORBIDDEN,
             )
         return Response({"verified": True})
+
+
+def _verify_security_pin_account_password(*, user, password):
+    if not user.email:
+        raise AccountLoginError("An email account is required.")
+    authenticated = login_with_email_password(
+        email=user.email,
+        password=password,
+    )
+    if str(authenticated["user"]["id"]) != str(user.id):
+        raise AccountLoginError("Password belongs to another account.")
+
+
+class AccountSecurityPinPasswordVerifyView(AuthenticatedAPIView):
+    def post(self, request):
+        serializer = AccountSecurityPinPasswordSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        try:
+            user, _ = self.get_authenticated_user_and_access_token(request)
+            _verify_security_pin_account_password(
+                user=user,
+                password=serializer.validated_data["password"],
+            )
+        except (AccountAuthenticationError, AuthenticationFailed):
+            return Response(
+                {"detail": "Invalid or expired access token."},
+                status=status.HTTP_401_UNAUTHORIZED,
+            )
+        except AccountLoginError:
+            return Response(
+                {"detail": "Incorrect account password."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        except AccountLoginUnavailableError:
+            return Response(
+                {"detail": "Authentication service unavailable."},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+        return Response({"verified": True})
+
+
+class AccountSecurityPinReplaceView(AuthenticatedAPIView):
+    def post(self, request):
+        serializer = AccountSecurityPinReplaceSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        try:
+            user, _ = self.get_authenticated_user_and_access_token(request)
+            _verify_security_pin_account_password(
+                user=user,
+                password=serializer.validated_data["password"],
+            )
+            replaced = replace_account_security_pin(
+                user_id=str(user.id),
+                pin=serializer.validated_data["pin"],
+            )
+        except (AccountAuthenticationError, AuthenticationFailed):
+            return Response(
+                {"detail": "Invalid or expired access token."},
+                status=status.HTTP_401_UNAUTHORIZED,
+            )
+        except AccountLoginError:
+            return Response(
+                {"detail": "Incorrect account password."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        except AccountLoginUnavailableError:
+            return Response(
+                {"detail": "Authentication service unavailable."},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+        except AccountSecurityPinStorageError:
+            return Response(
+                {"detail": "PIN service unavailable."},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+        if not replaced:
+            return Response(
+                {"detail": "PIN is not configured."},
+                status=status.HTTP_409_CONFLICT,
+            )
+        return Response({"configured": True})
 
 
 class RegisterUserView(APIView):
