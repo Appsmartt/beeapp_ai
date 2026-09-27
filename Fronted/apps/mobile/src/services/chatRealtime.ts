@@ -20,6 +20,7 @@ import {
   getChatMessages,
   setChatMessages,
   updateChatConversationLastMessage,
+  updateDirectChatReceipt,
   upsertChatConversation,
   upsertChatMessage,
 } from '../stores/chatStore';
@@ -454,11 +455,16 @@ async function applyMessageReceiptBroadcast(
       && lastMessage.sender_identity_id === ownIdentityId
     );
 
+    if (current.conversation_type === 'direct') {
+      updateDirectChatReceipt(conversationId, participants);
+    }
     if (!isOwnLastMessage || !lastMessage || !ownIdentityId) {
-      upsertChatConversation({
-        ...current,
-        participants,
-      });
+      if (current.conversation_type !== 'direct') {
+        upsertChatConversation({
+          ...current,
+          participants,
+        });
+      }
       return;
     }
 
@@ -558,15 +564,24 @@ async function applyMessageReceiptBroadcast(
       ownIdentityId,
       sequenceById,
     );
-    upsertChatConversation({
-      ...latest,
-      participants,
-      last_message: {
-        ...latest.last_message,
-        sequence_number: receiptMessage.sequence_number,
-        status,
-      },
-    });
+    const updatedLastMessage = {
+      ...latest.last_message,
+      sequence_number: receiptMessage.sequence_number,
+      status,
+    };
+    if (latest.conversation_type === 'direct') {
+      updateDirectChatReceipt(
+        conversationId,
+        participants,
+        updatedLastMessage,
+      );
+    } else {
+      upsertChatConversation({
+        ...latest,
+        participants,
+        last_message: updatedLastMessage,
+      });
+    }
   } catch {
     // Un recibo no debe impedir procesar mensajes posteriores.
   }
