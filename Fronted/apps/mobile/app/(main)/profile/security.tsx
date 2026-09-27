@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput } from 'react-native';
 import ScreenSafeArea from '../../../src/components/layout/ScreenSafeArea';
 import { useFocusEffect, useRouter } from 'expo-router';
@@ -6,6 +6,7 @@ import {
   ApiRequestError,
   configureAccountSecurityPin,
   getAccountSecurityPinStatus,
+  listProtectedChats,
   verifyAccountSecurityPin,
   verifyAccountSecurityPinPassword,
   replaceAccountSecurityPin,
@@ -28,6 +29,8 @@ export default function SecurityScreen() {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [protectedChatCount, setProtectedChatCount] = useState<number | null>(null);
+  const [protectedChatCountLoading, setProtectedChatCountLoading] = useState(false);
   const pending = useRef(false);
 
   useFocusEffect(useCallback(() => {
@@ -62,6 +65,27 @@ export default function SecurityScreen() {
       setShowPassword(false);
     };
   }, []));
+
+  useEffect(() => {
+    if (stage !== 'menu') return;
+    let active = true;
+    setProtectedChatCount(null);
+    setProtectedChatCountLoading(true);
+    const loadProtectedChatCount = async () => {
+      try {
+        const auth = await getValidSessionCredentials();
+        if (!auth) throw new Error('No hay sesión activa.');
+        const result = await listProtectedChats(auth);
+        if (active) setProtectedChatCount(result.conversation_ids.length);
+      } catch {
+        if (active) setProtectedChatCount(null);
+      } finally {
+        if (active) setProtectedChatCountLoading(false);
+      }
+    };
+    void loadProtectedChatCount();
+    return () => { active = false; };
+  }, [stage]);
 
   const goStage = (next: Stage) => {
     setError(null); setSuccess(null); setDraftPin('');
@@ -256,6 +280,23 @@ export default function SecurityScreen() {
                 </Text>
               </View>
 
+              <View style={styles.protectedChatsCard}>
+                <View style={styles.protectedChatsIcon}>
+                  <Lock size={20} color={colors.brand.primary} />
+                </View>
+                <View style={styles.protectedChatsText}>
+                  <Text style={styles.protectedChatsTitle}>Chats protegidos</Text>
+                  <Text style={styles.protectedChatsDescription}>Conversaciones protegidas con tu PIN</Text>
+                </View>
+                <Text style={styles.protectedChatsCount} accessibilityLabel={
+                  protectedChatCountLoading ? 'Consultando chats protegidos'
+                    : protectedChatCount === null ? 'Número de chats protegidos no disponible'
+                    : `${protectedChatCount} chats protegidos`
+                }>
+                  {protectedChatCountLoading ? '…' : protectedChatCount ?? '—'}
+                </Text>
+              </View>
+
               <View style={styles.optionsCard}>
                 <TouchableOpacity style={styles.optionRow} onPress={() => goStage(pinExists ? 'recover-password' : 'create')} activeOpacity={0.7}>
                   <View style={[styles.optionIconWrap, { backgroundColor: colors.brand.primary + '15' }]}>
@@ -266,22 +307,6 @@ export default function SecurityScreen() {
                     <Text style={styles.optionDesc}>{pinExists ? 'Confirma tu contraseña para elegir un PIN nuevo.' : 'Elige un PIN de 4 dígitos y confírmalo.'}</Text>
                   </View>
                 </TouchableOpacity>
-
-                {pinExists && (
-                  <TouchableOpacity
-                    style={[styles.optionRow, { borderBottomWidth: 0 }]}
-                    onPress={() => goStage('recover-password')}
-                    activeOpacity={0.7}
-                  >
-                    <View style={[styles.optionIconWrap, { backgroundColor: colors.neutral.gray100 }]}>
-                      <KeyRound size={18} color={colors.neutral.gray600} />
-                    </View>
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.optionLabel}>¿Olvidaste tu PIN?</Text>
-                      <Text style={styles.optionDesc}>Cámbialo con la contraseña de tu cuenta.</Text>
-                    </View>
-                  </TouchableOpacity>
-                )}
               </View>
 
               <View style={styles.infoRow}>
@@ -382,6 +407,12 @@ const styles = StyleSheet.create({
   statusIconOff: { backgroundColor: colors.neutral.gray100 },
   statusTitle: { fontSize: 15, fontWeight: '600', color: colors.neutral.text, marginBottom: 6 },
   statusDesc: { fontSize: 12, fontWeight: '400', color: colors.neutral.gray600, textAlign: 'center', lineHeight: 17 },
+  protectedChatsCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.neutral.white, borderRadius: 20, borderWidth: 1, borderColor: colors.neutral.gray200, padding: 16, marginBottom: 18 },
+  protectedChatsIcon: { width: 40, height: 40, borderRadius: 12, backgroundColor: colors.brand.primary + '15', alignItems: 'center', justifyContent: 'center', marginRight: 12 },
+  protectedChatsText: { flex: 1, paddingRight: 8 },
+  protectedChatsTitle: { fontSize: 14, fontWeight: '600', color: colors.neutral.text },
+  protectedChatsDescription: { fontSize: 11, color: colors.neutral.gray600, marginTop: 3 },
+  protectedChatsCount: { minWidth: 30, textAlign: 'right', fontSize: 24, fontWeight: '700', color: colors.brand.primary },
   optionsCard: { backgroundColor: colors.neutral.white, borderRadius: 20, borderWidth: 1, borderColor: colors.neutral.gray200, overflow: 'hidden' },
   optionRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 14, paddingHorizontal: 14, borderBottomWidth: 1, borderBottomColor: colors.neutral.gray100 },
   optionIconWrap: { width: 32, height: 32, borderRadius: 10, alignItems: 'center', justifyContent: 'center', marginRight: 12 },
