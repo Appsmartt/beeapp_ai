@@ -819,6 +819,7 @@ export function applyChatRealtimeEvent(
 export function updateChatConversationLastMessage(
   conversationId: string,
   message: ChatMessage,
+  incrementUnread = false,
 ): void {
   const currentConversation = conversations.find(
     (conversation) => conversation.id === conversationId,
@@ -828,11 +829,22 @@ export function updateChatConversationLastMessage(
     return;
   }
 
+  const unreadCount = incrementUnread
+    ? currentConversation.unread_count + 1
+    : currentConversation.unread_count;
+
   upsertChatConversation({
     ...currentConversation,
     last_message: message,
     last_message_at: message.created_at,
     updated_at: message.created_at,
+    unread_count: unreadCount,
+    own_participant: incrementUnread && currentConversation.own_participant
+      ? {
+          ...currentConversation.own_participant,
+          unread_count: unreadCount,
+        }
+      : currentConversation.own_participant,
   });
 }
 

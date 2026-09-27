@@ -195,3 +195,71 @@ test('store: respuesta antigua no recupera no leídos tras lectura confirmada', 
   });
   assert.equal(store.getChatConversations()[0].unread_count, 1);
 });
+
+
+test('store: preview y no leídos entrantes cambian en una notificación', () => {
+  const store = loadChatStore();
+  const previous = {
+    ...message,
+    id: 'message-previous',
+    sender_id: 'user-other',
+    sender_identity_id: 'identity-other',
+    sequence_number: 2,
+    created_at: '2026-09-01T23:59:00Z',
+  };
+  store.setChatConversations([{
+    id: 'conversation-1',
+    conversation_type: 'direct',
+    created_at: '2026-09-01T00:00:00Z',
+    updated_at: previous.created_at,
+    last_message_at: previous.created_at,
+    last_message: previous,
+    unread_count: 2,
+    own_participant: {
+      id: 'participant-own',
+      identity_id: 'identity-own',
+      unread_count: 2,
+      last_read_message_id: null,
+    },
+  }]);
+
+  const observed = [];
+  const unsubscribe = store.subscribeChatStore((change) => {
+    if (change.type !== 'conversations') return;
+    const current = store.getChatConversations()[0];
+    observed.push({
+      messageId: current.last_message.id,
+      unreadCount: current.unread_count,
+      participantUnreadCount: current.own_participant.unread_count,
+    });
+  });
+  const incoming = {
+    ...message,
+    sender_id: 'user-other',
+    sender_identity_id: 'identity-other',
+  };
+  store.updateChatConversationLastMessage('conversation-1', incoming, true);
+  unsubscribe();
+
+  assert.deepEqual(observed, [{
+    messageId: 'message-3',
+    unreadCount: 3,
+    participantUnreadCount: 3,
+  }]);
+
+  const read = store.getChatConversations()[0];
+  store.upsertChatConversation({
+    ...read,
+    unread_count: 0,
+    own_participant: {
+      ...read.own_participant,
+      unread_count: 0,
+      last_read_message_id: incoming.id,
+    },
+  });
+  store.upsertChatConversation({
+    ...read,
+    unread_count: 3,
+  });
+  assert.equal(store.getChatConversations()[0].unread_count, 0);
+});
