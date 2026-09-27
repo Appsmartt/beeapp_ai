@@ -15,6 +15,16 @@ SOCIAL_PLATFORMS = (
 )
 
 
+class AccountSecurityPinSerializer(serializers.Serializer):
+    pin = serializers.RegexField(
+        regex=r"^[0-9]{4}$",
+        max_length=4,
+        min_length=4,
+        trim_whitespace=False,
+        write_only=True,
+    )
+
+
 class RegisterUserSerializer(serializers.Serializer):
     first_name = serializers.CharField(
         max_length=100,

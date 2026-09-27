@@ -1,64 +1,142 @@
-import { useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import ScreenSafeArea from '../../../src/components/layout/ScreenSafeArea';
-import { useRouter } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
+import {
+  ApiRequestError,
+  configureAccountSecurityPin,
+  getAccountSecurityPinStatus,
+  verifyAccountSecurityPin,
+} from '@beeapp/api-client';
+import { getValidSessionCredentials } from '../../../src/services/authSession';
 import { colors } from '@beeapp/design-system';
 import { ChevronLeft, ShieldCheck, KeyRound, Lock, MessageSquare, Smartphone, Mail } from 'lucide-react-native';
 import PinPad from '../../../src/components/security/PinPad';
 import FloatingTabBar from '../../../src/components/FloatingTabBar';
 import {
-  hasPin,
-  isPinCorrect,
-  setPin,
   getProtectedIds,
   MOCK_RECOVERY_PHONE,
   RECOVERY_CODE_LENGTH,
 } from '../../../src/stores/pinStore';
 
-type Stage = 'gate' | 'menu' | 'create' | 'confirm' | 'recover-select' | 'recover-code' | 'recover-pin';
-const MOCK_SMS_CODE = '123456';
+type Stage = 'loading' | 'gate' | 'menu' | 'create' | 'confirm' | 'recover-select' | 'recover-code' | 'recover-pin';
 
 export default function SecurityScreen() {
   const router = useRouter();
-  const [stage, setStage] = useState<Stage>(hasPin() ? 'gate' : 'menu');
+  const [stage, setStage] = useState<Stage>('loading');
+  const [configured, setConfigured] = useState(false);
   const [draftPin, setDraftPin] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
-  const [protectedCount, setProtectedCount] = useState(getProtectedIds().length);
+  const [protectedCount] = useState(getProtectedIds().length);
   const [selectedMethod, setSelectedMethod] = useState<'sms' | 'email' | null>(null);
+  const pending = useRef(false);
+
+  useFocusEffect(useCallback(() => {
+    let active = true;
+    pending.current = false;
+    setStage('loading');
+    setError(null);
+    setSuccess(null);
+    setDraftPin('');
+
+    const load = async () => {
+      try {
+        const auth = await getValidSessionCredentials();
+        if (!auth) throw new Error('No hay sesión activa.');
+        const result = await getAccountSecurityPinStatus(auth);
+        if (!active) return;
+        setConfigured(result.configured);
+        setStage(result.configured ? 'gate' : 'create');
+      } catch {
+        if (active) setError('No pudimos consultar tu PIN. Vuelve atrás e inténtalo de nuevo.');
+      }
+    };
+
+    void load();
+    return () => {
+      active = false;
+      pending.current = false;
+    };
+  }, []));
 
   const goStage = (next: Stage) => {
     setError(null); setSuccess(null); setDraftPin(''); setStage(next);
   };
 
-  const handleGate = (pin: string) => {
-    if (isPinCorrect(pin)) {
-      setError(null); setSuccess('PIN correcto'); setTimeout(() => goStage('menu'), 450);
-    } else {
-      setSuccess(null); setError('PIN incorrecto. Inténtalo de nuevo.');
+  const handleGate = async (pin: string) => {
+    if (pending.current) return;
+    pending.current = true;
+    setError(null);
+    try {
+      const auth = await getValidSessionCredentials();
+      if (!auth) throw new Error('No hay sesión activa.');
+      const result = await verifyAccountSecurityPin(auth, pin);
+      if (!result.verified) throw new Error('Verificación rechazada.');
+      setSuccess('PIN correcto');
+      setStage('menu');
+    } catch (cause) {
+      setSuccess(null);
+      if (cause instanceof ApiRequestError && cause.status === 429) {
+        setError('Demasiados intentos. Inténtalo en 15 minutos.');
+      } else if (cause instanceof ApiRequestError && cause.status === 403) {
+        setError('PIN incorrecto. Inténtalo de nuevo.');
+      } else {
+        setError('No pudimos verificar el PIN. Comprueba tu conexión.');
+      }
+    } finally {
+      pending.current = false;
     }
   };
 
   const handleCreate = (pin: string) => {
-    setDraftPin(pin); setError(null); setStage('confirm');
+    if (pending.current) return;
+    setDraftPin(pin);
+    setError(null);
+    setStage('confirm');
   };
 
-  const handleConfirm = (pin: string) => {
+  const handleConfirm = async (pin: string) => {
+    if (pending.current) return;
     if (pin !== draftPin) {
-      setSuccess(null); setError('Los PIN no coinciden. Empieza de nuevo.'); setDraftPin(''); setStage('create'); return;
+      setSuccess(null);
+      setError('Los PIN no coinciden. Empieza de nuevo.');
+      setDraftPin('');
+      setStage('create');
+      return;
     }
-    setPin(pin); setError(null); setSuccess('PIN configurado correctamente'); setProtectedCount(getProtectedIds().length); setTimeout(() => goStage('menu'), 700);
+    pending.current = true;
+    setError(null);
+    try {
+      const auth = await getValidSessionCredentials();
+      if (!auth) throw new Error('No hay sesión activa.');
+      const result = await configureAccountSecurityPin(auth, pin);
+      if (!result.configured) throw new Error('PIN no configurado.');
+      setConfigured(true);
+      setDraftPin('');
+      setSuccess('PIN configurado correctamente');
+      setStage('menu');
+    } catch (cause) {
+      setSuccess(null);
+      setDraftPin('');
+      if (cause instanceof ApiRequestError && cause.status === 409) {
+        setConfigured(true);
+        setStage('gate');
+        setError('Ya tienes un PIN configurado. Ingresa tu PIN actual.');
+      } else {
+        setStage('create');
+        setError('No pudimos guardar tu PIN. Comprueba tu conexión.');
+      }
+    } finally {
+      pending.current = false;
+    }
   };
 
-  const handleRecoveryCode = (code: string) => {
-    if (code === MOCK_SMS_CODE) {
-      setError(null); setSuccess('Código verificado'); setTimeout(() => goStage('recover-pin'), 550);
-    } else {
-      setSuccess(null); setError(`Código incorrecto. Revisa tu ${selectedMethod === 'email' ? 'correo' : 'SMS'} e inténtalo otra vez.`);
-    }
+  const handleRecoveryCode = (_code: string) => {
+    setError('La recuperación del PIN todavía no está disponible.');
   };
 
-  const pinExists = hasPin();
+  const pinExists = configured;
   const showTabBar = stage === 'menu';
 
   return (
@@ -73,6 +151,10 @@ export default function SecurityScreen() {
         </View>
 
         <ScrollView contentContainerStyle={[styles.scrollBody, showTabBar && styles.scrollBodyWithBar]} showsVerticalScrollIndicator={false}>
+          {stage === 'loading' && (
+            <Text style={styles.statusDesc}>{error || 'Consultando estado del PIN...'}</Text>
+          )}
+
           {stage === 'gate' && (
             <PinPad
               title="Ingresa tu PIN actual"

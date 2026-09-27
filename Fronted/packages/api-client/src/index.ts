@@ -12,3 +12,4 @@ export * from './chatPresence';
 export * from './calls';
 
 export * from './commercial';
+export * from './accountSecurityPin';
