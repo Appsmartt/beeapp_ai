@@ -1694,9 +1694,14 @@ export function useChatMessages(
       if (cancelled || inFlight || AppState.currentState !== 'active') return;
       inFlight = true;
       try {
-        await loadMessages({ network: true });
+        await Promise.all([
+          loadMessages({ network: true }),
+          ...(conversation?.conversation_type === 'direct'
+            ? [loadParticipants()]
+            : []),
+        ]);
       } catch {
-        // El SDK seguirá reconectando; el siguiente intento recuperará el chat.
+        // El siguiente intento recuperará los cursores del chat abierto.
       } finally {
         inFlight = false;
       }
@@ -1722,8 +1727,10 @@ export function useChatMessages(
     };
   }, [
     autoLoad,
+    conversation?.conversation_type,
     initialLoadingPhase,
     loadMessages,
+    loadParticipants,
     normalizedConversationId,
   ]);
 

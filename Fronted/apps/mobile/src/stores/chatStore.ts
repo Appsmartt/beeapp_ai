@@ -634,6 +634,35 @@ export function upsertChatConversation(
   ]);
 }
 
+export function updateDirectChatReceipt(
+  conversationId: string,
+  participants: ChatConversation['participants'],
+  lastMessage?: ChatMessage | null,
+): void {
+  const current = conversations.find((item) => (
+    item.id === conversationId
+    && item.conversation_type === 'direct'
+  ));
+  if (!current || !participants?.length) return;
+
+  conversations = conversations.map((item) => (
+    item.id === conversationId
+      ? {
+          ...item,
+          participants,
+          last_message: lastMessage
+            && item.last_message?.id === lastMessage.id
+            ? mergeSameMessageReceipt(lastMessage, item.last_message)
+            : item.last_message,
+        }
+      : item
+  ));
+  notifyChatStore({
+    type: 'conversations',
+    conversationIds: [conversationId],
+  });
+}
+
 export function applyChatRealtimeEvent(
   event: ChatRealtimeEvent,
 ): boolean {

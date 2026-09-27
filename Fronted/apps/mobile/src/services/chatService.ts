@@ -360,8 +360,13 @@ export function mapConversationToListItem(
     ),
     unreadCount: conversation.unread_count || 0,
     isGroup,
-    status: toUiStatus(
-      lastMessage?.status || 'sent',
+    status: (
+      !isGroup
+      && lastMessageIsCurrentUser
+      && lastMessage?.id
+      && lastMessage.status === 'sent'
+        ? 'delivered'
+        : toUiStatus(lastMessage?.status || 'sent')
     ),
     isOwnLastMessage: lastMessageIsCurrentUser,
     online: Boolean(directProfile?.is_online),
