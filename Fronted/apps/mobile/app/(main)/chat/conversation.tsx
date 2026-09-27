@@ -312,6 +312,16 @@ export default function ConversationScreen() {
   const [replyTarget, setReplyTarget] =
     useState<ChatMessageModel | null>(null);
 
+  const [pendingTextMessage, setPendingTextMessage] = useState<{
+    id: string;
+    conversationId: string;
+    text: string;
+    createdAt: string;
+    replyTo?: { sender: string; text: string };
+    replyToId: string | null;
+    existingMessageIds: Set<string>;
+  } | null>(null);
+
   const [editingMessage, setEditingMessage] =
     useState<ChatMessageModel | null>(null);
 
@@ -1046,14 +1056,36 @@ export default function ConversationScreen() {
         return;
       }
 
+      const pendingId = `pending:${Date.now()}:${Math.random()}`;
+      const pendingReplyToId = replyTarget?.id || null;
+      setPendingTextMessage({
+        id: pendingId,
+        conversationId: chatId,
+        text: text.trim(),
+        createdAt: new Date().toISOString(),
+        replyTo: replyTarget
+          ? {
+              sender: replyTarget.senderName || (replyTarget.isUser ? 'Tú' : 'Contacto'),
+              text: replyTarget.text || '',
+            }
+          : undefined,
+        replyToId: pendingReplyToId,
+        existingMessageIds: new Set(messages.map((message) => message.id)),
+      });
+      scrollToBottom();
+
       await sendMessage({
         content: text,
-        replyToId: replyTarget?.id || null,
+        replyToId: pendingReplyToId,
       });
 
+      setPendingTextMessage((current) => (
+        current?.id === pendingId ? null : current
+      ));
       setReplyTarget(null);
       scrollToBottom();
     } catch (sendError) {
+      setPendingTextMessage(null);
       Alert.alert(
         'No fue posible enviar el mensaje',
         sendError instanceof Error
@@ -1920,7 +1952,40 @@ export default function ConversationScreen() {
               );
             })}
 
-            {messages.length === 0 && !error ? (
+            {pendingTextMessage
+              && pendingTextMessage.conversationId === chatId
+              && !messages.some((message) => (
+                !pendingTextMessage.existingMessageIds.has(message.id)
+                && message.isUser
+                && message.text === pendingTextMessage.text
+                && (message.replyTo?.id || null) === pendingTextMessage.replyToId
+              )) ? (
+                <View key={pendingTextMessage.id}>
+                  {messages.length === 0 || !isSameCalendarDay(
+                    messages[messages.length - 1].createdAt,
+                    pendingTextMessage.createdAt,
+                  ) ? (
+                    <View style={styles.dateSeparator}>
+                      <Text style={styles.dateSeparatorText}>
+                        {formatMessageDateSeparator(pendingTextMessage.createdAt)}
+                      </Text>
+                    </View>
+                  ) : null}
+                  <MessageBubble
+                    isUser
+                    type="text"
+                    text={pendingTextMessage.text}
+                    status="sent"
+                    time={new Date(pendingTextMessage.createdAt).toLocaleTimeString(
+                      'es-CO',
+                      { hour: '2-digit', minute: '2-digit' },
+                    )}
+                    replyTo={pendingTextMessage.replyTo}
+                  />
+                </View>
+              ) : null}
+
+            {messages.length === 0 && !pendingTextMessage && !error ? (
               <View style={styles.emptyState}>
                 <Text style={styles.emptyText}>
                   Aún no hay mensajes. Escribe el primero.
