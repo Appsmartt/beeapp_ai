@@ -44,7 +44,7 @@ PARTICIPANT_COLUMNS = (
     "removed_at,removed_by_identity_id,cleared_at,"
     "cleared_before_message_id,last_read_message_id,"
     "last_read_at,last_delivered_message_id,last_delivered_at,"
-    "notifications_enabled,unread_count,created_at,updated_at"
+    "notifications_enabled,is_pinned,unread_count,created_at,updated_at"
 )
 
 
@@ -415,29 +415,75 @@ def get_chat_inbox(
             for row in _response_rows(response)
         ]
 
+        pinned_conversations = []
+        if before_last_message_at is None:
+            pinned_response = (
+                _user_supabase(access_token=access_token)
+                .rpc(
+                    "get_chat_pinned_inbox",
+                    {"p_identity_id": str(identity_id)},
+                )
+                .execute()
+            )
+            pinned_conversations = [
+                _normalize_inbox_conversation(row)
+                for row in _response_rows(pinned_response)
+            ]
+            pinned_ids = {
+                item["id"] for item in pinned_conversations
+            }
+        else:
+            pinned_ids = set()
+            if conversations:
+                pinned_ids_response = (
+                    _user_supabase(access_token=access_token)
+                    .table("chat_conversation_participants")
+                    .select("conversation_id")
+                    .eq("identity_id", str(identity_id))
+                    .eq("is_pinned", True)
+                    .is_("left_at", "null")
+                    .is_("removed_at", "null")
+                    .in_(
+                        "conversation_id",
+                        [row["id"] for row in conversations],
+                    )
+                    .execute()
+                )
+                pinned_ids = {
+                    str(row["conversation_id"])
+                    for row in _response_rows(pinned_ids_response)
+                }
+        for conversation in conversations:
+            conversation["is_pinned"] = (
+                conversation["id"] in pinned_ids
+            )
+
         commercial_links_by_conversation_id = (
             _load_commercial_inbox_links(
                 access_token=access_token,
-                conversation_ids=[
+                conversation_ids=list({
                     str(conversation["id"])
-                    for conversation in conversations
-                ],
+                    for conversation in (
+                        conversations + pinned_conversations
+                    )
+                }),
             )
         )
-        _attach_commercial_inbox_metadata(
-            conversations=conversations,
-            commercial_links_by_conversation_id=(
-                commercial_links_by_conversation_id
-            ),
-        )
-
-        _attach_inbox_avatar_urls(
-            conversations=conversations,
-        )
+        for inbox_rows in (conversations, pinned_conversations):
+            _attach_commercial_inbox_metadata(
+                conversations=inbox_rows,
+                commercial_links_by_conversation_id=(
+                    commercial_links_by_conversation_id
+                ),
+            )
+            _attach_inbox_avatar_urls(
+                conversations=inbox_rows,
+            )
 
         inbox = {
             "identity_id": str(identity_id),
             "conversations": conversations,
+            "pinned_conversations": pinned_conversations,
             "limit": limit,
             "next_before_last_message_at": (
                 conversations[-1].get("last_message_at")
@@ -487,6 +533,100 @@ def get_chat_inbox(
         raise ChatInboxError(
             f"Could not retrieve chat inbox: {message}"
         ) from error
+
+
+def get_chat_unpinned_inbox_by_type(
+    *,
+    user_id: str,
+    access_token: str,
+    identity_id: str,
+    conversation_type: str,
+    limit: int,
+    before_sort_at: str | None = None,
+    before_id: str | None = None,
+) -> dict[str, Any]:
+    """Load one type of unpinned conversations with a stable cursor."""
+    if conversation_type not in ("direct", "group"):
+        raise ChatInboxError("Unsupported conversation type.")
+    if limit not in (5, 10):
+        raise ChatInboxError("Inbox page size must be 5 or 10.")
+    if (before_sort_at is None) != (before_id is None):
+        raise ChatInboxError("Incomplete inbox cursor.")
+
+    try:
+        get_owned_chat_identity(
+            user_id=user_id,
+            identity_id=identity_id,
+        )
+        response = (
+            _user_supabase(access_token=access_token)
+            .rpc(
+                "get_chat_unpinned_inbox_by_type",
+                {
+                    "p_identity_id": str(identity_id),
+                    "p_conversation_type": conversation_type,
+                    "p_limit": limit,
+                    "p_before_sort_at": before_sort_at,
+                    "p_before_id": before_id,
+                },
+            )
+            .execute()
+        )
+        conversations = [
+            _normalize_inbox_conversation(row)
+            for row in _response_rows(response)
+        ]
+        links = _load_commercial_inbox_links(
+            access_token=access_token,
+            conversation_ids=[
+                conversation["id"]
+                for conversation in conversations
+            ],
+        )
+        _attach_commercial_inbox_metadata(
+            conversations=conversations,
+            commercial_links_by_conversation_id=links,
+        )
+        _attach_inbox_avatar_urls(conversations=conversations)
+
+        last_row = conversations[-1] if conversations else None
+        return {
+            "identity_id": str(identity_id),
+            "conversation_type": conversation_type,
+            "conversations": conversations,
+            "limit": limit,
+            "has_more": len(conversations) == limit,
+            "next_before_sort_at": (
+                last_row.get("sort_at") if last_row else None
+            ),
+            "next_before_id": (
+                last_row["id"] if last_row else None
+            ),
+        }
+    except ChatConversationError:
+        raise
+    except Exception as error:
+        logger.exception(
+            "chat_typed_inbox_rpc_failed",
+            extra={
+                "user_id": str(user_id),
+                "identity_id": str(identity_id),
+                "conversation_type": conversation_type,
+                "limit": limit,
+            },
+        )
+        message = str(error)
+        if (
+            "AUTHENTICATION_REQUIRED" in message
+            or "CHAT_IDENTITY_NOT_OWNED_BY_USER" in message
+        ):
+            raise ChatConversationAccessError(
+                "The selected inbox identity is unavailable."
+            ) from error
+        raise ChatInboxError(
+            f"Could not retrieve typed chat inbox: {message}"
+        ) from error
+
 
 def _attach_inbox_avatar_urls(
     *,
@@ -875,6 +1015,69 @@ def set_chat_conversation_notifications(
         raise ChatConversationError(
             "Could not update conversation notification preference: "
             f"{message}"
+        ) from error
+
+
+def set_chat_conversation_pinned(
+    *,
+    user_id: str,
+    access_token: str,
+    conversation_id: str,
+    identity_id: str,
+    is_pinned: bool,
+) -> dict[str, Any]:
+    try:
+        get_owned_chat_identity(
+            user_id=user_id,
+            identity_id=identity_id,
+        )
+        _require_identity_active_participant(
+            conversation_id=conversation_id,
+            identity_id=identity_id,
+        )
+        response = (
+            _user_supabase(access_token=access_token)
+            .rpc(
+                "set_chat_conversation_pinned",
+                {
+                    "p_conversation_id": str(conversation_id),
+                    "p_identity_id": str(identity_id),
+                    "p_is_pinned": bool(is_pinned),
+                },
+            )
+            .execute()
+        )
+        if response.data is not True:
+            raise ChatConversationError(
+                "Conversation pin preference could not be updated."
+            )
+        bump_inbox_cache_version(identity_id=str(identity_id))
+        return get_conversation(
+            user_id=user_id,
+            conversation_id=conversation_id,
+            include_participants=True,
+        )
+    except (
+        ChatConversationAccessError,
+        ChatConversationError,
+        ChatConversationNotFoundError,
+    ):
+        raise
+    except Exception as error:
+        message = str(error)
+        if (
+            "CHAT_IDENTITY_NOT_OWNED_BY_USER" in message
+            or "AUTHENTICATION_REQUIRED" in message
+        ):
+            raise ChatConversationAccessError(
+                "The selected identity cannot update this preference."
+            ) from error
+        if "CHAT_ACTIVE_PARTICIPATION_NOT_FOUND" in message:
+            raise ChatConversationNotFoundError(
+                "Conversation was not found."
+            ) from error
+        raise ChatConversationError(
+            f"Could not update conversation pin preference: {message}"
         ) from error
 
 

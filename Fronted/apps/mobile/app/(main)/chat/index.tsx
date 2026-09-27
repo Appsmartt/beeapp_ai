@@ -213,6 +213,9 @@ export default function ChatListScreen() {
     loading,
     refreshing,
     error,
+    loadingMore,
+    hasMoreConversations,
+    loadMoreConversations,
     loadConversations,
     updateConversation,
     deleteConversation,
@@ -223,6 +226,7 @@ export default function ChatListScreen() {
       commercialIdentityId,
     ),
     identityId: requestedIdentityId,
+    paginateInbox: true,
   });
 
   const [menuChat, setMenuChat] = useState<
@@ -603,22 +607,18 @@ export default function ChatListScreen() {
   );
 
   const directChats = useMemo(
-    () => activeChats.filter(
-      (chat) => (
-        !chat.isAI
-        && !chat.isGroup
-      ),
-    ),
+    () => activeChats
+      .filter((chat) => !chat.isAI && !chat.isGroup)
+      .sort((left, right) => (
+        Number(right.isPinned) - Number(left.isPinned)
+      )),
     [activeChats],
   );
 
   const groupChats = useMemo(
-    () => activeChats.filter(
-      (chat) => (
-        !chat.isAI
-        && chat.isGroup
-      ),
-    ),
+    () => activeChats
+      .filter((chat) => !chat.isAI && chat.isGroup)
+      .sort((left, right) => Number(right.isPinned) - Number(left.isPinned)),
     [activeChats],
   );
 
@@ -1348,6 +1348,18 @@ export default function ChatListScreen() {
                     : aiChat
                 }
                 chats={chatsWithLivePresence}
+                onEndReached={
+                  hasMoreConversations[
+                    isGroupsTab ? 'group' : 'direct'
+                  ]
+                    ? () => {
+                        void loadMoreConversations(
+                          isGroupsTab ? 'group' : 'direct',
+                        );
+                      }
+                    : undefined
+                }
+                loadingMore={loadingMore}
                 archivedCount={archivedCount}
                 archivedLabel={archivedLabel}
                 archivedSubtitle={archivedSubtitle}

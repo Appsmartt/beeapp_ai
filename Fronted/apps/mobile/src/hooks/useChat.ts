@@ -14,6 +14,7 @@ import {
   getChatConversation,
   getChatIdentities,
   getChatInbox,
+  getChatUnpinnedInboxByType,
   getChatMessage,
   getChatMessages,
   getChatParticipants,
@@ -24,6 +25,7 @@ import {
   searchChatRecipients,
   sendChatMessage,
   updateChatGroup,
+  updateChatConversationPinned,
 } from '@beeapp/api-client';
 import type {
   AuthCredentials,
@@ -62,6 +64,7 @@ import {
 } from '../services/chatAttachmentService';
 import {
   getChatConversations as getStoredConversations,
+  hydrateChatConversations,
   getChatMessages as getStoredMessages,
   getChatMessagesCacheMetadata,
   getProtectedConversationIds,
@@ -274,17 +277,14 @@ function sortConversations(
   conversations: ChatConversation[],
 ): ChatConversation[] {
   return [...conversations].sort((left, right) => {
-    const leftDate = new Date(
-      left.last_message_at
-      || left.updated_at,
-    ).getTime();
+    const leftDate = Date.parse(
+      left.last_message_at || left.updated_at || left.created_at,
+    ) || 0;
+    const rightDate = Date.parse(
+      right.last_message_at || right.updated_at || right.created_at,
+    ) || 0;
 
-    const rightDate = new Date(
-      right.last_message_at
-      || right.updated_at,
-    ).getTime();
-
-    return rightDate - leftDate;
+    return rightDate - leftDate || right.id.localeCompare(left.id);
   });
 }
 
@@ -442,6 +442,7 @@ export interface UseChatConversationsOptions {
   autoLoad?: boolean;
   includeArchived?: boolean;
   identityId?: string | null;
+  paginateInbox?: boolean;
 }
 
 export interface UseChatConversationsResult {
@@ -450,6 +451,11 @@ export interface UseChatConversationsResult {
   refreshing: boolean;
   error: string | null;
   activeIdentityId: string | null;
+  loadingMore: boolean;
+  hasMoreConversations: Record<'direct' | 'group', boolean>;
+  loadMoreConversations: (
+    conversationType: 'direct' | 'group',
+  ) => Promise<void>;
   loadConversations: (
     options?: {
       refresh?: boolean;
@@ -516,6 +522,7 @@ export function useChatConversations(
   {
     autoLoad = true,
     identityId: requestedIdentityId = null,
+    paginateInbox = false,
   }: UseChatConversationsOptions = {},
 ): UseChatConversationsResult {
   const normalizedRequestedIdentityId = String(
@@ -540,6 +547,44 @@ export function useChatConversations(
   const [error, setError] = useState<string | null>(null);
 
   const requestIdRef = useRef(0);
+  const inboxPagesRef = useRef<{
+    direct: {
+      sortAt: string | null;
+      id: string | null;
+      hasMore: boolean;
+    };
+    group: {
+      sortAt: string | null;
+      id: string | null;
+      hasMore: boolean;
+    };
+  }>({
+    direct: { sortAt: null, id: null, hasMore: false },
+    group: { sortAt: null, id: null, hasMore: false },
+  });
+  const paginationIdentityRef = useRef<string | null>(null);
+  const inboxStartedAtRef = useRef<number>(0);
+  const loadingMoreRef = useRef(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMoreConversations, setHasMoreConversations] = useState({
+    direct: false,
+    group: false,
+  });
+  const [visibleConversationIds, setVisibleConversationIds] = useState<
+    Set<string> | null
+  >(null);
+
+  useEffect(() => {
+    if (!paginateInbox) return;
+    requestIdRef.current += 1;
+    inboxPagesRef.current = {
+      direct: { sortAt: null, id: null, hasMore: false },
+      group: { sortAt: null, id: null, hasMore: false },
+    };
+    paginationIdentityRef.current = null;
+    setHasMoreConversations({ direct: false, group: false });
+    setVisibleConversationIds(new Set());
+  }, [normalizedRequestedIdentityId, paginateInbox]);
 
   const synchronizeConversations = useCallback((
     nextConversations: ChatConversation[],
@@ -610,6 +655,23 @@ export function useChatConversations(
     return identity.id;
   }, [normalizedRequestedIdentityId]);
 
+  const applyPinnedInboxPreferences = useCallback((
+    incoming: ChatConversation[],
+  ) => {
+    const preferences = new Map(
+      incoming
+        .filter((item) => item.is_pinned !== undefined)
+        .map((item) => [item.id, Boolean(item.is_pinned)]),
+    );
+    if (!preferences.size) return;
+    setChatConversations(getStoredConversations().map(
+      (item) => preferences.has(item.id)
+        ? { ...item, is_pinned: preferences.get(item.id)! }
+        : item,
+    ));
+    setRawConversations([...getStoredConversations()]);
+  }, []);
+
   const loadConversations = useCallback(async (
     options: {
       refresh?: boolean;
@@ -630,6 +692,7 @@ export function useChatConversations(
 
     if (requestedNetwork) {
       requestIdRef.current = requestId;
+      if (paginateInbox) inboxStartedAtRef.current = Date.now();
     }
     const hasMemoryCache = getStoredConversations().length > 0;
 
@@ -648,8 +711,13 @@ export function useChatConversations(
       } = await getChatAuthContext();
 
       const identityId = (
-        activeIdentityId
-        || await resolveActiveIdentityId(token)
+        normalizedRequestedIdentityId
+        && normalizedRequestedIdentityId !== activeIdentityId
+          ? await resolveActiveIdentityId(token)
+          : (
+              activeIdentityId
+              || await resolveActiveIdentityId(token)
+            )
       );
 
 
@@ -660,25 +728,75 @@ export function useChatConversations(
         return [];
       }
 
-      setCurrentUserId(activeUserId);
-
-
-      const response = await getChatInbox(
-        token,
-        identityId,
-        {
-          limit: 100,
-        },
-      );
-
-      if (
-        requestId !== requestIdRef.current
-      ) {
-        return [];
+      if (paginateInbox && requestedNetwork) {
+        await hydrateChatConversations(
+          activeUserId,
+          identityId,
+        );
+        if (requestId !== requestIdRef.current) return [];
       }
 
       setCurrentUserId(activeUserId);
-      synchronizeConversations(response.conversations);
+
+      let loadedConversations: ChatConversation[];
+      if (paginateInbox) {
+        const [directPage, groupPage, pinnedPage] = await Promise.all([
+          getChatUnpinnedInboxByType(
+            token, identityId, 'direct', { limit: 10 },
+          ),
+          getChatUnpinnedInboxByType(
+            token, identityId, 'group', { limit: 10 },
+          ),
+          getChatInbox(token, identityId, { limit: 10 }),
+        ]);
+        if (requestId !== requestIdRef.current) return [];
+
+        const pinned = pinnedPage.pinned_conversations;
+        const pinnedIds = new Set(pinned.map((row) => row.id));
+        const unpinned = [
+          ...directPage.conversations,
+          ...groupPage.conversations,
+        ].filter((row) => !pinnedIds.has(row.id));
+
+        inboxPagesRef.current = {
+          direct: {
+            sortAt: directPage.next_before_sort_at,
+            id: directPage.next_before_id,
+            hasMore: directPage.has_more,
+          },
+          group: {
+            sortAt: groupPage.next_before_sort_at,
+            id: groupPage.next_before_id,
+            hasMore: groupPage.has_more,
+          },
+        };
+        paginationIdentityRef.current = identityId;
+        loadedConversations = [...pinned, ...unpinned];
+        setVisibleConversationIds(
+          new Set(loadedConversations.map((row) => row.id)),
+        );
+        setHasMoreConversations({
+          direct: directPage.has_more,
+          group: groupPage.has_more,
+        });
+      } else {
+        const response = await getChatInbox(
+          token,
+          identityId,
+          { limit: 100 },
+        );
+        if (requestId !== requestIdRef.current) return [];
+        loadedConversations = response.conversations;
+      }
+
+      setCurrentUserId(activeUserId);
+      synchronizeConversations([
+        ...getStoredConversations(),
+        ...loadedConversations,
+      ]);
+      if (paginateInbox) {
+        applyPinnedInboxPreferences(loadedConversations);
+      }
 
       /*
        * Los mensajes no se precargan al login ni al refrescar el inbox.
@@ -723,7 +841,78 @@ export function useChatConversations(
     }
   }, [
     activeIdentityId,
+    applyPinnedInboxPreferences,
+    normalizedRequestedIdentityId,
+    paginateInbox,
     resolveActiveIdentityId,
+    synchronizeConversations,
+  ]);
+
+  const loadMoreConversations = useCallback(async (
+    conversationType: 'direct' | 'group',
+  ) => {
+    const pageState = inboxPagesRef.current[conversationType];
+    if (
+      !paginateInbox
+      || loadingMoreRef.current
+      || !pageState.hasMore
+      || !pageState.sortAt
+      || !pageState.id
+      || !paginationIdentityRef.current
+    ) return;
+
+    loadingMoreRef.current = true;
+    setLoadingMore(true);
+    const requestId = requestIdRef.current;
+    const identityId = paginationIdentityRef.current;
+
+    try {
+      const { token } = await getChatAuthContext();
+      if (requestId !== requestIdRef.current) return;
+      const page = await getChatUnpinnedInboxByType(
+        token,
+        identityId,
+        conversationType,
+        {
+          limit: 5,
+          beforeSortAt: pageState.sortAt,
+          beforeId: pageState.id,
+        },
+      );
+      if (requestId !== requestIdRef.current) return;
+
+      inboxPagesRef.current[conversationType] = {
+        sortAt: page.next_before_sort_at,
+        id: page.next_before_id,
+        hasMore: page.has_more,
+      };
+      setHasMoreConversations((current) => ({
+        ...current,
+        [conversationType]: page.has_more,
+      }));
+      setVisibleConversationIds((current) => new Set([
+        ...(current || []),
+        ...page.conversations.map((row) => row.id),
+      ]));
+      if (page.conversations.length) {
+        synchronizeConversations([
+          ...getStoredConversations(),
+          ...page.conversations,
+        ]);
+        applyPinnedInboxPreferences(page.conversations);
+      }
+    } catch (failure) {
+      setError(getErrorMessage(
+        failure,
+        'No fue posible cargar más chats.',
+      ));
+    } finally {
+      loadingMoreRef.current = false;
+      setLoadingMore(false);
+    }
+  }, [
+    applyPinnedInboxPreferences,
+    paginateInbox,
     synchronizeConversations,
   ]);
 
@@ -751,12 +940,27 @@ export function useChatConversations(
         || change.type === 'conversation-removed'
         || change.type === 'reset'
       ) {
-        setRawConversations([
-          ...getStoredConversations(),
-        ]);
+        const stored = [...getStoredConversations()];
+        setRawConversations(stored);
+        if (paginateInbox && paginationIdentityRef.current) {
+          const freshIds = stored.filter((conversation) => (
+            conversation.own_participant?.identity_id
+              === paginationIdentityRef.current
+            && Date.parse(
+              conversation.last_message_at || '',
+            ) >= inboxStartedAtRef.current
+          )).map((conversation) => conversation.id);
+          if (freshIds.length) {
+            setVisibleConversationIds((current) => (
+              current === null
+                ? current
+                : new Set([...current, ...freshIds])
+            ));
+          }
+        }
       }
     });
-  }, []);
+  }, [paginateInbox]);
 
   const createDirectConversation = useCallback(async (
     recipientIdentityId: string,
@@ -780,6 +984,12 @@ export function useChatConversations(
     );
 
     setCurrentUserId(activeUserId);
+    if (paginateInbox) {
+      setVisibleConversationIds((current) => new Set([
+        ...(current || []),
+        response.conversation.id,
+      ]));
+    }
     upsertChatConversation(response.conversation);
 
     synchronizeConversations(getStoredConversations());
@@ -791,6 +1001,7 @@ export function useChatConversations(
     );
   }, [
     activeIdentityId,
+    paginateInbox,
     resolveActiveIdentityId,
     synchronizeConversations,
   ]);
@@ -832,6 +1043,12 @@ export function useChatConversations(
     );
 
     setCurrentUserId(activeUserId);
+    if (paginateInbox) {
+      setVisibleConversationIds((current) => new Set([
+        ...(current || []),
+        created.conversation.id,
+      ]));
+    }
     upsertChatConversation(created.conversation);
     synchronizeConversations(getStoredConversations());
 
@@ -894,6 +1111,7 @@ export function useChatConversations(
     };
   }, [
     activeIdentityId,
+    paginateInbox,
     resolveActiveIdentityId,
     synchronizeConversations,
   ]);
@@ -918,12 +1136,55 @@ export function useChatConversations(
       );
     }
 
-    if (
-      payload.isMuted !== undefined
-      || payload.isPinned !== undefined
-    ) {
+    if (payload.isMuted !== undefined) {
       throw new Error(
         'Esta preferencia todavía no está disponible en el backend de Chat.',
+      );
+    }
+
+    if (payload.isPinned !== undefined) {
+      const {
+        currentUserId: activeUserId,
+        token,
+      } = await getChatAuthContext();
+      const identityId = (
+        normalizedRequestedIdentityId
+        && normalizedRequestedIdentityId !== activeIdentityId
+          ? await resolveActiveIdentityId(token)
+          : (
+              activeIdentityId
+              || await resolveActiveIdentityId(token)
+            )
+      );
+      const response = await updateChatConversationPinned(
+        token,
+        normalizedConversationId,
+        {
+          identity_id: identityId,
+          is_pinned: payload.isPinned,
+        },
+      );
+      const current = getStoredConversations().find(
+        (item) => item.id === normalizedConversationId,
+      );
+      const updated = {
+        ...(current || response.conversation),
+        is_pinned: payload.isPinned,
+        own_participant: response.conversation.own_participant,
+      };
+      setCurrentUserId(activeUserId);
+      const stored = getStoredConversations();
+      setChatConversations([
+        ...stored.filter(
+          (item) => item.id !== normalizedConversationId,
+        ),
+        updated,
+      ]);
+      setRawConversations([...getStoredConversations()]);
+      return mapConversationToListItem(
+        updated,
+        activeUserId,
+        isChatConversationProtected(normalizedConversationId),
       );
     }
 
@@ -1010,6 +1271,7 @@ export function useChatConversations(
     );
   }, [
     activeIdentityId,
+    normalizedRequestedIdentityId,
     resolveActiveIdentityId,
     synchronizeConversations,
   ]);
@@ -1150,7 +1412,23 @@ export function useChatConversations(
 
     const protectedIds = getProtectedConversationIds();
 
-    return rawConversations.map((conversation) => (
+    return rawConversations
+      .filter((conversation) => (
+        !paginateInbox
+        || conversation.conversation_type === 'ai'
+        || (
+          activeIdentityId !== null
+          && conversation.own_participant?.identity_id
+            === activeIdentityId
+          && (
+            visibleConversationIds === null
+            || visibleConversationIds.has(conversation.id)
+            || conversation.is_pinned
+            || isChatConversationArchived(conversation.id)
+          )
+        )
+      ))
+      .map((conversation) => (
       mapConversationToListItem(
         {
           ...conversation,
@@ -1163,8 +1441,11 @@ export function useChatConversations(
       )
     ));
   }, [
+    activeIdentityId,
     currentUserId,
+    paginateInbox,
     rawConversations,
+    visibleConversationIds,
   ]);
 
   const clearError = useCallback(() => {
@@ -1177,6 +1458,9 @@ export function useChatConversations(
     refreshing,
     error,
     activeIdentityId,
+    loadingMore,
+    hasMoreConversations,
+    loadMoreConversations,
     loadConversations,
     createDirectConversation,
     createGroupConversation,

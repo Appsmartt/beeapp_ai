@@ -84,6 +84,7 @@ export default function ArchivedChatsScreen() {
     refreshing,
     error,
     loadConversations,
+    updateConversation,
     restoreConversation,
     deleteConversation,
   } = useChatConversations({
@@ -443,7 +444,19 @@ export default function ArchivedChatsScreen() {
           if (menuChat) void handleToggleProtection(menuChat);
         }}
         onTogglePin={() => {
+          const chat = menuChat;
           setMenuChat(null);
+          if (!chat) return;
+          void updateConversation(chat.id, {
+            isPinned: !chat.isPinned,
+          }).catch((failure) => {
+            Alert.alert(
+              'No fue posible cambiar el fijado',
+              failure instanceof Error
+                ? failure.message
+                : 'Inténtalo nuevamente.',
+            );
+          });
         }}
         onToggleMute={() => {
           setMenuChat(null);

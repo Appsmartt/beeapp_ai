@@ -79,6 +79,7 @@ test('broadcast nuevo actualiza mensajes, preview y contador del inbox', async (
       getSessionCredentials: () => ({ accessToken: 'test-token' }),
     },
     '../stores/chatStore': {
+      getActiveChatStoreIdentityId: () => 'identity-own',
       getChatConversations: () => conversations,
       getChatMessages: () => messages,
       setChatMessages: (_id, rows) => {

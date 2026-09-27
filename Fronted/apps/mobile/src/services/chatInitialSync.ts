@@ -22,6 +22,7 @@ import {
   cacheChatConversationAvatars,
 } from './chatAvatarCache';
 import {
+  getActiveChatStoreIdentityId,
   hydrateChatConversations,
   replaceChatConversationsSnapshot,
   setChatMessages,
@@ -248,17 +249,27 @@ async function synchronizeConversationMessages(
     ).values(),
   );
 
-  setChatMessages(
-    conversation.id,
-    sortMessages(uniqueMessages).slice(
-      -INITIAL_MAX_MESSAGES_PER_CONVERSATION,
-    ),
-    {
-      nextBeforeSequence,
-      hasMore,
-      lastSyncedAt: new Date().toISOString(),
-    },
+  const conversationIdentityId = (
+    recipientIdentityId
+    || conversation.own_participant?.identity_id
   );
+  if (
+    conversationIdentityId
+    && getActiveChatStoreIdentityId()
+      === conversationIdentityId
+  ) {
+    setChatMessages(
+      conversation.id,
+      sortMessages(uniqueMessages).slice(
+        -INITIAL_MAX_MESSAGES_PER_CONVERSATION,
+      ),
+      {
+        nextBeforeSequence,
+        hasMore,
+        lastSyncedAt: new Date().toISOString(),
+      },
+    );
+  }
 
   if (recipientIdentityId && recipientUserId) {
     const latestIncoming = getLatestIncomingChatMessage(
@@ -349,12 +360,31 @@ export async function synchronizeInitialPrivateChats(
     selectedConversations,
   );
 
+  if (getActiveChatStoreIdentityId() !== privateIdentity.id) {
+    return {
+      conversationCount: 0,
+      synchronizedConversationCount: 0,
+      failedConversationCount: 0,
+      skipped: true,
+    };
+  }
+
   replaceChatConversationsSnapshot(conversations);
 
   let completedConversations = 0;
   let failedConversations = 0;
 
   for (const conversation of conversations) {
+    if (getActiveChatStoreIdentityId() !== privateIdentity.id) {
+      return {
+        conversationCount: conversations.length,
+        synchronizedConversationCount: (
+          completedConversations - failedConversations
+        ),
+        failedConversationCount: failedConversations,
+        skipped: true,
+      };
+    }
     onProgress?.({
       phase: 'messages',
       completedConversations,

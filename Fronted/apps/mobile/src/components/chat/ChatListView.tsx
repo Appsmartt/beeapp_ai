@@ -1,5 +1,6 @@
-import type {
-  ReactElement,
+import {
+  useRef,
+  type ReactElement,
 } from 'react';
 import {
   FlatList,
@@ -30,6 +31,8 @@ interface ChatListViewProps {
   onPressArchived?: () => void;
   onOpenChat: (chat: ChatListItemModel) => void;
   onOpenMenu: (chat: ChatListItemModel) => void;
+  onEndReached?: () => void;
+  loadingMore?: boolean;
   onPin: (id: string) => void;
   onMute: (id: string) => void;
   onDelete: (id: string) => void;
@@ -45,11 +48,14 @@ export default function ChatListView({
   onPressArchived,
   onOpenChat,
   onOpenMenu,
+  onEndReached,
+  loadingMore = false,
   refreshControl,
 }: ChatListViewProps) {
   const validChats = chats.filter(
     (chat) => Boolean(chat.id?.trim()),
   );
+  const userScrolledRef = useRef(false);
 
   const resolvedArchivedSubtitle = (
     archivedSubtitle
@@ -70,6 +76,15 @@ export default function ChatListView({
       style={styles.list}
       showsVerticalScrollIndicator={false}
       refreshControl={refreshControl}
+      onScrollBeginDrag={() => {
+        userScrolledRef.current = true;
+      }}
+      onEndReached={() => {
+        if (!onEndReached || !userScrolledRef.current) return;
+        userScrolledRef.current = false;
+        onEndReached();
+      }}
+      onEndReachedThreshold={0.35}
       renderItem={({ item: chat }) => (
         <ChatListItem
           id={chat.id}
@@ -130,7 +145,13 @@ export default function ChatListView({
         </>
       }
       ListFooterComponent={
-        <View style={styles.bottomGap} />
+        <View style={styles.bottomGap}>
+          {loadingMore ? (
+            <Text style={styles.archivedSubtitle}>
+              Cargando más chats...
+            </Text>
+          ) : null}
+        </View>
       }
     />
   );

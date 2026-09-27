@@ -86,6 +86,33 @@ class ChatInboxQuerySerializer(serializers.Serializer):
     )
 
 
+
+class ChatTypedInboxQuerySerializer(serializers.Serializer):
+    identity_id = serializers.UUIDField()
+    conversation_type = serializers.ChoiceField(
+        choices=("direct", "group"),
+    )
+    limit = serializers.IntegerField(
+        required=False,
+        default=10,
+        min_value=5,
+        max_value=10,
+    )
+    before_sort_at = serializers.DateTimeField(required=False)
+    before_id = serializers.UUIDField(required=False)
+
+    def validate(self, attrs):
+        if attrs["limit"] not in (5, 10):
+            raise serializers.ValidationError(
+                {"limit": "Page size must be 5 or 10."}
+            )
+        if ("before_sort_at" in attrs) != ("before_id" in attrs):
+            raise serializers.ValidationError(
+                "Both cursor fields are required together."
+            )
+        return attrs
+
+
 class ChatRecipientSearchQuerySerializer(serializers.Serializer):
     q = serializers.CharField(
         min_length=2,
@@ -349,6 +376,11 @@ class UpdateConversationNotificationsSerializer(
     identity_id = serializers.UUIDField()
 
     notifications_enabled = serializers.BooleanField()
+
+
+class UpdateConversationPinnedSerializer(serializers.Serializer):
+    identity_id = serializers.UUIDField()
+    is_pinned = serializers.BooleanField()
 
 
 class ConversationDetailQuerySerializer(serializers.Serializer):

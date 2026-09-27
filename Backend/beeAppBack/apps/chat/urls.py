@@ -20,6 +20,7 @@ from apps.chat.views import (
     ChatConversationDetailView,
     ChatConversationMessagesView,
     ChatConversationNotificationsView,
+    ChatConversationPinnedView,
     ChatConversationParticipantsView,
     ChatConversationDeliveredView,
     ChatConversationReadView,
@@ -36,6 +37,7 @@ from apps.chat.views import (
     ChatGroupsView,
     ChatIdentitiesView,
     ChatInboxView,
+    ChatTypedInboxView,
     ChatMessageAttachmentAccessView,
     ChatMessageAttachmentView,
     ChatMessageDetailView,
@@ -104,6 +106,11 @@ urlpatterns = [
         name="chat-inbox",
     ),
     path(
+        "inbox/by-type/",
+        ChatTypedInboxView.as_view(),
+        name="chat-inbox-by-type",
+    ),
+    path(
         "direct-conversations/",
         ChatDirectConversationsView.as_view(),
         name="chat-direct-conversations",
@@ -123,6 +130,11 @@ urlpatterns = [
         "conversations/<uuid:conversation_id>/notifications/",
         ChatConversationNotificationsView.as_view(),
         name="chat-conversation-notifications",
+    ),
+    path(
+        "conversations/<uuid:conversation_id>/pinned/",
+        ChatConversationPinnedView.as_view(),
+        name="chat-conversation-pinned",
     ),
     path(
         "conversations/<uuid:conversation_id>/participants/",

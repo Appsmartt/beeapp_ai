@@ -91,8 +91,8 @@ export default function ChatOptionsSheet({
 
                 <Text style={styles.sheetBtnText}>
                   {chat.isPinned
-                    ? 'Desfijar chat'
-                    : 'Fijar chat'}
+                    ? 'Desfijar'
+                    : 'Fijar'}
                 </Text>
               </TouchableOpacity>
 

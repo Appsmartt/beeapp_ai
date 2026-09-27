@@ -16,6 +16,7 @@ import {
   getSessionCredentials,
 } from './authSession';
 import {
+  getActiveChatStoreIdentityId,
   getChatConversations,
   getChatMessages,
   setChatMessages,
@@ -146,7 +147,10 @@ async function reconcileIncomingChatInbox(
 ): Promise<void> {
   const { identities } = await getChatIdentities(credentials);
   const activeIdentities = identities.filter(
-    (identity) => identity.is_active,
+    (identity) => (
+      identity.is_active
+      && identity.id === getActiveChatStoreIdentityId()
+    ),
   );
 
   await Promise.all(activeIdentities.map(async (identity) => {
@@ -154,7 +158,7 @@ async function reconcileIncomingChatInbox(
       const { conversations } = await getChatInbox(
         credentials,
         identity.id,
-        { limit: 100 },
+        { limit: 10 },
       );
       const incoming = conversations.find(
         (item) => (
@@ -163,6 +167,7 @@ async function reconcileIncomingChatInbox(
         ),
       );
       if (!incoming) return;
+      if (getActiveChatStoreIdentityId() !== identity.id) return;
 
       const current = getChatConversations().find(
         (item) => item.id === conversationId,
@@ -205,6 +210,7 @@ async function reconcileIncomingChatInbox(
       upsertChatConversation({
         ...current,
         ...incoming,
+        is_pinned: incoming.is_pinned ?? current?.is_pinned,
         participants: completeParticipants.length
           ? completeParticipants
           : incoming.participants,
@@ -620,13 +626,17 @@ async function reconcileCachedChatsAfterSubscribe(): Promise<void> {
   const credentials = getSessionCredentials(session);
   const { identities } = await getChatIdentities(credentials);
   await Promise.all(identities.filter(
-    (identity) => identity.is_active,
+    (identity) => (
+      identity.is_active
+      && identity.id === getActiveChatStoreIdentityId()
+    ),
   ).map(async (identity) => {
     try {
       const { conversations } = await getChatInbox(
-        credentials, identity.id, { limit: 100 },
+        credentials, identity.id, { limit: 10 },
       );
       for (const incoming of conversations) {
+        if (getActiveChatStoreIdentityId() !== identity.id) break;
         const current = getChatConversations().find(
           (item) => item.id === incoming.id,
         );
@@ -643,6 +653,7 @@ async function reconcileCachedChatsAfterSubscribe(): Promise<void> {
         upsertChatConversation({
           ...current,
           ...incoming,
+          is_pinned: incoming.is_pinned ?? current?.is_pinned,
           participants: current?.participants?.some(
             (participant) => Boolean(participant.joined_at),
           ) ? current.participants : incoming.participants,
