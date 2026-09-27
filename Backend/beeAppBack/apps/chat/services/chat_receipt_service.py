@@ -164,6 +164,8 @@ def attach_chat_inbox_receipts(
             and _eligible_recipient(p, last_message)
         ]
         if not recipients:
+            if row.get("conversation_type") == "group":
+                row["last_message_receipt_status"] = "delivered"
             continue
 
         def cursor_sequence(
@@ -185,7 +187,7 @@ def attach_chat_inbox_receipts(
             for p in recipients
         ):
             row["last_message_receipt_status"] = "read"
-        elif all(
+        elif row.get("conversation_type") == "group" or all(
             max(
                 cursor_sequence(p, "last_delivered_message_id"),
                 cursor_sequence(p, "last_read_message_id"),

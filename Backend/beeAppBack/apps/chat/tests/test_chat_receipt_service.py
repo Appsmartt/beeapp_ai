@@ -127,6 +127,7 @@ class ChatInboxReceiptTests(SimpleTestCase):
         )
 
     def test_group_requires_all_eligible_recipients(self):
+        self.row["conversation_type"] = "group"
         self.participants.append({
             "conversation_id": "conversation-1",
             "identity_id": "identity-third",
@@ -134,13 +135,27 @@ class ChatInboxReceiptTests(SimpleTestCase):
             "last_read_message_id": None,
             "last_delivered_message_id": None,
         })
+        result, _ = self.calculate()
+        self.assertEqual(
+            result["conversations"][0]["last_message_receipt_status"],
+            "delivered",
+        )
         self.participants[0]["last_read_message_id"] = "message-3"
         result, _ = self.calculate()
         self.assertEqual(
             result["conversations"][0]["last_message_receipt_status"],
-            "sent",
+            "delivered",
         )
-        self.participants[1]["last_delivered_message_id"] = "message-3"
+        self.participants[1]["last_read_message_id"] = "message-3"
+        result, _ = self.calculate()
+        self.assertEqual(
+            result["conversations"][0]["last_message_receipt_status"],
+            "read",
+        )
+
+    def test_group_without_eligible_recipients_is_server_confirmed(self):
+        self.row["conversation_type"] = "group"
+        self.participants.clear()
         result, _ = self.calculate()
         self.assertEqual(
             result["conversations"][0]["last_message_receipt_status"],
