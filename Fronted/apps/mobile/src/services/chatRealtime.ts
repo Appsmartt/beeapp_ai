@@ -67,6 +67,28 @@ type ChatSyncBroadcast = {
 let activeChannel: RealtimeChannel | null = null;
 let activeUserId: string | null = null;
 let startPromise: Promise<void> | null = null;
+let lastChatRealtimeRetryAt = 0;
+const CHAT_REALTIME_RETRY_COOLDOWN_MS = 15000;
+
+type ChatRealtimeStatus = 'connecting' | 'connected' | 'degraded';
+let chatRealtimeStatus: ChatRealtimeStatus = 'connecting';
+const chatRealtimeStatusListeners = new Set<(status: ChatRealtimeStatus) => void>();
+
+export function subscribeChatRealtimeStatus(
+  listener: (status: ChatRealtimeStatus) => void,
+): () => void {
+  chatRealtimeStatusListeners.add(listener);
+  listener(chatRealtimeStatus);
+  return () => {
+    chatRealtimeStatusListeners.delete(listener);
+  };
+}
+
+function setChatRealtimeStatus(status: ChatRealtimeStatus): void {
+  if (chatRealtimeStatus === status) return;
+  chatRealtimeStatus = status;
+  chatRealtimeStatusListeners.forEach((listener) => listener(status));
+}
 
 const inFlightMessageIds = new Set<string>();
 
@@ -653,15 +675,24 @@ export async function startChatRealtime(): Promise<void> {
     return;
   }
 
-  if (
-    activeChannel
-    && activeUserId === userId
-  ) {
-    return;
-  }
-
   if (startPromise) {
     return startPromise;
+  }
+
+  if (activeChannel && activeUserId === userId) {
+    if (activeChannel.state === 'joined') {
+      return;
+    }
+    if (activeChannel.state === 'joining') {
+      return;
+    }
+    if (
+      Date.now() - lastChatRealtimeRetryAt
+      < CHAT_REALTIME_RETRY_COOLDOWN_MS
+    ) {
+      return;
+    }
+    lastChatRealtimeRetryAt = Date.now();
   }
 
   startPromise = (async () => {
@@ -690,9 +721,13 @@ export async function startChatRealtime(): Promise<void> {
         (message) => {
           void handleChatBroadcast(message.payload);
         },
-      )
-      .subscribe((status, error) => {
+      );
+
+    activeChannel = channel;
+    channel.subscribe((status) => {
+        if (activeChannel !== channel) return;
         if (status === 'SUBSCRIBED') {
+          setChatRealtimeStatus('connected');
           void reconcileCachedChatsAfterSubscribe().catch(() => {
             // La conexión sigue activa aunque falle la recuperación.
           });
@@ -702,15 +737,9 @@ export async function startChatRealtime(): Promise<void> {
           || status === 'TIMED_OUT'
           || status === 'CLOSED'
         ) {
-          console.warn(
-            '[chat realtime] estado del canal',
-            status,
-            error,
-          );
+          setChatRealtimeStatus('degraded');
         }
       });
-
-    activeChannel = channel;
   })();
 
   try {

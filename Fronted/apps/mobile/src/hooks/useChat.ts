@@ -5,6 +5,7 @@ import {
   useRef,
   useState,
 } from 'react';
+import { AppState } from 'react-native';
 import {
   bootstrapChat,
   clearChatConversation,
@@ -37,7 +38,10 @@ import {
   getValidAuthSession,
   getValidSessionCredentials,
 } from '../services/authSession';
-import { startChatRealtime } from '../services/chatRealtime';
+import {
+  startChatRealtime,
+  subscribeChatRealtimeStatus,
+} from '../services/chatRealtime';
 import {
   mapChatMessageToModel,
   mapChatSearchUser,
@@ -1673,6 +1677,54 @@ export function useChatMessages(
     normalizedConversationId,
     resolveActiveIdentityId,
     synchronizeMessages,
+  ]);
+
+  useEffect(() => {
+    if (
+      !autoLoad
+      || !normalizedConversationId
+      || initialLoadingPhase !== 'ready'
+    ) return;
+
+    let cancelled = false;
+    let inFlight = false;
+    let recoveryTimer: ReturnType<typeof setInterval> | null = null;
+
+    const recoverOpenConversation = async () => {
+      if (cancelled || inFlight || AppState.currentState !== 'active') return;
+      inFlight = true;
+      try {
+        await loadMessages({ network: true });
+      } catch {
+        // El SDK seguirá reconectando; el siguiente intento recuperará el chat.
+      } finally {
+        inFlight = false;
+      }
+    };
+
+    const unsubscribe = subscribeChatRealtimeStatus((status) => {
+      if (recoveryTimer) {
+        clearInterval(recoveryTimer);
+        recoveryTimer = null;
+      }
+      if (status === 'degraded' && !cancelled) {
+        void recoverOpenConversation();
+        recoveryTimer = setInterval(() => {
+          void recoverOpenConversation();
+        }, 15000);
+      }
+    });
+
+    return () => {
+      cancelled = true;
+      unsubscribe();
+      if (recoveryTimer) clearInterval(recoveryTimer);
+    };
+  }, [
+    autoLoad,
+    initialLoadingPhase,
+    loadMessages,
+    normalizedConversationId,
   ]);
 
   useEffect(() => {
