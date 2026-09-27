@@ -6,7 +6,7 @@ import {
   TouchableOpacity,
 } from 'react-native';
 import { colors } from '@beeapp/design-system';
-import { Check, CheckCheck, BellOff, Users, Lock, MoreVertical } from 'lucide-react-native';
+import { Check, CheckCheck, BellOff, Users, Lock, MoreVertical, Pin } from 'lucide-react-native';
 import VerifiedBadge from '../VerifiedBadge';
 
 interface ChatListItemProps {
@@ -51,6 +51,7 @@ export default function ChatListItem({
       onPress={onPress}
       onLongPress={onMorePress}
       activeOpacity={0.7}
+      accessibilityLabel={`${name}${isPinned ? ', chat fijado' : ''}`}
     >
       {/* Avatar Section */}
       <View style={styles.avatarContainer}>
@@ -99,6 +100,9 @@ export default function ChatListItem({
               {name}
             </Text>
             {verified && <VerifiedBadge size={14} />}
+            {isPinned && (
+              <Pin size={13} color={colors.brand.primary} accessibilityLabel="Chat fijado" />
+            )}
           </View>
           <Text style={[styles.time, unreadCount > 0 && styles.timeUnread]}>
             {time}
