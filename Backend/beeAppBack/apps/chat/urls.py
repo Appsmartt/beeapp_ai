@@ -1,5 +1,10 @@
 from django.urls import path
 
+from apps.chat.pin_protection_views import (
+    ChatPinProtectionDetailView,
+    ChatPinProtectionsView,
+)
+
 from apps.chat.presence_views import (
     ChatPresenceSnapshotView,
     ChatPresenceStateView,
@@ -43,6 +48,16 @@ from apps.chat.views import (
 
 
 urlpatterns = [
+    path(
+        "pin-protections/",
+        ChatPinProtectionsView.as_view(),
+        name="chat-pin-protections",
+    ),
+    path(
+        "conversations/<uuid:conversation_id>/pin-protection/",
+        ChatPinProtectionDetailView.as_view(),
+        name="chat-pin-protection-detail",
+    ),
     path(
         "bootstrap/",
         ChatBootstrapView.as_view(),

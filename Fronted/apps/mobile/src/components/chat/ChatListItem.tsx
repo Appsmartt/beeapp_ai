@@ -49,6 +49,7 @@ export default function ChatListItem({
     <TouchableOpacity
       style={styles.mainRow}
       onPress={onPress}
+      onLongPress={onMorePress}
       activeOpacity={0.7}
     >
       {/* Avatar Section */}

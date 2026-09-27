@@ -172,6 +172,39 @@ def _process_single_chat_notification(
         if not isinstance(metadata, dict):
             metadata = {}
 
+        notification_response = (
+            supabase.table("chat_message_notifications")
+            .select("recipient_user_id,conversation_id")
+            .eq("id", chat_notification_id)
+            .limit(1)
+            .execute()
+        )
+        notification_rows = _response_rows(notification_response)
+        if not notification_rows:
+            raise ChatPushError("Chat notification was not found.")
+
+        recipient_id = str(
+            notification_rows[0].get("recipient_user_id") or ""
+        ).strip()
+        conversation_id = str(
+            notification_rows[0].get("conversation_id") or ""
+        ).strip()
+        if not recipient_id or not conversation_id:
+            raise ChatPushError("Chat notification has no recipient or conversation.")
+
+        protection_response = (
+            supabase.table("chat_pin_protections")
+            .select("conversation_id")
+            .eq("user_id", recipient_id)
+            .eq("conversation_id", conversation_id)
+            .limit(1)
+            .execute()
+        )
+        if _response_rows(protection_response):
+            title = "Nuevo mensaje"
+            body = "Tienes un mensaje en un chat protegido."
+            metadata = {"conversation_id": conversation_id}
+
         if not tokens:
             _complete_chat_push_notification(
                 chat_notification_id=chat_notification_id,

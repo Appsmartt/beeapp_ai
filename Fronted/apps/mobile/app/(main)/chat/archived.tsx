@@ -1,8 +1,10 @@
 import {
+  useCallback,
   useEffect,
   useMemo,
   useState,
 } from 'react';
+import { useFocusEffect } from 'expo-router';
 import {
   ActivityIndicator,
   Alert,
@@ -18,6 +20,13 @@ import {
 import {
   colors,
 } from '@beeapp/design-system';
+import {
+  getAccountSecurityPinStatus,
+  listProtectedChats,
+  protectChatWithPin,
+  removeChatPinProtection,
+} from '@beeapp/api-client';
+import { getValidSessionCredentials } from '../../../src/services/authSession';
 
 import ScreenSafeArea from '../../../src/components/layout/ScreenSafeArea';
 import {
@@ -26,6 +35,7 @@ import {
 } from '../../../src/components/embedded/EmbeddedNavContext';
 import ChatListView from '../../../src/components/chat/ChatListView';
 import ChatOptionsSheet from '../../../src/components/chat/ChatOptionsSheet';
+import PinLockModal from '../../../src/components/security/PinLockModal';
 
 import {
   useChatConversations,
@@ -83,6 +93,52 @@ export default function ArchivedChatsScreen() {
   const [menuChat, setMenuChat] = useState<
     ChatListItemModel | null
   >(null);
+  const [protectedChatIds, setProtectedChatIds] = useState<Set<string>>(
+    () => new Set(),
+  );
+  const [protectionLoaded, setProtectionLoaded] = useState(false);
+  const [protectionError, setProtectionError] = useState<string | null>(null);
+  const [protectionRefresh, setProtectionRefresh] = useState(0);
+
+  useFocusEffect(
+    useCallback(() => {
+      setProtectionLoaded(false);
+      setProtectionRefresh((value) => value + 1);
+      return () => setProtectionLoaded(false);
+    }, []),
+  );
+  const [removingProtectionChat, setRemovingProtectionChat] = useState<
+    ChatListItemModel | null
+  >(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    setProtectionLoaded(false);
+    setProtectionError(null);
+
+    const loadProtection = async () => {
+      try {
+        const auth = await getValidSessionCredentials();
+        if (!auth) throw new Error('Inicia sesión para cargar los chats protegidos.');
+        const result = await listProtectedChats(auth);
+        if (cancelled) return;
+        setProtectedChatIds(new Set(result.conversation_ids));
+        setProtectionLoaded(true);
+      } catch (failure) {
+        if (cancelled) return;
+        setProtectionError(
+          failure instanceof Error
+            ? failure.message
+            : 'No fue posible cargar la protección de chats.',
+        );
+      }
+    };
+
+    void loadProtection();
+    return () => {
+      cancelled = true;
+    };
+  }, [requestedIdentityId, protectionRefresh]);
 
   useEffect(() => {
     void loadConversations({
@@ -103,10 +159,14 @@ export default function ArchivedChatsScreen() {
           ? chat.isGroup
           : !chat.isGroup
       )
-    )),
+    )).map((chat) => ({
+      ...chat,
+      isProtected: protectedChatIds.has(chat.id),
+    })),
     [
       conversations,
       isGroupArchive,
+      protectedChatIds,
     ],
   );
 
@@ -136,6 +196,61 @@ export default function ArchivedChatsScreen() {
           : {}),
       },
     });
+  };
+
+  const handleToggleProtection = async (chat: ChatListItemModel) => {
+    setMenuChat(null);
+    if (protectedChatIds.has(chat.id)) {
+      setRemovingProtectionChat(chat);
+      return;
+    }
+
+    try {
+      const auth = await getValidSessionCredentials();
+      if (!auth) throw new Error('Inicia sesión para proteger el chat.');
+      const status = await getAccountSecurityPinStatus(auth);
+      if (!status.configured) {
+        Alert.alert(
+          'PIN requerido',
+          'Debes crear un PIN primero desde Seguridad.',
+          [
+            { text: 'Cancelar', style: 'cancel' },
+            {
+              text: 'Ir a Seguridad',
+              onPress: () => router.push('/(main)/profile/security'),
+            },
+          ],
+        );
+        return;
+      }
+      await protectChatWithPin(auth, chat.id);
+      setProtectedChatIds((current) => new Set(current).add(chat.id));
+      Alert.alert('Chat protegido', 'El chat quedó protegido con tu PIN.');
+    } catch (failure) {
+      Alert.alert(
+        'No fue posible proteger el chat',
+        failure instanceof Error ? failure.message : 'Inténtalo nuevamente.',
+      );
+    }
+  };
+
+  const verifyRemovalPin = async (pin: string) => {
+    if (!removingProtectionChat) throw new Error('Selecciona un chat.');
+    const auth = await getValidSessionCredentials();
+    if (!auth) throw new Error('Inicia sesión para verificar tu PIN.');
+    await removeChatPinProtection(auth, removingProtectionChat.id, pin);
+  };
+
+  const finishRemoval = () => {
+    if (!removingProtectionChat) return;
+    const chatId = removingProtectionChat.id;
+    setRemovingProtectionChat(null);
+    setProtectedChatIds((current) => {
+      const next = new Set(current);
+      next.delete(chatId);
+      return next;
+    });
+    Alert.alert('Protección removida', 'El chat ya no requiere PIN para abrirse.');
   };
 
   const handleRestore = async (
@@ -224,7 +339,8 @@ export default function ArchivedChatsScreen() {
           </Text>
         </View>
 
-        {loading && conversations.length === 0 ? (
+        {(loading && conversations.length === 0)
+          || (!protectionLoaded && !protectionError) ? (
           <View style={styles.centerState}>
             <ActivityIndicator
               size="large"
@@ -254,6 +370,17 @@ export default function ArchivedChatsScreen() {
               </View>
             ) : null}
 
+            {protectionError ? (
+              <View style={styles.errorBox}>
+                <Text style={styles.errorText}>{protectionError}</Text>
+                <TouchableOpacity
+                  onPress={() => setProtectionRefresh((value) => value + 1)}
+                  activeOpacity={0.7}
+                >
+                  <Text style={styles.retryText}>Reintentar</Text>
+                </TouchableOpacity>
+              </View>
+            ) : (
             <ChatListView
               chats={archivedChats}
               onOpenChat={openChat}
@@ -276,7 +403,9 @@ export default function ArchivedChatsScreen() {
               }
             />
 
-            {archivedChats.length === 0 && !error ? (
+            )}
+
+            {archivedChats.length === 0 && !error && !protectionError ? (
               <View style={styles.emptyOverlay}>
                 <Text style={styles.emptyTitle}>
                   {isGroupArchive
@@ -299,11 +428,19 @@ export default function ArchivedChatsScreen() {
         )}
       </View>
 
+      <PinLockModal
+        visible={Boolean(removingProtectionChat)}
+        itemName={removingProtectionChat?.name || 'Chat protegido'}
+        onClose={() => setRemovingProtectionChat(null)}
+        verifyPin={verifyRemovalPin}
+        onSuccess={finishRemoval}
+      />
+
       <ChatOptionsSheet
         chat={menuChat}
-        isProtected={false}
+        isProtected={Boolean(menuChat && protectedChatIds.has(menuChat.id))}
         onToggleProtection={() => {
-          setMenuChat(null);
+          if (menuChat) void handleToggleProtection(menuChat);
         }}
         onTogglePin={() => {
           setMenuChat(null);

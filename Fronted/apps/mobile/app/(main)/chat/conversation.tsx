@@ -1,8 +1,10 @@
 import {
+  useCallback,
   useEffect,
   useRef,
   useState,
 } from 'react';
+import { useFocusEffect } from 'expo-router';
 import {
   ActivityIndicator,
   Alert,
@@ -25,6 +27,8 @@ import {
   getActiveConversationCall,
   getChatContactProfile,
   getChatMessageAttachmentAccess,
+  getChatPinProtection,
+  verifyAccountSecurityPin,
   markChatConversationRead,
   getStorageFileAccess,
   startCall,
@@ -38,6 +42,7 @@ import {
   useScreenParams,
 } from '../../../src/components/embedded/EmbeddedNavContext';
 
+import PinLockModal from '../../../src/components/security/PinLockModal';
 import MessageBubble from '../../../src/components/chat/MessageBubble';
 import ChatImageViewerModal from '../../../src/components/chat/ChatImageViewerModal';
 import StatusViewer from '../../../src/components/chat/StatusViewer';
@@ -150,6 +155,111 @@ function formatMessageDateSeparator(
 }
 
 export default function ConversationScreen() {
+  const router = useModuleNav();
+  const params = useScreenParams();
+  const chatId = String(params.id || '').trim();
+  const [access, setAccess] = useState<
+    'checking' | 'locked' | 'open' | 'error'
+  >('checking');
+  const [accessError, setAccessError] = useState<string | null>(null);
+  const [attempt, setAttempt] = useState(0);
+
+  useFocusEffect(
+    useCallback(() => {
+      setAccess('checking');
+      setAttempt((value) => value + 1);
+      return () => setAccess('checking');
+    }, [chatId]),
+  );
+
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', (state) => {
+      if (state !== 'active') {
+        setAccess('checking');
+      } else {
+        setAccess('checking');
+        setAttempt((value) => value + 1);
+      }
+    });
+    return () => subscription.remove();
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    setAccess('checking');
+    setAccessError(null);
+
+    const check = async () => {
+      try {
+        if (!chatId) throw new Error('Falta el identificador del chat.');
+        const auth = await getValidSessionCredentials();
+        if (!auth) throw new Error('Inicia sesión para abrir el chat.');
+        const result = await getChatPinProtection(auth, chatId);
+        if (!cancelled && AppState.currentState === 'active') {
+          setAccess(result.protected ? 'locked' : 'open');
+        }
+      } catch (failure) {
+        if (cancelled) return;
+        setAccessError(
+          failure instanceof Error
+            ? failure.message
+            : 'No fue posible comprobar la protección del chat.',
+        );
+        setAccess('error');
+      }
+    };
+
+    void check();
+    return () => {
+      cancelled = true;
+    };
+  }, [chatId, attempt]);
+
+  const verifyPin = async (pin: string) => {
+    const auth = await getValidSessionCredentials();
+    if (!auth) throw new Error('Inicia sesión para verificar tu PIN.');
+    const result = await verifyAccountSecurityPin(auth, pin);
+    if (!result.verified) throw new Error('PIN incorrecto. Inténtalo de nuevo.');
+  };
+
+  if (access !== 'open') {
+    return (
+      <ScreenSafeArea style={{ flex: 1, backgroundColor: colors.neutral.white }}>
+        {access === 'checking' ? (
+          <ActivityIndicator size="large" color={colors.brand.primary} />
+        ) : null}
+        {access === 'error' ? (
+          <View style={{ padding: 24 }}>
+            <Text>{accessError}</Text>
+            <Text
+              onPress={() => setAttempt((value) => value + 1)}
+              style={{ color: colors.brand.primary, marginTop: 16 }}
+            >
+              Reintentar
+            </Text>
+            <Text
+              onPress={() => router.back()}
+              style={{ color: colors.brand.primary, marginTop: 16 }}
+            >
+              Volver
+            </Text>
+          </View>
+        ) : null}
+        <PinLockModal
+          visible={access === 'locked'}
+          itemName={String(params.name || 'Chat protegido')}
+          onClose={() => router.back()}
+          verifyPin={verifyPin}
+          onSuccess={() => setAccess('open')}
+        />
+      </ScreenSafeArea>
+    );
+  }
+
+  return <ConversationContent />;
+}
+
+function ConversationContent() {
   const router = useModuleNav();
   const params = useScreenParams();
 

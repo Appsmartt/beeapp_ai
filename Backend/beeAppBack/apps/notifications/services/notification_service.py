@@ -368,6 +368,67 @@ def create_or_update_upload_success_notification(
         ) from error
 
 
+def _hide_protected_chat_notification_previews(
+    *,
+    supabase,
+    recipient_id: str,
+    notifications: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    chat_rows = [
+        row for row in notifications
+        if row.get("module") == "chat"
+    ]
+    if not chat_rows:
+        return notifications
+
+    protected_ids: set[str] = set()
+    offset = 0
+    page_size = 500
+    while True:
+        response = (
+            supabase.table("chat_pin_protections")
+            .select("conversation_id")
+            .eq("user_id", recipient_id)
+            .order("conversation_id")
+            .range(offset, offset + page_size - 1)
+            .execute()
+        )
+        rows = response.data or []
+        protected_ids.update(
+            str(row["conversation_id"]) for row in rows
+        )
+        if len(rows) < page_size:
+            break
+        offset += page_size
+
+    safe_rows = []
+    for row in notifications:
+        if row.get("module") != "chat":
+            safe_rows.append(row)
+            continue
+
+        metadata = row.get("metadata")
+        metadata = metadata if isinstance(metadata, dict) else {}
+        conversation_id = str(
+            metadata.get("conversation_id") or ""
+        ).strip()
+        if conversation_id and conversation_id not in protected_ids:
+            safe_rows.append(row)
+            continue
+
+        safe_rows.append({
+            **row,
+            "title": "Nuevo mensaje",
+            "body": "Tienes un mensaje en un chat protegido.",
+            "metadata": (
+                {"conversation_id": conversation_id}
+                if conversation_id else {}
+            ),
+        })
+
+    return safe_rows
+
+
 def list_notifications(
     *,
     recipient_id: str,
@@ -398,8 +459,13 @@ def list_notifications(
 
         response = query.execute()
 
+        notifications = _hide_protected_chat_notification_previews(
+            supabase=supabase,
+            recipient_id=recipient_id,
+            notifications=response.data or [],
+        )
         return {
-            "notifications": response.data or [],
+            "notifications": notifications,
             "count": response.count or 0,
             "limit": limit,
             "offset": offset,
@@ -464,7 +530,12 @@ def mark_notification_as_read(
         )
 
         if response.data:
-            return response.data[0]
+            safe_rows = _hide_protected_chat_notification_previews(
+                supabase=supabase,
+                recipient_id=recipient_id,
+                notifications=[response.data[0]],
+            )
+            return safe_rows[0]
 
         existing = (
             supabase.table("notifications")
@@ -480,7 +551,12 @@ def mark_notification_as_read(
                 "Notification was not found."
             )
 
-        return existing.data
+        safe_rows = _hide_protected_chat_notification_previews(
+            supabase=supabase,
+            recipient_id=recipient_id,
+            notifications=[existing.data],
+        )
+        return safe_rows[0]
 
     except NotificationUpdateError:
         raise
