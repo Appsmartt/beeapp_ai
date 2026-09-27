@@ -31,6 +31,7 @@ from apps.chat.serializers import (
     ChatGroupInviteListQuerySerializer,
     ChatIdentityListQuerySerializer,
     ChatInboxQuerySerializer,
+    ChatTypedInboxQuerySerializer,
     ChatMessageListQuerySerializer,
     ChatRecipientSearchQuerySerializer,
     ChatSyncBootstrapQuerySerializer,
@@ -54,6 +55,7 @@ from apps.chat.serializers import (
     TransferChatGroupOwnershipSerializer,
     UpdateChatGroupSerializer,
     UpdateConversationNotificationsSerializer,
+    UpdateConversationPinnedSerializer,
     UploadChatAttachmentSerializer,
 )
 from apps.chat.services.chat_attachment_service import (
@@ -69,9 +71,11 @@ from apps.chat.services.chat_conversation_service import (
     clear_chat_conversation,
     create_or_get_direct_conversation,
     get_chat_inbox,
+    get_chat_unpinned_inbox_by_type,
     get_conversation,
     list_conversation_participants,
     set_chat_conversation_notifications,
+    set_chat_conversation_pinned,
 )
 from apps.chat.services.chat_group_service import (
     create_chat_group,
@@ -502,6 +506,79 @@ class ChatContactProfileView(AuthenticatedAPIView):
         )
 
 
+
+class ChatTypedInboxView(AuthenticatedAPIView):
+    """GET /api/chat/inbox/by-type/ for unpinned direct or group chats."""
+
+    def get(self, request):
+        serializer = ChatTypedInboxQuerySerializer(
+            data=request.query_params,
+        )
+        serializer.is_valid(raise_exception=True)
+
+        try:
+            authenticated_user = self.get_authenticated_user(request)
+            data = serializer.validated_data
+            identity_id = str(data["identity_id"])
+            before_sort_at = data.get("before_sort_at")
+
+            inbox = get_chat_unpinned_inbox_by_type(
+                user_id=str(authenticated_user.id),
+                access_token=_get_access_token(request),
+                identity_id=identity_id,
+                conversation_type=data["conversation_type"],
+                limit=data["limit"],
+                before_sort_at=(
+                    before_sort_at.isoformat()
+                    if before_sort_at is not None else None
+                ),
+                before_id=(
+                    str(data["before_id"])
+                    if data.get("before_id") is not None else None
+                ),
+            )
+
+            try:
+                inbox = attach_chat_inbox_receipts(
+                    inbox=inbox,
+                    identity_id=identity_id,
+                )
+            except Exception:
+                logger.warning(
+                    "Could not enrich typed chat inbox receipts."
+                )
+                inbox = {
+                    **inbox,
+                    "conversations": [
+                        {
+                            **row,
+                            "last_message_receipt_status": "sent",
+                        }
+                        for row in inbox.get("conversations", [])
+                    ],
+                }
+
+        except AccountAuthenticationError:
+            return _unauthorized_response()
+
+        except (
+            ChatIdentityNotFoundError,
+            ChatConversationAccessError,
+        ):
+            return Response(
+                {"detail": "Chat identity was not found."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        except ChatInboxError as error:
+            return Response(
+                {"detail": str(error)},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        return Response(inbox, status=status.HTTP_200_OK)
+
+
 class ChatInboxView(AuthenticatedAPIView):
     """
     GET /api/chat/inbox/?identity_id=<uuid>&limit=50
@@ -558,6 +635,13 @@ class ChatInboxView(AuthenticatedAPIView):
                             "last_message_receipt_status": "sent",
                         }
                         for row in inbox.get("conversations", [])
+                    ],
+                    "pinned_conversations": [
+                        {
+                            **row,
+                            "last_message_receipt_status": "sent",
+                        }
+                        for row in inbox.get("pinned_conversations", [])
                     ],
                 }
 
@@ -832,6 +916,41 @@ class ChatConversationNotificationsView(
             {
                 "conversation": conversation,
             },
+            status=status.HTTP_200_OK,
+        )
+
+
+class ChatConversationPinnedView(AuthenticatedAPIView):
+    """PATCH /api/chat/conversations/<conversation_id>/pinned/."""
+
+    def patch(self, request, conversation_id):
+        serializer = UpdateConversationPinnedSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        try:
+            authenticated_user = self.get_authenticated_user(request)
+            conversation = set_chat_conversation_pinned(
+                user_id=str(authenticated_user.id),
+                access_token=_get_access_token(request),
+                conversation_id=str(conversation_id),
+                identity_id=str(serializer.validated_data["identity_id"]),
+                is_pinned=serializer.validated_data["is_pinned"],
+            )
+        except AccountAuthenticationError:
+            return _unauthorized_response()
+        except ChatConversationAccessError:
+            return Response(
+                {"detail": "The selected identity cannot update this conversation."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        except ChatConversationNotFoundError:
+            return _conversation_not_found_response()
+        except ChatConversationError as error:
+            return Response(
+                {"detail": str(error)},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        return Response(
+            {"conversation": conversation},
             status=status.HTTP_200_OK,
         )
 

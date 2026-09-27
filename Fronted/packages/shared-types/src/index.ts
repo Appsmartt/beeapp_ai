@@ -2562,6 +2562,7 @@ export interface ChatParticipant {
   last_delivered_at?: string | null;
   unread_count?: number;
   notifications_enabled?: boolean;
+  is_pinned?: boolean;
   muted_until?: string | null;
   created_at?: string;
   updated_at?: string;

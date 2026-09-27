@@ -88,9 +88,17 @@ def attach_chat_inbox_receipts(
         {**row, "last_message_receipt_status": "sent"}
         for row in inbox.get("conversations", [])
     ]
-    result = {**inbox, "conversations": conversations}
+    pinned_conversations = [
+        {**row, "last_message_receipt_status": "sent"}
+        for row in inbox.get("pinned_conversations", [])
+    ]
+    result = {
+        **inbox,
+        "conversations": conversations,
+        "pinned_conversations": pinned_conversations,
+    }
     outgoing = [
-        row for row in conversations
+        row for row in conversations + pinned_conversations
         if (row.get("id") or row.get("conversation_id"))
         and row.get("last_message_id")
         and str(row.get("last_message_sender_identity_id"))

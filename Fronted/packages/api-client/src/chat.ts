@@ -47,6 +47,7 @@ export interface ChatApiIdentitySummary {
   commercial_profile_id: string | null;
   display_name: string;
   avatar_file_id: string | null;
+  avatar_url?: string | null;
   is_active: boolean;
   is_available: boolean;
 }
@@ -68,6 +69,7 @@ export interface ChatApiParticipant {
   last_delivered_at: string | null;
   unread_count: number;
   notifications_enabled: boolean;
+  is_pinned?: boolean;
   created_at: string;
   updated_at: string;
   identity: ChatApiIdentitySummary;
@@ -104,6 +106,7 @@ export interface ChatApiInboxConversation {
   last_message_type: string | null;
   last_message_preview: string | null;
   last_message_at: string | null;
+  sort_at?: string | null;
   last_message_sender_identity_id: string | null;
   last_message_receipt_status?: 'sent' | 'delivered' | 'read';
   unread_count: number;
@@ -111,6 +114,7 @@ export interface ChatApiInboxConversation {
   last_read_at: string | null;
   notifications_enabled: boolean;
   cleared_at: string | null;
+  is_pinned?: boolean;
 }
 
 export interface ChatApiConversation {
@@ -258,9 +262,22 @@ export interface ChatIdentitiesResponse {
 export interface ChatInboxResponse {
   identity_id: string;
   conversations: ChatApiInboxConversation[];
+  pinned_conversations?: ChatApiInboxConversation[];
   limit: number;
   next_before_last_message_at: string | null;
 }
+
+
+export interface ChatTypedInboxResponse {
+  identity_id: string;
+  conversation_type: 'direct' | 'group';
+  conversations: ChatApiInboxConversation[];
+  limit: number;
+  has_more: boolean;
+  next_before_sort_at: string | null;
+  next_before_id: string | null;
+}
+
 
 export interface ChatRecipientSearchResponse {
   query: string;
@@ -445,6 +462,7 @@ function toSharedParticipant(
     notifications_enabled: (
       participant.notifications_enabled
     ),
+    is_pinned: Boolean(participant.is_pinned),
     created_at: participant.created_at,
     updated_at: participant.updated_at,
     user: {
@@ -677,7 +695,7 @@ function toSharedConversation(
       conversation.permissions,
     ),
     unread_count: ownParticipant?.unread_count || 0,
-    is_pinned: false,
+    is_pinned: Boolean(ownParticipant?.is_pinned),
     is_muted: ownParticipant
       ? !ownParticipant.notifications_enabled
       : false,
@@ -800,8 +818,16 @@ function toSharedInboxConversation(
         : conversation.other_logo_file_id
     ),
     created_by_id: null,
-    created_at: conversation.last_message_at || '',
-    updated_at: conversation.last_message_at || '',
+    created_at: (
+      conversation.last_message_at
+      || conversation.sort_at
+      || ''
+    ),
+    updated_at: (
+      conversation.last_message_at
+      || conversation.sort_at
+      || ''
+    ),
     last_message_at: conversation.last_message_at,
     last_message: lastMessage,
     participants: [
@@ -811,7 +837,7 @@ function toSharedInboxConversation(
     own_participant: ownParticipant,
     permissions: null,
     unread_count: conversation.unread_count || 0,
-    is_pinned: false,
+    is_pinned: Boolean(conversation.is_pinned),
     is_muted: !conversation.notifications_enabled,
     is_archived: false,
     is_protected: false,
@@ -919,6 +945,7 @@ export async function getChatInbox(
 ): Promise<{
   identity_id: string;
   conversations: ChatConversation[];
+  pinned_conversations: ChatConversation[];
   limit: number;
   next_before_last_message_at: string | null;
 }> {
@@ -944,12 +971,65 @@ export async function getChatInbox(
         identityId,
       ),
     ),
+    pinned_conversations: (
+      response.pinned_conversations || []
+    ).map((conversation) => toSharedInboxConversation(
+      conversation,
+      identityId,
+    )),
     limit: response.limit,
     next_before_last_message_at: (
       response.next_before_last_message_at
     ),
   };
 }
+
+
+export async function getChatUnpinnedInboxByType(
+  auth: AuthCredentials,
+  identityId: string,
+  conversationType: 'direct' | 'group',
+  options: {
+    limit: 5 | 10;
+    beforeSortAt?: string | null;
+    beforeId?: string | null;
+  },
+): Promise<{
+  identity_id: string;
+  conversation_type: 'direct' | 'group';
+  conversations: ChatConversation[];
+  limit: number;
+  has_more: boolean;
+  next_before_sort_at: string | null;
+  next_before_id: string | null;
+}> {
+  const response = await api.get<ChatTypedInboxResponse>(
+    `/chat/inbox/by-type/${buildQuery({
+      identity_id: identityId,
+      conversation_type: conversationType,
+      limit: options.limit,
+      before_sort_at: options.beforeSortAt || undefined,
+      before_id: options.beforeId || undefined,
+    })}`,
+    { auth: requireBearerAuth(auth) },
+  );
+
+  return {
+    identity_id: response.identity_id,
+    conversation_type: response.conversation_type,
+    conversations: response.conversations.map(
+      (conversation) => toSharedInboxConversation(
+        conversation,
+        identityId,
+      ),
+    ),
+    limit: response.limit,
+    has_more: response.has_more,
+    next_before_sort_at: response.next_before_sort_at,
+    next_before_id: response.next_before_id,
+  };
+}
+
 
 export async function searchChatRecipients(
   auth: AuthCredentials,
@@ -1460,6 +1540,26 @@ export async function markChatConversationRead(
       auth: requireBearerAuth(auth),
     },
   );
+}
+
+export async function updateChatConversationPinned(
+  auth: AuthCredentials,
+  conversationId: string,
+  payload: {
+    identity_id: string;
+    is_pinned: boolean;
+  },
+): Promise<{ conversation: ChatConversation }> {
+  const response = await api.patch<{
+    conversation: ChatApiConversation;
+  }>(
+    `${conversationPath(conversationId)}pinned/`,
+    payload,
+    { auth: requireBearerAuth(auth) },
+  );
+  return {
+    conversation: toSharedConversation(response.conversation),
+  };
 }
 
 export async function updateChatConversationNotifications(

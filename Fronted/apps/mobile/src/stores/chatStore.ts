@@ -497,6 +497,31 @@ export async function hydrateChatConversations(
     clearInMemoryChatData();
     activeUserId = normalizedUserId || null;
     activeIdentityId = normalizedIdentityId || null;
+
+    if (normalizedUserId && normalizedIdentityId) {
+      try {
+        const saved = await AsyncStorage.getItem(
+          getArchivedConversationsCacheKey(
+            normalizedUserId,
+            normalizedIdentityId,
+          ),
+        );
+        if (
+          activeUserId === normalizedUserId
+          && activeIdentityId === normalizedIdentityId
+        ) {
+          const parsed: unknown = saved ? JSON.parse(saved) : [];
+          archivedConversationIds = Array.isArray(parsed)
+            ? parsed.filter(
+                (id): id is string => typeof id === 'string',
+              )
+            : [];
+          notifyChatStore({ type: 'conversations' });
+        }
+      } catch {
+        // A cache read failure must not block the inbox.
+      }
+    }
   }
 
   return conversations;
@@ -587,6 +612,10 @@ export async function clearChatMessagesCache(
     messagesByConversationId = remainingMessages;
     messageCacheMetadataByConversationId = remainingMetadata;
   }
+}
+
+export function getActiveChatStoreIdentityId(): string | null {
+  return activeIdentityId;
 }
 
 export function getChatConversations(): ChatConversation[] {
