@@ -2422,18 +2422,27 @@ export function useChatMessages(
         return model;
       }
 
+      const receiptStatus = getChatMessageReceiptStatus(
+        message,
+        participants,
+        message.sender_identity_id || activeIdentityId || '',
+        cursorSequences,
+      );
       return {
         ...model,
-        status: getChatMessageReceiptStatus(
-          message,
-          participants,
-          message.sender_identity_id || activeIdentityId || '',
-          cursorSequences,
+        status: (
+          conversation?.conversation_type === 'direct'
+          && receiptStatus === 'sent'
+          && message.id
+          && typeof message.sequence_number === 'number'
+            ? 'delivered'
+            : receiptStatus
         ),
       };
     });
   }, [
     activeIdentityId,
+    conversation?.conversation_type,
     conversationIsAi,
     currentUserId,
     participants,
