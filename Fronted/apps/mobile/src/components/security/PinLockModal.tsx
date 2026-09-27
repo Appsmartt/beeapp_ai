@@ -3,14 +3,13 @@ import { View, Text, StyleSheet, Modal, TouchableOpacity, ScrollView } from 'rea
 import { colors } from '@beeapp/design-system';
 import { X } from 'lucide-react-native';
 import PinPad from './PinPad';
-import { isPinCorrect } from '../../stores/pinStore';
 
 interface PinLockModalProps {
   visible: boolean;
   itemName?: string;
   onClose: () => void;
   onSuccess: (pin?: string) => void;
-  verifyPin?: (pin: string) => Promise<void>;
+  verifyPin: (pin: string) => Promise<void>;
 }
 
 export default function PinLockModal({ visible, itemName, onClose, onSuccess, verifyPin }: PinLockModalProps) {
@@ -28,36 +27,21 @@ export default function PinLockModal({ visible, itemName, onClose, onSuccess, ve
   const handleComplete = async (pin: string) => {
     if (verifying) return;
 
-    if (verifyPin) {
-      setVerifying(true);
-      setError(null);
-      try {
-        await verifyPin(pin);
-        setSuccess('PIN correcto, abriendo...');
-        onSuccess(pin);
-      } catch (failure) {
-        setSuccess(null);
-        setError(
-          failure instanceof Error
-            ? failure.message
-            : 'No fue posible verificar el PIN. Inténtalo de nuevo.',
-        );
-      } finally {
-        setVerifying(false);
-      }
-      return;
-    }
-
-    if (isPinCorrect(pin)) {
-      setError(null);
+    setVerifying(true);
+    setError(null);
+    try {
+      await verifyPin(pin);
       setSuccess('PIN correcto, abriendo...');
-      setTimeout(() => {
-        setSuccess(null);
-        onSuccess(pin);
-      }, 500);
-    } else {
+      onSuccess(pin);
+    } catch (failure) {
       setSuccess(null);
-      setError('PIN incorrecto. Inténtalo de nuevo.');
+      setError(
+        failure instanceof Error
+          ? failure.message
+          : 'No fue posible verificar el PIN. Inténtalo de nuevo.',
+      );
+    } finally {
+      setVerifying(false);
     }
   };
 

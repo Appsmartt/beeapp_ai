@@ -40,3 +40,27 @@ export function verifyAccountSecurityPin(
     { auth },
   );
 }
+
+
+export function verifyAccountSecurityPinPassword(
+  auth: AuthCredentials,
+  password: string,
+): Promise<AccountSecurityPinVerification> {
+  return api.post<AccountSecurityPinVerification>(
+    '/accounts/me/security-pin/verify-password/',
+    { password },
+    { auth },
+  );
+}
+
+export function replaceAccountSecurityPin(
+  auth: AuthCredentials,
+  password: string,
+  pin: string,
+): Promise<AccountSecurityPinStatus> {
+  return api.post<AccountSecurityPinStatus>(
+    '/accounts/me/security-pin/replace/',
+    { password, pin },
+    { auth },
+  );
+}
