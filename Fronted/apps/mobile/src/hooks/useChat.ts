@@ -934,6 +934,48 @@ export function useChatConversations(
   ]);
 
   useEffect(() => {
+    if (!autoLoad || !paginateInbox || !activeIdentityId) return;
+
+    let cancelled = false;
+    let inFlight = false;
+    let recoveryTimer: ReturnType<typeof setInterval> | null = null;
+
+    const recoverDegradedChatList = async () => {
+      if (cancelled || inFlight || AppState.currentState !== 'active') return;
+      inFlight = true;
+      try {
+        await startChatRealtime();
+        if (!cancelled) {
+          await loadConversations({ network: true });
+        }
+      } catch {
+        // Retry connection and inbox recovery on the next bounded attempt.
+      } finally {
+        inFlight = false;
+      }
+    };
+
+    const unsubscribe = subscribeChatRealtimeStatus((status) => {
+      if (recoveryTimer) {
+        clearInterval(recoveryTimer);
+        recoveryTimer = null;
+      }
+      if (status === 'degraded' && !cancelled) {
+        void recoverDegradedChatList();
+        recoveryTimer = setInterval(() => {
+          void recoverDegradedChatList();
+        }, 15000);
+      }
+    });
+
+    return () => {
+      cancelled = true;
+      unsubscribe();
+      if (recoveryTimer) clearInterval(recoveryTimer);
+    };
+  }, [activeIdentityId, autoLoad, loadConversations, paginateInbox]);
+
+  useEffect(() => {
     return subscribeChatStore((change) => {
       if (
         change.type === 'conversations'
