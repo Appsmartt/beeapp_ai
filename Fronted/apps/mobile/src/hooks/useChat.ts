@@ -1696,9 +1696,12 @@ export function useChatMessages(
       try {
         await Promise.all([
           loadMessages({ network: true }),
-          ...(conversation?.conversation_type === 'direct'
-            ? [loadParticipants()]
-            : []),
+          ...(
+            conversation?.conversation_type === 'direct'
+            || conversation?.conversation_type === 'group'
+              ? [loadParticipants()]
+              : []
+          ),
         ]);
       } catch {
         // El siguiente intento recuperará los cursores del chat abierto.
@@ -2377,6 +2380,12 @@ export function useChatMessages(
           missingIds.map(async (id) => {
             try {
               const { message } = await getChatMessage(token, id);
+              if (
+                conversation?.conversation_type === 'group'
+                && message.conversation_id !== normalizedConversationId
+              ) {
+                return null;
+              }
               return [id, message.sequence_number] as const;
             } catch {
               return null;
@@ -2402,7 +2411,13 @@ export function useChatMessages(
     return () => {
       cancelled = true;
     };
-  }, [participants, rawMessages, remoteCursorSequences]);
+  }, [
+    conversation?.conversation_type,
+    normalizedConversationId,
+    participants,
+    rawMessages,
+    remoteCursorSequences,
+  ]);
 
   const messages = useMemo(() => {
     if (!currentUserId) {
@@ -2438,10 +2453,14 @@ export function useChatMessages(
       return {
         ...model,
         status: (
-          conversation?.conversation_type === 'direct'
+          (
+            conversation?.conversation_type === 'direct'
+            || conversation?.conversation_type === 'group'
+          )
           && receiptStatus === 'sent'
           && message.id
           && typeof message.sequence_number === 'number'
+          && Number.isFinite(message.sequence_number)
             ? 'delivered'
             : receiptStatus
         ),

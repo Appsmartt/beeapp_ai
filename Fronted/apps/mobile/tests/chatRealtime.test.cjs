@@ -91,11 +91,22 @@ test('broadcast nuevo actualiza mensajes, preview y contador del inbox', async (
         else conversations[index] = item;
       },
       updateChatConversationLastMessage: () => {},
+      updateDirectChatReceipt: (conversationId, participants, lastMessage) => {
+        const index = conversations.findIndex((row) => row.id === conversationId);
+        if (index < 0 || conversations[index].conversation_type !== 'direct') return;
+        conversations[index] = {
+          ...conversations[index],
+          participants,
+          last_message: lastMessage || conversations[index].last_message,
+        };
+      },
     },
     './chatReceiptStatus': {
       getChatMessageReceiptStatus: (_message, participants) => {
-        return participants.some((participant) => participant.last_read_message_id === 'message-2')
-          ? 'read' : 'sent';
+        const recipients = participants.filter((participant) => participant.identity_id !== 'identity-own');
+        return recipients.length > 0 && recipients.every(
+          (participant) => participant.last_read_message_id === 'message-2',
+        ) ? 'read' : 'sent';
       },
     },
   };
@@ -158,6 +169,43 @@ test('broadcast nuevo actualiza mensajes, preview y contador del inbox', async (
       }),
     );
     assert.equal(conversations[0].participants[1].last_read_message_id, 'message-2');
+
+    conversations[0] = {
+      ...conversations[0],
+      conversation_type: 'group',
+      last_message: { ...ownMessage, status: 'sent' },
+    };
+    participantRows = [
+      participantRows[0],
+      participantRows[1],
+      {
+        id: 'participant-third', identity_id: 'identity-third',
+        joined_at: '2026-09-01T00:00:00Z',
+        left_at: null, removed_at: null,
+        last_read_message_id: null,
+      },
+    ];
+    broadcast({ payload: {
+      type: 'participant.upsert', conversation_id: 'conversation-1',
+      payload: { reason: 'message_receipt' },
+    } });
+    for (let i = 0; i < 30 && conversations[0].last_message.status !== 'delivered'; i += 1) {
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    }
+    assert.equal(conversations[0].last_message.status, 'delivered');
+    assert.equal(conversations[0].participants.length, 3);
+
+    participantRows[2] = { ...participantRows[2], last_read_message_id: 'message-2' };
+    broadcast({ payload: {
+      type: 'participant.upsert', conversation_id: 'conversation-1',
+      payload: { reason: 'message_receipt' },
+    } });
+    for (let i = 0; i < 30 && conversations[0].last_message.status !== 'read'; i += 1) {
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    }
+    assert.equal(conversations[0].last_message.status, 'read');
+
+    conversations[0] = { ...conversations[0], conversation_type: 'direct' };
     const missedMessage = {
       ...message, id: 'message-3', sequence_number: 3,
       created_at: '2026-09-26T14:02:00Z',

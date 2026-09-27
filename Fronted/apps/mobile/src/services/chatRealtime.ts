@@ -558,11 +558,19 @@ async function applyMessageReceiptBroadcast(
       return;
     }
 
-    const status = getChatMessageReceiptStatus(
+    const receiptStatus = getChatMessageReceiptStatus(
       receiptMessage,
       participants,
       ownIdentityId,
       sequenceById,
+    );
+    const status = (
+      latest.conversation_type === 'group'
+      && receiptStatus === 'sent'
+      && typeof receiptMessage.sequence_number === 'number'
+      && Number.isFinite(receiptMessage.sequence_number)
+        ? 'delivered'
+        : receiptStatus
     );
     const updatedLastMessage = {
       ...latest.last_message,
