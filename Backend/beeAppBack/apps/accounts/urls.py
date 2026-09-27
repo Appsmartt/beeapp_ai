@@ -1,6 +1,9 @@
 from django.urls import path
 
 from apps.accounts.views import (
+    AccountSecurityPinConfigureView,
+    AccountSecurityPinStatusView,
+    AccountSecurityPinVerifyView,
     CurrentProfileView,
     DeviceSessionDetailView,
     DeviceSessionListView,
@@ -71,6 +74,21 @@ urlpatterns = [
         "password-reset/confirm/",
         PasswordResetConfirmView.as_view(),
         name="password-reset-confirm",
+    ),
+    path(
+        "me/security-pin/",
+        AccountSecurityPinStatusView.as_view(),
+        name="account-security-pin-status",
+    ),
+    path(
+        "me/security-pin/configure/",
+        AccountSecurityPinConfigureView.as_view(),
+        name="account-security-pin-configure",
+    ),
+    path(
+        "me/security-pin/verify/",
+        AccountSecurityPinVerifyView.as_view(),
+        name="account-security-pin-verify",
     ),
     path(
         "me/",

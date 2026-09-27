@@ -25,6 +25,7 @@ from apps.accounts.exceptions import (
     QrLoginError,
 )
 from apps.accounts.serializers import (
+    AccountSecurityPinSerializer,
     LoginUserSerializer,
     PasswordResetConfirmSerializer,
     PasswordResetRequestSerializer,
@@ -37,6 +38,12 @@ from apps.accounts.serializers import (
     UpdateProfileAvatarSerializer,
     UpdateProfileSerializer,
     VerifyPhoneOtpSerializer,
+)
+from apps.accounts.services.account_security_pin_service import (
+    AccountSecurityPinStorageError,
+    account_security_pin_is_configured,
+    configure_account_security_pin,
+    verify_account_security_pin,
 )
 from apps.accounts.services.auth_session_service import (
     get_authenticated_user,
@@ -260,6 +267,95 @@ class AuthenticatedAPIView(APIView):
                 "Authentication credentials were invalid or "
                 "the mobile session is no longer active."
             ) from error
+
+
+class AccountSecurityPinStatusView(AuthenticatedAPIView):
+    def get(self, request):
+        try:
+            user, _ = self.get_authenticated_user_and_access_token(request)
+            configured = account_security_pin_is_configured(
+                user_id=str(user.id)
+            )
+        except (AccountAuthenticationError, AuthenticationFailed):
+            return Response(
+                {"detail": "Invalid or expired access token."},
+                status=status.HTTP_401_UNAUTHORIZED,
+            )
+        except AccountSecurityPinStorageError:
+            return Response(
+                {"detail": "PIN service unavailable."},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+        return Response({"configured": configured})
+
+
+class AccountSecurityPinConfigureView(AuthenticatedAPIView):
+    def post(self, request):
+        serializer = AccountSecurityPinSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        try:
+            user, _ = self.get_authenticated_user_and_access_token(request)
+            created = configure_account_security_pin(
+                user_id=str(user.id),
+                pin=serializer.validated_data["pin"],
+            )
+        except (AccountAuthenticationError, AuthenticationFailed):
+            return Response(
+                {"detail": "Invalid or expired access token."},
+                status=status.HTTP_401_UNAUTHORIZED,
+            )
+        except AccountSecurityPinStorageError:
+            return Response(
+                {"detail": "PIN service unavailable."},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+        if not created:
+            return Response(
+                {"detail": "PIN already configured."},
+                status=status.HTTP_409_CONFLICT,
+            )
+        return Response(
+            {"configured": True},
+            status=status.HTTP_201_CREATED,
+        )
+
+
+class AccountSecurityPinVerifyView(AuthenticatedAPIView):
+    def post(self, request):
+        serializer = AccountSecurityPinSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        try:
+            user, _ = self.get_authenticated_user_and_access_token(request)
+            result = verify_account_security_pin(
+                user_id=str(user.id),
+                pin=serializer.validated_data["pin"],
+            )
+        except (AccountAuthenticationError, AuthenticationFailed):
+            return Response(
+                {"detail": "Invalid or expired access token."},
+                status=status.HTTP_401_UNAUTHORIZED,
+            )
+        except AccountSecurityPinStorageError:
+            return Response(
+                {"detail": "PIN service unavailable."},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+        if result == "not_configured":
+            return Response(
+                {"detail": "PIN is not configured."},
+                status=status.HTTP_409_CONFLICT,
+            )
+        if result == "locked":
+            return Response(
+                {"detail": "Too many attempts. Try again later."},
+                status=status.HTTP_429_TOO_MANY_REQUESTS,
+            )
+        if result == "invalid":
+            return Response(
+                {"detail": "Incorrect PIN."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        return Response({"verified": True})
 
 
 class RegisterUserView(APIView):
