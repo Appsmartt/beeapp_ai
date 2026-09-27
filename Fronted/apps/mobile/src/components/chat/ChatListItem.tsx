@@ -126,10 +126,13 @@ export default function ChatListItem({
             </View>
           ) : (
             !isProtected && isOwnLastMessage && (
-              <View style={styles.statusCheck}>
+              <View style={[
+                styles.statusCheck,
+                status === 'read' && styles.readStatusCheck,
+              ]}>
                 {status === 'sent' && <Check size={15} color={colors.neutral.gray500} />}
                 {status === 'delivered' && <CheckCheck size={15} color={colors.neutral.gray600} />}
-                {status === 'read' && <CheckCheck size={15} color={colors.brand.primary} />}
+                {status === 'read' && <CheckCheck size={16} strokeWidth={2.5} color="#087F70" />}
               </View>
             )
           )}
@@ -330,6 +333,12 @@ const styles = StyleSheet.create({
   statusCheck: {
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  readStatusCheck: {
+    backgroundColor: '#DDF7EF',
+    borderRadius: 7,
+    paddingHorizontal: 4,
+    paddingVertical: 2,
   },
   moreBtn: {
     alignItems: 'center',
