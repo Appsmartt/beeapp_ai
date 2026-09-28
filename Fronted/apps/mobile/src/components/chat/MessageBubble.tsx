@@ -26,6 +26,7 @@ import {
 } from 'lucide-react-native';
 import { colors } from '@beeapp/design-system';
 import VerifiedBadge from '../VerifiedBadge';
+import { getChatVideoThumbnail } from '../../services/chatVideoThumbnail';
 import AiCatalogCards from './AiCatalogCards';
 import StatusStoryReplyPreview from './StatusStoryReplyPreview';
 import type {
@@ -122,6 +123,22 @@ export default function MessageBubble({
   onContactCatalogItem,
 }: MessageBubbleProps) {
   const soundRef = useRef<Audio.Sound | null>(null);
+  const [videoThumbnailUri, setVideoThumbnailUri] = useState<string | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    setVideoThumbnailUri(null);
+    if (type === 'file' && isVideoFile && messageId && mediaUrl) {
+      void getChatVideoThumbnail(messageId, mediaUrl).then((uri) => {
+        if (active) {
+          setVideoThumbnailUri(uri);
+        }
+      });
+    }
+    return () => {
+      active = false;
+    };
+  }, [type, isVideoFile, messageId, mediaUrl]);
   const [isPlaying, setIsPlaying] = useState(false);
   const [playbackDuration, setPlaybackDuration] = useState<
     string | null
@@ -478,7 +495,7 @@ export default function MessageBubble({
 
               {type === 'file' ? (
                 <TouchableOpacity
-                  style={styles.fileRow}
+                  style={isVideoFile ? styles.videoPreview : styles.fileRow}
                   onPress={onPressFile}
                   disabled={!onPressFile}
                   accessibilityRole="button"
@@ -486,9 +503,16 @@ export default function MessageBubble({
                     isVideoFile ? 'Reproducir video del chat' : 'Abrir archivo del chat'
                   }
                 >
+                  {isVideoFile && videoThumbnailUri ? (
+                    <Image
+                      source={{ uri: videoThumbnailUri }}
+                      style={styles.videoThumbnail}
+                      resizeMode="cover"
+                    />
+                  ) : null}
                   <View
                     style={[
-                      styles.fileIconWrap,
+                      isVideoFile ? styles.videoIconWrap : styles.fileIconWrap,
                       isUser
                         ? styles.fileIconWrapUser
                         : styles.fileIconWrapOther,
@@ -507,18 +531,20 @@ export default function MessageBubble({
                     )}
                   </View>
 
-                  <View style={styles.flex}>
-                    <Text
-                      style={[
-                        styles.fileName,
-                        isUser
-                          ? styles.textUser
-                          : styles.textOther,
-                      ]}
-                      numberOfLines={1}
-                    >
-                      {fileName || 'Archivo adjunto'}
-                    </Text>
+                  <View style={isVideoFile ? styles.videoDetails : styles.flex}>
+                    {!isVideoFile ? (
+                      <Text
+                        style={[
+                          styles.fileName,
+                          isUser
+                            ? styles.textUser
+                            : styles.textOther,
+                        ]}
+                        numberOfLines={1}
+                      >
+                        {fileName || 'Archivo adjunto'}
+                      </Text>
+                    ) : null}
 
                     <Text
                       style={[
@@ -884,6 +910,37 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     paddingVertical: 4,
     width: 200,
+  },
+  videoPreview: {
+    backgroundColor: '#29263F',
+    borderRadius: 12,
+    height: 140,
+    overflow: 'hidden',
+    width: 200,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  videoThumbnail: {
+    ...StyleSheet.absoluteFillObject,
+    height: '100%',
+    width: '100%',
+  },
+  videoIconWrap: {
+    alignItems: 'center',
+    backgroundColor: 'rgba(31, 26, 53, 0.72)',
+    borderRadius: 24,
+    height: 48,
+    justifyContent: 'center',
+    width: 48,
+  },
+  videoDetails: {
+    backgroundColor: 'rgba(31, 26, 53, 0.76)',
+    bottom: 0,
+    left: 0,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    position: 'absolute',
+    right: 0,
   },
   fileIconWrap: {
     alignItems: 'center',

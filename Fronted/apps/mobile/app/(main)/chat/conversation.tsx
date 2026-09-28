@@ -21,7 +21,6 @@ import {
 } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import * as DocumentPicker from 'expo-document-picker';
-import * as FileSystem from 'expo-file-system';
 import * as ImagePicker from 'expo-image-picker';
 import { Camera as ExpoCamera } from 'expo-camera';
 import {
@@ -51,6 +50,7 @@ import {
 import PinLockModal from '../../../src/components/security/PinLockModal';
 import MessageBubble from '../../../src/components/chat/MessageBubble';
 import ChatImageViewerModal from '../../../src/components/chat/ChatImageViewerModal';
+import ChatVideoViewerModal from '../../../src/components/chat/ChatVideoViewerModal';
 import StatusCameraModal from '../../../src/components/chat/status/StatusCameraModal';
 import StatusViewer from '../../../src/components/chat/StatusViewer';
 import WriteBar from '../../../src/components/chat/WriteBar';
@@ -77,6 +77,8 @@ import {
 import {
   type UploadableChatAttachment,
 } from '../../../src/services/chatAttachmentService';
+import { prepareChatMediaForUpload } from '../../../src/services/chatMediaPreparation';
+import { removeTemporaryStatusVideo } from '../../../src/services/statusVideoTranscoder';
 import type {
   RecordedVoiceNote,
 } from '../../../src/components/chat/WriteBar';
@@ -451,6 +453,11 @@ function ConversationContent() {
   const [forwardModalOpen, setForwardModalOpen] =
     useState(false);
   const [viewingChatImage, setViewingChatImage] = useState<{
+    messageId: string;
+    url: string;
+    caption?: string;
+  } | null>(null);
+  const [viewingChatVideo, setViewingChatVideo] = useState<{
     messageId: string;
     url: string;
     caption?: string;
@@ -1263,11 +1270,20 @@ function ConversationContent() {
     attachment: UploadableChatAttachment,
     content = '',
   ) => {
+    let temporaryVideoUri: string | null = null;
     try {
       setUploadingAttachment(true);
+      const preparedAttachment = (
+        attachment.kind === 'image' || attachment.kind === 'video'
+          ? await prepareChatMediaForUpload(attachment)
+          : attachment
+      );
+      if (attachment.kind === 'video') {
+        temporaryVideoUri = preparedAttachment.uri;
+      }
 
       await sendAttachmentMessage({
-        attachment,
+        attachment: preparedAttachment,
         content,
         replyToId: replyTarget?.id || null,
       });
@@ -1282,6 +1298,7 @@ function ConversationContent() {
           : 'Inténtalo nuevamente.',
       );
     } finally {
+      await removeTemporaryStatusVideo(temporaryVideoUri);
       setUploadingAttachment(false);
     }
   };
@@ -1404,54 +1421,35 @@ function ConversationContent() {
           || `chat-media-${Date.now()}.${fallbackExtension}`,
         ).trim();
         const extension = name.split('.').pop()?.toLowerCase() || '';
-        const allowedMimeByExtension: Record<string, string> = isVideo
-          ? { mp4: 'video/mp4' }
-          : {
-              jpg: 'image/jpeg',
-              jpeg: 'image/jpeg',
-              png: 'image/png',
-              webp: 'image/webp',
-            };
+        const allowedMimeByExtension: Record<string, string> = {
+          jpg: 'image/jpeg',
+          jpeg: 'image/jpeg',
+          png: 'image/png',
+          webp: 'image/webp',
+        };
         const expectedMime = allowedMimeByExtension[extension];
 
         if (
           !name
           || name.length > 255
-          || !expectedMime
-          || (mimeType && mimeType !== expectedMime)
+          || (
+            !isVideo
+            && (!expectedMime || (mimeType && mimeType !== expectedMime))
+          )
+          || (isVideo && mimeType && !mimeType.startsWith('video/'))
         ) {
           throw new Error(
             isVideo
-              ? 'Por ahora selecciona un video MP4 compatible.'
+              ? 'Selecciona un video compatible.'
               : 'Selecciona una imagen JPEG, PNG o WebP compatible.',
-          );
-        }
-
-        const fileInfo = typeof asset.fileSize === 'number'
-          ? null
-          : await FileSystem.getInfoAsync(asset.uri);
-        const sizeBytes = typeof asset.fileSize === 'number'
-          ? asset.fileSize
-          : fileInfo?.exists
-            ? fileInfo.size
-            : undefined;
-
-        if (
-          typeof sizeBytes !== 'number'
-          || !Number.isFinite(sizeBytes)
-          || sizeBytes <= 0
-          || sizeBytes > 52_428_800
-        ) {
-          throw new Error(
-            'La foto o el video debe pesar entre 1 byte y 50 MiB.',
           );
         }
 
         await sendChatAttachment({
           uri: asset.uri,
           name,
-          mimeType: expectedMime,
-          sizeBytes,
+          mimeType: isVideo ? (mimeType || 'video/mp4') : expectedMime,
+          sizeBytes: null,
           kind: isVideo ? 'video' : 'image',
         });
 
@@ -2251,6 +2249,14 @@ function ConversationContent() {
                           if (!/^https:\/\//i.test(url)) {
                             throw new Error('No hay un enlace seguro para este adjunto.');
                           }
+                          if (isVideo) {
+                            setViewingChatVideo({
+                              messageId: message.id,
+                              url,
+                              caption: message.text,
+                            });
+                            return;
+                          }
                           if (!await Linking.canOpenURL(url)) {
                             throw new Error('Este dispositivo no puede abrir el adjunto.');
                           }
@@ -2478,21 +2484,11 @@ function ConversationContent() {
             setChatCameraOpen(false);
             void (async () => {
               try {
-                const info = await FileSystem.getInfoAsync(capturedMedia.uri);
-                if (
-                  !info.exists
-                  || typeof info.size !== 'number'
-                  || info.size <= 0
-                  || info.size > 52_428_800
-                ) {
-                  throw new Error('La captura debe pesar entre 1 byte y 50 MiB.');
-                }
-
                 await sendChatAttachment({
                   uri: capturedMedia.uri,
                   name: capturedMedia.fileName,
                   mimeType: capturedMedia.mimeType,
-                  sizeBytes: info.size,
+                  sizeBytes: null,
                   kind: capturedMedia.duration === null ? 'image' : 'video',
                 });
               } catch (captureError) {
@@ -2515,6 +2511,11 @@ function ConversationContent() {
           image={viewingChatImage}
           identityId={activeIdentityId}
           onClose={() => setViewingChatImage(null)}
+        />
+        <ChatVideoViewerModal
+          video={viewingChatVideo}
+          identityId={activeIdentityId}
+          onClose={() => setViewingChatVideo(null)}
         />
 
         <ChatMessageMenuModal
