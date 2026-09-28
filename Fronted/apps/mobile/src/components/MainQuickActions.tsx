@@ -2,7 +2,6 @@ import { useState } from "react";
 import { useRouter } from "expo-router";
 import { StyleSheet, TouchableOpacity, View } from "react-native";
 import {
-  ShoppingCart,
   ShoppingBag,
   Sparkles,
   Store,
@@ -22,8 +21,9 @@ export default function MainQuickActions() {
         <TouchableOpacity
           style={[styles.actionButton, styles.profileButton]}
           activeOpacity={0.76}
-          accessibilityLabel="Perfil"
-          accessibilityHint="Próximamente"
+          onPress={() => router.push("/(main)/profile/edit")}
+          accessibilityLabel="Editar perfil"
+          accessibilityHint="Abre la pantalla de edición del perfil"
         >
           <UserRound size={22} color="#7C6AA5" strokeWidth={2.1} />
         </TouchableOpacity>
