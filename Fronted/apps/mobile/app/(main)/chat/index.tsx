@@ -113,8 +113,15 @@ import type {
   StatusImageLayerUpload,
 } from '@beeapp/shared-types';
 import {
+  getAuthSession,
   getValidSessionCredentials,
 } from '../../../src/services/authSession';
+import {
+  readCachedChatInboxMetadata,
+  readCachedProtectedChatIds,
+  writeCachedChatInboxMetadata,
+  writeCachedProtectedChatIds,
+} from '../../../src/services/chatInboxCache';
 import {
   getProfileAvatarUrl,
 } from '../../../src/services/profileAvatarService';
@@ -256,6 +263,7 @@ export default function ChatListScreen() {
   const [categoryAssignments, setCategoryAssignments] = useState<Record<string, string[]>>({});
   const [categoryIdentityId, setCategoryIdentityId] = useState<string | null>(null);
   const categoryLoadedIdentity = useRef<string | null>(null);
+  const categoryMutationVersion = useRef(0);
   const [activeCategoryId, setActiveCategoryId] = useState<string | null>(null);
   const [categoryRefresh, setCategoryRefresh] = useState(0);
   useFocusEffect(useCallback(() => {
@@ -276,6 +284,7 @@ export default function ChatListScreen() {
 
   useEffect(() => {
     let cancelled = false;
+    const mutationVersion = categoryMutationVersion.current;
     if (categoryLoadedIdentity.current !== activeIdentityId) {
       categoryLoadedIdentity.current = activeIdentityId;
       setCategoryIdentityId(null);
@@ -290,8 +299,25 @@ export default function ChatListScreen() {
 
     const loadCategories = async () => {
       try {
+        const session = await getAuthSession();
+        if (!session || cancelled) return;
+        const userId = session.user.id;
+        const cached = await readCachedChatInboxMetadata(
+          userId,
+          activeIdentityId,
+        );
+        if (
+          !cancelled
+          && mutationVersion === categoryMutationVersion.current
+          && cached
+        ) {
+          setChatCategories(cached.categories);
+          setCategoryAssignments(cached.assignments);
+          setCategoryIdentityId(activeIdentityId);
+        }
+
         const auth = await getValidSessionCredentials();
-        if (!auth || auth.scheme !== 'Bearer') return;
+        if (!auth || auth.scheme !== 'Bearer' || cancelled) return;
         const categoryResponse = await listChatCategories(auth, activeIdentityId);
         const chunks: string[][] = [];
         for (let index = 0; index < categoryConversationIds.length; index += 100) {
@@ -300,7 +326,10 @@ export default function ChatListScreen() {
         const responses = await Promise.all(
           chunks.map((ids) => listChatCategoryAssignments(auth, activeIdentityId, ids)),
         );
-        if (cancelled) return;
+        if (
+          cancelled
+          || mutationVersion !== categoryMutationVersion.current
+        ) return;
         const next: Record<string, string[]> = {};
         responses.flatMap((response) => response.assignments).forEach((entry) => {
           (next[entry.conversation_id] ||= []).push(entry.category_id);
@@ -308,9 +337,15 @@ export default function ChatListScreen() {
         setChatCategories(categoryResponse.categories);
         setCategoryAssignments(next);
         setCategoryIdentityId(activeIdentityId);
+        void writeCachedChatInboxMetadata(userId, activeIdentityId, {
+          categories: categoryResponse.categories,
+          assignments: next,
+        });
       } catch (categoryError) {
         if (!cancelled) {
-          setCategoryIdentityId(null);
+          setCategoryIdentityId((current) => (
+            current === activeIdentityId ? current : null
+          ));
           Alert.alert(
             'No fue posible cargar las categorías',
             categoryError instanceof Error ? categoryError.message : 'Inténtalo nuevamente.',
@@ -606,8 +641,10 @@ export default function ChatListScreen() {
     string | null
   >(null);
   const [protectionLoaded, setProtectionLoaded] = useState(false);
+  const [cachedProtectionUserId, setCachedProtectionUserId] = useState<string | null>(null);
   const [protectionError, setProtectionError] = useState<string | null>(null);
   const [protectionRefresh, setProtectionRefresh] = useState(0);
+  const protectionMutationVersion = useRef(0);
 
   useFocusEffect(
     useCallback(() => {
@@ -619,20 +656,38 @@ export default function ChatListScreen() {
 
   useEffect(() => {
     let cancelled = false;
+    const mutationVersion = protectionMutationVersion.current;
     setProtectionLoaded(false);
+    setCachedProtectionUserId(null);
     setProtectionError(null);
 
     const loadProtection = async () => {
       try {
+        const session = await getAuthSession();
+        if (!session || cancelled) {
+          if (!cancelled) throw new Error('Inicia sesión para cargar los chats protegidos.');
+          return;
+        }
+        const userId = session.user.id;
+        const cachedIds = await readCachedProtectedChatIds(userId);
+        if (cancelled || mutationVersion !== protectionMutationVersion.current) return;
+        if (cachedIds) {
+          setProtectedChatIds(new Set(cachedIds));
+          setProtectionIdentityId(activeIdentityId);
+          setCachedProtectionUserId(userId);
+        }
         const auth = await getValidSessionCredentials();
         if (!auth) throw new Error('Inicia sesión para cargar los chats protegidos.');
         const result = await listProtectedChats(auth);
-        if (cancelled) return;
+        if (cancelled || mutationVersion !== protectionMutationVersion.current) return;
         setProtectedChatIds(new Set(result.conversation_ids));
         setProtectionIdentityId(activeIdentityId);
+        setCachedProtectionUserId(userId);
         setProtectionLoaded(true);
+        void writeCachedProtectedChatIds(userId, result.conversation_ids);
       } catch (failure) {
-        if (cancelled) return;
+        if (cancelled || mutationVersion !== protectionMutationVersion.current) return;
+        setCachedProtectionUserId(null);
         setProtectionError(
           failure instanceof Error
             ? failure.message
@@ -797,11 +852,17 @@ export default function ChatListScreen() {
       return;
     }
 
-    setProtectedChatIds((current) => {
-      const next = new Set(current);
-      next.delete(action.chat!.id);
-      return next;
-    });
+    protectionMutationVersion.current += 1;
+    const nextProtectedIds = new Set(protectedChatIds);
+    nextProtectedIds.delete(action.chat.id);
+    setProtectedChatIds(nextProtectedIds);
+    if (cachedProtectionUserId) {
+      void writeCachedProtectedChatIds(
+        cachedProtectionUserId,
+        [...nextProtectedIds],
+      );
+    }
+    setProtectionRefresh((value) => value + 1);
     Alert.alert(
       'Protección removida',
       'El chat ya no requiere PIN para abrirse.',
@@ -846,7 +907,16 @@ export default function ChatListScreen() {
       }
 
       await protectChatWithPin(auth, chat.id);
-      setProtectedChatIds((current) => new Set(current).add(chat.id));
+      protectionMutationVersion.current += 1;
+      const nextProtectedIds = new Set(protectedChatIds).add(chat.id);
+      setProtectedChatIds(nextProtectedIds);
+      if (cachedProtectionUserId) {
+        void writeCachedProtectedChatIds(
+          cachedProtectionUserId,
+          [...nextProtectedIds],
+        );
+      }
+      setProtectionRefresh((value) => value + 1);
       Alert.alert('Chat protegido', 'El chat quedó protegido con tu PIN.');
     } catch (failure) {
       Alert.alert(
@@ -1257,7 +1327,15 @@ export default function ChatListScreen() {
         icon: draft.icon,
         color: draft.color,
       });
-      setChatCategories((current) => [...current, response.category]);
+      categoryMutationVersion.current += 1;
+      const nextCategories = [...chatCategories, response.category];
+      setChatCategories(nextCategories);
+      const session = await getAuthSession();
+      if (session) void writeCachedChatInboxMetadata(
+        session.user.id,
+        activeIdentityId,
+        { categories: nextCategories, assignments: categoryAssignments },
+      );
       setCategoryRefresh((value) => value + 1);
       setCreatingCategory(false);
       if (!returnToAssignment) setActiveCategoryId(response.category.id);
@@ -1287,12 +1365,23 @@ export default function ChatListScreen() {
                 const auth = await getValidSessionCredentials();
                 if (!auth || auth.scheme !== 'Bearer') throw new Error('Tu sesión expiró.');
                 await deleteChatCategory(auth, activeIdentityId, category.id);
-                setChatCategories((current) => current.filter((entry) => entry.id !== category.id));
-                setCategoryAssignments((current) => Object.fromEntries(
-                  Object.entries(current).map(([id, ids]) => [
+                categoryMutationVersion.current += 1;
+                const nextCategories = chatCategories.filter(
+                  (entry) => entry.id !== category.id,
+                );
+                const nextAssignments = Object.fromEntries(
+                  Object.entries(categoryAssignments).map(([id, ids]) => [
                     id, ids.filter((categoryId) => categoryId !== category.id),
                   ]),
-                ));
+                );
+                setChatCategories(nextCategories);
+                setCategoryAssignments(nextAssignments);
+                const session = await getAuthSession();
+                if (session) void writeCachedChatInboxMetadata(
+                  session.user.id,
+                  activeIdentityId,
+                  { categories: nextCategories, assignments: nextAssignments },
+                );
                 setActiveCategoryId((current) => current === category.id ? null : current);
                 setCategoryRefresh((value) => value + 1);
               } catch (categoryError) {
@@ -1318,9 +1407,18 @@ export default function ChatListScreen() {
       const response = await saveChatConversationCategories(
         auth, activeIdentityId, chat.id, categoryIds,
       );
-      setCategoryAssignments((current) => ({
-        ...current, [chat.id]: response.category_ids,
-      }));
+      categoryMutationVersion.current += 1;
+      const nextAssignments = {
+        ...categoryAssignments,
+        [chat.id]: response.category_ids,
+      };
+      setCategoryAssignments(nextAssignments);
+      const session = await getAuthSession();
+      if (session) void writeCachedChatInboxMetadata(
+        session.user.id,
+        activeIdentityId,
+        { categories: chatCategories, assignments: nextAssignments },
+      );
       setCategoryRefresh((value) => value + 1);
       setAssigningChat(null);
     } catch (categoryError) {
@@ -1358,9 +1456,22 @@ export default function ChatListScreen() {
     && !protectionError
   );
 
+  const previewProtectionReady = Boolean(
+    protectionReady
+    || (
+      cachedProtectionUserId
+      && protectionIdentityId === activeIdentityId
+      && !protectionError
+    )
+  );
+
   const chatsWithLivePresence = visibleListChats.map((chat) => ({
     ...chat,
-    isProtected: protectionReady ? chat.isProtected : true,
+    isProtected: protectionReady
+      ? chat.isProtected
+      : previewProtectionReady
+        ? protectedChatIds.has(chat.id)
+        : true,
     lastMessage: protectionReady ? chat.lastMessage : 'Chat protegido',
     unreadCount: protectionReady ? chat.unreadCount : 0,
     online: Boolean(
