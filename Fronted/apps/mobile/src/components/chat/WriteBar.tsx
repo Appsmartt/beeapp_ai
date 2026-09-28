@@ -24,7 +24,6 @@ import {
   Mic,
   Paperclip,
   Send,
-  User,
   X,
 } from 'lucide-react-native';
 import {
@@ -53,7 +52,7 @@ interface WriteBarProps {
     voiceNote: RecordedVoiceNote,
   ) => void;
   onSendAttachment: (
-    type: 'photo' | 'camera' | 'file' | 'location' | 'contact',
+    type: 'photo' | 'camera' | 'file' | 'location',
   ) => void;
   pendingAttachment?: PendingChatAttachment | null;
   onRemovePendingAttachment?: () => void;
@@ -384,7 +383,7 @@ export default function WriteBar({
   };
 
   const handleAttachItemClick = (
-    type: 'photo' | 'camera' | 'file' | 'location' | 'contact',
+    type: 'photo' | 'camera' | 'file' | 'location',
   ) => {
     if (disabled || uploadingAttachment) {
       return;
@@ -459,7 +458,7 @@ export default function WriteBar({
               />
             </View>
 
-            <Text style={styles.attachText}>Fotos</Text>
+            <Text style={styles.attachText}>Fotos y videos</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -509,22 +508,6 @@ export default function WriteBar({
             </Text>
           </TouchableOpacity>
 
-          <TouchableOpacity
-            style={styles.attachPanelItem}
-            onPress={() => handleAttachItemClick('contact')}
-            disabled
-          >
-            <View style={styles.attachIconWrap}>
-              <User
-                size={18}
-                color={colors.neutral.gray400}
-              />
-            </View>
-
-            <Text style={styles.attachTextDisabled}>
-              Contacto
-            </Text>
-          </TouchableOpacity>
         </View>
       ) : null}
 

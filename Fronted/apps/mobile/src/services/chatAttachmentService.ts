@@ -10,6 +10,7 @@ const MAX_CHAT_ATTACHMENT_SIZE_BYTES = 52_428_800;
 
 export type ChatAttachmentKind =
   | 'image'
+  | 'video'
   | 'document'
   | 'audio';
 
@@ -29,6 +30,10 @@ function getFallbackName(
     return 'imagen.jpg';
   }
 
+  if (kind === 'video') {
+    return 'video.mp4';
+  }
+
   if (kind === 'audio') {
     return 'nota-de-voz.m4a';
   }
@@ -41,6 +46,10 @@ function getFallbackMimeType(
 ): string {
   if (kind === 'image') {
     return 'image/jpeg';
+  }
+
+  if (kind === 'video') {
+    return 'video/mp4';
   }
 
   if (kind === 'audio') {

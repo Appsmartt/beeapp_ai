@@ -70,6 +70,8 @@ interface MessageBubbleProps {
   onLongPress?: () => void;
   onReplySwipe?: () => void;
   onPressImage?: () => void;
+  onPressFile?: () => void;
+  isVideoFile?: boolean;
   onContactCatalogItem?: (
     item: AiSearchResult,
   ) => void;
@@ -115,6 +117,8 @@ export default function MessageBubble({
   onLongPress,
   onReplySwipe,
   onPressImage,
+  onPressFile,
+  isVideoFile = false,
   onContactCatalogItem,
 }: MessageBubbleProps) {
   const soundRef = useRef<Audio.Sound | null>(null);
@@ -473,7 +477,15 @@ export default function MessageBubble({
               ) : null}
 
               {type === 'file' ? (
-                <View style={styles.fileRow}>
+                <TouchableOpacity
+                  style={styles.fileRow}
+                  onPress={onPressFile}
+                  disabled={!onPressFile}
+                  accessibilityRole="button"
+                  accessibilityLabel={
+                    isVideoFile ? 'Reproducir video del chat' : 'Abrir archivo del chat'
+                  }
+                >
                   <View
                     style={[
                       styles.fileIconWrap,
@@ -482,14 +494,17 @@ export default function MessageBubble({
                         : styles.fileIconWrapOther,
                     ]}
                   >
-                    <FileText
-                      size={20}
-                      color={
-                        isUser
-                          ? colors.brand.primary
-                          : colors.neutral.white
-                      }
-                    />
+                    {isVideoFile ? (
+                      <Play
+                        size={20}
+                        color={isUser ? colors.brand.primary : colors.neutral.white}
+                      />
+                    ) : (
+                      <FileText
+                        size={20}
+                        color={isUser ? colors.brand.primary : colors.neutral.white}
+                      />
+                    )}
                   </View>
 
                   <View style={styles.flex}>
@@ -518,7 +533,7 @@ export default function MessageBubble({
                       {fileSize || 'Archivo'}
                     </Text>
                   </View>
-                </View>
+                </TouchableOpacity>
               ) : null}
 
               {type === 'audio' ? (
