@@ -28,6 +28,7 @@ import {
   getChatContactProfile,
   getChatMessageAttachmentAccess,
   getChatPinProtection,
+  updateChatConversationNotifications,
   verifyAccountSecurityPin,
   markChatConversationRead,
   getStorageFileAccess,
@@ -412,6 +413,8 @@ function ConversationContent() {
 
   const [menuOpen, setMenuOpen] =
     useState(false);
+  const [isUpdatingMute, setIsUpdatingMute] = useState(false);
+  const muteInFlightRef = useRef(false);
 
   const [catalogVisible, setCatalogVisible] =
     useState(false);
@@ -1559,30 +1562,49 @@ function ConversationContent() {
     }
   };
 
-  const handleClearChat = () => {
-    Alert.alert(
-      'Vaciar chat',
-      (
-        'Tu backend actual no expone una acción para '
-        + 'vaciar todos los mensajes de una conversación.'
-      ),
-    );
-  };
+  const handleToggleMute = async () => {
+    if (muteInFlightRef.current) return;
+    if (!activeIdentityId || !conversation) {
+      Alert.alert(
+        'No fue posible actualizar el chat',
+        'Espera a que termine de cargar e inténtalo nuevamente.',
+      );
+      return;
+    }
 
-  const handleDeleteChat = () => {
-    Alert.alert(
-      'Eliminar chat',
-      (
-        'Puedes eliminar el chat desde el menú de la lista '
-        + 'principal de Chats.'
-      ),
-      [
+    const nextNotificationsEnabled = Boolean(conversation.is_muted);
+    muteInFlightRef.current = true;
+    setIsUpdatingMute(true);
+    try {
+      const auth = await getValidSessionCredentials();
+      if (!auth) {
+        throw new Error('Tu sesión expiró. Inicia sesión nuevamente.');
+      }
+      const response = await updateChatConversationNotifications(
+        auth,
+        chatId,
         {
-          text: 'Aceptar',
-          onPress: () => router.back(),
+          identity_id: activeIdentityId,
+          notifications_enabled: nextNotificationsEnabled,
         },
-      ],
-    );
+      );
+      const cachedConversation = getChatConversations().find(
+        (item) => item.id === chatId,
+      );
+      upsertChatConversation({
+        ...(cachedConversation || conversation),
+        is_muted: !response.conversation.own_participant?.notifications_enabled,
+        own_participant: response.conversation.own_participant,
+      });
+    } catch (failure) {
+      Alert.alert(
+        'No fue posible actualizar las notificaciones',
+        failure instanceof Error ? failure.message : 'Inténtalo nuevamente.',
+      );
+    } finally {
+      muteInFlightRef.current = false;
+      setIsUpdatingMute(false);
+    }
   };
 
   if (!chatId) {
@@ -1789,55 +1811,14 @@ function ConversationContent() {
 
         <ConversationOverlayMenu
           visible={menuOpen}
+          isMuted={Boolean(conversation?.is_muted)}
+          isUpdatingMute={isUpdatingMute}
           onClose={() => {
             setMenuOpen(false);
           }}
-          onViewInfo={() => {
-            if (isAI) {
-              return;
-            }
-
-            if (!isGroup) {
-              if (!contactIdentityId) {
-                Alert.alert(
-                  'Cargando contacto',
-                  'Espera un momento e inténtalo otra vez.',
-                );
-                return;
-              }
-
-              router.push({
-                pathname: '/(main)/contacts/detail',
-                params: {
-                  id: contactIdentityId,
-                  displayName: contactDisplayName,
-                  avatarUrl: contactAvatarUrl,
-                },
-              });
-              return;
-            }
-
-            router.push({
-              pathname: '/(main)/chat/chat-profile',
-              params: {
-                id: chatId,
-                ...(isCommercialContext
-                  ? {
-                      context: 'commercial',
-                      businessId,
-                      identityId: requestedIdentityId || '',
-                    }
-                  : {}),
-              },
-            });
+          onToggleMute={() => {
+            void handleToggleMute();
           }}
-          onMute={() => {
-            showToast(
-              'La opción de silenciar está disponible desde la lista de chats.',
-            );
-          }}
-          onClear={handleClearChat}
-          onDelete={handleDeleteChat}
         />
 
         {isSellerChat ? (
