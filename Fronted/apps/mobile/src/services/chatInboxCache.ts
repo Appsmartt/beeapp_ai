@@ -180,6 +180,132 @@ export function writeChatInboxCache(
   }, 250);
 }
 
+export type CachedChatCategory = {
+  id: string;
+  name: string;
+  icon: string;
+  color: string;
+  created_at: string;
+};
+
+export type CachedChatInboxMetadata = {
+  categories: CachedChatCategory[];
+  assignments: Record<string, string[]>;
+};
+
+function metadataKey(userId: string, identityId: string): string {
+  return `${cacheKey(userId, identityId)}.metadata`;
+}
+
+function protectedChatsKey(userId: string): string {
+  return `${CACHE_PREFIX}${encodeURIComponent(userId)}.protected-chats`;
+}
+
+export async function readCachedChatInboxMetadata(
+  userId: string,
+  identityId: string,
+): Promise<CachedChatInboxMetadata | null> {
+  if (!userId.trim() || !identityId.trim()) return null;
+  try {
+    await pendingWrite;
+    const stored = await AsyncStorage.getItem(metadataKey(userId, identityId));
+    if (!stored) return null;
+    const parsed = JSON.parse(stored);
+    if (
+      parsed?.version !== CACHE_VERSION
+      || parsed.userId !== userId
+      || parsed.identityId !== identityId
+      || !Array.isArray(parsed.categories)
+      || !parsed.assignments
+      || typeof parsed.assignments !== 'object'
+      || Array.isArray(parsed.assignments)
+      || !parsed.categories.every((category: CachedChatCategory) => (
+        typeof category?.id === 'string'
+        && typeof category.name === 'string'
+        && typeof category.icon === 'string'
+        && typeof category.color === 'string'
+        && typeof category.created_at === 'string'
+      ))
+      || !Object.values(parsed.assignments).every((ids) => (
+        Array.isArray(ids)
+        && ids.every((id) => typeof id === 'string')
+      ))
+    ) return null;
+    return {
+      categories: parsed.categories,
+      assignments: parsed.assignments,
+    };
+  } catch {
+    return null;
+  }
+}
+
+export async function writeCachedChatInboxMetadata(
+  userId: string,
+  identityId: string,
+  metadata: CachedChatInboxMetadata,
+): Promise<void> {
+  if (!userId.trim() || !identityId.trim()) return;
+  const generation = cacheGeneration;
+  const value = JSON.stringify({
+    version: CACHE_VERSION,
+    userId,
+    identityId,
+    categories: metadata.categories,
+    assignments: metadata.assignments,
+  });
+  pendingWrite = pendingWrite.catch(() => {}).then(async () => {
+    if (generation === cacheGeneration) {
+      await AsyncStorage.setItem(metadataKey(userId, identityId), value);
+    }
+  }).catch(() => {
+    // Metadata cache failures must not block the inbox.
+  });
+  await pendingWrite;
+}
+
+export async function readCachedProtectedChatIds(
+  userId: string,
+): Promise<string[] | null> {
+  if (!userId.trim()) return null;
+  try {
+    await pendingWrite;
+    const stored = await AsyncStorage.getItem(protectedChatsKey(userId));
+    if (!stored) return null;
+    const parsed = JSON.parse(stored);
+    if (
+      parsed?.version !== CACHE_VERSION
+      || parsed.userId !== userId
+      || !Array.isArray(parsed.conversationIds)
+      || !parsed.conversationIds.every((id: unknown) => typeof id === 'string')
+    ) return null;
+    return parsed.conversationIds;
+  } catch {
+    return null;
+  }
+}
+
+export async function writeCachedProtectedChatIds(
+  userId: string,
+  conversationIds: string[],
+): Promise<void> {
+  if (!userId.trim()) return;
+  const generation = cacheGeneration;
+  const value = JSON.stringify({
+    version: CACHE_VERSION,
+    userId,
+    conversationIds,
+  });
+  pendingWrite = pendingWrite.catch(() => {}).then(async () => {
+    if (generation === cacheGeneration) {
+      await AsyncStorage.setItem(protectedChatsKey(userId), value);
+    }
+  }).catch(() => {
+    // Protection cache failures must not block the inbox.
+  });
+  await pendingWrite;
+}
+
 export async function clearChatInboxCache(userId?: string): Promise<void> {
   cacheGeneration += 1;
   if (writeTimer) clearTimeout(writeTimer);
