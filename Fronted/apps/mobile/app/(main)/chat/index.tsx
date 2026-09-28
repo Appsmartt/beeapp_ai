@@ -1345,10 +1345,21 @@ export default function ChatListScreen() {
     activeIdentityId,
     visibleListChats,
   );
+  const protectionReady = Boolean(
+    activeIdentityId
+    && protectionLoaded
+    && protectionIdentityId === activeIdentityId
+    && !protectionError
+  );
+
   const chatsWithLivePresence = visibleListChats.map((chat) => ({
     ...chat,
+    isProtected: protectionReady ? chat.isProtected : true,
+    lastMessage: protectionReady ? chat.lastMessage : 'Chat protegido',
+    unreadCount: protectionReady ? chat.unreadCount : 0,
     online: Boolean(
-      !chat.isGroup
+      protectionReady
+      && !chat.isGroup
       && !chat.isAI
       && chat.raw.other_identity_id
       && onlineByIdentity[chat.raw.other_identity_id]
@@ -1500,8 +1511,6 @@ export default function ChatListScreen() {
           {(
             commercialIdentityLoading
             || (loading && conversations.length === 0)
-            || (!protectionLoaded && !protectionError)
-            || (protectionIdentityId !== activeIdentityId && !protectionError)
           ) ? (
             <View style={styles.loadingState}>
               <ActivityIndicator
@@ -1547,12 +1556,18 @@ export default function ChatListScreen() {
                 aiChat={
                   isGroupsTab || activeCategoryId
                     ? undefined
-                    : aiChat
+                    : aiChat && !protectionReady
+                      ? {
+                          ...aiChat,
+                          isProtected: true,
+                          lastMessage: 'Chat protegido',
+                        }
+                      : aiChat
                 }
                 chats={chatsWithLivePresence}
                 categoriesByConversation={categoriesByConversation}
                 onEndReached={
-                  hasMoreConversations[
+                  protectionReady && hasMoreConversations[
                     isGroupsTab ? 'group' : 'direct'
                   ]
                     ? () => {
@@ -1567,6 +1582,7 @@ export default function ChatListScreen() {
                 archivedLabel={archivedLabel}
                 archivedSubtitle={archivedSubtitle}
                 onPressArchived={() => {
+                  if (!protectionReady) return;
                   router.push({
                     pathname: '/(main)/chat/archived',
                     params: {
@@ -1583,8 +1599,12 @@ export default function ChatListScreen() {
                     },
                   });
                 }}
-                onOpenChat={handleChatPress}
-                onOpenMenu={setMenuChat}
+                onOpenChat={(chat) => {
+                  if (protectionReady) handleChatPress(chat);
+                }}
+                onOpenMenu={(chat) => {
+                  if (protectionReady) setMenuChat(chat);
+                }}
                 onPin={() => {
                   // La acción se ejecuta desde ChatOptionsSheet.
                 }}
