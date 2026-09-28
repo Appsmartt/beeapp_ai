@@ -3,6 +3,8 @@ import {
   useEffect,
   useState,
 } from 'react';
+import { retryBackgroundLoad } from '../utils/retryBackgroundLoad';
+
 import type {
   StatusStory,
   StatusTextBackground,
@@ -184,58 +186,60 @@ export function useStatuses(
       setError(null);
 
       try {
-        const [
-          backgroundsResponse,
-          mineResponse,
-        ] = await Promise.all([
-          loadStatusTextBackgrounds(),
-          loadMyStatuses(),
-        ]);
+        await retryBackgroundLoad(async () => {
+          const [
+            backgroundsResponse,
+            mineResponse,
+          ] = await Promise.all([
+            loadStatusTextBackgrounds(),
+            loadMyStatuses(),
+          ]);
 
-        const ownStories = normalizedCommercialProfileId
-          ? flattenCommercialStatusStories(
-              mineResponse,
-              normalizedCommercialProfileId,
-            )
-          : flattenMyStatusStories(mineResponse);
+          const ownStories = normalizedCommercialProfileId
+            ? flattenCommercialStatusStories(
+                mineResponse,
+                normalizedCommercialProfileId,
+              )
+            : flattenMyStatusStories(mineResponse);
 
-        const feedStories = normalizedCommercialProfileId
-          ? []
-          : flattenFeedStories(
-              await loadStatusFeed(),
-            );
+          const feedStories = normalizedCommercialProfileId
+            ? []
+            : flattenFeedStories(
+                await loadStatusFeed(),
+              );
 
-        const uniqueStories = new Map<string, StatusStory>();
+          const uniqueStories = new Map<string, StatusStory>();
 
-        [...ownStories, ...feedStories].forEach((story) => {
-          uniqueStories.set(story.id, story);
-        });
+          [...ownStories, ...feedStories].forEach((story) => {
+            uniqueStories.set(story.id, story);
+          });
 
-        const sortedStories = [...uniqueStories.values()]
-          .sort((first, second) => (
-            new Date(second.created_at).getTime()
-            - new Date(first.created_at).getTime()
+          const sortedStories = [...uniqueStories.values()]
+            .sort((first, second) => (
+              new Date(second.created_at).getTime()
+              - new Date(first.created_at).getTime()
+            ));
+
+          const mappedOwnStatuses = mapStoriesToUi(
+            ownStories,
+            backgroundsResponse.backgrounds,
+          ).sort((first, second) => (
+            new Date(second.createdAt || 0).getTime()
+            - new Date(first.createdAt || 0).getTime()
           ));
 
-        const mappedOwnStatuses = mapStoriesToUi(
-          ownStories,
-          backgroundsResponse.backgrounds,
-        ).sort((first, second) => (
-          new Date(second.createdAt || 0).getTime()
-          - new Date(first.createdAt || 0).getTime()
-        ));
+          const mappedStatuses = mapStoriesToUi(
+            sortedStories,
+            backgroundsResponse.backgrounds,
+          );
 
-        const mappedStatuses = mapStoriesToUi(
-          sortedStories,
-          backgroundsResponse.backgrounds,
-        );
-
-        setBackgrounds(backgroundsResponse.backgrounds);
-        setOwnStatuses(mappedOwnStatuses);
-        setCircleStatuses(
-          groupStatusesForCircles(mappedStatuses),
-        );
-        setStatuses(mappedStatuses);
+          setBackgrounds(backgroundsResponse.backgrounds);
+          setOwnStatuses(mappedOwnStatuses);
+          setCircleStatuses(
+            groupStatusesForCircles(mappedStatuses),
+          );
+          setStatuses(mappedStatuses);
+        });
       } catch (loadError) {
         setError(
           loadError instanceof Error

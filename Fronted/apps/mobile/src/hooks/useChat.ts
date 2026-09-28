@@ -6,6 +6,7 @@ import {
   useState,
 } from 'react';
 import { AppState } from 'react-native';
+import { retryBackgroundLoad } from '../utils/retryBackgroundLoad';
 import {
   bootstrapChat,
   clearChatConversation,
@@ -454,6 +455,7 @@ export interface UseChatConversationsOptions {
   includeArchived?: boolean;
   identityId?: string | null;
   paginateInbox?: boolean;
+  retryInboxLoads?: boolean;
 }
 
 export interface UseChatConversationsResult {
@@ -534,6 +536,7 @@ export function useChatConversations(
     autoLoad = true,
     identityId: requestedIdentityId = null,
     paginateInbox = false,
+    retryInboxLoads = false,
   }: UseChatConversationsOptions = {},
 ): UseChatConversationsResult {
   const normalizedRequestedIdentityId = String(
@@ -716,7 +719,7 @@ export function useChatConversations(
     setRawConversations([...getStoredConversations()]);
   }, []);
 
-  const loadConversations = useCallback(async (
+  const loadConversationsOnce = useCallback(async (
     options: {
       refresh?: boolean;
       archived?: boolean;
@@ -1005,12 +1008,14 @@ export function useChatConversations(
         !requestedNetwork
         || requestId === requestIdRef.current
       ) {
-        setError(
-          getErrorMessage(
-            loadError,
-            'No fue posible cargar tus chats.',
-          ),
-        );
+        if (!retryInboxLoads || !requestedNetwork) {
+          setError(
+            getErrorMessage(
+              loadError,
+              'No fue posible cargar tus chats.',
+            ),
+          );
+        }
       }
 
       throw loadError;
@@ -1030,6 +1035,7 @@ export function useChatConversations(
     paginateInbox,
     resolveActiveIdentityId,
     synchronizeConversations,
+    retryInboxLoads,
   ]);
 
   const loadMoreConversations = useCallback(async (
@@ -1051,18 +1057,28 @@ export function useChatConversations(
     const identityId = paginationIdentityRef.current;
 
     try {
-      const { token } = await getChatAuthContext();
-      if (requestId !== requestIdRef.current) return;
-      const page = await getChatUnpinnedInboxByType(
-        token,
-        identityId,
-        conversationType,
-        {
-          limit: 5,
-          beforeSortAt: pageState.sortAt,
-          beforeId: pageState.id,
-        },
-      );
+      const fetchPage = async () => {
+        const { token } = await getChatAuthContext();
+        if (requestId !== requestIdRef.current) {
+          throw new Error('Chat inbox request superseded.');
+        }
+        return getChatUnpinnedInboxByType(
+          token,
+          identityId,
+          conversationType,
+          {
+            limit: 5,
+            beforeSortAt: pageState.sortAt,
+            beforeId: pageState.id,
+          },
+        );
+      };
+      const page = retryInboxLoads
+        ? await retryBackgroundLoad(
+            fetchPage,
+            () => requestId === requestIdRef.current,
+          )
+        : await fetchPage();
       if (requestId !== requestIdRef.current) return;
 
       inboxPagesRef.current[conversationType] = {
@@ -1086,10 +1102,12 @@ export function useChatConversations(
         applyPinnedInboxPreferences(page.conversations);
       }
     } catch (failure) {
-      setError(getErrorMessage(
-        failure,
-        'No fue posible cargar más chats.',
-      ));
+      if (requestId === requestIdRef.current) {
+        setError(getErrorMessage(
+          failure,
+          'No fue posible cargar más chats.',
+        ));
+      }
     } finally {
       loadingMoreRef.current = false;
       setLoadingMore(false);
@@ -1098,7 +1116,41 @@ export function useChatConversations(
     applyPinnedInboxPreferences,
     paginateInbox,
     synchronizeConversations,
+    retryInboxLoads,
   ]);
+
+  const loadConversations = useCallback(async (
+    options: {
+      refresh?: boolean;
+      archived?: boolean;
+      network?: boolean;
+    } = {},
+  ): Promise<ChatListItemModel[]> => {
+    if (!retryInboxLoads || options.network === false) {
+      return loadConversationsOnce(options);
+    }
+
+    let attemptRequestId = requestIdRef.current;
+    try {
+      return await retryBackgroundLoad(async () => {
+        const pending = loadConversationsOnce(options);
+        attemptRequestId = requestIdRef.current;
+        const rows = await pending;
+        if (attemptRequestId !== requestIdRef.current) {
+          throw new Error('Chat inbox request superseded.');
+        }
+        return rows;
+      }, () => attemptRequestId === requestIdRef.current);
+    } catch (failure) {
+      if (attemptRequestId === requestIdRef.current) {
+        setError(getErrorMessage(
+          failure,
+          'No fue posible cargar tus chats.',
+        ));
+      }
+      throw failure;
+    }
+  }, [loadConversationsOnce, retryInboxLoads]);
 
   const autoLoadConversationsRef = useRef(loadConversations);
   autoLoadConversationsRef.current = loadConversations;

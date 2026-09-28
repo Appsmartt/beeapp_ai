@@ -75,6 +75,7 @@ import PinLockModal from '../../../src/components/security/PinLockModal';
 import {
   useChatConversations,
 } from '../../../src/hooks/useChat';
+import { retryBackgroundLoad } from '../../../src/utils/retryBackgroundLoad';
 import { useChatListPresence } from '../../../src/hooks/useChatListPresence';
 import type {
   ChatListItemModel,
@@ -162,30 +163,34 @@ export default function ChatListScreen() {
         setCommercialIdentityLoading(true);
         setCommercialIdentityError(null);
 
-        const auth = await getValidSessionCredentials();
+        const identity = await retryBackgroundLoad(async () => {
+          const auth = await getValidSessionCredentials();
 
-        if (!auth || auth.scheme !== 'Bearer') {
-          throw new Error(
-            'Tu sesión expiró. Inicia sesión nuevamente.',
+          if (!auth || auth.scheme !== 'Bearer') {
+            throw new Error(
+              'Tu sesión expiró. Inicia sesión nuevamente.',
+            );
+          }
+
+          await bootstrapChat(auth);
+
+          const response = await getChatIdentities(auth);
+          const identity = response.identities.find(
+            (item) => (
+              item.identity_type === 'commercial_profile'
+              && item.commercial_profile_id === businessId
+              && item.is_active
+            ),
           );
-        }
 
-        await bootstrapChat(auth);
+          if (!identity) {
+            throw new Error(
+              'No fue posible preparar la identidad de Chat de este negocio.',
+            );
+          }
 
-        const response = await getChatIdentities(auth);
-        const identity = response.identities.find(
-          (item) => (
-            item.identity_type === 'commercial_profile'
-            && item.commercial_profile_id === businessId
-            && item.is_active
-          ),
-        );
-
-        if (!identity) {
-          throw new Error(
-            'No fue posible preparar la identidad de Chat de este negocio.',
-          );
-        }
+          return identity;
+        }, () => !cancelled);
 
         if (!cancelled) {
           setCommercialIdentityId(identity.id);
@@ -240,6 +245,7 @@ export default function ChatListScreen() {
     ),
     identityId: requestedIdentityId,
     paginateInbox: true,
+    retryInboxLoads: true,
   });
 
   const [menuChat, setMenuChat] = useState<
