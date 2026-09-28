@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, Modal, TextInput, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, Modal, ScrollView, TextInput, TouchableOpacity } from 'react-native';
 import { colors, spacing, radii } from '@beeapp/design-system';
 import { ChatCategory } from '../../mocks/chats';
 import { CATEGORY_ICONS, CATEGORY_ICON_NAMES, CATEGORY_COLORS, CategoryIconName } from './categoryIcons';
@@ -8,13 +8,14 @@ interface CreateCategoryModalProps {
   visible: boolean;
   onCreate: (category: Omit<ChatCategory, 'id'>) => void;
   onClose: () => void;
+  saving?: boolean;
 }
 
 /** Sheet that creates a chat category: name, icon and chip color */
-export default function CreateCategoryModal({ visible, onCreate, onClose }: CreateCategoryModalProps) {
+export default function CreateCategoryModal({ visible, onCreate, onClose, saving = false }: CreateCategoryModalProps) {
   const [name, setName] = useState('');
   const [icon, setIcon] = useState<CategoryIconName>('Users');
-  const [color, setColor] = useState(CATEGORY_COLORS[0]);
+  const [color, setColor] = useState<string>(CATEGORY_COLORS[0]);
 
   // Every time it opens the form starts empty
   useEffect(() => {
@@ -33,7 +34,9 @@ export default function CreateCategoryModal({ visible, onCreate, onClose }: Crea
         <View style={styles.sheet}>
           <Text style={styles.title}>Crear categoría</Text>
 
+          <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
           <TextInput
+            maxLength={40}
             style={styles.input}
             value={name}
             onChangeText={setName}
@@ -59,7 +62,7 @@ export default function CreateCategoryModal({ visible, onCreate, onClose }: Crea
             })}
           </View>
 
-          <Text style={styles.label}>Color del chip</Text>
+          <Text style={styles.label}>Color</Text>
           <View style={styles.optionRow}>
             {CATEGORY_COLORS.map((option) => (
               <TouchableOpacity
@@ -71,17 +74,19 @@ export default function CreateCategoryModal({ visible, onCreate, onClose }: Crea
             ))}
           </View>
 
+          </ScrollView>
+
           <View style={styles.actions}>
             <TouchableOpacity style={styles.cancelBtn} onPress={onClose} activeOpacity={0.7}>
               <Text style={styles.cancelBtnText}>Cancelar</Text>
             </TouchableOpacity>
             <TouchableOpacity
-              style={[styles.createBtn, !name.trim() && styles.createBtnDisabled]}
-              disabled={!name.trim()}
+              style={[styles.createBtn, (!name.trim() || saving) && styles.createBtnDisabled]}
+              disabled={!name.trim() || saving}
               onPress={() => onCreate({ name: name.trim(), icon, color })}
               activeOpacity={0.8}
             >
-              <Text style={styles.createBtnText}>Crear</Text>
+              <Text style={styles.createBtnText}>{saving ? "Guardando..." : "Crear"}</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -100,6 +105,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.lg,
     paddingTop: spacing.lg,
     paddingBottom: spacing.xl,
+    maxHeight: '85%',
   },
   title: { fontSize: 16, fontWeight: '600', color: colors.neutral.text },
   input: {

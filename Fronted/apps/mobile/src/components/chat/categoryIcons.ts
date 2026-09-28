@@ -1,33 +1,27 @@
-import { User, Users, Briefcase, Heart, Home, Star, GraduationCap, Coffee, Gamepad2 } from 'lucide-react-native';
-import { colors } from '@beeapp/design-system';
+import {
+  User, Users, Briefcase, Heart, Home, Star, GraduationCap,
+  Coffee, Gamepad2, ShoppingBag, BookOpen, Music2, Plane,
+  Palette, Leaf,
+} from 'lucide-react-native';
 
-/** Icons a category can wear, in the order the create sheet shows them */
+/** Available category icons, kept in sync with backend validation. */
 export const CATEGORY_ICONS = {
-  User,
-  Users,
-  Briefcase,
-  Heart,
-  Home,
-  Star,
-  GraduationCap,
-  Coffee,
-  Gamepad2,
+  User, Users, Briefcase, Heart, Home, Star, GraduationCap,
+  Coffee, Gamepad2, ShoppingBag, BookOpen, Music2, Plane,
+  Palette, Leaf,
 };
 
 export type CategoryIconName = keyof typeof CATEGORY_ICONS;
 
 export const CATEGORY_ICON_NAMES = Object.keys(CATEGORY_ICONS) as CategoryIconName[];
 
-/** Falls back to Users when a category carries an unknown icon name */
+/** Fall back safely if an older client receives an unknown icon. */
 export const getCategoryIcon = (name: string) =>
   CATEGORY_ICONS[name as CategoryIconName] ?? Users;
 
-/** Chip backgrounds offered when creating a category */
+/** Pastel colors, kept in sync with backend validation. */
 export const CATEGORY_COLORS = [
-  '#EBF5FF',
-  '#FCE7F3',
-  '#ECFDF5',
-  '#FEF3C7',
-  '#EEF2FF',
-  colors.neutral.gray100,
-];
+  '#FFD6CC', '#FFE4C7', '#FFE8A8', '#FFF3B0', '#E4F4B2',
+  '#BFEEDC', '#BFEDEB', '#CBE8FF', '#CDDFFF', '#DAD7FF',
+  '#EAD7FF', '#F3D5F5', '#FFD5E8', '#FFD6D9', '#DFE7EE',
+] as const;
