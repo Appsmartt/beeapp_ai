@@ -12,6 +12,7 @@ import com.facebook.react.defaults.DefaultNewArchitectureEntryPoint.load
 import com.facebook.react.defaults.DefaultReactNativeHost
 import com.facebook.soloader.SoLoader
 import com.beeapp.mobile.statusvideo.StatusVideoTranscoderPackage
+import com.beeapp.mobile.chatdownloads.ChatDownloadsPackage
 
 import expo.modules.ApplicationLifecycleDispatcher
 import expo.modules.ReactNativeHostWrapper
@@ -22,7 +23,7 @@ class MainApplication : Application(), ReactApplication {
         this,
         object : DefaultReactNativeHost(this) {
           override fun getPackages(): List<ReactPackage> {
-            return PackageList(this).packages + StatusVideoTranscoderPackage()
+            return PackageList(this).packages + StatusVideoTranscoderPackage() + ChatDownloadsPackage()
           }
 
           override fun getJSMainModuleName(): String = ".expo/.virtual-metro-entry"
