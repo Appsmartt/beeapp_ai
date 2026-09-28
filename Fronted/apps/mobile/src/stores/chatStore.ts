@@ -1,4 +1,8 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import {
+  readChatInboxCache,
+  writeChatInboxCache,
+} from '../services/chatInboxCache';
 
 import type {
   ChatConversation,
@@ -469,6 +473,12 @@ function persistArchivedConversationIds(): void {
     // Archive persistence must never block chat usage.
   });
 }
+function persistChatInboxSnapshot(): void {
+  if (activeUserId && activeIdentityId) {
+    writeChatInboxCache(activeUserId, activeIdentityId, conversations);
+  }
+}
+
 function clearInMemoryChatData(): void {
   conversations = [];
   messagesByConversationId = {};
@@ -521,6 +531,20 @@ export async function hydrateChatConversations(
       } catch {
         // A cache read failure must not block the inbox.
       }
+    }
+  }
+
+  if (normalizedUserId && normalizedIdentityId && conversations.length === 0) {
+    const cached = await readChatInboxCache(
+      normalizedUserId,
+      normalizedIdentityId,
+    );
+    if (
+      activeUserId === normalizedUserId
+      && activeIdentityId === normalizedIdentityId
+      && cached.length
+    ) {
+      setChatConversations(cached);
     }
   }
 
@@ -626,6 +650,7 @@ export function setChatConversations(
   nextConversations: ChatConversation[],
 ): void {
   conversations = normalizeConversations(nextConversations);
+  persistChatInboxSnapshot();
 
   notifyChatStore({
     type: 'conversations',
@@ -639,6 +664,7 @@ export function replaceChatConversationsSnapshot(
   nextConversations: ChatConversation[],
 ): void {
   conversations = normalizeConversations(nextConversations);
+  persistChatInboxSnapshot();
 
 
   notifyChatStore({
@@ -686,6 +712,7 @@ export function updateDirectChatReceipt(
         }
       : item
   ));
+  persistChatInboxSnapshot();
   notifyChatStore({
     type: 'conversations',
     conversationIds: [conversationId],
@@ -881,6 +908,7 @@ export function removeChatConversation(
   );
 
   persistArchivedConversationIds();
+  persistChatInboxSnapshot();
 
   notifyChatStore({
     type: 'conversation-removed',
@@ -1161,6 +1189,7 @@ export function setChatConversationArchived(
   }
 
   persistArchivedConversationIds();
+  persistChatInboxSnapshot();
 
   notifyChatStore({
     type: 'conversations',

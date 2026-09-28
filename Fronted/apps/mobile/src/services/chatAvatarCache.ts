@@ -119,6 +119,28 @@ async function cacheAvatar(
   return downloadResult.uri;
 }
 
+export async function removeSupersededChatAvatar(
+  userId: string,
+  previousUri: string | null | undefined,
+  currentUri: string | null | undefined,
+): Promise<void> {
+  if (
+    !FileSystem.cacheDirectory
+    || !previousUri
+    || previousUri === currentUri
+    || !previousUri.startsWith(getAvatarCacheDirectory(userId))
+  ) return;
+
+  await FileSystem.deleteAsync(previousUri, { idempotent: true });
+}
+
+export async function clearChatAvatarCache(): Promise<void> {
+  if (!FileSystem.cacheDirectory) return;
+  await FileSystem.deleteAsync(CHAT_AVATAR_CACHE_DIRECTORY, {
+    idempotent: true,
+  });
+}
+
 export async function cacheChatConversationAvatars(
   userId: string,
   conversations: ChatConversation[],
@@ -129,37 +151,35 @@ export async function cacheChatConversationAvatars(
     return conversations;
   }
 
-  const cachedConversations = await Promise.all(
-    conversations.map(async (conversation) => {
-      const avatarUrl = conversation.avatar_url?.trim();
+  const cachedConversations: ChatConversation[] = [];
 
-      if (!avatarUrl) {
-        return conversation;
-      }
+  for (let index = 0; index < conversations.length; index += 4) {
+    const batch = await Promise.all(
+      conversations.slice(index, index + 4).map(async (conversation) => {
+        const avatarUrl = conversation.avatar_url?.trim();
+        if (!avatarUrl) return conversation;
 
-      try {
-        const cachedAvatarUri = await cacheAvatar(
-          normalizedUserId,
-          conversation.id,
-          avatarUrl,
-        );
-
-        return {
-          ...conversation,
-          avatar_url: avatarUrl,
-          cached_avatar_url: cachedAvatarUri,
-          direct_profile: conversation.direct_profile
-            ? {
-                ...conversation.direct_profile,
-                avatar_url: avatarUrl,
-              }
-            : conversation.direct_profile,
-        };
-      } catch {
-        return conversation;
-      }
-    }),
-  );
+        try {
+          const cachedAvatarUri = await cacheAvatar(
+            normalizedUserId,
+            conversation.id,
+            avatarUrl,
+          );
+          return {
+            ...conversation,
+            avatar_url: avatarUrl,
+            cached_avatar_url: cachedAvatarUri,
+            direct_profile: conversation.direct_profile
+              ? { ...conversation.direct_profile, avatar_url: avatarUrl }
+              : conversation.direct_profile,
+          };
+        } catch {
+          return conversation;
+        }
+      }),
+    );
+    cachedConversations.push(...batch);
+  }
 
   return cachedConversations;
 }

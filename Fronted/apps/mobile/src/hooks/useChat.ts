@@ -58,6 +58,14 @@ import {
   getLatestIncomingChatMessage,
 } from '../services/chatMessageReceipts';
 import {
+  cacheChatConversationAvatars,
+  removeSupersededChatAvatar,
+} from '../services/chatAvatarCache';
+import {
+  readCachedPrivateChatIdentityId,
+  saveCachedPrivateChatIdentityId,
+} from '../services/chatInboxCache';
+import {
   getChatMessageReceiptStatus,
 } from '../services/chatReceiptStatus';
 import {
@@ -65,6 +73,7 @@ import {
   type UploadableChatAttachment,
 } from '../services/chatAttachmentService';
 import {
+  getActiveChatStoreIdentityId,
   getChatConversations as getStoredConversations,
   hydrateChatConversations,
   getChatMessages as getStoredMessages,
@@ -609,6 +618,15 @@ export function useChatConversations(
       );
       return {
         ...combined,
+        name: incoming.name,
+        avatar_url: incoming.avatar_url,
+        cached_avatar_url: (
+          incoming.avatar_url
+            ? current.cached_avatar_url || combined.cached_avatar_url || null
+            : null
+        ),
+        other_display_name: incoming.other_display_name,
+        direct_profile: incoming.direct_profile || combined.direct_profile,
         participants: hasFullParticipants
           ? current.participants
           : combined.participants,
@@ -629,6 +647,7 @@ export function useChatConversations(
 
   const resolveActiveIdentityId = useCallback(async (
     token: AuthCredentials,
+    userId?: string,
   ) => {
     if (normalizedRequestedIdentityId) {
       setActiveIdentityId(normalizedRequestedIdentityId);
@@ -653,6 +672,9 @@ export function useChatConversations(
     }
 
     setActiveIdentityId(identity.id);
+    if (userId) {
+      await saveCachedPrivateChatIdentityId(userId, identity.id);
+    }
 
     return identity.id;
   }, [normalizedRequestedIdentityId]);
@@ -732,13 +754,34 @@ export function useChatConversations(
         token,
       } = await getChatAuthContext();
 
+      if (
+        paginateInbox
+        && requestedNetwork
+        && !normalizedRequestedIdentityId
+        && !activeIdentityId
+      ) {
+        const cachedIdentityId = await readCachedPrivateChatIdentityId(
+          activeUserId,
+        );
+        if (requestId !== requestIdRef.current) return [];
+        if (cachedIdentityId) {
+          await hydrateChatConversations(activeUserId, cachedIdentityId);
+          if (requestId !== requestIdRef.current) return [];
+          setCurrentUserId(activeUserId);
+          setActiveIdentityId(cachedIdentityId);
+          setVisibleConversationIds(new Set(
+            getStoredConversations().map((row) => row.id),
+          ));
+        }
+      }
+
       const identityId = (
         normalizedRequestedIdentityId
         && normalizedRequestedIdentityId !== activeIdentityId
-          ? await resolveActiveIdentityId(token)
+          ? await resolveActiveIdentityId(token, activeUserId)
           : (
               activeIdentityId
-              || await resolveActiveIdentityId(token)
+              || await resolveActiveIdentityId(token, activeUserId)
             )
       );
 
@@ -750,17 +793,34 @@ export function useChatConversations(
         return [];
       }
 
+      let cachedIds: string[] = [];
       if (paginateInbox && requestedNetwork) {
         await hydrateChatConversations(
           activeUserId,
           identityId,
         );
         if (requestId !== requestIdRef.current) return [];
+
+        cachedIds = getStoredConversations()
+          .filter((conversation) => (
+            conversation.own_participant?.identity_id === identityId
+            && (
+              conversation.conversation_type === 'direct'
+              || conversation.conversation_type === 'group'
+            )
+          ))
+          .map((conversation) => conversation.id);
+
+        if (cachedIds.length) {
+          setVisibleConversationIds(new Set(cachedIds));
+        }
       }
 
       setCurrentUserId(activeUserId);
 
       let loadedConversations: ChatConversation[];
+      const beforeInbox = new Map(getStoredConversations()
+        .map((row) => [row.id, row]));
       if (paginateInbox) {
         const [directPage, groupPage, pinnedPage] = await Promise.all([
           getChatUnpinnedInboxByType(
@@ -772,7 +832,6 @@ export function useChatConversations(
           getChatInbox(token, identityId, { limit: 10 }),
         ]);
         if (requestId !== requestIdRef.current) return [];
-
         const pinned = pinnedPage.pinned_conversations;
         const pinnedIds = new Set(pinned.map((row) => row.id));
         const unpinned = [
@@ -794,9 +853,10 @@ export function useChatConversations(
         };
         paginationIdentityRef.current = identityId;
         loadedConversations = [...pinned, ...unpinned];
-        setVisibleConversationIds(
-          new Set(loadedConversations.map((row) => row.id)),
-        );
+        setVisibleConversationIds(new Set([
+          ...cachedIds,
+          ...loadedConversations.map((row) => row.id),
+        ]));
         setHasMoreConversations({
           direct: directPage.has_more,
           group: groupPage.has_more,
@@ -812,12 +872,114 @@ export function useChatConversations(
       }
 
       setCurrentUserId(activeUserId);
+      const currentById = new Map(getStoredConversations()
+        .map((row) => [row.id, row]));
+      loadedConversations = loadedConversations.map((row) => {
+        const current = currentById.get(row.id);
+        const previous = beforeInbox.get(row.id);
+        if (!current || !previous) return row;
+        const readChanged = (
+          current.unread_count !== previous.unread_count
+          || current.own_participant?.last_read_message_id
+            !== previous.own_participant?.last_read_message_id
+        );
+        const messageChanged = (
+          current.last_message?.id !== previous.last_message?.id
+          || current.last_message?.status !== previous.last_message?.status
+          || current.last_message?.content !== previous.last_message?.content
+        );
+        if (!readChanged && !messageChanged) return row;
+        return {
+          ...row,
+          unread_count: readChanged ? current.unread_count : row.unread_count,
+          own_participant: readChanged
+            ? current.own_participant : row.own_participant,
+          last_message: messageChanged
+            && current.last_message?.id === row.last_message?.id
+              ? current.last_message : row.last_message,
+        };
+      });
+      const serverPinnedIds = paginateInbox
+        ? new Set(loadedConversations
+            .filter((row) => row.is_pinned)
+            .map((row) => row.id))
+        : null;
+      const previousAvatarUris = new Map(getStoredConversations()
+        .map((row) => [row.id, row.cached_avatar_url]));
       synchronizeConversations([
-        ...getStoredConversations(),
+        ...getStoredConversations().filter((row) => (
+          !serverPinnedIds
+          || row.own_participant?.identity_id !== identityId
+          || !row.is_pinned
+          || serverPinnedIds.has(row.id)
+        )),
         ...loadedConversations,
       ]);
       if (paginateInbox) {
         applyPinnedInboxPreferences(loadedConversations);
+        const removedPhotoUris = loadedConversations
+          .filter((row) => !row.avatar_url)
+          .map((row) => previousAvatarUris.get(row.id))
+          .filter((uri): uri is string => Boolean(uri));
+        if (removedPhotoUris.length) {
+          setTimeout(() => {
+            void Promise.allSettled(removedPhotoUris.map((uri) => (
+              removeSupersededChatAvatar(
+                activeUserId,
+                uri,
+                getStoredConversations().some((row) => (
+                  row.cached_avatar_url === uri
+                )) ? uri : null,
+              )
+            )));
+          }, 1000);
+        }
+
+        void cacheChatConversationAvatars(
+          activeUserId,
+          loadedConversations,
+        ).then((cached) => {
+          if (
+            requestId !== requestIdRef.current
+            || getActiveChatStoreIdentityId() !== identityId
+          ) return;
+
+          const avatars = new Map(cached
+            .filter((row) => row.cached_avatar_url)
+            .map((row) => [row.id, row]));
+          let changed = false;
+          const supersededUris: string[] = [];
+          const updated = getStoredConversations().map((row) => {
+            const avatar = avatars.get(row.id);
+            if (
+              !avatar
+              || row.own_participant?.identity_id !== identityId
+              || row.avatar_url !== avatar.avatar_url
+              || row.cached_avatar_url === avatar.cached_avatar_url
+            ) return row;
+            changed = true;
+            if (row.cached_avatar_url) {
+              supersededUris.push(row.cached_avatar_url);
+            }
+            return { ...row, cached_avatar_url: avatar.cached_avatar_url };
+          });
+          if (changed) {
+            setChatConversations(updated);
+            setTimeout(() => {
+              void Promise.allSettled(supersededUris.map((uri) => (
+                removeSupersededChatAvatar(
+                  activeUserId,
+                  uri,
+                  getStoredConversations().some((row) => (
+                    row.cached_avatar_url === uri
+                  )) ? uri : null,
+                )
+              )));
+            }, 1000);
+          }
+        }).catch(() => {
+          // Avatar caching must not block inbox loading.
+        });
       }
 
       /*
@@ -938,21 +1100,21 @@ export function useChatConversations(
     synchronizeConversations,
   ]);
 
+  const autoLoadConversationsRef = useRef(loadConversations);
+  autoLoadConversationsRef.current = loadConversations;
+
   useEffect(() => {
-    if (!autoLoad) {
-      return;
-    }
+    if (!autoLoad) return;
 
-
-    void loadConversations({
+    void autoLoadConversationsRef.current({
       network: true,
     }).catch(() => {
-      // El hook conserva el error para mostrarlo en pantalla.
+      // The hook keeps the error available for the inbox.
     });
-
   }, [
     autoLoad,
-    loadConversations,
+    normalizedRequestedIdentityId,
+    paginateInbox,
   ]);
 
   useEffect(() => {
