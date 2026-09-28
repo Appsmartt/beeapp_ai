@@ -92,6 +92,14 @@ function formatDuration(
   );
 }
 
+function shortenChatFileName(name: string, limit = 27): string {
+  const trimmed = name.trim() || 'Archivo adjunto';
+  if (trimmed.length <= limit) return trimmed;
+  const remaining = limit - 3;
+  const beginning = Math.ceil(remaining / 2);
+  return `${trimmed.slice(0, beginning)}...${trimmed.slice(-Math.floor(remaining / 2))}`;
+}
+
 export default function MessageBubble({
   senderName,
   senderVerified,
@@ -542,7 +550,7 @@ export default function MessageBubble({
                         ]}
                         numberOfLines={1}
                       >
-                        {fileName || 'Archivo adjunto'}
+                        {shortenChatFileName(fileName || 'Archivo adjunto')}
                       </Text>
                     ) : null}
 

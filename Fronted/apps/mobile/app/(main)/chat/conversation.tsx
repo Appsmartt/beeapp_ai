@@ -11,8 +11,9 @@ import {
   Animated,
   AppState,
   Image,
-  Linking,
   Modal,
+  NativeModules,
+  Platform,
   RefreshControl,
   ScrollView,
   StyleSheet,
@@ -21,6 +22,8 @@ import {
 } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import * as DocumentPicker from 'expo-document-picker';
+import * as FileSystem from 'expo-file-system';
+import * as Sharing from 'expo-sharing';
 import * as ImagePicker from 'expo-image-picker';
 import { Camera as ExpoCamera } from 'expo-camera';
 import {
@@ -462,6 +465,15 @@ function ConversationContent() {
     url: string;
     caption?: string;
   } | null>(null);
+  const [downloadNotice, setDownloadNotice] = useState<
+    'downloading' | 'complete' | null
+  >(null);
+  const downloadNoticeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const downloadingFileRef = useRef(false);
+
+  useEffect(() => () => {
+    if (downloadNoticeTimerRef.current) clearTimeout(downloadNoticeTimerRef.current);
+  }, []);
 
   const [toastText, setToastText] =
     useState<string | null>(null);
@@ -1942,6 +1954,25 @@ function ConversationContent() {
             </View>
           </View>
         </Modal>
+        {downloadNotice ? (
+          <View
+            style={[
+              styles.downloadNotice,
+              downloadNotice === 'complete' && styles.downloadNoticeComplete,
+            ]}
+            pointerEvents="none"
+            accessibilityRole="alert"
+          >
+            {downloadNotice === 'downloading' ? (
+              <ActivityIndicator size="small" color={colors.neutral.white} />
+            ) : null}
+            <Text style={styles.downloadNoticeText}>
+              {downloadNotice === 'downloading'
+                ? 'Descargando archivo…'
+                : 'Archivo descargado'}
+            </Text>
+          </View>
+        ) : null}
         <ConversationHeader
           chatName={chatName}
           avatarUrl={headerAvatarUrl}
@@ -2228,6 +2259,15 @@ function ConversationContent() {
                     }
                     onPressFile={message.type === 'file' ? () => {
                       void (async () => {
+                        const isVideo = message.raw.attachments?.[0]?.mime_type === 'video/mp4';
+                        if (!isVideo && downloadingFileRef.current) return;
+                        let temporaryUri: string | null = null;
+                        let savedDownloadUri: string | null = null;
+                        if (!isVideo) {
+                          downloadingFileRef.current = true;
+                          if (downloadNoticeTimerRef.current) clearTimeout(downloadNoticeTimerRef.current);
+                          setDownloadNotice('downloading');
+                        }
                         try {
                           if (!activeIdentityId) {
                             throw new Error('No se pudo identificar tu cuenta de chat.');
@@ -2236,9 +2276,6 @@ function ConversationContent() {
                           if (!auth) {
                             throw new Error('Tu sesión expiró. Inicia sesión nuevamente.');
                           }
-                          const isVideo = (
-                            message.raw.attachments?.[0]?.mime_type === 'video/mp4'
-                          );
                           const access = await getChatMessageAttachmentAccess(
                             auth,
                             message.id,
@@ -2257,17 +2294,113 @@ function ConversationContent() {
                             });
                             return;
                           }
-                          if (!await Linking.canOpenURL(url)) {
-                            throw new Error('Este dispositivo no puede abrir el adjunto.');
+                          if (!FileSystem.cacheDirectory) {
+                            throw new Error('No hay espacio de caché disponible.');
                           }
-                          await Linking.openURL(url);
-                        } catch (openError) {
+                          const name = (
+                            String(message.fileName || 'archivo')
+                              .replace(/[\/\\\x00-\x1f]/g, '_')
+                              .trim()
+                              .slice(0, 255) || 'archivo'
+                          );
+                          const mimeType = String(
+                            access.attachment?.mime_type || 'application/octet-stream',
+                          );
+                          temporaryUri = `${FileSystem.cacheDirectory}beeapp-chat-${message.id}-${Date.now()}-${name}`;
+                          const result = await FileSystem.downloadAsync(url, temporaryUri);
+                          if (result.status < 200 || result.status >= 300) {
+                            throw new Error('La descarga del archivo no se completó.');
+                          }
+                          if (Platform.OS === 'android' && Number(Platform.Version) >= 29) {
+                            const saver = NativeModules.ChatDownloads as {
+                              saveToDownloads?: (
+                                sourceUri: string,
+                                fileName: string,
+                                mimeType: string,
+                              ) => Promise<string>;
+                              openDownloadedFile?: (
+                                savedUri: string,
+                                mimeType: string,
+                              ) => Promise<boolean>;
+                            } | undefined;
+                            if (!saver?.saveToDownloads) {
+                              throw new Error('Instala la APK nueva para guardar en Descargas.');
+                            }
+                            savedDownloadUri = await saver.saveToDownloads(result.uri, name, mimeType);
+                          } else if (Platform.OS === 'android') {
+                            const permission = await FileSystem.StorageAccessFramework
+                              .requestDirectoryPermissionsAsync();
+                            if (!permission.granted) {
+                              setDownloadNotice(null);
+                              return;
+                            }
+                            const destination = await FileSystem.StorageAccessFramework
+                              .createFileAsync(permission.directoryUri, name, mimeType);
+                            const contents = await FileSystem.readAsStringAsync(result.uri, {
+                              encoding: FileSystem.EncodingType.Base64,
+                            });
+                            await FileSystem.writeAsStringAsync(destination, contents, {
+                              encoding: FileSystem.EncodingType.Base64,
+                            });
+                          } else {
+                            if (!await Sharing.isAvailableAsync()) {
+                              throw new Error('No se puede guardar este archivo en el dispositivo.');
+                            }
+                            await Sharing.shareAsync(result.uri, {
+                              mimeType,
+                              dialogTitle: 'Guardar archivo del chat',
+                            });
+                          }
+                          setDownloadNotice('complete');
+                          downloadNoticeTimerRef.current = setTimeout(
+                            () => setDownloadNotice(null),
+                            3500,
+                          );
+                          if (savedDownloadUri) {
+                            const uriToOpen = savedDownloadUri;
+                            Alert.alert(
+                              'Archivo descargado',
+                              'Se guardó en Descargas. ¿Quieres abrir el archivo?',
+                              [
+                                { text: 'Ahora no', style: 'cancel' },
+                                {
+                                  text: 'Abrir archivo',
+                                  onPress: () => {
+                                    const opener = NativeModules.ChatDownloads as {
+                                      openDownloadedFile?: (
+                                        savedUri: string,
+                                        type: string,
+                                      ) => Promise<boolean>;
+                                    } | undefined;
+                                    if (!opener?.openDownloadedFile) {
+                                      Alert.alert('No se pudo abrir', 'Instala la APK nueva.');
+                                      return;
+                                    }
+                                    void opener.openDownloadedFile(uriToOpen, mimeType).catch(
+                                      () => Alert.alert(
+                                        'No se pudo abrir',
+                                        'El archivo sigue en Descargas. Instala una aplicación compatible para abrirlo.',
+                                      ),
+                                    );
+                                  },
+                                },
+                              ],
+                            );
+                          }
+                        } catch (downloadError) {
+                          if (!isVideo) setDownloadNotice(null);
                           Alert.alert(
-                            'No fue posible abrir el adjunto',
-                            openError instanceof Error
-                              ? openError.message
+                            'No fue posible descargar el archivo',
+                            downloadError instanceof Error
+                              ? downloadError.message
                               : 'Inténtalo nuevamente.',
                           );
+                        } finally {
+                          if (temporaryUri) {
+                            await FileSystem.deleteAsync(temporaryUri, { idempotent: true })
+                              .catch(() => undefined);
+                          }
+                          if (!isVideo) downloadingFileRef.current = false;
                         }
                       })();
                     } : undefined}
@@ -2566,6 +2699,26 @@ function ConversationContent() {
 }
 
 const styles = StyleSheet.create({
+  downloadNotice: {
+    alignItems: 'center',
+    backgroundColor: colors.brand.primary,
+    borderRadius: 14,
+    flexDirection: 'row',
+    gap: 10,
+    justifyContent: 'center',
+    marginHorizontal: 16,
+    marginTop: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 11,
+  },
+  downloadNoticeComplete: {
+    backgroundColor: '#367F69',
+  },
+  downloadNoticeText: {
+    color: colors.neutral.white,
+    fontSize: 13,
+    fontWeight: '700',
+  },
   chatOpeningOverlay: {
     alignItems: 'center',
     backgroundColor: 'rgba(25, 31, 53, 0.55)',
