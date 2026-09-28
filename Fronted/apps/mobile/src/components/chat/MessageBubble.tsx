@@ -11,6 +11,8 @@ import {
   TouchableOpacity,
   ActivityIndicator,
 } from 'react-native';
+import { Gesture, GestureDetector } from 'react-native-gesture-handler';
+import { runOnJS } from 'react-native-reanimated';
 import {
   Audio,
 } from 'expo-av';
@@ -55,6 +57,7 @@ interface MessageBubbleProps {
     sender: string;
     text: string;
   };
+  onPressReply?: () => void;
   statusStoryReference?: {
     isAvailable: boolean;
     status: StatusStory | null;
@@ -65,6 +68,7 @@ interface MessageBubbleProps {
   isDestroyed?: boolean;
   isPinned?: boolean;
   onLongPress?: () => void;
+  onReplySwipe?: () => void;
   onPressImage?: () => void;
   onContactCatalogItem?: (
     item: AiSearchResult,
@@ -102,12 +106,14 @@ export default function MessageBubble({
   status,
   time,
   replyTo,
+  onPressReply,
   statusStoryReference,
   onPressStatusStory,
   showCatalog,
   isEdited,
   isDestroyed,
   onLongPress,
+  onReplySwipe,
   onPressImage,
   onContactCatalogItem,
 }: MessageBubbleProps) {
@@ -284,6 +290,15 @@ export default function MessageBubble({
     )
     : 0;
   const completedWaveBars = Math.round(playbackProgress * 12);
+  const replySwipe = Gesture.Pan()
+    .enabled(Boolean(onReplySwipe))
+    .activeOffsetX([-14, 14])
+    .failOffsetY([-12, 12])
+    .onEnd((event) => {
+      if (Math.abs(event.translationX) >= 64 && onReplySwipe) {
+        runOnJS(onReplySwipe)();
+      }
+    });
 
   return (
     <View
@@ -294,6 +309,7 @@ export default function MessageBubble({
           : styles.containerOther,
       ]}
     >
+      <GestureDetector gesture={replySwipe}>
       <TouchableOpacity
         activeOpacity={0.9}
         onLongPress={onLongPress}
@@ -336,7 +352,12 @@ export default function MessageBubble({
           ) : null}
 
           {replyTo ? (
-            <View
+            <TouchableOpacity
+              activeOpacity={onPressReply ? 0.75 : 1}
+              disabled={!onPressReply}
+              onPress={onPressReply}
+              accessibilityRole={onPressReply ? 'button' : undefined}
+              accessibilityLabel={onPressReply ? 'Ir al mensaje respondido' : undefined}
               style={[
                 styles.replyContainer,
                 isUser
@@ -346,7 +367,7 @@ export default function MessageBubble({
             >
               <View style={styles.replyBar} />
 
-              <View style={styles.flex}>
+              <View style={styles.replyContent}>
                 <Text
                   style={[
                     styles.replySender,
@@ -363,16 +384,17 @@ export default function MessageBubble({
                     styles.replyText,
                     {
                       color: isUser
-                        ? '#E6E3FF'
+                        ? '#4D397F'
                         : colors.neutral.gray600,
                     },
                   ]}
-                  numberOfLines={1}
+                  numberOfLines={3}
+                  ellipsizeMode="tail"
                 >
                   {replyTo.text}
                 </Text>
               </View>
-            </View>
+            </TouchableOpacity>
           ) : null}
 
           {statusStoryReference ? (
@@ -667,6 +689,7 @@ export default function MessageBubble({
           </View>
         </View>
       </TouchableOpacity>
+      </GestureDetector>
 
       {showCatalog ? (
         <AiCatalogCards
@@ -763,18 +786,25 @@ const styles = StyleSheet.create({
     color: colors.neutral.text,
   },
   replyContainer: {
-    borderRadius: 8,
+    alignSelf: 'flex-start',
+    borderRadius: 10,
     flexDirection: 'row',
-    marginBottom: 8,
-    overflow: 'hidden',
-    padding: 6,
+    marginBottom: 9,
+    maxWidth: '100%',
+    minWidth: 150,
+    paddingHorizontal: 9,
+    paddingVertical: 8,
+  },
+  replyContent: {
+    flexShrink: 1,
+    minWidth: 0,
   },
   replyUser: {
-    backgroundColor: '#5F52C5',
+    backgroundColor: '#EDE7FF',
   },
   replyOther: {
-    backgroundColor: colors.neutral.gray50,
-    borderColor: colors.neutral.gray200,
+    backgroundColor: '#F2F5FF',
+    borderColor: '#DFE4F4',
     borderWidth: 1,
   },
   replyBar: {
@@ -789,13 +819,14 @@ const styles = StyleSheet.create({
     marginBottom: 2,
   },
   replySenderUser: {
-    color: colors.neutral.white,
+    color: '#4D397F',
   },
   replySenderOther: {
     color: colors.brand.primary,
   },
   replyText: {
     fontSize: 12,
+    lineHeight: 16,
   },
   destroyedText: {
     fontSize: 13,

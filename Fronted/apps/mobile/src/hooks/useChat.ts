@@ -1895,6 +1895,7 @@ export interface UseChatMessagesResult {
     },
   ) => Promise<ChatMessageModel[]>;
   loadMore: () => Promise<void>;
+  loadReferencedMessage: (messageId: string) => Promise<boolean>;
   loadConversation: () => Promise<ChatConversation | null>;
   loadParticipants: () => Promise<ChatParticipant[]>;
   sendMessage: (
@@ -2601,6 +2602,38 @@ export function useChatMessages(
     refreshing,
   ]);
 
+  const loadReferencedMessage = useCallback(async (
+    messageId: string,
+  ): Promise<boolean> => {
+    const targetId = messageId.trim();
+
+    if (!normalizedConversationId || !targetId) {
+      return false;
+    }
+
+    if (getStoredMessages(normalizedConversationId).some(
+      (message) => message.id === targetId
+    )) {
+      return true;
+    }
+
+    const { currentUserId: activeUserId, token } =
+      await getChatAuthContext();
+    const { message } = await getChatMessage(token, targetId);
+
+    if (
+      message.id !== targetId
+      || message.conversation_id !== normalizedConversationId
+    ) {
+      return false;
+    }
+
+    upsertChatMessage(normalizedConversationId, message);
+    setCurrentUserId(activeUserId);
+    setRawMessages(getStoredMessages(normalizedConversationId));
+    return true;
+  }, [normalizedConversationId]);
+
   const sendMessage = useCallback(async (
     payload: {
       content: string;
@@ -3170,6 +3203,7 @@ export function useChatMessages(
     error,
     loadMessages,
     loadMore,
+    loadReferencedMessage,
     loadConversation,
     loadParticipants,
     sendMessage,

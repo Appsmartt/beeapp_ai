@@ -8,6 +8,7 @@ import { useFocusEffect } from 'expo-router';
 import {
   ActivityIndicator,
   Alert,
+  Animated,
   AppState,
   Image,
   Modal,
@@ -17,6 +18,7 @@ import {
   Text,
   View,
 } from 'react-native';
+import * as Clipboard from 'expo-clipboard';
 import * as DocumentPicker from 'expo-document-picker';
 import * as ImagePicker from 'expo-image-picker';
 import {
@@ -300,6 +302,7 @@ function ConversationContent() {
     error,
     loadMessages,
     loadMore,
+    loadReferencedMessage,
     sendMessage,
     sendAttachmentMessage,
     editMessage,
@@ -479,6 +482,13 @@ function ConversationContent() {
   ] = useState(false);
 
   const scrollRef = useRef<ScrollView | null>(null);
+  const messageRowOffsetsRef = useRef<Record<string, number>>({});
+  const pendingReplyJumpRef = useRef<string | null>(null);
+  const replyHighlightTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const replyHighlightOpacityRef = useRef(new Animated.Value(0));
+  const replyHighlightAnimationRef = useRef<Animated.CompositeAnimation | null>(null);
+  const replyHighlightRunRef = useRef(0);
+  const [highlightedMessageId, setHighlightedMessageId] = useState<string | null>(null);
   const loadingMoreRef = useRef(false);
   const chatContentHeightRef = useRef(0);
   const chatScrollOffsetRef = useRef(0);
@@ -1061,6 +1071,10 @@ function ConversationContent() {
       return;
     }
 
+    if (pendingReplyJumpRef.current) {
+      return;
+    }
+
     if (
       !initialChatScrollDoneRef.current
       && !initialChatScrollScheduledRef.current
@@ -1125,6 +1139,89 @@ function ConversationContent() {
       setToastText(null);
     }, 2200);
   };
+
+  const focusReplySource = (messageId: string, offsetY: number) => {
+    pendingReplyJumpRef.current = null;
+    replyHighlightRunRef.current += 1;
+    const run = replyHighlightRunRef.current;
+    if (replyHighlightTimerRef.current) {
+      clearTimeout(replyHighlightTimerRef.current);
+      replyHighlightTimerRef.current = null;
+    }
+    replyHighlightAnimationRef.current?.stop();
+    replyHighlightOpacityRef.current.setValue(0);
+    setHighlightedMessageId(messageId);
+    scrollRef.current?.scrollTo({
+      y: Math.max(0, offsetY - 80),
+      animated: true,
+    });
+
+    const fadeIn = Animated.timing(replyHighlightOpacityRef.current, {
+      toValue: 1,
+      duration: 320,
+      useNativeDriver: true,
+    });
+    replyHighlightAnimationRef.current = fadeIn;
+    fadeIn.start(({ finished }) => {
+      if (!finished || run !== replyHighlightRunRef.current) {
+        return;
+      }
+      replyHighlightTimerRef.current = setTimeout(() => {
+        replyHighlightTimerRef.current = null;
+        const fadeOut = Animated.timing(replyHighlightOpacityRef.current, {
+          toValue: 0,
+          duration: 650,
+          useNativeDriver: true,
+        });
+        replyHighlightAnimationRef.current = fadeOut;
+        fadeOut.start(({ finished: faded }) => {
+          if (faded && run === replyHighlightRunRef.current) {
+            setHighlightedMessageId((current) => (
+              current === messageId ? null : current
+            ));
+            replyHighlightAnimationRef.current = null;
+          }
+        });
+      }, 1300);
+    });
+  };
+
+  const handlePressReply = async (messageId: string) => {
+    if (pendingReplyJumpRef.current) {
+      return;
+    }
+    pendingReplyJumpRef.current = messageId;
+    userDraggedChatRef.current = false;
+    followLatestMessagesRef.current = false;
+
+    const offsetY = messageRowOffsetsRef.current[messageId];
+    if (offsetY !== undefined) {
+      focusReplySource(messageId, offsetY);
+      return;
+    }
+
+    try {
+      const found = await loadReferencedMessage(messageId);
+      if (!found) {
+        pendingReplyJumpRef.current = null;
+        showToast('El mensaje original no está disponible.');
+      }
+    } catch {
+      pendingReplyJumpRef.current = null;
+      showToast('No fue posible abrir el mensaje original.');
+    }
+  };
+
+  useEffect(() => () => {
+    pendingReplyJumpRef.current = null;
+    messageRowOffsetsRef.current = {};
+    replyHighlightRunRef.current += 1;
+    if (replyHighlightTimerRef.current) {
+      clearTimeout(replyHighlightTimerRef.current);
+      replyHighlightTimerRef.current = null;
+    }
+    replyHighlightAnimationRef.current?.stop();
+  }, [chatId]);
 
   const sendChatAttachment = async (
     attachment: UploadableChatAttachment,
@@ -1373,9 +1470,23 @@ function ConversationContent() {
     }
 
     if (action === 'copy') {
-      showToast(
-        'Copia de texto disponible próximamente.',
-      );
+      const content = target.text?.trim();
+
+      if (!content) {
+        showToast('Este mensaje no tiene texto para copiar.');
+        return;
+      }
+
+      void Clipboard.setStringAsync(content)
+        .then(() => {
+          showToast('Mensaje copiado');
+        })
+        .catch(() => {
+          Alert.alert(
+            'No fue posible copiar el mensaje',
+            'Inténtalo nuevamente.',
+          );
+        });
       return;
     }
 
@@ -1944,7 +2055,25 @@ function ConversationContent() {
                 : '';
 
               return (
-                <View key={message.id}>
+                <View
+                  key={message.id}
+                  onLayout={(event) => {
+                    const offsetY = event.nativeEvent.layout.y;
+                    messageRowOffsetsRef.current[message.id] = offsetY;
+                    if (pendingReplyJumpRef.current === message.id) {
+                      focusReplySource(message.id, offsetY);
+                    }
+                  }}
+                >
+                  {highlightedMessageId === message.id ? (
+                    <Animated.View
+                      pointerEvents="none"
+                      style={[
+                        styles.replySourceHighlight,
+                        { opacity: replyHighlightOpacityRef.current },
+                      ]}
+                    />
+                  ) : null}
                   {dateSeparatorLabel ? (
                     <View style={styles.dateSeparator}>
                       <Text style={styles.dateSeparatorText}>
@@ -2002,6 +2131,13 @@ function ConversationContent() {
                         }
                         : undefined
                     }
+                    onPressReply={
+                      message.replyTo?.id
+                        ? () => {
+                            void handlePressReply(message.replyTo!.id);
+                          }
+                        : undefined
+                    }
                     statusStoryReference={
                       message.statusStoryReference
                         ? {
@@ -2029,6 +2165,11 @@ function ConversationContent() {
                     isPinned={message.isPinned}
                     onLongPress={() => {
                       setSelectedMessage(message);
+                    }}
+                    onReplySwipe={() => {
+                      setEditingMessage(null);
+                      setEditingText('');
+                      setReplyTarget(message);
                     }}
                     onContactCatalogItem={(item) => {
                       void handleSendMessage(
@@ -2139,7 +2280,7 @@ function ConversationContent() {
             onSendVoiceNote={handleSendVoiceNote}
             onSendAttachment={handleSendAttachment}
             uploadingAttachment={uploadingAttachment}
-            shouldFocus={focusComposer}
+            shouldFocus={focusComposer || replyTarget !== null}
             value={
               editingMessage
                 ? editingText
@@ -2384,6 +2525,11 @@ const styles = StyleSheet.create({
     fontSize: 11,
     lineHeight: 16,
     marginTop: 2,
+  },
+  replySourceHighlight: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: '#EDE6FF',
+    borderRadius: 12,
   },
   dateSeparator: {
     alignItems: 'center',
