@@ -65,7 +65,7 @@ import MyStatusesModal from '../../../src/components/chat/status/MyStatusesModal
 import ChatTabs, {
   type ChatTab,
 } from '../../../src/components/chat/ChatTabs';
-import ChatOptionsSheet from '../../../src/components/chat/ChatOptionsSheet';
+import GroupAwareChatOptionsSheet from '../../../src/components/chat/GroupAwareChatOptionsSheet';
 import ChatCreateMenu from '../../../src/components/chat/ChatCreateMenu';
 import SocialActivitySheet, {
   type SocialActivityTab,
@@ -940,9 +940,13 @@ export default function ChatListScreen() {
     Alert.alert(
       'Eliminar chat',
       (
-        `¿Seguro que quieres eliminar `
-        + `${chat.isGroup ? 'el grupo' : 'el chat'} `
-        + `"${chat.name}" de tu lista?`
+        chat.isGroup
+          ? (
+              `¿Eliminar "${chat.name}"? Si eres integrante, saldrás `
+              + 'del grupo y desaparecerá de tu lista. Si eres el único '
+              + 'integrante y owner, se desactivará el grupo.'
+            )
+          : `¿Seguro que quieres eliminar el chat "${chat.name}" de tu lista?`
       ),
       [
         {
@@ -1943,8 +1947,10 @@ export default function ChatListScreen() {
         }}
       />
 
-      <ChatOptionsSheet
+      <GroupAwareChatOptionsSheet
         chat={menuChat}
+        identityId={activeIdentityId}
+        onDeleteGroupAfterTransfer={deleteConversation}
         isProtected={
           Boolean(menuChat)
           && (

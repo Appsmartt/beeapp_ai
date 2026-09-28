@@ -1722,6 +1722,65 @@ export async function respondToChatGroupInvite(
   };
 }
 
+export async function transferChatGroupOwnership(
+  auth: AuthCredentials,
+  conversationId: string,
+  payload: {
+    current_owner_identity_id: string;
+    new_owner_identity_id: string;
+  },
+): Promise<{ conversation: ChatConversation }> {
+  const response = await api.post<{
+    conversation: ChatApiConversation;
+  }>(
+    `${groupPath(conversationId)}transfer-ownership/`,
+    payload,
+    { auth: requireBearerAuth(auth) },
+  );
+  return {
+    conversation: toSharedConversation(response.conversation),
+  };
+}
+
+export async function setChatGroupParticipantRole(
+  auth: AuthCredentials,
+  conversationId: string,
+  targetIdentityId: string,
+  payload: {
+    actor_identity_id: string;
+    role: 'admin' | 'member';
+  },
+): Promise<{ conversation: ChatConversation }> {
+  const response = await api.patch<{
+    conversation: ChatApiConversation;
+  }>(
+    `${groupPath(conversationId)}participants/${encodeURIComponent(
+      targetIdentityId,
+    )}/role/`,
+    payload,
+    { auth: requireBearerAuth(auth) },
+  );
+  return {
+    conversation: toSharedConversation(response.conversation),
+  };
+}
+
+export async function deactivateChatGroup(
+  auth: AuthCredentials,
+  conversationId: string,
+  payload: {
+    owner_identity_id: string;
+  },
+): Promise<void> {
+  await api.delete<void>(
+    `${groupPath(conversationId)}sole-owner/`,
+    {
+      auth: requireBearerAuth(auth),
+      body: payload,
+    },
+  );
+}
+
 export async function leaveChatGroup(
   auth: AuthCredentials,
   conversationId: string,

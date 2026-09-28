@@ -1,4 +1,5 @@
 import {
+  ActivityIndicator,
   Modal,
   Platform,
   StyleSheet,
@@ -15,6 +16,8 @@ import {
   RotateCcw,
   Trash2,
   Unlock,
+  Crown,
+  Shield,
 } from 'lucide-react-native';
 import {
   colors,
@@ -32,6 +35,11 @@ interface ChatOptionsSheetProps {
   onToggleMute: () => void;
   onAssignCategory: () => void;
   onDelete: () => void;
+  canChangeOwner?: boolean;
+  canManageAdmins?: boolean;
+  loadingGroupOptions?: boolean;
+  onChangeOwner?: () => void;
+  onManageAdmins?: () => void;
   onArchive?: () => void;
   onRestore?: () => void;
   onClose: () => void;
@@ -45,6 +53,11 @@ export default function ChatOptionsSheet({
   onToggleMute,
   onAssignCategory,
   onDelete,
+  canChangeOwner = false,
+  canManageAdmins = false,
+  loadingGroupOptions = false,
+  onChangeOwner,
+  onManageAdmins,
   onArchive,
   onRestore,
   onClose,
@@ -180,6 +193,27 @@ export default function ChatOptionsSheet({
                 </TouchableOpacity>
               ) : null}
 
+              {chat.isGroup && loadingGroupOptions ? (
+                <View style={styles.sheetBtn}>
+                  <ActivityIndicator size="small" color={colors.brand.primary} />
+                  <Text style={styles.sheetBtnText}>Cargando opciones de grupo</Text>
+                </View>
+              ) : null}
+
+              {chat.isGroup && canChangeOwner && onChangeOwner ? (
+                <TouchableOpacity style={styles.sheetBtn} onPress={onChangeOwner}>
+                  <Crown size={18} color={colors.neutral.text} style={styles.sheetIcon} />
+                  <Text style={styles.sheetBtnText}>Cambiar owner</Text>
+                </TouchableOpacity>
+              ) : null}
+
+              {chat.isGroup && canManageAdmins && onManageAdmins ? (
+                <TouchableOpacity style={styles.sheetBtn} onPress={onManageAdmins}>
+                  <Shield size={18} color={colors.neutral.text} style={styles.sheetIcon} />
+                  <Text style={styles.sheetBtnText}>Gestionar administradores</Text>
+                </TouchableOpacity>
+              ) : null}
+
               {!chat.isAI ? (
                 <TouchableOpacity
                   style={styles.sheetBtn}
@@ -197,7 +231,7 @@ export default function ChatOptionsSheet({
                       styles.sheetBtnTextDanger,
                     ]}
                   >
-                    Eliminar chat
+                    Eliminar
                   </Text>
                 </TouchableOpacity>
               ) : null}

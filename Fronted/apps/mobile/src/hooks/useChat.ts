@@ -11,6 +11,7 @@ import {
   clearChatConversation,
   createChatGroup,
   createDirectChatConversation,
+  deactivateChatGroup,
   getChatConversation,
   getChatIdentities,
   getChatInbox,
@@ -1404,13 +1405,78 @@ export function useChatConversations(
       || await resolveActiveIdentityId(token)
     );
 
-    await clearChatConversation(
-      token,
-      normalizedConversationId,
-      {
-        identity_id: identityId,
-      },
+    const storedConversation = getStoredConversations().find(
+      (item) => item.id === normalizedConversationId,
     );
+    const detail = storedConversation?.conversation_type === 'direct'
+      ? null
+      : await getChatConversation(
+          token,
+          normalizedConversationId,
+        );
+
+    if (detail?.conversation.conversation_type === 'group') {
+      const group = detail.conversation;
+      const membership = group.own_participant;
+
+      if (
+        !membership
+        || membership.identity_id !== identityId
+        || !group.permissions?.is_active_participant
+      ) {
+        throw new Error(
+          'No tienes una participación activa en este grupo.',
+        );
+      }
+
+      const result = await getChatParticipants(
+        token,
+        normalizedConversationId,
+      );
+      const activeParticipants = result.participants.filter(
+        (participant) => (
+          !participant.left_at && !participant.removed_at
+        ),
+      );
+      const otherParticipants = activeParticipants.filter(
+        (participant) => participant.identity_id !== identityId,
+      );
+
+      if (membership.role === 'owner') {
+        if (!group.permissions.can_deactivate_group) {
+          throw new Error(
+            'No tienes permiso para eliminar este grupo.',
+          );
+        }
+        if (otherParticipants.length > 0) {
+          throw new Error(
+            'Primero cambia el owner por otro integrante del grupo.',
+          );
+        }
+        await deactivateChatGroup(
+          token,
+          normalizedConversationId,
+          { owner_identity_id: identityId },
+        );
+      } else {
+        if (!group.permissions.can_leave_group) {
+          throw new Error(
+            'No tienes permiso para salir de este grupo.',
+          );
+        }
+        await leaveChatGroup(
+          token,
+          normalizedConversationId,
+          { identity_id: identityId },
+        );
+      }
+    } else {
+      await clearChatConversation(
+        token,
+        normalizedConversationId,
+        { identity_id: identityId },
+      );
+    }
 
     removeChatConversation(normalizedConversationId);
     setRawConversations(getStoredConversations());

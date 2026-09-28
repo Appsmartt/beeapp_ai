@@ -1851,6 +1851,8 @@ class ChatGroupDetailView(AuthenticatedAPIView):
     Ambas acciones requieren la identidad owner.
     """
 
+    sole_owner_only = False
+
     throttle_classes = [ChatGroupMutationThrottle]
 
     def patch(self, request, conversation_id):
@@ -1941,6 +1943,7 @@ class ChatGroupDetailView(AuthenticatedAPIView):
                         "owner_identity_id"
                     ]
                 ),
+                sole_owner_only=self.sole_owner_only,
             )
 
         except AccountAuthenticationError:
@@ -1971,6 +1974,11 @@ class ChatGroupDetailView(AuthenticatedAPIView):
         return Response(
             status=status.HTTP_204_NO_CONTENT,
         )
+
+
+class ChatGroupSoleOwnerDeactivationView(ChatGroupDetailView):
+    http_method_names = ["delete", "options"]
+    sole_owner_only = True
 
 
 class ChatGroupInvitesView(AuthenticatedAPIView):
