@@ -175,6 +175,8 @@ export default function ConversationScreen() {
   >('checking');
   const [accessError, setAccessError] = useState<string | null>(null);
   const [attempt, setAttempt] = useState(0);
+  const [chatCameraOpen, setChatCameraOpen] = useState(false);
+  const [chatCameraMicrophoneGranted, setChatCameraMicrophoneGranted] = useState(false);
 
   useFocusEffect(
     useCallback(() => {
@@ -268,10 +270,29 @@ export default function ConversationScreen() {
     );
   }
 
-  return <ConversationContent />;
+  return (
+    <ConversationContent
+      chatCameraOpen={chatCameraOpen}
+      chatCameraMicrophoneGranted={chatCameraMicrophoneGranted}
+      setChatCameraOpen={setChatCameraOpen}
+      setChatCameraMicrophoneGranted={setChatCameraMicrophoneGranted}
+    />
+  );
 }
 
-function ConversationContent() {
+type ConversationCameraProps = {
+  chatCameraOpen: boolean;
+  chatCameraMicrophoneGranted: boolean;
+  setChatCameraOpen: (open: boolean) => void;
+  setChatCameraMicrophoneGranted: (granted: boolean) => void;
+};
+
+function ConversationContent({
+  chatCameraOpen,
+  chatCameraMicrophoneGranted,
+  setChatCameraOpen,
+  setChatCameraMicrophoneGranted,
+}: ConversationCameraProps) {
   const router = useModuleNav();
   const params = useScreenParams();
 
@@ -486,8 +507,6 @@ function ConversationContent() {
     setAttachmentUrlsByMessageId,
   ] = useState<Record<string, string>>({});
 
-  const [chatCameraOpen, setChatCameraOpen] = useState(false);
-  const [chatCameraMicrophoneGranted, setChatCameraMicrophoneGranted] = useState(false);
   const [initialImagesReady, setInitialImagesReady] = useState(false);
   const [isStartingCall, setIsStartingCall] = useState(false);
 
@@ -1469,12 +1488,18 @@ function ConversationContent() {
       }
 
       if (type === 'camera') {
-        const cameraPermission = await ExpoCamera.requestCameraPermissionsAsync();
+        let cameraPermission = await ExpoCamera.getCameraPermissionsAsync();
+        if (!cameraPermission.granted) {
+          cameraPermission = await ExpoCamera.requestCameraPermissionsAsync();
+        }
         if (!cameraPermission.granted) {
           throw new Error('Necesitamos permiso para usar la cámara.');
         }
 
-        const microphonePermission = await ExpoCamera.requestMicrophonePermissionsAsync();
+        let microphonePermission = await ExpoCamera.getMicrophonePermissionsAsync();
+        if (!microphonePermission.granted && microphonePermission.canAskAgain) {
+          microphonePermission = await ExpoCamera.requestMicrophonePermissionsAsync();
+        }
         setChatCameraMicrophoneGranted(microphonePermission.granted);
         setChatCameraOpen(true);
         return;
