@@ -616,7 +616,21 @@ function toSharedMessage(
             || message.reply_to.sender_identity?.display_name
             || 'Usuario Buddy'
           ),
-          content: message.reply_to.body || '',
+          content: (
+            message.reply_to.body?.trim()
+            || (
+              message.reply_to.message_type === 'image'
+                ? 'Imagen'
+                : message.reply_to.message_type === 'audio'
+                  ? 'Audio'
+                  : (
+                    message.reply_to.message_type === 'document'
+                    || message.reply_to.message_type === 'video'
+                  )
+                    ? 'Archivo adjunto'
+                    : 'Mensaje'
+            )
+          ),
           message_type: toUiMessageType(
             message.reply_to.message_type,
           ),

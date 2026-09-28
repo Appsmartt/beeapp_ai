@@ -6,7 +6,7 @@ import {
   StyleSheet,
   TouchableWithoutFeedback,
 } from 'react-native';
-import { Reply, Pencil, Forward, Pin, Copy, Bomb } from 'lucide-react-native';
+import { Reply, Copy } from 'lucide-react-native';
 import { colors } from '@beeapp/design-system';
 
 export type ChatMessageAction =
@@ -28,9 +28,6 @@ interface ChatMessageMenuModalProps {
 
 export default function ChatMessageMenuModal({
   visible,
-  isUser,
-  isPinned,
-  isDestroyed,
   onClose,
   onSelectAction,
 }: ChatMessageMenuModalProps) {
@@ -42,7 +39,7 @@ export default function ChatMessageMenuModal({
         <View style={styles.backdrop}>
           <TouchableWithoutFeedback>
             <View style={styles.menuCard}>
-              {/* 1. Responder */}
+              {/* Responder */}
               <TouchableOpacity
                 style={styles.menuRow}
                 activeOpacity={0.7}
@@ -52,43 +49,9 @@ export default function ChatMessageMenuModal({
                 <Text style={styles.menuText}>Responder</Text>
               </TouchableOpacity>
 
-              {/* 2. Editar (Solo mensajes propios y no destruidos) */}
-              {isUser && !isDestroyed && (
-                <TouchableOpacity
-                  style={styles.menuRow}
-                  activeOpacity={0.7}
-                  onPress={() => onSelectAction('edit')}
-                >
-                  <Pencil size={18} color={colors.neutral.gray700} />
-                  <Text style={styles.menuText}>Editar</Text>
-                </TouchableOpacity>
-              )}
-
-              {/* 3. Reenviar */}
+              {/* Copiar */}
               <TouchableOpacity
-                style={styles.menuRow}
-                activeOpacity={0.7}
-                onPress={() => onSelectAction('forward')}
-              >
-                <Forward size={18} color={colors.neutral.gray700} />
-                <Text style={styles.menuText}>Reenviar</Text>
-              </TouchableOpacity>
-
-              {/* 4. Fijar mensaje */}
-              <TouchableOpacity
-                style={styles.menuRow}
-                activeOpacity={0.7}
-                onPress={() => onSelectAction('pin')}
-              >
-                <Pin size={18} color={colors.neutral.gray700} />
-                <Text style={styles.menuText}>
-                  {isPinned ? 'Desfijar mensaje' : 'Fijar mensaje'}
-                </Text>
-              </TouchableOpacity>
-
-              {/* 5. Copiar */}
-              <TouchableOpacity
-                style={styles.menuRow}
+                style={[styles.menuRow, styles.lastRow]}
                 activeOpacity={0.7}
                 onPress={() => onSelectAction('copy')}
               >
@@ -97,15 +60,6 @@ export default function ChatMessageMenuModal({
               </TouchableOpacity>
 
 
-              {/* 7. Destruir (Rojo) */}
-              <TouchableOpacity
-                style={[styles.menuRow, styles.lastRow]}
-                activeOpacity={0.7}
-                onPress={() => onSelectAction('destroy')}
-              >
-                <Bomb size={18} color="#D85A70" />
-                <Text style={[styles.menuText, styles.destroyText]}>Destruir</Text>
-              </TouchableOpacity>
             </View>
           </TouchableWithoutFeedback>
         </View>
@@ -149,8 +103,5 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '400',
     color: colors.neutral.text,
-  },
-  destroyText: {
-    color: '#D85A70',
   },
 });

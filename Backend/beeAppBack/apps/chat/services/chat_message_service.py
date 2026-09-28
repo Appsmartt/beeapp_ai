@@ -1090,11 +1090,41 @@ def _enrich_messages(
     if not messages:
         return []
 
+    reply_ids = list({
+        str(message["reference_id"])
+        for message in messages
+        if message.get("reference_type") == "chat_message"
+        and message.get("reference_id")
+    })
+    replies_by_id: dict[str, dict[str, Any]] = {}
+
+    if reply_ids:
+        reply_response = (
+            _supabase()
+            .table("chat_messages")
+            .select(MESSAGE_COLUMNS)
+            .in_("id", reply_ids)
+            .execute()
+        )
+        replies_by_id = {
+            str(reply["id"]): reply
+            for reply in _response_rows(reply_response)
+        }
+
     sender_identity_ids = list(
         {
-            message["sender_identity_id"]
-            for message in messages
-            if message.get("sender_identity_id")
+            str(identity_id)
+            for identity_id in (
+                [
+                    message.get("sender_identity_id")
+                    for message in messages
+                ]
+                + [
+                    reply.get("sender_identity_id")
+                    for reply in replies_by_id.values()
+                ]
+            )
+            if identity_id
         }
     )
 
@@ -1152,6 +1182,28 @@ def _enrich_messages(
             message=message,
             viewer_user_id=viewer_user_id,
         )
+
+        if message.get("reference_type") == "chat_message":
+            original = replies_by_id.get(
+                str(message.get("reference_id") or "")
+            )
+            if (
+                original
+                and str(original.get("conversation_id"))
+                == str(message.get("conversation_id"))
+            ):
+                original_identity = identities_by_id.get(
+                    str(original.get("sender_identity_id") or "")
+                )
+                enriched_message["reply_to"] = {
+                    "id": str(original["id"]),
+                    "body": original.get("body"),
+                    "message_type": original.get("message_type"),
+                    "sender_display_name": (
+                        (original_identity or {}).get("display_name")
+                        or "Contacto"
+                    ),
+                }
 
         result.append(enriched_message)
 
