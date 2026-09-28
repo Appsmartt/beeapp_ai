@@ -39,6 +39,7 @@ from apps.chat.views import (
     ChatGroupInvitesView,
     ChatGroupLeaveView,
     ChatGroupOwnershipTransferView,
+    ChatGroupSoleOwnerDeactivationView,
     ChatGroupParticipantDetailView,
     ChatGroupParticipantRoleView,
     ChatGroupsView,
@@ -193,6 +194,11 @@ urlpatterns = [
         "groups/<uuid:conversation_id>/",
         ChatGroupDetailView.as_view(),
         name="chat-group-detail",
+    ),
+    path(
+        "groups/<uuid:conversation_id>/sole-owner/",
+        ChatGroupSoleOwnerDeactivationView.as_view(),
+        name="chat-group-sole-owner-deactivation",
     ),
     path(
         "groups/<uuid:conversation_id>/invites/",

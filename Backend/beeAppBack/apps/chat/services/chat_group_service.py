@@ -835,6 +835,7 @@ def deactivate_chat_group(
     access_token: str,
     conversation_id: str,
     owner_identity_id: str,
+    sole_owner_only: bool = False,
 ) -> None:
     try:
         get_owned_chat_identity(
@@ -851,7 +852,10 @@ def deactivate_chat_group(
                 access_token=access_token,
             )
             .rpc(
-                "deactivate_chat_group",
+                (
+                    "deactivate_chat_group_if_sole_owner"
+                    if sole_owner_only else "deactivate_chat_group"
+                ),
                 {
                     "p_conversation_id": str(conversation_id),
                     "p_owner_identity_id": str(

@@ -34,7 +34,7 @@ import {
   useScreenParams,
 } from '../../../src/components/embedded/EmbeddedNavContext';
 import ChatListView from '../../../src/components/chat/ChatListView';
-import ChatOptionsSheet from '../../../src/components/chat/ChatOptionsSheet';
+import GroupAwareChatOptionsSheet from '../../../src/components/chat/GroupAwareChatOptionsSheet';
 import PinLockModal from '../../../src/components/security/PinLockModal';
 
 import {
@@ -80,6 +80,7 @@ export default function ArchivedChatsScreen() {
 
   const {
     conversations,
+    activeIdentityId,
     loading,
     refreshing,
     error,
@@ -282,9 +283,13 @@ export default function ArchivedChatsScreen() {
     Alert.alert(
       'Eliminar chat',
       (
-        `¿Seguro que quieres eliminar `
-        + `${chat.isGroup ? 'el grupo' : 'el chat'} `
-        + `"${chat.name}" de tu lista?`
+        chat.isGroup
+          ? (
+              `¿Eliminar "${chat.name}"? Si eres integrante, saldrás `
+              + 'del grupo y desaparecerá de tu lista. Si eres el único '
+              + 'integrante y owner, se desactivará el grupo.'
+            )
+          : `¿Seguro que quieres eliminar el chat "${chat.name}" de tu lista?`
       ),
       [
         {
@@ -437,8 +442,10 @@ export default function ArchivedChatsScreen() {
         onSuccess={finishRemoval}
       />
 
-      <ChatOptionsSheet
+      <GroupAwareChatOptionsSheet
         chat={menuChat}
+        identityId={activeIdentityId}
+        onDeleteGroupAfterTransfer={deleteConversation}
         isProtected={Boolean(menuChat && protectedChatIds.has(menuChat.id))}
         onToggleProtection={() => {
           if (menuChat) void handleToggleProtection(menuChat);
