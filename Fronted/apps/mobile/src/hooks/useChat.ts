@@ -1751,16 +1751,20 @@ export function useChatConversations(
       );
     }
 
-    const exists = getStoredConversations().some(
-      (conversation) => (
-        conversation.id === normalizedConversationId
-      ),
+    const conversation = getStoredConversations().find(
+      (item) => item.id === normalizedConversationId,
     );
 
-    if (!exists) {
+    if (!conversation) {
       throw new Error(
         'No fue posible encontrar el chat para archivarlo.',
       );
+    }
+
+    if (conversation.own_participant?.notifications_enabled !== false) {
+      await updateConversation(normalizedConversationId, {
+        isMuted: true,
+      });
     }
 
     setChatConversationArchived(
@@ -1771,7 +1775,7 @@ export function useChatConversations(
     setRawConversations([
       ...getStoredConversations(),
     ]);
-  }, []);
+  }, [updateConversation]);
 
   const restoreConversation = useCallback(async (
     conversationId: string,
@@ -1784,6 +1788,22 @@ export function useChatConversations(
       );
     }
 
+    const conversation = getStoredConversations().find(
+      (item) => item.id === normalizedConversationId,
+    );
+
+    if (!conversation) {
+      throw new Error(
+        'No fue posible encontrar el chat para restaurarlo.',
+      );
+    }
+
+    if (conversation.own_participant?.notifications_enabled !== true) {
+      await updateConversation(normalizedConversationId, {
+        isMuted: false,
+      });
+    }
+
     setChatConversationArchived(
       normalizedConversationId,
       false,
@@ -1792,7 +1812,7 @@ export function useChatConversations(
     setRawConversations([
       ...getStoredConversations(),
     ]);
-  }, []);
+  }, [updateConversation]);
 
   const isArchived = useCallback((
     conversationId: string,

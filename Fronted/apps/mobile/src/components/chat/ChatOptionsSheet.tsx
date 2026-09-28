@@ -34,6 +34,7 @@ interface ChatOptionsSheetProps {
   onTogglePin: () => void;
   onToggleMute: () => void;
   onAssignCategory: () => void;
+  hideArchivedChatActions?: boolean;
   onDelete: () => void;
   canChangeOwner?: boolean;
   canManageAdmins?: boolean;
@@ -52,6 +53,7 @@ export default function ChatOptionsSheet({
   onTogglePin,
   onToggleMute,
   onAssignCategory,
+  hideArchivedChatActions = false,
   onDelete,
   canChangeOwner = false,
   canManageAdmins = false,
@@ -92,39 +94,43 @@ export default function ChatOptionsSheet({
 
           {chat ? (
             <>
-              <TouchableOpacity
-                style={styles.sheetBtn}
-                onPress={onTogglePin}
-              >
-                <Pin
-                  size={18}
-                  color={colors.neutral.text}
-                  style={styles.sheetIcon}
-                />
+              {!hideArchivedChatActions ? (
+                <TouchableOpacity
+                  style={styles.sheetBtn}
+                  onPress={onTogglePin}
+                >
+                  <Pin
+                    size={18}
+                    color={colors.neutral.text}
+                    style={styles.sheetIcon}
+                  />
 
-                <Text style={styles.sheetBtnText}>
-                  {chat.isPinned
-                    ? 'Desfijar'
-                    : 'Fijar'}
-                </Text>
-              </TouchableOpacity>
+                  <Text style={styles.sheetBtnText}>
+                    {chat.isPinned
+                      ? 'Desfijar'
+                      : 'Fijar'}
+                  </Text>
+                </TouchableOpacity>
+              ) : null}
 
-              <TouchableOpacity
-                style={styles.sheetBtn}
-                onPress={onToggleMute}
-              >
-                <BellOff
-                  size={18}
-                  color={colors.neutral.text}
-                  style={styles.sheetIcon}
-                />
+              {!hideArchivedChatActions ? (
+                <TouchableOpacity
+                  style={styles.sheetBtn}
+                  onPress={onToggleMute}
+                >
+                  <BellOff
+                    size={18}
+                    color={colors.neutral.text}
+                    style={styles.sheetIcon}
+                  />
 
-                <Text style={styles.sheetBtnText}>
-                  {chat.isMuted
-                    ? 'Activar notificaciones'
-                    : 'Silenciar'}
-                </Text>
-              </TouchableOpacity>
+                  <Text style={styles.sheetBtnText}>
+                    {chat.isMuted
+                      ? 'Activar notificaciones'
+                      : 'Silenciar'}
+                  </Text>
+                </TouchableOpacity>
+              ) : null}
 
               <TouchableOpacity
                 style={styles.sheetBtn}
@@ -151,20 +157,22 @@ export default function ChatOptionsSheet({
                 </Text>
               </TouchableOpacity>
 
-              <TouchableOpacity
-                style={styles.sheetBtn}
-                onPress={onAssignCategory}
-              >
-                <FolderPlus
-                  size={18}
-                  color={colors.neutral.text}
-                  style={styles.sheetIcon}
-                />
+              {!hideArchivedChatActions ? (
+                <TouchableOpacity
+                  style={styles.sheetBtn}
+                  onPress={onAssignCategory}
+                >
+                  <FolderPlus
+                    size={18}
+                    color={colors.neutral.text}
+                    style={styles.sheetIcon}
+                  />
 
-                <Text style={styles.sheetBtnText}>
-                  Asignar a categoría
-                </Text>
-              </TouchableOpacity>
+                  <Text style={styles.sheetBtnText}>
+                    Asignar a categoría
+                  </Text>
+                </TouchableOpacity>
+              ) : null}
 
               {!chat.isAI ? (
                 <TouchableOpacity

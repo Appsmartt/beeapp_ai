@@ -2,6 +2,7 @@ import {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from 'react';
 import { useFocusEffect } from 'expo-router';
@@ -175,6 +176,8 @@ export default function ArchivedChatsScreen() {
     loadConversations,
   ]);
 
+  const muteAttempts = useRef(new Set<string>());
+
   const archivedChats = useMemo(
     () => conversations.filter((chat) => (
       chat.isArchived
@@ -194,6 +197,36 @@ export default function ArchivedChatsScreen() {
       protectedChatIds,
     ],
   );
+
+  useEffect(() => {
+    let cancelled = false;
+    const attemptKey = (chatId: string) => `${activeIdentityId || ''}:${chatId}`;
+    const chatsToMute = archivedChats.filter(
+      (chat) => !chat.isMuted && !muteAttempts.current.has(attemptKey(chat.id)),
+    );
+
+    const mutePreviouslyArchivedChats = async () => {
+      for (const chat of chatsToMute) {
+        if (cancelled) break;
+        muteAttempts.current.add(attemptKey(chat.id));
+        try {
+          await updateConversation(chat.id, { isMuted: true });
+        } catch (failure) {
+          if (!cancelled) {
+            Alert.alert(
+              'No fue posible silenciar el chat archivado',
+              failure instanceof Error ? failure.message : 'Inténtalo nuevamente.',
+            );
+          }
+        }
+      }
+    };
+
+    void mutePreviouslyArchivedChats();
+    return () => {
+      cancelled = true;
+    };
+  }, [activeIdentityId, archivedChats, updateConversation]);
 
   const openChat = (
     chat: ChatListItemModel,
@@ -382,6 +415,7 @@ export default function ArchivedChatsScreen() {
   };
 
   const handleRefresh = () => {
+    muteAttempts.current.clear();
     void loadConversations({
       refresh: true,
     }).catch(() => {
@@ -518,6 +552,7 @@ export default function ArchivedChatsScreen() {
 
       <GroupAwareChatOptionsSheet
         chat={menuChat}
+        hideArchivedChatActions
         identityId={activeIdentityId}
         onDeleteGroupAfterTransfer={deleteConversation}
         isProtected={Boolean(menuChat && protectedChatIds.has(menuChat.id))}
