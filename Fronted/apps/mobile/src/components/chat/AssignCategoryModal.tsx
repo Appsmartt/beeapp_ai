@@ -13,6 +13,8 @@ interface AssignCategoryModalProps {
   selectedIds: string[];
   onSave: (categoryIds: string[]) => void;
   onClose: () => void;
+  onCreateCategory?: () => void;
+  saving?: boolean;
 }
 
 /** Files a chat under one or several categories (mock, in memory) */
@@ -23,13 +25,15 @@ export default function AssignCategoryModal({
   selectedIds,
   onSave,
   onClose,
+  onCreateCategory,
+  saving = false,
 }: AssignCategoryModalProps) {
   const [selected, setSelected] = useState<string[]>(selectedIds);
 
   // Reopening starts from what the chat has right now
   useEffect(() => {
     if (visible) setSelected(selectedIds);
-  }, [visible]);
+  }, [visible, selectedIds.join(',')]);
 
   const toggle = (id: string) =>
     setSelected((ids) => (ids.includes(id) ? ids.filter((x) => x !== id) : [...ids, id]));
@@ -45,7 +49,10 @@ export default function AssignCategoryModal({
 
           <ScrollView style={styles.list} showsVerticalScrollIndicator={false}>
             {categories.length === 0 ? (
-              <Text style={styles.emptyText}>Todavía no has creado categorías.</Text>
+              <TouchableOpacity onPress={onCreateCategory} disabled={!onCreateCategory} style={styles.emptyAction}>
+                <Text style={styles.emptyText}>Todavía no has creado categorías.</Text>
+                <Text style={styles.emptyActionText}>Crear una categoría</Text>
+              </TouchableOpacity>
             ) : (
               categories.map((category) => {
                 const Icon = getCategoryIcon(category.icon);
@@ -72,8 +79,8 @@ export default function AssignCategoryModal({
             <TouchableOpacity style={styles.cancelBtn} onPress={onClose} activeOpacity={0.7}>
               <Text style={styles.cancelBtnText}>Cancelar</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.saveBtn} onPress={() => onSave(selected)} activeOpacity={0.8}>
-              <Text style={styles.saveBtnText}>Guardar</Text>
+            <TouchableOpacity style={styles.saveBtn} disabled={saving || categories.length === 0} onPress={() => onSave(selected)} activeOpacity={0.8}>
+              <Text style={styles.saveBtnText}>{saving ? "Guardando..." : "Guardar"}</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -97,6 +104,8 @@ const styles = StyleSheet.create({
   title: { fontSize: 16, fontWeight: '600', color: colors.neutral.text },
   subtitle: { fontSize: 12, fontWeight: '400', color: colors.neutral.gray600, marginTop: 4 },
   list: { marginTop: spacing.sm },
+  emptyAction: { alignItems: 'center', paddingVertical: spacing.md },
+  emptyActionText: { color: colors.brand.primary, fontSize: 14, fontWeight: '600' },
   emptyText: {
     fontSize: 13,
     fontWeight: '400',

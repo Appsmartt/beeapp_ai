@@ -10,6 +10,13 @@ from apps.chat.presence_views import (
     ChatPresenceStateView,
 )
 
+from apps.chat.category_views import (
+    ChatCategoriesView,
+    ChatCategoryDetailView,
+    ChatCategoryAssignmentsView,
+    ChatConversationCategoriesView,
+)
+
 from apps.chat.views import (
     ChatBootstrapView,
     ChatSyncBootstrapView,
@@ -50,6 +57,22 @@ from apps.chat.views import (
 
 
 urlpatterns = [
+    path("categories/", ChatCategoriesView.as_view(), name="chat-categories"),
+    path(
+        "categories/assignments/",
+        ChatCategoryAssignmentsView.as_view(),
+        name="chat-category-assignments",
+    ),
+    path(
+        "categories/<uuid:category_id>/",
+        ChatCategoryDetailView.as_view(),
+        name="chat-category-detail",
+    ),
+    path(
+        "conversations/<uuid:conversation_id>/categories/",
+        ChatConversationCategoriesView.as_view(),
+        name="chat-conversation-categories",
+    ),
     path(
         "pin-protections/",
         ChatPinProtectionsView.as_view(),

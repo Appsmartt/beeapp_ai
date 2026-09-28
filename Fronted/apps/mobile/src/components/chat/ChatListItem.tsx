@@ -8,6 +8,7 @@ import {
 import { colors } from '@beeapp/design-system';
 import { Check, CheckCheck, BellOff, Users, Lock, MoreVertical, Pin } from 'lucide-react-native';
 import VerifiedBadge from '../VerifiedBadge';
+import { getCategoryIcon } from './categoryIcons';
 
 interface ChatListItemProps {
   id: string;
@@ -24,6 +25,7 @@ interface ChatListItemProps {
   isPinned?: boolean;
   isMuted?: boolean;
   isProtected?: boolean;
+  categories?: { id: string; name: string; icon: string; color: string }[];
   onPress: () => void;
   onMorePress?: () => void;
 }
@@ -42,6 +44,7 @@ export default function ChatListItem({
   isPinned,
   isMuted,
   isProtected,
+  categories = [],
   onPress,
   onMorePress,
 }: ChatListItemProps) {
@@ -100,6 +103,18 @@ export default function ChatListItem({
               {name}
             </Text>
             {verified && <VerifiedBadge size={14} />}
+            {categories.slice(0, 3).map((category) => {
+              const Icon = getCategoryIcon(category.icon);
+              return (
+                <View
+                  key={category.id}
+                  style={[styles.categoryBadge, { backgroundColor: category.color }]}
+                  accessibilityLabel={`Categoría ${category.name}`}
+                >
+                  <Icon size={11} color={colors.neutral.gray700} />
+                </View>
+              );
+            })}
             {isPinned && (
               <Pin size={13} color={colors.brand.primary} accessibilityLabel="Chat fijado" />
             )}
@@ -157,6 +172,7 @@ export default function ChatListItem({
 }
 
 const styles = StyleSheet.create({
+  categoryBadge: { width: 19, height: 19, borderRadius: 7, alignItems: 'center', justifyContent: 'center', marginLeft: 3 },
   mainRow: {
     flexDirection: 'row',
     alignItems: 'center',

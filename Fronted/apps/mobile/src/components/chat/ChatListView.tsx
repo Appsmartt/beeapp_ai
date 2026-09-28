@@ -25,6 +25,7 @@ import type {
 interface ChatListViewProps {
   aiChat?: ChatListItemModel;
   chats: ChatListItemModel[];
+  categoriesByConversation?: Record<string, { id: string; name: string; icon: string; color: string }[]>;
   archivedCount?: number;
   archivedLabel?: string;
   archivedSubtitle?: string;
@@ -48,6 +49,7 @@ export default function ChatListView({
   onPressArchived,
   onOpenChat,
   onOpenMenu,
+  categoriesByConversation = {},
   onEndReached,
   loadingMore = false,
   refreshControl,
@@ -102,6 +104,7 @@ export default function ChatListView({
           isMuted={chat.isMuted}
           isProtected={chat.isProtected}
           onPress={() => onOpenChat(chat)}
+          categories={categoriesByConversation[chat.id] || []}
           onMorePress={() => onOpenMenu(chat)}
         />
       )}

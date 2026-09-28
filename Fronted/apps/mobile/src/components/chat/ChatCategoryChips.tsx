@@ -1,6 +1,6 @@
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { colors, spacing, radii } from '@beeapp/design-system';
-import { Plus } from 'lucide-react-native';
+import { Plus, Settings2 } from 'lucide-react-native';
 import { ChatCategory } from '../../mocks/chats';
 import { getCategoryIcon } from './categoryIcons';
 
@@ -10,10 +10,11 @@ interface ChatCategoryChipsProps {
   activeCategoryId: string | null;
   onChange: (categoryId: string | null) => void;
   onCreate: () => void;
+  onManage: () => void;
 }
 
 /** Filter chips of the chat list: "Todos" first, then the user categories */
-export default function ChatCategoryChips({ categories, activeCategoryId, onChange, onCreate }: ChatCategoryChipsProps) {
+export default function ChatCategoryChips({ categories, activeCategoryId, onChange, onCreate, onManage }: ChatCategoryChipsProps) {
   return (
     <View style={styles.wrap}>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.scroll}>
@@ -45,6 +46,16 @@ export default function ChatCategoryChips({ categories, activeCategoryId, onChan
         <TouchableOpacity style={styles.addChip} onPress={onCreate} activeOpacity={0.7}>
           <Plus size={14} color={colors.brand.primary} />
         </TouchableOpacity>
+        {categories.length > 0 && (
+          <TouchableOpacity
+            style={styles.addChip}
+            onPress={onManage}
+            activeOpacity={0.7}
+            accessibilityLabel="Gestionar categorías de chats"
+          >
+            <Settings2 size={14} color={colors.brand.primary} />
+          </TouchableOpacity>
+        )}
       </ScrollView>
     </View>
   );

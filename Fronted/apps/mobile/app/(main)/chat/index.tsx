@@ -2,6 +2,7 @@ import {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from 'react';
 import { useFocusEffect } from 'expo-router';
@@ -32,6 +33,9 @@ import {
   removeChatPinProtection,
   verifyAccountSecurityPin,
   respondToChatGroupInvite,
+  listChatCategories,
+  listChatCategoryAssignments,
+  type ChatCategoryRecord,
 } from '@beeapp/api-client';
 
 import ScreenSafeArea from '../../../src/components/layout/ScreenSafeArea';
@@ -42,6 +46,15 @@ import {
 import ModuleNotificationBell from '../../../src/components/ModuleNotificationBell';
 
 import ChatListView from '../../../src/components/chat/ChatListView';
+import ChatCategoryChips from '../../../src/components/chat/ChatCategoryChips';
+import CreateCategoryModal from '../../../src/components/chat/CreateCategoryModal';
+import AssignCategoryModal from '../../../src/components/chat/AssignCategoryModal';
+import ManageChatCategoriesModal from '../../../src/components/chat/ManageChatCategoriesModal';
+import {
+  createChatCategory,
+  deleteChatCategory,
+  saveChatConversationCategories,
+} from '@beeapp/api-client';
 import StatusCirclesRow from '../../../src/components/chat/StatusCirclesRow';
 import StatusViewer from '../../../src/components/chat/StatusViewer';
 import CreateStatusModal, {
@@ -232,6 +245,76 @@ export default function ChatListScreen() {
   const [menuChat, setMenuChat] = useState<
     ChatListItemModel | null
   >(null);
+
+  const [chatCategories, setChatCategories] = useState<ChatCategoryRecord[]>([]);
+  const [categoryAssignments, setCategoryAssignments] = useState<Record<string, string[]>>({});
+  const [categoryIdentityId, setCategoryIdentityId] = useState<string | null>(null);
+  const categoryLoadedIdentity = useRef<string | null>(null);
+  const [activeCategoryId, setActiveCategoryId] = useState<string | null>(null);
+  const [categoryRefresh, setCategoryRefresh] = useState(0);
+  useFocusEffect(useCallback(() => {
+    setCategoryRefresh((value) => value + 1);
+  }, []));
+  const [creatingCategory, setCreatingCategory] = useState(false);
+  const [managingCategories, setManagingCategories] = useState(false);
+  const [assigningChat, setAssigningChat] = useState<ChatListItemModel | null>(null);
+  const [returnToAssignment, setReturnToAssignment] = useState(false);
+  const [savingCategory, setSavingCategory] = useState(false);
+  const [savingAssignment, setSavingAssignment] = useState(false);
+
+  const categoryConversationIds = useMemo(
+    () => conversations.filter((chat) => !chat.isAI).map((chat) => chat.id),
+    [conversations],
+  );
+  const categoryConversationKey = categoryConversationIds.join(',');
+
+  useEffect(() => {
+    let cancelled = false;
+    if (categoryLoadedIdentity.current !== activeIdentityId) {
+      categoryLoadedIdentity.current = activeIdentityId;
+      setCategoryIdentityId(null);
+      setChatCategories([]);
+      setCategoryAssignments({});
+      setActiveCategoryId(null);
+    }
+
+    if (!activeIdentityId) {
+      return () => { cancelled = true; };
+    }
+
+    const loadCategories = async () => {
+      try {
+        const auth = await getValidSessionCredentials();
+        if (!auth || auth.scheme !== 'Bearer') return;
+        const categoryResponse = await listChatCategories(auth, activeIdentityId);
+        const chunks: string[][] = [];
+        for (let index = 0; index < categoryConversationIds.length; index += 100) {
+          chunks.push(categoryConversationIds.slice(index, index + 100));
+        }
+        const responses = await Promise.all(
+          chunks.map((ids) => listChatCategoryAssignments(auth, activeIdentityId, ids)),
+        );
+        if (cancelled) return;
+        const next: Record<string, string[]> = {};
+        responses.flatMap((response) => response.assignments).forEach((entry) => {
+          (next[entry.conversation_id] ||= []).push(entry.category_id);
+        });
+        setChatCategories(categoryResponse.categories);
+        setCategoryAssignments(next);
+        setCategoryIdentityId(activeIdentityId);
+      } catch (categoryError) {
+        if (!cancelled) {
+          setCategoryIdentityId(null);
+          Alert.alert(
+            'No fue posible cargar las categorías',
+            categoryError instanceof Error ? categoryError.message : 'Inténtalo nuevamente.',
+          );
+        }
+      }
+    };
+    void loadCategories();
+    return () => { cancelled = true; };
+  }, [activeIdentityId, categoryConversationKey, categoryRefresh]);
 
   const [lockedChatId, setLockedChatId] = useState<
     string | null
@@ -886,6 +969,7 @@ export default function ChatListScreen() {
   };
 
   const handleRefresh = () => {
+    setCategoryRefresh((value) => value + 1);
     void Promise.allSettled([
       loadConversations({
         refresh: true,
@@ -1147,9 +1231,111 @@ export default function ChatListScreen() {
     }
   };
 
-  const visibleListChats = isGroupsTab
-    ? groupChats
-    : directChats;
+  const [deletingCategoryId, setDeletingCategoryId] = useState<string | null>(null);
+
+  const handleCreateChatCategory = async (draft: {
+    name: string; icon: string; color: string;
+  }) => {
+    if (!activeIdentityId || savingCategory) return;
+    setSavingCategory(true);
+    try {
+      const auth = await getValidSessionCredentials();
+      if (!auth || auth.scheme !== 'Bearer') throw new Error('Tu sesión expiró.');
+      const response = await createChatCategory(auth, {
+        identity_id: activeIdentityId,
+        name: draft.name,
+        icon: draft.icon,
+        color: draft.color,
+      });
+      setChatCategories((current) => [...current, response.category]);
+      setCategoryRefresh((value) => value + 1);
+      setCreatingCategory(false);
+      if (!returnToAssignment) setActiveCategoryId(response.category.id);
+      setReturnToAssignment(false);
+    } catch (categoryError) {
+      Alert.alert('No fue posible crear la categoría',
+        categoryError instanceof Error ? categoryError.message : 'Inténtalo nuevamente.');
+    } finally {
+      setSavingCategory(false);
+    }
+  };
+
+  const handleDeleteChatCategory = (category: ChatCategoryRecord) => {
+    Alert.alert(
+      'Eliminar categoría',
+      `¿Eliminar "${category.name}"? Los chats y sus mensajes permanecerán intactos.`,
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Eliminar',
+          style: 'destructive',
+          onPress: () => {
+            void (async () => {
+              if (!activeIdentityId) return;
+              setDeletingCategoryId(category.id);
+              try {
+                const auth = await getValidSessionCredentials();
+                if (!auth || auth.scheme !== 'Bearer') throw new Error('Tu sesión expiró.');
+                await deleteChatCategory(auth, activeIdentityId, category.id);
+                setChatCategories((current) => current.filter((entry) => entry.id !== category.id));
+                setCategoryAssignments((current) => Object.fromEntries(
+                  Object.entries(current).map(([id, ids]) => [
+                    id, ids.filter((categoryId) => categoryId !== category.id),
+                  ]),
+                ));
+                setActiveCategoryId((current) => current === category.id ? null : current);
+                setCategoryRefresh((value) => value + 1);
+              } catch (categoryError) {
+                Alert.alert('No fue posible eliminar la categoría',
+                  categoryError instanceof Error ? categoryError.message : 'Inténtalo nuevamente.');
+              } finally {
+                setDeletingCategoryId(null);
+              }
+            })();
+          },
+        },
+      ],
+    );
+  };
+
+  const handleSaveChatCategories = async (categoryIds: string[]) => {
+    const chat = assigningChat;
+    if (!chat || !activeIdentityId || savingAssignment) return;
+    setSavingAssignment(true);
+    try {
+      const auth = await getValidSessionCredentials();
+      if (!auth || auth.scheme !== 'Bearer') throw new Error('Tu sesión expiró.');
+      const response = await saveChatConversationCategories(
+        auth, activeIdentityId, chat.id, categoryIds,
+      );
+      setCategoryAssignments((current) => ({
+        ...current, [chat.id]: response.category_ids,
+      }));
+      setCategoryRefresh((value) => value + 1);
+      setAssigningChat(null);
+    } catch (categoryError) {
+      Alert.alert('No fue posible asignar la categoría',
+        categoryError instanceof Error ? categoryError.message : 'Inténtalo nuevamente.');
+    } finally {
+      setSavingAssignment(false);
+    }
+  };
+
+  const visibleListChats = (isGroupsTab ? groupChats : directChats)
+    .filter((chat) => !activeCategoryId
+      || categoryIdentityId !== activeIdentityId
+      || (categoryAssignments[chat.id] || []).includes(activeCategoryId));
+
+  const categoriesByConversation = useMemo(() => {
+    const byId = new Map(chatCategories.map((category) => [category.id, category]));
+    const result: Record<string, ChatCategoryRecord[]> = {};
+    Object.entries(categoryAssignments).forEach(([conversationId, ids]) => {
+      result[conversationId] = ids
+        .map((id) => byId.get(id))
+        .filter((category): category is ChatCategoryRecord => Boolean(category));
+    });
+    return result;
+  }, [chatCategories, categoryAssignments]);
 
   const onlineByIdentity = useChatListPresence(
     activeIdentityId,
@@ -1293,6 +1479,18 @@ export default function ChatListScreen() {
           activeTab={activeTab}
           onChange={setActiveTab}
         />
+        {activeIdentityId && categoryIdentityId === activeIdentityId && (
+          <ChatCategoryChips
+            categories={chatCategories}
+            activeCategoryId={activeCategoryId}
+            onChange={setActiveCategoryId}
+            onCreate={() => {
+              setReturnToAssignment(false);
+              setCreatingCategory(true);
+            }}
+            onManage={() => setManagingCategories(true)}
+          />
+        )}
 
         <>
           {(
@@ -1343,11 +1541,12 @@ export default function ChatListScreen() {
               ) : (
               <ChatListView
                 aiChat={
-                  isGroupsTab
+                  isGroupsTab || activeCategoryId
                     ? undefined
                     : aiChat
                 }
                 chats={chatsWithLivePresence}
+                categoriesByConversation={categoriesByConversation}
                 onEndReached={
                   hasMoreConversations[
                     isGroupsTab ? 'group' : 'direct'
@@ -1408,12 +1607,26 @@ export default function ChatListScreen() {
               {visibleListChats.length === 0 && !error && !protectionError ? (
                 <View style={styles.emptyOverlay}>
                   <Text style={styles.emptyTitle}>
-                    {emptyTitle}
+                    {activeCategoryId ? 'Sin chats en esta categoría' : emptyTitle}
                   </Text>
 
                   <Text style={styles.emptyDescription}>
-                    {emptyDescription}
+                    {activeCategoryId
+                      ? 'Los chats asignados aparecerán aquí.'
+                      : emptyDescription}
                   </Text>
+                  {activeCategoryId && hasMoreConversations[isGroupsTab ? 'group' : 'direct'] && (
+                    <TouchableOpacity
+                      disabled={loadingMore}
+                      onPress={() => {
+                        void loadMoreConversations(isGroupsTab ? 'group' : 'direct');
+                      }}
+                    >
+                      <Text style={styles.retryText}>
+                        {loadingMore ? 'Buscando...' : 'Buscar en más chats'}
+                      </Text>
+                    </TouchableOpacity>
+                  )}
                 </View>
               ) : null}
             </View>
@@ -1758,7 +1971,14 @@ export default function ChatListScreen() {
           setMenuChat(null);
         }}
         onAssignCategory={() => {
-          // La asignación de categorías conserva su flujo existente.
+          const chat = menuChat;
+          setMenuChat(null);
+          if (!chat || !activeIdentityId) return;
+          setAssigningChat(chat);
+          if (chatCategories.length === 0) {
+            setReturnToAssignment(true);
+            setCreatingCategory(true);
+          }
         }}
         onDelete={() => {
           if (menuChat) {
@@ -1784,6 +2004,36 @@ export default function ChatListScreen() {
         onClose={() => {
           setMenuChat(null);
         }}
+      />
+
+      <AssignCategoryModal
+        visible={Boolean(assigningChat) && !creatingCategory}
+        chatName={assigningChat?.name}
+        categories={chatCategories}
+        selectedIds={assigningChat ? categoryAssignments[assigningChat.id] || [] : []}
+        saving={savingAssignment}
+        onSave={(ids) => { void handleSaveChatCategories(ids); }}
+        onCreateCategory={() => {
+          setReturnToAssignment(true);
+          setCreatingCategory(true);
+        }}
+        onClose={() => setAssigningChat(null)}
+      />
+      <CreateCategoryModal
+        visible={creatingCategory}
+        saving={savingCategory}
+        onCreate={(draft) => { void handleCreateChatCategory(draft); }}
+        onClose={() => {
+          setCreatingCategory(false);
+          setReturnToAssignment(false);
+        }}
+      />
+      <ManageChatCategoriesModal
+        visible={managingCategories}
+        categories={chatCategories}
+        deletingId={deletingCategoryId}
+        onDelete={handleDeleteChatCategory}
+        onClose={() => setManagingCategories(false)}
       />
 
     </ScreenSafeArea>
