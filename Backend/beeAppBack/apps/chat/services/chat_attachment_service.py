@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Any
 
 from beeAppBack.core.supabase_client import (
@@ -39,6 +40,46 @@ CHAT_ATTACHMENT_MESSAGE_TYPES = {
     "audio",
     "document",
 }
+
+CHAT_DOCUMENT_MIME_BY_EXTENSION = {
+    "pdf": "application/pdf",
+    "doc": "application/msword",
+    "docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "xls": "application/vnd.ms-excel",
+    "xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    "ppt": "application/vnd.ms-powerpoint",
+    "pptx": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+    "txt": "text/plain",
+    "md": "text/markdown",
+    "csv": "text/csv",
+}
+
+
+def _validate_chat_upload_type(*, uploaded_file, message_type: str) -> None:
+    if message_type not in {"document", "video"}:
+        return
+
+    filename = Path(str(getattr(uploaded_file, "name", "") or "")).name.strip()
+    extension = Path(filename).suffix.lower().lstrip(".")
+    mime_type = str(
+        getattr(uploaded_file, "content_type", "") or ""
+    ).strip().lower()
+
+    if not filename or len(filename) > 255:
+        raise ChatAttachmentError("Invalid chat attachment filename.")
+
+    if message_type == "video":
+        allowed = extension == "mp4" and mime_type == "video/mp4"
+    else:
+        allowed = (
+            extension in CHAT_DOCUMENT_MIME_BY_EXTENSION
+            and mime_type == CHAT_DOCUMENT_MIME_BY_EXTENSION[extension]
+        )
+
+    if not allowed:
+        raise ChatAttachmentError(
+            "Unsupported chat attachment extension or MIME type."
+        )
 
 
 def _supabase():
@@ -85,6 +126,11 @@ def upload_chat_attachment_and_send_message(
             raise ChatAttachmentError(
                 "Unsupported chat attachment message type."
             )
+
+        _validate_chat_upload_type(
+            uploaded_file=uploaded_file,
+            message_type=message_type,
+        )
 
         get_owned_chat_identity(
             user_id=user_id,
@@ -367,8 +413,13 @@ def _validate_file_for_chat_message(
     }
 
     expected_kind = expected_kind_by_message_type[message_type]
+    allowed_kinds = (
+        {"document", "spreadsheet", "presentation"}
+        if message_type == "document"
+        else {expected_kind}
+    )
 
-    if file_record.get("kind") != expected_kind:
+    if file_record.get("kind") not in allowed_kinds:
         raise ChatAttachmentError(
             "Uploaded file type does not match message type."
         )

@@ -11,6 +11,7 @@ import {
   Animated,
   AppState,
   Image,
+  Linking,
   Modal,
   RefreshControl,
   ScrollView,
@@ -20,7 +21,9 @@ import {
 } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import * as DocumentPicker from 'expo-document-picker';
+import * as FileSystem from 'expo-file-system';
 import * as ImagePicker from 'expo-image-picker';
+import { Camera as ExpoCamera } from 'expo-camera';
 import {
   LockKeyhole,
 } from 'lucide-react-native';
@@ -48,6 +51,7 @@ import {
 import PinLockModal from '../../../src/components/security/PinLockModal';
 import MessageBubble from '../../../src/components/chat/MessageBubble';
 import ChatImageViewerModal from '../../../src/components/chat/ChatImageViewerModal';
+import StatusCameraModal from '../../../src/components/chat/status/StatusCameraModal';
 import StatusViewer from '../../../src/components/chat/StatusViewer';
 import WriteBar from '../../../src/components/chat/WriteBar';
 import AiAutoReplyBanner from '../../../src/components/chat/AiAutoReplyBanner';
@@ -463,6 +467,8 @@ function ConversationContent() {
     setAttachmentUrlsByMessageId,
   ] = useState<Record<string, string>>({});
 
+  const [chatCameraOpen, setChatCameraOpen] = useState(false);
+  const [chatCameraMicrophoneGranted, setChatCameraMicrophoneGranted] = useState(false);
   const [initialImagesReady, setInitialImagesReady] = useState(false);
   const [isStartingCall, setIsStartingCall] = useState(false);
 
@@ -1349,7 +1355,7 @@ function ConversationContent() {
   };
 
   const handleSendAttachment = async (
-    type: 'photo' | 'camera' | 'file' | 'location' | 'contact',
+    type: 'photo' | 'camera' | 'file' | 'location',
   ) => {
     if (uploadingAttachment || sending) {
       return;
@@ -1363,12 +1369,12 @@ function ConversationContent() {
 
         if (!permission.granted) {
           throw new Error(
-            'Necesitamos permiso para acceder a tus fotos.',
+            'Necesitamos permiso para acceder a tus fotos y videos.',
           );
         }
 
         const result = await ImagePicker.launchImageLibraryAsync({
-          mediaTypes: ImagePicker.MediaTypeOptions.Images,
+          mediaTypes: ImagePicker.MediaTypeOptions.All,
           quality: 0.9,
         });
 
@@ -1377,54 +1383,108 @@ function ConversationContent() {
         }
 
         const asset = result.assets[0];
+        const isVideo = asset.type === 'video';
+        const mimeType = String(asset.mimeType || '').trim().toLowerCase();
+        const uriExtension = String(asset.uri || '')
+          .split('?')[0]
+          .split('.')
+          .pop()
+          ?.toLowerCase() || '';
+        const fallbackExtension = isVideo
+          ? (mimeType === 'video/mp4' ? 'mp4' : uriExtension)
+          : mimeType === 'image/png'
+            ? 'png'
+            : mimeType === 'image/webp'
+              ? 'webp'
+              : mimeType === 'image/jpeg'
+                ? 'jpg'
+                : uriExtension;
+        const name = String(
+          asset.fileName
+          || `chat-media-${Date.now()}.${fallbackExtension}`,
+        ).trim();
+        const extension = name.split('.').pop()?.toLowerCase() || '';
+        const allowedMimeByExtension: Record<string, string> = isVideo
+          ? { mp4: 'video/mp4' }
+          : {
+              jpg: 'image/jpeg',
+              jpeg: 'image/jpeg',
+              png: 'image/png',
+              webp: 'image/webp',
+            };
+        const expectedMime = allowedMimeByExtension[extension];
+
+        if (
+          !name
+          || name.length > 255
+          || !expectedMime
+          || (mimeType && mimeType !== expectedMime)
+        ) {
+          throw new Error(
+            isVideo
+              ? 'Por ahora selecciona un video MP4 compatible.'
+              : 'Selecciona una imagen JPEG, PNG o WebP compatible.',
+          );
+        }
+
+        const fileInfo = typeof asset.fileSize === 'number'
+          ? null
+          : await FileSystem.getInfoAsync(asset.uri);
+        const sizeBytes = typeof asset.fileSize === 'number'
+          ? asset.fileSize
+          : fileInfo?.exists
+            ? fileInfo.size
+            : undefined;
+
+        if (
+          typeof sizeBytes !== 'number'
+          || !Number.isFinite(sizeBytes)
+          || sizeBytes <= 0
+          || sizeBytes > 52_428_800
+        ) {
+          throw new Error(
+            'La foto o el video debe pesar entre 1 byte y 50 MiB.',
+          );
+        }
 
         await sendChatAttachment({
           uri: asset.uri,
-          name: asset.fileName || 'imagen.jpg',
-          mimeType: asset.mimeType || 'image/jpeg',
-          sizeBytes: asset.fileSize ?? null,
-          kind: 'image',
+          name,
+          mimeType: expectedMime,
+          sizeBytes,
+          kind: isVideo ? 'video' : 'image',
         });
 
         return;
       }
 
       if (type === 'camera') {
-        const permission = (
-          await ImagePicker.requestCameraPermissionsAsync()
-        );
-
-        if (!permission.granted) {
-          throw new Error(
-            'Necesitamos permiso para usar la cámara.',
-          );
+        const cameraPermission = await ExpoCamera.requestCameraPermissionsAsync();
+        if (!cameraPermission.granted) {
+          throw new Error('Necesitamos permiso para usar la cámara.');
         }
 
-        const result = await ImagePicker.launchCameraAsync({
-          mediaTypes: ImagePicker.MediaTypeOptions.Images,
-          quality: 0.9,
-        });
-
-        if (result.canceled || !result.assets[0]) {
-          return;
-        }
-
-        const asset = result.assets[0];
-
-        await sendChatAttachment({
-          uri: asset.uri,
-          name: asset.fileName || 'foto.jpg',
-          mimeType: asset.mimeType || 'image/jpeg',
-          sizeBytes: asset.fileSize ?? null,
-          kind: 'image',
-        });
-
+        const microphonePermission = await ExpoCamera.requestMicrophonePermissionsAsync();
+        setChatCameraMicrophoneGranted(microphonePermission.granted);
+        setChatCameraOpen(true);
         return;
       }
 
       if (type === 'file') {
+        const allowedDocuments: Record<string, string> = {
+          pdf: 'application/pdf',
+          doc: 'application/msword',
+          docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+          xls: 'application/vnd.ms-excel',
+          xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+          ppt: 'application/vnd.ms-powerpoint',
+          pptx: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+          txt: 'text/plain',
+          md: 'text/markdown',
+          csv: 'text/csv',
+        };
         const result = await DocumentPicker.getDocumentAsync({
-          type: '*/*',
+          type: Object.values(allowedDocuments),
           copyToCacheDirectory: true,
           multiple: false,
         });
@@ -1434,28 +1494,45 @@ function ConversationContent() {
         }
 
         const asset = result.assets[0];
+        const name = String(asset.name || '').trim();
+        const extension = name.split('.').pop()?.toLowerCase() || '';
+        const expectedMime = allowedDocuments[extension];
+        const selectedMime = String(asset.mimeType || '').trim().toLowerCase();
+
+        if (
+          !name
+          || name.length > 255
+          || !expectedMime
+          || (selectedMime && selectedMime !== expectedMime)
+        ) {
+          throw new Error(
+            'Selecciona un PDF, Word, Excel, PowerPoint o archivo de texto compatible.',
+          );
+        }
+
+        if (
+          typeof asset.size !== 'number'
+          || !Number.isFinite(asset.size)
+          || asset.size <= 0
+          || asset.size > 52_428_800
+        ) {
+          throw new Error(
+            'El archivo debe pesar entre 1 byte y 50 MiB.',
+          );
+        }
 
         await sendChatAttachment({
           uri: asset.uri,
-          name: asset.name || 'archivo',
-          mimeType: (
-            asset.mimeType
-            || 'application/octet-stream'
-          ),
-          sizeBytes: asset.size ?? null,
-          kind: asset.mimeType?.startsWith('image/')
-            ? 'image'
-            : 'document',
+          name,
+          mimeType: expectedMime,
+          sizeBytes: asset.size,
+          kind: 'document',
         });
 
         return;
       }
 
-      throw new Error(
-        type === 'location'
-          ? 'La ubicación aún no está habilitada en Chat.'
-          : 'El envío de contactos aún no está habilitado en Chat.',
-      );
+      throw new Error('La ubicación aún no está habilitada en Chat.');
     } catch (attachmentError) {
       Alert.alert(
         'No fue posible adjuntar el archivo',
@@ -2148,6 +2225,46 @@ function ConversationContent() {
                         ? requestFreshAudioUrl
                         : undefined
                     }
+                    isVideoFile={
+                      message.raw.attachments?.[0]?.mime_type === 'video/mp4'
+                    }
+                    onPressFile={message.type === 'file' ? () => {
+                      void (async () => {
+                        try {
+                          if (!activeIdentityId) {
+                            throw new Error('No se pudo identificar tu cuenta de chat.');
+                          }
+                          const auth = await getValidSessionCredentials();
+                          if (!auth) {
+                            throw new Error('Tu sesión expiró. Inicia sesión nuevamente.');
+                          }
+                          const isVideo = (
+                            message.raw.attachments?.[0]?.mime_type === 'video/mp4'
+                          );
+                          const access = await getChatMessageAttachmentAccess(
+                            auth,
+                            message.id,
+                            activeIdentityId,
+                            !isVideo,
+                          );
+                          const url = String(access.url || '').trim();
+                          if (!/^https:\/\//i.test(url)) {
+                            throw new Error('No hay un enlace seguro para este adjunto.');
+                          }
+                          if (!await Linking.canOpenURL(url)) {
+                            throw new Error('Este dispositivo no puede abrir el adjunto.');
+                          }
+                          await Linking.openURL(url);
+                        } catch (openError) {
+                          Alert.alert(
+                            'No fue posible abrir el adjunto',
+                            openError instanceof Error
+                              ? openError.message
+                              : 'Inténtalo nuevamente.',
+                          );
+                        }
+                      })();
+                    } : undefined}
                     fileName={message.fileName}
                     fileSize={message.fileSize}
                     audioDuration={message.audioDuration}
@@ -2353,6 +2470,46 @@ function ConversationContent() {
             </View>
           </View>
         )}
+
+        <StatusCameraModal
+          visible={chatCameraOpen}
+          microphoneGranted={chatCameraMicrophoneGranted}
+          onCapture={(capturedMedia) => {
+            setChatCameraOpen(false);
+            void (async () => {
+              try {
+                const info = await FileSystem.getInfoAsync(capturedMedia.uri);
+                if (
+                  !info.exists
+                  || typeof info.size !== 'number'
+                  || info.size <= 0
+                  || info.size > 52_428_800
+                ) {
+                  throw new Error('La captura debe pesar entre 1 byte y 50 MiB.');
+                }
+
+                await sendChatAttachment({
+                  uri: capturedMedia.uri,
+                  name: capturedMedia.fileName,
+                  mimeType: capturedMedia.mimeType,
+                  sizeBytes: info.size,
+                  kind: capturedMedia.duration === null ? 'image' : 'video',
+                });
+              } catch (captureError) {
+                Alert.alert(
+                  'No fue posible enviar la captura',
+                  captureError instanceof Error
+                    ? captureError.message
+                    : 'Inténtalo nuevamente.',
+                );
+              }
+            })();
+          }}
+          onClose={() => {
+            setChatCameraOpen(false);
+            setChatCameraMicrophoneGranted(false);
+          }}
+        />
 
         <ChatImageViewerModal
           image={viewingChatImage}

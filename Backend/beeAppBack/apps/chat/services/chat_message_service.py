@@ -1065,8 +1065,13 @@ def _validate_owned_chat_attachment(
         expected_kind = expected_kind_by_message_type.get(
             message_type
         )
+        allowed_kinds = (
+            {"document", "spreadsheet", "presentation"}
+            if message_type == "document"
+            else {expected_kind}
+        )
 
-        if expected_kind and file_record.get("kind") != expected_kind:
+        if expected_kind and file_record.get("kind") not in allowed_kinds:
             raise ChatMessageSendError(
                 "Attachment type does not match message type."
             )
