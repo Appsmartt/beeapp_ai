@@ -33,10 +33,10 @@ function getAvatarCacheDirectory(
 function getAvatarCacheUri(
   userId: string,
   conversationId: string,
-  avatarUrl: string,
+  avatarKey: string,
 ): string {
   const cacheKey = createStableHash(
-    `${conversationId}:${avatarUrl}`,
+    `${conversationId}:${avatarKey}`,
   );
 
   return (
@@ -65,12 +65,12 @@ async function ensureDirectoryExists(
 async function getCachedAvatarUri(
   userId: string,
   conversationId: string,
-  avatarUrl: string,
+  avatarKey: string,
 ): Promise<string | null> {
   const cacheUri = getAvatarCacheUri(
     userId,
     conversationId,
-    avatarUrl,
+    avatarKey,
   );
 
   const fileInfo = await FileSystem.getInfoAsync(cacheUri);
@@ -83,12 +83,13 @@ async function getCachedAvatarUri(
 async function cacheAvatar(
   userId: string,
   conversationId: string,
+  avatarKey: string,
   avatarUrl: string,
 ): Promise<string> {
   const cachedUri = await getCachedAvatarUri(
     userId,
     conversationId,
-    avatarUrl,
+    avatarKey,
   );
 
   if (cachedUri) {
@@ -102,21 +103,39 @@ async function cacheAvatar(
   const cacheUri = getAvatarCacheUri(
     userId,
     conversationId,
-    avatarUrl,
+    avatarKey,
   );
 
-  const downloadResult = await FileSystem.downloadAsync(
-    avatarUrl,
-    cacheUri,
+  const temporaryUri = (
+    `${cacheUri}.${Date.now()}-${Math.random().toString(36).slice(2)}.download`
   );
 
-  if (downloadResult.status < 200 || downloadResult.status >= 300) {
-    throw new Error(
-      `No fue posible descargar el avatar: ${downloadResult.status}.`,
+  try {
+    const downloadResult = await FileSystem.downloadAsync(
+      avatarUrl,
+      temporaryUri,
     );
-  }
 
-  return downloadResult.uri;
+    if (downloadResult.status < 200 || downloadResult.status >= 300) {
+      throw new Error(
+        `No fue posible descargar el avatar: ${downloadResult.status}.`,
+      );
+    }
+
+    const existing = await FileSystem.getInfoAsync(cacheUri);
+    if (!existing.exists) {
+      await FileSystem.moveAsync({
+        from: temporaryUri,
+        to: cacheUri,
+      });
+    }
+
+    return cacheUri;
+  } finally {
+    await FileSystem.deleteAsync(temporaryUri, {
+      idempotent: true,
+    }).catch(() => {});
+  }
 }
 
 export async function removeSupersededChatAvatar(
@@ -163,6 +182,9 @@ export async function cacheChatConversationAvatars(
           const cachedAvatarUri = await cacheAvatar(
             normalizedUserId,
             conversation.id,
+            conversation.image_file_id?.trim()
+              ? `file:${conversation.image_file_id.trim()}`
+              : `url:${avatarUrl}`,
             avatarUrl,
           );
           return {

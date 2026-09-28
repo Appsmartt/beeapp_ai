@@ -387,16 +387,12 @@ function mergeConversation(
       || oldest.last_message_at
       || null
     ),
+    image_file_id: newest.image_file_id || oldest.image_file_id || null,
+    avatar_url: newest.avatar_url || oldest.avatar_url || null,
     cached_avatar_url: (
-      newest.avatar_url
-      && oldest.avatar_url
-      && newest.avatar_url !== oldest.avatar_url
-        ? null
-        : (
-            newest.cached_avatar_url
-            || oldest.cached_avatar_url
-            || null
-          )
+      newest.cached_avatar_url
+      || oldest.cached_avatar_url
+      || null
     ),
   };
 }
