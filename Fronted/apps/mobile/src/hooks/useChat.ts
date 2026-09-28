@@ -26,6 +26,7 @@ import {
   sendChatMessage,
   updateChatGroup,
   updateChatConversationPinned,
+  updateChatConversationNotifications,
 } from '@beeapp/api-client';
 import type {
   AuthCredentials,
@@ -659,15 +660,35 @@ export function useChatConversations(
     incoming: ChatConversation[],
   ) => {
     const preferences = new Map(
-      incoming
-        .filter((item) => item.is_pinned !== undefined)
-        .map((item) => [item.id, Boolean(item.is_pinned)]),
+      incoming.map((item) => [
+        item.id,
+        {
+          isPinned: Boolean(item.is_pinned),
+          isMuted: Boolean(item.is_muted),
+          notificationsEnabled: (
+            item.own_participant?.notifications_enabled
+            ?? !item.is_muted
+          ),
+        },
+      ]),
     );
     if (!preferences.size) return;
     setChatConversations(getStoredConversations().map(
-      (item) => preferences.has(item.id)
-        ? { ...item, is_pinned: preferences.get(item.id)! }
-        : item,
+      (item) => {
+        const preference = preferences.get(item.id);
+        if (!preference) return item;
+        return {
+          ...item,
+          is_pinned: preference.isPinned,
+          is_muted: preference.isMuted,
+          own_participant: item.own_participant
+            ? {
+                ...item.own_participant,
+                notifications_enabled: preference.notificationsEnabled,
+              }
+            : item.own_participant,
+        };
+      },
     ));
     setRawConversations([...getStoredConversations()]);
   }, []);
@@ -1179,8 +1200,55 @@ export function useChatConversations(
     }
 
     if (payload.isMuted !== undefined) {
-      throw new Error(
-        'Esta preferencia todavía no está disponible en el backend de Chat.',
+      const {
+        currentUserId: activeUserId,
+        token,
+      } = await getChatAuthContext();
+      const identityId = (
+        normalizedRequestedIdentityId
+        && normalizedRequestedIdentityId !== activeIdentityId
+          ? await resolveActiveIdentityId(token)
+          : (
+              activeIdentityId
+              || await resolveActiveIdentityId(token)
+            )
+      );
+      const response = await updateChatConversationNotifications(
+        token,
+        normalizedConversationId,
+        {
+          identity_id: identityId,
+          notifications_enabled: !payload.isMuted,
+        },
+      );
+      const current = getStoredConversations().find(
+        (item) => item.id === normalizedConversationId,
+      );
+      const updated: ChatConversation = {
+        ...(current || response.conversation),
+        is_muted: payload.isMuted,
+        own_participant: response.conversation.own_participant,
+        participants: current?.participants?.map((participant) => (
+          participant.identity_id === identityId
+            ? {
+                ...participant,
+                notifications_enabled: !payload.isMuted,
+              }
+            : participant
+        )) || response.conversation.participants,
+      };
+      setCurrentUserId(activeUserId);
+      setChatConversations([
+        ...getStoredConversations().filter(
+          (item) => item.id !== normalizedConversationId,
+        ),
+        updated,
+      ]);
+      setRawConversations([...getStoredConversations()]);
+      return mapConversationToListItem(
+        updated,
+        activeUserId,
+        isChatConversationProtected(normalizedConversationId),
       );
     }
 
