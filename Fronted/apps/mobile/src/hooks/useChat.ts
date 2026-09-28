@@ -328,6 +328,11 @@ function mergeConversation(
     ...oldest,
     ...newest,
     id: newest.id,
+    image_file_id: newest.image_file_id || oldest.image_file_id || null,
+    avatar_url: newest.avatar_url || oldest.avatar_url || null,
+    cached_avatar_url: (
+      newest.cached_avatar_url || oldest.cached_avatar_url || null
+    ),
     participants: (
       newest.participants?.length
         ? newest.participants
@@ -606,33 +611,69 @@ export function useChatConversations(
     const existingById = new Map(
       getStoredConversations().map((item) => [item.id, item]),
     );
-    const merged = nextConversations.map((incoming) => {
-      const current = existingById.get(incoming.id);
+    const reconciledById = new Map<string, ChatConversation>();
+    for (const incoming of nextConversations) {
+      const current = (
+        reconciledById.get(incoming.id)
+        || existingById.get(incoming.id)
+      );
       if (!current) {
-        return incoming;
+        reconciledById.set(incoming.id, incoming);
+        continue;
       }
 
       const combined = mergeConversation(current, incoming);
+      const isInboxRow = Boolean(
+        incoming.own_participant?.id.startsWith('own:'),
+      );
+      const photoRemoved = (
+        isInboxRow && incoming.image_file_id === null
+      );
       const hasFullParticipants = (
         current.participants?.some((participant) => (
           !participant.id.startsWith('own:')
           && Boolean(participant.joined_at)
         )) ?? false
       );
-      return {
+      reconciledById.set(incoming.id, {
         ...combined,
         name: incoming.name,
-        avatar_url: incoming.avatar_url,
-        cached_avatar_url: (
-          incoming.avatar_url
-            ? current.cached_avatar_url || combined.cached_avatar_url || null
-            : null
-        ),
+        image_file_id: isInboxRow
+          ? incoming.image_file_id
+          : current.image_file_id || incoming.image_file_id,
+        avatar_url: photoRemoved
+          ? null
+          : incoming.avatar_url || current.avatar_url || null,
+        cached_avatar_url: photoRemoved
+          ? null
+          : current.cached_avatar_url || combined.cached_avatar_url || null,
         other_display_name: incoming.other_display_name,
-        direct_profile: incoming.direct_profile || combined.direct_profile,
-        participants: hasFullParticipants
-          ? current.participants
-          : combined.participants,
+        direct_profile: photoRemoved
+          ? (
+              (incoming.direct_profile || combined.direct_profile)
+                ? {
+                    ...(incoming.direct_profile || combined.direct_profile)!,
+                    avatar_url: null,
+                  }
+                : null
+            )
+          : incoming.direct_profile || combined.direct_profile,
+        participants: photoRemoved
+          ? (hasFullParticipants
+              ? current.participants
+              : combined.participants
+            )?.map((participant) => (
+              participant.identity_id === incoming.other_identity_id
+                && participant.user
+                ? {
+                    ...participant,
+                    user: { ...participant.user, avatar_url: null },
+                  }
+                : participant
+            ))
+          : hasFullParticipants
+            ? current.participants
+            : combined.participants,
         own_participant: (
           incoming.own_participant?.id.startsWith('own:')
           && current.own_participant
@@ -640,9 +681,9 @@ export function useChatConversations(
             ? current.own_participant
             : combined.own_participant
         ),
-      };
-    });
-    const sorted = sortConversations(merged);
+      });
+    }
+    const sorted = sortConversations([...reconciledById.values()]);
 
     setChatConversations(sorted);
     setRawConversations(getStoredConversations());
@@ -921,7 +962,7 @@ export function useChatConversations(
       if (paginateInbox) {
         applyPinnedInboxPreferences(loadedConversations);
         const removedPhotoUris = loadedConversations
-          .filter((row) => !row.avatar_url)
+          .filter((row) => row.image_file_id === null)
           .map((row) => previousAvatarUris.get(row.id))
           .filter((uri): uri is string => Boolean(uri));
         if (removedPhotoUris.length) {
@@ -957,7 +998,7 @@ export function useChatConversations(
             if (
               !avatar
               || row.own_participant?.identity_id !== identityId
-              || row.avatar_url !== avatar.avatar_url
+              || row.image_file_id !== avatar.image_file_id
               || row.cached_avatar_url === avatar.cached_avatar_url
             ) return row;
             changed = true;

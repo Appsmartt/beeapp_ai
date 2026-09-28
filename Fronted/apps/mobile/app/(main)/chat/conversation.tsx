@@ -39,7 +39,7 @@ import {
 
 import ScreenSafeArea from '../../../src/components/layout/ScreenSafeArea';
 import { getLatestIncomingChatMessage } from '../../../src/services/chatMessageReceipts';
-import { getChatConversations, getChatMessages, upsertChatConversation } from '../../../src/stores/chatStore';
+import { getActiveChatStoreIdentityId, getChatConversations, getChatMessages, upsertChatConversation } from '../../../src/stores/chatStore';
 import {
   useModuleNav,
   useScreenParams,
@@ -514,9 +514,17 @@ function ConversationContent() {
     || isAiFromRoute
   );
 
+  const cachedConversation = (
+    getActiveChatStoreIdentityId() === activeIdentityId
+      ? getChatConversations().find((item) => item.id === chatId)
+      : null
+  );
+
   const resolveDirectChatName = (): string => {
     const inboxOtherDisplayName = String(
-      conversation?.other_display_name || '',
+      conversation?.other_display_name
+      || cachedConversation?.other_display_name
+      || '',
     ).trim();
 
     if (inboxOtherDisplayName) {
@@ -646,6 +654,13 @@ function ConversationContent() {
     || ''
   );
 
+  const photoRemovedFromInbox = Boolean(
+    !isGroup
+    && !isAI
+    && cachedConversation?.other_identity_id
+    && cachedConversation.image_file_id === null
+  );
+
   const contactAvatarUrl = (
     contactParticipant?.user?.avatar_url
     || conversation?.direct_profile?.avatar_url
@@ -660,7 +675,9 @@ function ConversationContent() {
       isGroup
       || isAI
       || !contactIdentityId
+      || photoRemovedFromInbox
       || contactAvatarUrl
+      || cachedConversation?.cached_avatar_url
     ) {
       setResolvedContactAvatarUrl(null);
       return () => {
@@ -709,10 +726,12 @@ function ConversationContent() {
       cancelled = true;
     };
   }, [
+    cachedConversation?.cached_avatar_url,
     contactAvatarUrl,
     contactIdentityId,
     isAI,
     isGroup,
+    photoRemovedFromInbox,
   ]);
 
   const attachmentAccessKey = messages
@@ -973,11 +992,22 @@ function ConversationContent() {
     return nextUrl;
   };
 
-  const headerAvatarUrl = (
-    contactAvatarUrl
-    || resolvedContactAvatarUrl
-    || null
+  const cachedHeaderAvatarUrl = (
+    !isGroup
+    && !isAI
+    && cachedConversation?.cached_avatar_url
+      ? cachedConversation.cached_avatar_url
+      : null
   );
+
+  const headerAvatarUrl = photoRemovedFromInbox
+    ? null
+    : (
+        cachedHeaderAvatarUrl
+        || contactAvatarUrl
+        || resolvedContactAvatarUrl
+        || null
+      );
 
   const canPostInGroup = (
     !isGroup
