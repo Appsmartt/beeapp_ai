@@ -121,7 +121,9 @@ import {
   readCachedProtectedChatIds,
   writeCachedChatInboxMetadata,
   writeCachedProtectedChatIds,
+  writeChatInboxCache,
 } from '../../../src/services/chatInboxCache';
+import { getChatConversations } from '../../../src/stores/chatStore';
 import {
   getProfileAvatarUrl,
 } from '../../../src/services/profileAvatarService';
@@ -656,6 +658,7 @@ export default function ChatListScreen() {
 
   useEffect(() => {
     let cancelled = false;
+    let hasCachedProtection = false;
     const mutationVersion = protectionMutationVersion.current;
     setProtectionLoaded(false);
     setCachedProtectionUserId(null);
@@ -672,6 +675,7 @@ export default function ChatListScreen() {
         const cachedIds = await readCachedProtectedChatIds(userId);
         if (cancelled || mutationVersion !== protectionMutationVersion.current) return;
         if (cachedIds) {
+          hasCachedProtection = true;
           setProtectedChatIds(new Set(cachedIds));
           setProtectionIdentityId(activeIdentityId);
           setCachedProtectionUserId(userId);
@@ -684,15 +688,20 @@ export default function ChatListScreen() {
         setProtectionIdentityId(activeIdentityId);
         setCachedProtectionUserId(userId);
         setProtectionLoaded(true);
-        void writeCachedProtectedChatIds(userId, result.conversation_ids);
+        await writeCachedProtectedChatIds(userId, result.conversation_ids);
+        if (!cancelled && activeIdentityId) {
+          writeChatInboxCache(userId, activeIdentityId, getChatConversations());
+        }
       } catch (failure) {
         if (cancelled || mutationVersion !== protectionMutationVersion.current) return;
-        setCachedProtectionUserId(null);
-        setProtectionError(
-          failure instanceof Error
-            ? failure.message
-            : 'No fue posible cargar la protección de chats.',
-        );
+        if (!hasCachedProtection) {
+          setCachedProtectionUserId(null);
+          setProtectionError(
+            failure instanceof Error
+              ? failure.message
+              : 'No fue posible cargar la protección de chats.',
+          );
+        }
         setProtectionLoaded(false);
       }
     };
@@ -860,7 +869,15 @@ export default function ChatListScreen() {
       void writeCachedProtectedChatIds(
         cachedProtectionUserId,
         [...nextProtectedIds],
-      );
+      ).then(() => {
+        if (activeIdentityId) {
+          writeChatInboxCache(
+            cachedProtectionUserId,
+            activeIdentityId,
+            getChatConversations(),
+          );
+        }
+      });
     }
     setProtectionRefresh((value) => value + 1);
     Alert.alert(
@@ -911,10 +928,17 @@ export default function ChatListScreen() {
       const nextProtectedIds = new Set(protectedChatIds).add(chat.id);
       setProtectedChatIds(nextProtectedIds);
       if (cachedProtectionUserId) {
-        void writeCachedProtectedChatIds(
+        await writeCachedProtectedChatIds(
           cachedProtectionUserId,
           [...nextProtectedIds],
         );
+        if (activeIdentityId) {
+          writeChatInboxCache(
+            cachedProtectionUserId,
+            activeIdentityId,
+            getChatConversations(),
+          );
+        }
       }
       setProtectionRefresh((value) => value + 1);
       Alert.alert('Chat protegido', 'El chat quedó protegido con tu PIN.');
@@ -1472,8 +1496,12 @@ export default function ChatListScreen() {
       : previewProtectionReady
         ? protectedChatIds.has(chat.id)
         : true,
-    lastMessage: protectionReady ? chat.lastMessage : 'Chat protegido',
-    unreadCount: protectionReady ? chat.unreadCount : 0,
+    lastMessage: previewProtectionReady && !protectedChatIds.has(chat.id)
+      ? chat.lastMessage
+      : 'Chat protegido',
+    unreadCount: previewProtectionReady && !protectedChatIds.has(chat.id)
+      ? chat.unreadCount
+      : 0,
     online: Boolean(
       protectionReady
       && !chat.isGroup
@@ -1673,13 +1701,19 @@ export default function ChatListScreen() {
                 aiChat={
                   isGroupsTab || activeCategoryId
                     ? undefined
-                    : aiChat && !protectionReady
+                    : aiChat && !previewProtectionReady
                       ? {
                           ...aiChat,
                           isProtected: true,
                           lastMessage: 'Chat protegido',
                         }
-                      : aiChat
+                      : aiChat && protectedChatIds.has(aiChat.id)
+                        ? {
+                            ...aiChat,
+                            isProtected: true,
+                            lastMessage: 'Chat protegido',
+                          }
+                        : aiChat
                 }
                 chats={chatsWithLivePresence}
                 categoriesByConversation={categoriesByConversation}
@@ -1717,7 +1751,8 @@ export default function ChatListScreen() {
                   });
                 }}
                 onOpenChat={(chat) => {
-                  if (protectionReady) handleChatPress(chat);
+                  if (!previewProtectionReady) return;
+                  handleChatPress(chat);
                 }}
                 onOpenMenu={(chat) => {
                   if (protectionReady) setMenuChat(chat);

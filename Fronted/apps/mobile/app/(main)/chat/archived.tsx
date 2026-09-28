@@ -25,8 +25,17 @@ import {
   listProtectedChats,
   protectChatWithPin,
   removeChatPinProtection,
+  verifyAccountSecurityPin,
 } from '@beeapp/api-client';
-import { getValidSessionCredentials } from '../../../src/services/authSession';
+import {
+  getAuthSession,
+  getValidSessionCredentials,
+} from '../../../src/services/authSession';
+import {
+  writeCachedProtectedChatIds,
+  writeChatInboxCache,
+} from '../../../src/services/chatInboxCache';
+import { getChatConversations } from '../../../src/stores/chatStore';
 
 import ScreenSafeArea from '../../../src/components/layout/ScreenSafeArea';
 import {
@@ -112,6 +121,9 @@ export default function ArchivedChatsScreen() {
   const [removingProtectionChat, setRemovingProtectionChat] = useState<
     ChatListItemModel | null
   >(null);
+  const [openingProtectedChat, setOpeningProtectedChat] = useState<
+    ChatListItemModel | null
+  >(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -126,6 +138,17 @@ export default function ArchivedChatsScreen() {
         if (cancelled) return;
         setProtectedChatIds(new Set(result.conversation_ids));
         setProtectionLoaded(true);
+        const session = await getAuthSession();
+        if (!cancelled && session) {
+          await writeCachedProtectedChatIds(session.user.id, result.conversation_ids);
+          if (activeIdentityId) {
+            writeChatInboxCache(
+              session.user.id,
+              activeIdentityId,
+              getChatConversations(),
+            );
+          }
+        }
       } catch (failure) {
         if (cancelled) return;
         setProtectionError(
@@ -200,6 +223,28 @@ export default function ArchivedChatsScreen() {
     });
   };
 
+  const handleArchivedChatPress = (chat: ChatListItemModel) => {
+    if (!protectedChatIds.has(chat.id)) {
+      openChat(chat);
+      return;
+    }
+    setOpeningProtectedChat(chat);
+  };
+
+  const verifyOpeningPin = async (pin: string) => {
+    if (!openingProtectedChat) throw new Error('Selecciona un chat.');
+    const auth = await getValidSessionCredentials();
+    if (!auth) throw new Error('Necesitas internet para abrir este chat protegido.');
+    const result = await verifyAccountSecurityPin(auth, pin);
+    if (!result.verified) throw new Error('PIN incorrecto. Inténtalo de nuevo.');
+  };
+
+  const finishProtectedOpening = () => {
+    const chat = openingProtectedChat;
+    setOpeningProtectedChat(null);
+    if (chat) openChat(chat);
+  };
+
   const handleToggleProtection = async (chat: ChatListItemModel) => {
     setMenuChat(null);
     if (protectedChatIds.has(chat.id)) {
@@ -226,7 +271,19 @@ export default function ArchivedChatsScreen() {
         return;
       }
       await protectChatWithPin(auth, chat.id);
-      setProtectedChatIds((current) => new Set(current).add(chat.id));
+      const nextProtectedIds = new Set(protectedChatIds).add(chat.id);
+      setProtectedChatIds(nextProtectedIds);
+      const session = await getAuthSession();
+      if (session) {
+        await writeCachedProtectedChatIds(session.user.id, [...nextProtectedIds]);
+        if (activeIdentityId) {
+          writeChatInboxCache(
+            session.user.id,
+            activeIdentityId,
+            getChatConversations(),
+          );
+        }
+      }
       Alert.alert('Chat protegido', 'El chat quedó protegido con tu PIN.');
     } catch (failure) {
       Alert.alert(
@@ -247,10 +304,19 @@ export default function ArchivedChatsScreen() {
     if (!removingProtectionChat) return;
     const chatId = removingProtectionChat.id;
     setRemovingProtectionChat(null);
-    setProtectedChatIds((current) => {
-      const next = new Set(current);
-      next.delete(chatId);
-      return next;
+    const nextProtectedIds = new Set(protectedChatIds);
+    nextProtectedIds.delete(chatId);
+    setProtectedChatIds(nextProtectedIds);
+    void getAuthSession().then(async (session) => {
+      if (!session) return;
+      await writeCachedProtectedChatIds(session.user.id, [...nextProtectedIds]);
+      if (activeIdentityId) {
+        writeChatInboxCache(
+          session.user.id,
+          activeIdentityId,
+          getChatConversations(),
+        );
+      }
     });
     Alert.alert('Protección removida', 'El chat ya no requiere PIN para abrirse.');
   };
@@ -389,7 +455,7 @@ export default function ArchivedChatsScreen() {
             ) : (
             <ChatListView
               chats={archivedChats}
-              onOpenChat={openChat}
+              onOpenChat={handleArchivedChatPress}
               onOpenMenu={setMenuChat}
               onPin={() => {
                 // Se conserva la firma del componente de lista.
@@ -433,6 +499,14 @@ export default function ArchivedChatsScreen() {
           </View>
         )}
       </View>
+
+      <PinLockModal
+        visible={Boolean(openingProtectedChat)}
+        itemName={openingProtectedChat?.name || 'Chat protegido'}
+        onClose={() => setOpeningProtectedChat(null)}
+        verifyPin={verifyOpeningPin}
+        onSuccess={finishProtectedOpening}
+      />
 
       <PinLockModal
         visible={Boolean(removingProtectionChat)}

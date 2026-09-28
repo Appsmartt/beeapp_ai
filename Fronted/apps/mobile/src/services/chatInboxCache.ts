@@ -3,6 +3,7 @@ import type { ChatConversation } from '@beeapp/shared-types';
 
 const CACHE_PREFIX = 'beeapp.chat.inbox.v1.';
 const CACHE_VERSION = 1;
+const INBOX_CACHE_VERSION = 2;
 const MAX_UNPINNED_PER_TYPE = 20;
 
 type CachedInbox = {
@@ -129,19 +130,57 @@ export async function readChatInboxCache(
 
   try {
     const key = cacheKey(userId, identityId);
-    const pending = pendingSnapshots.get(key);
-    if (pending) return selectInboxConversations(pending.conversations, identityId);
     await pendingWrite;
     const stored = await AsyncStorage.getItem(key);
     if (!stored) return [];
     const parsed: CachedInbox = JSON.parse(stored);
     if (
-      parsed.version !== CACHE_VERSION
-      || parsed.userId !== userId
+      parsed.userId !== userId
       || parsed.identityId !== identityId
       || !Array.isArray(parsed.conversations)
     ) return [];
 
+    if (parsed.version === CACHE_VERSION) {
+      const protectionStored = await AsyncStorage.getItem(protectedChatsKey(userId));
+      if (!protectionStored) return [];
+      const protection = JSON.parse(protectionStored);
+      if (
+        protection?.version !== CACHE_VERSION
+        || protection.userId !== userId
+        || !Array.isArray(protection.conversationIds)
+        || !protection.conversationIds.every(
+          (id: unknown) => typeof id === 'string',
+        )
+      ) return [];
+      const protectedIds = new Set<string>(protection.conversationIds);
+      const conversations = selectInboxConversations(
+        parsed.conversations,
+        identityId,
+      ).map((conversation) => {
+        const isProtected = protectedIds.has(conversation.id);
+        return {
+          ...conversation,
+          is_protected: isProtected,
+          last_message: isProtected && conversation.last_message
+            ? { ...conversation.last_message, content: 'Chat protegido' }
+            : conversation.last_message,
+        };
+      });
+      await AsyncStorage.setItem(key, JSON.stringify({
+        version: INBOX_CACHE_VERSION,
+        userId,
+        identityId,
+        conversations,
+      }));
+      return conversations;
+    }
+
+    if (
+      parsed.version !== INBOX_CACHE_VERSION
+      || !parsed.conversations.every(
+        (conversation: ChatConversation) => typeof conversation.is_protected === 'boolean',
+      )
+    ) return [];
     return selectInboxConversations(parsed.conversations, identityId);
   } catch {
     return [];
@@ -156,7 +195,7 @@ export function writeChatInboxCache(
   if (!userId.trim() || !identityId.trim()) return;
 
   const snapshot: CachedInbox = {
-    version: CACHE_VERSION,
+    version: INBOX_CACHE_VERSION,
     userId,
     identityId,
     conversations: selectInboxConversations(conversations, identityId),
@@ -171,9 +210,40 @@ export function writeChatInboxCache(
     pendingSnapshots.clear();
     pendingWrite = pendingWrite.catch(() => {}).then(async () => {
       if (generation !== cacheGeneration || !entries.length) return;
-      await AsyncStorage.multiSet(entries.map(([key, value]) => (
-        [key, JSON.stringify(value)]
-      )));
+      const protectedByUser = new Map<string, Set<string>>();
+      const safeEntries: Array<[string, string]> = [];
+      for (const [key, value] of entries) {
+        let protectedIds = protectedByUser.get(value.userId);
+        if (!protectedIds) {
+          const stored = await AsyncStorage.getItem(protectedChatsKey(value.userId));
+          if (!stored) continue;
+          const parsed = JSON.parse(stored);
+          if (
+            parsed?.version !== CACHE_VERSION
+            || parsed.userId !== value.userId
+            || !Array.isArray(parsed.conversationIds)
+            || !parsed.conversationIds.every((id: unknown) => typeof id === 'string')
+          ) continue;
+          protectedIds = new Set<string>(parsed.conversationIds);
+          protectedByUser.set(value.userId, protectedIds);
+        }
+        const safeConversations = value.conversations.map((conversation) => {
+          const isProtected = protectedIds.has(conversation.id);
+          return {
+            ...conversation,
+            is_protected: isProtected,
+            last_message: isProtected && conversation.last_message
+              ? { ...conversation.last_message, content: 'Chat protegido' }
+              : conversation.last_message,
+          };
+        });
+        safeEntries.push([key, JSON.stringify({
+          ...value,
+          conversations: safeConversations,
+        })]);
+      }
+      if (generation !== cacheGeneration || !safeEntries.length) return;
+      await AsyncStorage.multiSet(safeEntries);
     }).catch(() => {
       // Cache failures must not block the inbox or realtime updates.
     });
@@ -299,6 +369,53 @@ export async function writeCachedProtectedChatIds(
   pendingWrite = pendingWrite.catch(() => {}).then(async () => {
     if (generation === cacheGeneration) {
       await AsyncStorage.setItem(protectedChatsKey(userId), value);
+      const userPrefix = `${CACHE_PREFIX}${encodeURIComponent(userId)}.`;
+      const keys = (await AsyncStorage.getAllKeys()).filter((key) => (
+        key.startsWith(userPrefix)
+        && key !== protectedChatsKey(userId)
+        && !key.endsWith('.metadata')
+        && !key.endsWith('.private-identity')
+      ));
+      const protectedIds = new Set(conversationIds);
+      const updates: Array<[string, string]> = [];
+      for (const key of keys) {
+        const stored = await AsyncStorage.getItem(key);
+        if (!stored) continue;
+        try {
+          const parsed: CachedInbox = JSON.parse(stored);
+          if (
+            parsed.userId !== userId
+            || !parsed.identityId
+            || !Array.isArray(parsed.conversations)
+            || (parsed.version !== CACHE_VERSION
+              && parsed.version !== INBOX_CACHE_VERSION)
+          ) continue;
+          const conversations = selectInboxConversations(
+            parsed.conversations,
+            parsed.identityId,
+          ).map((conversation) => {
+            const isProtected = protectedIds.has(conversation.id);
+            return {
+              ...conversation,
+              is_protected: isProtected,
+              last_message: isProtected && conversation.last_message
+                ? { ...conversation.last_message, content: 'Chat protegido' }
+                : conversation.last_message,
+            };
+          });
+          updates.push([key, JSON.stringify({
+            version: INBOX_CACHE_VERSION,
+            userId,
+            identityId: parsed.identityId,
+            conversations,
+          })]);
+        } catch {
+          // An invalid inbox entry must not block other identities.
+        }
+      }
+      if (generation === cacheGeneration && updates.length) {
+        await AsyncStorage.multiSet(updates);
+      }
     }
   }).catch(() => {
     // Protection cache failures must not block the inbox.
