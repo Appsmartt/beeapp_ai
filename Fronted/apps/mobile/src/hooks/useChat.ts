@@ -2816,7 +2816,7 @@ export function useChatMessages(
 
       updateChatConversationLastMessage(
         normalizedConversationId,
-        response.message,
+        { ...response.message, status: 'delivered' },
       );
 
       setRawMessages(
@@ -2907,7 +2907,7 @@ export function useChatMessages(
 
       updateChatConversationLastMessage(
         normalizedConversationId,
-        uploadedMessage,
+        { ...uploadedMessage, status: 'delivered' },
       );
 
       setRawMessages(
