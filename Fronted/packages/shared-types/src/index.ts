@@ -2505,6 +2505,7 @@ export type ChatMessageType =
   | 'image'
   | 'file'
   | 'audio'
+  | 'location'
   | 'system';
 
 export type ChatMessageStatus =
@@ -2622,6 +2623,7 @@ export interface ChatMessage {
   sequence_number?: number;
   message_type: ChatMessageType;
   content: string;
+  metadata?: Record<string, unknown>;
   status: ChatMessageStatus;
   created_at: string;
   updated_at?: string;

@@ -29,6 +29,9 @@ import { Camera as ExpoCamera } from 'expo-camera';
 import {
   LockKeyhole,
 } from 'lucide-react-native';
+import * as Location from 'expo-location';
+import { openChatLocation } from '../../../src/services/chatLocationLinks';
+import { armLocationPermissionUnlockSkip, finishLocationPermissionUnlockSkip } from '../../../src/services/locationPermissionAppLockGuard';
 import { colors } from '@beeapp/design-system';
 import {
   getActiveConversationCall,
@@ -524,6 +527,9 @@ function ConversationContent({
     uploadingAttachment,
     setUploadingAttachment,
   ] = useState(false);
+  const [locationProgress, setLocationProgress] = useState<
+    'locating' | 'sending' | null
+  >(null);
 
   const scrollRef = useRef<ScrollView | null>(null);
   const messageRowOffsetsRef = useRef<Record<string, number>>({});
@@ -543,6 +549,7 @@ function ConversationContent({
   const userDraggedChatRef = useRef(false);
   const followLatestMessagesRef = useRef(true);
   const startCallInFlightRef = useRef(false);
+  const locationShareInFlightRef = useRef(false);
   const resolvedAttachmentMessageIdsRef = useRef<Set<string>>(new Set());
   const initialMessageSentRef = useRef<string | null>(null);
   const initialImagesStartedRef = useRef(false);
@@ -1405,7 +1412,7 @@ function ConversationContent({
   const handleSendAttachment = async (
     type: 'photo' | 'camera' | 'file' | 'location',
   ) => {
-    if (uploadingAttachment || sending) {
+    if (uploadingAttachment || sending || locationShareInFlightRef.current) {
       return;
     }
 
@@ -1567,10 +1574,64 @@ function ConversationContent({
         return;
       }
 
-      throw new Error('La ubicación aún no está habilitada en Chat.');
+      if (type === 'location') {
+        locationShareInFlightRef.current = true;
+        setUploadingAttachment(true);
+        try {
+          const currentPermission = await Location.getForegroundPermissionsAsync();
+          let permission = currentPermission;
+          if (!currentPermission.granted) {
+            armLocationPermissionUnlockSkip();
+            try {
+              permission = await Location.requestForegroundPermissionsAsync();
+            } finally {
+              finishLocationPermissionUnlockSkip();
+            }
+          }
+          if (!permission.granted) {
+            throw new Error('Permite el acceso a tu ubicación para compartirla.');
+          }
+          if (!await Location.hasServicesEnabledAsync()) {
+            throw new Error('Activa la ubicación del celular e inténtalo de nuevo.');
+          }
+
+          setLocationProgress('locating');
+          const position = await Location.getCurrentPositionAsync({
+            accuracy: Location.Accuracy.Balanced,
+          });
+          const { latitude, longitude } = position.coords;
+          if (
+            !Number.isFinite(latitude)
+            || !Number.isFinite(longitude)
+            || latitude < -90
+            || latitude > 90
+            || longitude < -180
+            || longitude > 180
+          ) {
+            throw new Error('No fue posible obtener coordenadas válidas.');
+          }
+
+          setLocationProgress('sending');
+          await sendMessage({
+            content: 'Ubicación',
+            messageType: 'location',
+            metadata: { location: { latitude, longitude } },
+            replyToId: replyTarget?.id || null,
+          });
+          setReplyTarget(null);
+          scrollToBottom();
+        } finally {
+          setLocationProgress(null);
+          locationShareInFlightRef.current = false;
+          setUploadingAttachment(false);
+        }
+        return;
+      }
+
+      throw new Error('Tipo de adjunto no disponible.');
     } catch (attachmentError) {
       Alert.alert(
-        'No fue posible adjuntar el archivo',
+        type === 'location' ? 'No fue posible compartir la ubicación' : 'No fue posible adjuntar el archivo',
         attachmentError instanceof Error
           ? attachmentError.message
           : 'Inténtalo nuevamente.',
@@ -1979,6 +2040,26 @@ function ConversationContent({
             </View>
           </View>
         </Modal>
+        {locationProgress ? (
+          <View
+            style={styles.locationProgressOverlay}
+            accessibilityRole="alert"
+          >
+            <View style={styles.locationProgressCard}>
+              <ActivityIndicator size="large" color={colors.brand.primary} />
+              <Text style={styles.locationProgressTitle}>
+                {locationProgress === 'locating'
+                  ? 'Obteniendo ubicación…'
+                  : 'Enviando ubicación…'}
+              </Text>
+              <Text style={styles.locationProgressDescription}>
+                {locationProgress === 'locating'
+                  ? 'Estamos capturando tu posición actual.'
+                  : 'Compartiendo el punto en este chat.'}
+              </Text>
+            </View>
+          </View>
+        ) : null}
         {downloadNotice ? (
           <View
             style={[
@@ -2250,6 +2331,17 @@ function ConversationContent({
                     isAI={message.isAI}
                     sentByAi={message.sentByAi}
                     type={message.type}
+                    location={message.location}
+                    onPressLocation={message.location ? () => {
+                      const coordinates = message.location;
+                      if (!coordinates) return;
+                      void openChatLocation(coordinates).catch(() => {
+                        Alert.alert(
+                          'No fue posible abrir mapas',
+                          'Comprueba que tengas una aplicación de mapas o un navegador disponible.',
+                        );
+                      });
+                    } : undefined}
                     text={message.text}
                     mediaUrl={
                       message.type === 'audio'
@@ -2808,6 +2900,37 @@ const styles = StyleSheet.create({
   chatOpeningStepTextActive: {
     color: colors.neutral.text,
     fontWeight: '700',
+  },
+  locationProgressOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: 'center',
+    backgroundColor: 'rgba(34, 43, 67, 0.36)',
+    justifyContent: 'center',
+    padding: 24,
+    zIndex: 50,
+    elevation: 20,
+  },
+  locationProgressCard: {
+    alignItems: 'center',
+    backgroundColor: colors.neutral.white,
+    borderRadius: 20,
+    paddingHorizontal: 28,
+    paddingVertical: 26,
+    width: '100%',
+    maxWidth: 320,
+  },
+  locationProgressTitle: {
+    color: colors.neutral.text,
+    fontSize: 17,
+    fontWeight: '700',
+    marginTop: 14,
+    textAlign: 'center',
+  },
+  locationProgressDescription: {
+    color: colors.neutral.gray600,
+    fontSize: 13,
+    marginTop: 6,
+    textAlign: 'center',
   },
   callStartingOverlay: {
     alignItems: 'center',

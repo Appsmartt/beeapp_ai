@@ -379,6 +379,63 @@ class SendChatMessageSerializerTests(SimpleTestCase):
         self.assertIn("reference_id", serializer.errors)
 
 
+    def test_accepts_location_with_valid_coordinates(self):
+        serializer = SendChatMessageSerializer(
+            data={
+                "sender_identity_id": "11111111-1111-1111-1111-111111111111",
+                "message_type": "location",
+                "body": "Ubicación",
+                "metadata": {
+                    "location": {"latitude": 4.711, "longitude": -74.072}
+                },
+            }
+        )
+        self.assertTrue(serializer.is_valid(), serializer.errors)
+
+    def test_rejects_location_outside_coordinate_range(self):
+        serializer = SendChatMessageSerializer(
+            data={
+                "sender_identity_id": "11111111-1111-1111-1111-111111111111",
+                "message_type": "location",
+                "body": "Ubicación",
+                "metadata": {
+                    "location": {"latitude": 91, "longitude": -74.072}
+                },
+            }
+        )
+        self.assertFalse(serializer.is_valid())
+        self.assertIn("metadata", serializer.errors)
+
+    def test_rejects_location_with_string_coordinates(self):
+        serializer = SendChatMessageSerializer(
+            data={
+                "sender_identity_id": "11111111-1111-1111-1111-111111111111",
+                "message_type": "location",
+                "body": "Ubicación",
+                "metadata": {
+                    "location": {"latitude": "4.711", "longitude": -74.072}
+                },
+            }
+        )
+        self.assertFalse(serializer.is_valid())
+        self.assertIn("metadata", serializer.errors)
+
+    def test_rejects_location_with_attachment(self):
+        serializer = SendChatMessageSerializer(
+            data={
+                "sender_identity_id": "11111111-1111-1111-1111-111111111111",
+                "message_type": "location",
+                "body": "Ubicación",
+                "attachment_file_id": "22222222-2222-2222-2222-222222222222",
+                "metadata": {
+                    "location": {"latitude": 4.711, "longitude": -74.072}
+                },
+            }
+        )
+        self.assertFalse(serializer.is_valid())
+        self.assertIn("metadata", serializer.errors)
+
+
 class CreateReactionSerializerTests(SimpleTestCase):
     def test_rejects_blank_emoji(self):
         serializer = CreateReactionSerializer(

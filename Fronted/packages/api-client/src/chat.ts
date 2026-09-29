@@ -533,6 +533,10 @@ function toUiMessageType(
     return 'audio';
   }
 
+  if (value === 'location') {
+    return 'location';
+  }
+
   if (
     value === 'document'
     || value === 'video'
@@ -580,6 +584,7 @@ function toSharedMessage(
     sequence_number: message.sequence_number,
     message_type: toUiMessageType(message.message_type),
     content: message.body || '',
+    metadata: message.metadata || {},
     status: 'sent',
     created_at: message.created_at,
     updated_at: message.updated_at || undefined,
@@ -617,7 +622,9 @@ function toSharedMessage(
             || 'Usuario Buddy'
           ),
           content: (
-            message.reply_to.body?.trim()
+            message.reply_to.message_type === 'location'
+              ? 'Ubicación'
+              : message.reply_to.body?.trim()
             || (
               message.reply_to.message_type === 'image'
                 ? 'Imagen'
@@ -1370,7 +1377,7 @@ export async function sendChatMessage(
   payload: {
     sender_identity_id: string;
     body?: string | null;
-    message_type?: 'text' | 'image' | 'document' | 'audio';
+    message_type?: 'text' | 'image' | 'document' | 'audio' | 'location';
     attachment_file_id?: string | null;
     reference_type?: string | null;
     reference_id?: string | null;

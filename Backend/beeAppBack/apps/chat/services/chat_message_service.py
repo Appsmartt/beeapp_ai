@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import math
 
 from typing import Any
 
@@ -982,6 +983,7 @@ def _validate_message_payload(
         "reservation",
         "invoice",
         "link",
+        "location",
     }
 
     if message_type not in allowed_message_types:
@@ -998,6 +1000,26 @@ def _validate_message_payload(
         raise ChatMessageSendError(
             "reference_type and reference_id must be provided together."
         )
+
+    if message_type == "location":
+        location = metadata.get("location") if isinstance(metadata, dict) else None
+        if (
+            not isinstance(location, dict)
+            or set(location) != {"latitude", "longitude"}
+            or any(
+                isinstance(location[key], bool)
+                or not isinstance(location[key], (int, float))
+                or not math.isfinite(location[key])
+                for key in ("latitude", "longitude")
+            )
+            or not -90 <= location["latitude"] <= 90
+            or not -180 <= location["longitude"] <= 180
+            or attachment_file_id is not None
+            or not body
+        ):
+            raise ChatMessageSendError(
+                "Location requires valid coordinates, a label, and no attachment."
+            )
 
     if message_type == "text" and not body:
         raise ChatMessageSendError(

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import math
+
 from rest_framework import serializers
 
 
@@ -14,6 +16,7 @@ CHAT_MESSAGE_TYPES = (
     "reservation",
     "invoice",
     "link",
+    "location",
     "system",
 )
 
@@ -507,6 +510,26 @@ class SendChatMessageSerializer(serializers.Serializer):
                     )
                 }
             )
+
+        if message_type == "location":
+            location = attrs.get("metadata", {}).get("location")
+            if (
+                not isinstance(location, dict)
+                or set(location) != {"latitude", "longitude"}
+                or any(
+                    isinstance(location[key], bool)
+                    or not isinstance(location[key], (int, float))
+                    or not math.isfinite(location[key])
+                    for key in ("latitude", "longitude")
+                )
+                or not -90 <= location["latitude"] <= 90
+                or not -180 <= location["longitude"] <= 180
+                or attachment_file_id is not None
+                or not body
+            ):
+                raise serializers.ValidationError(
+                    {"metadata": "Location requires valid coordinates, a label, and no attachment."}
+                )
 
         if message_type == "text" and not body:
             raise serializers.ValidationError(
