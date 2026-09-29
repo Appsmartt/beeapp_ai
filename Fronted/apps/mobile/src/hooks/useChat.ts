@@ -1965,6 +1965,7 @@ export interface UseChatMessagesResult {
       messageType?: ChatMessageType;
       replyToId?: string | null;
       attachmentFileId?: string | null;
+      metadata?: Record<string, unknown>;
     },
   ) => Promise<ChatMessageModel>;
   sendAttachmentMessage: (
@@ -2701,6 +2702,7 @@ export function useChatMessages(
       messageType?: ChatMessageType;
       replyToId?: string | null;
       attachmentFileId?: string | null;
+      metadata?: Record<string, unknown>;
     },
   ) => {
     if (!normalizedConversationId) {
@@ -2718,6 +2720,7 @@ export function useChatMessages(
     const messageType = (
       payload.messageType === 'image'
       || payload.messageType === 'audio'
+      || payload.messageType === 'location'
         ? payload.messageType
         : payload.messageType === 'file'
           ? 'document'
@@ -2763,6 +2766,7 @@ export function useChatMessages(
           body,
           message_type: messageType,
           attachment_file_id: attachmentFileId,
+          metadata: payload.metadata,
           reference_type: payload.replyToId
             ? 'chat_message'
             : null,

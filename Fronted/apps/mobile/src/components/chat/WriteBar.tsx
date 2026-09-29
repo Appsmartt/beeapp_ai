@@ -494,16 +494,16 @@ export default function WriteBar({
           <TouchableOpacity
             style={styles.attachPanelItem}
             onPress={() => handleAttachItemClick('location')}
-            disabled
+            disabled={disabled || uploadingAttachment}
           >
             <View style={styles.attachIconWrap}>
               <MapPin
                 size={18}
-                color={colors.neutral.gray400}
+                color={colors.neutral.gray600}
               />
             </View>
 
-            <Text style={styles.attachTextDisabled}>
+            <Text style={styles.attachText}>
               Ubicación
             </Text>
           </TouchableOpacity>

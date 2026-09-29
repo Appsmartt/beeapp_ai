@@ -32,7 +32,9 @@ function loadChatStore() {
   loaded.require = (name) => (
     name === '@react-native-async-storage/async-storage'
       ? { getItem: async () => null, setItem: async () => {} }
-      : module.require(name)
+      : name === '../services/chatInboxCache'
+        ? { readChatInboxCache: async () => [], writeChatInboxCache: () => {} }
+        : module.require(name)
   );
   loaded._compile(compiled, filename);
   return loaded.exports;

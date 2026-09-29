@@ -45,7 +45,8 @@ export interface ChatMessageModel {
   isUser: boolean;
   isAI: boolean;
   sentByAi: boolean;
-  type: 'text' | 'image' | 'file' | 'audio';
+  type: 'text' | 'image' | 'file' | 'audio' | 'location';
+  location?: { latitude: number; longitude: number };
   text?: string;
   mediaUrl?: string;
   fileName?: string;
@@ -157,6 +158,10 @@ function toUiMessageType(
 
   if (messageType === 'audio') {
     return 'audio';
+  }
+
+  if (messageType === 'location') {
+    return 'location';
   }
 
   return 'text';
@@ -307,7 +312,9 @@ export function mapConversationToListItem(
 
   const lastMessage = conversation.last_message;
   const lastMessageContent = (
-    lastMessage?.content?.trim()
+    lastMessage?.message_type === 'location'
+      ? '📍 Ubicación'
+      : lastMessage?.content?.trim()
     || (
       lastMessage?.message_type === 'image'
         ? '📷 Imagen'
@@ -381,6 +388,32 @@ export function mapConversationToListItem(
   };
 }
 
+export function parseChatLocation(
+  metadata: Record<string, unknown> | undefined,
+): { latitude: number; longitude: number } | undefined {
+  const location = metadata?.location;
+  if (!location || typeof location !== 'object' || Array.isArray(location)) {
+    return undefined;
+  }
+
+  const values = location as Record<string, unknown>;
+  const { latitude, longitude } = values;
+  if (
+    typeof latitude !== 'number'
+    || typeof longitude !== 'number'
+    || !Number.isFinite(latitude)
+    || !Number.isFinite(longitude)
+    || latitude < -90
+    || latitude > 90
+    || longitude < -180
+    || longitude > 180
+  ) {
+    return undefined;
+  }
+
+  return { latitude, longitude };
+}
+
 export function mapChatMessageToModel(
   message: ChatMessage,
   currentUserId: string,
@@ -406,6 +439,9 @@ export function mapChatMessageToModel(
     isAI: Boolean(options.conversationIsAi),
     sentByAi: Boolean(message.is_sent_by_ai),
     type: toUiMessageType(message.message_type),
+    location: message.message_type === 'location'
+      ? parseChatLocation(message.metadata)
+      : undefined,
     text: message.content || undefined,
     mediaUrl: (
       firstAttachment?.url

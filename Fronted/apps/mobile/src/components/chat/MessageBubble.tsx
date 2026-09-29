@@ -20,6 +20,7 @@ import {
   Check,
   CheckCheck,
   FileText,
+  MapPin,
   Play,
   Pause,
   Bot,
@@ -42,7 +43,9 @@ interface MessageBubbleProps {
   isUser: boolean;
   isAI?: boolean;
   sentByAi?: boolean;
-  type: 'text' | 'image' | 'file' | 'audio';
+  type: 'text' | 'image' | 'file' | 'audio' | 'location';
+  location?: { latitude: number; longitude: number };
+  onPressLocation?: () => void;
   text?: string;
   mediaUrl?: string;
   messageId?: string;
@@ -108,6 +111,8 @@ export default function MessageBubble({
   sentByAi,
   type,
   text,
+  location,
+  onPressLocation,
   mediaUrl,
   messageId,
   onRequestAudioUrl,
@@ -461,6 +466,34 @@ export default function MessageBubble({
                 >
                   {text}
                 </Text>
+              ) : null}
+
+              {type === 'location' ? (
+                <TouchableOpacity
+                  activeOpacity={0.8}
+                  disabled={!location || !onPressLocation}
+                  onPress={onPressLocation}
+                  accessibilityRole="button"
+                  accessibilityLabel={location ? 'Abrir ubicación en mapas' : 'Ubicación no disponible'}
+                  style={{ width: 228, overflow: 'hidden', borderRadius: 15, backgroundColor: '#FFFFFF' }}
+                >
+                  <View style={{ height: 112, backgroundColor: '#E8F1EB', overflow: 'hidden', justifyContent: 'center' }}>
+                    <View style={{ position: 'absolute', width: 270, height: 18, top: 22, left: -18, transform: [{ rotate: '-17deg' }], backgroundColor: '#FFFFFF' }} />
+                    <View style={{ position: 'absolute', width: 270, height: 15, top: 83, left: -18, transform: [{ rotate: '19deg' }], backgroundColor: '#FFFFFF' }} />
+                    <View style={{ position: 'absolute', width: 16, height: 150, left: 160, top: -16, transform: [{ rotate: '16deg' }], backgroundColor: '#FFFFFF' }} />
+                    <View style={{ alignSelf: 'center', padding: 8, borderRadius: 22, backgroundColor: '#6025D2' }}>
+                      <MapPin size={22} color="#FFFFFF" />
+                    </View>
+                  </View>
+                  <View style={{ paddingHorizontal: 12, paddingVertical: 11 }}>
+                    <Text style={{ color: '#252031', fontSize: 14, fontWeight: '600' }}>
+                      Ubicación compartida
+                    </Text>
+                    <Text style={{ color: '#716B7E', fontSize: 11, marginTop: 3 }}>
+                      {location ? 'Toca para abrir en mapas' : 'Ubicación no disponible'}
+                    </Text>
+                  </View>
+                </TouchableOpacity>
               ) : null}
 
               {type === 'image' ? (
