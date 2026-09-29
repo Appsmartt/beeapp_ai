@@ -64,8 +64,11 @@ import {
 } from '../services/chatAvatarCache';
 import {
   readCachedPrivateChatIdentityId,
+  readCachedProtectedChatIds,
+  readChatInboxCache,
   saveCachedPrivateChatIdentityId,
 } from '../services/chatInboxCache';
+import { readChatMessageSnapshot } from '../services/chatMessageSnapshotCache';
 import {
   getChatMessageReceiptStatus,
 } from '../services/chatReceiptStatus';
@@ -75,6 +78,7 @@ import {
 } from '../services/chatAttachmentService';
 import {
   getActiveChatStoreIdentityId,
+  getActiveChatStoreUserId,
   getChatConversations as getStoredConversations,
   hydrateChatConversations,
   getChatMessages as getStoredMessages,
@@ -1980,6 +1984,7 @@ export interface UseChatMessagesResult {
   loadingMore: boolean;
   hasMore: boolean;
   initialLoadingPhase: 'conversation' | 'messages' | 'ready';
+  showingCachedMessages: boolean;
   error: string | null;
   loadMessages: (
     options?: {
@@ -2041,14 +2046,35 @@ export function useChatMessages(
     conversationId || '',
   ).trim();
 
-  const [currentUserId, setCurrentUserId] = useState('');
+  const initialStoreIdentityId = getActiveChatStoreIdentityId();
+  const initialStoreUserId = getActiveChatStoreUserId();
+  const initialStoreConversation = getStoredConversations().find(
+    (item) => item.id === normalizedConversationId,
+  );
+  const canShowStoredMessages = Boolean(
+    normalizedConversationId
+    && initialStoreUserId
+    && initialStoreIdentityId
+    && (!normalizedRequestedIdentityId
+      || normalizedRequestedIdentityId === initialStoreIdentityId)
+    && initialStoreConversation?.is_protected === false
+    && initialStoreConversation.own_participant?.identity_id === initialStoreIdentityId
+    && !isChatConversationProtected(normalizedConversationId)
+    && getStoredMessages(normalizedConversationId).length > 0,
+  );
+
+  const [currentUserId, setCurrentUserId] = useState(
+    canShowStoredMessages ? initialStoreUserId || '' : '',
+  );
   const [activeIdentityId, setActiveIdentityId] = useState<
     string | null
-  >(null);
+  >(canShowStoredMessages ? initialStoreIdentityId : null);
 
   const [rawMessages, setRawMessages] = useState<
     ChatMessage[]
-  >([]);
+  >(() => canShowStoredMessages
+    ? [...getStoredMessages(normalizedConversationId)]
+    : []);
 
   const [participants, setParticipants] = useState<
     ChatParticipant[]
@@ -2056,10 +2082,10 @@ export function useChatMessages(
 
   const [conversation, setConversation] = useState<
     ChatConversation | null
-  >(null);
+  >(canShowStoredMessages ? initialStoreConversation || null : null);
 
   const [loading, setLoading] = useState(
-    Boolean(normalizedConversationId),
+    Boolean(normalizedConversationId) && !canShowStoredMessages,
   );
 
   const [refreshing, setRefreshing] = useState(false);
@@ -2067,12 +2093,14 @@ export function useChatMessages(
   const [loadingMore, setLoadingMore] = useState(false);
   const [initialLoadingPhase, setInitialLoadingPhase] = useState<
     'conversation' | 'messages' | 'ready'
-  >(normalizedConversationId ? 'conversation' : 'ready');
+  >(normalizedConversationId && !canShowStoredMessages ? 'conversation' : 'ready');
+  const [showingCachedMessages, setShowingCachedMessages] = useState(
+    canShowStoredMessages,
+  );
 
-  const initialMetadata = {
-    hasMore: false,
-    nextBeforeSequence: null,
-  };
+  const initialMetadata = canShowStoredMessages
+    ? getChatMessagesCacheMetadata(normalizedConversationId)
+    : { hasMore: false, nextBeforeSequence: null };
 
   const [hasMore, setHasMore] = useState(
     initialMetadata.hasMore,
@@ -2517,6 +2545,7 @@ export function useChatMessages(
     const initializeConversation = async () => {
       try {
         const {
+          currentUserId: userId,
           token,
         } = await getChatAuthContext();
 
@@ -2528,14 +2557,70 @@ export function useChatMessages(
           // Un fallo de Realtime no impide cargar el historial del chat.
         });
 
-        await resolveActiveIdentityId(token);
+        const identityId = await resolveActiveIdentityId(token);
+        if (cancelled) return;
 
-        if (cancelled) {
+        const [privateIdentityId, protectedIds] = await Promise.all([
+          readCachedPrivateChatIdentityId(userId),
+          readCachedProtectedChatIds(userId),
+        ]);
+        if (cancelled) return;
+
+        let cachedSnapshot = null;
+        if (
+          privateIdentityId === identityId
+          && getActiveChatStoreIdentityId() === identityId
+          && protectedIds
+          && !protectedIds.includes(normalizedConversationId)
+          && !isChatConversationProtected(normalizedConversationId)
+        ) {
+          const inbox = await readChatInboxCache(userId, identityId);
+          if (cancelled) return;
+          if (inbox.some((item) => item.id === normalizedConversationId)) {
+            cachedSnapshot = await readChatMessageSnapshot(
+              userId, identityId, normalizedConversationId,
+            );
+          }
+        }
+        if (cancelled) return;
+
+        const hasCachedMessages = Boolean(cachedSnapshot?.messages.length);
+        openedChatConversationRef.current = normalizedConversationId;
+
+        if (hasCachedMessages && cachedSnapshot) {
+          const storedMessages = getStoredMessages(normalizedConversationId);
+          const storedMetadata = getChatMessagesCacheMetadata(normalizedConversationId);
+          const initialMessages = storedMessages.length
+            ? storedMessages
+            : cachedSnapshot.messages;
+          const metadata = storedMessages.length && storedMetadata.lastSyncedAt
+            ? storedMetadata
+            : cachedSnapshot.metadata;
+          if (!storedMessages.length) {
+            setChatMessages(normalizedConversationId, initialMessages, metadata);
+          }
+          setCurrentUserId(userId);
+          setRawMessages([...initialMessages]);
+          setHasMore(metadata.hasMore);
+          setNextBeforeSequence(metadata.nextBeforeSequence);
+          setLoading(false);
+          setShowingCachedMessages(true);
+          setInitialLoadingPhase('ready');
+
+          void Promise.allSettled([
+            loadConversation(),
+            loadParticipants(),
+          ]).then(() => {
+            if (!cancelled) {
+              void loadMessages({ network: true }).catch(() => {
+                // La caché permanece visible si falla la red.
+              });
+            }
+          });
           return;
         }
 
         resetChatConversationMessages(normalizedConversationId);
-        openedChatConversationRef.current = normalizedConversationId;
         setRawMessages([]);
         setHasMore(false);
         setNextBeforeSequence(null);
@@ -2545,15 +2630,12 @@ export function useChatMessages(
           loadParticipants(),
         ]);
 
-        if (cancelled) {
-          return;
-        }
+        if (cancelled) return;
 
         setInitialLoadingPhase('messages');
 
         /*
-         * Cada entrada descarga la primera página sin reutilizar
-         * mensajes de una apertura anterior.
+         * Sin caché válida se conserva la primera carga actual.
          */
         await loadMessages({
           network: true,
@@ -2648,9 +2730,31 @@ export function useChatMessages(
   ]);
 
   useEffect(() => {
-    setRawMessages([]);
-    setHasMore(false);
-    setNextBeforeSequence(null);
+    const identityId = getActiveChatStoreIdentityId();
+    const userId = getActiveChatStoreUserId();
+    const storedConversation = getStoredConversations().find(
+      (item) => item.id === normalizedConversationId,
+    );
+    const useStored = Boolean(
+      userId
+      && identityId
+      && (!normalizedRequestedIdentityId
+        || normalizedRequestedIdentityId === identityId)
+      && storedConversation?.is_protected === false
+      && storedConversation.own_participant?.identity_id === identityId
+      && !isChatConversationProtected(normalizedConversationId)
+      && getStoredMessages(normalizedConversationId).length > 0,
+    );
+    const metadata = getChatMessagesCacheMetadata(normalizedConversationId);
+    setRawMessages(useStored ? [...getStoredMessages(normalizedConversationId)] : []);
+    setCurrentUserId(useStored ? userId || '' : '');
+    setActiveIdentityId(useStored ? identityId : null);
+    setConversation(useStored ? storedConversation || null : null);
+    setHasMore(useStored ? metadata.hasMore : false);
+    setNextBeforeSequence(useStored ? metadata.nextBeforeSequence : null);
+    setShowingCachedMessages(useStored);
+    setInitialLoadingPhase(useStored ? 'ready' : 'conversation');
+    setLoading(!useStored && Boolean(normalizedConversationId));
     setError(null);
 
     return () => {
@@ -2664,6 +2768,7 @@ export function useChatMessages(
     };
   }, [
     normalizedConversationId,
+    normalizedRequestedIdentityId,
   ]);
 
   const loadMore = useCallback(async () => {
@@ -3298,6 +3403,7 @@ export function useChatMessages(
     loadingMore,
     hasMore,
     initialLoadingPhase,
+    showingCachedMessages,
     error,
     loadMessages,
     loadMore,

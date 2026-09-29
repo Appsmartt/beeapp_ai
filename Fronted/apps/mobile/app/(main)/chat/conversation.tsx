@@ -54,7 +54,17 @@ import {
 
 import ScreenSafeArea from '../../../src/components/layout/ScreenSafeArea';
 import { getLatestIncomingChatMessage } from '../../../src/services/chatMessageReceipts';
-import { getActiveChatStoreIdentityId, getChatConversations, getChatMessages, upsertChatConversation, upsertChatMessage } from '../../../src/stores/chatStore';
+import {
+  readCachedProtectedChatIds,
+  writeCachedProtectedChatIds,
+} from '../../../src/services/chatInboxCache';
+import { removeChatMessageSnapshot } from '../../../src/services/chatMessageSnapshotCache';
+import {
+  consumeVerifiedChatOpening,
+  requestChatPinAfterReturn,
+} from '../../../src/services/chatPinOpeningState';
+import { getAuthSession } from '../../../src/services/authSession';
+import { getActiveChatStoreIdentityId, getChatConversations, getChatMessages, isChatConversationProtected, resetChatConversationMessages, setChatConversationProtected, upsertChatConversation, upsertChatMessage } from '../../../src/stores/chatStore';
 import {
   useModuleNav,
   useScreenParams,
@@ -177,25 +187,52 @@ function formatMessageDateSeparator(
   return chatDateFormatter.format(messageDate);
 }
 
+function canOpenCachedConversation(
+  conversationId: string,
+  requestedIdentityId: string | null,
+): boolean {
+  const identityId = getActiveChatStoreIdentityId();
+  if (!identityId || (requestedIdentityId && requestedIdentityId !== identityId)) {
+    return false;
+  }
+  const cached = getChatConversations().find((item) => item.id === conversationId);
+  return Boolean(
+    cached?.is_protected === false
+    && cached.own_participant?.identity_id === identityId
+    && !isChatConversationProtected(conversationId)
+    && getChatMessages(conversationId).length > 0,
+  );
+}
+
 export default function ConversationScreen() {
   const router = useModuleNav();
   const params = useScreenParams();
   const chatId = String(params.id || '').trim();
+  const requestedIdentityId = String(params.identityId || '').trim() || null;
   const [access, setAccess] = useState<
     'checking' | 'locked' | 'open' | 'error'
-  >('checking');
+  >(() => canOpenCachedConversation(chatId, requestedIdentityId) ? 'open' : 'checking');
   const [accessError, setAccessError] = useState<string | null>(null);
   const [attempt, setAttempt] = useState(0);
   const permissionDialogInactiveRef = useRef(false);
+  const focusedOnceRef = useRef(false);
   const [chatCameraOpen, setChatCameraOpen] = useState(false);
   const [chatCameraMicrophoneGranted, setChatCameraMicrophoneGranted] = useState(false);
 
   useFocusEffect(
     useCallback(() => {
-      setAccess('checking');
-      setAttempt((value) => value + 1);
+      if (focusedOnceRef.current) {
+        setAccess(
+          canOpenCachedConversation(chatId, requestedIdentityId)
+            ? 'open'
+            : 'checking',
+        );
+        setAttempt((value) => value + 1);
+      } else {
+        focusedOnceRef.current = true;
+      }
       return () => setAccess('checking');
-    }, [chatId]),
+    }, [chatId, requestedIdentityId]),
   );
 
   useEffect(() => {
@@ -216,28 +253,69 @@ export default function ConversationScreen() {
         permissionDialogInactiveRef.current = false;
         return;
       }
-      setAccess('checking');
+      setAccess(
+        canOpenCachedConversation(chatId, requestedIdentityId)
+          ? 'open'
+          : 'checking',
+      );
       setAttempt((value) => value + 1);
     });
     return () => subscription.remove();
-  }, []);
+  }, [chatId, requestedIdentityId]);
 
   useEffect(() => {
     let cancelled = false;
-    setAccess('checking');
+    const openedFromCache = canOpenCachedConversation(chatId, requestedIdentityId);
+    if (!openedFromCache) setAccess('checking');
     setAccessError(null);
 
     const check = async () => {
       try {
         if (!chatId) throw new Error('Falta el identificador del chat.');
+        const session = await getAuthSession();
+        if (!session) throw new Error('Inicia sesión para abrir el chat.');
+        if (cancelled) return;
+        if (consumeVerifiedChatOpening(session.user.id, chatId)) {
+          setAccess('open');
+          return;
+        }
         const auth = await getValidSessionCredentials();
         if (!auth) throw new Error('Inicia sesión para abrir el chat.');
         const result = await getChatPinProtection(auth, chatId);
-        if (!cancelled && AppState.currentState === 'active') {
-          setAccess(result.protected ? 'locked' : 'open');
+        if (cancelled || AppState.currentState !== 'active') return;
+        if (!result.protected) {
+          setAccess('open');
+          return;
+        }
+
+        setAccess('locked');
+        if (openedFromCache) {
+          resetChatConversationMessages(chatId);
+          setChatConversationProtected(chatId, true);
+          requestChatPinAfterReturn(session.user.id, chatId);
+          try {
+            const existing = await readCachedProtectedChatIds(session.user.id);
+            if (existing) {
+              await writeCachedProtectedChatIds(
+                session.user.id,
+                [...new Set([...existing, chatId])],
+              );
+            }
+            await removeChatMessageSnapshot(
+              session.user.id,
+              getActiveChatStoreIdentityId() || '',
+              chatId,
+            );
+          } finally {
+            if (!cancelled) router.back();
+          }
         }
       } catch (failure) {
         if (cancelled) return;
+        if (openedFromCache) {
+          // La red fallida no equivale a una protección confirmada.
+          return;
+        }
         setAccessError(
           failure instanceof Error
             ? failure.message
@@ -251,7 +329,7 @@ export default function ConversationScreen() {
     return () => {
       cancelled = true;
     };
-  }, [chatId, attempt]);
+  }, [chatId, attempt, requestedIdentityId]);
 
   const verifyPin = async (pin: string) => {
     const auth = await getValidSessionCredentials();
@@ -264,7 +342,44 @@ export default function ConversationScreen() {
     return (
       <ScreenSafeArea style={{ flex: 1, backgroundColor: colors.neutral.white }}>
         {access === 'checking' ? (
-          <ActivityIndicator size="large" color={colors.brand.primary} />
+          <View style={styles.chatOpeningOverlay}>
+            <View style={styles.chatOpeningCard}>
+              <View style={styles.chatOpeningIcon}>
+                <ActivityIndicator
+                  size="large"
+                  color={colors.brand.primary}
+                />
+              </View>
+              <Text style={styles.chatOpeningTitle}>
+                Preparando tu chat
+              </Text>
+              <Text style={styles.chatOpeningDescription}>
+                Estamos dejando tu conversación lista.
+              </Text>
+              {[
+                ['conversation', 'Preparando conversación'],
+                ['messages', 'Cargando mensajes'],
+                ['images', 'Preparando imágenes'],
+              ].map(([phase, label], index) => (
+                <View key={phase} style={styles.chatOpeningStep}>
+                  <View
+                    style={[
+                      styles.chatOpeningStepDot,
+                      index === 0 ? styles.chatOpeningStepDotActive : null,
+                    ]}
+                  />
+                  <Text
+                    style={[
+                      styles.chatOpeningStepText,
+                      index === 0 ? styles.chatOpeningStepTextActive : null,
+                    ]}
+                  >
+                    {label}
+                  </Text>
+                </View>
+              ))}
+            </View>
+          </View>
         ) : null}
         {access === 'error' ? (
           <View style={{ padding: 24 }}>
@@ -351,6 +466,7 @@ function ConversationContent({
     loadingMore,
     hasMore,
     initialLoadingPhase,
+    showingCachedMessages,
     activeIdentityId,
     currentUserId,
     error,
@@ -2016,7 +2132,7 @@ function ConversationContent({
         <Modal
           transparent
           animationType="fade"
-          visible={Boolean(chatId) && (
+          visible={Boolean(chatId) && !showingCachedMessages && (
             initialLoadingPhase !== 'ready'
             || !initialImagesReady
           )}

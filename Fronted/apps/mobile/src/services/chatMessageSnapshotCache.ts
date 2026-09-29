@@ -79,13 +79,6 @@ export async function readChatMessageSnapshot(
         && typeof parsed.metadata.nextBeforeSequence !== 'number'
       )
     ) return null;
-    console.log('[chat-message-cache] read', {
-      conversationId,
-      count: parsed.messages.length,
-      messageIds: parsed.messages.map((message) => message.id),
-      sequences: parsed.messages.map((message) => message.sequence_number ?? null),
-      hasMore: parsed.metadata.hasMore,
-    });
     return { messages: parsed.messages, metadata: parsed.metadata };
   } catch (error) {
     console.warn('[chat-message-cache] read-failed', {
@@ -131,16 +124,6 @@ export async function writeChatMessageSnapshot(
       && verified.messages.length === messages.length
       && verified.messages.every((message, index) => message.id === messages[index].id),
     );
-    console.log('[chat-message-cache] write-verified', {
-      conversationId,
-      saved,
-      count: messages.length,
-      messageIds: messages.map((message) => message.id),
-      sequences: messages.map((message) => message.sequence_number ?? null),
-      hasMore: snapshot.metadata.hasMore,
-      nextBeforeSequence: snapshot.metadata.nextBeforeSequence,
-      lastSyncedAt: snapshot.metadata.lastSyncedAt,
-    });
     return saved;
   } catch (error) {
     console.warn('[chat-message-cache] write-failed', {
@@ -171,8 +154,4 @@ export async function clearChatMessageSnapshots(
     (key) => key.startsWith(prefix),
   );
   if (keys.length) await AsyncStorage.multiRemove(keys);
-  console.log('[chat-message-cache] cleared', {
-    scope: userId ? 'user' : 'all',
-    count: keys.length,
-  });
 }

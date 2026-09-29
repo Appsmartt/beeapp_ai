@@ -491,10 +491,6 @@ export async function prefetchRecentChatMessages(
     conversation.own_participant?.identity_id === context.identityId
   ));
 
-  console.log('[chat-message-prefetch] started', {
-    conversationCount: selectedConversations.length,
-    conversationIds: selectedConversations.map((item) => item.id),
-  });
 
   await runWithConcurrency(
     selectedConversations,
@@ -505,9 +501,6 @@ export async function prefetchRecentChatMessages(
         await removeChatMessageSnapshot(
           context.userId, context.identityId, conversation.id,
         );
-        console.log('[chat-message-prefetch] protected-skip', {
-          conversationId: conversation.id,
-        });
         return;
       }
 
@@ -515,10 +508,6 @@ export async function prefetchRecentChatMessages(
         context.userId, context.identityId, conversation.id,
       );
       if (saved) {
-        console.log('[chat-message-prefetch] already-cached', {
-          conversationId: conversation.id,
-          count: saved.messages.length,
-        });
         return;
       }
 
@@ -550,7 +539,4 @@ export async function prefetchRecentChatMessages(
     },
   );
 
-  console.log('[chat-message-prefetch] complete', {
-    conversationCount: selectedConversations.length,
-  });
 }

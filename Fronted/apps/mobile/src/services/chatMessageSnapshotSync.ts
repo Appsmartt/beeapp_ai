@@ -110,7 +110,7 @@ async function persistConversation(
   const latestProtection = await readCachedProtectedChatIds(userId);
   if (!latestProtection || latestProtection.includes(conversationId)) return;
 
-  const saved = await writeChatMessageSnapshot(
+  await writeChatMessageSnapshot(
     userId,
     identityId,
     conversationId,
@@ -128,11 +128,6 @@ async function persistConversation(
       },
     },
   );
-  console.log('[chat-message-cache] global-update', {
-    conversationId,
-    saved,
-    count: Math.min(merged.size, 30),
-  });
 }
 
 export async function startChatMessageSnapshotSync(

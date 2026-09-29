@@ -125,6 +125,10 @@ import {
 } from '../../../src/services/chatInboxCache';
 import { getChatConversations } from '../../../src/stores/chatStore';
 import {
+  consumeChatPinAfterReturn,
+  grantVerifiedChatOpening,
+} from '../../../src/services/chatPinOpeningState';
+import {
   prefetchRecentChatMessages,
 } from '../../../src/services/chatInitialSync';
 import {
@@ -654,12 +658,31 @@ export default function ChatListScreen() {
   const [protectionError, setProtectionError] = useState<string | null>(null);
   const [protectionRefresh, setProtectionRefresh] = useState(0);
   const protectionMutationVersion = useRef(0);
+  const [chatListFocused, setChatListFocused] = useState(false);
+
+  useEffect(() => {
+    if (!chatListFocused || !cachedProtectionUserId || !conversations.length) return;
+    const pendingId = consumeChatPinAfterReturn(
+      cachedProtectionUserId,
+      conversations.map((chat) => chat.id),
+    );
+    if (!pendingId) return;
+    const chat = conversations.find((item) => item.id === pendingId);
+    if (!chat) return;
+    setProtectedChatIds((current) => new Set([...current, pendingId]));
+    setPinAction({ type: 'open', chat });
+    setLockedChatId(pendingId);
+  }, [chatListFocused, cachedProtectionUserId, conversations, protectionRefresh]);
 
   useFocusEffect(
     useCallback(() => {
+      setChatListFocused(true);
       setProtectionLoaded(false);
       setProtectionRefresh((value) => value + 1);
-      return () => setProtectionLoaded(false);
+      return () => {
+        setChatListFocused(false);
+        setProtectionLoaded(false);
+      };
     }, []),
   );
 
@@ -915,6 +938,9 @@ export default function ChatListScreen() {
 
     const result = await verifyAccountSecurityPin(auth, pin);
     if (!result.verified) throw new Error('PIN incorrecto. Inténtalo de nuevo.');
+    const session = await getAuthSession();
+    if (!session) throw new Error('Inicia sesión para abrir el chat.');
+    grantVerifiedChatOpening(session.user.id, pinAction.chat.id);
   };
 
   const handlePinSuccess = () => {
