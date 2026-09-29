@@ -56,6 +56,10 @@ import {
   clearActiveCallCredentials,
   getActiveCallCredentials,
 } from '../../../src/stores/activeCallStore';
+import {
+  armCallPermissionUnlockSkip,
+  finishCallPermissionUnlockSkip,
+} from '../../../src/services/locationPermissionAppLockGuard';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -140,9 +144,17 @@ async function requestRequiredPermissions(
       : []),
   ];
 
-  const result = await PermissionsAndroid.requestMultiple(
-    requiredPermissions,
-  );
+  armCallPermissionUnlockSkip();
+
+  let result: Record<string, string>;
+
+  try {
+    result = await PermissionsAndroid.requestMultiple(
+      requiredPermissions,
+    );
+  } finally {
+    finishCallPermissionUnlockSkip();
+  }
 
   const deniedPermissions = requiredPermissions.filter(
     (permission) => (

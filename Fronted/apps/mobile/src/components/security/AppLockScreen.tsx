@@ -13,7 +13,10 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { colors } from '@beeapp/design-system';
-import { consumeLocationPermissionUnlockSkip, clearLocationPermissionUnlockSkip } from '../../services/locationPermissionAppLockGuard';
+import {
+  clearPermissionDialogUnlockSkip,
+  consumePermissionDialogUnlockSkip,
+} from '../../services/locationPermissionAppLockGuard';
 
 import BuddyLogo from '../BuddyLogo';
 import AppLockPinPad from './AppLockPinPad';
@@ -125,12 +128,12 @@ export default function AppLockScreen() {
       appState.current = nextAppState;
 
       if (nextAppState === 'background') {
-        clearLocationPermissionUnlockSkip();
+        clearPermissionDialogUnlockSkip();
       }
 
       if (
         isReturningToForeground
-        && consumeLocationPermissionUnlockSkip(previousAppState)
+        && consumePermissionDialogUnlockSkip(previousAppState)
       ) {
         return;
       }
