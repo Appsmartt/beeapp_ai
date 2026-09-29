@@ -47,6 +47,7 @@ export interface ChatApiIdentitySummary {
   commercial_profile_id: string | null;
   display_name: string;
   avatar_file_id: string | null;
+  avatar_url?: string | null;
   is_active: boolean;
   is_available: boolean;
 }
@@ -68,6 +69,7 @@ export interface ChatApiParticipant {
   last_delivered_at: string | null;
   unread_count: number;
   notifications_enabled: boolean;
+  is_pinned?: boolean;
   created_at: string;
   updated_at: string;
   identity: ChatApiIdentitySummary;
@@ -104,12 +106,15 @@ export interface ChatApiInboxConversation {
   last_message_type: string | null;
   last_message_preview: string | null;
   last_message_at: string | null;
+  sort_at?: string | null;
   last_message_sender_identity_id: string | null;
+  last_message_receipt_status?: 'sent' | 'delivered' | 'read';
   unread_count: number;
   last_read_message_id: string | null;
   last_read_at: string | null;
   notifications_enabled: boolean;
   cleared_at: string | null;
+  is_pinned?: boolean;
 }
 
 export interface ChatApiConversation {
@@ -177,6 +182,7 @@ export interface ChatApiReaction {
   id: string;
   message_id: string;
   identity_id: string;
+  owner_user_id?: string;
   emoji: string;
   created_at: string;
   identity?: ChatApiIdentitySummary | null;
@@ -257,9 +263,22 @@ export interface ChatIdentitiesResponse {
 export interface ChatInboxResponse {
   identity_id: string;
   conversations: ChatApiInboxConversation[];
+  pinned_conversations?: ChatApiInboxConversation[];
   limit: number;
   next_before_last_message_at: string | null;
 }
+
+
+export interface ChatTypedInboxResponse {
+  identity_id: string;
+  conversation_type: 'direct' | 'group';
+  conversations: ChatApiInboxConversation[];
+  limit: number;
+  has_more: boolean;
+  next_before_sort_at: string | null;
+  next_before_id: string | null;
+}
+
 
 export interface ChatRecipientSearchResponse {
   query: string;
@@ -444,6 +463,7 @@ function toSharedParticipant(
     notifications_enabled: (
       participant.notifications_enabled
     ),
+    is_pinned: Boolean(participant.is_pinned),
     created_at: participant.created_at,
     updated_at: participant.updated_at,
     user: {
@@ -514,6 +534,10 @@ function toUiMessageType(
     return 'audio';
   }
 
+  if (value === 'location') {
+    return 'location';
+  }
+
   if (
     value === 'document'
     || value === 'video'
@@ -550,6 +574,7 @@ function toSharedMessage(
   return {
     id: message.id,
     conversation_id: message.conversation_id,
+    sender_identity_id: message.sender_identity_id,
     sender_id: (
       message.sender_user_id
       || message.sender_identity?.profile_id
@@ -560,6 +585,7 @@ function toSharedMessage(
     sequence_number: message.sequence_number,
     message_type: toUiMessageType(message.message_type),
     content: message.body || '',
+    metadata: message.metadata || {},
     status: 'sent',
     created_at: message.created_at,
     updated_at: message.updated_at || undefined,
@@ -596,7 +622,23 @@ function toSharedMessage(
             || message.reply_to.sender_identity?.display_name
             || 'Usuario Buddy'
           ),
-          content: message.reply_to.body || '',
+          content: (
+            message.reply_to.message_type === 'location'
+              ? 'Ubicación'
+              : message.reply_to.body?.trim()
+            || (
+              message.reply_to.message_type === 'image'
+                ? 'Imagen'
+                : message.reply_to.message_type === 'audio'
+                  ? 'Audio'
+                  : (
+                    message.reply_to.message_type === 'document'
+                    || message.reply_to.message_type === 'video'
+                  )
+                    ? 'Archivo adjunto'
+                    : 'Mensaje'
+            )
+          ),
           message_type: toUiMessageType(
             message.reply_to.message_type,
           ),
@@ -634,6 +676,14 @@ function toSharedMessage(
     is_pinned: Boolean(message.is_pinned),
     pinned_at: message.pinned_at || null,
     is_sent_by_ai: false,
+    reactions: (message.reactions || []).map((reaction) => ({
+      id: reaction.id,
+      message_id: reaction.message_id,
+      identity_id: reaction.identity_id,
+      owner_user_id: reaction.owner_user_id,
+      emoji: reaction.emoji,
+      created_at: reaction.created_at,
+    })),
   };
 }
 
@@ -675,7 +725,7 @@ function toSharedConversation(
       conversation.permissions,
     ),
     unread_count: ownParticipant?.unread_count || 0,
-    is_pinned: false,
+    is_pinned: Boolean(ownParticipant?.is_pinned),
     is_muted: ownParticipant
       ? !ownParticipant.notifications_enabled
       : false,
@@ -736,11 +786,19 @@ function toSharedInboxConversation(
           sender_id: (
             conversation.last_message_sender_identity_id
           ),
+          sender_identity_id: (
+            conversation.last_message_sender_identity_id
+          ),
           message_type: toUiMessageType(
             conversation.last_message_type,
           ),
           content: conversation.last_message_preview || '',
-          status: 'sent',
+          status: (
+            conversation.last_message_receipt_status === 'read'
+            || conversation.last_message_receipt_status === 'delivered'
+              ? conversation.last_message_receipt_status
+              : 'sent'
+          ),
           created_at: conversation.last_message_at || '',
           attachments: [],
           sender: null,
@@ -790,8 +848,16 @@ function toSharedInboxConversation(
         : conversation.other_logo_file_id
     ),
     created_by_id: null,
-    created_at: conversation.last_message_at || '',
-    updated_at: conversation.last_message_at || '',
+    created_at: (
+      conversation.last_message_at
+      || conversation.sort_at
+      || ''
+    ),
+    updated_at: (
+      conversation.last_message_at
+      || conversation.sort_at
+      || ''
+    ),
     last_message_at: conversation.last_message_at,
     last_message: lastMessage,
     participants: [
@@ -801,7 +867,7 @@ function toSharedInboxConversation(
     own_participant: ownParticipant,
     permissions: null,
     unread_count: conversation.unread_count || 0,
-    is_pinned: false,
+    is_pinned: Boolean(conversation.is_pinned),
     is_muted: !conversation.notifications_enabled,
     is_archived: false,
     is_protected: false,
@@ -909,6 +975,7 @@ export async function getChatInbox(
 ): Promise<{
   identity_id: string;
   conversations: ChatConversation[];
+  pinned_conversations: ChatConversation[];
   limit: number;
   next_before_last_message_at: string | null;
 }> {
@@ -934,12 +1001,65 @@ export async function getChatInbox(
         identityId,
       ),
     ),
+    pinned_conversations: (
+      response.pinned_conversations || []
+    ).map((conversation) => toSharedInboxConversation(
+      conversation,
+      identityId,
+    )),
     limit: response.limit,
     next_before_last_message_at: (
       response.next_before_last_message_at
     ),
   };
 }
+
+
+export async function getChatUnpinnedInboxByType(
+  auth: AuthCredentials,
+  identityId: string,
+  conversationType: 'direct' | 'group',
+  options: {
+    limit: 5 | 10;
+    beforeSortAt?: string | null;
+    beforeId?: string | null;
+  },
+): Promise<{
+  identity_id: string;
+  conversation_type: 'direct' | 'group';
+  conversations: ChatConversation[];
+  limit: number;
+  has_more: boolean;
+  next_before_sort_at: string | null;
+  next_before_id: string | null;
+}> {
+  const response = await api.get<ChatTypedInboxResponse>(
+    `/chat/inbox/by-type/${buildQuery({
+      identity_id: identityId,
+      conversation_type: conversationType,
+      limit: options.limit,
+      before_sort_at: options.beforeSortAt || undefined,
+      before_id: options.beforeId || undefined,
+    })}`,
+    { auth: requireBearerAuth(auth) },
+  );
+
+  return {
+    identity_id: response.identity_id,
+    conversation_type: response.conversation_type,
+    conversations: response.conversations.map(
+      (conversation) => toSharedInboxConversation(
+        conversation,
+        identityId,
+      ),
+    ),
+    limit: response.limit,
+    has_more: response.has_more,
+    next_before_sort_at: response.next_before_sort_at,
+    next_before_id: response.next_before_id,
+  };
+}
+
 
 export async function searchChatRecipients(
   auth: AuthCredentials,
@@ -1226,6 +1346,32 @@ export async function getChatMessage(
   };
 }
 
+export async function createChatMessageReaction(
+  auth: AuthCredentials,
+  messageId: string,
+  identityId: string,
+  emoji: string,
+): Promise<ChatApiReaction> {
+  const response = await api.post<{ reaction: ChatApiReaction }>(
+    `/chat/messages/${encodeURIComponent(messageId)}/reactions/`,
+    { identity_id: identityId, emoji },
+    { auth: requireBearerAuth(auth) },
+  );
+  return response.reaction;
+}
+
+export async function deleteChatMessageReaction(
+  auth: AuthCredentials,
+  messageId: string,
+  identityId: string,
+  emoji: string,
+): Promise<void> {
+  await api.delete<void>(
+    `/chat/messages/${encodeURIComponent(messageId)}/reactions/${encodeURIComponent(emoji)}/?identity_id=${encodeURIComponent(identityId)}`,
+    { auth: requireBearerAuth(auth) },
+  );
+}
+
 export async function getChatMessages(
   auth: AuthCredentials,
   conversationId: string,
@@ -1266,7 +1412,7 @@ export async function sendChatMessage(
   payload: {
     sender_identity_id: string;
     body?: string | null;
-    message_type?: 'text' | 'image' | 'document' | 'audio';
+    message_type?: 'text' | 'image' | 'document' | 'audio' | 'location';
     attachment_file_id?: string | null;
     reference_type?: string | null;
     reference_id?: string | null;
@@ -1410,6 +1556,27 @@ export async function getChatMessageAttachmentAccess(
   );
 }
 
+export async function markChatConversationDelivered(
+  auth: AuthCredentials,
+  conversationId: string,
+  payload: {
+    identity_id: string;
+    last_delivered_message_id: string;
+  },
+): Promise<{
+  marked: boolean;
+}> {
+  return api.post<{
+    marked: boolean;
+  }>(
+    `${conversationPath(conversationId)}delivered/`,
+    payload,
+    {
+      auth: requireBearerAuth(auth),
+    },
+  );
+}
+
 export async function markChatConversationRead(
   auth: AuthCredentials,
   conversationId: string,
@@ -1429,6 +1596,26 @@ export async function markChatConversationRead(
       auth: requireBearerAuth(auth),
     },
   );
+}
+
+export async function updateChatConversationPinned(
+  auth: AuthCredentials,
+  conversationId: string,
+  payload: {
+    identity_id: string;
+    is_pinned: boolean;
+  },
+): Promise<{ conversation: ChatConversation }> {
+  const response = await api.patch<{
+    conversation: ChatApiConversation;
+  }>(
+    `${conversationPath(conversationId)}pinned/`,
+    payload,
+    { auth: requireBearerAuth(auth) },
+  );
+  return {
+    conversation: toSharedConversation(response.conversation),
+  };
 }
 
 export async function updateChatConversationNotifications(
@@ -1589,6 +1776,65 @@ export async function respondToChatGroupInvite(
       : null,
     invite: toSharedGroupInvite(response.invite),
   };
+}
+
+export async function transferChatGroupOwnership(
+  auth: AuthCredentials,
+  conversationId: string,
+  payload: {
+    current_owner_identity_id: string;
+    new_owner_identity_id: string;
+  },
+): Promise<{ conversation: ChatConversation }> {
+  const response = await api.post<{
+    conversation: ChatApiConversation;
+  }>(
+    `${groupPath(conversationId)}transfer-ownership/`,
+    payload,
+    { auth: requireBearerAuth(auth) },
+  );
+  return {
+    conversation: toSharedConversation(response.conversation),
+  };
+}
+
+export async function setChatGroupParticipantRole(
+  auth: AuthCredentials,
+  conversationId: string,
+  targetIdentityId: string,
+  payload: {
+    actor_identity_id: string;
+    role: 'admin' | 'member';
+  },
+): Promise<{ conversation: ChatConversation }> {
+  const response = await api.patch<{
+    conversation: ChatApiConversation;
+  }>(
+    `${groupPath(conversationId)}participants/${encodeURIComponent(
+      targetIdentityId,
+    )}/role/`,
+    payload,
+    { auth: requireBearerAuth(auth) },
+  );
+  return {
+    conversation: toSharedConversation(response.conversation),
+  };
+}
+
+export async function deactivateChatGroup(
+  auth: AuthCredentials,
+  conversationId: string,
+  payload: {
+    owner_identity_id: string;
+  },
+): Promise<void> {
+  await api.delete<void>(
+    `${groupPath(conversationId)}sole-owner/`,
+    {
+      auth: requireBearerAuth(auth),
+      body: payload,
+    },
+  );
 }
 
 export async function leaveChatGroup(

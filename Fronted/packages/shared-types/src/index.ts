@@ -2505,6 +2505,7 @@ export type ChatMessageType =
   | 'image'
   | 'file'
   | 'audio'
+  | 'location'
   | 'system';
 
 export type ChatMessageStatus =
@@ -2562,6 +2563,7 @@ export interface ChatParticipant {
   last_delivered_at?: string | null;
   unread_count?: number;
   notifications_enabled?: boolean;
+  is_pinned?: boolean;
   muted_until?: string | null;
   created_at?: string;
   updated_at?: string;
@@ -2613,13 +2615,24 @@ export interface ChatStatusStoryReference extends ChatMessageReference {
   status?: StatusStory | null;
 }
 
+export interface ChatMessageReaction {
+  id: string;
+  message_id: string;
+  identity_id: string;
+  owner_user_id?: string;
+  emoji: string;
+  created_at: string;
+}
+
 export interface ChatMessage {
   id: string;
   conversation_id: string;
   sender_id: string | null;
+  sender_identity_id?: string | null;
   sequence_number?: number;
   message_type: ChatMessageType;
   content: string;
+  metadata?: Record<string, unknown>;
   status: ChatMessageStatus;
   created_at: string;
   updated_at?: string;
@@ -2636,9 +2649,18 @@ export interface ChatMessage {
   is_pinned?: boolean;
   pinned_at?: string | null;
   is_sent_by_ai?: boolean;
+  reactions?: ChatMessageReaction[];
 }
 
 export interface ChatConversation {
+  reaction_preview?: {
+    message_id: string;
+    identity_id: string;
+    emoji: string;
+    created_at: string;
+    event_sequence: number;
+    deleted?: boolean;
+  } | null;
   id: string;
   conversation_type: ChatConversationType;
   name: string | null;

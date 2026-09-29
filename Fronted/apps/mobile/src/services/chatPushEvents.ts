@@ -87,11 +87,13 @@ function toChatMessage(
       source.message_type === 'image'
       || source.message_type === 'file'
       || source.message_type === 'audio'
+      || source.message_type === 'location'
       || source.message_type === 'system'
         ? source.message_type
         : 'text'
     ),
     content: String(source.content || ''),
+    metadata: asRecord(source.metadata) || {},
     status: (
       source.status === 'delivered'
       || source.status === 'read'

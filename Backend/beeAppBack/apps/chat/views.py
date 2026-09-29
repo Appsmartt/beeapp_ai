@@ -31,6 +31,7 @@ from apps.chat.serializers import (
     ChatGroupInviteListQuerySerializer,
     ChatIdentityListQuerySerializer,
     ChatInboxQuerySerializer,
+    ChatTypedInboxQuerySerializer,
     ChatMessageListQuerySerializer,
     ChatRecipientSearchQuerySerializer,
     ChatSyncBootstrapQuerySerializer,
@@ -45,6 +46,7 @@ from apps.chat.serializers import (
     DeactivateChatGroupSerializer,
     DeleteReactionQuerySerializer,
     LeaveChatGroupSerializer,
+    MarkConversationDeliveredSerializer,
     MarkConversationReadSerializer,
     RemoveChatGroupParticipantSerializer,
     RespondToChatGroupInviteSerializer,
@@ -53,6 +55,7 @@ from apps.chat.serializers import (
     TransferChatGroupOwnershipSerializer,
     UpdateChatGroupSerializer,
     UpdateConversationNotificationsSerializer,
+    UpdateConversationPinnedSerializer,
     UploadChatAttachmentSerializer,
 )
 from apps.chat.services.chat_attachment_service import (
@@ -68,9 +71,11 @@ from apps.chat.services.chat_conversation_service import (
     clear_chat_conversation,
     create_or_get_direct_conversation,
     get_chat_inbox,
+    get_chat_unpinned_inbox_by_type,
     get_conversation,
     list_conversation_participants,
     set_chat_conversation_notifications,
+    set_chat_conversation_pinned,
 )
 from apps.chat.services.chat_group_service import (
     create_chat_group,
@@ -89,6 +94,9 @@ from apps.chat.services.chat_identity_service import (
     list_chat_identities,
     sync_chat_identities_for_user,
 )
+from apps.chat.services.chat_receipt_service import (
+    attach_chat_inbox_receipts,
+)
 from apps.chat.services.chat_recipient_search_service import (
     search_chat_recipients,
 )
@@ -105,6 +113,7 @@ from apps.chat.services.chat_message_service import (
     get_chat_message_readers,
     list_conversation_messages,
     list_message_reactions,
+    mark_chat_conversation_delivered,
     mark_chat_conversation_read,
     send_chat_message,
 )
@@ -497,6 +506,79 @@ class ChatContactProfileView(AuthenticatedAPIView):
         )
 
 
+
+class ChatTypedInboxView(AuthenticatedAPIView):
+    """GET /api/chat/inbox/by-type/ for unpinned direct or group chats."""
+
+    def get(self, request):
+        serializer = ChatTypedInboxQuerySerializer(
+            data=request.query_params,
+        )
+        serializer.is_valid(raise_exception=True)
+
+        try:
+            authenticated_user = self.get_authenticated_user(request)
+            data = serializer.validated_data
+            identity_id = str(data["identity_id"])
+            before_sort_at = data.get("before_sort_at")
+
+            inbox = get_chat_unpinned_inbox_by_type(
+                user_id=str(authenticated_user.id),
+                access_token=_get_access_token(request),
+                identity_id=identity_id,
+                conversation_type=data["conversation_type"],
+                limit=data["limit"],
+                before_sort_at=(
+                    before_sort_at.isoformat()
+                    if before_sort_at is not None else None
+                ),
+                before_id=(
+                    str(data["before_id"])
+                    if data.get("before_id") is not None else None
+                ),
+            )
+
+            try:
+                inbox = attach_chat_inbox_receipts(
+                    inbox=inbox,
+                    identity_id=identity_id,
+                )
+            except Exception:
+                logger.warning(
+                    "Could not enrich typed chat inbox receipts."
+                )
+                inbox = {
+                    **inbox,
+                    "conversations": [
+                        {
+                            **row,
+                            "last_message_receipt_status": "sent",
+                        }
+                        for row in inbox.get("conversations", [])
+                    ],
+                }
+
+        except AccountAuthenticationError:
+            return _unauthorized_response()
+
+        except (
+            ChatIdentityNotFoundError,
+            ChatConversationAccessError,
+        ):
+            return Response(
+                {"detail": "Chat identity was not found."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        except ChatInboxError as error:
+            return Response(
+                {"detail": str(error)},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        return Response(inbox, status=status.HTTP_200_OK)
+
+
 class ChatInboxView(AuthenticatedAPIView):
     """
     GET /api/chat/inbox/?identity_id=<uuid>&limit=50
@@ -533,6 +615,35 @@ class ChatInboxView(AuthenticatedAPIView):
                     else None
                 ),
             )
+
+            try:
+                inbox = attach_chat_inbox_receipts(
+                    inbox=inbox,
+                    identity_id=str(
+                        serializer.validated_data["identity_id"]
+                    ),
+                )
+            except Exception:
+                logger.warning(
+                    "Could not enrich chat inbox message receipts."
+                )
+                inbox = {
+                    **inbox,
+                    "conversations": [
+                        {
+                            **row,
+                            "last_message_receipt_status": "sent",
+                        }
+                        for row in inbox.get("conversations", [])
+                    ],
+                    "pinned_conversations": [
+                        {
+                            **row,
+                            "last_message_receipt_status": "sent",
+                        }
+                        for row in inbox.get("pinned_conversations", [])
+                    ],
+                }
 
         except AccountAuthenticationError:
             return _unauthorized_response()
@@ -805,6 +916,41 @@ class ChatConversationNotificationsView(
             {
                 "conversation": conversation,
             },
+            status=status.HTTP_200_OK,
+        )
+
+
+class ChatConversationPinnedView(AuthenticatedAPIView):
+    """PATCH /api/chat/conversations/<conversation_id>/pinned/."""
+
+    def patch(self, request, conversation_id):
+        serializer = UpdateConversationPinnedSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        try:
+            authenticated_user = self.get_authenticated_user(request)
+            conversation = set_chat_conversation_pinned(
+                user_id=str(authenticated_user.id),
+                access_token=_get_access_token(request),
+                conversation_id=str(conversation_id),
+                identity_id=str(serializer.validated_data["identity_id"]),
+                is_pinned=serializer.validated_data["is_pinned"],
+            )
+        except AccountAuthenticationError:
+            return _unauthorized_response()
+        except ChatConversationAccessError:
+            return Response(
+                {"detail": "The selected identity cannot update this conversation."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        except ChatConversationNotFoundError:
+            return _conversation_not_found_response()
+        except ChatConversationError as error:
+            return Response(
+                {"detail": str(error)},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        return Response(
+            {"conversation": conversation},
             status=status.HTTP_200_OK,
         )
 
@@ -1102,6 +1248,61 @@ class ChatConversationAttachmentUploadView(
         return Response(
             result,
             status=status.HTTP_201_CREATED,
+        )
+
+
+class ChatConversationDeliveredView(AuthenticatedAPIView):
+    """
+    POST /api/chat/conversations/<conversation_id>/delivered/
+    """
+
+    def post(self, request, conversation_id):
+        serializer = MarkConversationDeliveredSerializer(
+            data=request.data,
+        )
+        serializer.is_valid(raise_exception=True)
+
+        try:
+            authenticated_user = self.get_authenticated_user(request)
+            access_token = _get_access_token(request)
+            marked = mark_chat_conversation_delivered(
+                user_id=str(authenticated_user.id),
+                access_token=access_token,
+                conversation_id=str(conversation_id),
+                identity_id=str(
+                    serializer.validated_data["identity_id"]
+                ),
+                last_delivered_message_id=str(
+                    serializer.validated_data[
+                        "last_delivered_message_id"
+                    ]
+                ),
+            )
+        except AccountAuthenticationError:
+            return _unauthorized_response()
+        except ChatConversationAccessError:
+            return Response(
+                {
+                    "detail": (
+                        "The selected identity cannot receive this "
+                        "conversation."
+                    ),
+                },
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        except ChatConversationNotFoundError:
+            return _conversation_not_found_response()
+        except ChatMessageNotFoundError:
+            return _message_not_found_response()
+        except ChatMessageError as error:
+            return Response(
+                {"detail": str(error)},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        return Response(
+            {"marked": marked},
+            status=status.HTTP_200_OK,
         )
 
 
@@ -1650,6 +1851,8 @@ class ChatGroupDetailView(AuthenticatedAPIView):
     Ambas acciones requieren la identidad owner.
     """
 
+    sole_owner_only = False
+
     throttle_classes = [ChatGroupMutationThrottle]
 
     def patch(self, request, conversation_id):
@@ -1740,6 +1943,7 @@ class ChatGroupDetailView(AuthenticatedAPIView):
                         "owner_identity_id"
                     ]
                 ),
+                sole_owner_only=self.sole_owner_only,
             )
 
         except AccountAuthenticationError:
@@ -1770,6 +1974,11 @@ class ChatGroupDetailView(AuthenticatedAPIView):
         return Response(
             status=status.HTTP_204_NO_CONTENT,
         )
+
+
+class ChatGroupSoleOwnerDeactivationView(ChatGroupDetailView):
+    http_method_names = ["delete", "options"]
+    sole_owner_only = True
 
 
 class ChatGroupInvitesView(AuthenticatedAPIView):

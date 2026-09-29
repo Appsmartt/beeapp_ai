@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import math
 
 from typing import Any
 
@@ -33,7 +34,10 @@ from apps.chat.services.chat_conversation_service import (
     _require_user_conversation_access,
 )
 from apps.chat.services.chat_identity_service import (
-    get_chat_identity,
+    CHAT_IDENTITY_COLUMNS,
+    _get_commercial_profiles_by_ids,
+    _get_profiles_by_ids,
+    _serialize_chat_identity,
     get_owned_chat_identity,
 )
 from apps.statuses.services.status_service import (
@@ -50,7 +54,7 @@ MESSAGE_COLUMNS = (
 )
 
 REACTION_COLUMNS = (
-    "id,message_id,identity_id,emoji,created_at"
+    "id,message_id,identity_id,owner_user_id,emoji,created_at"
 )
 
 FILE_COLUMNS = (
@@ -416,6 +420,79 @@ def send_chat_message(
         ) from error
 
 
+
+def mark_chat_conversation_delivered(
+    *,
+    user_id: str,
+    access_token: str,
+    conversation_id: str,
+    identity_id: str,
+    last_delivered_message_id: str,
+) -> bool:
+    try:
+        get_owned_chat_identity(
+            user_id=user_id,
+            identity_id=identity_id,
+        )
+        _require_identity_active_participant(
+            conversation_id=conversation_id,
+            identity_id=identity_id,
+        )
+
+        message = _get_message_row(
+            message_id=last_delivered_message_id,
+        )
+        if str(message["conversation_id"]) != str(conversation_id):
+            raise ChatMessageNotFoundError(
+                "The selected message does not belong to this conversation."
+            )
+
+        response = (
+            _user_supabase(access_token=access_token)
+            .rpc(
+                "mark_chat_conversation_delivered",
+                {
+                    "p_conversation_id": str(conversation_id),
+                    "p_identity_id": str(identity_id),
+                    "p_last_delivered_message_id": str(
+                        last_delivered_message_id
+                    ),
+                },
+            )
+            .execute()
+        )
+        if response.data is not True:
+            raise ChatMessageError(
+                "Conversation could not be marked as delivered."
+            )
+        return True
+
+    except (
+        ChatConversationAccessError,
+        ChatConversationNotFoundError,
+        ChatMessageNotFoundError,
+        ChatMessageError,
+    ):
+        raise
+    except Exception as error:
+        detail = str(error)
+        if "CHAT_LAST_DELIVERED_MESSAGE_NOT_IN_CONVERSATION" in detail:
+            raise ChatMessageNotFoundError(
+                "The selected message does not belong to this conversation."
+            ) from error
+        if "CHAT_IDENTITY_CANNOT_RECEIVE_THIS_CONVERSATION" in detail:
+            raise ChatConversationAccessError(
+                "The selected identity cannot receive this conversation."
+            ) from error
+        if "AUTHENTICATION_REQUIRED" in detail:
+            raise ChatConversationAccessError(
+                "A valid user access token is required."
+            ) from error
+        raise ChatMessageError(
+            f"Could not mark conversation as delivered: {detail}"
+        ) from error
+
+
 def mark_chat_conversation_read(
     *,
     user_id: str,
@@ -468,6 +545,13 @@ def mark_chat_conversation_read(
                 "Conversation could not be marked as read."
             )
 
+        try:
+            bump_inbox_cache_version(identity_id=str(identity_id))
+        except Exception:
+            logger.warning(
+                "chat_read_inbox_cache_invalidation_failed",
+                extra={"identity_id": str(identity_id)},
+            )
         return True
 
     except (
@@ -617,18 +701,9 @@ def list_message_reactions(
             conversation_id=message["conversation_id"],
         )
 
-        response = (
-            _supabase()
-            .table("chat_message_reactions")
-            .select(REACTION_COLUMNS)
-            .eq("message_id", str(message_id))
-            .order("created_at")
-            .execute()
-        )
-
-        reactions = _response_rows(response)
-
-        return _enrich_reactions(reactions=reactions)
+        return _get_reactions_by_message_ids(
+            message_ids=[str(message_id)],
+        ).get(str(message_id), [])
 
     except (
         ChatConversationAccessError,
@@ -685,6 +760,10 @@ def create_chat_message_reaction(
                 "Supabase did not return the created reaction."
             )
 
+        bump_conversation_cache_version(
+            conversation_id=str(message["conversation_id"]),
+        )
+
         enriched_reactions = _enrich_reactions(
             reactions=[reaction],
         )
@@ -705,6 +784,7 @@ def create_chat_message_reaction(
         if (
             "chat_message_reactions_one_emoji_per_identity"
             in message
+            or "chat_message_reactions_one_per_user" in message
         ):
             raise ChatReactionError(
                 "This reaction already exists."
@@ -732,13 +812,14 @@ def delete_chat_message_reaction(
         get_owned_chat_identity(
             user_id=user_id,
             identity_id=identity_id,
+            require_active=False,
         )
 
         message = _get_message_row(message_id=message_id)
 
-        _require_identity_active_participant(
+        _require_user_conversation_access(
+            user_id=user_id,
             conversation_id=message["conversation_id"],
-            identity_id=identity_id,
         )
 
         response = (
@@ -757,6 +838,10 @@ def delete_chat_message_reaction(
             raise ChatReactionError(
                 "Reaction was not found."
             )
+
+        bump_conversation_cache_version(
+            conversation_id=str(message["conversation_id"]),
+        )
 
     except (
         ChatConversationAccessError,
@@ -902,6 +987,7 @@ def _validate_message_payload(
         "reservation",
         "invoice",
         "link",
+        "location",
     }
 
     if message_type not in allowed_message_types:
@@ -918,6 +1004,26 @@ def _validate_message_payload(
         raise ChatMessageSendError(
             "reference_type and reference_id must be provided together."
         )
+
+    if message_type == "location":
+        location = metadata.get("location") if isinstance(metadata, dict) else None
+        if (
+            not isinstance(location, dict)
+            or set(location) != {"latitude", "longitude"}
+            or any(
+                isinstance(location[key], bool)
+                or not isinstance(location[key], (int, float))
+                or not math.isfinite(location[key])
+                for key in ("latitude", "longitude")
+            )
+            or not -90 <= location["latitude"] <= 90
+            or not -180 <= location["longitude"] <= 180
+            or attachment_file_id is not None
+            or not body
+        ):
+            raise ChatMessageSendError(
+                "Location requires valid coordinates, a label, and no attachment."
+            )
 
     if message_type == "text" and not body:
         raise ChatMessageSendError(
@@ -985,8 +1091,13 @@ def _validate_owned_chat_attachment(
         expected_kind = expected_kind_by_message_type.get(
             message_type
         )
+        allowed_kinds = (
+            {"document", "spreadsheet", "presentation"}
+            if message_type == "document"
+            else {expected_kind}
+        )
 
-        if expected_kind and file_record.get("kind") != expected_kind:
+        if expected_kind and file_record.get("kind") not in allowed_kinds:
             raise ChatMessageSendError(
                 "Attachment type does not match message type."
             )
@@ -1010,11 +1121,41 @@ def _enrich_messages(
     if not messages:
         return []
 
+    reply_ids = list({
+        str(message["reference_id"])
+        for message in messages
+        if message.get("reference_type") == "chat_message"
+        and message.get("reference_id")
+    })
+    replies_by_id: dict[str, dict[str, Any]] = {}
+
+    if reply_ids:
+        reply_response = (
+            _supabase()
+            .table("chat_messages")
+            .select(MESSAGE_COLUMNS)
+            .in_("id", reply_ids)
+            .execute()
+        )
+        replies_by_id = {
+            str(reply["id"]): reply
+            for reply in _response_rows(reply_response)
+        }
+
     sender_identity_ids = list(
         {
-            message["sender_identity_id"]
-            for message in messages
-            if message.get("sender_identity_id")
+            str(identity_id)
+            for identity_id in (
+                [
+                    message.get("sender_identity_id")
+                    for message in messages
+                ]
+                + [
+                    reply.get("sender_identity_id")
+                    for reply in replies_by_id.values()
+                ]
+            )
+            if identity_id
         }
     )
 
@@ -1072,6 +1213,28 @@ def _enrich_messages(
             message=message,
             viewer_user_id=viewer_user_id,
         )
+
+        if message.get("reference_type") == "chat_message":
+            original = replies_by_id.get(
+                str(message.get("reference_id") or "")
+            )
+            if (
+                original
+                and str(original.get("conversation_id"))
+                == str(message.get("conversation_id"))
+            ):
+                original_identity = identities_by_id.get(
+                    str(original.get("sender_identity_id") or "")
+                )
+                enriched_message["reply_to"] = {
+                    "id": str(original["id"]),
+                    "body": original.get("body"),
+                    "message_type": original.get("message_type"),
+                    "sender_display_name": (
+                        (original_identity or {}).get("display_name")
+                        or "Contacto"
+                    ),
+                }
 
         result.append(enriched_message)
 
@@ -1139,27 +1302,65 @@ def _get_identities_by_ids(
     *,
     identity_ids: list[str],
 ) -> dict[str, dict[str, Any]]:
-    identities_by_id: dict[str, dict[str, Any]] = {}
+    if not identity_ids:
+        return {}
 
-    for identity_id in identity_ids:
-        try:
-            identities_by_id[identity_id] = get_chat_identity(
-                identity_id=identity_id,
-                require_active=False,
-            )
-        except Exception:
-            identities_by_id[identity_id] = {
-                "id": identity_id,
-                "identity_type": None,
-                "profile_id": None,
-                "commercial_profile_id": None,
-                "display_name": "User",
-                "avatar_file_id": None,
-                "is_active": False,
-                "is_available": False,
-            }
+    identities: dict[str, dict[str, Any]] = {}
+    unique_ids = list(dict.fromkeys(identity_ids))
+    for offset in range(0, len(unique_ids), 200):
+        response = (
+            _supabase()
+            .table("chat_identities")
+            .select(CHAT_IDENTITY_COLUMNS)
+            .in_("id", unique_ids[offset:offset + 200])
+            .execute()
+        )
+        identities.update(
+            (row["id"], row)
+            for row in _response_rows(response)
+        )
 
-    return identities_by_id
+    profiles = _get_profiles_by_ids(
+        list({
+            row["profile_id"]
+            for row in identities.values()
+            if row.get("profile_id")
+        })
+    )
+    commercial_profiles = _get_commercial_profiles_by_ids(
+        list({
+            row["commercial_profile_id"]
+            for row in identities.values()
+            if row.get("commercial_profile_id")
+        })
+    )
+
+    result: dict[str, dict[str, Any]] = {}
+    for identity_id in unique_ids:
+        identity = identities.get(identity_id)
+        if identity:
+            try:
+                result[identity_id] = _serialize_chat_identity(
+                    identity=identity,
+                    profile=profiles.get(identity.get("profile_id")),
+                    commercial_profile=commercial_profiles.get(
+                        identity.get("commercial_profile_id")
+                    ),
+                )
+                continue
+            except Exception:
+                pass
+        result[identity_id] = {
+            "id": identity_id,
+            "identity_type": None,
+            "profile_id": None,
+            "commercial_profile_id": None,
+            "display_name": "User",
+            "avatar_file_id": None,
+            "is_active": False,
+            "is_available": False,
+        }
+    return result
 
 
 def _get_files_by_ids(
@@ -1192,16 +1393,25 @@ def _get_reactions_by_message_ids(
     if not message_ids:
         return {}
 
-    response = (
-        _supabase()
-        .table("chat_message_reactions")
-        .select(REACTION_COLUMNS)
-        .in_("message_id", message_ids)
-        .order("created_at")
-        .execute()
-    )
-
-    reactions = _response_rows(response)
+    page_size = 500
+    reactions: list[dict[str, Any]] = []
+    offset = 0
+    while True:
+        response = (
+            _supabase()
+            .table("chat_message_reactions")
+            .select(REACTION_COLUMNS)
+            .in_("message_id", message_ids)
+            .order("created_at")
+            .order("id")
+            .range(offset, offset + page_size - 1)
+            .execute()
+        )
+        page = _response_rows(response)
+        reactions.extend(page)
+        if len(page) < page_size:
+            break
+        offset += page_size
 
     enriched_reactions = _enrich_reactions(
         reactions=reactions,

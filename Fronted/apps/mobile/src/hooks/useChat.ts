@@ -5,14 +5,19 @@ import {
   useRef,
   useState,
 } from 'react';
+import { AppState } from 'react-native';
+import { retryBackgroundLoad } from '../utils/retryBackgroundLoad';
 import {
   bootstrapChat,
   clearChatConversation,
   createChatGroup,
   createDirectChatConversation,
+  deactivateChatGroup,
   getChatConversation,
   getChatIdentities,
   getChatInbox,
+  getChatUnpinnedInboxByType,
+  getChatMessage,
   getChatMessages,
   getChatParticipants,
   inviteToChatGroup,
@@ -22,6 +27,8 @@ import {
   searchChatRecipients,
   sendChatMessage,
   updateChatGroup,
+  updateChatConversationPinned,
+  updateChatConversationNotifications,
 } from '@beeapp/api-client';
 import type {
   AuthCredentials,
@@ -37,6 +44,10 @@ import {
   getValidSessionCredentials,
 } from '../services/authSession';
 import {
+  startChatRealtime,
+  subscribeChatRealtimeStatus,
+} from '../services/chatRealtime';
+import {
   mapChatMessageToModel,
   mapChatSearchUser,
   mapConversationToListItem,
@@ -45,14 +56,31 @@ import {
   type ChatUserOption,
 } from '../services/chatService';
 import {
+  getLatestIncomingChatMessage,
+} from '../services/chatMessageReceipts';
+import {
+  cacheChatConversationAvatars,
+  removeSupersededChatAvatar,
+} from '../services/chatAvatarCache';
+import {
+  readCachedPrivateChatIdentityId,
+  saveCachedPrivateChatIdentityId,
+} from '../services/chatInboxCache';
+import {
+  getChatMessageReceiptStatus,
+} from '../services/chatReceiptStatus';
+import {
   uploadChatAttachmentMessage,
   type UploadableChatAttachment,
 } from '../services/chatAttachmentService';
 import {
+  getActiveChatStoreIdentityId,
   getChatConversations as getStoredConversations,
+  hydrateChatConversations,
   getChatMessages as getStoredMessages,
   getChatMessagesCacheMetadata,
   getProtectedConversationIds,
+  resetChatConversationMessages,
   isChatConversationArchived,
   isChatConversationProtected,
   removeChatConversation,
@@ -67,6 +95,7 @@ import {
 } from '../stores/chatStore';
 
 const DEFAULT_LIMIT = 50;
+const HISTORY_PAGE_LIMIT = 20;
 const MAX_CHAT_REQUEST_ATTEMPTS = 3;
 const CHAT_RETRY_BASE_DELAY_MS = 350;
 
@@ -260,17 +289,14 @@ function sortConversations(
   conversations: ChatConversation[],
 ): ChatConversation[] {
   return [...conversations].sort((left, right) => {
-    const leftDate = new Date(
-      left.last_message_at
-      || left.updated_at,
-    ).getTime();
+    const leftDate = Date.parse(
+      left.last_message_at || left.updated_at || left.created_at,
+    ) || 0;
+    const rightDate = Date.parse(
+      right.last_message_at || right.updated_at || right.created_at,
+    ) || 0;
 
-    const rightDate = new Date(
-      right.last_message_at
-      || right.updated_at,
-    ).getTime();
-
-    return rightDate - leftDate;
+    return rightDate - leftDate || right.id.localeCompare(left.id);
   });
 }
 
@@ -302,6 +328,11 @@ function mergeConversation(
     ...oldest,
     ...newest,
     id: newest.id,
+    image_file_id: newest.image_file_id || oldest.image_file_id || null,
+    avatar_url: newest.avatar_url || oldest.avatar_url || null,
+    cached_avatar_url: (
+      newest.cached_avatar_url || oldest.cached_avatar_url || null
+    ),
     participants: (
       newest.participants?.length
         ? newest.participants
@@ -322,6 +353,16 @@ function mergeConversation(
       || oldest.last_message
       || null
     ),
+    reaction_preview: (() => {
+      const previews = [current.reaction_preview, incoming.reaction_preview]
+        .filter((item): item is NonNullable<ChatConversation['reaction_preview']> => Boolean(item));
+      const preview = previews.sort((a, b) => b.event_sequence - a.event_sequence)[0];
+      const messageAt = Date.parse(
+        newest.last_message_at || newest.last_message?.created_at || '',
+      );
+      return preview && (!Number.isFinite(messageAt)
+        || Date.parse(preview.created_at) > messageAt) ? preview : null;
+    })(),
     last_message_at: (
       newest.last_message_at
       || oldest.last_message_at
@@ -428,6 +469,8 @@ export interface UseChatConversationsOptions {
   autoLoad?: boolean;
   includeArchived?: boolean;
   identityId?: string | null;
+  paginateInbox?: boolean;
+  retryInboxLoads?: boolean;
 }
 
 export interface UseChatConversationsResult {
@@ -436,6 +479,11 @@ export interface UseChatConversationsResult {
   refreshing: boolean;
   error: string | null;
   activeIdentityId: string | null;
+  loadingMore: boolean;
+  hasMoreConversations: Record<'direct' | 'group', boolean>;
+  loadMoreConversations: (
+    conversationType: 'direct' | 'group',
+  ) => Promise<void>;
   loadConversations: (
     options?: {
       refresh?: boolean;
@@ -502,6 +550,8 @@ export function useChatConversations(
   {
     autoLoad = true,
     identityId: requestedIdentityId = null,
+    paginateInbox = false,
+    retryInboxLoads = false,
   }: UseChatConversationsOptions = {},
 ): UseChatConversationsResult {
   const normalizedRequestedIdentityId = String(
@@ -526,18 +576,132 @@ export function useChatConversations(
   const [error, setError] = useState<string | null>(null);
 
   const requestIdRef = useRef(0);
+  const inboxPagesRef = useRef<{
+    direct: {
+      sortAt: string | null;
+      id: string | null;
+      hasMore: boolean;
+    };
+    group: {
+      sortAt: string | null;
+      id: string | null;
+      hasMore: boolean;
+    };
+  }>({
+    direct: { sortAt: null, id: null, hasMore: false },
+    group: { sortAt: null, id: null, hasMore: false },
+  });
+  const paginationIdentityRef = useRef<string | null>(null);
+  const inboxStartedAtRef = useRef<number>(0);
+  const loadingMoreRef = useRef(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMoreConversations, setHasMoreConversations] = useState({
+    direct: false,
+    group: false,
+  });
+  const [visibleConversationIds, setVisibleConversationIds] = useState<
+    Set<string> | null
+  >(null);
+
+  useEffect(() => {
+    if (!paginateInbox) return;
+    requestIdRef.current += 1;
+    inboxPagesRef.current = {
+      direct: { sortAt: null, id: null, hasMore: false },
+      group: { sortAt: null, id: null, hasMore: false },
+    };
+    paginationIdentityRef.current = null;
+    setHasMoreConversations({ direct: false, group: false });
+    setVisibleConversationIds(new Set());
+  }, [normalizedRequestedIdentityId, paginateInbox]);
 
   const synchronizeConversations = useCallback((
     nextConversations: ChatConversation[],
   ) => {
-    const sorted = sortConversations(nextConversations);
+    const existingById = new Map(
+      getStoredConversations().map((item) => [item.id, item]),
+    );
+    const reconciledById = new Map<string, ChatConversation>();
+    for (const incoming of nextConversations) {
+      const current = (
+        reconciledById.get(incoming.id)
+        || existingById.get(incoming.id)
+      );
+      if (!current) {
+        reconciledById.set(incoming.id, incoming);
+        continue;
+      }
+
+      const combined = mergeConversation(current, incoming);
+      const isInboxRow = Boolean(
+        incoming.own_participant?.id.startsWith('own:'),
+      );
+      const photoRemoved = (
+        isInboxRow && incoming.image_file_id === null
+      );
+      const hasFullParticipants = (
+        current.participants?.some((participant) => (
+          !participant.id.startsWith('own:')
+          && Boolean(participant.joined_at)
+        )) ?? false
+      );
+      reconciledById.set(incoming.id, {
+        ...combined,
+        name: incoming.name,
+        image_file_id: isInboxRow
+          ? incoming.image_file_id
+          : current.image_file_id || incoming.image_file_id,
+        avatar_url: photoRemoved
+          ? null
+          : incoming.avatar_url || current.avatar_url || null,
+        cached_avatar_url: photoRemoved
+          ? null
+          : current.cached_avatar_url || combined.cached_avatar_url || null,
+        other_display_name: incoming.other_display_name,
+        direct_profile: photoRemoved
+          ? (
+              (incoming.direct_profile || combined.direct_profile)
+                ? {
+                    ...(incoming.direct_profile || combined.direct_profile)!,
+                    avatar_url: null,
+                  }
+                : null
+            )
+          : incoming.direct_profile || combined.direct_profile,
+        participants: photoRemoved
+          ? (hasFullParticipants
+              ? current.participants
+              : combined.participants
+            )?.map((participant) => (
+              participant.identity_id === incoming.other_identity_id
+                && participant.user
+                ? {
+                    ...participant,
+                    user: { ...participant.user, avatar_url: null },
+                  }
+                : participant
+            ))
+          : hasFullParticipants
+            ? current.participants
+            : combined.participants,
+        own_participant: (
+          incoming.own_participant?.id.startsWith('own:')
+          && current.own_participant
+          && !current.own_participant.id.startsWith('own:')
+            ? current.own_participant
+            : combined.own_participant
+        ),
+      });
+    }
+    const sorted = sortConversations([...reconciledById.values()]);
 
     setChatConversations(sorted);
-    setRawConversations(sorted);
+    setRawConversations(getStoredConversations());
   }, []);
 
   const resolveActiveIdentityId = useCallback(async (
     token: AuthCredentials,
+    userId?: string,
   ) => {
     if (normalizedRequestedIdentityId) {
       setActiveIdentityId(normalizedRequestedIdentityId);
@@ -562,11 +726,51 @@ export function useChatConversations(
     }
 
     setActiveIdentityId(identity.id);
+    if (userId) {
+      await saveCachedPrivateChatIdentityId(userId, identity.id);
+    }
 
     return identity.id;
   }, [normalizedRequestedIdentityId]);
 
-  const loadConversations = useCallback(async (
+  const applyPinnedInboxPreferences = useCallback((
+    incoming: ChatConversation[],
+  ) => {
+    const preferences = new Map(
+      incoming.map((item) => [
+        item.id,
+        {
+          isPinned: Boolean(item.is_pinned),
+          isMuted: Boolean(item.is_muted),
+          notificationsEnabled: (
+            item.own_participant?.notifications_enabled
+            ?? !item.is_muted
+          ),
+        },
+      ]),
+    );
+    if (!preferences.size) return;
+    setChatConversations(getStoredConversations().map(
+      (item) => {
+        const preference = preferences.get(item.id);
+        if (!preference) return item;
+        return {
+          ...item,
+          is_pinned: preference.isPinned,
+          is_muted: preference.isMuted,
+          own_participant: item.own_participant
+            ? {
+                ...item.own_participant,
+                notifications_enabled: preference.notificationsEnabled,
+              }
+            : item.own_participant,
+        };
+      },
+    ));
+    setRawConversations([...getStoredConversations()]);
+  }, []);
+
+  const loadConversationsOnce = useCallback(async (
     options: {
       refresh?: boolean;
       archived?: boolean;
@@ -586,6 +790,7 @@ export function useChatConversations(
 
     if (requestedNetwork) {
       requestIdRef.current = requestId;
+      if (paginateInbox) inboxStartedAtRef.current = Date.now();
     }
     const hasMemoryCache = getStoredConversations().length > 0;
 
@@ -603,9 +808,35 @@ export function useChatConversations(
         token,
       } = await getChatAuthContext();
 
+      if (
+        paginateInbox
+        && requestedNetwork
+        && !normalizedRequestedIdentityId
+        && !activeIdentityId
+      ) {
+        const cachedIdentityId = await readCachedPrivateChatIdentityId(
+          activeUserId,
+        );
+        if (requestId !== requestIdRef.current) return [];
+        if (cachedIdentityId) {
+          await hydrateChatConversations(activeUserId, cachedIdentityId);
+          if (requestId !== requestIdRef.current) return [];
+          setCurrentUserId(activeUserId);
+          setActiveIdentityId(cachedIdentityId);
+          setVisibleConversationIds(new Set(
+            getStoredConversations().map((row) => row.id),
+          ));
+        }
+      }
+
       const identityId = (
-        activeIdentityId
-        || await resolveActiveIdentityId(token)
+        normalizedRequestedIdentityId
+        && normalizedRequestedIdentityId !== activeIdentityId
+          ? await resolveActiveIdentityId(token, activeUserId)
+          : (
+              activeIdentityId
+              || await resolveActiveIdentityId(token, activeUserId)
+            )
       );
 
 
@@ -616,25 +847,194 @@ export function useChatConversations(
         return [];
       }
 
-      setCurrentUserId(activeUserId);
+      let cachedIds: string[] = [];
+      if (paginateInbox && requestedNetwork) {
+        await hydrateChatConversations(
+          activeUserId,
+          identityId,
+        );
+        if (requestId !== requestIdRef.current) return [];
 
+        cachedIds = getStoredConversations()
+          .filter((conversation) => (
+            conversation.own_participant?.identity_id === identityId
+            && (
+              conversation.conversation_type === 'direct'
+              || conversation.conversation_type === 'group'
+            )
+          ))
+          .map((conversation) => conversation.id);
 
-      const response = await getChatInbox(
-        token,
-        identityId,
-        {
-          limit: 100,
-        },
-      );
-
-      if (
-        requestId !== requestIdRef.current
-      ) {
-        return [];
+        if (cachedIds.length) {
+          setVisibleConversationIds(new Set(cachedIds));
+        }
       }
 
       setCurrentUserId(activeUserId);
-      synchronizeConversations(response.conversations);
+
+      let loadedConversations: ChatConversation[];
+      const beforeInbox = new Map(getStoredConversations()
+        .map((row) => [row.id, row]));
+      if (paginateInbox) {
+        const [directPage, groupPage, pinnedPage] = await Promise.all([
+          getChatUnpinnedInboxByType(
+            token, identityId, 'direct', { limit: 10 },
+          ),
+          getChatUnpinnedInboxByType(
+            token, identityId, 'group', { limit: 10 },
+          ),
+          getChatInbox(token, identityId, { limit: 10 }),
+        ]);
+        if (requestId !== requestIdRef.current) return [];
+        const pinned = pinnedPage.pinned_conversations;
+        const pinnedIds = new Set(pinned.map((row) => row.id));
+        const unpinned = [
+          ...directPage.conversations,
+          ...groupPage.conversations,
+        ].filter((row) => !pinnedIds.has(row.id));
+
+        inboxPagesRef.current = {
+          direct: {
+            sortAt: directPage.next_before_sort_at,
+            id: directPage.next_before_id,
+            hasMore: directPage.has_more,
+          },
+          group: {
+            sortAt: groupPage.next_before_sort_at,
+            id: groupPage.next_before_id,
+            hasMore: groupPage.has_more,
+          },
+        };
+        paginationIdentityRef.current = identityId;
+        loadedConversations = [...pinned, ...unpinned];
+        setVisibleConversationIds(new Set([
+          ...cachedIds,
+          ...loadedConversations.map((row) => row.id),
+        ]));
+        setHasMoreConversations({
+          direct: directPage.has_more,
+          group: groupPage.has_more,
+        });
+      } else {
+        const response = await getChatInbox(
+          token,
+          identityId,
+          { limit: 100 },
+        );
+        if (requestId !== requestIdRef.current) return [];
+        loadedConversations = response.conversations;
+      }
+
+      setCurrentUserId(activeUserId);
+      const currentById = new Map(getStoredConversations()
+        .map((row) => [row.id, row]));
+      loadedConversations = loadedConversations.map((row) => {
+        const current = currentById.get(row.id);
+        const previous = beforeInbox.get(row.id);
+        if (!current || !previous) return row;
+        const readChanged = (
+          current.unread_count !== previous.unread_count
+          || current.own_participant?.last_read_message_id
+            !== previous.own_participant?.last_read_message_id
+        );
+        const messageChanged = (
+          current.last_message?.id !== previous.last_message?.id
+          || current.last_message?.status !== previous.last_message?.status
+          || current.last_message?.content !== previous.last_message?.content
+        );
+        if (!readChanged && !messageChanged) return row;
+        return {
+          ...row,
+          unread_count: readChanged ? current.unread_count : row.unread_count,
+          own_participant: readChanged
+            ? current.own_participant : row.own_participant,
+          last_message: messageChanged
+            && current.last_message?.id === row.last_message?.id
+              ? current.last_message : row.last_message,
+        };
+      });
+      const serverPinnedIds = paginateInbox
+        ? new Set(loadedConversations
+            .filter((row) => row.is_pinned)
+            .map((row) => row.id))
+        : null;
+      const previousAvatarUris = new Map(getStoredConversations()
+        .map((row) => [row.id, row.cached_avatar_url]));
+      synchronizeConversations([
+        ...getStoredConversations().filter((row) => (
+          !serverPinnedIds
+          || row.own_participant?.identity_id !== identityId
+          || !row.is_pinned
+          || serverPinnedIds.has(row.id)
+        )),
+        ...loadedConversations,
+      ]);
+      if (paginateInbox) {
+        applyPinnedInboxPreferences(loadedConversations);
+        const removedPhotoUris = loadedConversations
+          .filter((row) => row.image_file_id === null)
+          .map((row) => previousAvatarUris.get(row.id))
+          .filter((uri): uri is string => Boolean(uri));
+        if (removedPhotoUris.length) {
+          setTimeout(() => {
+            void Promise.allSettled(removedPhotoUris.map((uri) => (
+              removeSupersededChatAvatar(
+                activeUserId,
+                uri,
+                getStoredConversations().some((row) => (
+                  row.cached_avatar_url === uri
+                )) ? uri : null,
+              )
+            )));
+          }, 1000);
+        }
+
+        void cacheChatConversationAvatars(
+          activeUserId,
+          loadedConversations,
+        ).then((cached) => {
+          if (
+            requestId !== requestIdRef.current
+            || getActiveChatStoreIdentityId() !== identityId
+          ) return;
+
+          const avatars = new Map(cached
+            .filter((row) => row.cached_avatar_url)
+            .map((row) => [row.id, row]));
+          let changed = false;
+          const supersededUris: string[] = [];
+          const updated = getStoredConversations().map((row) => {
+            const avatar = avatars.get(row.id);
+            if (
+              !avatar
+              || row.own_participant?.identity_id !== identityId
+              || row.image_file_id !== avatar.image_file_id
+              || row.cached_avatar_url === avatar.cached_avatar_url
+            ) return row;
+            changed = true;
+            if (row.cached_avatar_url) {
+              supersededUris.push(row.cached_avatar_url);
+            }
+            return { ...row, cached_avatar_url: avatar.cached_avatar_url };
+          });
+          if (changed) {
+            setChatConversations(updated);
+            setTimeout(() => {
+              void Promise.allSettled(supersededUris.map((uri) => (
+                removeSupersededChatAvatar(
+                  activeUserId,
+                  uri,
+                  getStoredConversations().some((row) => (
+                    row.cached_avatar_url === uri
+                  )) ? uri : null,
+                )
+              )));
+            }, 1000);
+          }
+        }).catch(() => {
+          // Avatar caching must not block inbox loading.
+        });
+      }
 
       /*
        * Los mensajes no se precargan al login ni al refrescar el inbox.
@@ -642,7 +1042,7 @@ export function useChatConversations(
        * consulta la red solo cuando necesita sincronizarse.
        */
 
-      return response.conversations.map((conversation) => (
+      return getStoredConversations().map((conversation) => (
         mapConversationToListItem(
           {
             ...conversation,
@@ -659,12 +1059,14 @@ export function useChatConversations(
         !requestedNetwork
         || requestId === requestIdRef.current
       ) {
-        setError(
-          getErrorMessage(
-            loadError,
-            'No fue posible cargar tus chats.',
-          ),
-        );
+        if (!retryInboxLoads || !requestedNetwork) {
+          setError(
+            getErrorMessage(
+              loadError,
+              'No fue posible cargar tus chats.',
+            ),
+          );
+        }
       }
 
       throw loadError;
@@ -679,26 +1081,186 @@ export function useChatConversations(
     }
   }, [
     activeIdentityId,
+    applyPinnedInboxPreferences,
+    normalizedRequestedIdentityId,
+    paginateInbox,
     resolveActiveIdentityId,
     synchronizeConversations,
+    retryInboxLoads,
+  ]);
+
+  const loadMoreConversations = useCallback(async (
+    conversationType: 'direct' | 'group',
+  ) => {
+    const pageState = inboxPagesRef.current[conversationType];
+    if (
+      !paginateInbox
+      || loadingMoreRef.current
+      || !pageState.hasMore
+      || !pageState.sortAt
+      || !pageState.id
+      || !paginationIdentityRef.current
+    ) return;
+
+    loadingMoreRef.current = true;
+    setLoadingMore(true);
+    const requestId = requestIdRef.current;
+    const identityId = paginationIdentityRef.current;
+
+    try {
+      const fetchPage = async () => {
+        const { token } = await getChatAuthContext();
+        if (requestId !== requestIdRef.current) {
+          throw new Error('Chat inbox request superseded.');
+        }
+        return getChatUnpinnedInboxByType(
+          token,
+          identityId,
+          conversationType,
+          {
+            limit: 5,
+            beforeSortAt: pageState.sortAt,
+            beforeId: pageState.id,
+          },
+        );
+      };
+      const page = retryInboxLoads
+        ? await retryBackgroundLoad(
+            fetchPage,
+            () => requestId === requestIdRef.current,
+          )
+        : await fetchPage();
+      if (requestId !== requestIdRef.current) return;
+
+      inboxPagesRef.current[conversationType] = {
+        sortAt: page.next_before_sort_at,
+        id: page.next_before_id,
+        hasMore: page.has_more,
+      };
+      setHasMoreConversations((current) => ({
+        ...current,
+        [conversationType]: page.has_more,
+      }));
+      setVisibleConversationIds((current) => new Set([
+        ...(current || []),
+        ...page.conversations.map((row) => row.id),
+      ]));
+      if (page.conversations.length) {
+        synchronizeConversations([
+          ...getStoredConversations(),
+          ...page.conversations,
+        ]);
+        applyPinnedInboxPreferences(page.conversations);
+      }
+    } catch (failure) {
+      if (requestId === requestIdRef.current) {
+        setError(getErrorMessage(
+          failure,
+          'No fue posible cargar más chats.',
+        ));
+      }
+    } finally {
+      loadingMoreRef.current = false;
+      setLoadingMore(false);
+    }
+  }, [
+    applyPinnedInboxPreferences,
+    paginateInbox,
+    synchronizeConversations,
+    retryInboxLoads,
+  ]);
+
+  const loadConversations = useCallback(async (
+    options: {
+      refresh?: boolean;
+      archived?: boolean;
+      network?: boolean;
+    } = {},
+  ): Promise<ChatListItemModel[]> => {
+    if (!retryInboxLoads || options.network === false) {
+      return loadConversationsOnce(options);
+    }
+
+    let attemptRequestId = requestIdRef.current;
+    try {
+      return await retryBackgroundLoad(async () => {
+        const pending = loadConversationsOnce(options);
+        attemptRequestId = requestIdRef.current;
+        const rows = await pending;
+        if (attemptRequestId !== requestIdRef.current) {
+          throw new Error('Chat inbox request superseded.');
+        }
+        return rows;
+      }, () => attemptRequestId === requestIdRef.current);
+    } catch (failure) {
+      if (attemptRequestId === requestIdRef.current) {
+        setError(getErrorMessage(
+          failure,
+          'No fue posible cargar tus chats.',
+        ));
+      }
+      throw failure;
+    }
+  }, [loadConversationsOnce, retryInboxLoads]);
+
+  const autoLoadConversationsRef = useRef(loadConversations);
+  autoLoadConversationsRef.current = loadConversations;
+
+  useEffect(() => {
+    if (!autoLoad) return;
+
+    void autoLoadConversationsRef.current({
+      network: true,
+    }).catch(() => {
+      // The hook keeps the error available for the inbox.
+    });
+  }, [
+    autoLoad,
+    normalizedRequestedIdentityId,
+    paginateInbox,
   ]);
 
   useEffect(() => {
-    if (!autoLoad) {
-      return;
-    }
+    if (!autoLoad || !paginateInbox || !activeIdentityId) return;
 
+    let cancelled = false;
+    let inFlight = false;
+    let recoveryTimer: ReturnType<typeof setInterval> | null = null;
 
-    void loadConversations({
-      network: true,
-    }).catch(() => {
-      // El hook conserva el error para mostrarlo en pantalla.
+    const recoverDegradedChatList = async () => {
+      if (cancelled || inFlight || AppState.currentState !== 'active') return;
+      inFlight = true;
+      try {
+        await startChatRealtime();
+        if (!cancelled) {
+          await loadConversations({ network: true });
+        }
+      } catch {
+        // Retry connection and inbox recovery on the next bounded attempt.
+      } finally {
+        inFlight = false;
+      }
+    };
+
+    const unsubscribe = subscribeChatRealtimeStatus((status) => {
+      if (recoveryTimer) {
+        clearInterval(recoveryTimer);
+        recoveryTimer = null;
+      }
+      if (status === 'degraded' && !cancelled) {
+        void recoverDegradedChatList();
+        recoveryTimer = setInterval(() => {
+          void recoverDegradedChatList();
+        }, 15000);
+      }
     });
 
-  }, [
-    autoLoad,
-    loadConversations,
-  ]);
+    return () => {
+      cancelled = true;
+      unsubscribe();
+      if (recoveryTimer) clearInterval(recoveryTimer);
+    };
+  }, [activeIdentityId, autoLoad, loadConversations, paginateInbox]);
 
   useEffect(() => {
     return subscribeChatStore((change) => {
@@ -707,12 +1269,27 @@ export function useChatConversations(
         || change.type === 'conversation-removed'
         || change.type === 'reset'
       ) {
-        setRawConversations([
-          ...getStoredConversations(),
-        ]);
+        const stored = [...getStoredConversations()];
+        setRawConversations(stored);
+        if (paginateInbox && paginationIdentityRef.current) {
+          const freshIds = stored.filter((conversation) => (
+            conversation.own_participant?.identity_id
+              === paginationIdentityRef.current
+            && Date.parse(
+              conversation.last_message_at || '',
+            ) >= inboxStartedAtRef.current
+          )).map((conversation) => conversation.id);
+          if (freshIds.length) {
+            setVisibleConversationIds((current) => (
+              current === null
+                ? current
+                : new Set([...current, ...freshIds])
+            ));
+          }
+        }
       }
     });
-  }, []);
+  }, [paginateInbox]);
 
   const createDirectConversation = useCallback(async (
     recipientIdentityId: string,
@@ -736,6 +1313,12 @@ export function useChatConversations(
     );
 
     setCurrentUserId(activeUserId);
+    if (paginateInbox) {
+      setVisibleConversationIds((current) => new Set([
+        ...(current || []),
+        response.conversation.id,
+      ]));
+    }
     upsertChatConversation(response.conversation);
 
     synchronizeConversations(getStoredConversations());
@@ -747,6 +1330,7 @@ export function useChatConversations(
     );
   }, [
     activeIdentityId,
+    paginateInbox,
     resolveActiveIdentityId,
     synchronizeConversations,
   ]);
@@ -788,6 +1372,12 @@ export function useChatConversations(
     );
 
     setCurrentUserId(activeUserId);
+    if (paginateInbox) {
+      setVisibleConversationIds((current) => new Set([
+        ...(current || []),
+        created.conversation.id,
+      ]));
+    }
     upsertChatConversation(created.conversation);
     synchronizeConversations(getStoredConversations());
 
@@ -850,6 +1440,7 @@ export function useChatConversations(
     };
   }, [
     activeIdentityId,
+    paginateInbox,
     resolveActiveIdentityId,
     synchronizeConversations,
   ]);
@@ -874,12 +1465,102 @@ export function useChatConversations(
       );
     }
 
-    if (
-      payload.isMuted !== undefined
-      || payload.isPinned !== undefined
-    ) {
-      throw new Error(
-        'Esta preferencia todavía no está disponible en el backend de Chat.',
+    if (payload.isMuted !== undefined) {
+      const {
+        currentUserId: activeUserId,
+        token,
+      } = await getChatAuthContext();
+      const identityId = (
+        normalizedRequestedIdentityId
+        && normalizedRequestedIdentityId !== activeIdentityId
+          ? await resolveActiveIdentityId(token)
+          : (
+              activeIdentityId
+              || await resolveActiveIdentityId(token)
+            )
+      );
+      const response = await updateChatConversationNotifications(
+        token,
+        normalizedConversationId,
+        {
+          identity_id: identityId,
+          notifications_enabled: !payload.isMuted,
+        },
+      );
+      const current = getStoredConversations().find(
+        (item) => item.id === normalizedConversationId,
+      );
+      const updated: ChatConversation = {
+        ...(current || response.conversation),
+        is_muted: payload.isMuted,
+        own_participant: response.conversation.own_participant,
+        participants: current?.participants?.map((participant) => (
+          participant.identity_id === identityId
+            ? {
+                ...participant,
+                notifications_enabled: !payload.isMuted,
+              }
+            : participant
+        )) || response.conversation.participants,
+      };
+      setCurrentUserId(activeUserId);
+      setChatConversations([
+        ...getStoredConversations().filter(
+          (item) => item.id !== normalizedConversationId,
+        ),
+        updated,
+      ]);
+      setRawConversations([...getStoredConversations()]);
+      return mapConversationToListItem(
+        updated,
+        activeUserId,
+        isChatConversationProtected(normalizedConversationId),
+      );
+    }
+
+    if (payload.isPinned !== undefined) {
+      const {
+        currentUserId: activeUserId,
+        token,
+      } = await getChatAuthContext();
+      const identityId = (
+        normalizedRequestedIdentityId
+        && normalizedRequestedIdentityId !== activeIdentityId
+          ? await resolveActiveIdentityId(token)
+          : (
+              activeIdentityId
+              || await resolveActiveIdentityId(token)
+            )
+      );
+      const response = await updateChatConversationPinned(
+        token,
+        normalizedConversationId,
+        {
+          identity_id: identityId,
+          is_pinned: payload.isPinned,
+        },
+      );
+      const current = getStoredConversations().find(
+        (item) => item.id === normalizedConversationId,
+      );
+      const updated = {
+        ...(current || response.conversation),
+        is_pinned: payload.isPinned,
+        own_participant: response.conversation.own_participant,
+      };
+      setCurrentUserId(activeUserId);
+      const stored = getStoredConversations();
+      setChatConversations([
+        ...stored.filter(
+          (item) => item.id !== normalizedConversationId,
+        ),
+        updated,
+      ]);
+      setRawConversations([...getStoredConversations()]);
+      return mapConversationToListItem(
+        updated,
+        activeUserId,
+        isChatConversationProtected(normalizedConversationId),
       );
     }
 
@@ -966,6 +1647,7 @@ export function useChatConversations(
     );
   }, [
     activeIdentityId,
+    normalizedRequestedIdentityId,
     resolveActiveIdentityId,
     synchronizeConversations,
   ]);
@@ -988,13 +1670,78 @@ export function useChatConversations(
       || await resolveActiveIdentityId(token)
     );
 
-    await clearChatConversation(
-      token,
-      normalizedConversationId,
-      {
-        identity_id: identityId,
-      },
+    const storedConversation = getStoredConversations().find(
+      (item) => item.id === normalizedConversationId,
     );
+    const detail = storedConversation?.conversation_type === 'direct'
+      ? null
+      : await getChatConversation(
+          token,
+          normalizedConversationId,
+        );
+
+    if (detail?.conversation.conversation_type === 'group') {
+      const group = detail.conversation;
+      const membership = group.own_participant;
+
+      if (
+        !membership
+        || membership.identity_id !== identityId
+        || !group.permissions?.is_active_participant
+      ) {
+        throw new Error(
+          'No tienes una participación activa en este grupo.',
+        );
+      }
+
+      const result = await getChatParticipants(
+        token,
+        normalizedConversationId,
+      );
+      const activeParticipants = result.participants.filter(
+        (participant) => (
+          !participant.left_at && !participant.removed_at
+        ),
+      );
+      const otherParticipants = activeParticipants.filter(
+        (participant) => participant.identity_id !== identityId,
+      );
+
+      if (membership.role === 'owner') {
+        if (!group.permissions.can_deactivate_group) {
+          throw new Error(
+            'No tienes permiso para eliminar este grupo.',
+          );
+        }
+        if (otherParticipants.length > 0) {
+          throw new Error(
+            'Primero cambia el owner por otro integrante del grupo.',
+          );
+        }
+        await deactivateChatGroup(
+          token,
+          normalizedConversationId,
+          { owner_identity_id: identityId },
+        );
+      } else {
+        if (!group.permissions.can_leave_group) {
+          throw new Error(
+            'No tienes permiso para salir de este grupo.',
+          );
+        }
+        await leaveChatGroup(
+          token,
+          normalizedConversationId,
+          { identity_id: identityId },
+        );
+      }
+    } else {
+      await clearChatConversation(
+        token,
+        normalizedConversationId,
+        { identity_id: identityId },
+      );
+    }
 
     removeChatConversation(normalizedConversationId);
     setRawConversations(getStoredConversations());
@@ -1014,16 +1761,20 @@ export function useChatConversations(
       );
     }
 
-    const exists = getStoredConversations().some(
-      (conversation) => (
-        conversation.id === normalizedConversationId
-      ),
+    const conversation = getStoredConversations().find(
+      (item) => item.id === normalizedConversationId,
     );
 
-    if (!exists) {
+    if (!conversation) {
       throw new Error(
         'No fue posible encontrar el chat para archivarlo.',
       );
+    }
+
+    if (conversation.own_participant?.notifications_enabled !== false) {
+      await updateConversation(normalizedConversationId, {
+        isMuted: true,
+      });
     }
 
     setChatConversationArchived(
@@ -1034,7 +1785,7 @@ export function useChatConversations(
     setRawConversations([
       ...getStoredConversations(),
     ]);
-  }, []);
+  }, [updateConversation]);
 
   const restoreConversation = useCallback(async (
     conversationId: string,
@@ -1047,6 +1798,22 @@ export function useChatConversations(
       );
     }
 
+    const conversation = getStoredConversations().find(
+      (item) => item.id === normalizedConversationId,
+    );
+
+    if (!conversation) {
+      throw new Error(
+        'No fue posible encontrar el chat para restaurarlo.',
+      );
+    }
+
+    if (conversation.own_participant?.notifications_enabled !== true) {
+      await updateConversation(normalizedConversationId, {
+        isMuted: false,
+      });
+    }
+
     setChatConversationArchived(
       normalizedConversationId,
       false,
@@ -1055,7 +1822,7 @@ export function useChatConversations(
     setRawConversations([
       ...getStoredConversations(),
     ]);
-  }, []);
+  }, [updateConversation]);
 
   const isArchived = useCallback((
     conversationId: string,
@@ -1106,7 +1873,23 @@ export function useChatConversations(
 
     const protectedIds = getProtectedConversationIds();
 
-    return rawConversations.map((conversation) => (
+    return rawConversations
+      .filter((conversation) => (
+        !paginateInbox
+        || conversation.conversation_type === 'ai'
+        || (
+          activeIdentityId !== null
+          && conversation.own_participant?.identity_id
+            === activeIdentityId
+          && (
+            visibleConversationIds === null
+            || visibleConversationIds.has(conversation.id)
+            || conversation.is_pinned
+            || isChatConversationArchived(conversation.id)
+          )
+        )
+      ))
+      .map((conversation) => (
       mapConversationToListItem(
         {
           ...conversation,
@@ -1119,8 +1902,11 @@ export function useChatConversations(
       )
     ));
   }, [
+    activeIdentityId,
     currentUserId,
+    paginateInbox,
     rawConversations,
+    visibleConversationIds,
   ]);
 
   const clearError = useCallback(() => {
@@ -1133,6 +1919,9 @@ export function useChatConversations(
     refreshing,
     error,
     activeIdentityId,
+    loadingMore,
+    hasMoreConversations,
+    loadMoreConversations,
     loadConversations,
     createDirectConversation,
     createGroupConversation,
@@ -1167,6 +1956,7 @@ export interface UseChatMessagesResult {
   sending: boolean;
   loadingMore: boolean;
   hasMore: boolean;
+  initialLoadingPhase: 'conversation' | 'messages' | 'ready';
   error: string | null;
   loadMessages: (
     options?: {
@@ -1176,6 +1966,7 @@ export interface UseChatMessagesResult {
     },
   ) => Promise<ChatMessageModel[]>;
   loadMore: () => Promise<void>;
+  loadReferencedMessage: (messageId: string) => Promise<boolean>;
   loadConversation: () => Promise<ChatConversation | null>;
   loadParticipants: () => Promise<ChatParticipant[]>;
   sendMessage: (
@@ -1184,6 +1975,7 @@ export interface UseChatMessagesResult {
       messageType?: ChatMessageType;
       replyToId?: string | null;
       attachmentFileId?: string | null;
+      metadata?: Record<string, unknown>;
     },
   ) => Promise<ChatMessageModel>;
   sendAttachmentMessage: (
@@ -1233,11 +2025,7 @@ export function useChatMessages(
 
   const [rawMessages, setRawMessages] = useState<
     ChatMessage[]
-  >(
-    normalizedConversationId
-      ? getStoredMessages(normalizedConversationId)
-      : [],
-  );
+  >([]);
 
   const [participants, setParticipants] = useState<
     ChatParticipant[]
@@ -1248,22 +2036,20 @@ export function useChatMessages(
   >(null);
 
   const [loading, setLoading] = useState(
-    Boolean(normalizedConversationId)
-    && getStoredMessages(normalizedConversationId).length === 0,
+    Boolean(normalizedConversationId),
   );
 
   const [refreshing, setRefreshing] = useState(false);
   const [sending, setSending] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
+  const [initialLoadingPhase, setInitialLoadingPhase] = useState<
+    'conversation' | 'messages' | 'ready'
+  >(normalizedConversationId ? 'conversation' : 'ready');
 
-  const initialMetadata = normalizedConversationId
-    ? getChatMessagesCacheMetadata(
-        normalizedConversationId,
-      )
-    : {
-        hasMore: false,
-        nextBeforeSequence: null,
-      };
+  const initialMetadata = {
+    hasMore: false,
+    nextBeforeSequence: null,
+  };
 
   const [hasMore, setHasMore] = useState(
     initialMetadata.hasMore,
@@ -1285,11 +2071,14 @@ export function useChatMessages(
 
   const requestIdRef = useRef(0);
   const hydrationRequestIdRef = useRef(0);
+  const openedChatConversationRef = useRef<string | null>(null);
+  const activeMessageIdentityRef = useRef<string | null>(null);
 
   const resolveActiveIdentityId = useCallback(async (
     token: AuthCredentials,
   ) => {
     if (normalizedRequestedIdentityId) {
+      activeMessageIdentityRef.current = normalizedRequestedIdentityId;
       setActiveIdentityId(normalizedRequestedIdentityId);
       return normalizedRequestedIdentityId;
     }
@@ -1311,6 +2100,7 @@ export function useChatMessages(
       );
     }
 
+    activeMessageIdentityRef.current = identity.id;
     setActiveIdentityId(identity.id);
 
     return identity.id;
@@ -1426,16 +2216,19 @@ export function useChatMessages(
     token: AuthCredentials,
     identityId: string,
     messagesToMark: ChatMessage[],
+    recipientUserId: string,
   ) => {
     if (!normalizedConversationId || !messagesToMark.length) {
       return;
     }
 
-    const latestMessage = messagesToMark[
-      messagesToMark.length - 1
-    ];
+    const latestMessage = getLatestIncomingChatMessage(
+      messagesToMark,
+      identityId,
+      recipientUserId,
+    );
 
-    if (!latestMessage?.id) {
+    if (!latestMessage) {
       return;
     }
 
@@ -1523,7 +2316,9 @@ export function useChatMessages(
           token,
           normalizedConversationId,
           {
-            limit: DEFAULT_LIMIT,
+            limit: isLoadingHistory
+              ? HISTORY_PAGE_LIMIT
+              : DEFAULT_LIMIT,
             beforeSequence: options.beforeSequence,
           },
         ),
@@ -1546,17 +2341,31 @@ export function useChatMessages(
         response.messages,
       );
 
+      const previousMetadata = getChatMessagesCacheMetadata(
+        normalizedConversationId,
+      );
+      const keepHistoryCursor = (
+        !isLoadingHistory
+        && currentMessages.length > DEFAULT_LIMIT
+        && previousMetadata.nextBeforeSequence !== null
+      );
+      const pageLimit = isLoadingHistory
+        ? HISTORY_PAGE_LIMIT
+        : DEFAULT_LIMIT;
       const hasOlderMessages = (
-        response.next_before_sequence !== null
+        response.messages.length === pageLimit
+        && response.next_before_sequence !== null
       );
 
       synchronizeMessages(
         mergedMessages,
         {
-          nextBeforeSequence: (
-            response.next_before_sequence
-          ),
-          hasMore: hasOlderMessages,
+          nextBeforeSequence: keepHistoryCursor
+            ? previousMetadata.nextBeforeSequence
+            : response.next_before_sequence,
+          hasMore: keepHistoryCursor
+            ? previousMetadata.hasMore
+            : hasOlderMessages,
           lastSyncedAt: new Date().toISOString(),
         },
       );
@@ -1565,7 +2374,7 @@ export function useChatMessages(
 
       if (!isLoadingHistory) {
         const identityId = (
-          activeIdentityId
+          activeMessageIdentityRef.current
           || await resolveActiveIdentityId(token)
         );
 
@@ -1573,6 +2382,7 @@ export function useChatMessages(
           token,
           identityId,
           mergedMessages,
+          activeUserId,
         );
       }
 
@@ -1612,9 +2422,66 @@ export function useChatMessages(
     conversationIsAi,
     markLatestMessageAsRead,
     normalizedConversationId,
-    activeIdentityId,
     resolveActiveIdentityId,
     synchronizeMessages,
+  ]);
+
+  useEffect(() => {
+    if (
+      !autoLoad
+      || !normalizedConversationId
+      || initialLoadingPhase !== 'ready'
+    ) return;
+
+    let cancelled = false;
+    let inFlight = false;
+    let recoveryTimer: ReturnType<typeof setInterval> | null = null;
+
+    const recoverOpenConversation = async () => {
+      if (cancelled || inFlight || AppState.currentState !== 'active') return;
+      inFlight = true;
+      try {
+        await Promise.all([
+          loadMessages({ network: true }),
+          ...(
+            conversation?.conversation_type === 'direct'
+            || conversation?.conversation_type === 'group'
+              ? [loadParticipants()]
+              : []
+          ),
+        ]);
+      } catch {
+        // El siguiente intento recuperará los cursores del chat abierto.
+      } finally {
+        inFlight = false;
+      }
+    };
+
+    const unsubscribe = subscribeChatRealtimeStatus((status) => {
+      if (recoveryTimer) {
+        clearInterval(recoveryTimer);
+        recoveryTimer = null;
+      }
+      if (status === 'degraded' && !cancelled) {
+        void recoverOpenConversation();
+        recoveryTimer = setInterval(() => {
+          void recoverOpenConversation();
+        }, 15000);
+      }
+    });
+
+    return () => {
+      cancelled = true;
+      unsubscribe();
+      if (recoveryTimer) clearInterval(recoveryTimer);
+    };
+  }, [
+    autoLoad,
+    conversation?.conversation_type,
+    initialLoadingPhase,
+    loadMessages,
+    loadParticipants,
+    normalizedConversationId,
   ]);
 
   useEffect(() => {
@@ -1634,11 +2501,21 @@ export function useChatMessages(
           return;
         }
 
+        void startChatRealtime().catch(() => {
+          // Un fallo de Realtime no impide cargar el historial del chat.
+        });
+
         await resolveActiveIdentityId(token);
 
         if (cancelled) {
           return;
         }
+
+        resetChatConversationMessages(normalizedConversationId);
+        openedChatConversationRef.current = normalizedConversationId;
+        setRawMessages([]);
+        setHasMore(false);
+        setNextBeforeSequence(null);
 
         await Promise.all([
           loadConversation(),
@@ -1649,17 +2526,21 @@ export function useChatMessages(
           return;
         }
 
+        setInitialLoadingPhase('messages');
+
         /*
-         * Los mensajes cacheados ya se mostraron. Esta consulta actualiza
-         * la conversación desde red sin bloquear la primera pintura.
+         * Cada entrada descarga la primera página sin reutilizar
+         * mensajes de una apertura anterior.
          */
-        void loadMessages({
+        await loadMessages({
           network: true,
-        }).catch(() => {
-          // Si falla la red, se conservan los mensajes locales.
         });
       } catch {
-        // El hook conserva el error para mostrarlo en pantalla.
+        // El hook conserva el error y permite reintentar.
+      } finally {
+        if (!cancelled) {
+          setInitialLoadingPhase('ready');
+        }
       }
     };
 
@@ -1725,6 +2606,17 @@ export function useChatMessages(
               ? mergeConversation(current, nextConversation)
               : nextConversation
           ));
+
+          const completeParticipants = (
+            nextConversation.participants || []
+          ).filter((participant) => (
+            Boolean(participant.joined_at)
+            && !participant.id.startsWith('own:')
+          ));
+
+          if (completeParticipants.length) {
+            setParticipants(completeParticipants);
+          }
         }
       }
     });
@@ -1733,26 +2625,20 @@ export function useChatMessages(
   ]);
 
   useEffect(() => {
-    setRawMessages(
-      normalizedConversationId
-        ? getStoredMessages(normalizedConversationId)
-        : [],
-    );
-
-    const metadata = normalizedConversationId
-      ? getChatMessagesCacheMetadata(
-          normalizedConversationId,
-        )
-      : {
-          hasMore: false,
-          nextBeforeSequence: null,
-        };
-
-    setHasMore(metadata.hasMore);
-    setNextBeforeSequence(
-      metadata.nextBeforeSequence,
-    );
+    setRawMessages([]);
+    setHasMore(false);
+    setNextBeforeSequence(null);
     setError(null);
+
+    return () => {
+      if (
+        openedChatConversationRef.current
+        === normalizedConversationId
+      ) {
+        resetChatConversationMessages(normalizedConversationId);
+      }
+      openedChatConversationRef.current = null;
+    };
   }, [
     normalizedConversationId,
   ]);
@@ -1788,12 +2674,45 @@ export function useChatMessages(
     refreshing,
   ]);
 
+  const loadReferencedMessage = useCallback(async (
+    messageId: string,
+  ): Promise<boolean> => {
+    const targetId = messageId.trim();
+
+    if (!normalizedConversationId || !targetId) {
+      return false;
+    }
+
+    if (getStoredMessages(normalizedConversationId).some(
+      (message) => message.id === targetId
+    )) {
+      return true;
+    }
+
+    const { currentUserId: activeUserId, token } =
+      await getChatAuthContext();
+    const { message } = await getChatMessage(token, targetId);
+
+    if (
+      message.id !== targetId
+      || message.conversation_id !== normalizedConversationId
+    ) {
+      return false;
+    }
+
+    upsertChatMessage(normalizedConversationId, message);
+    setCurrentUserId(activeUserId);
+    setRawMessages(getStoredMessages(normalizedConversationId));
+    return true;
+  }, [normalizedConversationId]);
+
   const sendMessage = useCallback(async (
     payload: {
       content: string;
       messageType?: ChatMessageType;
       replyToId?: string | null;
       attachmentFileId?: string | null;
+      metadata?: Record<string, unknown>;
     },
   ) => {
     if (!normalizedConversationId) {
@@ -1811,6 +2730,7 @@ export function useChatMessages(
     const messageType = (
       payload.messageType === 'image'
       || payload.messageType === 'audio'
+      || payload.messageType === 'location'
         ? payload.messageType
         : payload.messageType === 'file'
           ? 'document'
@@ -1856,6 +2776,7 @@ export function useChatMessages(
           body,
           message_type: messageType,
           attachment_file_id: attachmentFileId,
+          metadata: payload.metadata,
           reference_type: payload.replyToId
             ? 'chat_message'
             : null,
@@ -2198,24 +3119,143 @@ export function useChatMessages(
     [],
   );
 
+  const [remoteCursorSequences, setRemoteCursorSequences] =
+    useState<Record<string, number>>({});
+  const attemptedCursorIdsRef = useRef<Set<string>>(new Set());
+
+  useEffect(() => {
+    attemptedCursorIdsRef.current.clear();
+    setRemoteCursorSequences({});
+  }, [normalizedConversationId]);
+
+  useEffect(() => {
+    const loadedIds = new Set(
+      rawMessages.map((message) => message.id),
+    );
+    const cursorIds = new Set<string>();
+    participants.forEach((participant) => {
+      if (participant.last_read_message_id) {
+        cursorIds.add(participant.last_read_message_id);
+      }
+      if (participant.last_delivered_message_id) {
+        cursorIds.add(participant.last_delivered_message_id);
+      }
+    });
+    const missingIds = [...cursorIds].filter((id) => (
+      !loadedIds.has(id)
+      && remoteCursorSequences[id] === undefined
+      && !attemptedCursorIdsRef.current.has(id)
+    ));
+
+    if (!missingIds.length) {
+      return;
+    }
+
+    missingIds.forEach((id) => {
+      attemptedCursorIdsRef.current.add(id);
+    });
+    let cancelled = false;
+    void (async () => {
+      try {
+        const { token } = await getChatAuthContext();
+        const resolved = await Promise.all(
+          missingIds.map(async (id) => {
+            try {
+              const { message } = await getChatMessage(token, id);
+              if (
+                conversation?.conversation_type === 'group'
+                && message.conversation_id !== normalizedConversationId
+              ) {
+                return null;
+              }
+              return [id, message.sequence_number] as const;
+            } catch {
+              return null;
+            }
+          }),
+        );
+        if (!cancelled) {
+          setRemoteCursorSequences((current) => {
+            const next = { ...current };
+            resolved.forEach((entry) => {
+              if (entry && typeof entry[1] === 'number') {
+                next[entry[0]] = entry[1];
+              }
+            });
+            return next;
+          });
+        }
+      } catch {
+        // No se infiere un acuse sin secuencia comprobada.
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    conversation?.conversation_type,
+    normalizedConversationId,
+    participants,
+    rawMessages,
+    remoteCursorSequences,
+  ]);
+
   const messages = useMemo(() => {
     if (!currentUserId) {
       return [];
     }
 
-    return rawMessages.map((message) => (
-      mapChatMessageToModel(
+    const cursorSequences: Record<string, number> = {
+      ...remoteCursorSequences,
+    };
+    rawMessages.forEach((message) => {
+      if (typeof message.sequence_number === 'number') {
+        cursorSequences[message.id] = message.sequence_number;
+      }
+    });
+
+    return rawMessages.map((message) => {
+      const model = mapChatMessageToModel(
         message,
         currentUserId,
-        {
-          conversationIsAi,
-        },
-      )
-    ));
+        { conversationIsAi },
+      );
+
+      if (!model.isUser || conversationIsAi) {
+        return model;
+      }
+
+      const receiptStatus = getChatMessageReceiptStatus(
+        message,
+        participants,
+        message.sender_identity_id || activeIdentityId || '',
+        cursorSequences,
+      );
+      return {
+        ...model,
+        status: (
+          (
+            conversation?.conversation_type === 'direct'
+            || conversation?.conversation_type === 'group'
+          )
+          && receiptStatus === 'sent'
+          && message.id
+          && typeof message.sequence_number === 'number'
+          && Number.isFinite(message.sequence_number)
+            ? 'delivered'
+            : receiptStatus
+        ),
+      };
+    });
   }, [
+    activeIdentityId,
+    conversation?.conversation_type,
     conversationIsAi,
     currentUserId,
+    participants,
     rawMessages,
+    remoteCursorSequences,
   ]);
 
   const clearError = useCallback(() => {
@@ -2234,9 +3274,11 @@ export function useChatMessages(
     sending,
     loadingMore,
     hasMore,
+    initialLoadingPhase,
     error,
     loadMessages,
     loadMore,
+    loadReferencedMessage,
     loadConversation,
     loadParticipants,
     sendMessage,

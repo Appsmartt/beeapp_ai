@@ -1,78 +1,253 @@
-import { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput } from 'react-native';
 import ScreenSafeArea from '../../../src/components/layout/ScreenSafeArea';
-import { useRouter } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
+import {
+  ApiRequestError,
+  configureAccountSecurityPin,
+  getAccountSecurityPinStatus,
+  listProtectedChats,
+  verifyAccountSecurityPin,
+  verifyAccountSecurityPinPassword,
+  replaceAccountSecurityPin,
+} from '@beeapp/api-client';
+import { getValidSessionCredentials } from '../../../src/services/authSession';
 import { colors } from '@beeapp/design-system';
-import { ChevronLeft, ShieldCheck, KeyRound, Lock, MessageSquare, Smartphone, Mail } from 'lucide-react-native';
+import { ChevronLeft, ShieldCheck, KeyRound, Lock, Eye, EyeOff } from 'lucide-react-native';
 import PinPad from '../../../src/components/security/PinPad';
 import FloatingTabBar from '../../../src/components/FloatingTabBar';
-import {
-  hasPin,
-  isPinCorrect,
-  setPin,
-  getProtectedIds,
-  MOCK_RECOVERY_PHONE,
-  RECOVERY_CODE_LENGTH,
-} from '../../../src/stores/pinStore';
 
-type Stage = 'gate' | 'menu' | 'create' | 'confirm' | 'recover-select' | 'recover-code' | 'recover-pin';
-const MOCK_SMS_CODE = '123456';
+type Stage = 'loading' | 'gate' | 'menu' | 'create' | 'confirm' | 'recover-password' | 'recover-create' | 'recover-confirm';
 
 export default function SecurityScreen() {
   const router = useRouter();
-  const [stage, setStage] = useState<Stage>(hasPin() ? 'gate' : 'menu');
+  const [stage, setStage] = useState<Stage>('loading');
+  const [configured, setConfigured] = useState(false);
   const [draftPin, setDraftPin] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
-  const [protectedCount, setProtectedCount] = useState(getProtectedIds().length);
-  const [selectedMethod, setSelectedMethod] = useState<'sms' | 'email' | null>(null);
+  const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [protectedChatCount, setProtectedChatCount] = useState<number | null>(null);
+  const [protectedChatCountLoading, setProtectedChatCountLoading] = useState(false);
+  const pending = useRef(false);
+
+  useFocusEffect(useCallback(() => {
+    let active = true;
+    pending.current = false;
+    setStage('loading');
+    setError(null);
+    setSuccess(null);
+    setDraftPin('');
+    setPassword('');
+    setShowPassword(false);
+
+    const load = async () => {
+      try {
+        const auth = await getValidSessionCredentials();
+        if (!auth) throw new Error('No hay sesión activa.');
+        const result = await getAccountSecurityPinStatus(auth);
+        if (!active) return;
+        setConfigured(result.configured);
+        setStage(result.configured ? 'gate' : 'create');
+      } catch {
+        if (active) setError('No pudimos consultar tu PIN. Vuelve atrás e inténtalo de nuevo.');
+      }
+    };
+
+    void load();
+    return () => {
+      active = false;
+      pending.current = false;
+      setPassword('');
+      setDraftPin('');
+      setShowPassword(false);
+    };
+  }, []));
+
+  useEffect(() => {
+    if (stage !== 'menu') return;
+    let active = true;
+    setProtectedChatCount(null);
+    setProtectedChatCountLoading(true);
+    const loadProtectedChatCount = async () => {
+      try {
+        const auth = await getValidSessionCredentials();
+        if (!auth) throw new Error('No hay sesión activa.');
+        const result = await listProtectedChats(auth);
+        if (active) setProtectedChatCount(result.conversation_ids.length);
+      } catch {
+        if (active) setProtectedChatCount(null);
+      } finally {
+        if (active) setProtectedChatCountLoading(false);
+      }
+    };
+    void loadProtectedChatCount();
+    return () => { active = false; };
+  }, [stage]);
 
   const goStage = (next: Stage) => {
-    setError(null); setSuccess(null); setDraftPin(''); setStage(next);
+    setError(null); setSuccess(null); setDraftPin('');
+    if (next !== 'recover-create' && next !== 'recover-confirm') {
+      setPassword('');
+      setShowPassword(false);
+    }
+    setStage(next);
   };
 
-  const handleGate = (pin: string) => {
-    if (isPinCorrect(pin)) {
-      setError(null); setSuccess('PIN correcto'); setTimeout(() => goStage('menu'), 450);
-    } else {
-      setSuccess(null); setError('PIN incorrecto. Inténtalo de nuevo.');
+  const handleGate = async (pin: string) => {
+    if (pending.current) return;
+    pending.current = true;
+    setError(null);
+    try {
+      const auth = await getValidSessionCredentials();
+      if (!auth) throw new Error('No hay sesión activa.');
+      const result = await verifyAccountSecurityPin(auth, pin);
+      if (!result.verified) throw new Error('Verificación rechazada.');
+      setSuccess('PIN correcto');
+      setStage('menu');
+    } catch (cause) {
+      setSuccess(null);
+      if (cause instanceof ApiRequestError && cause.status === 429) {
+        setError('Demasiados intentos. Inténtalo en 15 minutos.');
+      } else if (cause instanceof ApiRequestError && cause.status === 403) {
+        setError('PIN incorrecto. Inténtalo de nuevo.');
+      } else {
+        setError('No pudimos verificar el PIN. Comprueba tu conexión.');
+      }
+    } finally {
+      pending.current = false;
     }
   };
 
   const handleCreate = (pin: string) => {
-    setDraftPin(pin); setError(null); setStage('confirm');
+    if (pending.current) return;
+    setDraftPin(pin);
+    setError(null);
+    setStage(stage === 'recover-create' ? 'recover-confirm' : 'confirm');
   };
 
-  const handleConfirm = (pin: string) => {
+  const handleConfirm = async (pin: string) => {
+    if (pending.current) return;
     if (pin !== draftPin) {
-      setSuccess(null); setError('Los PIN no coinciden. Empieza de nuevo.'); setDraftPin(''); setStage('create'); return;
+      setSuccess(null);
+      setError('Los PIN no coinciden. Empieza de nuevo.');
+      setDraftPin('');
+      setStage('create');
+      return;
     }
-    setPin(pin); setError(null); setSuccess('PIN configurado correctamente'); setProtectedCount(getProtectedIds().length); setTimeout(() => goStage('menu'), 700);
+    pending.current = true;
+    setError(null);
+    try {
+      const auth = await getValidSessionCredentials();
+      if (!auth) throw new Error('No hay sesión activa.');
+      const result = await configureAccountSecurityPin(auth, pin);
+      if (!result.configured) throw new Error('PIN no configurado.');
+      setConfigured(true);
+      setDraftPin('');
+      setSuccess('PIN configurado correctamente');
+      setStage('menu');
+    } catch (cause) {
+      setSuccess(null);
+      setDraftPin('');
+      if (cause instanceof ApiRequestError && cause.status === 409) {
+        setConfigured(true);
+        setStage('gate');
+        setError('Ya tienes un PIN configurado. Ingresa tu PIN actual.');
+      } else {
+        setStage('create');
+        setError('No pudimos guardar tu PIN. Comprueba tu conexión.');
+      }
+    } finally {
+      pending.current = false;
+    }
   };
 
-  const handleRecoveryCode = (code: string) => {
-    if (code === MOCK_SMS_CODE) {
-      setError(null); setSuccess('Código verificado'); setTimeout(() => goStage('recover-pin'), 550);
-    } else {
-      setSuccess(null); setError(`Código incorrecto. Revisa tu ${selectedMethod === 'email' ? 'correo' : 'SMS'} e inténtalo otra vez.`);
+  const handlePasswordVerification = async () => {
+    if (pending.current || !password) return;
+    pending.current = true;
+    setBusy(true);
+    setError(null);
+    try {
+      const auth = await getValidSessionCredentials();
+      if (!auth) throw new Error('No hay sesión activa.');
+      const result = await verifyAccountSecurityPinPassword(auth, password);
+      if (!result.verified) throw new Error('Verificación rechazada.');
+      setStage('recover-create');
+    } catch (cause) {
+      setError(cause instanceof ApiRequestError && cause.status === 403
+        ? 'La contraseña no es correcta.'
+        : 'No pudimos verificar la contraseña. Inténtalo de nuevo.');
+    } finally {
+      pending.current = false;
+      setBusy(false);
     }
   };
 
-  const pinExists = hasPin();
+  const handleRecoveryConfirm = async (pin: string) => {
+    if (pending.current) return;
+    if (pin !== draftPin) {
+      setDraftPin('');
+      setError('Los PIN no coinciden. Empieza de nuevo.');
+      setStage('recover-create');
+      return;
+    }
+    pending.current = true;
+    setBusy(true);
+    setError(null);
+    try {
+      const auth = await getValidSessionCredentials();
+      if (!auth) throw new Error('No hay sesión activa.');
+      const result = await replaceAccountSecurityPin(auth, password, pin);
+      if (!result.configured) throw new Error('PIN no reemplazado.');
+      setPassword('');
+      setDraftPin('');
+      setConfigured(true);
+      setSuccess('Tu PIN se cambió correctamente.');
+      setStage('menu');
+    } catch (cause) {
+      setDraftPin('');
+      if (cause instanceof ApiRequestError && cause.status === 403) {
+        setPassword('');
+        setStage('recover-password');
+        setError('Vuelve a escribir la contraseña de tu cuenta.');
+      } else if (cause instanceof ApiRequestError && cause.status === 409) {
+        setPassword('');
+        setStage('gate');
+        setError('No encontramos un PIN configurado. Actualiza la pantalla.');
+      } else {
+        setStage('recover-create');
+        setError('No pudimos guardar el PIN. Comprueba tu conexión.');
+      }
+    } finally {
+      pending.current = false;
+      setBusy(false);
+    }
+  };
+
+  const pinExists = configured;
   const showTabBar = stage === 'menu';
+  const recovering = stage === 'recover-password'
+    || stage === 'recover-create'
+    || stage === 'recover-confirm';
 
   return (
     <ScreenSafeArea style={styles.safeArea}>
       <View style={styles.container}>
         <View style={styles.header}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.backBtn} activeOpacity={0.7}>
+          <TouchableOpacity onPress={() => { if (recovering) goStage('gate'); else router.back(); }} style={styles.backBtn} activeOpacity={0.7}>
             <ChevronLeft size={24} color={colors.neutral.text} />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Seguridad</Text>
+          <Text style={styles.headerTitle}>{recovering ? 'Restablecer PIN' : 'Seguridad'}</Text>
           <View style={{ width: 32 }} />
         </View>
 
         <ScrollView contentContainerStyle={[styles.scrollBody, showTabBar && styles.scrollBodyWithBar]} showsVerticalScrollIndicator={false}>
+          {stage === 'loading' && (
+            <Text style={styles.statusDesc}>{error || 'Consultando estado del PIN...'}</Text>
+          )}
+
           {stage === 'gate' && (
             <PinPad
               title="Ingresa tu PIN actual"
@@ -81,7 +256,7 @@ export default function SecurityScreen() {
               error={error}
               success={success}
               footer={
-                <TouchableOpacity onPress={() => { setSelectedMethod(null); goStage('recover-select'); }} activeOpacity={0.7}>
+                <TouchableOpacity onPress={() => goStage('recover-password')} activeOpacity={0.7}>
                   <Text style={styles.linkText}>¿Olvidaste tu PIN?</Text>
                 </TouchableOpacity>
               }
@@ -90,8 +265,7 @@ export default function SecurityScreen() {
 
           {stage === 'menu' && (
             <View style={styles.menuWrap}>
-              {/* App Lock Configuration */}
-
+              {success ? <Text style={styles.menuSuccess}>{success}</Text> : null}
               <Text style={styles.sectionHeaderLabel}>PIN de archivos y chats</Text>
 
               <View style={styles.statusCard}>
@@ -101,37 +275,38 @@ export default function SecurityScreen() {
                 <Text style={styles.statusTitle}>{pinExists ? 'PIN de archivos y chats activo' : 'Sin PIN de archivos y chats'}</Text>
                 <Text style={styles.statusDesc}>
                   {pinExists
-                    ? `Tu PIN protege ${protectedCount} ${protectedCount === 1 ? 'elemento' : 'elementos'} entre archivos, carpetas y notas.`
-                    : 'Crea un PIN de 4 dígitos para bloquear archivos, carpetas y notas dentro de la app.'}
+                    ? 'PIN de cuenta configurado. Úsalo para las funciones que soliciten verificación.'
+                    : 'Crea un PIN de 4 dígitos para las funciones que soliciten verificación.'}
+                </Text>
+              </View>
+
+              <View style={styles.protectedChatsCard}>
+                <View style={styles.protectedChatsIcon}>
+                  <Lock size={20} color={colors.brand.primary} />
+                </View>
+                <View style={styles.protectedChatsText}>
+                  <Text style={styles.protectedChatsTitle}>Chats protegidos</Text>
+                  <Text style={styles.protectedChatsDescription}>Conversaciones protegidas con tu PIN</Text>
+                </View>
+                <Text style={styles.protectedChatsCount} accessibilityLabel={
+                  protectedChatCountLoading ? 'Consultando chats protegidos'
+                    : protectedChatCount === null ? 'Número de chats protegidos no disponible'
+                    : `${protectedChatCount} chats protegidos`
+                }>
+                  {protectedChatCountLoading ? '…' : protectedChatCount ?? '—'}
                 </Text>
               </View>
 
               <View style={styles.optionsCard}>
-                <TouchableOpacity style={styles.optionRow} onPress={() => goStage('create')} activeOpacity={0.7}>
+                <TouchableOpacity style={styles.optionRow} onPress={() => goStage(pinExists ? 'recover-password' : 'create')} activeOpacity={0.7}>
                   <View style={[styles.optionIconWrap, { backgroundColor: colors.brand.primary + '15' }]}>
                     <KeyRound size={18} color={colors.brand.primary} />
                   </View>
                   <View style={{ flex: 1 }}>
                     <Text style={styles.optionLabel}>{pinExists ? 'Cambiar PIN de archivos y chats' : 'Crear PIN de archivos y chats'}</Text>
-                    <Text style={styles.optionDesc}>{pinExists ? 'Define un PIN nuevo de 4 dígitos.' : 'Elige un PIN de 4 dígitos y confírmalo.'}</Text>
+                    <Text style={styles.optionDesc}>{pinExists ? 'Confirma tu contraseña para elegir un PIN nuevo.' : 'Elige un PIN de 4 dígitos y confírmalo.'}</Text>
                   </View>
                 </TouchableOpacity>
-
-                {pinExists && (
-                  <TouchableOpacity
-                    style={[styles.optionRow, { borderBottomWidth: 0 }]}
-                    onPress={() => { setSelectedMethod(null); goStage('recover-select'); }}
-                    activeOpacity={0.7}
-                  >
-                    <View style={[styles.optionIconWrap, { backgroundColor: colors.neutral.gray100 }]}>
-                      <MessageSquare size={18} color={colors.neutral.gray600} />
-                    </View>
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.optionLabel}>¿Olvidaste tu PIN?</Text>
-                      <Text style={styles.optionDesc}>Recupéralo con un código de verificación.</Text>
-                    </View>
-                  </TouchableOpacity>
-                )}
               </View>
 
               <View style={styles.infoRow}>
@@ -144,56 +319,70 @@ export default function SecurityScreen() {
           {stage === 'create' && <PinPad title={pinExists ? 'Nuevo PIN' : 'Crea tu PIN'} subtitle="Elige 4 dígitos que puedas recordar. Protegerá todo el contenido que marques." onComplete={handleCreate} error={error} />}
           {stage === 'confirm' && <PinPad title="Confirma tu PIN" subtitle="Escribe otra vez los 4 dígitos para confirmarlo." onComplete={handleConfirm} error={error} success={success} />}
 
-          {stage === 'recover-select' && (
-            <View style={styles.menuWrap}>
-              <Text style={styles.selectTitle}>¿Cómo quieres recibir el código?</Text>
-              <Text style={styles.selectSubtitle}>Selecciona un canal para recibir el código de verificación de 6 dígitos.</Text>
-              
-              <TouchableOpacity style={[styles.methodRow, selectedMethod === 'sms' && styles.methodRowActive]} onPress={() => setSelectedMethod('sms')} activeOpacity={0.85}>
-                <View style={[styles.methodIconWrap, selectedMethod === 'sms' && styles.methodIconActive]}>
-                  <Smartphone size={20} color={selectedMethod === 'sms' ? colors.brand.primary : colors.neutral.gray600} />
+          {stage === 'recover-password' && (
+            <View style={styles.recoveryWrap}>
+              <View style={styles.recoveryIcon}>
+                <KeyRound size={26} color={colors.brand.primary} />
+              </View>
+              <Text style={styles.recoveryTitle}>Un nuevo comienzo para tu PIN</Text>
+              <Text style={styles.recoverySubtitle}>
+                Confirma la contraseña de tu cuenta para crear un PIN nuevo.
+                Tu contenido protegido seguirá en su lugar.
+              </Text>
+              <View style={styles.recoveryCard}>
+                <Text style={styles.passwordLabel}>Contraseña de tu cuenta</Text>
+                <View style={styles.passwordField}>
+                  <Lock size={18} color={colors.neutral.gray500} />
+                  <TextInput
+                    style={styles.passwordInput}
+                    value={password}
+                    onChangeText={setPassword}
+                    placeholder="Escribe tu contraseña"
+                    placeholderTextColor={colors.neutral.gray500}
+                    secureTextEntry={!showPassword}
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                    textContentType="password"
+                    editable={!busy}
+                    onSubmitEditing={() => { void handlePasswordVerification(); }}
+                  />
+                  <TouchableOpacity
+                    onPress={() => setShowPassword(!showPassword)}
+                    accessibilityLabel={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+                  >
+                    {showPassword
+                      ? <EyeOff size={19} color={colors.neutral.gray600} />
+                      : <Eye size={19} color={colors.neutral.gray600} />}
+                  </TouchableOpacity>
                 </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={[styles.methodLabel, selectedMethod === 'sms' && styles.methodLabelActive]}>Mensaje de texto (SMS)</Text>
-                  <Text style={styles.methodDesc}>+57 *** ***67</Text>
-                </View>
-              </TouchableOpacity>
-
-              <TouchableOpacity style={[styles.methodRow, selectedMethod === 'email' && styles.methodRowActive]} onPress={() => setSelectedMethod('email')} activeOpacity={0.85}>
-                <View style={[styles.methodIconWrap, selectedMethod === 'email' && styles.methodIconActive]}>
-                  <Mail size={20} color={selectedMethod === 'email' ? colors.brand.primary : colors.neutral.gray600} />
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={[styles.methodLabel, selectedMethod === 'email' && styles.methodLabelActive]}>Correo electrónico</Text>
-                  <Text style={styles.methodDesc}>s******@appsmartt.com</Text>
-                </View>
-              </TouchableOpacity>
-
-              {selectedMethod && (
-                <TouchableOpacity style={styles.primaryButton} onPress={() => goStage('recover-code')} activeOpacity={0.8}>
-                  <Text style={styles.primaryButtonText}>Enviar código</Text>
+                {error ? <Text style={styles.recoveryError}>{error}</Text> : null}
+                <TouchableOpacity
+                  style={[styles.primaryButton, (!password || busy) && styles.buttonDisabled]}
+                  disabled={!password || busy}
+                  onPress={() => { void handlePasswordVerification(); }}
+                  activeOpacity={0.8}
+                >
+                  <Text style={styles.primaryButtonText}>
+                    {busy ? 'Verificando...' : 'Continuar'}
+                  </Text>
                 </TouchableOpacity>
-              )}
+              </View>
+              <Text style={styles.recoveryHint}>
+                Por seguridad, verificaremos la contraseña de nuevo al guardar el PIN.
+              </Text>
             </View>
           )}
 
-          {stage === 'recover-code' && (
-            <PinPad
-              title="Verifica tu identidad"
-              subtitle={selectedMethod === 'email' ? 'Enviamos un código de 6 dígitos por correo a s******@appsmartt.com.' : `Enviamos un código de 6 dígitos por SMS a ${MOCK_RECOVERY_PHONE}.`}
-              length={RECOVERY_CODE_LENGTH}
-              onComplete={handleRecoveryCode}
-              error={error}
-              success={success}
-              footer={
-                <TouchableOpacity onPress={() => alert(`Código reenviado por ${selectedMethod === 'email' ? 'correo' : 'SMS'}.`)} activeOpacity={0.7}>
-                  <Text style={styles.linkText}>Reenviar código</Text>
-                </TouchableOpacity>
-              }
-            />
+          {stage === 'recover-create' && (
+            <PinPad title="Crea tu nuevo PIN"
+              subtitle="Contraseña comprobada. Elige 4 dígitos para reemplazar el PIN anterior."
+              onComplete={handleCreate} error={error} />
           )}
-
-          {stage === 'recover-pin' && <PinPad title="Crea tu nuevo PIN" subtitle="Identidad verificada. Define 4 dígitos nuevos y confírmalos." onComplete={handleCreate} error={error} />}
+          {stage === 'recover-confirm' && (
+            <PinPad title="Confirma tu nuevo PIN"
+              subtitle="Repite los 4 dígitos para guardar el cambio."
+              onComplete={handleRecoveryConfirm} error={error} />
+          )}
         </ScrollView>
 
         {showTabBar && <FloatingTabBar />}
@@ -218,6 +407,12 @@ const styles = StyleSheet.create({
   statusIconOff: { backgroundColor: colors.neutral.gray100 },
   statusTitle: { fontSize: 15, fontWeight: '600', color: colors.neutral.text, marginBottom: 6 },
   statusDesc: { fontSize: 12, fontWeight: '400', color: colors.neutral.gray600, textAlign: 'center', lineHeight: 17 },
+  protectedChatsCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.neutral.white, borderRadius: 20, borderWidth: 1, borderColor: colors.neutral.gray200, padding: 16, marginBottom: 18 },
+  protectedChatsIcon: { width: 40, height: 40, borderRadius: 12, backgroundColor: colors.brand.primary + '15', alignItems: 'center', justifyContent: 'center', marginRight: 12 },
+  protectedChatsText: { flex: 1, paddingRight: 8 },
+  protectedChatsTitle: { fontSize: 14, fontWeight: '600', color: colors.neutral.text },
+  protectedChatsDescription: { fontSize: 11, color: colors.neutral.gray600, marginTop: 3 },
+  protectedChatsCount: { minWidth: 30, textAlign: 'right', fontSize: 24, fontWeight: '700', color: colors.brand.primary },
   optionsCard: { backgroundColor: colors.neutral.white, borderRadius: 20, borderWidth: 1, borderColor: colors.neutral.gray200, overflow: 'hidden' },
   optionRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 14, paddingHorizontal: 14, borderBottomWidth: 1, borderBottomColor: colors.neutral.gray100 },
   optionIconWrap: { width: 32, height: 32, borderRadius: 10, alignItems: 'center', justifyContent: 'center', marginRight: 12 },
@@ -245,4 +440,17 @@ const styles = StyleSheet.create({
     marginBottom: 8,
     marginTop: 4,
   },
+
+  menuSuccess: { backgroundColor: colors.semantic.success + '15', color: colors.semantic.success, borderRadius: 12, padding: 12, marginBottom: 16, fontSize: 13, textAlign: 'center' },
+  recoveryWrap: { paddingHorizontal: 22, alignItems: 'center' },
+  recoveryIcon: { width: 66, height: 66, borderRadius: 22, backgroundColor: colors.brand.primary + '15', alignItems: 'center', justifyContent: 'center', marginTop: 18, marginBottom: 18 },
+  recoveryTitle: { fontSize: 23, fontWeight: '700', color: colors.neutral.text, textAlign: 'center', marginBottom: 10 },
+  recoverySubtitle: { fontSize: 14, color: colors.neutral.gray600, textAlign: 'center', lineHeight: 21, marginBottom: 26 },
+  recoveryCard: { width: '100%', backgroundColor: colors.neutral.white, borderRadius: 22, padding: 20, borderWidth: 1, borderColor: colors.brand.primary + '22' },
+  passwordLabel: { fontSize: 13, fontWeight: '600', color: colors.neutral.text, marginBottom: 10 },
+  passwordField: { flexDirection: 'row', alignItems: 'center', gap: 10, borderWidth: 1, borderColor: colors.neutral.gray200, backgroundColor: colors.neutral.gray50, borderRadius: 14, paddingHorizontal: 14, minHeight: 52 },
+  passwordInput: { flex: 1, color: colors.neutral.text, fontSize: 14, paddingVertical: 10 },
+  recoveryError: { color: colors.semantic.error, fontSize: 12, marginTop: 12 },
+  recoveryHint: { fontSize: 12, color: colors.neutral.gray600, lineHeight: 18, textAlign: 'center', marginTop: 22, paddingHorizontal: 12 },
+  buttonDisabled: { opacity: 0.5 },
 });

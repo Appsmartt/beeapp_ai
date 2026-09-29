@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import math
+
 from rest_framework import serializers
 
 
@@ -14,6 +16,7 @@ CHAT_MESSAGE_TYPES = (
     "reservation",
     "invoice",
     "link",
+    "location",
     "system",
 )
 
@@ -84,6 +87,33 @@ class ChatInboxQuerySerializer(serializers.Serializer):
         required=False,
         allow_null=True,
     )
+
+
+
+class ChatTypedInboxQuerySerializer(serializers.Serializer):
+    identity_id = serializers.UUIDField()
+    conversation_type = serializers.ChoiceField(
+        choices=("direct", "group"),
+    )
+    limit = serializers.IntegerField(
+        required=False,
+        default=10,
+        min_value=5,
+        max_value=10,
+    )
+    before_sort_at = serializers.DateTimeField(required=False)
+    before_id = serializers.UUIDField(required=False)
+
+    def validate(self, attrs):
+        if attrs["limit"] not in (5, 10):
+            raise serializers.ValidationError(
+                {"limit": "Page size must be 5 or 10."}
+            )
+        if ("before_sort_at" in attrs) != ("before_id" in attrs):
+            raise serializers.ValidationError(
+                "Both cursor fields are required together."
+            )
+        return attrs
 
 
 class ChatRecipientSearchQuerySerializer(serializers.Serializer):
@@ -351,6 +381,11 @@ class UpdateConversationNotificationsSerializer(
     notifications_enabled = serializers.BooleanField()
 
 
+class UpdateConversationPinnedSerializer(serializers.Serializer):
+    identity_id = serializers.UUIDField()
+    is_pinned = serializers.BooleanField()
+
+
 class ConversationDetailQuerySerializer(serializers.Serializer):
     include_participants = serializers.BooleanField(
         required=False,
@@ -476,6 +511,26 @@ class SendChatMessageSerializer(serializers.Serializer):
                 }
             )
 
+        if message_type == "location":
+            location = attrs.get("metadata", {}).get("location")
+            if (
+                not isinstance(location, dict)
+                or set(location) != {"latitude", "longitude"}
+                or any(
+                    isinstance(location[key], bool)
+                    or not isinstance(location[key], (int, float))
+                    or not math.isfinite(location[key])
+                    for key in ("latitude", "longitude")
+                )
+                or not -90 <= location["latitude"] <= 90
+                or not -180 <= location["longitude"] <= 180
+                or attachment_file_id is not None
+                or not body
+            ):
+                raise serializers.ValidationError(
+                    {"metadata": "Location requires valid coordinates, a label, and no attachment."}
+                )
+
         if message_type == "text" and not body:
             raise serializers.ValidationError(
                 {
@@ -507,6 +562,11 @@ class SendChatMessageSerializer(serializers.Serializer):
             )
 
         return attrs
+
+
+class MarkConversationDeliveredSerializer(serializers.Serializer):
+    identity_id = serializers.UUIDField()
+    last_delivered_message_id = serializers.UUIDField()
 
 
 class MarkConversationReadSerializer(serializers.Serializer):

@@ -1,8 +1,20 @@
 from django.urls import path
 
+from apps.chat.pin_protection_views import (
+    ChatPinProtectionDetailView,
+    ChatPinProtectionsView,
+)
+
 from apps.chat.presence_views import (
     ChatPresenceSnapshotView,
     ChatPresenceStateView,
+)
+
+from apps.chat.category_views import (
+    ChatCategoriesView,
+    ChatCategoryDetailView,
+    ChatCategoryAssignmentsView,
+    ChatConversationCategoriesView,
 )
 
 from apps.chat.views import (
@@ -15,7 +27,9 @@ from apps.chat.views import (
     ChatConversationDetailView,
     ChatConversationMessagesView,
     ChatConversationNotificationsView,
+    ChatConversationPinnedView,
     ChatConversationParticipantsView,
+    ChatConversationDeliveredView,
     ChatConversationReadView,
     ChatDirectConversationsView,
     ChatGroupConversationInvitesView,
@@ -25,11 +39,13 @@ from apps.chat.views import (
     ChatGroupInvitesView,
     ChatGroupLeaveView,
     ChatGroupOwnershipTransferView,
+    ChatGroupSoleOwnerDeactivationView,
     ChatGroupParticipantDetailView,
     ChatGroupParticipantRoleView,
     ChatGroupsView,
     ChatIdentitiesView,
     ChatInboxView,
+    ChatTypedInboxView,
     ChatMessageAttachmentAccessView,
     ChatMessageAttachmentView,
     ChatMessageDetailView,
@@ -42,6 +58,32 @@ from apps.chat.views import (
 
 
 urlpatterns = [
+    path("categories/", ChatCategoriesView.as_view(), name="chat-categories"),
+    path(
+        "categories/assignments/",
+        ChatCategoryAssignmentsView.as_view(),
+        name="chat-category-assignments",
+    ),
+    path(
+        "categories/<uuid:category_id>/",
+        ChatCategoryDetailView.as_view(),
+        name="chat-category-detail",
+    ),
+    path(
+        "conversations/<uuid:conversation_id>/categories/",
+        ChatConversationCategoriesView.as_view(),
+        name="chat-conversation-categories",
+    ),
+    path(
+        "pin-protections/",
+        ChatPinProtectionsView.as_view(),
+        name="chat-pin-protections",
+    ),
+    path(
+        "conversations/<uuid:conversation_id>/pin-protection/",
+        ChatPinProtectionDetailView.as_view(),
+        name="chat-pin-protection-detail",
+    ),
     path(
         "bootstrap/",
         ChatBootstrapView.as_view(),
@@ -88,6 +130,11 @@ urlpatterns = [
         name="chat-inbox",
     ),
     path(
+        "inbox/by-type/",
+        ChatTypedInboxView.as_view(),
+        name="chat-inbox-by-type",
+    ),
+    path(
         "direct-conversations/",
         ChatDirectConversationsView.as_view(),
         name="chat-direct-conversations",
@@ -109,6 +156,11 @@ urlpatterns = [
         name="chat-conversation-notifications",
     ),
     path(
+        "conversations/<uuid:conversation_id>/pinned/",
+        ChatConversationPinnedView.as_view(),
+        name="chat-conversation-pinned",
+    ),
+    path(
         "conversations/<uuid:conversation_id>/participants/",
         ChatConversationParticipantsView.as_view(),
         name="chat-conversation-participants",
@@ -124,6 +176,11 @@ urlpatterns = [
         name="chat-conversation-attachment-upload",
     ),
     path(
+        "conversations/<uuid:conversation_id>/delivered/",
+        ChatConversationDeliveredView.as_view(),
+        name="chat-conversation-delivered",
+    ),
+    path(
         "conversations/<uuid:conversation_id>/read/",
         ChatConversationReadView.as_view(),
         name="chat-conversation-read",
@@ -137,6 +194,11 @@ urlpatterns = [
         "groups/<uuid:conversation_id>/",
         ChatGroupDetailView.as_view(),
         name="chat-group-detail",
+    ),
+    path(
+        "groups/<uuid:conversation_id>/sole-owner/",
+        ChatGroupSoleOwnerDeactivationView.as_view(),
+        name="chat-group-sole-owner-deactivation",
     ),
     path(
         "groups/<uuid:conversation_id>/invites/",

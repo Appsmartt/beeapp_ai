@@ -11,6 +11,8 @@ import {
   TouchableOpacity,
   ActivityIndicator,
 } from 'react-native';
+import { Gesture, GestureDetector } from 'react-native-gesture-handler';
+import { runOnJS } from 'react-native-reanimated';
 import {
   Audio,
 } from 'expo-av';
@@ -18,12 +20,14 @@ import {
   Check,
   CheckCheck,
   FileText,
+  MapPin,
   Play,
   Pause,
   Bot,
 } from 'lucide-react-native';
 import { colors } from '@beeapp/design-system';
 import VerifiedBadge from '../VerifiedBadge';
+import { getChatVideoThumbnail } from '../../services/chatVideoThumbnail';
 import AiCatalogCards from './AiCatalogCards';
 import StatusStoryReplyPreview from './StatusStoryReplyPreview';
 import type {
@@ -39,7 +43,9 @@ interface MessageBubbleProps {
   isUser: boolean;
   isAI?: boolean;
   sentByAi?: boolean;
-  type: 'text' | 'image' | 'file' | 'audio';
+  type: 'text' | 'image' | 'file' | 'audio' | 'location';
+  location?: { latitude: number; longitude: number };
+  onPressLocation?: () => void;
   text?: string;
   mediaUrl?: string;
   messageId?: string;
@@ -51,10 +57,12 @@ interface MessageBubbleProps {
   audioDuration?: string;
   status: 'sent' | 'delivered' | 'read';
   time: string;
+  reactions?: string[];
   replyTo?: {
     sender: string;
     text: string;
   };
+  onPressReply?: () => void;
   statusStoryReference?: {
     isAvailable: boolean;
     status: StatusStory | null;
@@ -65,7 +73,10 @@ interface MessageBubbleProps {
   isDestroyed?: boolean;
   isPinned?: boolean;
   onLongPress?: () => void;
+  onReplySwipe?: () => void;
   onPressImage?: () => void;
+  onPressFile?: () => void;
+  isVideoFile?: boolean;
   onContactCatalogItem?: (
     item: AiSearchResult,
   ) => void;
@@ -85,6 +96,14 @@ function formatDuration(
   );
 }
 
+function shortenChatFileName(name: string, limit = 27): string {
+  const trimmed = name.trim() || 'Archivo adjunto';
+  if (trimmed.length <= limit) return trimmed;
+  const remaining = limit - 3;
+  const beginning = Math.ceil(remaining / 2);
+  return `${trimmed.slice(0, beginning)}...${trimmed.slice(-Math.floor(remaining / 2))}`;
+}
+
 export default function MessageBubble({
   senderName,
   senderVerified,
@@ -93,6 +112,8 @@ export default function MessageBubble({
   sentByAi,
   type,
   text,
+  location,
+  onPressLocation,
   mediaUrl,
   messageId,
   onRequestAudioUrl,
@@ -101,17 +122,38 @@ export default function MessageBubble({
   audioDuration,
   status,
   time,
+  reactions = [],
   replyTo,
+  onPressReply,
   statusStoryReference,
   onPressStatusStory,
   showCatalog,
   isEdited,
   isDestroyed,
   onLongPress,
+  onReplySwipe,
   onPressImage,
+  onPressFile,
+  isVideoFile = false,
   onContactCatalogItem,
 }: MessageBubbleProps) {
   const soundRef = useRef<Audio.Sound | null>(null);
+  const [videoThumbnailUri, setVideoThumbnailUri] = useState<string | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    setVideoThumbnailUri(null);
+    if (type === 'file' && isVideoFile && messageId && mediaUrl) {
+      void getChatVideoThumbnail(messageId, mediaUrl).then((uri) => {
+        if (active) {
+          setVideoThumbnailUri(uri);
+        }
+      });
+    }
+    return () => {
+      active = false;
+    };
+  }, [type, isVideoFile, messageId, mediaUrl]);
   const [isPlaying, setIsPlaying] = useState(false);
   const [playbackDuration, setPlaybackDuration] = useState<
     string | null
@@ -284,6 +326,15 @@ export default function MessageBubble({
     )
     : 0;
   const completedWaveBars = Math.round(playbackProgress * 12);
+  const replySwipe = Gesture.Pan()
+    .enabled(Boolean(onReplySwipe))
+    .activeOffsetX([-14, 14])
+    .failOffsetY([-12, 12])
+    .onEnd((event) => {
+      if (Math.abs(event.translationX) >= 64 && onReplySwipe) {
+        runOnJS(onReplySwipe)();
+      }
+    });
 
   return (
     <View
@@ -294,6 +345,7 @@ export default function MessageBubble({
           : styles.containerOther,
       ]}
     >
+      <GestureDetector gesture={replySwipe}>
       <TouchableOpacity
         activeOpacity={0.9}
         onLongPress={onLongPress}
@@ -336,7 +388,12 @@ export default function MessageBubble({
           ) : null}
 
           {replyTo ? (
-            <View
+            <TouchableOpacity
+              activeOpacity={onPressReply ? 0.75 : 1}
+              disabled={!onPressReply}
+              onPress={onPressReply}
+              accessibilityRole={onPressReply ? 'button' : undefined}
+              accessibilityLabel={onPressReply ? 'Ir al mensaje respondido' : undefined}
               style={[
                 styles.replyContainer,
                 isUser
@@ -346,7 +403,7 @@ export default function MessageBubble({
             >
               <View style={styles.replyBar} />
 
-              <View style={styles.flex}>
+              <View style={styles.replyContent}>
                 <Text
                   style={[
                     styles.replySender,
@@ -363,16 +420,17 @@ export default function MessageBubble({
                     styles.replyText,
                     {
                       color: isUser
-                        ? '#E6E3FF'
+                        ? '#4D397F'
                         : colors.neutral.gray600,
                     },
                   ]}
-                  numberOfLines={1}
+                  numberOfLines={3}
+                  ellipsizeMode="tail"
                 >
                   {replyTo.text}
                 </Text>
               </View>
-            </View>
+            </TouchableOpacity>
           ) : null}
 
           {statusStoryReference ? (
@@ -410,6 +468,34 @@ export default function MessageBubble({
                 >
                   {text}
                 </Text>
+              ) : null}
+
+              {type === 'location' ? (
+                <TouchableOpacity
+                  activeOpacity={0.8}
+                  disabled={!location || !onPressLocation}
+                  onPress={onPressLocation}
+                  accessibilityRole="button"
+                  accessibilityLabel={location ? 'Abrir ubicación en mapas' : 'Ubicación no disponible'}
+                  style={{ width: 228, overflow: 'hidden', borderRadius: 15, backgroundColor: '#FFFFFF' }}
+                >
+                  <View style={{ height: 112, backgroundColor: '#E8F1EB', overflow: 'hidden', justifyContent: 'center' }}>
+                    <View style={{ position: 'absolute', width: 270, height: 18, top: 22, left: -18, transform: [{ rotate: '-17deg' }], backgroundColor: '#FFFFFF' }} />
+                    <View style={{ position: 'absolute', width: 270, height: 15, top: 83, left: -18, transform: [{ rotate: '19deg' }], backgroundColor: '#FFFFFF' }} />
+                    <View style={{ position: 'absolute', width: 16, height: 150, left: 160, top: -16, transform: [{ rotate: '16deg' }], backgroundColor: '#FFFFFF' }} />
+                    <View style={{ alignSelf: 'center', padding: 8, borderRadius: 22, backgroundColor: '#6025D2' }}>
+                      <MapPin size={22} color="#FFFFFF" />
+                    </View>
+                  </View>
+                  <View style={{ paddingHorizontal: 12, paddingVertical: 11 }}>
+                    <Text style={{ color: '#252031', fontSize: 14, fontWeight: '600' }}>
+                      Ubicación compartida
+                    </Text>
+                    <Text style={{ color: '#716B7E', fontSize: 11, marginTop: 3 }}>
+                      {location ? 'Toca para abrir en mapas' : 'Ubicación no disponible'}
+                    </Text>
+                  </View>
+                </TouchableOpacity>
               ) : null}
 
               {type === 'image' ? (
@@ -451,37 +537,57 @@ export default function MessageBubble({
               ) : null}
 
               {type === 'file' ? (
-                <View style={styles.fileRow}>
+                <TouchableOpacity
+                  style={isVideoFile ? styles.videoPreview : styles.fileRow}
+                  onPress={onPressFile}
+                  disabled={!onPressFile}
+                  accessibilityRole="button"
+                  accessibilityLabel={
+                    isVideoFile ? 'Reproducir video del chat' : 'Abrir archivo del chat'
+                  }
+                >
+                  {isVideoFile && videoThumbnailUri ? (
+                    <Image
+                      source={{ uri: videoThumbnailUri }}
+                      style={styles.videoThumbnail}
+                      resizeMode="cover"
+                    />
+                  ) : null}
                   <View
                     style={[
-                      styles.fileIconWrap,
+                      isVideoFile ? styles.videoIconWrap : styles.fileIconWrap,
                       isUser
                         ? styles.fileIconWrapUser
                         : styles.fileIconWrapOther,
                     ]}
                   >
-                    <FileText
-                      size={20}
-                      color={
-                        isUser
-                          ? colors.brand.primary
-                          : colors.neutral.white
-                      }
-                    />
+                    {isVideoFile ? (
+                      <Play
+                        size={20}
+                        color={isUser ? colors.brand.primary : colors.neutral.white}
+                      />
+                    ) : (
+                      <FileText
+                        size={20}
+                        color={isUser ? colors.brand.primary : colors.neutral.white}
+                      />
+                    )}
                   </View>
 
-                  <View style={styles.flex}>
-                    <Text
-                      style={[
-                        styles.fileName,
-                        isUser
-                          ? styles.textUser
-                          : styles.textOther,
-                      ]}
-                      numberOfLines={1}
-                    >
-                      {fileName || 'Archivo adjunto'}
-                    </Text>
+                  <View style={isVideoFile ? styles.videoDetails : styles.flex}>
+                    {!isVideoFile ? (
+                      <Text
+                        style={[
+                          styles.fileName,
+                          isUser
+                            ? styles.textUser
+                            : styles.textOther,
+                        ]}
+                        numberOfLines={1}
+                      >
+                        {shortenChatFileName(fileName || 'Archivo adjunto')}
+                      </Text>
+                    ) : null}
 
                     <Text
                       style={[
@@ -496,7 +602,7 @@ export default function MessageBubble({
                       {fileSize || 'Archivo'}
                     </Text>
                   </View>
-                </View>
+                </TouchableOpacity>
               ) : null}
 
               {type === 'audio' ? (
@@ -614,6 +720,14 @@ export default function MessageBubble({
           )}
 
           <View style={styles.metaRow}>
+            {reactions.length > 0 ? (
+              <View style={[styles.reactionBadge, isUser && styles.reactionBadgeUser]}>
+                <Text style={styles.reactionBadgeText}>
+                  {Array.from(new Set(reactions)).slice(0, 2).join('')}
+                  {reactions.length > 2 ? ` ${reactions.length}` : ''}
+                </Text>
+              </View>
+            ) : null}
             {isEdited ? (
               <Text
                 style={[
@@ -644,22 +758,22 @@ export default function MessageBubble({
               <View style={styles.statusCheck}>
                 {status === 'sent' ? (
                   <Check
-                    size={12}
+                    size={14}
                     color="#DDE3FF"
                   />
                 ) : null}
 
                 {status === 'delivered' ? (
                   <CheckCheck
-                    size={12}
-                    color="#DDE3FF"
+                    size={14}
+                    color={colors.neutral.white}
                   />
                 ) : null}
 
                 {status === 'read' ? (
                   <CheckCheck
-                    size={12}
-                    color={colors.neutral.white}
+                    size={14}
+                    color="#75F0D0"
                   />
                 ) : null}
               </View>
@@ -667,6 +781,7 @@ export default function MessageBubble({
           </View>
         </View>
       </TouchableOpacity>
+      </GestureDetector>
 
       {showCatalog ? (
         <AiCatalogCards
@@ -763,18 +878,25 @@ const styles = StyleSheet.create({
     color: colors.neutral.text,
   },
   replyContainer: {
-    borderRadius: 8,
+    alignSelf: 'flex-start',
+    borderRadius: 10,
     flexDirection: 'row',
-    marginBottom: 8,
-    overflow: 'hidden',
-    padding: 6,
+    marginBottom: 9,
+    maxWidth: '100%',
+    minWidth: 150,
+    paddingHorizontal: 9,
+    paddingVertical: 8,
+  },
+  replyContent: {
+    flexShrink: 1,
+    minWidth: 0,
   },
   replyUser: {
-    backgroundColor: '#5F52C5',
+    backgroundColor: '#EDE7FF',
   },
   replyOther: {
-    backgroundColor: colors.neutral.gray50,
-    borderColor: colors.neutral.gray200,
+    backgroundColor: '#F2F5FF',
+    borderColor: '#DFE4F4',
     borderWidth: 1,
   },
   replyBar: {
@@ -789,13 +911,14 @@ const styles = StyleSheet.create({
     marginBottom: 2,
   },
   replySenderUser: {
-    color: colors.neutral.white,
+    color: '#4D397F',
   },
   replySenderOther: {
     color: colors.brand.primary,
   },
   replyText: {
     fontSize: 12,
+    lineHeight: 16,
   },
   destroyedText: {
     fontSize: 13,
@@ -838,6 +961,37 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     paddingVertical: 4,
     width: 200,
+  },
+  videoPreview: {
+    backgroundColor: '#29263F',
+    borderRadius: 12,
+    height: 140,
+    overflow: 'hidden',
+    width: 200,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  videoThumbnail: {
+    ...StyleSheet.absoluteFillObject,
+    height: '100%',
+    width: '100%',
+  },
+  videoIconWrap: {
+    alignItems: 'center',
+    backgroundColor: 'rgba(31, 26, 53, 0.72)',
+    borderRadius: 24,
+    height: 48,
+    justifyContent: 'center',
+    width: 48,
+  },
+  videoDetails: {
+    backgroundColor: 'rgba(31, 26, 53, 0.76)',
+    bottom: 0,
+    left: 0,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    position: 'absolute',
+    right: 0,
   },
   fileIconWrap: {
     alignItems: 'center',
@@ -917,6 +1071,20 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontStyle: 'italic',
     marginRight: 4,
+  },
+  reactionBadge: {
+    backgroundColor: colors.neutral.gray100,
+    borderRadius: 10,
+    paddingHorizontal: 5,
+    paddingVertical: 1,
+    marginRight: 5,
+  },
+  reactionBadgeUser: {
+    backgroundColor: 'rgba(255,255,255,0.20)',
+  },
+  reactionBadgeText: {
+    fontSize: 11,
+    lineHeight: 16,
   },
   time: {
     fontSize: 9,

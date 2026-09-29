@@ -1,40 +1,71 @@
 import {
+  useCallback,
   useEffect,
   useRef,
   useState,
 } from 'react';
+import { useFocusEffect } from 'expo-router';
 import {
   ActivityIndicator,
   Alert,
+  Animated,
+  AppState,
+  Image,
   Modal,
+  NativeModules,
+  Platform,
   RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
   View,
 } from 'react-native';
+import * as Clipboard from 'expo-clipboard';
 import * as DocumentPicker from 'expo-document-picker';
+import * as FileSystem from 'expo-file-system';
+import * as Sharing from 'expo-sharing';
 import * as ImagePicker from 'expo-image-picker';
+import { Camera as ExpoCamera } from 'expo-camera';
 import {
   LockKeyhole,
 } from 'lucide-react-native';
+import * as Location from 'expo-location';
+import { openChatLocation } from '../../../src/services/chatLocationLinks';
+import {
+  armLocationPermissionUnlockSkip,
+  finishLocationPermissionUnlockSkip,
+  isPermissionDialogUnlockSkipArmed,
+} from '../../../src/services/locationPermissionAppLockGuard';
 import { colors } from '@beeapp/design-system';
 import {
   getActiveConversationCall,
   getChatContactProfile,
   getChatMessageAttachmentAccess,
+  getChatMessage,
+  createChatMessageReaction,
+  deleteChatMessageReaction,
+  getChatPinProtection,
+  updateChatConversationNotifications,
+  verifyAccountSecurityPin,
+  markChatConversationRead,
   getStorageFileAccess,
   startCall,
 } from '@beeapp/api-client';
 
 import ScreenSafeArea from '../../../src/components/layout/ScreenSafeArea';
+import { getLatestIncomingChatMessage } from '../../../src/services/chatMessageReceipts';
+import { getActiveChatStoreIdentityId, getChatConversations, getChatMessages, upsertChatConversation, upsertChatMessage } from '../../../src/stores/chatStore';
 import {
   useModuleNav,
   useScreenParams,
 } from '../../../src/components/embedded/EmbeddedNavContext';
 
+import PinLockModal from '../../../src/components/security/PinLockModal';
 import MessageBubble from '../../../src/components/chat/MessageBubble';
+import CallNoticeCard from '../../../src/components/chat/CallNoticeCard';
 import ChatImageViewerModal from '../../../src/components/chat/ChatImageViewerModal';
+import ChatVideoViewerModal from '../../../src/components/chat/ChatVideoViewerModal';
+import StatusCameraModal from '../../../src/components/chat/status/StatusCameraModal';
 import StatusViewer from '../../../src/components/chat/StatusViewer';
 import WriteBar from '../../../src/components/chat/WriteBar';
 import AiAutoReplyBanner from '../../../src/components/chat/AiAutoReplyBanner';
@@ -60,6 +91,8 @@ import {
 import {
   type UploadableChatAttachment,
 } from '../../../src/services/chatAttachmentService';
+import { prepareChatMediaForUpload } from '../../../src/services/chatMediaPreparation';
+import { removeTemporaryStatusVideo } from '../../../src/services/statusVideoTranscoder';
 import type {
   RecordedVoiceNote,
 } from '../../../src/components/chat/WriteBar';
@@ -147,6 +180,145 @@ function formatMessageDateSeparator(
 export default function ConversationScreen() {
   const router = useModuleNav();
   const params = useScreenParams();
+  const chatId = String(params.id || '').trim();
+  const [access, setAccess] = useState<
+    'checking' | 'locked' | 'open' | 'error'
+  >('checking');
+  const [accessError, setAccessError] = useState<string | null>(null);
+  const [attempt, setAttempt] = useState(0);
+  const permissionDialogInactiveRef = useRef(false);
+  const [chatCameraOpen, setChatCameraOpen] = useState(false);
+  const [chatCameraMicrophoneGranted, setChatCameraMicrophoneGranted] = useState(false);
+
+  useFocusEffect(
+    useCallback(() => {
+      setAccess('checking');
+      setAttempt((value) => value + 1);
+      return () => setAccess('checking');
+    }, [chatId]),
+  );
+
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', (state) => {
+      if (state === 'background') {
+        permissionDialogInactiveRef.current = false;
+        setAccess('checking');
+        return;
+      }
+      if (state === 'inactive') {
+        permissionDialogInactiveRef.current = isPermissionDialogUnlockSkipArmed();
+        if (!permissionDialogInactiveRef.current) {
+          setAccess('checking');
+        }
+        return;
+      }
+      if (permissionDialogInactiveRef.current) {
+        permissionDialogInactiveRef.current = false;
+        return;
+      }
+      setAccess('checking');
+      setAttempt((value) => value + 1);
+    });
+    return () => subscription.remove();
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    setAccess('checking');
+    setAccessError(null);
+
+    const check = async () => {
+      try {
+        if (!chatId) throw new Error('Falta el identificador del chat.');
+        const auth = await getValidSessionCredentials();
+        if (!auth) throw new Error('Inicia sesión para abrir el chat.');
+        const result = await getChatPinProtection(auth, chatId);
+        if (!cancelled && AppState.currentState === 'active') {
+          setAccess(result.protected ? 'locked' : 'open');
+        }
+      } catch (failure) {
+        if (cancelled) return;
+        setAccessError(
+          failure instanceof Error
+            ? failure.message
+            : 'No fue posible comprobar la protección del chat.',
+        );
+        setAccess('error');
+      }
+    };
+
+    void check();
+    return () => {
+      cancelled = true;
+    };
+  }, [chatId, attempt]);
+
+  const verifyPin = async (pin: string) => {
+    const auth = await getValidSessionCredentials();
+    if (!auth) throw new Error('Inicia sesión para verificar tu PIN.');
+    const result = await verifyAccountSecurityPin(auth, pin);
+    if (!result.verified) throw new Error('PIN incorrecto. Inténtalo de nuevo.');
+  };
+
+  if (access !== 'open') {
+    return (
+      <ScreenSafeArea style={{ flex: 1, backgroundColor: colors.neutral.white }}>
+        {access === 'checking' ? (
+          <ActivityIndicator size="large" color={colors.brand.primary} />
+        ) : null}
+        {access === 'error' ? (
+          <View style={{ padding: 24 }}>
+            <Text>{accessError}</Text>
+            <Text
+              onPress={() => setAttempt((value) => value + 1)}
+              style={{ color: colors.brand.primary, marginTop: 16 }}
+            >
+              Reintentar
+            </Text>
+            <Text
+              onPress={() => router.back()}
+              style={{ color: colors.brand.primary, marginTop: 16 }}
+            >
+              Volver
+            </Text>
+          </View>
+        ) : null}
+        <PinLockModal
+          visible={access === 'locked'}
+          itemName={String(params.name || 'Chat protegido')}
+          onClose={() => router.back()}
+          verifyPin={verifyPin}
+          onSuccess={() => setAccess('open')}
+        />
+      </ScreenSafeArea>
+    );
+  }
+
+  return (
+    <ConversationContent
+      chatCameraOpen={chatCameraOpen}
+      chatCameraMicrophoneGranted={chatCameraMicrophoneGranted}
+      setChatCameraOpen={setChatCameraOpen}
+      setChatCameraMicrophoneGranted={setChatCameraMicrophoneGranted}
+    />
+  );
+}
+
+type ConversationCameraProps = {
+  chatCameraOpen: boolean;
+  chatCameraMicrophoneGranted: boolean;
+  setChatCameraOpen: (open: boolean) => void;
+  setChatCameraMicrophoneGranted: (granted: boolean) => void;
+};
+
+function ConversationContent({
+  chatCameraOpen,
+  chatCameraMicrophoneGranted,
+  setChatCameraOpen,
+  setChatCameraMicrophoneGranted,
+}: ConversationCameraProps) {
+  const router = useModuleNav();
+  const params = useScreenParams();
 
   const chatId = String(params.id || '').trim();
   const fallbackChatName = (
@@ -178,10 +350,13 @@ export default function ConversationScreen() {
     sending,
     loadingMore,
     hasMore,
+    initialLoadingPhase,
     activeIdentityId,
+    currentUserId,
     error,
     loadMessages,
     loadMore,
+    loadReferencedMessage,
     sendMessage,
     sendAttachmentMessage,
     editMessage,
@@ -192,11 +367,111 @@ export default function ConversationScreen() {
     identityId: requestedIdentityId,
   });
 
+  const lastRealtimeReadMessageIdRef = useRef<string | null>(null);
+  const realtimeReadInFlightRef = useRef(false);
+  const realtimeReadPendingRef = useRef(false);
+  const activeReadConversationRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    activeReadConversationRef.current = chatId;
+    lastRealtimeReadMessageIdRef.current = null;
+    return () => {
+      activeReadConversationRef.current = null;
+    };
+  }, [chatId]);
+
+  useEffect(() => {
+    if (
+      !chatId
+      || !activeIdentityId
+      || !currentUserId
+      || !messages.length
+      || initialLoadingPhase !== 'ready'
+      || AppState.currentState !== 'active'
+    ) {
+      return;
+    }
+
+    if (realtimeReadInFlightRef.current) {
+      realtimeReadPendingRef.current = true;
+      return;
+    }
+
+    realtimeReadInFlightRef.current = true;
+    void (async () => {
+      try {
+        do {
+          realtimeReadPendingRef.current = false;
+          if (
+            activeReadConversationRef.current !== chatId
+            || AppState.currentState !== 'active'
+          ) break;
+
+          const incoming = getLatestIncomingChatMessage(
+            getChatMessages(chatId),
+            activeIdentityId,
+            currentUserId,
+          );
+          if (
+            !incoming
+            || incoming.id === lastRealtimeReadMessageIdRef.current
+          ) continue;
+
+          const credentials = await getValidSessionCredentials();
+          if (
+            !credentials
+            || activeReadConversationRef.current !== chatId
+          ) break;
+
+          await markChatConversationRead(
+            credentials,
+            chatId,
+            {
+              identity_id: activeIdentityId,
+              last_read_message_id: incoming.id,
+            },
+          );
+          if (activeReadConversationRef.current !== chatId) break;
+
+          lastRealtimeReadMessageIdRef.current = incoming.id;
+          const current = getChatConversations().find(
+            (item) => item.id === chatId,
+          );
+          if (current?.last_message?.id === incoming.id) {
+            upsertChatConversation({
+              ...current,
+              unread_count: 0,
+              own_participant: current.own_participant
+                ? {
+                    ...current.own_participant,
+                    unread_count: 0,
+                    last_read_message_id: incoming.id,
+                  }
+                : current.own_participant,
+            });
+          }
+        } while (realtimeReadPendingRef.current);
+      } catch {
+        // Un fallo de lectura no debe impedir mostrar mensajes.
+      } finally {
+        realtimeReadInFlightRef.current = false;
+      }
+    })();
+  }, [
+    activeIdentityId,
+    chatId,
+    currentUserId,
+    initialLoadingPhase,
+    messages,
+  ]);
+
   const [aiAutoReply, setAiAutoReply] =
     useState(false);
 
   const [menuOpen, setMenuOpen] =
     useState(false);
+  const [isUpdatingMute, setIsUpdatingMute] = useState(false);
+  const muteInFlightRef = useRef(false);
 
   const [catalogVisible, setCatalogVisible] =
     useState(false);
@@ -206,6 +481,16 @@ export default function ConversationScreen() {
 
   const [replyTarget, setReplyTarget] =
     useState<ChatMessageModel | null>(null);
+
+  const [pendingTextMessage, setPendingTextMessage] = useState<{
+    id: string;
+    conversationId: string;
+    text: string;
+    createdAt: string;
+    replyTo?: { sender: string; text: string };
+    replyToId: string | null;
+    existingMessageIds: Set<string>;
+  } | null>(null);
 
   const [editingMessage, setEditingMessage] =
     useState<ChatMessageModel | null>(null);
@@ -220,6 +505,20 @@ export default function ConversationScreen() {
     url: string;
     caption?: string;
   } | null>(null);
+  const [viewingChatVideo, setViewingChatVideo] = useState<{
+    messageId: string;
+    url: string;
+    caption?: string;
+  } | null>(null);
+  const [downloadNotice, setDownloadNotice] = useState<
+    'downloading' | 'complete' | null
+  >(null);
+  const downloadNoticeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const downloadingFileRef = useRef(false);
+
+  useEffect(() => () => {
+    if (downloadNoticeTimerRef.current) clearTimeout(downloadNoticeTimerRef.current);
+  }, []);
 
   const [toastText, setToastText] =
     useState<string | null>(null);
@@ -232,6 +531,7 @@ export default function ConversationScreen() {
     setAttachmentUrlsByMessageId,
   ] = useState<Record<string, string>>({});
 
+  const [initialImagesReady, setInitialImagesReady] = useState(false);
   const [isStartingCall, setIsStartingCall] = useState(false);
 
   const [
@@ -248,12 +548,32 @@ export default function ConversationScreen() {
     uploadingAttachment,
     setUploadingAttachment,
   ] = useState(false);
+  const [locationProgress, setLocationProgress] = useState<
+    'locating' | 'sending' | null
+  >(null);
 
   const scrollRef = useRef<ScrollView | null>(null);
+  const messageRowOffsetsRef = useRef<Record<string, number>>({});
+  const pendingReplyJumpRef = useRef<string | null>(null);
+  const replyHighlightTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const replyHighlightOpacityRef = useRef(new Animated.Value(0));
+  const replyHighlightAnimationRef = useRef<Animated.CompositeAnimation | null>(null);
+  const replyHighlightRunRef = useRef(0);
+  const [highlightedMessageId, setHighlightedMessageId] = useState<string | null>(null);
   const loadingMoreRef = useRef(false);
+  const chatContentHeightRef = useRef(0);
+  const chatScrollOffsetRef = useRef(0);
+  const initialChatScrollDoneRef = useRef(false);
+  const initialChatScrollScheduledRef = useRef(false);
+  const preserveHistoryScrollRef = useRef(false);
+  const historyMessageCountRef = useRef(0);
+  const userDraggedChatRef = useRef(false);
+  const followLatestMessagesRef = useRef(true);
   const startCallInFlightRef = useRef(false);
+  const locationShareInFlightRef = useRef(false);
   const resolvedAttachmentMessageIdsRef = useRef<Set<string>>(new Set());
   const initialMessageSentRef = useRef<string | null>(null);
+  const initialImagesStartedRef = useRef(false);
 
   const isGroup = (
     conversation?.conversation_type === 'group'
@@ -266,9 +586,17 @@ export default function ConversationScreen() {
     || isAiFromRoute
   );
 
+  const cachedConversation = (
+    getActiveChatStoreIdentityId() === activeIdentityId
+      ? getChatConversations().find((item) => item.id === chatId)
+      : null
+  );
+
   const resolveDirectChatName = (): string => {
     const inboxOtherDisplayName = String(
-      conversation?.other_display_name || '',
+      conversation?.other_display_name
+      || cachedConversation?.other_display_name
+      || '',
     ).trim();
 
     if (inboxOtherDisplayName) {
@@ -398,6 +726,13 @@ export default function ConversationScreen() {
     || ''
   );
 
+  const photoRemovedFromInbox = Boolean(
+    !isGroup
+    && !isAI
+    && cachedConversation?.other_identity_id
+    && cachedConversation.image_file_id === null
+  );
+
   const contactAvatarUrl = (
     contactParticipant?.user?.avatar_url
     || conversation?.direct_profile?.avatar_url
@@ -412,7 +747,9 @@ export default function ConversationScreen() {
       isGroup
       || isAI
       || !contactIdentityId
+      || photoRemovedFromInbox
       || contactAvatarUrl
+      || cachedConversation?.cached_avatar_url
     ) {
       setResolvedContactAvatarUrl(null);
       return () => {
@@ -461,10 +798,12 @@ export default function ConversationScreen() {
       cancelled = true;
     };
   }, [
+    cachedConversation?.cached_avatar_url,
     contactAvatarUrl,
     contactIdentityId,
     isAI,
     isGroup,
+    photoRemovedFromInbox,
   ]);
 
   const attachmentAccessKey = messages
@@ -601,6 +940,89 @@ export default function ConversationScreen() {
     attachmentAccessKey,
   ]);
 
+  useEffect(() => {
+    if (
+      initialLoadingPhase !== 'ready'
+      || initialImagesStartedRef.current
+    ) {
+      return;
+    }
+
+    initialImagesStartedRef.current = true;
+    let cancelled = false;
+    const initialImages = messages
+      .slice(-50)
+      .filter((message) => message.type === 'image');
+
+    const prepareInitialImages = async () => {
+      try {
+        const needsAccess = initialImages.some(
+          (message) => (
+            !message.mediaUrl
+            && !attachmentUrlsByMessageId[message.id]
+            && Boolean(message.raw.attachments?.[0]?.file_id)
+          ),
+        );
+        const auth = needsAccess
+          ? await getValidSessionCredentials()
+          : null;
+
+        for (let index = 0; index < initialImages.length; index += 5) {
+          if (cancelled) {
+            return;
+          }
+
+          const batch = initialImages.slice(index, index + 5);
+          await Promise.allSettled(batch.map(async (message) => {
+            let url = (
+              message.mediaUrl
+              || attachmentUrlsByMessageId[message.id]
+              || ''
+            );
+
+            if (
+              !url
+              && auth
+              && activeIdentityId
+              && message.raw.attachments?.[0]?.file_id
+            ) {
+              const access = await getChatMessageAttachmentAccess(
+                auth,
+                message.id,
+                activeIdentityId,
+              );
+              url = access.url;
+              if (!cancelled) {
+                setAttachmentUrlsByMessageId((current) => ({
+                  ...current,
+                  [message.id]: url,
+                }));
+              }
+            }
+
+            if (url) {
+              await Image.prefetch(url);
+            }
+          }));
+        }
+      } finally {
+        if (!cancelled) {
+          setInitialImagesReady(true);
+        }
+      }
+    };
+
+    void prepareInitialImages().catch(() => {
+      if (!cancelled) {
+        setInitialImagesReady(true);
+      }
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [initialLoadingPhase]);
+
   const requestFreshAudioUrl = async (
     messageId: string,
   ): Promise<string> => {
@@ -642,11 +1064,22 @@ export default function ConversationScreen() {
     return nextUrl;
   };
 
-  const headerAvatarUrl = (
-    contactAvatarUrl
-    || resolvedContactAvatarUrl
-    || null
+  const cachedHeaderAvatarUrl = (
+    !isGroup
+    && !isAI
+    && cachedConversation?.cached_avatar_url
+      ? cachedConversation.cached_avatar_url
+      : null
   );
+
+  const headerAvatarUrl = photoRemovedFromInbox
+    ? null
+    : (
+        cachedHeaderAvatarUrl
+        || contactAvatarUrl
+        || resolvedContactAvatarUrl
+        || null
+      );
 
   const canPostInGroup = (
     !isGroup
@@ -683,6 +1116,10 @@ export default function ConversationScreen() {
   ) => {
     if (
       offsetY > 80
+      || !initialChatScrollDoneRef.current
+      || !userDraggedChatRef.current
+      || initialLoadingPhase !== 'ready'
+      || !initialImagesReady
       || loadingMoreRef.current
       || loadingMore
       || !hasMore
@@ -691,9 +1128,13 @@ export default function ConversationScreen() {
     }
 
     loadingMoreRef.current = true;
+    userDraggedChatRef.current = false;
+    preserveHistoryScrollRef.current = true;
+    historyMessageCountRef.current = messages.length;
 
     void loadMore()
       .catch(() => {
+        preserveHistoryScrollRef.current = false;
         // El hook conserva el error para mostrarlo en pantalla.
       })
       .finally(() => {
@@ -702,10 +1143,61 @@ export default function ConversationScreen() {
   };
 
   useEffect(() => {
-    if (messages.length > 0) {
+    if (
+      preserveHistoryScrollRef.current
+      && !loadingMore
+      && messages.length <= historyMessageCountRef.current
+    ) {
+      preserveHistoryScrollRef.current = false;
+    }
+  }, [loadingMore, messages.length]);
+
+  const handleChatContentSizeChange = (
+    _width: number,
+    height: number,
+  ) => {
+    const previousHeight = chatContentHeightRef.current;
+    chatContentHeightRef.current = height;
+
+    if (preserveHistoryScrollRef.current) {
+      if (
+        messages.length > historyMessageCountRef.current
+        && height > previousHeight
+      ) {
+        scrollRef.current?.scrollTo({
+          y: chatScrollOffsetRef.current + height - previousHeight,
+          animated: false,
+        });
+        preserveHistoryScrollRef.current = false;
+      }
+      return;
+    }
+
+    if (pendingReplyJumpRef.current) {
+      return;
+    }
+
+    if (
+      !initialChatScrollDoneRef.current
+      && !initialChatScrollScheduledRef.current
+      && messages.length > 0
+    ) {
+      initialChatScrollScheduledRef.current = true;
+      scrollToBottom();
+      setTimeout(() => {
+        initialChatScrollDoneRef.current = true;
+      }, 220);
+      return;
+    }
+
+    if (
+      initialChatScrollDoneRef.current
+      && followLatestMessagesRef.current
+      && !loadingMore
+    ) {
       scrollToBottom();
     }
-  }, [messages.length]);
+  };
 
   useEffect(() => {
     const initialMessage = String(
@@ -750,15 +1242,107 @@ export default function ConversationScreen() {
     }, 2200);
   };
 
+  const focusReplySource = (messageId: string, offsetY: number) => {
+    pendingReplyJumpRef.current = null;
+    replyHighlightRunRef.current += 1;
+    const run = replyHighlightRunRef.current;
+    if (replyHighlightTimerRef.current) {
+      clearTimeout(replyHighlightTimerRef.current);
+      replyHighlightTimerRef.current = null;
+    }
+    replyHighlightAnimationRef.current?.stop();
+    replyHighlightOpacityRef.current.setValue(0);
+    setHighlightedMessageId(messageId);
+    scrollRef.current?.scrollTo({
+      y: Math.max(0, offsetY - 80),
+      animated: true,
+    });
+
+    const fadeIn = Animated.timing(replyHighlightOpacityRef.current, {
+      toValue: 1,
+      duration: 320,
+      useNativeDriver: true,
+    });
+    replyHighlightAnimationRef.current = fadeIn;
+    fadeIn.start(({ finished }) => {
+      if (!finished || run !== replyHighlightRunRef.current) {
+        return;
+      }
+      replyHighlightTimerRef.current = setTimeout(() => {
+        replyHighlightTimerRef.current = null;
+        const fadeOut = Animated.timing(replyHighlightOpacityRef.current, {
+          toValue: 0,
+          duration: 650,
+          useNativeDriver: true,
+        });
+        replyHighlightAnimationRef.current = fadeOut;
+        fadeOut.start(({ finished: faded }) => {
+          if (faded && run === replyHighlightRunRef.current) {
+            setHighlightedMessageId((current) => (
+              current === messageId ? null : current
+            ));
+            replyHighlightAnimationRef.current = null;
+          }
+        });
+      }, 1300);
+    });
+  };
+
+  const handlePressReply = async (messageId: string) => {
+    if (pendingReplyJumpRef.current) {
+      return;
+    }
+    pendingReplyJumpRef.current = messageId;
+    userDraggedChatRef.current = false;
+    followLatestMessagesRef.current = false;
+
+    const offsetY = messageRowOffsetsRef.current[messageId];
+    if (offsetY !== undefined) {
+      focusReplySource(messageId, offsetY);
+      return;
+    }
+
+    try {
+      const found = await loadReferencedMessage(messageId);
+      if (!found) {
+        pendingReplyJumpRef.current = null;
+        showToast('El mensaje original no está disponible.');
+      }
+    } catch {
+      pendingReplyJumpRef.current = null;
+      showToast('No fue posible abrir el mensaje original.');
+    }
+  };
+
+  useEffect(() => () => {
+    pendingReplyJumpRef.current = null;
+    messageRowOffsetsRef.current = {};
+    replyHighlightRunRef.current += 1;
+    if (replyHighlightTimerRef.current) {
+      clearTimeout(replyHighlightTimerRef.current);
+      replyHighlightTimerRef.current = null;
+    }
+    replyHighlightAnimationRef.current?.stop();
+  }, [chatId]);
+
   const sendChatAttachment = async (
     attachment: UploadableChatAttachment,
     content = '',
   ) => {
+    let temporaryVideoUri: string | null = null;
     try {
       setUploadingAttachment(true);
+      const preparedAttachment = (
+        attachment.kind === 'image' || attachment.kind === 'video'
+          ? await prepareChatMediaForUpload(attachment)
+          : attachment
+      );
+      if (attachment.kind === 'video') {
+        temporaryVideoUri = preparedAttachment.uri;
+      }
 
       await sendAttachmentMessage({
-        attachment,
+        attachment: preparedAttachment,
         content,
         replyToId: replyTarget?.id || null,
       });
@@ -773,6 +1357,7 @@ export default function ConversationScreen() {
           : 'Inténtalo nuevamente.',
       );
     } finally {
+      await removeTemporaryStatusVideo(temporaryVideoUri);
       setUploadingAttachment(false);
     }
   };
@@ -793,14 +1378,36 @@ export default function ConversationScreen() {
         return;
       }
 
+      const pendingId = `pending:${Date.now()}:${Math.random()}`;
+      const pendingReplyToId = replyTarget?.id || null;
+      setPendingTextMessage({
+        id: pendingId,
+        conversationId: chatId,
+        text: text.trim(),
+        createdAt: new Date().toISOString(),
+        replyTo: replyTarget
+          ? {
+              sender: replyTarget.senderName || (replyTarget.isUser ? 'Tú' : 'Contacto'),
+              text: replyTarget.text || '',
+            }
+          : undefined,
+        replyToId: pendingReplyToId,
+        existingMessageIds: new Set(messages.map((message) => message.id)),
+      });
+      scrollToBottom();
+
       await sendMessage({
         content: text,
-        replyToId: replyTarget?.id || null,
+        replyToId: pendingReplyToId,
       });
 
+      setPendingTextMessage((current) => (
+        current?.id === pendingId ? null : current
+      ));
       setReplyTarget(null);
       scrollToBottom();
     } catch (sendError) {
+      setPendingTextMessage(null);
       Alert.alert(
         'No fue posible enviar el mensaje',
         sendError instanceof Error
@@ -824,9 +1431,9 @@ export default function ConversationScreen() {
   };
 
   const handleSendAttachment = async (
-    type: 'photo' | 'camera' | 'file' | 'location' | 'contact',
+    type: 'photo' | 'camera' | 'file' | 'location',
   ) => {
-    if (uploadingAttachment || sending) {
+    if (uploadingAttachment || sending || locationShareInFlightRef.current) {
       return;
     }
 
@@ -838,12 +1445,12 @@ export default function ConversationScreen() {
 
         if (!permission.granted) {
           throw new Error(
-            'Necesitamos permiso para acceder a tus fotos.',
+            'Necesitamos permiso para acceder a tus fotos y videos.',
           );
         }
 
         const result = await ImagePicker.launchImageLibraryAsync({
-          mediaTypes: ImagePicker.MediaTypeOptions.Images,
+          mediaTypes: ImagePicker.MediaTypeOptions.All,
           quality: 0.9,
         });
 
@@ -852,54 +1459,95 @@ export default function ConversationScreen() {
         }
 
         const asset = result.assets[0];
+        const isVideo = asset.type === 'video';
+        const mimeType = String(asset.mimeType || '').trim().toLowerCase();
+        const uriExtension = String(asset.uri || '')
+          .split('?')[0]
+          .split('.')
+          .pop()
+          ?.toLowerCase() || '';
+        const fallbackExtension = isVideo
+          ? (mimeType === 'video/mp4' ? 'mp4' : uriExtension)
+          : mimeType === 'image/png'
+            ? 'png'
+            : mimeType === 'image/webp'
+              ? 'webp'
+              : mimeType === 'image/jpeg'
+                ? 'jpg'
+                : uriExtension;
+        const name = String(
+          asset.fileName
+          || `chat-media-${Date.now()}.${fallbackExtension}`,
+        ).trim();
+        const extension = name.split('.').pop()?.toLowerCase() || '';
+        const allowedMimeByExtension: Record<string, string> = {
+          jpg: 'image/jpeg',
+          jpeg: 'image/jpeg',
+          png: 'image/png',
+          webp: 'image/webp',
+        };
+        const expectedMime = allowedMimeByExtension[extension];
+
+        if (
+          !name
+          || name.length > 255
+          || (
+            !isVideo
+            && (!expectedMime || (mimeType && mimeType !== expectedMime))
+          )
+          || (isVideo && mimeType && !mimeType.startsWith('video/'))
+        ) {
+          throw new Error(
+            isVideo
+              ? 'Selecciona un video compatible.'
+              : 'Selecciona una imagen JPEG, PNG o WebP compatible.',
+          );
+        }
 
         await sendChatAttachment({
           uri: asset.uri,
-          name: asset.fileName || 'imagen.jpg',
-          mimeType: asset.mimeType || 'image/jpeg',
-          sizeBytes: asset.fileSize ?? null,
-          kind: 'image',
+          name,
+          mimeType: isVideo ? (mimeType || 'video/mp4') : expectedMime,
+          sizeBytes: null,
+          kind: isVideo ? 'video' : 'image',
         });
 
         return;
       }
 
       if (type === 'camera') {
-        const permission = (
-          await ImagePicker.requestCameraPermissionsAsync()
-        );
-
-        if (!permission.granted) {
-          throw new Error(
-            'Necesitamos permiso para usar la cámara.',
-          );
+        let cameraPermission = await ExpoCamera.getCameraPermissionsAsync();
+        if (!cameraPermission.granted) {
+          cameraPermission = await ExpoCamera.requestCameraPermissionsAsync();
+        }
+        if (!cameraPermission.granted) {
+          throw new Error('Necesitamos permiso para usar la cámara.');
         }
 
-        const result = await ImagePicker.launchCameraAsync({
-          mediaTypes: ImagePicker.MediaTypeOptions.Images,
-          quality: 0.9,
-        });
-
-        if (result.canceled || !result.assets[0]) {
-          return;
+        let microphonePermission = await ExpoCamera.getMicrophonePermissionsAsync();
+        if (!microphonePermission.granted && microphonePermission.canAskAgain) {
+          microphonePermission = await ExpoCamera.requestMicrophonePermissionsAsync();
         }
-
-        const asset = result.assets[0];
-
-        await sendChatAttachment({
-          uri: asset.uri,
-          name: asset.fileName || 'foto.jpg',
-          mimeType: asset.mimeType || 'image/jpeg',
-          sizeBytes: asset.fileSize ?? null,
-          kind: 'image',
-        });
-
+        setChatCameraMicrophoneGranted(microphonePermission.granted);
+        setChatCameraOpen(true);
         return;
       }
 
       if (type === 'file') {
+        const allowedDocuments: Record<string, string> = {
+          pdf: 'application/pdf',
+          doc: 'application/msword',
+          docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+          xls: 'application/vnd.ms-excel',
+          xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+          ppt: 'application/vnd.ms-powerpoint',
+          pptx: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+          txt: 'text/plain',
+          md: 'text/markdown',
+          csv: 'text/csv',
+        };
         const result = await DocumentPicker.getDocumentAsync({
-          type: '*/*',
+          type: Object.values(allowedDocuments),
           copyToCacheDirectory: true,
           multiple: false,
         });
@@ -909,35 +1557,144 @@ export default function ConversationScreen() {
         }
 
         const asset = result.assets[0];
+        const name = String(asset.name || '').trim();
+        const extension = name.split('.').pop()?.toLowerCase() || '';
+        const expectedMime = allowedDocuments[extension];
+        const selectedMime = String(asset.mimeType || '').trim().toLowerCase();
+
+        if (
+          !name
+          || name.length > 255
+          || !expectedMime
+          || (selectedMime && selectedMime !== expectedMime)
+        ) {
+          throw new Error(
+            'Selecciona un PDF, Word, Excel, PowerPoint o archivo de texto compatible.',
+          );
+        }
+
+        if (
+          typeof asset.size !== 'number'
+          || !Number.isFinite(asset.size)
+          || asset.size <= 0
+          || asset.size > 52_428_800
+        ) {
+          throw new Error(
+            'El archivo debe pesar entre 1 byte y 50 MiB.',
+          );
+        }
 
         await sendChatAttachment({
           uri: asset.uri,
-          name: asset.name || 'archivo',
-          mimeType: (
-            asset.mimeType
-            || 'application/octet-stream'
-          ),
-          sizeBytes: asset.size ?? null,
-          kind: asset.mimeType?.startsWith('image/')
-            ? 'image'
-            : 'document',
+          name,
+          mimeType: expectedMime,
+          sizeBytes: asset.size,
+          kind: 'document',
         });
 
         return;
       }
 
-      throw new Error(
-        type === 'location'
-          ? 'La ubicación aún no está habilitada en Chat.'
-          : 'El envío de contactos aún no está habilitado en Chat.',
-      );
+      if (type === 'location') {
+        locationShareInFlightRef.current = true;
+        setUploadingAttachment(true);
+        try {
+          const currentPermission = await Location.getForegroundPermissionsAsync();
+          let permission = currentPermission;
+          if (!currentPermission.granted) {
+            armLocationPermissionUnlockSkip();
+            try {
+              permission = await Location.requestForegroundPermissionsAsync();
+            } finally {
+              finishLocationPermissionUnlockSkip();
+            }
+          }
+          if (!permission.granted) {
+            throw new Error('Permite el acceso a tu ubicación para compartirla.');
+          }
+          if (!await Location.hasServicesEnabledAsync()) {
+            throw new Error('Activa la ubicación del celular e inténtalo de nuevo.');
+          }
+
+          setLocationProgress('locating');
+          const position = await Location.getCurrentPositionAsync({
+            accuracy: Location.Accuracy.Balanced,
+          });
+          const { latitude, longitude } = position.coords;
+          if (
+            !Number.isFinite(latitude)
+            || !Number.isFinite(longitude)
+            || latitude < -90
+            || latitude > 90
+            || longitude < -180
+            || longitude > 180
+          ) {
+            throw new Error('No fue posible obtener coordenadas válidas.');
+          }
+
+          setLocationProgress('sending');
+          await sendMessage({
+            content: 'Ubicación',
+            messageType: 'location',
+            metadata: { location: { latitude, longitude } },
+            replyToId: replyTarget?.id || null,
+          });
+          setReplyTarget(null);
+          scrollToBottom();
+        } finally {
+          setLocationProgress(null);
+          locationShareInFlightRef.current = false;
+          setUploadingAttachment(false);
+        }
+        return;
+      }
+
+      throw new Error('Tipo de adjunto no disponible.');
     } catch (attachmentError) {
       Alert.alert(
-        'No fue posible adjuntar el archivo',
+        type === 'location' ? 'No fue posible compartir la ubicación' : 'No fue posible adjuntar el archivo',
         attachmentError instanceof Error
           ? attachmentError.message
           : 'Inténtalo nuevamente.',
       );
+    }
+  };
+
+  const reactionInFlightRef = useRef(false);
+
+  const handleSelectMessageReaction = async (emoji: string) => {
+    if (!selectedMessage || !activeIdentityId || !chatId || reactionInFlightRef.current) return;
+    const target = selectedMessage;
+    reactionInFlightRef.current = true;
+    setSelectedMessage(null);
+    try {
+      const auth = await getValidSessionCredentials();
+      if (!auth) throw new Error('Inicia sesión para reaccionar.');
+      const { message: latest } = await getChatMessage(auth, target.id);
+      if (latest.conversation_id !== chatId) throw new Error('El mensaje cambió de chat.');
+      const own = latest.reactions?.find(
+        (reaction) => reaction.owner_user_id === currentUserId,
+      );
+      if (own) {
+        await deleteChatMessageReaction(auth, target.id, own.identity_id, own.emoji);
+      }
+      if (own?.emoji !== emoji) {
+        await createChatMessageReaction(auth, target.id, activeIdentityId, emoji);
+      }
+    } catch (error) {
+      Alert.alert('No se pudo reaccionar',
+        error instanceof Error ? error.message : 'Inténtalo de nuevo.');
+    } finally {
+      try {
+        const auth = await getValidSessionCredentials();
+        if (auth) {
+          const { message } = await getChatMessage(auth, target.id);
+          if (message.conversation_id === chatId) upsertChatMessage(chatId, message);
+        }
+      } catch {
+        // A failed refresh does not hide the original reaction error.
+      }
+      reactionInFlightRef.current = false;
     }
   };
 
@@ -975,9 +1732,23 @@ export default function ConversationScreen() {
     }
 
     if (action === 'copy') {
-      showToast(
-        'Copia de texto disponible próximamente.',
-      );
+      const content = target.text?.trim();
+
+      if (!content) {
+        showToast('Este mensaje no tiene texto para copiar.');
+        return;
+      }
+
+      void Clipboard.setStringAsync(content)
+        .then(() => {
+          showToast('Mensaje copiado');
+        })
+        .catch(() => {
+          Alert.alert(
+            'No fue posible copiar el mensaje',
+            'Inténtalo nuevamente.',
+          );
+        });
       return;
     }
 
@@ -1164,30 +1935,49 @@ export default function ConversationScreen() {
     }
   };
 
-  const handleClearChat = () => {
-    Alert.alert(
-      'Vaciar chat',
-      (
-        'Tu backend actual no expone una acción para '
-        + 'vaciar todos los mensajes de una conversación.'
-      ),
-    );
-  };
+  const handleToggleMute = async () => {
+    if (muteInFlightRef.current) return;
+    if (!activeIdentityId || !conversation) {
+      Alert.alert(
+        'No fue posible actualizar el chat',
+        'Espera a que termine de cargar e inténtalo nuevamente.',
+      );
+      return;
+    }
 
-  const handleDeleteChat = () => {
-    Alert.alert(
-      'Eliminar chat',
-      (
-        'Puedes eliminar el chat desde el menú de la lista '
-        + 'principal de Chats.'
-      ),
-      [
+    const nextNotificationsEnabled = Boolean(conversation.is_muted);
+    muteInFlightRef.current = true;
+    setIsUpdatingMute(true);
+    try {
+      const auth = await getValidSessionCredentials();
+      if (!auth) {
+        throw new Error('Tu sesión expiró. Inicia sesión nuevamente.');
+      }
+      const response = await updateChatConversationNotifications(
+        auth,
+        chatId,
         {
-          text: 'Aceptar',
-          onPress: () => router.back(),
+          identity_id: activeIdentityId,
+          notifications_enabled: nextNotificationsEnabled,
         },
-      ],
-    );
+      );
+      const cachedConversation = getChatConversations().find(
+        (item) => item.id === chatId,
+      );
+      upsertChatConversation({
+        ...(cachedConversation || conversation),
+        is_muted: !response.conversation.own_participant?.notifications_enabled,
+        own_participant: response.conversation.own_participant,
+      });
+    } catch (failure) {
+      Alert.alert(
+        'No fue posible actualizar las notificaciones',
+        failure instanceof Error ? failure.message : 'Inténtalo nuevamente.',
+      );
+    } finally {
+      muteInFlightRef.current = false;
+      setIsUpdatingMute(false);
+    }
   };
 
   if (!chatId) {
@@ -1226,6 +2016,69 @@ export default function ConversationScreen() {
         <Modal
           transparent
           animationType="fade"
+          visible={Boolean(chatId) && (
+            initialLoadingPhase !== 'ready'
+            || !initialImagesReady
+          )}
+          onRequestClose={() => undefined}
+        >
+          <View style={styles.chatOpeningOverlay}>
+            <View style={styles.chatOpeningCard}>
+              <View style={styles.chatOpeningIcon}>
+                <ActivityIndicator
+                  size="large"
+                  color={colors.brand.primary}
+                />
+              </View>
+              <Text style={styles.chatOpeningTitle}>
+                Preparando tu chat
+              </Text>
+              <Text style={styles.chatOpeningDescription}>
+                Estamos dejando tu conversación lista.
+              </Text>
+              {[
+                ['conversation', 'Preparando conversación'],
+                ['messages', 'Cargando mensajes'],
+                ['images', 'Preparando imágenes'],
+              ].map(([phase, label], index) => {
+                const currentIndex = initialLoadingPhase === 'conversation'
+                  ? 0
+                  : initialLoadingPhase === 'messages'
+                    ? 1
+                    : 2;
+                return (
+                  <View
+                    key={phase}
+                    style={styles.chatOpeningStep}
+                  >
+                    <View
+                      style={[
+                        styles.chatOpeningStepDot,
+                        index <= currentIndex
+                          ? styles.chatOpeningStepDotActive
+                          : null,
+                      ]}
+                    />
+                    <Text
+                      style={[
+                        styles.chatOpeningStepText,
+                        index === currentIndex
+                          ? styles.chatOpeningStepTextActive
+                          : null,
+                      ]}
+                    >
+                      {label}
+                    </Text>
+                  </View>
+                );
+              })}
+            </View>
+          </View>
+        </Modal>
+
+        <Modal
+          transparent
+          animationType="fade"
           visible={isStartingCall}
           onRequestClose={() => undefined}
         >
@@ -1246,6 +2099,45 @@ export default function ConversationScreen() {
             </View>
           </View>
         </Modal>
+        {locationProgress ? (
+          <View
+            style={styles.locationProgressOverlay}
+            accessibilityRole="alert"
+          >
+            <View style={styles.locationProgressCard}>
+              <ActivityIndicator size="large" color={colors.brand.primary} />
+              <Text style={styles.locationProgressTitle}>
+                {locationProgress === 'locating'
+                  ? 'Obteniendo ubicación…'
+                  : 'Enviando ubicación…'}
+              </Text>
+              <Text style={styles.locationProgressDescription}>
+                {locationProgress === 'locating'
+                  ? 'Estamos capturando tu posición actual.'
+                  : 'Compartiendo el punto en este chat.'}
+              </Text>
+            </View>
+          </View>
+        ) : null}
+        {downloadNotice ? (
+          <View
+            style={[
+              styles.downloadNotice,
+              downloadNotice === 'complete' && styles.downloadNoticeComplete,
+            ]}
+            pointerEvents="none"
+            accessibilityRole="alert"
+          >
+            {downloadNotice === 'downloading' ? (
+              <ActivityIndicator size="small" color={colors.neutral.white} />
+            ) : null}
+            <Text style={styles.downloadNoticeText}>
+              {downloadNotice === 'downloading'
+                ? 'Descargando archivo…'
+                : 'Archivo descargado'}
+            </Text>
+          </View>
+        ) : null}
         <ConversationHeader
           chatName={chatName}
           avatarUrl={headerAvatarUrl}
@@ -1331,55 +2223,14 @@ export default function ConversationScreen() {
 
         <ConversationOverlayMenu
           visible={menuOpen}
+          isMuted={Boolean(conversation?.is_muted)}
+          isUpdatingMute={isUpdatingMute}
           onClose={() => {
             setMenuOpen(false);
           }}
-          onViewInfo={() => {
-            if (isAI) {
-              return;
-            }
-
-            if (!isGroup) {
-              if (!contactIdentityId) {
-                Alert.alert(
-                  'Cargando contacto',
-                  'Espera un momento e inténtalo otra vez.',
-                );
-                return;
-              }
-
-              router.push({
-                pathname: '/(main)/contacts/detail',
-                params: {
-                  id: contactIdentityId,
-                  displayName: contactDisplayName,
-                  avatarUrl: contactAvatarUrl,
-                },
-              });
-              return;
-            }
-
-            router.push({
-              pathname: '/(main)/chat/chat-profile',
-              params: {
-                id: chatId,
-                ...(isCommercialContext
-                  ? {
-                      context: 'commercial',
-                      businessId,
-                      identityId: requestedIdentityId || '',
-                    }
-                  : {}),
-              },
-            });
+          onToggleMute={() => {
+            void handleToggleMute();
           }}
-          onMute={() => {
-            showToast(
-              'La opción de silenciar está disponible desde la lista de chats.',
-            );
-          }}
-          onClear={handleClearChat}
-          onDelete={handleDeleteChat}
         />
 
         {isSellerChat ? (
@@ -1407,11 +2258,26 @@ export default function ConversationScreen() {
             contentContainerStyle={
               styles.chatScrollContent
             }
-            onContentSizeChange={scrollToBottom}
+            onContentSizeChange={handleChatContentSizeChange}
+            onScrollBeginDrag={() => {
+              userDraggedChatRef.current = true;
+            }}
             onScroll={(event) => {
-              handleChatScroll(
-                event.nativeEvent.contentOffset.y,
-              );
+              const {
+                contentOffset,
+                contentSize,
+                layoutMeasurement,
+              } = event.nativeEvent;
+              const offsetY = contentOffset.y;
+              chatScrollOffsetRef.current = offsetY;
+              if (userDraggedChatRef.current) {
+                followLatestMessagesRef.current = (
+                  contentSize.height
+                  - layoutMeasurement.height
+                  - offsetY < 120
+                );
+              }
+              handleChatScroll(offsetY);
             }}
             scrollEventThrottle={120}
             showsVerticalScrollIndicator={false}
@@ -1490,7 +2356,25 @@ export default function ConversationScreen() {
                 : '';
 
               return (
-                <View key={message.id}>
+                <View
+                  key={message.id}
+                  onLayout={(event) => {
+                    const offsetY = event.nativeEvent.layout.y;
+                    messageRowOffsetsRef.current[message.id] = offsetY;
+                    if (pendingReplyJumpRef.current === message.id) {
+                      focusReplySource(message.id, offsetY);
+                    }
+                  }}
+                >
+                  {highlightedMessageId === message.id ? (
+                    <Animated.View
+                      pointerEvents="none"
+                      style={[
+                        styles.replySourceHighlight,
+                        { opacity: replyHighlightOpacityRef.current },
+                      ]}
+                    />
+                  ) : null}
                   {dateSeparatorLabel ? (
                     <View style={styles.dateSeparator}>
                       <Text style={styles.dateSeparatorText}>
@@ -1499,6 +2383,14 @@ export default function ConversationScreen() {
                     </View>
                   ) : null}
 
+                  {message.raw.message_type === 'system'
+                    && message.raw.reference_type === 'call_session' ? (
+                    <CallNoticeCard
+                      event={message.raw.metadata?.call_event}
+                      fallbackText={message.text}
+                      time={message.time}
+                    />
+                  ) : (
                   <MessageBubble
                     senderName={message.senderName}
                     senderVerified={message.senderVerified}
@@ -1506,6 +2398,17 @@ export default function ConversationScreen() {
                     isAI={message.isAI}
                     sentByAi={message.sentByAi}
                     type={message.type}
+                    location={message.location}
+                    onPressLocation={message.location ? () => {
+                      const coordinates = message.location;
+                      if (!coordinates) return;
+                      void openChatLocation(coordinates).catch(() => {
+                        Alert.alert(
+                          'No fue posible abrir mapas',
+                          'Comprueba que tengas una aplicación de mapas o un navegador disponible.',
+                        );
+                      });
+                    } : undefined}
                     text={message.text}
                     mediaUrl={
                       message.type === 'audio'
@@ -1535,17 +2438,175 @@ export default function ConversationScreen() {
                         ? requestFreshAudioUrl
                         : undefined
                     }
+                    isVideoFile={
+                      message.raw.attachments?.[0]?.mime_type === 'video/mp4'
+                    }
+                    onPressFile={message.type === 'file' ? () => {
+                      void (async () => {
+                        const isVideo = message.raw.attachments?.[0]?.mime_type === 'video/mp4';
+                        if (!isVideo && downloadingFileRef.current) return;
+                        let temporaryUri: string | null = null;
+                        let savedDownloadUri: string | null = null;
+                        if (!isVideo) {
+                          downloadingFileRef.current = true;
+                          if (downloadNoticeTimerRef.current) clearTimeout(downloadNoticeTimerRef.current);
+                          setDownloadNotice('downloading');
+                        }
+                        try {
+                          if (!activeIdentityId) {
+                            throw new Error('No se pudo identificar tu cuenta de chat.');
+                          }
+                          const auth = await getValidSessionCredentials();
+                          if (!auth) {
+                            throw new Error('Tu sesión expiró. Inicia sesión nuevamente.');
+                          }
+                          const access = await getChatMessageAttachmentAccess(
+                            auth,
+                            message.id,
+                            activeIdentityId,
+                            !isVideo,
+                          );
+                          const url = String(access.url || '').trim();
+                          if (!/^https:\/\//i.test(url)) {
+                            throw new Error('No hay un enlace seguro para este adjunto.');
+                          }
+                          if (isVideo) {
+                            setViewingChatVideo({
+                              messageId: message.id,
+                              url,
+                              caption: message.text,
+                            });
+                            return;
+                          }
+                          if (!FileSystem.cacheDirectory) {
+                            throw new Error('No hay espacio de caché disponible.');
+                          }
+                          const name = (
+                            String(message.fileName || 'archivo')
+                              .replace(/[\/\\\x00-\x1f]/g, '_')
+                              .trim()
+                              .slice(0, 255) || 'archivo'
+                          );
+                          const mimeType = String(
+                            access.attachment?.mime_type || 'application/octet-stream',
+                          );
+                          temporaryUri = `${FileSystem.cacheDirectory}beeapp-chat-${message.id}-${Date.now()}-${name}`;
+                          const result = await FileSystem.downloadAsync(url, temporaryUri);
+                          if (result.status < 200 || result.status >= 300) {
+                            throw new Error('La descarga del archivo no se completó.');
+                          }
+                          if (Platform.OS === 'android' && Number(Platform.Version) >= 29) {
+                            const saver = NativeModules.ChatDownloads as {
+                              saveToDownloads?: (
+                                sourceUri: string,
+                                fileName: string,
+                                mimeType: string,
+                              ) => Promise<string>;
+                              openDownloadedFile?: (
+                                savedUri: string,
+                                mimeType: string,
+                              ) => Promise<boolean>;
+                            } | undefined;
+                            if (!saver?.saveToDownloads) {
+                              throw new Error('Instala la APK nueva para guardar en Descargas.');
+                            }
+                            savedDownloadUri = await saver.saveToDownloads(result.uri, name, mimeType);
+                          } else if (Platform.OS === 'android') {
+                            const permission = await FileSystem.StorageAccessFramework
+                              .requestDirectoryPermissionsAsync();
+                            if (!permission.granted) {
+                              setDownloadNotice(null);
+                              return;
+                            }
+                            const destination = await FileSystem.StorageAccessFramework
+                              .createFileAsync(permission.directoryUri, name, mimeType);
+                            const contents = await FileSystem.readAsStringAsync(result.uri, {
+                              encoding: FileSystem.EncodingType.Base64,
+                            });
+                            await FileSystem.writeAsStringAsync(destination, contents, {
+                              encoding: FileSystem.EncodingType.Base64,
+                            });
+                          } else {
+                            if (!await Sharing.isAvailableAsync()) {
+                              throw new Error('No se puede guardar este archivo en el dispositivo.');
+                            }
+                            await Sharing.shareAsync(result.uri, {
+                              mimeType,
+                              dialogTitle: 'Guardar archivo del chat',
+                            });
+                          }
+                          setDownloadNotice('complete');
+                          downloadNoticeTimerRef.current = setTimeout(
+                            () => setDownloadNotice(null),
+                            3500,
+                          );
+                          if (savedDownloadUri) {
+                            const uriToOpen = savedDownloadUri;
+                            Alert.alert(
+                              'Archivo descargado',
+                              'Se guardó en Descargas. ¿Quieres abrir el archivo?',
+                              [
+                                { text: 'Ahora no', style: 'cancel' },
+                                {
+                                  text: 'Abrir archivo',
+                                  onPress: () => {
+                                    const opener = NativeModules.ChatDownloads as {
+                                      openDownloadedFile?: (
+                                        savedUri: string,
+                                        type: string,
+                                      ) => Promise<boolean>;
+                                    } | undefined;
+                                    if (!opener?.openDownloadedFile) {
+                                      Alert.alert('No se pudo abrir', 'Instala la APK nueva.');
+                                      return;
+                                    }
+                                    void opener.openDownloadedFile(uriToOpen, mimeType).catch(
+                                      () => Alert.alert(
+                                        'No se pudo abrir',
+                                        'El archivo sigue en Descargas. Instala una aplicación compatible para abrirlo.',
+                                      ),
+                                    );
+                                  },
+                                },
+                              ],
+                            );
+                          }
+                        } catch (downloadError) {
+                          if (!isVideo) setDownloadNotice(null);
+                          Alert.alert(
+                            'No fue posible descargar el archivo',
+                            downloadError instanceof Error
+                              ? downloadError.message
+                              : 'Inténtalo nuevamente.',
+                          );
+                        } finally {
+                          if (temporaryUri) {
+                            await FileSystem.deleteAsync(temporaryUri, { idempotent: true })
+                              .catch(() => undefined);
+                          }
+                          if (!isVideo) downloadingFileRef.current = false;
+                        }
+                      })();
+                    } : undefined}
                     fileName={message.fileName}
                     fileSize={message.fileSize}
                     audioDuration={message.audioDuration}
                     status={message.status}
                     time={message.time}
+                    reactions={message.raw.reactions?.map((reaction) => reaction.emoji)}
                     replyTo={
                       message.replyTo
                         ? {
                           sender: message.replyTo.sender,
                           text: message.replyTo.text,
                         }
+                        : undefined
+                    }
+                    onPressReply={
+                      message.replyTo?.id
+                        ? () => {
+                            void handlePressReply(message.replyTo!.id);
+                          }
                         : undefined
                     }
                     statusStoryReference={
@@ -1576,6 +2637,11 @@ export default function ConversationScreen() {
                     onLongPress={() => {
                       setSelectedMessage(message);
                     }}
+                    onReplySwipe={() => {
+                      setEditingMessage(null);
+                      setEditingText('');
+                      setReplyTarget(message);
+                    }}
                     onContactCatalogItem={(item) => {
                       void handleSendMessage(
                         (
@@ -1585,11 +2651,45 @@ export default function ConversationScreen() {
                       );
                     }}
                   />
+                  )}
                 </View>
               );
             })}
 
-            {messages.length === 0 && !error ? (
+            {pendingTextMessage
+              && pendingTextMessage.conversationId === chatId
+              && !messages.some((message) => (
+                !pendingTextMessage.existingMessageIds.has(message.id)
+                && message.isUser
+                && message.text === pendingTextMessage.text
+                && (message.replyTo?.id || null) === pendingTextMessage.replyToId
+              )) ? (
+                <View key={pendingTextMessage.id}>
+                  {messages.length === 0 || !isSameCalendarDay(
+                    messages[messages.length - 1].createdAt,
+                    pendingTextMessage.createdAt,
+                  ) ? (
+                    <View style={styles.dateSeparator}>
+                      <Text style={styles.dateSeparatorText}>
+                        {formatMessageDateSeparator(pendingTextMessage.createdAt)}
+                      </Text>
+                    </View>
+                  ) : null}
+                  <MessageBubble
+                    isUser
+                    type="text"
+                    text={pendingTextMessage.text}
+                    status="sent"
+                    time={new Date(pendingTextMessage.createdAt).toLocaleTimeString(
+                      'es-CO',
+                      { hour: '2-digit', minute: '2-digit' },
+                    )}
+                    replyTo={pendingTextMessage.replyTo}
+                  />
+                </View>
+              ) : null}
+
+            {messages.length === 0 && !pendingTextMessage && !error ? (
               <View style={styles.emptyState}>
                 <Text style={styles.emptyText}>
                   Aún no hay mensajes. Escribe el primero.
@@ -1652,7 +2752,7 @@ export default function ConversationScreen() {
             onSendVoiceNote={handleSendVoiceNote}
             onSendAttachment={handleSendAttachment}
             uploadingAttachment={uploadingAttachment}
-            shouldFocus={focusComposer}
+            shouldFocus={focusComposer || replyTarget !== null}
             value={
               editingMessage
                 ? editingText
@@ -1696,10 +2796,45 @@ export default function ConversationScreen() {
           </View>
         )}
 
+        <StatusCameraModal
+          visible={chatCameraOpen}
+          microphoneGranted={chatCameraMicrophoneGranted}
+          onCapture={(capturedMedia) => {
+            setChatCameraOpen(false);
+            void (async () => {
+              try {
+                await sendChatAttachment({
+                  uri: capturedMedia.uri,
+                  name: capturedMedia.fileName,
+                  mimeType: capturedMedia.mimeType,
+                  sizeBytes: null,
+                  kind: capturedMedia.duration === null ? 'image' : 'video',
+                });
+              } catch (captureError) {
+                Alert.alert(
+                  'No fue posible enviar la captura',
+                  captureError instanceof Error
+                    ? captureError.message
+                    : 'Inténtalo nuevamente.',
+                );
+              }
+            })();
+          }}
+          onClose={() => {
+            setChatCameraOpen(false);
+            setChatCameraMicrophoneGranted(false);
+          }}
+        />
+
         <ChatImageViewerModal
           image={viewingChatImage}
           identityId={activeIdentityId}
           onClose={() => setViewingChatImage(null)}
+        />
+        <ChatVideoViewerModal
+          video={viewingChatVideo}
+          identityId={activeIdentityId}
+          onClose={() => setViewingChatVideo(null)}
         />
 
         <ChatMessageMenuModal
@@ -1711,6 +2846,12 @@ export default function ConversationScreen() {
             setSelectedMessage(null);
           }}
           onSelectAction={handleSelectMessageAction}
+          selectedReaction={selectedMessage?.raw.reactions?.find(
+            (reaction) => reaction.owner_user_id === currentUserId,
+          )?.emoji}
+          onSelectReaction={(emoji) => {
+            void handleSelectMessageReaction(emoji);
+          }}
         />
 
         <ForwardMessageModal
@@ -1750,6 +2891,122 @@ export default function ConversationScreen() {
 }
 
 const styles = StyleSheet.create({
+  downloadNotice: {
+    alignItems: 'center',
+    backgroundColor: colors.brand.primary,
+    borderRadius: 14,
+    flexDirection: 'row',
+    gap: 10,
+    justifyContent: 'center',
+    marginHorizontal: 16,
+    marginTop: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 11,
+  },
+  downloadNoticeComplete: {
+    backgroundColor: '#367F69',
+  },
+  downloadNoticeText: {
+    color: colors.neutral.white,
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  chatOpeningOverlay: {
+    alignItems: 'center',
+    backgroundColor: 'rgba(25, 31, 53, 0.55)',
+    flex: 1,
+    justifyContent: 'center',
+    padding: 24,
+  },
+  chatOpeningCard: {
+    backgroundColor: colors.neutral.white,
+    borderRadius: 24,
+    elevation: 14,
+    maxWidth: 340,
+    padding: 26,
+    shadowColor: '#263052',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.22,
+    shadowRadius: 20,
+    width: '100%',
+  },
+  chatOpeningIcon: {
+    alignItems: 'center',
+    alignSelf: 'center',
+    backgroundColor: colors.neutral.gray50,
+    borderRadius: 32,
+    height: 64,
+    justifyContent: 'center',
+    marginBottom: 14,
+    width: 64,
+  },
+  chatOpeningTitle: {
+    color: colors.neutral.text,
+    fontSize: 20,
+    fontWeight: '800',
+    textAlign: 'center',
+  },
+  chatOpeningDescription: {
+    color: colors.neutral.gray600,
+    fontSize: 13,
+    marginBottom: 20,
+    marginTop: 6,
+    textAlign: 'center',
+  },
+  chatOpeningStep: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    marginTop: 12,
+  },
+  chatOpeningStepDot: {
+    backgroundColor: colors.neutral.gray200,
+    borderRadius: 6,
+    height: 10,
+    marginRight: 12,
+    width: 10,
+  },
+  chatOpeningStepDotActive: {
+    backgroundColor: colors.brand.primary,
+  },
+  chatOpeningStepText: {
+    color: colors.neutral.gray500,
+    fontSize: 13,
+  },
+  chatOpeningStepTextActive: {
+    color: colors.neutral.text,
+    fontWeight: '700',
+  },
+  locationProgressOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: 'center',
+    backgroundColor: 'rgba(34, 43, 67, 0.36)',
+    justifyContent: 'center',
+    padding: 24,
+    zIndex: 50,
+    elevation: 20,
+  },
+  locationProgressCard: {
+    alignItems: 'center',
+    backgroundColor: colors.neutral.white,
+    borderRadius: 20,
+    paddingHorizontal: 28,
+    paddingVertical: 26,
+    width: '100%',
+    maxWidth: 320,
+  },
+  locationProgressTitle: {
+    color: colors.neutral.text,
+    fontSize: 17,
+    fontWeight: '700',
+    marginTop: 14,
+    textAlign: 'center',
+  },
+  locationProgressDescription: {
+    color: colors.neutral.gray600,
+    fontSize: 13,
+    marginTop: 6,
+    textAlign: 'center',
+  },
   callStartingOverlay: {
     alignItems: 'center',
     backgroundColor: 'rgba(34, 43, 67, 0.42)',
@@ -1832,6 +3089,11 @@ const styles = StyleSheet.create({
     fontSize: 11,
     lineHeight: 16,
     marginTop: 2,
+  },
+  replySourceHighlight: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: '#EDE6FF',
+    borderRadius: 12,
   },
   dateSeparator: {
     alignItems: 'center',

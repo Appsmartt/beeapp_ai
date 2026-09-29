@@ -18,10 +18,13 @@ export interface ChatListItemModel {
   id: string;
   name: string;
   lastMessage: string;
+  reactionPreview?: string | null;
+  isCallNotice: boolean;
   time: string;
   unreadCount: number;
   isGroup: boolean;
   status: ChatListStatus;
+  isOwnLastMessage: boolean;
   online: boolean;
   isPinned: boolean;
   isMuted: boolean;
@@ -44,7 +47,8 @@ export interface ChatMessageModel {
   isUser: boolean;
   isAI: boolean;
   sentByAi: boolean;
-  type: 'text' | 'image' | 'file' | 'audio';
+  type: 'text' | 'image' | 'file' | 'audio' | 'location';
+  location?: { latitude: number; longitude: number };
   text?: string;
   mediaUrl?: string;
   fileName?: string;
@@ -156,6 +160,10 @@ function toUiMessageType(
 
   if (messageType === 'audio') {
     return 'audio';
+  }
+
+  if (messageType === 'location') {
+    return 'location';
   }
 
   return 'text';
@@ -305,8 +313,21 @@ export function mapConversationToListItem(
   );
 
   const lastMessage = conversation.last_message;
+  const isCallNotice = (
+    lastMessage?.message_type === 'system'
+    && [
+      'Llamada perdida',
+      'Llamada cancelada',
+      'Llamada rechazada',
+      'Llamada finalizada',
+      'Llamada finalizada por un administrador',
+      'Llamada conectada',
+    ].includes(lastMessage.content?.trim() || '')
+  );
   const lastMessageContent = (
-    lastMessage?.content?.trim()
+    lastMessage?.message_type === 'location'
+      ? '📍 Ubicación'
+      : lastMessage?.content?.trim()
     || (
       lastMessage?.message_type === 'image'
         ? '📷 Imagen'
@@ -323,8 +344,18 @@ export function mapConversationToListItem(
     : '';
 
   const lastMessageIsCurrentUser = Boolean(
-    lastMessage?.sender_id
-    && lastMessage.sender_id === currentUserId,
+    lastMessage
+    && (
+      lastMessage.sender_identity_id
+        ? (
+            conversation.own_participant?.identity_id
+            === lastMessage.sender_identity_id
+          )
+        : (
+            lastMessage.sender_id
+            && lastMessage.sender_id === currentUserId
+          )
+    ),
   );
 
   const lastMessageText = (
@@ -342,6 +373,11 @@ export function mapConversationToListItem(
     id: conversation.id,
     name: displayName,
     lastMessage: lastMessageText,
+    reactionPreview: !isProtected && conversation.reaction_preview
+      && !conversation.reaction_preview.deleted
+      ? `Reaccionó ${conversation.reaction_preview.emoji} a un mensaje`
+      : null,
+    isCallNotice,
     time: formatChatTime(
       conversation.last_message_at
       || lastMessage?.created_at
@@ -349,9 +385,8 @@ export function mapConversationToListItem(
     ),
     unreadCount: conversation.unread_count || 0,
     isGroup,
-    status: toUiStatus(
-      lastMessage?.status || 'sent',
-    ),
+    status: toUiStatus(lastMessage?.status || 'sent'),
+    isOwnLastMessage: lastMessageIsCurrentUser,
     online: Boolean(directProfile?.is_online),
     isPinned: Boolean(conversation.is_pinned),
     isMuted: Boolean(conversation.is_muted),
@@ -369,6 +404,32 @@ export function mapConversationToListItem(
     participants: conversation.participants || [],
     raw: conversation,
   };
+}
+
+export function parseChatLocation(
+  metadata: Record<string, unknown> | undefined,
+): { latitude: number; longitude: number } | undefined {
+  const location = metadata?.location;
+  if (!location || typeof location !== 'object' || Array.isArray(location)) {
+    return undefined;
+  }
+
+  const values = location as Record<string, unknown>;
+  const { latitude, longitude } = values;
+  if (
+    typeof latitude !== 'number'
+    || typeof longitude !== 'number'
+    || !Number.isFinite(latitude)
+    || !Number.isFinite(longitude)
+    || latitude < -90
+    || latitude > 90
+    || longitude < -180
+    || longitude > 180
+  ) {
+    return undefined;
+  }
+
+  return { latitude, longitude };
 }
 
 export function mapChatMessageToModel(
@@ -396,6 +457,9 @@ export function mapChatMessageToModel(
     isAI: Boolean(options.conversationIsAi),
     sentByAi: Boolean(message.is_sent_by_ai),
     type: toUiMessageType(message.message_type),
+    location: message.message_type === 'location'
+      ? parseChatLocation(message.metadata)
+      : undefined,
     text: message.content || undefined,
     mediaUrl: (
       firstAttachment?.url

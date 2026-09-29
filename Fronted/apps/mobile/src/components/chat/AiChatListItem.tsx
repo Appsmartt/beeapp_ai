@@ -23,6 +23,7 @@ export default function AiChatListItem({
     <TouchableOpacity
       style={styles.row}
       onPress={onPress}
+      onLongPress={onMorePress}
       activeOpacity={0.7}
     >
       <View style={{ position: 'relative' }}>

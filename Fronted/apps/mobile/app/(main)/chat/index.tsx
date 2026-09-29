@@ -1,9 +1,11 @@
 import {
+  useCallback,
   useEffect,
   useMemo,
   useRef,
   useState,
 } from 'react';
+import { useFocusEffect } from 'expo-router';
 import {
   ActivityIndicator,
   Alert,
@@ -25,7 +27,15 @@ import {
   getChatGroupInvites,
   getCurrentProfile,
   getChatIdentities,
+  listProtectedChats,
+  getAccountSecurityPinStatus,
+  protectChatWithPin,
+  removeChatPinProtection,
+  verifyAccountSecurityPin,
   respondToChatGroupInvite,
+  listChatCategories,
+  listChatCategoryAssignments,
+  type ChatCategoryRecord,
 } from '@beeapp/api-client';
 
 import ScreenSafeArea from '../../../src/components/layout/ScreenSafeArea';
@@ -36,6 +46,15 @@ import {
 import ModuleNotificationBell from '../../../src/components/ModuleNotificationBell';
 
 import ChatListView from '../../../src/components/chat/ChatListView';
+import ChatCategoryChips from '../../../src/components/chat/ChatCategoryChips';
+import CreateCategoryModal from '../../../src/components/chat/CreateCategoryModal';
+import AssignCategoryModal from '../../../src/components/chat/AssignCategoryModal';
+import ManageChatCategoriesModal from '../../../src/components/chat/ManageChatCategoriesModal';
+import {
+  createChatCategory,
+  deleteChatCategory,
+  saveChatConversationCategories,
+} from '@beeapp/api-client';
 import StatusCirclesRow from '../../../src/components/chat/StatusCirclesRow';
 import StatusViewer from '../../../src/components/chat/StatusViewer';
 import CreateStatusModal, {
@@ -46,7 +65,7 @@ import MyStatusesModal from '../../../src/components/chat/status/MyStatusesModal
 import ChatTabs, {
   type ChatTab,
 } from '../../../src/components/chat/ChatTabs';
-import ChatOptionsSheet from '../../../src/components/chat/ChatOptionsSheet';
+import GroupAwareChatOptionsSheet from '../../../src/components/chat/GroupAwareChatOptionsSheet';
 import ChatCreateMenu from '../../../src/components/chat/ChatCreateMenu';
 import SocialActivitySheet, {
   type SocialActivityTab,
@@ -56,6 +75,7 @@ import PinLockModal from '../../../src/components/security/PinLockModal';
 import {
   useChatConversations,
 } from '../../../src/hooks/useChat';
+import { retryBackgroundLoad } from '../../../src/utils/retryBackgroundLoad';
 import { useChatListPresence } from '../../../src/hooks/useChatListPresence';
 import type {
   ChatListItemModel,
@@ -93,8 +113,17 @@ import type {
   StatusImageLayerUpload,
 } from '@beeapp/shared-types';
 import {
+  getAuthSession,
   getValidSessionCredentials,
 } from '../../../src/services/authSession';
+import {
+  readCachedChatInboxMetadata,
+  readCachedProtectedChatIds,
+  writeCachedChatInboxMetadata,
+  writeCachedProtectedChatIds,
+  writeChatInboxCache,
+} from '../../../src/services/chatInboxCache';
+import { getChatConversations } from '../../../src/stores/chatStore';
 import {
   getProfileAvatarUrl,
 } from '../../../src/services/profileAvatarService';
@@ -102,13 +131,8 @@ import {
   loadOwnedCommercialProfile,
 } from '../../../src/services/commercialService';
 
-import {
-  hasPin,
-  isProtected as isLegacyProtected,
-} from '../../../src/stores/pinStore';
-
 type PinAction = {
-  type: 'open' | 'add' | 'remove';
+  type: 'open' | 'remove';
   chat?: ChatListItemModel;
 };
 
@@ -148,30 +172,34 @@ export default function ChatListScreen() {
         setCommercialIdentityLoading(true);
         setCommercialIdentityError(null);
 
-        const auth = await getValidSessionCredentials();
+        const identity = await retryBackgroundLoad(async () => {
+          const auth = await getValidSessionCredentials();
 
-        if (!auth || auth.scheme !== 'Bearer') {
-          throw new Error(
-            'Tu sesión expiró. Inicia sesión nuevamente.',
+          if (!auth || auth.scheme !== 'Bearer') {
+            throw new Error(
+              'Tu sesión expiró. Inicia sesión nuevamente.',
+            );
+          }
+
+          await bootstrapChat(auth);
+
+          const response = await getChatIdentities(auth);
+          const identity = response.identities.find(
+            (item) => (
+              item.identity_type === 'commercial_profile'
+              && item.commercial_profile_id === businessId
+              && item.is_active
+            ),
           );
-        }
 
-        await bootstrapChat(auth);
+          if (!identity) {
+            throw new Error(
+              'No fue posible preparar la identidad de Chat de este negocio.',
+            );
+          }
 
-        const response = await getChatIdentities(auth);
-        const identity = response.identities.find(
-          (item) => (
-            item.identity_type === 'commercial_profile'
-            && item.commercial_profile_id === businessId
-            && item.is_active
-          ),
-        );
-
-        if (!identity) {
-          throw new Error(
-            'No fue posible preparar la identidad de Chat de este negocio.',
-          );
-        }
+          return identity;
+        }, () => !cancelled);
 
         if (!cancelled) {
           setCommercialIdentityId(identity.id);
@@ -212,23 +240,124 @@ export default function ChatListScreen() {
     loading,
     refreshing,
     error,
+    loadingMore,
+    hasMoreConversations,
+    loadMoreConversations,
     loadConversations,
     updateConversation,
     deleteConversation,
     archiveConversation,
     restoreConversation,
-    setProtected,
-    isProtected,
   } = useChatConversations({
     autoLoad: !isCommercialContext || Boolean(
       commercialIdentityId,
     ),
     identityId: requestedIdentityId,
+    paginateInbox: true,
+    retryInboxLoads: true,
   });
 
   const [menuChat, setMenuChat] = useState<
     ChatListItemModel | null
   >(null);
+
+  const [chatCategories, setChatCategories] = useState<ChatCategoryRecord[]>([]);
+  const [categoryAssignments, setCategoryAssignments] = useState<Record<string, string[]>>({});
+  const [categoryIdentityId, setCategoryIdentityId] = useState<string | null>(null);
+  const categoryLoadedIdentity = useRef<string | null>(null);
+  const categoryMutationVersion = useRef(0);
+  const [activeCategoryId, setActiveCategoryId] = useState<string | null>(null);
+  const [categoryRefresh, setCategoryRefresh] = useState(0);
+  useFocusEffect(useCallback(() => {
+    setCategoryRefresh((value) => value + 1);
+  }, []));
+  const [creatingCategory, setCreatingCategory] = useState(false);
+  const [managingCategories, setManagingCategories] = useState(false);
+  const [assigningChat, setAssigningChat] = useState<ChatListItemModel | null>(null);
+  const [returnToAssignment, setReturnToAssignment] = useState(false);
+  const [savingCategory, setSavingCategory] = useState(false);
+  const [savingAssignment, setSavingAssignment] = useState(false);
+
+  const categoryConversationIds = useMemo(
+    () => conversations.filter((chat) => !chat.isAI).map((chat) => chat.id),
+    [conversations],
+  );
+  const categoryConversationKey = categoryConversationIds.join(',');
+
+  useEffect(() => {
+    let cancelled = false;
+    const mutationVersion = categoryMutationVersion.current;
+    if (categoryLoadedIdentity.current !== activeIdentityId) {
+      categoryLoadedIdentity.current = activeIdentityId;
+      setCategoryIdentityId(null);
+      setChatCategories([]);
+      setCategoryAssignments({});
+      setActiveCategoryId(null);
+    }
+
+    if (!activeIdentityId) {
+      return () => { cancelled = true; };
+    }
+
+    const loadCategories = async () => {
+      try {
+        const session = await getAuthSession();
+        if (!session || cancelled) return;
+        const userId = session.user.id;
+        const cached = await readCachedChatInboxMetadata(
+          userId,
+          activeIdentityId,
+        );
+        if (
+          !cancelled
+          && mutationVersion === categoryMutationVersion.current
+          && cached
+        ) {
+          setChatCategories(cached.categories);
+          setCategoryAssignments(cached.assignments);
+          setCategoryIdentityId(activeIdentityId);
+        }
+
+        const auth = await getValidSessionCredentials();
+        if (!auth || auth.scheme !== 'Bearer' || cancelled) return;
+        const categoryResponse = await listChatCategories(auth, activeIdentityId);
+        const chunks: string[][] = [];
+        for (let index = 0; index < categoryConversationIds.length; index += 100) {
+          chunks.push(categoryConversationIds.slice(index, index + 100));
+        }
+        const responses = await Promise.all(
+          chunks.map((ids) => listChatCategoryAssignments(auth, activeIdentityId, ids)),
+        );
+        if (
+          cancelled
+          || mutationVersion !== categoryMutationVersion.current
+        ) return;
+        const next: Record<string, string[]> = {};
+        responses.flatMap((response) => response.assignments).forEach((entry) => {
+          (next[entry.conversation_id] ||= []).push(entry.category_id);
+        });
+        setChatCategories(categoryResponse.categories);
+        setCategoryAssignments(next);
+        setCategoryIdentityId(activeIdentityId);
+        void writeCachedChatInboxMetadata(userId, activeIdentityId, {
+          categories: categoryResponse.categories,
+          assignments: next,
+        });
+      } catch (categoryError) {
+        if (!cancelled) {
+          setCategoryIdentityId((current) => (
+            current === activeIdentityId ? current : null
+          ));
+          Alert.alert(
+            'No fue posible cargar las categorías',
+            categoryError instanceof Error ? categoryError.message : 'Inténtalo nuevamente.',
+          );
+        }
+      }
+    };
+    void loadCategories();
+    return () => { cancelled = true; };
+  }, [activeIdentityId, categoryConversationKey, categoryRefresh]);
 
   const [lockedChatId, setLockedChatId] = useState<
     string | null
@@ -507,20 +636,81 @@ export default function ChatListScreen() {
     socialActivityTab,
   ]);
 
-  const protectedChatIds = useMemo(
-    () => new Set(
-      conversations
-        .filter((chat) => (
-          isProtected(chat.id)
-          || isLegacyProtected(chat.id)
-        ))
-        .map((chat) => chat.id),
-    ),
-    [
-      conversations,
-      isProtected,
-    ],
+  const [protectedChatIds, setProtectedChatIds] = useState<Set<string>>(
+    () => new Set(),
   );
+  const [protectionIdentityId, setProtectionIdentityId] = useState<
+    string | null
+  >(null);
+  const [protectionLoaded, setProtectionLoaded] = useState(false);
+  const [cachedProtectionUserId, setCachedProtectionUserId] = useState<string | null>(null);
+  const [protectionError, setProtectionError] = useState<string | null>(null);
+  const [protectionRefresh, setProtectionRefresh] = useState(0);
+  const protectionMutationVersion = useRef(0);
+
+  useFocusEffect(
+    useCallback(() => {
+      setProtectionLoaded(false);
+      setProtectionRefresh((value) => value + 1);
+      return () => setProtectionLoaded(false);
+    }, []),
+  );
+
+  useEffect(() => {
+    let cancelled = false;
+    let hasCachedProtection = false;
+    const mutationVersion = protectionMutationVersion.current;
+    setProtectionLoaded(false);
+    setCachedProtectionUserId(null);
+    setProtectionError(null);
+
+    const loadProtection = async () => {
+      try {
+        const session = await getAuthSession();
+        if (!session || cancelled) {
+          if (!cancelled) throw new Error('Inicia sesión para cargar los chats protegidos.');
+          return;
+        }
+        const userId = session.user.id;
+        const cachedIds = await readCachedProtectedChatIds(userId);
+        if (cancelled || mutationVersion !== protectionMutationVersion.current) return;
+        if (cachedIds) {
+          hasCachedProtection = true;
+          setProtectedChatIds(new Set(cachedIds));
+          setProtectionIdentityId(activeIdentityId);
+          setCachedProtectionUserId(userId);
+        }
+        const auth = await getValidSessionCredentials();
+        if (!auth) throw new Error('Inicia sesión para cargar los chats protegidos.');
+        const result = await listProtectedChats(auth);
+        if (cancelled || mutationVersion !== protectionMutationVersion.current) return;
+        setProtectedChatIds(new Set(result.conversation_ids));
+        setProtectionIdentityId(activeIdentityId);
+        setCachedProtectionUserId(userId);
+        setProtectionLoaded(true);
+        await writeCachedProtectedChatIds(userId, result.conversation_ids);
+        if (!cancelled && activeIdentityId) {
+          writeChatInboxCache(userId, activeIdentityId, getChatConversations());
+        }
+      } catch (failure) {
+        if (cancelled || mutationVersion !== protectionMutationVersion.current) return;
+        if (!hasCachedProtection) {
+          setCachedProtectionUserId(null);
+          setProtectionError(
+            failure instanceof Error
+              ? failure.message
+              : 'No fue posible cargar la protección de chats.',
+          );
+        }
+        setProtectionLoaded(false);
+      }
+    };
+
+    void loadProtection();
+    return () => {
+      cancelled = true;
+    };
+  }, [activeIdentityId, protectionRefresh]);
 
   const categorizedChats = useMemo(
     () => conversations
@@ -570,22 +760,18 @@ export default function ChatListScreen() {
   );
 
   const directChats = useMemo(
-    () => activeChats.filter(
-      (chat) => (
-        !chat.isAI
-        && !chat.isGroup
-      ),
-    ),
+    () => activeChats
+      .filter((chat) => !chat.isAI && !chat.isGroup)
+      .sort((left, right) => (
+        Number(right.isPinned) - Number(left.isPinned)
+      )),
     [activeChats],
   );
 
   const groupChats = useMemo(
-    () => activeChats.filter(
-      (chat) => (
-        !chat.isAI
-        && chat.isGroup
-      ),
-    ),
+    () => activeChats
+      .filter((chat) => !chat.isAI && chat.isGroup)
+      .sort((left, right) => Number(right.isPinned) - Number(left.isPinned)),
     [activeChats],
   );
 
@@ -632,10 +818,7 @@ export default function ChatListScreen() {
   const handleChatPress = (
     chat: ChatListItemModel,
   ) => {
-    const protectedChat = (
-      isProtected(chat.id)
-      || isLegacyProtected(chat.id)
-    );
+    const protectedChat = protectedChatIds.has(chat.id);
 
     if (protectedChat) {
       setPinAction({
@@ -650,47 +833,66 @@ export default function ChatListScreen() {
     openChat(chat);
   };
 
-  const handlePinSuccess = () => {
-    const action = pinAction;
+  const verifyChatPin = async (pin: string) => {
+    if (!pinAction?.chat) {
+      throw new Error('Selecciona un chat e inténtalo nuevamente.');
+    }
 
-    setLockedChatId(null);
-    setPinAction(null);
+    const auth = await getValidSessionCredentials();
+    if (!auth) throw new Error('Inicia sesión para verificar tu PIN.');
 
-    if (!action?.chat) {
+    if (pinAction.type === 'remove') {
+      await removeChatPinProtection(auth, pinAction.chat.id, pin);
       return;
     }
+
+    const result = await verifyAccountSecurityPin(auth, pin);
+    if (!result.verified) throw new Error('PIN incorrecto. Inténtalo de nuevo.');
+  };
+
+  const handlePinSuccess = () => {
+    const action = pinAction;
+    setLockedChatId(null);
+    setPinAction(null);
+    if (!action?.chat) return;
 
     if (action.type === 'open') {
       openChat(action.chat);
       return;
     }
 
-    if (action.type === 'add') {
-      setProtected(action.chat.id, true);
-
-      Alert.alert(
-        'Chat protegido',
-        'El chat quedó protegido con tu PIN.',
-      );
-      return;
+    protectionMutationVersion.current += 1;
+    const nextProtectedIds = new Set(protectedChatIds);
+    nextProtectedIds.delete(action.chat.id);
+    setProtectedChatIds(nextProtectedIds);
+    if (cachedProtectionUserId) {
+      void writeCachedProtectedChatIds(
+        cachedProtectionUserId,
+        [...nextProtectedIds],
+      ).then(() => {
+        if (activeIdentityId) {
+          writeChatInboxCache(
+            cachedProtectionUserId,
+            activeIdentityId,
+            getChatConversations(),
+          );
+        }
+      });
     }
-
-    setProtected(action.chat.id, false);
-
+    setProtectionRefresh((value) => value + 1);
     Alert.alert(
       'Protección removida',
       'El chat ya no requiere PIN para abrirse.',
     );
   };
 
-  const handleToggleProtection = (
+  const handleToggleProtection = async (
     chat: ChatListItemModel,
   ) => {
     setMenuChat(null);
 
     if (
-      isProtected(chat.id)
-      || isLegacyProtected(chat.id)
+      protectedChatIds.has(chat.id)
     ) {
       setPinAction({
         type: 'remove',
@@ -701,35 +903,51 @@ export default function ChatListScreen() {
       return;
     }
 
-    if (!hasPin()) {
-      Alert.alert(
-        'PIN requerido',
-        'Debes crear un PIN primero desde Seguridad.',
-        [
-          {
-            text: 'Cancelar',
-            style: 'cancel',
-          },
-          {
-            text: 'Ir a Seguridad',
-            onPress: () => {
-              router.push(
-                '/(main)/profile/security',
-              );
+    try {
+      const auth = await getValidSessionCredentials();
+      if (!auth) throw new Error('Inicia sesión para proteger el chat.');
+      const status = await getAccountSecurityPinStatus(auth);
+
+      if (!status.configured) {
+        Alert.alert(
+          'PIN requerido',
+          'Debes crear un PIN primero desde Seguridad.',
+          [
+            { text: 'Cancelar', style: 'cancel' },
+            {
+              text: 'Ir a Seguridad',
+              onPress: () => router.push('/(main)/profile/security'),
             },
-          },
-        ],
+          ],
+        );
+        return;
+      }
+
+      await protectChatWithPin(auth, chat.id);
+      protectionMutationVersion.current += 1;
+      const nextProtectedIds = new Set(protectedChatIds).add(chat.id);
+      setProtectedChatIds(nextProtectedIds);
+      if (cachedProtectionUserId) {
+        await writeCachedProtectedChatIds(
+          cachedProtectionUserId,
+          [...nextProtectedIds],
+        );
+        if (activeIdentityId) {
+          writeChatInboxCache(
+            cachedProtectionUserId,
+            activeIdentityId,
+            getChatConversations(),
+          );
+        }
+      }
+      setProtectionRefresh((value) => value + 1);
+      Alert.alert('Chat protegido', 'El chat quedó protegido con tu PIN.');
+    } catch (failure) {
+      Alert.alert(
+        'No fue posible proteger el chat',
+        failure instanceof Error ? failure.message : 'Inténtalo nuevamente.',
       );
-
-      return;
     }
-
-    setPinAction({
-      type: 'add',
-      chat,
-    });
-
-    setLockedChatId(chat.id);
   };
 
   const handleTogglePin = async (
@@ -822,9 +1040,13 @@ export default function ChatListScreen() {
     Alert.alert(
       'Eliminar chat',
       (
-        `¿Seguro que quieres eliminar `
-        + `${chat.isGroup ? 'el grupo' : 'el chat'} `
-        + `"${chat.name}" de tu lista?`
+        chat.isGroup
+          ? (
+              `¿Eliminar "${chat.name}"? Si eres integrante, saldrás `
+              + 'del grupo y desaparecerá de tu lista. Si eres el único '
+              + 'integrante y owner, se desactivará el grupo.'
+            )
+          : `¿Seguro que quieres eliminar el chat "${chat.name}" de tu lista?`
       ),
       [
         {
@@ -851,6 +1073,7 @@ export default function ChatListScreen() {
   };
 
   const handleRefresh = () => {
+    setCategoryRefresh((value) => value + 1);
     void Promise.allSettled([
       loadConversations({
         refresh: true,
@@ -1112,18 +1335,176 @@ export default function ChatListScreen() {
     }
   };
 
-  const visibleListChats = isGroupsTab
-    ? groupChats
-    : directChats;
+  const [deletingCategoryId, setDeletingCategoryId] = useState<string | null>(null);
+
+  const handleCreateChatCategory = async (draft: {
+    name: string; icon: string; color: string;
+  }) => {
+    if (!activeIdentityId || savingCategory) return;
+    setSavingCategory(true);
+    try {
+      const auth = await getValidSessionCredentials();
+      if (!auth || auth.scheme !== 'Bearer') throw new Error('Tu sesión expiró.');
+      const response = await createChatCategory(auth, {
+        identity_id: activeIdentityId,
+        name: draft.name,
+        icon: draft.icon,
+        color: draft.color,
+      });
+      categoryMutationVersion.current += 1;
+      const nextCategories = [...chatCategories, response.category];
+      setChatCategories(nextCategories);
+      const session = await getAuthSession();
+      if (session) void writeCachedChatInboxMetadata(
+        session.user.id,
+        activeIdentityId,
+        { categories: nextCategories, assignments: categoryAssignments },
+      );
+      setCategoryRefresh((value) => value + 1);
+      setCreatingCategory(false);
+      if (!returnToAssignment) setActiveCategoryId(response.category.id);
+      setReturnToAssignment(false);
+    } catch (categoryError) {
+      Alert.alert('No fue posible crear la categoría',
+        categoryError instanceof Error ? categoryError.message : 'Inténtalo nuevamente.');
+    } finally {
+      setSavingCategory(false);
+    }
+  };
+
+  const handleDeleteChatCategory = (category: ChatCategoryRecord) => {
+    Alert.alert(
+      'Eliminar categoría',
+      `¿Eliminar "${category.name}"? Los chats y sus mensajes permanecerán intactos.`,
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Eliminar',
+          style: 'destructive',
+          onPress: () => {
+            void (async () => {
+              if (!activeIdentityId) return;
+              setDeletingCategoryId(category.id);
+              try {
+                const auth = await getValidSessionCredentials();
+                if (!auth || auth.scheme !== 'Bearer') throw new Error('Tu sesión expiró.');
+                await deleteChatCategory(auth, activeIdentityId, category.id);
+                categoryMutationVersion.current += 1;
+                const nextCategories = chatCategories.filter(
+                  (entry) => entry.id !== category.id,
+                );
+                const nextAssignments = Object.fromEntries(
+                  Object.entries(categoryAssignments).map(([id, ids]) => [
+                    id, ids.filter((categoryId) => categoryId !== category.id),
+                  ]),
+                );
+                setChatCategories(nextCategories);
+                setCategoryAssignments(nextAssignments);
+                const session = await getAuthSession();
+                if (session) void writeCachedChatInboxMetadata(
+                  session.user.id,
+                  activeIdentityId,
+                  { categories: nextCategories, assignments: nextAssignments },
+                );
+                setActiveCategoryId((current) => current === category.id ? null : current);
+                setCategoryRefresh((value) => value + 1);
+              } catch (categoryError) {
+                Alert.alert('No fue posible eliminar la categoría',
+                  categoryError instanceof Error ? categoryError.message : 'Inténtalo nuevamente.');
+              } finally {
+                setDeletingCategoryId(null);
+              }
+            })();
+          },
+        },
+      ],
+    );
+  };
+
+  const handleSaveChatCategories = async (categoryIds: string[]) => {
+    const chat = assigningChat;
+    if (!chat || !activeIdentityId || savingAssignment) return;
+    setSavingAssignment(true);
+    try {
+      const auth = await getValidSessionCredentials();
+      if (!auth || auth.scheme !== 'Bearer') throw new Error('Tu sesión expiró.');
+      const response = await saveChatConversationCategories(
+        auth, activeIdentityId, chat.id, categoryIds,
+      );
+      categoryMutationVersion.current += 1;
+      const nextAssignments = {
+        ...categoryAssignments,
+        [chat.id]: response.category_ids,
+      };
+      setCategoryAssignments(nextAssignments);
+      const session = await getAuthSession();
+      if (session) void writeCachedChatInboxMetadata(
+        session.user.id,
+        activeIdentityId,
+        { categories: chatCategories, assignments: nextAssignments },
+      );
+      setCategoryRefresh((value) => value + 1);
+      setAssigningChat(null);
+    } catch (categoryError) {
+      Alert.alert('No fue posible asignar la categoría',
+        categoryError instanceof Error ? categoryError.message : 'Inténtalo nuevamente.');
+    } finally {
+      setSavingAssignment(false);
+    }
+  };
+
+  const visibleListChats = (isGroupsTab ? groupChats : directChats)
+    .filter((chat) => !activeCategoryId
+      || categoryIdentityId !== activeIdentityId
+      || (categoryAssignments[chat.id] || []).includes(activeCategoryId));
+
+  const categoriesByConversation = useMemo(() => {
+    const byId = new Map(chatCategories.map((category) => [category.id, category]));
+    const result: Record<string, ChatCategoryRecord[]> = {};
+    Object.entries(categoryAssignments).forEach(([conversationId, ids]) => {
+      result[conversationId] = ids
+        .map((id) => byId.get(id))
+        .filter((category): category is ChatCategoryRecord => Boolean(category));
+    });
+    return result;
+  }, [chatCategories, categoryAssignments]);
 
   const onlineByIdentity = useChatListPresence(
     activeIdentityId,
     visibleListChats,
   );
+  const protectionReady = Boolean(
+    activeIdentityId
+    && protectionLoaded
+    && protectionIdentityId === activeIdentityId
+    && !protectionError
+  );
+
+  const previewProtectionReady = Boolean(
+    protectionReady
+    || (
+      cachedProtectionUserId
+      && protectionIdentityId === activeIdentityId
+      && !protectionError
+    )
+  );
+
   const chatsWithLivePresence = visibleListChats.map((chat) => ({
     ...chat,
+    isProtected: protectionReady
+      ? chat.isProtected
+      : previewProtectionReady
+        ? protectedChatIds.has(chat.id)
+        : true,
+    lastMessage: previewProtectionReady && !protectedChatIds.has(chat.id)
+      ? chat.lastMessage
+      : 'Chat protegido',
+    unreadCount: previewProtectionReady && !protectedChatIds.has(chat.id)
+      ? chat.unreadCount
+      : 0,
     online: Boolean(
-      !chat.isGroup
+      protectionReady
+      && !chat.isGroup
       && !chat.isAI
       && chat.raw.other_identity_id
       && onlineByIdentity[chat.raw.other_identity_id]
@@ -1258,6 +1639,18 @@ export default function ChatListScreen() {
           activeTab={activeTab}
           onChange={setActiveTab}
         />
+        {activeIdentityId && categoryIdentityId === activeIdentityId && (
+          <ChatCategoryChips
+            categories={chatCategories}
+            activeCategoryId={activeCategoryId}
+            onChange={setActiveCategoryId}
+            onCreate={() => {
+              setReturnToAssignment(false);
+              setCreatingCategory(true);
+            }}
+            onManage={() => setManagingCategories(true)}
+          />
+        )}
 
         <>
           {(
@@ -1293,17 +1686,54 @@ export default function ChatListScreen() {
                 </View>
               ) : null}
 
+              {protectionError ? (
+                <View style={styles.errorBox}>
+                  <Text style={styles.errorText}>{protectionError}</Text>
+                  <TouchableOpacity
+                    onPress={() => setProtectionRefresh((value) => value + 1)}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={styles.retryText}>Reintentar</Text>
+                  </TouchableOpacity>
+                </View>
+              ) : (
               <ChatListView
                 aiChat={
-                  isGroupsTab
+                  isGroupsTab || activeCategoryId
                     ? undefined
-                    : aiChat
+                    : aiChat && !previewProtectionReady
+                      ? {
+                          ...aiChat,
+                          isProtected: true,
+                          lastMessage: 'Chat protegido',
+                        }
+                      : aiChat && protectedChatIds.has(aiChat.id)
+                        ? {
+                            ...aiChat,
+                            isProtected: true,
+                            lastMessage: 'Chat protegido',
+                          }
+                        : aiChat
                 }
                 chats={chatsWithLivePresence}
+                categoriesByConversation={categoriesByConversation}
+                onEndReached={
+                  protectionReady && hasMoreConversations[
+                    isGroupsTab ? 'group' : 'direct'
+                  ]
+                    ? () => {
+                        void loadMoreConversations(
+                          isGroupsTab ? 'group' : 'direct',
+                        );
+                      }
+                    : undefined
+                }
+                loadingMore={loadingMore}
                 archivedCount={archivedCount}
                 archivedLabel={archivedLabel}
                 archivedSubtitle={archivedSubtitle}
                 onPressArchived={() => {
+                  if (!protectionReady) return;
                   router.push({
                     pathname: '/(main)/chat/archived',
                     params: {
@@ -1320,8 +1750,13 @@ export default function ChatListScreen() {
                     },
                   });
                 }}
-                onOpenChat={handleChatPress}
-                onOpenMenu={setMenuChat}
+                onOpenChat={(chat) => {
+                  if (!previewProtectionReady) return;
+                  handleChatPress(chat);
+                }}
+                onOpenMenu={(chat) => {
+                  if (protectionReady) setMenuChat(chat);
+                }}
                 onPin={() => {
                   // La acción se ejecuta desde ChatOptionsSheet.
                 }}
@@ -1343,15 +1778,31 @@ export default function ChatListScreen() {
                 }
               />
 
-              {visibleListChats.length === 0 && !error ? (
+              )}
+
+              {visibleListChats.length === 0 && !error && !protectionError ? (
                 <View style={styles.emptyOverlay}>
                   <Text style={styles.emptyTitle}>
-                    {emptyTitle}
+                    {activeCategoryId ? 'Sin chats en esta categoría' : emptyTitle}
                   </Text>
 
                   <Text style={styles.emptyDescription}>
-                    {emptyDescription}
+                    {activeCategoryId
+                      ? 'Los chats asignados aparecerán aquí.'
+                      : emptyDescription}
                   </Text>
+                  {activeCategoryId && hasMoreConversations[isGroupsTab ? 'group' : 'direct'] && (
+                    <TouchableOpacity
+                      disabled={loadingMore}
+                      onPress={() => {
+                        void loadMoreConversations(isGroupsTab ? 'group' : 'direct');
+                      }}
+                    >
+                      <Text style={styles.retryText}>
+                        {loadingMore ? 'Buscando...' : 'Buscar en más chats'}
+                      </Text>
+                    </TouchableOpacity>
+                  )}
                 </View>
               ) : null}
             </View>
@@ -1450,6 +1901,7 @@ export default function ChatListScreen() {
           setLockedChatId(null);
           setPinAction(null);
         }}
+        verifyPin={verifyChatPin}
         onSuccess={handlePinSuccess}
       />
 
@@ -1667,13 +2119,14 @@ export default function ChatListScreen() {
         }}
       />
 
-      <ChatOptionsSheet
+      <GroupAwareChatOptionsSheet
         chat={menuChat}
+        identityId={activeIdentityId}
+        onDeleteGroupAfterTransfer={deleteConversation}
         isProtected={
           Boolean(menuChat)
           && (
-            isProtected(menuChat?.id || '')
-            || isLegacyProtected(menuChat?.id || '')
+            protectedChatIds.has(menuChat?.id || '')
           )
         }
         onToggleProtection={() => {
@@ -1696,7 +2149,14 @@ export default function ChatListScreen() {
           setMenuChat(null);
         }}
         onAssignCategory={() => {
-          // La asignación de categorías conserva su flujo existente.
+          const chat = menuChat;
+          setMenuChat(null);
+          if (!chat || !activeIdentityId) return;
+          setAssigningChat(chat);
+          if (chatCategories.length === 0) {
+            setReturnToAssignment(true);
+            setCreatingCategory(true);
+          }
         }}
         onDelete={() => {
           if (menuChat) {
@@ -1722,6 +2182,36 @@ export default function ChatListScreen() {
         onClose={() => {
           setMenuChat(null);
         }}
+      />
+
+      <AssignCategoryModal
+        visible={Boolean(assigningChat) && !creatingCategory}
+        chatName={assigningChat?.name}
+        categories={chatCategories}
+        selectedIds={assigningChat ? categoryAssignments[assigningChat.id] || [] : []}
+        saving={savingAssignment}
+        onSave={(ids) => { void handleSaveChatCategories(ids); }}
+        onCreateCategory={() => {
+          setReturnToAssignment(true);
+          setCreatingCategory(true);
+        }}
+        onClose={() => setAssigningChat(null)}
+      />
+      <CreateCategoryModal
+        visible={creatingCategory}
+        saving={savingCategory}
+        onCreate={(draft) => { void handleCreateChatCategory(draft); }}
+        onClose={() => {
+          setCreatingCategory(false);
+          setReturnToAssignment(false);
+        }}
+      />
+      <ManageChatCategoriesModal
+        visible={managingCategories}
+        categories={chatCategories}
+        deletingId={deletingCategoryId}
+        onDelete={handleDeleteChatCategory}
+        onClose={() => setManagingCategories(false)}
       />
 
     </ScreenSafeArea>

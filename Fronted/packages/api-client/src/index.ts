@@ -12,3 +12,6 @@ export * from './chatPresence';
 export * from './calls';
 
 export * from './commercial';
+export * from './accountSecurityPin';
+export * from './chatPinProtection';
+export * from './chatCategories';

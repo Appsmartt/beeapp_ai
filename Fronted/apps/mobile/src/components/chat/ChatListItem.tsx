@@ -6,23 +6,28 @@ import {
   TouchableOpacity,
 } from 'react-native';
 import { colors } from '@beeapp/design-system';
-import { Check, CheckCheck, BellOff, Users, Lock, MoreVertical } from 'lucide-react-native';
+import { Check, CheckCheck, BellOff, Users, Lock, MoreVertical, Pin, Phone } from 'lucide-react-native';
 import VerifiedBadge from '../VerifiedBadge';
+import { getCategoryIcon } from './categoryIcons';
 
 interface ChatListItemProps {
   id: string;
   name: string;
   lastMessage: string;
+  reactionPreview?: string | null;
+  isCallNotice?: boolean;
   time: string;
   unreadCount: number;
   isGroup: boolean;
   avatarUrl?: string | null;
   verified?: boolean;
   status: 'sent' | 'delivered' | 'read';
+  isOwnLastMessage: boolean;
   online?: boolean;
   isPinned?: boolean;
   isMuted?: boolean;
   isProtected?: boolean;
+  categories?: { id: string; name: string; icon: string; color: string }[];
   onPress: () => void;
   onMorePress?: () => void;
 }
@@ -30,16 +35,20 @@ interface ChatListItemProps {
 export default function ChatListItem({
   name,
   lastMessage,
+  reactionPreview = null,
+  isCallNotice = false,
   time,
   unreadCount,
   isGroup,
   avatarUrl,
   verified,
   status,
+  isOwnLastMessage,
   online,
   isPinned,
   isMuted,
   isProtected,
+  categories = [],
   onPress,
   onMorePress,
 }: ChatListItemProps) {
@@ -47,7 +56,9 @@ export default function ChatListItem({
     <TouchableOpacity
       style={styles.mainRow}
       onPress={onPress}
+      onLongPress={onMorePress}
       activeOpacity={0.7}
+      accessibilityLabel={`${name}${isPinned ? ', chat fijado' : ''}`}
     >
       {/* Avatar Section */}
       <View style={styles.avatarContainer}>
@@ -96,6 +107,21 @@ export default function ChatListItem({
               {name}
             </Text>
             {verified && <VerifiedBadge size={14} />}
+            {categories.slice(0, 3).map((category) => {
+              const Icon = getCategoryIcon(category.icon);
+              return (
+                <View
+                  key={category.id}
+                  style={[styles.categoryBadge, { backgroundColor: category.color }]}
+                  accessibilityLabel={`Categoría ${category.name}`}
+                >
+                  <Icon size={11} color={colors.neutral.gray700} />
+                </View>
+              );
+            })}
+            {isPinned && (
+              <Pin size={13} color={colors.brand.primary} accessibilityLabel="Chat fijado" />
+            )}
           </View>
           <Text style={[styles.time, unreadCount > 0 && styles.timeUnread]}>
             {time}
@@ -105,14 +131,23 @@ export default function ChatListItem({
         <View style={styles.messageStatusRow}>
           <View style={styles.messageWrap}>
             {isMuted && <BellOff size={12} color={colors.neutral.gray500} style={styles.mutedIcon} />}
+            {!isProtected && reactionPreview ? (
+              <View style={styles.reactionPreviewBadge}>
+                <Text style={styles.reactionPreviewIcon}>✦</Text>
+              </View>
+            ) : !isProtected && isCallNotice ? (
+              <Phone size={14} color="#7A55BA" style={styles.callNoticeIcon} />
+            ) : null}
             <Text
               style={[
                 styles.lastMessage,
+                isCallNotice && !isProtected && !reactionPreview && styles.callNoticeText,
+                Boolean(reactionPreview) && !isProtected && styles.reactionPreviewText,
                 isProtected && { color: colors.neutral.gray400, fontStyle: 'italic' }
               ]}
               numberOfLines={1}
             >
-              {isProtected ? 'Chat protegido' : lastMessage}
+              {isProtected ? 'Chat protegido' : reactionPreview || lastMessage}
             </Text>
           </View>
 
@@ -122,11 +157,14 @@ export default function ChatListItem({
               <Text style={styles.unreadBadgeText}>{unreadCount}</Text>
             </View>
           ) : (
-            !isProtected && (
-              <View style={styles.statusCheck}>
-                {status === 'sent' && <Check size={14} color={colors.neutral.gray500} />}
-                {status === 'delivered' && <CheckCheck size={14} color={colors.neutral.gray500} />}
-                {status === 'read' && <CheckCheck size={14} color={colors.brand.primary} />}
+            !isProtected && !isCallNotice && isOwnLastMessage && (
+              <View style={[
+                styles.statusCheck,
+                status === 'read' && styles.readStatusCheck,
+              ]}>
+                {status === 'sent' && <Check size={15} color={colors.neutral.gray500} />}
+                {status === 'delivered' && <CheckCheck size={15} color={colors.neutral.gray600} />}
+                {status === 'read' && <CheckCheck size={16} strokeWidth={2.5} color="#087F70" />}
               </View>
             )
           )}
@@ -147,6 +185,7 @@ export default function ChatListItem({
 }
 
 const styles = StyleSheet.create({
+  categoryBadge: { width: 19, height: 19, borderRadius: 7, alignItems: 'center', justifyContent: 'center', marginLeft: 3 },
   mainRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -296,6 +335,31 @@ const styles = StyleSheet.create({
   mutedIcon: {
     marginRight: 4,
   },
+  callNoticeIcon: {
+    marginRight: 5,
+  },
+  callNoticeText: {
+    color: '#7A55BA',
+    fontWeight: '600',
+  },
+  reactionPreviewBadge: {
+    width: 19,
+    height: 19,
+    borderRadius: 7,
+    backgroundColor: '#F0EBFA',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 6,
+  },
+  reactionPreviewIcon: {
+    color: '#7659AB',
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  reactionPreviewText: {
+    color: '#6E5897',
+    fontWeight: '600',
+  },
   lastMessage: {
     fontSize: 13,
     color: '#6C7892',
@@ -327,6 +391,12 @@ const styles = StyleSheet.create({
   statusCheck: {
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  readStatusCheck: {
+    backgroundColor: '#DDF7EF',
+    borderRadius: 7,
+    paddingHorizontal: 4,
+    paddingVertical: 2,
   },
   moreBtn: {
     alignItems: 'center',

@@ -1,5 +1,6 @@
-import type {
-  ReactElement,
+import {
+  useRef,
+  type ReactElement,
 } from 'react';
 import {
   FlatList,
@@ -24,12 +25,15 @@ import type {
 interface ChatListViewProps {
   aiChat?: ChatListItemModel;
   chats: ChatListItemModel[];
+  categoriesByConversation?: Record<string, { id: string; name: string; icon: string; color: string }[]>;
   archivedCount?: number;
   archivedLabel?: string;
   archivedSubtitle?: string;
   onPressArchived?: () => void;
   onOpenChat: (chat: ChatListItemModel) => void;
   onOpenMenu: (chat: ChatListItemModel) => void;
+  onEndReached?: () => void;
+  loadingMore?: boolean;
   onPin: (id: string) => void;
   onMute: (id: string) => void;
   onDelete: (id: string) => void;
@@ -45,11 +49,15 @@ export default function ChatListView({
   onPressArchived,
   onOpenChat,
   onOpenMenu,
+  categoriesByConversation = {},
+  onEndReached,
+  loadingMore = false,
   refreshControl,
 }: ChatListViewProps) {
   const validChats = chats.filter(
     (chat) => Boolean(chat.id?.trim()),
   );
+  const userScrolledRef = useRef(false);
 
   const resolvedArchivedSubtitle = (
     archivedSubtitle
@@ -70,22 +78,35 @@ export default function ChatListView({
       style={styles.list}
       showsVerticalScrollIndicator={false}
       refreshControl={refreshControl}
+      onScrollBeginDrag={() => {
+        userScrolledRef.current = true;
+      }}
+      onEndReached={() => {
+        if (!onEndReached || !userScrolledRef.current) return;
+        userScrolledRef.current = false;
+        onEndReached();
+      }}
+      onEndReachedThreshold={0.35}
       renderItem={({ item: chat }) => (
         <ChatListItem
           id={chat.id}
           name={chat.name}
           lastMessage={chat.lastMessage}
+          reactionPreview={chat.reactionPreview}
+          isCallNotice={chat.isCallNotice}
           time={chat.time}
           unreadCount={chat.unreadCount}
           isGroup={chat.isGroup}
           avatarUrl={chat.avatarUrl}
           verified={chat.verified}
           status={chat.status}
+          isOwnLastMessage={chat.isOwnLastMessage}
           online={chat.online}
           isPinned={chat.isPinned}
           isMuted={chat.isMuted}
           isProtected={chat.isProtected}
           onPress={() => onOpenChat(chat)}
+          categories={categoriesByConversation[chat.id] || []}
           onMorePress={() => onOpenMenu(chat)}
         />
       )}
@@ -129,7 +150,13 @@ export default function ChatListView({
         </>
       }
       ListFooterComponent={
-        <View style={styles.bottomGap} />
+        <View style={styles.bottomGap}>
+          {loadingMore ? (
+            <Text style={styles.archivedSubtitle}>
+              Cargando más chats...
+            </Text>
+          ) : null}
+        </View>
       }
     />
   );

@@ -1,37 +1,45 @@
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { colors } from '@beeapp/design-system';
-import { BellOff, Trash2, Reply, Pencil, X } from 'lucide-react-native';
+import { Bell, BellOff, Reply, Pencil, X } from 'lucide-react-native';
 import type {
   ChatMessageModel,
 } from '../../services/chatService';
 
 interface MenuProps {
   visible: boolean;
+  isMuted: boolean;
+  isUpdatingMute: boolean;
   onClose: () => void;
-  onViewInfo: () => void;
-  onMute: () => void;
-  onClear: () => void;
-  onDelete: () => void;
+  onToggleMute: () => void;
 }
 
-export function ConversationOverlayMenu({ visible, onClose, onViewInfo, onMute, onClear, onDelete }: MenuProps) {
+export function ConversationOverlayMenu({
+  visible,
+  isMuted,
+  isUpdatingMute,
+  onClose,
+  onToggleMute,
+}: MenuProps) {
   if (!visible) return null;
 
   return (
     <View style={styles.menuOverlay}>
-      <TouchableOpacity style={styles.menuItem} onPress={() => { onClose(); onViewInfo(); }}>
-        <Text style={styles.menuItemText}>Ver info</Text>
-      </TouchableOpacity>
-      <TouchableOpacity style={styles.menuItem} onPress={() => { onClose(); onMute(); }}>
-        <BellOff size={14} color={colors.neutral.text} style={{ marginRight: 8 }} />
-        <Text style={styles.menuItemText}>Silenciar</Text>
-      </TouchableOpacity>
-      <TouchableOpacity style={styles.menuItem} onPress={() => { onClose(); onClear(); }}>
-        <Trash2 size={14} color={colors.semantic.error} style={{ marginRight: 8 }} />
-        <Text style={[styles.menuItemText, { color: colors.semantic.error }]}>Vaciar chat</Text>
-      </TouchableOpacity>
-      <TouchableOpacity style={[styles.menuItem, { borderBottomWidth: 0 }]} onPress={() => { onClose(); onDelete(); }}>
-        <Text style={[styles.menuItemText, { color: colors.semantic.error }]}>Eliminar chat</Text>
+      <TouchableOpacity
+        style={[styles.menuItem, { borderBottomWidth: 0 }]}
+        disabled={isUpdatingMute}
+        accessibilityRole="button"
+        accessibilityLabel={isMuted ? 'Quitar silencio' : 'Silenciar'}
+        onPress={() => {
+          onClose();
+          onToggleMute();
+        }}
+      >
+        {isMuted
+          ? <Bell size={14} color={colors.neutral.text} style={{ marginRight: 8 }} />
+          : <BellOff size={14} color={colors.neutral.text} style={{ marginRight: 8 }} />}
+        <Text style={styles.menuItemText}>
+          {isUpdatingMute ? 'Guardando...' : isMuted ? 'Quitar silencio' : 'Silenciar'}
+        </Text>
       </TouchableOpacity>
     </View>
   );
@@ -136,22 +144,26 @@ const styles = StyleSheet.create({
   previewBar: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#F3F5FF',
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(117, 103, 217, 0.16)',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
+    backgroundColor: '#F4F0FF',
+    borderLeftWidth: 3,
+    borderLeftColor: '#A88BE8',
+    borderRadius: 12,
+    marginHorizontal: 12,
+    marginTop: 6,
+    marginBottom: 4,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
   },
   previewBarTitle: {
-    fontSize: 11,
-    fontWeight: '400',
-    color: colors.brand.primary,
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#6147A3',
   },
   previewBarText: {
     fontSize: 12,
     fontWeight: '400',
     color: colors.neutral.gray600,
-    marginTop: 1,
+    marginTop: 3,
   },
   toast: {
     position: 'absolute',

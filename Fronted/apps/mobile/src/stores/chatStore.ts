@@ -1,4 +1,8 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import {
+  readChatInboxCache,
+  writeChatInboxCache,
+} from '../services/chatInboxCache';
 
 import type {
   ChatConversation,
@@ -299,6 +303,46 @@ function normalizeMessages(
   );
 }
 
+function mergeSameMessageReceipt(
+  newest: ChatMessage | null | undefined,
+  oldest: ChatMessage | null | undefined,
+): ChatMessage | null {
+  if (!newest) {
+    return oldest || null;
+  }
+
+  if (!oldest || newest.id !== oldest.id) {
+    return newest;
+  }
+
+  const receiptRank = {
+    failed: -1,
+    sent: 0,
+    delivered: 1,
+    read: 2,
+  } as const;
+
+  const status = (
+    receiptRank[oldest.status] > receiptRank[newest.status]
+      ? oldest.status
+      : newest.status
+  );
+
+  return {
+    ...oldest,
+    ...newest,
+    status,
+    sender_identity_id: (
+      newest.sender_identity_id
+      || oldest.sender_identity_id
+    ),
+    sequence_number: (
+      newest.sequence_number
+      ?? oldest.sequence_number
+    ),
+  };
+}
+
 function mergeConversation(
   current: ChatConversation,
   incoming: ChatConversation,
@@ -306,7 +350,7 @@ function mergeConversation(
   const currentTimestamp = getConversationTimestamp(current);
   const incomingTimestamp = getConversationTimestamp(incoming);
 
-  const newest = incomingTimestamp >= currentTimestamp
+  const newest = incomingTimestamp > currentTimestamp
     ? incoming
     : current;
 
@@ -314,35 +358,51 @@ function mergeConversation(
     ? current
     : incoming;
 
+  const readVersion = [current, incoming].find((item) => (
+    item.last_message?.id === newest.last_message?.id
+    && item.own_participant?.last_read_message_id
+      === item.last_message?.id
+    && item.unread_count === 0
+  ));
+
   return {
     ...oldest,
     ...newest,
     id: newest.id,
+    unread_count: readVersion ? 0 : newest.unread_count,
+    own_participant: readVersion
+      ? readVersion.own_participant
+      : newest.own_participant,
     participants: (
       newest.participants?.length
         ? newest.participants
         : oldest.participants
     ),
-    last_message: (
-      newest.last_message
-      || oldest.last_message
-      || null
+    last_message: mergeSameMessageReceipt(
+      newest.last_message,
+      oldest.last_message,
     ),
+    reaction_preview: (() => {
+      const previews = [current.reaction_preview, incoming.reaction_preview]
+        .filter((item): item is NonNullable<ChatConversation['reaction_preview']> => Boolean(item));
+      const preview = previews.sort((a, b) => b.event_sequence - a.event_sequence)[0];
+      const messageAt = Date.parse(
+        newest.last_message_at || newest.last_message?.created_at || '',
+      );
+      return preview && (!Number.isFinite(messageAt)
+        || Date.parse(preview.created_at) > messageAt) ? preview : null;
+    })(),
     last_message_at: (
       newest.last_message_at
       || oldest.last_message_at
       || null
     ),
+    image_file_id: newest.image_file_id || oldest.image_file_id || null,
+    avatar_url: newest.avatar_url || oldest.avatar_url || null,
     cached_avatar_url: (
-      newest.avatar_url
-      && oldest.avatar_url
-      && newest.avatar_url !== oldest.avatar_url
-        ? null
-        : (
-            newest.cached_avatar_url
-            || oldest.cached_avatar_url
-            || null
-          )
+      newest.cached_avatar_url
+      || oldest.cached_avatar_url
+      || null
     ),
   };
 }
@@ -419,6 +479,12 @@ function persistArchivedConversationIds(): void {
     // Archive persistence must never block chat usage.
   });
 }
+function persistChatInboxSnapshot(): void {
+  if (activeUserId && activeIdentityId) {
+    writeChatInboxCache(activeUserId, activeIdentityId, conversations);
+  }
+}
+
 function clearInMemoryChatData(): void {
   conversations = [];
   messagesByConversationId = {};
@@ -447,6 +513,45 @@ export async function hydrateChatConversations(
     clearInMemoryChatData();
     activeUserId = normalizedUserId || null;
     activeIdentityId = normalizedIdentityId || null;
+
+    if (normalizedUserId && normalizedIdentityId) {
+      try {
+        const saved = await AsyncStorage.getItem(
+          getArchivedConversationsCacheKey(
+            normalizedUserId,
+            normalizedIdentityId,
+          ),
+        );
+        if (
+          activeUserId === normalizedUserId
+          && activeIdentityId === normalizedIdentityId
+        ) {
+          const parsed: unknown = saved ? JSON.parse(saved) : [];
+          archivedConversationIds = Array.isArray(parsed)
+            ? parsed.filter(
+                (id): id is string => typeof id === 'string',
+              )
+            : [];
+          notifyChatStore({ type: 'conversations' });
+        }
+      } catch {
+        // A cache read failure must not block the inbox.
+      }
+    }
+  }
+
+  if (normalizedUserId && normalizedIdentityId && conversations.length === 0) {
+    const cached = await readChatInboxCache(
+      normalizedUserId,
+      normalizedIdentityId,
+    );
+    if (
+      activeUserId === normalizedUserId
+      && activeIdentityId === normalizedIdentityId
+      && cached.length
+    ) {
+      setChatConversations(cached);
+    }
   }
 
   return conversations;
@@ -539,6 +644,10 @@ export async function clearChatMessagesCache(
   }
 }
 
+export function getActiveChatStoreIdentityId(): string | null {
+  return activeIdentityId;
+}
+
 export function getChatConversations(): ChatConversation[] {
   return conversations;
 }
@@ -547,6 +656,7 @@ export function setChatConversations(
   nextConversations: ChatConversation[],
 ): void {
   conversations = normalizeConversations(nextConversations);
+  persistChatInboxSnapshot();
 
   notifyChatStore({
     type: 'conversations',
@@ -560,6 +670,7 @@ export function replaceChatConversationsSnapshot(
   nextConversations: ChatConversation[],
 ): void {
   conversations = normalizeConversations(nextConversations);
+  persistChatInboxSnapshot();
 
 
   notifyChatStore({
@@ -582,6 +693,98 @@ export function upsertChatConversation(
     conversation,
     ...conversations,
   ]);
+}
+
+export function applyChatReactionPreview(event: {
+  type: 'reaction.created' | 'reaction.deleted';
+  conversationId: string;
+  messageId: string;
+  identityId: string;
+  emoji: string;
+  createdAt: string;
+  eventSequence: number;
+}): void {
+  const current = conversations.find((item) => item.id === event.conversationId);
+  if (!current || !activeIdentityId
+    || current.own_participant?.identity_id !== activeIdentityId
+    || !event.messageId || !event.identityId || !event.emoji
+    || !Number.isFinite(Date.parse(event.createdAt))
+    || !Number.isSafeInteger(event.eventSequence)
+    || event.eventSequence < 0) return;
+
+  const previous = current.reaction_preview;
+  if (__DEV__) console.info('[reaction-preview] store', {
+    foundConversation: Boolean(current),
+    hasActiveIdentity: Boolean(activeIdentityId),
+    matchesActiveIdentity: current?.own_participant?.identity_id === activeIdentityId,
+    validDate: Number.isFinite(Date.parse(event.createdAt)),
+    eventSequence: event.eventSequence,
+    messageDate: current?.last_message_at || current?.last_message?.created_at || null,
+  });
+  if (previous && previous.event_sequence >= event.eventSequence) return;
+  if (event.type === 'reaction.deleted'
+    && (!previous || previous.deleted
+      || previous.message_id !== event.messageId
+      || previous.identity_id !== event.identityId
+      || previous.emoji !== event.emoji)) return;
+
+  const messageAt = Date.parse(
+    current.last_message_at || current.last_message?.created_at || '',
+  );
+  if (event.type === 'reaction.created'
+    && Number.isFinite(messageAt)
+    && Date.parse(event.createdAt) <= messageAt) return;
+
+  conversations = conversations.map((item) => (
+    item.id === event.conversationId
+      ? {
+          ...item,
+          reaction_preview: {
+            message_id: event.messageId,
+            identity_id: event.identityId,
+            emoji: event.emoji,
+            created_at: event.createdAt,
+            event_sequence: event.eventSequence,
+            deleted: event.type === 'reaction.deleted',
+          },
+        }
+      : item
+  ));
+  persistChatInboxSnapshot();
+  notifyChatStore({
+    type: 'conversations',
+    conversationIds: [event.conversationId],
+  });
+}
+
+export function updateDirectChatReceipt(
+  conversationId: string,
+  participants: ChatConversation['participants'],
+  lastMessage?: ChatMessage | null,
+): void {
+  const current = conversations.find((item) => (
+    item.id === conversationId
+    && item.conversation_type === 'direct'
+  ));
+  if (!current || !participants?.length) return;
+
+  conversations = conversations.map((item) => (
+    item.id === conversationId
+      ? {
+          ...item,
+          participants,
+          last_message: lastMessage
+            && item.last_message?.id === lastMessage.id
+            ? mergeSameMessageReceipt(lastMessage, item.last_message)
+            : item.last_message,
+        }
+      : item
+  ));
+  persistChatInboxSnapshot();
+  notifyChatStore({
+    type: 'conversations',
+    conversationIds: [conversationId],
+  });
 }
 
 export function applyChatRealtimeEvent(
@@ -711,6 +914,7 @@ export function applyChatRealtimeEvent(
 export function updateChatConversationLastMessage(
   conversationId: string,
   message: ChatMessage,
+  incrementUnread = false,
 ): void {
   const currentConversation = conversations.find(
     (conversation) => conversation.id === conversationId,
@@ -720,11 +924,22 @@ export function updateChatConversationLastMessage(
     return;
   }
 
+  const unreadCount = incrementUnread
+    ? currentConversation.unread_count + 1
+    : currentConversation.unread_count;
+
   upsertChatConversation({
     ...currentConversation,
     last_message: message,
     last_message_at: message.created_at,
     updated_at: message.created_at,
+    unread_count: unreadCount,
+    own_participant: incrementUnread && currentConversation.own_participant
+      ? {
+          ...currentConversation.own_participant,
+          unread_count: unreadCount,
+        }
+      : currentConversation.own_participant,
   });
 }
 
@@ -761,12 +976,42 @@ export function removeChatConversation(
   );
 
   persistArchivedConversationIds();
+  persistChatInboxSnapshot();
 
   notifyChatStore({
     type: 'conversation-removed',
     conversationId: normalizedConversationId,
   });
 
+}
+
+export function resetChatConversationMessages(
+  conversationId: string,
+): void {
+  const normalizedConversationId = normalizeConversationId(
+    conversationId,
+  );
+
+  if (!normalizedConversationId) {
+    return;
+  }
+
+  const {
+    [normalizedConversationId]: _previousMessages,
+    ...remainingMessages
+  } = messagesByConversationId;
+  const {
+    [normalizedConversationId]: _previousMetadata,
+    ...remainingMetadata
+  } = messageCacheMetadataByConversationId;
+
+  messagesByConversationId = remainingMessages;
+  messageCacheMetadataByConversationId = remainingMetadata;
+
+  notifyChatStore({
+    type: 'messages',
+    conversationId: normalizedConversationId,
+  });
 }
 
 export function getChatMessages(
@@ -1012,6 +1257,7 @@ export function setChatConversationArchived(
   }
 
   persistArchivedConversationIds();
+  persistChatInboxSnapshot();
 
   notifyChatStore({
     type: 'conversations',

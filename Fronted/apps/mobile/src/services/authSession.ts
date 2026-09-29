@@ -14,6 +14,9 @@ import type {
 import {
   clearAppLockConfig,
 } from '../stores/appLockStore';
+import { clearChatInboxCache } from './chatInboxCache';
+import { clearChatAvatarCache } from './chatAvatarCache';
+import { clearChatConversationsCache } from '../stores/chatStore';
 
 const AUTH_SESSION_KEY = 'beeapp.auth.session';
 
@@ -53,6 +56,26 @@ function shouldRefreshSession(
 export async function saveAuthSession(
   authSession: PersistedAuthSession,
 ): Promise<void> {
+  const previous = await SecureStore.getItemAsync(AUTH_SESSION_KEY);
+  let previousUserId: string | null = null;
+
+  if (previous) {
+    try {
+      const parsed = JSON.parse(previous) as Partial<PersistedAuthSession>;
+      previousUserId = parsed.user?.id || null;
+    } catch {
+      previousUserId = null;
+    }
+  }
+
+  if (previousUserId !== authSession.user.id) {
+    await clearChatConversationsCache();
+    await Promise.all([
+      clearChatInboxCache(),
+      clearChatAvatarCache(),
+    ]);
+  }
+
   await SecureStore.setItemAsync(
     AUTH_SESSION_KEY,
     JSON.stringify(authSession),
@@ -199,10 +222,17 @@ export async function getValidSessionCredentials(): Promise<
 }
 
 export async function clearAuthSession(): Promise<void> {
-  await Promise.all([
+  await clearChatConversationsCache();
+  const results = await Promise.allSettled([
     SecureStore.deleteItemAsync(AUTH_SESSION_KEY),
     clearAppLockConfig(),
+    clearChatInboxCache(),
+    clearChatAvatarCache(),
   ]);
+
+  for (const result of results) {
+    if (result.status === 'rejected') throw result.reason;
+  }
 }
 
 export function getSessionCredentials(

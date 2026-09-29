@@ -6,7 +6,7 @@ import {
   StyleSheet,
   TouchableWithoutFeedback,
 } from 'react-native';
-import { Reply, Pencil, Forward, Pin, Copy, Bomb } from 'lucide-react-native';
+import { Reply, Copy } from 'lucide-react-native';
 import { colors } from '@beeapp/design-system';
 
 export type ChatMessageAction =
@@ -24,17 +24,19 @@ interface ChatMessageMenuModalProps {
   isDestroyed?: boolean;
   onClose: () => void;
   onSelectAction: (action: ChatMessageAction) => void;
+  onSelectReaction: (emoji: string) => void;
+  selectedReaction?: string | null;
 }
 
 export default function ChatMessageMenuModal({
   visible,
-  isUser,
-  isPinned,
-  isDestroyed,
   onClose,
   onSelectAction,
+  onSelectReaction,
+  selectedReaction,
 }: ChatMessageMenuModalProps) {
   if (!visible) return null;
+  const reactions = ['❤️', '😂', '😢', '👍', '😮', '😡', '🔥', '👏'];
 
   return (
     <Modal transparent visible={visible} animationType="fade" onRequestClose={onClose}>
@@ -42,7 +44,7 @@ export default function ChatMessageMenuModal({
         <View style={styles.backdrop}>
           <TouchableWithoutFeedback>
             <View style={styles.menuCard}>
-              {/* 1. Responder */}
+              {/* Responder */}
               <TouchableOpacity
                 style={styles.menuRow}
                 activeOpacity={0.7}
@@ -52,41 +54,7 @@ export default function ChatMessageMenuModal({
                 <Text style={styles.menuText}>Responder</Text>
               </TouchableOpacity>
 
-              {/* 2. Editar (Solo mensajes propios y no destruidos) */}
-              {isUser && !isDestroyed && (
-                <TouchableOpacity
-                  style={styles.menuRow}
-                  activeOpacity={0.7}
-                  onPress={() => onSelectAction('edit')}
-                >
-                  <Pencil size={18} color={colors.neutral.gray700} />
-                  <Text style={styles.menuText}>Editar</Text>
-                </TouchableOpacity>
-              )}
-
-              {/* 3. Reenviar */}
-              <TouchableOpacity
-                style={styles.menuRow}
-                activeOpacity={0.7}
-                onPress={() => onSelectAction('forward')}
-              >
-                <Forward size={18} color={colors.neutral.gray700} />
-                <Text style={styles.menuText}>Reenviar</Text>
-              </TouchableOpacity>
-
-              {/* 4. Fijar mensaje */}
-              <TouchableOpacity
-                style={styles.menuRow}
-                activeOpacity={0.7}
-                onPress={() => onSelectAction('pin')}
-              >
-                <Pin size={18} color={colors.neutral.gray700} />
-                <Text style={styles.menuText}>
-                  {isPinned ? 'Desfijar mensaje' : 'Fijar mensaje'}
-                </Text>
-              </TouchableOpacity>
-
-              {/* 5. Copiar */}
+              {/* Copiar */}
               <TouchableOpacity
                 style={styles.menuRow}
                 activeOpacity={0.7}
@@ -95,17 +63,24 @@ export default function ChatMessageMenuModal({
                 <Copy size={18} color={colors.neutral.gray700} />
                 <Text style={styles.menuText}>Copiar</Text>
               </TouchableOpacity>
-
-
-              {/* 7. Destruir (Rojo) */}
-              <TouchableOpacity
-                style={[styles.menuRow, styles.lastRow]}
-                activeOpacity={0.7}
-                onPress={() => onSelectAction('destroy')}
-              >
-                <Bomb size={18} color="#D85A70" />
-                <Text style={[styles.menuText, styles.destroyText]}>Destruir</Text>
-              </TouchableOpacity>
+              <Text style={styles.reactionHeading}>Reaccionar</Text>
+              <View style={styles.reactionGrid}>
+                {reactions.map((emoji) => (
+                  <TouchableOpacity
+                    key={emoji}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Reaccionar con ${emoji}`}
+                    onPress={() => onSelectReaction(emoji)}
+                    activeOpacity={0.7}
+                    style={[
+                      styles.reactionButton,
+                      selectedReaction === emoji && styles.reactionSelected,
+                    ]}
+                  >
+                    <Text style={styles.reactionEmoji}>{emoji}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
             </View>
           </TouchableWithoutFeedback>
         </View>
@@ -142,15 +117,36 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: colors.neutral.gray100,
   },
-  lastRow: {
-    borderBottomWidth: 0,
+  reactionHeading: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: colors.neutral.gray600,
+    paddingHorizontal: 16,
+    paddingTop: 11,
+    paddingBottom: 6,
+  },
+  reactionGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    paddingHorizontal: 12,
+    paddingBottom: 10,
+  },
+  reactionButton: {
+    width: '25%',
+    height: 43,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 12,
+  },
+  reactionSelected: {
+    backgroundColor: colors.neutral.gray100,
+  },
+  reactionEmoji: {
+    fontSize: 23,
   },
   menuText: {
     fontSize: 14,
     fontWeight: '400',
     color: colors.neutral.text,
-  },
-  destroyText: {
-    color: '#D85A70',
   },
 });
