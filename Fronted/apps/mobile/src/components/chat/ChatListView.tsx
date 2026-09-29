@@ -92,6 +92,7 @@ export default function ChatListView({
           id={chat.id}
           name={chat.name}
           lastMessage={chat.lastMessage}
+          isCallNotice={chat.isCallNotice}
           time={chat.time}
           unreadCount={chat.unreadCount}
           isGroup={chat.isGroup}

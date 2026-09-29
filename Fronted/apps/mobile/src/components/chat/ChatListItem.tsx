@@ -6,7 +6,7 @@ import {
   TouchableOpacity,
 } from 'react-native';
 import { colors } from '@beeapp/design-system';
-import { Check, CheckCheck, BellOff, Users, Lock, MoreVertical, Pin } from 'lucide-react-native';
+import { Check, CheckCheck, BellOff, Users, Lock, MoreVertical, Pin, Phone } from 'lucide-react-native';
 import VerifiedBadge from '../VerifiedBadge';
 import { getCategoryIcon } from './categoryIcons';
 
@@ -14,6 +14,7 @@ interface ChatListItemProps {
   id: string;
   name: string;
   lastMessage: string;
+  isCallNotice?: boolean;
   time: string;
   unreadCount: number;
   isGroup: boolean;
@@ -33,6 +34,7 @@ interface ChatListItemProps {
 export default function ChatListItem({
   name,
   lastMessage,
+  isCallNotice = false,
   time,
   unreadCount,
   isGroup,
@@ -127,9 +129,13 @@ export default function ChatListItem({
         <View style={styles.messageStatusRow}>
           <View style={styles.messageWrap}>
             {isMuted && <BellOff size={12} color={colors.neutral.gray500} style={styles.mutedIcon} />}
+            {!isProtected && isCallNotice ? (
+              <Phone size={14} color="#7A55BA" style={styles.callNoticeIcon} />
+            ) : null}
             <Text
               style={[
                 styles.lastMessage,
+                isCallNotice && !isProtected && styles.callNoticeText,
                 isProtected && { color: colors.neutral.gray400, fontStyle: 'italic' }
               ]}
               numberOfLines={1}
@@ -144,7 +150,7 @@ export default function ChatListItem({
               <Text style={styles.unreadBadgeText}>{unreadCount}</Text>
             </View>
           ) : (
-            !isProtected && isOwnLastMessage && (
+            !isProtected && !isCallNotice && isOwnLastMessage && (
               <View style={[
                 styles.statusCheck,
                 status === 'read' && styles.readStatusCheck,
@@ -321,6 +327,13 @@ const styles = StyleSheet.create({
   },
   mutedIcon: {
     marginRight: 4,
+  },
+  callNoticeIcon: {
+    marginRight: 5,
+  },
+  callNoticeText: {
+    color: '#7A55BA',
+    fontWeight: '600',
   },
   lastMessage: {
     fontSize: 13,

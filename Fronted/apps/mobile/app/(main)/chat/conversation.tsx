@@ -55,6 +55,7 @@ import {
 
 import PinLockModal from '../../../src/components/security/PinLockModal';
 import MessageBubble from '../../../src/components/chat/MessageBubble';
+import CallNoticeCard from '../../../src/components/chat/CallNoticeCard';
 import ChatImageViewerModal from '../../../src/components/chat/ChatImageViewerModal';
 import ChatVideoViewerModal from '../../../src/components/chat/ChatVideoViewerModal';
 import StatusCameraModal from '../../../src/components/chat/status/StatusCameraModal';
@@ -2324,6 +2325,14 @@ function ConversationContent({
                     </View>
                   ) : null}
 
+                  {message.raw.message_type === 'system'
+                    && message.raw.reference_type === 'call_session' ? (
+                    <CallNoticeCard
+                      event={message.raw.metadata?.call_event}
+                      fallbackText={message.text}
+                      time={message.time}
+                    />
+                  ) : (
                   <MessageBubble
                     senderName={message.senderName}
                     senderVerified={message.senderVerified}
@@ -2583,6 +2592,7 @@ function ConversationContent({
                       );
                     }}
                   />
+                  )}
                 </View>
               );
             })}

@@ -18,6 +18,7 @@ export interface ChatListItemModel {
   id: string;
   name: string;
   lastMessage: string;
+  isCallNotice: boolean;
   time: string;
   unreadCount: number;
   isGroup: boolean;
@@ -311,6 +312,17 @@ export function mapConversationToListItem(
   );
 
   const lastMessage = conversation.last_message;
+  const isCallNotice = (
+    lastMessage?.message_type === 'system'
+    && [
+      'Llamada perdida',
+      'Llamada cancelada',
+      'Llamada rechazada',
+      'Llamada finalizada',
+      'Llamada finalizada por un administrador',
+      'Llamada conectada',
+    ].includes(lastMessage.content?.trim() || '')
+  );
   const lastMessageContent = (
     lastMessage?.message_type === 'location'
       ? '📍 Ubicación'
@@ -360,6 +372,7 @@ export function mapConversationToListItem(
     id: conversation.id,
     name: displayName,
     lastMessage: lastMessageText,
+    isCallNotice,
     time: formatChatTime(
       conversation.last_message_at
       || lastMessage?.created_at
