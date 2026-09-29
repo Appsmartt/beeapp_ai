@@ -26,6 +26,7 @@ test('broadcast nuevo actualiza mensajes, preview y contador del inbox', async (
     sequence_number: 1, message_type: 'text', content: 'hola',
     status: 'sent', created_at: '2026-09-26T14:00:00Z',
   };
+  let reactionMessage = message;
   const conversations = [];
   const messages = [];
   let broadcast;
@@ -50,7 +51,7 @@ test('broadcast nuevo actualiza mensajes, preview y contador del inbox', async (
       }),
     },
     '@beeapp/api-client': {
-      getChatMessage: async () => ({ message }),
+      getChatMessage: async () => ({ message: reactionMessage }),
       getChatMessages: async () => ({ messages: serverPage }),
       getChatIdentities: async () => ({
         identities: [{ id: 'identity-own', is_active: true }],
@@ -228,6 +229,27 @@ test('broadcast nuevo actualiza mensajes, preview y contador del inbox', async (
         lastMessageId: conversations[0].last_message.id,
       }),
     );
+    reactionMessage = { ...message, reactions: [{
+      id: 'reaction-1', message_id: 'message-1',
+      identity_id: 'identity-own', owner_user_id: 'user-own', emoji: '❤️',
+    }] };
+    broadcast({ payload: {
+      type: 'reaction.created', conversation_id: 'conversation-1',
+      message_id: 'message-1',
+    } });
+    for (let i = 0; i < 30 && !messages.at(-1)?.reactions?.length; i += 1) {
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    }
+    assert.equal(messages.at(-1)?.reactions?.[0]?.emoji, '❤️');
+    reactionMessage = { ...message, reactions: [] };
+    broadcast({ payload: {
+      type: 'reaction.deleted', conversation_id: 'conversation-1',
+      message_id: 'message-1',
+    } });
+    for (let i = 0; i < 30 && messages.at(-1)?.reactions?.length !== 0; i += 1) {
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    }
+    assert.deepEqual(messages.at(-1)?.reactions, []);
     await loaded.exports.stopChatRealtime();
   } finally {
     if (previousUrl === undefined) delete process.env.EXPO_PUBLIC_SUPABASE_URL;

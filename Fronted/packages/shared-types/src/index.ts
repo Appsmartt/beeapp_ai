@@ -2615,6 +2615,15 @@ export interface ChatStatusStoryReference extends ChatMessageReference {
   status?: StatusStory | null;
 }
 
+export interface ChatMessageReaction {
+  id: string;
+  message_id: string;
+  identity_id: string;
+  owner_user_id?: string;
+  emoji: string;
+  created_at: string;
+}
+
 export interface ChatMessage {
   id: string;
   conversation_id: string;
@@ -2640,6 +2649,7 @@ export interface ChatMessage {
   is_pinned?: boolean;
   pinned_at?: string | null;
   is_sent_by_ai?: boolean;
+  reactions?: ChatMessageReaction[];
 }
 
 export interface ChatConversation {

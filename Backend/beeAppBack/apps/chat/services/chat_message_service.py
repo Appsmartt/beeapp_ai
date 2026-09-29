@@ -34,7 +34,10 @@ from apps.chat.services.chat_conversation_service import (
     _require_user_conversation_access,
 )
 from apps.chat.services.chat_identity_service import (
-    get_chat_identity,
+    CHAT_IDENTITY_COLUMNS,
+    _get_commercial_profiles_by_ids,
+    _get_profiles_by_ids,
+    _serialize_chat_identity,
     get_owned_chat_identity,
 )
 from apps.statuses.services.status_service import (
@@ -51,7 +54,7 @@ MESSAGE_COLUMNS = (
 )
 
 REACTION_COLUMNS = (
-    "id,message_id,identity_id,emoji,created_at"
+    "id,message_id,identity_id,owner_user_id,emoji,created_at"
 )
 
 FILE_COLUMNS = (
@@ -698,18 +701,9 @@ def list_message_reactions(
             conversation_id=message["conversation_id"],
         )
 
-        response = (
-            _supabase()
-            .table("chat_message_reactions")
-            .select(REACTION_COLUMNS)
-            .eq("message_id", str(message_id))
-            .order("created_at")
-            .execute()
-        )
-
-        reactions = _response_rows(response)
-
-        return _enrich_reactions(reactions=reactions)
+        return _get_reactions_by_message_ids(
+            message_ids=[str(message_id)],
+        ).get(str(message_id), [])
 
     except (
         ChatConversationAccessError,
@@ -766,6 +760,10 @@ def create_chat_message_reaction(
                 "Supabase did not return the created reaction."
             )
 
+        bump_conversation_cache_version(
+            conversation_id=str(message["conversation_id"]),
+        )
+
         enriched_reactions = _enrich_reactions(
             reactions=[reaction],
         )
@@ -786,6 +784,7 @@ def create_chat_message_reaction(
         if (
             "chat_message_reactions_one_emoji_per_identity"
             in message
+            or "chat_message_reactions_one_per_user" in message
         ):
             raise ChatReactionError(
                 "This reaction already exists."
@@ -813,13 +812,14 @@ def delete_chat_message_reaction(
         get_owned_chat_identity(
             user_id=user_id,
             identity_id=identity_id,
+            require_active=False,
         )
 
         message = _get_message_row(message_id=message_id)
 
-        _require_identity_active_participant(
+        _require_user_conversation_access(
+            user_id=user_id,
             conversation_id=message["conversation_id"],
-            identity_id=identity_id,
         )
 
         response = (
@@ -838,6 +838,10 @@ def delete_chat_message_reaction(
             raise ChatReactionError(
                 "Reaction was not found."
             )
+
+        bump_conversation_cache_version(
+            conversation_id=str(message["conversation_id"]),
+        )
 
     except (
         ChatConversationAccessError,
@@ -1298,27 +1302,65 @@ def _get_identities_by_ids(
     *,
     identity_ids: list[str],
 ) -> dict[str, dict[str, Any]]:
-    identities_by_id: dict[str, dict[str, Any]] = {}
+    if not identity_ids:
+        return {}
 
-    for identity_id in identity_ids:
-        try:
-            identities_by_id[identity_id] = get_chat_identity(
-                identity_id=identity_id,
-                require_active=False,
-            )
-        except Exception:
-            identities_by_id[identity_id] = {
-                "id": identity_id,
-                "identity_type": None,
-                "profile_id": None,
-                "commercial_profile_id": None,
-                "display_name": "User",
-                "avatar_file_id": None,
-                "is_active": False,
-                "is_available": False,
-            }
+    identities: dict[str, dict[str, Any]] = {}
+    unique_ids = list(dict.fromkeys(identity_ids))
+    for offset in range(0, len(unique_ids), 200):
+        response = (
+            _supabase()
+            .table("chat_identities")
+            .select(CHAT_IDENTITY_COLUMNS)
+            .in_("id", unique_ids[offset:offset + 200])
+            .execute()
+        )
+        identities.update(
+            (row["id"], row)
+            for row in _response_rows(response)
+        )
 
-    return identities_by_id
+    profiles = _get_profiles_by_ids(
+        list({
+            row["profile_id"]
+            for row in identities.values()
+            if row.get("profile_id")
+        })
+    )
+    commercial_profiles = _get_commercial_profiles_by_ids(
+        list({
+            row["commercial_profile_id"]
+            for row in identities.values()
+            if row.get("commercial_profile_id")
+        })
+    )
+
+    result: dict[str, dict[str, Any]] = {}
+    for identity_id in unique_ids:
+        identity = identities.get(identity_id)
+        if identity:
+            try:
+                result[identity_id] = _serialize_chat_identity(
+                    identity=identity,
+                    profile=profiles.get(identity.get("profile_id")),
+                    commercial_profile=commercial_profiles.get(
+                        identity.get("commercial_profile_id")
+                    ),
+                )
+                continue
+            except Exception:
+                pass
+        result[identity_id] = {
+            "id": identity_id,
+            "identity_type": None,
+            "profile_id": None,
+            "commercial_profile_id": None,
+            "display_name": "User",
+            "avatar_file_id": None,
+            "is_active": False,
+            "is_available": False,
+        }
+    return result
 
 
 def _get_files_by_ids(
@@ -1351,16 +1393,25 @@ def _get_reactions_by_message_ids(
     if not message_ids:
         return {}
 
-    response = (
-        _supabase()
-        .table("chat_message_reactions")
-        .select(REACTION_COLUMNS)
-        .in_("message_id", message_ids)
-        .order("created_at")
-        .execute()
-    )
-
-    reactions = _response_rows(response)
+    page_size = 500
+    reactions: list[dict[str, Any]] = []
+    offset = 0
+    while True:
+        response = (
+            _supabase()
+            .table("chat_message_reactions")
+            .select(REACTION_COLUMNS)
+            .in_("message_id", message_ids)
+            .order("created_at")
+            .order("id")
+            .range(offset, offset + page_size - 1)
+            .execute()
+        )
+        page = _response_rows(response)
+        reactions.extend(page)
+        if len(page) < page_size:
+            break
+        offset += page_size
 
     enriched_reactions = _enrich_reactions(
         reactions=reactions,

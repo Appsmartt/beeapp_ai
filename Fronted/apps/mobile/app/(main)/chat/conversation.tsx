@@ -41,6 +41,9 @@ import {
   getActiveConversationCall,
   getChatContactProfile,
   getChatMessageAttachmentAccess,
+  getChatMessage,
+  createChatMessageReaction,
+  deleteChatMessageReaction,
   getChatPinProtection,
   updateChatConversationNotifications,
   verifyAccountSecurityPin,
@@ -51,7 +54,7 @@ import {
 
 import ScreenSafeArea from '../../../src/components/layout/ScreenSafeArea';
 import { getLatestIncomingChatMessage } from '../../../src/services/chatMessageReceipts';
-import { getActiveChatStoreIdentityId, getChatConversations, getChatMessages, upsertChatConversation } from '../../../src/stores/chatStore';
+import { getActiveChatStoreIdentityId, getChatConversations, getChatMessages, upsertChatConversation, upsertChatMessage } from '../../../src/stores/chatStore';
 import {
   useModuleNav,
   useScreenParams,
@@ -1657,6 +1660,44 @@ function ConversationContent({
     }
   };
 
+  const reactionInFlightRef = useRef(false);
+
+  const handleSelectMessageReaction = async (emoji: string) => {
+    if (!selectedMessage || !activeIdentityId || !chatId || reactionInFlightRef.current) return;
+    const target = selectedMessage;
+    reactionInFlightRef.current = true;
+    setSelectedMessage(null);
+    try {
+      const auth = await getValidSessionCredentials();
+      if (!auth) throw new Error('Inicia sesión para reaccionar.');
+      const { message: latest } = await getChatMessage(auth, target.id);
+      if (latest.conversation_id !== chatId) throw new Error('El mensaje cambió de chat.');
+      const own = latest.reactions?.find(
+        (reaction) => reaction.owner_user_id === currentUserId,
+      );
+      if (own) {
+        await deleteChatMessageReaction(auth, target.id, own.identity_id, own.emoji);
+      }
+      if (own?.emoji !== emoji) {
+        await createChatMessageReaction(auth, target.id, activeIdentityId, emoji);
+      }
+    } catch (error) {
+      Alert.alert('No se pudo reaccionar',
+        error instanceof Error ? error.message : 'Inténtalo de nuevo.');
+    } finally {
+      try {
+        const auth = await getValidSessionCredentials();
+        if (auth) {
+          const { message } = await getChatMessage(auth, target.id);
+          if (message.conversation_id === chatId) upsertChatMessage(chatId, message);
+        }
+      } catch {
+        // A failed refresh does not hide the original reaction error.
+      }
+      reactionInFlightRef.current = false;
+    }
+  };
+
   const handleSelectMessageAction = (
     action: ChatMessageAction,
   ) => {
@@ -2552,6 +2593,7 @@ function ConversationContent({
                     audioDuration={message.audioDuration}
                     status={message.status}
                     time={message.time}
+                    reactions={message.raw.reactions?.map((reaction) => reaction.emoji)}
                     replyTo={
                       message.replyTo
                         ? {
@@ -2804,6 +2846,12 @@ function ConversationContent({
             setSelectedMessage(null);
           }}
           onSelectAction={handleSelectMessageAction}
+          selectedReaction={selectedMessage?.raw.reactions?.find(
+            (reaction) => reaction.owner_user_id === currentUserId,
+          )?.emoji}
+          onSelectReaction={(emoji) => {
+            void handleSelectMessageReaction(emoji);
+          }}
         />
 
         <ForwardMessageModal
