@@ -185,6 +185,7 @@ export default function CallScreen() {
   const engineRef = useRef<IRtcEngine | null>(null);
   const mountedRef = useRef(true);
   const endingRef = useRef(false);
+  const terminatedRef = useRef(false);
   const joinedRef = useRef(false);
 
   const callId = getParam(params.callId);
@@ -265,6 +266,7 @@ export default function CallScreen() {
     }
 
     endingRef.current = true;
+    terminatedRef.current = true;
     updateStatus('ending', options.statusText);
     destroyEngine();
 
@@ -317,6 +319,10 @@ export default function CallScreen() {
 
     engine.registerEventHandler({
       onJoinChannelSuccess: () => {
+        if (terminatedRef.current || !mountedRef.current) {
+          return;
+        }
+
         joinedRef.current = true;
 
         if (mountedRef.current) {
@@ -550,7 +556,7 @@ export default function CallScreen() {
 
       await requestRequiredPermissions(isVideo);
 
-      if (!mountedRef.current) {
+      if (!mountedRef.current || terminatedRef.current) {
         return;
       }
 
@@ -575,7 +581,7 @@ export default function CallScreen() {
             ).agora
       );
 
-      if (!mountedRef.current) {
+      if (!mountedRef.current || terminatedRef.current) {
         return;
       }
 
@@ -584,8 +590,16 @@ export default function CallScreen() {
         'Conectando audio seguro...',
       );
 
+      if (terminatedRef.current) {
+        return;
+      }
+
       await connectToAgora(credentials);
     } catch (error) {
+      if (terminatedRef.current || !mountedRef.current) {
+        return;
+      }
+
       console.warn(
         '[VOX] No fue posible iniciar llamada RTC.',
         error,
@@ -644,7 +658,8 @@ export default function CallScreen() {
 
   useEffect(() => {
     if (
-      rtcState !== 'connected'
+      rtcState === 'ending'
+      || rtcState === 'ended'
       || !callId
       || !actorIdentityId
     ) {
@@ -652,6 +667,7 @@ export default function CallScreen() {
     }
 
     let cancelled = false;
+    let inFlight = false;
 
     const terminalStatuses = new Set([
       'ended',
@@ -665,9 +681,12 @@ export default function CallScreen() {
       if (
         cancelled
         || endingRef.current
+        || inFlight
       ) {
         return;
       }
+
+      inFlight = true;
 
       try {
         if (cancelled || endingRef.current) {
@@ -711,6 +730,8 @@ export default function CallScreen() {
           '[VOX] No se pudo consultar estado de llamada.',
           error,
         );
+      } finally {
+        inFlight = false;
       }
     };
 
