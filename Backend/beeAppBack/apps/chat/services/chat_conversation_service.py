@@ -470,6 +470,8 @@ def get_chat_inbox(
             )
         )
         for inbox_rows in (conversations, pinned_conversations):
+            if not inbox_rows:
+                continue
             _attach_commercial_inbox_metadata(
                 conversations=inbox_rows,
                 commercial_links_by_conversation_id=(

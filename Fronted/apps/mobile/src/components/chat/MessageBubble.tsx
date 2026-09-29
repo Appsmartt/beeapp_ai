@@ -57,6 +57,7 @@ interface MessageBubbleProps {
   audioDuration?: string;
   status: 'sent' | 'delivered' | 'read';
   time: string;
+  reactions?: string[];
   replyTo?: {
     sender: string;
     text: string;
@@ -121,6 +122,7 @@ export default function MessageBubble({
   audioDuration,
   status,
   time,
+  reactions = [],
   replyTo,
   onPressReply,
   statusStoryReference,
@@ -718,6 +720,14 @@ export default function MessageBubble({
           )}
 
           <View style={styles.metaRow}>
+            {reactions.length > 0 ? (
+              <View style={[styles.reactionBadge, isUser && styles.reactionBadgeUser]}>
+                <Text style={styles.reactionBadgeText}>
+                  {Array.from(new Set(reactions)).slice(0, 2).join('')}
+                  {reactions.length > 2 ? ` ${reactions.length}` : ''}
+                </Text>
+              </View>
+            ) : null}
             {isEdited ? (
               <Text
                 style={[
@@ -1061,6 +1071,20 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontStyle: 'italic',
     marginRight: 4,
+  },
+  reactionBadge: {
+    backgroundColor: colors.neutral.gray100,
+    borderRadius: 10,
+    paddingHorizontal: 5,
+    paddingVertical: 1,
+    marginRight: 5,
+  },
+  reactionBadgeUser: {
+    backgroundColor: 'rgba(255,255,255,0.20)',
+  },
+  reactionBadgeText: {
+    fontSize: 11,
+    lineHeight: 16,
   },
   time: {
     fontSize: 9,

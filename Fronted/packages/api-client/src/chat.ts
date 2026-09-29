@@ -182,6 +182,7 @@ export interface ChatApiReaction {
   id: string;
   message_id: string;
   identity_id: string;
+  owner_user_id?: string;
   emoji: string;
   created_at: string;
   identity?: ChatApiIdentitySummary | null;
@@ -675,6 +676,14 @@ function toSharedMessage(
     is_pinned: Boolean(message.is_pinned),
     pinned_at: message.pinned_at || null,
     is_sent_by_ai: false,
+    reactions: (message.reactions || []).map((reaction) => ({
+      id: reaction.id,
+      message_id: reaction.message_id,
+      identity_id: reaction.identity_id,
+      owner_user_id: reaction.owner_user_id,
+      emoji: reaction.emoji,
+      created_at: reaction.created_at,
+    })),
   };
 }
 
@@ -1335,6 +1344,32 @@ export async function getChatMessage(
   return {
     message: toSharedMessage(response.message),
   };
+}
+
+export async function createChatMessageReaction(
+  auth: AuthCredentials,
+  messageId: string,
+  identityId: string,
+  emoji: string,
+): Promise<ChatApiReaction> {
+  const response = await api.post<{ reaction: ChatApiReaction }>(
+    `/chat/messages/${encodeURIComponent(messageId)}/reactions/`,
+    { identity_id: identityId, emoji },
+    { auth: requireBearerAuth(auth) },
+  );
+  return response.reaction;
+}
+
+export async function deleteChatMessageReaction(
+  auth: AuthCredentials,
+  messageId: string,
+  identityId: string,
+  emoji: string,
+): Promise<void> {
+  await api.delete<void>(
+    `/chat/messages/${encodeURIComponent(messageId)}/reactions/${encodeURIComponent(emoji)}/?identity_id=${encodeURIComponent(identityId)}`,
+    { auth: requireBearerAuth(auth) },
+  );
 }
 
 export async function getChatMessages(

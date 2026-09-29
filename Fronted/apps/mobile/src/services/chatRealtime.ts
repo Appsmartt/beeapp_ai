@@ -659,6 +659,40 @@ async function applyMessageReceiptBroadcast(
   }
 }
 
+const reactionRefreshes = new Set<string>();
+const pendingReactionRefreshes = new Set<string>();
+
+async function applyReactionBroadcast(event: ChatSyncBroadcast): Promise<void> {
+  const conversationId = normalizeString(event.conversation_id);
+  const messageId = normalizeString(event.message_id);
+  if (!conversationId || !messageId) return;
+  if (reactionRefreshes.has(messageId)) {
+    pendingReactionRefreshes.add(messageId);
+    return;
+  }
+  if (!getChatMessages(conversationId).some((item) => item.id === messageId)) return;
+  reactionRefreshes.add(messageId);
+  try {
+    do {
+      pendingReactionRefreshes.delete(messageId);
+      const session = await getValidAuthSession();
+      if (!session) return;
+      const { message } = await getChatMessage(
+        getSessionCredentials(session), messageId,
+      );
+      if (message.conversation_id === conversationId
+        && getChatMessages(conversationId).some((item) => item.id === messageId)) {
+        upsertChatMessage(conversationId, message);
+      }
+    } while (pendingReactionRefreshes.has(messageId));
+  } catch {
+    // Reaction refresh failures must not block chat broadcasts.
+  } finally {
+    reactionRefreshes.delete(messageId);
+    pendingReactionRefreshes.delete(messageId);
+  }
+}
+
 async function handleChatBroadcast(
   rawPayload: unknown,
 ): Promise<void> {
@@ -668,6 +702,11 @@ async function handleChatBroadcast(
     return;
   }
 
+
+  if (event.type === 'reaction.created' || event.type === 'reaction.deleted') {
+    await applyReactionBroadcast(event);
+    return;
+  }
 
   if (normalizeString(event.type) === 'participant.upsert') {
     await applyMessageReceiptBroadcast(event);

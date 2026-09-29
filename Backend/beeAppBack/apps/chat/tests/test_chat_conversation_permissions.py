@@ -85,7 +85,8 @@ class ChatCommercialInboxIntegrationTests(SimpleTestCase):
             before_last_message_at="2026-09-09T05:00:00+00:00",
         )
         get_cache.assert_called_once_with(key="chat:inbox:test")
-        user_supabase.assert_called_once_with(access_token="token-1")
+        self.assertEqual(user_supabase.call_count, 2)
+        user_supabase.assert_any_call(access_token="token-1")
         client.rpc.assert_called_once_with(
             "get_chat_inbox",
             {
@@ -108,6 +109,7 @@ class ChatCommercialInboxIntegrationTests(SimpleTestCase):
             "name": None,
             "description": None,
             "image_file_id": None,
+            "is_pinned": False,
             "is_commercial": True,
             "commercial": commercial_link,
             "other_identity_type": "commercial_profile",
@@ -119,6 +121,7 @@ class ChatCommercialInboxIntegrationTests(SimpleTestCase):
         expected_inbox = {
             "identity_id": "identity-1",
             "conversations": [expected_conversation],
+            "pinned_conversations": [],
             "limit": 25,
             "next_before_last_message_at": (
                 "2026-09-09T06:00:00+00:00"

@@ -24,14 +24,19 @@ interface ChatMessageMenuModalProps {
   isDestroyed?: boolean;
   onClose: () => void;
   onSelectAction: (action: ChatMessageAction) => void;
+  onSelectReaction: (emoji: string) => void;
+  selectedReaction?: string | null;
 }
 
 export default function ChatMessageMenuModal({
   visible,
   onClose,
   onSelectAction,
+  onSelectReaction,
+  selectedReaction,
 }: ChatMessageMenuModalProps) {
   if (!visible) return null;
+  const reactions = ['❤️', '😂', '😢', '👍', '😮', '😡', '🔥', '👏'];
 
   return (
     <Modal transparent visible={visible} animationType="fade" onRequestClose={onClose}>
@@ -51,15 +56,31 @@ export default function ChatMessageMenuModal({
 
               {/* Copiar */}
               <TouchableOpacity
-                style={[styles.menuRow, styles.lastRow]}
+                style={styles.menuRow}
                 activeOpacity={0.7}
                 onPress={() => onSelectAction('copy')}
               >
                 <Copy size={18} color={colors.neutral.gray700} />
                 <Text style={styles.menuText}>Copiar</Text>
               </TouchableOpacity>
-
-
+              <Text style={styles.reactionHeading}>Reaccionar</Text>
+              <View style={styles.reactionGrid}>
+                {reactions.map((emoji) => (
+                  <TouchableOpacity
+                    key={emoji}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Reaccionar con ${emoji}`}
+                    onPress={() => onSelectReaction(emoji)}
+                    activeOpacity={0.7}
+                    style={[
+                      styles.reactionButton,
+                      selectedReaction === emoji && styles.reactionSelected,
+                    ]}
+                  >
+                    <Text style={styles.reactionEmoji}>{emoji}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
             </View>
           </TouchableWithoutFeedback>
         </View>
@@ -96,8 +117,32 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: colors.neutral.gray100,
   },
-  lastRow: {
-    borderBottomWidth: 0,
+  reactionHeading: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: colors.neutral.gray600,
+    paddingHorizontal: 16,
+    paddingTop: 11,
+    paddingBottom: 6,
+  },
+  reactionGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    paddingHorizontal: 12,
+    paddingBottom: 10,
+  },
+  reactionButton: {
+    width: '25%',
+    height: 43,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 12,
+  },
+  reactionSelected: {
+    backgroundColor: colors.neutral.gray100,
+  },
+  reactionEmoji: {
+    fontSize: 23,
   },
   menuText: {
     fontSize: 14,
