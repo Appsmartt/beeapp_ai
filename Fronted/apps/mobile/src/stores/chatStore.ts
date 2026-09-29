@@ -382,6 +382,16 @@ function mergeConversation(
       newest.last_message,
       oldest.last_message,
     ),
+    reaction_preview: (() => {
+      const previews = [current.reaction_preview, incoming.reaction_preview]
+        .filter((item): item is NonNullable<ChatConversation['reaction_preview']> => Boolean(item));
+      const preview = previews.sort((a, b) => b.event_sequence - a.event_sequence)[0];
+      const messageAt = Date.parse(
+        newest.last_message_at || newest.last_message?.created_at || '',
+      );
+      return preview && (!Number.isFinite(messageAt)
+        || Date.parse(preview.created_at) > messageAt) ? preview : null;
+    })(),
     last_message_at: (
       newest.last_message_at
       || oldest.last_message_at
@@ -683,6 +693,68 @@ export function upsertChatConversation(
     conversation,
     ...conversations,
   ]);
+}
+
+export function applyChatReactionPreview(event: {
+  type: 'reaction.created' | 'reaction.deleted';
+  conversationId: string;
+  messageId: string;
+  identityId: string;
+  emoji: string;
+  createdAt: string;
+  eventSequence: number;
+}): void {
+  const current = conversations.find((item) => item.id === event.conversationId);
+  if (!current || !activeIdentityId
+    || current.own_participant?.identity_id !== activeIdentityId
+    || !event.messageId || !event.identityId || !event.emoji
+    || !Number.isFinite(Date.parse(event.createdAt))
+    || !Number.isSafeInteger(event.eventSequence)
+    || event.eventSequence < 0) return;
+
+  const previous = current.reaction_preview;
+  if (__DEV__) console.info('[reaction-preview] store', {
+    foundConversation: Boolean(current),
+    hasActiveIdentity: Boolean(activeIdentityId),
+    matchesActiveIdentity: current?.own_participant?.identity_id === activeIdentityId,
+    validDate: Number.isFinite(Date.parse(event.createdAt)),
+    eventSequence: event.eventSequence,
+    messageDate: current?.last_message_at || current?.last_message?.created_at || null,
+  });
+  if (previous && previous.event_sequence >= event.eventSequence) return;
+  if (event.type === 'reaction.deleted'
+    && (!previous || previous.deleted
+      || previous.message_id !== event.messageId
+      || previous.identity_id !== event.identityId
+      || previous.emoji !== event.emoji)) return;
+
+  const messageAt = Date.parse(
+    current.last_message_at || current.last_message?.created_at || '',
+  );
+  if (event.type === 'reaction.created'
+    && Number.isFinite(messageAt)
+    && Date.parse(event.createdAt) <= messageAt) return;
+
+  conversations = conversations.map((item) => (
+    item.id === event.conversationId
+      ? {
+          ...item,
+          reaction_preview: {
+            message_id: event.messageId,
+            identity_id: event.identityId,
+            emoji: event.emoji,
+            created_at: event.createdAt,
+            event_sequence: event.eventSequence,
+            deleted: event.type === 'reaction.deleted',
+          },
+        }
+      : item
+  ));
+  persistChatInboxSnapshot();
+  notifyChatStore({
+    type: 'conversations',
+    conversationIds: [event.conversationId],
+  });
 }
 
 export function updateDirectChatReceipt(

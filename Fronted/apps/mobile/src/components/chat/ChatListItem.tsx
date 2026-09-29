@@ -14,6 +14,7 @@ interface ChatListItemProps {
   id: string;
   name: string;
   lastMessage: string;
+  reactionPreview?: string | null;
   isCallNotice?: boolean;
   time: string;
   unreadCount: number;
@@ -34,6 +35,7 @@ interface ChatListItemProps {
 export default function ChatListItem({
   name,
   lastMessage,
+  reactionPreview = null,
   isCallNotice = false,
   time,
   unreadCount,
@@ -129,18 +131,23 @@ export default function ChatListItem({
         <View style={styles.messageStatusRow}>
           <View style={styles.messageWrap}>
             {isMuted && <BellOff size={12} color={colors.neutral.gray500} style={styles.mutedIcon} />}
-            {!isProtected && isCallNotice ? (
+            {!isProtected && reactionPreview ? (
+              <View style={styles.reactionPreviewBadge}>
+                <Text style={styles.reactionPreviewIcon}>✦</Text>
+              </View>
+            ) : !isProtected && isCallNotice ? (
               <Phone size={14} color="#7A55BA" style={styles.callNoticeIcon} />
             ) : null}
             <Text
               style={[
                 styles.lastMessage,
-                isCallNotice && !isProtected && styles.callNoticeText,
+                isCallNotice && !isProtected && !reactionPreview && styles.callNoticeText,
+                Boolean(reactionPreview) && !isProtected && styles.reactionPreviewText,
                 isProtected && { color: colors.neutral.gray400, fontStyle: 'italic' }
               ]}
               numberOfLines={1}
             >
-              {isProtected ? 'Chat protegido' : lastMessage}
+              {isProtected ? 'Chat protegido' : reactionPreview || lastMessage}
             </Text>
           </View>
 
@@ -333,6 +340,24 @@ const styles = StyleSheet.create({
   },
   callNoticeText: {
     color: '#7A55BA',
+    fontWeight: '600',
+  },
+  reactionPreviewBadge: {
+    width: 19,
+    height: 19,
+    borderRadius: 7,
+    backgroundColor: '#F0EBFA',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 6,
+  },
+  reactionPreviewIcon: {
+    color: '#7659AB',
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  reactionPreviewText: {
+    color: '#6E5897',
     fontWeight: '600',
   },
   lastMessage: {

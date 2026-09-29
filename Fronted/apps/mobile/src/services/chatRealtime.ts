@@ -16,6 +16,7 @@ import {
   getSessionCredentials,
 } from './authSession';
 import {
+  applyChatReactionPreview,
   getActiveChatStoreIdentityId,
   getChatConversations,
   getChatMessages,
@@ -704,6 +705,30 @@ async function handleChatBroadcast(
 
 
   if (event.type === 'reaction.created' || event.type === 'reaction.deleted') {
+    if (__DEV__) console.info('[reaction-preview] broadcast', {
+      type: event.type,
+      hasConversation: Boolean(normalizeString(event.conversation_id)),
+      hasMessage: Boolean(normalizeString(event.message_id)),
+      hasPayload: Boolean(event.payload),
+      hasDate: Boolean(normalizeString(event.created_at)),
+      sequenceValid: Number.isSafeInteger(Number(event.event_sequence)),
+    });
+    const payload = event.payload;
+    if (payload && typeof payload === 'object' && !Array.isArray(payload)) {
+      const details = payload as Record<string, unknown>;
+      const eventSequence = Number(event.event_sequence);
+      if (Number.isSafeInteger(eventSequence)) {
+        applyChatReactionPreview({
+          type: event.type,
+          conversationId: normalizeString(event.conversation_id),
+          messageId: normalizeString(event.message_id),
+          identityId: normalizeString(details.identity_id),
+          emoji: normalizeString(details.emoji),
+          createdAt: normalizeString(event.created_at),
+          eventSequence,
+        });
+      }
+    }
     await applyReactionBroadcast(event);
     return;
   }

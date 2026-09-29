@@ -353,6 +353,16 @@ function mergeConversation(
       || oldest.last_message
       || null
     ),
+    reaction_preview: (() => {
+      const previews = [current.reaction_preview, incoming.reaction_preview]
+        .filter((item): item is NonNullable<ChatConversation['reaction_preview']> => Boolean(item));
+      const preview = previews.sort((a, b) => b.event_sequence - a.event_sequence)[0];
+      const messageAt = Date.parse(
+        newest.last_message_at || newest.last_message?.created_at || '',
+      );
+      return preview && (!Number.isFinite(messageAt)
+        || Date.parse(preview.created_at) > messageAt) ? preview : null;
+    })(),
     last_message_at: (
       newest.last_message_at
       || oldest.last_message_at
