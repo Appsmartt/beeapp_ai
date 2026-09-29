@@ -15,6 +15,7 @@ import {
   clearAppLockConfig,
 } from '../stores/appLockStore';
 import { clearChatInboxCache } from './chatInboxCache';
+import { clearChatMessageSnapshots } from './chatMessageSnapshotCache';
 import { clearChatAvatarCache } from './chatAvatarCache';
 import { clearChatConversationsCache } from '../stores/chatStore';
 
@@ -73,6 +74,7 @@ export async function saveAuthSession(
     await Promise.all([
       clearChatInboxCache(),
       clearChatAvatarCache(),
+      clearChatMessageSnapshots(),
     ]);
   }
 
@@ -228,6 +230,7 @@ export async function clearAuthSession(): Promise<void> {
     clearAppLockConfig(),
     clearChatInboxCache(),
     clearChatAvatarCache(),
+    clearChatMessageSnapshots(),
   ]);
 
   for (const result of results) {

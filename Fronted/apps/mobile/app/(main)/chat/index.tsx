@@ -125,6 +125,13 @@ import {
 } from '../../../src/services/chatInboxCache';
 import { getChatConversations } from '../../../src/stores/chatStore';
 import {
+  prefetchRecentChatMessages,
+} from '../../../src/services/chatInitialSync';
+import {
+  removeChatMessageSnapshot,
+} from '../../../src/services/chatMessageSnapshotCache';
+
+import {
   getProfileAvatarUrl,
 } from '../../../src/services/profileAvatarService';
 import {
@@ -690,6 +697,9 @@ export default function ChatListScreen() {
         setProtectionLoaded(true);
         await writeCachedProtectedChatIds(userId, result.conversation_ids);
         if (!cancelled && activeIdentityId) {
+          await Promise.all(result.conversation_ids.map((conversationId) => (
+            removeChatMessageSnapshot(userId, activeIdentityId, conversationId)
+          )));
           writeChatInboxCache(userId, activeIdentityId, getChatConversations());
         }
       } catch (failure) {
@@ -711,6 +721,63 @@ export default function ChatListScreen() {
       cancelled = true;
     };
   }, [activeIdentityId, protectionRefresh]);
+
+  const initialMessagePrefetchRef = useRef<Set<string>>(new Set());
+  const [initialMessagePrefetchRetry, setInitialMessagePrefetchRetry] =
+    useState(0);
+
+  useEffect(() => {
+    if (
+      isCommercialContext
+      || loading
+      || !protectionLoaded
+      || !activeIdentityId
+      || !cachedProtectionUserId
+      || protectionIdentityId !== activeIdentityId
+    ) return;
+
+    const userId = cachedProtectionUserId;
+    const identityId = activeIdentityId;
+    const key = `${userId}:${identityId}`;
+    if (initialMessagePrefetchRef.current.has(key)) return;
+
+    const selected = getChatConversations().filter((conversation) => (
+      conversation.own_participant?.identity_id === identityId
+      && (
+        conversation.conversation_type === 'direct'
+        || conversation.conversation_type === 'group'
+      )
+    ));
+    if (!selected.length) return;
+
+    initialMessagePrefetchRef.current.add(key);
+    void (async () => {
+      const auth = await getValidSessionCredentials();
+      if (!auth || auth.scheme !== 'Bearer') {
+        initialMessagePrefetchRef.current.delete(key);
+        return;
+      }
+      await prefetchRecentChatMessages(auth, selected, {
+        userId,
+        identityId,
+        protectedConversationIds: new Set(protectedChatIds),
+      });
+    })().catch((error) => {
+      console.warn('[chat-message-prefetch] inbox-failed', {
+        error: error instanceof Error ? error.message : String(error),
+      });
+      initialMessagePrefetchRef.current.delete(key);
+    });
+  }, [
+    activeIdentityId,
+    cachedProtectionUserId,
+    isCommercialContext,
+    loading,
+    initialMessagePrefetchRetry,
+    protectionIdentityId,
+    protectionLoaded,
+    protectedChatIds,
+  ]);
 
   const categorizedChats = useMemo(
     () => conversations
@@ -1073,6 +1140,12 @@ export default function ChatListScreen() {
   };
 
   const handleRefresh = () => {
+    if (cachedProtectionUserId && activeIdentityId) {
+      initialMessagePrefetchRef.current.delete(
+        `${cachedProtectionUserId}:${activeIdentityId}`,
+      );
+      setInitialMessagePrefetchRetry((value) => value + 1);
+    }
     setCategoryRefresh((value) => value + 1);
     void Promise.allSettled([
       loadConversations({

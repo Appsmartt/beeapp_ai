@@ -876,13 +876,36 @@ export function useChatConversations(
       const beforeInbox = new Map(getStoredConversations()
         .map((row) => [row.id, row]));
       if (paginateInbox) {
+        const loadInitialTypedPage = async (
+          type: 'direct' | 'group',
+        ) => {
+          const first = await getChatUnpinnedInboxByType(
+            token, identityId, type, { limit: 10 },
+          );
+          if (
+            !first.has_more
+            || !first.next_before_sort_at
+            || !first.next_before_id
+          ) return first;
+
+          const second = await getChatUnpinnedInboxByType(
+            token, identityId, type, {
+              limit: 10,
+              beforeSortAt: first.next_before_sort_at,
+              beforeId: first.next_before_id,
+            },
+          );
+          return {
+            ...second,
+            conversations: [
+              ...first.conversations,
+              ...second.conversations,
+            ],
+          };
+        };
         const [directPage, groupPage, pinnedPage] = await Promise.all([
-          getChatUnpinnedInboxByType(
-            token, identityId, 'direct', { limit: 10 },
-          ),
-          getChatUnpinnedInboxByType(
-            token, identityId, 'group', { limit: 10 },
-          ),
+          loadInitialTypedPage('direct'),
+          loadInitialTypedPage('group'),
           getChatInbox(token, identityId, { limit: 10 }),
         ]);
         if (requestId !== requestIdRef.current) return [];
