@@ -18,6 +18,10 @@ export function armPermissionDialogUnlockSkip(): void {
   permissionDialogUnlockSkipArmed = true;
 }
 
+export function isPermissionDialogUnlockSkipArmed(): boolean {
+  return permissionDialogUnlockSkipArmed;
+}
+
 export function finishPermissionDialogUnlockSkip(): void {
   if (!permissionDialogUnlockSkipArmed) {
     return;

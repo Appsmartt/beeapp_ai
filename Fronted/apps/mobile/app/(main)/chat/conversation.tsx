@@ -31,7 +31,11 @@ import {
 } from 'lucide-react-native';
 import * as Location from 'expo-location';
 import { openChatLocation } from '../../../src/services/chatLocationLinks';
-import { armLocationPermissionUnlockSkip, finishLocationPermissionUnlockSkip } from '../../../src/services/locationPermissionAppLockGuard';
+import {
+  armLocationPermissionUnlockSkip,
+  finishLocationPermissionUnlockSkip,
+  isPermissionDialogUnlockSkipArmed,
+} from '../../../src/services/locationPermissionAppLockGuard';
 import { colors } from '@beeapp/design-system';
 import {
   getActiveConversationCall,
@@ -179,6 +183,7 @@ export default function ConversationScreen() {
   >('checking');
   const [accessError, setAccessError] = useState<string | null>(null);
   const [attempt, setAttempt] = useState(0);
+  const permissionDialogInactiveRef = useRef(false);
   const [chatCameraOpen, setChatCameraOpen] = useState(false);
   const [chatCameraMicrophoneGranted, setChatCameraMicrophoneGranted] = useState(false);
 
@@ -192,12 +197,24 @@ export default function ConversationScreen() {
 
   useEffect(() => {
     const subscription = AppState.addEventListener('change', (state) => {
-      if (state !== 'active') {
+      if (state === 'background') {
+        permissionDialogInactiveRef.current = false;
         setAccess('checking');
-      } else {
-        setAccess('checking');
-        setAttempt((value) => value + 1);
+        return;
       }
+      if (state === 'inactive') {
+        permissionDialogInactiveRef.current = isPermissionDialogUnlockSkipArmed();
+        if (!permissionDialogInactiveRef.current) {
+          setAccess('checking');
+        }
+        return;
+      }
+      if (permissionDialogInactiveRef.current) {
+        permissionDialogInactiveRef.current = false;
+        return;
+      }
+      setAccess('checking');
+      setAttempt((value) => value + 1);
     });
     return () => subscription.remove();
   }, []);

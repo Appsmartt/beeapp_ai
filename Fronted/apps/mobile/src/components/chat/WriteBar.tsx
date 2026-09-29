@@ -29,6 +29,10 @@ import {
 import {
   colors,
 } from '@beeapp/design-system';
+import {
+  armPermissionDialogUnlockSkip,
+  finishPermissionDialogUnlockSkip,
+} from '../../services/locationPermissionAppLockGuard';
 
 type PendingChatAttachment = {
   kind: 'image' | 'document';
@@ -237,7 +241,16 @@ export default function WriteBar({
     }
 
     try {
-      const permission = await Audio.requestPermissionsAsync();
+      let permission = await Audio.getPermissionsAsync();
+
+      if (!permission.granted && permission.canAskAgain) {
+        armPermissionDialogUnlockSkip();
+        try {
+          permission = await Audio.requestPermissionsAsync();
+        } finally {
+          finishPermissionDialogUnlockSkip();
+        }
+      }
 
       if (!permission.granted) {
         throw new Error(
