@@ -585,6 +585,29 @@ function AppPushNotifications() {
       identityLoading={identityLoading}
       onClose={(callId) => {
         clearIncomingCall(callId);
+
+        if (callId) {
+          void Notifications.getPresentedNotificationsAsync()
+            .then((notifications) => Promise.all(
+              notifications
+                .filter((notification) => {
+                  const data = getNotificationData(notification);
+                  return (
+                    String(data.module || '').trim() === 'calls'
+                    && String(data.type || '').trim() === 'incoming_call'
+                    && String(data.call_id || '').trim() === callId
+                  );
+                })
+                .map((notification) => (
+                  Notifications.dismissNotificationAsync(
+                    notification.request.identifier,
+                  )
+                )),
+            ))
+            .catch(() => {
+              // El modal se cierra aunque el sistema no permita retirar el push.
+            });
+        }
       }}
       onAccepted={(call) => {
         clearIncomingCall(call.callId);

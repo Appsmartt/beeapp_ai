@@ -126,6 +126,50 @@ export default function IncomingCallModal({
     };
   }, [call?.callId]);
 
+  useEffect(() => {
+    if (!call || !actorIdentityId || action) {
+      return;
+    }
+
+    let cancelled = false;
+    let inFlight = false;
+    const currentCallId = call.callId;
+
+    const reconcileIncomingCall = async () => {
+      if (cancelled || inFlight) {
+        return;
+      }
+
+      inFlight = true;
+
+      try {
+        const detail = await withIncomingCallSessionRetry(
+          (auth) => getCallDetail(auth, currentCallId, actorIdentityId),
+        );
+
+        if (!cancelled && !isJoinableStatus(detail.call?.status)) {
+          void stopIncomingCallRingtone();
+          onClose(currentCallId);
+        }
+      } catch {
+        // Un error temporal de red no debe ocultar una llamada válida.
+      } finally {
+        inFlight = false;
+      }
+    };
+
+    void reconcileIncomingCall();
+
+    const intervalId = setInterval(() => {
+      void reconcileIncomingCall();
+    }, 3000);
+
+    return () => {
+      cancelled = true;
+      clearInterval(intervalId);
+    };
+  }, [call?.callId, actorIdentityId, action, onClose]);
+
   const closeUnavailableCall = () => {
     void stopIncomingCallRingtone();
     onClose(call?.callId);
