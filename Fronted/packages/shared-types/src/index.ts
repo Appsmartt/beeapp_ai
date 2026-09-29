@@ -2653,6 +2653,14 @@ export interface ChatMessage {
 }
 
 export interface ChatConversation {
+  reaction_preview?: {
+    message_id: string;
+    identity_id: string;
+    emoji: string;
+    created_at: string;
+    event_sequence: number;
+    deleted?: boolean;
+  } | null;
   id: string;
   conversation_type: ChatConversationType;
   name: string | null;

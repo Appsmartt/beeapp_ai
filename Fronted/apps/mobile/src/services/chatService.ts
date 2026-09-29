@@ -18,6 +18,7 @@ export interface ChatListItemModel {
   id: string;
   name: string;
   lastMessage: string;
+  reactionPreview?: string | null;
   isCallNotice: boolean;
   time: string;
   unreadCount: number;
@@ -372,6 +373,10 @@ export function mapConversationToListItem(
     id: conversation.id,
     name: displayName,
     lastMessage: lastMessageText,
+    reactionPreview: !isProtected && conversation.reaction_preview
+      && !conversation.reaction_preview.deleted
+      ? `Reaccionó ${conversation.reaction_preview.emoji} a un mensaje`
+      : null,
     isCallNotice,
     time: formatChatTime(
       conversation.last_message_at

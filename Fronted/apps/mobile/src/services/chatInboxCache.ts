@@ -66,6 +66,8 @@ function selectInboxConversations(
     seen.add(conversation.id);
     selected.push({
       ...conversation,
+      reaction_preview: conversation.is_protected
+        ? null : conversation.reaction_preview ?? null,
       last_message: conversation.last_message
         ? {
             id: conversation.last_message.id,
@@ -161,6 +163,8 @@ export async function readChatInboxCache(
         return {
           ...conversation,
           is_protected: isProtected,
+          reaction_preview: isProtected
+            ? null : conversation.reaction_preview ?? null,
           last_message: isProtected && conversation.last_message
             ? { ...conversation.last_message, content: 'Chat protegido' }
             : conversation.last_message,
@@ -232,6 +236,8 @@ export function writeChatInboxCache(
           return {
             ...conversation,
             is_protected: isProtected,
+            reaction_preview: isProtected
+              ? null : conversation.reaction_preview ?? null,
             last_message: isProtected && conversation.last_message
               ? { ...conversation.last_message, content: 'Chat protegido' }
               : conversation.last_message,
@@ -398,6 +404,8 @@ export async function writeCachedProtectedChatIds(
             return {
               ...conversation,
               is_protected: isProtected,
+              reaction_preview: isProtected
+                ? null : conversation.reaction_preview ?? null,
               last_message: isProtected && conversation.last_message
                 ? { ...conversation.last_message, content: 'Chat protegido' }
                 : conversation.last_message,
