@@ -15,3 +15,12 @@ Fronted/apps/mobile/google-services.json
 Backend/**/env
 Backend/**/.env
 Backend/**/.env.*
+
+# Keep local session data, response dumps and backups out of the repository and build uploads.
+/.beeapp-backups/
+**/*.bak*
+/Backend/beeAppBack/cookies.txt
+/Backend/beeAppBack/calendar-integrations.json
+/Backend/beeAppBack/google-sync-response.json
+/Backend/beeAppBack/google-discover-response.json
+/Backend/beeAppBack/beeapp-calendar-events.json
