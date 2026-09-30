@@ -10,3 +10,8 @@ Fronted/apps/mobile/google-services.json
 
 # Incluir explícitamente el archivo que Gradle necesita.
 !Fronted/apps/mobile/android/app/google-services.json
+
+# Keep backend environment files out of EAS Build uploads.
+Backend/**/env
+Backend/**/.env
+Backend/**/.env.*
