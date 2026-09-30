@@ -797,7 +797,9 @@ function toSharedInboxConversation(
             conversation.last_message_receipt_status === 'read'
             || conversation.last_message_receipt_status === 'delivered'
               ? conversation.last_message_receipt_status
-              : 'sent'
+              : conversation.last_message_sender_identity_id === ownIdentityId
+                ? 'delivered'
+                : 'sent'
           ),
           created_at: conversation.last_message_at || '',
           attachments: [],

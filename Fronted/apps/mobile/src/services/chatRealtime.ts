@@ -30,6 +30,10 @@ import {
 import {
   getChatMessageReceiptStatus,
 } from './chatReceiptStatus';
+import {
+  startChatMessageSnapshotSync,
+  stopChatMessageSnapshotSync,
+} from './chatMessageSnapshotSync';
 
 const supabaseUrl = String(
   process.env.EXPO_PUBLIC_SUPABASE_URL || '',
@@ -755,7 +759,7 @@ async function reconcileCachedChatsAfterSubscribe(): Promise<void> {
   ).map(async (identity) => {
     try {
       const { conversations } = await getChatInbox(
-        credentials, identity.id, { limit: 10 },
+        credentials, identity.id, { limit: 100 },
       );
       for (const incoming of conversations) {
         if (getActiveChatStoreIdentityId() !== identity.id) break;
@@ -780,11 +784,19 @@ async function reconcileCachedChatsAfterSubscribe(): Promise<void> {
             (participant) => Boolean(participant.joined_at),
           ) ? current.participants : incoming.participants,
         });
-        if (!cachedMessages.length) continue;
+        if (
+          !cachedMessages.length
+          || !incoming.last_message?.id
+        ) continue;
 
+        console.log('[chat-message-cache] reconcile-changed', {
+          conversationId: incoming.id,
+          previousCount: cachedMessages.length,
+          latestMessageId: incoming.last_message.id,
+        });
         try {
           const [page, participantResponse] = await Promise.all([
-            fetchChatMessages(credentials, incoming.id, { limit: 50 }),
+            fetchChatMessages(credentials, incoming.id, { limit: 30 }),
             getChatParticipants(credentials, incoming.id),
           ]);
           const byId = new Map(
@@ -793,7 +805,18 @@ async function reconcileCachedChatsAfterSubscribe(): Promise<void> {
           page.messages.forEach((message) => {
             byId.set(message.id, message);
           });
-          setChatMessages(incoming.id, [...byId.values()]);
+          setChatMessages(
+            incoming.id,
+            [...byId.values()].sort((left, right) => (
+              (left.sequence_number ?? 0) - (right.sequence_number ?? 0)
+              || Date.parse(left.created_at) - Date.parse(right.created_at)
+            )).slice(-30),
+            {
+              nextBeforeSequence: page.next_before_sequence,
+              hasMore: page.next_before_sequence !== null,
+              lastSyncedAt: new Date().toISOString(),
+            },
+          );
           const latest = getChatConversations().find(
             (item) => item.id === incoming.id,
           );
@@ -855,6 +878,7 @@ export async function startChatRealtime(): Promise<void> {
     await stopChatRealtime();
 
     activeUserId = userId;
+    await startChatMessageSnapshotSync(userId);
 
     supabase.realtime.setAuth(accessToken);
 
@@ -910,6 +934,7 @@ export async function stopChatRealtime(): Promise<void> {
 
   activeChannel = null;
   activeUserId = null;
+  stopChatMessageSnapshotSync();
   inFlightMessageIds.clear();
 
   if (channel) {

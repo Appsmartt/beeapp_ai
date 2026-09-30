@@ -6,7 +6,6 @@ import {
 } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   Image,
   ScrollView,
   StyleSheet,
@@ -19,13 +18,6 @@ import {
   ChevronLeft,
   Globe,
   MapPin,
-  MessageSquare,
-  Phone,
-  ShieldAlert,
-  Trash2,
-  Video,
-  Volume2,
-  VolumeX,
 } from 'lucide-react-native';
 import { colors } from '@beeapp/design-system';
 import {
@@ -98,12 +90,6 @@ export default function ContactDetailScreen() {
 
   const [error, setError] =
     useState<string | null>(null);
-
-  const [isMuted, setIsMuted] =
-    useState(false);
-
-  const [isBlocked, setIsBlocked] =
-    useState(false);
 
   const loadContact = useCallback(
     async (
@@ -203,62 +189,6 @@ export default function ContactDetailScreen() {
   const canRenderAvatar = Boolean(
     avatarUrl && !avatarFailed,
   );
-
-  const handleChat = () => {
-    Alert.alert(
-      'Mensaje',
-      'Este perfil se abrió desde un contacto de Chat. La conversación existente se mantiene sin cambios.',
-    );
-  };
-
-  const handleCall = (
-    isVideo: boolean,
-  ) => {
-    if (!contact) {
-      return;
-    }
-
-    router.push({
-      pathname: '/(main)/chat/call',
-      params: {
-        name: contact.display_name,
-        isVideo: isVideo ? 'true' : 'false',
-      },
-    });
-  };
-
-  const toggleMute = () => {
-    setIsMuted((current) => !current);
-
-    Alert.alert(
-      isMuted
-        ? 'Notificaciones activadas'
-        : 'Notificaciones silenciadas',
-      isMuted
-        ? 'Las alertas de este contacto se activaron localmente.'
-        : 'Las alertas de este contacto se silenciaron localmente.',
-    );
-  };
-
-  const toggleBlock = () => {
-    setIsBlocked((current) => !current);
-
-    Alert.alert(
-      isBlocked
-        ? 'Contacto desbloqueado'
-        : 'Contacto bloqueado',
-      isBlocked
-        ? 'El contacto se desbloqueó localmente.'
-        : 'El contacto se bloqueó localmente.',
-    );
-  };
-
-  const handleDelete = () => {
-    Alert.alert(
-      'Eliminar contacto',
-      'La eliminación de contactos todavía no está conectada al backend.',
-    );
-  };
 
   if (loading && !contact) {
     return (
@@ -385,59 +315,6 @@ export default function ContactDetailScreen() {
             ) : null}
           </View>
 
-          <View style={styles.actionsRow}>
-            <TouchableOpacity
-              style={styles.actionButton}
-              onPress={handleChat}
-              activeOpacity={0.7}
-            >
-              <View style={styles.actionIconWrap}>
-                <MessageSquare
-                  size={18}
-                  color={colors.brand.primary}
-                />
-              </View>
-
-              <Text style={styles.actionLabel}>
-                Mensaje
-              </Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.actionButton}
-              onPress={() => handleCall(false)}
-              activeOpacity={0.7}
-            >
-              <View style={styles.actionIconWrap}>
-                <Phone
-                  size={18}
-                  color={colors.brand.primary}
-                />
-              </View>
-
-              <Text style={styles.actionLabel}>
-                Llamar
-              </Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.actionButton}
-              onPress={() => handleCall(true)}
-              activeOpacity={0.7}
-            >
-              <View style={styles.actionIconWrap}>
-                <Video
-                  size={18}
-                  color={colors.brand.primary}
-                />
-              </View>
-
-              <Text style={styles.actionLabel}>
-                Video
-              </Text>
-            </TouchableOpacity>
-          </View>
-
           <Text style={styles.sectionTitle}>
             Información general
           </Text>
@@ -527,71 +404,6 @@ export default function ContactDetailScreen() {
               </View>
             </>
           ) : null}
-
-          <Text style={styles.sectionTitle}>
-            Opciones
-          </Text>
-
-          <View style={styles.optionsCard}>
-            <TouchableOpacity
-              style={styles.optionRow}
-              onPress={toggleMute}
-              activeOpacity={0.7}
-            >
-              {isMuted ? (
-                <Volume2
-                  size={16}
-                  color={colors.neutral.text}
-                />
-              ) : (
-                <VolumeX
-                  size={16}
-                  color={colors.neutral.text}
-                />
-              )}
-
-              <Text style={styles.optionLabel}>
-                {isMuted
-                  ? 'Activar notificaciones'
-                  : 'Silenciar notificaciones'}
-              </Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.optionRow}
-              onPress={toggleBlock}
-              activeOpacity={0.7}
-            >
-              <ShieldAlert
-                size={16}
-                color={colors.neutral.text}
-              />
-
-              <Text style={styles.optionLabel}>
-                {isBlocked
-                  ? 'Desbloquear contacto'
-                  : 'Bloquear contacto'}
-              </Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[
-                styles.optionRow,
-                styles.lastOptionRow,
-              ]}
-              onPress={handleDelete}
-              activeOpacity={0.7}
-            >
-              <Trash2
-                size={16}
-                color={colors.semantic.error}
-              />
-
-              <Text style={styles.deleteLabel}>
-                Eliminar contacto
-              </Text>
-            </TouchableOpacity>
-          </View>
 
           {refreshing ? (
             <ActivityIndicator
@@ -687,34 +499,6 @@ const styles = StyleSheet.create({
     marginTop: 7,
     textTransform: 'uppercase',
   },
-  actionsRow: {
-    backgroundColor: colors.neutral.white,
-    borderBottomColor: colors.neutral.gray200,
-    borderBottomWidth: 1,
-    flexDirection: 'row',
-    gap: 32,
-    justifyContent: 'center',
-    paddingVertical: 16,
-  },
-  actionButton: {
-    alignItems: 'center',
-    gap: 6,
-  },
-  actionIconWrap: {
-    alignItems: 'center',
-    backgroundColor: colors.neutral.gray50,
-    borderColor: colors.neutral.gray200,
-    borderRadius: 22,
-    borderWidth: 1,
-    height: 44,
-    justifyContent: 'center',
-    width: 44,
-  },
-  actionLabel: {
-    color: colors.neutral.text,
-    fontSize: 11,
-    fontWeight: '700',
-  },
   sectionTitle: {
     color: colors.neutral.gray600,
     fontSize: 11,
@@ -770,35 +554,6 @@ const styles = StyleSheet.create({
     fontSize: 13,
     paddingVertical: 14,
     textAlign: 'center',
-  },
-  optionsCard: {
-    backgroundColor: colors.neutral.white,
-    borderBottomColor: colors.neutral.gray200,
-    borderBottomWidth: 1,
-    borderTopColor: colors.neutral.gray200,
-    borderTopWidth: 1,
-  },
-  optionRow: {
-    alignItems: 'center',
-    borderBottomColor: colors.neutral.gray100,
-    borderBottomWidth: 1,
-    flexDirection: 'row',
-    gap: 12,
-    paddingHorizontal: 20,
-    paddingVertical: 14,
-  },
-  lastOptionRow: {
-    borderBottomWidth: 0,
-  },
-  optionLabel: {
-    color: colors.neutral.text,
-    fontSize: 13,
-    fontWeight: '600',
-  },
-  deleteLabel: {
-    color: colors.semantic.error,
-    fontSize: 13,
-    fontWeight: '600',
   },
   centerState: {
     alignItems: 'center',

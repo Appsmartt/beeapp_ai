@@ -15,6 +15,11 @@ import {
   getLatestIncomingChatMessage,
 } from './chatMessageReceipts';
 import {
+  readChatMessageSnapshot,
+  removeChatMessageSnapshot,
+  writeChatMessageSnapshot,
+} from './chatMessageSnapshotCache';
+import {
   getValidAuthSession,
   getValidSessionCredentials,
 } from './authSession';
@@ -23,18 +28,18 @@ import {
 } from './chatAvatarCache';
 import {
   getActiveChatStoreIdentityId,
+  getChatMessages as getStoredChatMessages,
+  getChatMessagesCacheMetadata,
   hydrateChatConversations,
   replaceChatConversationsSnapshot,
   setChatMessages,
 } from '../stores/chatStore';
 
 const INITIAL_INBOX_REQUEST_LIMIT = 100;
-const INITIAL_DIRECT_CHAT_LIMIT = 10;
-const INITIAL_GROUP_CHAT_LIMIT = 5;
-const INITIAL_MESSAGES_PAGE_SIZE = 100;
-const INITIAL_MAX_MESSAGES_PER_CONVERSATION = 300;
-const INITIAL_SYNC_DAYS = 7;
-
+const INITIAL_DIRECT_CHAT_LIMIT = 20;
+const INITIAL_GROUP_CHAT_LIMIT = 20;
+const INITIAL_MESSAGES_PAGE_SIZE = 30;
+const INITIAL_MAX_MESSAGES_PER_CONVERSATION = 30;
 export interface ChatInitialSyncProgress {
   phase: 'preparing' | 'inbox' | 'messages' | 'complete';
   completedConversations: number;
@@ -48,16 +53,6 @@ export interface ChatInitialSyncResult {
   synchronizedConversationCount: number;
   failedConversationCount: number;
   skipped: boolean;
-}
-
-function getInitialSyncCutoff(): number {
-  const cutoff = new Date();
-
-  cutoff.setDate(
-    cutoff.getDate() - INITIAL_SYNC_DAYS,
-  );
-
-  return cutoff.getTime();
 }
 
 function getMessageTimestamp(
@@ -102,50 +97,46 @@ function sortMessages(
 function selectInitialConversations(
   conversations: ChatConversation[],
 ): ChatConversation[] {
-  const directChats: ChatConversation[] = [];
-  const groupChats: ChatConversation[] = [];
+  const selected: ChatConversation[] = [];
+  const seen = new Set<string>();
+  let directCount = 0;
+  let groupCount = 0;
 
-  for (const conversation of conversations) {
+  const sorted = [...conversations].sort((left, right) => {
+    const leftAt = Date.parse(
+      left.last_message_at || left.updated_at || left.created_at,
+    ) || 0;
+    const rightAt = Date.parse(
+      right.last_message_at || right.updated_at || right.created_at,
+    ) || 0;
+    return rightAt - leftAt;
+  });
+
+  for (const conversation of sorted) {
     if (
-      conversation.conversation_type === 'direct'
-      && directChats.length < INITIAL_DIRECT_CHAT_LIMIT
-    ) {
-      directChats.push(conversation);
-      continue;
+      !conversation.id
+      || seen.has(conversation.id)
+      || (
+        conversation.conversation_type !== 'direct'
+        && conversation.conversation_type !== 'group'
+      )
+    ) continue;
+
+    if (!conversation.is_pinned) {
+      if (conversation.conversation_type === 'direct') {
+        if (directCount >= INITIAL_DIRECT_CHAT_LIMIT) continue;
+        directCount += 1;
+      } else {
+        if (groupCount >= INITIAL_GROUP_CHAT_LIMIT) continue;
+        groupCount += 1;
+      }
     }
 
-    if (
-      conversation.conversation_type === 'group'
-      && groupChats.length < INITIAL_GROUP_CHAT_LIMIT
-    ) {
-      groupChats.push(conversation);
-    }
-
-    if (
-      directChats.length >= INITIAL_DIRECT_CHAT_LIMIT
-      && groupChats.length >= INITIAL_GROUP_CHAT_LIMIT
-    ) {
-      break;
-    }
+    seen.add(conversation.id);
+    selected.push(conversation);
   }
 
-  return [...directChats, ...groupChats].sort(
-    (left, right) => {
-      const leftTimestamp = new Date(
-        left.last_message_at
-        || left.updated_at
-        || left.created_at,
-      ).getTime();
-
-      const rightTimestamp = new Date(
-        right.last_message_at
-        || right.updated_at
-        || right.created_at,
-      ).getTime();
-
-      return rightTimestamp - leftTimestamp;
-    },
-  );
+  return selected;
 }
 
 async function getChatSyncAuth(): Promise<{
@@ -184,8 +175,6 @@ async function synchronizeConversationMessages(
   recipientIdentityId?: string,
   recipientUserId?: string,
 ): Promise<void> {
-  const cutoff = getInitialSyncCutoff();
-
   const collected: ChatMessage[] = [];
   let beforeSequence: number | null = null;
   let nextBeforeSequence: number | null = null;
@@ -212,24 +201,12 @@ async function synchronizeConversationMessages(
       break;
     }
 
-    const messagesWithinWindow = pageMessages.filter(
-      (message) => (
-        getMessageTimestamp(message) >= cutoff
-      ),
-    );
-
-    collected.push(...messagesWithinWindow);
-
-    const oldestPageMessage = pageMessages[0];
-    const reachedCutoff = (
-      getMessageTimestamp(oldestPageMessage) < cutoff
-    );
+    collected.push(...pageMessages);
 
     nextBeforeSequence = response.next_before_sequence;
 
     if (
-      reachedCutoff
-      || nextBeforeSequence === null
+      nextBeforeSequence === null
       || collected.length
         >= INITIAL_MAX_MESSAGES_PER_CONVERSATION
     ) {
@@ -258,11 +235,21 @@ async function synchronizeConversationMessages(
     && getActiveChatStoreIdentityId()
       === conversationIdentityId
   ) {
+    const merged = new Map(
+      uniqueMessages.map((message) => [message.id, message]),
+    );
+    getStoredChatMessages(conversation.id).forEach((message) => {
+      merged.set(message.id, {
+        ...merged.get(message.id),
+        ...message,
+      });
+    });
+    const recent = sortMessages([...merged.values()]).slice(
+      -INITIAL_MAX_MESSAGES_PER_CONVERSATION,
+    );
     setChatMessages(
       conversation.id,
-      sortMessages(uniqueMessages).slice(
-        -INITIAL_MAX_MESSAGES_PER_CONVERSATION,
-      ),
+      recent,
       {
         nextBeforeSequence,
         hasMore,
@@ -483,45 +470,73 @@ async function runWithConcurrency<T>(
 }
 
 /*
- * Llena en segundo plano el cache de mensajes de los chats que el
- * usuario probablemente abrirá primero. No bloquea la lista de chats
- * ni borra mensajes de conversaciones fuera de la selección.
+ * Precarga los mensajes de los chats seleccionados y espera a que se
+ * intente persistir cada snapshot. La primera entrada en Chats espera
+ * muestra los chats disponibles mientras esta tarea sigue en segundo plano;
+ * un refresco reintenta solo los snapshots faltantes.
+ * No borra mensajes de conversaciones fuera de la selección.
  */
 export async function prefetchRecentChatMessages(
   auth: AuthCredentials,
   conversations: ChatConversation[],
+  context: {
+    userId: string;
+    identityId: string;
+    protectedConversationIds: ReadonlySet<string>;
+  },
 ): Promise<void> {
   const selectedConversations = selectInitialConversations(
     conversations,
-  );
+  ).filter((conversation) => (
+    conversation.own_participant?.identity_id === context.identityId
+  ));
 
-  if (selectedConversations.length === 0) {
-    return;
-  }
-
-  console.log('[chat-message-prefetch] started', {
-    conversationCount: selectedConversations.length,
-    conversationIds: selectedConversations.map(
-      (conversation) => conversation.id,
-    ),
-  });
 
   await runWithConcurrency(
     selectedConversations,
     INITIAL_MESSAGE_PREFETCH_CONCURRENCY,
     async (conversation) => {
-      await synchronizeConversationMessages(
-        auth,
-        conversation,
-      );
+      if (getActiveChatStoreIdentityId() !== context.identityId) return;
+      if (context.protectedConversationIds.has(conversation.id)) {
+        await removeChatMessageSnapshot(
+          context.userId, context.identityId, conversation.id,
+        );
+        return;
+      }
 
-      console.log('[chat-message-prefetch] cached', {
-        conversationId: conversation.id,
-      });
+      const saved = await readChatMessageSnapshot(
+        context.userId, context.identityId, conversation.id,
+      );
+      if (saved) {
+        return;
+      }
+
+      await synchronizeConversationMessages(
+        auth, conversation,
+      );
+      if (getActiveChatStoreIdentityId() !== context.identityId) return;
+
+      const messages = getStoredChatMessages(conversation.id);
+      const metadata = getChatMessagesCacheMetadata(conversation.id);
+      const verified = await writeChatMessageSnapshot(
+        context.userId,
+        context.identityId,
+        conversation.id,
+        {
+          messages,
+          metadata: {
+            nextBeforeSequence: metadata.nextBeforeSequence,
+            hasMore: metadata.hasMore,
+            lastSyncedAt: metadata.lastSyncedAt || new Date().toISOString(),
+          },
+        },
+      );
+      if (!verified) {
+        console.warn('[chat-message-prefetch] not-persisted', {
+          conversationId: conversation.id,
+        });
+      }
     },
   );
 
-  console.log('[chat-message-prefetch] complete', {
-    conversationCount: selectedConversations.length,
-  });
 }

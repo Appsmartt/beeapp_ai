@@ -644,6 +644,10 @@ export async function clearChatMessagesCache(
   }
 }
 
+export function getActiveChatStoreUserId(): string | null {
+  return activeUserId;
+}
+
 export function getActiveChatStoreIdentityId(): string | null {
   return activeIdentityId;
 }

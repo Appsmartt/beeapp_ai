@@ -17,6 +17,8 @@ test('broadcast nuevo actualiza mensajes, preview y contador del inbox', async (
   }).outputText;
   const previousUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
   const previousKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
+  const previousDev = global.__DEV__;
+  global.__DEV__ = false;
   process.env.EXPO_PUBLIC_SUPABASE_URL = 'https://example.supabase.co';
   process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY = 'test-public-key';
 
@@ -102,6 +104,10 @@ test('broadcast nuevo actualiza mensajes, preview y contador del inbox', async (
           last_message: lastMessage || conversations[index].last_message,
         };
       },
+    },
+    './chatMessageSnapshotSync': {
+      startChatMessageSnapshotSync: async () => {},
+      stopChatMessageSnapshotSync: () => {},
     },
     './chatReceiptStatus': {
       getChatMessageReceiptStatus: (_message, participants) => {
@@ -229,6 +235,34 @@ test('broadcast nuevo actualiza mensajes, preview y contador del inbox', async (
         lastMessageId: conversations[0].last_message.id,
       }),
     );
+    serverPage = [
+      { ...message, reactions: [{
+        id: 'recovered-reaction', message_id: 'message-1',
+        identity_id: 'identity-other', emoji: '👍',
+      }] },
+      { ...ownMessage, status: 'read' },
+      missedMessage,
+    ];
+    subscriptionStatus('SUBSCRIBED');
+    for (
+      let i = 0;
+      i < 40 && !messages.find((item) => item.id === 'message-1')
+        ?.reactions?.length;
+      i += 1
+    ) {
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    }
+    assert.equal(
+      messages.find((item) => item.id === 'message-1')
+        ?.reactions?.[0]?.emoji,
+      '👍',
+    );
+    assert.equal(
+      messages.find((item) => item.id === 'message-2')?.status,
+      'read',
+    );
+    assert.equal(conversations[0].last_message.id, 'message-3');
+
     reactionMessage = { ...message, reactions: [{
       id: 'reaction-1', message_id: 'message-1',
       identity_id: 'identity-own', owner_user_id: 'user-own', emoji: '❤️',
@@ -252,6 +286,8 @@ test('broadcast nuevo actualiza mensajes, preview y contador del inbox', async (
     assert.deepEqual(messages.at(-1)?.reactions, []);
     await loaded.exports.stopChatRealtime();
   } finally {
+    if (previousDev === undefined) delete global.__DEV__;
+    else global.__DEV__ = previousDev;
     if (previousUrl === undefined) delete process.env.EXPO_PUBLIC_SUPABASE_URL;
     else process.env.EXPO_PUBLIC_SUPABASE_URL = previousUrl;
     if (previousKey === undefined) delete process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
