@@ -442,20 +442,10 @@ def revoke_all_user_device_sessions(
 ) -> None:
     try:
         supabase = get_supabase_admin_client()
-
-        response = (
-            supabase.table("device_sessions")
-            .update(
-                {
-                    "is_active": False,
-                    "revoked_at": timezone.now().isoformat(),
-                }
-            )
-            .eq("user_id", user_id)
-            .eq("is_active", True)
-            .execute()
-        )
-
+        supabase.rpc(
+            "beeapp_revoke_all_user_sessions",
+            {"p_user_id": user_id},
+        ).execute()
     except Exception as error:
         raise DeviceSessionError(
             "Could not revoke device sessions."

@@ -5,6 +5,9 @@ from beeAppBack.core.supabase_client import (
 from apps.accounts.exceptions import (
     AccountAuthenticationError,
 )
+from apps.accounts.services.device_session_service import (
+    get_active_mobile_device_session_for_auth_session,
+)
 
 
 def refresh_supabase_session(
@@ -29,6 +32,16 @@ def refresh_supabase_session(
             raise AccountAuthenticationError(
                 "Supabase did not return valid refreshed tokens."
             )
+
+        if not response.user:
+            raise AccountAuthenticationError(
+                "Supabase did not return the session user."
+            )
+
+        get_active_mobile_device_session_for_auth_session(
+            user_id=str(response.user.id),
+            access_token=session.access_token,
+        )
 
         return {
             "access_token": session.access_token,

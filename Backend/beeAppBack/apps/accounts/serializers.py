@@ -114,7 +114,8 @@ class LoginUserSerializer(serializers.Serializer):
 class RefreshSessionSerializer(serializers.Serializer):
     refresh_token = serializers.CharField(
         required=False,
-        min_length=20,
+        min_length=1,
+        max_length=4096,
         write_only=True,
         trim_whitespace=True,
     )
