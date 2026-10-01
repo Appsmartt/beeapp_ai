@@ -47,7 +47,9 @@ def check(label, condition, detail):
     results.append(f"{state} | {label} | {detail}")
 
 def skipped(label, reason):
-    results.append(f"SKIP | {label} | {reason}")
+    global failures
+    failures += 1
+    results.append(f"FAIL | precondición {label} | {reason}")
 
 def items(value, key):
     if isinstance(value, list):
@@ -100,6 +102,17 @@ def main():
             "WARN | clave pública | la de Fronted/.env no coincide; "
             "el test usa la publishable activa sin modificar .env"
         )
+    key_status, _ = request(
+        "GET", supabase_url + "/auth/v1/settings",
+        {"apikey": anon_key},
+    )
+    check(
+        "clave pública de prueba aceptada",
+        key_status == 200,
+        f"HTTP {key_status}",
+    )
+    if key_status != 200:
+        return 1
     api_base = config[required[2]].rstrip("/")
     if not api_base.endswith("/api"):
         api_base += "/api"
@@ -122,7 +135,20 @@ def main():
             {"apikey": anon_key, "Content-Type": "application/json"},
             {"email": email, "password": password},
         )
+        backend_status, backend_data = request(
+            "POST", api_base + "/accounts/login/",
+            {"Content-Type": "application/json"},
+            {"email": email, "password": password},
+        )
         password = None
+        backend_session = (
+            backend_data.get("session", {})
+            if isinstance(backend_data, dict) else {}
+        )
+        backend_user = (
+            backend_data.get("user", {})
+            if isinstance(backend_data, dict) else {}
+        )
         if status != 200 or not isinstance(data, dict) or not data.get("access_token"):
             error_code = data.get("error_code") if isinstance(data, dict) else None
             safe_codes = {
@@ -145,7 +171,28 @@ def main():
             )
             return 1
         user = data.get("user") or {}
-        accounts.append({"token": data["access_token"], "id": user.get("id")})
+        backend_token = (
+            backend_session.get("access_token")
+            if isinstance(backend_session, dict) else None
+        )
+        check(
+            f"sesión backend {label}",
+            backend_status == 200 and bool(backend_token)
+            and isinstance(backend_user, dict)
+            and backend_user.get("id") == user.get("id"),
+            f"HTTP {backend_status}; identidad_coincide="
+            f"{isinstance(backend_user, dict) and backend_user.get('id') == user.get('id')}",
+        )
+        if backend_status != 200 or not backend_token or (
+            not isinstance(backend_user, dict)
+            or backend_user.get("id") != user.get("id")
+        ):
+            return 1
+        accounts.append({
+            "token": data["access_token"],
+            "backend_token": backend_token,
+            "id": user.get("id"),
+        })
         results.append(f"PASS | autenticación {label} | HTTP {status}")
     if not accounts[0]["id"] or not accounts[1]["id"] or accounts[0]["id"] == accounts[1]["id"]:
         results.append("FAIL | cuentas | se requieren dos usuarios distintos")
@@ -278,6 +325,201 @@ def main():
               f"HTTP {status}; resultado={value}")
     else:
         skipped("helpers de conversación", "B no tiene conversación disponible")
+
+    # S4_HTTP_REGRESSION_CASES: read-only cross-account and backend checks.
+    for label, account in zip(("A", "B"), accounts):
+        status, note_page = backend(
+            api_base, account["backend_token"], "/notes/?limit=10"
+        )
+        note_rows = items(note_page, "notes")
+        check(
+            f"backend notas propias {label}",
+            status == 200 and isinstance(note_page, dict)
+            and isinstance(note_page.get("notes"), list)
+            and all(
+                isinstance(row, dict)
+                and row.get("owner_id") == account["id"]
+                for row in note_rows
+            ),
+            f"HTTP {status}; filas={len(note_rows)}",
+        )
+        account["backend_notes"] = note_rows
+
+        status, search_page = backend(
+            api_base, account["backend_token"], "/notes/?search=s4&limit=10"
+        )
+        search_rows = items(search_page, "notes")
+        check(
+            f"backend búsqueda propia {label}",
+            status == 200 and isinstance(search_page, dict)
+            and isinstance(search_page.get("notes"), list)
+            and all(
+                isinstance(row, dict)
+                and row.get("owner_id") == account["id"]
+                for row in search_rows
+            ),
+            f"HTTP {status}; filas={len(search_rows)}",
+        )
+
+        status, notification_page = backend(
+            api_base, account["backend_token"],
+            "/notifications/?module=chat&limit=10",
+        )
+        notification_rows = items(notification_page, "notifications")
+        notification_ids = [
+            row.get("id") for row in notification_rows
+            if isinstance(row, dict) and row.get("id")
+        ]
+        if status == 200 and len(notification_ids) == len(notification_rows):
+            owner_filter = ",".join(notification_ids)
+            owner_url = (
+                supabase_url
+                + "/rest/v1/notifications?select=id,recipient_id&id=in.("
+                + urllib.parse.quote(owner_filter, safe=",")
+                + ")"
+            )
+            owner_status, owned_notifications = request(
+                "GET", owner_url,
+                {"apikey": anon_key,
+                 "Authorization": f"Bearer {account['token']}"},
+            )
+        else:
+            owner_status, owned_notifications = 0, None
+        check(
+            f"backend notificaciones propias {label}",
+            status == 200 and isinstance(notification_page, dict)
+            and isinstance(notification_page.get("notifications"), list)
+            and len(notification_ids) == len(notification_rows)
+            and owner_status == 200
+            and isinstance(owned_notifications, list)
+            and {row.get("id") for row in owned_notifications}
+                == set(notification_ids)
+            and all(
+                row.get("recipient_id") == account["id"]
+                for row in owned_notifications
+            ),
+            f"backend HTTP {status}; RLS HTTP {owner_status}; "
+            f"filas={len(notification_rows)}",
+        )
+
+        status, bootstrap = request(
+            "POST", api_base + "/chat/bootstrap/",
+            {"Authorization": f"Bearer {account['backend_token']}",
+             "Content-Type": "application/json"},
+            {},
+        )
+        check(
+            f"backend bootstrap chat {label}",
+            status == 200 and isinstance(bootstrap, dict)
+            and isinstance(bootstrap.get("identities"), list)
+            and len(bootstrap["identities"]) > 0,
+            f"HTTP {status}; identidades="
+            f"{len(items(bootstrap, 'identities'))}",
+        )
+
+    # S4_TEMPORARY_NOTE_FIXTURE: always use a new owned note.
+    import uuid
+    temporary_note_id = None
+    try:
+        test_title = "s4-isolation-" + uuid.uuid4().hex
+        create_status, created = request(
+            "POST", api_base + "/notes/",
+            {"Authorization": f"Bearer {b['backend_token']}",
+             "Content-Type": "application/json"},
+            {"title": test_title},
+        )
+        note = created.get("note") if isinstance(created, dict) else None
+        temporary_note_id = (
+            note.get("id") if isinstance(note, dict)
+            and note.get("owner_id") == b["id"] else None
+        )
+        check(
+            "crear nota temporal propia B",
+            create_status == 201 and bool(temporary_note_id),
+            f"HTTP {create_status}; id_presente={bool(temporary_note_id)}",
+        )
+        if temporary_note_id:
+            search_status, search_result = backend(
+                api_base, b["backend_token"],
+                "/notes/?search=" + urllib.parse.quote(test_title)
+                + "&limit=10",
+            )
+            check(
+                "búsqueda real nota temporal B",
+                search_status == 200 and any(
+                    isinstance(row, dict)
+                    and row.get("id") == temporary_note_id
+                    and row.get("owner_id") == b["id"]
+                    for row in items(search_result, "notes")
+                ),
+                f"HTTP {search_status}",
+            )
+        foreign_note = temporary_note_id
+        check(
+            "precondición nota real B",
+            foreign_note is not None,
+            "B tiene nota propia" if foreign_note else
+            "B no tiene nota: acceso cruzado no verificable",
+        )
+        if foreign_note:
+            status, own_detail = backend(
+                api_base, b["backend_token"], f"/notes/{foreign_note}/"
+            )
+            check(
+                "backend lectura nota propia B",
+                status == 200 and isinstance(own_detail, dict)
+                and isinstance(own_detail.get("note"), dict)
+                and own_detail["note"].get("owner_id") == b["id"],
+                f"HTTP {status}",
+            )
+            status, _ = backend(
+                api_base, a["backend_token"], f"/notes/{foreign_note}/"
+            )
+            check("backend nota ajena A", status == 404, f"HTTP {status}")
+            status, _ = backend(
+                api_base, a["backend_token"],
+                f"/notes/{foreign_note}/attachments/",
+            )
+            check(
+                "backend adjuntos nota ajena A",
+                status == 404,
+                f"HTTP {status}",
+            )
+
+    finally:
+        if temporary_note_id:
+            own_note_url = api_base + f"/notes/{temporary_note_id}/"
+            own_headers = {
+                "Authorization": f"Bearer {b['backend_token']}",
+            }
+            trash_status, _ = request(
+                "POST", own_note_url + "trash/",
+                own_headers, {},
+            )
+            check(
+                "enviar solo nota temporal B a papelera",
+                trash_status == 200,
+                f"HTTP {trash_status}",
+            )
+            if trash_status == 200:
+                delete_status, _ = request(
+                    "DELETE", own_note_url, own_headers,
+                )
+                check(
+                    "eliminar solo nota temporal B",
+                    delete_status == 204,
+                    f"HTTP {delete_status}",
+                )
+                if delete_status == 204:
+                    verify_status, _ = backend(
+                        api_base, b["backend_token"],
+                        f"/notes/{temporary_note_id}/",
+                    )
+                    check(
+                        "verificar ausencia nota temporal B",
+                        verify_status == 404,
+                        f"HTTP {verify_status}",
+                    )
 
     return 1 if failures else 0
 

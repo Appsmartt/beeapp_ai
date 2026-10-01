@@ -1,5 +1,9 @@
 #!/usr/bin/env bash
 cd ~/Git/beeapp_ai
-python3 Backend/beeAppBack/scripts/test_s4_rpc_isolation_live.py > /home/andres-mendoza/Git/beeapp_ai/tmp/s4_rpc_isolation_results.txt
-chmod 600 /home/andres-mendoza/Git/beeapp_ai/tmp/s4_rpc_isolation_results.txt
-code /home/andres-mendoza/Git/beeapp_ai/tmp/s4_rpc_isolation_results.txt
+umask 077
+python3 Backend/beeAppBack/scripts/test_s4_rpc_isolation_live.py > tmp/s4_rpc_isolation_results.txt
+result=$?
+chmod 600 tmp/s4_rpc_isolation_results.txt
+printf 'Código de salida: %s\n' "$result"
+grep -E '^(PASS|FAIL|SKIP|WARN|TOTAL) [|]' tmp/s4_rpc_isolation_results.txt
+test "$result" -eq 0
