@@ -288,7 +288,7 @@ def main():
             "Prefer": "return=representation",
         }
         second_query = urllib.parse.urlencode({
-            "select": "id,owner_id",
+            "select": "id",
             "owner_id": f"eq.{second_user_id}",
             "limit": "10",
         })
@@ -298,51 +298,245 @@ def main():
             headers=second_headers,
         )
         if own_status != 200 or not isinstance(own_rows, list):
-            raise RuntimeError("La segunda cuenta no puede consultar sus perfiles.")
-        lines.append(
-            f"Perfiles visibles de la segunda cuenta: {len(own_rows)}"
-        )
-        first_id = next(iter(baseline))
-        cross_query = urllib.parse.urlencode({
-            "id": f"eq.{first_id}",
-            "select": ",".join(("id",) + fields),
-        })
-        cross_status, cross_body = request(
-            "PATCH",
-            f"{supabase}/rest/v1/commercial_profiles?{cross_query}",
-            {"verification_badge_visible": True},
-            second_headers,
-        )
-        if cross_status not in (200, 204) or cross_body not in ([], {}):
-            lines.append(f"Resultado cruzado inesperado: HTTP {cross_status}")
             raise RuntimeError(
-                "La escritura cruzada no quedó confirmada como cero filas."
+                "No se pudo consultar los perfiles de la cuenta B."
             )
-        verify_status, verified_rows = request(
+        lines.append(
+            f"Perfiles preexistentes de B: {len(own_rows)}"
+        )
+        if own_rows:
+            raise RuntimeError(
+                "La cuenta B ya tiene perfiles; no crear fixture automáticamente."
+            )
+
+        first_id = next(iter(baseline))
+        template_query = urllib.parse.urlencode({
+            "id": f"eq.{first_id}",
+            "select": "offer_type,country_code",
+        })
+        template_status, template_rows = request(
             "GET",
-            f"{supabase}/rest/v1/commercial_profiles?{query}",
+            f"{supabase}/rest/v1/commercial_profiles?{template_query}",
             headers={
                 "apikey": anon_key,
                 "Authorization": f"Bearer {token}",
             },
         )
-        if verify_status != 200 or not isinstance(verified_rows, list):
-            raise RuntimeError("No se pudo verificar el perfil de la cuenta A.")
-        verified_by_id = {
-            str(row["id"]): {
-                field: row.get(field) for field in fields
-            }
-            for row in verified_rows
-        }
-        if verified_by_id != baseline:
-            raise RuntimeError(
-                "Los campos de la cuenta A cambiaron tras la prueba cruzada."
+        if (
+            template_status != 200
+            or not isinstance(template_rows, list)
+            or len(template_rows) != 1
+        ):
+            raise RuntimeError("No se obtuvo el tipo del negocio de referencia.")
+
+        fixture_id = None
+        fixture_url = None
+        fixture_deleted = False
+        try:
+            stage = "creación del fixture de B"
+            created_status, created_rows = request(
+                "POST",
+                f"{supabase}/rest/v1/commercial_profiles"
+                "?select=id,owner_id,verification_status,"
+                "verification_badge_visible,suspended_at,suspension_reason",
+                {
+                    "owner_id": str(second_user_id),
+                    "offer_type": template_rows[0]["offer_type"],
+                    "custom_activity_text": "S8 temporary security test",
+                    "display_name": "S8 Temporary Security Fixture",
+                    "description": (
+                        "Disposable commercial profile for S8 testing."
+                    ),
+                    "country_code": template_rows[0]["country_code"],
+                    "city": "Bogota",
+                    "publication_status": "paused",
+                    "is_public": False,
+                    "is_available": False,
+                    "verification_status": "verified",
+                    "verification_badge_visible": True,
+                    "suspended_at": "2026-10-01T12:00:00Z",
+                    "suspension_reason": "attempted override",
+                },
+                second_headers,
             )
-        lines.append(
-            "Escritura cruzada: cero filas; perfil de A sin cambios"
+            if isinstance(created_rows, list) and len(created_rows) == 1:
+                fixture_id = str(created_rows[0].get("id") or "")
+            lines.append(f"Creación de fixture B: HTTP {created_status}")
+            if (
+                created_status != 201
+                or not fixture_id
+                or str(created_rows[0].get("owner_id"))
+                    != str(second_user_id)
+            ):
+                raise RuntimeError(
+                    "No se confirmó creación del fixture de B."
+                )
+
+            fixture_url = (
+                f"{supabase}/rest/v1/commercial_profiles?"
+                + urllib.parse.urlencode({
+                    "id": f"eq.{fixture_id}",
+                    "owner_id": f"eq.{second_user_id}",
+                    "select": ",".join(("id",) + fields),
+                })
+            )
+            safe_state = {
+                "verification_status": "not_requested",
+                "verification_badge_visible": False,
+                "suspended_at": None,
+                "suspension_reason": None,
+            }
+            created_state = {
+                field: created_rows[0].get(field) for field in fields
+            }
+            if created_state != safe_state:
+                raise RuntimeError(
+                    "INSERT no impuso los cuatro valores seguros."
+                )
+            lines.append(
+                "INSERT malicioso B: cuatro campos normalizados por S8"
+            )
+
+            stage = "ataques como propietaria B"
+            rejected_b = 0
+            for cycle in range(1, 6):
+                for field, value in attempts:
+                    patch_status, patch_body = request(
+                        "PATCH", fixture_url,
+                        {field: value}, second_headers,
+                    )
+                    if not (
+                        patch_status in (400, 403)
+                        and isinstance(patch_body, dict)
+                        and patch_body.get("code") == "42501"
+                        and "Commercial profile verification and suspension fields are protected"
+                            in str(patch_body.get("message", ""))
+                    ):
+                        raise RuntimeError(
+                            f"Propietaria B: rechazo S8 no confirmado en {field}."
+                        )
+                    rejected_b += 1
+                read_status, read_rows = request(
+                    "GET", fixture_url,
+                    headers=second_headers,
+                )
+                if (
+                    read_status != 200
+                    or not isinstance(read_rows, list)
+                    or len(read_rows) != 1
+                    or {
+                        field: read_rows[0].get(field) for field in fields
+                    } != safe_state
+                ):
+                    raise RuntimeError(
+                        "Fixture B cambió tras un ciclo de ataques."
+                    )
+                lines.append(
+                    f"Fixture B ciclo {cycle}/5: 4 rechazos; "
+                    "cuatro campos intactos"
+                )
+
+            stage = "aislamiento cruzado"
+            cross_query = urllib.parse.urlencode({
+                "id": f"eq.{first_id}",
+                "select": "id",
+            })
+            cross_status, cross_body = request(
+                "PATCH",
+                f"{supabase}/rest/v1/commercial_profiles?{cross_query}",
+                {"verification_badge_visible": True},
+                second_headers,
+            )
+            if cross_status not in (200, 204) or cross_body not in ([], {}):
+                raise RuntimeError("B pudo afectar el perfil de A.")
+            a_headers = {
+                "apikey": anon_key,
+                "Authorization": f"Bearer {token}",
+                "Prefer": "return=representation",
+            }
+            a_cross_url = (
+                f"{supabase}/rest/v1/commercial_profiles?"
+                + urllib.parse.urlencode({
+                    "id": f"eq.{fixture_id}",
+                    "select": "id",
+                })
+            )
+            reverse_status, reverse_body = request(
+                "PATCH", a_cross_url,
+                {"verification_badge_visible": True},
+                a_headers,
+            )
+            if (
+                reverse_status not in (200, 204)
+                or reverse_body not in ([], {})
+            ):
+                raise RuntimeError("A pudo afectar el perfil de B.")
+            lines.append("Aislamiento A→B y B→A: cero filas")
+
+            verify_status, verified_rows = request(
+                "GET",
+                f"{supabase}/rest/v1/commercial_profiles?{query}",
+                headers=a_headers,
+            )
+            if verify_status != 200 or not isinstance(
+                verified_rows, list
+            ):
+                raise RuntimeError("No se pudo verificar A tras los cruces.")
+            if {
+                str(row["id"]): {
+                    field: row.get(field) for field in fields
+                }
+                for row in verified_rows
+            } != baseline:
+                raise RuntimeError("Los campos de A cambiaron.")
+            lines.append(
+                f"Rechazos S8 confirmados: A={completed}, B={rejected_b}"
+            )
+        finally:
+            if fixture_id:
+                stage = "limpieza del fixture B"
+                delete_url = (
+                    f"{supabase}/rest/v1/commercial_profiles?"
+                    + urllib.parse.urlencode({
+                        "id": f"eq.{fixture_id}",
+                        "owner_id": f"eq.{second_user_id}",
+                        "select": "id",
+                    })
+                )
+                delete_status, deleted_rows = request(
+                    "DELETE", delete_url,
+                    headers=second_headers,
+                )
+                check_status, remaining = request(
+                    "GET", fixture_url,
+                    headers=second_headers,
+                )
+                fixture_deleted = (
+                    delete_status == 200
+                    and isinstance(deleted_rows, list)
+                    and len(deleted_rows) == 1
+                    and str(deleted_rows[0].get("id")) == fixture_id
+                    and check_status == 200
+                    and remaining == []
+                )
+                lines.append(
+                    "Limpieza fixture B: "
+                    + ("confirmada" if fixture_deleted else "FALLÓ")
+                )
+                if not fixture_deleted:
+                    lines.append(f"ID de fixture pendiente: {fixture_id}")
+                    raise RuntimeError(
+                        "Fixture B no se borró; requiere limpieza controlada."
+                    )
+
+        expected_rejections = len(baseline) * len(attempts) * 5 + (
+            len(attempts) * 5
         )
+        if completed + rejected_b != expected_rejections:
+            raise RuntimeError("El recuento de rechazos S8 no coincide.")
         lines.append(
-            "RESULTADO: PASÓ pruebas repetidas y aislamiento cruzado"
+            f"RESULTADO: PASÓ INSERT, {completed + rejected_b} rechazos, "
+            "aislamiento y limpieza"
         )
         result = 0
     except Exception as error:
