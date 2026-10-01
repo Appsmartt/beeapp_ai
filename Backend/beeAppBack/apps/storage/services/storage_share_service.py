@@ -78,6 +78,23 @@ def create_file_share(
     expires_at: str | None = None,
 ) -> dict[str, Any]:
     try:
+        if expires_at is not None:
+            try:
+                expiration = datetime.fromisoformat(
+                    expires_at.replace("Z", "+00:00")
+                )
+            except (TypeError, ValueError, AttributeError) as error:
+                raise StorageShareError(
+                    "Invalid share expiration."
+                ) from error
+            if (
+                expiration.tzinfo is None
+                or expiration <= datetime.now(timezone.utc)
+            ):
+                raise StorageShareError(
+                    "Share expiration must be in the future."
+                )
+
         file_record = get_owned_file(
             user_id=user_id,
             file_id=file_id,
@@ -205,6 +222,10 @@ def list_received_shares(
             )
             .eq("shared_with_user_id", user_id)
             .is_("revoked_at", "null")
+            .or_(
+                "expires_at.is.null,"
+                f"expires_at.gt.{datetime.now(timezone.utc).isoformat()}"
+            )
             .range(offset, offset + limit - 1)
             .order("created_at", desc=True)
         )

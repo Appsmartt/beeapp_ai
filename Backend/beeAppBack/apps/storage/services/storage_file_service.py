@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from datetime import datetime, timezone
+
 import logging
 import mimetypes
 from pathlib import Path
@@ -749,6 +751,10 @@ def get_accessible_file(
             .eq("file_id", file_id)
             .eq("shared_with_user_id", user_id)
             .is_("revoked_at", "null")
+            .or_(
+                "expires_at.is.null,"
+                f"expires_at.gt.{datetime.now(timezone.utc).isoformat()}"
+            )
             .maybe_single()
             .execute()
         )
