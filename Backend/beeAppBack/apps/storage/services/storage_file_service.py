@@ -660,10 +660,26 @@ def create_file_access_url(
     download: bool = False,
 ) -> dict[str, Any]:
     try:
+        access_metadata: dict[str, Any] = {}
         file_record = get_accessible_file(
             user_id=user_id,
             file_id=file_id,
+            access_metadata=access_metadata,
         )
+        expires_in_seconds = SIGNED_URL_EXPIRES_IN_SECONDS
+        share_expiration = access_metadata.get("expires_at")
+        if share_expiration is not None:
+            expiration = datetime.fromisoformat(
+                share_expiration.replace("Z", "+00:00")
+            )
+            remaining = int(
+                (expiration - datetime.now(timezone.utc)).total_seconds()
+            ) - 2
+            if remaining < 1:
+                raise StorageFileNotFoundError(
+                    "The requested file was not found."
+                )
+            expires_in_seconds = min(expires_in_seconds, remaining)
 
         supabase = get_supabase_admin_client()
 
@@ -679,7 +695,7 @@ def create_file_access_url(
             supabase.storage.from_(file_record["bucket_id"])
             .create_signed_url(
                 file_record["storage_path"],
-                SIGNED_URL_EXPIRES_IN_SECONDS,
+                expires_in_seconds,
                 options,
             )
         )
@@ -700,9 +716,7 @@ def create_file_access_url(
         return {
             "file": _serialize_file(file_record),
             "url": signed_url,
-            "expires_in_seconds": (
-                SIGNED_URL_EXPIRES_IN_SECONDS
-            ),
+            "expires_in_seconds": expires_in_seconds,
             "download": download,
         }
 
@@ -722,6 +736,7 @@ def get_accessible_file(
     *,
     user_id: str,
     file_id: str,
+    access_metadata: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     try:
         supabase = get_supabase_admin_client()
@@ -784,6 +799,8 @@ def get_accessible_file(
                 "The requested file was not found."
             )
 
+        if access_metadata is not None:
+            access_metadata["expires_at"] = share_response.data.get("expires_at")
         return file_response.data
 
     except StorageFileNotFoundError:

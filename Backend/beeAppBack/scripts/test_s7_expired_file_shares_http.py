@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import base64
 import getpass
 import json
 import os
@@ -7,7 +8,7 @@ import sys
 import time
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from urllib.parse import quote
+from urllib.parse import parse_qs, quote, urljoin, urlparse
 
 from test_security_12_http import frontend_config, login, request
 
@@ -116,10 +117,74 @@ def main():
             raise RuntimeError(f"No se creó fixture temporal: HTTP {status}")
         share_id = share["id"]
         lines.append("PASS | fixture temporal creada | identificador omitido")
-        status, _ = request("GET", endpoint + "access/", token=token_b)
+        status, raw = request("GET", endpoint + "access/", token=token_b)
         check("share vigente permite acceso", status == 200, status)
+        access = parse(raw)
+        signed = access.get("url") if isinstance(access, dict) else None
+        if status != 200 or not isinstance(signed, str):
+            raise RuntimeError("No se obtuvo una URL firmada vigente.")
+        ttl = access.get("expires_in_seconds")
+        check(
+            "TTL de share próximo a vencer limitado",
+            isinstance(ttl, int) and 1 <= ttl <= 42, status,
+        )
+        if not isinstance(ttl, int) or not 1 <= ttl <= 42:
+            raise RuntimeError("El backend no devolvió el TTL acotado esperado.")
+        signed = urljoin(supabase + "/", signed)
+        destination = urlparse(signed)
+        project_origin = urlparse(supabase)
+        if (
+            destination.scheme != "https"
+            or destination.netloc != project_origin.netloc
+            or not destination.path.startswith("/storage/v1/object/sign/")
+        ):
+            raise RuntimeError("URL firmada fuera del Storage del proyecto esperado.")
+        status, _ = request("GET", signed)
+        check("URL preemitida funciona durante el share", status == 200, status)
+        if status != 200:
+            raise RuntimeError("URL preemitida no funcionó durante el share.")
         while datetime.now(timezone.utc) <= datetime.fromisoformat(future) + timedelta(seconds=2):
             time.sleep(1)
+
+        status, expired_response = request("GET", signed)
+        response_data = parse(expired_response)
+        fields = (
+            sorted(response_data.keys())[:12]
+            if isinstance(response_data, dict) else []
+        )
+        token_values = parse_qs(urlparse(signed).query).get("token", [])
+        jwt_expired = False
+        if len(token_values) == 1:
+            try:
+                segments = token_values[0].split(".")
+                encoded = segments[1]
+                payload = json.loads(base64.urlsafe_b64decode(
+                    encoded + "=" * (-len(encoded) % 4)
+                ))
+                expiry = payload.get("exp")
+                jwt_expired = (
+                    isinstance(expiry, (int, float))
+                    and time.time() > expiry
+                )
+            except (IndexError, ValueError, TypeError):
+                pass
+        expiration_confirmed = (
+            status == 400
+            and jwt_expired
+            and isinstance(response_data, dict)
+            and "code" in response_data
+            and "message" in response_data
+        )
+        lines.append(
+            "DIAGNOSTICO | respuesta_400_bytes="
+            + str(len(expired_response))
+            + " | campos_json=" + ",".join(fields)
+            + " | jwt_expirado=" + str(jwt_expired)
+        )
+        check(
+            "URL preemitida expira con el share",
+            expiration_confirmed, status,
+        )
 
         for cycle in range(1, CYCLES + 1):
             status, _ = request("GET", endpoint + "access/", token=token_b)

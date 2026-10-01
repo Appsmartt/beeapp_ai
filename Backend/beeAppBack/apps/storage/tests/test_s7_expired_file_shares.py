@@ -6,6 +6,7 @@ from django.test import SimpleTestCase
 
 from apps.storage.exceptions import StorageFileNotFoundError, StorageShareError
 from apps.storage.services.storage_file_service import (
+    create_file_access_url,
     get_accessible_file,
     get_file_content_for_mail_attachment,
 )
@@ -114,4 +115,87 @@ class ExpiredFileShareTests(SimpleTestCase):
                 get_file_content_for_mail_attachment(
                     user_id="recipient", file_id="file", max_size_bytes=1024
                 )
+        client.storage.from_.assert_not_called()
+
+    def test_owner_and_unlimited_share_keep_standard_signed_url_ttl(self):
+        for expiration in (None, "unlimited"):
+            with self.subTest(expiration=expiration):
+                client = MagicMock()
+                client.storage.from_.return_value.create_signed_url.return_value = {
+                    "signedURL": "https://example.invalid/signed"
+                }
+                file_record = {
+                    "id": "file", "bucket_id": "private",
+                    "storage_path": "file", "display_name": "file.txt",
+                }
+
+                def accessible_file(*, user_id, file_id, access_metadata):
+                    if expiration == "unlimited":
+                        access_metadata["expires_at"] = None
+                    return file_record
+
+                with patch(
+                    "apps.storage.services.storage_file_service.get_accessible_file",
+                    side_effect=accessible_file,
+                ), patch(
+                    "apps.storage.services.storage_file_service.get_supabase_admin_client",
+                    return_value=client,
+                ):
+                    result = create_file_access_url(
+                        user_id="user", file_id="file"
+                    )
+                self.assertEqual(result["expires_in_seconds"], 300)
+                client.storage.from_.return_value.create_signed_url.assert_called_once_with(
+                    "file", 300, {}
+                )
+
+    def test_expiring_share_caps_signed_url_ttl(self):
+        client = MagicMock()
+        client.storage.from_.return_value.create_signed_url.return_value = {
+            "signedURL": "https://example.invalid/signed"
+        }
+        file_record = {
+            "id": "file", "bucket_id": "private",
+            "storage_path": "file", "display_name": "file.txt",
+        }
+
+        def accessible_file(*, user_id, file_id, access_metadata):
+            access_metadata["expires_at"] = (
+                datetime.now(timezone.utc) + timedelta(seconds=45)
+            ).isoformat()
+            return file_record
+
+        with patch(
+            "apps.storage.services.storage_file_service.get_accessible_file",
+            side_effect=accessible_file,
+        ), patch(
+            "apps.storage.services.storage_file_service.get_supabase_admin_client",
+            return_value=client,
+        ):
+            result = create_file_access_url(user_id="recipient", file_id="file")
+        ttl = result["expires_in_seconds"]
+        self.assertGreaterEqual(ttl, 1)
+        self.assertLessEqual(ttl, 42)
+        client.storage.from_.return_value.create_signed_url.assert_called_once_with(
+            "file", ttl, {}
+        )
+
+    def test_share_near_expiration_cannot_issue_signed_url(self):
+        client = MagicMock()
+
+        def accessible_file(*, user_id, file_id, access_metadata):
+            access_metadata["expires_at"] = (
+                datetime.now(timezone.utc) + timedelta(seconds=2)
+            ).isoformat()
+            return {"id": "file"}
+
+        with patch(
+            "apps.storage.services.storage_file_service.get_accessible_file",
+            side_effect=accessible_file,
+        ), patch(
+            "apps.storage.services.storage_file_service.get_supabase_admin_client",
+            return_value=client,
+        ):
+            with self.assertRaises(StorageFileNotFoundError):
+                create_file_access_url(user_id="recipient", file_id="file")
         client.storage.from_.assert_not_called()
