@@ -23,7 +23,7 @@ PUBLIC_PROFILE_COLUMNS = (
     "description,country_code,city,address,neighborhood,"
     "location_reference,is_address_public,phone_dial_code,"
     "phone_number,is_phone_public,public_email,is_email_public,"
-    "logo_file_id,is_public,is_available,publication_status,"
+    "logo_file_id,owner_id,is_public,is_available,publication_status,"
     "verification_status,verification_badge_visible,timezone,"
     "delivery_fee_mode,delivery_fee_amount,delivery_currency_code,"
     "created_at,updated_at"
@@ -42,7 +42,7 @@ PUBLIC_PROFILE_CATEGORY_COLUMNS = (
 )
 
 PUBLIC_LOGO_FILE_COLUMNS = (
-    "id,bucket_id,storage_path,kind,status,trashed_at"
+    "id,owner_id,bucket_id,storage_path,kind,status,trashed_at"
 )
 
 
@@ -255,9 +255,9 @@ def _get_logo_files_by_profile_ids(
         return {}
 
     return {
-        str(file_record["id"]): file_record
+        (str(file_record["id"]), str(file_record["owner_id"])): file_record
         for file_record in _response_rows(response)
-        if file_record.get("id")
+        if file_record.get("id") and file_record.get("owner_id")
     }
 
 
@@ -412,9 +412,10 @@ def _enrich_public_profiles(
                 )
                 if category_id in categories_by_id
             ],
-            logo_file=logo_files_by_id.get(
-                str(profile.get("logo_file_id") or "")
-            ),
+            logo_file=logo_files_by_id.get((
+                str(profile.get("logo_file_id") or ""),
+                str(profile.get("owner_id") or ""),
+            )),
         )
         for profile in profiles
     ]
@@ -821,7 +822,7 @@ PUBLIC_OFFER_IMAGE_COLUMNS = (
 )
 
 PUBLIC_FILE_IMAGE_COLUMNS = (
-    "id,bucket_id,storage_path,display_name,original_name,"
+    "id,owner_id,bucket_id,storage_path,display_name,original_name,"
     "mime_type,kind,status,trashed_at"
 )
 
@@ -1025,6 +1026,36 @@ def _get_offer_images_by_offer_ids(
             )
         )
 
+        offer_rows_response = execute_with_supabase_admin_retry(
+            lambda client: (
+                client.table("commercial_offers")
+                .select("id,commercial_profile_id")
+                .in_("id", normalized_ids)
+                .execute()
+            )
+        )
+        offer_profile_ids = {
+            str(row["id"]): str(row["commercial_profile_id"])
+            for row in _response_rows(offer_rows_response)
+            if row.get("id") and row.get("commercial_profile_id")
+        }
+        profile_ids = sorted(set(offer_profile_ids.values()))
+        profile_owner_ids: dict[str, str] = {}
+        if profile_ids:
+            profiles_response = execute_with_supabase_admin_retry(
+                lambda client: (
+                    client.table("commercial_profiles")
+                    .select("id,owner_id")
+                    .in_("id", profile_ids)
+                    .execute()
+                )
+            )
+            profile_owner_ids = {
+                str(row["id"]): str(row["owner_id"])
+                for row in _response_rows(profiles_response)
+                if row.get("id") and row.get("owner_id")
+            }
+
         files_by_id: dict[str, dict[str, Any]] = {}
 
         if file_ids:
@@ -1051,7 +1082,16 @@ def _get_offer_images_by_offer_ids(
             file_id = str(image.get("file_id") or "")
             file_record = files_by_id.get(file_id)
 
-            if not file_record:
+            expected_owner_id = profile_owner_ids.get(
+                offer_profile_ids.get(
+                    str(image.get("commercial_offer_id") or ""), ""
+                )
+            )
+            if (
+                not file_record
+                or not expected_owner_id
+                or str(file_record.get("owner_id") or "") != expected_owner_id
+            ):
                 continue
 
             image_url, url_expires_in_seconds = (

@@ -451,6 +451,16 @@ def _serialize_chat_identity(
         "display_name": display_name,
         "avatar_file_id": avatar_file_id,
         "avatar_url": create_status_avatar_signed_url(
+            actor_type=(
+                "profile" if identity_type == "profile"
+                else "commercial_profile"
+            ),
+            actor_id=str(
+                identity.get("profile_id")
+                if identity_type == "profile"
+                else identity.get("commercial_profile_id")
+                or ""
+            ),
             avatar_file_id=(
                 str(avatar_file_id)
                 if avatar_file_id

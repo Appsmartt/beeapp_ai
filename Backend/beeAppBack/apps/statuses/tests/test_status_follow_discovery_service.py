@@ -91,7 +91,7 @@ class DiscoverFollowTargetsTests(TestCase):
         ), patch(
             "apps.statuses.services.status_follow_service."
             "create_status_avatar_signed_url",
-            side_effect=lambda *, avatar_file_id: (
+            side_effect=lambda *, avatar_file_id, **actor_context: (
                 f"https://signed.example/{avatar_file_id}"
                 if avatar_file_id
                 else None

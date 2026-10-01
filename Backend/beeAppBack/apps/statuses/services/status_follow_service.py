@@ -1044,6 +1044,8 @@ def _serialize_follow_list_target(
                     else None
                 ),
                 "avatar_url": create_status_avatar_signed_url(
+                    actor_type="profile",
+                    actor_id=str(profile["id"]),
                     avatar_file_id=(
                         str(profile["avatar_file_id"])
                         if profile.get("avatar_file_id")
@@ -1071,6 +1073,8 @@ def _serialize_follow_list_target(
                 else None
             ),
             "avatar_url": create_status_avatar_signed_url(
+                actor_type="commercial_profile",
+                actor_id=str(commercial["id"]),
                 avatar_file_id=(
                     str(commercial["logo_file_id"])
                     if commercial.get("logo_file_id")
@@ -1099,6 +1103,8 @@ def _serialize_follow_list_target(
                 else None
             ),
             "avatar_url": create_status_avatar_signed_url(
+                actor_type="profile",
+                actor_id=str(profile["id"]),
                 avatar_file_id=(
                     str(profile["avatar_file_id"])
                     if profile.get("avatar_file_id")
@@ -1126,6 +1132,8 @@ def _serialize_follow_list_target(
             else None
         ),
         "avatar_url": create_status_avatar_signed_url(
+            actor_type="commercial_profile",
+            actor_id=str(commercial["id"]),
             avatar_file_id=(
                 str(commercial["logo_file_id"])
                 if commercial.get("logo_file_id")
@@ -1328,6 +1336,12 @@ def discover_follow_targets(
                 else None
             ),
             "avatar_url": create_status_avatar_signed_url(
+                actor_type=str(row.get("actor_type") or ""),
+                actor_id=str(
+                    row.get("commercial_profile_id")
+                    or row.get("profile_id")
+                    or ""
+                ),
                 avatar_file_id=(
                     str(row["avatar_file_id"])
                     if row.get("avatar_file_id")

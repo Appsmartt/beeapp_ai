@@ -19,6 +19,7 @@ from apps.statuses.exceptions import (
     StatusViewerAccessError,
 )
 from apps.statuses.services.status_media_service import (
+    create_status_offer_image_signed_url,
     STATUS_MEDIA_SIGNED_URL_TTL_SECONDS,
     create_status_avatar_signed_url,
     create_status_media_signed_url,
@@ -1190,7 +1191,17 @@ def _enrich_story(
             commercial_offer_link
         )
         enriched_commercial_offer_link["image_url"] = (
-            create_status_media_signed_url(
+            create_status_offer_image_signed_url(
+                commercial_profile_id=str(
+                    enriched_commercial_offer_link.get(
+                        "commercial_profile_id"
+                    ) or ""
+                ),
+                image_file_id=str(
+                    enriched_commercial_offer_link.get(
+                        "image_file_id"
+                    ) or ""
+                ),
                 bucket_id=str(
                     enriched_commercial_offer_link.get(
                         "image_bucket_id"
@@ -1248,6 +1259,12 @@ def _enrich_actor(
     enriched_actor["avatar_url"] = (
         create_status_avatar_signed_url(
             avatar_file_id=enriched_actor["avatar_file_id"],
+            actor_type=str(enriched_actor.get("actor_type") or ""),
+            actor_id=str(
+                enriched_actor.get("commercial_profile_id")
+                or enriched_actor.get("profile_id")
+                or ""
+            ),
         )
         if enriched_actor["avatar_file_id"]
         else None
@@ -1276,6 +1293,8 @@ def _enrich_viewer(
     enriched_viewer["avatar_url"] = (
         create_status_avatar_signed_url(
             avatar_file_id=enriched_viewer["avatar_file_id"],
+            actor_type="profile",
+            actor_id=str(enriched_viewer.get("profile_id") or ""),
         )
         if enriched_viewer["avatar_file_id"]
         else None
