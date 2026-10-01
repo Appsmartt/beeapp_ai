@@ -40,6 +40,7 @@ import ScreenSafeArea from '../../../src/components/layout/ScreenSafeArea';
 import FloatingTabBar from '../../../src/components/FloatingTabBar';
 import {
   getValidSessionCredentials,
+  signOutCurrentDevice,
 } from '../../../src/services/authSession';
 
 function getInitials(
@@ -161,7 +162,14 @@ export default function ProfileMainScreen() {
           text: 'Cerrar sesión',
           style: 'destructive',
           onPress: () => {
-            router.replace('/(auth)/login');
+            void signOutCurrentDevice()
+              .then(() => router.replace('/(auth)/login'))
+              .catch(() => {
+                Alert.alert(
+                  'No se pudo cerrar sesión',
+                  'Comprueba la conexión e inténtalo de nuevo.',
+                );
+              });
           },
         },
       ],

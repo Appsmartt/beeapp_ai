@@ -6,6 +6,7 @@ import {
 } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   Keyboard,
   KeyboardAvoidingView,
   Platform,
@@ -36,8 +37,8 @@ import FeaturesSection from '../../src/components/onboarding/FeaturesSection';
 import { sharedStyles } from '../../src/components/onboarding/onboardingShared';
 import ScreenSafeArea from '../../src/components/layout/ScreenSafeArea';
 import {
-    clearAuthSession,
     getValidSessionCredentials,
+    signOutCurrentDevice,
   } from '../../src/services/authSession';
 
 type OnboardingStep =
@@ -390,9 +391,15 @@ export default function OnboardingScreen() {
   };
 
   const handleSignOut = async () => {
-    await clearAuthSession();
-
-    router.replace('/(auth)/login');
+    try {
+      await signOutCurrentDevice();
+      router.replace('/(auth)/login');
+    } catch {
+      Alert.alert(
+        'No se pudo cerrar sesión',
+        'Comprueba la conexión e inténtalo de nuevo.',
+      );
+    }
   };
 
   if (isLoading) {

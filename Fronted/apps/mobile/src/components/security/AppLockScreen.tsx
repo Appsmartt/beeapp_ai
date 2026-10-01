@@ -25,8 +25,8 @@ import {
   authenticateWithBiometrics,
 } from '../../services/biometricService';
 import {
-  clearAuthSession,
   getAuthSession,
+  signOutCurrentDevice,
 } from '../../services/authSession';
 import {
   getAppLockMethod,
@@ -154,12 +154,17 @@ export default function AppLockScreen() {
   }, []);
 
   const closeSessionAfterTooManyFailures = async () => {
-    await clearAuthSession();
-
-    setLocked(false);
-    setMethod(null);
-
-    router.replace('/(auth)/login');
+    try {
+      await signOutCurrentDevice();
+      setLocked(false);
+      setMethod(null);
+      router.replace('/(auth)/login');
+    } catch {
+      setFailureMessage(
+        'No se pudo cerrar la sesión de forma segura. '
+        + 'Comprueba la conexión e inténtalo de nuevo.',
+      );
+    }
   };
 
   const registerFailure = async () => {
@@ -240,12 +245,17 @@ export default function AppLockScreen() {
   };
 
   const handleForgotPin = async () => {
-    await clearAuthSession();
-
-    setLocked(false);
-    setMethod(null);
-
-    router.replace('/(auth)/login');
+    try {
+      await signOutCurrentDevice();
+      setLocked(false);
+      setMethod(null);
+      router.replace('/(auth)/login');
+    } catch {
+      setFailureMessage(
+        'No se pudo cerrar la sesión de forma segura. '
+        + 'Comprueba la conexión e inténtalo de nuevo.',
+      );
+    }
   };
 
   if (isLoading || !locked || !method) {

@@ -33,9 +33,9 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import {
-  clearAuthSession,
   getAuthSession,
   getSessionCredentials,
+  signOutCurrentDevice,
 } from '../../services/authSession';
 import {
   getProfileAvatarUrl,
@@ -285,10 +285,18 @@ export default function HomeSideMenu({
         {
           text: 'Cerrar Sesión',
           style: 'destructive',
-          onPress: async () => {
-            await clearAuthSession();
-            onClose();
-            router.replace('/(auth)/login');
+          onPress: () => {
+            void signOutCurrentDevice()
+              .then(() => {
+                onClose();
+                router.replace('/(auth)/login');
+              })
+              .catch(() => {
+                Alert.alert(
+                  'No se pudo cerrar sesión',
+                  'Comprueba la conexión e inténtalo de nuevo.',
+                );
+              });
           },
         },
       ],

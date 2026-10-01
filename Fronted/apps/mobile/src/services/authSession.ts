@@ -4,6 +4,7 @@ import {
   getCurrentProfile,
   notifyUnauthorizedAuthenticatedRequest,
   refreshSession,
+  revokeDeviceSession,
 } from '@beeapp/api-client';
 import type {
   AuthCredentials,
@@ -221,6 +222,35 @@ export async function getValidSessionCredentials(): Promise<
   }
 
   return getSessionCredentials(authSession);
+}
+
+export async function signOutCurrentDevice(): Promise<void> {
+  const session = await getValidAuthSession();
+
+  if (!session) {
+    if (!await getAuthSession()) {
+      return;
+    }
+
+    throw new Error(
+      'No se pudo validar la sesión. '
+      + 'Comprueba la conexión e inténtalo de nuevo.',
+    );
+  }
+
+  if (!session.deviceSessionId) {
+    throw new Error(
+      'No se pudo identificar la sesión del dispositivo. '
+      + 'Comprueba la conexión e inténtalo de nuevo.',
+    );
+  }
+
+  await revokeDeviceSession(
+    getSessionCredentials(session),
+    session.deviceSessionId,
+  );
+
+  await clearAuthSession();
 }
 
 export async function clearAuthSession(): Promise<void> {
