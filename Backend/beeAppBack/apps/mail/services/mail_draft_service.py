@@ -41,6 +41,7 @@ from apps.storage.exceptions import (
     StorageFileOperationError,
 )
 from apps.storage.services.storage_file_service import (
+    get_accessible_file,
     get_file_content_for_mail_attachment,
 )
 
@@ -1032,6 +1033,28 @@ def delete_mail_draft(
     except MailProviderError as error:
         raise MailSyncError(str(error)) from error
 
+def _validate_draft_storage_attachment_access(
+    *,
+    user_id: str,
+    attachments: list[dict[str, Any]],
+) -> None:
+    for attachment in attachments:
+        if attachment.get("source") != "storage":
+            continue
+
+        file_id = str(attachment.get("storage_file_id") or "").strip()
+        if not file_id:
+            raise MailSyncError(
+                "Uno de los archivos adjuntos ya no está disponible."
+            )
+
+        try:
+            get_accessible_file(user_id=user_id, file_id=file_id)
+        except StorageFileNotFoundError as error:
+            raise MailSyncError(
+                "Uno de los archivos adjuntos ya no está disponible."
+            ) from error
+
 
 def send_mail_draft(
     *,
@@ -1054,6 +1077,11 @@ def send_mail_draft(
 
     draft_snapshot = _build_draft_snapshot(
         draft=draft,
+    )
+
+    _validate_draft_storage_attachment_access(
+        user_id=user_id,
+        attachments=draft_snapshot["attachments"],
     )
 
     validate_sendable_draft(

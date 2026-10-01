@@ -6,6 +6,9 @@ import os
 import subprocess
 import sys
 import time
+import uuid
+import urllib.error
+import urllib.request
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from urllib.parse import parse_qs, quote, urljoin, urlparse
@@ -23,21 +26,100 @@ def parse(raw):
         return None
 
 
+
+def cleanup_isolated_fixture(*, file_id, owner_id, share_id):
+    backend_root = ROOT / "Backend/beeAppBack"
+    if str(backend_root) not in sys.path:
+        sys.path.insert(0, str(backend_root))
+    os.environ.setdefault("DJANGO_SETTINGS_MODULE", "beeAppBack.settings")
+    import django
+    django.setup()
+    from apps.storage.services.storage_file_service import get_supabase_admin_client
+
+    client = get_supabase_admin_client()
+    rows = (
+        client.table("files")
+        .select("id,owner_id,bucket_id,storage_path,original_name,status,size_bytes")
+        .eq("id", file_id)
+        .execute()
+        .data or []
+    )
+    if len(rows) != 1:
+        raise RuntimeError("Fixture file was not found uniquely; cleanup stopped.")
+    file = rows[0]
+    shares = (
+        client.table("file_shares")
+        .select("id,revoked_at")
+        .eq("file_id", file_id)
+        .execute()
+        .data or []
+    )
+    if not (
+        file["owner_id"] == str(owner_id)
+        and file["id"] == str(file_id)
+        and file["bucket_id"] == "beeapp-files"
+        and file["status"] == "ready"
+        and file["size_bytes"] == 44
+        and file["original_name"].startswith("s7-expired-share-")
+        and len(shares) == 1
+        and str(shares[0]["id"]) == str(share_id)
+        and shares[0]["revoked_at"] is not None
+    ):
+        raise RuntimeError("Fixture safety checks failed; cleanup stopped.")
+
+    quota_rows = (
+        client.table("storage_quotas")
+        .select("used_bytes")
+        .eq("user_id", owner_id)
+        .execute()
+        .data or []
+    )
+    if len(quota_rows) != 1 or quota_rows[0]["used_bytes"] < file["size_bytes"]:
+        raise RuntimeError("Fixture quota check failed; cleanup stopped.")
+    quota_before = quota_rows[0]["used_bytes"]
+    folder, name = file["storage_path"].rsplit("/", 1)
+    bucket = client.storage.from_(file["bucket_id"])
+    bucket.remove([file["storage_path"]])
+    objects = bucket.list(folder, {"limit": 100, "offset": 0})
+    if any(
+        (item.get("name") if isinstance(item, dict) else getattr(item, "name", None)) == name
+        for item in (objects or [])
+    ):
+        raise RuntimeError("Fixture object remains in Storage; metadata retained.")
+
+    client.table("files").delete().eq("id", file_id).eq("owner_id", owner_id).execute()
+    remaining = client.table("files").select("id").eq("id", file_id).execute().data or []
+    if remaining:
+        raise RuntimeError("Fixture file row remains; quota retained.")
+
+    updated = (
+        client.table("storage_quotas")
+        .update({"used_bytes": quota_before - file["size_bytes"]})
+        .eq("user_id", owner_id)
+        .eq("used_bytes", quota_before)
+        .execute()
+        .data or []
+    )
+    if len(updated) != 1:
+        raise RuntimeError("Fixture removed but quota update needs review.")
+    return True
+
+
 def main():
+    report_dir = ROOT / "tmp"
+    if not report_dir.is_dir():
+        raise RuntimeError("No existe la carpeta tmp para reportes ignorados.")
     ignored = subprocess.run(
-        ["git", "ls-files", "--others", "--ignored", "--exclude-standard"],
-        cwd=ROOT, check=True, capture_output=True, text=True,
-    ).stdout.splitlines()
-    folders = sorted({
-        (ROOT / name).parent for name in ignored
-        if name.endswith(".txt") and (ROOT / name).is_file()
-    })
-    if not folders:
-        raise RuntimeError("No existe la carpeta de .txt ignorados.")
-    report = folders[0] / "s7_resultado_http.txt"
+        ["git", "check-ignore", "-q", str(report_dir.relative_to(ROOT))],
+        cwd=ROOT, check=False,
+    )
+    if ignored.returncode != 0:
+        raise RuntimeError("La carpeta tmp no está ignorada por Git.")
+    report = report_dir / "s7_resultado_http.txt"
     lines = []
     failures = 0
     share_id = None
+    fixture_file_id = None
     token_a = None
     backend = os.environ.get("BEEAPP_BASE_URL", "http://127.0.0.1:8000").rstrip("/")
 
@@ -50,6 +132,12 @@ def main():
         supabase, key = frontend_config()
         key = os.environ.get("BEEAPP_S7_PUBLIC_KEY", key)
         key_type = "publishable" if key.startswith("sb_publishable_") else "legacy_or_other"
+        status, _ = request("GET", supabase + "/auth/v1/settings", key=key)
+        if status != 200:
+            raise RuntimeError(
+                f"Clave pública de Supabase rechazada antes del login: HTTP {status}; "
+                f"tipo={key_type}. No se alteraron sesiones."
+            )
         status, _ = request("GET", backend + "/api/health/")
         if status != 200:
             raise RuntimeError(f"Backend no disponible: HTTP {status}")
@@ -73,30 +161,48 @@ def main():
                     f"codigo={str(error_code)[:80]}; clave={key_type}"
                 )
 
-        status, raw = request("GET", backend + "/api/storage/files/?limit=100", token=token_a)
-        payload = parse(raw)
-        if status != 200 or not isinstance(payload, dict):
-            raise RuntimeError(f"No se pudo consultar archivos de A: HTTP {status}")
-        files = payload.get("files")
-        if not isinstance(files, list):
-            raise RuntimeError("Respuesta de archivos sin lista 'files'.")
-        chosen = None
-        for file in files:
-            if file.get("status") != "ready" or file.get("trashed_at"):
-                continue
-            file_id = file.get("id")
-            url = (supabase + "/rest/v1/file_shares?select=id"
-                   + "&file_id=eq." + quote(str(file_id), safe="")
-                   + "&shared_with_user_id=eq." + quote(str(user_b), safe=""))
-            code, body = request("GET", url, key=key, token=token_a)
-            rows = parse(body)
-            if code != 200 or not isinstance(rows, list):
-                raise RuntimeError(f"No se verificó relación previa: HTTP {code}")
-            if not rows:
-                chosen = file_id
-                break
-        if chosen is None:
-            raise RuntimeError("No hay archivo ready de A sin share previo hacia B; no se alteró ninguno.")
+        fixture_name = "s7-expired-share-" + uuid.uuid4().hex + ".txt"
+        boundary = "beeapp-s7-" + uuid.uuid4().hex
+        file_content = b"BeeApp S7 isolated expiration test fixture\\n"
+        multipart = (
+            ("--" + boundary + "\r\n"
+             + 'Content-Disposition: form-data; name="file"; filename="' + fixture_name + '"\r\n'
+             + "Content-Type: text/plain\r\n\r\n").encode("ascii")
+            + file_content
+            + ("\r\n--" + boundary + "--\r\n").encode("ascii")
+        )
+        upload_call = urllib.request.Request(
+            backend + "/api/storage/uploads/",
+            data=multipart,
+            headers={
+                "Accept": "application/json",
+                "Authorization": "Bearer " + token_a,
+                "Content-Type": "multipart/form-data; boundary=" + boundary,
+            },
+            method="POST",
+        )
+        try:
+            with urllib.request.urlopen(upload_call, timeout=40) as upload_response:
+                upload_status = upload_response.status
+                upload_raw = upload_response.read(262144)
+        except urllib.error.HTTPError as error:
+            upload_status = error.code
+            upload_raw = error.read(262144)
+        upload_result = parse(upload_raw)
+        uploaded = upload_result.get("files") if isinstance(upload_result, dict) else None
+        if upload_status != 201 or not isinstance(uploaded, list) or len(uploaded) != 1:
+            raise RuntimeError(f"No se creó el archivo aislado: HTTP {upload_status}")
+        created_file = uploaded[0]
+        if (
+            created_file.get("owner_id") != str(user_a)
+            or created_file.get("status") != "ready"
+            or created_file.get("original_name") != fixture_name
+            or not created_file.get("id")
+        ):
+            raise RuntimeError("Respuesta de upload no acredita un archivo de prueba propio y ready.")
+        fixture_file_id = str(created_file["id"])
+        chosen = fixture_file_id
+        lines.append("PASS | archivo de prueba aislado creado | identificador omitido")
         endpoint = backend + "/api/storage/files/" + quote(str(chosen), safe="") + "/"
         past = (datetime.now(timezone.utc) - timedelta(minutes=1)).isoformat()
         status, _ = request(
@@ -254,6 +360,20 @@ def main():
             except Exception as error:
                 failures += 1
                 lines.append("FAIL | revocación del fixture | " + str(error))
+        if fixture_file_id and share_id and token_a:
+            try:
+                cleanup_isolated_fixture(
+                    file_id=fixture_file_id,
+                    owner_id=user_a,
+                    share_id=share_id,
+                )
+                lines.append("PASS | objeto, fila y cuota del fixture limpiados")
+            except Exception as error:
+                failures += 1
+                lines.append(
+                    "FAIL | limpieza del fixture | " + type(error).__name__
+                    + " | verificar estado antes de reintentar"
+                )
         if "report" in locals():
             lines.append(f"RESULTADO | fallos={failures} | ciclos previstos={CYCLES}")
             report.write_text("\n".join(lines) + "\n")

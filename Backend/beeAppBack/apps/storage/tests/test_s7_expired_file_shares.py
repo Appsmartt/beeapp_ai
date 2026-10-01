@@ -117,6 +117,24 @@ class ExpiredFileShareTests(SimpleTestCase):
                 )
         client.storage.from_.assert_not_called()
 
+    def test_expired_share_mail_attachment_checks_real_access_before_download(self):
+        own = query_with_result(None)
+        expired_share = query_with_result(None)
+        client = MagicMock()
+        client.table.side_effect = [own, expired_share]
+        with patch(
+            "apps.storage.services.storage_file_service.get_supabase_admin_client",
+            return_value=client,
+        ):
+            with self.assertRaises(StorageFileNotFoundError):
+                get_file_content_for_mail_attachment(
+                    user_id="recipient", file_id="file", max_size_bytes=1024
+                )
+        expired_share.or_.assert_called_once()
+        self.assertIn("expires_at.is.null", expired_share.or_.call_args.args[0])
+        self.assertIn("expires_at.gt.", expired_share.or_.call_args.args[0])
+        client.storage.from_.assert_not_called()
+
     def test_owner_and_unlimited_share_keep_standard_signed_url_ttl(self):
         for expiration in (None, "unlimited"):
             with self.subTest(expiration=expiration):
