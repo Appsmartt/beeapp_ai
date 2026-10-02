@@ -1307,7 +1307,7 @@ def _require_identity_active_participant(
     )
 
     if not _extract_first_row(response):
-        raise ChatConversationNotFoundError(
+        raise ChatConversationAccessError(
             "Conversation was not found or is inaccessible."
         )
 
