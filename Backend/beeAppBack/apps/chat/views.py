@@ -10,6 +10,7 @@ from apps.accounts.views import (
     AuthenticatedAPIView,
 )
 from apps.chat.exceptions import (
+    ChatRecipientNotFoundError,
     ChatAttachmentError,
     ChatConversationAccessError,
     ChatConversationError,
@@ -429,6 +430,12 @@ class ChatRecipientSearchView(AuthenticatedAPIView):
                 {
                     "detail": str(error),
                 },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        except ChatRecipientNotFoundError as error:
+            return Response(
+                {"detail": str(error)},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
