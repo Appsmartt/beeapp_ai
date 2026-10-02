@@ -35,6 +35,7 @@ ALLOWED_HOSTS = [
     "localhost",
     "127.0.0.1",
     "192.168.1.5",
+    "journalism-replacing-flashers-named.trycloudflare.com",
 ]
 
 INSTALLED_APPS = [
@@ -171,6 +172,7 @@ CSRF_TRUSTED_ORIGINS = [
     "http://localhost:3001",
     "http://127.0.0.1:3001",
     "http://192.168.1.5:3001",
+    "https://journalism-replacing-flashers-named.trycloudflare.com",
 ]
 
 GOOGLE_OAUTH_CLIENT_ID = get_required_env(

@@ -38,6 +38,11 @@ import {
 import { colors } from '@beeapp/design-system';
 import { API_BASE_URL } from '@beeapp/api-client';
 
+const OAUTH_BROWSER_ORIGIN = (
+  process.env.EXPO_PUBLIC_OAUTH_BROWSER_ORIGIN
+  || API_BASE_URL.replace(/\/api\/?$/, '')
+).replace(/\/$/, '');
+
 
 import FloatingTabBar from '../../../src/components/FloatingTabBar';
 import ScreenSafeArea from '../../../src/components/layout/ScreenSafeArea';
@@ -116,13 +121,14 @@ export default function IntegrationsScreen() {
         );
       }
 
-      const apiOrigin = API_BASE_URL.replace(
-        /\/api\/?$/,
-        '',
-      );
+      if (!OAUTH_BROWSER_ORIGIN.startsWith('https://')) {
+        throw new Error(
+          'El origen público seguro para OAuth no está configurado.',
+        );
+      }
 
       const browserStartUrl = (
-        `${apiOrigin}${browserStartPath}`
+        `${OAUTH_BROWSER_ORIGIN}${browserStartPath}`
       );
 
       const redirectUrl = Linking.createURL(

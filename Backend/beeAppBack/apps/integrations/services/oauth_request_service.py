@@ -122,6 +122,8 @@ def create_oauth_request(
             )
         return {
             "request_id": str(oauth_request["id"]),
+            "provider": provider,
+            "requested_scopes": requested_scopes,
             "state": state,
             "code_challenge": challenge,
             "browser_start_token": browser_start_token,
