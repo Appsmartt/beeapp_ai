@@ -1321,25 +1321,44 @@ def list_public_commercial_product_feed(
 
     try:
         def operation(client):
-            matching_profiles: list[dict[str, Any]] = []
+            public_profiles_response = (
+                _public_profile_query(client)
+                .execute()
+            )
+            public_profiles = _response_rows(
+                public_profiles_response
+            )
+            public_profile_ids = [
+                str(profile["id"])
+                for profile in public_profiles
+                if profile.get("id")
+            ]
+
+            if not public_profile_ids:
+                return [], []
+
+            matching_profiles = public_profiles
 
             if normalized_search:
-                profiles_response = (
-                    client.table("commercial_profiles")
-                    .select(PUBLIC_PROFILE_COLUMNS)
-                    .or_(
-                        _build_postgrest_ilike_or_filter(
-                            columns=(
-                                "display_name",
-                                "description",
-                                "custom_activity_text",
-                            ),
-                            value=normalized_search,
-                        )
+                normalized_search_folded = normalized_search.casefold()
+                matching_profiles = [
+                    profile
+                    for profile in public_profiles
+                    if (
+                        normalized_search_folded
+                        in str(
+                            profile.get("display_name") or ""
+                        ).casefold()
+                        or normalized_search_folded
+                        in str(
+                            profile.get("description") or ""
+                        ).casefold()
+                        or normalized_search_folded
+                        in str(
+                            profile.get("custom_activity_text") or ""
+                        ).casefold()
                     )
-                    .execute()
-                )
-                matching_profiles = _response_rows(profiles_response)
+                ]
 
             matching_profile_ids = {
                 str(profile["id"])
@@ -1350,6 +1369,10 @@ def list_public_commercial_product_feed(
             offers_response = (
                 client.table("commercial_offers")
                 .select(PUBLIC_OFFER_COLUMNS)
+                .in_(
+                    "commercial_profile_id",
+                    public_profile_ids,
+                )
                 .eq("status", "published")
                 .eq("is_available", True)
                 .is_("archived_at", "null")

@@ -1046,6 +1046,209 @@ class PublicCommercialProductFeedServiceTests(SimpleTestCase):
         "commercial_public_service."
         "execute_with_supabase_admin_retry"
     )
+    def test_feed_excludes_non_public_business_states_before_offer_lookup(
+        self,
+        retry_mock,
+    ):
+        from apps.commercial.services.commercial_public_service import (
+            list_public_commercial_product_feed,
+        )
+
+        profiles = [
+            {
+                "id": "profile-public",
+                "is_public": True,
+                "is_available": True,
+                "publication_status": "published",
+                "archived_at": None,
+                "suspended_at": None,
+            },
+            {
+                "id": "profile-private",
+                "is_public": False,
+                "is_available": True,
+                "publication_status": "published",
+                "archived_at": None,
+                "suspended_at": None,
+            },
+            {
+                "id": "profile-paused",
+                "is_public": True,
+                "is_available": False,
+                "publication_status": "published",
+                "archived_at": None,
+                "suspended_at": None,
+            },
+            {
+                "id": "profile-draft",
+                "is_public": True,
+                "is_available": True,
+                "publication_status": "draft",
+                "archived_at": None,
+                "suspended_at": None,
+            },
+            {
+                "id": "profile-suspended",
+                "is_public": True,
+                "is_available": True,
+                "publication_status": "published",
+                "archived_at": None,
+                "suspended_at": "2026-10-01T00:00:00+00:00",
+            },
+            {
+                "id": "profile-archived",
+                "is_public": True,
+                "is_available": True,
+                "publication_status": "published",
+                "archived_at": "2026-10-01T00:00:00+00:00",
+                "suspended_at": None,
+            },
+        ]
+
+        offers = [
+            {
+                "id": f"offer-{profile['id']}",
+                "commercial_profile_id": profile["id"],
+                "catalog_id": f"catalog-{profile['id']}",
+                "offer_kind": "product",
+                "status": "published",
+                "is_available": True,
+                "archived_at": None,
+            }
+            for profile in profiles
+        ]
+
+        catalogs = [
+            {
+                "id": offer["catalog_id"],
+                "commercial_profile_id": offer[
+                    "commercial_profile_id"
+                ],
+                "status": "published",
+                "archived_at": None,
+            }
+            for offer in offers
+        ]
+
+        class Response:
+            def __init__(self, data):
+                self.data = data
+
+        class Query:
+            offer_profile_filters: list[set[str]] = []
+            profile_query_filters: list[
+                tuple[str, str, object]
+            ] = []
+
+            def __init__(self, table_name):
+                self.table_name = table_name
+                self.filters = []
+
+            def select(self, *_args, **_kwargs):
+                return self
+
+            def eq(self, column, value):
+                self.filters.append(("eq", column, value))
+                return self
+
+            def is_(self, column, value):
+                self.filters.append(("is", column, value))
+                return self
+
+            def in_(self, column, values):
+                normalized_values = set(values)
+                self.filters.append(
+                    ("in", column, normalized_values)
+                )
+                if (
+                    self.table_name == "commercial_offers"
+                    and column == "commercial_profile_id"
+                ):
+                    self.offer_profile_filters.append(
+                        normalized_values
+                    )
+                return self
+
+            def order(self, *_args, **_kwargs):
+                return self
+
+            def execute(self):
+                if self.table_name == "commercial_profiles":
+                    self.profile_query_filters.extend(self.filters)
+
+                rows = {
+                    "commercial_profiles": profiles,
+                    "commercial_offers": offers,
+                    "commercial_catalogs": catalogs,
+                    "commercial_offer_modalities": [],
+                    "commercial_offer_images": [],
+                    "files": [],
+                }[self.table_name]
+
+                for filter_kind, column, value in self.filters:
+                    if filter_kind == "eq":
+                        rows = [
+                            row for row in rows
+                            if row.get(column) == value
+                        ]
+                    elif filter_kind == "is":
+                        expected = None if value == "null" else value
+                        rows = [
+                            row for row in rows
+                            if row.get(column) is expected
+                        ]
+                    else:
+                        rows = [
+                            row for row in rows
+                            if row.get(column) in value
+                        ]
+
+                return Response(rows)
+
+        class Client:
+            def table(self, table_name):
+                return Query(table_name)
+
+        retry_mock.side_effect = lambda operation: operation(Client())
+
+        with patch(
+            "apps.commercial.services."
+            "commercial_public_service."
+            "_enrich_public_offers",
+            side_effect=lambda rows: rows,
+        ):
+            result = list_public_commercial_product_feed(
+                seed="s11-public-businesses-only",
+                limit=20,
+                offset=0,
+            )
+
+        self.assertEqual(result["count"], 1)
+        self.assertEqual(
+            [offer["id"] for offer in result["offers"]],
+            ["offer-profile-public"],
+        )
+        self.assertEqual(
+            Query.offer_profile_filters,
+            [{"profile-public"}],
+        )
+
+        self.assertEqual(
+            set(Query.profile_query_filters),
+            {
+                ("eq", "is_public", True),
+                ("eq", "is_available", True),
+                ("eq", "publication_status", "published"),
+                ("is", "archived_at", "null"),
+                ("is", "suspended_at", "null"),
+            },
+        )
+
+    @patch(
+        "apps.commercial.services."
+        "commercial_public_service."
+        "execute_with_supabase_admin_retry"
+    )
     def test_feed_order_is_stable_for_same_seed(
         self,
         retry_mock,
