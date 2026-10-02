@@ -11,11 +11,54 @@ from beeAppBack.core.supabase_client import (
 from apps.commercial.exceptions import (
     CommercialNotFoundError,
     CommercialOperationError,
+    CommercialValidationError,
 )
 from apps.commercial.services.commercial_profile_service import (
     compatible_category_offer_types,
 )
 
+
+
+
+POSTGREST_SEARCH_ALLOWED_PUNCTUATION = frozenset(
+    {"@", ".", "-", "_", "%", chr(39)}
+)
+
+
+def _validate_postgrest_search_value(value: str) -> str:
+    normalized_value = str(value or "").strip()
+
+    if any(
+        not (
+            character.isalnum()
+            or character == " "
+            or character in POSTGREST_SEARCH_ALLOWED_PUNCTUATION
+        )
+        for character in normalized_value
+    ):
+        raise CommercialValidationError(
+            "Search contains unsupported characters.",
+            code="COMMERCIAL_PUBLIC_SEARCH_INVALID",
+        )
+
+    return normalized_value
+
+
+def _build_postgrest_ilike_or_filter(
+    *,
+    columns: tuple[str, ...],
+    value: str,
+) -> str:
+    safe_value = _validate_postgrest_search_value(value)
+    literal_value = (
+        safe_value.replace("%", "\\%").replace("_", "\\_")
+    )
+    pattern = f"%{literal_value}%"
+
+    return ",".join(
+        f"{column}.ilike.{pattern}"
+        for column in columns
+    )
 
 
 PUBLIC_PROFILE_COLUMNS = (
@@ -617,6 +660,11 @@ def list_public_commercial_profiles(
 ) -> dict[str, Any]:
     normalized_limit = max(1, min(int(limit), 50))
     normalized_offset = max(0, int(offset))
+    normalized_search = (
+        _validate_postgrest_search_value(search)
+        if search
+        else None
+    )
 
     try:
         def operation(client):
@@ -689,13 +737,15 @@ def list_public_commercial_profiles(
                     "not_offered",
                 )
 
-            if search:
-                normalized_search = str(search).strip()
+            if normalized_search:
                 query = query.or_(
-                    (
-                        f"display_name.ilike.%{normalized_search}%,"
-                        f"description.ilike.%{normalized_search}%,"
-                        f"custom_activity_text.ilike.%{normalized_search}%"
+                    _build_postgrest_ilike_or_filter(
+                        columns=(
+                            "display_name",
+                            "description",
+                            "custom_activity_text",
+                        ),
+                        value=normalized_search,
                     )
                 )
 
@@ -1260,7 +1310,11 @@ def list_public_commercial_product_feed(
     import hashlib
     import secrets
 
-    normalized_search = str(search or "").strip()
+    normalized_search = (
+        _validate_postgrest_search_value(search)
+        if search
+        else ""
+    )
     normalized_seed = str(seed or "").strip() or secrets.token_urlsafe(18)
     normalized_limit = max(1, min(int(limit), 20))
     normalized_offset = max(0, int(offset))
@@ -1274,10 +1328,13 @@ def list_public_commercial_product_feed(
                     client.table("commercial_profiles")
                     .select(PUBLIC_PROFILE_COLUMNS)
                     .or_(
-                        (
-                            f"display_name.ilike.%{normalized_search}%,"
-                            f"description.ilike.%{normalized_search}%,"
-                            f"custom_activity_text.ilike.%{normalized_search}%"
+                        _build_postgrest_ilike_or_filter(
+                            columns=(
+                                "display_name",
+                                "description",
+                                "custom_activity_text",
+                            ),
+                            value=normalized_search,
                         )
                     )
                     .execute()

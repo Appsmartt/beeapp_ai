@@ -32,6 +32,44 @@ logger = logging.getLogger(__name__)
 
 MAX_SEARCH_LIMIT = 20
 PHONE_SUFFIX_MIN_LENGTH = 4
+POSTGREST_SEARCH_ALLOWED_PUNCTUATION = frozenset(
+    {"@", ".", "-", "_", "%", chr(39)}
+)
+
+
+def _validate_postgrest_search_value(value: str) -> str:
+    normalized_value = str(value or "").strip()
+
+    if any(
+        not (
+            character.isalnum()
+            or character == " "
+            or character in POSTGREST_SEARCH_ALLOWED_PUNCTUATION
+        )
+        for character in normalized_value
+    ):
+        raise ChatRecipientNotFoundError(
+            "Search query contains unsupported characters."
+        )
+
+    return normalized_value
+
+
+def _build_postgrest_ilike_or_filter(
+    *,
+    columns: tuple[str, ...],
+    value: str,
+) -> str:
+    safe_value = _validate_postgrest_search_value(value)
+    literal_value = (
+        safe_value.replace("%", "\\%").replace("_", "\\_")
+    )
+    pattern = f"%{literal_value}%"
+
+    return ",".join(
+        f"{column}.ilike.{pattern}"
+        for column in columns
+    )
 
 
 def _supabase():
@@ -59,7 +97,9 @@ def search_chat_recipients(
     query: str,
     limit: int = 20,
 ) -> dict[str, Any]:
-    normalized_query = _normalize_query(query)
+    normalized_query = _validate_postgrest_search_value(
+        _normalize_query(query)
+    )
 
     if len(normalized_query) < 2:
         raise ChatRecipientNotFoundError(
@@ -176,10 +216,13 @@ def _search_private_profiles(
                     .eq("is_public", True)
                     .neq("id", str(user_id))
                     .or_(
-                        (
-                            f"first_name.ilike.%{query}%,"
-                            f"last_name.ilike.%{query}%,"
-                            f"email.ilike.%{query}%"
+                        _build_postgrest_ilike_or_filter(
+                            columns=(
+                                "first_name",
+                                "last_name",
+                                "email",
+                            ),
+                            value=query,
                         )
                     )
                     .limit(limit)
@@ -281,9 +324,12 @@ def _search_commercial_profiles(
                     .eq("is_public", True)
                     .eq("is_available", True)
                     .or_(
-                        (
-                            f"display_name.ilike.%{query}%,"
-                            f"public_email.ilike.%{query}%"
+                        _build_postgrest_ilike_or_filter(
+                            columns=(
+                                "display_name",
+                                "public_email",
+                            ),
+                            value=query,
                         )
                     )
                     .limit(limit)

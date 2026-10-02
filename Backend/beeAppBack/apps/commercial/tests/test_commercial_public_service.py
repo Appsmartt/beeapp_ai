@@ -436,3 +436,90 @@ class CommercialPublicProfileCountCompatibilityTests(SimpleTestCase):
 
         self.assertEqual(result["count"], 1)
         self.assertEqual(len(result["profiles"]), 1)
+
+
+class CommercialPublicSearchPostgrestSafetyTests(SimpleTestCase):
+    def test_builds_literal_ilike_filter_for_valid_search(self):
+        from apps.commercial.services.commercial_public_service import (
+            _build_postgrest_ilike_or_filter,
+        )
+
+        result = _build_postgrest_ilike_or_filter(
+            columns=(
+                "display_name",
+                "description",
+                "custom_activity_text",
+            ),
+            value="Tienda_50%",
+        )
+
+        expected_pattern = r"%Tienda\_50\%%"
+        self.assertEqual(
+            result,
+            ",".join(
+                f"{column}.ilike.{expected_pattern}"
+                for column in (
+                    "display_name",
+                    "description",
+                    "custom_activity_text",
+                )
+            ),
+        )
+
+    def test_rejects_postgrest_structural_characters(self):
+        from apps.commercial.exceptions import CommercialValidationError
+        from apps.commercial.services.commercial_public_service import (
+            _validate_postgrest_search_value,
+        )
+
+        for value in (
+            "name,email.ilike.%private%",
+            "name)",
+            "(email.ilike.%private%",
+            '"email"',
+            "name\\value",
+        ):
+            with self.subTest(value=value):
+                with self.assertRaises(
+                    CommercialValidationError
+                ) as context:
+                    _validate_postgrest_search_value(value)
+
+                self.assertEqual(
+                    context.exception.code,
+                    "COMMERCIAL_PUBLIC_SEARCH_INVALID",
+                )
+
+
+class CommercialPublicExtendedPostgrestSafetyTests(SimpleTestCase):
+    def test_rejects_semicolon_and_colon(self):
+        from apps.commercial.exceptions import CommercialValidationError
+        from apps.commercial.services.commercial_public_service import (
+            _validate_postgrest_search_value,
+        )
+
+        for value in ("name;select", "name:email"):
+            with self.subTest(value=value):
+                with self.assertRaises(CommercialValidationError) as context:
+                    _validate_postgrest_search_value(value)
+
+                self.assertEqual(
+                    context.exception.code,
+                    "COMMERCIAL_PUBLIC_SEARCH_INVALID",
+                )
+
+
+class CommercialPublicWhitespaceSafetyTests(SimpleTestCase):
+    def test_rejects_line_breaks(self):
+        from apps.commercial.exceptions import CommercialValidationError
+        from apps.commercial.services.commercial_public_service import (
+            _validate_postgrest_search_value,
+        )
+
+        with self.assertRaises(CommercialValidationError) as context:
+            _validate_postgrest_search_value("name\nemail")
+
+        self.assertEqual(
+            context.exception.code,
+            "COMMERCIAL_PUBLIC_SEARCH_INVALID",
+        )
