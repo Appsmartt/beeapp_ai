@@ -171,6 +171,30 @@ def normalize_text(
     return normalized[:max_length]
 
 
+def normalize_mail_body_text(
+    value: Any,
+    *,
+    max_length: int = 200_000,
+) -> str | None:
+    """
+    Normalize plain-text mail bodies before deciding whether they contain
+    visible content. Remove format characters that can bypass Python strip()
+    while JavaScript treats them as whitespace.
+    """
+    if value is None:
+        return None
+
+    invisible_characters = "\ufeff\u200b\u200c\u200d\u2060\u00ad"
+    normalized = str(value).translate(
+        str.maketrans("", "", invisible_characters)
+    ).strip()
+
+    if not normalized:
+        return None
+
+    return normalized[:max_length]
+
+
 def normalize_mail_folder(
     value: str,
 ) -> str:

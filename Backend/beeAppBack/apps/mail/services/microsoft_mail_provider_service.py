@@ -13,6 +13,7 @@ from apps.mail.services.mail_provider_service import (
     normalize_body_content_type,
     normalize_email_address,
     normalize_mail_folder,
+    normalize_mail_body_text,
     normalize_recipients,
     normalize_text,
     validate_draft_content,
@@ -1436,13 +1437,13 @@ class MicrosoftMailProvider:
 
         if body_type == "html":
             body_html = body_content
-            body_text = (
+            body_text = normalize_mail_body_text(
                 self._html_to_text(body_content)
                 if body_content
-                else None
+                else None,
             )
         else:
-            body_text = body_content
+            body_text = normalize_mail_body_text(body_content)
 
         sender = self._parse_recipient(
             data.get("from")

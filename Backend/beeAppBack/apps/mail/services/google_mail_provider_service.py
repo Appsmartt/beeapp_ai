@@ -16,6 +16,7 @@ from apps.mail.services.mail_provider_service import (
     normalize_body_content_type,
     normalize_email_address,
     normalize_mail_folder,
+    normalize_mail_body_text,
     normalize_recipients,
     normalize_text,
     validate_draft_content,
@@ -1149,11 +1150,18 @@ class GoogleMailProvider:
 
         walk(payload)
 
-        body_text = "\n".join(
-            part.strip()
+        normalized_text_parts = [
+            normalized
             for part in text_parts
-            if part.strip()
-        ) or None
+            if (
+                normalized := normalize_mail_body_text(
+                    part,
+                )
+            )
+        ]
+        body_text = normalize_mail_body_text(
+            "\n".join(normalized_text_parts),
+        )
 
         body_html = "\n".join(
             part.strip()
@@ -1162,7 +1170,9 @@ class GoogleMailProvider:
         ) or None
 
         if not body_text and body_html:
-            body_text = self._html_to_text(body_html)
+            body_text = normalize_mail_body_text(
+                self._html_to_text(body_html),
+            )
 
         return body_text, body_html
 

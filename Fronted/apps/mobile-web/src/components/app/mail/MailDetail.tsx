@@ -42,6 +42,45 @@ const TOOLBAR = (
   + 'disabled:cursor-wait disabled:opacity-50'
 );
 
+const INVISIBLE_MAIL_BODY_CHARACTERS = /[\u00AD\u200B\u200C\u200D\u2060\uFEFF]/g;
+
+function hasVisibleMailBodyText(value: string): boolean {
+  return Boolean(
+    value
+      .replace(INVISIBLE_MAIL_BODY_CHARACTERS, '')
+      .trim(),
+  );
+}
+
+function createSandboxedMailDocument(html: string): string {
+  const contentSecurityPolicy = [
+    "default-src 'none'",
+    "base-uri 'none'",
+    "connect-src 'none'",
+    "font-src data:",
+    "form-action 'none'",
+    "frame-src 'none'",
+    "img-src data:",
+    "media-src 'none'",
+    "object-src 'none'",
+    "script-src 'none'",
+    "style-src 'unsafe-inline'",
+  ].join('; ');
+
+  return [
+    '<!doctype html>',
+    '<html>',
+    '<head>',
+    '<meta charset="utf-8">',
+    `<meta http-equiv="Content-Security-Policy" content="${contentSecurityPolicy}">`,
+    '<meta name="referrer" content="no-referrer">',
+    '<style>html,body{margin:0;padding:0;overflow-wrap:anywhere}body{font-family:Arial,sans-serif;color:#262626;line-height:1.5}img{height:auto;max-width:100%}</style>',
+    '</head>',
+    `<body>${html}</body>`,
+    '</html>',
+  ].join('');
+}
+
 export default function MailDetail({
   email,
   actionLoading = false,
@@ -60,7 +99,7 @@ export default function MailDetail({
 
   const canShowHtml = Boolean(
     email.bodyHtml
-    && !email.body.trim(),
+    && !hasVisibleMailBodyText(email.body),
   );
 
   return (
@@ -183,11 +222,14 @@ export default function MailDetail({
           </div>
 
           {canShowHtml ? (
-            <div
-              className="mail-html-content py-6 text-sm leading-relaxed text-neutral-800"
-              dangerouslySetInnerHTML={{
-                __html: email.bodyHtml || '',
-              }}
+            <iframe
+              title="Contenido HTML del correo"
+              sandbox=""
+              referrerPolicy="no-referrer"
+              srcDoc={createSandboxedMailDocument(
+                email.bodyHtml || '',
+              )}
+              className="my-6 min-h-[320px] w-full rounded-xl border border-neutral-200 bg-white"
             />
           ) : (
             <div className="whitespace-pre-wrap py-6 text-sm font-normal leading-relaxed text-neutral-800">
