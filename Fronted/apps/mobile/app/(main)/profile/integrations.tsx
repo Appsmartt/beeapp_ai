@@ -48,6 +48,9 @@ import FloatingTabBar from '../../../src/components/FloatingTabBar';
 import ScreenSafeArea from '../../../src/components/layout/ScreenSafeArea';
 import { useIntegrations } from '../../../src/hooks/useIntegrations';
 import {
+  armOAuthReturnUnlockSkip,
+} from '../../../src/services/oauthReturnAppLockGuard';
+import {
   buildConnectionPresentations,
   isReconnectable,
   PROVIDER_OPTIONS,
@@ -134,6 +137,8 @@ export default function IntegrationsScreen() {
       const redirectUrl = Linking.createURL(
         'integrations/result',
       );
+
+      armOAuthReturnUnlockSkip();
 
       await WebBrowser.openAuthSessionAsync(
         browserStartUrl,

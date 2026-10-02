@@ -17,6 +17,9 @@ import {
   clearPermissionDialogUnlockSkip,
   consumePermissionDialogUnlockSkip,
 } from '../../services/locationPermissionAppLockGuard';
+import {
+  consumeOAuthReturnUnlockSkip,
+} from '../../services/oauthReturnAppLockGuard';
 
 import BuddyLogo from '../BuddyLogo';
 import AppLockPinPad from './AppLockPinPad';
@@ -133,7 +136,10 @@ export default function AppLockScreen() {
 
       if (
         isReturningToForeground
-        && consumePermissionDialogUnlockSkip(previousAppState)
+        && (
+          consumePermissionDialogUnlockSkip(previousAppState)
+          || consumeOAuthReturnUnlockSkip(previousAppState)
+        )
       ) {
         return;
       }
