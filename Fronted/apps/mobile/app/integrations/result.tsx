@@ -147,8 +147,6 @@ export default function IntegrationOAuthResultScreen() {
     return (
         <View style={styles.container}>
         <View style={styles.card}>
-            <Text style={styles.bee}>🐝</Text>
-
             <ActivityIndicator
             size="large"
             color={colors.brand.primary}
@@ -186,10 +184,6 @@ const styles = StyleSheet.create({
         paddingHorizontal: 24,
         paddingVertical: 32,
         gap: 14,
-    },
-    bee: {
-        fontSize: 38,
-        marginBottom: 2,
     },
     title: {
         fontSize: 18,
