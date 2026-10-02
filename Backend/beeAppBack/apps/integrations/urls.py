@@ -1,6 +1,8 @@
 from django.urls import path
 
 from apps.integrations.views import (
+    BrowserOAuthStartView,
+    ConfirmIntegrationOAuthView,
     DeleteIntegrationConnectionRecordView,
     GoogleOAuthCallbackView,
     IntegrationCatalogView,
@@ -13,20 +15,22 @@ from apps.integrations.views import (
 
 
 urlpatterns = [
-    path(
-        "catalog/",
-        IntegrationCatalogView.as_view(),
-        name="integration-catalog",
-    ),
-    path(
-        "connections/",
-        IntegrationConnectionListView.as_view(),
-        name="integration-connection-list",
-    ),
+    path("catalog/", IntegrationCatalogView.as_view(), name="integration-catalog"),
+    path("connections/", IntegrationConnectionListView.as_view(), name="integration-connection-list"),
     path(
         "connections/<str:provider>/authorize/",
         StartIntegrationAuthorizationView.as_view(),
         name="integration-authorization-start",
+    ),
+    path(
+        "oauth/browser-start/",
+        BrowserOAuthStartView.as_view(),
+        name="integration-oauth-browser-start",
+    ),
+    path(
+        "oauth/confirm/",
+        ConfirmIntegrationOAuthView.as_view(),
+        name="integration-oauth-confirm",
     ),
     path(
         "oauth/callback/google/",

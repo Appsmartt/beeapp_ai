@@ -36,6 +36,7 @@ import {
   X,
 } from 'lucide-react-native';
 import { colors } from '@beeapp/design-system';
+import { API_BASE_URL } from '@beeapp/api-client';
 
 
 import FloatingTabBar from '../../../src/components/FloatingTabBar';
@@ -102,15 +103,34 @@ export default function IntegrationsScreen() {
   );
 
   const openAuthorizationUrl = async (
-    authorizationUrl: string,
+    browserStartPath: string,
   ) => {
     try {
+      if (
+        !browserStartPath.startsWith(
+          '/api/integrations/oauth/browser-start/',
+        )
+      ) {
+        throw new Error(
+          'La autorización segura devolvió una ruta inválida.',
+        );
+      }
+
+      const apiOrigin = API_BASE_URL.replace(
+        /\/api\/?$/,
+        '',
+      );
+
+      const browserStartUrl = (
+        `${apiOrigin}${browserStartPath}`
+      );
+
       const redirectUrl = Linking.createURL(
         'integrations/result',
       );
 
       await WebBrowser.openAuthSessionAsync(
-        authorizationUrl,
+        browserStartUrl,
         redirectUrl,
       );
     } catch (browserError) {
@@ -139,12 +159,12 @@ export default function IntegrationsScreen() {
     try {
       setActionId(`provider:${provider.provider}`);
 
-      const authorizationUrl = await startAuthorization(
+      const browserStartPath = await startAuthorization(
         provider.provider,
         [...BEEAPP_INTEGRATION_CAPABILITIES],
       );
 
-      await openAuthorizationUrl(authorizationUrl);
+      await openAuthorizationUrl(browserStartPath);
     } catch (connectError) {
       Alert.alert(
         'No fue posible iniciar la conexión',
@@ -168,12 +188,12 @@ export default function IntegrationsScreen() {
         ]),
       );
 
-      const authorizationUrl = await reauthorize(
+      const browserStartPath = await reauthorize(
         item.connection.id,
         requestedCapabilities,
       );
 
-      await openAuthorizationUrl(authorizationUrl);
+      await openAuthorizationUrl(browserStartPath);
     } catch (reauthorizeError) {
       Alert.alert(
         'No fue posible iniciar la reconexión',

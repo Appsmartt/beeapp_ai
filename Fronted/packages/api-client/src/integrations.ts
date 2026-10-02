@@ -1,6 +1,7 @@
 import type {
     AuthCredentials,
     GetIntegrationCatalogResponse,
+    ConfirmIntegrationOAuthResponse,
     GetIntegrationConnectionResponse,
     GetIntegrationConnectionsResponse,
     IntegrationCapability,
@@ -93,6 +94,22 @@ export function reauthorizeIntegrationConnection(
         buildAuthOptions(auth),
     );
 }
+
+export function confirmIntegrationOAuth(
+    requestId: string,
+    confirmationToken: string,
+    auth?: IntegrationApiAuth,
+    ): Promise<ConfirmIntegrationOAuthResponse> {
+    return api.post<ConfirmIntegrationOAuthResponse>(
+        '/integrations/oauth/confirm/',
+        {
+        request_id: requestId,
+        confirmation_token: confirmationToken,
+        },
+        buildAuthOptions(auth),
+    );
+}
+
 
 export async function disconnectIntegrationConnection(
     connectionId: string,

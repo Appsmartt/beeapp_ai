@@ -1613,7 +1613,12 @@ export interface StartIntegrationAuthorizationPayload {
 export interface StartIntegrationAuthorizationResponse {
   request_id: string;
   authorization_url: string;
+  browser_start_path: string;
   expires_at: string;
+}
+
+export interface ConfirmIntegrationOAuthResponse {
+  connection: IntegrationConnection;
 }
 
 export type CalendarIntegrationStatus =
