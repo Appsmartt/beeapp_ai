@@ -1,9 +1,7 @@
 import base64
 from unittest import TestCase
 
-from apps.mail.services.google_mail_provider_service import (
-    GoogleMailProvider,
-)
+from apps.mail.services.google_provider import GoogleMailProvider
 from apps.mail.services.mail_provider_service import (
     normalize_mail_body_text,
 )

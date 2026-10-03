@@ -16,9 +16,7 @@ from apps.integrations.services.integration_connection_service import (
 from apps.mail.exceptions import (
     MailMessageNotFoundError,
 )
-from apps.mail.services.google_mail_provider_service import (
-    GoogleMailProvider,
-)
+from apps.mail.services.google_provider import GoogleMailProvider
 from apps.mail.services.mail_provider_service import (
     MailProviderError,
     normalize_mail_folder,

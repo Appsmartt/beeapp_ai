@@ -5,7 +5,7 @@ from typing import Any
 
 from apps.integrations.exceptions import IntegrationCredentialError
 from apps.mail.exceptions import MailIntegrationInactiveError, MailSyncError
-from apps.mail.services.google_mail_provider_service import GoogleMailProvider
+from apps.mail.services.google_provider import GoogleMailProvider
 from apps.mail.services.microsoft_provider.provider import MicrosoftMailProvider
 
 from .common import (

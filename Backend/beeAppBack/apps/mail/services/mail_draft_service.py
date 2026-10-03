@@ -20,9 +20,7 @@ from apps.mail.exceptions import (
     MailMessageNotFoundError,
     MailSyncError,
 )
-from apps.mail.services.google_mail_provider_service import (
-    GoogleMailProvider,
-)
+from apps.mail.services.google_provider import GoogleMailProvider
 from apps.mail.services.mail_provider_service import (
     MAX_MAIL_ATTACHMENT_SIZE_BYTES,
     MailProviderError,
