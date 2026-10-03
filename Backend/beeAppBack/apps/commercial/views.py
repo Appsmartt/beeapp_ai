@@ -84,7 +84,7 @@ from apps.commercial.services.commercial_public_media_service import (
 from apps.storage.exceptions import (
     StorageUploadError,
 )
-from apps.commercial.services.commercial_offer_service import (
+from apps.commercial.services.commercial_offer import (
     add_commercial_offer_image,
     adjust_commercial_offer_inventory,
     archive_commercial_offer,

@@ -22,7 +22,9 @@ EXPECTED_EXPORT_COUNT = 49
 MAX_MODULE_LINES = 400
 TEST_LABELS = (
     "apps.commercial.tests.test_commercial_catalog_service",
-    "apps.commercial.tests.test_commercial_offer_service",
+    "apps.commercial.tests.test_commercial_offer_package",
+    "apps.commercial.tests.test_commercial_offer_serializers",
+    "apps.commercial.tests.test_public_commercial_product_feed",
     (
         "apps.commercial.tests."
         "test_commercial_payment_and_verification_serializers"
