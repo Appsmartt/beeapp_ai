@@ -11,9 +11,7 @@ from apps.commercial.services.commercial_public_media_service import (
     COMMERCIAL_PUBLIC_IMAGES_BUCKET,
     public_commercial_image_url,
 )
-from apps.storage.services.storage_file_service import (
-    get_owned_file,
-)
+from apps.storage.services.file_operations.file_queries import get_owned_file
 
 from .constants import (
     COMMERCIAL_CATEGORY_COLUMNS,

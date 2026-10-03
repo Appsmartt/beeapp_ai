@@ -38,8 +38,10 @@ from apps.storage.exceptions import (
     StorageFileNotFoundError,
     StorageFileOperationError,
 )
-from apps.storage.services.storage_file_service import (
+from apps.storage.services.file_operations.file_access import (
     get_accessible_file,
+)
+from apps.storage.services.file_operations.file_mail_attachments import (
     get_file_content_for_mail_attachment,
 )
 

@@ -34,7 +34,7 @@ def cleanup_isolated_fixture(*, file_id, owner_id, share_id):
     os.environ.setdefault("DJANGO_SETTINGS_MODULE", "beeAppBack.settings")
     import django
     django.setup()
-    from apps.storage.services.storage_file_service import get_supabase_admin_client
+    from beeAppBack.core.supabase_client import get_supabase_admin_client
 
     client = get_supabase_admin_client()
     rows = (

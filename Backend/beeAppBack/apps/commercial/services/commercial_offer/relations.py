@@ -3,7 +3,7 @@ from typing import Any
 from urllib.parse import quote
 
 from beeAppBack.core.supabase_client import _get_required_env
-from apps.storage.services.storage_file_service import get_owned_file
+from apps.storage.services.file_operations.file_queries import get_owned_file
 
 from .constants import (
     COMMERCIAL_OFFER_IMAGE_COLUMNS,

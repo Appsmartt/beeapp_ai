@@ -8,9 +8,7 @@ from apps.commercial.exceptions import (
 from apps.storage.exceptions import (
     StorageFileNotFoundError,
 )
-from apps.storage.services.storage_file_service import (
-    get_owned_file,
-)
+from apps.storage.services.file_operations.file_queries import get_owned_file
 
 
 

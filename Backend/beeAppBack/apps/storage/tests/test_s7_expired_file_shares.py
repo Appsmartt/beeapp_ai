@@ -5,9 +5,11 @@ from unittest.mock import MagicMock, patch
 from django.test import SimpleTestCase
 
 from apps.storage.exceptions import StorageFileNotFoundError, StorageShareError
-from apps.storage.services.storage_file_service import (
+from apps.storage.services.file_operations.file_access import (
     create_file_access_url,
     get_accessible_file,
+)
+from apps.storage.services.file_operations.file_mail_attachments import (
     get_file_content_for_mail_attachment,
 )
 from apps.storage.services.storage_share_service import (
@@ -31,7 +33,7 @@ class ExpiredFileShareTests(SimpleTestCase):
         client = MagicMock()
         client.table.side_effect = [own, shared]
         with patch(
-            "apps.storage.services.storage_file_service.get_supabase_admin_client",
+            "apps.storage.services.file_operations.file_access.get_supabase_admin_client",
             return_value=client,
         ):
             with self.assertRaises(StorageFileNotFoundError):
@@ -95,7 +97,7 @@ class ExpiredFileShareTests(SimpleTestCase):
         client = MagicMock()
         client.table.return_value = own
         with patch(
-            "apps.storage.services.storage_file_service.get_supabase_admin_client",
+            "apps.storage.services.file_operations.file_access.get_supabase_admin_client",
             return_value=client,
         ):
             result = get_accessible_file(user_id="owner", file_id="file")
@@ -105,10 +107,10 @@ class ExpiredFileShareTests(SimpleTestCase):
     def test_expired_share_cannot_reach_mail_attachment_download(self):
         client = MagicMock()
         with patch(
-            "apps.storage.services.storage_file_service.get_accessible_file",
+            "apps.storage.services.file_operations.file_mail_attachments.get_accessible_file",
             side_effect=StorageFileNotFoundError("expired"),
         ), patch(
-            "apps.storage.services.storage_file_service.get_supabase_admin_client",
+            "apps.storage.services.file_operations.file_mail_attachments.get_supabase_admin_client",
             return_value=client,
         ):
             with self.assertRaises(StorageFileNotFoundError):
@@ -120,20 +122,28 @@ class ExpiredFileShareTests(SimpleTestCase):
     def test_expired_share_mail_attachment_checks_real_access_before_download(self):
         own = query_with_result(None)
         expired_share = query_with_result(None)
-        client = MagicMock()
-        client.table.side_effect = [own, expired_share]
+        access_client = MagicMock()
+        access_client.table.side_effect = [own, expired_share]
+        download_client = MagicMock()
+
         with patch(
-            "apps.storage.services.storage_file_service.get_supabase_admin_client",
-            return_value=client,
+            "apps.storage.services.file_operations.file_access.get_supabase_admin_client",
+            return_value=access_client,
+        ), patch(
+            "apps.storage.services.file_operations.file_mail_attachments.get_supabase_admin_client",
+            return_value=download_client,
         ):
             with self.assertRaises(StorageFileNotFoundError):
                 get_file_content_for_mail_attachment(
-                    user_id="recipient", file_id="file", max_size_bytes=1024
+                    user_id="recipient",
+                    file_id="file",
+                    max_size_bytes=1024,
                 )
+
         expired_share.or_.assert_called_once()
         self.assertIn("expires_at.is.null", expired_share.or_.call_args.args[0])
         self.assertIn("expires_at.gt.", expired_share.or_.call_args.args[0])
-        client.storage.from_.assert_not_called()
+        download_client.storage.from_.assert_not_called()
 
     def test_owner_and_unlimited_share_keep_standard_signed_url_ttl(self):
         for expiration in (None, "unlimited"):
@@ -153,10 +163,10 @@ class ExpiredFileShareTests(SimpleTestCase):
                     return file_record
 
                 with patch(
-                    "apps.storage.services.storage_file_service.get_accessible_file",
+                    "apps.storage.services.file_operations.file_access.get_accessible_file",
                     side_effect=accessible_file,
                 ), patch(
-                    "apps.storage.services.storage_file_service.get_supabase_admin_client",
+                    "apps.storage.services.file_operations.file_access.get_supabase_admin_client",
                     return_value=client,
                 ):
                     result = create_file_access_url(
@@ -184,10 +194,10 @@ class ExpiredFileShareTests(SimpleTestCase):
             return file_record
 
         with patch(
-            "apps.storage.services.storage_file_service.get_accessible_file",
+            "apps.storage.services.file_operations.file_access.get_accessible_file",
             side_effect=accessible_file,
         ), patch(
-            "apps.storage.services.storage_file_service.get_supabase_admin_client",
+            "apps.storage.services.file_operations.file_access.get_supabase_admin_client",
             return_value=client,
         ):
             result = create_file_access_url(user_id="recipient", file_id="file")
@@ -208,10 +218,10 @@ class ExpiredFileShareTests(SimpleTestCase):
             return {"id": "file"}
 
         with patch(
-            "apps.storage.services.storage_file_service.get_accessible_file",
+            "apps.storage.services.file_operations.file_access.get_accessible_file",
             side_effect=accessible_file,
         ), patch(
-            "apps.storage.services.storage_file_service.get_supabase_admin_client",
+            "apps.storage.services.file_operations.file_access.get_supabase_admin_client",
             return_value=client,
         ):
             with self.assertRaises(StorageFileNotFoundError):

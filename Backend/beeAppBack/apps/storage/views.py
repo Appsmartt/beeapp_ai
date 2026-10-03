@@ -45,15 +45,21 @@ from apps.storage.serializers import (
     UpdateStorageTagSerializer,
     UploadStorageFilesSerializer,
 )
-from apps.storage.services.storage_file_service import (
+from apps.storage.services.file_operations.file_access import (
     create_file_access_url,
-    get_storage_summary,
-    list_user_files,
+)
+from apps.storage.services.file_operations.file_mutations import (
     move_file,
-    rename_file,
     move_file_to_trash,
     permanently_delete_file,
+    rename_file,
     restore_file_from_trash,
+)
+from apps.storage.services.file_operations.file_queries import (
+    get_storage_summary,
+    list_user_files,
+)
+from apps.storage.services.file_operations.file_uploads import (
     upload_multiple_files,
 )
 from apps.storage.services.storage_folder_service import (

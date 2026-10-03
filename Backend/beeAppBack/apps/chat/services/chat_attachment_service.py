@@ -28,8 +28,10 @@ from apps.storage.exceptions import (
     StorageQuotaExceededError,
     StorageUploadError,
 )
-from apps.storage.services.storage_file_service import (
+from apps.storage.services.file_operations.file_access import (
     create_file_access_url,
+)
+from apps.storage.services.file_operations.file_uploads import (
     prepare_and_upload_file,
 )
 

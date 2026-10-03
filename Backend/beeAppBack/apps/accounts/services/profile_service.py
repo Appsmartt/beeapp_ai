@@ -10,9 +10,7 @@ from apps.accounts.exceptions import (
 from apps.storage.exceptions import (
     StorageFileNotFoundError,
 )
-from apps.storage.services.storage_file_service import (
-    get_owned_file,
-)
+from apps.storage.services.file_operations.file_queries import get_owned_file
 from apps.chat.exceptions import ChatIdentityError
 from apps.chat.services.chat_identity_service import (
     sync_chat_identities_for_user,

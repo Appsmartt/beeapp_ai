@@ -11,9 +11,7 @@ from apps.storage.exceptions import (
     StorageTagError,
     StorageTagNotFoundError,
 )
-from apps.storage.services.storage_file_service import (
-    get_owned_file,
-)
+from apps.storage.services.file_operations.file_queries import get_owned_file
 
 
 TAG_COLUMNS = (

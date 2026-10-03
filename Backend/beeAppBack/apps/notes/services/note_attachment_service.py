@@ -23,8 +23,10 @@ from apps.storage.exceptions import (
     StorageQuotaExceededError,
     StorageUploadError,
 )
-from apps.storage.services.storage_file_service import (
+from apps.storage.services.file_operations.constants import (
     SIGNED_URL_EXPIRES_IN_SECONDS,
+)
+from apps.storage.services.file_operations.file_uploads import (
     prepare_and_upload_file,
 )
 

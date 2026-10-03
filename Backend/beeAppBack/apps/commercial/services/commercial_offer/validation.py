@@ -10,7 +10,7 @@ from apps.commercial.services.commercial_catalog_service import (
     get_owned_commercial_catalog,
 )
 from apps.storage.exceptions import StorageFileNotFoundError
-from apps.storage.services.storage_file_service import get_owned_file
+from apps.storage.services.file_operations.file_queries import get_owned_file
 
 from .client import get_user_supabase_client
 from .constants import MAX_COMMERCIAL_OFFER_ACTIVE_IMAGES
