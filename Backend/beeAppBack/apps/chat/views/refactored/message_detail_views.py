@@ -14,8 +14,10 @@ from apps.chat.services.chat_attachment_service import (
     create_chat_attachment_access_url,
     get_chat_attachment_metadata,
 )
-from apps.chat.services.chat_message_service import (
+from apps.chat.services.chat_messages.message_query_service import (
     get_chat_message,
+)
+from apps.chat.services.chat_messages.message_receipt_service import (
     get_chat_message_read_status,
     get_chat_message_readers,
 )

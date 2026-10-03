@@ -1,7 +1,7 @@
 from django.test import SimpleTestCase
 
 from apps.chat.exceptions import ChatMessageSendError
-from apps.chat.services.chat_message_service import _validate_message_payload
+from apps.chat.services.chat_messages.message_validation_service import _validate_message_payload
 
 
 class ChatLocationMessageValidationTests(SimpleTestCase):

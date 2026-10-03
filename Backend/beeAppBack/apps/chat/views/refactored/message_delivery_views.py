@@ -21,10 +21,14 @@ from apps.chat.serializers import (
 from apps.chat.services.chat_attachment_service import (
     upload_chat_attachment_and_send_message,
 )
-from apps.chat.services.chat_message_service import (
+from apps.chat.services.chat_messages.message_query_service import (
     list_conversation_messages,
+)
+from apps.chat.services.chat_messages.message_receipt_service import (
     mark_chat_conversation_delivered,
     mark_chat_conversation_read,
+)
+from apps.chat.services.chat_messages.message_send_service import (
     send_chat_message,
 )
 from apps.chat.throttles import (

@@ -2,7 +2,7 @@ from unittest.mock import Mock, patch
 
 from django.test import SimpleTestCase
 
-from apps.chat.services.chat_message_service import (
+from apps.chat.services.chat_messages.message_receipt_service import (
     mark_chat_conversation_read,
 )
 
@@ -13,22 +13,22 @@ class ChatReadInboxCacheTests(SimpleTestCase):
         client.rpc.return_value.execute.return_value = Mock(data=True)
         with (
             patch(
-                "apps.chat.services.chat_message_service.get_owned_chat_identity"
+                "apps.chat.services.chat_messages.message_receipt_service.get_owned_chat_identity"
             ),
             patch(
-                "apps.chat.services.chat_message_service."
+                "apps.chat.services.chat_messages.message_receipt_service."
                 "_require_identity_active_participant"
             ),
             patch(
-                "apps.chat.services.chat_message_service._get_message_row",
+                "apps.chat.services.chat_messages.message_receipt_service._get_message_row",
                 return_value={"conversation_id": "conversation-1"},
             ),
             patch(
-                "apps.chat.services.chat_message_service._user_supabase",
+                "apps.chat.services.chat_messages.message_receipt_service._user_supabase",
                 return_value=client,
             ),
             patch(
-                "apps.chat.services.chat_message_service."
+                "apps.chat.services.chat_messages.message_receipt_service."
                 "bump_inbox_cache_version",
                 side_effect=cache_error,
             ) as invalidate,

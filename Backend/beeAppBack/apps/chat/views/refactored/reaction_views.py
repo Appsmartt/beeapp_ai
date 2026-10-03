@@ -12,7 +12,7 @@ from apps.chat.serializers import (
     CreateReactionSerializer,
     DeleteReactionQuerySerializer,
 )
-from apps.chat.services.chat_message_service import (
+from apps.chat.services.chat_messages.message_reaction_service import (
     create_chat_message_reaction,
     delete_chat_message_reaction,
     list_message_reactions,

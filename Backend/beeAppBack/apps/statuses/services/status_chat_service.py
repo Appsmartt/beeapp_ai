@@ -23,7 +23,7 @@ from apps.chat.services.chat_identity_service import (
     get_owned_chat_identity,
     sync_chat_identities_for_user,
 )
-from apps.chat.services.chat_message_service import (
+from apps.chat.services.chat_messages.message_send_service import (
     send_chat_message,
 )
 from apps.statuses.exceptions import (
