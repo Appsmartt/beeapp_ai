@@ -30,7 +30,7 @@ from apps.mail.services.mail_provider_service import (
     normalize_text,
     validate_sendable_draft,
 )
-from apps.mail.services.mail_sync_service import (
+from apps.mail.services.mail_sync import (
     persist_provider_mail_message,
 )
 from apps.mail.services.microsoft_provider.provider import (
