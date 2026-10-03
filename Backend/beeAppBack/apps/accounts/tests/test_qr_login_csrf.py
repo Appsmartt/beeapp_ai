@@ -78,15 +78,45 @@ class FakeTable:
         return FakeQuery(self).update(payload)
 
 
+class FakeRpcResponse:
+    def __init__(self, data):
+        self.data = data
+
+    def execute(self):
+        return self
+
+
 class FakeSupabase:
     def __init__(self):
         self.challenge_table = FakeTable()
+        self.consume_attempts = 0
 
     def table(self, name):
         if name != "qr_login_challenges":
             raise AssertionError(f"Unexpected table: {name}")
 
         return self.challenge_table
+
+    def rpc(self, name, payload):
+        if name != "consume_qr_login_challenge":
+            raise AssertionError(f"Unexpected RPC: {name}")
+
+        self.consume_attempts += 1
+
+        if self.consume_attempts == 1:
+            return FakeRpcResponse(
+                [
+                    {
+                        "id": "challenge-id",
+                        "device_session_id": "device-id",
+                        "web_session_token_ciphertext": (
+                            "encrypted-web-session-token"
+                        ),
+                    }
+                ]
+            )
+
+        return FakeRpcResponse([])
 
 
 class QrLoginCsrfTests(TestCase):
@@ -174,11 +204,13 @@ class QrLoginCsrfTests(TestCase):
         update_device_metadata,
         set_web_session_cookie,
     ):
+        web_session_token = "independent-web-session-token"
         get_active_session_by_token.return_value = {
             "id": "device-id",
         }
         consume_challenge.return_value = {
             "id": "challenge-id",
+            "web_session_token": web_session_token,
         }
 
         request = self.factory.post(
@@ -193,12 +225,25 @@ class QrLoginCsrfTests(TestCase):
         response = WebSessionActivateView.as_view()(request)
 
         self.assertEqual(response.status_code, 204)
+        get_active_session_by_token.assert_called_once_with(
+            session_token=web_session_token,
+        )
         consume_challenge.assert_called_once_with(
             challenge_token="valid-token",
             browser_nonce="valid-browser-nonce",
         )
         update_device_metadata.assert_called_once()
         set_web_session_cookie.assert_called_once()
+        cookie_kwargs = set_web_session_cookie.call_args.kwargs
+        self.assertIs(cookie_kwargs["response"], response)
+        self.assertEqual(
+            cookie_kwargs["session_token"],
+            web_session_token,
+        )
+        self.assertNotEqual(
+            cookie_kwargs["session_token"],
+            "valid-token",
+        )
 
     @patch("apps.accounts.views.set_web_session_cookie")
     @patch("apps.accounts.views.update_device_metadata")
@@ -236,23 +281,36 @@ class QrLoginCsrfTests(TestCase):
 
     @patch(
         "apps.accounts.services.qr_login_service."
+        "decrypt_integration_secret"
+    )
+    @patch(
+        "apps.accounts.services.qr_login_service."
         "get_supabase_admin_client"
     )
     def test_replay_is_rejected_after_one_consumption(
         self,
         get_supabase_admin_client,
+        decrypt_integration_secret,
     ):
         get_supabase_admin_client.return_value = self.supabase
+        decrypt_integration_secret.return_value = (
+            "independent-web-session-token"
+        )
 
-        for attempt in range(20):
-            if attempt == 0:
-                result = consume_approved_qr_login_challenge(
-                    challenge_token="valid-token",
-                    browser_nonce="valid-browser-nonce",
-                )
-                self.assertEqual(result["status"], "CONSUMED")
-                continue
+        result = consume_approved_qr_login_challenge(
+            challenge_token="valid-token",
+            browser_nonce="valid-browser-nonce",
+        )
 
+        self.assertEqual(
+            result["web_session_token"],
+            "independent-web-session-token",
+        )
+        decrypt_integration_secret.assert_called_once_with(
+            "encrypted-web-session-token"
+        )
+
+        for _ in range(19):
             with self.assertRaises(QrLoginError):
                 consume_approved_qr_login_challenge(
                     challenge_token="valid-token",
@@ -346,10 +404,7 @@ class QrLoginCsrfTests(TestCase):
 
             self.assertEqual(response.status_code, 401)
 
-        self.assertEqual(
-            get_active_session_by_token.call_count,
-            20,
-        )
+        get_active_session_by_token.assert_not_called()
         self.assertEqual(consume_challenge.call_count, 20)
         update_device_metadata.assert_not_called()
         set_web_session_cookie.assert_not_called()

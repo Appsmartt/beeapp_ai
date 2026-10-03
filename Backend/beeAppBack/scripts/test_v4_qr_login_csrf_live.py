@@ -330,15 +330,23 @@ def main() -> int:
                 "browser_nonce": valid_nonce,
             },
         )
+        web_session_cookie = client.cookies.get(
+            "beeapp_web_session",
+            "",
+        )
         activation_ok = (
             activate_response.status_code == 204
-            and "beeapp_web_session" in client.cookies
+            and bool(web_session_cookie)
+            and web_session_cookie != challenge_token
         )
         record(
             report_lines,
             name="valid browser activation",
             passed=activation_ok,
-            detail=f"HTTP {activate_response.status_code}; cookie present",
+            detail=(
+                f"HTTP {activate_response.status_code}; "
+                "independent cookie present"
+            ),
         )
 
         profile_response = request_json(

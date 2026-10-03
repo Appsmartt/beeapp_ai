@@ -10,6 +10,10 @@ from apps.accounts.services.device_session_service import (
     create_web_device_session,
     hash_token,
 )
+from apps.integrations.services.credential_crypto_service import (
+    decrypt_integration_secret,
+    encrypt_integration_secret,
+)
 
 
 QR_LOGIN_DURATION_SECONDS = 120
@@ -93,7 +97,8 @@ def get_qr_login_challenge(
             supabase.table("qr_login_challenges")
             .select(
                 "id,status,expires_at,device_session_id,"
-                "browser_nonce_hash,consumed_at"
+                "browser_nonce_hash,consumed_at,"
+                "web_session_token_ciphertext"
             )
             .eq(
                 "challenge_token_hash",
@@ -157,9 +162,10 @@ def approve_qr_login_challenge(
         )
 
     try:
+        web_session_token = secrets.token_urlsafe(48)
         device_session = create_web_device_session(
             user_id=user_id,
-            session_token=challenge_token,
+            session_token=web_session_token,
         )
 
         supabase = get_supabase_admin_client()
@@ -171,6 +177,9 @@ def approve_qr_login_challenge(
                     "status": "APPROVED",
                     "approved_at": timezone.now().isoformat(),
                     "device_session_id": device_session["id"],
+                    "web_session_token_ciphertext": encrypt_integration_secret(
+                        web_session_token
+                    ),
                 }
             )
             .eq("id", challenge["id"])
@@ -205,35 +214,64 @@ def consume_approved_qr_login_challenge(
     now = timezone.now()
 
     try:
-        response = (
-            get_supabase_admin_client()
-            .table("qr_login_challenges")
-            .update(
-                {
-                    "status": "CONSUMED",
-                    "consumed_at": now.isoformat(),
-                }
-            )
-            .eq(
-                "challenge_token_hash",
-                hash_token(challenge_token),
-            )
-            .eq(
-                "browser_nonce_hash",
-                hash_token(normalized_nonce),
-            )
-            .eq("status", "APPROVED")
-            .is_("consumed_at", "null")
-            .gt("expires_at", now.isoformat())
-            .execute()
-        )
+        response = get_supabase_admin_client().rpc(
+            "consume_qr_login_challenge",
+            {
+                "p_challenge_token_hash": hash_token(
+                    challenge_token
+                ),
+                "p_browser_nonce_hash": hash_token(
+                    normalized_nonce
+                ),
+                "p_consumed_at": now.isoformat(),
+            },
+        ).execute()
 
-        if not response.data:
+        response_data = getattr(response, "data", None)
+
+        if isinstance(response_data, list):
+            consumed_challenge = (
+                response_data[0]
+                if response_data
+                else None
+            )
+        elif isinstance(response_data, dict):
+            consumed_challenge = response_data
+        else:
+            consumed_challenge = None
+
+        if not consumed_challenge:
             raise QrLoginError(
                 "QR login activation is not available."
             )
 
-        return response.data[0]
+        ciphertext = str(
+            consumed_challenge.get(
+                "web_session_token_ciphertext"
+            ) or ""
+        ).strip()
+
+        if not ciphertext:
+            raise QrLoginError(
+                "QR login activation is not available."
+            )
+
+        try:
+            web_session_token = decrypt_integration_secret(
+                ciphertext
+            )
+        except Exception as error:
+            raise QrLoginError(
+                "QR login activation is not available."
+            ) from error
+
+        if not web_session_token:
+            raise QrLoginError(
+                "QR login activation is not available."
+            )
+
+        consumed_challenge["web_session_token"] = web_session_token
+        return consumed_challenge
     except QrLoginError:
         raise
     except Exception as error:

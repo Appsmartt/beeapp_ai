@@ -1351,13 +1351,17 @@ class WebSessionActivateView(APIView):
             )
 
         try:
-            device_session = get_active_session_by_token(
-                session_token=challenge_token,
-            )
-
-            consume_approved_qr_login_challenge(
+            consumed_challenge = consume_approved_qr_login_challenge(
                 challenge_token=challenge_token,
                 browser_nonce=browser_nonce,
+            )
+
+            web_session_token = str(
+                consumed_challenge["web_session_token"]
+            )
+
+            device_session = get_active_session_by_token(
+                session_token=web_session_token,
             )
 
             update_device_metadata(
@@ -1377,7 +1381,7 @@ class WebSessionActivateView(APIView):
         set_web_session_cookie(
             response=response,
             request=request,
-            session_token=challenge_token,
+            session_token=web_session_token,
         )
 
         return response
