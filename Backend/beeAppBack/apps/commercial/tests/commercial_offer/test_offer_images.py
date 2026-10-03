@@ -2,205 +2,10 @@ from unittest.mock import patch
 
 from django.test import SimpleTestCase
 
-from apps.commercial.exceptions import CommercialStateError
+from apps.commercial.exceptions import CommercialValidationError
 
 
-class CommercialOfferPackageTests(SimpleTestCase):
-    def test_exports_all_offer_service_functions(self):
-        from apps.commercial.services import commercial_offer
-
-        expected_functions = {
-            "add_commercial_offer_image",
-            "adjust_commercial_offer_inventory",
-            "archive_commercial_offer",
-            "archive_commercial_offer_image",
-            "create_commercial_offer",
-            "delete_commercial_offer_image",
-            "disable_commercial_offer",
-            "enable_commercial_offer",
-            "get_owned_commercial_offer",
-            "list_owned_commercial_offers",
-            "pause_commercial_offer",
-            "publish_commercial_offer",
-            "restore_commercial_offer",
-            "restore_commercial_offer_image",
-            "set_commercial_offer_primary_image",
-            "update_commercial_offer",
-            "update_commercial_offer_image",
-            "update_commercial_offer_modalities",
-        }
-
-        self.assertEqual(set(commercial_offer.__all__), expected_functions)
-
-        for function_name in expected_functions:
-            self.assertTrue(
-                callable(getattr(commercial_offer, function_name)),
-                function_name,
-            )
-
-
-class CommercialOfferPackageStateTests(SimpleTestCase):
-    @patch(
-        "apps.commercial.services.commercial_offer.availability."
-        "get_owned_commercial_offer"
-    )
-    def test_archived_offer_cannot_be_enabled(
-        self,
-        get_offer_mock,
-    ):
-        from apps.commercial.services.commercial_offer import (
-            enable_commercial_offer,
-        )
-
-        get_offer_mock.return_value = {
-            "id": "offer-1",
-            "status": "archived",
-            "is_available": False,
-        }
-
-        with self.assertRaises(CommercialStateError) as context:
-            enable_commercial_offer(
-                user_id="user-1",
-                access_token="token-1",
-                commercial_profile_id="profile-1",
-                offer_id="offer-1",
-            )
-
-        self.assertEqual(
-            context.exception.code,
-            "COMMERCIAL_OFFER_ARCHIVED",
-        )
-
-    @patch(
-        "apps.commercial.services.commercial_offer.modalities."
-        "get_owned_commercial_offer"
-    )
-    def test_archived_offer_cannot_update_modalities(
-        self,
-        get_offer_mock,
-    ):
-        from apps.commercial.services.commercial_offer import (
-            update_commercial_offer_modalities,
-        )
-
-        get_offer_mock.return_value = {
-            "id": "offer-1",
-            "status": "archived",
-        }
-
-        with self.assertRaises(CommercialStateError) as context:
-            update_commercial_offer_modalities(
-                user_id="user-1",
-                access_token="token-1",
-                commercial_profile_id="profile-1",
-                offer_id="offer-1",
-                modalities=["virtual"],
-            )
-
-        self.assertEqual(
-            context.exception.code,
-            "COMMERCIAL_OFFER_ARCHIVED",
-        )
-
-    @patch(
-        "apps.commercial.services.commercial_offer.images."
-        "get_owned_commercial_offer"
-    )
-    def test_archived_offer_cannot_receive_images(
-        self,
-        get_offer_mock,
-    ):
-        from apps.commercial.services.commercial_offer import (
-            add_commercial_offer_image,
-        )
-
-        get_offer_mock.return_value = {
-            "id": "offer-1",
-            "status": "archived",
-        }
-
-        with self.assertRaises(CommercialStateError) as context:
-            add_commercial_offer_image(
-                user_id="user-1",
-                access_token="token-1",
-                commercial_profile_id="profile-1",
-                offer_id="offer-1",
-                payload={
-                    "file_id": "file-1",
-                    "sort_order": 0,
-                    "is_primary": False,
-                },
-            )
-
-        self.assertEqual(
-            context.exception.code,
-            "COMMERCIAL_OFFER_ARCHIVED",
-        )
-
-    @patch(
-        "apps.commercial.services.commercial_offer.image_lifecycle."
-        "get_owned_commercial_offer"
-    )
-    def test_archived_offer_cannot_restore_images(
-        self,
-        get_offer_mock,
-    ):
-        from apps.commercial.services.commercial_offer import (
-            restore_commercial_offer_image,
-        )
-
-        get_offer_mock.return_value = {
-            "id": "offer-1",
-            "status": "archived",
-        }
-
-        with self.assertRaises(CommercialStateError) as context:
-            restore_commercial_offer_image(
-                user_id="user-1",
-                access_token="token-1",
-                commercial_profile_id="profile-1",
-                offer_id="offer-1",
-                image_id="image-1",
-            )
-
-        self.assertEqual(
-            context.exception.code,
-            "COMMERCIAL_OFFER_ARCHIVED",
-        )
-
-class CommercialOfferPackageAdditionalTests(SimpleTestCase):
-    @patch(
-        "apps.commercial.services.commercial_offer.availability."
-        "get_owned_commercial_offer"
-    )
-    def test_offer_rejects_unchanged_availability(
-        self,
-        get_offer_mock,
-    ):
-        from apps.commercial.services.commercial_offer.availability import (
-            set_commercial_offer_availability,
-        )
-
-        get_offer_mock.return_value = {
-            "id": "offer-1",
-            "status": "published",
-            "is_available": True,
-        }
-
-        with self.assertRaises(CommercialStateError) as context:
-            set_commercial_offer_availability(
-                user_id="user-1",
-                access_token="token-1",
-                commercial_profile_id="profile-1",
-                offer_id="offer-1",
-                is_available=True,
-            )
-
-        self.assertEqual(
-            context.exception.code,
-            "COMMERCIAL_OFFER_AVAILABILITY_UNCHANGED",
-        )
-
+class CommercialOfferImageTests(SimpleTestCase):
     @patch(
         "apps.commercial.services.commercial_offer.images."
         "validate_offer_image_file"
@@ -219,7 +24,6 @@ class CommercialOfferPackageAdditionalTests(SimpleTestCase):
         get_client_mock,
         validate_file_mock,
     ):
-        from apps.commercial.exceptions import CommercialValidationError
         from apps.commercial.services.commercial_offer import (
             add_commercial_offer_image,
         )
@@ -283,7 +87,6 @@ class CommercialOfferPackageAdditionalTests(SimpleTestCase):
         get_offer_mock,
         get_client_mock,
     ):
-        from apps.commercial.exceptions import CommercialValidationError
         from apps.commercial.services.commercial_offer import (
             restore_commercial_offer_image,
         )
@@ -433,4 +236,3 @@ class CommercialOfferPackageAdditionalTests(SimpleTestCase):
             audit_mock.call_args.kwargs["entity_id"],
             "image-1",
         )
-
