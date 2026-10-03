@@ -13,7 +13,7 @@ from apps.chat.serializers import (
     DeactivateChatGroupSerializer,
     UpdateChatGroupSerializer,
 )
-from apps.chat.services.chat_group_service import (
+from apps.chat.services.chat_group import (
     create_chat_group,
     deactivate_chat_group,
     update_chat_group,

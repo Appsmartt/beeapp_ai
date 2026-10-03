@@ -14,7 +14,7 @@ from apps.chat.serializers import (
     CreateChatGroupInviteSerializer,
     RespondToChatGroupInviteSerializer,
 )
-from apps.chat.services.chat_group_service import (
+from apps.chat.services.chat_group import (
     get_chat_group_invite,
     invite_identity_to_chat_group,
     list_chat_group_invites,

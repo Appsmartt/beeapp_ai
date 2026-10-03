@@ -14,7 +14,7 @@ from apps.chat.serializers import (
     SetChatGroupParticipantRoleSerializer,
     TransferChatGroupOwnershipSerializer,
 )
-from apps.chat.services.chat_group_service import (
+from apps.chat.services.chat_group import (
     leave_chat_group,
     remove_identity_from_chat_group,
     set_chat_group_participant_role,
