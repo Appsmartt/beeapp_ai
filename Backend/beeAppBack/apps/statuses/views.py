@@ -51,7 +51,7 @@ from apps.statuses.services.status_follow_service import (
     request_follow,
     unfollow,
 )
-from apps.statuses.services.status_service import (
+from apps.statuses.services.status_refactor import (
     archive_status_story,
     create_status_story,
     get_my_statuses,

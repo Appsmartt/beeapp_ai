@@ -31,7 +31,7 @@ from apps.statuses.exceptions import (
     StatusNotFoundError,
     StatusReplyError,
 )
-from apps.statuses.services.status_service import (
+from apps.statuses.services.status_refactor import (
     get_status_story,
 )
 

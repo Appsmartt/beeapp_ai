@@ -40,7 +40,7 @@ from apps.chat.services.chat_identity_service import (
     _serialize_chat_identity,
     get_owned_chat_identity,
 )
-from apps.statuses.services.status_service import (
+from apps.statuses.services.status_refactor import (
     get_status_story,
 )
 
