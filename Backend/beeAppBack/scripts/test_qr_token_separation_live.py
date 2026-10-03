@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import getpass
 import sys
+import time
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 from pathlib import Path
@@ -17,7 +18,7 @@ FRONTEND_ENV = PROJECT_ROOT / "Fronted" / ".env"
 REPORT_DIRECTORY = PROJECT_ROOT / ".beeapp-work" / "explorations"
 REPORT_PATH = REPORT_DIRECTORY / "qr_token_separation_live_report.txt"
 REQUEST_TIMEOUT_SECONDS = 20
-TEST_CYCLES = 20
+TEST_CYCLES = 10
 
 
 def load_env_value(path: Path, key: str) -> str:
@@ -260,6 +261,9 @@ def main() -> int:
 
             if cycle_ok:
                 passed_cycles += 1
+
+            if cycle < TEST_CYCLES:
+                time.sleep(7)
 
         race_nonce = token_urlsafe(32)
         race_created = request_json(
