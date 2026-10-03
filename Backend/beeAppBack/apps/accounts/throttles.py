@@ -84,3 +84,33 @@ class PasswordResetVerificationThrottle(TrustedClientIpThrottle):
 class PasswordResetConfirmationThrottle(TrustedClientIpThrottle):
     scope = "password_reset_confirmation"
     rate = "5/min"
+
+
+class RegisterUserThrottle(TrustedClientIpThrottle):
+    scope = "register_user"
+    rate = "5/hour"
+
+
+class LoginUserThrottle(TrustedClientIpThrottle):
+    scope = "login_user"
+    rate = "10/min"
+
+
+class SessionRefreshThrottle(TrustedClientIpThrottle):
+    scope = "session_refresh"
+    rate = "60/min"
+
+
+class QrLoginChallengeThrottle(TrustedClientIpThrottle):
+    scope = "qr_login_challenge"
+    rate = "10/min"
+
+
+class QrLoginChallengeStatusThrottle(TrustedClientIpThrottle):
+    scope = "qr_login_challenge_status"
+    rate = "60/min"
+
+
+class QrLoginScanThrottle(TrustedClientIpThrottle):
+    scope = "qr_login_scan"
+    rate = "20/min"

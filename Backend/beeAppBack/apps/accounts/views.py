@@ -103,11 +103,17 @@ from apps.accounts.services.session_refresh_service import (
     refresh_supabase_session,
 )
 from apps.accounts.throttles import (
+    LoginUserThrottle,
     PasswordResetConfirmationThrottle,
     PasswordResetRequestThrottle,
     PasswordResetVerificationThrottle,
     PhoneOtpRequestThrottle,
     PhoneOtpVerificationThrottle,
+    QrLoginChallengeStatusThrottle,
+    QrLoginChallengeThrottle,
+    QrLoginScanThrottle,
+    RegisterUserThrottle,
+    SessionRefreshThrottle,
 )
 
 
@@ -445,6 +451,7 @@ class AccountSecurityPinReplaceView(AuthenticatedAPIView):
 
 class RegisterUserView(APIView):
     permission_classes = [AllowAny]
+    throttle_classes = [RegisterUserThrottle]
 
     def post(self, request):
         serializer = RegisterUserSerializer(data=request.data)
@@ -494,6 +501,7 @@ class RegisterUserView(APIView):
 
 class LoginUserView(APIView):
     permission_classes = [AllowAny]
+    throttle_classes = [LoginUserThrottle]
 
     def post(self, request):
         serializer = LoginUserSerializer(data=request.data)
@@ -565,6 +573,7 @@ class LoginUserView(APIView):
 
 class SessionRefreshView(APIView):
     permission_classes = [AllowAny]
+    throttle_classes = [SessionRefreshThrottle]
 
     def post(self, request):
         serializer = RefreshSessionSerializer(
@@ -1121,6 +1130,7 @@ class UpdateAssistantSettingsView(AuthenticatedAPIView):
 
 class QrLoginChallengeView(APIView):
     permission_classes = [AllowAny]
+    throttle_classes = [QrLoginChallengeThrottle]
 
     def post(self, request):
         browser_nonce = str(
@@ -1155,6 +1165,7 @@ class QrLoginChallengeView(APIView):
 
 class QrLoginChallengeDetailView(APIView):
     permission_classes = [AllowAny]
+    throttle_classes = [QrLoginChallengeStatusThrottle]
 
     def get(self, request, challenge_token):
         try:
@@ -1179,6 +1190,8 @@ class QrLoginChallengeDetailView(APIView):
 
 
 class QrLoginScanView(AuthenticatedAPIView):
+    throttle_classes = [QrLoginScanThrottle]
+
     def post(self, request):
         challenge_token = str(
             request.data.get("challenge_token", "")

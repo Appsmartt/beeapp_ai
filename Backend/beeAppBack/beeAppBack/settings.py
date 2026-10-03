@@ -278,6 +278,12 @@ REST_FRAMEWORK = {
         "commercial_booking": "20/min",
         "commercial_evidence": "10/min",
         "commercial_dispute": "15/min",
+        "register_user": "5/hour",
+        "login_user": "10/min",
+        "session_refresh": "60/min",
+        "qr_login_challenge": "10/min",
+        "qr_login_challenge_status": "60/min",
+        "qr_login_scan": "20/min",
     },
 }
 AGORA_APP_ID = get_required_env("AGORA_APP_ID")
