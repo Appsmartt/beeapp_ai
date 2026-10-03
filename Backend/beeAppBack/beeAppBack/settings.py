@@ -28,7 +28,31 @@ def get_required_env(name: str) -> str:
 
 SECRET_KEY = get_required_env("SECRET_KEY")
 
-DEBUG = os.getenv("DEBUG", "True").lower() == "true"
+DEBUG = os.getenv("DEBUG", "False").lower() == "true"
+
+# Railway terminates TLS at its proxy. Trust this header only because the
+# application is deployed behind that managed proxy.
+SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+
+# Local development remains available only when DEBUG is explicitly true.
+SECURE_SSL_REDIRECT = not DEBUG
+
+# HSTS must only be emitted over the production HTTPS deployment.
+SECURE_HSTS_SECONDS = 31_536_000 if not DEBUG else 0
+SECURE_HSTS_INCLUDE_SUBDOMAINS = not DEBUG
+SECURE_HSTS_PRELOAD = not DEBUG
+
+# Protect Django-managed session and CSRF cookies in production.
+SESSION_COOKIE_SECURE = not DEBUG
+SESSION_COOKIE_HTTPONLY = True
+SESSION_COOKIE_SAMESITE = "Lax"
+CSRF_COOKIE_SECURE = not DEBUG
+CSRF_COOKIE_SAMESITE = "Lax"
+
+# Baseline browser security headers.
+SECURE_CONTENT_TYPE_NOSNIFF = True
+SECURE_REFERRER_POLICY = "same-origin"
+X_FRAME_OPTIONS = "DENY"
 
 ALLOWED_HOSTS = [
     "beeappai-production.up.railway.app",
