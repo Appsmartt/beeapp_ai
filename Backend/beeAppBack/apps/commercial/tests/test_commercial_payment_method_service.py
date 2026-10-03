@@ -120,44 +120,33 @@ class CommercialPaymentMethodServiceTests(
         get_client_mock,
         require_owner_mock,
     ):
-        class Response:
-            data = [
-                {
-                    **self._payment_method(),
-                }
-            ]
+        payment_method_data = self._payment_method()
 
-        class InsertQuery:
-            def __init__(self):
-                self.payload = None
-
-            def insert(self, payload):
-                self.payload = payload
-                return self
-
-            def execute(self):
-                return Response()
-
-        class RpcQuery:
+        class UpsertQuery:
             def execute(self):
                 return type(
-                    "RpcResponse",
+                    "UpsertResponse",
+                    (),
+                    {"data": [payment_method_data]},
+                )()
+
+        class AuditQuery:
+            def execute(self):
+                return type(
+                    "AuditResponse",
                     (),
                     {"data": "audit-id"},
                 )()
 
         class Client:
             def __init__(self):
-                self.insert_query = InsertQuery()
-
-            def table(self, table_name):
-                self.table_name = table_name
-                return self.insert_query
+                self.rpc_calls = []
 
             def rpc(self, function_name, parameters):
-                self.rpc_function_name = function_name
-                self.rpc_parameters = parameters
-                return RpcQuery()
+                self.rpc_calls.append((function_name, parameters))
+                if function_name == "commerce_upsert_owned_payment_method":
+                    return UpsertQuery()
+                return AuditQuery()
 
         client = Client()
         get_client_mock.return_value = client
@@ -169,33 +158,31 @@ class CommercialPaymentMethodServiceTests(
             payload={
                 "payment_method_type": "nequi",
                 "display_name": "Nequi",
-                "public_details": {
-                    "provider": "Nequi",
-                },
-                "private_details": {
-                    "phone_number": "3001234567",
-                },
+                "public_details": {"provider": "Nequi"},
+                "private_details": {"phone_number": "3001234567"},
                 "public_instructions": None,
-                "private_instructions": (
-                    "Paga al número 3001234567."
-                ),
+                "private_instructions": "Paga al número 3001234567.",
                 "available_before_acceptance": False,
                 "sort_order": 0,
                 "is_active": True,
             },
         )
 
+        upsert_name, upsert_parameters = client.rpc_calls[0]
+        audit_name, audit_parameters = client.rpc_calls[1]
         self.assertEqual(
-            client.table_name,
-            "commercial_payment_methods",
+            upsert_name,
+            "commerce_upsert_owned_payment_method",
         )
-        self.assertIn(
-            "payment_method_type",
-            client.insert_query.payload,
+        self.assertIn("p_payment_method_type", upsert_parameters)
+        self.assertNotIn("payment_type", upsert_parameters)
+        self.assertEqual(
+            audit_name,
+            "commerce_write_audit_event",
         )
-        self.assertNotIn(
-            "payment_type",
-            client.insert_query.payload,
+        self.assertEqual(
+            audit_parameters["p_entity_type"],
+            "commercial_payment_method",
         )
         self.assertEqual(
             payment_method["payment_method_type"],
@@ -222,16 +209,13 @@ class CommercialPaymentMethodConflictTests(
         require_owner_mock,
     ):
         from apps.commercial.exceptions import (
-            CommercialConflictError,
+            CommercialOperationError,
         )
         from apps.commercial.services.commercial_payment_method_service import (
             create_commercial_payment_method,
         )
 
-        class Query:
-            def insert(self, payload):
-                return self
-
+        class UpsertQuery:
             def execute(self):
                 raise Exception(
                     "duplicate key value violates unique constraint "
@@ -239,14 +223,15 @@ class CommercialPaymentMethodConflictTests(
                 )
 
         class Client:
-            def table(self, table_name):
-                self.table_name = table_name
-                return Query()
+            def rpc(self, function_name, parameters):
+                self.rpc_function_name = function_name
+                self.rpc_parameters = parameters
+                return UpsertQuery()
 
         get_client_mock.return_value = Client()
 
         with self.assertRaises(
-            CommercialConflictError,
+            CommercialOperationError,
         ) as context:
             create_commercial_payment_method(
                 user_id="user-1",
@@ -269,5 +254,5 @@ class CommercialPaymentMethodConflictTests(
 
         self.assertEqual(
             context.exception.code,
-            "COMMERCIAL_PAYMENT_METHOD_TYPE_ALREADY_ACTIVE",
+            "COMMERCIAL_PAYMENT_METHOD_CREATE_FAILED",
         )
