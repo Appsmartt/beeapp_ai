@@ -33,7 +33,7 @@ from apps.mail.services.mail_provider_service import (
 from apps.mail.services.mail_sync_service import (
     persist_provider_mail_message,
 )
-from apps.mail.services.microsoft_mail_provider_service import (
+from apps.mail.services.microsoft_provider.provider import (
     MicrosoftMailProvider,
 )
 from apps.storage.exceptions import (

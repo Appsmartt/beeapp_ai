@@ -7,7 +7,7 @@ from apps.mail.services.google_mail_provider_service import (
 from apps.mail.services.mail_provider_service import (
     normalize_mail_body_text,
 )
-from apps.mail.services.microsoft_mail_provider_service import (
+from apps.mail.services.microsoft_provider.provider import (
     MicrosoftMailProvider,
 )
 

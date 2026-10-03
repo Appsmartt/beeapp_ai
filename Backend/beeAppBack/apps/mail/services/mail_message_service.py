@@ -23,7 +23,7 @@ from apps.mail.services.mail_provider_service import (
     MailProviderError,
     normalize_mail_folder,
 )
-from apps.mail.services.microsoft_mail_provider_service import (
+from apps.mail.services.microsoft_provider.provider import (
     MicrosoftMailProvider,
 )
 

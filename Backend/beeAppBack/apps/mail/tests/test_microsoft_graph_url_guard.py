@@ -3,7 +3,7 @@ from unittest import TestCase
 from unittest.mock import patch
 
 from apps.mail.services.mail_provider_service import MailProviderError
-from apps.mail.services.microsoft_mail_provider_service import (
+from apps.mail.services.microsoft_provider.provider import (
     MicrosoftMailProvider,
 )
 
@@ -19,7 +19,7 @@ class MicrosoftMailGraphUrlGuardTests(TestCase):
     )
 
     @patch(
-        "apps.mail.services.microsoft_mail_provider_service.httpx.request"
+        "apps.mail.services.microsoft_provider.graph_client.httpx.request"
     )
     def test_allows_exact_https_graph_host(self, request_mock):
         request_mock.return_value.status_code = 204
@@ -36,7 +36,7 @@ class MicrosoftMailGraphUrlGuardTests(TestCase):
         request_mock.assert_called_once()
 
     @patch(
-        "apps.mail.services.microsoft_mail_provider_service.httpx.request"
+        "apps.mail.services.microsoft_provider.graph_client.httpx.request"
     )
     def test_rejects_disallowed_urls_before_request(self, request_mock):
         provider = MicrosoftMailProvider()
@@ -53,7 +53,7 @@ class MicrosoftMailGraphUrlGuardTests(TestCase):
         request_mock.assert_not_called()
 
     @patch(
-        "apps.mail.services.microsoft_mail_provider_service.httpx.request"
+        "apps.mail.services.microsoft_provider.graph_client.httpx.request"
     )
     def test_blocks_malicious_message_next_link_before_second_request(
         self,
