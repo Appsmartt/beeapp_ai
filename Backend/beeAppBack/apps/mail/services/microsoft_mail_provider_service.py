@@ -4,7 +4,7 @@ import base64
 import logging
 from datetime import datetime, timezone
 from typing import Any
-from urllib.parse import quote
+from urllib.parse import quote, urlparse
 
 import httpx
 
@@ -128,6 +128,22 @@ class MicrosoftMailProvider:
         prefer_text_body: bool = False,
         allow_empty_response: bool = False,
     ) -> dict[str, Any]:
+        parsed_url = urlparse(url)
+
+        try:
+            is_allowed_graph_url = (
+                parsed_url.scheme == "https"
+                and parsed_url.hostname == "graph.microsoft.com"
+                and parsed_url.port in (None, 443)
+            )
+        except ValueError:
+            is_allowed_graph_url = False
+
+        if not is_allowed_graph_url:
+            raise MailProviderError(
+                "Microsoft Graph devolvió una URL no permitida."
+            )
+
         try:
             response = httpx.request(
                 method,
