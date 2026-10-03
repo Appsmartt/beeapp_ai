@@ -613,7 +613,7 @@ def register_push_device(
 
         existing = (
             supabase.table("push_devices")
-            .select("id,user_id")
+            .select("id,user_id,device_session_id")
             .eq("expo_push_token", expo_push_token)
             .maybe_single()
             .execute()
@@ -637,10 +637,29 @@ def register_push_device(
         )
 
         if existing_device:
+            existing_user_id = str(
+                existing_device.get("user_id") or ""
+            ).strip()
+
+            if existing_user_id != str(user_id).strip():
+                raise PushDeviceError(
+                    "Push device ownership mismatch."
+                )
+
+            owned_device_payload = {
+                "device_session_id": device_session_id,
+                "platform": platform,
+                "device_id": device_id,
+                "app_version": app_version,
+                "is_active": True,
+                "last_seen_at": "now()",
+            }
+
             response = (
                 supabase.table("push_devices")
-                .update(payload)
+                .update(owned_device_payload)
                 .eq("id", existing_device["id"])
+                .eq("user_id", user_id)
                 .execute()
             )
         else:
@@ -652,7 +671,7 @@ def register_push_device(
 
         if not response or not response.data:
             raise PushDeviceError(
-                "Supabase did not return the registered push device."
+                "Push device registration was not completed."
             )
 
         return response.data[0]
