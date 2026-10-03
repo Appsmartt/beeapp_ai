@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { QRCodeSVG } from 'qrcode.react';
 import { ArrowLeft, RefreshCw } from 'lucide-react';
-import { api } from '@beeapp/api-client';
+import { activateWebSession, createQrLoginChallenge, getQrLoginChallengeStatus } from '@beeapp/api-client';
 import BuddyLogo from '@/components/BuddyLogo';
 
 type QrLoginStatus =
@@ -14,21 +14,6 @@ type QrLoginStatus =
   | 'APPROVING'
   | 'EXPIRED'
   | 'ERROR';
-
-type CreateQrLoginChallengeResponse = {
-  challenge_token: string;
-  expires_at: string;
-};
-
-type GetQrLoginChallengeStatusResponse = {
-  status:
-    | 'PENDING'
-    | 'APPROVED'
-    | 'CONSUMED'
-    | 'EXPIRED'
-    | 'CANCELLED';
-  expires_at: string;
-};
 
 const STEPS = [
   'Abre Buddy AI en tu teléfono',
@@ -41,6 +26,15 @@ function getRemainingSeconds(expiresAt: string): number {
   const remainingMilliseconds = expiresAtMilliseconds - Date.now();
 
   return Math.max(0, Math.ceil(remainingMilliseconds / 1000));
+}
+
+function createBrowserNonce(): string {
+  const bytes = new Uint8Array(32);
+  crypto.getRandomValues(bytes);
+
+  return Array.from(bytes, (byte) => (
+    byte.toString(16).padStart(2, '0')
+  )).join('');
 }
 
 export default function QrLogin() {
@@ -62,21 +56,29 @@ export default function QrLogin() {
   );
 
   const challengeTokenRef = useRef<string | null>(null);
+  const browserNonceRef = useRef<string | null>(null);
 
-  const createQrLoginChallenge = async () => {
+  const clearCurrentChallenge = () => {
+    challengeTokenRef.current = null;
+    browserNonceRef.current = null;
+    setChallengeToken(null);
+    setExpiresAt(null);
+    setSecondsLeft(0);
+  };
+
+  const createNewQrLoginChallenge = async () => {
     try {
       setLoginStatus('LOADING');
       setMessage('Generando código QR seguro...');
-      setChallengeToken(null);
-      setExpiresAt(null);
-      setSecondsLeft(0);
+      clearCurrentChallenge();
 
-      const response =
-        await api.post<CreateQrLoginChallengeResponse>(
-          '/accounts/qr-login/challenges/',
-        );
+      const browserNonce = createBrowserNonce();
+      const response = await createQrLoginChallenge({
+        browser_nonce: browserNonce,
+      });
 
       challengeTokenRef.current = response.challenge_token;
+      browserNonceRef.current = browserNonce;
 
       setChallengeToken(response.challenge_token);
       setExpiresAt(response.expires_at);
@@ -86,6 +88,7 @@ export default function QrLogin() {
       );
       setLoginStatus('READY');
     } catch (error) {
+      clearCurrentChallenge();
       setLoginStatus('ERROR');
 
       setMessage(
@@ -97,7 +100,7 @@ export default function QrLogin() {
   };
 
   useEffect(() => {
-    void createQrLoginChallenge();
+    void createNewQrLoginChallenge();
   }, []);
 
   useEffect(() => {
@@ -111,6 +114,7 @@ export default function QrLogin() {
       setSecondsLeft(remainingSeconds);
 
       if (remainingSeconds === 0) {
+        clearCurrentChallenge();
         setLoginStatus('EXPIRED');
         setMessage(
           'El código QR venció. Genera uno nuevo para continuar.',
@@ -134,18 +138,16 @@ export default function QrLogin() {
 
     const pollChallengeStatus = async () => {
       const currentChallengeToken = challengeTokenRef.current;
+      const currentBrowserNonce = browserNonceRef.current;
 
-      if (!currentChallengeToken) {
+      if (!currentChallengeToken || !currentBrowserNonce) {
         return;
       }
 
       try {
-        const response =
-          await api.get<GetQrLoginChallengeStatusResponse>(
-            `/accounts/qr-login/challenges/${encodeURIComponent(
-              currentChallengeToken,
-            )}/`,
-          );
+        const response = await getQrLoginChallengeStatus(
+          currentChallengeToken,
+        );
 
         if (response.status === 'APPROVED') {
           setLoginStatus('APPROVING');
@@ -153,15 +155,12 @@ export default function QrLogin() {
             'Sesión aprobada. Preparando Buddy Web...',
           );
 
-          await api.post(
-            '/accounts/web-session/activate/',
-            {
-              challenge_token: currentChallengeToken,
-            },
-            {
-              credentials: 'include',
-            },
-          );
+          await activateWebSession({
+            challenge_token: currentChallengeToken,
+            browser_nonce: currentBrowserNonce,
+          });
+
+          clearCurrentChallenge();
 
           router.replace('/app');
           return;
@@ -169,8 +168,10 @@ export default function QrLogin() {
 
         if (
           response.status === 'EXPIRED' ||
-          response.status === 'CANCELLED'
+          response.status === 'CANCELLED' ||
+          response.status === 'CONSUMED'
         ) {
+          clearCurrentChallenge();
           setLoginStatus('EXPIRED');
           setMessage(
             'El código QR venció. Genera uno nuevo para continuar.',
@@ -250,7 +251,7 @@ export default function QrLogin() {
           <button
             type="button"
             onClick={() => {
-              void createQrLoginChallenge();
+              void createNewQrLoginChallenge();
             }}
             className="inline-flex items-center gap-2 h-10 px-4 rounded-xl bg-neutral-100 text-neutral-700 text-sm font-medium hover:bg-neutral-200 transition-colors"
           >

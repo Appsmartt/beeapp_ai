@@ -209,6 +209,15 @@ export interface GetDeviceSessionsResponse {
   devices: DeviceSession[];
 }
 
+export interface CreateQrLoginChallengePayload {
+  browser_nonce: string;
+}
+
+export interface ActivateWebSessionPayload {
+  challenge_token: string;
+  browser_nonce: string;
+}
+
 export interface QrLoginChallengeResponse {
   challenge_token: string;
   expires_at: string;

@@ -10,6 +10,8 @@ import type {
     PasswordResetRequestResponse,
     PasswordResetVerifyPayload,
     PasswordResetVerifyResponse,
+    ActivateWebSessionPayload,
+    CreateQrLoginChallengePayload,
     QrLoginChallengeResponse,
     QrLoginChallengeStatusResponse,
     RegisterUserPayload,
@@ -203,9 +205,12 @@ export function updateAssistantSettings(
     );
 }
 
-export function createQrLoginChallenge(): Promise<QrLoginChallengeResponse> {
+export function createQrLoginChallenge(
+    payload: CreateQrLoginChallengePayload,
+    ): Promise<QrLoginChallengeResponse> {
     return api.post<QrLoginChallengeResponse>(
         '/accounts/qr-login/challenges/',
+        payload,
     );
 }
 
@@ -267,13 +272,11 @@ export async function revokeAllDeviceSessions(
 }
 
 export async function activateWebSession(
-    challengeToken: string,
+    payload: ActivateWebSessionPayload,
     ): Promise<void> {
     await api.post<void>(
         '/accounts/web-session/activate/',
-        {
-        challenge_token: challengeToken,
-        },
+        payload,
         {
         credentials: 'include',
         },

@@ -92,6 +92,7 @@ from apps.accounts.services.profile_service import (
 )
 from apps.accounts.services.qr_login_service import (
     approve_qr_login_challenge,
+    consume_approved_qr_login_challenge,
     create_qr_login_challenge,
     get_qr_login_challenge,
 )
@@ -1122,8 +1123,22 @@ class QrLoginChallengeView(APIView):
     permission_classes = [AllowAny]
 
     def post(self, request):
+        browser_nonce = str(
+            request.data.get("browser_nonce", "")
+        ).strip()
+
+        if not browser_nonce:
+            return Response(
+                {
+                    "detail": "browser_nonce is required.",
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
         try:
-            challenge = create_qr_login_challenge()
+            challenge = create_qr_login_challenge(
+                browser_nonce=browser_nonce,
+            )
         except QrLoginError:
             return Response(
                 {
@@ -1308,10 +1323,16 @@ class WebSessionActivateView(APIView):
             request.data.get("challenge_token", "")
         ).strip()
 
-        if not challenge_token:
+        browser_nonce = str(
+            request.data.get("browser_nonce", "")
+        ).strip()
+
+        if not challenge_token or not browser_nonce:
             return Response(
                 {
-                    "detail": "challenge_token is required.",
+                    "detail": (
+                        "challenge_token and browser_nonce are required."
+                    ),
                 },
                 status=status.HTTP_400_BAD_REQUEST,
             )
@@ -1321,14 +1342,19 @@ class WebSessionActivateView(APIView):
                 session_token=challenge_token,
             )
 
+            consume_approved_qr_login_challenge(
+                challenge_token=challenge_token,
+                browser_nonce=browser_nonce,
+            )
+
             update_device_metadata(
                 device_id=device_session["id"],
                 request=request,
             )
-        except DeviceSessionError:
+        except (DeviceSessionError, QrLoginError):
             return Response(
                 {
-                    "detail": "Web session is not active.",
+                    "detail": "Web session activation is not available.",
                 },
                 status=status.HTTP_401_UNAUTHORIZED,
             )
