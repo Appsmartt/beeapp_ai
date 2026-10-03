@@ -3,14 +3,14 @@ from unittest import TestCase
 from unittest.mock import Mock, patch
 
 from apps.chat.exceptions import ChatConversationAccessError
-from apps.chat.services.chat_conversation_service import (
+from apps.chat.services.chat_conversation.access import (
     _require_identity_active_participant,
 )
 
 
 class ChatAttachmentAccessSecurityTests(TestCase):
     @patch(
-        "apps.chat.services.chat_conversation_service._supabase"
+        "apps.chat.services.chat_conversation.access._supabase"
     )
     def test_inactive_participant_is_access_error(self, supabase):
         response = SimpleNamespace(data=None)

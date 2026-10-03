@@ -9,7 +9,7 @@ from apps.chat.exceptions import (
     ChatGroupInviteError,
     ChatIdentityNotFoundError,
 )
-from apps.chat.services.chat_conversation_service import (
+from apps.chat.services.chat_conversation import (
     get_conversation,
 )
 from apps.chat.services.chat_identity_service import (

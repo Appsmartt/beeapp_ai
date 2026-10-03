@@ -3,7 +3,7 @@ from unittest.mock import MagicMock, patch
 
 from django.test import SimpleTestCase
 
-from apps.chat.services.chat_conversation_service import (
+from apps.chat.services.chat_conversation.avatars import (
     _attach_inbox_avatar_urls,
 )
 from apps.statuses.services.status_media_service import (
@@ -133,7 +133,7 @@ class S6AvatarOwnershipTests(SimpleTestCase):
             "group_image_file_id": "victim-file",
         }]
         with patch(
-            "apps.chat.services.chat_conversation_service._supabase",
+            "apps.chat.services.chat_conversation.avatars._supabase",
             return_value=client,
         ):
             _attach_inbox_avatar_urls(conversations=rows)

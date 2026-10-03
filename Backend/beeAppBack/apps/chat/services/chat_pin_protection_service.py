@@ -4,7 +4,7 @@ from apps.accounts.services.account_security_pin_service import (
     account_security_pin_is_configured,
     verify_account_security_pin,
 )
-from apps.chat.services.chat_conversation_service import (
+from apps.chat.services.chat_conversation import (
     get_conversation,
 )
 

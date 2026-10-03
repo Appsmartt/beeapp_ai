@@ -1,4 +1,4 @@
-from apps.chat.services.chat_conversation_service import (
+from apps.chat.services.chat_conversation import (
     get_chat_unpinned_inbox_by_type,
 )
 from apps.chat.services.chat_receipt_service import (

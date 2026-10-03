@@ -4,7 +4,7 @@ from django.test import SimpleTestCase
 
 from apps.chat.exceptions import ChatInboxError
 from apps.chat.serializers import ChatTypedInboxQuerySerializer
-from apps.chat.services.chat_conversation_service import (
+from apps.chat.services.chat_conversation.inbox import (
     get_chat_unpinned_inbox_by_type,
 )
 
@@ -69,18 +69,18 @@ class ChatTypedInboxServiceTests(SimpleTestCase):
             ]
         )
         with patch(
-            "apps.chat.services.chat_conversation_service."
+            "apps.chat.services.chat_conversation.inbox."
             "get_owned_chat_identity"
         ) as owned, patch(
-            "apps.chat.services.chat_conversation_service."
+            "apps.chat.services.chat_conversation.inbox."
             "_user_supabase",
             return_value=client,
         ), patch(
-            "apps.chat.services.chat_conversation_service."
+            "apps.chat.services.chat_conversation.inbox_enrichment."
             "_load_commercial_inbox_links",
             return_value={},
         ), patch(
-            "apps.chat.services.chat_conversation_service."
+            "apps.chat.services.chat_conversation.inbox_enrichment."
             "_attach_inbox_avatar_urls"
         ):
             result = get_chat_unpinned_inbox_by_type(

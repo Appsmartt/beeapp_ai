@@ -8,9 +8,11 @@ from apps.chat.exceptions import (
     ChatGroupError,
     ChatIdentityNotFoundError,
 )
-from apps.chat.services.chat_conversation_service import (
-    _require_identity_active_participant,
+from apps.chat.services.chat_conversation import (
     get_conversation,
+)
+from apps.chat.services.chat_conversation.access import (
+    _require_identity_active_participant,
 )
 from apps.chat.services.chat_identity_service import (
     get_owned_chat_identity,

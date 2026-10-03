@@ -17,7 +17,7 @@ from apps.chat.serializers import (
     UpdateConversationNotificationsSerializer,
     UpdateConversationPinnedSerializer,
 )
-from apps.chat.services.chat_conversation_service import (
+from apps.chat.services.chat_conversation import (
     clear_chat_conversation,
     create_or_get_direct_conversation,
     get_conversation,

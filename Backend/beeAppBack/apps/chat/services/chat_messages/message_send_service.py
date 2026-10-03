@@ -9,7 +9,7 @@ from apps.chat.exceptions import (
     ChatMessageError,
     ChatMessageSendError,
 )
-from apps.chat.services.chat_conversation_service import (
+from apps.chat.services.chat_conversation.access import (
     _require_identity_active_participant,
 )
 from apps.chat.services.chat_identity_service import get_owned_chat_identity

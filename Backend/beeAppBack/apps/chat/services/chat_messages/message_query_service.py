@@ -16,7 +16,7 @@ from apps.chat.exceptions import (
     ChatMessageError,
     ChatMessageNotFoundError,
 )
-from apps.chat.services.chat_conversation_service import (
+from apps.chat.services.chat_conversation.access import (
     _require_user_conversation_access,
 )
 from apps.chat.services.chat_messages.message_clients import (

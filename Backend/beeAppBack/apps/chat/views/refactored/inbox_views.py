@@ -14,7 +14,7 @@ from apps.chat.serializers import (
     ChatInboxQuerySerializer,
     ChatTypedInboxQuerySerializer,
 )
-from apps.chat.services.chat_conversation_service import get_chat_inbox
+from apps.chat.services.chat_conversation import get_chat_inbox
 from apps.chat.views.refactored.common import unauthorized_response
 
 
