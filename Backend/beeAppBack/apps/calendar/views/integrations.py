@@ -19,7 +19,7 @@ from apps.calendar.services.calendar_integration_service import (
     get_calendar_integration,
     list_calendar_integrations,
 )
-from apps.calendar.services.calendar_sync_service import (
+from apps.calendar.services.calendar_sync import (
     sync_calendar_integration,
 )
 

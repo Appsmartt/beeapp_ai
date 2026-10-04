@@ -2,7 +2,7 @@ from django.core.management.base import BaseCommand
 from django.core.management.base import CommandError
 
 from apps.calendar.exceptions import CalendarError
-from apps.calendar.services.calendar_sync_service import (
+from apps.calendar.services.calendar_sync import (
     sync_due_calendar_integrations,
 )
 
