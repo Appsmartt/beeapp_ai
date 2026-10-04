@@ -43,7 +43,7 @@ from apps.mail.services.mail_integration_link_service import (
 from apps.mail.services.mail_integration_service import (
     request_mail_sync,
 )
-from apps.mail.services.mail_message_service import (
+from apps.mail.services.mail_message import (
     get_mail_message,
     list_mail_messages,
     move_mail_message,
