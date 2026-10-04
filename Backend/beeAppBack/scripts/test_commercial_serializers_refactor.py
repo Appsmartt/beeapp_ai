@@ -22,7 +22,10 @@ EXPECTED_EXPORT_COUNT = 49
 MAX_MODULE_LINES = 400
 TEST_LABELS = (
     "apps.commercial.tests.test_commercial_catalog_service",
-    "apps.commercial.tests.test_commercial_offer_package",
+    "apps.commercial.tests.commercial_offer.test_offer_archived_state",
+    "apps.commercial.tests.commercial_offer.test_offer_availability",
+    "apps.commercial.tests.commercial_offer.test_offer_images",
+    "apps.commercial.tests.commercial_offer.test_offer_package_exports",
     "apps.commercial.tests.test_commercial_offer_serializers",
     "apps.commercial.tests.test_public_commercial_product_feed",
     (
@@ -38,7 +41,9 @@ TEST_LABELS = (
         "test_commercial_request_operations_serializers"
     ),
     "apps.commercial.tests.test_public_category_search",
-    "apps.commercial.tests.test_commercial_category_creation",
+    "apps.commercial.tests.commercial_category_creation.test_category_name_normalization",
+    "apps.commercial.tests.commercial_category_creation.test_category_resolution",
+    "apps.commercial.tests.commercial_category_creation.test_profile_category_serializer",
     "apps.commercial.tests.test_commercial_authorization_service",
 )
 CONSUMER_MODULES = (

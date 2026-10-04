@@ -17,7 +17,9 @@ REPORT_PATH = REPORT_DIRECTORY / (
 
 TEST_LABELS = [
     "apps.commercial.tests.test_commercial_profile_creation_state",
-    "apps.commercial.tests.test_commercial_category_creation",
+    "apps.commercial.tests.commercial_category_creation.test_category_name_normalization",
+    "apps.commercial.tests.commercial_category_creation.test_category_resolution",
+    "apps.commercial.tests.commercial_category_creation.test_profile_category_serializer",
     "apps.commercial.tests.test_commercial_authorization_service",
 ]
 
