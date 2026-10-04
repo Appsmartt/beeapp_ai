@@ -6,7 +6,7 @@ from apps.commercial.exceptions import (
     CommercialStateError,
     CommercialValidationError,
 )
-from apps.commercial.services.commercial_catalog_service import (
+from apps.commercial.services.commercial_catalog import (
     get_owned_commercial_catalog,
 )
 from apps.storage.exceptions import StorageFileNotFoundError

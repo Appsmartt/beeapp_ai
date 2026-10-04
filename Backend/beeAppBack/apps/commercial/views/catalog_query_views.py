@@ -9,7 +9,7 @@ from apps.commercial.serializers import (
     OwnedCommercialCatalogsQuerySerializer,
     UpdateCommercialCatalogSerializer,
 )
-from apps.commercial.services.commercial_catalog_service import (
+from apps.commercial.services.commercial_catalog import (
     create_commercial_catalog,
     get_owned_commercial_catalog,
     list_owned_commercial_catalogs,

@@ -4,7 +4,7 @@ from rest_framework.response import Response
 from apps.accounts.exceptions import AccountAuthenticationError
 from apps.accounts.views import AuthenticatedAPIView
 from apps.commercial.exceptions import CommercialError
-from apps.commercial.services.commercial_catalog_service import (
+from apps.commercial.services.commercial_catalog import (
     archive_commercial_catalog,
     pause_commercial_catalog,
     publish_commercial_catalog,
