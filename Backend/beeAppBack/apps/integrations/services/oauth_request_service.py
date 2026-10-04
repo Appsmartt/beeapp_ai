@@ -51,7 +51,7 @@ def _get_return_path(client_channel: str) -> str:
 def _get_active_mobile_session_id(
     *, user_id: str, access_token: str
 ) -> str:
-    from apps.accounts.services.device_session_service import (
+    from apps.accounts.services.device_sessions import (
         get_active_mobile_device_session_for_auth_session,
     )
 

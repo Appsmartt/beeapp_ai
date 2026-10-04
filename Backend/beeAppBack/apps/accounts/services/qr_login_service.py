@@ -6,7 +6,7 @@ from django.utils import timezone
 from beeAppBack.core.supabase_client import get_supabase_admin_client
 
 from apps.accounts.exceptions import QrLoginError
-from apps.accounts.services.device_session_service import (
+from apps.accounts.services.device_sessions import (
     create_web_device_session,
     hash_token,
 )

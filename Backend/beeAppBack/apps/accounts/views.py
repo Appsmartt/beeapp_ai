@@ -10,7 +10,7 @@ from apps.accounts.services.auth_session_service import (
 from apps.accounts.services.auth_user_service import (
     get_auth_user,
 )
-from apps.accounts.services.device_session_service import (
+from apps.accounts.services.device_sessions import (
     create_or_replace_mobile_device_session,
     create_web_device_session,
     get_active_mobile_device_session_for_auth_session,
