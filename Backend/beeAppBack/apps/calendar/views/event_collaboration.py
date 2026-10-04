@@ -15,7 +15,7 @@ from apps.calendar.serializers import (
     RemoveEventAttendeeSerializer,
     ReviewInviteeRequestSerializer,
 )
-from apps.calendar.services.calendar_collaboration_service import (
+from apps.calendar.services.calendar_collaboration import (
     create_invitee_request,
     list_event_attendees,
     list_event_invitee_requests,

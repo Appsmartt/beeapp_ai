@@ -6,7 +6,7 @@ from apps.accounts.views import AuthenticatedAPIView
 
 from apps.calendar.exceptions import CalendarError, CalendarNotFoundError
 from apps.calendar.serializers import CreateCalendarShareSerializer
-from apps.calendar.services.calendar_collaboration_service import (
+from apps.calendar.services.calendar_collaboration import (
     accept_calendar_share,
     create_calendar_share,
     list_calendar_shares,
