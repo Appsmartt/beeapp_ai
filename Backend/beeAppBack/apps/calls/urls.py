@@ -1,6 +1,6 @@
 from django.urls import path
 
-from apps.calls.views import (
+from apps.calls.refactored_views import (
     ActiveCallForConversationView,
     CallDetailView,
     CallHistoryForConversationView,
