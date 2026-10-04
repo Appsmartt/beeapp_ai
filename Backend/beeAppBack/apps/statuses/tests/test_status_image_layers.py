@@ -2,8 +2,10 @@ from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import SimpleTestCase
 
 from apps.statuses.exceptions import StatusMediaError
-from apps.statuses.services.status_media_service import (
+from apps.statuses.services.status_media_refactor.shared import (
     MAX_STATUS_IMAGE_SIZE_BYTES,
+)
+from apps.statuses.services.status_media_refactor.validation import (
     validate_status_media_file,
 )
 

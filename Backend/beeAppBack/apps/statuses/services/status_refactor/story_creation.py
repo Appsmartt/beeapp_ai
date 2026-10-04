@@ -12,8 +12,10 @@ from apps.statuses.exceptions import (
     StatusOperationError,
     StatusValidationError,
 )
-from apps.statuses.services.status_media_service import (
+from apps.statuses.services.status_media_refactor.deletion import (
     delete_status_media_object_safely,
+)
+from apps.statuses.services.status_media_refactor.uploads import (
     upload_status_media,
     upload_status_story_image_layer,
 )

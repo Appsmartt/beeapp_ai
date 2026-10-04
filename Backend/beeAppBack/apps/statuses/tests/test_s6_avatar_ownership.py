@@ -6,7 +6,7 @@ from django.test import SimpleTestCase
 from apps.chat.services.chat_conversation.avatars import (
     _attach_inbox_avatar_urls,
 )
-from apps.statuses.services.status_media_service import (
+from apps.statuses.services.status_media_refactor.signed_urls import (
     create_status_avatar_signed_url,
 )
 
@@ -41,11 +41,11 @@ class S6AvatarOwnershipTests(SimpleTestCase):
             },
         )
         with patch(
-            "apps.statuses.services.status_media_service."
+            "apps.statuses.services.status_media_refactor.signed_urls."
             "execute_with_supabase_admin_retry",
             side_effect=lambda operation: operation(client),
         ), patch(
-            "apps.statuses.services.status_media_service."
+            "apps.statuses.services.status_media_refactor.signed_urls."
             "create_status_media_signed_url",
             return_value="https://signed.example/avatar",
         ) as signer:
@@ -66,11 +66,11 @@ class S6AvatarOwnershipTests(SimpleTestCase):
             file_record=None,
         )
         with patch(
-            "apps.statuses.services.status_media_service."
+            "apps.statuses.services.status_media_refactor.signed_urls."
             "execute_with_supabase_admin_retry",
             side_effect=lambda operation: operation(client),
         ), patch(
-            "apps.statuses.services.status_media_service."
+            "apps.statuses.services.status_media_refactor.signed_urls."
             "create_status_media_signed_url",
         ) as signer:
             result = create_status_avatar_signed_url(
@@ -89,11 +89,11 @@ class S6AvatarOwnershipTests(SimpleTestCase):
             file_record=None,
         )
         with patch(
-            "apps.statuses.services.status_media_service."
+            "apps.statuses.services.status_media_refactor.signed_urls."
             "execute_with_supabase_admin_retry",
             side_effect=lambda operation: operation(client),
         ), patch(
-            "apps.statuses.services.status_media_service."
+            "apps.statuses.services.status_media_refactor.signed_urls."
             "create_status_media_signed_url",
         ) as signer:
             result = create_status_avatar_signed_url(

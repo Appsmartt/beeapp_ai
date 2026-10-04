@@ -12,7 +12,7 @@ def _attach_inbox_avatar_urls(
     *,
     conversations: list[dict[str, Any]],
 ) -> None:
-    from apps.statuses.services.status_media_service import (
+    from apps.statuses.services.status_media_refactor.signed_urls import (
         create_status_avatar_signed_url,
     )
 

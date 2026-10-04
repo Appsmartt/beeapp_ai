@@ -7,8 +7,10 @@ from beeAppBack.core.supabase_client import (
     execute_with_supabase_admin_retry,
 )
 from apps.statuses.exceptions import StatusOperationError
-from apps.statuses.services.status_media_service import (
+from apps.statuses.services.status_media_refactor.shared import (
     STATUS_MEDIA_SIGNED_URL_TTL_SECONDS,
+)
+from apps.statuses.services.status_media_refactor.signed_urls import (
     create_status_avatar_signed_url,
     create_status_media_signed_url,
     create_status_offer_image_signed_url,

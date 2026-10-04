@@ -7,7 +7,7 @@ from apps.commercial.services.commercial_public_service import (
     _enrich_public_profiles,
     _get_logo_files_by_profile_ids,
 )
-from apps.statuses.services.status_media_service import (
+from apps.statuses.services.status_media_refactor.signed_urls import (
     create_status_offer_image_signed_url,
 )
 
@@ -88,11 +88,11 @@ class S6PublicMediaOwnershipTests(SimpleTestCase):
             "files": files,
         }[name]
         with patch(
-            "apps.statuses.services.status_media_service."
+            "apps.statuses.services.status_media_refactor.signed_urls."
             "execute_with_supabase_admin_retry",
             side_effect=lambda operation: operation(client),
         ), patch(
-            "apps.statuses.services.status_media_service."
+            "apps.statuses.services.status_media_refactor.signed_urls."
             "create_status_media_signed_url",
         ) as signer:
             result = create_status_offer_image_signed_url(

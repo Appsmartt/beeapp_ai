@@ -7,7 +7,7 @@ from beeAppBack.core.supabase_client import (
     get_supabase_admin_client,
 )
 
-from apps.statuses.services.status_media_service import (
+from apps.statuses.services.status_media_refactor.signed_urls import (
     create_status_avatar_signed_url,
 )
 
