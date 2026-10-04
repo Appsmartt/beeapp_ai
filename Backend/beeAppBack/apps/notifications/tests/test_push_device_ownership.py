@@ -45,7 +45,7 @@ class PushDeviceOwnershipServiceTests(SimpleTestCase):
         client.table.side_effect = [lookup_query, insert_query]
 
         with patch(
-            "apps.notifications.services.notification_service._supabase",
+            "apps.notifications.services.notification_service.database.get_supabase",
             return_value=client,
         ):
             result = register_push_device(
@@ -81,7 +81,7 @@ class PushDeviceOwnershipServiceTests(SimpleTestCase):
         client.table.side_effect = [lookup_query, update_query]
 
         with patch(
-            "apps.notifications.services.notification_service._supabase",
+            "apps.notifications.services.notification_service.database.get_supabase",
             return_value=client,
         ):
             result = register_push_device(
@@ -119,7 +119,7 @@ class PushDeviceOwnershipServiceTests(SimpleTestCase):
         client.table.side_effect = [lookup_query, update_query]
 
         with patch(
-            "apps.notifications.services.notification_service._supabase",
+            "apps.notifications.services.notification_service.database.get_supabase",
             return_value=client,
         ):
             with self.assertRaises(PushDeviceError):
@@ -150,7 +150,7 @@ class PushDeviceOwnershipServiceTests(SimpleTestCase):
         client.table.return_value = lookup_query
 
         with patch(
-            "apps.notifications.services.notification_service._supabase",
+            "apps.notifications.services.notification_service.database.get_supabase",
             return_value=client,
         ):
             with self.assertRaises(PushDeviceError):
@@ -181,7 +181,7 @@ class PushDeviceOwnershipServiceTests(SimpleTestCase):
                 client.table.return_value = lookup_query
 
                 with patch(
-                    "apps.notifications.services.notification_service._supabase",
+                    "apps.notifications.services.notification_service.database.get_supabase",
                     return_value=client,
                 ):
                     with self.assertRaises(PushDeviceError):
