@@ -15,7 +15,7 @@ from apps.chat.serializers import ChatRecipientSearchQuerySerializer
 from apps.chat.services.chat_contact_profile_service import (
     get_chat_contact_profile,
 )
-from apps.chat.services.chat_recipient_search_service import (
+from apps.chat.services.recipient_search import (
     search_chat_recipients,
 )
 from apps.chat.throttles import ChatRecipientSearchThrottle
