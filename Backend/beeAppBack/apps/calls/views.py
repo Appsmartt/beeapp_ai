@@ -34,7 +34,7 @@ from apps.calls.serializers import (
     LeaveCallSerializer,
     StartCallSerializer,
 )
-from apps.calls.services.call_service import (
+from apps.calls.services.call_session import (
     cancel_call_join_attempt,
     confirm_call_joined,
     create_call_session,
