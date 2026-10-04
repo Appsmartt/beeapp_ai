@@ -31,13 +31,17 @@ from apps.integrations.services.google_oauth_service import (
     exchange_google_authorization_code,
     get_google_user_info,
 )
-from apps.integrations.services.integration_connection_service import (
+from apps.integrations.services.connection.lifecycle_service import (
     delete_inactive_user_connection,
     disconnect_user_connection,
-    get_user_connection,
-    list_user_connections,
+)
+from apps.integrations.services.connection.provider_connection_service import (
     upsert_google_connection,
     upsert_microsoft_connection,
+)
+from apps.integrations.services.connection.repository_service import (
+    get_user_connection,
+    list_user_connections,
 )
 from apps.integrations.services.microsoft_oauth_service import (
     MICROSOFT_IDENTITY_SCOPES,

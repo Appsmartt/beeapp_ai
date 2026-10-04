@@ -38,7 +38,7 @@ def get_valid_access_token(
     user_id: str,
     integration: dict[str, Any],
 ) -> str:
-    from apps.integrations.services.integration_connection_service import (
+    from apps.integrations.services.connection.token_service import (
         get_valid_google_access_token,
         get_valid_microsoft_access_token,
     )
