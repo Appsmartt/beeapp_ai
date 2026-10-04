@@ -10,7 +10,7 @@ from apps.calendar.serializers import (
     CalendarIntegrationSyncRequestSerializer,
     UpdateExternalCalendarPreferencesSerializer,
 )
-from apps.calendar.services.calendar_external_calendar_service import (
+from apps.calendar.services.external_calendars import (
     discover_external_calendars,
     list_external_calendars,
     update_external_calendar_preferences,

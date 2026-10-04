@@ -4,7 +4,7 @@ from datetime import datetime
 from typing import Any
 
 from apps.calendar.exceptions import CalendarError
-from apps.calendar.services.calendar_external_calendar_service import (
+from apps.calendar.services.external_calendars import (
     _get_calendar_provider,
     _get_valid_access_token,
     _require_active_calendar_integration,
