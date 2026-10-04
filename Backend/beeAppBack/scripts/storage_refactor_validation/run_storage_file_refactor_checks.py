@@ -35,7 +35,7 @@ MODULES = [
     "apps.storage.services.storage_tag_service",
     "apps.storage.views",
     "apps.chat.services.chat_attachment_service",
-    "apps.mail.services.mail_draft_service",
+    "apps.mail.services.mail_draft",
     "apps.notes.services.note_attachment_service",
     "apps.accounts.services.profile_service",
     "apps.commercial.services.commercial_offer.validation",

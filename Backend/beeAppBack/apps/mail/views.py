@@ -29,7 +29,7 @@ from apps.mail.serializers import (
 from apps.mail.services.mail_attachment_service import (
     download_mail_attachment,
 )
-from apps.mail.services.mail_draft_service import (
+from apps.mail.services.mail_draft import (
     create_mail_draft,
     delete_mail_draft,
     send_mail_draft,

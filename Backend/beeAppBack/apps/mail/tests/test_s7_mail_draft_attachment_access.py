@@ -3,7 +3,7 @@ from unittest import TestCase
 from unittest.mock import Mock, patch
 
 from apps.mail.exceptions import MailSyncError
-from apps.mail.services import mail_draft_service as draft_service
+from apps.mail.services import mail_draft as draft_service
 from apps.storage.exceptions import StorageFileNotFoundError
 
 
@@ -20,31 +20,66 @@ class S7MailDraftAttachmentAccessTests(TestCase):
             },
             "attachments": attachments,
         }
-        with ExitStack() as stack:
-            def mocked(name, value):
-                return stack.enter_context(
-                    patch.object(draft_service, name, value)
-                )
 
-            mocked("_get_draft_message", Mock(return_value={
-                "id": "draft-id",
-                "mail_integration_id": "integration-id",
-                "provider": "google",
-                "provider_message_id": "provider-id",
-            }))
-            mocked("_get_active_mail_integration", Mock(return_value={
-                "provider": "google",
-            }))
-            mocked("_build_draft_snapshot", Mock(return_value=snapshot))
-            mocked("_get_mail_provider", Mock(return_value=provider))
-            token = mocked(
-                "_get_valid_access_token", Mock(return_value="test-token")
+        with ExitStack() as stack:
+            def mocked(target, value):
+                return stack.enter_context(patch(target, value))
+
+            mocked(
+                "apps.mail.services.mail_draft.operations."
+                "get_draft_message",
+                Mock(return_value={
+                    "id": "draft-id",
+                    "mail_integration_id": "integration-id",
+                    "provider": "google",
+                    "provider_message_id": "provider-id",
+                }),
             )
-            mocked("normalize_recipients", lambda values: values)
-            mocked("validate_sendable_draft", Mock())
-            mocked("_get_gmail_draft_id", Mock(return_value="draft-provider-id"))
-            mocked("_persist_sent_provider_message", Mock(return_value="sent-id"))
-            mocked("_serialize_message", Mock(return_value={"id": "sent-id"}))
+            mocked(
+                "apps.mail.services.mail_draft.operations."
+                "get_active_mail_integration",
+                Mock(return_value={"provider": "google"}),
+            )
+            mocked(
+                "apps.mail.services.mail_draft.operations."
+                "build_draft_snapshot",
+                Mock(return_value=snapshot),
+            )
+            mocked(
+                "apps.mail.services.mail_draft.operations."
+                "get_mail_provider",
+                Mock(return_value=provider),
+            )
+            token = mocked(
+                "apps.mail.services.mail_draft.operations."
+                "get_valid_access_token",
+                Mock(return_value="test-token"),
+            )
+            mocked(
+                "apps.mail.services.mail_draft.operations."
+                "normalize_recipients",
+                lambda values: values,
+            )
+            mocked(
+                "apps.mail.services.mail_draft.operations."
+                "validate_sendable_draft",
+                Mock(),
+            )
+            mocked(
+                "apps.mail.services.mail_draft.operations."
+                "get_google_draft_id",
+                Mock(return_value="draft-provider-id"),
+            )
+            mocked(
+                "apps.mail.services.mail_draft.operations."
+                "persist_sent_provider_message",
+                Mock(return_value="sent-id"),
+            )
+            mocked(
+                "apps.mail.services.mail_draft.operations."
+                "serialize_message",
+                Mock(return_value={"id": "sent-id"}),
+            )
 
             def accessible(*, user_id, file_id):
                 self.assertEqual(user_id, "recipient-user")
@@ -52,7 +87,12 @@ class S7MailDraftAttachmentAccessTests(TestCase):
                     raise StorageFileNotFoundError("Access denied")
                 return {"id": file_id}
 
-            access = mocked("get_accessible_file", Mock(side_effect=accessible))
+            access = mocked(
+                "apps.mail.services.mail_draft.attachments."
+                "get_accessible_file",
+                Mock(side_effect=accessible),
+            )
+
             try:
                 result = draft_service.send_mail_draft(
                     user_id="recipient-user",
