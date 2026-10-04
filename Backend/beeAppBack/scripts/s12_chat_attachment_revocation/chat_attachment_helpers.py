@@ -4,7 +4,7 @@ from urllib.parse import quote
 
 from .auth_helpers import json_request
 from .http_client import parse_json, request
-from .runtime_config import BACKEND_URL
+from .runtime_config import get_backend_url
 
 
 def assert_status(status, expected, label):
@@ -153,7 +153,7 @@ def upload_chat_attachment(
 
     status, raw = request(
         "POST",
-        BACKEND_URL
+        get_backend_url()
         + "/api/chat/conversations/"
         + quote(conversation_id, safe="")
         + "/attachments/",

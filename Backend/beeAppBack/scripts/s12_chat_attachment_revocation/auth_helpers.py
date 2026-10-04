@@ -1,11 +1,11 @@
 from .http_client import parse_json, request
-from .runtime_config import BACKEND_URL
+from .runtime_config import get_backend_url
 
 
 def json_request(method, path, token, body=None):
     status, raw = request(
         method,
-        BACKEND_URL + path,
+        get_backend_url() + path,
         token=token,
         body=body,
     )
