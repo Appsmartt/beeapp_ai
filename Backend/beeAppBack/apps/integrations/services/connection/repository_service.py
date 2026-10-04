@@ -24,7 +24,7 @@ from apps.integrations.services.connection.shared import (
 from apps.integrations.services.credential_crypto_service import (
     encrypt_integration_secret,
 )
-from apps.mail.services.mail_integration_link_service import (
+from apps.mail.services.mail_integration_link import (
     sync_mail_integration_from_connection,
 )
 

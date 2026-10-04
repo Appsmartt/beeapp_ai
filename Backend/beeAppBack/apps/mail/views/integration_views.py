@@ -7,7 +7,7 @@ from apps.accounts.exceptions import AccountAuthenticationError
 from apps.accounts.views import AuthenticatedAPIView
 from apps.mail.exceptions import MailIntegrationNotFoundError
 from apps.mail.serializers import MailIntegrationListQuerySerializer
-from apps.mail.services.mail_integration_link_service import (
+from apps.mail.services.mail_integration_link import (
     get_mail_integration,
     list_mail_integrations,
     sync_user_mail_integrations_from_connections,

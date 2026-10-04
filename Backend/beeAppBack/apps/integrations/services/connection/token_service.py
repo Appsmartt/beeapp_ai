@@ -36,7 +36,7 @@ from apps.integrations.services.microsoft_oauth_service import (
     calculate_token_expiration as calculate_microsoft_token_expiration,
     refresh_microsoft_access_token,
 )
-from apps.mail.services.mail_integration_link_service import (
+from apps.mail.services.mail_integration_link import (
     sync_mail_integration_from_connection,
 )
 

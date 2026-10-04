@@ -22,7 +22,7 @@ from apps.integrations.services.connection.shared import (
 from apps.integrations.services.integration_notification_service import (
     create_reauthorization_notification,
 )
-from apps.mail.services.mail_integration_link_service import (
+from apps.mail.services.mail_integration_link import (
     sync_mail_integration_from_connection,
 )
 

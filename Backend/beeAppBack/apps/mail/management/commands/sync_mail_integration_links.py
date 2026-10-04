@@ -5,7 +5,7 @@ from django.core.management.base import BaseCommand
 from beeAppBack.core.supabase_client import (
     get_supabase_admin_client,
 )
-from apps.mail.services.mail_integration_link_service import (
+from apps.mail.services.mail_integration_link import (
     sync_mail_integration_from_connection,
 )
 
