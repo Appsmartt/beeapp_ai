@@ -1,18 +1,61 @@
+import { useCallback, useEffect, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import ScreenSafeArea from '../../../src/components/layout/ScreenSafeArea';
 import { useRouter } from 'expo-router';
 import { colors } from '@beeapp/design-system';
+import { getCurrentProfile } from '@beeapp/api-client';
+import type { ProfileVerificationStatus } from '@beeapp/shared-types';
 import { ChevronLeft, ChevronRight, CreditCard, BadgeCheck } from 'lucide-react-native';
 import FloatingTabBar from '../../../src/components/FloatingTabBar';
 import { VERIFIED_COLOR } from '../../../src/components/VerifiedBadge';
+import { getValidSessionCredentials } from '../../../src/services/authSession';
 
-// Mock account state shown as a summary above the two options
 const MOCK_PLAN = 'Buddy Gratis';
-const MOCK_VERIFIED = false;
+
+function verificationLabel(
+  status: ProfileVerificationStatus,
+): string {
+  if (status === 'verificado') {
+    return 'Cuenta verificada';
+  }
+
+  if (status === 'en_revision') {
+    return 'En revisión';
+  }
+
+  if (status === 'rechazado') {
+    return 'Solicitud rechazada';
+  }
+
+  return 'Sin verificar';
+}
 
 /** Entry point of the account section: subscription plan and Bee Verify. */
 export default function SubscriptionHubScreen() {
   const router = useRouter();
+  const [verificationStatus, setVerificationStatus] =
+    useState<ProfileVerificationStatus>('no_solicitado');
+
+  const loadStatus = useCallback(async () => {
+    try {
+      const credentials = await getValidSessionCredentials();
+
+      if (!credentials) {
+        return;
+      }
+
+      const response = await getCurrentProfile(credentials);
+      setVerificationStatus(
+        response.profile.verification_status || 'no_solicitado',
+      );
+    } catch {
+      setVerificationStatus('no_solicitado');
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadStatus();
+  }, [loadStatus]);
 
   return (
     <ScreenSafeArea style={styles.safeArea}>
@@ -35,8 +78,8 @@ export default function SubscriptionHubScreen() {
             <View style={styles.statusDivider} />
             <View style={styles.statusRow}>
               <Text style={styles.statusLabel}>Verificación</Text>
-              <Text style={[styles.statusValue, MOCK_VERIFIED && styles.statusValueOn]}>
-                {MOCK_VERIFIED ? 'Cuenta verificada' : 'Sin verificar'}
+              <Text style={[styles.statusValue, verificationStatus === 'verificado' && styles.statusValueOn]}>
+                {verificationLabel(verificationStatus)}
               </Text>
             </View>
           </View>
@@ -71,7 +114,7 @@ export default function SubscriptionHubScreen() {
               <View style={styles.optionTitleRow}>
                 <Text style={styles.optionTitle}>Verificación</Text>
                 <View style={styles.servicePill}>
-                  <Text style={styles.servicePillText}>Bee Verify</Text>
+                  <Text style={styles.servicePillText}>Buddy Verify</Text>
                 </View>
               </View>
               <Text style={styles.optionDesc}>

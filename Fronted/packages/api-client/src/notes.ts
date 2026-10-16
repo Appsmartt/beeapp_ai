@@ -639,6 +639,22 @@ export function revokeCurrentWebNoteShare(
     );
 }
 
+export function searchNoteShareRecipients(
+    auth: AuthCredentials,
+    query: string,
+    limit = 10,
+    ): Promise<GetNoteShareRecipientsResponse> {
+    const searchParams = new URLSearchParams({
+        q: query,
+        limit: String(limit),
+    });
+
+    return api.get<GetNoteShareRecipientsResponse>(
+        `/notes/share-recipients/?${searchParams.toString()}`,
+        { auth },
+    );
+}
+
 export function hideCurrentWebReceivedNoteShare(
     shareId: string,
     ): Promise<UpdateNoteShareResponse> {

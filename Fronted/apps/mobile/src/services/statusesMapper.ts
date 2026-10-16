@@ -251,7 +251,7 @@ function getImageLayers(
     .flatMap((rawLayer, index) => {
       const uri = rawLayer.url?.trim() || '';
 
-      if (!uri) {
+      if (!uri && !rawLayer.file_id) {
         return [];
       }
 

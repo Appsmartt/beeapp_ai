@@ -132,32 +132,34 @@ export default function ChatOptionsSheet({
                 </TouchableOpacity>
               ) : null}
 
-              <TouchableOpacity
-                style={styles.sheetBtn}
-                onPress={onToggleProtection}
-              >
-                {isProtected ? (
-                  <Unlock
-                    size={18}
-                    color={colors.brand.primary}
-                    style={styles.sheetIcon}
-                  />
-                ) : (
-                  <Lock
-                    size={18}
-                    color={colors.brand.primary}
-                    style={styles.sheetIcon}
-                  />
-                )}
+              {!chat.isAI ? (
+                <TouchableOpacity
+                  style={styles.sheetBtn}
+                  onPress={onToggleProtection}
+                >
+                  {isProtected ? (
+                    <Unlock
+                      size={18}
+                      color={colors.brand.primary}
+                      style={styles.sheetIcon}
+                    />
+                  ) : (
+                    <Lock
+                      size={18}
+                      color={colors.brand.primary}
+                      style={styles.sheetIcon}
+                    />
+                  )}
 
-                <Text style={styles.sheetBtnText}>
-                  {isProtected
-                    ? 'Quitar protección'
-                    : 'Proteger con PIN'}
-                </Text>
-              </TouchableOpacity>
+                  <Text style={styles.sheetBtnText}>
+                    {isProtected
+                      ? 'Quitar protección'
+                      : 'Proteger con PIN'}
+                  </Text>
+                </TouchableOpacity>
+              ) : null}
 
-              {!hideArchivedChatActions ? (
+              {!hideArchivedChatActions && !chat.isAI ? (
                 <TouchableOpacity
                   style={styles.sheetBtn}
                   onPress={onAssignCategory}

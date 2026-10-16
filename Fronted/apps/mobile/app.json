@@ -19,7 +19,7 @@
         "NSCameraUsageDescription": "Buddy AI necesita acceso a la cámara para videollamadas, tomar fotos de perfil y escanear códigos QR de inicio de sesión.",
         "NSPhotoLibraryUsageDescription": "Buddy AI necesita acceso a tus fotos y videos para que puedas crear y publicar estados.",
         "NSMicrophoneUsageDescription": "Buddy AI necesita acceso al micrófono para llamadas de voz y video.",
-        "NSLocationWhenInUseUsageDescription": "BeeApp necesita tu ubicación mientras usas el chat para compartir un punto cuando tú lo solicites.",
+        "NSLocationWhenInUseUsageDescription": "Buddy AI necesita tu ubicación mientras usas el chat para compartir un punto cuando tú lo solicites.",
         "LSApplicationQueriesSchemes": ["comgooglemaps", "maps"]
       }
     },
@@ -52,7 +52,7 @@
       [
         "expo-location",
         {
-          "locationWhenInUsePermission": "BeeApp necesita tu ubicación mientras usas el chat para compartir un punto cuando tú lo solicites."
+          "locationWhenInUsePermission": "Buddy AI necesita tu ubicación mientras usas el chat para compartir un punto cuando tú lo solicites."
         }
       ],
       [
@@ -81,16 +81,14 @@
         }
       ],
       [
-        "expo-notifications",
+        "onesignal-expo-plugin",
         {
-          "icon": "./src/assets/logo.png",
-          "color": "#6025d2",
-          "defaultChannel": "default",
-          "sounds": [
-            "./src/assets/sounds/incoming-call.mp3"
-          ]
+          "mode": "production",
+          "smallIconAccentColor": "#6025D2",
+          "iPhoneDeploymentTarget": "13.4"
         }
       ],
+      "./withNotificationChannels.js",
       "./withMonorepoSettings.js",
       [
         "expo-media-library",

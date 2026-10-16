@@ -75,7 +75,7 @@ export default function SignatureDocPreview({
               <Text style={styles.stampSigText}>Santiago V.</Text>
               <View style={styles.stampLine} />
               <Text style={styles.stampSigner}>Santiago Valencia</Text>
-              <Text style={styles.stampDate}>Firma Digital BeeAI</Text>
+              <Text style={styles.stampDate}>Firma Digital Buddy AI</Text>
             </View>
           )}
         </View>
@@ -102,7 +102,7 @@ export default function SignatureDocPreview({
           <Text style={styles.auditLabel}>Proveedor:</Text>
           <View style={styles.auditProvider}>
             <ShieldCheck size={14} color="#7C3AED" />
-            <Text style={styles.auditProviderText}>Criptografía BeeAI</Text>
+            <Text style={styles.auditProviderText}>Criptografía Buddy AI</Text>
           </View>
         </View>
       </View>

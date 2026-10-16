@@ -75,7 +75,7 @@ export default function CommercialPendingScreen({
         </Text>
 
         <TouchableOpacity
-          accessibilityLabel="Volver a BuddyServices"
+          accessibilityLabel="Volver a Buddy Services"
           accessibilityRole="button"
           activeOpacity={0.8}
           onPress={() => router.back()}

@@ -35,6 +35,7 @@ import {
   armLocationPermissionUnlockSkip,
   finishLocationPermissionUnlockSkip,
   isPermissionDialogUnlockSkipArmed,
+  withExternalActivity,
 } from '../../../src/services/locationPermissionAppLockGuard';
 import { colors } from '@beeapp/design-system';
 import {
@@ -110,8 +111,9 @@ import {
   setActiveCallCredentials,
 } from '../../../src/stores/activeCallStore';
 
-import type {
-  ChatMessageModel,
+import {
+  chatMessageNeedsAttachmentAccess,
+  type ChatMessageModel,
 } from '../../../src/services/chatService';
 import type {
   StatusItem,
@@ -771,7 +773,7 @@ function ConversationContent({
     conversation?.name?.trim()
     || (
       isAI
-        ? 'Bee'
+        ? 'Buddy AI'
         : isGroup
           ? fallbackChatName
           : resolveDirectChatName()
@@ -924,13 +926,12 @@ function ConversationContent({
 
   const attachmentAccessKey = messages
     .filter((message) => (
-      (message.type === 'image' || message.type === 'file')
-      && !message.mediaUrl
-      && Boolean(message.raw.attachments?.[0]?.file_id)
+      chatMessageNeedsAttachmentAccess(
+        message,
+        attachmentUrlsByMessageId[message.id],
+      )
     ))
-    .map((message) => (
-      `${message.id}:${message.raw.attachments?.[0]?.file_id}`
-    ))
+    .map((message) => message.id)
     .join('|');
 
   useEffect(() => {
@@ -948,21 +949,13 @@ function ConversationContent({
     }
 
     const messagesNeedingAttachmentAccess = messages.filter(
-      (message) => {
-        const needsAttachmentAccess = (
-          (
-            message.type === 'image'
-            || message.type === 'file'
-          )
-          && !message.mediaUrl
-          && Boolean(message.raw.attachments?.[0]?.file_id)
-        );
-
-        return (
-          needsAttachmentAccess
-          && !resolvedAttachmentMessageIdsRef.current.has(message.id)
-        );
-      },
+      (message) => (
+        chatMessageNeedsAttachmentAccess(
+          message,
+          attachmentUrlsByMessageId[message.id],
+        )
+        && !resolvedAttachmentMessageIdsRef.current.has(message.id)
+      ),
     );
 
     if (!messagesNeedingAttachmentAccess.length) {
@@ -1074,9 +1067,10 @@ function ConversationContent({
       try {
         const needsAccess = initialImages.some(
           (message) => (
-            !message.mediaUrl
-            && !attachmentUrlsByMessageId[message.id]
-            && Boolean(message.raw.attachments?.[0]?.file_id)
+            chatMessageNeedsAttachmentAccess(
+              message,
+              attachmentUrlsByMessageId[message.id],
+            )
           ),
         );
         const auth = needsAccess
@@ -1100,7 +1094,10 @@ function ConversationContent({
               !url
               && auth
               && activeIdentityId
-              && message.raw.attachments?.[0]?.file_id
+              && chatMessageNeedsAttachmentAccess(
+                message,
+                attachmentUrlsByMessageId[message.id],
+              )
             ) {
               const access = await getChatMessageAttachmentAccess(
                 auth,
@@ -1457,11 +1454,31 @@ function ConversationContent({
         temporaryVideoUri = preparedAttachment.uri;
       }
 
-      await sendAttachmentMessage({
+      const sentMessage = await sendAttachmentMessage({
         attachment: preparedAttachment,
         content,
         replyToId: replyTarget?.id || null,
       });
+
+      if (
+        preparedAttachment.kind === 'image'
+        || preparedAttachment.kind === 'video'
+      ) {
+        setAttachmentUrlsByMessageId((current) => {
+          const cachedUrl = String(
+            current[sentMessage.id] || '',
+          ).trim();
+
+          if (/^https?:\/\//i.test(cachedUrl)) {
+            return current;
+          }
+
+          return {
+            ...current,
+            [sentMessage.id]: preparedAttachment.uri,
+          };
+        });
+      }
 
       setReplyTarget(null);
       scrollToBottom();
@@ -1555,9 +1572,9 @@ function ConversationContent({
 
     try {
       if (type === 'photo') {
-        const permission = (
-          await ImagePicker.requestMediaLibraryPermissionsAsync()
-        );
+        const permission = await withExternalActivity(() => (
+          ImagePicker.requestMediaLibraryPermissionsAsync()
+        ));
 
         if (!permission.granted) {
           throw new Error(
@@ -1565,10 +1582,12 @@ function ConversationContent({
           );
         }
 
-        const result = await ImagePicker.launchImageLibraryAsync({
-          mediaTypes: ImagePicker.MediaTypeOptions.All,
-          quality: 0.9,
-        });
+        const result = await withExternalActivity(() => (
+          ImagePicker.launchImageLibraryAsync({
+            mediaTypes: ImagePicker.MediaTypeOptions.All,
+            quality: 0.9,
+          })
+        ));
 
         if (result.canceled || !result.assets[0]) {
           return;
@@ -1634,7 +1653,9 @@ function ConversationContent({
       if (type === 'camera') {
         let cameraPermission = await ExpoCamera.getCameraPermissionsAsync();
         if (!cameraPermission.granted) {
-          cameraPermission = await ExpoCamera.requestCameraPermissionsAsync();
+          cameraPermission = await withExternalActivity(() => (
+            ExpoCamera.requestCameraPermissionsAsync()
+          ));
         }
         if (!cameraPermission.granted) {
           throw new Error('Necesitamos permiso para usar la cámara.');
@@ -1642,7 +1663,9 @@ function ConversationContent({
 
         let microphonePermission = await ExpoCamera.getMicrophonePermissionsAsync();
         if (!microphonePermission.granted && microphonePermission.canAskAgain) {
-          microphonePermission = await ExpoCamera.requestMicrophonePermissionsAsync();
+          microphonePermission = await withExternalActivity(() => (
+            ExpoCamera.requestMicrophonePermissionsAsync()
+          ));
         }
         setChatCameraMicrophoneGranted(microphonePermission.granted);
         setChatCameraOpen(true);
@@ -1662,11 +1685,13 @@ function ConversationContent({
           md: 'text/markdown',
           csv: 'text/csv',
         };
-        const result = await DocumentPicker.getDocumentAsync({
-          type: Object.values(allowedDocuments),
-          copyToCacheDirectory: true,
-          multiple: false,
-        });
+        const result = await withExternalActivity(() => (
+          DocumentPicker.getDocumentAsync({
+            type: Object.values(allowedDocuments),
+            copyToCacheDirectory: true,
+            multiple: false,
+          })
+        ));
 
         if (result.canceled || !result.assets[0]) {
           return;

@@ -1,4 +1,5 @@
 import * as MediaLibrary from 'expo-media-library';
+import { withExternalActivity } from './locationPermissionAppLockGuard';
 
 export type RecentStatusMediaAsset = {
   id: string;
@@ -29,10 +30,12 @@ function mapMediaType(
 }
 
 export async function requestRecentStatusMediaPermission(): Promise<boolean> {
-  const permission = await MediaLibrary.requestPermissionsAsync(
-    false,
-    ['photo', 'video'],
-  );
+  const permission = await withExternalActivity(() => (
+    MediaLibrary.requestPermissionsAsync(
+      false,
+      ['photo', 'video'],
+    )
+  ));
 
   return permission.granted;
 }

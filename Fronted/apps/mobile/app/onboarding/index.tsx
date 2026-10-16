@@ -99,7 +99,7 @@ export default function OnboardingScreen() {
     useState<ProfileErrors>({});
 
   const [assistantName, setAssistantName] =
-    useState('BeeAI');
+    useState('Buddy AI');
 
   const [tone, setTone] =
     useState<AssistantTone>('friendly');
@@ -183,7 +183,7 @@ export default function OnboardingScreen() {
       setOccupation(currentProfile.occupation ?? '');
       setLocation(currentProfile.location ?? '');
       setAssistantName(
-        currentProfile.assistant_name ?? 'BeeAI',
+        currentProfile.assistant_name ?? 'Buddy AI',
       );
       setTone(
         getSupportedTone(currentProfile.assistant_tone),
@@ -231,7 +231,7 @@ export default function OnboardingScreen() {
       profile?.first_name?.trim() || 'Usuario';
 
     const normalizedAssistantName =
-      assistantName.trim() || 'BeeAI';
+      assistantName.trim() || 'Buddy AI';
 
     switch (tone) {
       case 'friendly':

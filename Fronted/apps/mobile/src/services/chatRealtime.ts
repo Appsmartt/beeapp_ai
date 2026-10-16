@@ -1,9 +1,9 @@
 import {
-  createClient,
   type RealtimeChannel,
 } from '@supabase/supabase-js';
 import {
   getChatIdentities,
+  getSupabase,
   getChatInbox,
   getChatMessage,
   getChatMessages as fetchChatMessages,
@@ -35,32 +35,7 @@ import {
   stopChatMessageSnapshotSync,
 } from './chatMessageSnapshotSync';
 
-const supabaseUrl = String(
-  process.env.EXPO_PUBLIC_SUPABASE_URL || '',
-).trim();
-
-const supabaseAnonKey = String(
-  process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || '',
-).trim();
-
-if (!supabaseUrl || !supabaseAnonKey) {
-  throw new Error(
-    'Supabase Realtime requiere EXPO_PUBLIC_SUPABASE_URL '
-    + 'y EXPO_PUBLIC_SUPABASE_ANON_KEY.',
-  );
-}
-
-const supabase = createClient(
-  supabaseUrl,
-  supabaseAnonKey,
-  {
-    auth: {
-      autoRefreshToken: false,
-      persistSession: false,
-      detectSessionInUrl: false,
-    },
-  },
-);
+const supabase = getSupabase();
 
 type ChatSyncBroadcast = {
   event_id?: unknown;

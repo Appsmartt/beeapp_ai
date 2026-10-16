@@ -114,7 +114,7 @@ export default function ResetPasswordScreen() {
                     source={recoveryLogoSource}
                     style={styles.recoveryLogo}
                     resizeMode="contain"
-                    accessibilityLabel="Logo de BeeApp"
+                    accessibilityLabel="Logo de Buddy AI"
                 />
                 </View>
 

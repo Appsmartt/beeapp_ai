@@ -56,14 +56,19 @@ import type {
 
 type ArchivedKind =
   | 'direct'
-  | 'group';
+  | 'group'
+  | 'all';
 
 function getArchivedKind(
   value: string | undefined,
 ): ArchivedKind {
-  return value === 'group'
-    ? 'group'
-    : 'direct';
+  if (value === 'group') {
+    return 'group';
+  }
+  if (value === 'all') {
+    return 'all';
+  }
+  return 'direct';
 }
 
 export default function ArchivedChatsScreen() {
@@ -87,6 +92,7 @@ export default function ArchivedChatsScreen() {
   );
 
   const isGroupArchive = archivedKind === 'group';
+  const isAllArchive = archivedKind === 'all';
 
   const {
     conversations,
@@ -183,9 +189,11 @@ export default function ArchivedChatsScreen() {
       chat.isArchived
       && !chat.isAI
       && (
-        isGroupArchive
-          ? chat.isGroup
-          : !chat.isGroup
+        isAllArchive
+          ? true
+          : isGroupArchive
+            ? chat.isGroup
+            : !chat.isGroup
       )
     )).map((chat) => ({
       ...chat,
@@ -193,6 +201,7 @@ export default function ArchivedChatsScreen() {
     })),
     [
       conversations,
+      isAllArchive,
       isGroupArchive,
       protectedChatIds,
     ],
@@ -362,9 +371,11 @@ export default function ArchivedChatsScreen() {
 
       Alert.alert(
         'Chat restaurado',
-        isGroupArchive
-          ? 'El grupo volvió a la pestaña Grupos.'
-          : 'El chat volvió a la pestaña Chats.',
+        isAllArchive
+          ? 'La conversación volvió a tu bandeja.'
+          : isGroupArchive
+            ? 'El grupo volvió a la pestaña Grupos.'
+            : 'El chat volvió a la pestaña Chats.',
       );
     } catch (restoreError) {
       Alert.alert(
@@ -439,9 +450,11 @@ export default function ArchivedChatsScreen() {
           </TouchableOpacity>
 
           <Text style={styles.title}>
-            {isGroupArchive
-              ? 'Grupos archivados'
-              : 'Chats archivados'}
+            {isAllArchive
+              ? 'Conversaciones archivadas'
+              : isGroupArchive
+                ? 'Grupos archivados'
+                : 'Chats archivados'}
           </Text>
         </View>
 
@@ -514,19 +527,19 @@ export default function ArchivedChatsScreen() {
             {archivedChats.length === 0 && !error && !protectionError ? (
               <View style={styles.emptyOverlay}>
                 <Text style={styles.emptyTitle}>
-                  {isGroupArchive
-                    ? 'No tienes grupos archivados'
-                    : 'No tienes chats archivados'}
+                  {isAllArchive
+                    ? 'No tienes conversaciones archivadas'
+                    : isGroupArchive
+                      ? 'No tienes grupos archivados'
+                      : 'No tienes chats archivados'}
                 </Text>
 
                 <Text style={styles.emptyDescription}>
-                  {isGroupArchive
-                    ? (
-                        'Los grupos que archives aparecerán aquí.'
-                      )
-                    : (
-                        'Los chats que archives aparecerán aquí.'
-                      )}
+                  {isAllArchive
+                    ? 'Los chats y grupos que archives aparecerán aquí.'
+                    : isGroupArchive
+                      ? 'Los grupos que archives aparecerán aquí.'
+                      : 'Los chats que archives aparecerán aquí.'}
                 </Text>
               </View>
             ) : null}

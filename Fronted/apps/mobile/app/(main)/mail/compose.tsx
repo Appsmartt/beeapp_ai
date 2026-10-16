@@ -16,6 +16,7 @@ import {
   useState,
 } from 'react';
 import * as DocumentPicker from 'expo-document-picker';
+import { withExternalActivity } from '../../../src/services/locationPermissionAppLockGuard';
 import {
   ChevronDown,
   ChevronLeft,
@@ -34,6 +35,7 @@ import {
 } from '../../../src/components/embedded/EmbeddedNavContext';
 import FloatingTabBar from '../../../src/components/FloatingTabBar';
 import {
+  askAssistantMail,
   createMailDraft,
   sendMailDraft,
   uploadStorageFiles,
@@ -202,6 +204,7 @@ export default function MailComposeScreen() {
 
   const initialTo = String(params.to || '');
   const initialSubject = String(params.subject || '');
+  const initialBody = String(params.body || '');
 
   const [
     senderDropdownVisible,
@@ -240,7 +243,8 @@ export default function MailComposeScreen() {
   });
 
   const [subject, setSubject] = useState(initialSubject);
-  const [body, setBody] = useState('');
+  const [body, setBody] = useState(initialBody);
+  const [drafting, setDrafting] = useState(false);
 
   const [
     showCcBcc,
@@ -547,13 +551,13 @@ export default function MailComposeScreen() {
           return;
         }
 
-        const pickerResult = (
-          await DocumentPicker.getDocumentAsync({
+        const pickerResult = await withExternalActivity(() => (
+          DocumentPicker.getDocumentAsync({
             type: '*/*',
             copyToCacheDirectory: true,
             multiple: true,
           })
-        );
+        ));
 
         if (
           pickerResult.canceled
@@ -1171,6 +1175,35 @@ export default function MailComposeScreen() {
                 onChangeText={setSubject}
               />
             </View>
+
+            <TouchableOpacity
+              disabled={sending || drafting}
+              onPress={() => {
+                void (async () => {
+                  const auth = await getValidSessionCredentials();
+                  if (!auth || auth.scheme !== 'Bearer') return;
+                  setDrafting(true);
+                  try {
+                    const response = await askAssistantMail(auth, 'draft', {
+                      subject,
+                      prompt: body || 'Redacta un correo claro y breve.',
+                      text: body,
+                    });
+                    setBody(response.text);
+                  } catch (error) {
+                    Alert.alert(
+                      'Asistente',
+                      error instanceof Error ? error.message : 'No se pudo redactar el correo.',
+                    );
+                  } finally {
+                    setDrafting(false);
+                  }
+                })();
+              }}
+              style={styles.attachBtn}
+            >
+              <Text style={styles.rowLabel}>{drafting ? 'Redactando...' : 'Redactar con IA'}</Text>
+            </TouchableOpacity>
 
             <TextInput
               style={styles.bodyInputField}

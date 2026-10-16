@@ -9,5 +9,5 @@
       "@beeapp/shared-types": ["../../packages/shared-types"]
     }
   },
-  "include": ["**/*.ts", "**/*.tsx"]
+  "include": ["**/*.ts", "**/*.tsx", "**/*.d.ts"]
 }

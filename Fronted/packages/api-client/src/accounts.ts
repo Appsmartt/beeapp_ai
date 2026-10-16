@@ -29,6 +29,7 @@ import type {
     UpdateProfilePayload,
     UpdateProfileResponse,
     RemoveProfileAvatarResponse,
+    SubmitProfileVerificationResponse,
     VerifyPhoneOtpMobileResponse,
     VerifyPhoneOtpPayload,
     WebSessionProfileResponse,
@@ -173,6 +174,18 @@ export async function removeProfileAvatar(
     ): Promise<RemoveProfileAvatarResponse> {
     return api.delete<RemoveProfileAvatarResponse>(
         '/accounts/me/avatar/',
+        {
+        auth,
+        },
+    );
+}
+
+export function submitProfileVerification(
+    auth: AuthCredentials,
+    ): Promise<SubmitProfileVerificationResponse> {
+    return api.post<SubmitProfileVerificationResponse>(
+        '/accounts/me/verification/submit/',
+        {},
         {
         auth,
         },

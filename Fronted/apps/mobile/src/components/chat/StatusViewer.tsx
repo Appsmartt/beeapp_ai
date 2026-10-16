@@ -103,6 +103,7 @@ export default function StatusViewer({
   const [archiveConfirmationOpen, setArchiveConfirmationOpen] = useState(false);
   const [archiveError, setArchiveError] = useState<string | null>(null);
   const [commercialOfferConfirmationOpen, setCommercialOfferConfirmationOpen] = useState(false);
+  const [avatarFailed, setAvatarFailed] = useState(false);
   const [mediaReady, setMediaReady] = useState(false);
   const [loadedImageLayerIds, setLoadedImageLayerIds] = useState<Set<string>>(
     new Set(),
@@ -176,6 +177,7 @@ export default function StatusViewer({
     setCommercialOfferConfirmationOpen(false);
     setIsPressing(false);
     setMediaError(null);
+    setAvatarFailed(false);
     activeStoryIdRef.current = status.id;
     setLoadedImageLayerIds(new Set());
     setMediaReady(
@@ -493,7 +495,18 @@ export default function StatusViewer({
                   <X size={22} color={onDark ? colors.neutral.white : colors.neutral.text} />
                 </TouchableOpacity>
                 <View style={[styles.avatar, { backgroundColor: status.authorColor }]}>
-                  <Text style={styles.avatarText}>{status.authorInitials}</Text>
+                  {status.authorAvatarUrl && !avatarFailed ? (
+                    <Image
+                      accessibilityLabel={`Foto de ${status.authorName}`}
+                      source={{ uri: status.authorAvatarUrl }}
+                      style={styles.avatarImage}
+                      onError={() => {
+                        setAvatarFailed(true);
+                      }}
+                    />
+                  ) : (
+                    <Text style={styles.avatarText}>{status.authorInitials}</Text>
+                  )}
                 </View>
                 <View style={styles.authorTexts}>
                   <Text
@@ -1172,7 +1185,8 @@ const styles = StyleSheet.create({
   overlay: { flex: 1 },
   topRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingHorizontal: spacing.sm, paddingTop: spacing.sm },
   closeBtn: { padding: 6 },
-  avatar: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
+  avatar: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
+  avatarImage: { height: 36, width: 36 },
   avatarText: { fontSize: 13, fontWeight: '600', color: colors.brand.primary },
   authorTexts: { flex: 1 },
   authorName: { fontSize: 14, fontWeight: '400', color: colors.neutral.text },

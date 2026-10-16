@@ -1,47 +1,78 @@
 import type { AppStateStatus } from 'react-native';
 
-let permissionDialogUnlockSkipArmed = false;
-let cleanupTimer: ReturnType<typeof setTimeout> | null = null;
+const EXTERNAL_ACTIVITY_GRACE_MS = 1500;
 
-export function clearPermissionDialogUnlockSkip(): void {
-  permissionDialogUnlockSkipArmed = false;
+let activityCount = 0;
+let graceTimer: ReturnType<typeof setTimeout> | null = null;
 
-  if (cleanupTimer) {
-    clearTimeout(cleanupTimer);
+function clearGraceTimer(): void {
+  if (graceTimer) {
+    clearTimeout(graceTimer);
   }
 
-  cleanupTimer = null;
+  graceTimer = null;
 }
 
-export function armPermissionDialogUnlockSkip(): void {
-  clearPermissionDialogUnlockSkip();
-  permissionDialogUnlockSkipArmed = true;
+function beginExternalActivity(): void {
+  clearGraceTimer();
+  activityCount += 1;
 }
 
-export function isPermissionDialogUnlockSkipArmed(): boolean {
-  return permissionDialogUnlockSkipArmed;
-}
+function endExternalActivity(): void {
+  activityCount = Math.max(0, activityCount - 1);
 
-export function finishPermissionDialogUnlockSkip(): void {
-  if (!permissionDialogUnlockSkipArmed) {
+  if (activityCount > 0) {
     return;
   }
 
-  if (cleanupTimer) {
-    clearTimeout(cleanupTimer);
+  clearGraceTimer();
+  graceTimer = setTimeout(() => {
+    graceTimer = null;
+  }, EXTERNAL_ACTIVITY_GRACE_MS);
+}
+
+export function isExternalActivityActive(): boolean {
+  return activityCount > 0 || graceTimer !== null;
+}
+
+export async function withExternalActivity<T>(
+  task: () => Promise<T>,
+): Promise<T> {
+  beginExternalActivity();
+
+  try {
+    return await task();
+  } finally {
+    endExternalActivity();
+  }
+}
+
+export function clearPermissionDialogUnlockSkip(): void {
+  activityCount = 0;
+  clearGraceTimer();
+}
+
+export function armPermissionDialogUnlockSkip(): void {
+  beginExternalActivity();
+}
+
+export function isPermissionDialogUnlockSkipArmed(): boolean {
+  return isExternalActivityActive();
+}
+
+export function finishPermissionDialogUnlockSkip(): void {
+  if (activityCount <= 0) {
+    return;
   }
 
-  cleanupTimer = setTimeout(
-    clearPermissionDialogUnlockSkip,
-    1500,
-  );
+  endExternalActivity();
 }
 
 export function consumePermissionDialogUnlockSkip(
   previousAppState: AppStateStatus,
 ): boolean {
   if (
-    !permissionDialogUnlockSkipArmed
+    !isExternalActivityActive()
     || previousAppState !== 'inactive'
   ) {
     return false;

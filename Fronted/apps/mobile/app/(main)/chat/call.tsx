@@ -542,7 +542,7 @@ export default function CallScreen() {
         'error',
         (
           'Esta pantalla necesita callId y actorIdentityId. '
-          + 'Inicia la llamada desde una conversación de BeeApp.'
+          + 'Inicia la llamada desde una conversación de Buddy AI.'
         ),
       );
       return;
@@ -862,7 +862,7 @@ export default function CallScreen() {
 
           <Text style={styles.errorText}>
             Esta ruta aún no tiene una sesión de llamada creada.
-            Inicia la llamada desde una conversación directa de BeeApp.
+            Inicia la llamada desde una conversación directa de Buddy AI.
           </Text>
 
           <TouchableOpacity
@@ -903,8 +903,8 @@ export default function CallScreen() {
           numberOfLines={1}
         >
           {conversationId
-            ? 'Llamada segura de BeeApp'
-            : 'Llamada de BeeApp'}
+            ? 'Llamada segura de Buddy AI'
+            : 'Llamada de Buddy AI'}
         </Text>
       </View>
 

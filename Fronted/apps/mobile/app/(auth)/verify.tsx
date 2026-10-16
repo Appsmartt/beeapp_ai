@@ -31,6 +31,7 @@ import {
   saveAuthSession,
 } from '../../src/services/authSession';
 import {
+  isPushNotificationsConfigured,
   registerCurrentDeviceForPushNotifications,
 } from '../../src/services/pushNotifications';
 
@@ -238,10 +239,10 @@ export default function VerifyScreen() {
         await registerCurrentDeviceForPushNotifications()
       );
 
-      if (!pushToken) {
-        throw new Error(
-          'No fue posible activar las notificaciones. '
-          + 'Verifica los permisos de notificaciones e inténtalo de nuevo.',
+      if (!pushToken && isPushNotificationsConfigured()) {
+        setMessage(
+          'Verificación correcta. No pudimos activar las notificaciones; '
+          + 'revisa los permisos en Ajustes e intenta de nuevo más tarde.',
         );
       }
 

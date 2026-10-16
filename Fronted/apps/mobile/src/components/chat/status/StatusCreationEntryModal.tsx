@@ -17,6 +17,7 @@ import {
 import {
   Camera as ExpoCamera,
 } from 'expo-camera';
+import { withExternalActivity } from '../../../services/locationPermissionAppLockGuard';
 import {
   Camera,
   Image as ImageIcon,
@@ -183,10 +184,10 @@ export default function StatusCreationEntryModal({
       const [
         cameraPermission,
         microphonePermission,
-      ] = await Promise.all([
+      ] = await withExternalActivity(() => Promise.all([
         ExpoCamera.requestCameraPermissionsAsync(),
         ExpoCamera.requestMicrophonePermissionsAsync(),
-      ]);
+      ]));
 
       if (!cameraPermission.granted) {
         setError(

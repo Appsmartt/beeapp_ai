@@ -14,6 +14,7 @@ View,
 } from 'react-native';
 import {
 CalendarDays,
+ChevronLeft,
 ChevronRight,
 Package,
 ShoppingBag,
@@ -123,22 +124,38 @@ buddyServicesRequestDetailRoute(requestId),
 );
 }, [router]);
 
-if (loading) {
 return (
 <ScreenSafeArea style={styles.safeArea}>
+<View style={styles.topBar}>
+<TouchableOpacity
+accessibilityLabel="Volver"
+accessibilityRole="button"
+activeOpacity={0.8}
+hitSlop={8}
+onPress={() => router.back()}
+style={styles.backButton}
+>
+<ChevronLeft color="#523C70" size={22} />
+</TouchableOpacity>
+
+<View style={styles.header}>
+<Text style={styles.title}>
+Mis compras y reservas
+</Text>
+<Text style={styles.subtitle}>
+Consulta el estado de tus solicitudes, servicios y reservas.
+</Text>
+</View>
+</View>
+
+{loading ? (
 <View style={styles.centered}>
 <ActivityIndicator color="#7427D5" size="large" />
 <Text style={styles.centeredText}>
 Cargando tus solicitudes...
 </Text>
 </View>
-</ScreenSafeArea>
-);
-}
-
-if (error) {
-return (
-<ScreenSafeArea style={styles.safeArea}>
+) : error ? (
 <View
 accessibilityLiveRegion="polite"
 accessibilityRole="alert"
@@ -167,12 +184,7 @@ Reintentar
 </TouchableOpacity>
 ) : null}
 </View>
-</ScreenSafeArea>
-);
-}
-
-return (
-<ScreenSafeArea style={styles.safeArea}>
+) : (
 <ScrollView
 contentContainerStyle={styles.content}
 refreshControl={
@@ -184,14 +196,6 @@ tintColor="#7427D5"
 />
 }
 >
-<View style={styles.header}>
-<Text style={styles.title}>
-Mis compras y reservas
-</Text>
-<Text style={styles.subtitle}>
-Consulta el estado de tus solicitudes, servicios y reservas.
-</Text>
-</View>
 
 {requests.length === 0 ? (
 <View style={styles.emptyState}>
@@ -292,6 +296,7 @@ request.currency_code,
 </View>
 )}
 </ScrollView>
+)}
 </ScreenSafeArea>
 );
 }
@@ -318,8 +323,25 @@ fontSize: 15,
 marginTop: 14,
 textAlign: 'center',
 },
+topBar: {
+alignItems: 'flex-start',
+flexDirection: 'row',
+gap: 8,
+paddingHorizontal: 12,
+paddingTop: 8,
+},
+backButton: {
+alignItems: 'center',
+backgroundColor: '#F3E8FE',
+borderRadius: 14,
+height: 42,
+justifyContent: 'center',
+marginTop: 2,
+width: 42,
+},
 header: {
-marginBottom: 22,
+flex: 1,
+marginBottom: 8,
 },
 title: {
 color: '#38294E',

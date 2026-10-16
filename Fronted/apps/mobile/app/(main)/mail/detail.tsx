@@ -16,6 +16,7 @@ import RenderHTML, {
 import * as FileSystem from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 import {
+  askAssistantMail,
   downloadMailAttachment,
 } from '@beeapp/api-client';
 import {
@@ -296,6 +297,8 @@ export default function MailDetailScreen() {
   ] = useState(true);
 
   const [showPlainText, setShowPlainText] = useState(false);
+  const [aiBusy, setAiBusy] = useState(false);
+  const [aiText, setAiText] = useState('');
 
   const [
     actionLoading,
@@ -878,6 +881,42 @@ export default function MailDetailScreen() {
     router,
   ]);
 
+  const runMailAssistant = useCallback(async (
+    operation: 'summarize' | 'translate' | 'suggest_reply',
+  ) => {
+    if (!email || aiBusy) return;
+    const auth = await getValidSessionCredentials();
+    if (!auth || auth.scheme !== 'Bearer') return;
+    setAiBusy(true);
+    try {
+      const response = await askAssistantMail(auth, operation, {
+        subject: email.subject,
+        from: email.senderEmail,
+        text: email.body,
+        language: 'es',
+      });
+      if (operation === 'suggest_reply') {
+        const subject = email.subject.startsWith('Re:')
+          ? email.subject
+          : `Re: ${email.subject}`;
+        router.push({
+          pathname: '/(main)/mail/compose',
+          params: {
+            to: email.senderEmail,
+            subject,
+            body: response.text,
+          },
+        });
+        return;
+      }
+      setAiText(response.text);
+    } catch (error) {
+      Alert.alert('Asistente', getErrorMessage(error));
+    } finally {
+      setAiBusy(false);
+    }
+  }, [aiBusy, email, router]);
+
   if (loading) {
     return (
       <ScreenSafeArea style={styles.safeArea}>
@@ -1272,6 +1311,38 @@ export default function MailDetailScreen() {
                 </View>
               </View>
             </>
+          ) : null}
+
+          {!isInTrash && email ? (
+            <View style={styles.replyActionsRow}>
+              <TouchableOpacity
+                style={styles.replyBtn}
+                disabled={aiBusy}
+                onPress={() => { void runMailAssistant('summarize'); }}
+              >
+                <Text style={styles.replyBtnText}>Resumir</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.replyBtn}
+                disabled={aiBusy}
+                onPress={() => { void runMailAssistant('translate'); }}
+              >
+                <Text style={styles.replyBtnText}>Traducir</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.replyBtn}
+                disabled={aiBusy}
+                onPress={() => { void runMailAssistant('suggest_reply'); }}
+              >
+                <Text style={styles.replyBtnText}>Sugerir</Text>
+              </TouchableOpacity>
+            </View>
+          ) : null}
+
+          {aiText ? (
+            <View style={styles.replyActionsRow}>
+              <Text style={styles.replyBtnText}>{aiText}</Text>
+            </View>
           ) : null}
 
           {!isInTrash ? (

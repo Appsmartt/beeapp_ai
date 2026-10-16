@@ -1,7 +1,25 @@
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+import { useCallback, useEffect, useState } from 'react';
+import {
+  ActivityIndicator,
+  Alert,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from 'react-native';
 import ScreenSafeArea from '../../../src/components/layout/ScreenSafeArea';
 import { useRouter } from 'expo-router';
 import { colors } from '@beeapp/design-system';
+import {
+  getCurrentProfile,
+  submitProfileVerification,
+} from '@beeapp/api-client';
+import type {
+  CommercialOwnedProfile,
+  CurrentUserProfile,
+  ProfileVerificationStatus,
+} from '@beeapp/shared-types';
 import {
   ChevronLeft,
   BadgeCheck,
@@ -14,6 +32,8 @@ import {
 } from 'lucide-react-native';
 import FloatingTabBar from '../../../src/components/FloatingTabBar';
 import VerifiedBadge, { VERIFIED_COLOR } from '../../../src/components/VerifiedBadge';
+import { getValidSessionCredentials } from '../../../src/services/authSession';
+import { loadOwnedCommercialProfiles } from '../../../src/services/commercialService';
 
 const BENEFITS = [
   {
@@ -38,21 +58,171 @@ const BENEFITS = [
   },
 ];
 
-const REQUIREMENTS = [
-  { text: 'Perfil completo: nombre, ocupación y foto de perfil', done: true },
-  { text: 'Número de celular verificado por SMS', done: true },
-  { text: 'Datos de empresa registrados (nombre y actividad)', done: true },
-  { text: 'Documento de identidad o RUT de la empresa', done: false },
-  { text: 'Al menos 30 días de actividad en Buddy', done: false },
-];
+const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
+
+type VerificationRequirement = {
+  text: string;
+  done: boolean;
+};
+
+function hasCompanyData(
+  businesses: CommercialOwnedProfile[],
+): boolean {
+  return businesses.some((business) => (
+    business.display_name.trim()
+    && (
+      business.custom_activity_text?.trim()
+      || business.description.trim()
+    )
+  ));
+}
+
+function buildRequirements(
+  profile: CurrentUserProfile | null,
+  businesses: CommercialOwnedProfile[],
+): VerificationRequirement[] {
+  const createdAt = Date.parse(profile?.created_at || '');
+  const hasAge = (
+    Number.isFinite(createdAt)
+    && Date.now() - createdAt >= THIRTY_DAYS_MS
+  );
+
+  return [
+    {
+      text: 'Perfil completo: nombre, ocupación y foto de perfil',
+      done: Boolean(
+        profile?.first_name?.trim()
+        && profile.last_name?.trim()
+        && profile.occupation?.trim()
+        && profile.avatar_file_id
+      ),
+    },
+    {
+      text: 'Número de celular verificado por SMS',
+      done: Boolean(profile?.phone_number?.trim()),
+    },
+    {
+      text: 'Datos de empresa registrados (nombre y actividad)',
+      done: hasCompanyData(businesses),
+    },
+    {
+      text: 'Documento de identidad o RUT de la empresa',
+      done: Boolean(
+        profile?.settings?.verification_request?.document_file_id,
+      ),
+    },
+    {
+      text: 'Al menos 30 días de actividad en Buddy',
+      done: hasAge,
+    },
+  ];
+}
+
+function statusCopy(
+  status: ProfileVerificationStatus,
+): string | null {
+  if (status === 'en_revision') {
+    return 'Tu solicitud está en revisión. Te avisaremos por notificación cuando haya una respuesta.';
+  }
+
+  if (status === 'verificado') {
+    return 'Tu cuenta ya está verificada. La insignia azul acompaña tu nombre en la app.';
+  }
+
+  if (status === 'rechazado') {
+    return 'La última solicitud fue rechazada. Puedes enviarla de nuevo cuando completes los datos.';
+  }
+
+  return null;
+}
 
 /**
- * Bee Verify: explains the verified badge, what it is for, how it looks and
- * which requirements the account needs. The request itself is visual only.
+ * Buddy Verify: explains the badge and lets the account request a review.
  */
 export default function VerificationScreen() {
   const router = useRouter();
-  const pending = REQUIREMENTS.filter((r) => !r.done).length;
+  const [profile, setProfile] = useState<CurrentUserProfile | null>(null);
+  const [businesses, setBusinesses] = useState<CommercialOwnedProfile[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const status: ProfileVerificationStatus = (
+    profile?.verification_status || 'no_solicitado'
+  );
+  const requirements = buildRequirements(profile, businesses);
+  const pending = requirements.filter((requirement) => !requirement.done).length;
+  const statusMessage = statusCopy(status);
+  const canRequest = status === 'no_solicitado' || status === 'rechazado';
+
+  const loadVerification = useCallback(async () => {
+    try {
+      setIsLoading(true);
+
+      const credentials = await getValidSessionCredentials();
+
+      if (!credentials) {
+        throw new Error(
+          'Tu sesión no está disponible. Inicia sesión nuevamente.',
+        );
+      }
+
+      const [profileResponse, businessResponse] = await Promise.all([
+        getCurrentProfile(credentials),
+        loadOwnedCommercialProfiles().catch(() => ({ profiles: [] })),
+      ]);
+
+      setProfile(profileResponse.profile);
+      setBusinesses(businessResponse.profiles);
+    } catch (error) {
+      Alert.alert(
+        'No fue posible cargar la verificación',
+        error instanceof Error
+          ? error.message
+          : 'Inténtalo nuevamente.',
+      );
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadVerification();
+  }, [loadVerification]);
+
+  const handleRequestVerification = async () => {
+    if (isSubmitting || !canRequest) {
+      return;
+    }
+
+    try {
+      setIsSubmitting(true);
+
+      const credentials = await getValidSessionCredentials();
+
+      if (!credentials) {
+        throw new Error(
+          'Tu sesión no está disponible. Inicia sesión nuevamente.',
+        );
+      }
+
+      const response = await submitProfileVerification(credentials);
+
+      setProfile(response.profile);
+      Alert.alert(
+        'Solicitud enviada',
+        'Recibimos tu solicitud de verificación. La revisión es manual y tarda hasta 48 horas hábiles.',
+      );
+    } catch (error) {
+      Alert.alert(
+        'No fue posible enviar la solicitud',
+        error instanceof Error
+          ? error.message
+          : 'Inténtalo nuevamente.',
+      );
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   return (
     <ScreenSafeArea style={styles.safeArea}>
@@ -72,11 +242,11 @@ export default function VerificationScreen() {
               <BadgeCheck size={40} color={VERIFIED_COLOR} />
             </View>
             <View style={styles.servicePill}>
-              <Text style={styles.servicePillText}>Bee Verify</Text>
+              <Text style={styles.servicePillText}>Buddy Verify</Text>
             </View>
             <Text style={styles.heroTitle}>Consigue tu insignia de verificado</Text>
             <Text style={styles.heroDesc}>
-              Bee Verify es el servicio con el que el equipo de Buddy revisa tu identidad y la de tu
+              Buddy Verify es el servicio con el que el equipo de Buddy revisa tu identidad y la de tu
               empresa. Al aprobarla, tu cuenta recibe la palomita azul de cuenta verificada.
             </Text>
           </View>
@@ -126,10 +296,10 @@ export default function VerificationScreen() {
           {/* Requirements */}
           <Text style={styles.sectionTitle}>Requisitos</Text>
           <View style={styles.listCard}>
-            {REQUIREMENTS.map((req, idx) => (
+            {requirements.map((req, idx) => (
               <View
                 key={req.text}
-                style={[styles.reqRow, idx === REQUIREMENTS.length - 1 && styles.lastRow]}
+                style={[styles.reqRow, idx === requirements.length - 1 && styles.lastRow]}
               >
                 <View style={[styles.reqCheck, req.done ? styles.reqCheckDone : styles.reqCheckPending]}>
                   {req.done ? (
@@ -148,11 +318,37 @@ export default function VerificationScreen() {
               : `Te faltan ${pending} requisitos por completar. Puedes enviar la solicitud y adjuntarlos después.`}
           </Text>
 
-          {/* Request */}
-          <TouchableOpacity style={styles.requestBtn} activeOpacity={0.85}>
-            <BadgeCheck size={18} color={colors.neutral.white} />
-            <Text style={styles.requestBtnText}>Solicitar verificación</Text>
-          </TouchableOpacity>
+          {statusMessage ? (
+            <Text style={styles.statusMessage}>{statusMessage}</Text>
+          ) : null}
+
+          {isLoading ? (
+            <ActivityIndicator
+              style={styles.loader}
+              color={VERIFIED_COLOR}
+            />
+          ) : canRequest ? (
+            <TouchableOpacity
+              style={[
+                styles.requestBtn,
+                isSubmitting && styles.requestBtnDisabled,
+              ]}
+              activeOpacity={0.85}
+              disabled={isSubmitting}
+              onPress={() => {
+                void handleRequestVerification();
+              }}
+            >
+              {isSubmitting ? (
+                <ActivityIndicator color={colors.neutral.white} />
+              ) : (
+                <>
+                  <BadgeCheck size={18} color={colors.neutral.white} />
+                  <Text style={styles.requestBtnText}>Solicitar verificación</Text>
+                </>
+              )}
+            </TouchableOpacity>
+          ) : null}
           <Text style={styles.footnote}>
             La revisión es manual y tarda hasta 48 horas hábiles. Recibirás la respuesta por
             notificación dentro de la app.
@@ -387,6 +583,17 @@ const styles = StyleSheet.create({
     marginTop: 10,
     paddingHorizontal: 2,
   },
+  statusMessage: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: colors.neutral.text,
+    lineHeight: 17,
+    marginTop: 16,
+    textAlign: 'center',
+  },
+  loader: {
+    marginTop: 24,
+  },
   requestBtn: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -396,6 +603,9 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     paddingVertical: 15,
     marginTop: 20,
+  },
+  requestBtnDisabled: {
+    opacity: 0.7,
   },
   requestBtnText: {
     fontSize: 14,

@@ -289,7 +289,7 @@ export default function GroupInvitesScreen() {
   }) => {
     const groupName = (
       invite.conversation?.name?.trim()
-      || 'Grupo BeeApp'
+      || 'Grupo Buddy AI'
     );
 
     const inviterName = (

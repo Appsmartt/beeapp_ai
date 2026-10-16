@@ -47,7 +47,7 @@ export const MOCK_MODULE_NOTES: NoteItem[] = [
     {
       id: 'n3',
       title: 'Estrategia de Ventas Q4',
-      content: 'Definir metas de equipo y metas individuales. Implementar el nuevo CRM. Mejorar los tiempos de respuesta del soporte BeeAI.',
+      content: 'Definir metas de equipo y metas individuales. Implementar el nuevo CRM. Mejorar los tiempos de respuesta del soporte Buddy AI.',
       updatedAt: '2026-07-21T09:00:00Z',
       createdAt: '2026-07-15T11:00:00Z',
       isFavorite: true,

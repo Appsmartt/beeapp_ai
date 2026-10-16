@@ -19,6 +19,7 @@ import {
   View,
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
+import { withExternalActivity } from '../../../src/services/locationPermissionAppLockGuard';
 import { useRouter } from 'expo-router';
 import {
   AtSign,
@@ -208,14 +209,13 @@ export default function EditProfileScreen() {
   const [pendingAvatar, setPendingAvatar] =
     useState<PendingAvatar | null>(null);
 
-  const [shouldRemoveAvatar, setShouldRemoveAvatar] =
-    useState(false);
-
   const [modalVisible, setModalVisible] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [isPickingAvatar, setIsPickingAvatar] = useState(false);
+  const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
+  const [isRemovingAvatar, setIsRemovingAvatar] = useState(false);
 
   const isEmailValid = (
     email.trim() === ''
@@ -238,12 +238,13 @@ export default function EditProfileScreen() {
     [firstName, lastName],
   );
 
-  const visibleAvatarUri = pendingAvatar?.uri
-    || (
-      shouldRemoveAvatar
-        ? null
-        : avatarUrl
-    );
+  const isAvatarBusy = (
+    isPickingAvatar
+    || isUploadingAvatar
+    || isRemovingAvatar
+  );
+
+  const visibleAvatarUri = pendingAvatar?.uri || avatarUrl;
 
   const hasExistingAvatar = Boolean(
     profile?.avatar_file_id && avatarUrl,
@@ -317,14 +318,14 @@ export default function EditProfileScreen() {
 
       setSocialLinks(nextSocialLinks);
 
-      const nextAvatarUrl = await loadAvatarUrl(
-        credentials,
-        currentProfile.avatar_file_id,
-      );
+      const nextAvatarUrl = currentProfile.avatar_url
+        || await loadAvatarUrl(
+          credentials,
+          currentProfile.avatar_file_id,
+        );
 
       setAvatarUrl(nextAvatarUrl);
       setPendingAvatar(null);
-      setShouldRemoveAvatar(false);
     } catch (error) {
       Alert.alert(
         'No fue posible cargar tu perfil',
@@ -352,16 +353,18 @@ export default function EditProfileScreen() {
   };
 
   const handlePickAvatar = async () => {
-    if (isSaving || isPickingAvatar) {
+    if (isSaving || isAvatarBusy) {
       return;
     }
+
+    let selectedAvatar: PendingAvatar | null = null;
 
     try {
       setIsPickingAvatar(true);
 
-      const permission = (
-        await ImagePicker.requestMediaLibraryPermissionsAsync()
-      );
+      const permission = await withExternalActivity(() => (
+        ImagePicker.requestMediaLibraryPermissionsAsync()
+      ));
 
       if (!permission.granted) {
         Alert.alert(
@@ -372,13 +375,15 @@ export default function EditProfileScreen() {
         return;
       }
 
-      const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        allowsEditing: true,
-        aspect: [1, 1],
-        quality: 0.8,
-        allowsMultipleSelection: false,
-      });
+      const result = await withExternalActivity(() => (
+        ImagePicker.launchImageLibraryAsync({
+          mediaTypes: ImagePicker.MediaTypeOptions.Images,
+          allowsEditing: true,
+          aspect: [1, 1],
+          quality: 0.8,
+          allowsMultipleSelection: false,
+        })
+      ));
 
       if (result.canceled || !result.assets[0]) {
         return;
@@ -386,14 +391,14 @@ export default function EditProfileScreen() {
 
       const asset = result.assets[0];
 
-      setPendingAvatar({
+      selectedAvatar = {
         uri: asset.uri,
         name: buildAvatarName(asset),
         mimeType: asset.mimeType || 'image/jpeg',
         sizeBytes: asset.fileSize,
-      });
+      };
 
-      setShouldRemoveAvatar(false);
+      setPendingAvatar(selectedAvatar);
     } catch (error) {
       Alert.alert(
         'No fue posible seleccionar la foto',
@@ -401,13 +406,72 @@ export default function EditProfileScreen() {
           ? error.message
           : 'Inténtalo nuevamente.',
       );
+
+      return;
     } finally {
       setIsPickingAvatar(false);
+    }
+
+    if (!selectedAvatar) {
+      return;
+    }
+
+    try {
+      setIsUploadingAvatar(true);
+
+      const credentials = await getCredentials();
+      const avatarResult = await uploadAndAssignProfileAvatar(
+        credentials,
+        selectedAvatar,
+      );
+
+      setProfile(avatarResult.profile);
+      setAvatarUrl(avatarResult.avatarUrl);
+      setPendingAvatar(null);
+    } catch (error) {
+      setPendingAvatar(null);
+
+      Alert.alert(
+        'No fue posible guardar la foto',
+        error instanceof Error
+          ? error.message
+          : 'Inténtalo nuevamente.',
+      );
+    } finally {
+      setIsUploadingAvatar(false);
+    }
+  };
+
+  const confirmRemoveAvatar = async () => {
+    try {
+      setIsRemovingAvatar(true);
+
+      const credentials = await getCredentials();
+      const updatedProfile = await removeCurrentProfileAvatar(
+        credentials,
+      );
+
+      setProfile(updatedProfile);
+      setAvatarUrl(null);
+      setPendingAvatar(null);
+    } catch (error) {
+      Alert.alert(
+        'No fue posible quitar la foto',
+        error instanceof Error
+          ? error.message
+          : 'Inténtalo nuevamente.',
+      );
+    } finally {
+      setIsRemovingAvatar(false);
     }
   };
 
   const handleRemoveAvatar = () => {
-    if (!profile?.avatar_file_id && !pendingAvatar) {
+    if (
+      !profile?.avatar_file_id
+      || isSaving
+      || isAvatarBusy
+    ) {
       return;
     }
 
@@ -423,8 +487,7 @@ export default function EditProfileScreen() {
           text: 'Quitar foto',
           style: 'destructive',
           onPress: () => {
-            setPendingAvatar(null);
-            setShouldRemoveAvatar(true);
+            void confirmRemoveAvatar();
           },
         },
       ],
@@ -508,29 +571,7 @@ export default function EditProfileScreen() {
         social_links: payloadSocialLinks,
       });
 
-      let updatedProfile = profileResponse.profile;
-      let updatedAvatarUrl = avatarUrl;
-
-      if (shouldRemoveAvatar && profile?.avatar_file_id) {
-        updatedProfile = await removeCurrentProfileAvatar(
-          credentials,
-        );
-
-        updatedAvatarUrl = null;
-      } else if (pendingAvatar) {
-        const avatarResult = await uploadAndAssignProfileAvatar(
-          credentials,
-          pendingAvatar,
-        );
-
-        updatedProfile = avatarResult.profile;
-        updatedAvatarUrl = avatarResult.avatarUrl;
-      }
-
-      setProfile(updatedProfile);
-      setAvatarUrl(updatedAvatarUrl);
-      setPendingAvatar(null);
-      setShouldRemoveAvatar(false);
+      setProfile(profileResponse.profile);
 
       Alert.alert(
         'Perfil actualizado',
@@ -579,7 +620,7 @@ export default function EditProfileScreen() {
             onPress={() => router.back()}
             style={styles.backBtn}
             activeOpacity={0.7}
-            disabled={isSaving}
+            disabled={isSaving || isAvatarBusy}
           >
             <ChevronLeft
               size={24}
@@ -606,7 +647,7 @@ export default function EditProfileScreen() {
                 void handlePickAvatar();
               }}
               activeOpacity={0.8}
-              disabled={isSaving || isPickingAvatar}
+              disabled={isSaving || isAvatarBusy}
             >
               <View style={styles.avatarCircleBig}>
                 {visibleAvatarUri ? (
@@ -622,7 +663,7 @@ export default function EditProfileScreen() {
               </View>
 
               <View style={styles.avatarEditBadge}>
-                {isPickingAvatar ? (
+                {isAvatarBusy ? (
                   <ActivityIndicator
                     size="small"
                     color={colors.neutral.white}
@@ -640,22 +681,24 @@ export default function EditProfileScreen() {
               onPress={() => {
                 void handlePickAvatar();
               }}
-              disabled={isSaving || isPickingAvatar}
+              disabled={isSaving || isAvatarBusy}
               activeOpacity={0.7}
             >
               <Text style={styles.avatarActionText}>
-                {pendingAvatar
-                  ? 'Nueva foto seleccionada'
-                  : visibleAvatarUri
-                    ? 'Cambiar foto'
-                    : 'Agregar foto'}
+                {isUploadingAvatar
+                  ? 'Subiendo foto...'
+                  : isRemovingAvatar
+                    ? 'Quitando foto...'
+                    : visibleAvatarUri
+                      ? 'Cambiar foto'
+                      : 'Agregar foto'}
               </Text>
             </TouchableOpacity>
 
             {hasExistingAvatar || pendingAvatar ? (
               <TouchableOpacity
                 onPress={handleRemoveAvatar}
-                disabled={isSaving || isPickingAvatar}
+                disabled={isSaving || isAvatarBusy}
                 activeOpacity={0.7}
                 style={styles.removeAvatarBtn}
               >
@@ -903,7 +946,7 @@ export default function EditProfileScreen() {
               style={styles.discardBtn}
               onPress={() => router.back()}
               activeOpacity={0.7}
-              disabled={isSaving}
+              disabled={isSaving || isAvatarBusy}
             >
               <Text style={styles.discardBtnText}>
                 Descartar
@@ -913,13 +956,13 @@ export default function EditProfileScreen() {
             <TouchableOpacity
               style={[
                 styles.saveBtn,
-                isSaving && styles.saveBtnDisabled,
+                (isSaving || isAvatarBusy) && styles.saveBtnDisabled,
               ]}
               onPress={() => {
                 void handleSave();
               }}
               activeOpacity={0.8}
-              disabled={isSaving}
+              disabled={isSaving || isAvatarBusy}
             >
               {isSaving ? (
                 <ActivityIndicator

@@ -14,8 +14,7 @@ import {
 import { useRouter } from 'expo-router';
 import { colors } from '@beeapp/design-system';
 import {
-  clearPermissionDialogUnlockSkip,
-  consumePermissionDialogUnlockSkip,
+  isExternalActivityActive,
 } from '../../services/locationPermissionAppLockGuard';
 import {
   consumeOAuthReturnUnlockSkip,
@@ -41,6 +40,7 @@ import {
 } from '../../stores/appLockStore';
 
 const MAX_FAILED_ATTEMPTS = 5;
+const APP_LOCK_BACKGROUND_GRACE_MS = 60_000;
 
 function getMethodTitle(method: AppLockMethod): string {
   if (method === 'faceid') {
@@ -69,6 +69,7 @@ function getMethodSubtitle(method: AppLockMethod): string {
 export default function AppLockScreen() {
   const router = useRouter();
   const appState = useRef(AppState.currentState);
+  const backgroundedAt = useRef<number | null>(null);
 
   const [locked, setLocked] = useState(false);
 
@@ -123,32 +124,37 @@ export default function AppLockScreen() {
     const handleAppStateChange = (
       nextAppState: AppStateStatus,
     ) => {
-      const isReturningToForeground =
-        appState.current.match(/inactive|background/)
-        && nextAppState === 'active';
-
-      const previousAppState = appState.current;
-      appState.current = nextAppState;
-
       if (nextAppState === 'background') {
-        clearPermissionDialogUnlockSkip();
+        if (isExternalActivityActive()) {
+          backgroundedAt.current = null;
+        } else if (appState.current !== 'background') {
+          backgroundedAt.current = Date.now();
+        }
       }
 
+      const previousAppState = appState.current;
+      const wasBackground = previousAppState === 'background';
+      appState.current = nextAppState;
+
+      if (nextAppState !== 'active' || !wasBackground) {
+        return;
+      }
+
+      const leftAt = backgroundedAt.current;
+      backgroundedAt.current = null;
+
       if (
-        isReturningToForeground
-        && (
-          consumePermissionDialogUnlockSkip(previousAppState)
-          || consumeOAuthReturnUnlockSkip(previousAppState)
-        )
+        isExternalActivityActive()
+        || leftAt === null
+        || Date.now() - leftAt <= APP_LOCK_BACKGROUND_GRACE_MS
+        || consumeOAuthReturnUnlockSkip(previousAppState)
       ) {
         return;
       }
 
-      if (isReturningToForeground) {
-        setPinError(null);
-        setFailureMessage('');
-        void loadLockState(true);
-      }
+      setPinError(null);
+      setFailureMessage('');
+      void loadLockState(true);
     };
 
     const subscription = AppState.addEventListener(

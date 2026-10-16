@@ -51,43 +51,64 @@ export function CalendarHeader({
 }: CalendarHeaderProps) {
   return (
     <View style={styles.header}>
-      <View style={styles.headerLeftCol}>
-        {onBack ? (
-          <TouchableOpacity
-            onPress={onBack}
-            style={styles.backBtn}
-            activeOpacity={0.7}
-            accessibilityLabel="Volver"
-          >
-            <ChevronLeft
-              size={24}
-              color={colors.neutral.text}
-            />
-          </TouchableOpacity>
-        ) : null}
+      <View style={styles.topRow}>
+        <View style={styles.headerLeftCol}>
+          {onBack ? (
+            <TouchableOpacity
+              onPress={onBack}
+              style={styles.backBtn}
+              activeOpacity={0.7}
+              accessibilityLabel="Volver"
+            >
+              <ChevronLeft
+                size={24}
+                color={colors.neutral.text}
+              />
+            </TouchableOpacity>
+          ) : null}
 
-        <Text style={styles.headerTitle}>
-          Agenda
-        </Text>
+          <Text
+            style={styles.headerTitle}
+            numberOfLines={1}
+          >
+            Agenda
+          </Text>
+        </View>
+
+        <View style={styles.headerActions}>
+          <ModuleNotificationBell moduleId="calendar" />
+
+          {onOpenExternalCalendars ? (
+            <TouchableOpacity
+              onPress={onOpenExternalCalendars}
+              style={styles.externalCalendarsBtn}
+              activeOpacity={0.7}
+              accessibilityLabel="Configurar calendarios externos"
+            >
+              <Settings2
+                size={18}
+                color={colors.brand.primary}
+              />
+            </TouchableOpacity>
+          ) : null}
+
+          {onAction ? (
+            <TouchableOpacity
+              onPress={onAction}
+              style={styles.headerActionBtn}
+              activeOpacity={0.8}
+              accessibilityLabel="Crear evento"
+            >
+              <Plus
+                size={18}
+                color={colors.neutral.white}
+              />
+            </TouchableOpacity>
+          ) : null}
+        </View>
       </View>
 
-      <View style={styles.headerActions}>
-        <ModuleNotificationBell moduleId="calendar" />
-
-        {onOpenExternalCalendars ? (
-          <TouchableOpacity
-            onPress={onOpenExternalCalendars}
-            style={styles.externalCalendarsBtn}
-            activeOpacity={0.7}
-            accessibilityLabel="Configurar calendarios externos"
-          >
-            <Settings2
-              size={18}
-              color={colors.brand.primary}
-            />
-          </TouchableOpacity>
-        ) : null}
-
+      <View style={styles.bottomRow}>
         <TouchableOpacity
           onPress={onToday}
           style={styles.todayBtn}
@@ -144,20 +165,6 @@ export function CalendarHeader({
             );
           })}
         </View>
-
-        {onAction ? (
-          <TouchableOpacity
-            onPress={onAction}
-            style={styles.headerActionBtn}
-            activeOpacity={0.8}
-            accessibilityLabel="Crear evento"
-          >
-            <Plus
-              size={18}
-              color={colors.neutral.white}
-            />
-          </TouchableOpacity>
-        ) : null}
       </View>
     </View>
   );
@@ -239,24 +246,38 @@ export function CalendarFilterChips({
 
 const styles = StyleSheet.create({
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingVertical: 12,
+    paddingHorizontal: 16,
+    paddingTop: 8,
+    paddingBottom: 10,
     backgroundColor: colors.neutral.white,
     borderBottomWidth: 1,
     borderColor: colors.neutral.gray100,
+    gap: 8,
   },
-  headerLeftCol: {
+  topRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8,
+  },
+  bottomRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  headerLeftCol: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    minWidth: 0,
   },
   backBtn: {
     padding: 4,
     marginRight: 8,
   },
   headerTitle: {
+    flex: 1,
+    flexShrink: 1,
     fontSize: 18,
     fontWeight: '600',
     color: colors.neutral.text,
@@ -264,7 +285,7 @@ const styles = StyleSheet.create({
   headerActions: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
+    gap: 6,
   },
   externalCalendarsBtn: {
     width: 30,
@@ -290,6 +311,7 @@ const styles = StyleSheet.create({
     color: colors.brand.primary,
   },
   viewSegment: {
+    flex: 1,
     flexDirection: 'row',
     backgroundColor: colors.neutral.gray50,
     borderRadius: 8,
@@ -298,8 +320,10 @@ const styles = StyleSheet.create({
     padding: 2,
   },
   segmentBtn: {
-    paddingHorizontal: 10,
-    paddingVertical: 4,
+    flex: 1,
+    alignItems: 'center',
+    paddingHorizontal: 8,
+    paddingVertical: 6,
     borderRadius: 6,
   },
   segmentBtnActive: {

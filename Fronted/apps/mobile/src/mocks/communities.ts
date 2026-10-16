@@ -111,7 +111,7 @@ export const MOCK_COMMUNITIES: Community[] = [
     posts: [
       post('p1', CURRENT_USER_ID, 'Santiago Valencia', 'SV', '#F3E8FF', 'Abrimos convocatoria para la mentoría de finanzas del próximo viernes. Quedan quince cupos.', 'hace 2 h', { like: 12, love: 4, laugh: 0 }),
       post('p2', CURRENT_USER_ID, 'Santiago Valencia', 'SV', '#F3E8FF', 'Resumen del encuentro de ayer: tres alianzas nuevas y dos rondas de inversión en camino. Gracias a todos los que asistieron.', 'ayer', { like: 25, love: 9, laugh: 1 }),
-      post('p3', CURRENT_USER_ID, 'Santiago Valencia', 'SV', '#F3E8FF', 'Recuerden actualizar su perfil de BuddyServices antes de la feria: es lo primero que ven los compradores.', 'hace 3 días', { like: 8, love: 2, laugh: 0 }),
+      post('p3', CURRENT_USER_ID, 'Santiago Valencia', 'SV', '#F3E8FF', 'Recuerden actualizar su perfil de Buddy Services antes de la feria: es lo primero que ven los compradores.', 'hace 3 días', { like: 8, love: 2, laugh: 0 }),
     ],
     unreadCount: 3,
   },

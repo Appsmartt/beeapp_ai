@@ -40,7 +40,7 @@ function memberName(participant: ChatParticipant): string {
   return [
     participant.user?.first_name,
     participant.user?.last_name,
-  ].filter(Boolean).join(' ').trim() || 'Usuario BeeApp';
+  ].filter(Boolean).join(' ').trim() || 'Usuario Buddy AI';
 }
 
 export default function GroupManagementModal({

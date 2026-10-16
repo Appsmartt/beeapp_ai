@@ -296,7 +296,6 @@ export default function BeeServicesCommercialScreen() {
       <View style={beeStyles.container}>
         <View style={localStyles.headerWrap}>
           <BeeServicesHeader
-            title="BuddyService"
             onBackToMainPress={() => router.replace("/(main)")}
             onChangeBusinessPress={
               selectedBusiness || selectedBusinessError

@@ -13,6 +13,7 @@ import {
     View,
     } from 'react-native';
 import * as DocumentPicker from 'expo-document-picker';
+import { withExternalActivity } from '../../services/locationPermissionAppLockGuard';
 import {
     Download,
     FileText,
@@ -134,14 +135,15 @@ export default function NoteAttachmentsSection({
         try {
         setPickerVisible(false);
 
-        const result =
-            await DocumentPicker.getDocumentAsync({
+        const result = await withExternalActivity(() => (
+            DocumentPicker.getDocumentAsync({
             type: attachmentType === 'image'
                 ? 'image/*'
                 : '*/*',
             copyToCacheDirectory: true,
             multiple: true,
-            });
+            })
+        ));
 
         if (
             result.canceled

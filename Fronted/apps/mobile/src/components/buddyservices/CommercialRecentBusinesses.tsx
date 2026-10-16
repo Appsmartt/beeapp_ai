@@ -18,6 +18,7 @@ import type {
 
 interface CommercialRecentBusinessesProps {
   profiles: CommercialPublicProfile[];
+  title?: string;
   onPressProfile: (
     profile: CommercialPublicProfile,
   ) => void;
@@ -97,6 +98,7 @@ function BusinessLogo({
 
 export default function CommercialRecentBusinesses({
   profiles,
+  title = 'Negocios recientes',
   onPressProfile,
 }: CommercialRecentBusinessesProps) {
   if (profiles.length === 0) {
@@ -106,7 +108,7 @@ export default function CommercialRecentBusinesses({
   return (
     <View style={styles.section}>
       <Text style={styles.sectionTitle}>
-        Negocios recientes
+        {title}
       </Text>
 
       {profiles.map((profile) => (

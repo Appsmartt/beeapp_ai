@@ -6,7 +6,7 @@
 /** Id del chat fijado con el asistente de IA */
 export const AI_CHAT_ID = 'ai-assistant';
 /** Nombre que el usuario le puso al asistente en el onboarding (mock) */
-export const AI_ASSISTANT_NAME = 'Bee';
+export const AI_ASSISTANT_NAME = 'Buddy AI';
 
 /** Member of a group chat (mock). The current user is always the admin. */
 export interface GroupMember {
@@ -303,7 +303,7 @@ export const AI_CONVERSATION_MESSAGES: ChatMessage[] = [
     senderName: AI_ASSISTANT_NAME,
     isUser: false,
     type: 'text',
-    text: '¡Hola Santiago! Soy Bee, tu asistente. Puedo resumirte correos, prepararte reuniones o buscar archivos. ¿En qué te ayudo hoy?',
+    text: '¡Hola Santiago! Soy Buddy AI, tu asistente. Puedo resumirte correos, prepararte reuniones o buscar archivos. ¿En qué te ayudo hoy?',
     time: '08:40',
     status: 'read',
   },

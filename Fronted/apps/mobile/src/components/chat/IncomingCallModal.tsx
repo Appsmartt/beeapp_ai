@@ -306,8 +306,8 @@ export default function IncomingCallModal({
 
           <Text style={styles.callType}>
             {isVideo
-              ? 'Videollamada de BeeApp'
-              : 'Llamada de voz de BeeApp'}
+              ? 'Videollamada de Buddy AI'
+              : 'Llamada de voz de Buddy AI'}
           </Text>
 
           <Text style={styles.ringingText}>
@@ -391,7 +391,7 @@ export default function IncomingCallModal({
           ) : null}
 
           <Text style={styles.note}>
-            Puedes responder desde cualquier sección de BeeApp.
+            Puedes responder desde cualquier sección de Buddy AI.
           </Text>
         </View>
       </View>

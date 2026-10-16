@@ -12,6 +12,7 @@ import {
 } from 'react-native';
 import * as FileSystem from 'expo-file-system';
 import * as MediaLibrary from 'expo-media-library';
+import { withExternalActivity } from '../../services/locationPermissionAppLockGuard';
 import { Download, Minimize2 } from 'lucide-react-native';
 import { colors } from '@beeapp/design-system';
 import { getChatMessageAttachmentAccess } from '@beeapp/api-client';
@@ -53,10 +54,12 @@ export default function ChatImageViewerModal({
     let temporaryUri: string | null = null;
 
     try {
-      const permission = await MediaLibrary.requestPermissionsAsync(
-        true,
-        ['photo'],
-      );
+      const permission = await withExternalActivity(() => (
+        MediaLibrary.requestPermissionsAsync(
+          true,
+          ['photo'],
+        )
+      ));
 
       if (!permission.granted) {
         throw new Error('Permite guardar fotos en la configuración del dispositivo.');

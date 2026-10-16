@@ -146,7 +146,7 @@ export default function ExploreScreen() {
     } else {
       Alert.alert(
         module.name,
-        `${module.description}\n\nEste módulo está siendo preparado para sincronizar con BeeAI. Pronto estará disponible.`,
+        `${module.description}\n\nEste módulo está siendo preparado para sincronizar con Buddy AI. Pronto estará disponible.`,
         [
           { text: 'Aceptar', style: 'default' },
           {

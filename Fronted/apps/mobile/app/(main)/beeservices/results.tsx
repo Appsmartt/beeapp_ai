@@ -353,7 +353,7 @@ export default function BuddyServicesResultsScreen() {
           </Text>
 
           <TouchableOpacity
-            accessibilityLabel="Volver a BuddyServices"
+            accessibilityLabel="Volver a Buddy Services"
             accessibilityRole="button"
             activeOpacity={0.8}
             onPress={handleBack}
@@ -365,7 +365,7 @@ export default function BuddyServicesResultsScreen() {
             />
 
             <Text style={styles.primaryButtonText}>
-              Volver a BuddyServices
+              Volver a Buddy Services
             </Text>
           </TouchableOpacity>
         </View>

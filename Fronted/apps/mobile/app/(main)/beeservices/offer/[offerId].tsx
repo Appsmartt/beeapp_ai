@@ -940,7 +940,7 @@ export default function BuddyServicesPublicOfferScreen() {
               </Text>
 
               <Text style={styles.paymentHint}>
-                BeeApp no procesa dinero. Las instrucciones de pago
+                Buddy AI no procesa dinero. Las instrucciones de pago
                 externas solo se mostrarán cuando una solicitud
                 aceptada las habilite.
               </Text>

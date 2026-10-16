@@ -5,6 +5,7 @@
     "main": "./src/index.ts",
     "types": "./src/index.ts",
     "dependencies": {
-        "@beeapp/shared-types": "*"
+        "@beeapp/shared-types": "*",
+        "@supabase/supabase-js": "^2.109.0"
     }
 }

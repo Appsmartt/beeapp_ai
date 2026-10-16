@@ -171,9 +171,11 @@ export default function HomeSideMenu({
           return;
         }
 
-        let avatarUrl: string | null = null;
+        let avatarUrl: string | null = (
+          response.profile.avatar_url || null
+        );
 
-        if (response.profile.avatar_file_id) {
+        if (!avatarUrl && response.profile.avatar_file_id) {
           try {
             const avatarAccess = await getProfileAvatarUrl(
               credentials,
@@ -543,7 +545,7 @@ export default function HomeSideMenu({
                 </View>
 
                 <Text style={styles.optionLabel}>
-                  BuddyServices
+                  Buddy Services
                 </Text>
 
                 <ChevronRight

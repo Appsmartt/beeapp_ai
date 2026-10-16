@@ -13,6 +13,7 @@ import {
   Check,
   Clock3,
   Inbox,
+  Search,
   UserCheck,
   Users,
   X,
@@ -35,6 +36,13 @@ import {
 import {
   getProfileAvatarUrl,
 } from '../../services/profileAvatarService';
+import {
+  useModuleNav,
+} from '../embedded/EmbeddedNavContext';
+import {
+  canOpenStatusFollowTargetProfile,
+  getStatusFollowTargetProfileHref,
+} from '../../features/social/peopleDiscovery';
 
 export type SocialActivityTab =
   | 'invites'
@@ -60,6 +68,8 @@ interface SocialActivitySheetProps {
   onRejectInvite: (invite: ChatGroupInvite) => void;
   onAcceptRequest: (request: StatusFollowListItem) => void;
   onRejectRequest: (request: StatusFollowListItem) => void;
+  onSearchPeople: () => void;
+  onNewGroup: () => void;
   onClose: () => void;
 }
 
@@ -100,7 +110,7 @@ function getInitials(name: string): string {
 function getInviteGroupName(invite: ChatGroupInvite): string {
   return (
     invite.conversation?.name?.trim()
-    || 'Grupo BeeApp'
+    || 'Grupo Buddy AI'
   );
 }
 
@@ -219,8 +229,29 @@ export default function SocialActivitySheet({
   onRejectInvite,
   onAcceptRequest,
   onRejectRequest,
+  onSearchPeople,
+  onNewGroup,
   onClose,
 }: SocialActivitySheetProps) {
+  const router = useModuleNav();
+
+  const openTargetProfile = (
+    target: StatusFollowListItem['target'],
+    resolvedAvatarUrl: string | null,
+  ) => {
+    const href = getStatusFollowTargetProfileHref(
+      target,
+      resolvedAvatarUrl,
+    );
+
+    if (!href) {
+      return;
+    }
+
+    onClose();
+    router.push(href);
+  };
+
   const emptyCopy = getEmptyCopy(activeTab);
   const EmptyIcon = getEmptyIcon(activeTab);
   const [avatarUrlsByFileId, setAvatarUrlsByFileId] = useState<
@@ -426,28 +457,44 @@ export default function SocialActivitySheet({
         : null)
     );
 
+    const canOpenProfile = canOpenStatusFollowTargetProfile(
+      item.target,
+    );
+
     return (
       <View style={styles.card}>
-        <View style={styles.personAvatar}>
-          {avatarUrl ? (
-            <Image
-              source={{ uri: avatarUrl }}
-              style={styles.avatarImage}
-            />
-          ) : (
-            <Text style={styles.avatarText}>
-              {getInitials(name)}
-            </Text>
-          )}
-        </View>
+        <TouchableOpacity
+          style={styles.personMain}
+          onPress={() => {
+            openTargetProfile(item.target, avatarUrl);
+          }}
+          disabled={!canOpenProfile || isActing}
+          activeOpacity={0.72}
+          accessibilityRole="button"
+          accessibilityLabel={`Ver perfil de ${name}`}
+        >
+          <View style={styles.personAvatar}>
+            {avatarUrl ? (
+              <Image
+                source={{ uri: avatarUrl }}
+                style={styles.avatarImage}
+              />
+            ) : (
+              <Text style={styles.avatarText}>
+                {getInitials(name)}
+              </Text>
+            )}
+          </View>
 
-        <View style={styles.copy}>
-          <Text style={styles.name} numberOfLines={1}>
-            {name}
-          </Text>
-          <Text style={styles.description}>
-            Quiere seguir tus estados.
-          </Text>
+          <View style={styles.copy}>
+            <Text style={styles.name} numberOfLines={1}>
+              {name}
+            </Text>
+            <Text style={styles.description}>
+              Quiere seguir tus estados.
+            </Text>
+          </View>
+        </TouchableOpacity>
 
           <View style={styles.actions}>
             <TouchableOpacity
@@ -497,7 +544,6 @@ export default function SocialActivitySheet({
               )}
             </TouchableOpacity>
           </View>
-        </View>
       </View>
     );
   };
@@ -517,33 +563,48 @@ export default function SocialActivitySheet({
         : null)
     );
 
+    const canOpenProfile = canOpenStatusFollowTargetProfile(
+      item.target,
+    );
+
     return (
       <View style={styles.followerRow}>
-        <View style={styles.personAvatar}>
-          {avatarUrl ? (
-            <Image
-              source={{ uri: avatarUrl }}
-              style={styles.avatarImage}
-            />
-          ) : (
-            <Text style={styles.avatarText}>
-              {getInitials(name)}
-            </Text>
-          )}
-        </View>
+        <TouchableOpacity
+          style={styles.followerMain}
+          onPress={() => {
+            openTargetProfile(item.target, avatarUrl);
+          }}
+          disabled={!canOpenProfile}
+          activeOpacity={0.72}
+          accessibilityRole="button"
+          accessibilityLabel={`Ver perfil de ${name}`}
+        >
+          <View style={styles.personAvatar}>
+            {avatarUrl ? (
+              <Image
+                source={{ uri: avatarUrl }}
+                style={styles.avatarImage}
+              />
+            ) : (
+              <Text style={styles.avatarText}>
+                {getInitials(name)}
+              </Text>
+            )}
+          </View>
 
-        <View style={styles.copy}>
-          <Text style={styles.name} numberOfLines={1}>
-            {name}
-          </Text>
-          <Text style={styles.description}>
-            {item.target.actor_type === 'commercial_profile'
-              ? 'Cuenta comercial'
-              : isFollower
-                ? 'Sigue tus estados'
-                : 'Sigues sus estados'}
-          </Text>
-        </View>
+          <View style={styles.copy}>
+            <Text style={styles.name} numberOfLines={1}>
+              {name}
+            </Text>
+            <Text style={styles.description}>
+              {item.target.actor_type === 'commercial_profile'
+                ? 'Cuenta comercial'
+                : isFollower
+                  ? 'Sigue tus estados'
+                  : 'Sigues sus estados'}
+            </Text>
+          </View>
+        </TouchableOpacity>
 
         <UserCheck
           size={18}
@@ -553,22 +614,41 @@ export default function SocialActivitySheet({
     );
   };
 
-  const renderEmptyState = () => (
-    <View style={styles.state}>
-      <View style={styles.emptyIcon}>
-        <EmptyIcon
-          size={24}
-          color={colors.brand.primary}
-        />
+  const renderEmptyState = () => {
+    const showDiscoverCta = (
+      activeTab === 'followers'
+      || activeTab === 'following'
+    );
+
+    return (
+      <View style={styles.state}>
+        <View style={styles.emptyIcon}>
+          <EmptyIcon
+            size={24}
+            color={colors.brand.primary}
+          />
+        </View>
+        <Text style={styles.emptyTitle}>
+          {emptyCopy.title}
+        </Text>
+        <Text style={styles.stateText}>
+          {emptyCopy.description}
+        </Text>
+        {showDiscoverCta ? (
+          <TouchableOpacity
+            style={styles.emptyActionButton}
+            onPress={onSearchPeople}
+            activeOpacity={0.8}
+            accessibilityLabel="Buscar y seguir personas"
+          >
+            <Text style={styles.emptyActionText}>
+              Buscar y seguir
+            </Text>
+          </TouchableOpacity>
+        ) : null}
       </View>
-      <Text style={styles.emptyTitle}>
-        {emptyCopy.title}
-      </Text>
-      <Text style={styles.stateText}>
-        {emptyCopy.description}
-      </Text>
-    </View>
-  );
+    );
+  };
 
   return (
     <Modal
@@ -645,6 +725,38 @@ export default function SocialActivitySheet({
                     </TouchableOpacity>
                   );
                 })}
+              </View>
+
+              <View style={styles.quickActions}>
+                <TouchableOpacity
+                  style={styles.quickActionButton}
+                  onPress={onSearchPeople}
+                  activeOpacity={0.8}
+                  accessibilityLabel="Buscar personas"
+                >
+                  <Search
+                    size={16}
+                    color={colors.brand.primary}
+                  />
+                  <Text style={styles.quickActionText}>
+                    Buscar personas
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.quickActionButton}
+                  onPress={onNewGroup}
+                  activeOpacity={0.8}
+                  accessibilityLabel="Crear nuevo grupo"
+                >
+                  <Users
+                    size={16}
+                    color={colors.brand.primary}
+                  />
+                  <Text style={styles.quickActionText}>
+                    Nuevo grupo
+                  </Text>
+                </TouchableOpacity>
               </View>
 
               {loading ? (
@@ -756,6 +868,41 @@ const styles = StyleSheet.create({
     marginTop: 18,
     padding: 3,
   },
+  quickActions: {
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: 14,
+  },
+  quickActionButton: {
+    alignItems: 'center',
+    backgroundColor: '#F3F5FF',
+    borderColor: '#E0E6F4',
+    borderRadius: 14,
+    borderWidth: 1,
+    flex: 1,
+    flexDirection: 'row',
+    gap: 8,
+    justifyContent: 'center',
+    paddingHorizontal: 10,
+    paddingVertical: 12,
+  },
+  quickActionText: {
+    color: colors.brand.primary,
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  emptyActionButton: {
+    backgroundColor: colors.brand.primary,
+    borderRadius: 12,
+    marginTop: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+  },
+  emptyActionText: {
+    color: colors.neutral.white,
+    fontSize: 13,
+    fontWeight: '700',
+  },
   tab: {
     alignItems: 'center',
     borderRadius: 11,
@@ -783,15 +930,17 @@ const styles = StyleSheet.create({
     paddingTop: 12,
   },
   card: {
-    alignItems: 'flex-start',
     backgroundColor: '#F9FAFF',
     borderColor: '#E0E6F4',
     borderRadius: 18,
     borderWidth: 1,
-    flexDirection: 'row',
-    gap: 12,
     marginBottom: 10,
     padding: 12,
+  },
+  personMain: {
+    alignItems: 'flex-start',
+    flexDirection: 'row',
+    gap: 12,
   },
   groupAvatar: {
     alignItems: 'center',
@@ -881,6 +1030,13 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 12,
     paddingVertical: 12,
+  },
+  followerMain: {
+    alignItems: 'center',
+    flex: 1,
+    flexDirection: 'row',
+    gap: 12,
+    minWidth: 0,
   },
   state: {
     alignItems: 'center',

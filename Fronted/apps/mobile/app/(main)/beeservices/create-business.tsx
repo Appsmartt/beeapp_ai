@@ -30,6 +30,7 @@ import {
   useRouter,
 } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
+import { withExternalActivity } from '../../../src/services/locationPermissionAppLockGuard';
 
 import type {
   CommercialCategory,
@@ -113,7 +114,7 @@ const MODALITIES: Array<{
   },
   {
     value: 'buddy_chat',
-    label: 'Chat de BeeApp',
+    label: 'Chat de Buddy AI',
   },
 ];
 
@@ -391,9 +392,9 @@ const totalSelectedCategories = (
   const selectLogo = useCallback(async () => {
     setFormError(null);
 
-    const permission = (
-      await ImagePicker.requestMediaLibraryPermissionsAsync()
-    );
+    const permission = await withExternalActivity(() => (
+      ImagePicker.requestMediaLibraryPermissionsAsync()
+    ));
 
     if (!permission.granted) {
       setFormError(
@@ -402,12 +403,14 @@ const totalSelectedCategories = (
       return;
     }
 
-    const result = await ImagePicker.launchImageLibraryAsync({
-      allowsEditing: true,
-      aspect: [1, 1],
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      quality: 0.9,
-    });
+    const result = await withExternalActivity(() => (
+      ImagePicker.launchImageLibraryAsync({
+        allowsEditing: true,
+        aspect: [1, 1],
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        quality: 0.9,
+      })
+    ));
 
     if (result.canceled) {
       return;

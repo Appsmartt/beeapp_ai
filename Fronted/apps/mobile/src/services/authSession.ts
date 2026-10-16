@@ -1,10 +1,12 @@
 import * as SecureStore from 'expo-secure-store';
 import {
+  adoptSupabaseSession,
   ApiRequestError,
   getCurrentProfile,
   notifyUnauthorizedAuthenticatedRequest,
   refreshSession,
   revokeDeviceSession,
+  signOutSupabase,
 } from '@beeapp/api-client';
 import type {
   AuthCredentials,
@@ -83,6 +85,12 @@ export async function saveAuthSession(
     AUTH_SESSION_KEY,
     JSON.stringify(authSession),
   );
+
+  try {
+    await adoptSupabaseSession(authSession.session);
+  } catch {
+    // La sesión local sigue válida si Supabase todavía no está listo.
+  }
 }
 
 export async function getAuthSession(): Promise<
@@ -109,7 +117,7 @@ export async function getAuthSession(): Promise<
       return null;
     }
 
-    return {
+    const restored = {
       session: parsedSession.session,
       user: parsedSession.user,
       deviceSessionId: (
@@ -119,6 +127,14 @@ export async function getAuthSession(): Promise<
         ? parsedSession.deviceSessionId.trim()
         : null,
     };
+
+    try {
+      await adoptSupabaseSession(restored.session);
+    } catch {
+      // Se reintenta en el próximo refresh.
+    }
+
+    return restored;
   } catch {
     await clearAuthSession();
     return null;
@@ -254,6 +270,19 @@ export async function signOutCurrentDevice(): Promise<void> {
 }
 
 export async function clearAuthSession(): Promise<void> {
+  try {
+    const { logoutPush } = await import('./pushNotifications');
+    logoutPush();
+  } catch {
+    // El cierre de sesión local no depende de OneSignal.
+  }
+
+  try {
+    await signOutSupabase();
+  } catch {
+    // Cerrar la sesión local aunque Supabase no responda.
+  }
+
   await clearChatConversationsCache();
   const results = await Promise.allSettled([
     SecureStore.deleteItemAsync(AUTH_SESSION_KEY),

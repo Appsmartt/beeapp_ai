@@ -17,14 +17,39 @@ import {
   Stack,
   useRouter,
 } from 'expo-router';
-import * as Notifications from 'expo-notifications';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
+import * as FileSystem from 'expo-file-system';
 import {
+  registerNativeUploader,
   resetUnauthorizedRequestNotification,
   subscribeUnauthorizedRequest,
 } from '@beeapp/api-client';
+
+registerNativeUploader(
+  async ({ url, headers, fileUri }) => {
+    const result = await FileSystem.uploadAsync(url, fileUri, {
+      httpMethod: 'POST',
+      uploadType: FileSystem.FileSystemUploadType.BINARY_CONTENT,
+      headers,
+    });
+
+    return {
+      status: result.status,
+      body: result.body,
+    };
+  },
+  async (uri) => {
+    const info = await FileSystem.getInfoAsync(uri);
+
+    if (!info.exists || info.isDirectory) {
+      return 0;
+    }
+
+    return info.size ?? 0;
+  },
+);
 
 import AppLockScreen from '../src/components/security/AppLockScreen';
 import IncomingCallModal from '../src/components/chat/IncomingCallModal';
@@ -33,8 +58,13 @@ import {
   getPrivateChatIdentityId,
 } from '../src/hooks/useChat';
 import {
+  dismissIncomingCallNotification,
+  initializePushNotifications,
   registerCurrentDeviceForPushNotifications,
+  subscribePushNotifications,
 } from '../src/services/pushNotifications';
+
+initializePushNotifications();
 import {
   clearAuthSession,
   getAuthSession,
@@ -59,20 +89,6 @@ import {
   startChatRealtime,
   stopChatRealtime,
 } from '../src/services/chatRealtime';
-
-function getNotificationData(
-  notification: Notifications.Notification,
-): Record<string, unknown> {
-  const data = notification.request.content.data;
-
-  return (
-    data
-    && typeof data === 'object'
-    && !Array.isArray(data)
-  )
-    ? data as Record<string, unknown>
-    : {};
-}
 
 function isSessionRevokedPush(
   data: Record<string, unknown>,
@@ -229,13 +245,13 @@ function SessionRevocationHandler() {
 
   useEffect(() => {
     const handleSessionRevokedPush = async (
-      notification: Notifications.Notification,
+      data: Record<string, unknown>,
     ) => {
       const authSession = await getAuthSession();
 
       if (
         isSessionRevokedPush(
-          getNotificationData(notification),
+          data,
           authSession?.deviceSessionId ?? null,
         )
       ) {
@@ -243,27 +259,14 @@ function SessionRevocationHandler() {
       }
     };
 
-    const receivedSubscription = (
-      Notifications.addNotificationReceivedListener(
-        handleSessionRevokedPush,
-      )
-    );
-
-    void Notifications.getLastNotificationResponseAsync()
-      .then((response) => {
-        if (response) {
-          void handleSessionRevokedPush(
-            response.notification,
-          );
-        }
-      })
-      .catch(() => {
-        // La comprobación al abrir o volver a foreground sigue disponible.
-      });
-
-    return () => {
-      receivedSubscription.remove();
-    };
+    return subscribePushNotifications({
+      onReceived: (data) => {
+        void handleSessionRevokedPush(data);
+      },
+      onOpened: (data) => {
+        void handleSessionRevokedPush(data);
+      },
+    });
   }, [closeRevokedSession]);
 
   if (!showRevokedModal) {
@@ -469,12 +472,8 @@ function AppPushNotifications() {
 
   useEffect(() => {
     const handleNotification = (
-      notification: Notifications.Notification,
+      notificationData: Record<string, unknown>,
     ) => {
-      const notificationData = getNotificationData(
-        notification,
-      );
-
       const chatEvent = parseChatPushEvent(
         notificationData,
       );
@@ -496,12 +495,8 @@ function AppPushNotifications() {
     };
 
     const handleNotificationResponse = (
-      response: Notifications.NotificationResponse,
+      data: Record<string, unknown>,
     ) => {
-      const data = getNotificationData(
-        response.notification,
-      );
-
       const chatEvent = parseChatPushEvent(data);
 
       if (chatEvent) {
@@ -547,32 +542,10 @@ function AppPushNotifications() {
       }
     };
 
-    const receivedSubscription = (
-      Notifications.addNotificationReceivedListener(
-        handleNotification,
-      )
-    );
-
-    const responseSubscription = (
-      Notifications.addNotificationResponseReceivedListener(
-        handleNotificationResponse,
-      )
-    );
-
-    void Notifications.getLastNotificationResponseAsync()
-      .then((response) => {
-        if (response) {
-          handleNotificationResponse(response);
-        }
-      })
-      .catch(() => {
-        // Si no se puede leer la respuesta inicial, la app continúa normal.
-      });
-
-    return () => {
-      receivedSubscription.remove();
-      responseSubscription.remove();
-    };
+    return subscribePushNotifications({
+      onReceived: handleNotification,
+      onOpened: handleNotificationResponse,
+    });
   }, [
     refreshAuthenticatedCallContext,
     router,
@@ -587,26 +560,7 @@ function AppPushNotifications() {
         clearIncomingCall(callId);
 
         if (callId) {
-          void Notifications.getPresentedNotificationsAsync()
-            .then((notifications) => Promise.all(
-              notifications
-                .filter((notification) => {
-                  const data = getNotificationData(notification);
-                  return (
-                    String(data.module || '').trim() === 'calls'
-                    && String(data.type || '').trim() === 'incoming_call'
-                    && String(data.call_id || '').trim() === callId
-                  );
-                })
-                .map((notification) => (
-                  Notifications.dismissNotificationAsync(
-                    notification.request.identifier,
-                  )
-                )),
-            ))
-            .catch(() => {
-              // El modal se cierra aunque el sistema no permita retirar el push.
-            });
+          dismissIncomingCallNotification(callId);
         }
       }}
       onAccepted={(call) => {

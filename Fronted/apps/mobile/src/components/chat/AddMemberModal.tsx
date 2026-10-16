@@ -294,7 +294,7 @@ function RealGroupAddMemberModal({
             >
               {user.occupation
                 || user.location
-                || 'Cuenta BeeApp'}
+                || 'Cuenta Buddy AI'}
             </Text>
           </View>
 

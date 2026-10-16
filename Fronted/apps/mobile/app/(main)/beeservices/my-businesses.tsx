@@ -189,7 +189,7 @@ export default function BuddyServicesMyBusinessesScreen() {
         }}
       >
         <TouchableOpacity
-          accessibilityLabel="Volver a BuddyServices"
+          accessibilityLabel="Volver a Buddy Services"
           accessibilityRole="button"
           activeOpacity={0.8}
           onPress={() => router.back()}
@@ -376,7 +376,7 @@ export default function BuddyServicesMyBusinessesScreen() {
                       marginTop: 2,
                     }}
                   >
-                    Empieza a vender con BuddyServices
+                    Empieza a vender con Buddy Services
                   </Text>
                 </View>
               </TouchableOpacity>

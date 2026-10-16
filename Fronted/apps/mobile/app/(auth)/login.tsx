@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
@@ -6,6 +6,7 @@ import {
   KeyboardAvoidingView,
   Modal,
   Platform,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -34,6 +35,7 @@ import {
   saveAuthSession,
 } from '../../src/services/authSession';
 import {
+  isPushNotificationsConfigured,
   registerCurrentDeviceForPushNotifications,
 } from '../../src/services/pushNotifications';
 import {
@@ -83,7 +85,31 @@ export default function LoginScreen() {
   const [errors, setErrors] = useState<FormErrors>({});
   const [formMessage, setFormMessage] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
   const submitInFlightRef = useRef(false);
+
+  useEffect(() => {
+    const showEvent = Platform.OS === 'ios'
+      ? 'keyboardWillShow'
+      : 'keyboardDidShow';
+    const hideEvent = Platform.OS === 'ios'
+      ? 'keyboardWillHide'
+      : 'keyboardDidHide';
+
+    const showSubscription = Keyboard.addListener(
+      showEvent,
+      () => setIsKeyboardVisible(true),
+    );
+    const hideSubscription = Keyboard.addListener(
+      hideEvent,
+      () => setIsKeyboardVisible(false),
+    );
+
+    return () => {
+      showSubscription.remove();
+      hideSubscription.remove();
+    };
+  }, []);
 
   const filteredCountries = useMemo(() => {
     const normalizedQuery = countrySearch
@@ -235,10 +261,10 @@ export default function LoginScreen() {
         await registerCurrentDeviceForPushNotifications()
       );
 
-      if (!pushToken) {
-        throw new Error(
-          'No fue posible activar las notificaciones. '
-          + 'Verifica los permisos de notificaciones e inténtalo de nuevo.',
+      if (!pushToken && isPushNotificationsConfigured()) {
+        setFormMessage(
+          'Iniciaste sesión. No pudimos activar las notificaciones; '
+          + 'revisa los permisos en Ajustes e intenta de nuevo más tarde.',
         );
       }
 
@@ -270,11 +296,15 @@ export default function LoginScreen() {
   return (
     <ScreenSafeArea style={styles.safeArea}>
       <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         style={styles.container}
       >
         <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-          <View style={styles.innerContainer}>
+          <ScrollView
+            contentContainerStyle={styles.scrollContent}
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}
+          >
             <View style={styles.contentContainer}>
               <View style={styles.logoContainer}>
                 <BuddyLogo
@@ -659,32 +689,34 @@ export default function LoginScreen() {
               </View>
             </View>
 
-            <View style={styles.footer}>
-              <Text style={styles.footerNotice}>
-                Al continuar, aceptas nuestros
-              </Text>
+            {!isKeyboardVisible ? (
+              <View style={styles.footer}>
+                <Text style={styles.footerNotice}>
+                  Al continuar, aceptas nuestros
+                </Text>
 
-              <View style={styles.footerLinksRow}>
-                <TouchableOpacity
-                  onPress={() => router.push('/(auth)/terms')}
-                >
-                  <Text style={styles.footerLink}>
-                    Términos y Condiciones
-                  </Text>
-                </TouchableOpacity>
+                <View style={styles.footerLinksRow}>
+                  <TouchableOpacity
+                    onPress={() => router.push('/(auth)/terms')}
+                  >
+                    <Text style={styles.footerLink}>
+                      Términos y Condiciones
+                    </Text>
+                  </TouchableOpacity>
 
-                <Text style={styles.footerDot}> • </Text>
+                  <Text style={styles.footerDot}> • </Text>
 
-                <TouchableOpacity
-                  onPress={() => router.push('/(auth)/privacy')}
-                >
-                  <Text style={styles.footerLink}>
-                    Política de Privacidad
-                  </Text>
-                </TouchableOpacity>
+                  <TouchableOpacity
+                    onPress={() => router.push('/(auth)/privacy')}
+                  >
+                    <Text style={styles.footerLink}>
+                      Política de Privacidad
+                    </Text>
+                  </TouchableOpacity>
+                </View>
               </View>
-            </View>
-          </View>
+            ) : null}
+          </ScrollView>
         </TouchableWithoutFeedback>
       </KeyboardAvoidingView>
 
@@ -769,14 +801,13 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
-  innerContainer: {
-    flex: 1,
-    justifyContent: 'space-between',
+  scrollContent: {
+    flexGrow: 1,
     paddingHorizontal: 24,
     paddingVertical: 16,
   },
   contentContainer: {
-    flex: 1,
+    flexGrow: 1,
     justifyContent: 'center',
     marginVertical: 16,
   },
@@ -1021,8 +1052,9 @@ const styles = StyleSheet.create({
   },
   footer: {
     alignItems: 'center',
+    marginTop: 'auto',
     paddingBottom: 12,
-    paddingTop: 20,
+    paddingTop: 8,
   },
   footerNotice: {
     color: colors.neutral.gray500,

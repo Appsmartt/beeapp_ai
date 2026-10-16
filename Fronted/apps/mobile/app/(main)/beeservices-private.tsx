@@ -10,7 +10,6 @@ import {
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   TouchableOpacity,
   View,
 } from 'react-native';
@@ -18,7 +17,6 @@ import {
   ClipboardList,
   LayoutGrid,
   List,
-  Search,
   Store,
 } from 'lucide-react-native';
 import {
@@ -46,6 +44,7 @@ import {
   toCommercialUiError,
   type CommercialUiError,
 } from '../../src/features/buddyservices/commercialErrors';
+import { useBuddyServicesAiSearch } from '../../src/features/buddyservices/useBuddyServicesAiSearch';
 import {
   loadOwnedCommercialProfiles,
   loadPublicCommercialProductFeed,
@@ -74,6 +73,11 @@ export default function BeeServicesPrivateScreen() {
   const [search, setSearch] = useState('');
   const [activeSearch, setActiveSearch] = useState('');
   const searchRequestVersionRef = useRef(0);
+  const skipEmptySearchEffectRef = useRef(true);
+  const scrollRef = useRef<ScrollView>(null);
+  const resultsOffsetRef = useRef(0);
+  const searchRef = useRef(search);
+  searchRef.current = search;
   const [searchProfiles, setSearchProfiles] = useState<
     CommercialPublicProfile[]
   >([]);
@@ -157,7 +161,12 @@ export default function BeeServicesPrivateScreen() {
 
   useFocusEffect(
     useCallback(() => {
-      void loadProductFeed();
+      const currentSearch = searchRef.current.trim();
+      void loadProductFeed({
+        search: currentSearch.length >= MINIMUM_SEARCH_LENGTH
+          ? currentSearch
+          : undefined,
+      });
       void loadOwnedProfilesState();
     }, [
       loadOwnedProfilesState,
@@ -203,10 +212,7 @@ export default function BeeServicesPrivateScreen() {
     if (
       loadingMoreProducts
       || loadingProductFeed
-      || (
-        !hasMoreProducts
-        && (!activeSearch || !hasMoreSearchProfiles)
-      )
+      || (!hasMoreProducts && !hasMoreSearchProfiles)
     ) {
       return;
     }
@@ -218,7 +224,10 @@ export default function BeeServicesPrivateScreen() {
     try {
       const response = await loadPublicCommercialProductFeed({
         limit: NEXT_PRODUCT_FEED_LIMIT,
-        offset: productFeed.length,
+        offset: Math.max(
+          productFeed.length,
+          searchProfiles.length,
+        ),
         search: activeSearch || undefined,
         seed: activeSearch
           ? undefined
@@ -241,23 +250,21 @@ export default function BeeServicesPrivateScreen() {
           ),
         ];
       });
-      if (activeSearch) {
-        setSearchProfiles((current) => {
-          const existingIds = new Set(
-            current.map((profile) => profile.id),
-          );
-
-          return [
-            ...current,
-            ...(response.profiles || []).filter(
-              (profile) => !existingIds.has(profile.id),
-            ),
-          ];
-        });
-        setHasMoreSearchProfiles(
-          Boolean(response.profiles_has_more),
+      setSearchProfiles((current) => {
+        const existingIds = new Set(
+          current.map((profile) => profile.id),
         );
-      }
+
+        return [
+          ...current,
+          ...(response.profiles || []).filter(
+            (profile) => !existingIds.has(profile.id),
+          ),
+        ];
+      });
+      setHasMoreSearchProfiles(
+        Boolean(response.profiles_has_more),
+      );
 
       setProductFeedSeed(response.seed);
       setHasMoreProducts(response.has_more);
@@ -274,10 +281,12 @@ export default function BeeServicesPrivateScreen() {
   }, [
     activeSearch,
     hasMoreProducts,
+    hasMoreSearchProfiles,
     loadingMoreProducts,
     loadingProductFeed,
     productFeed.length,
     productFeedSeed,
+    searchProfiles.length,
   ]);
 
   const runSearch = useCallback((value: string) => {
@@ -308,8 +317,16 @@ export default function BeeServicesPrivateScreen() {
     const normalizedSearch = search.trim();
 
     if (!normalizedSearch) {
+      if (skipEmptySearchEffectRef.current) {
+        skipEmptySearchEffectRef.current = false;
+        return;
+      }
+
+      runSearch('');
       return;
     }
+
+    skipEmptySearchEffectRef.current = false;
 
     if (normalizedSearch.length < MINIMUM_SEARCH_LENGTH) {
       searchRequestVersionRef.current += 1;
@@ -328,16 +345,36 @@ export default function BeeServicesPrivateScreen() {
     return () => clearTimeout(timer);
   }, [runSearch, search]);
 
-  const handleSearch = useCallback(() => {
-    runSearch(search);
-  }, [runSearch, search]);
+  const scrollToResults = useCallback(() => {
+    requestAnimationFrame(() => {
+      scrollRef.current?.scrollTo({
+        y: Math.max(resultsOffsetRef.current - 8, 0),
+        animated: true,
+      });
+    });
+  }, []);
 
-  const isInitialLoading = loadingProductFeed;
+  const handleAiSearch = useCallback(() => {
+    runSearch(search);
+    scrollToResults();
+  }, [runSearch, scrollToResults, search]);
+
+  const {
+    listening,
+    transcribing,
+    toggleVoice,
+  } = useBuddyServicesAiSearch({
+    onError: setError,
+    onSearched: scrollToResults,
+    runSearch,
+    setSearch,
+  });
 
   return (
     <ScreenSafeArea style={beeStyles.safeArea}>
       <View style={beeStyles.container}>
         <ScrollView
+          ref={scrollRef}
           contentContainerStyle={beeStyles.content}
           keyboardShouldPersistTaps="handled"
           refreshControl={
@@ -366,33 +403,20 @@ export default function BeeServicesPrivateScreen() {
           scrollEventThrottle={160}
         >
           <BeeServicesHeader
-            title="Buddyservice"
             onBackToMainPress={() => router.replace("/(main)")}
             onMenuPress={() => setSideMenuVisible(true)}
           />
 
 
           <BeeServicesAiSearchCard
-            onPressSearch={() => {
-              setError({
-                title: 'Búsqueda próximamente',
-                message: (
-                  'Estamos preparando la búsqueda general de '
-                  + 'productos y servicios.'
-                ),
-                retryable: false,
-              });
-            }}
+            busy={transcribing}
+            listening={listening}
+            onChangeText={setSearch}
             onPressVoice={() => {
-              setError({
-                title: 'Búsqueda por voz próximamente',
-                message: (
-                  'Por ahora usa la búsqueda manual '
-                  + 'para encontrar negocios y servicios.'
-                ),
-                retryable: false,
-              });
+              void toggleVoice();
             }}
+            onSubmit={handleAiSearch}
+            value={search}
           />
 
           <TouchableOpacity
@@ -423,53 +447,11 @@ export default function BeeServicesPrivateScreen() {
             </View>
           </TouchableOpacity>
 
-          <View style={localStyles.searchSection}>
-            <Text style={beeStyles.sectionTitle}>
-              Busca negocios y servicios
-            </Text>
-
-            <View style={localStyles.searchRow}>
-              <TextInput
-                accessibilityLabel="Buscar negocios, productos o servicios"
-                autoCapitalize="sentences"
-                editable={!isInitialLoading}
-                onChangeText={setSearch}
-                onSubmitEditing={handleSearch}
-                placeholder="Ej. técnico, barbería, comida…"
-                placeholderTextColor="#9B87AE"
-                returnKeyType="search"
-                style={localStyles.searchInput}
-                value={search}
-              />
-
-              <TouchableOpacity
-                accessibilityLabel="Buscar"
-                accessibilityRole="button"
-accessibilityState={{
-disabled: isInitialLoading,
-}}
-                activeOpacity={0.8}
-                disabled={isInitialLoading}
-                onPress={handleSearch}
-                style={[
-                  localStyles.searchButton,
-                  isInitialLoading
-                    && localStyles.searchButtonDisabled,
-                ]}
-              >
-                <Search
-                  color="#FFFFFF"
-                  size={20}
-                />
-              </TouchableOpacity>
-            </View>
-
-            {search.trim().length === 1 ? (
-              <Text style={localStyles.searchHint}>
-                Escribe al menos 2 caracteres para buscar.
-              </Text>
-            ) : null}
-          </View>
+          <View
+            onLayout={(event) => {
+              resultsOffsetRef.current = event.nativeEvent.layout.y;
+            }}
+          />
 
           {error ? (
             <View
@@ -487,7 +469,7 @@ accessibilityRole="alert"
 
               {error.retryable ? (
                 <TouchableOpacity
-                  accessibilityLabel="Reintentar carga de BuddyServices"
+                  accessibilityLabel="Reintentar carga de Buddy Services"
                   accessibilityRole="button"
                   activeOpacity={0.8}
                   onPress={handleRetry}
@@ -511,12 +493,14 @@ accessibilityRole="alert"
                 <Text style={localStyles.loadingText}>
                   {activeSearch
                     ? 'Buscando coincidencias…'
-                    : 'Cargando productos y servicios…'}
+                    : 'Cargando negocios y servicios…'}
                 </Text>
               </View>
             ) : null}
 
-            {!loadingProductFeed && !error && productFeed.length === 0 ? (
+            {!loadingProductFeed && !error
+              && productFeed.length === 0
+              && searchProfiles.length === 0 ? (
               <View style={localStyles.locationEmptyState}>
                 <Store
                   color="#7B2DD9"
@@ -526,21 +510,25 @@ accessibilityRole="alert"
                 <Text style={localStyles.locationEmptyTitle}>
                   {activeSearch
                     ? 'No encontramos coincidencias'
-                    : 'Aún no hay productos disponibles'}
+                    : 'Aún no hay negocios disponibles'}
                 </Text>
 
                 <Text style={localStyles.locationEmptyText}>
                   {activeSearch
                     ? 'Prueba con otro nombre, producto o servicio.'
-                    : 'Vuelve a intentarlo más tarde.'}
+                    : 'Cuando alguien publique un negocio o un servicio, aparecerá aquí.'}
                 </Text>
               </View>
             ) : null}
 
-            {!loadingProductFeed && activeSearch
-              && searchProfiles.length > 0 ? (
+            {!loadingProductFeed && searchProfiles.length > 0 ? (
               <CommercialRecentBusinesses
                 profiles={searchProfiles}
+                title={
+                  activeSearch
+                    ? 'Negocios'
+                    : 'Negocios recientes'
+                }
                 onPressProfile={(profile) => router.push(
                   buddyServicesPublicProfileRoute(profile.id),
                 )}
@@ -739,44 +727,6 @@ const localStyles = StyleSheet.create({
     fontSize: 11,
     lineHeight: 15,
     marginTop: 1,
-  },
-  searchSection: {
-    marginBottom: 27,
-  },
-  searchRow: {
-    alignItems: 'center',
-    flexDirection: 'row',
-  },
-  searchInput: {
-    backgroundColor: '#FFFFFF',
-    borderColor: '#EAE1F1',
-    borderBottomLeftRadius: 14,
-    borderTopLeftRadius: 14,
-    borderWidth: 1,
-    color: '#38294E',
-    flex: 1,
-    fontSize: 14,
-    minHeight: 49,
-    paddingHorizontal: 14,
-  },
-  searchButton: {
-    alignItems: 'center',
-    backgroundColor: '#7427D5',
-    borderBottomRightRadius: 14,
-    borderTopRightRadius: 14,
-    height: 49,
-    justifyContent: 'center',
-    width: 52,
-  },
-  searchButtonDisabled: {
-    opacity: 0.55,
-  },
-  searchHint: {
-    color: '#886B9F',
-    fontSize: 12,
-    lineHeight: 17,
-    marginTop: 7,
-    paddingHorizontal: 2,
   },
   feedHeader: {
     alignItems: 'center',

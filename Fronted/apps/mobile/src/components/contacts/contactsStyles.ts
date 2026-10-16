@@ -73,6 +73,9 @@ export const contactsStyles = StyleSheet.create({
   scrollView: {
     flex: 1,
   },
+  discoverPanel: {
+    flex: 1,
+  },
   privacyNotice: {
     flexDirection: 'row',
     backgroundColor: '#F3E8FF',
@@ -221,5 +224,23 @@ export const contactsStyles = StyleSheet.create({
     color: colors.neutral.gray600,
     textAlign: 'center',
     lineHeight: 18,
+  },
+  retryLink: {
+    color: colors.brand.primary,
+    fontSize: 13,
+    fontWeight: '700',
+    marginTop: 12,
+  },
+  discoverCta: {
+    backgroundColor: colors.brand.primary,
+    borderRadius: 12,
+    marginTop: 16,
+    paddingHorizontal: 18,
+    paddingVertical: 10,
+  },
+  discoverCtaText: {
+    color: colors.neutral.white,
+    fontSize: 13,
+    fontWeight: '700',
   },
 });

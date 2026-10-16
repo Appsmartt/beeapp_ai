@@ -16,6 +16,7 @@ import {
   View,
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
+import { withExternalActivity } from '../../services/locationPermissionAppLockGuard';
 import {
   ResizeMode,
   Video,
@@ -422,29 +423,48 @@ export default function CreateStatusModal({
     }
   };
 
-  const changeTextTemplate = (
+  const changeTextTypography = (
     template: (typeof STATUS_FONT_OPTIONS)[number],
   ) => {
     if (!selectedText) {
       return;
     }
 
-    const initialFontSize = Math.max(
-      STATUS_TEXT_SIZE_MIN,
-      template.templateFontSize,
-    );
+    setSelectedFontFamily(template.fontFamily);
+    layers.patchText(selectedText.id, {
+      fontFamily: template.fontFamily,
+      ...(selectedText.content.trim()
+        ? {}
+        : {
+            fontSize: Math.max(
+              STATUS_TEXT_SIZE_MIN,
+              template.templateFontSize,
+            ),
+          }),
+    });
+  };
+
+  const applySuggestedPhrase = (
+    template: (typeof STATUS_FONT_OPTIONS)[number],
+  ) => {
+    if (!selectedText) {
+      return;
+    }
 
     setSelectedFontFamily(template.fontFamily);
     layers.patchText(selectedText.id, {
       content: template.sampleText,
       fontFamily: template.fontFamily,
-      fontSize: initialFontSize,
+      fontSize: Math.max(
+        STATUS_TEXT_SIZE_MIN,
+        template.templateFontSize,
+      ),
       x: 50,
       y: 50,
       scale: 1,
       rotation: 0,
     });
-    setEditingTextId(null);
+    setEditingTextId(selectedText.id);
     setMentionQuery(null);
   };
 
@@ -454,9 +474,9 @@ export default function CreateStatusModal({
     }
 
     try {
-      const permission = (
-        await ImagePicker.requestMediaLibraryPermissionsAsync()
-      );
+      const permission = await withExternalActivity(() => (
+        ImagePicker.requestMediaLibraryPermissionsAsync()
+      ));
 
       if (!permission.granted) {
         Alert.alert(
@@ -466,12 +486,14 @@ export default function CreateStatusModal({
         return;
       }
 
-      const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.All,
-        allowsEditing: false,
-        allowsMultipleSelection: false,
-        quality: 1,
-      });
+      const result = await withExternalActivity(() => (
+        ImagePicker.launchImageLibraryAsync({
+          mediaTypes: ImagePicker.MediaTypeOptions.All,
+          allowsEditing: false,
+          allowsMultipleSelection: false,
+          quality: 1,
+        })
+      ));
 
       if (result.canceled || !result.assets[0]) {
         return;
@@ -532,9 +554,9 @@ export default function CreateStatusModal({
     }
 
     try {
-      const permission = (
-        await ImagePicker.requestMediaLibraryPermissionsAsync()
-      );
+      const permission = await withExternalActivity(() => (
+        ImagePicker.requestMediaLibraryPermissionsAsync()
+      ));
 
       if (!permission.granted) {
         Alert.alert(
@@ -544,12 +566,14 @@ export default function CreateStatusModal({
         return;
       }
 
-      const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        allowsEditing: false,
-        allowsMultipleSelection: false,
-        quality: 1,
-      });
+      const result = await withExternalActivity(() => (
+        ImagePicker.launchImageLibraryAsync({
+          mediaTypes: ImagePicker.MediaTypeOptions.Images,
+          allowsEditing: false,
+          allowsMultipleSelection: false,
+          quality: 1,
+        })
+      ));
 
       if (result.canceled || !result.assets[0]) {
         return;
@@ -1011,6 +1035,7 @@ export default function CreateStatusModal({
                   kind: 'text',
                   id,
                 });
+                setEditingTextId(id);
               }}
               onStartEditing={(id) => {
                 layers.setSelection({
@@ -1039,6 +1064,10 @@ export default function CreateStatusModal({
               }}
             />
           </View>
+
+          <Text style={styles.editorHint}>
+            Escribe tu texto; las ideas son opcionales.
+          </Text>
 
           {mentionQuery !== null ? (
             <MentionDropdown
@@ -1075,7 +1104,8 @@ export default function CreateStatusModal({
             onChangeTextColor={changeTextColor}
             selectedFontFamily={resolvedFontFamily}
             fontSelectorEnabled={fontsLoaded}
-            onChangeTextFontFamily={changeTextTemplate}
+            onChangeTextFontFamily={changeTextTypography}
+            onApplySuggestedPhrase={applySuggestedPhrase}
             showBackgrounds={!isMediaStatus}
             backgroundColors={[
               ...STATUS_PASTEL_BACKGROUND_COLORS,
@@ -1249,6 +1279,13 @@ const styles = StyleSheet.create({
     marginBottom: spacing.sm,
     marginHorizontal: spacing.md,
     overflow: 'hidden',
+  },
+  editorHint: {
+    color: colors.neutral.gray600,
+    fontSize: 12,
+    lineHeight: 16,
+    marginBottom: spacing.xs,
+    marginHorizontal: spacing.md,
   },
   photo: StyleSheet.absoluteFillObject,
   publishStateOverlay: {
