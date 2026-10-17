@@ -47,8 +47,8 @@ export default function ModuleSidebar({
   return (
     <aside className="flex w-14 shrink-0 sticky top-0 h-screen bg-white border-l border-neutral-200 flex-col items-center py-3 gap-1 overflow-y-auto no-scrollbar">
       {/* Marca */}
-      <div className="h-12 flex items-center justify-center shrink-0">
-        <BuddyLogoMark size={28} />
+      <div className="flex h-10 w-10 shrink-0 items-center justify-center">
+        <BuddyLogoMark size={26} />
       </div>
 
       {/* Menú del usuario */}

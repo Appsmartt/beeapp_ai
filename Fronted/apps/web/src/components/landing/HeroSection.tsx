@@ -20,9 +20,9 @@ export default function HeroSection() {
   }, []);
 
   return (
-    <section className="bg-white py-16 lg:py-24 overflow-hidden border-b border-neutral-100">
+    <section className="bg-white py-12 lg:py-16 overflow-hidden border-b border-neutral-100">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 lg:gap-8 items-center">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 lg:gap-8 items-start lg:items-center">
 
           <div className="lg:col-span-7 space-y-6 text-center lg:text-left">
             {badge ? (
@@ -53,11 +53,11 @@ export default function HeroSection() {
             </div>
           </div>
 
-          <div className="lg:col-span-5 flex justify-center lg:justify-end">
-            <div className="w-full max-w-[340px] bg-neutral-900 p-3 rounded-[36px] shadow-2xl border-4 border-neutral-800">
-              <div className="w-28 h-4 bg-neutral-800 rounded-full mx-auto mb-3" />
+          <div className="lg:col-span-5 flex justify-center lg:justify-end lg:pt-2">
+            <div className="mx-auto w-[252px] sm:w-[268px] shrink-0 rounded-[32px] border-4 border-neutral-800 bg-neutral-900 p-2.5 shadow-2xl">
+              <div className="mx-auto mb-2.5 h-3.5 w-24 rounded-full bg-neutral-800" />
 
-              <div className="bg-neutral-950 rounded-[28px] overflow-hidden aspect-[9/19] p-4 space-y-4">
+              <div className="aspect-[9/17] w-full overflow-hidden rounded-[22px] bg-neutral-950 p-3.5 space-y-3">
                 <div className="flex items-center justify-between text-white/80 text-[10px]">
                   <span>Buddy AI</span>
                   <span>9:41</span>

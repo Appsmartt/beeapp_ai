@@ -78,6 +78,54 @@ function friendlyAuthError(message: string, fallback: string): string {
     return text || fallback;
 }
 
+function friendlyOtpSmsError(message: string, fallback: string): string {
+    const text = message.trim();
+
+    if (
+        /21608|Primary Compliance Profile|unverified numbers|verified caller IDs/i
+            .test(text)
+    ) {
+        return (
+            'El envío de SMS aún no está habilitado para todos los números. '
+            + 'Usa correo para iniciar sesión o inténtalo más tarde.'
+        );
+    }
+
+    if (/Error sending confirmation OTP to provider/i.test(text)) {
+        return (
+            'No pudimos enviar el SMS. Revisa el número, usa correo '
+            + 'o inténtalo de nuevo en unos minutos.'
+        );
+    }
+
+    if (/sms send rate limit|too many requests|over sms send rate limit/i.test(text)) {
+        return 'Demasiados intentos. Espera un momento antes de pedir otro código.';
+    }
+
+    if (/invalid phone|phone number is invalid|unable to parse phone/i.test(text)) {
+        return 'El número de celular no es válido. Revisa el indicativo y el número.';
+    }
+
+    if (/otp_expired|token has expired|expired/i.test(text)) {
+        return 'El código expiró. Solicita uno nuevo.';
+    }
+
+    if (/invalid otp|invalid token|token is invalid/i.test(text)) {
+        return 'El código no es válido. Revísalo e inténtalo de nuevo.';
+    }
+
+    const generic = friendlyAuthError(text, fallback);
+    if (generic !== text) {
+        return generic;
+    }
+
+    if (text.length > 120 || /twilio\.com|console\.twilio/i.test(text)) {
+        return fallback;
+    }
+
+    return text || fallback;
+}
+
 async function findActiveDeviceId(
     supabase: SupabaseClient,
     userId: string,
@@ -438,7 +486,13 @@ async function handleAccounts(
         });
 
         if (error) {
-            throw new GatewayError(error.message, 400);
+            throw new GatewayError(
+                friendlyOtpSmsError(
+                    error.message,
+                    'No pudimos enviar el código por SMS.',
+                ),
+                400,
+            );
         }
 
         return { message: 'Enviamos un código por SMS.' };
@@ -456,7 +510,10 @@ async function handleAccounts(
 
         if (verified.error || !verified.data.session || !verified.data.user) {
             throw new GatewayError(
-                verified.error?.message || 'Código inválido.',
+                friendlyOtpSmsError(
+                    verified.error?.message || '',
+                    'Código inválido.',
+                ),
                 401,
             );
         }
@@ -488,7 +545,13 @@ async function handleAccounts(
         });
 
         if (error) {
-            throw new GatewayError(error.message, 400);
+            throw new GatewayError(
+                friendlyOtpSmsError(
+                    error.message,
+                    'No pudimos enviar el código por SMS.',
+                ),
+                400,
+            );
         }
 
         return { message: 'Enviamos un código para restablecer la contraseña.' };
@@ -503,7 +566,10 @@ async function handleAccounts(
 
         if (verified.error || !verified.data.session) {
             throw new GatewayError(
-                verified.error?.message || 'Código inválido.',
+                friendlyOtpSmsError(
+                    verified.error?.message || '',
+                    'Código inválido.',
+                ),
                 401,
             );
         }
@@ -2046,7 +2112,7 @@ async function handleStatuses(
                 }),
                 media: asJson(payload.media).file_id
                     ? asJson(payload.media)
-                    : null,
+                    : [],
                 layers: statusLayersWithFileIds(payload.image_layers),
                 expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
             })

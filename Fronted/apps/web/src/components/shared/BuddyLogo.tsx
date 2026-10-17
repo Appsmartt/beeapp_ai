@@ -21,23 +21,23 @@ type BuddyLogoMarkProps = {
 export function BuddyLogoMark({
   size = 32,
   width,
-  className,
+  className = '',
 }: BuddyLogoMarkProps) {
-  const resolvedWidth = width ?? size;
+  const box = width ?? size;
 
   return (
-    <Image
-      src="/branding/logo.png"
-      alt="Buddy AI"
-      width={resolvedWidth}
-      height={size}
-      className={className}
-      style={{
-        width: `${resolvedWidth}px`,
-        height: `${size}px`,
-        objectFit: 'contain',
-      }}
-    />
+    <span
+      className={`inline-flex shrink-0 items-center justify-center ${className}`}
+      style={{ width: box, height: box }}
+    >
+      <Image
+        src="/branding/logo.png"
+        alt="Buddy AI"
+        width={box}
+        height={box}
+        className="h-full w-full object-contain"
+      />
+    </span>
   );
 }
 

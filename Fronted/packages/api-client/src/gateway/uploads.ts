@@ -404,7 +404,7 @@ async function createUploadedStatus(
                         ? durationSeconds
                         : null,
                 )
-                : null,
+                : [],
             layers,
             expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
         })
