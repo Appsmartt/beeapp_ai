@@ -62,6 +62,7 @@ export default function LoginForm() {
   const [otpCode, setOtpCode] = useState('');
   const [otpSent, setOtpSent] = useState(false);
   const [qrToken, setQrToken] = useState<string | null>(null);
+  const [browserNonce, setBrowserNonce] = useState<string | null>(null);
   const [showPassword, setShowPassword] = useState(false);
   const [capsLockOn, setCapsLockOn] = useState(false);
   const [error, setError] = useState('');
@@ -74,13 +75,16 @@ export default function LoginForm() {
   }, [profile, router, status]);
 
   useEffect(() => {
-    if (mode !== 'qr' || !qrToken) return undefined;
+    if (mode !== 'qr' || !qrToken || !browserNonce) return undefined;
     let cancelled = false;
     const interval = window.setInterval(() => {
       void getQrLoginChallengeStatus(qrToken).then(async (statusResponse) => {
         if (cancelled) return;
         if (statusResponse.status === 'APPROVED' || statusResponse.status === 'CONSUMED') {
-          await activateWebSession(qrToken);
+          await activateWebSession({
+            challenge_token: qrToken,
+            browser_nonce: browserNonce,
+          });
           const nextProfile = await refreshProfile();
           router.replace(homePathForRole(nextProfile?.role ?? normalizeRole('USER')));
         }
@@ -90,11 +94,17 @@ export default function LoginForm() {
       cancelled = true;
       window.clearInterval(interval);
     };
-  }, [mode, qrToken, refreshProfile, router]);
+  }, [browserNonce, mode, qrToken, refreshProfile, router]);
 
   useEffect(() => {
     if (mode !== 'qr') return;
-    void createQrLoginChallenge().then((challenge) => setQrToken(challenge.challenge_token)).catch(() => setError('No fue posible generar el QR.'));
+    const nonce = crypto.randomUUID();
+    void createQrLoginChallenge({ browser_nonce: nonce })
+      .then((challenge) => {
+        setBrowserNonce(nonce);
+        setQrToken(challenge.challenge_token);
+      })
+      .catch(() => setError('No fue posible generar el QR.'));
   }, [mode]);
 
   const handlePasswordKey = (event: KeyboardEvent<HTMLInputElement>) => {

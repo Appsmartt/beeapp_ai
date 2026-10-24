@@ -23,6 +23,7 @@ import {
   UserCheck,
 } from 'lucide-react';
 import { getCurrentWebProfile } from '@beeapp/api-client';
+import type { CurrentUserProfile } from '@beeapp/shared-types';
 import BuddyLogo from '@/components/shared/BuddyLogo';
 import ProfileAvatar from '@/components/client/ProfileAvatar';
 import { resolveProfileAvatarUrl } from '@/lib/client/profileAvatarService';
