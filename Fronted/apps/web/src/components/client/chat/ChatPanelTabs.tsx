@@ -1,6 +1,6 @@
 'use client';
 
-import { UserPlus } from 'lucide-react';
+import { ArrowLeft, UserPlus } from 'lucide-react';
 import ChatCreateMenu from './ChatCreateMenu';
 import { ChatSection } from './chatSections';
 
@@ -11,6 +11,7 @@ interface ChatPanelTabsProps {
   onNewGroup: () => void;
   onNewCommunity: () => void;
   onNewContact?: () => void;
+  onBack?: () => void;
 }
 
 /** Título del panel izquierdo según la opción activa del sidebar de Chat */
@@ -31,12 +32,25 @@ export default function ChatPanelTabs({
   onNewGroup,
   onNewCommunity,
   onNewContact,
+  onBack,
 }: ChatPanelTabsProps) {
   return (
     <div className="bg-white border-b border-neutral-100 sticky top-0 z-20">
       {/* Title & Create button header row */}
       <div className="px-5 pt-4 pb-3 flex items-center justify-between">
-        <h1 className="text-xl font-semibold text-neutral-900">{PANEL_TITLE[section]}</h1>
+        <div className="flex min-w-0 items-center gap-2">
+          {onBack ? (
+            <button
+              type="button"
+              onClick={onBack}
+              className="rounded-xl p-1.5 text-neutral-700 hover:bg-neutral-100"
+              aria-label="Volver a chats"
+            >
+              <ArrowLeft className="h-5 w-5" />
+            </button>
+          ) : null}
+          <h1 className="truncate text-xl font-semibold text-neutral-900">{PANEL_TITLE[section]}</h1>
+        </div>
         {section === 'discover' ? (
           <button
             type="button"

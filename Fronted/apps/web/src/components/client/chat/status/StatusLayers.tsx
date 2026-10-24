@@ -56,7 +56,7 @@ export function TextLayers({
   );
 }
 
-/** Capas de imagen: recuadros de color con los controles de tamaño */
+/** Capas de imagen: la foto elegida de la galería, con controles de tamaño */
 export function ImageLayers({
   layers,
   onResize,
@@ -80,12 +80,21 @@ export function ImageLayers({
           >
             <div
               style={{ width: layer.size, height: layer.size, backgroundColor: layer.color }}
-              className="rounded-xl flex items-center justify-center"
+              className="overflow-hidden rounded-xl flex items-center justify-center"
             >
-              <ImageIcon
-                style={{ width: Math.max(20, layer.size * 0.28), height: Math.max(20, layer.size * 0.28) }}
-                className="text-neutral-500"
-              />
+              {layer.src ? (
+                <img
+                  src={layer.src}
+                  alt=""
+                  draggable={false}
+                  className="h-full w-full object-cover pointer-events-none"
+                />
+              ) : (
+                <ImageIcon
+                  style={{ width: Math.max(20, layer.size * 0.28), height: Math.max(20, layer.size * 0.28) }}
+                  className="text-neutral-500"
+                />
+              )}
             </div>
 
             {isSelected && (

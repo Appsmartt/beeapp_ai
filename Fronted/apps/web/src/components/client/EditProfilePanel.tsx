@@ -138,6 +138,29 @@ function createEmptySocialLinks(): Record<SocialPlatform, string> {
   };
 }
 
+const inputClass =
+  'h-12 w-full rounded-xl border border-[#E4D8F2] bg-[#FCFAFF] py-0 pl-11 pr-3.5 text-sm text-neutral-900 outline-none transition-colors placeholder:text-neutral-400 focus:border-brand-primary focus:bg-white focus:ring-4 focus:ring-brand-primary/10 disabled:cursor-not-allowed disabled:opacity-60';
+
+function ProfileSection({
+  title,
+  description,
+  children,
+}: {
+  title: string;
+  description: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <section className="rounded-3xl border border-[#E7DFF3] bg-white p-5 shadow-[0_8px_24px_rgba(96,37,210,0.05)] sm:p-6">
+      <div className="mb-5">
+        <h2 className="text-base font-semibold text-neutral-900">{title}</h2>
+        <p className="mt-1 text-sm leading-5 text-[#6B5B8A]">{description}</p>
+      </div>
+      {children}
+    </section>
+  );
+}
+
 function isValidUrl(value: string): boolean {
   try {
     const url = new URL(value);
@@ -198,6 +221,8 @@ export function EditProfilePanel({
     () => getInitials(firstName, lastName),
     [firstName, lastName],
   );
+
+  const displayName = [firstName, lastName].filter(Boolean).join(' ') || 'Tu perfil';
 
   const visibleAvatarUrl = pendingAvatarPreview || avatarUrl;
 
@@ -482,8 +507,8 @@ export function EditProfilePanel({
 
   if (isLoading) {
     return (
-      <div className="flex min-h-[360px] items-center justify-center">
-        <div className="flex items-center gap-2 text-sm font-medium text-neutral-500">
+      <div className="flex min-h-[360px] items-center justify-center rounded-3xl border border-[#E7DFF3] bg-white">
+        <div className="flex items-center gap-2 text-sm font-medium text-[#6B5B8A]">
           <Loader2 className="h-5 w-5 animate-spin text-brand-primary" />
           <span>Cargando perfil...</span>
         </div>
@@ -495,303 +520,294 @@ export function EditProfilePanel({
     <>
       <form
         onSubmit={handleSubmit}
-        className="space-y-6 select-none"
+        className="space-y-5 select-none"
       >
-        <div className="flex flex-col items-center space-y-2">
-          <input
-            ref={avatarInputRef}
-            type="file"
-            accept="image/jpeg,image/png,image/webp"
-            className="hidden"
-            onChange={(event) => {
-              void handleAvatarInputChange(event);
-            }}
-          />
+        <section className="overflow-hidden rounded-3xl border border-[#E7DFF3] bg-white shadow-[0_8px_24px_rgba(96,37,210,0.05)]">
+          <div className="h-24 bg-gradient-to-r from-[#6025d2] via-[#7B4AD8] to-[#C4B5E8]" />
+          <div className="px-5 pb-6 sm:px-6">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+              <div className="flex items-end gap-4">
+                <input
+                  ref={avatarInputRef}
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp"
+                  className="hidden"
+                  onChange={(event) => {
+                    void handleAvatarInputChange(event);
+                  }}
+                />
 
-          <button
-            type="button"
-            onClick={openAvatarPicker}
-            disabled={isSaving || isAvatarBusy}
-            className="group relative rounded-full disabled:opacity-60"
-          >
-            <ProfileAvatar
-              initials={initials}
-              avatarUrl={visibleAvatarUrl}
-              size="lg"
-              className="shadow-md"
-            />
+                <button
+                  type="button"
+                  onClick={openAvatarPicker}
+                  disabled={isSaving || isAvatarBusy}
+                  className="relative -mt-10 shrink-0 rounded-full ring-4 ring-white disabled:opacity-60"
+                >
+                  <ProfileAvatar
+                    initials={initials}
+                    avatarUrl={visibleAvatarUrl}
+                    size="lg"
+                    className="shadow-md"
+                  />
 
-            <span className="absolute bottom-0 right-0 flex h-8 w-8 items-center justify-center rounded-full border-2 border-white bg-brand-primary text-white shadow-sm">
-              {isAvatarBusy ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <Camera className="h-4 w-4" />
-              )}
-            </span>
-          </button>
+                  <span className="absolute bottom-0 right-0 flex h-8 w-8 items-center justify-center rounded-full border-2 border-white bg-brand-primary text-white shadow-sm">
+                    {isAvatarBusy ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Camera className="h-4 w-4" />
+                    )}
+                  </span>
+                </button>
 
-          <button
-            type="button"
-            onClick={openAvatarPicker}
-            disabled={isSaving || isAvatarBusy}
-            className="text-xs font-semibold text-brand-primary disabled:opacity-60"
-          >
-            {isUploadingAvatar
-              ? 'Subiendo foto...'
-              : isRemovingAvatar
-                ? 'Quitando foto...'
-                : visibleAvatarUrl
-                  ? 'Cambiar foto'
-                  : 'Agregar foto'}
-          </button>
+                <div className="min-w-0 pb-1 pt-3">
+                  <h2 className="truncate text-lg font-semibold text-neutral-900">
+                    {displayName}
+                  </h2>
+                  <p className="truncate text-sm text-[#6B5B8A]">
+                    {email || 'Agrega tu correo'}
+                  </p>
+                  {isVerified ? (
+                    <div className="mt-1.5 inline-flex items-center gap-1 rounded-full bg-[#F3EDFF] px-2.5 py-1 text-xs font-medium text-brand-primary">
+                      <UserCheck className="h-3.5 w-3.5" />
+                      <span>Cuenta verificada</span>
+                    </div>
+                  ) : null}
+                </div>
+              </div>
 
-          {hasExistingAvatar || pendingAvatarPreview ? (
-            <button
-              type="button"
-              onClick={() => {
-                void handleRemoveAvatar();
-              }}
-              disabled={isSaving || isAvatarBusy}
-              className="text-xs font-medium text-red-500 disabled:opacity-60"
-            >
-              Quitar foto
-            </button>
-          ) : null}
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={openAvatarPicker}
+                  disabled={isSaving || isAvatarBusy}
+                  className="h-10 rounded-xl bg-brand-primary px-4 text-sm font-medium text-white transition-colors hover:bg-brand-dark disabled:opacity-60"
+                >
+                  {isUploadingAvatar
+                    ? 'Subiendo foto...'
+                    : isRemovingAvatar
+                      ? 'Quitando foto...'
+                      : visibleAvatarUrl
+                        ? 'Cambiar foto'
+                        : 'Agregar foto'}
+                </button>
 
-          {isVerified ? (
-            <div className="flex items-center gap-1 text-xs font-semibold text-brand-primary">
-              <UserCheck className="h-4 w-4" />
-              <span>Cuenta Verificada</span>
+                {hasExistingAvatar || pendingAvatarPreview ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      void handleRemoveAvatar();
+                    }}
+                    disabled={isSaving || isAvatarBusy}
+                    className="h-10 rounded-xl border border-[#E4D8F2] px-4 text-sm font-medium text-red-600 transition-colors hover:bg-red-50 disabled:opacity-60"
+                  >
+                    Quitar foto
+                  </button>
+                ) : null}
+              </div>
             </div>
-          ) : null}
-        </div>
+          </div>
+        </section>
 
         {requestError ? (
-          <div className="flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 px-3 py-2.5 text-xs text-red-600">
+          <div className="flex items-start gap-2 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
             <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
             <span>{requestError}</span>
           </div>
         ) : null}
 
-        <div className="space-y-4">
-          <span className="text-[11px] font-semibold uppercase tracking-wider text-neutral-400">
-            Datos personales
-          </span>
-
-          <div className="space-y-1">
-            <label className="text-xs font-semibold text-neutral-700">
-              Nombre *
-            </label>
-
-            <div className="relative flex items-center">
-              <UserRound className="pointer-events-none absolute left-3.5 h-4 w-4 text-neutral-400" />
-
-              <input
-                type="text"
-                required
-                value={firstName}
-                onChange={(event) => {
-                  setFirstName(event.target.value);
-                }}
-                placeholder="Ingresa tu nombre"
-                disabled={isSaving}
-                className="h-11 w-full rounded-xl border border-neutral-200 bg-neutral-50 py-0 pl-10 pr-3.5 text-xs font-normal text-neutral-900 outline-none transition-colors focus:border-brand-primary disabled:cursor-not-allowed disabled:opacity-60"
-              />
-            </div>
-          </div>
-
-          <div className="space-y-1">
-            <label className="text-xs font-semibold text-neutral-700">
-              Apellido *
-            </label>
-
-            <div className="relative flex items-center">
-              <UserRound className="pointer-events-none absolute left-3.5 h-4 w-4 text-neutral-400" />
-
-              <input
-                type="text"
-                required
-                value={lastName}
-                onChange={(event) => {
-                  setLastName(event.target.value);
-                }}
-                placeholder="Ingresa tu apellido"
-                disabled={isSaving}
-                className="h-11 w-full rounded-xl border border-neutral-200 bg-neutral-50 py-0 pl-10 pr-3.5 text-xs font-normal text-neutral-900 outline-none transition-colors focus:border-brand-primary disabled:cursor-not-allowed disabled:opacity-60"
-              />
-            </div>
-          </div>
-
-          <div className="space-y-1">
-            <label className="text-xs font-semibold text-neutral-700">
-              Correo electrónico *
-            </label>
-
-            <div className="relative flex items-center">
-              <Mail className="pointer-events-none absolute left-3.5 h-4 w-4 text-neutral-400" />
-
-              <input
-                type="email"
-                required
-                value={email}
-                onChange={(event) => {
-                  setEmail(event.target.value);
-                }}
-                placeholder="correo@ejemplo.com"
-                disabled={isSaving}
-                className={`h-11 w-full rounded-xl border py-0 pl-10 pr-3.5 text-xs font-normal text-neutral-900 outline-none transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${
-                  !isEmailValid && email.length > 0
-                    ? 'border-red-400 bg-red-50/20 focus:border-red-500'
-                    : 'border-neutral-200 bg-neutral-50 focus:border-brand-primary'
-                }`}
-              />
-            </div>
-
-            {!isEmailValid && email.length > 0 ? (
-              <div className="mt-1 flex items-center gap-1 text-[11px] font-normal text-red-500">
-                <AlertCircle className="h-3 w-3 shrink-0" />
-                <span>
-                  Ingresa un correo electrónico válido.
-                </span>
+        <ProfileSection
+          title="Datos personales"
+          description="Nombre, correo y teléfono con los que inicias sesión."
+        >
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium text-neutral-800">
+                Nombre *
+              </label>
+              <div className="relative flex items-center">
+                <UserRound className="pointer-events-none absolute left-3.5 h-4 w-4 text-[#8B7AA8]" />
+                <input
+                  type="text"
+                  required
+                  value={firstName}
+                  onChange={(event) => {
+                    setFirstName(event.target.value);
+                  }}
+                  placeholder="Ingresa tu nombre"
+                  disabled={isSaving}
+                  className={inputClass}
+                />
               </div>
-            ) : null}
-          </div>
-
-          <div className="space-y-1">
-            <label className="text-xs font-semibold text-neutral-700">
-              Número de teléfono *
-            </label>
-
-            <div
-              className={`flex h-11 items-stretch overflow-hidden rounded-xl border bg-neutral-50 transition-colors focus-within:border-brand-primary ${
-                isSaving
-                  ? 'cursor-not-allowed opacity-60'
-                  : 'border-neutral-200'
-              }`}
-            >
-              <CountrySelector
-                variant="inline"
-                disabled={isSaving}
-                countries={countries}
-                selectedCountry={country}
-                onSelectCountry={setCountry}
-              />
-
-              <div
-                className="my-2.5 w-px shrink-0 bg-neutral-200"
-                aria-hidden
-              />
-
-              <input
-                type="tel"
-                required
-                value={phone}
-                onChange={(event) => {
-                  setPhone(
-                    event.target.value.replace(/\D/g, ''),
-                  );
-                }}
-                placeholder="300 000 0000"
-                disabled={isSaving}
-                className="min-w-0 flex-1 border-0 bg-transparent px-3.5 text-xs font-normal text-neutral-900 outline-none ring-0 placeholder:text-neutral-400 disabled:cursor-not-allowed"
-              />
             </div>
-          </div>
-        </div>
 
-        <div className="space-y-4">
-          <span className="text-[11px] font-semibold uppercase tracking-wider text-neutral-400">
-            Información profesional
-          </span>
-
-          <div className="space-y-1">
-            <label className="text-xs font-semibold text-neutral-700">
-              Ocupación
-            </label>
-
-            <div className="relative flex items-center">
-              <Briefcase className="pointer-events-none absolute left-3.5 h-4 w-4 text-neutral-400" />
-
-              <input
-                type="text"
-                value={occupation}
-                onChange={(event) => {
-                  setOccupation(event.target.value);
-                }}
-                placeholder="Ej. Desarrollador de software"
-                disabled={isSaving}
-                className="h-11 w-full rounded-xl border border-neutral-200 bg-neutral-50 py-0 pl-10 pr-3.5 text-xs font-normal text-neutral-900 outline-none transition-colors focus:border-brand-primary disabled:cursor-not-allowed disabled:opacity-60"
-              />
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium text-neutral-800">
+                Apellido *
+              </label>
+              <div className="relative flex items-center">
+                <UserRound className="pointer-events-none absolute left-3.5 h-4 w-4 text-[#8B7AA8]" />
+                <input
+                  type="text"
+                  required
+                  value={lastName}
+                  onChange={(event) => {
+                    setLastName(event.target.value);
+                  }}
+                  placeholder="Ingresa tu apellido"
+                  disabled={isSaving}
+                  className={inputClass}
+                />
+              </div>
             </div>
-          </div>
 
-          <div className="space-y-1">
-            <label className="text-xs font-semibold text-neutral-700">
-              Ubicación
-            </label>
-
-            <div className="relative flex items-center">
-              <MapPin className="pointer-events-none absolute left-3.5 h-4 w-4 text-neutral-400" />
-
-              <input
-                type="text"
-                value={location}
-                onChange={(event) => {
-                  setLocation(event.target.value);
-                }}
-                placeholder="Ej. Bogotá, Colombia"
-                disabled={isSaving}
-                className="h-11 w-full rounded-xl border border-neutral-200 bg-neutral-50 py-0 pl-10 pr-3.5 text-xs font-normal text-neutral-900 outline-none transition-colors focus:border-brand-primary disabled:cursor-not-allowed disabled:opacity-60"
-              />
-            </div>
-          </div>
-        </div>
-
-        <div className="space-y-3 pt-2">
-          <span className="text-[11px] font-semibold uppercase tracking-wider text-neutral-400">
-            Redes sociales
-          </span>
-
-          {SOCIAL_FIELDS.map((field) => {
-            const Icon = field.icon;
-
-            return (
-              <div
-                key={field.platform}
-                className="space-y-1"
-              >
-                <label className="text-xs font-semibold text-neutral-700">
-                  {field.label}
-                </label>
-
-                <div className="relative flex items-center">
-                  <Icon className="pointer-events-none absolute left-3.5 h-4 w-4 text-neutral-400" />
-
-                  <input
-                    type="url"
-                    value={socialLinks[field.platform]}
-                    onChange={(event) => {
-                      updateSocialLink(
-                        field.platform,
-                        event.target.value,
-                      );
-                    }}
-                    placeholder={field.placeholder}
-                    disabled={isSaving}
-                    className="h-10 w-full rounded-xl border border-neutral-200 bg-neutral-50 py-0 pl-10 pr-3.5 text-xs font-normal text-neutral-900 outline-none transition-colors focus:border-brand-primary disabled:cursor-not-allowed disabled:opacity-60"
-                  />
+            <div className="space-y-1.5 sm:col-span-2">
+              <label className="text-sm font-medium text-neutral-800">
+                Correo electrónico *
+              </label>
+              <div className="relative flex items-center">
+                <Mail className="pointer-events-none absolute left-3.5 h-4 w-4 text-[#8B7AA8]" />
+                <input
+                  type="email"
+                  required
+                  value={email}
+                  onChange={(event) => {
+                    setEmail(event.target.value);
+                  }}
+                  placeholder="correo@ejemplo.com"
+                  disabled={isSaving}
+                  className={`${inputClass} ${
+                    !isEmailValid && email.length > 0
+                      ? 'border-red-400 bg-red-50/40 focus:border-red-500 focus:ring-red-500/10'
+                      : ''
+                  }`}
+                />
+              </div>
+              {!isEmailValid && email.length > 0 ? (
+                <div className="flex items-center gap-1 text-xs text-red-500">
+                  <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+                  <span>Ingresa un correo electrónico válido.</span>
                 </div>
-              </div>
-            );
-          })}
-        </div>
+              ) : null}
+            </div>
 
-        <div className="flex gap-3 pt-2">
+            <div className="space-y-1.5 sm:col-span-2">
+              <label className="text-sm font-medium text-neutral-800">
+                Número de teléfono *
+              </label>
+              <div
+                className={`flex h-12 items-stretch overflow-hidden rounded-xl border bg-[#FCFAFF] transition-colors focus-within:border-brand-primary focus-within:bg-white focus-within:ring-4 focus-within:ring-brand-primary/10 ${
+                  isSaving
+                    ? 'cursor-not-allowed opacity-60'
+                    : 'border-[#E4D8F2]'
+                }`}
+              >
+                <CountrySelector
+                  variant="inline"
+                  disabled={isSaving}
+                  countries={countries}
+                  selectedCountry={country}
+                  onSelectCountry={setCountry}
+                />
+                <div className="my-2.5 w-px shrink-0 bg-[#E4D8F2]" aria-hidden />
+                <input
+                  type="tel"
+                  required
+                  value={phone}
+                  onChange={(event) => {
+                    setPhone(event.target.value.replace(/\D/g, ''));
+                  }}
+                  placeholder="300 000 0000"
+                  disabled={isSaving}
+                  className="min-w-0 flex-1 border-0 bg-transparent px-3.5 text-sm text-neutral-900 outline-none ring-0 placeholder:text-neutral-400 disabled:cursor-not-allowed"
+                />
+              </div>
+            </div>
+          </div>
+        </ProfileSection>
+
+        <ProfileSection
+          title="Información profesional"
+          description="Aparece en tu perfil cuando alguien abre tu contacto."
+        >
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium text-neutral-800">
+                Ocupación
+              </label>
+              <div className="relative flex items-center">
+                <Briefcase className="pointer-events-none absolute left-3.5 h-4 w-4 text-[#8B7AA8]" />
+                <input
+                  type="text"
+                  value={occupation}
+                  onChange={(event) => {
+                    setOccupation(event.target.value);
+                  }}
+                  placeholder="Ej. Desarrollador de software"
+                  disabled={isSaving}
+                  className={inputClass}
+                />
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium text-neutral-800">
+                Ubicación
+              </label>
+              <div className="relative flex items-center">
+                <MapPin className="pointer-events-none absolute left-3.5 h-4 w-4 text-[#8B7AA8]" />
+                <input
+                  type="text"
+                  value={location}
+                  onChange={(event) => {
+                    setLocation(event.target.value);
+                  }}
+                  placeholder="Ej. Bogotá, Colombia"
+                  disabled={isSaving}
+                  className={inputClass}
+                />
+              </div>
+            </div>
+          </div>
+        </ProfileSection>
+
+        <ProfileSection
+          title="Redes sociales"
+          description="Enlaces públicos. Déjalos vacíos si no quieres mostrarlos."
+        >
+          <div className="grid gap-4 sm:grid-cols-2">
+            {SOCIAL_FIELDS.map((field) => {
+              const Icon = field.icon;
+
+              return (
+                <div key={field.platform} className="space-y-1.5">
+                  <label className="text-sm font-medium text-neutral-800">
+                    {field.label}
+                  </label>
+                  <div className="relative flex items-center">
+                    <Icon className="pointer-events-none absolute left-3.5 h-4 w-4 text-[#8B7AA8]" />
+                    <input
+                      type="url"
+                      value={socialLinks[field.platform]}
+                      onChange={(event) => {
+                        updateSocialLink(field.platform, event.target.value);
+                      }}
+                      placeholder={field.placeholder}
+                      disabled={isSaving}
+                      className={inputClass}
+                    />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </ProfileSection>
+
+        <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
           <button
             type="button"
             onClick={handleDiscard}
             disabled={isSaving}
-            className="h-11 flex-1 rounded-xl border border-neutral-200 text-xs font-medium text-neutral-600 transition-colors hover:bg-neutral-50 disabled:cursor-not-allowed disabled:opacity-60"
+            className="h-12 rounded-xl border border-[#E4D8F2] bg-white px-5 text-sm font-medium text-neutral-700 transition-colors hover:bg-[#F7F2FC] disabled:cursor-not-allowed disabled:opacity-60 sm:min-w-36"
           >
             Descartar
           </button>
@@ -804,7 +820,7 @@ export function EditProfilePanel({
               || !lastName.trim()
               || !isEmailValid
             }
-            className="flex h-11 flex-1 items-center justify-center gap-1.5 rounded-xl bg-brand-primary text-xs font-semibold text-white shadow-xs transition-colors hover:bg-brand-dark disabled:cursor-not-allowed disabled:opacity-50"
+            className="flex h-12 items-center justify-center gap-2 rounded-xl bg-brand-primary px-6 text-sm font-semibold text-white shadow-[0_8px_18px_rgba(96,37,210,0.25)] transition-colors hover:bg-brand-dark disabled:cursor-not-allowed disabled:opacity-50 sm:min-w-44"
           >
             {isSaving ? (
               <>

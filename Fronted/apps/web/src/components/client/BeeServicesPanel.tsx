@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Store, Plus, ChevronRight, ChevronLeft, X } from 'lucide-react';
+import { Store, Plus, ChevronRight, ArrowLeft } from 'lucide-react';
 import { BusinessItem, BusinessProduct, BusinessService } from '@/lib/client/myServices';
 import { loadOwnedBusinesses } from '@/lib/client/liveData';
 import CreateProductModal from './beeservices/CreateProductModal';
@@ -50,62 +50,63 @@ export function BeeServicesPanel({ onClose }: BeeServicesPanelProps) {
     setSelectedBusiness(updated);
   };
 
+  const handleBack = () => {
+    if (view === 'item-detail') {
+      setSelectedItem(null);
+      setView('business-detail');
+      return;
+    }
+
+    if (view === 'business-detail') {
+      setSelectedBusiness(null);
+      setView('list');
+      return;
+    }
+
+    onClose();
+  };
+
+  const heading = view === 'business-detail'
+    ? (selectedBusiness?.name || 'Detalle del negocio')
+    : view === 'item-detail'
+      ? (selectedItem?.name || 'Detalle')
+      : 'Mis negocios';
+
   return (
-    <div className="flex flex-col h-full bg-white relative">
-      {/* Dynamic Header */}
-      <div className="flex items-center justify-between px-6 py-4 border-b border-neutral-100 shrink-0">
-        <div className="flex items-center gap-2.5 min-w-0">
-          {view !== 'list' && (
+    <div className="relative flex h-full flex-col bg-[#FFFCF9]">
+      <header className="flex shrink-0 items-start justify-between gap-3 border-b border-[#F0EAF3] px-5 py-5 sm:px-7">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2">
             <button
               type="button"
-              onClick={() => {
-                if (view === 'item-detail') {
-                  setSelectedItem(null);
-                  setView('business-detail');
-                } else {
-                  setSelectedBusiness(null);
-                  setView('list');
-                }
-              }}
-              className="p-1 rounded-full text-neutral-500 hover:text-neutral-900 hover:bg-neutral-100 transition-colors"
-              title="Volver"
+              onClick={handleBack}
+              aria-label={view === 'list' ? 'Volver al inicio' : 'Volver'}
+              className="rounded-full p-1.5 text-[#7865AD] transition-colors hover:bg-[#F6EAFE] hover:text-[#7427D5]"
             >
-              <ChevronLeft className="w-5 h-5" />
+              <ArrowLeft className="h-5 w-5" />
             </button>
-          )}
-
-          <h2 className="font-semibold text-base text-neutral-900 truncate">
-            {view === 'list' && 'BuddyServices'}
-            {view === 'business-detail' && (selectedBusiness?.name || 'Detalle del Negocio')}
-            {view === 'item-detail' && (selectedItem?.name || 'Detalle')}
-          </h2>
+            <h1 className="truncate text-2xl font-extrabold leading-tight text-[#7427D5]">
+              {heading}
+            </h1>
+          </div>
+          {view === 'list' ? (
+            <p className="ml-9 mt-1 text-sm text-[#7865AD]">
+              Elige un negocio para administrar sus operaciones.
+            </p>
+          ) : null}
         </div>
 
-        <div className="flex items-center gap-2">
-          {view === 'list' && (
-            <button
-              type="button"
-              onClick={() => {
-                onClose();
-                router.push('/app/beeservices/create');
-              }}
-              className="h-8 px-3 rounded-full bg-brand-primary text-white text-xs font-semibold flex items-center gap-1 shadow-xs hover:bg-brand-dark transition-colors"
-            >
-              <Plus className="w-3.5 h-3.5" />
-              <span>Crear negocio</span>
-            </button>
-          )}
-
+        {view === 'list' ? (
           <button
             type="button"
-            onClick={onClose}
-            className="p-1 rounded-full text-neutral-400 hover:text-neutral-600 hover:bg-neutral-100 transition-colors"
-            title="Cerrar panel"
+            onClick={() => router.push('/app/beeservices/create')}
+            className="flex h-10 shrink-0 items-center gap-2 rounded-full bg-[#7427D5] px-4 text-xs font-semibold text-white shadow-sm transition-colors hover:bg-[#5E1ABF]"
           >
-            <X className="w-5 h-5" />
+            <Plus className="h-4 w-4" />
+            <span className="hidden sm:inline">Crear negocio</span>
           </button>
-        </div>
-      </div>
+        ) : null}
+      </header>
 
       {/* Body Content */}
       <div className="flex-1 overflow-y-auto p-5">

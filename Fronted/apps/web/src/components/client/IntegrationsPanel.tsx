@@ -28,12 +28,71 @@ import {
   type ProviderOption,
 } from '@/services/integrationsService';
 
+type ActionNotice = {
+  title: string;
+  message: string;
+};
+
 function getErrorMessage(error: unknown): string {
   if (error instanceof Error) {
     return error.message;
   }
 
   return 'Inténtalo nuevamente.';
+}
+
+function describeActionError(error: unknown): string {
+  const raw = getErrorMessage(error);
+
+  if (
+    raw.includes('Failed to send a request to the Edge Function')
+    || raw.includes('Failed to fetch')
+    || raw.includes('FunctionsFetchError')
+  ) {
+    return 'No pudimos contactar el servicio de conexión. Inténtalo de nuevo en unos minutos.';
+  }
+
+  if (raw.includes('Conexión no configurada')) {
+    return 'Este proveedor todavía no está disponible para vincular cuentas.';
+  }
+
+  return raw;
+}
+
+function ActionNoticeBanner({
+  notice,
+  onClose,
+}: {
+  notice: ActionNotice;
+  onClose: () => void;
+}) {
+  return (
+    <div
+      className="mt-4 flex gap-3 rounded-2xl border border-rose-200 bg-rose-50 p-4"
+      role="alert"
+    >
+      <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-rose-700" />
+
+      <div className="min-w-0 flex-1">
+        <p className="text-sm font-bold text-rose-800">
+          {notice.title}
+        </p>
+
+        <p className="mt-1 text-xs leading-relaxed text-rose-700">
+          {notice.message}
+        </p>
+      </div>
+
+      <button
+        type="button"
+        onClick={onClose}
+        aria-label="Cerrar aviso"
+        className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-rose-700 hover:bg-rose-100"
+      >
+        <X className="h-4 w-4" />
+      </button>
+    </div>
+  );
 }
 
 export function IntegrationsPanel() {
@@ -61,6 +120,9 @@ export function IntegrationsPanel() {
     null,
   );
 
+  const [actionNotice, setActionNotice] =
+    useState<ActionNotice | null>(null);
+
   const connectionItems = useMemo(
     () => buildConnectionPresentations(connections),
     [connections],
@@ -80,6 +142,7 @@ export function IntegrationsPanel() {
     }
 
     try {
+      setActionNotice(null);
       setActionId(`provider:${provider.provider}`);
 
       const authorizationUrl = await startAuthorization(
@@ -89,11 +152,10 @@ export function IntegrationsPanel() {
 
       redirectToProvider(authorizationUrl);
     } catch (connectError) {
-      window.alert(
-        `No fue posible iniciar la conexión.\n\n${
-          getErrorMessage(connectError)
-        }`,
-      );
+      setActionNotice({
+        title: 'No fue posible iniciar la conexión',
+        message: describeActionError(connectError),
+      });
     } finally {
       setActionId(null);
     }
@@ -103,6 +165,7 @@ export function IntegrationsPanel() {
     item: IntegrationConnectionPresentation,
   ) => {
     try {
+      setActionNotice(null);
       setActionId(item.id);
 
       const authorizationUrl = await reauthorize(
@@ -112,11 +175,10 @@ export function IntegrationsPanel() {
 
       redirectToProvider(authorizationUrl);
     } catch (reauthorizeError) {
-      window.alert(
-        `No fue posible iniciar la reconexión.\n\n${
-          getErrorMessage(reauthorizeError)
-        }`,
-      );
+      setActionNotice({
+        title: 'No fue posible iniciar la reconexión',
+        message: describeActionError(reauthorizeError),
+      });
     } finally {
       setActionId(null);
     }
@@ -137,17 +199,18 @@ export function IntegrationsPanel() {
     }
 
     try {
+      setActionNotice(null);
       setActionId(item.id);
 
       await disconnect(item.connection.id);
 
       setSelectedConnection(null);
+      setActionNotice(null);
     } catch (disconnectError) {
-      window.alert(
-        `No fue posible desconectar la cuenta.\n\n${
-          getErrorMessage(disconnectError)
-        }`,
-      );
+      setActionNotice({
+        title: 'No fue posible desconectar la cuenta',
+        message: describeActionError(disconnectError),
+      });
     } finally {
       setActionId(null);
     }
@@ -168,17 +231,18 @@ export function IntegrationsPanel() {
     }
 
     try {
+      setActionNotice(null);
       setActionId(item.id);
 
       await removeConnectionRecord(item.connection.id);
 
       setSelectedConnection(null);
+      setActionNotice(null);
     } catch (deleteError) {
-      window.alert(
-        `No fue posible eliminar la cuenta.\n\n${
-          getErrorMessage(deleteError)
-        }`,
-      );
+      setActionNotice({
+        title: 'No fue posible eliminar la cuenta',
+        message: describeActionError(deleteError),
+      });
     } finally {
       setActionId(null);
     }
@@ -236,7 +300,10 @@ export function IntegrationsPanel() {
 
       <button
         type="button"
-        onClick={() => setIsProviderModalOpen(true)}
+        onClick={() => {
+          setActionNotice(null);
+          setIsProviderModalOpen(true);
+        }}
         className="w-full min-h-[88px] rounded-2xl bg-brand-primary px-5 py-4 text-left text-white flex items-center gap-4 shadow-sm hover:bg-brand-dark transition-colors"
       >
         <span className="w-11 h-11 rounded-xl bg-white/20 flex items-center justify-center shrink-0">
@@ -292,7 +359,10 @@ export function IntegrationsPanel() {
                 <button
                   key={item.id}
                   type="button"
-                  onClick={() => setSelectedConnection(item)}
+                  onClick={() => {
+                    setActionNotice(null);
+                    setSelectedConnection(item);
+                  }}
                   className="w-full text-left rounded-2xl border border-neutral-200 bg-white p-4 flex items-center gap-3 hover:border-brand-primary/40 hover:bg-neutral-50 transition-colors"
                 >
                   <span
@@ -400,13 +470,23 @@ export function IntegrationsPanel() {
 
               <button
                 type="button"
-                onClick={() => setIsProviderModalOpen(false)}
+                onClick={() => {
+                  setActionNotice(null);
+                  setIsProviderModalOpen(false);
+                }}
                 aria-label="Cerrar"
                 className="w-9 h-9 rounded-full bg-neutral-100 text-neutral-600 flex items-center justify-center hover:bg-neutral-200"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
+
+            {actionNotice ? (
+              <ActionNoticeBanner
+                notice={actionNotice}
+                onClose={() => setActionNotice(null)}
+              />
+            ) : null}
 
             <div className="mt-6 space-y-3">
               {PROVIDER_OPTIONS.map((provider) => {
@@ -501,7 +581,10 @@ export function IntegrationsPanel() {
 
               <button
                 type="button"
-                onClick={() => setSelectedConnection(null)}
+                onClick={() => {
+                  setActionNotice(null);
+                  setSelectedConnection(null);
+                }}
                 aria-label="Cerrar"
                 className="w-9 h-9 rounded-full bg-neutral-100 text-neutral-600 flex items-center justify-center hover:bg-neutral-200"
               >
@@ -559,6 +642,13 @@ export function IntegrationsPanel() {
                 {selectedConnection.helperText}
               </p>
             </div>
+
+            {actionNotice ? (
+              <ActionNoticeBanner
+                notice={actionNotice}
+                onClose={() => setActionNotice(null)}
+              />
+            ) : null}
 
             <div className="mt-5 grid gap-3">
               {selectedConnectionCanReconnect ? (

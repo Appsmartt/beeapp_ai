@@ -11,6 +11,7 @@ import {
 import {
   getRememberedChatIdentity,
   getWebAuth,
+  hydrateChatMedia,
   loadChatMessages,
   sendChatAttachmentMessage,
   sendLocationChatMessage,
@@ -127,11 +128,18 @@ export default function ChatConversation({
           const incoming: ChatMessage = {
             id: row.id,
             isUser: false,
-            type: row.kind === 'audio' ? 'audio' : row.kind === 'image' ? 'image' : 'text',
+            type: row.kind === 'audio' ? 'audio' : row.kind === 'image' ? 'image' : row.kind === 'file' || row.kind === 'document' ? 'file' : 'text',
             text: row.body || '',
             time: 'Ahora',
             status: 'delivered',
           };
+          if (incoming.type !== 'text' && chat.postingIdentityId) {
+            void hydrateChatMedia(incoming, chat.postingIdentityId).then((withMedia) => {
+              setMessages((current) => current.map((item) => (
+                item.id === withMedia.id ? { ...item, ...withMedia } : item
+              )));
+            });
+          }
           return [...prev, incoming];
         });
       }

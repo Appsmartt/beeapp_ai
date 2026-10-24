@@ -182,7 +182,21 @@ export default function CreateStatusModal({
         }}
         onRemovePhoto={() => setPhoto(null)}
         imageCount={images.length}
-        onAddImage={layers.addImage}
+        onAddImage={() => {
+          const input = document.createElement('input');
+          input.type = 'file';
+          input.accept = 'image/*';
+          input.onchange = () => {
+            const file = input.files?.[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = () => {
+              if (typeof reader.result === 'string') layers.addImage(reader.result);
+            };
+            reader.readAsDataURL(file);
+          };
+          input.click();
+        }}
         stickerCount={stickers.length}
         onAddSticker={(sticker) => layers.addSticker(sticker.id)}
         music={music}

@@ -44,8 +44,10 @@ export function ChatRow({
   return (
     <div
       onClick={onClick}
-      className={`group relative px-5 py-[14px] flex items-center gap-3.5 cursor-pointer bg-white border-b border-neutral-100 hover:bg-neutral-50 transition-colors ${
-        isSelected ? 'bg-brand-primary/10 border-l-4 border-brand-primary' : ''
+      className={`group relative mx-3 mb-2 flex cursor-pointer items-center gap-3.5 rounded-2xl border px-4 py-[14px] transition-colors ${
+        isSelected
+          ? 'border-brand-primary/30 bg-[#F4EDFF]'
+          : 'border-[#E7DFF3] bg-white hover:border-[#D9CCEF] hover:bg-[#FCFAFF]'
       }`}
     >
       {/* Avatar Section */}
@@ -250,8 +252,10 @@ export function CommunityRow({ community, isSelected, onClick }: CommunityRowPro
   return (
     <div
       onClick={onClick}
-      className={`px-5 py-3.5 flex items-center gap-3.5 cursor-pointer bg-white border-b border-neutral-100 hover:bg-neutral-50 transition-colors ${
-        isSelected ? 'bg-brand-primary/10 border-l-4 border-brand-primary' : ''
+      className={`mx-3 mb-2 flex cursor-pointer items-center gap-3.5 rounded-2xl border px-4 py-3.5 transition-colors ${
+        isSelected
+          ? 'border-brand-primary/30 bg-[#F4EDFF]'
+          : 'border-[#E7DFF3] bg-white hover:border-[#D9CCEF] hover:bg-[#FCFAFF]'
       }`}
     >
       <div className="w-12 h-12 rounded-2xl bg-brand-primary/10 text-brand-primary flex items-center justify-center shrink-0">

@@ -23,6 +23,7 @@ import {
   getStatusViewers,
   getAssistantSettings,
   listAssistantMessages,
+  getChatMessageAttachmentAccess,
 } from '@beeapp/api-client';
 import type { ChatConversation, ChatMessage as ApiChatMessage, CommercialModality, Note, StatusFeedItem } from '@beeapp/shared-types';
 import type { ChatCategory, ChatItem, ChatMessage } from './chats';
@@ -168,6 +169,13 @@ export async function loadInbox(): Promise<{ identityId: string; chats: ChatItem
   };
 }
 
+function formatAttachmentSize(size?: number | null): string | undefined {
+  if (!size || size <= 0) return undefined;
+  if (size < 1024) return `${size} B`;
+  if (size < 1024 * 1024) return `${Math.max(1, Math.round(size / 1024))} KB`;
+  return `${(size / (1024 * 1024)).toFixed(1)} MB`;
+}
+
 export function toUiChatMessage(message: ApiChatMessage, identityId: string): ChatMessage {
   const kind = message.message_type === 'image'
     ? 'image'
@@ -176,6 +184,8 @@ export function toUiChatMessage(message: ApiChatMessage, identityId: string): Ch
       : message.message_type === 'file'
         ? 'file'
         : 'text';
+  const attachment = message.attachments?.[0];
+  const mediaUrl = attachment?.url?.trim() || attachment?.thumbnail_url?.trim() || undefined;
 
   return {
     id: message.id,
@@ -183,6 +193,9 @@ export function toUiChatMessage(message: ApiChatMessage, identityId: string): Ch
     isUser: message.sender_identity_id === identityId,
     type: kind,
     text: message.deleted_at ? '' : message.content,
+    mediaUrl,
+    fileName: attachment?.name || undefined,
+    fileSize: formatAttachmentSize(attachment?.size_bytes),
     status: message.status === 'read' || message.status === 'delivered' ? message.status : 'sent',
     time: clock(message.created_at),
     isPinned: Boolean(message.is_pinned),
@@ -192,10 +205,28 @@ export function toUiChatMessage(message: ApiChatMessage, identityId: string): Ch
   };
 }
 
+export async function hydrateChatMedia(message: ChatMessage, identityId: string): Promise<ChatMessage> {
+  if (message.mediaUrl || message.isDestroyed) return message;
+  if (message.type !== 'image' && message.type !== 'file' && message.type !== 'audio') return message;
+  try {
+    const auth = await getWebAuth();
+    const access = await getChatMessageAttachmentAccess(auth, message.id, identityId);
+    return {
+      ...message,
+      mediaUrl: access.url,
+      fileName: message.fileName || access.attachment.display_name || access.attachment.original_name || undefined,
+      fileSize: message.fileSize || formatAttachmentSize(access.attachment.size_bytes),
+    };
+  } catch {
+    return message;
+  }
+}
+
 export async function loadChatMessages(conversationId: string, identityId: string): Promise<ChatMessage[]> {
   const auth = await getWebAuth();
   const result = await getChatMessages(auth, conversationId, { limit: 50 });
-  return result.messages.map((message) => toUiChatMessage(message, identityId)).reverse();
+  const mapped = result.messages.map((message) => toUiChatMessage(message, identityId)).reverse();
+  return Promise.all(mapped.map((message) => hydrateChatMedia(message, identityId)));
 }
 
 export async function sendTextChatMessage(conversationId: string, identityId: string, text: string): Promise<ChatMessage> {
@@ -226,7 +257,7 @@ export async function sendChatAttachmentMessage(
         type: file.type || 'application/octet-stream',
       },
     });
-    return toUiChatMessage(result.message, identityId);
+    return hydrateChatMedia(toUiChatMessage(result.message, identityId), identityId);
   } finally {
     URL.revokeObjectURL(uri);
   }

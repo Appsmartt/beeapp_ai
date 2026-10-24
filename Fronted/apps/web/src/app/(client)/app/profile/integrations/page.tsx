@@ -9,7 +9,7 @@ import {
 
 export default function IntegrationsPage() {
   return (
-    <div className="min-h-full bg-white">
+    <div className="h-full overflow-y-auto bg-white">
       <header className="sticky top-0 z-20 border-b border-neutral-100 bg-white">
         <div className="mx-auto max-w-5xl px-6 py-4 flex items-center gap-3">
           <Link

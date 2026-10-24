@@ -6,7 +6,6 @@ import {
   type ReactNode,
 } from 'react';
 import { useRouter } from 'next/navigation';
-import type { CurrentUserProfile } from '@beeapp/shared-types';
 import {
   X,
   Store,
@@ -32,31 +31,6 @@ import MotionDrawer from '@/components/motion/MotionDrawer';
 import MotionOverlay from '@/components/motion/MotionOverlay';
 import { useExitTransition } from '@/components/motion/useExitTransition';
 import { useAuth } from '@/lib/auth/AuthProvider';
-import { EditProfilePanel } from './EditProfilePanel';
-import { SubscriptionPanel } from './SubscriptionPanel';
-import { IntegrationsPanel } from './IntegrationsPanel';
-import { SecurityPanel } from './SecurityPanel';
-import { AiSettingsPanel } from './AiSettingsPanel';
-import { DevicesPanel } from './DevicesPanel';
-import {
-  TermsPanel,
-  PrivacyPanel,
-} from './LegalPanels';
-import { SupportPanel } from './SupportPanel';
-
-export type MenuOption =
-  | 'edit'
-  | 'subscription'
-  | 'integrations'
-  | 'security'
-  | 'ai-settings'
-  | 'devices'
-  | 'terms'
-  | 'privacy'
-  | 'support'
-  | null;
-
-type PanelOption = Exclude<MenuOption, null>;
 
 type MenuUser = {
   name: string;
@@ -74,22 +48,9 @@ const INITIAL_MENU_USER: MenuUser = {
   isVerified: false,
 };
 
-const PANEL_TITLES: Record<PanelOption, string> = {
-  edit: 'Editar Perfil',
-  subscription: 'Suscripción y Verificación',
-  integrations: 'Integraciones Externas',
-  security: 'Seguridad y PIN',
-  'ai-settings': 'Configuración del Asistente',
-  devices: 'Dispositivos',
-  terms: 'Términos y Condiciones',
-  privacy: 'Política de Privacidad',
-  support: 'Contactar a Soporte',
-};
-
 interface SideMenuProps {
   isOpen: boolean;
   onClose: () => void;
-  initialOption?: MenuOption;
 }
 
 function getFullName(
@@ -143,29 +104,19 @@ function getMenuUser(
 export default function SideMenu({
   isOpen,
   onClose,
-  initialOption,
 }: SideMenuProps) {
   const router = useRouter();
-  const { profile, refreshProfile, signOut } = useAuth();
+  const { profile, signOut } = useAuth();
   const menuMotion = useExitTransition(isOpen);
 
   const [networkVisibility, setNetworkVisibility] =
     useState(true);
-
-  const [selectedOption, setSelectedOption] =
-    useState<MenuOption>(initialOption ?? null);
 
   const [toastVisible, setToastVisible] = useState(false);
 
   const [menuUser, setMenuUser] = useState<MenuUser>(
     INITIAL_MENU_USER,
   );
-
-  useEffect(() => {
-    if (isOpen && initialOption !== undefined) {
-      setSelectedOption(initialOption);
-    }
-  }, [isOpen, initialOption]);
 
   useEffect(() => {
     if (!profile) {
@@ -234,8 +185,12 @@ export default function SideMenu({
   };
 
   const handleClose = () => {
-    setSelectedOption(null);
     onClose();
+  };
+
+  const openPage = (href: string) => {
+    onClose();
+    router.push(href);
   };
 
   const handleShare = () => {
@@ -247,45 +202,14 @@ export default function SideMenu({
   };
 
   const handleOpenBuddyServices = () => {
-    setSelectedOption(null);
-    onClose();
-    router.push('/app/beeservices');
+    openPage('/app/beeservices');
   };
 
-  const handleProfileUpdated = (
-    updatedProfile: CurrentUserProfile,
-  ) => {
-    void (async () => {
-      let avatarUrl: string | null = updatedProfile.avatar_url?.trim() || null;
-
-      try {
-        const auth = await getWebAuth();
-        avatarUrl = await resolveProfileAvatarUrl(
-          updatedProfile,
-          auth,
-        );
-      } catch {
-        // Mantener la URL directa del perfil si existe.
-      }
-
-      setMenuUser(getMenuUser(updatedProfile, avatarUrl));
-      void refreshProfile();
-    })();
-  };
-
-  const menuBtn = (
-    option: PanelOption,
-    icon: ReactNode,
-    label: string,
-  ) => (
+  const navItem = (href: string, icon: ReactNode, label: string) => (
     <button
       type="button"
-      onClick={() => setSelectedOption(option)}
-      className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-normal transition-colors text-left ${
-        selectedOption === option
-          ? 'bg-brand-primary/10 text-brand-primary font-semibold'
-          : 'text-neutral-700 hover:bg-neutral-50'
-      }`}
+      onClick={() => openPage(href)}
+      className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-normal text-neutral-700 transition-colors hover:bg-neutral-50"
     >
       {icon}
       <span>{label}</span>
@@ -312,69 +236,7 @@ export default function SideMenu({
         side="right"
         className="relative z-50 flex h-full overflow-hidden rounded-l-3xl bg-white shadow-2xl"
       >
-        {selectedOption ? (
-          <div
-            key={selectedOption}
-            className="motion-content-enter h-full w-[480px] max-w-[calc(100vw-340px)] flex flex-col overflow-hidden border-r border-neutral-100/50 bg-white"
-          >
-            <div className="flex items-center justify-between border-b border-neutral-100 px-6 py-4 shrink-0">
-              <h2 className="text-base font-semibold text-neutral-900">
-                {PANEL_TITLES[selectedOption]}
-              </h2>
-
-              <button
-                type="button"
-                onClick={() => setSelectedOption(null)}
-                className="rounded-full p-1 text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-neutral-600"
-                title="Cerrar panel"
-              >
-                <X className="h-5 w-5" />
-              </button>
-            </div>
-
-            <div className="flex-1 overflow-y-auto p-6">
-              {selectedOption === 'edit' ? (
-                <EditProfilePanel
-                  onProfileUpdated={handleProfileUpdated}
-                />
-              ) : null}
-
-              {selectedOption === 'subscription' ? (
-                <SubscriptionPanel />
-              ) : null}
-
-              {selectedOption === 'integrations' ? (
-                <IntegrationsPanel />
-              ) : null}
-
-              {selectedOption === 'security' ? (
-                <SecurityPanel />
-              ) : null}
-
-              {selectedOption === 'ai-settings' ? (
-                <AiSettingsPanel />
-              ) : null}
-
-              {selectedOption === 'devices' ? (
-                <DevicesPanel />
-              ) : null}
-
-              {selectedOption === 'terms' ? (
-                <TermsPanel />
-              ) : null}
-
-              {selectedOption === 'privacy' ? (
-                <PrivacyPanel />
-              ) : null}
-
-              {selectedOption === 'support' ? (
-                <SupportPanel />
-              ) : null}
-            </div>
-          </div>
-        ) : null}
-
-        <aside className="h-full w-[340px] flex flex-col overflow-y-auto bg-white">
+        <aside className="flex h-full w-[340px] flex-col overflow-y-auto bg-white">
           <div className="px-5 pt-5">
             <BuddyLogo height={30} />
           </div>
@@ -435,38 +297,38 @@ export default function SideMenu({
                 Mi Cuenta
               </div>
 
-              {menuBtn(
-                'edit',
+              {navItem(
+                '/app/profile/edit',
                 <UserCheck className="h-4 w-4 text-neutral-500" />,
                 'Editar Perfil',
               )}
 
-              {menuBtn(
-                'subscription',
+              {navItem(
+                '/app/profile/subscription',
                 <CreditCard className="h-4 w-4 text-neutral-500" />,
                 'Suscripción y Verificación',
               )}
 
-              {menuBtn(
-                'integrations',
+              {navItem(
+                '/app/profile/integrations',
                 <LinkIcon className="h-4 w-4 text-neutral-500" />,
                 'Integraciones Externas',
               )}
 
-              {menuBtn(
-                'security',
+              {navItem(
+                '/app/profile/security',
                 <ShieldCheck className="h-4 w-4 text-neutral-500" />,
                 'Seguridad y PIN',
               )}
 
-              {menuBtn(
-                'ai-settings',
+              {navItem(
+                '/app/profile/ai-settings',
                 <Bot className="h-4 w-4 text-neutral-500" />,
                 'Configuración del Asistente',
               )}
 
-              {menuBtn(
-                'devices',
+              {navItem(
+                '/app/profile/devices',
                 <Smartphone className="h-4 w-4 text-neutral-500" />,
                 'Dispositivos',
               )}
@@ -514,8 +376,8 @@ export default function SideMenu({
                 <span>Compartir</span>
               </button>
 
-              {menuBtn(
-                'support',
+              {navItem(
+                '/app/profile/support',
                 <HelpCircle className="h-4 w-4 text-neutral-500" />,
                 'Contactar a Soporte',
               )}
@@ -526,14 +388,14 @@ export default function SideMenu({
                 Legal
               </div>
 
-              {menuBtn(
-                'terms',
+              {navItem(
+                '/app/profile/terms',
                 <FileText className="h-4 w-4 text-neutral-500" />,
                 'Términos y Condiciones',
               )}
 
-              {menuBtn(
-                'privacy',
+              {navItem(
+                '/app/profile/privacy',
                 <Shield className="h-4 w-4 text-neutral-500" />,
                 'Política de Privacidad',
               )}

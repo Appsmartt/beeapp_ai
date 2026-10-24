@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import AuthGuard from '@/lib/auth/AuthGuard';
 import MobileBlockScreen from '@/components/client/MobileBlockScreen';
-import VoiceAssistantFab from '@/components/client/VoiceAssistantFab';
+import { VoiceFabVisibility } from '@/components/client/VoiceAssistantFab';
 
 export default function AppLayout({
   children,
@@ -11,6 +11,7 @@ export default function AppLayout({
   children: React.ReactNode;
 }) {
   const [isMobileScreen, setIsMobileScreen] = useState(false);
+  const [hideVoiceFab, setHideVoiceFab] = useState(false);
 
   useEffect(() => {
     const checkScreenSize = () => {
@@ -30,15 +31,15 @@ export default function AppLayout({
       {isMobileScreen ? (
         <MobileBlockScreen />
       ) : (
-        <div className="min-h-screen bg-neutral-100/90 flex flex-col selection:bg-brand-primary/20 overflow-x-hidden">
-          <div className="relative flex h-screen min-h-0 w-full flex-1 flex-col overflow-hidden">
-            <div className="relative flex min-h-0 w-full flex-1 flex-col overflow-hidden bg-white">
-              {children}
+        <VoiceFabVisibility hidden={hideVoiceFab} onHiddenChange={setHideVoiceFab}>
+          <div className="min-h-screen bg-neutral-100/90 flex flex-col selection:bg-brand-primary/20 overflow-x-hidden">
+            <div className="relative flex h-screen min-h-0 w-full flex-1 flex-col overflow-hidden">
+              <div className="relative flex min-h-0 w-full flex-1 flex-col overflow-hidden bg-white">
+                {children}
+              </div>
             </div>
           </div>
-
-          <VoiceAssistantFab />
-        </div>
+        </VoiceFabVisibility>
       )}
     </AuthGuard>
   );

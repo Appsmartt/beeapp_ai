@@ -10,9 +10,9 @@ export default function CreateBusinessPage() {
       <header className="sticky top-0 z-10 border-b border-[#F0EAF3] bg-[#FFFCF9]/95 backdrop-blur-sm">
         <div className="mx-auto flex w-full max-w-2xl items-center gap-3 px-5 py-4">
           <Link
-            href="/app/beeservices"
+            href="/app/beeservices/my-businesses"
             className="rounded-full p-1.5 text-[#7865AD] transition-colors hover:bg-[#F6EAFE] hover:text-[#7427D5]"
-            aria-label="Volver a BuddyServices"
+            aria-label="Volver a mis negocios"
           >
             <ArrowLeft className="h-5 w-5" />
           </Link>

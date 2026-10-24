@@ -69,11 +69,12 @@ export function useStatusLayers(defaultTextColor: string) {
     });
   }, [defaultTextColor]);
 
-  const addImage = useCallback(() => {
+  const addImage = useCallback((src: string) => {
     setImages((prev) => {
-      if (prev.length >= MAX_IMAGE_LAYERS) return prev;
+      if (prev.length >= MAX_IMAGE_LAYERS || !src) return prev;
       const layer: StatusImageLayer = {
         id: newId('im'),
+        src,
         x: 50,
         y: stagger(prev.length),
         size: IMAGE_LAYER_MIN + 40,

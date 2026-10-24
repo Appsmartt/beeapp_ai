@@ -1,9 +1,40 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { createContext, useContext, useState, useEffect, useRef, type Dispatch, type SetStateAction } from 'react';
 import { createPortal } from 'react-dom';
 import { Mic } from 'lucide-react';
 import VoiceAssistantModal from './VoiceAssistantModal';
+
+const HideVoiceFabContext = createContext<Dispatch<SetStateAction<boolean>> | null>(null);
+
+export function HideVoiceFabOnChats({ active }: { active: boolean }) {
+  const setHidden = useContext(HideVoiceFabContext);
+
+  useEffect(() => {
+    if (!setHidden) return undefined;
+    setHidden(active);
+    return () => setHidden(false);
+  }, [active, setHidden]);
+
+  return null;
+}
+
+export function VoiceFabVisibility({
+  children,
+  hidden,
+  onHiddenChange,
+}: {
+  children: React.ReactNode;
+  hidden: boolean;
+  onHiddenChange: Dispatch<SetStateAction<boolean>>;
+}) {
+  return (
+    <HideVoiceFabContext.Provider value={onHiddenChange}>
+      {children}
+      <VoiceAssistantFab hidden={hidden} />
+    </HideVoiceFabContext.Provider>
+  );
+}
 
 const FAB_SIZE = 64;
 const FAB_MARGIN = 24;
@@ -19,7 +50,7 @@ function defaultFabPosition() {
   };
 }
 
-export default function VoiceAssistantFab() {
+export default function VoiceAssistantFab({ hidden = false }: { hidden?: boolean }) {
   const [voiceOpen, setVoiceOpen] = useState(false);
   const [portalRoot, setPortalRoot] = useState<HTMLElement | null>(null);
   const [position, setPosition] = useState<{ left: number; top: number } | null>(null);
@@ -132,6 +163,7 @@ export default function VoiceAssistantFab() {
 
   return createPortal(
     <>
+      {hidden ? null : (
       <button
         type="button"
         onMouseDown={handleMouseDown}
@@ -149,6 +181,7 @@ export default function VoiceAssistantFab() {
         <span className="absolute inset-0 rounded-full bg-brand-primary opacity-40 animate-ping pointer-events-none" />
         <Mic className="w-7 h-7 relative z-10 pointer-events-none" />
       </button>
+      )}
 
       <VoiceAssistantModal
         isOpen={voiceOpen}

@@ -18,7 +18,7 @@ export default function ChatCategoryChips({
   onCreate,
 }: ChatCategoryChipsProps) {
   return (
-    <div className="py-2.5 bg-white border-b border-neutral-100 overflow-x-auto no-scrollbar">
+    <div className="overflow-x-auto border-b border-[#E6DCF4] py-2.5 no-scrollbar">
       <div className="flex items-center gap-2 px-5">
         {/* "Todos" chip */}
         <button
@@ -27,7 +27,7 @@ export default function ChatCategoryChips({
           className={`flex items-center gap-1.5 px-3.5 py-2 rounded-2xl text-xs font-normal transition-colors shrink-0 ${
             !activeCategoryId
               ? 'bg-brand-primary text-white font-semibold'
-              : 'bg-neutral-100 text-neutral-800 hover:bg-neutral-200'
+              : 'border border-[#E7DFF3] bg-white text-neutral-800 hover:bg-[#FCFAFF]'
           }`}
         >
           <span>Todos</span>

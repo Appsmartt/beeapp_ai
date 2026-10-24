@@ -28,6 +28,7 @@ export interface StatusImageLayer {
   y: number;
   size: number;
   color: string;
+  src?: string | null;
 }
 
 export interface StatusStickerLayer {

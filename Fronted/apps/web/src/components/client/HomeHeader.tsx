@@ -23,7 +23,7 @@ export default function HomeHeader({ onOpenSideMenu }: HomeHeaderProps) {
   const [searchQuery, setSearchQuery] = useState('');
 
   return (
-    <header className="sticky top-0 z-30 bg-white border-b border-neutral-200/80 px-4 py-3">
+    <header className="sticky top-0 z-30 border-b border-[#E4D8F2] bg-[#EFE8F8] px-4 py-3">
       <div className="flex items-center gap-2.5">
 
         {/* Filter Button */}
@@ -34,7 +34,7 @@ export default function HomeHeader({ onOpenSideMenu }: HomeHeaderProps) {
             className={`w-10 h-10 rounded-xl flex items-center justify-center transition-colors ${
               selectedFilter !== 'Todos'
                 ? 'bg-brand-primary text-white shadow-sm'
-                : 'bg-neutral-100 text-neutral-600 hover:bg-neutral-200/70'
+                : 'border border-[#E4D8F2] bg-white text-neutral-600 hover:bg-[#F7F2FC]'
             }`}
             title="Filtrar por tipo"
           >
@@ -71,7 +71,7 @@ export default function HomeHeader({ onOpenSideMenu }: HomeHeaderProps) {
         </div>
 
         {/* Search Input */}
-        <div className="flex-1 flex items-center bg-neutral-100 border border-neutral-200/60 rounded-xl px-3 h-10 gap-2 focus-within:border-brand-primary focus-within:bg-white transition-all">
+        <div className="flex h-10 flex-1 items-center gap-2 rounded-xl border border-[#E4D8F2] bg-white px-3 transition-all focus-within:border-brand-primary">
           <Search className="w-4 h-4 text-neutral-400 shrink-0" />
           <input
             type="text"
@@ -82,11 +82,11 @@ export default function HomeHeader({ onOpenSideMenu }: HomeHeaderProps) {
           />
         </div>
 
-        {/* Hamburguesa a la derecha, como en la app móvil. En desktop vive en el sidebar */}
+        {/* Menú lateral: perfil, ajustes y el resto de accesos */}
         <button
           type="button"
           onClick={onOpenSideMenu}
-          className="w-10 h-10 rounded-xl bg-neutral-100 text-neutral-700 flex items-center justify-center hover:bg-neutral-200/70 transition-colors shrink-0 lg:hidden"
+          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-[#E4D8F2] bg-white text-neutral-700 transition-colors hover:bg-[#F7F2FC]"
           title="Menú principal"
         >
           <Menu className="w-5 h-5" />

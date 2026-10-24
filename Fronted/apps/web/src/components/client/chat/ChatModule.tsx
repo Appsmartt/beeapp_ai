@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { Plus, Users } from 'lucide-react';
 import {
   createChatCategory,
   createChatGroup,
@@ -43,10 +44,11 @@ import CreateContactModal from '../contacts/CreateContactModal';
 import NewChatModal from './modals/NewChatModal';
 import CreateGroupModal from './modals/CreateGroupModal';
 import PinLockModal from './modals/PinLockModal';
-import ChatEmptyState from './ChatEmptyState';
-import ChatOptionsBar from './ChatOptionsBar';
 import ChatPanelTabs from './ChatPanelTabs';
 import ChatListPanel from './ChatListPanel';
+import ChatInboxHeader from './ChatInboxHeader';
+import ChatInboxTabs, { type InboxTab } from './ChatInboxTabs';
+import StatusCirclesRow from './StatusCirclesRow';
 import ContactsPanel from './ContactsPanel';
 import StatusesPanel from './StatusesPanel';
 import DiscoverPanel from './DiscoverPanel';
@@ -58,9 +60,16 @@ import ContactDetail from '../contacts/ContactDetail';
 interface ChatModuleProps {
   section: ChatSection;
   onSectionChange: (section: ChatSection) => void;
+  onOpenOverview: () => void;
+  onConversationOpenChange?: (open: boolean) => void;
 }
 
-export default function ChatModule({ section, onSectionChange }: ChatModuleProps) {
+export default function ChatModule({
+  section,
+  onSectionChange,
+  onOpenOverview,
+  onConversationOpenChange,
+}: ChatModuleProps) {
   const { profile } = useAuth();
   const [chats, setChats] = useState<ChatItem[]>([]);
   const [communities, setCommunities] = useState<CommunityItem[]>([]);
@@ -88,6 +97,8 @@ export default function ChatModule({ section, onSectionChange }: ChatModuleProps
   const [creatingCommunity, setCreatingCommunity] = useState(false);
   const [creatingContact, setCreatingContact] = useState(false);
   const [aiSettingsOpen, setAiSettingsOpen] = useState(false);
+  const [inboxTab, setInboxTab] = useState<InboxTab>('chats');
+  const [showingAll, setShowingAll] = useState(false);
 
   const networkTab: ContactsTab = 'my_contacts';
 
@@ -220,8 +231,32 @@ export default function ChatModule({ section, onSectionChange }: ChatModuleProps
     }
 
     if (section === 'communities') {
+      if (communities.length === 0) {
+        return (
+          <div className="flex flex-1 flex-col items-center justify-center px-6 pb-28 text-center">
+            <div className="flex h-16 w-16 items-center justify-center rounded-3xl border border-[#E7DFF3] bg-white text-brand-primary shadow-sm">
+              <Users className="h-7 w-7" />
+            </div>
+            <h2 className="mt-5 text-base font-semibold text-neutral-900">
+              Aún no tienes comunidades
+            </h2>
+            <p className="mt-2 max-w-sm text-sm leading-relaxed text-[#6B5B8A]">
+              Crea un espacio para publicar avisos y reunir a las personas de un mismo tema.
+            </p>
+            <button
+              type="button"
+              onClick={() => setCreatingCommunity(true)}
+              className="mt-6 inline-flex h-11 items-center gap-2 rounded-xl bg-brand-primary px-5 text-sm font-semibold text-white transition-colors hover:bg-brand-primary/90"
+            >
+              <Plus className="h-4 w-4" />
+              Crear comunidad
+            </button>
+          </div>
+        );
+      }
+
       return (
-        <div className="divide-y divide-neutral-100 flex-1 overflow-y-auto">
+        <div className="flex-1 overflow-y-auto pt-3">
           {communities.map((community) => (
             <CommunityRow key={community.id} community={community} isSelected={selectedCommunity?.id === community.id} onClick={() => { setSelectedCommunity(community); setSelectedChat(null); }} />
           ))}
@@ -229,19 +264,30 @@ export default function ChatModule({ section, onSectionChange }: ChatModuleProps
       );
     }
 
-    const panelChats = section === 'archived'
-      ? chats.filter((c) => c.isArchived)
-      : chats.filter((c) => !c.isArchived);
+    const visibleChats = section === 'archived'
+      ? chats.filter((chat) => chat.isArchived && !chat.isAI)
+      : chats.filter((chat) => {
+        if (chat.isArchived) return false;
+        if (showingAll) return true;
+        if (inboxTab === 'groups') return chat.isGroup && !chat.isAI;
+        return !chat.isGroup || Boolean(chat.isAI);
+      });
+    const archivedCount = chats.filter((chat) => chat.isArchived && !chat.isAI).length;
 
     return (
       <ChatListPanel
-        chats={panelChats}
+        chats={visibleChats}
         categories={categories}
-        activeCategoryId={activeCategoryId}
+        activeCategoryId={showingAll ? null : activeCategoryId}
         selectedChatId={selectedChat?.id}
-        onSelectCategory={setActiveCategoryId}
+        onSelectCategory={(id) => {
+          setShowingAll(false);
+          setActiveCategoryId(id);
+        }}
         onCreateCategory={() => setCreatingCategory(true)}
         onSelectChat={handleChatPress}
+        archivedCount={section === 'chats' ? archivedCount : 0}
+        onOpenArchived={section === 'chats' ? () => onSectionChange('archived') : undefined}
         onPinChat={(id) => {
           setChats((prev) => {
             const target = prev.find((c) => c.id === id);
@@ -324,17 +370,91 @@ export default function ChatModule({ section, onSectionChange }: ChatModuleProps
   };
 
   const detail = renderDetail();
+  const paneOpen = detail != null;
+  const conversationOpen = selectedChat != null;
+
+  useEffect(() => {
+    onConversationOpenChange?.(conversationOpen);
+  }, [conversationOpen, onConversationOpenChange]);
+
+  const inboxTitle = section === 'archived' ? 'Chats archivados' : 'Chats';
+  const showInboxChrome = section === 'chats' || section === 'archived';
+  const authorInitials = contactInitials(
+    [profile?.firstName, profile?.lastName].filter(Boolean).join(' ') || 'Tú',
+  );
 
   return (
-    <div className="bg-white flex flex-1 min-h-0 flex-row relative">
-      <ChatOptionsBar section={section} onSelectSection={onSectionChange} />
-      <div className="w-[440px] shrink-0 border-r border-neutral-200 flex flex-col">
-        <ChatPanelTabs section={section} onSectionChange={onSectionChange} onNewChat={() => setNewChatModalOpen(true)} onNewGroup={() => setCreateGroupModalOpen(true)} onNewCommunity={() => setCreatingCommunity(true)} onNewContact={() => setCreatingContact(true)} />
+    <div className="relative flex min-h-0 flex-1 flex-row bg-[#F3EEF8]">
+      <div className={`${paneOpen ? 'w-[440px] shrink-0 border-r border-[#E4D8F2] bg-[#F3EEF8]' : 'min-w-0 flex-1'} flex flex-col min-h-0`}>
+        {showInboxChrome ? (
+          <>
+            <ChatInboxHeader
+              title={inboxTitle}
+              onOpenOverview={onOpenOverview}
+              onBack={section === 'archived' ? () => onSectionChange('chats') : undefined}
+              onNewChat={() => setNewChatModalOpen(true)}
+              onNewGroup={() => setCreateGroupModalOpen(true)}
+              onNewCommunity={() => setCreatingCommunity(true)}
+              onOpenSection={onSectionChange}
+            />
+            {section === 'chats' ? (
+              <>
+                <StatusCirclesRow
+                  statuses={statuses}
+                  authorInitials={authorInitials}
+                  onCreateStatus={() => setCreatingStatus(true)}
+                  onOpenStatus={(index) => {
+                    const status = statuses[index];
+                    if (status) {
+                      void markStatusSeen(status.id).catch(() => undefined);
+                      setStatuses((prev) => prev.map((item) => (
+                        item.id === status.id ? { ...item, viewed: true } : item
+                      )));
+                    }
+                    setViewerIndex(index);
+                  }}
+                />
+                <ChatInboxTabs
+                  activeTab={inboxTab}
+                  onChange={(tab) => {
+                    setShowingAll(false);
+                    setInboxTab(tab);
+                  }}
+                />
+                <div className="flex justify-end px-4 py-1.5">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowingAll(true);
+                      setActiveCategoryId(null);
+                      setInboxTab('chats');
+                    }}
+                    className="text-xs font-medium text-brand-primary hover:underline"
+                  >
+                    Ver todo
+                  </button>
+                </div>
+              </>
+            ) : null}
+          </>
+        ) : (
+          <ChatPanelTabs
+            section={section}
+            onSectionChange={onSectionChange}
+            onBack={() => onSectionChange('chats')}
+            onNewChat={() => setNewChatModalOpen(true)}
+            onNewGroup={() => setCreateGroupModalOpen(true)}
+            onNewCommunity={() => setCreatingCommunity(true)}
+            onNewContact={() => setCreatingContact(true)}
+          />
+        )}
         {renderLeftPanel()}
       </div>
-      <div className="flex-1 min-w-0 min-h-0 flex flex-col">
-        {detail ?? <ChatEmptyState inContacts={inContacts} />}
-      </div>
+      {paneOpen ? (
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col bg-white">
+          {detail}
+        </div>
+      ) : null}
 
       <NewChatModal isOpen={newChatModalOpen} onClose={() => setNewChatModalOpen(false)} onSelectContact={(contact) => startDirectChat(contact.name)} />
       <CreateGroupModal isOpen={createGroupModalOpen} onClose={() => setCreateGroupModalOpen(false)} onCreateGroup={(name) => {

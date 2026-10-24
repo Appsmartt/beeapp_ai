@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Search, X, CheckCircle2 } from 'lucide-react';
 import { ContactItem } from '@/lib/client/contacts';
 import { loadContacts } from '@/lib/client/liveData';
@@ -31,10 +32,10 @@ export default function NewChatModal({
 
   if (!isOpen) return null;
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+  return createPortal(
+    <div className="fixed inset-0 z-[90] flex items-start justify-center px-4 pb-28 pt-[8vh]">
       <div className="fixed inset-0 bg-black/60 backdrop-blur-xl" onClick={onClose} />
-      <div className="relative w-full max-w-md bg-white rounded-3xl shadow-xl z-50 p-6 space-y-4 max-h-[85vh] flex flex-col">
+      <div className="relative flex max-h-[calc(100vh-8vh-8rem)] w-full max-w-md flex-col space-y-4 rounded-3xl bg-white p-6 shadow-xl">
         <div className="flex items-center justify-between border-b border-neutral-100 pb-3">
           <h2 className="font-semibold text-base text-neutral-900">Nuevo chat</h2>
           <button type="button" onClick={onClose} className="p-1 text-neutral-400 hover:text-neutral-900">
@@ -98,6 +99,7 @@ export default function NewChatModal({
           )}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

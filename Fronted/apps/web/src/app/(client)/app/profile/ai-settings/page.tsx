@@ -5,5 +5,9 @@ import { useRouter } from 'next/navigation';
 
 export default function AiSettingsPage() {
   const router = useRouter();
-  return <AiSettingsScreen onBack={() => router.push('/app')} />;
+  return (
+    <div className="h-full overflow-y-auto">
+      <AiSettingsScreen onBack={() => router.push('/app')} />
+    </div>
+  );
 }
