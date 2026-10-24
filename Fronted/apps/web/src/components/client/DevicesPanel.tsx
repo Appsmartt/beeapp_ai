@@ -106,7 +106,9 @@ export function DevicesPanel() {
   const handleCreateQr = async () => {
     setQrLoading(true);
     try {
-      const challenge = await createQrLoginChallenge();
+      const challenge = await createQrLoginChallenge({
+        browser_nonce: crypto.randomUUID(),
+      });
       setQrToken(challenge.challenge_token);
     } catch (qrError) {
       setError(qrError instanceof Error ? qrError.message : 'No fue posible generar el código QR.');
