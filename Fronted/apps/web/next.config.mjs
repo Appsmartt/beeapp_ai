@@ -9,9 +9,15 @@ dotenv.config({
     path: path.resolve(currentDirectory, '../../.env'),
 });
 
+// En local, el build de producción usa otra carpeta para no pisar `next dev`.
+// Vercel siempre busca `.next` junto al proyecto.
+const distDir = process.env.VERCEL === '1' || process.env.NODE_ENV === 'development'
+    ? '.next'
+    : '.next-build';
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-    distDir: process.env.NODE_ENV === 'development' ? '.next' : '.next-build',
+    distDir,
     transpilePackages: [
         '@beeapp/api-client',
         '@beeapp/design-system',
