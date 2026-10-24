@@ -164,7 +164,7 @@ export default function NewGroupScreen() {
 
             <TextInput
               style={styles.textInput}
-              placeholder="Ej. Equipo BeeApp"
+              placeholder="Ej. Equipo Buddy AI"
               placeholderTextColor={colors.neutral.gray500}
               value={name}
               onChangeText={setName}

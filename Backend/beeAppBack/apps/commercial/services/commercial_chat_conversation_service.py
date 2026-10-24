@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any, TypedDict
 
-from apps.chat.services.chat_conversation_service import create_or_get_direct_conversation
+from apps.chat.services.chat_conversation import create_or_get_direct_conversation
 from apps.chat.services.chat_identity_service import sync_chat_identities_for_user
 from apps.commercial.exceptions import CommercialAccessError, CommercialNotFoundError
 from apps.commercial.services.commercial_supabase_service import get_commercial_user_supabase_client

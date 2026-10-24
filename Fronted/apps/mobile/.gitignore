@@ -1,3 +1,6 @@
+.env
+.env*.local
+
 google-services.json
 
 # Firebase / FCM client configuration: never commit generated copies.

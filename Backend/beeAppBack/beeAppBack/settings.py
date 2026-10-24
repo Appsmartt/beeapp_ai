@@ -28,13 +28,38 @@ def get_required_env(name: str) -> str:
 
 SECRET_KEY = get_required_env("SECRET_KEY")
 
-DEBUG = os.getenv("DEBUG", "True").lower() == "true"
+DEBUG = os.getenv("DEBUG", "False").lower() == "true"
+
+# Railway terminates TLS at its proxy. Trust this header only because the
+# application is deployed behind that managed proxy.
+SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+
+# Local development remains available only when DEBUG is explicitly true.
+SECURE_SSL_REDIRECT = not DEBUG
+
+# HSTS must only be emitted over the production HTTPS deployment.
+SECURE_HSTS_SECONDS = 31_536_000 if not DEBUG else 0
+SECURE_HSTS_INCLUDE_SUBDOMAINS = not DEBUG
+SECURE_HSTS_PRELOAD = not DEBUG
+
+# Protect Django-managed session and CSRF cookies in production.
+SESSION_COOKIE_SECURE = not DEBUG
+SESSION_COOKIE_HTTPONLY = True
+SESSION_COOKIE_SAMESITE = "Lax"
+CSRF_COOKIE_SECURE = not DEBUG
+CSRF_COOKIE_SAMESITE = "Lax"
+
+# Baseline browser security headers.
+SECURE_CONTENT_TYPE_NOSNIFF = True
+SECURE_REFERRER_POLICY = "same-origin"
+X_FRAME_OPTIONS = "DENY"
 
 ALLOWED_HOSTS = [
     "beeappai-production.up.railway.app",
     "localhost",
     "127.0.0.1",
     "192.168.1.5",
+    "journalism-replacing-flashers-named.trycloudflare.com",
 ]
 
 INSTALLED_APPS = [
@@ -171,6 +196,7 @@ CSRF_TRUSTED_ORIGINS = [
     "http://localhost:3001",
     "http://127.0.0.1:3001",
     "http://192.168.1.5:3001",
+    "https://journalism-replacing-flashers-named.trycloudflare.com",
 ]
 
 GOOGLE_OAUTH_CLIENT_ID = get_required_env(
@@ -276,6 +302,12 @@ REST_FRAMEWORK = {
         "commercial_booking": "20/min",
         "commercial_evidence": "10/min",
         "commercial_dispute": "15/min",
+        "register_user": "5/hour",
+        "login_user": "10/min",
+        "session_refresh": "60/min",
+        "qr_login_challenge": "10/min",
+        "qr_login_challenge_status": "60/min",
+        "qr_login_scan": "20/min",
     },
 }
 AGORA_APP_ID = get_required_env("AGORA_APP_ID")

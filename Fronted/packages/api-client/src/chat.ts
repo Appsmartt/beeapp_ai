@@ -6,6 +6,7 @@ import type {
   ChatGroupInvite,
   ChatGroupInviteStatus,
   ChatGroupPostingPolicy,
+  ChatAttachment,
   ChatMessage,
   ChatParticipant,
   ChatParticipantRole,
@@ -119,7 +120,7 @@ export interface ChatApiInboxConversation {
 
 export interface ChatApiConversation {
   id: string;
-  conversation_type: 'direct' | 'group';
+  conversation_type: 'direct' | 'group' | 'ai';
   direct_key: string | null;
   created_by_identity_id: string | null;
   posting_identity_id: string | null;
@@ -410,7 +411,7 @@ function splitIdentityDisplayName(
 
   if (parts.length === 0) {
     return {
-      firstName: 'Usuario BeeApp',
+      firstName: 'Usuario Buddy AI',
       lastName: '',
     };
   }
@@ -523,6 +524,103 @@ function toSharedPermissions(
   };
 }
 
+function defaultChatAttachmentName(
+  messageType: string | null | undefined,
+): string {
+  if (messageType === 'image') {
+    return 'Imagen';
+  }
+
+  if (messageType === 'audio') {
+    return 'Audio';
+  }
+
+  if (
+    messageType === 'video'
+    || messageType === 'document'
+  ) {
+    return 'Archivo adjunto';
+  }
+
+  return 'Archivo adjunto';
+}
+
+function mapApiAttachmentToShared(
+  attachment: ChatApiAttachment,
+  attachmentFileId: string | null,
+): ChatAttachment {
+  const resolvedFileId = (
+    attachmentFileId?.trim()
+    || attachment.id
+  );
+
+  return {
+    id: attachment.id || resolvedFileId,
+    file_id: resolvedFileId,
+    name: (
+      attachment.display_name
+      || attachment.original_name
+      || defaultChatAttachmentName(null)
+    ),
+    mime_type: attachment.mime_type || null,
+    size_bytes: attachment.size_bytes || null,
+    url: attachment.url || null,
+    thumbnail_url: attachment.thumbnail_url || null,
+    duration_seconds: attachment.duration_seconds || null,
+  };
+}
+
+export function resolveSharedChatMessageAttachments(
+  options: {
+    attachments?: ChatApiAttachment[] | null;
+    attachment?: ChatApiAttachment | null;
+    attachment_file_id?: string | null;
+    message_type?: string | null;
+  },
+): NonNullable<ChatMessage['attachments']> {
+  const attachmentFileId = String(
+    options.attachment_file_id || '',
+  ).trim() || null;
+
+  const rawAttachments = (
+    options.attachments?.length
+      ? options.attachments
+      : options.attachment
+        ? [options.attachment]
+        : []
+  );
+
+  if (rawAttachments.length > 0) {
+    return rawAttachments.map((attachment) => (
+      mapApiAttachmentToShared(
+        attachment,
+        attachmentFileId,
+      )
+    ));
+  }
+
+  if (!attachmentFileId) {
+    return [];
+  }
+
+  const partialAttachment = options.attachment;
+
+  return [{
+    id: attachmentFileId,
+    file_id: attachmentFileId,
+    name: (
+      partialAttachment?.display_name
+      || partialAttachment?.original_name
+      || defaultChatAttachmentName(options.message_type)
+    ),
+    mime_type: partialAttachment?.mime_type || null,
+    size_bytes: partialAttachment?.size_bytes || null,
+    url: partialAttachment?.url || null,
+    thumbnail_url: partialAttachment?.thumbnail_url || null,
+    duration_seconds: partialAttachment?.duration_seconds || null,
+  }];
+}
+
 function toUiMessageType(
   value: string | null | undefined,
 ): ChatMessage['message_type'] {
@@ -556,13 +654,12 @@ function toUiMessageType(
 function toSharedMessage(
   message: ChatApiMessage,
 ): ChatMessage {
-  const attachments = (
-    message.attachments?.length
-      ? message.attachments
-      : message.attachment
-        ? [message.attachment]
-        : []
-  );
+  const attachments = resolveSharedChatMessageAttachments({
+    attachments: message.attachments,
+    attachment: message.attachment,
+    attachment_file_id: message.attachment_file_id,
+    message_type: message.message_type,
+  });
 
   const {
     firstName,
@@ -644,20 +741,7 @@ function toSharedMessage(
           ),
         }
       : null,
-    attachments: attachments.map((attachment) => ({
-      id: attachment.id,
-      file_id: attachment.id,
-      name: (
-        attachment.display_name
-        || attachment.original_name
-        || 'Archivo adjunto'
-      ),
-      mime_type: attachment.mime_type || null,
-      size_bytes: attachment.size_bytes || null,
-      url: attachment.url || null,
-      thumbnail_url: attachment.thumbnail_url || null,
-      duration_seconds: attachment.duration_seconds || null,
-    })),
+    attachments,
     sender: message.sender_identity
       ? {
           id: (
@@ -725,13 +809,18 @@ function toSharedConversation(
       conversation.permissions,
     ),
     unread_count: ownParticipant?.unread_count || 0,
-    is_pinned: Boolean(ownParticipant?.is_pinned),
+    is_pinned: Boolean(
+      ownParticipant?.is_pinned
+      ?? (conversation as ChatApiConversation & { is_pinned?: boolean }).is_pinned,
+    ),
     is_muted: ownParticipant
       ? !ownParticipant.notifications_enabled
-      : false,
+      : Boolean(
+        (conversation as ChatApiConversation & { is_muted?: boolean }).is_muted,
+      ),
     is_archived: false,
     is_protected: false,
-    is_ai: false,
+    is_ai: conversation.conversation_type === 'ai',
     direct_profile: null,
   };
 }
@@ -1743,6 +1832,66 @@ export async function getChatGroupInvites(
     count: response.count,
     limit: response.limit,
     offset: response.offset,
+  };
+}
+
+export async function getChatGroupInvitesForConversation(
+  auth: AuthCredentials,
+  conversationId: string,
+  options: {
+    status?: ChatGroupInviteStatus;
+    limit?: number;
+    offset?: number;
+  } = {},
+): Promise<{
+  invites: ChatGroupInvite[];
+  count: number;
+  limit: number;
+  offset: number;
+}> {
+  const response = await api.get<ChatGroupInvitesResponse>(
+    `${groupPath(conversationId)}invites/${buildQuery({
+      status: options.status || 'pending',
+      limit: options.limit ?? 50,
+      offset: options.offset ?? 0,
+    })}`,
+    {
+      auth: requireBearerAuth(auth),
+    },
+  );
+
+  return {
+    invites: response.invites.map(toSharedGroupInvite),
+    count: response.count,
+    limit: response.limit,
+    offset: response.offset,
+  };
+}
+
+export async function cancelChatGroupInvite(
+  auth: AuthCredentials,
+  conversationId: string,
+  inviteId: string,
+  payload: {
+    actor_identity_id: string;
+  },
+): Promise<{
+  invite: ChatGroupInvite;
+}> {
+  const response = await api.delete<{
+    invite: ChatApiGroupInvite;
+  }>(
+    `${groupPath(conversationId)}invites/${encodeURIComponent(
+      inviteId,
+    )}/`,
+    {
+      auth: requireBearerAuth(auth),
+      body: payload,
+    },
+  );
+
+  return {
+    invite: toSharedGroupInvite(response.invite),
   };
 }
 

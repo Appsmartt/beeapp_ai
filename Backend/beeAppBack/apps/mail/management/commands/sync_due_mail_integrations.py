@@ -3,7 +3,7 @@ from __future__ import annotations
 from django.core.management.base import BaseCommand, CommandError
 
 from apps.mail.exceptions import MailSyncError
-from apps.mail.services.mail_sync_service import (
+from apps.mail.services.mail_sync import (
     sync_due_mail_integrations,
 )
 

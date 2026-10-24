@@ -41,8 +41,8 @@ export default function MainQuickActions() {
           style={[styles.actionButton, styles.shopButton]}
           activeOpacity={0.76}
           onPress={() => router.push("/(main)/beeservices/my-businesses")}
-          accessibilityLabel="Abrir BuddyService comercial"
-          accessibilityHint="Abre la pestaña comercial de BuddyService"
+          accessibilityLabel="Abrir Buddy Services comercial"
+          accessibilityHint="Abre la pestaña comercial de Buddy Services"
         >
           <ShoppingBag size={20} color="#C58B72" strokeWidth={2.1} />
         </TouchableOpacity>
@@ -51,8 +51,8 @@ export default function MainQuickActions() {
           style={[styles.actionButton, styles.businessButton]}
           activeOpacity={0.76}
           onPress={() => router.push("/(main)/beeservices-private")}
-          accessibilityLabel="Abrir BuddyService privado"
-          accessibilityHint="Abre la pestaña privada de BuddyService"
+          accessibilityLabel="Abrir Buddy Services privado"
+          accessibilityHint="Abre la pestaña privada de Buddy Services"
         >
           <Store size={20} color="#5D9D8C" strokeWidth={2.1} />
         </TouchableOpacity>
@@ -113,11 +113,6 @@ const styles = StyleSheet.create({
     },
     shadowOpacity: 0.34,
     shadowRadius: 6,
-    transform: [
-      {
-        translateY: -5,
-      },
-    ],
   },
   shopButton: {
     backgroundColor: "#FBEDE7",

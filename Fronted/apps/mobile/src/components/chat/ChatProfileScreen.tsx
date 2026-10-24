@@ -1,4 +1,5 @@
 import * as ImagePicker from 'expo-image-picker';
+import { withExternalActivity } from '../../services/locationPermissionAppLockGuard';
 
 import {
   useEffect,
@@ -28,9 +29,14 @@ import {
 } from '@beeapp/design-system';
 
 import {
+  cancelChatGroupInvite,
+  getChatGroupInvitesForConversation,
   getStorageFileAccess,
   updateChatConversationNotifications,
 } from '@beeapp/api-client';
+import type {
+  ChatGroupInvite,
+} from '@beeapp/shared-types';
 
 import ScreenSafeArea from '../layout/ScreenSafeArea';
 import {
@@ -57,6 +63,9 @@ import {
 import {
   uploadGroupPhoto,
 } from '../../services/groupPhotoService';
+import {
+  filterConfirmedGroupMembers,
+} from '../../features/chat/groupMembership';
 
 export default function ChatProfileScreen() {
   const router = useModuleNav();
@@ -113,6 +122,9 @@ export default function ChatProfileScreen() {
   const [updatingGroupPhoto, setUpdatingGroupPhoto] = useState(false);
   const [groupPhotoUrl, setGroupPhotoUrl] = useState<string | null>(null);
   const [updatingPostingPolicy, setUpdatingPostingPolicy] = useState(false);
+  const [pendingInvites, setPendingInvites] = useState<
+    ChatGroupInvite[]
+  >([]);
 
   const isGroup = (
     conversation?.conversation_type === 'group'
@@ -121,16 +133,13 @@ export default function ChatProfileScreen() {
   const permissions = conversation?.permissions || null;
 
   const activeParticipants = useMemo(
-    () => participants.filter((participant) => (
-      !participant.left_at
-      && !participant.removed_at
-    )),
+    () => filterConfirmedGroupMembers(participants),
     [participants],
   );
 
   const groupName = (
     conversation?.name?.trim()
-    || 'Grupo BeeApp'
+    || 'Grupo Buddy AI'
   );
 
   const groupDescription = (
@@ -196,11 +205,41 @@ export default function ChatProfileScreen() {
     conversation?.image_file_id,
   ]);
 
+  const loadPendingInvites = async (
+    canInviteMembers: boolean,
+  ) => {
+    if (!chatId || !canInviteMembers) {
+      setPendingInvites([]);
+      return;
+    }
+
+    try {
+      const auth = await getValidSessionCredentials();
+
+      if (!auth || auth.scheme !== 'Bearer') {
+        setPendingInvites([]);
+        return;
+      }
+
+      const response = await getChatGroupInvitesForConversation(
+        auth,
+        chatId,
+        { status: 'pending' },
+      );
+      setPendingInvites(response.invites);
+    } catch {
+      setPendingInvites([]);
+    }
+  };
+
   const reloadGroupData = async () => {
-    await Promise.all([
-      loadConversation(),
-      loadParticipants(),
-    ]);
+    const refreshedConversation = await loadConversation();
+    await loadParticipants();
+    await loadPendingInvites(
+      Boolean(
+        refreshedConversation?.permissions?.can_invite_members,
+      ),
+    );
   };
 
   const handleAddMembers = async (
@@ -212,6 +251,69 @@ export default function ChatProfileScreen() {
 
     await addParticipants(identityIds);
     await reloadGroupData();
+  };
+
+  const handleCancelInvite = (invite: ChatGroupInvite) => {
+    const displayName = (
+      invite.invited_identity?.display_name?.trim()
+      || 'este usuario'
+    );
+
+    Alert.alert(
+      'Cancelar invitación',
+      `¿Cancelar la invitación enviada a ${displayName}?`,
+      [
+        {
+          text: 'Volver',
+          style: 'cancel',
+        },
+        {
+          text: 'Cancelar invitación',
+          style: 'destructive',
+          onPress: () => {
+            void (async () => {
+              try {
+                const auth = await getValidSessionCredentials();
+
+                if (!auth || auth.scheme !== 'Bearer') {
+                  throw new Error(
+                    'Tu sesión expiró. Inicia sesión nuevamente.',
+                  );
+                }
+
+                const actorIdentityId = (
+                  activeIdentityId?.trim()
+                  || requestedIdentityId
+                );
+
+                if (!actorIdentityId) {
+                  throw new Error(
+                    'No fue posible identificar tu identidad.',
+                  );
+                }
+
+                await cancelChatGroupInvite(
+                  auth,
+                  chatId,
+                  invite.id,
+                  {
+                    actor_identity_id: actorIdentityId,
+                  },
+                );
+                await reloadGroupData();
+              } catch (cancelError) {
+                Alert.alert(
+                  'No fue posible cancelar la invitación',
+                  cancelError instanceof Error
+                    ? cancelError.message
+                    : 'Inténtalo nuevamente.',
+                );
+              }
+            })();
+          },
+        },
+      ],
+    );
   };
 
   const handleRemoveMember = (
@@ -286,8 +388,9 @@ export default function ChatProfileScreen() {
     try {
       setUpdatingGroupPhoto(true);
 
-      const permission = await ImagePicker
-        .requestMediaLibraryPermissionsAsync();
+      const permission = await withExternalActivity(() => (
+        ImagePicker.requestMediaLibraryPermissionsAsync()
+      ));
 
       if (!permission.granted) {
         Alert.alert(
@@ -297,12 +400,14 @@ export default function ChatProfileScreen() {
         return;
       }
 
-      const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        allowsEditing: true,
-        aspect: [1, 1],
-        quality: 0.9,
-      });
+      const result = await withExternalActivity(() => (
+        ImagePicker.launchImageLibraryAsync({
+          mediaTypes: ImagePicker.MediaTypeOptions.Images,
+          allowsEditing: true,
+          aspect: [1, 1],
+          quality: 0.9,
+        })
+      ));
 
       if (result.canceled || !result.assets[0]) {
         return;
@@ -750,6 +855,7 @@ export default function ChatProfileScreen() {
 
           <MemberListSection
             members={activeParticipants}
+            pendingInvites={pendingInvites}
             currentIdentityId={activeIdentityId}
             canInvite={Boolean(
               permissions?.can_invite_members,
@@ -761,6 +867,11 @@ export default function ChatProfileScreen() {
               setAddMemberModal(true);
             }}
             onRemove={handleRemoveMember}
+            onCancelInvite={
+              permissions?.can_invite_members
+                ? handleCancelInvite
+                : undefined
+            }
           />
 
           <View style={styles.divider} />
@@ -789,9 +900,14 @@ export default function ChatProfileScreen() {
 
         <AddMemberModal
           visible={addMemberModal}
-          memberIdentityIds={activeParticipants.map(
-            (participant) => participant.identity_id,
-          )}
+          memberIdentityIds={[
+            ...activeParticipants.map(
+              (participant) => participant.identity_id,
+            ),
+            ...pendingInvites.map(
+              (invite) => invite.invited_identity_id,
+            ),
+          ]}
           onAdd={handleAddMembers}
           onClose={() => {
             setAddMemberModal(false);

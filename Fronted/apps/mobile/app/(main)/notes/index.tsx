@@ -1252,28 +1252,49 @@ export default function NotesListScreen() {
     <ScreenSafeArea style={styles.safeArea}>
       <View style={styles.container}>
         <View style={styles.header}>
-          <View style={styles.headerLeftCol}>
-            {(selectedItem || router.canGoBack) && (
-              <TouchableOpacity
-                onPress={goBack}
-                style={styles.backBtn}
-                activeOpacity={0.7}
-              >
-                <ChevronLeft
-                  size={24}
-                  color={colors.neutral.text}
-                />
-              </TouchableOpacity>
-            )}
+          <View style={styles.topRow}>
+            <View style={styles.headerLeftCol}>
+              {(selectedItem || router.canGoBack) && (
+                <TouchableOpacity
+                  onPress={goBack}
+                  style={styles.backBtn}
+                  activeOpacity={0.7}
+                >
+                  <ChevronLeft
+                    size={24}
+                    color={colors.neutral.text}
+                  />
+                </TouchableOpacity>
+              )}
 
-            <Text style={styles.headerTitle}>
-              {screenTitle}
-            </Text>
+              <Text
+                style={styles.headerTitle}
+                numberOfLines={1}
+              >
+                {screenTitle}
+              </Text>
+            </View>
+
+            <View style={styles.headerRightCol}>
+              <ModuleNotificationBell moduleId="notes" />
+
+              {router.embedded && (
+                <TouchableOpacity
+                  onPress={startNewNote}
+                  style={styles.headerActionBtn}
+                  activeOpacity={0.8}
+                  accessibilityLabel="Nueva nota"
+                >
+                  <Plus
+                    size={18}
+                    color={colors.neutral.white}
+                  />
+                </TouchableOpacity>
+              )}
+            </View>
           </View>
 
-          <View style={styles.headerRightCol}>
-            <ModuleNotificationBell moduleId="notes" />
-
+          <View style={styles.bottomRow}>
             {selectedItem ? (
               <ViewModeToggle
                 mode={viewMode}
@@ -1289,19 +1310,6 @@ export default function NotesListScreen() {
                 <RefreshCw
                   size={19}
                   color={colors.neutral.text}
-                />
-              </TouchableOpacity>
-            )}
-
-            {router.embedded && (
-              <TouchableOpacity
-                onPress={startNewNote}
-                style={styles.headerActionBtn}
-                activeOpacity={0.8}
-              >
-                <Plus
-                  size={18}
-                  color={colors.neutral.white}
                 />
               </TouchableOpacity>
             )}

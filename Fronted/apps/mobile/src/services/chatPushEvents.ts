@@ -1,6 +1,11 @@
+import {
+  resolveSharedChatMessageAttachments,
+  type ChatApiAttachment,
+} from '@beeapp/api-client';
 import type {
   ChatConversationRealtimePatch,
   ChatMessage,
+  ChatMessageType,
   ChatPushNotificationData,
   ChatRealtimeEvent,
   ChatRealtimeEventType,
@@ -52,6 +57,75 @@ function asPositiveNumber(
     : undefined;
 }
 
+function toPushMessageType(
+  value: unknown,
+): ChatMessageType {
+  if (
+    value === 'image'
+    || value === 'audio'
+    || value === 'location'
+    || value === 'system'
+    || value === 'file'
+  ) {
+    return value;
+  }
+
+  if (
+    value === 'video'
+    || value === 'document'
+  ) {
+    return 'file';
+  }
+
+  return 'text';
+}
+
+function mapPushAttachment(
+  value: unknown,
+): ChatApiAttachment | null {
+  const record = asRecord(value);
+
+  if (!record) {
+    return null;
+  }
+
+  const id = (
+    asNonEmptyString(record.id)
+    || asNonEmptyString(record.file_id)
+  );
+
+  if (!id) {
+    return null;
+  }
+
+  const name = (
+    asNonEmptyString(record.display_name)
+    || asNonEmptyString(record.original_name)
+    || asNonEmptyString(record.name)
+  );
+
+  return {
+    id,
+    display_name: name,
+    original_name: name,
+    mime_type: asNonEmptyString(record.mime_type),
+    size_bytes: (
+      typeof record.size_bytes === 'number'
+      && Number.isFinite(record.size_bytes)
+        ? record.size_bytes
+        : null
+    ),
+    url: asNonEmptyString(record.url),
+    thumbnail_url: asNonEmptyString(record.thumbnail_url),
+    duration_seconds: (
+      typeof record.duration_seconds === 'number'
+      && Number.isFinite(record.duration_seconds)
+        ? record.duration_seconds
+        : null
+    ),
+  };
+}
+
 function toChatMessage(
   value: unknown,
   conversationId: string,
@@ -69,9 +143,20 @@ function toChatMessage(
     return null;
   }
 
-  const rawAttachments = Array.isArray(source.attachments)
+  const rawAttachmentList = Array.isArray(source.attachments)
     ? source.attachments
+      .map(mapPushAttachment)
+      .filter((item): item is ChatApiAttachment => Boolean(item))
     : [];
+
+  const singleAttachment = mapPushAttachment(source.attachment);
+  const messageType = toPushMessageType(source.message_type);
+  const attachments = resolveSharedChatMessageAttachments({
+    attachments: rawAttachmentList,
+    attachment: singleAttachment,
+    attachment_file_id: asNonEmptyString(source.attachment_file_id),
+    message_type: asNonEmptyString(source.message_type),
+  });
 
   return {
     id,
@@ -79,20 +164,22 @@ function toChatMessage(
       asNonEmptyString(source.conversation_id)
       || conversationId
     ),
-    sender_id: asNonEmptyString(source.sender_id),
+    sender_id: (
+      asNonEmptyString(source.sender_id)
+      || asNonEmptyString(source.sender_user_id)
+    ),
+    sender_identity_id: asNonEmptyString(
+      source.sender_identity_id,
+    ),
     sequence_number: asPositiveNumber(
       source.sequence_number,
     ),
-    message_type: (
-      source.message_type === 'image'
-      || source.message_type === 'file'
-      || source.message_type === 'audio'
-      || source.message_type === 'location'
-      || source.message_type === 'system'
-        ? source.message_type
-        : 'text'
+    message_type: messageType,
+    content: String(
+      source.content
+      || source.body
+      || '',
     ),
-    content: String(source.content || ''),
     metadata: asRecord(source.metadata) || {},
     status: (
       source.status === 'delivered'
@@ -111,7 +198,7 @@ function toChatMessage(
     reply_to: source.reply_to
       ? source.reply_to as ChatMessage['reply_to']
       : null,
-    attachments: rawAttachments as ChatMessage['attachments'],
+    attachments,
     sender: source.sender
       ? source.sender as ChatMessage['sender']
       : null,

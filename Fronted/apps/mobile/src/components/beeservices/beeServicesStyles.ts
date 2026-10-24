@@ -138,14 +138,15 @@ export const styles = StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'center',
     },
-    searchInputText: {
+    searchInputField: {
         flex: 1,
+        maxHeight: 72,
         marginLeft: 5,
         marginRight: 8,
-        fontSize: 12,
-        lineHeight: 17,
-        fontWeight: '400',
-        color: '#697792',
+        paddingVertical: 8,
+        fontSize: 14,
+        lineHeight: 18,
+        color: BEE_TEXT,
     },
     voiceButton: {
         width: 34,
@@ -154,6 +155,16 @@ export const styles = StyleSheet.create({
         backgroundColor: BEE_PURPLE,
         alignItems: 'center',
         justifyContent: 'center',
+    },
+    voiceButtonListening: {
+        backgroundColor: '#C4324A',
+    },
+    aiSearchStatus: {
+        marginTop: 10,
+        fontSize: 12,
+        lineHeight: 16,
+        fontWeight: '600',
+        color: 'rgba(255,255,255,0.94)',
     },
 
     businessCard: {

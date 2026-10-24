@@ -314,7 +314,7 @@ class ProtectedChatNotificationListTests(TestCase):
         self.assertNotIn("Privado", result[0]["body"])
 
     @patch(
-        "apps.notifications.services.notification_service._supabase"
+        "apps.notifications.services.notification_service.database.get_supabase"
     )
     def test_lookup_failure_does_not_return_notification(self, supabase):
         client = supabase.return_value

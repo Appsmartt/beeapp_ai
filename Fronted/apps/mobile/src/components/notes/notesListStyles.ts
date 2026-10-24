@@ -88,24 +88,39 @@ export const notesListStyles = StyleSheet.create({
     color: colors.neutral.white,
   },
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
     paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingTop: 8,
+    paddingBottom: 10,
     backgroundColor: colors.neutral.white,
     borderBottomWidth: 1,
     borderColor: colors.neutral.gray100,
+    gap: 8,
   },
-  headerLeftCol: {
+  topRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8,
+  },
+  bottomRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    gap: 8,
+  },
+  headerLeftCol: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    minWidth: 0,
   },
   backBtn: {
     padding: 4,
     marginRight: 8,
   },
   headerTitle: {
+    flex: 1,
+    flexShrink: 1,
     fontSize: 18,
     fontWeight: '600',
     color: colors.neutral.text,
@@ -113,7 +128,7 @@ export const notesListStyles = StyleSheet.create({
   headerRightCol: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    gap: 6,
   },
   filtersContainer: {
     paddingVertical: 10,

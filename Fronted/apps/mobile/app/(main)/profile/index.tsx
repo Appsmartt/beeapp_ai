@@ -5,6 +5,7 @@ import {
 import {
   ActivityIndicator,
   Alert,
+  Image,
   Linking,
   ScrollView,
   Share,
@@ -40,7 +41,11 @@ import ScreenSafeArea from '../../../src/components/layout/ScreenSafeArea';
 import FloatingTabBar from '../../../src/components/FloatingTabBar';
 import {
   getValidSessionCredentials,
+  signOutCurrentDevice,
 } from '../../../src/services/authSession';
+import {
+  getProfileAvatarUrl,
+} from '../../../src/services/profileAvatarService';
 
 function getInitials(
   firstName: string,
@@ -60,6 +65,12 @@ export default function ProfileMainScreen() {
 
   const [profile, setProfile] =
     useState<CurrentUserProfile | null>(null);
+
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(
+    null,
+  );
+
+  const [avatarFailed, setAvatarFailed] = useState(false);
 
   const [isLoading, setIsLoading] = useState(true);
 
@@ -83,8 +94,24 @@ export default function ProfileMainScreen() {
       const credentials = await getCredentials();
 
       const response = await getCurrentProfile(credentials);
+      let nextAvatarUrl = response.profile.avatar_url || null;
+
+      if (!nextAvatarUrl && response.profile.avatar_file_id) {
+        try {
+          const access = await getProfileAvatarUrl(
+            credentials,
+            response.profile.avatar_file_id,
+          );
+
+          nextAvatarUrl = access.url;
+        } catch {
+          nextAvatarUrl = null;
+        }
+      }
 
       setProfile(response.profile);
+      setAvatarFailed(false);
+      setAvatarUrl(nextAvatarUrl);
     } catch (error) {
       Alert.alert(
         'No fue posible cargar tu perfil',
@@ -161,7 +188,14 @@ export default function ProfileMainScreen() {
           text: 'Cerrar sesión',
           style: 'destructive',
           onPress: () => {
-            router.replace('/(auth)/login');
+            void signOutCurrentDevice()
+              .then(() => router.replace('/(auth)/login'))
+              .catch(() => {
+                Alert.alert(
+                  'No se pudo cerrar sesión',
+                  'Comprueba la conexión e inténtalo de nuevo.',
+                );
+              });
           },
         },
       ],
@@ -209,9 +243,18 @@ export default function ProfileMainScreen() {
           >
             <View style={styles.profileCard}>
               <View style={styles.avatarWrap}>
-                <Text style={styles.avatarText}>
-                  {initials}
-                </Text>
+                {avatarUrl && !avatarFailed ? (
+                  <Image
+                    accessibilityLabel={`Foto de perfil de ${fullName || 'tu cuenta'}`}
+                    source={{ uri: avatarUrl }}
+                    style={styles.avatarImage}
+                    onError={() => setAvatarFailed(true)}
+                  />
+                ) : (
+                  <Text style={styles.avatarText}>
+                    {initials}
+                  </Text>
+                )}
 
                 <View style={styles.onlineBadge} />
               </View>
@@ -595,6 +638,11 @@ const styles = StyleSheet.create({
     position: 'relative',
     borderWidth: 2,
     borderColor: '#DDD6FE',
+  },
+  avatarImage: {
+    width: 76,
+    height: 76,
+    borderRadius: 38,
   },
   avatarText: {
     fontSize: 32,

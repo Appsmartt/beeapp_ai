@@ -7,7 +7,7 @@
     <key>CFBundleDevelopmentRegion</key>
     <string>$(DEVELOPMENT_LANGUAGE)</string>
     <key>CFBundleDisplayName</key>
-    <string>BeeApp AI</string>
+    <string>Buddy AI</string>
     <key>CFBundleExecutable</key>
     <string>$(EXECUTABLE_NAME)</string>
     <key>CFBundleIdentifier</key>
@@ -87,6 +87,6 @@
     <key>UIViewControllerBasedStatusBarAppearance</key>
     <false/>
     <key>NSLocationWhenInUseUsageDescription</key>
-    <string>BeeApp necesita tu ubicación mientras usas el chat para compartir un punto cuando tú lo solicites.</string>
+    <string>Buddy AI necesita tu ubicación mientras usas el chat para compartir un punto cuando tú lo solicites.</string>
   </dict>
 </plist>

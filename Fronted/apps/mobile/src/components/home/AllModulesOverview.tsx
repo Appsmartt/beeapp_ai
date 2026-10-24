@@ -378,7 +378,7 @@ export default function AllModulesOverview() {
 
           <View style={styles.beeServicesTextCol}>
             <Text style={styles.beeServicesTitle}>
-              BuddyServices
+              Buddy Services
             </Text>
 
             <Text style={styles.beeServicesSubtitle}>

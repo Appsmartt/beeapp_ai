@@ -103,7 +103,7 @@ export default function SignDocumentScreen() {
 
     Alert.alert(
       'Documento Firmado',
-      'El NDA ha sido firmado digitalmente y se ha generado el sello de auditoría de BeeAI.',
+      'El NDA ha sido firmado digitalmente y se ha generado el sello de auditoría de Buddy AI.',
       [
         {
           text: 'Entendido',

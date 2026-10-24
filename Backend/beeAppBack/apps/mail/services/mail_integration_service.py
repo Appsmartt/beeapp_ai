@@ -11,7 +11,7 @@ from apps.mail.exceptions import (
     MailIntegrationNotFoundError,
     MailSyncError,
 )
-from apps.mail.services.mail_sync_service import (
+from apps.mail.services.mail_sync import (
     sync_mail_integration,
 )
 

@@ -22,20 +22,28 @@ export default function StorageHeader({ onBack, onAction, sortBy, onSortChange, 
     <>
       {/* Header */}
       <View style={styles.header}>
-        <View style={styles.headerLeftCol}>
-          {onBack && (
-            <TouchableOpacity onPress={onBack} style={styles.backBtn} activeOpacity={0.7}>
-              <ChevronLeft size={24} color={colors.neutral.text} />
-            </TouchableOpacity>
-          )}
-          <Text style={styles.headerTitle}>Almacenamiento</Text>
+        <View style={styles.topRow}>
+          <View style={styles.headerLeftCol}>
+            {onBack && (
+              <TouchableOpacity onPress={onBack} style={styles.backBtn} activeOpacity={0.7}>
+                <ChevronLeft size={24} color={colors.neutral.text} />
+              </TouchableOpacity>
+            )}
+            <Text style={styles.headerTitle} numberOfLines={1}>Almacenamiento</Text>
+          </View>
+
+          <View style={styles.headerControls}>
+            <ModuleNotificationBell moduleId="files" />
+            {onAction && (
+              <TouchableOpacity onPress={onAction} style={styles.headerActionBtn} activeOpacity={0.8}>
+                <Plus size={18} color={colors.neutral.white} />
+              </TouchableOpacity>
+            )}
+          </View>
         </View>
 
-        {/* Sort & View controls */}
-        <View style={styles.headerControls}>
-          <ModuleNotificationBell moduleId="files" />
+        <View style={styles.bottomRow}>
           <ViewModeToggle mode={viewMode} onChange={onViewModeChange} />
-
           <TouchableOpacity
             onPress={() => {
               const nextSort: Record<SortOption, SortOption> = { name: 'date', date: 'size', size: 'type', type: 'name' };
@@ -43,15 +51,10 @@ export default function StorageHeader({ onBack, onAction, sortBy, onSortChange, 
             }}
             style={styles.controlIconBtn}
             activeOpacity={0.7}
+            accessibilityLabel="Ordenar archivos"
           >
             <ArrowUpDown size={18} color={colors.brand.primary} />
           </TouchableOpacity>
-
-          {onAction && (
-            <TouchableOpacity onPress={onAction} style={styles.headerActionBtn} activeOpacity={0.8}>
-              <Plus size={18} color={colors.neutral.white} />
-            </TouchableOpacity>
-          )}
         </View>
       </View>
     </>
@@ -60,31 +63,47 @@ export default function StorageHeader({ onBack, onAction, sortBy, onSortChange, 
 
 const styles = StyleSheet.create({
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingVertical: 12,
+    paddingHorizontal: 16,
+    paddingTop: 8,
+    paddingBottom: 10,
     backgroundColor: colors.neutral.white,
     borderBottomWidth: 1,
     borderColor: colors.neutral.gray100,
+    gap: 8,
   },
-  headerLeftCol: {
+  topRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8,
+  },
+  bottomRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    gap: 8,
+  },
+  headerLeftCol: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    minWidth: 0,
   },
   backBtn: {
     padding: 4,
     marginRight: 8,
   },
   headerTitle: {
+    flex: 1,
+    flexShrink: 1,
     fontSize: 18,
     fontWeight: '600',
     color: colors.neutral.text,
   },
   headerControls: {
     flexDirection: 'row',
-    gap: 12,
+    alignItems: 'center',
+    gap: 6,
   },
   controlIconBtn: {
     padding: 6,

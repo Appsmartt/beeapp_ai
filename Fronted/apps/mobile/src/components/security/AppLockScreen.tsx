@@ -14,9 +14,11 @@ import {
 import { useRouter } from 'expo-router';
 import { colors } from '@beeapp/design-system';
 import {
-  clearPermissionDialogUnlockSkip,
-  consumePermissionDialogUnlockSkip,
+  isExternalActivityActive,
 } from '../../services/locationPermissionAppLockGuard';
+import {
+  consumeOAuthReturnUnlockSkip,
+} from '../../services/oauthReturnAppLockGuard';
 
 import BuddyLogo from '../BuddyLogo';
 import AppLockPinPad from './AppLockPinPad';
@@ -25,8 +27,8 @@ import {
   authenticateWithBiometrics,
 } from '../../services/biometricService';
 import {
-  clearAuthSession,
   getAuthSession,
+  signOutCurrentDevice,
 } from '../../services/authSession';
 import {
   getAppLockMethod,
@@ -38,6 +40,7 @@ import {
 } from '../../stores/appLockStore';
 
 const MAX_FAILED_ATTEMPTS = 5;
+const APP_LOCK_BACKGROUND_GRACE_MS = 60_000;
 
 function getMethodTitle(method: AppLockMethod): string {
   if (method === 'faceid') {
@@ -66,6 +69,7 @@ function getMethodSubtitle(method: AppLockMethod): string {
 export default function AppLockScreen() {
   const router = useRouter();
   const appState = useRef(AppState.currentState);
+  const backgroundedAt = useRef<number | null>(null);
 
   const [locked, setLocked] = useState(false);
 
@@ -120,29 +124,37 @@ export default function AppLockScreen() {
     const handleAppStateChange = (
       nextAppState: AppStateStatus,
     ) => {
-      const isReturningToForeground =
-        appState.current.match(/inactive|background/)
-        && nextAppState === 'active';
-
-      const previousAppState = appState.current;
-      appState.current = nextAppState;
-
       if (nextAppState === 'background') {
-        clearPermissionDialogUnlockSkip();
+        if (isExternalActivityActive()) {
+          backgroundedAt.current = null;
+        } else if (appState.current !== 'background') {
+          backgroundedAt.current = Date.now();
+        }
       }
 
+      const previousAppState = appState.current;
+      const wasBackground = previousAppState === 'background';
+      appState.current = nextAppState;
+
+      if (nextAppState !== 'active' || !wasBackground) {
+        return;
+      }
+
+      const leftAt = backgroundedAt.current;
+      backgroundedAt.current = null;
+
       if (
-        isReturningToForeground
-        && consumePermissionDialogUnlockSkip(previousAppState)
+        isExternalActivityActive()
+        || leftAt === null
+        || Date.now() - leftAt <= APP_LOCK_BACKGROUND_GRACE_MS
+        || consumeOAuthReturnUnlockSkip(previousAppState)
       ) {
         return;
       }
 
-      if (isReturningToForeground) {
-        setPinError(null);
-        setFailureMessage('');
-        void loadLockState(true);
-      }
+      setPinError(null);
+      setFailureMessage('');
+      void loadLockState(true);
     };
 
     const subscription = AppState.addEventListener(
@@ -154,12 +166,17 @@ export default function AppLockScreen() {
   }, []);
 
   const closeSessionAfterTooManyFailures = async () => {
-    await clearAuthSession();
-
-    setLocked(false);
-    setMethod(null);
-
-    router.replace('/(auth)/login');
+    try {
+      await signOutCurrentDevice();
+      setLocked(false);
+      setMethod(null);
+      router.replace('/(auth)/login');
+    } catch {
+      setFailureMessage(
+        'No se pudo cerrar la sesión de forma segura. '
+        + 'Comprueba la conexión e inténtalo de nuevo.',
+      );
+    }
   };
 
   const registerFailure = async () => {
@@ -240,12 +257,17 @@ export default function AppLockScreen() {
   };
 
   const handleForgotPin = async () => {
-    await clearAuthSession();
-
-    setLocked(false);
-    setMethod(null);
-
-    router.replace('/(auth)/login');
+    try {
+      await signOutCurrentDevice();
+      setLocked(false);
+      setMethod(null);
+      router.replace('/(auth)/login');
+    } catch {
+      setFailureMessage(
+        'No se pudo cerrar la sesión de forma segura. '
+        + 'Comprueba la conexión e inténtalo de nuevo.',
+      );
+    }
   };
 
   if (isLoading || !locked || !method) {

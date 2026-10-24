@@ -31,6 +31,7 @@ import {
   useState,
 } from 'react';
 import * as ImagePicker from 'expo-image-picker';
+import { withExternalActivity } from '../../../../../src/services/locationPermissionAppLockGuard';
 
 import {
   useModuleNav,
@@ -181,7 +182,7 @@ const MODALITIES: Array<{
   },
   {
     value: 'buddy_chat',
-    label: 'Chat BeeApp',
+    label: 'Chat Buddy AI',
   },
 ];
 
@@ -470,9 +471,9 @@ export default function BuddyServicesManageOffersScreen() {
 
     setEditorError(null);
 
-    const permission = (
-      await ImagePicker.requestMediaLibraryPermissionsAsync()
-    );
+    const permission = await withExternalActivity(() => (
+      ImagePicker.requestMediaLibraryPermissionsAsync()
+    ));
 
     if (!permission.granted) {
       setEditorError(
@@ -481,13 +482,15 @@ export default function BuddyServicesManageOffersScreen() {
       return;
     }
 
-    const result = await ImagePicker.launchImageLibraryAsync({
-      allowsEditing: false,
-      allowsMultipleSelection: true,
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      quality: 0.9,
-      selectionLimit: availableSlots,
-    });
+    const result = await withExternalActivity(() => (
+      ImagePicker.launchImageLibraryAsync({
+        allowsEditing: false,
+        allowsMultipleSelection: true,
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        quality: 0.9,
+        selectionLimit: availableSlots,
+      })
+    ));
 
     if (result.canceled) {
       return;

@@ -258,7 +258,7 @@ export function toCommercialUiError(
     return createCommercialUiError(
       'NETWORK_ERROR',
       'Sin conexión',
-      'No pudimos comunicarnos con BeeApp. Revisa tu conexión e inténtalo nuevamente.',
+      'No pudimos comunicarnos con Buddy AI. Revisa tu conexión e inténtalo nuevamente.',
       true,
     );
   }

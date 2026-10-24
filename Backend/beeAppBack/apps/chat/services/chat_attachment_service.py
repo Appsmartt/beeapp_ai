@@ -15,21 +15,23 @@ from apps.chat.exceptions import (
     ChatMessageNotFoundError,
     ChatMessageSendError,
 )
-from apps.chat.services.chat_conversation_service import (
+from apps.chat.services.chat_conversation.access import (
     _require_identity_active_participant,
 )
 from apps.chat.services.chat_identity_service import (
     get_owned_chat_identity,
 )
-from apps.chat.services.chat_message_service import (
+from apps.chat.services.chat_messages.message_send_service import (
     send_chat_message,
 )
 from apps.storage.exceptions import (
     StorageQuotaExceededError,
     StorageUploadError,
 )
-from apps.storage.services.storage_file_service import (
+from apps.storage.services.file_operations.file_access import (
     create_file_access_url,
+)
+from apps.storage.services.file_operations.file_uploads import (
     prepare_and_upload_file,
 )
 

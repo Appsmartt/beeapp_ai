@@ -16,6 +16,7 @@ import {
 } from "lucide-react-native";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import * as DocumentPicker from "expo-document-picker";
+import { withExternalActivity } from "../../../../../src/services/locationPermissionAppLockGuard";
 
 import {
   useModuleNav,
@@ -163,11 +164,13 @@ export default function CommercialVerificationScreen() {
     setSuccessMessage(null);
 
     try {
-      const result = await DocumentPicker.getDocumentAsync({
-        type: "application/pdf",
-        copyToCacheDirectory: true,
-        multiple: false,
-      });
+      const result = await withExternalActivity(() => (
+        DocumentPicker.getDocumentAsync({
+          type: "application/pdf",
+          copyToCacheDirectory: true,
+          multiple: false,
+        })
+      ));
 
       if (result.canceled) {
         return;
@@ -647,7 +650,7 @@ export default function CommercialVerificationScreen() {
                 legalName: undefined,
               }));
             }}
-            placeholder="Ej. BeeApp SAS"
+            placeholder="Ej. Buddy AI SAS"
             placeholderTextColor="#A294B4"
             value={legalName}
             style={{

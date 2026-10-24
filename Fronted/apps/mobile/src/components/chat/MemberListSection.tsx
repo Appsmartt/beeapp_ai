@@ -5,6 +5,7 @@ import {
   View,
 } from 'react-native';
 import {
+  Clock3,
   Crown,
   Shield,
   UserPlus,
@@ -15,6 +16,7 @@ import {
   spacing,
 } from '@beeapp/design-system';
 import type {
+  ChatGroupInvite,
   ChatParticipant,
   ChatParticipantRole,
 } from '@beeapp/shared-types';
@@ -28,6 +30,7 @@ import {
 
 interface RealGroupMemberListProps {
   members: ChatParticipant[];
+  pendingInvites?: ChatGroupInvite[];
   currentIdentityId: string | null;
   canInvite: boolean;
   canRemove: boolean;
@@ -36,6 +39,7 @@ interface RealGroupMemberListProps {
     identityId: string,
     displayName: string,
   ) => void;
+  onCancelInvite?: (invite: ChatGroupInvite) => void;
   memberIds?: never;
 }
 
@@ -66,7 +70,7 @@ function getRealDisplayName(
     .join(' ')
     .trim();
 
-  return name || 'Usuario BeeApp';
+  return name || 'Usuario Buddy AI';
 }
 
 function getRoleLabel(
@@ -103,13 +107,24 @@ function isRealGroupProps(
   return 'currentIdentityId' in props;
 }
 
+function getPendingInviteDisplayName(
+  invite: ChatGroupInvite,
+): string {
+  return (
+    invite.invited_identity?.display_name?.trim()
+    || 'Usuario Buddy AI'
+  );
+}
+
 function RealGroupMemberList({
   members,
+  pendingInvites = [],
   currentIdentityId,
   canInvite,
   canRemove,
   onAdd,
   onRemove,
+  onCancelInvite,
 }: RealGroupMemberListProps) {
   const orderedMembers = [...members].sort(
     (left, right) => {
@@ -250,6 +265,66 @@ function RealGroupMemberList({
           </View>
         );
       })}
+
+      {pendingInvites.length > 0 ? (
+        <>
+          <Text style={styles.pendingHeader}>
+            Invitaciones pendientes ({pendingInvites.length})
+          </Text>
+
+          {pendingInvites.map((invite) => {
+            const name = getPendingInviteDisplayName(invite);
+
+            return (
+              <View
+                key={invite.id}
+                style={styles.row}
+              >
+                <View style={styles.avatar}>
+                  <Text style={styles.avatarText}>
+                    {getInitials(name)}
+                  </Text>
+                </View>
+
+                <View style={styles.texts}>
+                  <Text
+                    style={styles.name}
+                    numberOfLines={1}
+                  >
+                    {name}
+                  </Text>
+
+                  <View style={styles.roleRow}>
+                    <Clock3
+                      size={12}
+                      color={colors.neutral.gray500}
+                    />
+                    <Text style={styles.pendingRole}>
+                      Invitación pendiente
+                    </Text>
+                  </View>
+                </View>
+
+                {onCancelInvite ? (
+                  <TouchableOpacity
+                    style={styles.removeButton}
+                    onPress={() => {
+                      onCancelInvite(invite);
+                    }}
+                    activeOpacity={0.7}
+                    accessibilityLabel={`Cancelar invitación a ${name}`}
+                  >
+                    <X
+                      size={18}
+                      color={colors.neutral.gray500}
+                    />
+                  </TouchableOpacity>
+                ) : null}
+              </View>
+            );
+          })}
+        </>
+      ) : null}
     </View>
   );
 }
@@ -424,6 +499,17 @@ const styles = StyleSheet.create({
     color: colors.neutral.gray600,
     fontSize: 12,
     marginTop: 3,
+  },
+  pendingHeader: {
+    color: colors.neutral.gray600,
+    fontSize: 12,
+    fontWeight: '600',
+    marginBottom: 4,
+    marginTop: 4,
+  },
+  pendingRole: {
+    color: colors.neutral.gray500,
+    fontSize: 12,
   },
   removeButton: {
     padding: 6,

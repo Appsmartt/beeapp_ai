@@ -7,6 +7,7 @@ interface AiChatListItemProps {
   lastMessage: string;
   time: string;
   onPress: () => void;
+  isPinned?: boolean;
   isProtected?: boolean;
   onMorePress?: () => void;
 }
@@ -16,6 +17,7 @@ export default function AiChatListItem({
   lastMessage,
   time,
   onPress,
+  isPinned = true,
   isProtected,
   onMorePress,
 }: AiChatListItemProps) {
@@ -49,8 +51,12 @@ export default function AiChatListItem({
             </View>
           </View>
           <View style={styles.timeWrap}>
-            <Pin size={11} color={colors.brand.primary} />
-            <Text style={styles.time}>{time}</Text>
+            {isPinned ? (
+              <Pin size={11} color={colors.brand.primary} />
+            ) : null}
+            {time ? (
+              <Text style={styles.time}>{time}</Text>
+            ) : null}
           </View>
         </View>
 

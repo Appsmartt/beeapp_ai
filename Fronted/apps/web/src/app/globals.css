@@ -1,0 +1,403 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --background: #ffffff;
+  --foreground: #1A1A2E;
+  --motion-fast: 180ms;
+  --motion-base: 260ms;
+  --motion-ease: cubic-bezier(0.22, 1, 0.36, 1);
+
+  /* Brand Colors */
+  --brand-primary: #6025d2;
+  /* Componentes RGB de --brand-primary, para poder modular su opacidad */
+  --brand-primary-rgb: 96, 37, 210;
+  --brand-dark: #5B2CD9;
+  --brand-light: rgba(96, 37, 210, 0.15);
+
+  /* Neutrals */
+  --neutral-50: #F8F9FA;
+  --neutral-100: #F1F3F5;
+  --neutral-200: #E9ECEF;
+  --neutral-300: #DEE2E6;
+  --neutral-400: #CED4DA;
+  --neutral-500: #ADB5BD;
+  --neutral-600: #6C757D;
+  --neutral-700: #495057;
+  --neutral-800: #343A40;
+  --neutral-900: #1A1A2E;
+
+  /* Semantics */
+  --semantic-success: #4CAF50;
+  --semantic-warning: #FFC107;
+  --semantic-error: #F44336;
+  --semantic-info: #2196F3;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+}
+
+#features,
+#how-it-works,
+#security,
+#contact {
+  scroll-margin-top: 5rem;
+}
+
+body {
+  color: var(--foreground);
+  background: var(--background);
+  font-family: Inter, system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Scrollbar: morado de marca, más delgada (Chrome/Edge/Safari + Firefox) */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(var(--brand-primary-rgb), 0.55) transparent;
+}
+
+*::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+*::-webkit-scrollbar-thumb {
+  background-color: rgba(var(--brand-primary-rgb), 0.45);
+  border-radius: 9999px;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background-color: var(--brand-primary);
+}
+
+*::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+}
+
+/* Halo del botón del asistente: "respira" en morado, como el AssistantGlow de la app móvil */
+@keyframes assistant-glow {
+  0%,
+  100% {
+    box-shadow: 0 0 10px 0 rgba(var(--brand-primary-rgb), 0.3);
+  }
+  50% {
+    box-shadow: 0 0 18px 12px rgba(var(--brand-primary-rgb), 0.6);
+  }
+}
+
+.assistant-glow {
+  animation: assistant-glow 2s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .assistant-glow {
+    animation: none;
+    box-shadow: 0 0 14px 4px rgba(var(--brand-primary-rgb), 0.45);
+  }
+}
+
+/* ── Asistente por voz ──────────────────────────────────────────────
+   Equivalentes CSS de las animaciones Animated del VoiceOrb de móvil.
+   La escala y las opacidades del halo se pasan por variables porque
+   cambian según el estado (idle / listening / thinking / speaking).   */
+
+@keyframes voice-orb-pulse {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(var(--orb-scale));
+  }
+}
+
+@keyframes voice-orb-halo {
+  0%,
+  100% {
+    opacity: var(--halo-from);
+    transform: scale(1);
+  }
+  50% {
+    opacity: var(--halo-to);
+    transform: scale(var(--orb-scale));
+  }
+}
+
+@keyframes voice-orb-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes voice-orb-spin-reverse {
+  to {
+    transform: rotate(-360deg);
+  }
+}
+
+/* Entrada del modal: fundido de la pantalla y el orbe creciendo desde 0 */
+@keyframes voice-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes voice-orb-enter {
+  from {
+    opacity: 0;
+    transform: scale(0);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [class*='voice-orb-'],
+  .voice-enter,
+  .voice-leave {
+    animation: none !important;
+  }
+}
+
+/* Editor de notas con formato: Tailwind resetea h1/ul/ol, así que el
+   contenido editable necesita recuperar su jerarquía visual. */
+.note-editor {
+  user-select: text;
+  -webkit-user-select: text;
+}
+.note-editor:empty::before {
+  content: attr(data-placeholder);
+  color: var(--neutral-400, #CED4DA);
+}
+.note-editor h1 {
+  font-size: 1.375rem;
+  font-weight: 600;
+  margin: 0.75rem 0 0.35rem;
+}
+.note-editor h2 {
+  font-size: 1.125rem;
+  font-weight: 600;
+  margin: 0.65rem 0 0.3rem;
+}
+.note-editor h3 {
+  font-size: 1rem;
+  font-weight: 600;
+  margin: 0.5rem 0 0.25rem;
+}
+.note-editor ul,
+.note-editor ol {
+  padding-left: 1.35rem;
+  margin: 0.35rem 0;
+}
+.note-editor ul { list-style: disc; }
+.note-editor ol { list-style: decimal; }
+.note-editor a {
+  color: var(--brand-primary);
+  text-decoration: underline;
+}
+
+.mail-html-content {
+  overflow-wrap: anywhere;
+}
+
+.mail-html-content p,
+.mail-html-content div,
+.mail-html-content blockquote,
+.mail-html-content ul,
+.mail-html-content ol {
+  margin-bottom: 0.9rem;
+}
+
+.mail-html-content ul,
+.mail-html-content ol {
+  padding-left: 1.5rem;
+}
+
+.mail-html-content ul {
+  list-style: disc;
+}
+
+.mail-html-content ol {
+  list-style: decimal;
+}
+
+.mail-html-content a {
+  color: var(--brand-primary);
+  text-decoration: underline;
+}
+
+.mail-html-content img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 0.75rem;
+}
+
+.mail-html-content table {
+  display: block;
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+/* ── Motion ───────────────────────────────────────────────────────── */
+
+@keyframes motion-enter {
+  from {
+    opacity: var(--motion-enter-opacity, 1);
+    transform: translate3d(var(--motion-enter-x, 0), var(--motion-enter-y, 0), 0)
+      scale(var(--motion-enter-scale, 1));
+  }
+}
+
+@keyframes motion-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes motion-fade-out {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
+@keyframes motion-slide-in-right {
+  from { transform: translate3d(100%, 0, 0); }
+  to { transform: translate3d(0, 0, 0); }
+}
+
+@keyframes motion-slide-out-right {
+  from { transform: translate3d(0, 0, 0); }
+  to { transform: translate3d(100%, 0, 0); }
+}
+
+@keyframes motion-slide-in-left {
+  from { transform: translate3d(-100%, 0, 0); }
+  to { transform: translate3d(0, 0, 0); }
+}
+
+@keyframes motion-slide-out-left {
+  from { transform: translate3d(0, 0, 0); }
+  to { transform: translate3d(-100%, 0, 0); }
+}
+
+@keyframes motion-page-enter {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 10px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@keyframes motion-content-enter {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 6px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+.animate-in {
+  --motion-enter-opacity: 1;
+  --motion-enter-scale: 1;
+  --motion-enter-x: 0px;
+  --motion-enter-y: 0px;
+  animation-name: motion-enter;
+  animation-duration: var(--motion-fast);
+  animation-timing-function: var(--motion-ease);
+  animation-fill-mode: both;
+}
+
+.animate-in.duration-100 { animation-duration: 100ms; }
+.animate-in.duration-150 { animation-duration: var(--motion-fast); }
+.animate-in.duration-200 { animation-duration: var(--motion-base); }
+
+.fade-in { --motion-enter-opacity: 0; }
+.zoom-in-95 { --motion-enter-scale: 0.95; }
+.slide-in-from-bottom-3 { --motion-enter-y: 0.75rem; }
+.slide-in-from-top-2 { --motion-enter-y: -0.5rem; }
+.slide-in-from-left-2 { --motion-enter-x: -0.5rem; }
+
+.motion-fade-in {
+  animation: motion-fade-in var(--motion-base) var(--motion-ease) both;
+}
+
+.motion-drawer-right,
+.motion-drawer-left {
+  transition: transform var(--motion-base) var(--motion-ease);
+  will-change: transform;
+}
+
+.motion-drawer-right { transform: translate3d(100%, 0, 0); }
+.motion-drawer-left { transform: translate3d(-100%, 0, 0); }
+.motion-drawer-right.is-visible,
+.motion-drawer-left.is-visible { transform: translate3d(0, 0, 0); }
+
+.motion-page-enter {
+  animation: motion-page-enter var(--motion-base) var(--motion-ease) both;
+}
+
+.motion-content-enter {
+  animation: motion-content-enter var(--motion-fast) var(--motion-ease) both;
+}
+
+.motion-delay-1 { animation-delay: 60ms; }
+.motion-delay-2 { animation-delay: 120ms; }
+.motion-delay-3 { animation-delay: 180ms; }
+
+.motion-overlay {
+  opacity: 0;
+  transition: opacity var(--motion-base) var(--motion-ease);
+}
+
+.motion-overlay.is-visible {
+  opacity: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-in,
+  .motion-fade-in,
+  .motion-page-enter,
+  .motion-content-enter {
+    animation: none;
+  }
+
+  .motion-drawer-right,
+  .motion-drawer-left,
+  .sidebar-overlay,
+  .admin-sidebar {
+    transition: none;
+  }
+
+  .motion-overlay {
+    transition: none;
+  }
+}

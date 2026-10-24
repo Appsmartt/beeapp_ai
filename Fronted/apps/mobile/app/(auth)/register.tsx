@@ -217,7 +217,7 @@ export default function RegisterScreen() {
                     source={registerLogoSource}
                     style={styles.registerLogo}
                     resizeMode="contain"
-                    accessibilityLabel="Logo de BeeApp"
+                    accessibilityLabel="Logo de Buddy AI"
                 />
                 </View>
 
@@ -296,7 +296,7 @@ export default function RegisterScreen() {
                     <View
                     style={[
                         styles.phoneContainer,
-                        errors.phoneNumber && styles.inputError,
+                        errors.phoneNumber ? styles.inputError : undefined,
                     ]}
                     >
                     <TouchableOpacity
@@ -503,7 +503,7 @@ function Field({
         <View style={[styles.fieldContainer, containerStyle]}>
         <Text style={styles.label}>{label}</Text>
 
-        <View style={[styles.input, error && styles.inputError]}>
+        <View style={[styles.input, error ? styles.inputError : undefined]}>
             {icon}
 
             <TextInput
@@ -546,7 +546,7 @@ function PasswordField({
         <View style={styles.fieldContainer}>
         <Text style={styles.label}>{label}</Text>
 
-        <View style={[styles.input, error && styles.inputError]}>
+        <View style={[styles.input, error ? styles.inputError : undefined]}>
             <LockKeyhole size={17} color={colors.neutral.gray500} />
 
             <TextInput

@@ -23,7 +23,7 @@ from apps.accounts.services.auth_user_service import (
     get_auth_user_by_phone,
     update_auth_user_password,
 )
-from apps.accounts.services.device_session_service import (
+from apps.accounts.services.device_sessions import (
     revoke_all_user_device_sessions,
 )
 

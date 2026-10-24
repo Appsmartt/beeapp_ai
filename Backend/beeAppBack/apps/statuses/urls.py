@@ -1,6 +1,6 @@
 from django.urls import path
 
-from apps.statuses.views import (
+from apps.statuses.views_refactor import (
     StatusAuthorStoriesView,
     StatusCollectionView,
     StatusDetailView,

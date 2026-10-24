@@ -264,31 +264,33 @@ export default function ModuleNotificationBell({
 
   return (
     <>
-      <ModuleQuickMenu />
+      <View style={styles.inlineActions}>
+        <ModuleQuickMenu />
 
-      <TouchableOpacity
-        style={styles.bellButton}
-        activeOpacity={0.7}
-        onPress={() => {
-          void handleOpenModal();
-        }}
-        accessibilityLabel={`Notificaciones de ${moduleId}`}
-      >
-        <Bell
-          size={20}
-          color={colors.neutral.gray600}
-        />
+        <TouchableOpacity
+          style={styles.bellButton}
+          activeOpacity={0.7}
+          onPress={() => {
+            void handleOpenModal();
+          }}
+          accessibilityLabel={`Notificaciones de ${moduleId}`}
+        >
+          <Bell
+            size={20}
+            color={colors.neutral.gray600}
+          />
 
-        {unreadCount > 0 && (
-          <View style={styles.badge}>
-            <Text style={styles.badgeText}>
-              {unreadCount > 9
-                ? '9+'
-                : unreadCount}
-            </Text>
-          </View>
-        )}
-      </TouchableOpacity>
+          {unreadCount > 0 && (
+            <View style={styles.badge}>
+              <Text style={styles.badgeText}>
+                {unreadCount > 9
+                  ? '9+'
+                  : unreadCount}
+              </Text>
+            </View>
+          )}
+        </TouchableOpacity>
+      </View>
 
       <Modal
         visible={modalVisible}
@@ -396,6 +398,11 @@ export default function ModuleNotificationBell({
 }
 
 const styles = StyleSheet.create({
+  inlineActions: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: 7,
+  },
   bellButton: {
     alignItems: 'center',
     backgroundColor: '#FCEFF5',

@@ -3,22 +3,17 @@ import type {
     AuthScheme,
     } from '@beeapp/shared-types';
 
-const expoApiBaseUrl =
-    process.env.EXPO_PUBLIC_API_BASE_URL;
+import {
+    dispatchSupabase,
+    dispatchUpload,
+    GatewayError,
+    } from './supabaseGateway';
 
-const nextApiBaseUrl =
-    process.env.NEXT_PUBLIC_API_BASE_URL;
-
-const configuredApiBaseUrl =
-    expoApiBaseUrl || nextApiBaseUrl;
-
-if (!configuredApiBaseUrl) {
-    throw new Error(
-        'Backend URL is missing. '
-        + 'EXPO_PUBLIC_API_BASE_URL or '
-        + 'NEXT_PUBLIC_API_BASE_URL must be defined.',
-    );
-}
+const configuredApiBaseUrl = (
+    process.env.EXPO_PUBLIC_SUPABASE_URL
+    || process.env.NEXT_PUBLIC_SUPABASE_URL
+    || ''
+);
 
 export const API_BASE_URL: string =
     configuredApiBaseUrl;
@@ -343,41 +338,34 @@ async function request<T>(
         ...fetchOptions
     } = options;
 
-    const hasJsonBody = body !== undefined;
-
-    const response = await fetch(buildUrl(endpoint), {
-        ...fetchOptions,
-        credentials: (
-        credentials
-        ?? getDefaultCredentials(auth, token)
-        ),
-        headers: {
-        Accept: 'application/json',
-        ...(hasJsonBody
-            ? {
-            'Content-Type': 'application/json',
-            }
-            : {}),
-        ...getAuthorizationHeader(token, auth),
-        ...headers,
-        },
-        body: hasJsonBody
-        ? JSON.stringify(body)
-        : undefined,
-    });
+    void credentials;
+    void fetchOptions;
+    void body;
 
     try {
-        return await parseApiResponse<T>(
-            response,
+        return await dispatchSupabase(
+            options.method || 'GET',
             endpoint,
-        );
+            options.body,
+            headers,
+        ) as T;
     } catch (error) {
-        if (
-            error instanceof ApiRequestError
-            && error.status === 401
-            && Boolean(auth?.token || token)
-        ) {
-            notifyUnauthorizedAuthenticatedRequest(error);
+        if (error instanceof GatewayError) {
+            const apiError = new ApiRequestError(
+                error.message,
+                error.status,
+                endpoint,
+                { detail: error.message },
+            );
+
+            if (
+                apiError.status === 401
+                && Boolean(auth?.token || token)
+            ) {
+                notifyUnauthorizedAuthenticatedRequest(apiError);
+            }
+
+            throw apiError;
         }
 
         throw error;
@@ -395,36 +383,29 @@ async function upload<T>(
     const {
         token,
         auth,
-        credentials,
-        ...fetchOptions
     } = options;
 
-    const response = await fetch(buildUrl(endpoint), {
-        ...fetchOptions,
-        method: 'POST',
-        credentials: (
-        credentials
-        ?? getDefaultCredentials(auth, token)
-        ),
-        headers: {
-        Accept: 'application/json',
-        ...getAuthorizationHeader(token, auth),
-        },
-        body: formData,
-    });
+    void token;
 
     try {
-        return await parseApiResponse<T>(
-            response,
+        return await dispatchUpload(
             endpoint,
-        );
+            formData,
+        ) as T;
     } catch (error) {
-        if (
-            error instanceof ApiRequestError
-            && error.status === 401
-            && Boolean(auth?.token || token)
-        ) {
-            notifyUnauthorizedAuthenticatedRequest(error);
+        if (error instanceof GatewayError) {
+            const apiError = new ApiRequestError(
+                error.message,
+                error.status,
+                endpoint,
+                { detail: error.message },
+            );
+
+            if (apiError.status === 401 && Boolean(auth?.token)) {
+                notifyUnauthorizedAuthenticatedRequest(apiError);
+            }
+
+            throw apiError;
         }
 
         throw error;
@@ -447,50 +428,61 @@ export async function downloadApiFile(
         ...fetchOptions
     } = options;
 
-    const response = await fetch(buildUrl(endpoint), {
-        ...fetchOptions,
-        method: 'GET',
-        credentials: (
-            credentials
-            ?? getDefaultCredentials(auth, token)
-        ),
-        headers: {
-            Accept: '*/*',
-            ...getAuthorizationHeader(token, auth),
-            ...headers,
-        },
-    });
+    void headers;
+    void credentials;
+    void fetchOptions;
 
-    if (!response.ok) {
-        const errorBody = await getErrorBody(response);
-
-        const error = new ApiRequestError(
-            getErrorMessageFromBody(
-                errorBody,
-                `Error ${response.status}: backend request failed.`,
-            ),
-            response.status,
+    try {
+        const result = await dispatchSupabase(
+            'GET',
             endpoint,
-            errorBody,
-        );
+            undefined,
+        ) as { url?: string };
 
-        if (
-            error.status === 401
-            && Boolean(auth?.token || token)
-        ) {
-            notifyUnauthorizedAuthenticatedRequest(error);
+        if (!result?.url) {
+            throw new GatewayError(
+                'El archivo no tiene una URL de descarga.',
+                404,
+            );
+        }
+
+        const response = await fetch(result.url);
+
+        if (!response.ok) {
+            throw new GatewayError(
+                'No fue posible descargar el archivo.',
+                response.status,
+            );
+        }
+
+        return {
+            blob: await response.blob(),
+            contentType: response.headers.get('content-type'),
+            contentDisposition: response.headers.get(
+                'content-disposition',
+            ),
+        };
+    } catch (error) {
+        if (error instanceof GatewayError) {
+            const apiError = new ApiRequestError(
+                error.message,
+                error.status,
+                endpoint,
+                { detail: error.message },
+            );
+
+            if (
+                apiError.status === 401
+                && Boolean(auth?.token || token)
+            ) {
+                notifyUnauthorizedAuthenticatedRequest(apiError);
+            }
+
+            throw apiError;
         }
 
         throw error;
     }
-
-    return {
-        blob: await response.blob(),
-        contentType: response.headers.get('content-type'),
-        contentDisposition: response.headers.get(
-            'content-disposition',
-        ),
-    };
 }
 
 export const api = {
@@ -565,6 +557,10 @@ export const api = {
 export function getApiUrl(endpoint: string): string {
     return buildUrl(endpoint);
 }
+
+void getAuthorizationHeader;
+void getDefaultCredentials;
+void parseApiResponse;
 
 export function createAuthCredentials(
     token: string,

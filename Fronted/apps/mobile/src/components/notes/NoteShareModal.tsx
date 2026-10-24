@@ -31,7 +31,6 @@ import {
     searchNoteShareRecipients,
     } from '@beeapp/api-client';
 import type {
-    AuthCredentials,
     NoteShareRecipient,
     } from '@beeapp/shared-types';
 

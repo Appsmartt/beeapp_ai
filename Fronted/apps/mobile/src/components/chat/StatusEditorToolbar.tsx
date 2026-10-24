@@ -36,6 +36,9 @@ interface StatusEditorToolbarProps {
   onChangeTextFontFamily: (
     template: (typeof STATUS_FONT_OPTIONS)[number],
   ) => void;
+  onApplySuggestedPhrase: (
+    template: (typeof STATUS_FONT_OPTIONS)[number],
+  ) => void;
   /** Background swatches only make sense on a text-only status */
   showBackgrounds: boolean;
   backgroundColors: string[];
@@ -148,7 +151,7 @@ export default function StatusEditorToolbar(props: StatusEditorToolbarProps) {
       </View>
 
       <Text style={styles.rowLabel}>
-        Plantilla
+        Tipografía
       </Text>
       <ScrollView
         horizontal
@@ -179,8 +182,12 @@ export default function StatusEditorToolbar(props: StatusEditorToolbarProps) {
               onPress={() => {
                 props.onChangeTextFontFamily(font);
               }}
+              onLongPress={() => {
+                props.onApplySuggestedPhrase(font);
+              }}
               activeOpacity={0.8}
               accessibilityLabel={`Usar tipografía ${font.label}`}
+              accessibilityHint="Mantén pulsado para usar la frase de ejemplo"
             >
               <View style={styles.fontOptionHeader}>
                 <Type

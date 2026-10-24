@@ -147,6 +147,42 @@ export function formatChatTime(
   );
 }
 
+const CHAT_ATTACHMENT_MEDIA_TYPES = new Set<
+  ChatMessageModel['type']
+>(['image', 'file', 'audio']);
+
+export function chatMessageHasPublicMediaUrl(
+  message: Pick<ChatMessageModel, 'mediaUrl'>,
+): boolean {
+  const url = String(message.mediaUrl || '').trim();
+
+  return /^https?:\/\//i.test(url);
+}
+
+export function chatMessageNeedsAttachmentAccess(
+  message: Pick<
+    ChatMessageModel,
+    'type' | 'mediaUrl'
+  >,
+  cachedUrlByMessageId?: string | null,
+): boolean {
+  if (!CHAT_ATTACHMENT_MEDIA_TYPES.has(message.type)) {
+    return false;
+  }
+
+  if (chatMessageHasPublicMediaUrl(message)) {
+    return false;
+  }
+
+  const cachedUrl = String(cachedUrlByMessageId || '').trim();
+
+  if (/^https?:\/\//i.test(cachedUrl)) {
+    return false;
+  }
+
+  return true;
+}
+
 function toUiMessageType(
   messageType: ChatMessageType,
 ): ChatMessageModel['type'] {
@@ -302,7 +338,7 @@ export function mapConversationToListItem(
     conversation.name?.trim()
     || (
       isAI
-        ? 'Bee'
+        ? 'Buddy AI'
         : isGroup
           ? 'Grupo sin nombre'
           : getDirectConversationDisplayName(
@@ -400,7 +436,13 @@ export function mapConversationToListItem(
       || directProfile?.avatar_url
       || null
     ),
-    participantCount: conversation.participants?.length || 0,
+    participantCount: (
+      conversation.participants?.filter((participant) => (
+        Boolean(participant.joined_at?.trim())
+        && !participant.left_at
+        && !participant.removed_at
+      )).length || 0
+    ),
     participants: conversation.participants || [],
     raw: conversation,
   };

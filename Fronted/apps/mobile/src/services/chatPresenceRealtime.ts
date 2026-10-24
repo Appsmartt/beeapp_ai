@@ -1,7 +1,7 @@
 import {
-  createClient,
   type RealtimeChannel,
 } from '@supabase/supabase-js';
+import { getSupabase } from '@beeapp/api-client';
 
 export type ChatPresenceEvent = {
   identity_id: string;
@@ -11,22 +11,7 @@ export type ChatPresenceEvent = {
 
 type PresenceListener = (event: ChatPresenceEvent) => void;
 
-const supabaseUrl = String(
-  process.env.EXPO_PUBLIC_SUPABASE_URL || '',
-).trim();
-const supabaseKey = String(
-  process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || '',
-).trim();
-
-const presenceClient = supabaseUrl && supabaseKey
-  ? createClient(supabaseUrl, supabaseKey, {
-      auth: {
-        autoRefreshToken: false,
-        persistSession: false,
-        detectSessionInUrl: false,
-      },
-    })
-  : null;
+const presenceClient = getSupabase();
 
 const listeners = new Set<PresenceListener>();
 const reconnectListeners = new Set<() => void>();

@@ -2,6 +2,7 @@ import {
   useEffect,
   useState,
 } from 'react';
+import { useRouter } from 'expo-router';
 import {
   Alert,
   ScrollView,
@@ -33,8 +34,10 @@ import type {
 import ScreenSafeArea from '../layout/ScreenSafeArea';
 import { useModuleNav } from '../embedded/EmbeddedNavContext';
 import {
+  clearAuthSession,
   getAuthSession,
   getSessionCredentials,
+  signOutCurrentDevice,
 } from '../../services/authSession';
 import { devicesStyles as styles } from './devicesStyles';
 
@@ -64,6 +67,7 @@ function getChallengeToken(
 
 export default function DevicesScreen() {
   const router = useModuleNav();
+  const appRouter = useRouter();
 
   const [cameraPermission, requestCameraPermission] =
     useCameraPermissions();
@@ -210,6 +214,13 @@ export default function DevicesScreen() {
             try {
               const credentials = await getCredentials();
 
+              const current = await getAuthSession();
+              if (current?.deviceSessionId === device.id) {
+                await signOutCurrentDevice();
+                appRouter.replace('/(auth)/login');
+                return;
+              }
+
               await revokeDeviceSession(
                 credentials,
                 device.id,
@@ -248,8 +259,8 @@ export default function DevicesScreen() {
               const credentials = await getCredentials();
 
               await revokeAllDeviceSessions(credentials);
-
-              await loadDevices();
+              await clearAuthSession();
+              appRouter.replace('/(auth)/login');
             } catch (error) {
               Alert.alert(
                 'Error',

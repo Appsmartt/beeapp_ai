@@ -10,6 +10,8 @@ import type {
     PasswordResetRequestResponse,
     PasswordResetVerifyPayload,
     PasswordResetVerifyResponse,
+    ActivateWebSessionPayload,
+    CreateQrLoginChallengePayload,
     QrLoginChallengeResponse,
     QrLoginChallengeStatusResponse,
     RegisterUserPayload,
@@ -27,6 +29,7 @@ import type {
     UpdateProfilePayload,
     UpdateProfileResponse,
     RemoveProfileAvatarResponse,
+    SubmitProfileVerificationResponse,
     VerifyPhoneOtpMobileResponse,
     VerifyPhoneOtpPayload,
     WebSessionProfileResponse,
@@ -177,6 +180,18 @@ export async function removeProfileAvatar(
     );
 }
 
+export function submitProfileVerification(
+    auth: AuthCredentials,
+    ): Promise<SubmitProfileVerificationResponse> {
+    return api.post<SubmitProfileVerificationResponse>(
+        '/accounts/me/verification/submit/',
+        {},
+        {
+        auth,
+        },
+    );
+}
+
 export function updateOnboardingProfile(
     auth: AuthCredentials,
     payload: UpdateOnboardingProfilePayload,
@@ -203,9 +218,12 @@ export function updateAssistantSettings(
     );
 }
 
-export function createQrLoginChallenge(): Promise<QrLoginChallengeResponse> {
+export function createQrLoginChallenge(
+    payload: CreateQrLoginChallengePayload,
+    ): Promise<QrLoginChallengeResponse> {
     return api.post<QrLoginChallengeResponse>(
         '/accounts/qr-login/challenges/',
+        payload,
     );
 }
 
@@ -267,13 +285,11 @@ export async function revokeAllDeviceSessions(
 }
 
 export async function activateWebSession(
-    challengeToken: string,
+    payload: ActivateWebSessionPayload,
     ): Promise<void> {
     await api.post<void>(
         '/accounts/web-session/activate/',
-        {
-        challenge_token: challengeToken,
-        },
+        payload,
         {
         credentials: 'include',
         },

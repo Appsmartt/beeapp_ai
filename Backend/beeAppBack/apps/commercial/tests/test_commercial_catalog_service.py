@@ -10,7 +10,7 @@ from apps.commercial.serializers import (
     CreateCommercialCatalogSerializer,
     UpdateCommercialCatalogSerializer,
 )
-from apps.commercial.services.commercial_catalog_service import (
+from apps.commercial.services.commercial_catalog import (
     _get_user_supabase_client,
     archive_commercial_catalog,
     restore_commercial_catalog,
@@ -76,7 +76,7 @@ class CommercialCatalogSerializerTests(SimpleTestCase):
 class CommercialCatalogAccessTokenTests(SimpleTestCase):
     @patch(
         "apps.commercial.services."
-        "commercial_catalog_service."
+        "commercial_catalog.client."
         "get_commercial_user_supabase_client"
     )
     def test_empty_token_is_rejected_before_client_creation(
@@ -98,7 +98,7 @@ class CommercialCatalogAccessTokenTests(SimpleTestCase):
 class CommercialCatalogStateTests(SimpleTestCase):
     @patch(
         "apps.commercial.services."
-        "commercial_catalog_service."
+        "commercial_catalog.status."
         "get_owned_commercial_catalog"
     )
     def test_archiving_archived_catalog_is_rejected(
@@ -125,7 +125,7 @@ class CommercialCatalogStateTests(SimpleTestCase):
 
     @patch(
         "apps.commercial.services."
-        "commercial_catalog_service."
+        "commercial_catalog.status."
         "get_owned_commercial_catalog"
     )
     def test_restoring_non_archived_catalog_is_rejected(
@@ -152,7 +152,7 @@ class CommercialCatalogStateTests(SimpleTestCase):
 
     @patch(
         "apps.commercial.services."
-        "commercial_catalog_service."
+        "commercial_catalog.lifecycle."
         "get_owned_commercial_catalog"
     )
     def test_updating_archived_catalog_is_rejected(
@@ -184,7 +184,7 @@ class CommercialCatalogStateTests(SimpleTestCase):
 class CommercialCatalogStatusTests(SimpleTestCase):
     @patch(
         "apps.commercial.services."
-        "commercial_catalog_service."
+        "commercial_catalog.status."
         "get_owned_commercial_catalog"
     )
     def test_archived_catalog_cannot_change_status(
@@ -194,7 +194,7 @@ class CommercialCatalogStatusTests(SimpleTestCase):
         from apps.commercial.exceptions import (
             CommercialStateError,
         )
-        from apps.commercial.services.commercial_catalog_service import (
+        from apps.commercial.services.commercial_catalog import (
             set_commercial_catalog_status,
         )
 
@@ -219,7 +219,7 @@ class CommercialCatalogStatusTests(SimpleTestCase):
 
     @patch(
         "apps.commercial.services."
-        "commercial_catalog_service."
+        "commercial_catalog.status."
         "get_owned_commercial_catalog"
     )
     def test_catalog_rejects_same_requested_status(
@@ -229,7 +229,7 @@ class CommercialCatalogStatusTests(SimpleTestCase):
         from apps.commercial.exceptions import (
             CommercialStateError,
         )
-        from apps.commercial.services.commercial_catalog_service import (
+        from apps.commercial.services.commercial_catalog import (
             set_commercial_catalog_status,
         )
 

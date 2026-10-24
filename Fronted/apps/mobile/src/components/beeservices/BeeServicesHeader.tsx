@@ -22,7 +22,7 @@ interface BeeServicesHeaderProps {
 export default function BeeServicesHeader({
   onBackToMainPress,
   onMenuPress,
-  title = "BuddyServices",
+  title = "Buddy Services",
   selectedBusinessName = null,
   selectedBusinessError = null,
   onChangeBusinessPress,

@@ -29,7 +29,7 @@ export default function AssistantSection({
           <Text style={sharedStyles.inputLabel}>Nombre del Asistente *</Text>
           <TextInput
             style={sharedStyles.inputField}
-            placeholder="Ej. BeeAI, Colmena, Asistente..."
+            placeholder="Ej. Buddy AI, Colmena, Asistente..."
             placeholderTextColor={colors.neutral.gray500}
             value={assistantName}
             onChangeText={onAssistantNameChange}

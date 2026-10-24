@@ -142,6 +142,7 @@ export default function ChatListView({
               name={aiChat.name}
               lastMessage={aiChat.lastMessage}
               time={aiChat.time}
+              isPinned={aiChat.isPinned}
               isProtected={aiChat.isProtected}
               onPress={() => onOpenChat(aiChat)}
               onMorePress={() => onOpenMenu(aiChat)}

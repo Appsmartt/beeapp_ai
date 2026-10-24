@@ -167,20 +167,20 @@ class ChatInboxReceiptTests(SimpleTestCase):
 class ChatDeliveredAuthorizationTests(SimpleTestCase):
     def test_rejects_message_from_another_conversation_before_rpc(self):
         from apps.chat.exceptions import ChatMessageNotFoundError
-        from apps.chat.services.chat_message_service import (
+        from apps.chat.services.chat_messages.message_receipt_service import (
             mark_chat_conversation_delivered,
         )
 
         with patch(
-            "apps.chat.services.chat_message_service.get_owned_chat_identity"
+            "apps.chat.services.chat_messages.message_receipt_service.get_owned_chat_identity"
         ), patch(
-            "apps.chat.services.chat_message_service."
+            "apps.chat.services.chat_messages.message_receipt_service."
             "_require_identity_active_participant"
         ), patch(
-            "apps.chat.services.chat_message_service._get_message_row",
+            "apps.chat.services.chat_messages.message_receipt_service._get_message_row",
             return_value={"conversation_id": "conversation-other"},
         ), patch(
-            "apps.chat.services.chat_message_service._user_supabase"
+            "apps.chat.services.chat_messages.message_receipt_service._user_supabase"
         ) as user_client:
             with self.assertRaises(ChatMessageNotFoundError):
                 mark_chat_conversation_delivered(
@@ -193,22 +193,22 @@ class ChatDeliveredAuthorizationTests(SimpleTestCase):
         user_client.assert_not_called()
 
     def test_valid_message_calls_authenticated_delivery_rpc(self):
-        from apps.chat.services.chat_message_service import (
+        from apps.chat.services.chat_messages.message_receipt_service import (
             mark_chat_conversation_delivered,
         )
 
         client = Mock()
         client.rpc.return_value.execute.return_value = Mock(data=True)
         with patch(
-            "apps.chat.services.chat_message_service.get_owned_chat_identity"
+            "apps.chat.services.chat_messages.message_receipt_service.get_owned_chat_identity"
         ) as owned, patch(
-            "apps.chat.services.chat_message_service."
+            "apps.chat.services.chat_messages.message_receipt_service."
             "_require_identity_active_participant"
         ) as participant, patch(
-            "apps.chat.services.chat_message_service._get_message_row",
+            "apps.chat.services.chat_messages.message_receipt_service._get_message_row",
             return_value={"conversation_id": "conversation-1"},
         ), patch(
-            "apps.chat.services.chat_message_service._user_supabase",
+            "apps.chat.services.chat_messages.message_receipt_service._user_supabase",
             return_value=client,
         ) as user_client:
             marked = mark_chat_conversation_delivered(

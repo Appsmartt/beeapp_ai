@@ -44,6 +44,7 @@ useLocalSearchParams,
 useRouter,
 } from 'expo-router';
 import * as DocumentPicker from 'expo-document-picker';
+import { withExternalActivity } from '../../../../src/services/locationPermissionAppLockGuard';
 import * as FileSystem from 'expo-file-system';
 
 import type {
@@ -1025,7 +1026,8 @@ if (
 !isBooking
 && item.pricing_strategy !== 'free'
 && (
-!Number.isInteger(unitPrice)
+unitPrice === null
+|| !Number.isInteger(unitPrice)
 || unitPrice < 0
 )
 ) {
@@ -1141,11 +1143,13 @@ return;
 let selectedProofUri: string | null = null;
 
 try {
-const result = await DocumentPicker.getDocumentAsync({
+const result = await withExternalActivity(() => (
+DocumentPicker.getDocumentAsync({
 type: 'application/pdf',
 copyToCacheDirectory: true,
 multiple: false,
-});
+})
+));
 
 if (result.canceled || !result.assets[0]) {
 return;
@@ -1231,11 +1235,13 @@ return;
 let selectedProofUri: string | null = null;
 
 try {
-const result = await DocumentPicker.getDocumentAsync({
+const result = await withExternalActivity(() => (
+DocumentPicker.getDocumentAsync({
 type: 'application/pdf',
 copyToCacheDirectory: true,
 multiple: false,
-});
+})
+));
 
 if (result.canceled || !result.assets[0]) {
 return;

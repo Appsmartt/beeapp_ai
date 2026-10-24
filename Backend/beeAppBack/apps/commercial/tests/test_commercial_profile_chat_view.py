@@ -10,7 +10,9 @@ from rest_framework.test import APIRequestFactory
 
 from apps.accounts.exceptions import AccountAuthenticationError
 from apps.commercial.exceptions import CommercialAccessError, CommercialNotFoundError
-from apps.commercial.views import CommercialProfileChatView
+from apps.commercial.views.profile_publication_chat_views import (
+    CommercialProfileChatView,
+)
 
 
 class CommercialProfileChatViewTests(unittest.TestCase):
@@ -38,7 +40,7 @@ class CommercialProfileChatViewTests(unittest.TestCase):
             "get_authenticated_user_and_access_token",
             side_effect=auth_error or [(self.user, "test-token")],
         ), patch(
-            "apps.commercial.views.open_or_create_commercial_chat_conversation",
+            "apps.commercial.views.profile_publication_chat_views.open_or_create_commercial_chat_conversation",
             side_effect=commercial_error or [service_result],
         ): 
             return view(self._request(), profile_id=self.profile_id)

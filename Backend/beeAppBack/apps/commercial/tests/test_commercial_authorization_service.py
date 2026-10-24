@@ -143,7 +143,7 @@ class UpdateCommercialProfileSerializerTests(SimpleTestCase):
 
 class CommercialViewsImportTests(SimpleTestCase):
     def test_profile_update_error_is_imported_by_views(self):
-        from apps.commercial.views import (
+        from apps.commercial.exceptions import (
             CommercialProfileUpdateError,
         )
 

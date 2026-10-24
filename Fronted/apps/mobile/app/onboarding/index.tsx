@@ -6,6 +6,7 @@ import {
 } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   Keyboard,
   KeyboardAvoidingView,
   Platform,
@@ -36,8 +37,8 @@ import FeaturesSection from '../../src/components/onboarding/FeaturesSection';
 import { sharedStyles } from '../../src/components/onboarding/onboardingShared';
 import ScreenSafeArea from '../../src/components/layout/ScreenSafeArea';
 import {
-    clearAuthSession,
     getValidSessionCredentials,
+    signOutCurrentDevice,
   } from '../../src/services/authSession';
 
 type OnboardingStep =
@@ -98,7 +99,7 @@ export default function OnboardingScreen() {
     useState<ProfileErrors>({});
 
   const [assistantName, setAssistantName] =
-    useState('BeeAI');
+    useState('Buddy AI');
 
   const [tone, setTone] =
     useState<AssistantTone>('friendly');
@@ -182,7 +183,7 @@ export default function OnboardingScreen() {
       setOccupation(currentProfile.occupation ?? '');
       setLocation(currentProfile.location ?? '');
       setAssistantName(
-        currentProfile.assistant_name ?? 'BeeAI',
+        currentProfile.assistant_name ?? 'Buddy AI',
       );
       setTone(
         getSupportedTone(currentProfile.assistant_tone),
@@ -230,7 +231,7 @@ export default function OnboardingScreen() {
       profile?.first_name?.trim() || 'Usuario';
 
     const normalizedAssistantName =
-      assistantName.trim() || 'BeeAI';
+      assistantName.trim() || 'Buddy AI';
 
     switch (tone) {
       case 'friendly':
@@ -390,9 +391,15 @@ export default function OnboardingScreen() {
   };
 
   const handleSignOut = async () => {
-    await clearAuthSession();
-
-    router.replace('/(auth)/login');
+    try {
+      await signOutCurrentDevice();
+      router.replace('/(auth)/login');
+    } catch {
+      Alert.alert(
+        'No se pudo cerrar sesión',
+        'Comprueba la conexión e inténtalo de nuevo.',
+      );
+    }
   };
 
   if (isLoading) {

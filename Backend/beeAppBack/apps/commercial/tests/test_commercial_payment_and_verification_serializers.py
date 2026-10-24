@@ -13,75 +13,70 @@ from apps.commercial.serializers import (
 class CommercialPaymentMethodSerializerTests(
     SimpleTestCase,
 ):
-    def test_accepts_nequi_with_private_details(self):
+    def test_accepts_nequi_with_mobile_account(self):
         serializer = CreateCommercialPaymentMethodSerializer(
             data={
                 "payment_method_type": "nequi",
                 "display_name": "Nequi",
-                "public_details": {
-                    "provider": "Nequi",
-                },
-                "private_details": {
+                "mobile_account": {
+                    "wallet_type": "nequi",
+                    "payment_key": "3001234567",
                     "account_holder_name": "Andrés Mendoza",
-                    "phone_number": "3001234567",
                 },
-                "private_instructions": (
-                    "Transfiere al número indicado y envía "
-                    "el comprobante."
-                ),
             }
         )
 
         self.assertTrue(serializer.is_valid(), serializer.errors)
 
-    def test_rejects_manual_method_without_private_data(self):
+    def test_rejects_bank_account_without_account_payload(self):
         serializer = CreateCommercialPaymentMethodSerializer(
             data={
                 "payment_method_type": "bank_account",
                 "display_name": "Cuenta Bancolombia",
-                "public_details": {
-                    "provider": "Bancolombia",
-                },
             }
         )
 
         self.assertFalse(serializer.is_valid())
         self.assertIn(
-            "private_details",
+            "bank_account",
             serializer.errors,
         )
 
-    def test_accepts_breb_with_private_instructions_only(self):
+    def test_accepts_breb_with_mobile_account(self):
         serializer = CreateCommercialPaymentMethodSerializer(
             data={
                 "payment_method_type": "breb",
                 "display_name": "BRE-B",
-                "private_instructions": (
-                    "Solicita los datos al negocio por chat."
-                ),
+                "mobile_account": {
+                    "wallet_type": "breb",
+                    "payment_key": "breb-payment-key",
+                },
             }
         )
 
         self.assertTrue(serializer.is_valid(), serializer.errors)
 
-    def test_rejects_non_object_private_details(self):
+    def test_rejects_non_object_mobile_account(self):
         serializer = CreateCommercialPaymentMethodSerializer(
             data={
                 "payment_method_type": "nequi",
                 "display_name": "Nequi",
-                "private_details": ["3001234567"],
+                "mobile_account": ["3001234567"],
             }
         )
 
         self.assertFalse(serializer.is_valid())
         self.assertIn(
-            "private_details",
+            "mobile_account",
             serializer.errors,
         )
 
-    def test_update_requires_at_least_one_field(self):
+    def test_update_requires_account_payload(self):
         serializer = UpdateCommercialPaymentMethodSerializer(
-            data={}
+            data={
+                "display_name": "Nequi",
+                "sort_order": 0,
+            }
         )
 
         self.assertFalse(serializer.is_valid())

@@ -35,6 +35,7 @@ import {
   respondToChatGroupInvite,
   listChatCategories,
   listChatCategoryAssignments,
+  getAssistantSettings,
   type ChatCategoryRecord,
 } from '@beeapp/api-client';
 
@@ -167,6 +168,37 @@ export default function ChatListScreen() {
   const [commercialIdentityLoading, setCommercialIdentityLoading] = useState(
     isCommercialContext,
   );
+  const [assistantName, setAssistantName] = useState('Buddy AI');
+  const [assistantInboxPinned, setAssistantInboxPinned] = useState(true);
+  const [assistantInboxMuted, setAssistantInboxMuted] = useState(false);
+
+  useFocusEffect(useCallback(() => {
+    let cancelled = false;
+
+    const loadAssistantName = async () => {
+      const auth = await getValidSessionCredentials();
+      if (!auth || auth.scheme !== 'Bearer') return;
+      try {
+        const response = await getAssistantSettings(auth);
+        if (!cancelled) {
+          setAssistantName(response.settings.name || 'Buddy AI');
+          setAssistantInboxPinned(
+            response.settings.inbox_pinned !== false,
+          );
+          setAssistantInboxMuted(
+            response.settings.inbox_muted === true,
+          );
+        }
+      } catch {
+        // El chat fijado conserva el nombre anterior si la configuración no carga.
+      }
+    };
+
+    void loadAssistantName();
+    return () => {
+      cancelled = true;
+    };
+  }, []));
 
   useEffect(() => {
     let cancelled = false;
@@ -419,6 +451,52 @@ export default function ChatListScreen() {
       : null,
   });
 
+  const openPeopleDiscovery = useCallback(() => {
+    setSocialActivityOpen(false);
+    setCreateMenuOpen(false);
+
+    router.push(
+      isCommercialContext
+        ? {
+            pathname: '/(main)/chat/people',
+            params: {
+              context: 'commercial',
+              businessId,
+              identityId: activeIdentityId || '',
+            },
+          }
+        : '/(main)/chat/people',
+    );
+  }, [
+    activeIdentityId,
+    businessId,
+    isCommercialContext,
+    router,
+  ]);
+
+  const openNewGroupFlow = useCallback(() => {
+    setSocialActivityOpen(false);
+    setCreateMenuOpen(false);
+
+    router.push(
+      isCommercialContext
+        ? {
+            pathname: '/(main)/chat/new-group',
+            params: {
+              context: 'commercial',
+              businessId,
+              identityId: activeIdentityId || '',
+            },
+          }
+        : '/(main)/chat/new-group',
+    );
+  }, [
+    activeIdentityId,
+    businessId,
+    isCommercialContext,
+    router,
+  ]);
+
   const [publishingStatus, setPublishingStatus] = useState(false);
   const [statusPublishingPhase, setStatusPublishingPhase] = useState<
     'idle'
@@ -500,18 +578,19 @@ export default function ChatListScreen() {
         }
 
         const response = await getCurrentProfile(credentials);
+        let nextAvatarUrl = response.profile.avatar_url || null;
 
-        if (!response.profile.avatar_file_id) {
-          return;
+        if (!nextAvatarUrl && response.profile.avatar_file_id) {
+          const avatarAccess = await getProfileAvatarUrl(
+            credentials,
+            response.profile.avatar_file_id,
+          );
+
+          nextAvatarUrl = avatarAccess.url;
         }
 
-        const avatarAccess = await getProfileAvatarUrl(
-          credentials,
-          response.profile.avatar_file_id,
-        );
-
         if (isMounted) {
-          setOwnStatusAvatarUrl(avatarAccess.url);
+          setOwnStatusAvatarUrl(nextAvatarUrl);
         }
       } catch {
         if (isMounted) {
@@ -686,6 +765,12 @@ export default function ChatListScreen() {
     }, []),
   );
 
+  useFocusEffect(
+    useCallback(() => {
+      void refreshStatuses();
+    }, [refreshStatuses]),
+  );
+
   useEffect(() => {
     let cancelled = false;
     let hasCachedProtection = false;
@@ -840,12 +925,40 @@ export default function ChatListScreen() {
   );
 
   const aiChat = useMemo(
-    () => activeTab === 'chats'
-      ? activeChats.find((chat) => chat.isAI)
-      : undefined,
+    () => (
+      activeTab === 'chats'
+      && assistantInboxPinned
+      && !isCommercialContext
+        ? {
+            id: 'assistant',
+            name: assistantName,
+            lastMessage: 'Pregúntame o pídeme que haga algo en la app.',
+            isCallNotice: false,
+            time: '',
+            unreadCount: 0,
+            isGroup: false,
+            status: 'read' as const,
+            isOwnLastMessage: false,
+            online: false,
+            isPinned: assistantInboxPinned,
+            isMuted: assistantInboxMuted,
+            isArchived: false,
+            isProtected: false,
+            isAI: true,
+            verified: false,
+            avatarUrl: null,
+            participantCount: 0,
+            participants: [],
+            raw: { id: 'assistant' } as ChatListItemModel['raw'],
+          }
+        : undefined
+    ),
     [
-      activeChats,
       activeTab,
+      assistantInboxMuted,
+      assistantInboxPinned,
+      assistantName,
+      isCommercialContext,
     ],
   );
 
@@ -882,6 +995,11 @@ export default function ChatListScreen() {
   const openChat = (
     chat: ChatListItemModel,
   ) => {
+    if (chat.isAI) {
+      router.push('/(main)/chat/assistant');
+      return;
+    }
+
     router.push({
       pathname: '/(main)/chat/conversation',
       params: {
@@ -1047,12 +1165,15 @@ export default function ChatListScreen() {
     chat: ChatListItemModel,
   ) => {
     try {
-      await updateConversation(
+      const updated = await updateConversation(
         chat.id,
         {
           isPinned: !chat.isPinned,
         },
       );
+      if (chat.isAI) {
+        setAssistantInboxPinned(updated.isPinned);
+      }
     } catch (updateError) {
       Alert.alert(
         'No fue posible actualizar el chat',
@@ -1067,12 +1188,15 @@ export default function ChatListScreen() {
     chat: ChatListItemModel,
   ) => {
     try {
-      await updateConversation(
+      const updated = await updateConversation(
         chat.id,
         {
           isMuted: !chat.isMuted,
         },
       );
+      if (chat.isAI) {
+        setAssistantInboxMuted(updated.isMuted);
+      }
     } catch (updateError) {
       Alert.alert(
         'No fue posible actualizar el chat',
@@ -1637,7 +1761,7 @@ export default function ChatListScreen() {
   const emptyDescription = isGroupsTab
     ? (
         'Crea un grupo para conversar con varias '
-        + 'cuentas de BeeApp.'
+        + 'cuentas de Buddy AI.'
       )
     : (
       'Inicia un chat o crea un grupo para comenzar.'
@@ -1647,38 +1771,43 @@ export default function ChatListScreen() {
     <ScreenSafeArea style={styles.safeArea}>
       <View style={styles.container}>
         <View style={styles.header}>
-          <Text style={styles.title}>
-            Chats
-          </Text>
-
-          <View style={styles.headerActions}>
-            <ModuleNotificationBell moduleId="chat" />
-
-            <TouchableOpacity
-              style={styles.newChatBtn}
-              onPress={() => {
-                setSocialActivityOpen(true);
-              }}
-              activeOpacity={0.7}
-              accessibilityLabel="Abrir actividad social"
+          <View style={styles.topRow}>
+            <Text
+              style={styles.title}
+              numberOfLines={1}
             >
-              <UserPlus
-                size={20}
-                color={colors.neutral.text}
-              />
-            </TouchableOpacity>
+              Chats
+            </Text>
 
-            <TouchableOpacity
-              style={styles.newChatBtn}
-              onPress={() => setCreateMenuOpen(true)}
-              activeOpacity={0.7}
-              accessibilityLabel="Crear o descubrir personas"
-            >
-              <SquarePen
-                size={20}
-                color={colors.neutral.text}
-              />
-            </TouchableOpacity>
+            <View style={styles.headerActions}>
+              <ModuleNotificationBell moduleId="chat" />
+
+              <TouchableOpacity
+                style={styles.newChatBtn}
+                onPress={() => {
+                  setSocialActivityOpen(true);
+                }}
+                activeOpacity={0.7}
+                accessibilityLabel="Actividad social y contactos"
+              >
+                <UserPlus
+                  size={20}
+                  color={colors.neutral.text}
+                />
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.newChatBtn}
+                onPress={() => setCreateMenuOpen(true)}
+                activeOpacity={0.7}
+                accessibilityLabel="Nuevo chat o grupo"
+              >
+                <SquarePen
+                  size={20}
+                  color={colors.neutral.text}
+                />
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
 
@@ -1738,6 +1867,34 @@ export default function ChatListScreen() {
           activeTab={activeTab}
           onChange={setActiveTab}
         />
+
+        <View style={styles.verTodoRow}>
+          <TouchableOpacity
+            onPress={() => {
+              router.push({
+                pathname: '/(main)/chat/all-inbox',
+                params: {
+                  ...(isCommercialContext
+                    ? {
+                        context: 'commercial',
+                        businessId,
+                        identityId: activeIdentityId || '',
+                      }
+                    : {}),
+                },
+              });
+            }}
+            activeOpacity={0.7}
+            accessibilityRole="button"
+            accessibilityLabel="Ver todos los chats"
+            accessibilityHint="Abre la lista completa de conversaciones"
+          >
+            <Text style={styles.verTodoText}>
+              Ver todo
+            </Text>
+          </TouchableOpacity>
+        </View>
+
         {activeIdentityId && categoryIdentityId === activeIdentityId && (
           <ChatCategoryChips
             categories={chatCategories}
@@ -2172,6 +2329,8 @@ export default function ChatListScreen() {
             }
           })();
         }}
+        onSearchPeople={openPeopleDiscovery}
+        onNewGroup={openNewGroupFlow}
         onClose={() => {
           setSocialActivityOpen(false);
           setSocialError(null);
@@ -2181,38 +2340,8 @@ export default function ChatListScreen() {
 
       <ChatCreateMenu
         visible={createMenuOpen}
-        onPeople={() => {
-          setCreateMenuOpen(false);
-
-          router.push(
-            isCommercialContext
-              ? {
-                  pathname: '/(main)/chat/people',
-                  params: {
-                    context: 'commercial',
-                    businessId,
-                    identityId: activeIdentityId || '',
-                  },
-                }
-              : '/(main)/chat/people',
-          );
-        }}
-        onNewGroup={() => {
-          setCreateMenuOpen(false);
-
-          router.push(
-            isCommercialContext
-              ? {
-                  pathname: '/(main)/chat/new-group',
-                  params: {
-                    context: 'commercial',
-                    businessId,
-                    identityId: activeIdentityId || '',
-                  },
-                }
-              : '/(main)/chat/new-group',
-          );
-        }}
+        onPeople={openPeopleDiscovery}
+        onNewGroup={openNewGroupFlow}
         onClose={() => {
           setCreateMenuOpen(false);
         }}
@@ -2327,12 +2456,9 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   header: {
-    alignItems: 'center',
     backgroundColor: '#FFFFFF',
     borderBottomColor: '#DDE4F4',
     borderBottomWidth: 1,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
     marginHorizontal: 12,
     marginTop: 10,
     paddingBottom: 12,
@@ -2348,8 +2474,16 @@ const styles = StyleSheet.create({
     shadowRadius: 9,
     elevation: 2,
   },
+  topRow: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: 8,
+    justifyContent: 'space-between',
+  },
   title: {
     color: '#303B5A',
+    flex: 1,
+    flexShrink: 1,
     fontSize: 23,
     fontWeight: '800',
     letterSpacing: -0.3,
@@ -2357,7 +2491,9 @@ const styles = StyleSheet.create({
   headerActions: {
     alignItems: 'center',
     flexDirection: 'row',
+    flexShrink: 0,
     gap: 7,
+    justifyContent: 'flex-end',
   },
   newChatBtn: {
     alignItems: 'center',
@@ -2427,6 +2563,17 @@ const styles = StyleSheet.create({
     lineHeight: 18,
     marginTop: 7,
     textAlign: 'center',
+  },
+  verTodoRow: {
+    alignItems: 'flex-end',
+    marginHorizontal: 16,
+    marginTop: 4,
+  },
+  verTodoText: {
+    color: colors.brand.primary,
+    fontSize: 13,
+    fontWeight: '700',
+    paddingVertical: 4,
   },
   statusesSection: {
     backgroundColor: '#F9FAFF',

@@ -34,7 +34,7 @@ export default function AboutYouSection({
         <TextInput
           style={[
             styles.inputField,
-            occupationError && styles.inputFieldError,
+            occupationError ? styles.inputFieldError : undefined,
           ]}
           placeholder="Ej. Desarrollador, gerente, diseñador"
           placeholderTextColor={colors.neutral.gray500}
@@ -54,7 +54,7 @@ export default function AboutYouSection({
         <TextInput
           style={[
             styles.inputField,
-            locationError && styles.inputFieldError,
+            locationError ? styles.inputFieldError : undefined,
           ]}
           placeholder="Ej. Bogotá, Colombia"
           placeholderTextColor={colors.neutral.gray500}

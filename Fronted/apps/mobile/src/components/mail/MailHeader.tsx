@@ -1,5 +1,4 @@
 import {
-  Dimensions,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -19,8 +18,6 @@ import {
 } from '@beeapp/design-system';
 
 import ModuleNotificationBell from '../ModuleNotificationBell';
-
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 export type MailAccountFilter = 'all' | string;
 
@@ -80,49 +77,50 @@ export default function MailHeader({
   return (
     <>
       <View style={styles.header}>
-        {onBack ? (
+        <View style={styles.topRow}>
+          {onBack ? (
+            <TouchableOpacity
+              onPress={onBack}
+              style={styles.backBtn}
+              activeOpacity={0.7}
+            >
+              <ChevronLeft
+                size={24}
+                color={colors.neutral.text}
+              />
+            </TouchableOpacity>
+          ) : null}
+
           <TouchableOpacity
-            onPress={onBack}
-            style={styles.backBtn}
-            activeOpacity={0.7}
+            style={styles.accountSelectorBtn}
+            onPress={onToggleMenu}
+            activeOpacity={0.8}
           >
-            <ChevronLeft
-              size={24}
-              color={colors.neutral.text}
+            <Text
+              style={styles.accountNameText}
+              numberOfLines={1}
+            >
+              {activeAccountLabel}
+            </Text>
+
+            <ChevronDown
+              size={16}
+              color={colors.neutral.gray600}
+              style={styles.accountChevron}
             />
           </TouchableOpacity>
-        ) : (
-          <View style={styles.headerSideSlot} />
-        )}
 
-        <TouchableOpacity
-          style={styles.accountSelectorBtn}
-          onPress={onToggleMenu}
-          activeOpacity={0.8}
-        >
-          <Text
-            style={styles.accountNameText}
-            numberOfLines={1}
-          >
-            {activeAccountLabel}
-          </Text>
-
-          <ChevronDown
-            size={16}
-            color={colors.neutral.gray600}
-            style={styles.accountChevron}
-          />
-        </TouchableOpacity>
-
-        <View style={styles.headerActions}>
           <ModuleNotificationBell moduleId="mail" />
+        </View>
 
+        <View style={styles.bottomRow}>
           {onRefresh ? (
             <TouchableOpacity
               onPress={onRefresh}
               disabled={syncing}
               style={styles.headerActionBtn}
               activeOpacity={0.7}
+              accessibilityLabel="Actualizar correo"
             >
               <RefreshCw
                 size={17}
@@ -136,6 +134,7 @@ export default function MailHeader({
               onPress={onCompose}
               style={styles.headerActionBtn}
               activeOpacity={0.7}
+              accessibilityLabel="Redactar correo"
             >
               <SquarePen
                 size={18}
@@ -273,25 +272,30 @@ export default function MailHeader({
 
 const styles = StyleSheet.create({
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
     paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingTop: 8,
+    paddingBottom: 10,
     backgroundColor: colors.neutral.white,
     borderBottomWidth: 1,
     borderColor: colors.neutral.gray100,
+    gap: 8,
+  },
+  topRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  bottomRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    gap: 8,
   },
   backBtn: {
     padding: 4,
   },
   headerSideSlot: {
     width: 32,
-  },
-  headerActions: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
   },
   headerActionBtn: {
     width: 32,
@@ -311,9 +315,11 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     borderWidth: 1,
     borderColor: colors.neutral.gray200,
-    maxWidth: SCREEN_WIDTH * 0.52,
+    flex: 1,
+    minWidth: 0,
   },
   accountNameText: {
+    flexShrink: 1,
     fontSize: 13,
     fontWeight: '600',
     color: colors.neutral.text,

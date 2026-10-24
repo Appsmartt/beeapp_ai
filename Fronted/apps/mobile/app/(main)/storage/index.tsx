@@ -12,6 +12,7 @@ import {
   View,
 } from 'react-native';
 import * as DocumentPicker from 'expo-document-picker';
+import { withExternalActivity } from '../../../src/services/locationPermissionAppLockGuard';
 import { useNavigation } from 'expo-router';
 
 import {
@@ -746,11 +747,13 @@ export default function StorageIndexScreen() {
           ? 'video/*'
           : '*/*';
 
-    const result = await DocumentPicker.getDocumentAsync({
-      type,
-      copyToCacheDirectory: true,
-      multiple: true,
-    });
+    const result = await withExternalActivity(() => (
+      DocumentPicker.getDocumentAsync({
+        type,
+        copyToCacheDirectory: true,
+        multiple: true,
+      })
+    ));
 
     if (result.canceled || !result.assets.length) {
       return;

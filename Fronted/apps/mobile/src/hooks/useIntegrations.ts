@@ -114,7 +114,13 @@ export function useIntegrations(): UseIntegrationsResult {
         auth,
         );
 
-        return response.authorization_url;
+        if (response.browser_start_path.length === 0) {
+        throw new Error(
+            'No fue posible iniciar el navegador seguro.',
+        );
+        }
+
+        return response.browser_start_path;
     }, []);
 
     const reauthorize = useCallback(async (
@@ -130,7 +136,13 @@ export function useIntegrations(): UseIntegrationsResult {
             auth,
         );
 
-        return response.authorization_url;
+        if (response.browser_start_path.length === 0) {
+        throw new Error(
+            'No fue posible iniciar el navegador seguro.',
+        );
+        }
+
+        return response.browser_start_path;
     }, []);
 
     const disconnect = useCallback(async (

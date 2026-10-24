@@ -68,11 +68,16 @@ export interface RegisteredUser {
 export interface RegisterUserResponse {
   message: string;
   user: RegisteredUser;
+  session?: SupabaseAuthSession | null;
 }
 
 export interface LoginUserPayload {
   email: string;
   password: string;
+  device_type?: string;
+  platform?: string;
+  device_name?: string;
+  user_agent?: string;
 }
 
 export interface SupabaseAuthSession {
@@ -103,7 +108,11 @@ export interface AuthenticatedUser {
 export interface LoginUserResponse {
   message: string;
   session: SupabaseAuthSession;
-  user: AuthenticatedUser;
+  user: AuthenticatedUser & {
+    first_name?: string;
+    last_name?: string;
+    role?: UserRole | string;
+  };
   device_session_id: string;
 }
 
@@ -153,10 +162,30 @@ export interface UserProfile {
   social_links: ProfileSocialLink[];
 }
 
+export type ProfileVerificationStatus =
+  | 'no_solicitado'
+  | 'en_revision'
+  | 'verificado'
+  | 'rechazado';
+
+export interface ProfileVerificationRequest {
+  submitted_at: string;
+  status: ProfileVerificationStatus;
+  pending_requirements: string[];
+  document_file_id?: string | null;
+}
+
 export interface CurrentUserProfile
   extends UserProfile {
   email: string | null;
   avatar_file_id: string | null;
+  avatar_url?: string | null;
+  verification_status?: ProfileVerificationStatus | null;
+  created_at?: string | null;
+  settings?: {
+    verification_request?: ProfileVerificationRequest | null;
+    [key: string]: unknown;
+  } | null;
 }
 
 export interface GetCurrentProfileResponse {
@@ -193,6 +222,11 @@ export interface RemoveProfileAvatarResponse {
   profile: CurrentUserProfile;
 }
 
+export interface SubmitProfileVerificationResponse {
+  message: string;
+  profile: CurrentUserProfile;
+}
+
 export type DeviceType = 'WEB' | 'MOBILE' | 'DESKTOP';
 
 export interface DeviceSession {
@@ -207,6 +241,15 @@ export interface DeviceSession {
 
 export interface GetDeviceSessionsResponse {
   devices: DeviceSession[];
+}
+
+export interface CreateQrLoginChallengePayload {
+  browser_nonce: string;
+}
+
+export interface ActivateWebSessionPayload {
+  challenge_token: string;
+  browser_nonce: string;
 }
 
 export interface QrLoginChallengeResponse {
@@ -592,16 +635,17 @@ export interface MarkAllNotificationsReadResponse {
 }
 
 export interface RegisterPushDevicePayload {
-  expo_push_token: string;
+  onesignal_subscription_id: string;
   platform: 'android' | 'ios';
   device_id?: string;
+  device_session_id?: string;
   app_version?: string;
 }
 
 export interface PushDevice {
   id: string;
   user_id: string;
-  expo_push_token: string;
+  onesignal_subscription_id: string;
   platform: string;
   device_id: string | null;
   app_version: string | null;
@@ -1613,7 +1657,12 @@ export interface StartIntegrationAuthorizationPayload {
 export interface StartIntegrationAuthorizationResponse {
   request_id: string;
   authorization_url: string;
+  browser_start_path: string;
   expires_at: string;
+}
+
+export interface ConfirmIntegrationOAuthResponse {
+  connection: IntegrationConnection;
 }
 
 export type CalendarIntegrationStatus =
@@ -2139,6 +2188,7 @@ export interface StatusMedia {
 
 export interface StatusImageLayer {
   id: string;
+  file_id?: string | null;
   bucket_id: string;
   storage_path: string;
   original_name: string;
@@ -2937,6 +2987,71 @@ export interface ChatPushNotificationData {
   message?: ChatMessage;
   conversation_patch?: ChatConversationRealtimePatch | null;
   protected?: boolean | string;
+}
+
+export type AssistantTone = 'formal' | 'cercano' | 'neutro';
+
+export type AssistantLevel = 'sugerir' | 'confirmar' | 'automatico';
+
+export interface AssistantPermissions {
+  calendar: boolean;
+  notes: boolean;
+  mail: boolean;
+  marketplace: boolean;
+  send_messages: boolean;
+}
+
+export interface AssistantSettings {
+  user_id: string;
+  name: string;
+  tone: AssistantTone;
+  voice: string;
+  voice_activation: boolean;
+  assistance_level: AssistantLevel;
+  memory_enabled: boolean;
+  permissions: AssistantPermissions;
+  /** Si el acceso rápido al asistente aparece fijado en el inbox de chat. */
+  inbox_pinned?: boolean;
+  /** Si las notificaciones del asistente en inbox están silenciadas. */
+  inbox_muted?: boolean;
+  language: string;
+  updated_at: string | null;
+}
+
+export interface AssistantCard {
+  type: string;
+  action_id?: string;
+  action?: string;
+  title?: string;
+  summary?: string;
+  content?: string;
+  conversation_id?: string;
+  business_id?: string;
+  items?: Array<Record<string, unknown>>;
+  [key: string]: unknown;
+}
+
+export interface AssistantMessage {
+  id: string;
+  role: 'user' | 'assistant' | 'system';
+  content: string;
+  cards: AssistantCard[];
+  created_at: string;
+}
+
+export interface GetAssistantSettingsResponse {
+  settings: AssistantSettings;
+}
+
+export interface GetAssistantMessagesResponse {
+  messages: AssistantMessage[];
+}
+
+export interface SendAssistantMessageResponse {
+  message: AssistantMessage;
+  cards: AssistantCard[];
+  audio_base64?: string;
+  audio_mime?: string;
 }
 
 export * from './commercial';

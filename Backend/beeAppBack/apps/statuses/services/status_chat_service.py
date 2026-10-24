@@ -15,7 +15,7 @@ from apps.chat.exceptions import (
     ChatMessageError,
     ChatMessageSendError,
 )
-from apps.chat.services.chat_conversation_service import (
+from apps.chat.services.chat_conversation import (
     create_or_get_direct_conversation,
 )
 from apps.chat.services.chat_identity_service import (
@@ -23,7 +23,7 @@ from apps.chat.services.chat_identity_service import (
     get_owned_chat_identity,
     sync_chat_identities_for_user,
 )
-from apps.chat.services.chat_message_service import (
+from apps.chat.services.chat_messages.message_send_service import (
     send_chat_message,
 )
 from apps.statuses.exceptions import (
@@ -31,7 +31,7 @@ from apps.statuses.exceptions import (
     StatusNotFoundError,
     StatusReplyError,
 )
-from apps.statuses.services.status_service import (
+from apps.statuses.services.status_refactor import (
     get_status_story,
 )
 

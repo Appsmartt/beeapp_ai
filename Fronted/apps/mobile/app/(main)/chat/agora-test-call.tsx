@@ -381,7 +381,7 @@ export default function AgoraTestCallScreen() {
       <ScreenSafeArea style={styles.container}>
         <View style={styles.center}>
           <Text style={styles.errorText}>
-            Esta prueba requiere una llamada creada por BeeApp.
+            Esta prueba requiere una llamada creada por Buddy AI.
           </Text>
 
           <TouchableOpacity

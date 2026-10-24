@@ -25,6 +25,7 @@ import {
   markChatConversationRead,
   removeChatGroupParticipant,
   searchChatRecipients,
+  getChatMessageAttachmentAccess,
   sendChatMessage,
   updateChatGroup,
   updateChatConversationPinned,
@@ -141,6 +142,52 @@ async function retryChatRequest<T>(
     : new Error(
         'No fue posible completar la solicitud de Chat.',
       );
+}
+
+function mergeChatMessageAttachmentUrl(
+  message: ChatMessage,
+  url: string,
+): ChatMessage {
+  const normalizedUrl = String(url || '').trim();
+
+  if (!/^https?:\/\//i.test(normalizedUrl)) {
+    return message;
+  }
+
+  const existingAttachments = message.attachments || [];
+
+  if (existingAttachments.length > 0) {
+    return {
+      ...message,
+      attachments: existingAttachments.map((
+        attachment,
+        index,
+      ) => (
+        index === 0
+          ? {
+              ...attachment,
+              url: normalizedUrl,
+            }
+          : attachment
+      )),
+    };
+  }
+
+  const fallbackFileId = (
+    message.attachments?.[0]?.file_id
+    || message.attachments?.[0]?.id
+    || message.id
+  );
+
+  return {
+    ...message,
+    attachments: [{
+      id: fallbackFileId,
+      file_id: fallbackFileId,
+      name: message.attachments?.[0]?.name || 'Archivo adjunto',
+      url: normalizedUrl,
+    }],
+  };
 }
 
 function getErrorMessage(
@@ -1514,6 +1561,13 @@ export function useChatConversations(
           notifications_enabled: !payload.isMuted,
         },
       );
+      if (normalizedConversationId === 'assistant') {
+        return mapConversationToListItem(
+          response.conversation,
+          activeUserId,
+          false,
+        );
+      }
       const current = getStoredConversations().find(
         (item) => item.id === normalizedConversationId,
       );
@@ -1567,6 +1621,13 @@ export function useChatConversations(
           is_pinned: payload.isPinned,
         },
       );
+      if (normalizedConversationId === 'assistant') {
+        return mapConversationToListItem(
+          response.conversation,
+          activeUserId,
+          false,
+        );
+      }
       const current = getStoredConversations().find(
         (item) => item.id === normalizedConversationId,
       );
@@ -1727,7 +1788,9 @@ export function useChatConversations(
       );
       const activeParticipants = result.participants.filter(
         (participant) => (
-          !participant.left_at && !participant.removed_at
+          Boolean(participant.joined_at?.trim())
+          && !participant.left_at
+          && !participant.removed_at
         ),
       );
       const otherParticipants = activeParticipants.filter(
@@ -3003,16 +3066,36 @@ export function useChatMessages(
         },
       );
 
+      let messageToStore = uploadedMessage;
+
+      try {
+        const access = await getChatMessageAttachmentAccess(
+          token,
+          uploadedMessage.id,
+          senderIdentityId,
+        );
+
+        messageToStore = mergeChatMessageAttachmentUrl(
+          uploadedMessage,
+          access.url,
+        );
+      } catch (attachmentAccessError) {
+        console.warn(
+          '[chat attachment access] no fue posible resolver URL tras envío',
+          attachmentAccessError,
+        );
+      }
+
       setCurrentUserId(activeUserId);
 
       upsertChatMessage(
         normalizedConversationId,
-        uploadedMessage,
+        messageToStore,
       );
 
       updateChatConversationLastMessage(
         normalizedConversationId,
-        { ...uploadedMessage, status: 'delivered' },
+        { ...messageToStore, status: 'delivered' },
       );
 
       setRawMessages(
@@ -3020,7 +3103,7 @@ export function useChatMessages(
       );
 
       return mapChatMessageToModel(
-        uploadedMessage,
+        messageToStore,
         activeUserId,
         {
           conversationIsAi,

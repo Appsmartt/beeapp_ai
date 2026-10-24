@@ -1,7 +1,10 @@
 import { Platform } from 'react-native';
 import Constants from 'expo-constants';
-import * as Device from 'expo-device';
-import * as Notifications from 'expo-notifications';
+import type {
+    NotificationClickEvent,
+    NotificationWillDisplayEvent,
+    OSNotification,
+    } from 'react-native-onesignal';
 import {
     getAuthSession,
     getValidSessionCredentials,
@@ -10,139 +13,224 @@ import {
     registerPushDevice,
     } from '@beeapp/api-client';
 
-const ANDROID_NOTIFICATION_CHANNEL_ID = 'default';
-const ANDROID_INCOMING_CALL_CHANNEL_ID = 'incoming-calls';
-
 const PUSH_REGISTRATION_MAX_ATTEMPTS = 5;
 const PUSH_REGISTRATION_RETRY_DELAY_MS = 500;
 
+type PushData = Record<string, unknown>;
+type PushHandler = (data: PushData) => void;
+
+type OneSignalApi = typeof import('react-native-onesignal').OneSignal;
+
 let lastRegisteredRegistrationKey = '';
 let registrationInFlight: Promise<string | null> | null = null;
+let initialized = false;
+let openedSerial = 0;
+let deliveredOpenedSerial = 0;
+let lastOpened: PushData | null = null;
+let coldStartTimer: ReturnType<typeof setTimeout> | null = null;
 
-Notifications.setNotificationHandler({
-    handleNotification: async () => ({
-        shouldShowAlert: true,
-        shouldPlaySound: true,
-        shouldSetBadge: true,
-    }),
-});
+const receivedListeners = new Set<PushHandler>();
+const openedListeners = new Set<PushHandler>();
+const callNotificationIds = new Map<string, number>();
 
-function getEasProjectId(): string | null {
-    const expoConfigProjectId = (
-        Constants.expoConfig?.extra?.eas?.projectId
-    );
+function getOneSignalAppId(): string {
+    return String(process.env.EXPO_PUBLIC_ONESIGNAL_APP_ID || '').trim();
+}
 
-    const easConfigProjectId = (
-        Constants.easConfig?.projectId
-    );
+/** false cuando el APK no trae App ID (OneSignal no inicializa). */
+export function isPushNotificationsConfigured(): boolean {
+    return Boolean(getOneSignalAppId());
+}
 
-    const projectId = String(
-        expoConfigProjectId
-        || easConfigProjectId
-        || '',
-    ).trim();
+function canUsePush(): boolean {
+    return Platform.OS === 'android' || Platform.OS === 'ios';
+}
 
-    if (
-        !projectId
-        || projectId === 'TU_EAS_PROJECT_ID'
-    ) {
+function getOneSignal(): OneSignalApi | null {
+    if (!canUsePush()) {
         return null;
     }
 
-    return projectId;
+    const imported = require('react-native-onesignal') as typeof import('react-native-onesignal');
+
+    return imported.OneSignal;
 }
 
-async function configureAndroidNotificationChannel(): Promise<void> {
-    if (Platform.OS !== 'android') {
+function asPushData(value: unknown): PushData {
+    if (
+        value
+        && typeof value === 'object'
+        && !Array.isArray(value)
+    ) {
+        return value as PushData;
+    }
+
+    return {};
+}
+
+function rememberCallNotification(
+    data: PushData,
+    androidNotificationId: number | undefined,
+): void {
+    if (
+        String(data.module || '').trim() !== 'calls'
+        || String(data.type || '').trim() !== 'incoming_call'
+        || typeof androidNotificationId !== 'number'
+    ) {
         return;
     }
 
-    await Notifications.setNotificationChannelAsync(
-        ANDROID_NOTIFICATION_CHANNEL_ID,
-        {
-        name: 'Notificaciones generales',
-        description: (
-            'Avisos de correo, calendario, archivos y actividad de Buddy.'
-        ),
-        importance: Notifications.AndroidImportance.HIGH,
-        vibrationPattern: [0, 250, 250, 250],
-        lightColor: '#6025D2',
-        sound: 'default',
-        lockscreenVisibility: (
-            Notifications.AndroidNotificationVisibility.PUBLIC
-        ),
-        },
-    );
+    const callId = String(data.call_id || '').trim();
 
-    await Notifications.setNotificationChannelAsync(
-        ANDROID_INCOMING_CALL_CHANNEL_ID,
-        {
-        name: 'Llamadas entrantes',
-        description: (
-            'Avisos urgentes de llamadas entrantes de BeeApp.'
-        ),
-        importance: Notifications.AndroidImportance.MAX,
-        vibrationPattern: [0, 500, 250, 500, 250, 500],
-        lightColor: '#6025D2',
-        sound: 'default',
-        lockscreenVisibility: (
-            Notifications.AndroidNotificationVisibility.PUBLIC
-        ),
-        bypassDnd: false,
-        },
-    );
+    if (callId) {
+        callNotificationIds.set(callId, androidNotificationId);
+    }
 }
 
-async function requestNotificationPermission(): Promise<boolean> {
-    const currentPermissions = (
-        await Notifications.getPermissionsAsync()
-    );
+function emitReceived(data: PushData): void {
+    receivedListeners.forEach((listener) => {
+        listener(data);
+    });
+}
 
+function emitOpened(data: PushData): void {
+    openedSerial += 1;
+    lastOpened = data;
+
+    if (openedListeners.size === 0) {
+        return;
+    }
+
+    deliveredOpenedSerial = openedSerial;
+    openedListeners.forEach((listener) => {
+        listener(data);
+    });
+}
+
+function deliverColdStartOpened(): void {
     if (
-        currentPermissions.granted
-        || currentPermissions.ios?.status
-        === Notifications.IosAuthorizationStatus.PROVISIONAL
+        !lastOpened
+        || deliveredOpenedSerial === openedSerial
+        || openedListeners.size === 0
     ) {
-        return true;
+        return;
     }
 
-    const requestedPermissions = (
-        await Notifications.requestPermissionsAsync()
-    );
-
-    return (
-        requestedPermissions.granted
-        || requestedPermissions.ios?.status
-        === Notifications.IosAuthorizationStatus.PROVISIONAL
-    );
+    deliveredOpenedSerial = openedSerial;
+    const data = lastOpened;
+    openedListeners.forEach((listener) => {
+        listener(data);
+    });
 }
 
-async function getExpoPushToken(): Promise<string | null> {
-    if (!Device.isDevice) {
-        return null;
+function handleForeground(event: NotificationWillDisplayEvent): void {
+    const notification = event.getNotification();
+    const data = asPushData(notification.additionalData);
+
+    rememberCallNotification(data, notification.androidNotificationId);
+    emitReceived(data);
+}
+
+function handleClick(event: NotificationClickEvent): void {
+    const notification: OSNotification = event.notification;
+    const data = asPushData(notification.additionalData);
+
+    rememberCallNotification(data, notification.androidNotificationId);
+    emitOpened(data);
+}
+
+export function initializePushNotifications(): void {
+    if (initialized || !canUsePush()) {
+        return;
     }
 
-    const projectId = getEasProjectId();
+    const appId = getOneSignalAppId();
 
-    if (!projectId) {
-        return null;
+    if (!appId) {
+        return;
     }
 
-    const hasPermission = await requestNotificationPermission();
+    const oneSignal = getOneSignal();
 
-    if (!hasPermission) {
-        return null;
+    if (!oneSignal) {
+        return;
     }
 
-    const tokenResponse = (
-        await Notifications.getExpoPushTokenAsync({
-        projectId,
-        })
+    oneSignal.initialize(appId);
+    oneSignal.Notifications.addEventListener(
+        'foregroundWillDisplay',
+        handleForeground,
     );
+    oneSignal.Notifications.addEventListener(
+        'click',
+        handleClick,
+    );
+    initialized = true;
+}
 
-    const token = tokenResponse.data.trim();
+export function subscribePushNotifications(handlers: {
+    onReceived?: PushHandler;
+    onOpened?: PushHandler;
+}): () => void {
+    initializePushNotifications();
 
-    return token || null;
+    if (handlers.onReceived) {
+        receivedListeners.add(handlers.onReceived);
+    }
+
+    if (handlers.onOpened) {
+        openedListeners.add(handlers.onOpened);
+
+        if (coldStartTimer) {
+            clearTimeout(coldStartTimer);
+        }
+
+        coldStartTimer = setTimeout(() => {
+            coldStartTimer = null;
+            deliverColdStartOpened();
+        }, 0);
+    }
+
+    return () => {
+        if (handlers.onReceived) {
+            receivedListeners.delete(handlers.onReceived);
+        }
+
+        if (handlers.onOpened) {
+            openedListeners.delete(handlers.onOpened);
+        }
+    };
+}
+
+export function dismissIncomingCallNotification(callId: string): void {
+    const oneSignal = getOneSignal();
+
+    if (!oneSignal || !initialized) {
+        return;
+    }
+
+    const androidNotificationId = callNotificationIds.get(callId);
+
+    if (typeof androidNotificationId === 'number') {
+        oneSignal.Notifications.removeNotification(androidNotificationId);
+        callNotificationIds.delete(callId);
+        return;
+    }
+
+    oneSignal.Notifications.clearAll();
+}
+
+export function logoutPush(): void {
+    lastRegisteredRegistrationKey = '';
+    callNotificationIds.clear();
+
+    const oneSignal = getOneSignal();
+
+    if (!oneSignal || !initialized) {
+        return;
+    }
+
+    oneSignal.logout();
 }
 
 function getDeviceId(): string | undefined {
@@ -178,11 +266,20 @@ function waitForPushRegistrationRetry(
     });
 }
 
+async function readSubscriptionId(
+    oneSignal: OneSignalApi,
+): Promise<string | null> {
+    const subscriptionId = String(
+        await oneSignal.User.pushSubscription.getIdAsync() || '',
+    ).trim();
+
+    return subscriptionId || null;
+}
 
 export async function registerCurrentDeviceForPushNotifications(): Promise<
     string | null
-    > {
-    if (Platform.OS !== 'android' && Platform.OS !== 'ios') {
+> {
+    if (!canUsePush()) {
         return null;
     }
 
@@ -192,35 +289,35 @@ export async function registerCurrentDeviceForPushNotifications(): Promise<
 
     registrationInFlight = (async () => {
         try {
-            await configureAndroidNotificationChannel();
+            initializePushNotifications();
 
-            const expoPushToken = await getExpoPushToken();
+            const oneSignal = getOneSignal();
+            const appId = getOneSignalAppId();
 
-            if (!expoPushToken) {
+            if (!oneSignal || !appId || !initialized) {
+                return null;
+            }
+
+            const granted = await oneSignal.Notifications.requestPermission(
+                true,
+            );
+
+            if (!granted) {
                 return null;
             }
 
             const authSession = await getAuthSession();
-
+            const userId = String(authSession?.user?.id || '').trim();
             const deviceSessionId = String(
                 authSession?.deviceSessionId || '',
             ).trim();
 
-            if (!deviceSessionId) {
+            if (!userId || !deviceSessionId) {
                 return null;
             }
 
-            const registrationKey = [
-                deviceSessionId,
-                expoPushToken,
-            ].join(':');
-
-            if (
-                lastRegisteredRegistrationKey
-                === registrationKey
-            ) {
-                return expoPushToken;
-            }
+            oneSignal.login(userId);
+            oneSignal.User.pushSubscription.optIn();
 
             for (
                 let attempt = 1;
@@ -228,6 +325,29 @@ export async function registerCurrentDeviceForPushNotifications(): Promise<
                 attempt += 1
             ) {
                 try {
+                    const subscriptionId = await readSubscriptionId(
+                        oneSignal,
+                    );
+
+                    if (!subscriptionId) {
+                        throw new Error(
+                            'OneSignal todavía no tiene subscription id.',
+                        );
+                    }
+
+                    const registrationKey = [
+                        deviceSessionId,
+                        userId,
+                        subscriptionId,
+                    ].join(':');
+
+                    if (
+                        lastRegisteredRegistrationKey
+                        === registrationKey
+                    ) {
+                        return subscriptionId;
+                    }
+
                     const auth = await getValidSessionCredentials();
 
                     if (!auth) {
@@ -236,22 +356,23 @@ export async function registerCurrentDeviceForPushNotifications(): Promise<
                         );
                     }
 
-
                     await registerPushDevice(
                         auth,
                         {
-                        expo_push_token: expoPushToken,
-                        platform: Platform.OS,
-                        device_id: getDeviceId(),
-                        app_version: getAppVersion(),
+                            onesignal_subscription_id: subscriptionId,
+                            platform: Platform.OS === 'ios'
+                                ? 'ios'
+                                : 'android',
+                            device_id: getDeviceId(),
+                            device_session_id: deviceSessionId,
+                            app_version: getAppVersion(),
                         },
                     );
 
                     lastRegisteredRegistrationKey = registrationKey;
 
-
-                    return expoPushToken;
-                } catch (error) {
+                    return subscriptionId;
+                } catch {
                     if (
                         attempt
                         < PUSH_REGISTRATION_MAX_ATTEMPTS
@@ -263,10 +384,8 @@ export async function registerCurrentDeviceForPushNotifications(): Promise<
                 }
             }
 
-
             return null;
-        } catch (error) {
-
+        } catch {
             return null;
         } finally {
             registrationInFlight = null;

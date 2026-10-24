@@ -116,6 +116,10 @@ android {
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 1
         versionName "1.0.0"
+        ndk {
+            // Prebuilt .so files from AARs (e.g. Agora) ignore reactNativeArchitectures unless filtered here.
+            abiFilters(*((findProperty('reactNativeArchitectures') ?: 'arm64-v8a').split(',').collect { it.trim() }))
+        }
     }
     signingConfigs {
         debug {

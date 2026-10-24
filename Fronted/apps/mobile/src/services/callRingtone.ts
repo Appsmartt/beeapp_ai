@@ -4,7 +4,7 @@ import {
 } from 'expo-av';
 
 const incomingCallSound = require(
-  '../assets/sounds/incoming-call.mp3',
+  '../assets/sounds/incoming_call.mp3',
 );
 
 let ringtone: Audio.Sound | null = null;

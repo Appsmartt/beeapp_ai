@@ -48,6 +48,7 @@ import {
   toCommercialUiError,
   type CommercialUiError,
 } from '../../../src/features/buddyservices/commercialErrors';
+import { useBuddyServicesAiSearch } from '../../../src/features/buddyservices/useBuddyServicesAiSearch';
 import {
   loadOwnedCommercialProfiles,
   loadPublicCommercialProductFeed,
@@ -73,6 +74,11 @@ export default function BeeServicesScreen() {
   const [search, setSearch] = useState('');
   const [activeSearch, setActiveSearch] = useState('');
   const searchRequestVersionRef = useRef(0);
+  const skipEmptySearchEffectRef = useRef(true);
+  const scrollRef = useRef<ScrollView>(null);
+  const resultsOffsetRef = useRef(0);
+  const searchRef = useRef(search);
+  searchRef.current = search;
   const [searchProfiles, setSearchProfiles] = useState<
     CommercialPublicProfile[]
   >([]);
@@ -156,7 +162,12 @@ export default function BeeServicesScreen() {
 
   useFocusEffect(
     useCallback(() => {
-      void loadProductFeed();
+      const currentSearch = searchRef.current.trim();
+      void loadProductFeed({
+        search: currentSearch.length >= MINIMUM_SEARCH_LENGTH
+          ? currentSearch
+          : undefined,
+      });
       void loadOwnedProfilesState();
     }, [
       loadOwnedProfilesState,
@@ -202,10 +213,7 @@ export default function BeeServicesScreen() {
     if (
       loadingMoreProducts
       || loadingProductFeed
-      || (
-        !hasMoreProducts
-        && (!activeSearch || !hasMoreSearchProfiles)
-      )
+      || (!hasMoreProducts && !hasMoreSearchProfiles)
     ) {
       return;
     }
@@ -217,7 +225,10 @@ export default function BeeServicesScreen() {
     try {
       const response = await loadPublicCommercialProductFeed({
         limit: NEXT_PRODUCT_FEED_LIMIT,
-        offset: productFeed.length,
+        offset: Math.max(
+          productFeed.length,
+          searchProfiles.length,
+        ),
         search: activeSearch || undefined,
         seed: activeSearch
           ? undefined
@@ -240,23 +251,21 @@ export default function BeeServicesScreen() {
           ),
         ];
       });
-      if (activeSearch) {
-        setSearchProfiles((current) => {
-          const existingIds = new Set(
-            current.map((profile) => profile.id),
-          );
-
-          return [
-            ...current,
-            ...(response.profiles || []).filter(
-              (profile) => !existingIds.has(profile.id),
-            ),
-          ];
-        });
-        setHasMoreSearchProfiles(
-          Boolean(response.profiles_has_more),
+      setSearchProfiles((current) => {
+        const existingIds = new Set(
+          current.map((profile) => profile.id),
         );
-      }
+
+        return [
+          ...current,
+          ...(response.profiles || []).filter(
+            (profile) => !existingIds.has(profile.id),
+          ),
+        ];
+      });
+      setHasMoreSearchProfiles(
+        Boolean(response.profiles_has_more),
+      );
 
       setProductFeedSeed(response.seed);
       setHasMoreProducts(response.has_more);
@@ -273,10 +282,12 @@ export default function BeeServicesScreen() {
   }, [
     activeSearch,
     hasMoreProducts,
+    hasMoreSearchProfiles,
     loadingMoreProducts,
     loadingProductFeed,
     productFeed.length,
     productFeedSeed,
+    searchProfiles.length,
   ]);
 
   const runSearch = useCallback((value: string) => {
@@ -307,8 +318,16 @@ export default function BeeServicesScreen() {
     const normalizedSearch = search.trim();
 
     if (!normalizedSearch) {
+      if (skipEmptySearchEffectRef.current) {
+        skipEmptySearchEffectRef.current = false;
+        return;
+      }
+
+      runSearch('');
       return;
     }
+
+    skipEmptySearchEffectRef.current = false;
 
     if (normalizedSearch.length < MINIMUM_SEARCH_LENGTH) {
       searchRequestVersionRef.current += 1;
@@ -331,6 +350,31 @@ export default function BeeServicesScreen() {
     runSearch(search);
   }, [runSearch, search]);
 
+  const scrollToResults = useCallback(() => {
+    requestAnimationFrame(() => {
+      scrollRef.current?.scrollTo({
+        y: Math.max(resultsOffsetRef.current - 8, 0),
+        animated: true,
+      });
+    });
+  }, []);
+
+  const handleAiSearch = useCallback(() => {
+    runSearch(search);
+    scrollToResults();
+  }, [runSearch, scrollToResults, search]);
+
+  const {
+    listening,
+    transcribing,
+    toggleVoice,
+  } = useBuddyServicesAiSearch({
+    onError: setError,
+    onSearched: scrollToResults,
+    runSearch,
+    setSearch,
+  });
+
   const handleBusinessAction = useCallback(() => {
     router.push(buddyServicesMyBusinessesRoute());
   }, [router]);
@@ -341,6 +385,7 @@ export default function BeeServicesScreen() {
     <ScreenSafeArea style={beeStyles.safeArea}>
       <View style={beeStyles.container}>
         <ScrollView
+          ref={scrollRef}
           contentContainerStyle={beeStyles.content}
           keyboardShouldPersistTaps="handled"
           refreshControl={
@@ -375,26 +420,14 @@ export default function BeeServicesScreen() {
 
 
           <BeeServicesAiSearchCard
-            onPressSearch={() => {
-              setError({
-                title: 'Búsqueda próximamente',
-                message: (
-                  'Estamos preparando la búsqueda general de '
-                  + 'productos y servicios.'
-                ),
-                retryable: false,
-              });
-            }}
+            busy={transcribing}
+            listening={listening}
+            onChangeText={setSearch}
             onPressVoice={() => {
-              setError({
-                title: 'Búsqueda por voz próximamente',
-                message: (
-                  'Por ahora usa la búsqueda manual '
-                  + 'para encontrar negocios y servicios.'
-                ),
-                retryable: false,
-              });
+              void toggleVoice();
             }}
+            onSubmit={handleAiSearch}
+            value={search}
           />
 
           <BeeServicesBusinessCard
@@ -518,6 +551,12 @@ disabled: isInitialLoading,
             ) : null}
           </View>
 
+          <View
+            onLayout={(event) => {
+              resultsOffsetRef.current = event.nativeEvent.layout.y;
+            }}
+          />
+
           {error ? (
             <View
               accessibilityLiveRegion="polite"
@@ -534,7 +573,7 @@ accessibilityRole="alert"
 
               {error.retryable ? (
                 <TouchableOpacity
-                  accessibilityLabel="Reintentar carga de BuddyServices"
+                  accessibilityLabel="Reintentar carga de Buddy Services"
                   accessibilityRole="button"
                   activeOpacity={0.8}
                   onPress={handleRetry}
@@ -558,12 +597,14 @@ accessibilityRole="alert"
                 <Text style={localStyles.loadingText}>
                   {activeSearch
                     ? 'Buscando coincidencias…'
-                    : 'Cargando productos y servicios…'}
+                    : 'Cargando negocios y servicios…'}
                 </Text>
               </View>
             ) : null}
 
-            {!loadingProductFeed && !error && productFeed.length === 0 ? (
+            {!loadingProductFeed && !error
+              && productFeed.length === 0
+              && searchProfiles.length === 0 ? (
               <View style={localStyles.locationEmptyState}>
                 <Store
                   color="#7B2DD9"
@@ -573,21 +614,25 @@ accessibilityRole="alert"
                 <Text style={localStyles.locationEmptyTitle}>
                   {activeSearch
                     ? 'No encontramos coincidencias'
-                    : 'Aún no hay productos disponibles'}
+                    : 'Aún no hay negocios disponibles'}
                 </Text>
 
                 <Text style={localStyles.locationEmptyText}>
                   {activeSearch
                     ? 'Prueba con otro nombre, producto o servicio.'
-                    : 'Vuelve a intentarlo más tarde.'}
+                    : 'Cuando alguien publique un negocio o un servicio, aparecerá aquí.'}
                 </Text>
               </View>
             ) : null}
 
-            {!loadingProductFeed && activeSearch
-              && searchProfiles.length > 0 ? (
+            {!loadingProductFeed && searchProfiles.length > 0 ? (
               <CommercialRecentBusinesses
                 profiles={searchProfiles}
+                title={
+                  activeSearch
+                    ? 'Negocios'
+                    : 'Negocios recientes'
+                }
                 onPressProfile={(profile) => router.push(
                   buddyServicesPublicProfileRoute(profile.id),
                 )}

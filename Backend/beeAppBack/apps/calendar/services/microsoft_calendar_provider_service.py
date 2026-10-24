@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime
 from typing import Any
-from urllib.parse import quote
+from urllib.parse import quote, urlparse
 
 import httpx
 
@@ -43,6 +43,22 @@ class MicrosoftCalendarProvider:
         access_token: str,
         params: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
+        parsed_url = urlparse(url)
+
+        try:
+            is_allowed_graph_url = (
+                parsed_url.scheme == "https"
+                and parsed_url.hostname == "graph.microsoft.com"
+                and parsed_url.port in (None, 443)
+            )
+        except ValueError:
+            is_allowed_graph_url = False
+
+        if not is_allowed_graph_url:
+            raise CalendarProviderError(
+                "Microsoft Graph returned a disallowed URL."
+            )
+
         try:
             response = httpx.request(
                 method,

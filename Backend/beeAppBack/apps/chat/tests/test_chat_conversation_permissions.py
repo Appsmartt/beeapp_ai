@@ -2,11 +2,15 @@ from unittest.mock import Mock, patch
 
 from django.test import SimpleTestCase
 
-from apps.chat.services.chat_conversation_service import (
-    INBOX_TTL_SECONDS,
-    _attach_commercial_inbox_metadata,
+from apps.chat.cache import INBOX_TTL_SECONDS
+from apps.chat.services.chat_conversation.access import (
     _build_conversation_permissions,
+)
+from apps.chat.services.chat_conversation.commercial import (
+    _attach_commercial_inbox_metadata,
     _load_commercial_inbox_links,
+)
+from apps.chat.services.chat_conversation.inbox import (
     get_chat_inbox,
 )
 
@@ -45,24 +49,24 @@ class ChatCommercialInboxIntegrationTests(SimpleTestCase):
             )
 
         with patch(
-            "apps.chat.services.chat_conversation_service.get_owned_chat_identity"
+            "apps.chat.services.chat_conversation.inbox.get_owned_chat_identity"
         ) as get_owned_identity, patch(
-            "apps.chat.services.chat_conversation_service.inbox_cache_key",
+            "apps.chat.services.chat_conversation.inbox.inbox_cache_key",
             return_value="chat:inbox:test",
         ) as make_cache_key, patch(
-            "apps.chat.services.chat_conversation_service.get_cached_value",
+            "apps.chat.services.chat_conversation.inbox.get_cached_value",
             return_value=None,
         ) as get_cache, patch(
-            "apps.chat.services.chat_conversation_service._user_supabase",
+            "apps.chat.services.chat_conversation.inbox._user_supabase",
             return_value=client,
         ) as user_supabase, patch(
-            "apps.chat.services.chat_conversation_service._load_commercial_inbox_links",
+            "apps.chat.services.chat_conversation.inbox_enrichment._load_commercial_inbox_links",
             return_value={"conversation-1": commercial_link},
         ) as load_commercial_links, patch(
-            "apps.chat.services.chat_conversation_service._attach_inbox_avatar_urls",
+            "apps.chat.services.chat_conversation.inbox_enrichment._attach_inbox_avatar_urls",
             side_effect=attach_avatar,
         ) as attach_avatars, patch(
-            "apps.chat.services.chat_conversation_service.set_cached_value"
+            "apps.chat.services.chat_conversation.inbox.set_cached_value"
         ) as set_cache:
             result = get_chat_inbox(
                 user_id="user-1",
@@ -139,7 +143,7 @@ class ChatCommercialInboxIntegrationTests(SimpleTestCase):
 class ChatCommercialInboxLinksLoaderTests(SimpleTestCase):
     def test_returns_empty_without_conversation_ids(self):
         with patch(
-            "apps.chat.services.chat_conversation_service._user_supabase"
+            "apps.chat.services.chat_conversation.commercial._user_supabase"
         ) as user_supabase:
             result = _load_commercial_inbox_links(
                 access_token="token-1",
@@ -179,7 +183,7 @@ class ChatCommercialInboxLinksLoaderTests(SimpleTestCase):
         )
 
         with patch(
-            "apps.chat.services.chat_conversation_service._user_supabase",
+            "apps.chat.services.chat_conversation.commercial._user_supabase",
             return_value=client,
         ) as user_supabase:
             result = _load_commercial_inbox_links(
@@ -230,7 +234,7 @@ class ChatCommercialInboxLinksLoaderTests(SimpleTestCase):
         profiles_query.execute.return_value = Mock(data=[])
 
         with patch(
-            "apps.chat.services.chat_conversation_service._user_supabase",
+            "apps.chat.services.chat_conversation.commercial._user_supabase",
             return_value=client,
         ):
             result = _load_commercial_inbox_links(
