@@ -1,6 +1,5 @@
 import {
   ActivityIndicator,
-  Alert,
   Image,
   Modal,
   ScrollView,
@@ -9,6 +8,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { appAlert } from '../feedback/appAlert';
 import {
   useEffect,
   useMemo,
@@ -225,7 +225,7 @@ export default function ProductLinkSelector({
 
   const handleOfferPress = (offer: AvailableOffer) => {
     if (offer.activeImages.length === 0) {
-      Alert.alert(
+      appAlert(
         'Foto requerida',
         'Este producto o servicio necesita al menos una foto activa para publicarse en un estado.',
       );

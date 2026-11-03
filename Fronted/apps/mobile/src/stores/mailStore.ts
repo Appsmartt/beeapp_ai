@@ -69,6 +69,24 @@ let detailByMessageId: Record<
 
 let detailIdsByMostRecentAccess: string[] = [];
 
+const mailStoreListeners = new Set<() => void>();
+
+export function subscribeMailStore(
+  listener: () => void,
+): () => void {
+  mailStoreListeners.add(listener);
+
+  return () => {
+    mailStoreListeners.delete(listener);
+  };
+}
+
+function notifyMailStore(): void {
+  mailStoreListeners.forEach((listener) => {
+    listener();
+  });
+}
+
 function getDefaultPagination(): MailMessagesPagination {
   return {
     limit: 25,
@@ -545,6 +563,28 @@ export function setStoredMailInbox(
   persistInbox(queryKey);
 }
 
+export function markMailInboxesNeedReload(): void {
+  const now = new Date().toISOString();
+
+  Object.keys(inboxByQueryKey).forEach((queryKey) => {
+    const current = inboxByQueryKey[queryKey];
+
+    if (!current) {
+      return;
+    }
+
+    inboxByQueryKey = {
+      ...inboxByQueryKey,
+      [queryKey]: {
+        ...current,
+        lastRefreshedAt: null,
+        lastProviderSyncAt: now,
+      },
+    };
+    persistInbox(queryKey);
+  });
+}
+
 export function mergeStoredMailInbox(
   query: MailInboxCacheQuery,
   incomingMessages: MailMessage[],
@@ -635,6 +675,8 @@ export function updateStoredMailMessage(
 
     persistDetail(messageId);
   }
+
+  notifyMailStore();
 }
 
 export function removeStoredMailMessage(

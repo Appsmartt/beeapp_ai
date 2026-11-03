@@ -41,6 +41,7 @@ import type {
 } from '@beeapp/shared-types';
 
 import {
+  getCachedAuthUserId,
   getValidAuthSession,
   getValidSessionCredentials,
 } from '../services/authSession';
@@ -419,6 +420,7 @@ function mergeConversation(
       || oldest.last_message_at
       || null
     ),
+    business_id: newest.business_id || oldest.business_id || null,
   };
 }
 
@@ -610,14 +612,30 @@ export function useChatConversations(
   ).trim() || null;
   const [rawConversations, setRawConversations] = useState<
     ChatConversation[]
-  >(
-    getStoredConversations(),
-  );
+  >(() => {
+    const stored = getStoredConversations();
+    const identityId = String(requestedIdentityId || '').trim();
+    if (!identityId) {
+      return stored;
+    }
 
-  const [currentUserId, setCurrentUserId] = useState('');
+    return stored.filter((row) => (
+      row.own_participant?.identity_id === identityId
+    ));
+  });
+
+  const [currentUserId, setCurrentUserId] = useState(() => (
+    getActiveChatStoreUserId()
+    || getCachedAuthUserId()
+    || ''
+  ));
   const [activeIdentityId, setActiveIdentityId] = useState<
     string | null
-  >(null);
+  >(() => (
+    normalizedRequestedIdentityId
+      ? normalizedRequestedIdentityId
+      : null
+  ));
 
   const [loading, setLoading] = useState(
     getStoredConversations().length === 0,
@@ -653,9 +671,41 @@ export function useChatConversations(
   const [visibleConversationIds, setVisibleConversationIds] = useState<
     Set<string> | null
   >(null);
+  const previousRequestedIdentityRef = useRef<
+    string | null | undefined
+  >(undefined);
+  const inboxBootstrappedRef = useRef(false);
+
+  useEffect(() => {
+    if (normalizedRequestedIdentityId) {
+      setActiveIdentityId(normalizedRequestedIdentityId);
+    }
+  }, [normalizedRequestedIdentityId]);
 
   useEffect(() => {
     if (!paginateInbox) return;
+    const previousIdentity = previousRequestedIdentityRef.current;
+    previousRequestedIdentityRef.current = normalizedRequestedIdentityId;
+
+    if (previousIdentity === undefined) {
+      if (normalizedRequestedIdentityId) {
+        setRawConversations(getStoredConversations().filter((row) => (
+          row.own_participant?.identity_id === normalizedRequestedIdentityId
+        )));
+      }
+      return;
+    }
+
+    if (previousIdentity === normalizedRequestedIdentityId) {
+      return;
+    }
+
+    if (!normalizedRequestedIdentityId) {
+      setActiveIdentityId(null);
+      inboxBootstrappedRef.current = false;
+      setLoading(true);
+    }
+
     requestIdRef.current += 1;
     inboxPagesRef.current = {
       direct: { sortAt: null, id: null, hasMore: false },
@@ -663,8 +713,65 @@ export function useChatConversations(
     };
     paginationIdentityRef.current = null;
     setHasMoreConversations({ direct: false, group: false });
-    setVisibleConversationIds(new Set());
+    setVisibleConversationIds(null);
+    if (normalizedRequestedIdentityId) {
+      setRawConversations(getStoredConversations().filter((row) => (
+        row.own_participant?.identity_id === normalizedRequestedIdentityId
+      )));
+    }
   }, [normalizedRequestedIdentityId, paginateInbox]);
+
+  useEffect(() => {
+    if (
+      !autoLoad
+      || !paginateInbox
+      || normalizedRequestedIdentityId
+      || inboxBootstrappedRef.current
+    ) {
+      return;
+    }
+
+    let cancelled = false;
+
+    void (async () => {
+      const userId = (
+        getCachedAuthUserId()
+        || getActiveChatStoreUserId()
+        || ''
+      ).trim();
+      if (!userId || cancelled) return;
+
+      const identityId = (
+        await readCachedPrivateChatIdentityId(userId)
+        || ''
+      ).trim();
+      if (!identityId || cancelled) return;
+
+      await hydrateChatConversations(userId, identityId);
+      if (cancelled) return;
+
+      inboxBootstrappedRef.current = true;
+      const scoped = getStoredConversations().filter((row) => (
+        row.own_participant?.identity_id === identityId
+      ));
+
+      setCurrentUserId(userId);
+      setActiveIdentityId(identityId);
+      setRawConversations(scoped);
+      setVisibleConversationIds(null);
+      if (scoped.length > 0) {
+        setLoading(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    autoLoad,
+    normalizedRequestedIdentityId,
+    paginateInbox,
+  ]);
 
   const synchronizeConversations = useCallback((
     nextConversations: ChatConversation[],
@@ -863,7 +970,6 @@ export function useChatConversations(
         paginateInbox
         && requestedNetwork
         && !normalizedRequestedIdentityId
-        && !activeIdentityId
       ) {
         const cachedIdentityId = await readCachedPrivateChatIdentityId(
           activeUserId,
@@ -874,22 +980,17 @@ export function useChatConversations(
           if (requestId !== requestIdRef.current) return [];
           setCurrentUserId(activeUserId);
           setActiveIdentityId(cachedIdentityId);
-          setVisibleConversationIds(new Set(
-            getStoredConversations().map((row) => row.id),
-          ));
+          setVisibleConversationIds(null);
         }
       }
 
-      const identityId = (
-        normalizedRequestedIdentityId
-        && normalizedRequestedIdentityId !== activeIdentityId
-          ? await resolveActiveIdentityId(token, activeUserId)
-          : (
-              activeIdentityId
-              || await resolveActiveIdentityId(token, activeUserId)
-            )
-      );
+      const identityId = normalizedRequestedIdentityId
+        ? normalizedRequestedIdentityId
+        : await resolveActiveIdentityId(token, activeUserId);
 
+      if (identityId !== activeIdentityId) {
+        setActiveIdentityId(identityId);
+      }
 
       if (
         requestedNetwork
@@ -1027,22 +1128,9 @@ export function useChatConversations(
               ? current.last_message : row.last_message,
         };
       });
-      const serverPinnedIds = paginateInbox
-        ? new Set(loadedConversations
-            .filter((row) => row.is_pinned)
-            .map((row) => row.id))
-        : null;
       const previousAvatarUris = new Map(getStoredConversations()
         .map((row) => [row.id, row.cached_avatar_url]));
-      synchronizeConversations([
-        ...getStoredConversations().filter((row) => (
-          !serverPinnedIds
-          || row.own_participant?.identity_id !== identityId
-          || !row.is_pinned
-          || serverPinnedIds.has(row.id)
-        )),
-        ...loadedConversations,
-      ]);
+      synchronizeConversations(loadedConversations);
       if (paginateInbox) {
         applyPinnedInboxPreferences(loadedConversations);
         const removedPhotoUris = loadedConversations
@@ -1221,7 +1309,9 @@ export function useChatConversations(
       ]));
       if (page.conversations.length) {
         synchronizeConversations([
-          ...getStoredConversations(),
+          ...getStoredConversations().filter((row) => (
+            row.own_participant?.identity_id === identityId
+          )),
           ...page.conversations,
         ]);
         applyPinnedInboxPreferences(page.conversations);
@@ -1343,7 +1433,14 @@ export function useChatConversations(
         || change.type === 'conversation-removed'
         || change.type === 'reset'
       ) {
-        const stored = [...getStoredConversations()];
+        const scopedIdentityId = (
+          paginationIdentityRef.current
+          || normalizedRequestedIdentityId
+        );
+        const stored = getStoredConversations().filter((row) => (
+          !scopedIdentityId
+          || row.own_participant?.identity_id === scopedIdentityId
+        ));
         setRawConversations(stored);
         if (paginateInbox && paginationIdentityRef.current) {
           const freshIds = stored.filter((conversation) => (
@@ -1363,7 +1460,7 @@ export function useChatConversations(
         }
       }
     });
-  }, [paginateInbox]);
+  }, [normalizedRequestedIdentityId, paginateInbox]);
 
   const createDirectConversation = useCallback(async (
     recipientIdentityId: string,
@@ -1961,6 +2058,14 @@ export function useChatConversations(
       return [];
     }
 
+    if (
+      paginateInbox
+      && !normalizedRequestedIdentityId
+      && !activeIdentityId
+    ) {
+      return [];
+    }
+
     const protectedIds = getProtectedConversationIds();
 
     return rawConversations
@@ -1994,6 +2099,7 @@ export function useChatConversations(
   }, [
     activeIdentityId,
     currentUserId,
+    normalizedRequestedIdentityId,
     paginateInbox,
     rawConversations,
     visibleConversationIds,

@@ -70,6 +70,9 @@ export const contactsStyles = StyleSheet.create({
     color: colors.brand.primary,
     fontWeight: '700',
   },
+  scrollViewEmbedded: {
+    flex: 1,
+  },
   scrollView: {
     flex: 1,
   },
@@ -118,6 +121,9 @@ export const contactsStyles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 12,
+  },
+  contactAvatar: {
+    marginRight: 16,
   },
   avatarText: {
     fontSize: 14,

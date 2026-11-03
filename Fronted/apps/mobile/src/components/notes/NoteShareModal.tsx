@@ -1,20 +1,19 @@
 import {
-    useEffect,
-    useState,
-    } from 'react';
+  useEffect,
+  useState,
+  } from 'react';
 import {
     ActivityIndicator,
-    Alert,
-    Modal,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
-    } from 'react-native';
+  Modal,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from 'react-native';
+import { appAlert } from '../feedback/appAlert';
 import {
-    CalendarClock,
     Check,
     Search,
     Send,
@@ -28,6 +27,7 @@ import {
     } from '@beeapp/design-system';
 import {
     createNoteShare,
+    listNoteShareRecipientSuggestions,
     searchNoteShareRecipients,
     } from '@beeapp/api-client';
 import type {
@@ -44,7 +44,7 @@ interface NoteShareModalProps {
     noteId?: string;
     noteTitle?: string;
     onClose: () => void;
-    onShared: () => void;
+    onShared: (recipientName: string) => void;
 }
 
 
@@ -64,8 +64,6 @@ export default function NoteShareModal({
     const [selectedRecipient, setSelectedRecipient] =
         useState<NoteShareRecipient | null>(null);
 
-    const [expiration, setExpiration] = useState('');
-
     const [searching, setSearching] = useState(false);
 
     const [sharing, setSharing] = useState(false);
@@ -73,6 +71,16 @@ export default function NoteShareModal({
     const [searchError, setSearchError] = useState<
         string | null
     >(null);
+
+    const [
+        suggestedRecipients,
+        setSuggestedRecipients,
+    ] = useState<NoteShareRecipient[]>([]);
+
+    const [
+        loadingSuggestions,
+        setLoadingSuggestions,
+    ] = useState(false);
 
 
     useEffect(() => {
@@ -83,10 +91,58 @@ export default function NoteShareModal({
         setQuery('');
         setRecipients([]);
         setSelectedRecipient(null);
-        setExpiration('');
         setSearching(false);
         setSharing(false);
         setSearchError(null);
+        setSuggestedRecipients([]);
+    }, [visible]);
+
+
+    useEffect(() => {
+        if (!visible) {
+        return;
+        }
+
+        let cancelled = false;
+
+        void (async () => {
+        try {
+            setLoadingSuggestions(true);
+
+            const auth =
+            await getValidSessionCredentials();
+
+            if (!auth) {
+            throw new Error(
+                'Tu sesión expiró. Inicia sesión nuevamente.',
+            );
+            }
+
+            const response =
+            await listNoteShareRecipientSuggestions(
+                auth,
+                12,
+            );
+
+            if (!cancelled) {
+            setSuggestedRecipients(
+                response.recipients.slice(0, 8),
+            );
+            }
+        } catch {
+            if (!cancelled) {
+            setSuggestedRecipients([]);
+            }
+        } finally {
+            if (!cancelled) {
+            setLoadingSuggestions(false);
+            }
+        }
+        })();
+
+        return () => {
+        cancelled = true;
+        };
     }, [visible]);
 
 
@@ -150,7 +206,7 @@ export default function NoteShareModal({
 
     const handleShare = async () => {
         if (!noteId) {
-        Alert.alert(
+        appAlert(
             'Guarda la nota primero',
             (
             'Primero guarda la nota antes de '
@@ -161,7 +217,7 @@ export default function NoteShareModal({
         }
 
         if (!selectedRecipient) {
-        Alert.alert(
+        appAlert(
             'Selecciona un destinatario',
             (
             'Busca y selecciona la persona con quien '
@@ -169,35 +225,6 @@ export default function NoteShareModal({
             ),
         );
         return;
-        }
-
-        let expiresAt: string | null = null;
-
-        if (expiration.trim()) {
-        const parsedDate = new Date(
-            expiration.trim(),
-        );
-
-        if (Number.isNaN(parsedDate.getTime())) {
-            Alert.alert(
-            'Fecha no válida',
-            (
-                'Usa una fecha y hora válida en formato '
-                + 'YYYY-MM-DD o YYYY-MM-DDTHH:mm.'
-            ),
-            );
-            return;
-        }
-
-        if (parsedDate.getTime() <= Date.now()) {
-            Alert.alert(
-            'Fecha no válida',
-            'La fecha de vencimiento debe estar en el futuro.',
-            );
-            return;
-        }
-
-        expiresAt = parsedDate.toISOString();
         }
 
         try {
@@ -217,11 +244,11 @@ export default function NoteShareModal({
             noteId,
             {
             recipient_id: selectedRecipient.id,
-            expires_at: expiresAt,
+            expires_at: null,
             },
         );
 
-        Alert.alert(
+        appAlert(
             'Nota compartida',
             (
             'La nota'
@@ -236,9 +263,11 @@ export default function NoteShareModal({
             ),
         );
 
-        onShared();
+        onShared(
+            getRecipientName(selectedRecipient),
+        );
         } catch (error) {
-        Alert.alert(
+        appAlert(
             'No fue posible compartir la nota',
             error instanceof Error
             ? error.message
@@ -299,6 +328,14 @@ export default function NoteShareModal({
                 <Text style={styles.label}>
                 Destinatario
                 </Text>
+
+                {!selectedRecipient ? (
+                <SuggestedRecipientsRow
+                    recipients={suggestedRecipients}
+                    loading={loadingSuggestions}
+                    onSelect={setSelectedRecipient}
+                />
+                ) : null}
 
                 <View style={styles.searchBox}>
                 <Search
@@ -374,38 +411,12 @@ export default function NoteShareModal({
                     recipients={recipients}
                     loading={searching}
                     error={searchError}
+                    suggestedCount={
+                    suggestedRecipients.length
+                    }
                     onSelect={setSelectedRecipient}
                 />
                 )}
-
-                <Text style={styles.label}>
-                Vencimiento opcional
-                </Text>
-
-                <View style={styles.expirationBox}>
-                <CalendarClock
-                    size={18}
-                    color={colors.neutral.gray500}
-                />
-
-                <TextInput
-                    style={styles.expirationInput}
-                    placeholder="YYYY-MM-DD o YYYY-MM-DDTHH:mm"
-                    placeholderTextColor={
-                    colors.neutral.gray500
-                    }
-                    value={expiration}
-                    onChangeText={setExpiration}
-                    autoCapitalize="none"
-                    autoCorrect={false}
-                    editable={!sharing}
-                />
-                </View>
-
-                <Text style={styles.hint}>
-                Si no defines vencimiento, la nota seguirá
-                compartida hasta que la revoques.
-                </Text>
             </View>
 
             <TouchableOpacity
@@ -450,18 +461,82 @@ export default function NoteShareModal({
 }
 
 
+function SuggestedRecipientsRow({
+    recipients,
+    loading,
+    onSelect,
+    }: {
+    recipients: NoteShareRecipient[];
+    loading: boolean;
+    onSelect: (recipient: NoteShareRecipient) => void;
+    }) {
+    if (loading) {
+        return (
+        <View style={styles.suggestionsState}>
+            <ActivityIndicator
+            size="small"
+            color={colors.brand.primary}
+            />
+        </View>
+        );
+    }
+
+    if (recipients.length === 0) {
+        return null;
+    }
+
+    return (
+        <View style={styles.suggestionsWrap}>
+        <Text style={styles.suggestionsLabel}>
+            Contactos con seguimiento mutuo
+        </Text>
+
+        <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.suggestionsScroll}
+        >
+            {recipients.map((recipient) => (
+            <TouchableOpacity
+                key={recipient.id}
+                style={styles.suggestionChip}
+                onPress={() => onSelect(recipient)}
+                activeOpacity={0.8}
+            >
+                <View style={styles.suggestionAvatar}>
+                <Text style={styles.suggestionAvatarText}>
+                    {getRecipientInitials(recipient)}
+                </Text>
+                </View>
+
+                <Text
+                style={styles.suggestionName}
+                numberOfLines={2}
+                >
+                {getRecipientShortName(recipient)}
+                </Text>
+            </TouchableOpacity>
+            ))}
+        </ScrollView>
+        </View>
+    );
+}
+
+
 function RecipientResults({
     query,
     recipients,
     loading,
     error,
     onSelect,
+    suggestedCount,
     }: {
     query: string;
     recipients: NoteShareRecipient[];
     loading: boolean;
     error: string | null;
     onSelect: (recipient: NoteShareRecipient) => void;
+    suggestedCount: number;
     }) {
     const normalizedQuery = query.trim();
 
@@ -469,7 +544,14 @@ function RecipientResults({
         return (
         <View style={styles.searchState}>
             <Text style={styles.searchStateText}>
-            Escribe al menos 2 caracteres para buscar.
+            {suggestedCount > 0
+                ? (
+                'Toca una sugerencia arriba '
+                + 'o escribe al menos 2 caracteres para buscar.'
+                )
+                : (
+                'Escribe al menos 2 caracteres para buscar.'
+                )}
             </Text>
         </View>
         );
@@ -562,6 +644,34 @@ function getRecipientName(
 }
 
 
+function getRecipientShortName(
+    recipient: NoteShareRecipient,
+    ): string {
+    const first = recipient.first_name?.trim();
+
+    if (first) {
+        return first;
+    }
+
+    return getRecipientName(recipient);
+}
+
+
+function getRecipientInitials(
+    recipient: NoteShareRecipient,
+    ): string {
+    const first = recipient.first_name?.trim()?.[0] || '';
+    const last = recipient.last_name?.trim()?.[0] || '';
+    const initials = `${first}${last}`.toUpperCase();
+
+    if (initials) {
+        return initials;
+    }
+
+    return '?';
+}
+
+
 function getRecipientDetail(
     recipient: NoteShareRecipient,
     ): string {
@@ -629,6 +739,51 @@ const styles = StyleSheet.create({
         fontSize: 12,
         fontWeight: '600',
         color: colors.neutral.gray700,
+    },
+    suggestionsWrap: {
+        marginBottom: 10,
+    },
+    suggestionsLabel: {
+        fontSize: 11,
+        fontWeight: '500',
+        color: colors.neutral.gray600,
+        marginBottom: 8,
+    },
+    suggestionsScroll: {
+        gap: 10,
+        paddingRight: 4,
+    },
+    suggestionsState: {
+        alignItems: 'flex-start',
+        marginBottom: 10,
+        minHeight: 28,
+    },
+    suggestionChip: {
+        alignItems: 'center',
+        maxWidth: 78,
+        width: 78,
+    },
+    suggestionAvatar: {
+        alignItems: 'center',
+        backgroundColor: colors.brand.primary + '15',
+        borderColor: colors.brand.primary + '25',
+        borderRadius: 24,
+        borderWidth: 1,
+        height: 48,
+        justifyContent: 'center',
+        marginBottom: 6,
+        width: 48,
+    },
+    suggestionAvatarText: {
+        color: colors.brand.primary,
+        fontSize: 15,
+        fontWeight: '700',
+    },
+    suggestionName: {
+        color: colors.neutral.text,
+        fontSize: 11,
+        fontWeight: '600',
+        textAlign: 'center',
     },
     searchBox: {
         minHeight: 46,
@@ -720,31 +875,6 @@ const styles = StyleSheet.create({
         fontSize: 12,
         fontWeight: '400',
         color: colors.semantic.error,
-    },
-    expirationBox: {
-        minHeight: 46,
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 8,
-        borderWidth: 1,
-        borderColor: colors.neutral.gray200,
-        borderRadius: radii.lg,
-        paddingHorizontal: 11,
-        backgroundColor: colors.neutral.gray50,
-    },
-    expirationInput: {
-        flex: 1,
-        fontSize: 13,
-        fontWeight: '400',
-        color: colors.neutral.text,
-    },
-    hint: {
-        marginTop: 7,
-        marginBottom: 14,
-        fontSize: 11,
-        fontWeight: '400',
-        color: colors.neutral.gray600,
-        lineHeight: 16,
     },
     submitButton: {
         minHeight: 48,

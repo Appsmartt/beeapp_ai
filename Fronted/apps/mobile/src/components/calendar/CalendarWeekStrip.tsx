@@ -35,7 +35,8 @@ const WEEK_LABELS = [
 
 interface CalendarWeekStripProps {
   events: CalendarEvent[];
-  selectedDate: string;
+  viewDate: string;
+  selectedDate: string | null;
   onSelectDate: (date: string) => void;
   onShift: (direction: -1 | 1) => void;
   label: string;
@@ -51,6 +52,7 @@ function getTodayString(): string {
 
 export default function CalendarWeekStrip({
   events,
+  viewDate,
   selectedDate,
   onSelectDate,
   onShift,
@@ -59,7 +61,7 @@ export default function CalendarWeekStrip({
   onOpenYearPicker,
 }: CalendarWeekStripProps) {
   const start = startOfWeek(
-    parseDate(selectedDate),
+    parseDate(viewDate),
   );
 
 
@@ -139,7 +141,7 @@ export default function CalendarWeekStrip({
             style={styles.yearTrigger}
           >
             <Text style={styles.yearLabel}>
-              {parseDate(selectedDate).getFullYear()}
+              {parseDate(viewDate).getFullYear()}
             </Text>
           </TouchableOpacity>
         </View>
@@ -160,8 +162,8 @@ export default function CalendarWeekStrip({
 
       <View style={styles.daysRow}>
         {days.map((day, index) => {
-          const isSelected =
-            day.dateString === selectedDate;
+          const isSelected = selectedDate !== null
+            && day.dateString === selectedDate;
           const isToday =
             day.dateString === todayString;
           const dayEvents = eventsByDate.get(

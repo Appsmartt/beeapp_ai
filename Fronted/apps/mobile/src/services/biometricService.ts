@@ -1,3 +1,4 @@
+import { Platform } from 'react-native';
 import * as LocalAuthentication from 'expo-local-authentication';
 
 export type BiometricMethod =
@@ -72,15 +73,68 @@ function isCancellationError(error?: string): boolean {
         'user_cancel',
         'system_cancel',
         'app_cancel',
-        'not_enrolled',
-        'not_available',
-        'passcode_not_set',
     ].includes(error ?? '');
+}
+
+export function getBiometricErrorMessage(
+    error?: string,
+): string | null {
+    if (!error || isCancellationError(error)) {
+        return null;
+    }
+
+    const messages: Record<string, string> = {
+        authentication_failed:
+            'No se reconoció tu huella o rostro. Inténtalo de nuevo.',
+        not_enrolled:
+            'No hay huellas registradas en el teléfono. Agrégalas en Ajustes.',
+        not_available:
+            'La biometría no está disponible en este momento.',
+        passcode_not_set:
+            'Configura un bloqueo de pantalla en Ajustes para usar biometría.',
+        lockout:
+            'Demasiados intentos. Espera un momento e inténtalo otra vez.',
+        lockout_permanent:
+            'Biometría bloqueada. Usa el PIN del teléfono o cierra sesión.',
+        unable_to_process:
+            'No se pudo abrir el lector biométrico. Toca de nuevo.',
+        no_space:
+            'No hay espacio para guardar credenciales biométricas.',
+        timeout:
+            'Tiempo agotado. Toca de nuevo para desbloquear.',
+    };
+
+    return messages[error]
+        ?? 'No fue posible verificar tu identidad. Inténtalo nuevamente.';
 }
 
 export async function authenticateWithBiometrics(
     method: BiometricMethod,
     ): Promise<BiometricAuthenticationResult> {
+    const hardwareAvailable =
+        await LocalAuthentication.hasHardwareAsync();
+
+    if (!hardwareAvailable) {
+        return {
+            success: false,
+            rejected: false,
+            cancelled: true,
+            error: 'not_available',
+        };
+    }
+
+    const enrolled =
+        await LocalAuthentication.isEnrolledAsync();
+
+    if (!enrolled) {
+        return {
+            success: false,
+            rejected: false,
+            cancelled: true,
+            error: 'not_enrolled',
+        };
+    }
+
     const promptMessage =
         method === 'faceid'
         ? 'Usa Face ID para desbloquear Buddy'
@@ -90,7 +144,8 @@ export async function authenticateWithBiometrics(
         await LocalAuthentication.authenticateAsync({
         promptMessage,
         cancelLabel: 'Cancelar',
-        disableDeviceFallback: true,
+        fallbackLabel: 'Usar PIN del teléfono',
+        disableDeviceFallback: Platform.OS === 'ios',
         });
 
     if (result.success) {

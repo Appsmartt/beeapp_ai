@@ -27,11 +27,16 @@ import { colors } from '@beeapp/design-system';
 import ModuleQuickMenu from './ModuleQuickMenu';
 import {
   getNotifications,
+  LIST_CACHE_TTL,
   markAllNotificationsAsRead,
+  notificationsCacheKey,
 } from '@beeapp/api-client';
 import type {
   AppNotification,
+  GetNotificationsResponse,
 } from '@beeapp/shared-types';
+
+import { paintCachedValue } from '../hooks/useCachedResource';
 
 import {
   useModuleNav,
@@ -42,6 +47,10 @@ import {
 
 interface ModuleNotificationBellProps {
   moduleId: 'chat' | 'mail' | 'notes' | 'files' | 'calendar';
+  /** Si es false, solo se muestra la campana (p. ej. al final de la fila de acciones). */
+  showQuickMenu?: boolean;
+  /** Iguala el botón al estilo neutro de las acciones del encabezado. */
+  tone?: 'accent' | 'neutral';
 }
 
 function getBackendModule(
@@ -130,6 +139,8 @@ function NotificationIcon({
 
 export default function ModuleNotificationBell({
   moduleId,
+  showQuickMenu = true,
+  tone = 'accent',
 }: ModuleNotificationBellProps) {
   const router = useModuleNav();
 
@@ -147,8 +158,26 @@ export default function ModuleNotificationBell({
 
   const loadUnreadNotifications = useCallback(
     async () => {
+      const notificationQuery = {
+        module: backendModule,
+        unread_only: true as const,
+        limit: 20,
+        offset: 0,
+      };
+
       try {
-        setLoading(true);
+        const painted = await paintCachedValue<GetNotificationsResponse>(
+          notificationsCacheKey(notificationQuery),
+          LIST_CACHE_TTL.fresh,
+          (cached) => {
+            setNotifications(cached.notifications);
+            setUnreadCount(cached.unread_count);
+          },
+        );
+
+        if (!painted) {
+          setLoading(true);
+        }
 
         const auth = await getValidSessionCredentials();
 
@@ -158,12 +187,7 @@ export default function ModuleNotificationBell({
           return [];
         }
 
-        const response = await getNotifications(auth, {
-          module: backendModule,
-          unread_only: true,
-          limit: 20,
-          offset: 0,
-        });
+        const response = await getNotifications(auth, notificationQuery);
 
         setNotifications(response.notifications);
         setUnreadCount(response.unread_count);
@@ -262,35 +286,51 @@ export default function ModuleNotificationBell({
     }
   };
 
+  const bellControl = (
+    <TouchableOpacity
+      accessibilityLabel={`Notificaciones de ${moduleId}`}
+      activeOpacity={0.7}
+      onPress={() => {
+        void handleOpenModal();
+      }}
+      style={
+        tone === 'neutral'
+          ? styles.bellButtonNeutral
+          : styles.bellButton
+      }
+    >
+      <Bell
+        color={
+          tone === 'neutral'
+            ? colors.neutral.text
+            : colors.neutral.gray600
+        }
+        size={20}
+      />
+
+      {unreadCount > 0 ? (
+        <View style={styles.badge}>
+          <Text style={styles.badgeText}>
+            {unreadCount > 9
+              ? '9+'
+              : unreadCount}
+          </Text>
+        </View>
+      ) : null}
+    </TouchableOpacity>
+  );
+
   return (
     <>
-      <View style={styles.inlineActions}>
-        <ModuleQuickMenu />
+      {showQuickMenu ? (
+        <View style={styles.inlineActions}>
+          <ModuleQuickMenu />
 
-        <TouchableOpacity
-          style={styles.bellButton}
-          activeOpacity={0.7}
-          onPress={() => {
-            void handleOpenModal();
-          }}
-          accessibilityLabel={`Notificaciones de ${moduleId}`}
-        >
-          <Bell
-            size={20}
-            color={colors.neutral.gray600}
-          />
-
-          {unreadCount > 0 && (
-            <View style={styles.badge}>
-              <Text style={styles.badgeText}>
-                {unreadCount > 9
-                  ? '9+'
-                  : unreadCount}
-              </Text>
-            </View>
-          )}
-        </TouchableOpacity>
-      </View>
+          {bellControl}
+        </View>
+      ) : (
+        bellControl
+      )}
 
       <Modal
         visible={modalVisible}
@@ -409,7 +449,7 @@ const styles = StyleSheet.create({
     borderColor: '#F0CBDC',
     borderRadius: 14,
     borderWidth: 1,
-    height: 38,
+    height: 40,
     justifyContent: 'center',
     position: 'relative',
     shadowColor: '#D49AB8',
@@ -419,8 +459,19 @@ const styles = StyleSheet.create({
     },
     shadowOpacity: 0.12,
     shadowRadius: 6,
-    width: 38,
+    width: 40,
     elevation: 2,
+  },
+  bellButtonNeutral: {
+    alignItems: 'center',
+    backgroundColor: '#EEF2FF',
+    borderColor: '#D7DFF2',
+    borderRadius: 14,
+    borderWidth: 1,
+    height: 40,
+    justifyContent: 'center',
+    position: 'relative',
+    width: 40,
   },
   badge: {
     position: 'absolute',

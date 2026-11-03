@@ -3,10 +3,9 @@ import {
   useEffect,
   useMemo,
   useState,
-} from 'react';
+  } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   FlatList,
   Image,
   RefreshControl,
@@ -15,6 +14,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { appAlert } from '../../../src/components/feedback/appAlert';
 import {
   Check,
   ChevronLeft,
@@ -176,7 +176,7 @@ export default function GroupInvitesScreen() {
 
       setInvites(response.invites);
     } catch (loadError) {
-      Alert.alert(
+      appAlert(
         'No fue posible cargar invitaciones',
         loadError instanceof Error
           ? loadError.message
@@ -263,13 +263,13 @@ export default function GroupInvitesScreen() {
       }
 
       if (!accept) {
-        Alert.alert(
+        appAlert(
           'Invitación rechazada',
           'No te unirás a este grupo.',
         );
       }
     } catch (respondError) {
-      Alert.alert(
+      appAlert(
         accept
           ? 'No fue posible aceptar la invitación'
           : 'No fue posible rechazar la invitación',

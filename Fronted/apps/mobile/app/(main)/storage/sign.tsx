@@ -1,5 +1,13 @@
-import { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert } from 'react-native';
+import {
+  useEffect,
+  useState } from 'react';
+import { View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  ScrollView,
+} from 'react-native';
+import { appAlert } from '../../../src/components/feedback/appAlert';
 import ScreenSafeArea from '../../../src/components/layout/ScreenSafeArea';
 import { useModuleNav, useScreenParams } from '../../../src/components/embedded/EmbeddedNavContext';
 import { colors } from '@beeapp/design-system';
@@ -70,15 +78,15 @@ export default function SignDocumentScreen() {
 
   const handleConfirmSignature = () => {
     if (signatureMode === 'draw' && !isDrawn) {
-      Alert.alert('Firma requerida', 'Por favor dibuja tu firma o selecciona una firma guardada.');
+      appAlert('Firma requerida', 'Por favor dibuja tu firma o selecciona una firma guardada.');
       return;
     }
     if (signatureMode === 'upload' && !uploadedImage) {
-      Alert.alert('Firma requerida', 'Por favor sube la imagen de tu firma.');
+      appAlert('Firma requerida', 'Por favor sube la imagen de tu firma.');
       return;
     }
     if (!isPositioned) {
-      Alert.alert('Posición requerida', 'Por favor posiciona tu firma sobre el documento.');
+      appAlert('Posición requerida', 'Por favor posiciona tu firma sobre el documento.');
       return;
     }
 
@@ -101,7 +109,7 @@ export default function SignDocumentScreen() {
 
     setItems(updated);
 
-    Alert.alert(
+    appAlert(
       'Documento Firmado',
       'El NDA ha sido firmado digitalmente y se ha generado el sello de auditoría de Buddy AI.',
       [

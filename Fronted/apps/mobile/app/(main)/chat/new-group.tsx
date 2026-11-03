@@ -1,9 +1,8 @@
 import {
   useState,
-} from 'react';
+  } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   Modal,
   ScrollView,
   StyleSheet,
@@ -13,6 +12,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { appAlert } from '../../../src/components/feedback/appAlert';
 import {
   ChevronLeft,
   MessageSquareText,
@@ -102,7 +102,7 @@ export default function NewGroupScreen() {
 
       openGroupProfile(result.conversation.id);
     } catch (createError) {
-      Alert.alert(
+      appAlert(
         'No fue posible crear el grupo',
         createError instanceof Error
           ? createError.message

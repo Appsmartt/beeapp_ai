@@ -34,6 +34,7 @@ interface ChatListViewProps {
   onOpenMenu: (chat: ChatListItemModel) => void;
   onEndReached?: () => void;
   loadingMore?: boolean;
+  emptyMessage?: string;
   onPin: (id: string) => void;
   onMute: (id: string) => void;
   onDelete: (id: string) => void;
@@ -52,6 +53,7 @@ export default function ChatListView({
   categoriesByConversation = {},
   onEndReached,
   loadingMore = false,
+  emptyMessage,
   refreshControl,
 }: ChatListViewProps) {
   const validChats = chats.filter(
@@ -98,6 +100,7 @@ export default function ChatListView({
           unreadCount={chat.unreadCount}
           isGroup={chat.isGroup}
           avatarUrl={chat.avatarUrl}
+          avatarCacheKey={chat.avatarCacheKey}
           verified={chat.verified}
           status={chat.status}
           isOwnLastMessage={chat.isOwnLastMessage}
@@ -150,6 +153,15 @@ export default function ChatListView({
           ) : null}
         </>
       }
+      ListEmptyComponent={
+        emptyMessage ? (
+          <View style={styles.emptySearch}>
+            <Text style={styles.emptySearchText}>
+              {emptyMessage}
+            </Text>
+          </View>
+        ) : null
+      }
       ListFooterComponent={
         <View style={styles.bottomGap}>
           {loadingMore ? (
@@ -167,6 +179,17 @@ const styles = StyleSheet.create({
   list: {
     flex: 1,
     paddingTop: 8,
+  },
+  emptySearch: {
+    alignItems: 'center',
+    paddingHorizontal: 28,
+    paddingVertical: 36,
+  },
+  emptySearchText: {
+    color: colors.neutral.gray600,
+    fontSize: 14,
+    fontWeight: '600',
+    textAlign: 'center',
   },
   archivedRow: {
     alignItems: 'center',

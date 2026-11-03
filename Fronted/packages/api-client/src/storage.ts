@@ -32,6 +32,7 @@ import type {
     } from '@beeapp/shared-types';
 
 import { api } from './client';
+import { LIST_CACHE_TTL } from './requestCache';
 
 const WEB_OPTIONS = {
     credentials: 'include' as RequestCredentials,
@@ -64,7 +65,10 @@ export function getStorageSummary(
     ): Promise<GetStorageSummaryResponse> {
     return api.get<GetStorageSummaryResponse>(
         '/storage/summary/',
-        { auth },
+        {
+            auth,
+            cache: { ttlMs: LIST_CACHE_TTL.standard },
+        },
     );
 }
 
@@ -74,7 +78,10 @@ export function getStorageFiles(
     ): Promise<GetStorageFilesResponse> {
     return api.get<GetStorageFilesResponse>(
         `/storage/files/${buildQuery(query)}`,
-        { auth },
+        {
+            auth,
+            cache: { ttlMs: LIST_CACHE_TTL.standard },
+        },
     );
 }
 
@@ -84,7 +91,10 @@ export function getStorageFolders(
     ): Promise<GetStorageFoldersResponse> {
     return api.get<GetStorageFoldersResponse>(
         `/storage/folders/${buildQuery(query)}`,
-        { auth },
+        {
+            auth,
+            cache: { ttlMs: LIST_CACHE_TTL.standard },
+        },
     );
 }
 
@@ -231,7 +241,10 @@ export function getStorageTags(
     ): Promise<GetStorageTagsResponse> {
     return api.get<GetStorageTagsResponse>(
         '/storage/tags/',
-        { auth },
+        {
+            auth,
+            cache: { ttlMs: LIST_CACHE_TTL.standard },
+        },
     );
 }
 

@@ -58,6 +58,8 @@ export interface NoteListItem {
     shareId?: string;
     sharedByName?: string;
     shareExpiresAt?: string | null;
+    /** Personas con quienes compartiste esta nota (notas propias). */
+    sharedWithNames?: string[];
 }
 
 const FIXED_NOTES_HOME_ITEMS: NotesHomeItem[] = [
@@ -95,7 +97,7 @@ const FIXED_NOTES_HOME_ITEMS: NotesHomeItem[] = [
     },
     {
         id: 'shared',
-        name: 'Compartidas',
+        name: 'Compartidas conmigo',
         iconKey: 'users',
         color: '#0F766E',
         kind: 'fixed',
@@ -554,11 +556,92 @@ export function getNotePreview(
         .trim();
 }
 
+export function formatNoteShareProfileName(
+    profile: {
+        first_name?: string | null;
+        last_name?: string | null;
+        phone_dial_code?: string | null;
+        phone_number?: string | null;
+    } | null | undefined,
+    ): string {
+    if (!profile) {
+        return '';
+    }
+
+    const fullName = `${profile.first_name || ''} ${profile.last_name || ''}`
+        .trim();
+
+    if (fullName) {
+        return fullName;
+    }
+
+    const phone = [
+        profile.phone_dial_code,
+        profile.phone_number,
+    ]
+        .filter(Boolean)
+        .join(' ')
+        .trim();
+
+    return phone;
+}
+
+export function buildSharedWithNamesByNoteId(
+    shares: NoteShare[],
+    ): Map<string, string[]> {
+    const namesByNoteId = new Map<string, string[]>();
+
+    shares.forEach((share) => {
+        if (!share.note_id || share.revoked_at) {
+            return;
+        }
+
+        const recipientName = formatNoteShareProfileName(
+            share.shared_with,
+        );
+
+        if (!recipientName) {
+            return;
+        }
+
+        const currentNames = namesByNoteId.get(
+            share.note_id,
+        ) || [];
+
+        if (!currentNames.includes(recipientName)) {
+            currentNames.push(recipientName);
+        }
+
+        namesByNoteId.set(share.note_id, currentNames);
+    });
+
+    return namesByNoteId;
+}
+
+export function summarizeSharedWithNames(
+    names: string[],
+    ): string {
+    if (names.length === 0) {
+        return '';
+    }
+
+    if (names.length === 1) {
+        return names[0];
+    }
+
+    if (names.length === 2) {
+        return `${names[0]} y ${names[1]}`;
+    }
+
+    return `${names[0]} y ${names.length - 1} más`;
+}
+
 export function mapNoteToListItem(
     note: Note,
     options: {
         tagIds?: string[];
         share?: NoteShare;
+        sharedWithNames?: string[];
     } = {},
     ): NoteListItem {
     const share = options.share;
@@ -587,6 +670,7 @@ export function mapNoteToListItem(
         ? `${sharedBy.first_name} ${sharedBy.last_name}`.trim()
         : undefined,
         shareExpiresAt: share?.expires_at,
+        sharedWithNames: options.sharedWithNames,
     };
 }
 

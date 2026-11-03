@@ -9,6 +9,7 @@ import type {
     } from '@beeapp/shared-types';
 
 import { api } from './client';
+import { LIST_CACHE_TTL } from './requestCache';
 
 const WEB_OPTIONS = {
     credentials: 'include' as RequestCredentials,
@@ -36,13 +37,22 @@ function buildQuery(
 
 /* Mobile API: explicit token/session authentication. */
 
+export function notificationsCacheKey(
+    query: NotificationsQuery = {},
+): string {
+    return `/notifications/${buildQuery(query)}`;
+}
+
 export function getNotifications(
     auth: AuthCredentials,
     query: NotificationsQuery = {},
     ): Promise<GetNotificationsResponse> {
     return api.get<GetNotificationsResponse>(
-        `/notifications/${buildQuery(query)}`,
-        { auth },
+        notificationsCacheKey(query),
+        {
+            auth,
+            cache: { ttlMs: LIST_CACHE_TTL.fresh },
+        },
     );
 }
 

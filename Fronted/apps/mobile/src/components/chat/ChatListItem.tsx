@@ -1,5 +1,4 @@
 import {
-  Image,
   View,
   Text,
   StyleSheet,
@@ -8,6 +7,7 @@ import {
 import { colors, spacing } from '@beeapp/design-system';
 import { Check, CheckCheck, BellOff, Users, Lock, MoreVertical, Pin, Phone } from 'lucide-react-native';
 import VerifiedBadge from '../VerifiedBadge';
+import CachedImage from '../CachedImage';
 import { getCategoryIcon } from './categoryIcons';
 
 interface ChatListItemProps {
@@ -20,6 +20,7 @@ interface ChatListItemProps {
   unreadCount: number;
   isGroup: boolean;
   avatarUrl?: string | null;
+  avatarCacheKey?: string | null;
   verified?: boolean;
   status: 'sent' | 'delivered' | 'read';
   isOwnLastMessage: boolean;
@@ -41,6 +42,7 @@ export default function ChatListItem({
   unreadCount,
   isGroup,
   avatarUrl,
+  avatarCacheKey,
   verified,
   status,
   isOwnLastMessage,
@@ -62,9 +64,10 @@ export default function ChatListItem({
     >
       {/* Avatar Section */}
       <View style={styles.avatarContainer}>
-        {avatarUrl ? (
-          <Image
-            source={{ uri: avatarUrl }}
+        {avatarUrl || avatarCacheKey ? (
+          <CachedImage
+            cacheKey={avatarCacheKey}
+            uri={avatarUrl}
             style={[
               styles.avatarImage,
               isGroup

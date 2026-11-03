@@ -10,56 +10,51 @@ import {
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   TouchableOpacity,
   View,
 } from 'react-native';
 import {
   ClipboardList,
-  PlusCircle,
-  Search,
+  LayoutGrid,
+  List,
   Store,
 } from 'lucide-react-native';
 import {
   useFocusEffect,
   useRouter,
 } from 'expo-router';
-
 import type {
-  CommercialPublicOffer,
-  CommercialPublicProfile,
+  CommercialModality,
+  CommercialOfferType,
 } from '@beeapp/shared-types';
 
 import ScreenSafeArea from '../../../src/components/layout/ScreenSafeArea';
 import HomeSideMenu from '../../../src/components/home/HomeSideMenu';
+import BeeServicesBusinessFilter from '../../../src/components/beeservices/BeeServicesBusinessFilter';
 import BeeServicesHeader from '../../../src/components/beeservices/BeeServicesHeader';
 import BeeServicesAiSearchCard from '../../../src/components/beeservices/BeeServicesAiSearchCard';
-import BeeServicesBusinessCard from '../../../src/components/beeservices/BeeServicesBusinessCard';
+import BuddyServicesListPagination from '../../../src/components/beeservices/BuddyServicesListPagination';
 import CommercialOfferCard from '../../../src/components/buddyservices/CommercialOfferCard';
 import CommercialRecentBusinesses from '../../../src/components/buddyservices/CommercialRecentBusinesses';
 import {
-  buddyServicesCreateBusinessRoute,
-  buddyServicesMyBusinessesRoute,
   buddyServicesMyPurchasesRoute,
   buddyServicesPublicOfferRoute,
   buddyServicesPublicProfileRoute,
 } from '../../../src/features/buddyservices/commercialRoutes';
-import {
-  toCommercialUiError,
-  type CommercialUiError,
+import type {
+  CommercialUiError,
 } from '../../../src/features/buddyservices/commercialErrors';
 import { useBuddyServicesAiSearch } from '../../../src/features/buddyservices/useBuddyServicesAiSearch';
 import {
+  useBuddyServicesFeedPages,
+} from '../../../src/features/buddyservices/useBuddyServicesFeedPages';
+import {
   loadOwnedCommercialProfiles,
-  loadPublicCommercialProductFeed,
 } from '../../../src/services/commercialService';
 import {
   styles as beeStyles,
 } from '../../../src/components/beeservices/beeServicesStyles';
 
-const INITIAL_PRODUCT_FEED_LIMIT = 4;
-const NEXT_PRODUCT_FEED_LIMIT = 2;
-const PRODUCT_FEED_END_REACHED_THRESHOLD = 140;
 const SEARCH_DEBOUNCE_MS = 350;
 const MINIMUM_SEARCH_LENGTH = 2;
 
@@ -71,25 +66,33 @@ export default function BeeServicesScreen() {
   const router = useRouter();
 
   const [sideMenuVisible, setSideMenuVisible] = useState(false);
+  const [offerViewMode, setOfferViewMode] = useState<'grid' | 'list'>(
+    'grid',
+  );
   const [search, setSearch] = useState('');
   const [activeSearch, setActiveSearch] = useState('');
-  const searchRequestVersionRef = useRef(0);
+  const [offerType, setOfferType] = useState<
+    CommercialOfferType | null
+  >(null);
+  const [modality, setModality] = useState<
+    CommercialModality | null
+  >(null);
   const skipEmptySearchEffectRef = useRef(true);
   const scrollRef = useRef<ScrollView>(null);
   const resultsOffsetRef = useRef(0);
   const searchRef = useRef(search);
   searchRef.current = search;
-  const [searchProfiles, setSearchProfiles] = useState<
-    CommercialPublicProfile[]
-  >([]);
-  const [hasMoreSearchProfiles, setHasMoreSearchProfiles] = useState(false);
-  const [productFeed, setProductFeed] = useState<
-    CommercialPublicOffer[]
-  >([]);
-  const [productFeedSeed, setProductFeedSeed] = useState('');
-  const [loadingProductFeed, setLoadingProductFeed] = useState(true);
-  const [loadingMoreProducts, setLoadingMoreProducts] = useState(false);
-  const [hasMoreProducts, setHasMoreProducts] = useState(true);
+  const activeSearchRef = useRef(activeSearch);
+  activeSearchRef.current = activeSearch;
+  const businessFiltersRef = useRef({
+    offerType,
+    modality,
+  });
+  businessFiltersRef.current = {
+    offerType,
+    modality,
+  };
+  const skipFilterEffectRef = useRef(true);
 
   const [, setHasOwnedProfiles] = useState(false);
 
@@ -98,58 +101,23 @@ export default function BeeServicesScreen() {
     getInitialError,
   );
 
-  const loadProductFeed = useCallback(async (
-    options: {
-      search?: string;
-      seed?: string;
-    } = {},
-  ) => {
-    const normalizedSearch = String(
-      options.search || '',
-    ).trim();
-    const requestVersion = searchRequestVersionRef.current;
-
-    setLoadingProductFeed(true);
-
-    try {
-      const response = await loadPublicCommercialProductFeed({
-        limit: INITIAL_PRODUCT_FEED_LIMIT,
-        offset: 0,
-        search: normalizedSearch || undefined,
-        seed: normalizedSearch
-          ? undefined
-          : options.seed,
-      });
-
-      if (requestVersion !== searchRequestVersionRef.current) {
-        return;
-      }
-
-      setProductFeed(response.offers);
-      setProductFeedSeed(response.seed);
-      setHasMoreProducts(response.has_more);
-      setSearchProfiles(response.profiles || []);
-      setHasMoreSearchProfiles(
-        Boolean(response.profiles_has_more),
-      );
-      setActiveSearch(normalizedSearch);
-      setError(null);
-    } catch (loadError) {
-      if (requestVersion !== searchRequestVersionRef.current) {
-        return;
-      }
-
-      setProductFeed([]);
-      setSearchProfiles([]);
-      setHasMoreProducts(false);
-      setHasMoreSearchProfiles(false);
-      setError(toCommercialUiError(loadError));
-    } finally {
-      if (requestVersion === searchRequestVersionRef.current) {
-        setLoadingProductFeed(false);
-      }
-    }
-  }, []);
+  const {
+    productFeed,
+    searchProfiles,
+    offersPage,
+    offersTotalCount,
+    profilesPage,
+    profilesTotalCount,
+    loadingProductFeed,
+    pagingOffers,
+    pagingProfiles,
+    searchRequestVersionRef,
+    loadProductFeed,
+    goToOffersPage,
+    goToProfilesPage,
+  } = useBuddyServicesFeedPages({
+    onError: setError,
+  });
 
   const loadOwnedProfilesState = useCallback(async () => {
     try {
@@ -160,19 +128,23 @@ export default function BeeServicesScreen() {
     }
   }, []);
 
+  const loadProductFeedRef = useRef(loadProductFeed);
+  loadProductFeedRef.current = loadProductFeed;
+  const loadOwnedProfilesStateRef = useRef(loadOwnedProfilesState);
+  loadOwnedProfilesStateRef.current = loadOwnedProfilesState;
+
   useFocusEffect(
     useCallback(() => {
       const currentSearch = searchRef.current.trim();
-      void loadProductFeed({
+      void loadProductFeedRef.current({
         search: currentSearch.length >= MINIMUM_SEARCH_LENGTH
           ? currentSearch
           : undefined,
+        offerType: businessFiltersRef.current.offerType,
+        modality: businessFiltersRef.current.modality,
       });
-      void loadOwnedProfilesState();
-    }, [
-      loadOwnedProfilesState,
-      loadProductFeed,
-    ]),
+      void loadOwnedProfilesStateRef.current();
+    }, []),
   );
 
   const handleRetry = useCallback(() => {
@@ -180,12 +152,16 @@ export default function BeeServicesScreen() {
     searchRequestVersionRef.current += 1;
     void loadProductFeed({
       search: activeSearch || undefined,
+      offerType,
+      modality,
     });
     void loadOwnedProfilesState();
   }, [
     activeSearch,
     loadOwnedProfilesState,
     loadProductFeed,
+    modality,
+    offerType,
   ]);
 
   const handleRefresh = useCallback(async () => {
@@ -197,6 +173,8 @@ export default function BeeServicesScreen() {
       await Promise.all([
         loadProductFeed({
           search: activeSearch || undefined,
+          offerType,
+          modality,
         }),
         loadOwnedProfilesState(),
       ]);
@@ -207,87 +185,8 @@ export default function BeeServicesScreen() {
     activeSearch,
     loadOwnedProfilesState,
     loadProductFeed,
-  ]);
-
-  const handleLoadMoreProducts = useCallback(async () => {
-    if (
-      loadingMoreProducts
-      || loadingProductFeed
-      || (!hasMoreProducts && !hasMoreSearchProfiles)
-    ) {
-      return;
-    }
-
-    const requestVersion = searchRequestVersionRef.current;
-
-    setLoadingMoreProducts(true);
-
-    try {
-      const response = await loadPublicCommercialProductFeed({
-        limit: NEXT_PRODUCT_FEED_LIMIT,
-        offset: Math.max(
-          productFeed.length,
-          searchProfiles.length,
-        ),
-        search: activeSearch || undefined,
-        seed: activeSearch
-          ? undefined
-          : productFeedSeed || undefined,
-      });
-
-      if (requestVersion !== searchRequestVersionRef.current) {
-        return;
-      }
-
-      setProductFeed((current) => {
-        const existingIds = new Set(
-          current.map((offer) => offer.id),
-        );
-
-        return [
-          ...current,
-          ...response.offers.filter(
-            (offer) => !existingIds.has(offer.id),
-          ),
-        ];
-      });
-      setSearchProfiles((current) => {
-        const existingIds = new Set(
-          current.map((profile) => profile.id),
-        );
-
-        return [
-          ...current,
-          ...(response.profiles || []).filter(
-            (profile) => !existingIds.has(profile.id),
-          ),
-        ];
-      });
-      setHasMoreSearchProfiles(
-        Boolean(response.profiles_has_more),
-      );
-
-      setProductFeedSeed(response.seed);
-      setHasMoreProducts(response.has_more);
-      setError(null);
-    } catch (loadError) {
-      if (requestVersion === searchRequestVersionRef.current) {
-        setError(toCommercialUiError(loadError));
-      }
-    } finally {
-      if (requestVersion === searchRequestVersionRef.current) {
-        setLoadingMoreProducts(false);
-      }
-    }
-  }, [
-    activeSearch,
-    hasMoreProducts,
-    hasMoreSearchProfiles,
-    loadingMoreProducts,
-    loadingProductFeed,
-    productFeed.length,
-    productFeedSeed,
-    searchProfiles.length,
+    modality,
+    offerType,
   ]);
 
   const runSearch = useCallback((value: string) => {
@@ -298,7 +197,10 @@ export default function BeeServicesScreen() {
     if (!normalizedSearch) {
       setActiveSearch('');
       setError(null);
-      void loadProductFeed();
+      void loadProductFeed({
+        offerType: businessFiltersRef.current.offerType,
+        modality: businessFiltersRef.current.modality,
+      });
       return;
     }
 
@@ -308,9 +210,12 @@ export default function BeeServicesScreen() {
       return;
     }
 
+    setActiveSearch(normalizedSearch);
     setError(null);
     void loadProductFeed({
       search: normalizedSearch,
+      offerType: businessFiltersRef.current.offerType,
+      modality: businessFiltersRef.current.modality,
     });
   }, [loadProductFeed]);
 
@@ -332,9 +237,6 @@ export default function BeeServicesScreen() {
     if (normalizedSearch.length < MINIMUM_SEARCH_LENGTH) {
       searchRequestVersionRef.current += 1;
       setActiveSearch('');
-      setLoadingProductFeed(false);
-      setLoadingMoreProducts(false);
-      setHasMoreProducts(false);
       setError(null);
       return;
     }
@@ -346,9 +248,25 @@ export default function BeeServicesScreen() {
     return () => clearTimeout(timer);
   }, [runSearch, search]);
 
-  const handleSearch = useCallback(() => {
-    runSearch(search);
-  }, [runSearch, search]);
+  useEffect(() => {
+    if (skipFilterEffectRef.current) {
+      skipFilterEffectRef.current = false;
+      return;
+    }
+
+    searchRequestVersionRef.current += 1;
+    setError(null);
+    void loadProductFeed({
+      search: activeSearchRef.current || undefined,
+      offerType,
+      modality,
+    });
+  }, [
+    loadProductFeed,
+    modality,
+    offerType,
+    searchRequestVersionRef,
+  ]);
 
   const scrollToResults = useCallback(() => {
     requestAnimationFrame(() => {
@@ -375,12 +293,6 @@ export default function BeeServicesScreen() {
     setSearch,
   });
 
-  const handleBusinessAction = useCallback(() => {
-    router.push(buddyServicesMyBusinessesRoute());
-  }, [router]);
-
-  const isInitialLoading = loadingProductFeed;
-
   return (
     <ScreenSafeArea style={beeStyles.safeArea}>
       <View style={beeStyles.container}>
@@ -397,21 +309,6 @@ export default function BeeServicesScreen() {
             />
           }
           showsVerticalScrollIndicator={false}
-          onScroll={({ nativeEvent }) => {
-            const distanceToEnd = (
-              nativeEvent.contentSize.height
-              - nativeEvent.layoutMeasurement.height
-              - nativeEvent.contentOffset.y
-            );
-
-            if (
-              distanceToEnd
-              <= PRODUCT_FEED_END_REACHED_THRESHOLD
-            ) {
-              void handleLoadMoreProducts();
-            }
-          }}
-          scrollEventThrottle={160}
         >
           <BeeServicesHeader
             onBackToMainPress={() => router.replace("/(main)")}
@@ -430,126 +327,40 @@ export default function BeeServicesScreen() {
             value={search}
           />
 
-          <BeeServicesBusinessCard
-            onPress={handleBusinessAction}
-          />
-
-          <View style={beeStyles.section}>
-            <Text style={beeStyles.sectionTitle}>
-              Accesos rápidos
-            </Text>
-
-            <View style={beeStyles.quickActionsRow}>
-              <TouchableOpacity
-                accessibilityLabel="Ver mis compras y reservas"
-                accessibilityRole="button"
-                activeOpacity={0.78}
-                onPress={() => router.push(
-                  buddyServicesMyPurchasesRoute(),
-                )}
-                style={beeStyles.quickActionCard}
-              >
-                <View style={beeStyles.quickActionIconWrap}>
-                  <ClipboardList
-                    color="#7B2DD9"
-                    size={17}
-                  />
-                </View>
-
-                <Text style={beeStyles.quickActionLabel}>
-                  Mis compras
-                </Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                accessibilityLabel="Abrir mis negocios"
-                accessibilityRole="button"
-                activeOpacity={0.78}
-                onPress={handleBusinessAction}
-                style={beeStyles.quickActionCard}
-              >
-                <View style={beeStyles.quickActionIconWrap}>
-                  <Store
-                    color="#7B2DD9"
-                    size={17}
-                  />
-                </View>
-
-                <Text style={beeStyles.quickActionLabel}>
-                  Mis negocios
-                </Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                accessibilityLabel="Crear negocio"
-                accessibilityRole="button"
-                activeOpacity={0.78}
-                onPress={() => router.push(
-                  buddyServicesCreateBusinessRoute(),
-                )}
-                style={beeStyles.quickActionCard}
-              >
-                <View style={beeStyles.quickActionIconWrap}>
-                  <PlusCircle
-                    color="#7B2DD9"
-                    size={17}
-                  />
-                </View>
-
-                <Text style={beeStyles.quickActionLabel}>
-                  Crear negocio
-                </Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-
-          <View style={localStyles.searchSection}>
-            <Text style={beeStyles.sectionTitle}>
-              Busca negocios y servicios
-            </Text>
-
-            <View style={localStyles.searchRow}>
-              <TextInput
-                accessibilityLabel="Buscar negocios, productos o servicios"
-                autoCapitalize="sentences"
-                editable={!isInitialLoading}
-                onChangeText={setSearch}
-                onSubmitEditing={handleSearch}
-                placeholder="Ej. técnico, barbería, comida…"
-                placeholderTextColor="#9B87AE"
-                returnKeyType="search"
-                style={localStyles.searchInput}
-                value={search}
+          <TouchableOpacity
+            accessibilityLabel="Ver mis compras y reservas"
+            accessibilityRole="button"
+            activeOpacity={0.8}
+            onPress={() => router.push(
+              buddyServicesMyPurchasesRoute(),
+            )}
+            style={localStyles.purchasesButton}
+          >
+            <View style={localStyles.purchasesIconWrap}>
+              <ClipboardList
+                color="#FFFFFF"
+                size={18}
+                strokeWidth={2.4}
               />
-
-              <TouchableOpacity
-                accessibilityLabel="Buscar"
-                accessibilityRole="button"
-accessibilityState={{
-disabled: isInitialLoading,
-}}
-                activeOpacity={0.8}
-                disabled={isInitialLoading}
-                onPress={handleSearch}
-                style={[
-                  localStyles.searchButton,
-                  isInitialLoading
-                    && localStyles.searchButtonDisabled,
-                ]}
-              >
-                <Search
-                  color="#FFFFFF"
-                  size={20}
-                />
-              </TouchableOpacity>
             </View>
 
-            {search.trim().length === 1 ? (
-              <Text style={localStyles.searchHint}>
-                Escribe al menos 2 caracteres para buscar.
+            <View style={localStyles.purchasesTextColumn}>
+              <Text style={localStyles.purchasesLabel}>
+                Mis compras y reservas
               </Text>
-            ) : null}
-          </View>
+
+              <Text style={localStyles.purchasesHint}>
+                Consulta el estado de tus solicitudes
+              </Text>
+            </View>
+          </TouchableOpacity>
+
+          <BeeServicesBusinessFilter
+            modality={modality}
+            offerType={offerType}
+            onChangeModality={setModality}
+            onChangeOfferType={setOfferType}
+          />
 
           <View
             onLayout={(event) => {
@@ -614,90 +425,152 @@ accessibilityRole="alert"
                 <Text style={localStyles.locationEmptyTitle}>
                   {activeSearch
                     ? 'No encontramos coincidencias'
-                    : 'Aún no hay negocios disponibles'}
+                    : offerType || modality
+                      ? 'Ningún negocio coincide con el filtro'
+                      : 'Aún no hay negocios disponibles'}
                 </Text>
 
                 <Text style={localStyles.locationEmptyText}>
                   {activeSearch
                     ? 'Prueba con otro nombre, producto o servicio.'
-                    : 'Cuando alguien publique un negocio o un servicio, aparecerá aquí.'}
+                    : offerType || modality
+                      ? 'Prueba con otro tipo de negocio o con otra modalidad.'
+                      : 'Cuando alguien publique un negocio o un servicio, aparecerá aquí.'}
+                </Text>
+              </View>
+            ) : null}
+
+            {!loadingProductFeed && !error
+              && (offerType || modality)
+              && searchProfiles.length === 0
+              && productFeed.length > 0 ? (
+              <View style={localStyles.filterEmpty}>
+                <Text style={localStyles.filterEmptyText}>
+                  No hay negocios con ese filtro.
                 </Text>
               </View>
             ) : null}
 
             {!loadingProductFeed && searchProfiles.length > 0 ? (
-              <CommercialRecentBusinesses
-                profiles={searchProfiles}
-                title={
-                  activeSearch
-                    ? 'Negocios'
-                    : 'Negocios recientes'
-                }
-                onPressProfile={(profile) => router.push(
-                  buddyServicesPublicProfileRoute(profile.id),
-                )}
-              />
+              <View style={beeStyles.section}>
+                <CommercialRecentBusinesses
+                  profiles={searchProfiles}
+                  title={
+                    activeSearch
+                      ? 'Negocios'
+                      : 'Negocios recientes'
+                  }
+                  onPressProfile={(profile) => router.push(
+                    buddyServicesPublicProfileRoute(profile.id),
+                  )}
+                />
+
+                <BuddyServicesListPagination
+                  currentPage={profilesPage}
+                  loading={pagingProfiles}
+                  onPageChange={(page) => {
+                    void goToProfilesPage(page);
+                  }}
+                  totalCount={profilesTotalCount}
+                />
+              </View>
             ) : null}
 
             {!loadingProductFeed && productFeed.length > 0 ? (
               <View style={beeStyles.section}>
-                <Text style={beeStyles.sectionTitle}>
-                  {activeSearch
-                    ? 'Productos y servicios'
-                    : 'Productos y servicios destacados'}
-                </Text>
+                <View style={localStyles.feedHeader}>
+                  <Text style={beeStyles.sectionTitle}>
+                    {activeSearch
+                      ? 'Productos y servicios'
+                      : 'Productos y servicios destacados'}
+                  </Text>
 
-                {productFeed.map((offer) => (
-                  <CommercialOfferCard
-                    key={offer.id}
-                    offer={offer}
-                    onPress={(selectedOffer) => router.push(
-                      buddyServicesPublicOfferRoute(
-                        selectedOffer.id,
-                      ),
-                    )}
-                  />
-                ))}
-
-                {loadingMoreProducts ? (
                   <View
-                    accessibilityLiveRegion="polite"
-                    style={localStyles.loadingMoreRow}
+                    accessibilityLabel="Cambiar vista de productos y servicios"
+                    accessibilityRole="tablist"
+                    style={localStyles.viewModeControl}
                   >
-                    <ActivityIndicator
-                      color="#7427D5"
-                      size="small"
+                    <TouchableOpacity
+                      accessibilityLabel="Ver productos y servicios en grilla"
+                      accessibilityRole="tab"
+                      accessibilityState={{
+                        selected: offerViewMode === 'grid',
+                      }}
+                      activeOpacity={0.8}
+                      onPress={() => setOfferViewMode('grid')}
+                      style={[
+                        localStyles.viewModeButton,
+                        offerViewMode === 'grid'
+                          && localStyles.viewModeButtonActive,
+                      ]}
+                    >
+                      <LayoutGrid
+                        color={
+                          offerViewMode === 'grid'
+                            ? '#FFFFFF'
+                            : '#7A579D'
+                        }
+                        size={17}
+                        strokeWidth={2.3}
+                      />
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      accessibilityLabel="Ver productos y servicios en lista"
+                      accessibilityRole="tab"
+                      accessibilityState={{
+                        selected: offerViewMode === 'list',
+                      }}
+                      activeOpacity={0.8}
+                      onPress={() => setOfferViewMode('list')}
+                      style={[
+                        localStyles.viewModeButton,
+                        offerViewMode === 'list'
+                          && localStyles.viewModeButtonActive,
+                      ]}
+                    >
+                      <List
+                        color={
+                          offerViewMode === 'list'
+                            ? '#FFFFFF'
+                            : '#7A579D'
+                        }
+                        size={18}
+                        strokeWidth={2.3}
+                      />
+                    </TouchableOpacity>
+                  </View>
+                </View>
+
+                <View
+                  style={[
+                    localStyles.offerFeed,
+                    offerViewMode === 'grid'
+                      && localStyles.offerFeedGrid,
+                  ]}
+                >
+                  {productFeed.map((offer) => (
+                    <CommercialOfferCard
+                      key={offer.id}
+                      offer={offer}
+                      onPress={(selectedOffer) => router.push(
+                        buddyServicesPublicOfferRoute(
+                          selectedOffer.id,
+                        ),
+                      )}
+                      variant={offerViewMode}
                     />
+                  ))}
+                </View>
 
-                    <Text style={localStyles.loadingMoreText}>
-                      {activeSearch
-                        ? 'Cargando más resultados…'
-                        : 'Cargando más productos…'}
-                    </Text>
-                  </View>
-                ) : null}
-
-                {!hasMoreProducts && !loadingMoreProducts ? (
-                  <View
-                    accessibilityLiveRegion="polite"
-                    style={localStyles.feedEndCard}
-                  >
-                    <View style={localStyles.feedEndLine} />
-
-                    <Text style={localStyles.feedEndTitle}>
-                      Eso es todo por ahora
-                    </Text>
-
-                    <Text style={localStyles.feedEndText}>
-                      {activeSearch
-                        ? 'Ya viste todas las coincidencias disponibles.'
-                        : (
-                          'Ya viste todos los productos disponibles. '
-                          + 'Vuelve pronto para descubrir nuevas opciones.'
-                        )}
-                    </Text>
-                  </View>
-                ) : null}
+                <BuddyServicesListPagination
+                  currentPage={offersPage}
+                  loading={pagingOffers}
+                  onPageChange={(page) => {
+                    void goToOffersPage(page);
+                  }}
+                  totalCount={offersTotalCount}
+                />
               </View>
             ) : null}
 
@@ -720,43 +593,97 @@ accessibilityRole="alert"
 }
 
 const localStyles = StyleSheet.create({
-  searchSection: {
+  purchasesButton: {
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    backgroundColor: '#FFFFFF',
+    borderColor: '#E2D6F0',
+    borderRadius: 17,
+    borderWidth: 1,
+    flexDirection: 'row',
     marginBottom: 27,
+    paddingBottom: 11,
+    paddingLeft: 11,
+    paddingRight: 16,
+    paddingTop: 11,
+    shadowColor: '#5F52C5',
+    shadowOffset: {
+      height: 4,
+      width: 0,
+    },
+    shadowOpacity: 0.08,
+    shadowRadius: 10,
+    elevation: 2,
   },
-  searchRow: {
+  purchasesIconWrap: {
+    alignItems: 'center',
+    backgroundColor: '#7567D9',
+    borderRadius: 12,
+    height: 37,
+    justifyContent: 'center',
+    width: 37,
+  },
+  purchasesTextColumn: {
+    marginLeft: 10,
+  },
+  purchasesLabel: {
+    color: '#26314D',
+    fontSize: 13,
+    fontWeight: '800',
+    lineHeight: 17,
+  },
+  purchasesHint: {
+    color: '#6C7892',
+    fontSize: 11,
+    lineHeight: 15,
+    marginTop: 1,
+  },
+  filterEmpty: {
+    backgroundColor: '#F7F1FB',
+    borderColor: '#E7D9F0',
+    borderRadius: 16,
+    borderWidth: 1,
+    marginBottom: 18,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+  },
+  filterEmptyText: {
+    color: '#5C4A78',
+    fontSize: 13,
+    fontWeight: '700',
+    lineHeight: 18,
+  },
+  feedHeader: {
     alignItems: 'center',
     flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 12,
   },
-  searchInput: {
-    backgroundColor: '#FFFFFF',
-    borderColor: '#EAE1F1',
-    borderBottomLeftRadius: 14,
-    borderTopLeftRadius: 14,
+  viewModeControl: {
+    backgroundColor: '#F7F1FB',
+    borderColor: '#E7D9F0',
+    borderRadius: 12,
     borderWidth: 1,
-    color: '#38294E',
-    flex: 1,
-    fontSize: 14,
-    minHeight: 49,
-    paddingHorizontal: 14,
+    flexDirection: 'row',
+    padding: 3,
   },
-  searchButton: {
+  viewModeButton: {
     alignItems: 'center',
-    backgroundColor: '#7427D5',
-    borderBottomRightRadius: 14,
-    borderTopRightRadius: 14,
-    height: 49,
+    borderRadius: 9,
+    height: 32,
     justifyContent: 'center',
-    width: 52,
+    width: 32,
   },
-  searchButtonDisabled: {
-    opacity: 0.55,
+  viewModeButtonActive: {
+    backgroundColor: '#7427D5',
   },
-  searchHint: {
-    color: '#886B9F',
-    fontSize: 12,
-    lineHeight: 17,
-    marginTop: 7,
-    paddingHorizontal: 2,
+  offerFeed: {
+    width: '100%',
+  },
+  offerFeedGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
   },
   loadingMoreRow: {
     alignItems: 'center',

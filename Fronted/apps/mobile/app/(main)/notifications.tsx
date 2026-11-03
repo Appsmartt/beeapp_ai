@@ -3,10 +3,9 @@ import {
   useEffect,
   useMemo,
   useState,
-} from 'react';
+  } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   RefreshControl,
   ScrollView,
   StyleSheet,
@@ -14,6 +13,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { appAlert } from '../../src/components/feedback/appAlert';
 import { useRouter } from 'expo-router';
 import {
   Bell,
@@ -196,7 +196,7 @@ export default function NotificationsScreen() {
 
         setNotifications(response.notifications);
       } catch (error) {
-        Alert.alert(
+        appAlert(
           'No fue posible cargar notificaciones',
           error instanceof Error
             ? error.message
@@ -303,7 +303,7 @@ export default function NotificationsScreen() {
         });
       }
     } catch (error) {
-      Alert.alert(
+      appAlert(
         'No fue posible actualizar la notificación',
         error instanceof Error
           ? error.message
@@ -340,7 +340,7 @@ export default function NotificationsScreen() {
         })),
       );
     } catch (error) {
-      Alert.alert(
+      appAlert(
         'No fue posible marcar las notificaciones',
         error instanceof Error
           ? error.message

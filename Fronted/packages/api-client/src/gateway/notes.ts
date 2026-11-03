@@ -7,9 +7,11 @@ import {
     createId,
     GatewayError,
     type Json,
+    enrichNoteSharesWithProfiles,
     readSettings,
     requireClient,
     searchProfiles,
+    searchShareRecipients,
     SIGNED_URL_SECONDS,
     unwrap,
     writeSetting,
@@ -321,13 +323,23 @@ export async function handleNotes(
         method === 'GET'
         && (path === '/notes/shares/recipients/' || path === '/notes/share-recipients/')
     ) {
-        return {
-            recipients: await searchProfiles(
-                supabase,
-                query.get('q') || '',
-                limit,
-            ),
-        };
+        try {
+            return {
+                recipients: await searchShareRecipients(
+                    supabase,
+                    query.get('q') || '',
+                    limit,
+                ),
+            };
+        } catch {
+            return {
+                recipients: await searchProfiles(
+                    supabase,
+                    query.get('q') || '',
+                    limit,
+                ),
+            };
+        }
     }
 
     if (method === 'GET' && path === '/notes/shares/received/') {
@@ -337,7 +349,7 @@ export async function handleNotes(
             .select('*')
             .neq('owner_id', userId)
             .order('updated_at', { ascending: false })) ?? []) as Json[];
-        const shares = rows.flatMap((row) => (
+        const rawShares = rows.flatMap((row) => (
             sharesOf(row)
                 .filter((share) => (
                     String(share.shared_with_user_id || '') === userId
@@ -346,9 +358,15 @@ export async function handleNotes(
                 ))
                 .map((share) => ({
                     ...share,
+                    note_id: share.note_id || row.id,
                     note: mapNote(row),
                 }))
         )).slice(offset, offset + limit);
+
+        const shares = await enrichNoteSharesWithProfiles(
+            supabase,
+            rawShares,
+        );
 
         return { shares, count: shares.length, limit, offset };
     }
@@ -358,11 +376,20 @@ export async function handleNotes(
             .from('notes')
             .select('*')
             .eq('owner_id', userId)) ?? []) as Json[];
-        const shares = rows.flatMap((row) => (
+        const rawShares = rows.flatMap((row) => (
             sharesOf(row)
                 .filter((share) => !share.revoked_at)
-                .map((share) => ({ ...share, note: mapNote(row) }))
+                .map((share) => ({
+                    ...share,
+                    note_id: share.note_id || row.id,
+                    note: mapNote(row),
+                }))
         )).slice(offset, offset + limit);
+
+        const shares = await enrichNoteSharesWithProfiles(
+            supabase,
+            rawShares,
+        );
 
         return { shares, count: shares.length, limit, offset };
     }
@@ -555,6 +582,34 @@ export async function handleNotes(
 
     const noteShares = path.match(new RegExp(`^/notes/(${UUID})/shares/$`, 'i'));
 
+    if (noteShares && method === 'GET') {
+        const note = unwrap(await supabase
+            .from('notes')
+            .select('*')
+            .eq('id', noteShares[1])
+            .eq('owner_id', userId)
+            .single()) as Json;
+
+        const rawShares = sharesOf(note)
+            .filter((share) => !share.revoked_at)
+            .map((share) => ({
+                ...share,
+                note_id: share.note_id || note.id,
+            }));
+
+        const shares = await enrichNoteSharesWithProfiles(
+            supabase,
+            rawShares,
+        );
+
+        return {
+            shares,
+            count: shares.length,
+            limit,
+            offset,
+        };
+    }
+
     if (noteShares && method === 'POST') {
         const note = unwrap(await supabase
             .from('notes')
@@ -581,7 +636,13 @@ export async function handleNotes(
             .from('notes')
             .update({ shared_with: [...sharesOf(note), share] })
             .eq('id', note.id));
-        return { share };
+
+        const [enrichedShare] = await enrichNoteSharesWithProfiles(
+            supabase,
+            [share],
+        );
+
+        return { share: enrichedShare || share };
     }
 
     const trash = path.match(new RegExp(`^/notes/(${UUID})/trash/$`, 'i'));

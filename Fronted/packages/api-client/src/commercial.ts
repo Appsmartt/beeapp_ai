@@ -93,6 +93,20 @@ ReplaceCommercialPaymentProofResponse,
 } from '@beeapp/shared-types';
 
 import { api } from './client';
+import { LIST_CACHE_TTL } from './requestCache';
+
+function cachedRead(
+  auth: AuthCredentials,
+  ttlMs: number,
+  key?: string,
+) {
+  return {
+    auth,
+    cache: key
+      ? { ttlMs, key }
+      : { ttlMs },
+  };
+}
 
 function toQueryString(
   values: object,
@@ -233,7 +247,7 @@ export function getPublicCommercialProfiles(
 ): Promise<GetPublicCommercialProfilesResponse> {
   return api.get<GetPublicCommercialProfilesResponse>(
     `/commercial/public/profiles/${toQueryString(query)}`,
-    { auth },
+    cachedRead(auth, LIST_CACHE_TTL.standard),
   );
 }
 
@@ -260,14 +274,33 @@ export function openCommercialProfileChat(
   );
 }
 
+export function publicCommercialProfileCacheKey(
+  profileId: string,
+): string {
+  return publicProfilePath(profileId);
+}
+
 export function getPublicCommercialProfile(
   auth: AuthCredentials,
   profileId: string,
 ): Promise<GetPublicCommercialProfileResponse> {
   return api.get<GetPublicCommercialProfileResponse>(
-    publicProfilePath(profileId),
-    { auth },
+    publicCommercialProfileCacheKey(profileId),
+    cachedRead(auth, LIST_CACHE_TTL.stable),
   );
+}
+
+export function publicCommercialCatalogsCacheKey(
+  profileId: string,
+): string {
+  return `${publicProfilePath(profileId)}catalogs/`;
+}
+
+export function publicCommercialOffersCacheKey(
+  profileId: string,
+  query: PublicCommercialOffersQuery = {},
+): string {
+  return `${publicProfilePath(profileId)}offers/${toQueryString(query)}`;
 }
 
 export function getPublicCommercialCatalogs(
@@ -275,8 +308,8 @@ export function getPublicCommercialCatalogs(
   profileId: string,
 ): Promise<GetPublicCommercialCatalogsResponse> {
   return api.get<GetPublicCommercialCatalogsResponse>(
-    `${publicProfilePath(profileId)}catalogs/`,
-    { auth },
+    publicCommercialCatalogsCacheKey(profileId),
+    cachedRead(auth, LIST_CACHE_TTL.stable),
   );
 }
 
@@ -286,9 +319,20 @@ export function getPublicCommercialOffers(
   query: PublicCommercialOffersQuery = {},
 ): Promise<GetPublicCommercialOffersResponse> {
   return api.get<GetPublicCommercialOffersResponse>(
-    `${publicProfilePath(profileId)}offers/${toQueryString(query)}`,
-    { auth },
+    publicCommercialOffersCacheKey(profileId, query),
+    cachedRead(auth, LIST_CACHE_TTL.standard),
   );
+}
+
+export function publicCommercialProductFeedCacheKey(
+  query: PublicCommercialProductFeedQuery = {},
+): string {
+  const {
+    seed: _seed,
+    ...stableQuery
+  } = query;
+
+  return `/commercial/public/offers/feed/${toQueryString(stableQuery)}`;
 }
 
 export function getPublicCommercialProductFeed(
@@ -297,7 +341,11 @@ export function getPublicCommercialProductFeed(
 ): Promise<GetPublicCommercialProductFeedResponse> {
   return api.get<GetPublicCommercialProductFeedResponse>(
     `/commercial/public/offers/feed/${toQueryString(query)}`,
-    { auth },
+    cachedRead(
+      auth,
+      LIST_CACHE_TTL.standard,
+      publicCommercialProductFeedCacheKey(query),
+    ),
   );
 }
 
@@ -317,16 +365,18 @@ export function getPublicCommercialOffer(
     `/commercial/public/offers/${encodeURIComponent(
       normalizedOfferId,
     )}/`,
-    { auth },
+    cachedRead(auth, LIST_CACHE_TTL.standard),
   );
 }
+
+export const OWNED_COMMERCIAL_PROFILES_CACHE_KEY = '/commercial/profiles/';
 
 export function getOwnedCommercialProfiles(
   auth: AuthCredentials,
 ): Promise<GetOwnedCommercialProfilesResponse> {
   return api.get<GetOwnedCommercialProfilesResponse>(
-    '/commercial/profiles/',
-    { auth },
+    OWNED_COMMERCIAL_PROFILES_CACHE_KEY,
+    cachedRead(auth, LIST_CACHE_TTL.stable),
   );
 }
 
@@ -336,7 +386,7 @@ export function getOwnedCommercialProfile(
 ): Promise<GetOwnedCommercialProfileResponse> {
   return api.get<GetOwnedCommercialProfileResponse>(
     profilePath(profileId),
-    { auth },
+    cachedRead(auth, LIST_CACHE_TTL.stable),
   );
 }
 
@@ -386,6 +436,17 @@ export function attachOwnedCommercialVerificationDocument(
   );
 }
 
+export function ownedCommercialCatalogsCacheKey(
+  profileId: string,
+  options: {
+    include_archived?: boolean;
+  } = {},
+): string {
+  return `${profilePath(profileId)}catalogs/${toQueryString({
+    include_archived: options.include_archived,
+  })}`;
+}
+
 export function getOwnedCommercialCatalogs(
   auth: AuthCredentials,
   profileId: string,
@@ -394,10 +455,8 @@ export function getOwnedCommercialCatalogs(
   } = {},
 ): Promise<GetOwnedCommercialCatalogsResponse> {
   return api.get<GetOwnedCommercialCatalogsResponse>(
-    `${profilePath(profileId)}catalogs/${toQueryString({
-      include_archived: options.include_archived,
-    })}`,
-    { auth },
+    ownedCommercialCatalogsCacheKey(profileId, options),
+    cachedRead(auth, LIST_CACHE_TTL.stable),
   );
 }
 
@@ -412,6 +471,22 @@ export function getOwnedCommercialCatalog(
   );
 }
 
+export function ownedCommercialOffersCacheKey(
+  profileId: string,
+  options: {
+    catalog_id?: string;
+    include_archived?: boolean;
+  } = {},
+): string {
+  return `${profilePath(profileId)}offers/${toQueryString(options)}`;
+}
+
+export function ownedCommercialProfileCacheKey(
+  profileId: string,
+): string {
+  return profilePath(profileId);
+}
+
 export function getOwnedCommercialOffers(
   auth: AuthCredentials,
   profileId: string,
@@ -421,8 +496,8 @@ export function getOwnedCommercialOffers(
   } = {},
 ): Promise<GetOwnedCommercialOffersResponse> {
   return api.get<GetOwnedCommercialOffersResponse>(
-    `${profilePath(profileId)}offers/${toQueryString(options)}`,
-    { auth },
+    ownedCommercialOffersCacheKey(profileId, options),
+    cachedRead(auth, LIST_CACHE_TTL.stable),
   );
 }
 
@@ -911,10 +986,9 @@ export function createCommercialRequest(
 }
 
 
-export function getCommercialRequests(
-  credentials: AuthCredentials,
+function requestListQuery(
   query: GetCommercialRequestsQuery = {},
-): Promise<GetCommercialRequestsResponse> {
+): string {
   const searchParams = new URLSearchParams();
 
   (query.statuses || []).forEach((status) => {
@@ -933,16 +1007,37 @@ export function getCommercialRequests(
     searchParams.set('offset', String(query.offset));
   }
 
-  const queryString = searchParams.toString();
-  const endpoint = queryString
+  return searchParams.toString();
+}
+
+export function commercialRequestsCacheKey(
+  query: GetCommercialRequestsQuery = {},
+): string {
+  const queryString = requestListQuery(query);
+
+  return queryString
     ? `/commercial/requests/?${queryString}`
     : '/commercial/requests/';
+}
 
+export function ownedCommercialRequestsCacheKey(
+  profileId: string,
+  query: GetCommercialRequestsQuery = {},
+): string {
+  const queryString = requestListQuery(query);
+
+  return queryString
+    ? `${profilePath(profileId)}requests/?${queryString}`
+    : `${profilePath(profileId)}requests/`;
+}
+
+export function getCommercialRequests(
+  credentials: AuthCredentials,
+  query: GetCommercialRequestsQuery = {},
+): Promise<GetCommercialRequestsResponse> {
   return api.get<GetCommercialRequestsResponse>(
-    endpoint,
-    {
-      auth: credentials,
-    },
+    commercialRequestsCacheKey(query),
+    cachedRead(credentials, LIST_CACHE_TTL.fresh),
   );
 }
 
@@ -1016,32 +1111,9 @@ export function getOwnedCommercialRequests(
   profileId: string,
   query: GetCommercialRequestsQuery = {},
 ): Promise<GetOwnedCommercialRequestsResponse> {
-  const searchParams = new URLSearchParams();
-
-  (query.statuses || []).forEach((status) => {
-    const normalizedStatus = String(status || '').trim();
-
-    if (normalizedStatus) {
-      searchParams.append('status', normalizedStatus);
-    }
-  });
-
-  if (query.limit !== undefined) {
-    searchParams.set('limit', String(query.limit));
-  }
-
-  if (query.offset !== undefined) {
-    searchParams.set('offset', String(query.offset));
-  }
-
-  const queryString = searchParams.toString();
-  const endpoint = queryString
-    ? `${profilePath(profileId)}requests/?${queryString}`
-    : `${profilePath(profileId)}requests/`;
-
   return api.get<GetOwnedCommercialRequestsResponse>(
-    endpoint,
-    { auth },
+    ownedCommercialRequestsCacheKey(profileId, query),
+    cachedRead(auth, LIST_CACHE_TTL.fresh),
   );
 }
 

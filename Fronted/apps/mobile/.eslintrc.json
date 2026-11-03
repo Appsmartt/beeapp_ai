@@ -1,0 +1,22 @@
+{
+  "root": true,
+  "overrides": [
+    {
+      "files": ["**/*.{ts,tsx}"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "paths": [
+              {
+                "name": "react-native",
+                "importNames": ["Alert"],
+                "message": "Usa appAlert desde src/components/feedback/appAlert en lugar del Alert nativo."
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}

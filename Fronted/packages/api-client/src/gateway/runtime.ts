@@ -212,6 +212,112 @@ export async function signedUrlsForFileIds(
     return urls;
 }
 
+export async function searchShareRecipients(
+    supabase: SupabaseClient,
+    term: string,
+    limit: number,
+): Promise<Json[]> {
+    const rows = unwrap(await supabase.rpc(
+        'search_share_recipients',
+        {
+            search_value: term,
+            result_limit: limit,
+        },
+    ));
+
+    return asRows<Json>(rows).map((row) => ({
+        id: row.id,
+        email: row.email ?? null,
+        first_name: row.first_name ?? '',
+        last_name: row.last_name ?? '',
+        phone_dial_code: row.phone_dial_code ?? null,
+        phone_number: row.phone_number ?? null,
+    }));
+}
+
+export async function profilesByIds(
+    supabase: SupabaseClient,
+    ids: string[],
+): Promise<Map<string, Json>> {
+    const uniqueIds = [
+        ...new Set(
+            ids
+                .map((id) => String(id || '').trim())
+                .filter(Boolean),
+        ),
+    ];
+
+    if (uniqueIds.length === 0) {
+        return new Map();
+    }
+
+    let rows: Json[] = [];
+
+    try {
+        rows = asRows<Json>(unwrap(await supabase
+            .from('profiles')
+            .select(
+                'id,first_name,last_name,phone_dial_code,phone_number',
+            )
+            .in('id', uniqueIds)));
+    } catch {
+        return new Map();
+    }
+
+    const profiles = new Map<string, Json>();
+
+    rows.forEach((row) => {
+        const id = String(row.id || '');
+
+        if (!id) {
+            return;
+        }
+
+        profiles.set(id, {
+            id,
+            first_name: row.first_name ?? '',
+            last_name: row.last_name ?? '',
+            phone_dial_code: row.phone_dial_code ?? null,
+            phone_number: row.phone_number ?? null,
+        });
+    });
+
+    return profiles;
+}
+
+export async function enrichNoteSharesWithProfiles(
+    supabase: SupabaseClient,
+    shares: Json[],
+): Promise<Json[]> {
+    if (shares.length === 0) {
+        return [];
+    }
+
+    const profileIds = shares.flatMap((share) => [
+        String(share.shared_with_user_id || ''),
+        String(share.shared_by_user_id || ''),
+    ]);
+
+    try {
+        const profiles = await profilesByIds(
+            supabase,
+            profileIds,
+        );
+
+        return shares.map((share) => ({
+            ...share,
+            shared_with: profiles.get(
+                String(share.shared_with_user_id || ''),
+            ) ?? null,
+            shared_by: profiles.get(
+                String(share.shared_by_user_id || ''),
+            ) ?? null,
+        }));
+    } catch {
+        return shares;
+    }
+}
+
 export async function searchProfiles(
     supabase: SupabaseClient,
     term: string,

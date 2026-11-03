@@ -45,16 +45,15 @@ const CHIPS: {
     id: 'favorite',
     label: 'Favoritas',
   },
-  {
-    id: 'trash',
-    label: 'Papelera',
-  },
 ];
 
 interface NotesListViewProps {
   notes: NoteListItem[];
   viewMode: ViewMode;
   activeFilter: NotesFilter;
+  showFilters?: boolean;
+  emptyTitle?: string;
+  emptyDescription?: string;
   onChangeFilter: (filter: NotesFilter) => void;
   onOpen: (id: string) => void;
   onLongPress: (note: NoteListItem) => void;
@@ -72,6 +71,9 @@ export default function NotesListView({
   notes,
   viewMode,
   activeFilter,
+  showFilters = true,
+  emptyTitle,
+  emptyDescription,
   onChangeFilter,
   onOpen,
   onLongPress,
@@ -79,43 +81,45 @@ export default function NotesListView({
 }: NotesListViewProps) {
   return (
     <>
-      <View style={styles.filtersContainer}>
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.filtersScroll}
-        >
-          {CHIPS.map((chip) => {
-            const isActive =
-              activeFilter === chip.id;
+      {showFilters ? (
+        <View style={styles.filtersContainer}>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.filtersScroll}
+          >
+            {CHIPS.map((chip) => {
+              const isActive =
+                activeFilter === chip.id;
 
-            return (
-              <TouchableOpacity
-                key={chip.id}
-                style={[
-                  styles.filterChip,
-                  isActive
-                    && styles.filterChipActive,
-                ]}
-                onPress={() =>
-                  onChangeFilter(chip.id)
-                }
-                activeOpacity={0.7}
-              >
-                <Text
+              return (
+                <TouchableOpacity
+                  key={chip.id}
                   style={[
-                    styles.filterChipText,
+                    styles.filterChip,
                     isActive
-                      && styles.filterChipTextActive,
+                      && styles.filterChipActive,
                   ]}
+                  onPress={() =>
+                    onChangeFilter(chip.id)
+                  }
+                  activeOpacity={0.7}
                 >
-                  {chip.label}
-                </Text>
-              </TouchableOpacity>
-            );
-          })}
-        </ScrollView>
-      </View>
+                  <Text
+                    style={[
+                      styles.filterChipText,
+                      isActive
+                        && styles.filterChipTextActive,
+                    ]}
+                  >
+                    {chip.label}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </ScrollView>
+        </View>
+      ) : null}
 
       {notes.length > 0 ? (
         <ScrollView
@@ -160,12 +164,12 @@ export default function NotesListView({
           </View>
 
           <Text style={styles.emptyTitle}>
-            Sin notas
+            {emptyTitle || 'Sin notas'}
           </Text>
 
           <Text style={styles.emptyDesc}>
-            No hay notas en esta vista. Crea una
-            nueva nota para empezar.
+            {emptyDescription
+              || 'No hay notas en esta vista. Crea una nueva nota para empezar.'}
           </Text>
         </View>
       )}

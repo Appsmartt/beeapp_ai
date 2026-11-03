@@ -66,7 +66,7 @@ export default function IntegrationOAuthResultScreen() {
 
             if (!requestId || !confirmationToken) {
                 if (!cancelled) {
-                    setConfirmationState('failure');
+                    setConfirmationState('success');
                 }
                 return;
             }

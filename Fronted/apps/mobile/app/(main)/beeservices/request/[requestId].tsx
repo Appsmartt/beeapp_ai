@@ -1,22 +1,22 @@
 import {
-useCallback,
-useEffect,
-useMemo,
-useState,
-} from 'react';
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  } from 'react';
 import {
 ActivityIndicator,
-Alert,
-Modal,
-Pressable,
-RefreshControl,
-ScrollView,
-StyleSheet,
-Text,
-TextInput,
-TouchableOpacity,
-View,
+  Modal,
+  Pressable,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from 'react-native';
+import { appAlert } from '../../../../src/components/feedback/appAlert';
 import {
 ArrowLeft,
 CalendarClock,
@@ -742,7 +742,7 @@ setActionError(null);
 
 try {
 await operation();
-Alert.alert('Solicitud actualizada', successMessage);
+appAlert('Solicitud actualizada', successMessage);
 await loadRequest();
 } catch (operationError) {
 setActionError(toCommercialUiError(operationError));
@@ -754,7 +754,7 @@ setPendingAction(null);
 const confirmAcceptProposal = useCallback((
 proposalId: string,
 ) => {
-Alert.alert(
+appAlert(
 'Aceptar propuesta',
 '¿Deseas aceptar estas condiciones para la solicitud?',
 [
@@ -943,7 +943,7 @@ requestDetail?.request_type,
 const confirmAcceptItemProposal = useCallback((
 proposalId: string,
 ) => {
-Alert.alert(
+appAlert(
 'Aceptar propuesta',
 '¿Deseas aceptar estas condiciones para el producto?',
 [
@@ -968,7 +968,7 @@ void runRequestAction(
 const confirmRejectItemProposal = useCallback((
 itemId: string,
 ) => {
-Alert.alert(
+appAlert(
 'Rechazar oferta',
 'El producto quedará rechazado y no continuará en esta solicitud.',
 [
@@ -1187,7 +1187,7 @@ payment_method_id: selectedPaymentMethodId,
 },
 );
 
-Alert.alert(
+appAlert(
 'Comprobante enviado',
 'Tu comprobante fue enviado para revisión del comercio.',
 );
@@ -1278,7 +1278,7 @@ file_id: uploadedFile.id,
 },
 );
 
-Alert.alert(
+appAlert(
 'Comprobante enviado',
 'El nuevo comprobante fue enviado para revisión.',
 );
@@ -1314,7 +1314,7 @@ pendingAction,
 const confirmRejectProposal = useCallback((
 proposalId: string,
 ) => {
-Alert.alert(
+appAlert(
 'Rechazar propuesta',
 'La propuesta será rechazada. Podrás continuar negociando si el negocio envía una nueva propuesta.',
 [

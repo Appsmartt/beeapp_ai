@@ -2,10 +2,9 @@ import {
   useCallback,
   useMemo,
   useState,
-} from 'react';
+  } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   Modal,
   RefreshControl,
   ScrollView,
@@ -14,6 +13,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { appAlert } from '../../../src/components/feedback/appAlert';
 import {
   useFocusEffect,
   useRouter,
@@ -36,17 +36,13 @@ import {
   X,
 } from 'lucide-react-native';
 import { colors } from '@beeapp/design-system';
-import { API_BASE_URL } from '@beeapp/api-client';
-
-const OAUTH_BROWSER_ORIGIN = (
-  process.env.EXPO_PUBLIC_OAUTH_BROWSER_ORIGIN
-  || API_BASE_URL.replace(/\/api\/?$/, '')
-).replace(/\/$/, '');
-
-
+import type { IntegrationConnection } from '@beeapp/shared-types';
 import FloatingTabBar from '../../../src/components/FloatingTabBar';
 import ScreenSafeArea from '../../../src/components/layout/ScreenSafeArea';
 import { useIntegrations } from '../../../src/hooks/useIntegrations';
+import {
+  syncJustConnectedAccounts,
+} from '../../../src/services/connectedAccountSync';
 import {
   armOAuthReturnUnlockSkip,
 } from '../../../src/services/oauthReturnAppLockGuard';
@@ -111,28 +107,17 @@ export default function IntegrationsScreen() {
   );
 
   const openAuthorizationUrl = async (
-    browserStartPath: string,
+    authorizationTarget: string,
+    previousConnections: IntegrationConnection[],
   ) => {
     try {
-      if (
-        !browserStartPath.startsWith(
-          '/api/integrations/oauth/browser-start/',
-        )
-      ) {
+      const browserStartUrl = authorizationTarget.trim();
+
+      if (!/^https?:\/\//i.test(browserStartUrl)) {
         throw new Error(
-          'La autorización segura devolvió una ruta inválida.',
+          'La autorización OAuth devolvió una URL inválida.',
         );
       }
-
-      if (!OAUTH_BROWSER_ORIGIN.startsWith('https://')) {
-        throw new Error(
-          'El origen público seguro para OAuth no está configurado.',
-        );
-      }
-
-      const browserStartUrl = (
-        `${OAUTH_BROWSER_ORIGIN}${browserStartPath}`
-      );
 
       const redirectUrl = Linking.createURL(
         'integrations/result',
@@ -145,14 +130,24 @@ export default function IntegrationsScreen() {
         redirectUrl,
       );
     } catch (browserError) {
-      Alert.alert(
+      appAlert(
         'No fue posible abrir el proveedor',
         getErrorMessage(browserError),
       );
     } finally {
       setIsProviderModalVisible(false);
       setSelectedConnection(null);
-      await loadIntegrations(true);
+      const nextConnections = await loadIntegrations(true);
+
+      void syncJustConnectedAccounts(
+        previousConnections,
+        nextConnections,
+      ).catch((syncError) => {
+        appAlert(
+          'No fue posible sincronizar la cuenta',
+          getErrorMessage(syncError),
+        );
+      });
     }
   };
 
@@ -160,7 +155,7 @@ export default function IntegrationsScreen() {
     provider: ProviderOption,
   ) => {
     if (provider.availability !== 'available') {
-      Alert.alert(
+      appAlert(
         'Próximamente',
         'Esta integración todavía no está disponible.',
       );
@@ -175,9 +170,12 @@ export default function IntegrationsScreen() {
         [...BEEAPP_INTEGRATION_CAPABILITIES],
       );
 
-      await openAuthorizationUrl(browserStartPath);
+      await openAuthorizationUrl(
+        browserStartPath,
+        connections,
+      );
     } catch (connectError) {
-      Alert.alert(
+      appAlert(
         'No fue posible iniciar la conexión',
         getErrorMessage(connectError),
       );
@@ -204,9 +202,12 @@ export default function IntegrationsScreen() {
         requestedCapabilities,
       );
 
-      await openAuthorizationUrl(browserStartPath);
+      await openAuthorizationUrl(
+        browserStartPath,
+        connections,
+      );
     } catch (reauthorizeError) {
-      Alert.alert(
+      appAlert(
         'No fue posible iniciar la reconexión',
         getErrorMessage(reauthorizeError),
       );
@@ -218,7 +219,7 @@ export default function IntegrationsScreen() {
   const handleDisconnect = (
     item: IntegrationConnectionPresentation,
   ) => {
-    Alert.alert(
+    appAlert(
       `Desconectar ${item.providerName}`,
       (
         `Se eliminarán de Buddy la autorización y los datos `
@@ -245,7 +246,7 @@ export default function IntegrationsScreen() {
 
                 setSelectedConnection(null);
               } catch (disconnectError) {
-                Alert.alert(
+                appAlert(
                   'No fue posible desconectar',
                   getErrorMessage(disconnectError),
                 );
@@ -262,7 +263,7 @@ export default function IntegrationsScreen() {
   const handleDeleteRecord = (
     item: IntegrationConnectionPresentation,
   ) => {
-    Alert.alert(
+    appAlert(
       'Eliminar cuenta de la lista',
       (
         `${item.accountLabel} dejará de aparecer en Buddy. `
@@ -288,7 +289,7 @@ export default function IntegrationsScreen() {
 
                 setSelectedConnection(null);
               } catch (deleteError) {
-                Alert.alert(
+                appAlert(
                   'No fue posible eliminar la cuenta',
                   getErrorMessage(deleteError),
                 );

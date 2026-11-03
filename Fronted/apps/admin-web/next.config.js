@@ -12,10 +12,7 @@ const nextConfig = {
     "@beeapp/api-client",
     "@beeapp/design-system",
     "@beeapp/shared-types"
-  ],
-  env: {
-    NEXT_PUBLIC_API_BASE_URL: process.env.EXPO_PUBLIC_API_BASE_URL
-  }
+  ]
 };
 
 module.exports = nextConfig;

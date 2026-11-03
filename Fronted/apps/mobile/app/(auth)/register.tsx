@@ -1,19 +1,21 @@
-import { useMemo, useState } from 'react';
+import {
+  useMemo,
+  useState } from 'react';
 import {
     ActivityIndicator,
-    Alert,
-    Image,
-    Keyboard,
-    KeyboardAvoidingView,
-    Platform,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    TouchableWithoutFeedback,
-    View,
-    } from 'react-native';
+  Image,
+  Keyboard,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  TouchableWithoutFeedback,
+  View,
+} from 'react-native';
+import { appAlert } from '../../src/components/feedback/appAlert';
 import { useRouter } from 'expo-router';
 import {
     Check,
@@ -166,7 +168,7 @@ export default function RegisterScreen() {
 
         const response = await registerUser(payload);
 
-        Alert.alert(
+        appAlert(
             'Cuenta creada',
             `Bienvenido a Buddy AI, ${response.user.first_name}. Tu cuenta y perfil fueron creados correctamente.`,
             [

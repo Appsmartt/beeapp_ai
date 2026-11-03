@@ -1,4 +1,6 @@
-import { useEffect, useState } from 'react';
+import {
+  useEffect,
+  useState } from 'react';
 import {
   View,
   Text,
@@ -6,8 +8,8 @@ import {
   ScrollView,
   TouchableOpacity,
   TextInput,
-  Alert,
 } from 'react-native';
+import { appAlert } from '../../src/components/feedback/appAlert';
 import ScreenSafeArea from '../../src/components/layout/ScreenSafeArea';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { colors } from '@beeapp/design-system';
@@ -134,7 +136,7 @@ export default function ExploreScreen() {
 
   const handleModulePress = (module: ModuleDef) => {
     if (module.isUpcoming) {
-      Alert.alert(
+      appAlert(
         'Próximamente',
         `El módulo "${module.name}" llegará en las próximas versiones de Buddy AI.`
       );
@@ -144,7 +146,7 @@ export default function ExploreScreen() {
     if (module.targetPath) {
       router.push(module.targetPath);
     } else {
-      Alert.alert(
+      appAlert(
         module.name,
         `${module.description}\n\nEste módulo está siendo preparado para sincronizar con Buddy AI. Pronto estará disponible.`,
         [

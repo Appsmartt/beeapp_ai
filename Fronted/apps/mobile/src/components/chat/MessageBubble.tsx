@@ -27,6 +27,7 @@ import {
 } from 'lucide-react-native';
 import { colors } from '@beeapp/design-system';
 import VerifiedBadge from '../VerifiedBadge';
+import CachedImage from '../CachedImage';
 import { getChatVideoThumbnail } from '../../services/chatVideoThumbnail';
 import AiCatalogCards from './AiCatalogCards';
 import StatusStoryReplyPreview from './StatusStoryReplyPreview';
@@ -507,8 +508,8 @@ export default function MessageBubble({
                       accessibilityLabel="Ampliar imagen del chat"
                       onPress={onPressImage}
                     >
-                      <Image
-                        source={{ uri: mediaUrl }}
+                      <CachedImage
+                        uri={mediaUrl}
                         style={styles.image}
                         resizeMode="cover"
                       />

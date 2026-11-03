@@ -1,10 +1,9 @@
 import {
   useEffect,
   useState,
-} from 'react';
+  } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   Modal,
   ScrollView,
   StyleSheet,
@@ -12,6 +11,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { appAlert } from '../feedback/appAlert';
 import { colors } from '@beeapp/design-system';
 import {
   getChatConversation,
@@ -138,7 +138,7 @@ export default function GroupManagementModal({
           } catch (leaveFailure) {
             onUpdated();
             onClose();
-            Alert.alert(
+            appAlert(
               'Propiedad transferida',
               'El nuevo owner ya fue asignado, pero no fue posible salir '
               + 'del grupo. Abre el menú y pulsa Eliminar de nuevo. '
@@ -175,7 +175,7 @@ export default function GroupManagementModal({
     const label = mode === 'owner'
       ? (exitAfterTransfer ? 'Transferir y salir del grupo' : 'Transferir propiedad')
       : participant.role === 'member' ? 'Nombrar admin' : 'Quitar admin';
-    Alert.alert(
+    appAlert(
       label,
       `¿Confirmas ${label.toLowerCase()} para ${memberName(participant)}?`,
       [

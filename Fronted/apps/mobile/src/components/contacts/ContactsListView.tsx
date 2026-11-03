@@ -10,10 +10,16 @@ import { contactsStyles as styles } from './contactsStyles';
 
 interface ContactsListViewProps {
   onFollowChange?: () => void;
+  /** Búsqueda del Home con filtro Contacto */
+  homeSearchQuery?: string;
+  /** Solo lista de contactos (sin pestañas), p. ej. desde Chat embebido */
+  embedFromHomeSearch?: boolean;
 }
 
 export default function ContactsListView({
   onFollowChange,
+  homeSearchQuery = '',
+  embedFromHomeSearch = false,
 }: ContactsListViewProps) {
   const router = useModuleNav();
   const [activeTab, setActiveTab] = useState<ContactsTab>('my');
@@ -36,6 +42,23 @@ export default function ContactsListView({
       },
     });
   };
+
+  if (embedFromHomeSearch) {
+    return (
+      <ScrollView
+        style={styles.scrollViewEmbedded}
+        showsVerticalScrollIndicator={false}
+      >
+        <FollowingContactsPanel
+          searchQuery={homeSearchQuery}
+          onOpenConversation={openConversation}
+          onPressDiscover={() => {
+            router.push('/(main)/chat/people');
+          }}
+        />
+      </ScrollView>
+    );
+  }
 
   return (
     <>

@@ -1,20 +1,20 @@
 import {
-    useCallback,
-    useEffect,
-    useMemo,
-    useState,
-} from 'react';
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  } from 'react';
 import {
     ActivityIndicator,
-    Alert,
-    RefreshControl,
-    ScrollView,
-    StyleSheet,
-    Switch,
-    Text,
-    TouchableOpacity,
-    View,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Switch,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native';
+import { appAlert } from '../../../src/components/feedback/appAlert';
 import {
     AlertTriangle,
     CalendarDays,
@@ -377,7 +377,7 @@ export default function ExternalCalendarsScreen() {
             integration.provider,
         );
 
-        Alert.alert(
+        appAlert(
             `Buscar calendarios de ${provider.name}`,
             (
                 'Buddy consultará los calendarios disponibles en esta '
@@ -406,7 +406,7 @@ export default function ExternalCalendarsScreen() {
                                         ]
                                 ));
 
-                                Alert.alert(
+                                appAlert(
                                     'Calendarios actualizados',
                                     calendars.length === 1
                                         ? 'Se encontró 1 calendario externo.'
@@ -416,7 +416,7 @@ export default function ExternalCalendarsScreen() {
                                         ),
                                 );
                             } catch (discoverError) {
-                                Alert.alert(
+                                appAlert(
                                     'No fue posible buscar calendarios',
                                     getErrorMessage(discoverError),
                                 );
@@ -434,7 +434,7 @@ export default function ExternalCalendarsScreen() {
         selectedCalendarCount: number,
     ) => {
         if (!integration.can_sync) {
-            Alert.alert(
+            appAlert(
                 'Sincronización no disponible',
                 (
                     integration.status_reason
@@ -449,7 +449,7 @@ export default function ExternalCalendarsScreen() {
         }
 
         if (selectedCalendarCount === 0) {
-            Alert.alert(
+            appAlert(
                 'Selecciona un calendario',
                 (
                     'Activa “Usar en Agenda” en al menos un calendario '
@@ -464,7 +464,7 @@ export default function ExternalCalendarsScreen() {
             integration.provider,
         );
 
-        Alert.alert(
+        appAlert(
             `Sincronizar ${provider.name}`,
             (
                 'Buddy consultará los eventos de los calendarios '
@@ -484,7 +484,7 @@ export default function ExternalCalendarsScreen() {
                                     integration.id,
                                 );
 
-                                Alert.alert(
+                                appAlert(
                                     'Sincronización completada',
                                     (
                                         `${result.created_event_count} nuevos · `
@@ -493,7 +493,7 @@ export default function ExternalCalendarsScreen() {
                                     ),
                                 );
                             } catch (syncError) {
-                                Alert.alert(
+                                appAlert(
                                     'No fue posible sincronizar',
                                     getErrorMessage(syncError),
                                 );
@@ -519,7 +519,7 @@ export default function ExternalCalendarsScreen() {
                     },
                 );
             } catch (updateError) {
-                Alert.alert(
+                appAlert(
                     'No fue posible actualizar el calendario',
                     getErrorMessage(updateError),
                 );
@@ -544,7 +544,7 @@ export default function ExternalCalendarsScreen() {
                     },
                 );
             } catch (updateError) {
-                Alert.alert(
+                appAlert(
                     'No fue posible actualizar la visibilidad',
                     getErrorMessage(updateError),
                 );

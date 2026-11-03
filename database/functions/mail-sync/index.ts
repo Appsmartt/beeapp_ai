@@ -119,13 +119,92 @@ async function accessToken(admin: SupabaseClient, row: Json): Promise<string | n
   return String(token.access_token);
 }
 
-function gmailText(part: Json, texts: string[]): void {
-  const body = part.body && typeof part.body === "object" ? part.body as Json : {};
-  if (part.mimeType === "text/plain" && typeof body.data === "string") {
-    texts.push(new TextDecoder().decode(decode(body.data)));
+function gmailDecodeBody(data: string): string {
+  return new TextDecoder().decode(decode(data));
+}
+
+function gmailCollectBodies(part: Json): { plain: string; html: string } {
+  const plainParts: string[] = [];
+  const htmlParts: string[] = [];
+
+  function walk(node: Json): void {
+    const body = node.body && typeof node.body === "object" ? node.body as Json : {};
+    if (node.mimeType === "text/plain" && typeof body.data === "string") {
+      plainParts.push(gmailDecodeBody(body.data));
+    }
+    if (node.mimeType === "text/html" && typeof body.data === "string") {
+      htmlParts.push(gmailDecodeBody(body.data));
+    }
+    const children = Array.isArray(node.parts) ? node.parts : [];
+    for (const child of children) walk(child as Json);
   }
-  const children = Array.isArray(part.parts) ? part.parts : [];
-  for (const child of children) gmailText(child as Json, texts);
+
+  walk(part);
+  return {
+    plain: plainParts.join("\n\n").trim(),
+    html: htmlParts.join("\n").trim(),
+  };
+}
+
+function htmlToPlainText(html: string): string {
+  return html
+    .replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, "")
+    .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, "")
+    .replace(/<head\b[^>]*>[\s\S]*?<\/head>/gi, "")
+    .replace(/<!--[\s\S]*?-->/g, "")
+    .replace(/<(?:br|\/p|\/div|\/li|\/tr|\/h[1-6])\s*\/?>/gi, "\n")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&nbsp;|&#160;/gi, " ")
+    .replace(/&amp;/gi, "&")
+    .replace(/&lt;/gi, "<")
+    .replace(/&gt;/gi, ">")
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;|&apos;/gi, "'")
+    .replace(/[ \t]+\n/g, "\n")
+    .replace(/\n[ \t]+/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .replace(/[ \t]{2,}/g, " ")
+    .trim();
+}
+
+function normalizeMarketingPlainText(text: string): string {
+  const lines = text
+    .split("\n")
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0)
+    .filter((line) => !/^(\.|#|[\w-]+\s*\{|[\w-]+\s*:|@media)/i.test(line));
+
+  const deduped: string[] = [];
+  for (const line of lines) {
+    if (deduped[deduped.length - 1] === line) continue;
+    deduped.push(line);
+  }
+
+  return deduped.join("\n\n").slice(0, 20000);
+}
+
+async function readExternalIds(
+  admin: SupabaseClient,
+  ownerId: string,
+  integrationId: string,
+  externalIds: string[],
+): Promise<Set<string>> {
+  const ids = externalIds.filter(Boolean);
+  if (!ids.length) return new Set();
+
+  const existing = await admin
+    .from("mail_messages")
+    .select("external_id,is_read")
+    .eq("user_id", ownerId)
+    .eq("integration_id", integrationId)
+    .in("external_id", ids);
+  const read = new Set<string>();
+
+  for (const item of existing.data || []) {
+    if (item.is_read) read.add(String(item.external_id));
+  }
+
+  return read;
 }
 
 function addressOf(value: string): string {
@@ -140,6 +219,12 @@ async function syncGoogle(admin: SupabaseClient, row: Json, token: string) {
   const list = await listed.json().catch(() => ({}));
   if (!listed.ok) throw new Error("No fue posible leer Gmail.");
   const ids = Array.isArray(list.messages) ? list.messages : [];
+  const alreadyRead = await readExternalIds(
+    admin,
+    String(row.user_id),
+    String(row.id),
+    ids.map((item: Json) => String(item.id || "")),
+  );
   let saved = 0;
 
   for (const item of ids) {
@@ -153,8 +238,13 @@ async function syncGoogle(admin: SupabaseClient, row: Json, token: string) {
     const header = (name: string) => String(
       headers.find((entry: Json) => String(entry.name).toLowerCase() === name)?.value || "",
     );
-    const texts: string[] = [];
-    gmailText(message.payload || {}, texts);
+    const { plain, html } = gmailCollectBodies(message.payload || {});
+    const htmlBody = html.slice(0, 500_000);
+    const plainBody = normalizeMarketingPlainText(
+      plain
+      || (htmlBody ? htmlToPlainText(htmlBody) : "")
+      || String(message.snippet || ""),
+    );
     const labels = Array.isArray(message.labelIds) ? message.labelIds : [];
     const folder = labels.includes("SENT")
       ? "sent"
@@ -163,17 +253,17 @@ async function syncGoogle(admin: SupabaseClient, row: Json, token: string) {
         : labels.includes("SPAM")
           ? "spam"
           : "inbox";
-    const body = texts.join("\n").slice(0, 20000);
     const savedRow = await admin.from("mail_messages").upsert({
       user_id: row.user_id,
       integration_id: row.id,
       folder,
       subject: header("subject").slice(0, 500) || null,
-      body,
-      snippet: String(message.snippet || body).slice(0, 160),
+      body: plainBody,
+      actions: htmlBody ? { body_html: htmlBody } : {},
+      snippet: String(message.snippet || plainBody).slice(0, 160),
       from_address: addressOf(header("from")),
       recipients: { to: header("to") ? [addressOf(header("to"))] : [] },
-      is_read: !labels.includes("UNREAD"),
+      is_read: !labels.includes("UNREAD") || alreadyRead.has(String(message.id)),
       is_starred: labels.includes("STARRED"),
       is_draft: labels.includes("DRAFT"),
       external_id: String(message.id),
@@ -194,6 +284,12 @@ async function syncMicrosoft(admin: SupabaseClient, row: Json, token: string) {
   const list = await listed.json().catch(() => ({}));
   if (!listed.ok) throw new Error("No fue posible leer Outlook.");
   const messages = Array.isArray(list.value) ? list.value : [];
+  const alreadyRead = await readExternalIds(
+    admin,
+    String(row.user_id),
+    String(row.id),
+    messages.map((item: Json) => String(item.id || "")),
+  );
   let saved = 0;
 
   for (const message of messages) {
@@ -206,16 +302,24 @@ async function syncMicrosoft(admin: SupabaseClient, row: Json, token: string) {
       }).filter(Boolean)
       : [];
     const from = message.from?.emailAddress?.address || null;
+    const rawBody = String(message.body?.content || "");
+    const contentType = String(message.body?.contentType || "").toLowerCase();
+    const isHtml = contentType === "html" || /<\s*(html|body|table|div|p|!doctype)\b/i.test(rawBody);
+    const htmlBody = isHtml ? rawBody.slice(0, 500_000) : "";
+    const plainBody = normalizeMarketingPlainText(
+      isHtml ? htmlToPlainText(rawBody) : rawBody,
+    );
     const savedRow = await admin.from("mail_messages").upsert({
       user_id: row.user_id,
       integration_id: row.id,
       folder: "inbox",
       subject: message.subject ?? null,
-      body: String(message.body?.content || "").slice(0, 20000),
-      snippet: String(message.bodyPreview || "").slice(0, 160),
+      body: plainBody,
+      actions: htmlBody ? { body_html: htmlBody } : {},
+      snippet: String(message.bodyPreview || plainBody).slice(0, 160),
       from_address: from,
       recipients: { to },
-      is_read: message.isRead === true,
+      is_read: message.isRead === true || alreadyRead.has(String(message.id)),
       is_starred: message.flag?.flagStatus === "flagged",
       is_draft: false,
       external_id: String(message.id),
@@ -329,13 +433,17 @@ Deno.serve(async (request: Request) => {
     }
   }
 
+  const requestedIds = [
+    ...(Array.isArray(body.integration_ids) ? body.integration_ids : []),
+    ...(body.integration_id ? [body.integration_id] : []),
+  ].map((id) => String(id || "").trim()).filter(Boolean);
   let query = admin
     .from("integrations")
     .select("*")
     .eq("user_id", owner)
     .eq("status", "active")
     .contains("capabilities", ["mail"]);
-  if (body.integration_id) query = query.eq("id", body.integration_id);
+  if (requestedIds.length > 0) query = query.in("id", requestedIds);
   const rows = await query;
   const integrations = rows.data || [];
   const results = [];

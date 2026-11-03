@@ -1,25 +1,26 @@
 import {
   ActivityIndicator,
+  Platform,
+  Switch,
   Text,
   TouchableOpacity,
   View,
 } from "react-native";
 import {
-  CheckCircle2,
-  CirclePause,
-  CircleX,
+  BarChart3,
+  ChevronRight,
   Eye,
   FilePenLine,
-  LayoutDashboard,
   MapPin,
-  Play,
-  Power,
+  MoreHorizontal,
   Store,
+  Tag,
 } from "lucide-react-native";
 
 import type { CommercialOwnedProfile } from "@beeapp/shared-types";
 
 import CommercialLogoAvatar from "./CommercialLogoAvatar";
+import { myBusinessesVisual as v } from "./myBusinessesVisual";
 
 interface OwnedCommercialProfileGridCardProps {
   profile: CommercialOwnedProfile;
@@ -28,47 +29,47 @@ interface OwnedCommercialProfileGridCardProps {
   onEdit: () => void;
   onView: () => void;
   onTogglePublication?: () => void;
+  onMoreActions?: () => void;
 }
 
-function getPublicationMeta(profile: CommercialOwnedProfile): {
-  label: string;
-  color: string;
-  backgroundColor: string;
-  Icon: typeof Store;
-} {
+export function getOwnedProfileCategoryLabel(
+  profile: CommercialOwnedProfile,
+): string {
+  const categoryName = profile.categories?.[0]?.category?.name?.trim();
+  if (categoryName) {
+    return categoryName;
+  }
+
+  const customActivity = profile.custom_activity_text?.trim();
+  if (customActivity) {
+    return customActivity;
+  }
+
+  if (profile.offer_type === "products") {
+    return "Productos";
+  }
+
+  if (profile.offer_type === "services") {
+    return "Servicios";
+  }
+
+  return "Otros";
+}
+
+function getPublicationHeadline(profile: CommercialOwnedProfile): string {
   if (profile.publication_status === "published") {
-    return {
-      label: "Publicado",
-      color: "#177245",
-      backgroundColor: "#E9F7EE",
-      Icon: Store,
-    };
+    return "Publicado";
   }
 
   if (profile.publication_status === "paused") {
-    return {
-      label: "Pausado",
-      color: "#9A5B00",
-      backgroundColor: "#FFF4E0",
-      Icon: CirclePause,
-    };
+    return "Pausado";
   }
 
   if (profile.publication_status === "archived") {
-    return {
-      label: "Desactivado",
-      color: "#6D6875",
-      backgroundColor: "#F1EEF3",
-      Icon: CircleX,
-    };
+    return "Desactivado";
   }
 
-  return {
-    label: "Suspendido",
-    color: "#B42318",
-    backgroundColor: "#FFF0F0",
-    Icon: CircleX,
-  };
+  return "Suspendido";
 }
 
 export default function OwnedCommercialProfileGridCard({
@@ -78,127 +79,110 @@ export default function OwnedCommercialProfileGridCard({
   onEdit,
   onView,
   onTogglePublication,
+  onMoreActions,
 }: OwnedCommercialProfileGridCardProps) {
-  const publication = getPublicationMeta(profile);
-  const PublicationIcon = publication.Icon;
   const isArchived = profile.publication_status === "archived";
   const isPaused = profile.publication_status === "paused";
   const isSuspended = profile.publication_status === "suspended";
+  const isPublished = profile.publication_status === "published";
+  const isLive = isPublished && profile.is_available;
   const canTogglePublication = Boolean(onTogglePublication && !isSuspended);
-  const statusActionLabel = isArchived
-    ? "Restaurar"
+  const categoryLabel = getOwnedProfileCategoryLabel(profile);
+
+  const stateBackground = isLive ? v.publishedBg : "#FFF6E8";
+  const stateColor = isLive ? v.publishedText : "#9A5B00";
+  const stateIconBackground = isLive ? v.publishedIconBg : "#FFEFC9";
+
+  const availabilitySubtitle = isLive
+    ? "Disponible para clientes"
     : isPaused
-      ? "Publicar"
-      : "Estado";
-  const StatusActionIcon = isArchived || isPaused ? Play : Power;
-  const stateColor = profile.is_available ? "#177245" : "#9A5B00";
-  const stateBackground = profile.is_available ? "#EFFAF4" : "#FFF8E8";
-  const stateIconBackground = profile.is_available ? "#DDF4E7" : "#FFF0C7";
+      ? "Oculto para clientes"
+      : isArchived
+        ? "No visible para clientes"
+        : "No disponible para clientes";
 
   return (
     <View
       style={{
-        backgroundColor: "#FFFFFF",
-        borderColor: isArchived ? "#D7DFF2" : "#E0E6F4",
-        borderRadius: 24,
+        backgroundColor: v.cardBg,
+        borderColor: v.cardBorder,
+        borderRadius: v.cardRadius,
         borderWidth: 1,
         overflow: "hidden",
-        shadowColor: "#26314D",
-        shadowOffset: {
-          height: 8,
-          width: 0,
-        },
-        shadowOpacity: 0.06,
-        shadowRadius: 18,
+        shadowColor: v.cardShadow,
+        shadowOffset: { height: 4, width: 0 },
+        shadowOpacity: 0.07,
+        shadowRadius: 9,
+        elevation: 2,
       }}
     >
-      <TouchableOpacity
-        accessibilityHint="Abre la administración de este negocio"
-        accessibilityLabel={`Administrar ${profile.display_name}`}
-        accessibilityRole="button"
-        activeOpacity={0.82}
-        onPress={onPress}
-        style={{
-          paddingHorizontal: 16,
-          paddingTop: 16,
-        }}
-      >
-        <View
-          style={{
-            alignItems: "flex-start",
-            flexDirection: "row",
-          }}
-        >
+      <View style={{ paddingHorizontal: 16, paddingTop: 16 }}>
+        <View style={{ flexDirection: "row", alignItems: "flex-start" }}>
           <CommercialLogoAvatar
             displayName={profile.display_name}
             logoFileId={profile.logo_file_id}
             logoUrl={profile.logo_url}
+            rectangleAspect="square"
             shape="rectangle"
-            size={128}
+            size={v.logoSize}
           />
 
-          <View
-            style={{
-              flex: 1,
-              marginLeft: 14,
-              minWidth: 0,
-            }}
-          >
+          <View style={{ flex: 1, marginLeft: 14, minWidth: 0 }}>
             <View
               style={{
-                alignItems: "flex-start",
                 flexDirection: "row",
+                alignItems: "flex-start",
                 justifyContent: "space-between",
               }}
             >
               <Text
                 numberOfLines={2}
                 style={{
-                  color: "#26314D",
+                  color: v.name,
                   flex: 1,
-                  fontSize: 18,
-                  fontWeight: "900",
-                  letterSpacing: -0.25,
+                  fontSize: v.nameSize,
+                  fontWeight: "800",
+                  letterSpacing: -0.3,
                   lineHeight: 23,
-                  paddingRight: 8,
+                  paddingRight: 4,
                 }}
               >
                 {profile.display_name}
               </Text>
 
-              {profile.verification_status === "verified" ? (
-                <View
-                  accessibilityLabel="Negocio verificado"
-                  style={{
-                    alignItems: "center",
-                    backgroundColor: "#E9F7EE",
-                    borderRadius: 12,
-                    height: 30,
-                    justifyContent: "center",
-                    width: 30,
-                  }}
-                >
-                  <CheckCircle2 color="#177245" size={17} />
-                </View>
-              ) : null}
+              <TouchableOpacity
+                accessibilityLabel={`Más opciones de ${profile.display_name}`}
+                accessibilityRole="button"
+                activeOpacity={0.75}
+                hitSlop={{ bottom: 10, left: 10, right: 10, top: 10 }}
+                onPress={onMoreActions ?? onEdit}
+                style={{
+                  alignItems: "center",
+                  height: 24,
+                  justifyContent: "center",
+                  width: 24,
+                }}
+              >
+                <MoreHorizontal color="#A8B0C3" size={22} strokeWidth={2.2} />
+              </TouchableOpacity>
             </View>
 
             <View
               style={{
                 alignItems: "center",
                 flexDirection: "row",
-                marginTop: 5,
+                marginTop: 6,
               }}
             >
-              <MapPin color="#6C7892" size={15} />
+              <MapPin color={v.meta} size={13} strokeWidth={2.2} />
 
               <Text
                 numberOfLines={1}
                 style={{
-                  color: "#6C7892",
+                  color: v.meta,
                   flex: 1,
-                  fontSize: 13,
-                  marginLeft: 5,
+                  fontSize: v.metaSize,
+                  marginLeft: 4,
                 }}
               >
                 {`${profile.city}, ${profile.country_code}`}
@@ -209,42 +193,47 @@ export default function OwnedCommercialProfileGridCard({
               style={{
                 alignSelf: "flex-start",
                 alignItems: "center",
-                backgroundColor: publication.backgroundColor,
-                borderRadius: 99,
+                backgroundColor: v.categoryBg,
+                borderRadius: 999,
                 flexDirection: "row",
-                marginTop: 9,
-                paddingHorizontal: 9,
+                marginTop: 10,
+                paddingHorizontal: 10,
                 paddingVertical: 5,
               }}
             >
-              <PublicationIcon color={publication.color} size={13} />
+              <Tag color={v.categoryText} size={12} strokeWidth={2.4} />
 
               <Text
+                numberOfLines={1}
                 style={{
-                  color: publication.color,
+                  color: v.categoryText,
                   fontSize: 11,
-                  fontWeight: "800",
+                  fontWeight: "700",
                   marginLeft: 5,
+                  maxWidth: 150,
                 }}
               >
-                {publication.label}
+                {categoryLabel}
               </Text>
             </View>
           </View>
         </View>
 
-        <Text
-          numberOfLines={2}
-          style={{
-            color: "#6C7892",
-            fontSize: 13,
-            lineHeight: 19,
-            marginTop: 14,
-          }}
-        >
-          {profile.description}
-        </Text>
-      </TouchableOpacity>
+        {profile.description?.trim() ? (
+          <Text
+            numberOfLines={2}
+            style={{
+              color: v.slogan,
+              fontSize: v.sloganSize,
+              fontStyle: "italic",
+              lineHeight: 19,
+              marginTop: 14,
+            }}
+          >
+            {profile.description}
+          </Text>
+        ) : null}
+      </View>
 
       <View
         style={{
@@ -254,6 +243,7 @@ export default function OwnedCommercialProfileGridCard({
           flexDirection: "row",
           marginHorizontal: 16,
           marginTop: 14,
+          minHeight: 52,
           paddingHorizontal: 12,
           paddingVertical: 10,
         }}
@@ -262,80 +252,62 @@ export default function OwnedCommercialProfileGridCard({
           style={{
             alignItems: "center",
             backgroundColor: stateIconBackground,
-            borderRadius: 10,
-            height: 30,
+            borderRadius: 999,
+            height: 34,
             justifyContent: "center",
-            width: 30,
+            width: 34,
           }}
         >
-          <Store color={stateColor} size={16} />
+          <Store color={stateColor} size={17} strokeWidth={2.1} />
         </View>
 
-        <View
-          style={{
-            flex: 1,
-            marginLeft: 9,
-          }}
-        >
+        <View style={{ flex: 1, marginLeft: 10 }}>
           <Text
             style={{
               color: stateColor,
               fontSize: 13,
-              fontWeight: "900",
+              fontWeight: "800",
             }}
           >
-            {profile.is_available ? "Disponible" : "No disponible"}
+            {getPublicationHeadline(profile)}
           </Text>
 
           <Text
             style={{
-              color: profile.is_available ? "#4A7C61" : "#8A6A27",
+              color: stateColor,
               fontSize: 11,
+              fontWeight: "600",
               marginTop: 2,
+              opacity: 0.92,
             }}
           >
-            {profile.is_available
-              ? "Visible para clientes"
-              : "No disponible para clientes"}
+            {availabilitySubtitle}
           </Text>
         </View>
 
         {canTogglePublication ? (
-          <TouchableOpacity
-            accessibilityLabel={`${statusActionLabel} ${profile.display_name}`}
-            accessibilityRole="button"
-            activeOpacity={0.82}
-            disabled={isUpdating}
-            onPress={onTogglePublication}
-            style={{
-              alignItems: "center",
-              backgroundColor: "#FFFFFF",
-              borderColor: profile.is_available ? "#B7E4C7" : "#F4D88F",
-              borderRadius: 10,
-              borderWidth: 1,
-              flexDirection: "row",
-              minHeight: 34,
-              opacity: isUpdating ? 0.62 : 1,
-              paddingHorizontal: 10,
-            }}
-          >
-            {isUpdating ? (
-              <ActivityIndicator color={stateColor} size="small" />
-            ) : (
-              <StatusActionIcon color={stateColor} size={14} />
-            )}
-
-            <Text
-              style={{
-                color: stateColor,
-                fontSize: 11,
-                fontWeight: "800",
-                marginLeft: 5,
+          isUpdating ? (
+            <ActivityIndicator color={stateColor} size="small" />
+          ) : (
+            <Switch
+              accessibilityLabel={`Cambiar visibilidad de ${profile.display_name}`}
+              onValueChange={() => {
+                onTogglePublication?.();
               }}
-            >
-              {isUpdating ? "Actualizando" : statusActionLabel}
-            </Text>
-          </TouchableOpacity>
+              style={
+                Platform.OS === "android"
+                  ? { transform: [{ scaleX: 1.05 }, { scaleY: 1.05 }] }
+                  : undefined
+              }
+              thumbColor="#FFFFFF"
+              ios_backgroundColor={v.publishedSwitchOff}
+              trackColor={{
+                false: v.publishedSwitchOff,
+                true: isLive ? v.publishedSwitchTrackOn : v.publishedSwitchOff,
+              }}
+              value={isLive}
+            />
+          )
         ) : null}
       </View>
 
@@ -343,17 +315,17 @@ export default function OwnedCommercialProfileGridCard({
         <View
           style={{
             backgroundColor: "#FFF4F2",
-            borderTopColor: "#F5C2C7",
-            borderTopWidth: 1,
-            marginTop: 14,
-            paddingHorizontal: 16,
-            paddingVertical: 11,
+            marginHorizontal: 16,
+            marginTop: 12,
+            paddingHorizontal: 12,
+            paddingVertical: 10,
+            borderRadius: 12,
           }}
         >
           <Text
             style={{
               color: "#B42318",
-              fontSize: 12,
+              fontSize: 11,
               fontWeight: "800",
               textAlign: "center",
             }}
@@ -365,81 +337,97 @@ export default function OwnedCommercialProfileGridCard({
 
       <View
         style={{
-          borderTopColor: "#E0E6F4",
-          borderTopWidth: 1,
           flexDirection: "row",
-          gap: 8,
+          gap: 10,
           marginTop: 14,
-          padding: 12,
+          paddingBottom: 14,
+          paddingHorizontal: 14,
         }}
       >
         <TouchableOpacity
           accessibilityLabel={`Administrar ${profile.display_name}`}
           accessibilityRole="button"
-          activeOpacity={0.82}
+          activeOpacity={0.88}
           onPress={onPress}
           style={{
             alignItems: "center",
-            backgroundColor: "#7567D9",
-            borderRadius: 13,
-            flex: 1.45,
+            backgroundColor: v.primaryBtn,
+            borderRadius: v.primaryBtnRadius,
+            flex: 1,
             flexDirection: "row",
-            justifyContent: "center",
-            minHeight: 46,
-            paddingHorizontal: 10,
+            minHeight: 48,
+            paddingHorizontal: 14,
           }}
         >
-          <LayoutDashboard color="#FFFFFF" size={18} />
+          <BarChart3 color="#FFFFFF" size={18} strokeWidth={2.4} />
 
           <Text
             numberOfLines={1}
             style={{
               color: "#FFFFFF",
-              fontSize: 13,
-              fontWeight: "900",
-              marginLeft: 7,
+              flex: 1,
+              fontSize: 14,
+              fontWeight: "800",
+              marginLeft: 8,
             }}
           >
             Administrar
           </Text>
+
+          <View
+            style={{
+              alignItems: "center",
+              backgroundColor: "rgba(255,255,255,0.22)",
+              borderRadius: 999,
+              height: 26,
+              justifyContent: "center",
+              width: 26,
+            }}
+          >
+            <ChevronRight color="#FFFFFF" size={16} strokeWidth={2.6} />
+          </View>
         </TouchableOpacity>
 
         <TouchableOpacity
           accessibilityLabel={`Editar ${profile.display_name}`}
           accessibilityRole="button"
-          activeOpacity={0.82}
+          activeOpacity={0.88}
           onPress={onEdit}
           style={{
             alignItems: "center",
-            backgroundColor: "#EEF2FF",
-            borderColor: "#D7DFF2",
-            borderRadius: 13,
+            backgroundColor: v.secondaryBtnBg,
+            borderColor: v.secondaryBtnBorder,
+            borderRadius: v.primaryBtnRadius,
             borderWidth: 1,
-            flex: 1,
+            height: 48,
             justifyContent: "center",
-            minHeight: 46,
+            width: 52,
           }}
         >
-          <FilePenLine color="#7567D9" size={18} />
+          <FilePenLine
+            color={v.secondaryBtnIcon}
+            size={20}
+            strokeWidth={2.2}
+          />
         </TouchableOpacity>
 
         <TouchableOpacity
           accessibilityLabel={`Ver ${profile.display_name}`}
           accessibilityRole="button"
-          activeOpacity={0.82}
+          activeOpacity={0.88}
           onPress={onView}
           style={{
             alignItems: "center",
-            backgroundColor: "#EEF2FF",
-            borderColor: "#D7DFF2",
-            borderRadius: 13,
+            backgroundColor: v.secondaryBtnBg,
+            borderColor: v.secondaryBtnBorder,
+            borderRadius: v.primaryBtnRadius,
             borderWidth: 1,
-            flex: 1,
+            height: 48,
             justifyContent: "center",
-            minHeight: 46,
+            width: 52,
           }}
         >
-          <Eye color="#7567D9" size={19} />
+          <Eye color={v.secondaryBtnIcon} size={20} strokeWidth={2.2} />
         </TouchableOpacity>
       </View>
     </View>

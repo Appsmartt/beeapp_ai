@@ -965,6 +965,7 @@ export interface NoteShare {
   updated_at: string;
   note?: Note;
   shared_by?: NoteShareProfile | null;
+  shared_with?: NoteShareProfile | null;
 }
 
 
@@ -1173,6 +1174,22 @@ export interface GetReceivedNoteSharesResponse {
 }
 
 
+export interface GetSentNoteSharesResponse {
+  shares: NoteShare[];
+  count: number;
+  limit: number;
+  offset: number;
+}
+
+
+export interface GetNoteOutgoingSharesResponse {
+  shares: NoteShare[];
+  count: number;
+  limit: number;
+  offset: number;
+}
+
+
 export interface GetSharedNoteResponse {
   note: Note;
   share: NoteShare;
@@ -1240,6 +1257,7 @@ export interface Calendar {
   is_default: boolean;
   is_archived: boolean;
   timezone: string;
+  integration_id: string | null;
   created_at: string;
   updated_at: string;
   share_permission: CalendarSharePermission;
@@ -2713,6 +2731,7 @@ export interface ChatConversation {
   } | null;
   id: string;
   conversation_type: ChatConversationType;
+  business_id?: string | null;
   name: string | null;
   description?: string | null;
   avatar_url?: string | null;

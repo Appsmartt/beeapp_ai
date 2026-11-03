@@ -3,7 +3,6 @@ import {
   ActivityIndicator,
   Animated,
   Easing,
-  Image,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -36,6 +35,7 @@ import {
   X,
 } from 'lucide-react-native';
 import ScreenSafeArea from '../layout/ScreenSafeArea';
+import CachedImage from '../CachedImage';
 import StatusProgressPills from './StatusProgressPills';
 import StatusViewersSheet from './StatusViewersSheet';
 import { StatusItem, StatusViewedBy } from '../../mocks/statuses';
@@ -447,15 +447,19 @@ export default function StatusViewer({
     ? status.stickerLayers || []
     : [];
 
+  if (!visible) {
+    return null;
+  }
+
   return (
-    <Modal visible={visible} animationType="fade" onRequestClose={onClose} statusBarTranslucent>
+    <Modal visible animationType="fade" onRequestClose={onClose} statusBarTranslucent>
       <GestureHandlerRootView style={styles.root}>
         <GestureDetector gesture={dismissGesture}>
           <View style={[styles.screen, { backgroundColor: background }]}>
             {isPhoto ? (
               <>
-                <Image
-                  source={{ uri: status.photoUrl ?? undefined }}
+                <CachedImage
+                  uri={status.photoUrl}
                   style={styles.blurLayer}
                   resizeMode="cover"
                   blurRadius={30}
@@ -496,9 +500,9 @@ export default function StatusViewer({
                 </TouchableOpacity>
                 <View style={[styles.avatar, { backgroundColor: status.authorColor }]}>
                   {status.authorAvatarUrl && !avatarFailed ? (
-                    <Image
+                    <CachedImage
                       accessibilityLabel={`Foto de ${status.authorName}`}
-                      source={{ uri: status.authorAvatarUrl }}
+                      uri={status.authorAvatarUrl}
                       style={styles.avatarImage}
                       onError={() => {
                         setAvatarFailed(true);
@@ -635,8 +639,8 @@ export default function StatusViewer({
                 ) : null}
 
                 {isPhoto ? (
-                  <Image
-                    source={{ uri: status.photoUrl ?? undefined }}
+                  <CachedImage
+                    uri={status.photoUrl}
                     style={styles.photoCard}
                     resizeMode="cover"
                     onLoadEnd={() => {
@@ -654,9 +658,9 @@ export default function StatusViewer({
                   );
 
                   return (
-                    <Image
+                    <CachedImage
                       key={layer.id}
-                      source={{ uri: layer.uri }}
+                      uri={layer.uri}
                       style={[
                         styles.imageLayer,
                         {
@@ -734,8 +738,8 @@ export default function StatusViewer({
                     activeOpacity={0.88}
                     accessibilityLabel={`Ver ${product.name}`}
                   >
-                    <Image
-                      source={{ uri: product.imageUrl }}
+                    <CachedImage
+                      uri={product.imageUrl}
                       style={[
                         styles.commercialOfferImage,
                         {

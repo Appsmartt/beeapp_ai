@@ -2,10 +2,9 @@ import {
   useEffect,
   useRef,
   useState,
-} from 'react';
+  } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   Image,
   Keyboard,
   LayoutChangeEvent,
@@ -15,6 +14,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { appAlert } from '../feedback/appAlert';
 import * as ImagePicker from 'expo-image-picker';
 import { withExternalActivity } from '../../services/locationPermissionAppLockGuard';
 import {
@@ -479,7 +479,7 @@ export default function CreateStatusModal({
       ));
 
       if (!permission.granted) {
-        Alert.alert(
+        appAlert(
           'Permiso requerido',
           'Permite el acceso a tus fotos y videos para crear un estado.',
         );
@@ -538,7 +538,7 @@ export default function CreateStatusModal({
       });
       setEditorMode('editor');
     } catch (error) {
-      Alert.alert(
+      appAlert(
         'No fue posible seleccionar el archivo',
         error instanceof Error
           ? error.message
@@ -559,7 +559,7 @@ export default function CreateStatusModal({
       ));
 
       if (!permission.granted) {
-        Alert.alert(
+        appAlert(
           'Permiso requerido',
           'Permite el acceso a tus fotos para agregar una imagen al estado.',
         );
@@ -594,7 +594,7 @@ export default function CreateStatusModal({
       });
       stopTextEditing();
     } catch (error) {
-      Alert.alert(
+      appAlert(
         'No fue posible seleccionar la imagen',
         error instanceof Error
           ? error.message
@@ -616,7 +616,7 @@ export default function CreateStatusModal({
     );
 
     if (!hasCommercialLayer && images.length >= 3) {
-      Alert.alert(
+      appAlert(
         'Límite de imágenes',
         'El estado ya tiene el máximo de imágenes adjuntas. Elimina una imagen para agregar este producto o servicio.',
       );
@@ -657,7 +657,7 @@ export default function CreateStatusModal({
       .join('\n');
 
     if (!media && !textContent) {
-      Alert.alert(
+      appAlert(
         'Agrega contenido',
         'Los stickers y capas decorativas deben acompañar un texto o un archivo multimedia.',
       );
@@ -740,9 +740,13 @@ export default function CreateStatusModal({
     onClose();
   };
 
+  if (!visible) {
+    return null;
+  }
+
   return (
     <Modal
-      visible={visible}
+      visible
       animationType="slide"
       onRequestClose={onClose}
       statusBarTranslucent

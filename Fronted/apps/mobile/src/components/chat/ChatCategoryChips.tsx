@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { colors, spacing, radii } from '@beeapp/design-system';
 import { Plus, Settings2 } from 'lucide-react-native';
@@ -11,13 +12,27 @@ interface ChatCategoryChipsProps {
   onChange: (categoryId: string | null) => void;
   onCreate: () => void;
   onManage: () => void;
+  endAction?: ReactNode;
 }
 
 /** Filter chips of the chat list: "Todos" first, then the user categories */
-export default function ChatCategoryChips({ categories, activeCategoryId, onChange, onCreate, onManage }: ChatCategoryChipsProps) {
+export default function ChatCategoryChips({
+  categories,
+  activeCategoryId,
+  onChange,
+  onCreate,
+  onManage,
+  endAction,
+}: ChatCategoryChipsProps) {
   return (
     <View style={styles.wrap}>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.scroll}>
+      <View style={styles.row}>
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        style={styles.scrollArea}
+        contentContainerStyle={styles.scroll}
+      >
         <TouchableOpacity
           style={[styles.chip, !activeCategoryId && styles.chipActive]}
           onPress={() => onChange(null)}
@@ -57,6 +72,13 @@ export default function ChatCategoryChips({ categories, activeCategoryId, onChan
           </TouchableOpacity>
         )}
       </ScrollView>
+
+      {endAction ? (
+        <View style={styles.endAction}>
+          {endAction}
+        </View>
+      ) : null}
+      </View>
     </View>
   );
 }
@@ -68,10 +90,20 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: colors.neutral.gray100,
   },
+  row: {
+    alignItems: 'center',
+    flexDirection: 'row',
+  },
+  scrollArea: {
+    flex: 1,
+  },
   scroll: {
     paddingHorizontal: 20,
     gap: spacing.sm,
     alignItems: 'center',
+  },
+  endAction: {
+    paddingRight: 20,
   },
   chip: {
     flexDirection: 'row',

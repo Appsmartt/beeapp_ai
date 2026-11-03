@@ -119,7 +119,8 @@ export default function NotesGridView({
                     />
                   )}
 
-                  {note.isShared && (
+                  {(note.isShared
+                    || (note.sharedWithNames?.length ?? 0) > 0) && (
                     <Share2
                       size={12}
                       color={colors.neutral.gray500}

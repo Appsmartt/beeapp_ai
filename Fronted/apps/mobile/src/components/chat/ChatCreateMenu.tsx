@@ -40,10 +40,14 @@ export default function ChatCreateMenu({
     },
   ];
 
+  if (!visible) {
+    return null;
+  }
+
   return (
     <Modal
       transparent
-      visible={visible}
+      visible
       animationType="fade"
       onRequestClose={onClose}
     >

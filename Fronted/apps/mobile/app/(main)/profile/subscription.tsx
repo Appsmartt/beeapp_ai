@@ -1,12 +1,13 @@
-import { useState } from 'react';
+import {
+  useState } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  Alert,
 } from 'react-native';
+import { appAlert } from '../../../src/components/feedback/appAlert';
 import ScreenSafeArea from '../../../src/components/layout/ScreenSafeArea';
 import { useRouter } from 'expo-router';
 import { colors } from '@beeapp/design-system';
@@ -27,7 +28,7 @@ export default function SubscriptionScreen() {
   const billingPeriod = billingCycle === 'monthly' ? '/mes' : '/mes (facturado anual)';
 
   const handleCancelSubscription = () => {
-    Alert.alert(
+    appAlert(
       'Cancelar Suscripción',
       '¿Estás seguro de que deseas cancelar tu plan Buddy Plus? Mantendrás el acceso a todas las funciones premium hasta el 15 de Agosto de 2026.',
       [
@@ -40,7 +41,7 @@ export default function SubscriptionScreen() {
           style: 'destructive',
           onPress: () => {
             setSubStatus('plus_cancelled');
-            Alert.alert('Suscripción Cancelada', 'Tu plan se cancelará al finalizar el ciclo de facturación actual.');
+            appAlert('Suscripción Cancelada', 'Tu plan se cancelará al finalizar el ciclo de facturación actual.');
           },
         },
       ]
@@ -49,12 +50,12 @@ export default function SubscriptionScreen() {
 
   const handleReactivateSubscription = () => {
     setSubStatus('plus_active');
-    Alert.alert('Suscripción Reactivada', '¡Gracias por continuar con Buddy Plus!');
+    appAlert('Suscripción Reactivada', '¡Gracias por continuar con Buddy Plus!');
   };
 
   const handleUpgradeSubscription = () => {
     setSubStatus('plus_active');
-    Alert.alert('¡Mejorado a Plus!', 'Tu cuenta ha sido mejorada al plan Buddy Plus con éxito.');
+    appAlert('¡Mejorado a Plus!', 'Tu cuenta ha sido mejorada al plan Buddy Plus con éxito.');
   };
 
   return (

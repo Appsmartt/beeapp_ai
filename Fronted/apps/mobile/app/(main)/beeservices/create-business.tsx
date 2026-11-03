@@ -35,6 +35,7 @@ import { withExternalActivity } from '../../../src/services/locationPermissionAp
 import type {
   CommercialCategory,
   CommercialModality,
+  CommercialOfferKind,
   CommercialOfferType,
   CommercialProfileSocialLink,
 } from '@beeapp/shared-types';
@@ -51,7 +52,9 @@ import {
   buddyServicesMyBusinessesRoute,
 } from '../../../src/features/buddyservices/commercialRoutes';
 import {
+  createOwnedCatalog,
   createOwnedCommercialProfile,
+  createOwnedOffer,
   loadPublicCommercialCategories,
 } from '../../../src/services/commercialService';
 import {
@@ -189,6 +192,17 @@ const latestCategorySearchRequestRef = useRef(0);
   const [logo, setLogo] = useState<
     LocalCommercialLogo | null
   >(null);
+  const [firstOfferKind, setFirstOfferKind] = useState<
+    CommercialOfferKind
+  >('product');
+  const [firstOfferTitle, setFirstOfferTitle] = useState('');
+  const [firstOfferPrice, setFirstOfferPrice] = useState('');
+  const [createdBusinessId, setCreatedBusinessId] = useState<
+    string | null
+  >(null);
+  const [createdCatalogId, setCreatedCatalogId] = useState<
+    string | null
+  >(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   type RequiredFieldKey = (
     | 'displayName'
@@ -196,6 +210,8 @@ const latestCategorySearchRequestRef = useRef(0);
     | 'city'
     | 'categories'
     | 'modalities'
+    | 'firstOfferTitle'
+    | 'firstOfferPrice'
   );
 
   const [fieldErrors, setFieldErrors] = useState<
@@ -343,7 +359,12 @@ const totalSelectedCategories = (
   useEffect(() => {
     if (offerType === 'mixed') {
       setNewCategoryNames([]);
+      return;
     }
+
+    setFirstOfferKind(
+      offerType === 'services' ? 'service' : 'product',
+    );
   }, [offerType]);
 
   useEffect(() => {
@@ -616,6 +637,29 @@ const totalSelectedCategories = (
       );
     }
 
+    const normalizedFirstOfferTitle = firstOfferTitle.trim();
+    const parsedFirstOfferPrice = Number(
+      firstOfferPrice.replace(/[^\d]/g, ''),
+    );
+    const offerNoun = firstOfferKind === 'service'
+      ? 'servicio'
+      : 'producto';
+
+    if (!normalizedFirstOfferTitle) {
+      nextFieldErrors.firstOfferTitle = (
+        `Escribe el nombre del ${offerNoun} que vas a publicar.`
+      );
+    }
+
+    if (
+      !Number.isInteger(parsedFirstOfferPrice)
+      || parsedFirstOfferPrice < 1
+    ) {
+      nextFieldErrors.firstOfferPrice = (
+        'El precio debe ser mínimo de $1.'
+      );
+    }
+
     if (Object.keys(nextFieldErrors).length > 0) {
       setFieldErrors(nextFieldErrors);
       return;
@@ -719,8 +763,49 @@ const totalSelectedCategories = (
         },
       );
 
-      await createOwnedCommercialProfile(
-        payload,
+      let profileId = createdBusinessId;
+
+      if (!profileId) {
+        const createdProfile = await createOwnedCommercialProfile(
+          payload,
+        );
+        profileId = createdProfile.profile.id;
+        setCreatedBusinessId(profileId);
+      }
+
+      let catalogId = createdCatalogId;
+
+      if (!catalogId) {
+        const createdCatalog = await createOwnedCatalog(
+          profileId,
+          {
+            name: firstOfferKind === 'service'
+              ? 'Servicios'
+              : 'Productos',
+            description: null,
+            sort_order: 0,
+            status: 'published',
+          },
+        );
+        catalogId = createdCatalog.catalog.id;
+        setCreatedCatalogId(catalogId);
+      }
+
+      await createOwnedOffer(
+        profileId,
+        {
+          catalog_id: catalogId,
+          offer_kind: firstOfferKind,
+          title: normalizedFirstOfferTitle,
+          description: null,
+          pricing_strategy: 'fixed',
+          base_price_amount: parsedFirstOfferPrice,
+          currency_code: 'COP',
+          is_available: true,
+          sort_order: 0,
+          status: 'published',
+          modalities,
+        },
       );
 
       router.replace(
@@ -738,8 +823,13 @@ const totalSelectedCategories = (
     categoryIds,
     city,
     countryCode,
+    createdBusinessId,
+    createdCatalogId,
     description,
     displayName,
+    firstOfferKind,
+    firstOfferPrice,
+    firstOfferTitle,
     isAddressPublic,
     isEmailPublic,
     isPhonePublic,
@@ -1866,6 +1956,154 @@ const totalSelectedCategories = (
           links={socialLinks}
           onChange={setSocialLinks}
         />
+
+        <Text
+          style={{
+            color: '#261743',
+            fontSize: 15,
+            fontWeight: '800',
+            marginTop: 24,
+          }}
+        >
+          {offerType === 'services'
+            ? 'Publica tu primer servicio'
+            : offerType === 'mixed'
+              ? 'Publica tu primer producto o servicio'
+              : 'Publica tu primer producto'}
+        </Text>
+
+        <Text
+          style={{
+            color: '#6E5A86',
+            fontSize: 13,
+            lineHeight: 18,
+            marginTop: 6,
+          }}
+        >
+          {offerType === 'services'
+            ? 'Para crear el negocio debes publicar al menos un servicio.'
+            : offerType === 'mixed'
+              ? 'Para crear el negocio debes publicar al menos un producto o un servicio.'
+              : 'Para crear el negocio debes publicar al menos un producto.'}
+        </Text>
+
+        {offerType === 'mixed' ? (
+          <View
+            style={{
+              flexDirection: 'row',
+              gap: 8,
+              marginTop: 14,
+            }}
+          >
+            {([
+              ['product', 'Producto'],
+              ['service', 'Servicio'],
+            ] as const).map(([value, label]) => {
+              const isSelected = firstOfferKind === value;
+
+              return (
+                <TouchableOpacity
+                  accessibilityLabel={label}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: isSelected }}
+                  activeOpacity={0.82}
+                  disabled={isSubmitting}
+                  key={value}
+                  onPress={() => setFirstOfferKind(value)}
+                  style={{
+                    backgroundColor: isSelected ? '#EBDCFD' : '#FFFFFF',
+                    borderColor: isSelected ? '#7427D5' : '#DCCBEE',
+                    borderRadius: 99,
+                    borderWidth: 1,
+                    paddingHorizontal: 14,
+                    paddingVertical: 8,
+                  }}
+                >
+                  <Text
+                    style={{
+                      color: isSelected ? '#54209E' : '#4E3B68',
+                      fontSize: 13,
+                      fontWeight: '700',
+                    }}
+                  >
+                    {label}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        ) : null}
+
+        <TextInput
+          accessibilityLabel={
+            firstOfferKind === 'service'
+              ? 'Nombre del servicio'
+              : 'Nombre del producto'
+          }
+          editable={!isSubmitting}
+          onChangeText={(value) => {
+            setFirstOfferTitle(value);
+            clearFieldError('firstOfferTitle');
+          }}
+          placeholder={
+            firstOfferKind === 'service'
+              ? 'Nombre del servicio'
+              : 'Nombre del producto'
+          }
+          placeholderTextColor="#A692B7"
+          style={{
+            backgroundColor: '#FFFFFF',
+            borderColor: fieldErrors.firstOfferTitle
+              ? '#B42318'
+              : '#DCCBEE',
+            borderRadius: 13,
+            borderWidth: fieldErrors.firstOfferTitle ? 2 : 1,
+            color: '#261743',
+            fontSize: 14,
+            marginTop: 14,
+            minHeight: 48,
+            paddingHorizontal: 13,
+          }}
+          value={firstOfferTitle}
+        />
+
+        {fieldErrors.firstOfferTitle ? (
+          <Text style={styles.fieldErrorText}>
+            {fieldErrors.firstOfferTitle}
+          </Text>
+        ) : null}
+
+        <TextInput
+          accessibilityLabel="Precio"
+          editable={!isSubmitting}
+          keyboardType="number-pad"
+          onChangeText={(value) => {
+            setFirstOfferPrice(value.replace(/[^\d]/g, ''));
+            clearFieldError('firstOfferPrice');
+          }}
+          placeholder="Precio en pesos"
+          placeholderTextColor="#A692B7"
+          style={{
+            backgroundColor: '#FFFFFF',
+            borderColor: fieldErrors.firstOfferPrice
+              ? '#B42318'
+              : '#DCCBEE',
+            borderRadius: 13,
+            borderWidth: fieldErrors.firstOfferPrice ? 2 : 1,
+            color: '#261743',
+            fontSize: 14,
+            marginTop: 12,
+            minHeight: 48,
+            paddingHorizontal: 13,
+          }}
+          value={firstOfferPrice}
+        />
+
+        {fieldErrors.firstOfferPrice ? (
+          <Text style={styles.fieldErrorText}>
+            {fieldErrors.firstOfferPrice}
+          </Text>
+        ) : null}
 
         <TouchableOpacity
           accessibilityLabel="Crear perfil comercial"

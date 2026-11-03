@@ -20,6 +20,10 @@ import type {
     CalendarRepeat,
     Invitee,
     } from '../stores/calendarStore';
+import {
+    formatDate,
+    parseDate,
+    } from '../utils/dateHelpers';
 
 
 export const DEFAULT_CALENDAR_NAME = 'Mi Agenda';
@@ -258,6 +262,59 @@ export function timeToMinutes(
 }
 
 
+export function minutesToTimeString(
+    totalMinutes: number,
+    ): string {
+    const minutesInDay = 24 * 60;
+    const normalized = (
+        ((totalMinutes % minutesInDay) + minutesInDay)
+        % minutesInDay
+    );
+    const hours = Math.floor(normalized / 60);
+    const minutes = normalized % 60;
+
+
+    return `${String(hours).padStart(2, '0')}:${String(
+        minutes,
+    ).padStart(2, '0')}`;
+}
+
+
+/** Hora inicio = ahora + 1 h; fin = inicio + 1 h (mismo día). */
+export function getDefaultNewEventTimeRange(
+    referenceDate: Date = new Date(),
+    ): {
+    timeStart: string;
+    timeEnd: string;
+    } {
+    const minutesInDay = 24 * 60;
+    const nowMinutes = (
+        referenceDate.getHours() * 60
+        + referenceDate.getMinutes()
+    );
+    let startMinutes = nowMinutes + 60;
+    let endMinutes = startMinutes + 60;
+
+
+    if (endMinutes >= minutesInDay) {
+        endMinutes = minutesInDay - 1;
+        startMinutes = endMinutes - 60;
+    }
+
+
+    if (startMinutes < 0) {
+        startMinutes = 0;
+        endMinutes = Math.min(60, minutesInDay - 1);
+    }
+
+
+    return {
+        timeStart: minutesToTimeString(startMinutes),
+        timeEnd: minutesToTimeString(endMinutes),
+    };
+}
+
+
 export function isValidDateString(
     value: string,
     ): boolean {
@@ -290,6 +347,85 @@ export function isValidTimeString(
     value: string,
     ): boolean {
     return timeToMinutes(value) !== null;
+}
+
+
+export function isCalendarEventStartInPast(
+    params: {
+        date: string;
+        timeStart: string;
+        isAllDay: boolean;
+    },
+    referenceDate: Date = new Date(),
+    ): boolean {
+    const {
+        date,
+        timeStart,
+        isAllDay,
+    } = params;
+
+
+    if (!isValidDateString(date)) {
+        return true;
+    }
+
+
+    if (isAllDay) {
+        const today = formatDate(referenceDate);
+        return date < today;
+    }
+
+
+    const startMinutes = timeToMinutes(timeStart);
+
+    if (startMinutes === null) {
+        return true;
+    }
+
+
+    const start = parseDate(date);
+    start.setHours(
+        Math.floor(startMinutes / 60),
+        startMinutes % 60,
+        0,
+        0,
+    );
+
+
+    return start.getTime() <= referenceDate.getTime();
+}
+
+
+export function getPastCalendarEventStartMessage(
+    params: {
+        date: string;
+        timeStart: string;
+        isAllDay: boolean;
+    },
+    referenceDate: Date = new Date(),
+    ): string | null {
+    if (
+        !isCalendarEventStartInPast(
+            params,
+            referenceDate,
+        )
+    ) {
+        return null;
+    }
+
+
+    if (params.isAllDay) {
+        return (
+            'No puedes programar un evento de día '
+            + 'completo en una fecha pasada.'
+        );
+    }
+
+
+    return (
+        'La fecha y hora de inicio deben ser '
+        + 'posteriores al momento actual.'
+    );
 }
 
 
@@ -803,13 +939,16 @@ export function getInitialFormValues(
     calendarId: string,
     ): CalendarEventFormValues {
     if (!event) {
+        const defaultTimes = getDefaultNewEventTimeRange();
+
+
         return {
         calendarId,
         eventType: 'meeting',
         title: '',
         date: fallbackDate,
-        timeStart: '09:00',
-        timeEnd: '10:00',
+        timeStart: defaultTimes.timeStart,
+        timeEnd: defaultTimes.timeEnd,
         isAllDay: false,
         location: '',
         description: '',

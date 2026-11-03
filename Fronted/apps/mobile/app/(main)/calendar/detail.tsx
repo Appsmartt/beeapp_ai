@@ -2,16 +2,16 @@ import {
   useCallback,
   useEffect,
   useState,
-} from 'react';
+  } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
 } from 'react-native';
+import { appAlert } from '../../../src/components/feedback/appAlert';
 import {
   ChevronLeft,
   CheckCircle,
@@ -40,6 +40,7 @@ import {
 import {
   addDaysToDateString,
   createDateTimeWithOffset,
+  getPastCalendarEventStartMessage,
   getReminderMinutes,
 } from '../../../src/services/calendarService';
 import type {
@@ -137,7 +138,7 @@ export default function EventDetailScreen() {
     }
 
 
-    Alert.alert(
+    appAlert(
       'Eliminar evento',
       (
         `¿Estás seguro de eliminar `
@@ -165,29 +166,13 @@ export default function EventDetailScreen() {
       return;
     }
 
+    const pendingDelete = deleteEvent(eventItem.id);
+    router.back();
 
     try {
-      setStatus('saving');
-
-
-      await deleteEvent(eventItem.id);
-
-
-      Alert.alert(
-        'Evento eliminado',
-        'El evento fue eliminado de tu agenda.',
-        [
-          {
-            text: 'Entendido',
-            onPress: () => router.back(),
-          },
-        ],
-      );
+      await pendingDelete;
     } catch (deleteError) {
-      setStatus('ready');
-
-
-      Alert.alert(
+      appAlert(
         'No fue posible eliminar el evento',
         deleteError instanceof Error
           ? deleteError.message
@@ -203,7 +188,7 @@ export default function EventDetailScreen() {
     }
 
 
-    Alert.alert(
+    appAlert(
       'Duplicar evento',
       (
         `Se creará una copia de `
@@ -237,6 +222,30 @@ export default function EventDetailScreen() {
       String(today.getMonth() + 1).padStart(2, '0'),
       String(today.getDate()).padStart(2, '0'),
     ].join('-');
+
+
+    const pastStartMessage = getPastCalendarEventStartMessage(
+      eventItem.isAllDay
+        ? {
+          date: todayDate,
+          timeStart: '00:00',
+          isAllDay: true,
+        }
+        : {
+          date: todayDate,
+          timeStart: eventItem.timeStart,
+          isAllDay: false,
+        },
+    );
+
+
+    if (pastStartMessage) {
+      appAlert(
+        'Fecha no válida',
+        pastStartMessage,
+      );
+      return;
+    }
 
 
     try {
@@ -280,7 +289,7 @@ export default function EventDetailScreen() {
       setStatus('ready');
 
 
-      Alert.alert(
+      appAlert(
         'Evento duplicado',
         'Se creó una copia del evento para hoy.',
       );
@@ -288,7 +297,7 @@ export default function EventDetailScreen() {
       setStatus('ready');
 
 
-      Alert.alert(
+      appAlert(
         'No fue posible duplicar el evento',
         duplicateError instanceof Error
           ? duplicateError.message
@@ -337,7 +346,7 @@ export default function EventDetailScreen() {
       setStatus('ready');
 
 
-      Alert.alert(
+      appAlert(
         'No fue posible actualizar el recordatorio',
         updateError instanceof Error
           ? updateError.message
@@ -377,7 +386,7 @@ export default function EventDetailScreen() {
       setStatus('ready');
 
 
-      Alert.alert(
+      appAlert(
         'No fue posible registrar tu respuesta',
         rsvpError instanceof Error
           ? rsvpError.message
@@ -468,8 +477,11 @@ export default function EventDetailScreen() {
           </TouchableOpacity>
 
 
-          <Text style={styles.headerTitle}>
-            Detalle del evento
+          <Text
+            style={styles.headerTitle}
+            numberOfLines={1}
+          >
+            {eventItem.title}
           </Text>
 
 
@@ -486,6 +498,7 @@ export default function EventDetailScreen() {
             style={styles.editBtn}
             activeOpacity={0.7}
             disabled={isSaving}
+            accessibilityLabel="Editar evento"
           >
             <Edit2
               size={18}
@@ -497,19 +510,20 @@ export default function EventDetailScreen() {
 
         <ScrollView
           style={styles.scrollView}
+          contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
         >
           <MainDetailsCard
             eventItem={eventItem}
             onCopyLink={() => {
-              Alert.alert(
+              appAlert(
                 'Enlace de videollamada',
                 eventItem.videoUrl
                   || 'Este evento no tiene enlace.',
               );
             }}
             onShareLink={() => {
-              Alert.alert(
+              appAlert(
                 'Compartir enlace',
                 eventItem.videoUrl
                   ? (
@@ -521,7 +535,7 @@ export default function EventDetailScreen() {
             }}
             onJoinCall={() => {
               if (!eventItem.videoUrl) {
-                Alert.alert(
+                appAlert(
                   'Sin enlace',
                   (
                     'Este evento no tiene un enlace de '
@@ -560,6 +574,10 @@ export default function EventDetailScreen() {
 
 
               <View style={styles.rsvpCard}>
+                <Text style={styles.rsvpEyebrow}>
+                  Invitación
+                </Text>
+
                 <Text style={styles.rsvpQuestion}>
                   ¿Asistirás a este evento?
                 </Text>
@@ -638,6 +656,11 @@ export default function EventDetailScreen() {
           )}
 
 
+          <Text style={styles.sectionHeader}>
+            Acciones
+          </Text>
+
+
           <View style={styles.actionsPanel}>
             <TouchableOpacity
               style={styles.panelBtn}
@@ -645,38 +668,60 @@ export default function EventDetailScreen() {
               activeOpacity={0.7}
               disabled={isSaving}
             >
-              <Plus
-                size={16}
-                color={colors.neutral.text}
-              />
+              <View style={styles.panelIconWrap}>
+                <Plus
+                  size={18}
+                  color={colors.brand.primary}
+                />
+              </View>
 
+              <View style={styles.panelCopy}>
+                <Text style={styles.panelBtnTitle}>
+                  Duplicar para hoy
+                </Text>
 
-              <Text style={styles.panelBtnText}>
-                Duplicar para hoy
-              </Text>
+                <Text style={styles.panelBtnHint}>
+                  Crea una copia con la fecha de hoy
+                </Text>
+              </View>
             </TouchableOpacity>
 
 
             <TouchableOpacity
-              style={styles.panelBtn}
+              style={[
+                styles.panelBtn,
+                styles.panelBtnDanger,
+              ]}
               onPress={handleDelete}
               activeOpacity={0.7}
               disabled={isSaving}
             >
-              <Trash2
-                size={16}
-                color={colors.semantic.error}
-              />
-
-
-              <Text
+              <View
                 style={[
-                  styles.panelBtnText,
-                  styles.deleteText,
+                  styles.panelIconWrap,
+                  styles.panelIconWrapDanger,
                 ]}
               >
-                Eliminar
-              </Text>
+                <Trash2
+                  size={18}
+                  color={colors.semantic.error}
+                />
+              </View>
+
+              <View style={styles.panelCopy}>
+                <Text
+                  style={[
+                    styles.panelBtnTitle,
+                    styles.deleteText,
+                  ]}
+                >
+                  Eliminar evento
+                </Text>
+
+                <Text style={styles.panelBtnHintDanger}>
+                  Se moverá a la papelera de la agenda
+                </Text>
+              </View>
             </TouchableOpacity>
           </View>
 
@@ -738,16 +783,27 @@ const styles = StyleSheet.create({
     padding: 4,
   },
   headerTitle: {
+    flex: 1,
+    marginHorizontal: 8,
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: '700',
+    textAlign: 'center',
     color: colors.neutral.text,
   },
   editBtn: {
-    padding: 4,
+    width: 36,
+    height: 36,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.brand.primary + '12',
   },
   scrollView: {
     flex: 1,
+  },
+  scrollContent: {
     paddingHorizontal: 20,
+    paddingTop: 12,
   },
   centerState: {
     flex: 1,
@@ -811,11 +867,19 @@ const styles = StyleSheet.create({
     borderColor: colors.neutral.gray200,
     padding: 16,
   },
+  rsvpEyebrow: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: colors.brand.primary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginBottom: 4,
+  },
   rsvpQuestion: {
-    fontSize: 12,
-    fontWeight: '400',
-    color: colors.neutral.gray700,
-    marginBottom: 12,
+    fontSize: 15,
+    fontWeight: '600',
+    color: colors.neutral.text,
+    marginBottom: 14,
   },
   rsvpButtons: {
     flexDirection: 'row',
@@ -827,7 +891,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 6,
-    paddingVertical: 10,
+    paddingVertical: 12,
     borderRadius: 12,
     borderWidth: 1,
     borderColor: colors.neutral.gray200,
@@ -851,23 +915,52 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   actionsPanel: {
-    marginTop: 20,
-    gap: 8,
+    gap: 10,
   },
   panelBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: 12,
     backgroundColor: colors.neutral.white,
     borderRadius: 16,
     borderWidth: 1,
     borderColor: colors.neutral.gray200,
     padding: 14,
   },
-  panelBtnText: {
-    fontSize: 13,
-    fontWeight: '500',
+  panelBtnDanger: {
+    borderColor: colors.semantic.error + '35',
+    backgroundColor: colors.semantic.error + '08',
+  },
+  panelIconWrap: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.brand.primary + '12',
+  },
+  panelIconWrapDanger: {
+    backgroundColor: colors.semantic.error + '12',
+  },
+  panelCopy: {
+    flex: 1,
+    gap: 2,
+  },
+  panelBtnTitle: {
+    fontSize: 14,
+    fontWeight: '700',
     color: colors.neutral.text,
+  },
+  panelBtnHint: {
+    fontSize: 12,
+    color: colors.neutral.gray600,
+    lineHeight: 16,
+  },
+  panelBtnHintDanger: {
+    fontSize: 12,
+    color: colors.semantic.error,
+    lineHeight: 16,
+    opacity: 0.85,
   },
   deleteText: {
     color: colors.semantic.error,

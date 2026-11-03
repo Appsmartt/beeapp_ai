@@ -22,10 +22,12 @@ import type {
 import {
     ensureNoteContent,
     } from '../../services/notesService';
+import NoteAttachmentImagePreview from './NoteAttachmentImagePreview';
 
 
 interface NoteBlocksRendererProps {
     content: NoteContent | null | undefined;
+    noteId?: string;
     onOpenAttachment?: (
         attachmentId: string,
         download?: boolean,
@@ -40,6 +42,7 @@ interface NoteBlocksRendererProps {
  */
 export default function NoteBlocksRenderer({
     content,
+    noteId,
     onOpenAttachment,
     }: NoteBlocksRendererProps) {
     const normalizedContent =
@@ -59,6 +62,7 @@ export default function NoteBlocksRenderer({
             <BlockRenderer
             key={block.id}
             block={block}
+            noteId={noteId}
             onOpenAttachment={onOpenAttachment}
             />
         ))}
@@ -69,9 +73,11 @@ export default function NoteBlocksRenderer({
 
 function BlockRenderer({
     block,
+    noteId,
     onOpenAttachment,
     }: {
     block: NoteBlock;
+    noteId?: string;
     onOpenAttachment?: (
         attachmentId: string,
         download?: boolean,
@@ -249,6 +255,7 @@ function BlockRenderer({
         return (
             <AttachmentBlock
             isImage
+            noteId={noteId}
             label={block.caption || 'Imagen adjunta'}
             attachmentId={block.attachment_id}
             onOpenAttachment={onOpenAttachment}
@@ -258,6 +265,7 @@ function BlockRenderer({
         case 'file':
         return (
             <AttachmentBlock
+            noteId={noteId}
             label={block.caption || 'Archivo adjunto'}
             attachmentId={block.attachment_id}
             onOpenAttachment={onOpenAttachment}
@@ -268,23 +276,30 @@ function BlockRenderer({
         return (
             <View style={styles.listContainer}>
             {block.attachments.map(
-                (attachment, index) => (
+                (attachment, index) => {
+                const caption =
+                    attachment.caption
+                    || 'Archivo adjunto';
+                const looksLikeImage =
+                    captionLooksLikeImage(caption);
+
+                return (
                 <AttachmentBlock
                     key={
                     attachment.attachment_id
                     || attachment.file_id
                     || `${block.id}-${index}`
                     }
-                    label={
-                    attachment.caption
-                    || 'Archivo adjunto'
-                    }
+                    isImage={looksLikeImage}
+                    noteId={noteId}
+                    label={caption}
                     attachmentId={
                     attachment.attachment_id
                     }
                     onOpenAttachment={onOpenAttachment}
                 />
-                ),
+                );
+                },
             )}
             </View>
         );
@@ -295,20 +310,54 @@ function BlockRenderer({
 }
 
 
+function captionLooksLikeImage(
+    caption: string,
+    ): boolean {
+    return /\.(jpe?g|png|gif|webp|heic|bmp)$/i.test(
+        caption.trim(),
+    );
+}
+
+
 function AttachmentBlock({
     attachmentId,
     isImage = false,
+    noteId,
     label,
     onOpenAttachment,
     }: {
     attachmentId?: string;
     isImage?: boolean;
+    noteId?: string;
     label: string;
     onOpenAttachment?: (
         attachmentId: string,
         download?: boolean,
     ) => void;
     }) {
+    if (
+        isImage
+        && attachmentId
+        && noteId
+    ) {
+        return (
+        <NoteAttachmentImagePreview
+            noteId={noteId}
+            attachmentId={attachmentId}
+            caption={label}
+            onFallbackPress={
+            attachmentId && onOpenAttachment
+                ? () =>
+                onOpenAttachment(
+                    attachmentId,
+                    false,
+                )
+                : undefined
+            }
+        />
+        );
+    }
+
     const content = (
         <>
         <View

@@ -3,10 +3,9 @@ import {
   useEffect,
   useMemo,
   useState,
-} from 'react';
+  } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   Modal,
   Pressable,
   RefreshControl,
@@ -17,6 +16,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { appAlert } from '../../../../../src/components/feedback/appAlert';
 import {
   ArrowLeft,
   CalendarClock,
@@ -345,7 +345,7 @@ export default function BuddyServicesBookingRequestScreen() {
       requestedModality === 'delivery'
       && !deliveryAddress.trim()
     ) {
-      Alert.alert(
+      appAlert(
         'Dirección requerida',
         'Ingresa la dirección para la entrega a domicilio.',
       );
@@ -362,7 +362,7 @@ export default function BuddyServicesBookingRequestScreen() {
       });
     } catch (submitError) {
       const uiError = toCommercialUiError(submitError);
-      Alert.alert(uiError.title, uiError.message);
+      appAlert(uiError.title, uiError.message);
       return;
     }
 
@@ -425,7 +425,7 @@ export default function BuddyServicesBookingRequestScreen() {
       incomingCommercialProfileName,
     } = result.conflict;
 
-    Alert.alert(
+    appAlert(
       'Carrito de otro negocio',
       (
         `Tu carrito actual pertenece a ${currentCommercialProfileName}. `

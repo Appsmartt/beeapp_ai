@@ -2,8 +2,12 @@ import * as SecureStore from 'expo-secure-store';
 import {
   adoptSupabaseSession,
   ApiRequestError,
+  clearRequestCache,
   getCurrentProfile,
+  getSupabase,
+  mapAuthSession,
   notifyUnauthorizedAuthenticatedRequest,
+  readLiveSupabaseSession,
   refreshSession,
   revokeDeviceSession,
   signOutSupabase,
@@ -20,11 +24,66 @@ import {
 import { clearChatInboxCache } from './chatInboxCache';
 import { clearChatMessageSnapshots } from './chatMessageSnapshotCache';
 import { clearChatAvatarCache } from './chatAvatarCache';
+import { clearImageDiskCache } from './imageDiskCache';
+import { clearSideMenuProfileSnapshot } from './sideMenuProfileCache';
 import { clearChatConversationsCache } from '../stores/chatStore';
+import { clearNotesStore } from '../stores/notesStore';
+import { clearStorageStore } from '../stores/storageStore';
+import { clearCalendarStore } from '../stores/calendarStore';
+
+let cachedAuthUserId: string | null = null;
+
+export function getCachedAuthUserId(): string | null {
+  return cachedAuthUserId;
+}
+
+function rememberAuthUserId(userId: string | null): void {
+  cachedAuthUserId = userId?.trim() || null;
+}
+
+async function clearListCaches(): Promise<void> {
+  await Promise.all([
+    clearRequestCache(),
+    clearNotesStore(),
+    clearStorageStore(),
+    clearCalendarStore(),
+    clearImageDiskCache(),
+    clearSideMenuProfileSnapshot(),
+  ]);
+}
 
 const AUTH_SESSION_KEY = 'beeapp.auth.session';
 
-const REFRESH_MARGIN_MS = 60_000;
+/** Renueva la sesión unos minutos antes de que venza el access token. */
+const REFRESH_MARGIN_MS = 5 * 60_000;
+
+function isDefinitiveRefreshFailure(
+  error: unknown,
+): boolean {
+  if (!(error instanceof ApiRequestError)) {
+    return false;
+  }
+
+  return error.status === 401 || error.status === 403;
+}
+
+async function refreshSessionWithSupabase(
+  refreshToken: string,
+): Promise<PersistedAuthSession['session'] | null> {
+  try {
+    const response = await getSupabase().auth.refreshSession({
+      refresh_token: refreshToken,
+    });
+
+    if (response.error || !response.data.session) {
+      return null;
+    }
+
+    return mapAuthSession(response.data.session);
+  } catch {
+    return null;
+  }
+}
 
 export interface PersistedAuthSession {
   session: AuthSession;
@@ -77,9 +136,14 @@ export async function saveAuthSession(
     await Promise.all([
       clearChatInboxCache(),
       clearChatAvatarCache(),
+      clearImageDiskCache(),
+      clearSideMenuProfileSnapshot(),
       clearChatMessageSnapshots(),
+      clearListCaches(),
     ]);
   }
+
+  rememberAuthUserId(authSession.user.id);
 
   await SecureStore.setItemAsync(
     AUTH_SESSION_KEY,
@@ -91,6 +155,48 @@ export async function saveAuthSession(
   } catch {
     // La sesión local sigue válida si Supabase todavía no está listo.
   }
+}
+
+/**
+ * La sesión guardada por la app y la del cliente de Supabase se renuevan
+ * por separado. Si difieren, gana la de Supabase, que es la que rotó el
+ * refresh token más recientemente.
+ */
+async function reconcileWithLiveSession(
+  persisted: PersistedAuthSession,
+): Promise<PersistedAuthSession> {
+  let live: Awaited<ReturnType<typeof readLiveSupabaseSession>> = null;
+
+  try {
+    live = await readLiveSupabaseSession();
+  } catch {
+    return persisted;
+  }
+
+  if (!live?.refresh_token) {
+    return persisted;
+  }
+
+  const storedExpiresAt = persisted.session.expires_at ?? 0;
+  const liveExpiresAt = live.expires_at ?? 0;
+  const differs = (
+    live.refresh_token !== persisted.session.refresh_token
+    || live.access_token !== persisted.session.access_token
+  );
+
+  if (!differs || liveExpiresAt < storedExpiresAt) {
+    return persisted;
+  }
+
+  const reconciled: PersistedAuthSession = {
+    session: live,
+    user: persisted.user,
+    deviceSessionId: persisted.deviceSessionId ?? null,
+  };
+
+  await saveAuthSession(reconciled);
+
+  return reconciled;
 }
 
 export async function getAuthSession(): Promise<
@@ -128,13 +234,9 @@ export async function getAuthSession(): Promise<
         : null,
     };
 
-    try {
-      await adoptSupabaseSession(restored.session);
-    } catch {
-      // Se reintenta en el próximo refresh.
-    }
+    rememberAuthUserId(restored.user.id);
 
-    return restored;
+    return reconcileWithLiveSession(restored);
   } catch {
     await clearAuthSession();
     return null;
@@ -150,9 +252,11 @@ export async function refreshAuthSession(): Promise<
     return null;
   }
 
+  const refreshToken = persistedSession.session.refresh_token;
+
   try {
     const refreshedResponse = await refreshSession({
-      refresh_token: persistedSession.session.refresh_token,
+      refresh_token: refreshToken,
     });
 
     const refreshedSession: PersistedAuthSession = {
@@ -165,20 +269,33 @@ export async function refreshAuthSession(): Promise<
 
     return refreshedSession;
   } catch (error) {
-    if (
-      error instanceof ApiRequestError
-      && (
-        error.status === 400
-        || error.status === 401
-        || error.status === 403
-      )
-    ) {
-      await clearAuthSession();
-      notifyUnauthorizedAuthenticatedRequest(error);
-      return null;
+    if (!isDefinitiveRefreshFailure(error)) {
+      return persistedSession;
     }
 
-    throw error;
+    const fallbackSession = await refreshSessionWithSupabase(
+      refreshToken,
+    );
+
+    if (fallbackSession) {
+      const refreshedSession: PersistedAuthSession = {
+        session: fallbackSession,
+        user: persistedSession.user,
+        deviceSessionId: persistedSession.deviceSessionId ?? null,
+      };
+
+      await saveAuthSession(refreshedSession);
+
+      return refreshedSession;
+    }
+
+    await clearAuthSession();
+
+    if (error instanceof ApiRequestError) {
+      notifyUnauthorizedAuthenticatedRequest(error);
+    }
+
+    return null;
   }
 }
 
@@ -218,6 +335,31 @@ export async function validateStoredAuthSession(): Promise<
       error instanceof ApiRequestError
       && error.status === 401
     ) {
+      const refreshed = await refreshAuthSession();
+
+      if (refreshed) {
+        try {
+          await getCurrentProfile(
+            getSessionCredentials(refreshed),
+          );
+
+          return 'valid';
+        } catch (retryError) {
+          if (
+            retryError instanceof ApiRequestError
+            && retryError.status === 401
+          ) {
+            return 'revoked';
+          }
+
+          return 'unknown';
+        }
+      }
+
+      if (await getAuthSession()) {
+        return 'unknown';
+      }
+
       return 'revoked';
     }
 
@@ -225,6 +367,20 @@ export async function validateStoredAuthSession(): Promise<
     // conservar la sesión local y no expulsar al usuario.
     return 'unknown';
   }
+}
+
+export async function recoverAuthSessionAfterUnauthorized(): Promise<
+  boolean
+> {
+  const refreshed = await refreshAuthSession();
+
+  if (refreshed) {
+    return true;
+  }
+
+  const stillStored = await getAuthSession();
+
+  return Boolean(stillStored);
 }
 
 
@@ -283,13 +439,17 @@ export async function clearAuthSession(): Promise<void> {
     // Cerrar la sesión local aunque Supabase no responda.
   }
 
+  rememberAuthUserId(null);
   await clearChatConversationsCache();
   const results = await Promise.allSettled([
     SecureStore.deleteItemAsync(AUTH_SESSION_KEY),
     clearAppLockConfig(),
     clearChatInboxCache(),
     clearChatAvatarCache(),
+    clearImageDiskCache(),
+    clearSideMenuProfileSnapshot(),
     clearChatMessageSnapshots(),
+    clearListCaches(),
   ]);
 
   for (const result of results) {

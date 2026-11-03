@@ -18,12 +18,31 @@ import type {
   CalendarEvent,
   CalendarEventSource,
 } from '../../stores/calendarStore';
+import {
+  formatDateLongLabel,
+} from '../../utils/dateHelpers';
 
 
 interface CalendarEventsListProps {
   events: CalendarEvent[];
   onEventPress: (event: CalendarEvent) => void;
   onEventLongPress: (event: CalendarEvent) => void;
+  showEventDate?: boolean;
+  emptyTitle?: string;
+  emptyHint?: string;
+}
+
+
+function formatEventDayLabel(
+  isoDate: string,
+): string {
+  try {
+    const label = formatDateLongLabel(isoDate);
+
+    return label.charAt(0).toUpperCase() + label.slice(1);
+  } catch {
+    return isoDate;
+  }
 }
 
 
@@ -66,6 +85,9 @@ export default function CalendarEventsList({
   events,
   onEventPress,
   onEventLongPress,
+  showEventDate = false,
+  emptyTitle = 'Sin eventos para este día',
+  emptyHint = 'Toca el botón + para crear uno.',
 }: CalendarEventsListProps) {
   if (events.length === 0) {
     return (
@@ -76,11 +98,11 @@ export default function CalendarEventsList({
         />
 
         <Text style={styles.emptyText}>
-          Sin eventos para este día
+          {emptyTitle}
         </Text>
 
         <Text style={styles.emptyHint}>
-          Toca el botón + para crear uno.
+          {emptyHint}
         </Text>
       </View>
     );
@@ -129,6 +151,15 @@ export default function CalendarEventsList({
             />
 
             <View style={styles.cardDetailsColumn}>
+              {showEventDate ? (
+                <Text
+                  style={styles.cardDateLabel}
+                  numberOfLines={1}
+                >
+                  {formatEventDayLabel(item.date)}
+                </Text>
+              ) : null}
+
               <View style={styles.cardTitleRow}>
                 <Text
                   style={styles.cardTitle}
@@ -295,6 +326,13 @@ const styles = StyleSheet.create({
   cardDetailsColumn: {
     flex: 1,
     minWidth: 0,
+  },
+  cardDateLabel: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: colors.brand.primary,
+    marginBottom: 4,
+    textTransform: 'capitalize',
   },
   cardTitleRow: {
     flexDirection: 'row',

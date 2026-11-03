@@ -4,17 +4,17 @@ import {
   useMemo,
   useRef,
   useState,
-} from 'react';
+  } from 'react';
 import { useFocusEffect } from 'expo-router';
 import {
   ActivityIndicator,
-  Alert,
   RefreshControl,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
 } from 'react-native';
+import { appAlert } from '../../../src/components/feedback/appAlert';
 import {
   ArrowLeft,
 } from 'lucide-react-native';
@@ -222,7 +222,7 @@ export default function ArchivedChatsScreen() {
           await updateConversation(chat.id, { isMuted: true });
         } catch (failure) {
           if (!cancelled) {
-            Alert.alert(
+            appAlert(
               'No fue posible silenciar el chat archivado',
               failure instanceof Error ? failure.message : 'Inténtalo nuevamente.',
             );
@@ -299,7 +299,7 @@ export default function ArchivedChatsScreen() {
       if (!auth) throw new Error('Inicia sesión para proteger el chat.');
       const status = await getAccountSecurityPinStatus(auth);
       if (!status.configured) {
-        Alert.alert(
+        appAlert(
           'PIN requerido',
           'Debes crear un PIN primero desde Seguridad.',
           [
@@ -326,9 +326,9 @@ export default function ArchivedChatsScreen() {
           );
         }
       }
-      Alert.alert('Chat protegido', 'El chat quedó protegido con tu PIN.');
+      appAlert('Chat protegido', 'El chat quedó protegido con tu PIN.');
     } catch (failure) {
-      Alert.alert(
+      appAlert(
         'No fue posible proteger el chat',
         failure instanceof Error ? failure.message : 'Inténtalo nuevamente.',
       );
@@ -360,7 +360,7 @@ export default function ArchivedChatsScreen() {
         );
       }
     });
-    Alert.alert('Protección removida', 'El chat ya no requiere PIN para abrirse.');
+    appAlert('Protección removida', 'El chat ya no requiere PIN para abrirse.');
   };
 
   const handleRestore = async (
@@ -369,7 +369,7 @@ export default function ArchivedChatsScreen() {
     try {
       await restoreConversation(chat.id);
 
-      Alert.alert(
+      appAlert(
         'Chat restaurado',
         isAllArchive
           ? 'La conversación volvió a tu bandeja.'
@@ -378,7 +378,7 @@ export default function ArchivedChatsScreen() {
             : 'El chat volvió a la pestaña Chats.',
       );
     } catch (restoreError) {
-      Alert.alert(
+      appAlert(
         'No fue posible restaurar el chat',
         restoreError instanceof Error
           ? restoreError.message
@@ -390,7 +390,7 @@ export default function ArchivedChatsScreen() {
   const handleDelete = (
     chat: ChatListItemModel,
   ) => {
-    Alert.alert(
+    appAlert(
       'Eliminar chat',
       (
         chat.isGroup
@@ -412,7 +412,7 @@ export default function ArchivedChatsScreen() {
           onPress: () => {
             void deleteConversation(chat.id)
               .catch((deleteError) => {
-                Alert.alert(
+                appAlert(
                   'No fue posible eliminar el chat',
                   deleteError instanceof Error
                     ? deleteError.message
@@ -579,7 +579,7 @@ export default function ArchivedChatsScreen() {
           void updateConversation(chat.id, {
             isPinned: !chat.isPinned,
           }).catch((failure) => {
-            Alert.alert(
+            appAlert(
               'No fue posible cambiar el fijado',
               failure instanceof Error
                 ? failure.message

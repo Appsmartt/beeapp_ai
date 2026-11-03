@@ -3,10 +3,9 @@ import {
   useEffect,
   useMemo,
   useState,
-} from 'react';
+  } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   RefreshControl,
   ScrollView,
   StyleSheet,
@@ -14,6 +13,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { appAlert } from '../../../../src/components/feedback/appAlert';
 import {
   ArrowLeft,
   BadgeCheck,
@@ -32,11 +32,22 @@ import {
   useRouter,
 } from 'expo-router';
 
+import {
+  LIST_CACHE_TTL,
+  publicCommercialCatalogsCacheKey,
+  publicCommercialOffersCacheKey,
+  publicCommercialProfileCacheKey,
+} from '@beeapp/api-client';
 import type {
   CommercialCatalog,
   CommercialPublicOffer,
   CommercialPublicProfile,
+  GetPublicCommercialCatalogsResponse,
+  GetPublicCommercialOffersResponse,
+  GetPublicCommercialProfileResponse,
 } from '@beeapp/shared-types';
+
+import { paintCachedValue } from '../../../../src/hooks/useCachedResource';
 
 import ScreenSafeArea from '../../../../src/components/layout/ScreenSafeArea';
 import CommercialOfferCard from '../../../../src/components/buddyservices/CommercialOfferCard';
@@ -244,6 +255,22 @@ export default function BuddyServicesPublicProfileScreen() {
   const services = useMemo(() => (
     offers.filter((offer) => offer.offer_kind === 'service')
   ), [offers]);
+  const showsProducts = !profile || profile.offer_type !== 'services';
+  const showsServices = !profile || profile.offer_type !== 'products';
+
+  useEffect(() => {
+    if (!profile) {
+      return;
+    }
+
+    if (activeTab === 'products' && profile.offer_type === 'services') {
+      setActiveTab('services');
+    }
+
+    if (activeTab === 'services' && profile.offer_type === 'products') {
+      setActiveTab('products');
+    }
+  }, [activeTab, profile]);
 
   const cartItemCount = useMemo(() => (
     cart?.commercialProfileId === profileId
@@ -309,8 +336,39 @@ export default function BuddyServicesPublicProfileScreen() {
       return;
     }
 
-    setLoading(true);
     setError(null);
+
+    const offerQuery = {
+      limit: 20,
+      offset: 0,
+    };
+    const [paintedProfile, paintedCatalogs, paintedOffers] = await Promise.all([
+      paintCachedValue<GetPublicCommercialProfileResponse>(
+        publicCommercialProfileCacheKey(profileId),
+        LIST_CACHE_TTL.stable,
+        (cached) => {
+          setProfile(cached.profile);
+        },
+      ),
+      paintCachedValue<GetPublicCommercialCatalogsResponse>(
+        publicCommercialCatalogsCacheKey(profileId),
+        LIST_CACHE_TTL.stable,
+        (cached) => {
+          setCatalogs(cached.catalogs);
+        },
+      ),
+      paintCachedValue<GetPublicCommercialOffersResponse>(
+        publicCommercialOffersCacheKey(profileId, offerQuery),
+        LIST_CACHE_TTL.standard,
+        (cached) => {
+          setOffers(cached.offers);
+        },
+      ),
+    ]);
+
+    if (!paintedProfile || !paintedCatalogs || !paintedOffers) {
+      setLoading(true);
+    }
 
     try {
       const [
@@ -320,10 +378,7 @@ export default function BuddyServicesPublicProfileScreen() {
       ] = await Promise.all([
         loadPublicCommercialProfile(profileId),
         loadPublicCommercialCatalogs(profileId),
-        loadPublicCommercialOffers(profileId, {
-          limit: 20,
-          offset: 0,
-        }),
+        loadPublicCommercialOffers(profileId, offerQuery),
       ]);
 
       setProfile(profileResponse.profile);
@@ -406,7 +461,7 @@ export default function BuddyServicesPublicProfileScreen() {
       incomingCommercialProfileName,
     } = result.conflict;
 
-    Alert.alert(
+    appAlert(
       'Carrito de otro negocio',
       (
         `Tu carrito actual pertenece a ${currentCommercialProfileName}. `
@@ -455,7 +510,7 @@ export default function BuddyServicesPublicProfileScreen() {
     } catch (chatError) {
       const uiError = toCommercialUiError(chatError);
 
-      Alert.alert(
+      appAlert(
         uiError.title || 'No fue posible abrir el chat',
         uiError.message || (
           'Inténtalo nuevamente en unos momentos.'
@@ -665,10 +720,16 @@ export default function BuddyServicesPublicProfileScreen() {
             </TouchableOpacity>
 
             <TouchableOpacity
-              accessibilityLabel="Ver productos del negocio"
+              accessibilityLabel={
+                showsServices && !showsProducts
+                  ? 'Ver servicios del negocio'
+                  : 'Ver productos del negocio'
+              }
               accessibilityRole="button"
               activeOpacity={0.8}
-              onPress={() => setActiveTab('products')}
+              onPress={() => setActiveTab(
+                showsServices && !showsProducts ? 'services' : 'products',
+              )}
               style={styles.offersButton}
             >
               <Store
@@ -677,7 +738,9 @@ export default function BuddyServicesPublicProfileScreen() {
               />
 
               <Text style={styles.offersButtonText}>
-                Ver productos
+                {showsServices && !showsProducts
+                  ? 'Ver servicios'
+                  : 'Ver productos'}
               </Text>
             </TouchableOpacity>
           </View>
@@ -687,17 +750,21 @@ export default function BuddyServicesPublicProfileScreen() {
             showsHorizontalScrollIndicator={false}
             contentContainerStyle={styles.tabs}
           >
-            <ProfileTabButton
-              active={activeTab === 'products'}
-              label="Productos"
-              onPress={() => setActiveTab('products')}
-            />
+            {showsProducts ? (
+              <ProfileTabButton
+                active={activeTab === 'products'}
+                label="Productos"
+                onPress={() => setActiveTab('products')}
+              />
+            ) : null}
 
-            <ProfileTabButton
-              active={activeTab === 'services'}
-              label="Servicios"
-              onPress={() => setActiveTab('services')}
-            />
+            {showsServices ? (
+              <ProfileTabButton
+                active={activeTab === 'services'}
+                label="Servicios"
+                onPress={() => setActiveTab('services')}
+              />
+            ) : null}
 
             <ProfileTabButton
               active={activeTab === 'catalogs'}

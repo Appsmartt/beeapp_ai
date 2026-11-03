@@ -1,15 +1,18 @@
 import {
   ActivityIndicator,
-  Alert,
   Modal,
+  RefreshControl,
   ScrollView,
+  StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
+import { appAlert } from '../../../src/components/feedback/appAlert';
 import {
-  ArrowLeft,
+  Briefcase,
+  ChevronRight,
   CircleAlert,
   Play,
   Plus,
@@ -19,10 +22,24 @@ import {
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "expo-router";
 
-import type { CommercialOwnedProfile } from "@beeapp/shared-types";
+import {
+  LIST_CACHE_TTL,
+  OWNED_COMMERCIAL_PROFILES_CACHE_KEY,
+} from "@beeapp/api-client";
+import type {
+  CommercialOwnedProfile,
+  GetOwnedCommercialProfilesResponse,
+} from "@beeapp/shared-types";
 
+import { paintCachedValue } from "../../../src/hooks/useCachedResource";
+
+import BeeServicesHeader from "../../../src/components/beeservices/BeeServicesHeader";
+import { styles as beeStyles } from "../../../src/components/beeservices/beeServicesStyles";
+import OwnedBusinessActionsSheet from "../../../src/components/buddyservices/OwnedBusinessActionsSheet";
 import OwnedCommercialProfileGridCard from "../../../src/components/buddyservices/OwnedCommercialProfileGridCard";
+import { myBusinessesVisual as v } from "../../../src/components/buddyservices/myBusinessesVisual";
 import OwnedCommercialProfilesState from "../../../src/components/buddyservices/OwnedCommercialProfilesState";
+import HomeSideMenu from "../../../src/components/home/HomeSideMenu";
 import ScreenSafeArea from "../../../src/components/layout/ScreenSafeArea";
 import { toCommercialUiError } from "../../../src/features/buddyservices/commercialErrors";
 import {
@@ -39,10 +56,14 @@ import {
 export default function BuddyServicesMyBusinessesScreen() {
   const router = useRouter();
 
+  const [sideMenuVisible, setSideMenuVisible] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const [profiles, setProfiles] = useState<CommercialOwnedProfile[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [selectedProfile, setSelectedProfile] =
+    useState<CommercialOwnedProfile | null>(null);
+  const [actionsProfile, setActionsProfile] =
     useState<CommercialOwnedProfile | null>(null);
   const [archiveReason, setArchiveReason] = useState("");
   const [isSubmittingPublication, setIsSubmittingPublication] = useState(false);
@@ -50,9 +71,22 @@ export default function BuddyServicesMyBusinessesScreen() {
     null,
   );
 
-  const loadProfiles = useCallback(async () => {
-    setIsLoading(true);
+  const loadProfiles = useCallback(async (options?: { silent?: boolean }) => {
     setErrorMessage(null);
+
+    const painted = options?.silent
+      ? false
+      : await paintCachedValue<GetOwnedCommercialProfilesResponse>(
+        OWNED_COMMERCIAL_PROFILES_CACHE_KEY,
+        LIST_CACHE_TTL.stable,
+        (cached) => {
+          setProfiles(cached.profiles);
+        },
+      );
+
+    if (!options?.silent && !painted) {
+      setIsLoading(true);
+    }
 
     try {
       const response = await loadOwnedCommercialProfiles();
@@ -63,12 +97,24 @@ export default function BuddyServicesMyBusinessesScreen() {
 
       setErrorMessage(uiError.message);
     } finally {
-      setIsLoading(false);
+      if (!options?.silent) {
+        setIsLoading(false);
+      }
     }
   }, []);
 
   useEffect(() => {
     void loadProfiles();
+  }, [loadProfiles]);
+
+  const handleRefresh = useCallback(async () => {
+    setRefreshing(true);
+
+    try {
+      await loadProfiles({ silent: true });
+    } finally {
+      setRefreshing(false);
+    }
   }, [loadProfiles]);
 
   const closePublicationModal = useCallback(() => {
@@ -102,7 +148,7 @@ export default function BuddyServicesMyBusinessesScreen() {
     const normalizedReason = archiveReason.trim();
 
     if (isDeactivation && !normalizedReason) {
-      Alert.alert(
+      appAlert(
         "Motivo requerido",
         "Escribe el motivo para desactivar este negocio.",
       );
@@ -134,7 +180,7 @@ export default function BuddyServicesMyBusinessesScreen() {
       setSelectedProfile(null);
       setArchiveReason("");
 
-      Alert.alert(
+      appAlert(
         isArchived
           ? "Negocio restaurado"
           : isPaused
@@ -151,7 +197,7 @@ export default function BuddyServicesMyBusinessesScreen() {
     } catch (error) {
       const uiError = toCommercialUiError(error);
 
-      Alert.alert("No fue posible cambiar el estado", uiError.message);
+      appAlert("No fue posible cambiar el estado", uiError.message);
     } finally {
       setIsSubmittingPublication(false);
       setUpdatingProfileId(null);
@@ -172,309 +218,198 @@ export default function BuddyServicesMyBusinessesScreen() {
     selectedProfile && !selectedIsArchived && !selectedIsPaused,
   );
 
-  return (
-    <ScreenSafeArea
-      style={{
-        backgroundColor: "#F7F8FF",
-        flex: 1,
+  const renderCreateBusinessCard = (
+    hint: string,
+  ) => (
+    <TouchableOpacity
+      accessibilityHint="Abre el formulario para crear un negocio"
+      accessibilityLabel="Crear un negocio"
+      accessibilityRole="button"
+      activeOpacity={0.82}
+      onPress={() => {
+        router.push(buddyServicesCreateBusinessRoute());
       }}
+      style={styles.createCard}
     >
-      <View
-        style={{
-          alignItems: "center",
-          flexDirection: "row",
-          justifyContent: "space-between",
-          paddingHorizontal: 18,
-          paddingTop: 10,
-        }}
-      >
-        <TouchableOpacity
-          accessibilityLabel="Volver a Buddy Services"
-          accessibilityRole="button"
-          activeOpacity={0.8}
-          onPress={() => router.back()}
-          style={{
-            alignItems: "center",
-            backgroundColor: "#EEF2FF",
-            borderRadius: 14,
-            height: 42,
-            justifyContent: "center",
-            width: 42,
-          }}
-        >
-          <ArrowLeft color="#5F52C5" size={21} />
-        </TouchableOpacity>
+      <View style={styles.createIconWrap}>
+        <Plus color="#FFFFFF" size={22} strokeWidth={2.6} />
+      </View>
 
-        <Text
-          style={{
-            color: "#26314D",
-            fontSize: 19,
-            fontWeight: "800",
-          }}
-        >
-          Mis negocios
+      <View style={styles.createTextColumn}>
+        <Text style={styles.createTitle}>
+          Crear negocio
         </Text>
 
-        <View
-          style={{
-            width: 42,
-          }}
+        <Text style={styles.createHint}>
+          {hint}
+        </Text>
+      </View>
+
+      <View style={styles.createChevron}>
+        <ChevronRight color="#7567D9" size={18} strokeWidth={2.4} />
+      </View>
+    </TouchableOpacity>
+  );
+
+  return (
+    <ScreenSafeArea style={beeStyles.safeArea}>
+      <View style={beeStyles.container}>
+        {isLoading ? (
+          <OwnedCommercialProfilesState kind="loading" />
+        ) : errorMessage ? (
+          <View style={beeStyles.content}>
+            <BeeServicesHeader
+              onBackToMainPress={() => router.back()}
+              onMenuPress={() => setSideMenuVisible(true)}
+              subtitle="Administra tus espacios comerciales"
+              title="Mis negocios"
+            />
+
+            <OwnedCommercialProfilesState
+              kind="error"
+              message={errorMessage}
+              onRetry={() => {
+                void loadProfiles();
+              }}
+            />
+          </View>
+        ) : (
+          <ScrollView
+            contentContainerStyle={beeStyles.content}
+            refreshControl={
+              <RefreshControl
+                colors={["#7427D5"]}
+                onRefresh={() => {
+                  void handleRefresh();
+                }}
+                refreshing={refreshing}
+                tintColor="#7427D5"
+              />
+            }
+            showsVerticalScrollIndicator={false}
+          >
+            <BeeServicesHeader
+              onBackToMainPress={() => router.back()}
+              onMenuPress={() => setSideMenuVisible(true)}
+              subtitle="Administra tus espacios comerciales"
+              title="Mis negocios"
+            />
+
+            <View style={styles.sectionHeader}>
+              <Text style={beeStyles.sectionTitle}>
+                Tus espacios
+              </Text>
+
+              <View style={styles.countBadge}>
+                <Briefcase
+                  color={v.countBadgeText}
+                  size={14}
+                  strokeWidth={2.2}
+                />
+
+                <Text style={styles.countBadgeText}>
+                  {profiles.length}
+                </Text>
+              </View>
+            </View>
+
+            {profiles.length === 0 ? (
+              <View style={beeStyles.section}>
+                <OwnedCommercialProfilesState kind="empty" />
+
+                {renderCreateBusinessCard(
+                  "Empieza a vender con Buddy Services",
+                )}
+              </View>
+            ) : (
+              <View style={beeStyles.section}>
+                <View style={styles.profileList}>
+                  {profiles.map((profile) => (
+                    <OwnedCommercialProfileGridCard
+                      isUpdating={updatingProfileId === profile.id}
+                      key={profile.id}
+                      onEdit={() => {
+                        router.push(
+                          buddyServicesManageProfileRoute(profile.id),
+                        );
+                      }}
+                      onPress={() => {
+                        router.push(
+                          buddyServicesCommercialRoute(profile.id),
+                        );
+                      }}
+                      onTogglePublication={() => {
+                        openPublicationModal(profile);
+                      }}
+                      onView={() => {
+                        router.push(
+                          buddyServicesPublicProfileRoute(profile.id),
+                        );
+                      }}
+                      onMoreActions={() => {
+                        setActionsProfile(profile);
+                      }}
+                      profile={profile}
+                    />
+                  ))}
+                </View>
+
+                {renderCreateBusinessCard(
+                  "Agrega otro espacio para vender o prestar servicios",
+                )}
+              </View>
+            )}
+
+            <View style={beeStyles.footer}>
+              <Text style={beeStyles.footerText}>
+                Impulsando economías locales con Buddy AI
+              </Text>
+
+              <View style={beeStyles.footerLine} />
+            </View>
+          </ScrollView>
+        )}
+
+        <HomeSideMenu
+          onClose={() => setSideMenuVisible(false)}
+          visible={sideMenuVisible}
         />
       </View>
 
-      {isLoading ? (
-        <OwnedCommercialProfilesState kind="loading" />
-      ) : errorMessage ? (
-        <OwnedCommercialProfilesState
-          kind="error"
-          message={errorMessage}
-          onRetry={() => {
-            void loadProfiles();
-          }}
-        />
-      ) : (
-        <ScrollView
-          contentContainerStyle={{
-            paddingBottom: 34,
-            paddingHorizontal: 18,
-            paddingTop: 22,
-          }}
-          showsVerticalScrollIndicator={false}
-        >
-          <View
-            style={{
-              alignItems: "flex-start",
-              flexDirection: "row",
-              justifyContent: "space-between",
-            }}
-          >
-            <View
-              style={{
-                flex: 1,
-                paddingRight: 16,
-              }}
-            >
-              <Text
-                style={{
-                  color: "#26314D",
-                  fontSize: 25,
-                  fontWeight: "900",
-                  letterSpacing: -0.5,
-                }}
-              >
-                Mis negocios
-              </Text>
+      <OwnedBusinessActionsSheet
+        businessName={actionsProfile?.display_name ?? ""}
+        onClose={() => {
+          setActionsProfile(null);
+        }}
+        onEdit={() => {
+          if (!actionsProfile) {
+            return;
+          }
 
-              <Text
-                style={{
-                  color: "#6C7892",
-                  fontSize: 14,
-                  lineHeight: 21,
-                  marginTop: 7,
-                }}
-              >
-                Elige un negocio para administrar sus operaciones.
-              </Text>
-            </View>
+          router.push(
+            buddyServicesManageProfileRoute(actionsProfile.id),
+          );
+        }}
+        onManage={() => {
+          if (!actionsProfile) {
+            return;
+          }
 
-            <View
-              style={{
-                alignItems: "center",
-                backgroundColor: "#EEF2FF",
-                borderRadius: 15,
-                justifyContent: "center",
-                minHeight: 48,
-                minWidth: 48,
-                paddingHorizontal: 10,
-              }}
-            >
-              <Text
-                style={{
-                  color: "#7567D9",
-                  fontSize: 16,
-                  fontWeight: "900",
-                }}
-              >
-                {profiles.length}
-              </Text>
+          router.push(
+            buddyServicesCommercialRoute(actionsProfile.id),
+          );
+        }}
+        onViewPublic={() => {
+          if (!actionsProfile) {
+            return;
+          }
 
-              <Text
-                style={{
-                  color: "#6C7892",
-                  fontSize: 10,
-                  fontWeight: "800",
-                  marginTop: 1,
-                }}
-              >
-                {profiles.length === 1 ? "negocio" : "negocios"}
-              </Text>
-            </View>
-          </View>
-
-          {profiles.length === 0 ? (
-            <View
-              style={{
-                paddingTop: 14,
-              }}
-            >
-              <OwnedCommercialProfilesState kind="empty" />
-
-              <TouchableOpacity
-                accessibilityHint="Abre el formulario para crear un negocio"
-                accessibilityLabel="Crear un negocio"
-                accessibilityRole="button"
-                activeOpacity={0.82}
-                onPress={() => {
-                  router.push(buddyServicesCreateBusinessRoute());
-                }}
-                style={{
-                  alignItems: "center",
-                  backgroundColor: "#EEF2FF",
-                  borderColor: "#D7DFF2",
-                  borderRadius: 20,
-                  borderStyle: "dashed",
-                  borderWidth: 1.5,
-                  flexDirection: "row",
-                  justifyContent: "center",
-                  marginTop: 28,
-                  minHeight: 74,
-                  paddingHorizontal: 18,
-                }}
-              >
-                <View
-                  style={{
-                    alignItems: "center",
-                    backgroundColor: "#7567D9",
-                    borderRadius: 13,
-                    height: 38,
-                    justifyContent: "center",
-                    width: 38,
-                  }}
-                >
-                  <Plus color="#FFFFFF" size={20} />
-                </View>
-
-                <View
-                  style={{
-                    marginLeft: 11,
-                  }}
-                >
-                  <Text
-                    style={{
-                      color: "#5F52C5",
-                      fontSize: 14,
-                      fontWeight: "900",
-                    }}
-                  >
-                    Crear negocio
-                  </Text>
-
-                  <Text
-                    style={{
-                      color: "#6C7892",
-                      fontSize: 11,
-                      marginTop: 2,
-                    }}
-                  >
-                    Empieza a vender con Buddy Services
-                  </Text>
-                </View>
-              </TouchableOpacity>
-            </View>
-          ) : (
-            <View
-              style={{
-                gap: 16,
-                marginTop: 22,
-              }}
-            >
-              {profiles.map((profile) => (
-                <OwnedCommercialProfileGridCard
-                  isUpdating={updatingProfileId === profile.id}
-                  key={profile.id}
-                  onEdit={() => {
-                    router.push(buddyServicesManageProfileRoute(profile.id));
-                  }}
-                  onPress={() => {
-                    router.push(buddyServicesCommercialRoute(profile.id));
-                  }}
-                  onTogglePublication={() => {
-                    openPublicationModal(profile);
-                  }}
-                  onView={() => {
-                    router.push(buddyServicesPublicProfileRoute(profile.id));
-                  }}
-                  profile={profile}
-                />
-              ))}
-
-              <TouchableOpacity
-                accessibilityHint="Abre el formulario para crear un negocio"
-                accessibilityLabel="Crear un negocio"
-                accessibilityRole="button"
-                activeOpacity={0.82}
-                onPress={() => {
-                  router.push(buddyServicesCreateBusinessRoute());
-                }}
-                style={{
-                  alignItems: "center",
-                  backgroundColor: "#EEF2FF",
-                  borderColor: "#D7DFF2",
-                  borderRadius: 24,
-                  borderStyle: "dashed",
-                  borderWidth: 1.5,
-                  flexDirection: "row",
-                  justifyContent: "flex-start",
-                  minHeight: 112,
-                  paddingHorizontal: 18,
-                  width: "100%",
-                }}
-              >
-                <View
-                  style={{
-                    alignItems: "center",
-                    backgroundColor: "#7567D9",
-                    borderRadius: 16,
-                    height: 54,
-                    justifyContent: "center",
-                    width: 54,
-                  }}
-                >
-                  <Plus color="#FFFFFF" size={23} />
-                </View>
-
-                <View
-                  style={{
-                    flex: 1,
-                    marginLeft: 14,
-                  }}
-                >
-                  <Text
-                    style={{
-                      color: "#26314D",
-                      fontSize: 17,
-                      fontWeight: "900",
-                    }}
-                  >
-                    Crear negocio
-                  </Text>
-
-                  <Text
-                    style={{
-                      color: "#6C7892",
-                      fontSize: 13,
-                      lineHeight: 19,
-                      marginTop: 4,
-                    }}
-                  >
-                    Agrega otro espacio para vender, prestar servicios o compartir tu proyecto.
-                  </Text>
-                </View>
-              </TouchableOpacity>
-            </View>
-          )}
-        </ScrollView>
-      )}
+          router.push(
+            buddyServicesPublicProfileRoute(actionsProfile.id),
+          );
+        }}
+        visible={Boolean(actionsProfile)}
+      />
 
       <Modal
         animationType="fade"
@@ -733,3 +668,88 @@ export default function BuddyServicesMyBusinessesScreen() {
     </ScreenSafeArea>
   );
 }
+
+const styles = StyleSheet.create({
+  sectionHeader: {
+    alignItems: "center",
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginBottom: 4,
+  },
+  countBadge: {
+    alignItems: "center",
+    backgroundColor: v.countBadgeBg,
+    borderColor: v.countBadgeBorder,
+    borderRadius: 999,
+    borderWidth: 1,
+    flexDirection: "row",
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+  },
+  countBadgeText: {
+    color: v.countBadgeText,
+    fontSize: 13,
+    fontWeight: "800",
+  },
+  profileList: {
+    gap: 11,
+    marginBottom: 14,
+  },
+  createCard: {
+    alignItems: "center",
+    alignSelf: "stretch",
+    backgroundColor: v.createCardBg,
+    borderColor: v.createCardBorder,
+    borderRadius: 17,
+    borderWidth: 1,
+    flexDirection: "row",
+    paddingBottom: 11,
+    paddingLeft: 11,
+    paddingRight: 14,
+    paddingTop: 11,
+    shadowColor: "#5F52C5",
+    shadowOffset: {
+      height: 4,
+      width: 0,
+    },
+    shadowOpacity: 0.08,
+    shadowRadius: 10,
+    elevation: 2,
+  },
+  createIconWrap: {
+    alignItems: "center",
+    backgroundColor: v.createPlusBg,
+    borderRadius: 12,
+    height: 37,
+    justifyContent: "center",
+    width: 37,
+  },
+  createTextColumn: {
+    flex: 1,
+    marginLeft: 10,
+  },
+  createTitle: {
+    color: "#26314D",
+    fontSize: 13,
+    fontWeight: "800",
+    lineHeight: 17,
+  },
+  createHint: {
+    color: v.subtitle,
+    fontSize: 11,
+    lineHeight: 15,
+    marginTop: 1,
+  },
+  createChevron: {
+    alignItems: "center",
+    backgroundColor: "#F4EAFE",
+    borderColor: v.secondaryBtnBorder,
+    borderRadius: 999,
+    borderWidth: 1,
+    height: 32,
+    justifyContent: "center",
+    marginLeft: 8,
+    width: 32,
+  },
+});

@@ -1,8 +1,8 @@
 import {
   ActivityIndicator,
+  Pressable,
   StyleSheet,
   Text,
-  TouchableOpacity,
   View,
 } from 'react-native';
 import {
@@ -38,16 +38,41 @@ export default function BiometricButton({
     ? 'Toca para desbloquear con Face ID'
     : 'Toca para desbloquear con tu huella';
 
+  const label = loading
+    ? 'Verificando identidad...'
+    : title ?? defaultTitle;
+
   return (
-    <View style={styles.container}>
-      <TouchableOpacity
+    <Pressable
+      accessibilityHint="Abre el lector biométrico del teléfono"
+      accessibilityLabel={label}
+      accessibilityRole="button"
+      accessibilityState={{
+        busy: loading,
+        disabled: loading,
+      }}
+      disabled={loading}
+      hitSlop={12}
+      android_ripple={
+        loading
+          ? undefined
+          : {
+              borderless: true,
+              color: `${colors.brand.primary}22`,
+              radius: 52,
+            }
+      }
+      onPress={onPress}
+      style={({ pressed }) => [
+        styles.container,
+        pressed && !loading && styles.containerPressed,
+      ]}
+    >
+      <View
         style={[
           styles.button,
           loading && styles.buttonLoading,
         ]}
-        onPress={onPress}
-        activeOpacity={0.8}
-        disabled={loading}
       >
         {loading ? (
           <ActivityIndicator
@@ -60,22 +85,26 @@ export default function BiometricButton({
             color={colors.brand.primary}
           />
         )}
-      </TouchableOpacity>
+      </View>
 
       <Text style={styles.title}>
-        {loading
-          ? 'Verificando identidad...'
-          : title ?? defaultTitle}
+        {label}
       </Text>
-    </View>
+    </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     alignItems: 'center',
+    backgroundColor: 'transparent',
     justifyContent: 'center',
-    padding: 16,
+    marginTop: 20,
+    paddingHorizontal: 8,
+    paddingVertical: 8,
+  },
+  containerPressed: {
+    opacity: 0.88,
   },
   button: {
     alignItems: 'center',

@@ -18,7 +18,9 @@ import type {
     GetNoteTagsResponse,
     GetNoteTemplatesResponse,
     GetNotesResponse,
+    GetNoteOutgoingSharesResponse,
     GetReceivedNoteSharesResponse,
+    GetSentNoteSharesResponse,
     GetSharedNoteResponse,
     MoveNoteFolderPayload,
     NoteFoldersQuery,
@@ -37,6 +39,7 @@ import type {
     UploadNoteAttachmentsResponse,
     } from '@beeapp/shared-types';
     import { api } from './client';
+    import { LIST_CACHE_TTL } from './requestCache';
 
 const WEB_OPTIONS = {
     credentials: 'include' as RequestCredentials,
@@ -78,7 +81,10 @@ export function getNotes(
     auth: AuthCredentials,
     query: NotesQuery = {},
     ): Promise<GetNotesResponse> {
-    return api.get<GetNotesResponse>(`/notes/${buildQuery(query)}`, { auth });
+    return api.get<GetNotesResponse>(`/notes/${buildQuery(query)}`, {
+        auth,
+        cache: { ttlMs: LIST_CACHE_TTL.standard },
+    });
 }
 
 export function getNote(
@@ -134,7 +140,10 @@ export function getNoteFolders(
     ): Promise<GetNoteFoldersResponse> {
     return api.get<GetNoteFoldersResponse>(
         `/notes/folders/${buildQuery(query)}`,
-        { auth },
+        {
+            auth,
+            cache: { ttlMs: LIST_CACHE_TTL.standard },
+        },
     );
 }
 
@@ -177,7 +186,10 @@ export async function deleteNoteFolder(
 export function getNoteTags(
     auth: AuthCredentials,
     ): Promise<GetNoteTagsResponse> {
-    return api.get<GetNoteTagsResponse>('/notes/tags/', { auth });
+    return api.get<GetNoteTagsResponse>('/notes/tags/', {
+        auth,
+        cache: { ttlMs: LIST_CACHE_TTL.standard },
+    });
 }
 
 export function createNoteTag(
@@ -227,7 +239,10 @@ export function getNoteTemplates(
         `/notes/templates/${buildQuery({
         include_inactive: includeInactive,
         })}`,
-        { auth },
+        {
+            auth,
+            cache: { ttlMs: LIST_CACHE_TTL.standard },
+        },
     );
 }
 
@@ -328,6 +343,33 @@ export function getReceivedNoteShares(
     ): Promise<GetReceivedNoteSharesResponse> {
     return api.get<GetReceivedNoteSharesResponse>(
         `/notes/shares/received/${buildQuery(query)}`,
+        {
+            auth,
+            cache: { ttlMs: LIST_CACHE_TTL.standard },
+        },
+    );
+}
+
+export function getSentNoteShares(
+    auth: AuthCredentials,
+    query: ReceivedNoteSharesQuery = {},
+    ): Promise<GetSentNoteSharesResponse> {
+    return api.get<GetSentNoteSharesResponse>(
+        `/notes/shares/sent/${buildQuery(query)}`,
+        {
+            auth,
+            cache: { ttlMs: LIST_CACHE_TTL.standard },
+        },
+    );
+}
+
+export function getNoteOutgoingShares(
+    auth: AuthCredentials,
+    noteId: string,
+    query: ReceivedNoteSharesQuery = {},
+    ): Promise<GetNoteOutgoingSharesResponse> {
+    return api.get<GetNoteOutgoingSharesResponse>(
+        `${notePath(noteId)}shares/${buildQuery(query)}`,
         { auth },
     );
 }
@@ -636,6 +678,21 @@ export function revokeCurrentWebNoteShare(
         `/notes/shares/${encodeURIComponent(shareId)}/revoke/`,
         undefined,
         WEB_OPTIONS,
+    );
+}
+
+export function listNoteShareRecipientSuggestions(
+    auth: AuthCredentials,
+    limit = 8,
+    ): Promise<GetNoteShareRecipientsResponse> {
+    const searchParams = new URLSearchParams({
+        q: '',
+        limit: String(limit),
+    });
+
+    return api.get<GetNoteShareRecipientsResponse>(
+        `/notes/share-recipients/?${searchParams.toString()}`,
+        { auth },
     );
 }
 

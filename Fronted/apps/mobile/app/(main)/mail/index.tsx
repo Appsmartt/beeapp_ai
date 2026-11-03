@@ -1,6 +1,5 @@
 import {
   ActivityIndicator,
-  Alert,
   Animated,
   AppState,
   RefreshControl,
@@ -10,6 +9,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { appAlert } from '../../../src/components/feedback/appAlert';
 import {
   useCallback,
   useEffect,
@@ -37,6 +37,10 @@ import ScreenSafeArea from '../../../src/components/layout/ScreenSafeArea';
 import {
   useModuleNav,
 } from '../../../src/components/embedded/EmbeddedNavContext';
+import {
+  homeSearchEmptyCopy,
+  useHomeModuleSearch,
+} from '../../../src/components/home/HomeSearchContext';
 import FloatingTabBar from '../../../src/components/FloatingTabBar';
 import MailHeader, {
   type MailAccountFilter,
@@ -235,6 +239,7 @@ function getEmptyStateCopy(
 
 export default function MailInboxScreen() {
   const router = useModuleNav();
+  const homeSearch = useHomeModuleSearch('correo');
 
   const [
     activeAccount,
@@ -277,6 +282,7 @@ export default function MailInboxScreen() {
     messages,
     pagination,
     loading,
+    hasCompletedInitialLoad,
     loadingMore,
     syncing,
     updatingMessageId,
@@ -294,6 +300,23 @@ export default function MailInboxScreen() {
     accountFilter: activeAccount,
     folder: activeFolder,
   });
+
+  const visibleMessages = useMemo(() => {
+    if (!homeSearch.hasActiveQuery) {
+      return messages;
+    }
+
+    return messages.filter((message) =>
+      homeSearch.matchesQuery(
+        message.subject,
+        message.senderName,
+        message.bodyPreview,
+      ),
+    );
+  }, [
+    homeSearch,
+    messages,
+  ]);
 
   const accountOptions = useMemo<MailAccountOption[]>(
     () => integrations.map((integration) => ({
@@ -525,7 +548,7 @@ export default function MailInboxScreen() {
     }
 
     if (!hasActiveIntegrations) {
-      Alert.alert(
+      appAlert(
         'Revisa tus cuentas de correo',
         (
           'No hay cuentas listas para sincronizar. '
@@ -596,7 +619,7 @@ export default function MailInboxScreen() {
         await toggleMessageStar(messageId);
         setSwipeActiveId(null);
       } catch (updateError) {
-        Alert.alert(
+        appAlert(
           'No fue posible actualizar',
           getErrorMessage(updateError),
         );
@@ -614,7 +637,7 @@ export default function MailInboxScreen() {
         await toggleMessageRead(messageId);
         setSwipeActiveId(null);
       } catch (updateError) {
-        Alert.alert(
+        appAlert(
           'No fue posible actualizar',
           getErrorMessage(updateError),
         );
@@ -632,7 +655,7 @@ export default function MailInboxScreen() {
         await archiveMessage(messageId);
         setSwipeActiveId(null);
       } catch (archiveError) {
-        Alert.alert(
+        appAlert(
           'No fue posible archivar',
           getErrorMessage(archiveError),
         );
@@ -645,7 +668,7 @@ export default function MailInboxScreen() {
   const handleTrash = useCallback((
     messageId: string,
   ) => {
-    Alert.alert(
+    appAlert(
       'Mover a la papelera',
       (
         'El correo se moverá a la papelera de tu cuenta '
@@ -665,7 +688,7 @@ export default function MailInboxScreen() {
                 await trashMessage(messageId);
                 setSwipeActiveId(null);
               } catch (trashError) {
-                Alert.alert(
+                appAlert(
                   'No fue posible mover el correo',
                   getErrorMessage(trashError),
                 );
@@ -679,34 +702,53 @@ export default function MailInboxScreen() {
     trashMessage,
   ]);
 
-  const emptyState = getEmptyStateCopy(
+  const folderEmptyState = getEmptyStateCopy(
     activeFolder,
     activeAccount,
   );
+  const searchEmptyState = homeSearchEmptyCopy(
+    homeSearch.query,
+  );
+  const emptyState = homeSearch.hasActiveQuery
+    ? {
+      title: searchEmptyState.title,
+      description: searchEmptyState.description,
+    }
+    : folderEmptyState;
+
+  const showLoadingState = (
+    loading
+    || (
+      !hasCompletedInitialLoad
+      && integrations.length === 0
+    )
+  );
 
   const showNoConnectionState = (
-    !loading
+    hasCompletedInitialLoad
+    && !showLoadingState
     && integrations.length === 0
+    && messages.length === 0
   );
 
   const showNoActiveIntegrationState = (
-    !loading
+    !showLoadingState
     && integrations.length > 0
     && !hasActiveIntegrations
   );
 
   const showSelectedIntegrationAttentionState = (
-    !loading
+    !showLoadingState
     && !showNoActiveIntegrationState
     && selectedIntegrationNeedsAttention
   );
 
   const showEmptyMessagesState = (
-    !loading
+    !showLoadingState
     && !showNoConnectionState
     && !showNoActiveIntegrationState
     && !showSelectedIntegrationAttentionState
-    && messages.length === 0
+    && visibleMessages.length === 0
   );
 
   const feedbackColor = syncFeedback?.kind === 'success'
@@ -837,7 +879,7 @@ export default function MailInboxScreen() {
           </Animated.View>
         ) : null}
 
-        {loading ? (
+        {showLoadingState ? (
           <View style={styles.loadingContainer}>
             <ActivityIndicator
               size="large"
@@ -990,7 +1032,7 @@ export default function MailInboxScreen() {
               {emptyState.description}
             </Text>
 
-            {hasActiveIntegrations ? (
+            {hasActiveIntegrations && !homeSearch.hasActiveQuery ? (
               <TouchableOpacity
                 style={styles.refreshEmptyButton}
                 onPress={handleSync}
@@ -1077,7 +1119,7 @@ export default function MailInboxScreen() {
               </View>
             ) : null}
 
-            {messages.map((item) => {
+            {visibleMessages.map((item) => {
               const isSwipeActive = (
                 swipeActiveId === item.id
               );

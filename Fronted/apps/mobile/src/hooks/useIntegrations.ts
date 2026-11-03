@@ -19,6 +19,12 @@ import type {
 import {
     getValidSessionCredentials,
     } from '../services/authSession';
+import {
+    notifyConnectedAccountsSynced,
+    } from '../services/connectedAccountSync';
+import {
+    markMailInboxesNeedReload,
+    } from '../stores/mailStore';
 
 export interface UseIntegrationsResult {
     connections: IntegrationConnection[];
@@ -27,7 +33,7 @@ export interface UseIntegrationsResult {
     error: string | null;
     loadIntegrations: (
         showRefresh?: boolean,
-    ) => Promise<void>;
+    ) => Promise<IntegrationConnection[]>;
     startAuthorization: (
         provider: IntegrationProvider,
         capabilities?: IntegrationCapability[],
@@ -75,6 +81,8 @@ export function useIntegrations(): UseIntegrationsResult {
 
         setError(null);
 
+        let loaded: IntegrationConnection[] = [];
+
         try {
         const auth = await getAuthCredentials();
 
@@ -82,7 +90,8 @@ export function useIntegrations(): UseIntegrationsResult {
             auth,
         );
 
-        setConnections(response.connections);
+        loaded = response.connections;
+        setConnections(loaded);
         } catch (loadError) {
         setError(
             loadError instanceof Error
@@ -93,6 +102,8 @@ export function useIntegrations(): UseIntegrationsResult {
         setLoading(false);
         setRefreshing(false);
         }
+
+        return loaded;
     }, []);
 
     useEffect(() => {
@@ -114,13 +125,18 @@ export function useIntegrations(): UseIntegrationsResult {
         auth,
         );
 
-        if (response.browser_start_path.length === 0) {
+        const authorizationTarget = (
+            response.authorization_url?.trim()
+            || response.browser_start_path?.trim()
+        );
+
+        if (!authorizationTarget) {
         throw new Error(
-            'No fue posible iniciar el navegador seguro.',
+            'No fue posible iniciar la autorización OAuth.',
         );
         }
 
-        return response.browser_start_path;
+        return authorizationTarget;
     }, []);
 
     const reauthorize = useCallback(async (
@@ -136,13 +152,18 @@ export function useIntegrations(): UseIntegrationsResult {
             auth,
         );
 
-        if (response.browser_start_path.length === 0) {
+        const authorizationTarget = (
+            response.authorization_url?.trim()
+            || response.browser_start_path?.trim()
+        );
+
+        if (!authorizationTarget) {
         throw new Error(
-            'No fue posible iniciar el navegador seguro.',
+            'No fue posible iniciar la autorización OAuth.',
         );
         }
 
-        return response.browser_start_path;
+        return authorizationTarget;
     }, []);
 
     const disconnect = useCallback(async (
@@ -155,6 +176,8 @@ export function useIntegrations(): UseIntegrationsResult {
         auth,
         );
 
+        markMailInboxesNeedReload();
+        notifyConnectedAccountsSynced();
         await loadIntegrations(true);
     }, [loadIntegrations]);
 
@@ -168,6 +191,8 @@ export function useIntegrations(): UseIntegrationsResult {
         auth,
         );
 
+        markMailInboxesNeedReload();
+        notifyConnectedAccountsSynced();
         await loadIntegrations(true);
     }, [loadIntegrations]);
 

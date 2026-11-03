@@ -1,17 +1,17 @@
 import {
-    useCallback,
-    useMemo,
-} from 'react';
+  useCallback,
+  useMemo,
+  } from 'react';
 import {
     ActivityIndicator,
-    Alert,
-    RefreshControl,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native';
+import { appAlert } from '../../../src/components/feedback/appAlert';
 import {
     AlertTriangle,
     ChevronLeft,
@@ -302,7 +302,7 @@ export default function ExternalMailScreen() {
         integration: MailIntegration,
     ) => {
         if (!integration.can_sync) {
-            Alert.alert(
+            appAlert(
                 'Sincronización no disponible',
                 (
                     integration.status_reason
@@ -320,7 +320,7 @@ export default function ExternalMailScreen() {
             integration.provider,
         );
 
-        Alert.alert(
+        appAlert(
             `Sincronizar ${provider.name}`,
             (
                 'Buddy consultará los correos recientes de esta '
@@ -340,12 +340,12 @@ export default function ExternalMailScreen() {
                                     integration.id,
                                 );
 
-                                Alert.alert(
+                                appAlert(
                                     'Sincronización completada',
                                     getSyncAlertMessage(result),
                                 );
                             } catch (syncError) {
-                                Alert.alert(
+                                appAlert(
                                     'No fue posible sincronizar',
                                     getErrorMessage(syncError),
                                 );

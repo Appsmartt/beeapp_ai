@@ -6,6 +6,8 @@ import {
 import {
   AppState,
   type AppStateStatus,
+  Modal,
+  Platform,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -25,6 +27,7 @@ import AppLockPinPad from './AppLockPinPad';
 import BiometricButton from './BiometricButton';
 import {
   authenticateWithBiometrics,
+  getBiometricErrorMessage,
 } from '../../services/biometricService';
 import {
   getAuthSession,
@@ -70,6 +73,7 @@ export default function AppLockScreen() {
   const router = useRouter();
   const appState = useRef(AppState.currentState);
   const backgroundedAt = useRef<number | null>(null);
+  const lockSessionRef = useRef(0);
 
   const [locked, setLocked] = useState(false);
 
@@ -112,6 +116,9 @@ export default function AppLockScreen() {
       await getAppLockMethod();
 
     setMethod(configuredMethod);
+    if (shouldLock) {
+      lockSessionRef.current += 1;
+    }
     setLocked(shouldLock);
     setIsLoading(false);
   };
@@ -242,10 +249,12 @@ export default function AppLockScreen() {
         return;
       }
 
-      if (!result.cancelled) {
-        setFailureMessage(
-          'No fue posible verificar tu identidad. Inténtalo nuevamente.',
-        );
+      const biometricMessage = getBiometricErrorMessage(
+        result.error,
+      );
+
+      if (biometricMessage) {
+        setFailureMessage(biometricMessage);
       }
     } catch {
       setFailureMessage(
@@ -270,17 +279,31 @@ export default function AppLockScreen() {
     }
   };
 
-  if (isLoading || !locked || !method) {
-    return null;
-  }
-
   const biometricMethod =
     method === 'fingerprint' || method === 'faceid'
       ? method
       : null;
 
+  const visible = (
+    !isLoading
+    && locked
+    && method !== null
+  );
+
+  if (!visible) {
+    return null;
+  }
+
   return (
-    <View style={styles.overlay}>
+    <Modal
+      animationType="fade"
+      onRequestClose={() => {}}
+      statusBarTranslucent
+      transparent
+      visible
+    >
+      <View style={styles.overlay}>
+      {method ? (
       <View style={styles.card}>
         <View style={styles.logoContainer}>
           <BuddyLogo
@@ -348,35 +371,44 @@ export default function AppLockScreen() {
           </View>
         )}
       </View>
-    </View>
+      ) : null}
+      </View>
+    </Modal>
   );
 }
 
 const styles = StyleSheet.create({
   overlay: {
-    ...StyleSheet.absoluteFillObject,
     alignItems: 'center',
     backgroundColor: 'rgba(0, 0, 0, 0.85)',
+    flex: 1,
     justifyContent: 'center',
     padding: 24,
-    zIndex: 999,
   },
   card: {
     alignItems: 'center',
     backgroundColor: colors.neutral.white,
     borderRadius: 24,
-    elevation: 10,
     maxWidth: 360,
+    overflow: 'hidden',
     paddingHorizontal: 20,
     paddingVertical: 28,
-    shadowColor: '#000000',
-    shadowOffset: {
-      height: 10,
-      width: 0,
-    },
-    shadowOpacity: 0.25,
-    shadowRadius: 20,
     width: '100%',
+    ...Platform.select({
+      android: {
+        elevation: 0,
+      },
+      ios: {
+        elevation: 10,
+        shadowColor: '#000000',
+        shadowOffset: {
+          height: 10,
+          width: 0,
+        },
+        shadowOpacity: 0.25,
+        shadowRadius: 20,
+      },
+    }),
   },
   logoContainer: {
     marginBottom: 16,

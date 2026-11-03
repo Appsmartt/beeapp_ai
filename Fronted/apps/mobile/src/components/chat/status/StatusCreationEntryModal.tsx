@@ -1,6 +1,5 @@
 import {
   ActivityIndicator,
-  Alert,
   FlatList,
   Image,
   Modal,
@@ -9,6 +8,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { appAlert } from '../../feedback/appAlert';
 import {
   useEffect,
   useRef,
@@ -294,7 +294,7 @@ export default function StatusCreationEntryModal({
         durationSeconds: asset.duration / 1000,
       });
     } catch (selectionError) {
-      Alert.alert(
+      appAlert(
         'No fue posible abrir el archivo',
         selectionError instanceof Error
           ? selectionError.message

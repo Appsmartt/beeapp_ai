@@ -51,6 +51,9 @@ registerNativeUploader(
   },
 );
 
+import '../src/services/authBootstrap';
+import '../src/services/requestCacheSetup';
+import AppDialogHost from '../src/components/feedback/AppDialogHost';
 import AppLockScreen from '../src/components/security/AppLockScreen';
 import IncomingCallModal from '../src/components/chat/IncomingCallModal';
 import PrivateChatPresenceController from '../src/components/chat/PrivateChatPresenceController';
@@ -68,6 +71,8 @@ initializePushNotifications();
 import {
   clearAuthSession,
   getAuthSession,
+  getValidAuthSession,
+  recoverAuthSessionAfterUnauthorized,
   validateStoredAuthSession,
 } from '../src/services/authSession';
 import {
@@ -217,6 +222,7 @@ function SessionRevocationHandler() {
     resetUnauthorizedRequestNotification();
     handlingRef.current = false;
 
+    void getValidAuthSession();
     void validateSession();
 
     const appStateSubscription = AppState.addEventListener(
@@ -227,6 +233,7 @@ function SessionRevocationHandler() {
         appStateRef.current = nextAppState;
 
         if (!wasActive && nextAppState === 'active') {
+          void getValidAuthSession();
           void validateSession();
         }
       },
@@ -239,7 +246,27 @@ function SessionRevocationHandler() {
 
   useEffect(() => {
     return subscribeUnauthorizedRequest(() => {
-      closeRevokedSession();
+      void (async () => {
+        if (handlingRef.current) {
+          return;
+        }
+
+        const recovered = await recoverAuthSessionAfterUnauthorized();
+
+        if (recovered) {
+          resetUnauthorizedRequestNotification();
+          return;
+        }
+
+        const result = await validateStoredAuthSession();
+
+        if (result === 'revoked') {
+          closeRevokedSession();
+          return;
+        }
+
+        resetUnauthorizedRequestNotification();
+      })();
     });
   }, [closeRevokedSession]);
 
@@ -596,6 +623,7 @@ export default function RootLayout() {
         />
 
         <AppLockScreen />
+        <AppDialogHost />
       </SafeAreaProvider>
     </GestureHandlerRootView>
   );

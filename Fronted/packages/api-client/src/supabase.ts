@@ -18,7 +18,29 @@ const supabaseAnonKey = (
 
 const memory = new Map<string, string>();
 
-function getAuthStorage() {
+type AuthStorageAdapter = {
+    getItem: (key: string) => Promise<string | null> | string | null;
+    setItem: (key: string, value: string) => Promise<void> | void;
+    removeItem: (key: string) => Promise<void> | void;
+};
+
+let configuredAuthStorage: AuthStorageAdapter | null = null;
+
+export function configureSupabaseAuthStorage(
+    storage: AuthStorageAdapter,
+): void {
+    configuredAuthStorage = storage;
+
+    if (client) {
+        client = null;
+    }
+}
+
+function getAuthStorage(): AuthStorageAdapter {
+    if (configuredAuthStorage) {
+        return configuredAuthStorage;
+    }
+
     if (typeof localStorage !== 'undefined') {
         return localStorage;
     }
@@ -72,8 +94,24 @@ export async function adoptSupabaseSession(session: {
 
     const supabase = getSupabase();
     const current = await supabase.auth.getSession();
+    const stored = current.data.session;
 
-    if (current.data.session?.access_token === session.access_token) {
+    // El cliente de Supabase rota el refresh token por su cuenta. Si la
+    // sesión guardada por la app trae uno anterior, setSession lo reenvía y
+    // Supabase lo rechaza como ya usado, borrando la sesión local.
+    if (
+        stored?.refresh_token
+        && stored.refresh_token !== session.refresh_token
+        && stored.expires_at
+        && stored.expires_at * 1000 > Date.now() + 60_000
+    ) {
+        return;
+    }
+
+    if (
+        stored?.access_token === session.access_token
+        && stored.refresh_token === session.refresh_token
+    ) {
         return;
     }
 
@@ -81,6 +119,27 @@ export async function adoptSupabaseSession(session: {
         access_token: session.access_token,
         refresh_token: session.refresh_token,
     });
+}
+
+/**
+ * Sesión vigente del cliente de Supabase, que rota sus tokens aunque la
+ * app no lo pida. Sirve para no reutilizar un refresh token ya gastado.
+ */
+export async function readLiveSupabaseSession(): Promise<{
+    access_token: string;
+    refresh_token: string;
+    expires_at: number | null;
+    expires_in: number | null;
+    token_type: string;
+} | null> {
+    const current = await getSupabase().auth.getSession();
+    const stored = current.data.session;
+
+    if (!stored?.access_token || !stored.refresh_token) {
+        return null;
+    }
+
+    return mapAuthSession(stored);
 }
 
 export async function signOutSupabase(): Promise<void> {

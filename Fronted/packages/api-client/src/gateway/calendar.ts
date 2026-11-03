@@ -9,6 +9,10 @@ import {
     searchProfiles,
     unwrap,
     } from './runtime';
+import {
+    handleCalendarIntegrations,
+    integrationById,
+} from './mail';
 
 const UUID = '[0-9a-f-]{36}';
 
@@ -171,6 +175,69 @@ async function ensureDefaultCalendar(
     return [created as Json];
 }
 
+function quoteFilter(value: string): string {
+    return `"${value.replace(/"/g, '')}"`;
+}
+
+async function recentlyDeletedExternalIds(
+    supabase: Awaited<ReturnType<typeof requireClient>>['supabase'],
+    userId: string,
+): Promise<Set<string>> {
+    const rows = (unwrap(await supabase
+        .from('integrations')
+        .select('sync_state')
+        .eq('user_id', userId)) ?? []) as Json[];
+    const hidden = new Set<string>();
+    const cutoff = Date.now() - 15 * 60 * 1000;
+
+    rows.forEach((row) => {
+        const deleted = asJson(asJson(row.sync_state).deleted_external_ids);
+        Object.entries(deleted).forEach(([externalId, deletedAt]) => {
+            const time = new Date(String(deletedAt)).getTime();
+            if (time >= cutoff) {
+                hidden.add(externalId);
+            }
+        });
+    });
+
+    return hidden;
+}
+
+async function loadVisibleEvents(
+    supabase: Awaited<ReturnType<typeof requireClient>>['supabase'],
+    userId: string,
+    calendarIds: string[],
+    query: URLSearchParams,
+): Promise<Json[]> {
+    if (!calendarIds.length) return [];
+
+    let request = supabase
+        .from('events')
+        .select('*')
+        .in('calendar_id', calendarIds);
+    const start = query.get('range_start');
+    const end = query.get('range_end');
+
+    if (start && end) {
+        const startDate = start.slice(0, 10);
+        const endDate = end.slice(0, 10);
+        request = request.or([
+            `and(starts_at.lt.${quoteFilter(end)},ends_at.gt.${quoteFilter(start)})`,
+            `and(starts_at.gte.${quoteFilter(start)},starts_at.lt.${quoteFilter(end)})`,
+            `and(starts_on.lt.${endDate},ends_on.gt.${startDate})`,
+            `and(starts_on.gte.${startDate},starts_on.lt.${endDate})`,
+        ].join(','));
+    }
+
+    const hidden = await recentlyDeletedExternalIds(supabase, userId);
+
+    return ((unwrap(await request
+        .order('starts_at', { ascending: true })
+        .limit(Number(query.get('limit') || 500))) ?? []) as Json[])
+        .filter((event) => !hidden.has(String(event.external_id || '')))
+        .filter((event) => overlaps(event, query));
+}
+
 function overlaps(event: Json, query: URLSearchParams): boolean {
     const start = query.get('range_start');
     const end = query.get('range_end');
@@ -207,16 +274,8 @@ export async function handleCalendar(
             ),
             ...asJson(settings.calendar),
         };
-        const events = calendarIds.length
-            ? ((unwrap(await supabase
-                .from('events')
-                .select('*')
-                .in('calendar_id', calendarIds)
-                .order('starts_at', { ascending: true })
-                .limit(Number(query.get('limit') || 200))) ?? []) as Json[])
-                .filter((event) => overlaps(event, query))
-                .map((event) => mapEvent(event, userId))
-            : [];
+        const events = (await loadVisibleEvents(supabase, userId, calendarIds, query))
+            .map((event) => mapEvent(event, userId));
         const tags: Json[] = [];
         const seen = new Set<string>();
         for (const event of events) {
@@ -260,28 +319,20 @@ export async function handleCalendar(
     }
 
     if (method === 'GET' && path === '/calendar/events/') {
-        const events = calendarIds.length
-            ? ((unwrap(await supabase
-                .from('events')
-                .select('*')
-                .in('calendar_id', calendarIds)
-                .order('starts_at', { ascending: true })
-                .limit(Number(query.get('limit') || 200))) ?? []) as Json[])
-                .filter((event) => overlaps(event, query))
-                .filter((event) => (
-                    query.get('search')
-                        ? String(event.title || '').toLowerCase().includes(
-                            String(query.get('search')).toLowerCase(),
-                        )
-                        : true
-                ))
-                .map((event) => mapEvent(event, userId))
-            : [];
+        const events = (await loadVisibleEvents(supabase, userId, calendarIds, query))
+            .filter((event) => (
+                query.get('search')
+                    ? String(event.title || '').toLowerCase().includes(
+                        String(query.get('search')).toLowerCase(),
+                    )
+                    : true
+            ))
+            .map((event) => mapEvent(event, userId));
         return { events, count: events.length };
     }
 
     if (method === 'POST' && path === '/calendar/events/') {
-        const event = mapEvent(unwrap(await supabase
+        const row = unwrap(await supabase
             .from('events')
             .insert({
                 organizer_id: userId,
@@ -291,8 +342,30 @@ export async function handleCalendar(
                 ...eventWrite(payload, userId),
             })
             .select('*')
-            .single()) as Json, userId);
-        return { event };
+            .single()) as Json;
+        const calendar = calendarById(calendars, row.calendar_id);
+        if (calendar?.integration_id) {
+            try {
+                await invokeCalendarEventAction(
+                    supabase,
+                    'push',
+                    String(row.id),
+                );
+            } catch (error) {
+                await supabase
+                    .from('events')
+                    .delete()
+                    .eq('id', row.id);
+                throw error;
+            }
+            const refreshed = unwrap(await supabase
+                .from('events')
+                .select('*')
+                .eq('id', row.id)
+                .single()) as Json;
+            return { event: mapEvent(refreshed, userId) };
+        }
+        return { event: mapEvent(row, userId) };
     }
 
     if (method === 'GET' && path === '/calendar/users/search/') {
@@ -335,13 +408,11 @@ export async function handleCalendar(
     }
 
     if (method === 'GET' && path === '/calendar/integrations/') {
-        const { handleCalendarIntegrations } = await import('./mail');
         return handleCalendarIntegrations(supabase, userId);
     }
 
     const integration = path.match(new RegExp(`^/calendar/integrations/(${UUID})/$`, 'i'));
     if (integration && method === 'GET') {
-        const { integrationById } = await import('./mail');
         return { integration: await integrationById(supabase, userId, integration[1], 'calendar') };
     }
 
@@ -470,20 +541,48 @@ export async function handleCalendar(
         if (write.metadata) {
             write.metadata = { ...asJson(current.metadata), ...asJson(write.metadata) };
         }
-        const event = mapEvent(unwrap(await supabase
+        const row = unwrap(await supabase
             .from('events')
             .update(write)
             .eq('id', eventMatch[1])
             .select('*')
-            .single()) as Json, userId);
-        return { event };
+            .single()) as Json;
+        const calendar = calendarById(calendars, row.calendar_id);
+        if (calendar?.integration_id && row.external_id) {
+            await invokeCalendarEventAction(
+                supabase,
+                'push',
+                String(row.id),
+            );
+        }
+        return { event: mapEvent(row, userId) };
     }
 
     if (eventMatch && method === 'DELETE') {
-        unwrap(await supabase
+        const current = unwrap(await supabase
             .from('events')
-            .delete()
-            .eq('id', eventMatch[1]));
+            .select('id, calendar_id, external_id')
+            .eq('id', eventMatch[1])
+            .single()) as Json;
+        const calendar = calendarById(calendars, current.calendar_id);
+        if (calendar?.integration_id && current.external_id) {
+            await invokeCalendarEventAction(
+                supabase,
+                'remove',
+                String(current.id),
+            );
+        }
+        const removal = current.external_id
+            ? supabase
+                .from('events')
+                .delete()
+                .eq('calendar_id', current.calendar_id)
+                .eq('external_id', current.external_id)
+            : supabase
+                .from('events')
+                .delete()
+                .eq('id', eventMatch[1]);
+        unwrap(await removal);
         return undefined;
     }
 
@@ -520,6 +619,28 @@ function mapExternal(row: Json): Json {
     };
 }
 
+async function invokeCalendarEventAction(
+    supabase: Awaited<ReturnType<typeof requireClient>>['supabase'],
+    action: 'push' | 'remove',
+    eventId: string,
+): Promise<void> {
+    const invoked = await supabase.functions.invoke('calendar-sync', {
+        body: { action, event_id: eventId },
+    });
+    const data = asJson(invoked.data);
+    const message = data.message || invoked.error?.message || null;
+    if (message) {
+        throw new GatewayError(String(message));
+    }
+}
+
+function calendarById(
+    calendars: Json[],
+    calendarId: unknown,
+): Json | undefined {
+    return calendars.find((item) => String(item.id) === String(calendarId));
+}
+
 async function invokeCalendarSync(
     supabase: Awaited<ReturnType<typeof requireClient>>['supabase'],
     integrationId: string,
@@ -534,6 +655,10 @@ async function invokeCalendarSync(
         body: { action, integration_id: integrationId },
     });
     const data = asJson(invoked.data);
+    const syncMessage = data.message || invoked.error?.message || null;
+    if (syncMessage) {
+        throw new GatewayError(String(syncMessage));
+    }
     const rows = (unwrap(await supabase
         .from('calendars')
         .select('*')
@@ -550,7 +675,6 @@ async function invokeCalendarSync(
         };
     }
 
-    const { integrationById } = await import('./mail');
     return {
         integration_id: integrationId,
         provider: row.provider,

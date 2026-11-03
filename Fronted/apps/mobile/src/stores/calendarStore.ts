@@ -3,6 +3,8 @@ import type {
   CalendarPreferences,
 } from '@beeapp/shared-types';
 
+import { createModuleSnapshot } from '../services/moduleSnapshot';
+
 
 export type CalendarEventType =
   | 'meeting'
@@ -128,6 +130,33 @@ let cache: CalendarCache = {
   rangeEnd: null,
 };
 
+const calendarSnapshot = createModuleSnapshot<CalendarCache>(
+  'calendar',
+);
+
+const calendarStoreListeners = new Set<() => void>();
+
+export function subscribeCalendarStore(
+  listener: () => void,
+): () => void {
+  calendarStoreListeners.add(listener);
+
+  return () => {
+    calendarStoreListeners.delete(listener);
+  };
+}
+
+function notifyCalendarStore(): void {
+  calendarStoreListeners.forEach((listener) => {
+    listener();
+  });
+}
+
+function persistCalendar(): void {
+  calendarSnapshot.schedule(cache);
+  notifyCalendarStore();
+}
+
 
 export function getCalendarEvents(): CalendarEvent[] {
   return cache.events;
@@ -141,6 +170,7 @@ export function setCalendarEvents(
     ...cache,
     events,
   };
+  persistCalendar();
 }
 
 
@@ -153,6 +183,7 @@ export function setCalendarCache(
   nextCache: CalendarCache,
 ): void {
   cache = nextCache;
+  persistCalendar();
 }
 
 
@@ -181,6 +212,7 @@ export function upsertCalendarEvent(
       ],
     };
 
+    persistCalendar();
     return;
   }
 
@@ -192,6 +224,7 @@ export function upsertCalendarEvent(
         : event,
     ),
   };
+  persistCalendar();
 }
 
 
@@ -204,6 +237,39 @@ export function removeCalendarEvent(
       (event) => event.id !== eventId,
     ),
   };
+  persistCalendar();
+}
+
+export async function hydrateCalendarStore(): Promise<boolean> {
+  const stored = await calendarSnapshot.read();
+
+  if (!stored || !Array.isArray(stored.events)) {
+    return false;
+  }
+
+  cache = {
+    events: stored.events,
+    calendars: Array.isArray(stored.calendars) ? stored.calendars : [],
+    preferences: stored.preferences ?? null,
+    rangeStart: stored.rangeStart ?? null,
+    rangeEnd: stored.rangeEnd ?? null,
+  };
+
+  notifyCalendarStore();
+
+  return cache.events.length > 0 || cache.calendars.length > 0;
+}
+
+export async function clearCalendarStore(): Promise<void> {
+  cache = {
+    events: [],
+    calendars: [],
+    preferences: null,
+    rangeStart: null,
+    rangeEnd: null,
+  };
+  await calendarSnapshot.clear();
+  notifyCalendarStore();
 }
 
 

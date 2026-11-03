@@ -92,6 +92,7 @@ export interface ChatApiConversationPermissions {
 
 export interface ChatApiInboxConversation {
   conversation_id: string;
+  conversation_business_id?: string | null;
   conversation_type: 'direct' | 'group';
   group_name: string | null;
   group_description: string | null;
@@ -120,6 +121,7 @@ export interface ChatApiInboxConversation {
 
 export interface ChatApiConversation {
   id: string;
+  business_id?: string | null;
   conversation_type: 'direct' | 'group' | 'ai';
   direct_key: string | null;
   created_by_identity_id: string | null;
@@ -784,6 +786,7 @@ function toSharedConversation(
 
   return {
     id: conversation.id,
+    business_id: conversation.business_id || null,
     conversation_type: conversation.conversation_type,
     name: conversation.name,
     description: conversation.description,
@@ -921,6 +924,7 @@ function toSharedInboxConversation(
 
   return {
     id: conversation.conversation_id,
+    business_id: conversation.conversation_business_id || null,
     conversation_type: conversation.conversation_type,
     name: (
       conversation.conversation_type === 'group'
@@ -1050,6 +1054,28 @@ export function getChatIdentities(
 ): Promise<ChatIdentitiesResponse> {
   return api.get<ChatIdentitiesResponse>(
     '/chat/identities/?active_only=true',
+    {
+      auth: requireBearerAuth(auth),
+    },
+  );
+}
+
+export interface BusinessChatUnreadSummary {
+  business_id: string;
+  display_name: string;
+  conversation_count: number;
+  unread_count: number;
+}
+
+export function getBusinessChatUnreadCounts(
+  auth: AuthCredentials,
+): Promise<{
+  businesses: BusinessChatUnreadSummary[];
+}> {
+  return api.get<{
+    businesses: BusinessChatUnreadSummary[];
+  }>(
+    '/chat/businesses/unread/',
     {
       auth: requireBearerAuth(auth),
     },

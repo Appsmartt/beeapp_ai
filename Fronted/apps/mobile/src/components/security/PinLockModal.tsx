@@ -45,8 +45,12 @@ export default function PinLockModal({ visible, itemName, onClose, onSuccess, ve
     }
   };
 
+  if (!visible) {
+    return null;
+  }
+
   return (
-    <Modal transparent visible={visible} animationType="fade" onRequestClose={onClose}>
+    <Modal transparent visible animationType="fade" onRequestClose={onClose}>
       <View style={styles.backdrop}>
         <View style={styles.sheet}>
           <View style={styles.sheetHeader}>

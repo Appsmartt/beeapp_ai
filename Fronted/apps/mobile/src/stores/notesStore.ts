@@ -8,6 +8,7 @@ import type {
 import type {
     NoteListItem,
     } from '../services/notesService';
+import { createModuleSnapshot } from '../services/moduleSnapshot';
 
 
 let notes: NoteListItem[] = [];
@@ -22,10 +23,21 @@ export function getNotes(): NoteListItem[] {
 }
 
 
+function persistNotes(): void {
+    notesSnapshot.schedule({
+        notes,
+        folders,
+        tags,
+        templates,
+        receivedShares,
+    });
+}
+
 export function setNotes(
     nextNotes: NoteListItem[],
     ): void {
     notes = nextNotes;
+    persistNotes();
 }
 
 
@@ -47,14 +59,23 @@ export function upsertNote(
 
     if (currentIndex === -1) {
         notes = [nextNote, ...notes];
+        persistNotes();
         return;
     }
 
+    const previousNote = notes[currentIndex];
+
     notes = notes.map((note) =>
         note.id === nextNote.id
-        ? nextNote
+        ? {
+            ...nextNote,
+            sharedWithNames:
+                nextNote.sharedWithNames
+                ?? previousNote.sharedWithNames,
+        }
         : note,
     );
+    persistNotes();
 }
 
 
@@ -64,6 +85,7 @@ export function removeNote(
     notes = notes.filter(
         (note) => note.id !== noteId,
     );
+    persistNotes();
 }
 
 
@@ -76,6 +98,7 @@ export function setFolders(
     nextFolders: NoteFolder[],
     ): void {
     folders = nextFolders;
+    persistNotes();
 }
 
 
@@ -88,6 +111,7 @@ export function upsertFolder(
 
     if (currentIndex === -1) {
         folders = [...folders, nextFolder];
+        persistNotes();
         return;
     }
 
@@ -96,6 +120,7 @@ export function upsertFolder(
         ? nextFolder
         : folder,
     );
+    persistNotes();
 }
 
 
@@ -105,6 +130,7 @@ export function removeFolder(
     folders = folders.filter(
         (folder) => folder.id !== folderId,
     );
+    persistNotes();
 }
 
 
@@ -117,6 +143,7 @@ export function setTags(
     nextTags: NoteTag[],
     ): void {
     tags = nextTags;
+    persistNotes();
 }
 
 
@@ -129,6 +156,7 @@ export function upsertTag(
 
     if (currentIndex === -1) {
         tags = [...tags, nextTag];
+        persistNotes();
         return;
     }
 
@@ -137,6 +165,7 @@ export function upsertTag(
         ? nextTag
         : tag,
     );
+    persistNotes();
 }
 
 
@@ -154,6 +183,7 @@ export function removeTag(
             assignedTagId !== tagId,
         ),
     }));
+    persistNotes();
 }
 
 
@@ -166,6 +196,7 @@ export function setTemplates(
     nextTemplates: NoteTemplate[],
     ): void {
     templates = nextTemplates;
+    persistNotes();
 }
 
 
@@ -178,4 +209,44 @@ export function setReceivedShares(
     nextShares: NoteShare[],
     ): void {
     receivedShares = nextShares;
+    persistNotes();
+}
+
+const notesSnapshot = createModuleSnapshot<{
+    notes: NoteListItem[];
+    folders: NoteFolder[];
+    tags: NoteTag[];
+    templates: NoteTemplate[];
+    receivedShares: NoteShare[];
+}>('notes');
+
+export async function hydrateNotesStore(): Promise<boolean> {
+    const stored = await notesSnapshot.read();
+
+    if (!stored) {
+        return false;
+    }
+
+    notes = Array.isArray(stored.notes) ? stored.notes : [];
+    folders = Array.isArray(stored.folders) ? stored.folders : [];
+    tags = Array.isArray(stored.tags) ? stored.tags : [];
+    templates = Array.isArray(stored.templates) ? stored.templates : [];
+    receivedShares = Array.isArray(stored.receivedShares)
+        ? stored.receivedShares
+        : [];
+
+    return (
+        notes.length > 0
+        || folders.length > 0
+        || tags.length > 0
+    );
+}
+
+export async function clearNotesStore(): Promise<void> {
+    notes = [];
+    folders = [];
+    tags = [];
+    templates = [];
+    receivedShares = [];
+    await notesSnapshot.clear();
 }

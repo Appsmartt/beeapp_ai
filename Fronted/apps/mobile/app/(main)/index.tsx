@@ -1,22 +1,41 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { View, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { spacing } from '@beeapp/design-system';
 import MainQuickActions from '../../src/components/MainQuickActions';
 import HomeHeader from '../../src/components/home/HomeHeader';
+import {
+  HomeSearchProvider,
+  useHomeSearch,
+} from '../../src/components/home/HomeSearchContext';
 import HomeSideMenu from '../../src/components/home/HomeSideMenu';
 import EmbeddedModuleHost from '../../src/components/embedded/EmbeddedModuleHost';
 import {
   CUSTOMIZABLE_MODULES,
   OVERVIEW_MODULE_ID,
 } from '../../src/components/home/homeModules';
+import {
+  SEARCH_FILTER_TO_MODULE,
+} from '../../src/components/home/searchFilters';
 
 const DEFAULT_MODULE_IDS = CUSTOMIZABLE_MODULES.map((module) => module.id);
 
 export default function HomeScreen() {
+  return (
+    <HomeSearchProvider>
+      <HomeScreenBody />
+    </HomeSearchProvider>
+  );
+}
+
+function HomeScreenBody() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const {
+    filter,
+    clearSearch,
+  } = useHomeSearch();
 
   const [sideMenuVisible, setSideMenuVisible] = useState(false);
 
@@ -32,6 +51,20 @@ export default function HomeScreen() {
 
   const [isDetailView, setIsDetailView] = useState(false);
 
+  useEffect(() => {
+    if (!filter) {
+      return;
+    }
+
+    const moduleId = SEARCH_FILTER_TO_MODULE[filter];
+
+    setActiveModuleId((current) => (
+      current === moduleId ? current : moduleId
+    ));
+    setModuleTarget(null);
+    setIsDetailView(false);
+  }, [filter]);
+
   const openModule = (
     id: string,
     target?: {
@@ -42,6 +75,13 @@ export default function HomeScreen() {
     if (id === 'beeservices') {
       router.push('/(main)/beeservices');
       return;
+    }
+
+    if (
+      filter
+      && SEARCH_FILTER_TO_MODULE[filter] !== id
+    ) {
+      clearSearch();
     }
 
     setActiveModuleId(id);
@@ -77,7 +117,9 @@ export default function HomeScreen() {
         onStackDepthChange={(depth) => setIsDetailView(depth > 0)}
       />
 
-      {!isDetailView && <MainQuickActions />}
+      {!isDetailView && !sideMenuVisible ? (
+        <MainQuickActions />
+      ) : null}
 
       <HomeSideMenu
         visible={sideMenuVisible}

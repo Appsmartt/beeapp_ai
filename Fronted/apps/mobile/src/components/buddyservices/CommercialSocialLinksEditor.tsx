@@ -1,5 +1,4 @@
 import {
-  Alert,
   Pressable,
   StyleSheet,
   Text,
@@ -7,6 +6,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { appAlert } from '../feedback/appAlert';
 import {
   AtSign,
   Briefcase,
@@ -164,7 +164,7 @@ export default function CommercialSocialLinksEditor({
     ) {
       const option = getPlatformOption(platform);
 
-      Alert.alert(
+      appAlert(
         'URL inválida',
         `Agrega una URL completa de ${option?.label || 'la red'} que comience por http:// o https://.`,
       );

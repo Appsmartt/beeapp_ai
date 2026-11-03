@@ -30,8 +30,14 @@ const CONFIRM_TOOLS = new Set([
   "send_service_request",
 ]);
 
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+};
+
 function json(body: Json, status = 200): Response {
-  return Response.json(body, { status });
+  return Response.json(body, { status, headers: corsHeaders });
 }
 
 function notConfigured(): Response {
@@ -1013,6 +1019,9 @@ async function handleMail(supabase: SupabaseClient, userId: string, body: Json):
 }
 
 Deno.serve(async (request) => {
+  if (request.method === "OPTIONS") {
+    return new Response(null, { status: 204, headers: corsHeaders });
+  }
   if (request.method !== "POST") return json({ message: "Método no permitido." }, 405);
   if (!Deno.env.get("OPENAI_API_KEY")) return notConfigured();
 

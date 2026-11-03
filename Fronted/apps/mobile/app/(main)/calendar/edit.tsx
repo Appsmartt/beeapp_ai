@@ -3,16 +3,16 @@ import {
   useEffect,
   useMemo,
   useState,
-} from 'react';
+  } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
 } from 'react-native';
+import { appAlert } from '../../../src/components/feedback/appAlert';
 import {
   Check,
   ChevronLeft,
@@ -29,15 +29,21 @@ import {
 import {
   CalendarEditFormFields,
   CalendarEditInviteesSection,
+  type EventAccountChoice,
 } from '../../../src/components/calendar/CalendarEditFields';
 import ReminderBottomSheet from '../../../src/components/calendar/ReminderBottomSheet';
 import {
   useCalendar,
 } from '../../../src/hooks/useCalendar';
 import {
+  useCalendarIntegrations,
+} from '../../../src/hooks/useCalendarIntegrations';
+import {
   buildCreateCalendarEventPayload,
   buildUpdateCalendarEventPayload,
   getInitialFormValues,
+  getDefaultNewEventTimeRange,
+  getPastCalendarEventStartMessage,
   isValidDateString,
   isValidTimeString,
   timeToMinutes,
@@ -46,6 +52,10 @@ import {
 import type {
   CalendarEventType,
 } from '../../../src/stores/calendarStore';
+import {
+  filterCalendarUsersByMutualFollow,
+  loadCalendarMutualInviteContacts,
+} from '../../../src/services/calendarInviteesService';
 
 
 type EditorStatus =
@@ -70,6 +80,17 @@ function getTodayDateString(): string {
 }
 
 
+function resolveNewEventDate(
+  candidate: string,
+): string {
+  const today = getTodayDateString();
+
+  return candidate >= today
+    ? candidate
+    : today;
+}
+
+
 export default function EditEventScreen() {
   const router = useModuleNav();
   const params = useScreenParams();
@@ -90,7 +111,13 @@ export default function EditEventScreen() {
     : getTodayDateString();
 
 
+  const requestedAccountId = typeof params.account === 'string'
+    ? params.account
+    : '';
+
+
   const {
+    calendars,
     getEventById,
     createEvent,
     updateEvent,
@@ -98,6 +125,11 @@ export default function EditEventScreen() {
     getTimezone,
     searchUsers,
   } = useCalendar();
+
+
+  const {
+    integrations,
+  } = useCalendarIntegrations();
 
 
   const [status, setStatus] = useState<EditorStatus>(
@@ -115,6 +147,13 @@ export default function EditEventScreen() {
   const [calendarId, setCalendarId] = useState('');
 
 
+  const [accountMenuVisible, setAccountMenuVisible] =
+    useState(false);
+
+
+  const [accountChosen, setAccountChosen] = useState(false);
+
+
   const [eventType, setEventType] = useState<
     CalendarEventType
   >(initialType);
@@ -123,13 +162,25 @@ export default function EditEventScreen() {
   const [title, setTitle] = useState('');
 
 
-  const [date, setDate] = useState(preSelectedDate);
+  const defaultNewEventTimes = useMemo(
+    () => getDefaultNewEventTimeRange(),
+    [],
+  );
 
 
-  const [timeStart, setTimeStart] = useState('09:00');
+  const [date, setDate] = useState(
+    resolveNewEventDate(preSelectedDate),
+  );
 
 
-  const [timeEnd, setTimeEnd] = useState('10:00');
+  const [timeStart, setTimeStart] = useState(
+    defaultNewEventTimes.timeStart,
+  );
+
+
+  const [timeEnd, setTimeEnd] = useState(
+    defaultNewEventTimes.timeEnd,
+  );
 
 
   const [isAllDay, setIsAllDay] = useState(false);
@@ -165,8 +216,90 @@ export default function EditEventScreen() {
   const [searchingUsers, setSearchingUsers] = useState(false);
 
 
+  const [suggestedInvitees, setSuggestedInvitees] = useState<
+    CalendarUserOption[]
+  >([]);
+
+
+  const [mutualContactIds, setMutualContactIds] = useState<
+    Set<string>
+  >(() => new Set());
+
+
+  const [
+    loadingInviteSuggestions,
+    setLoadingInviteSuggestions,
+  ] = useState(true);
+
+
   const [reminderSheetVisible, setReminderSheetVisible] =
     useState(false);
+
+
+  const accountOptions = useMemo<EventAccountChoice[]>(
+    () => {
+      const options: EventAccountChoice[] = [];
+      const localCalendar = calendars.find((calendar) => (
+        !calendar.integration_id
+        && !calendar.is_archived
+        && calendar.is_default
+      )) || calendars.find((calendar) => (
+        !calendar.integration_id
+        && !calendar.is_archived
+      ));
+
+      if (localCalendar) {
+        options.push({
+          id: localCalendar.id,
+          integrationId: null,
+          label: 'Buddy',
+          provider: 'buddy',
+        });
+      }
+
+      integrations.forEach((integration) => {
+        const canUse = integration.can_sync
+          && (
+            integration.status === 'active'
+            || integration.status === 'connected'
+          );
+
+        if (!canUse) {
+          return;
+        }
+
+        const ownedCalendars = calendars.filter((calendar) => (
+          calendar.integration_id === integration.id
+          && !calendar.is_archived
+        ));
+        const primaryCalendar = ownedCalendars.find(
+          (calendar) => calendar.is_default,
+        ) || ownedCalendars[0];
+
+        if (!primaryCalendar) {
+          return;
+        }
+
+        options.push({
+          id: primaryCalendar.id,
+          integrationId: integration.id,
+          label: (
+            integration.provider_email
+            || integration.provider_display_name
+            || integration.provider_account_id
+            || 'Cuenta conectada'
+          ),
+          provider: integration.provider,
+        });
+      });
+
+      return options;
+    },
+    [
+      calendars,
+      integrations,
+    ],
+  );
 
 
   const defaultCalendarId = getDefaultCalendarId();
@@ -187,9 +320,14 @@ export default function EditEventScreen() {
     const availableCalendarId = defaultCalendarId || '';
 
 
+    const defaultTimes = getDefaultNewEventTimeRange();
+
+
     setCalendarId(availableCalendarId);
     setEventType(initialType);
-    setDate(preSelectedDate);
+    setDate(resolveNewEventDate(preSelectedDate));
+    setTimeStart(defaultTimes.timeStart);
+    setTimeEnd(defaultTimes.timeEnd);
   }, [
     defaultCalendarId,
     initialType,
@@ -275,15 +413,76 @@ export default function EditEventScreen() {
 
 
   useEffect(() => {
-    if (!eventId && defaultCalendarId) {
-      setCalendarId((currentCalendarId) =>
-        currentCalendarId || defaultCalendarId,
-      );
+    if (eventId || accountChosen) {
+      return;
+    }
+
+    const requested = requestedAccountId
+      ? accountOptions.find(
+        (account) => account.integrationId === requestedAccountId,
+      )
+      : undefined;
+    const localAccount = accountOptions.find(
+      (account) => account.provider === 'buddy',
+    );
+    const nextAccount = requested
+      || localAccount
+      || accountOptions[0];
+
+    if (nextAccount) {
+      setCalendarId(nextAccount.id);
+      return;
+    }
+
+    if (defaultCalendarId) {
+      setCalendarId(defaultCalendarId);
     }
   }, [
+    accountChosen,
+    accountOptions,
     defaultCalendarId,
     eventId,
+    requestedAccountId,
   ]);
+
+
+  useEffect(() => {
+    let active = true;
+
+
+    setLoadingInviteSuggestions(true);
+
+
+    void loadCalendarMutualInviteContacts()
+      .then(({ contacts, mutualIds }) => {
+        if (!active) {
+          return;
+        }
+
+
+        setSuggestedInvitees(contacts);
+        setMutualContactIds(mutualIds);
+      })
+      .catch(() => {
+        if (!active) {
+          return;
+        }
+
+
+        setSuggestedInvitees([]);
+        setMutualContactIds(new Set());
+      })
+      .finally(() => {
+        if (active) {
+          setLoadingInviteSuggestions(false);
+        }
+      });
+
+
+    return () => {
+      active = false;
+    };
+  }, []);
 
 
   useEffect(() => {
@@ -308,7 +507,12 @@ export default function EditEventScreen() {
           }
 
 
-          setSearchResults(users);
+          setSearchResults(
+            filterCalendarUsersByMutualFollow(
+              users,
+              mutualContactIds,
+            ),
+          );
         })
         .catch((searchError) => {
           if (!active) {
@@ -339,6 +543,7 @@ export default function EditEventScreen() {
       clearTimeout(timeout);
     };
   }, [
+    mutualContactIds,
     searchQuery,
     searchUsers,
   ]);
@@ -372,10 +577,7 @@ export default function EditEventScreen() {
 
   const validateForm = (): string | null => {
     if (!calendarId) {
-      return (
-        'No se encontró un calendario disponible. '
-        + 'Vuelve a Agenda e intenta nuevamente.'
-      );
+      return 'Elige la cuenta en la que quieres guardar el evento.';
     }
 
 
@@ -385,25 +587,18 @@ export default function EditEventScreen() {
 
 
     if (!isValidDateString(date)) {
-      return (
-        'La fecha debe tener formato YYYY-MM-DD '
-        + 'y ser una fecha válida.'
-      );
+      return 'Selecciona una fecha válida para el evento.';
     }
 
 
     if (!isAllDay) {
       if (!isValidTimeString(timeStart)) {
-        return (
-          'La hora de inicio debe tener formato HH:MM.'
-        );
+        return 'Selecciona una hora de inicio válida.';
       }
 
 
       if (!isValidTimeString(timeEnd)) {
-        return (
-          'La hora final debe tener formato HH:MM.'
-        );
+        return 'Selecciona una hora de fin válida.';
       }
 
 
@@ -421,6 +616,33 @@ export default function EditEventScreen() {
           + 'a la hora de inicio.'
         );
       }
+    }
+
+
+    const pastStartMessage = getPastCalendarEventStartMessage(
+      {
+        date,
+        timeStart,
+        isAllDay,
+      },
+    );
+
+
+    if (pastStartMessage) {
+      return pastStartMessage;
+    }
+
+
+    const invalidInvitee = selectedInviteeIds.find(
+      (inviteeId) => !mutualContactIds.has(inviteeId),
+    );
+
+
+    if (invalidInvitee) {
+      return (
+        'Solo puedes invitar contactos con '
+        + 'seguimiento mutuo aceptado.'
+      );
     }
 
 
@@ -447,7 +669,7 @@ export default function EditEventScreen() {
 
 
     if (validationMessage) {
-      Alert.alert(
+      appAlert(
         'Revisa la información',
         validationMessage,
       );
@@ -496,13 +718,21 @@ export default function EditEventScreen() {
       }
 
 
-      Alert.alert(
+      const savedAccount = accountOptions.find(
+        (account) => account.id === calendarId,
+      );
+
+      appAlert(
         eventId
           ? 'Evento actualizado'
           : 'Evento creado',
-        eventType === 'meeting'
-          ? 'La reunión fue guardada correctamente.'
-          : 'El evento fue guardado correctamente.',
+        eventId
+          ? (
+            eventType === 'meeting'
+              ? 'La reunión fue guardada correctamente.'
+              : 'El evento fue guardado correctamente.'
+          )
+          : `Se guardó en ${savedAccount?.label || 'tu agenda'}.`,
         [
           {
             text: 'Entendido',
@@ -669,12 +899,26 @@ export default function EditEventScreen() {
             }
             conferenceUrl={conferenceUrl}
             setConferenceUrl={setConferenceUrl}
+            minimumEventDate={getTodayDateString()}
+            accounts={eventId ? [] : accountOptions}
+            selectedAccountId={calendarId}
+            accountMenuVisible={accountMenuVisible}
+            onToggleAccountMenu={() => {
+              setAccountMenuVisible((visible) => !visible);
+            }}
+            onSelectAccount={(accountId) => {
+              setAccountChosen(true);
+              setCalendarId(accountId);
+              setAccountMenuVisible(false);
+            }}
           />
 
 
           <CalendarEditInviteesSection
             searchQuery={searchQuery}
             setSearchQuery={setSearchQuery}
+            suggestedInvitees={suggestedInvitees}
+            loadingSuggestions={loadingInviteSuggestions}
             searchResults={searchResults}
             selectedInvitees={selectedInvitees}
             searching={searchingUsers}

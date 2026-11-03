@@ -8,6 +8,14 @@ import {
     dispatchUpload,
     GatewayError,
     } from './supabaseGateway';
+import {
+    invalidateRequestCachePrefix,
+    isCacheableRequest,
+    requestCacheModulePrefix,
+    shareInflightRequest,
+    writeRequestCache,
+    type RequestCacheHint,
+    } from './requestCache';
 
 const configuredApiBaseUrl = (
     process.env.EXPO_PUBLIC_SUPABASE_URL
@@ -88,11 +96,12 @@ export function notifyUnauthorizedAuthenticatedRequest(
 }
 
 export interface ApiRequestOptions
-    extends Omit<RequestInit, 'body' | 'headers'> {
+    extends Omit<RequestInit, 'body' | 'headers' | 'cache'> {
     body?: unknown;
     token?: string | null;
     auth?: AuthCredentials | null;
     headers?: Record<string, string>;
+    cache?: RequestCacheHint;
 }
 
 function buildUrl(endpoint: string): string {
@@ -342,13 +351,46 @@ async function request<T>(
     void fetchOptions;
     void body;
 
-    try {
-        return await dispatchSupabase(
-            options.method || 'GET',
+    const method = (options.method || 'GET').toUpperCase();
+    const cacheKey = options.cache?.key || endpoint;
+
+    const load = async () => {
+        const result = await dispatchSupabase(
+            method,
             endpoint,
             options.body,
             headers,
         ) as T;
+
+        if (
+            method === 'GET'
+            && options.cache
+            && isCacheableRequest(cacheKey)
+        ) {
+            writeRequestCache(cacheKey, result);
+        }
+
+        if (method !== 'GET') {
+            const prefix = requestCacheModulePrefix(endpoint);
+
+            if (prefix) {
+                invalidateRequestCachePrefix(prefix);
+            }
+        }
+
+        return result;
+    };
+
+    try {
+        if (
+            method === 'GET'
+            && options.cache
+            && isCacheableRequest(cacheKey)
+        ) {
+            return await shareInflightRequest(cacheKey, load);
+        }
+
+        return await load();
     } catch (error) {
         if (error instanceof GatewayError) {
             const apiError = new ApiRequestError(

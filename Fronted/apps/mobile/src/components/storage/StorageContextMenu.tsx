@@ -1,5 +1,12 @@
 
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Modal } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  Modal,
+} from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors } from '@beeapp/design-system';
 import { Eye, Edit2, Move, Share2, Download, Trash2, ShieldCheck, Lock, LockOpen, Tag } from 'lucide-react-native';
 import { StorageItem } from '../../stores/storageStore';
@@ -36,18 +43,37 @@ export default function StorageContextMenu({
   onToggleProtect,
   onAssignCategory,
 }: StorageContextMenuProps) {
+  const insets = useSafeAreaInsets();
+
   return (
     <Modal transparent visible={visible} animationType="slide">
-      <TouchableOpacity style={styles.backdrop} activeOpacity={1} onPress={onClose}>
-        <View style={styles.contextMenuSheet}>
+      <View style={styles.backdrop}>
+        <TouchableOpacity
+          style={styles.backdropTouch}
+          activeOpacity={1}
+          onPress={onClose}
+        />
+
+        <View
+          style={[
+            styles.contextMenuSheet,
+            {
+              paddingBottom: Math.max(insets.bottom, 24),
+            },
+          ]}
+        >
           {item && (
             <>
               <View style={styles.menuHeader}>
-                <Text style={styles.menuTitle} numberOfLines={1}>{item.name}</Text>
-                <Text style={styles.menuSub}>{item.type === 'folder' ? 'Carpeta' : item.size}</Text>
+                <Text style={styles.menuTitle} numberOfLines={2}>
+                  {item.name}
+                </Text>
+                <Text style={styles.menuSub}>
+                  {item.type === 'folder' ? 'Carpeta' : item.size}
+                </Text>
               </View>
 
-              <ScrollView style={{ maxHeight: 350 }}>
+              <View style={styles.menuBody}>
                 <TouchableOpacity
                   style={styles.menuRow}
                   onPress={() => {
@@ -56,7 +82,9 @@ export default function StorageContextMenu({
                   }}
                 >
                   <Eye size={18} color={colors.neutral.text} />
-                  <Text style={styles.menuRowText}>Abrir / Vista previa</Text>
+                  <Text style={styles.menuRowText}>
+                    Abrir / Vista previa
+                  </Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity style={styles.menuRow} onPress={onRename}>
@@ -66,7 +94,9 @@ export default function StorageContextMenu({
 
                 <TouchableOpacity style={styles.menuRow} onPress={onMove}>
                   <Move size={18} color={colors.neutral.text} />
-                  <Text style={styles.menuRowText}>Mover a otra carpeta</Text>
+                  <Text style={styles.menuRowText}>
+                    Mover a otra carpeta
+                  </Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity style={styles.menuRow} onPress={onShare}>
@@ -87,7 +117,12 @@ export default function StorageContextMenu({
                   }}
                 >
                   <Tag size={18} color={colors.brand.primary} />
-                  <Text style={[styles.menuRowText, { color: colors.brand.primary, fontWeight: '400' }]}>
+                  <Text
+                    style={[
+                      styles.menuRowText,
+                      styles.menuRowTextAccent,
+                    ]}
+                  >
                     Asignar a categoría
                   </Text>
                 </TouchableOpacity>
@@ -104,8 +139,15 @@ export default function StorageContextMenu({
                   ) : (
                     <Lock size={18} color={colors.brand.primary} />
                   )}
-                  <Text style={[styles.menuRowText, { color: colors.brand.primary, fontWeight: '400' }]}>
-                    {isProtected ? 'Quitar protección' : 'Proteger con PIN'}
+                  <Text
+                    style={[
+                      styles.menuRowText,
+                      styles.menuRowTextAccent,
+                    ]}
+                  >
+                    {isProtected
+                      ? 'Quitar protección'
+                      : 'Proteger con PIN'}
                   </Text>
                 </TouchableOpacity>
 
@@ -117,25 +159,46 @@ export default function StorageContextMenu({
                       onSign(item);
                     }}
                   >
-                    <ShieldCheck size={18} color={colors.brand.primary} />
-                    <Text style={[styles.menuRowText, { color: colors.brand.primary, fontWeight: '400' }]}>
+                    <ShieldCheck
+                      size={18}
+                      color={colors.brand.primary}
+                    />
+                    <Text
+                      style={[
+                        styles.menuRowText,
+                        styles.menuRowTextAccent,
+                      ]}
+                    >
                       Firmar documento
                     </Text>
                   </TouchableOpacity>
                 )}
 
                 <TouchableOpacity
-                  style={[styles.menuRow, { borderBottomWidth: 0 }]}
+                  style={[
+                    styles.menuRow,
+                    styles.menuRowLast,
+                  ]}
                   onPress={() => onDelete(item)}
                 >
-                  <Trash2 size={18} color={colors.semantic.error} />
-                  <Text style={[styles.menuRowText, { color: colors.semantic.error }]}>Eliminar</Text>
+                  <Trash2
+                    size={18}
+                    color={colors.semantic.error}
+                  />
+                  <Text
+                    style={[
+                      styles.menuRowText,
+                      styles.menuRowTextDanger,
+                    ]}
+                  >
+                    Eliminar
+                  </Text>
                 </TouchableOpacity>
-              </ScrollView>
+              </View>
             </>
           )}
         </View>
-      </TouchableOpacity>
+      </View>
     </Modal>
   );
 }
@@ -143,14 +206,21 @@ export default function StorageContextMenu({
 const styles = StyleSheet.create({
   backdrop: {
     flex: 1,
-    backgroundColor: 'rgba(26, 26, 46, 0.4)',
     justifyContent: 'flex-end',
+    backgroundColor: 'rgba(26, 26, 46, 0.4)',
+  },
+  backdropTouch: {
+    flex: 1,
   },
   contextMenuSheet: {
     backgroundColor: colors.neutral.white,
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
-    padding: 24,
+    paddingHorizontal: 24,
+    paddingTop: 24,
+  },
+  menuBody: {
+    flexGrow: 0,
   },
   menuHeader: {
     borderBottomWidth: 1,
@@ -178,8 +248,18 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   menuRowText: {
+    flex: 1,
     fontSize: 14,
     fontWeight: '400',
     color: colors.neutral.text,
+  },
+  menuRowTextAccent: {
+    color: colors.brand.primary,
+  },
+  menuRowTextDanger: {
+    color: colors.semantic.error,
+  },
+  menuRowLast: {
+    borderBottomWidth: 0,
   },
 });

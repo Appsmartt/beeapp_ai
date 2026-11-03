@@ -18,6 +18,9 @@ import {
 import type {
   NoteListItem,
 } from '../../services/notesService';
+import {
+  summarizeSharedWithNames,
+} from '../../services/notesService';
 
 export type NoteRowData = NoteListItem;
 
@@ -98,7 +101,8 @@ export default function NoteListRow({
               />
             )}
 
-            {note.isShared && (
+            {(note.isShared
+              || (note.sharedWithNames?.length ?? 0) > 0) && (
               <Share2
                 size={12}
                 color={colors.neutral.gray500}
@@ -119,6 +123,19 @@ export default function NoteListRow({
               numberOfLines={1}
             >
               Compartida por {note.sharedByName}
+            </Text>
+          )}
+
+          {!note.isShared
+            && (note.sharedWithNames?.length ?? 0) > 0 && (
+            <Text
+              style={styles.sharedBy}
+              numberOfLines={1}
+            >
+              Compartida con{' '}
+              {summarizeSharedWithNames(
+                note.sharedWithNames || [],
+              )}
             </Text>
           )}
         </View>

@@ -107,11 +107,16 @@ export default function MailListItem({
 
           <View style={styles.mailDetailsCol}>
             <View style={styles.senderTimeRow}>
+              {!item.isRead ? (
+                <View style={styles.unreadDot} />
+              ) : null}
+
               <Text
                 style={[
                   styles.senderNameText,
-                  !item.isRead
-                    && styles.senderNameTextUnread,
+                  item.isRead
+                    ? styles.senderNameTextRead
+                    : styles.senderNameTextUnread,
                 ]}
                 numberOfLines={1}
               >
@@ -126,7 +131,9 @@ export default function MailListItem({
             <Text
               style={[
                 styles.subjectText,
-                !item.isRead && styles.subjectTextUnread,
+                item.isRead
+                  ? styles.subjectTextRead
+                  : styles.subjectTextUnread,
               ]}
               numberOfLines={1}
             >
@@ -134,7 +141,10 @@ export default function MailListItem({
             </Text>
 
             <Text
-              style={styles.bodyPreviewText}
+              style={[
+                styles.bodyPreviewText,
+                item.isRead && styles.bodyPreviewTextRead,
+              ]}
               numberOfLines={2}
             >
               {item.bodyPreview}
@@ -317,7 +327,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.neutral.white,
   },
   mailRowUnread: {
-    backgroundColor: `${colors.brand.primary}08`,
+    backgroundColor: `${colors.brand.primary}18`,
   },
   mailRowUpdating: {
     opacity: 0.58,
@@ -354,12 +364,23 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 4,
   },
+  unreadDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: colors.brand.primary,
+    marginRight: 6,
+  },
   senderNameText: {
     flex: 1,
     marginRight: 8,
     fontSize: 13,
     color: colors.neutral.text,
     fontWeight: '600',
+  },
+  senderNameTextRead: {
+    color: colors.neutral.gray500,
+    fontWeight: '400',
   },
   senderNameTextUnread: {
     fontWeight: '800',
@@ -374,6 +395,10 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     marginBottom: 4,
   },
+  subjectTextRead: {
+    color: colors.neutral.gray500,
+    fontWeight: '400',
+  },
   subjectTextUnread: {
     fontWeight: '700',
     color: colors.brand.primary,
@@ -383,6 +408,9 @@ const styles = StyleSheet.create({
     color: colors.neutral.gray700,
     lineHeight: 16,
     marginBottom: 8,
+  },
+  bodyPreviewTextRead: {
+    color: colors.neutral.gray500,
   },
   metaRow: {
     flexDirection: 'row',

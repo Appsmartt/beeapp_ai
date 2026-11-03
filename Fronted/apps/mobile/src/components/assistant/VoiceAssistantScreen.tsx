@@ -153,8 +153,12 @@ export default function VoiceAssistantScreen({ visible, onClose }: VoiceAssistan
         });
     };
 
+    if (!visible) {
+        return null;
+    }
+
     return (
-        <Modal visible={visible} animationType="fade" onRequestClose={onClose} statusBarTranslucent>
+        <Modal visible animationType="fade" onRequestClose={onClose} statusBarTranslucent>
             <View style={styles.screen}>
                 <View style={styles.topBar}>
                     <View style={styles.brandRow}>

@@ -3,10 +3,9 @@ import {
   useEffect,
   useMemo,
   useState,
-} from 'react';
+  } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   Keyboard,
   KeyboardAvoidingView,
   Platform,
@@ -17,6 +16,7 @@ import {
   TouchableWithoutFeedback,
   View,
 } from 'react-native';
+import { appAlert } from '../../src/components/feedback/appAlert';
 import { useRouter } from 'expo-router';
 import { colors } from '@beeapp/design-system';
 import {
@@ -395,7 +395,7 @@ export default function OnboardingScreen() {
       await signOutCurrentDevice();
       router.replace('/(auth)/login');
     } catch {
-      Alert.alert(
+      appAlert(
         'No se pudo cerrar sesión',
         'Comprueba la conexión e inténtalo de nuevo.',
       );

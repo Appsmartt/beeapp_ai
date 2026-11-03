@@ -1,5 +1,4 @@
 import {
-  Image,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -15,6 +14,13 @@ import {
 import type {
   CommercialPublicProfile,
 } from '@beeapp/shared-types';
+
+import CachedImage from '../CachedImage';
+import {
+  hasCachedImage,
+  imageCacheUri,
+  remoteImageCacheKey,
+} from '../../services/imageDiskCache';
 
 interface CommercialRecentBusinessesProps {
   profiles: CommercialPublicProfile[];
@@ -66,11 +72,21 @@ function BusinessLogo({
 }: {
   profile: CommercialPublicProfile;
 }) {
-  if (profile.logo_url) {
+  const stableKey = remoteImageCacheKey({
+    fileId: profile.logo_file_id,
+    url: profile.logo_url,
+  });
+  const cachedUri = stableKey && hasCachedImage(stableKey)
+    ? imageCacheUri(stableKey)
+    : null;
+  const logoUri = profile.logo_url || cachedUri;
+
+  if (logoUri) {
     return (
-      <Image
+      <CachedImage
         accessibilityLabel={`Logo de ${profile.display_name}`}
-        source={{ uri: profile.logo_url }}
+        cacheKey={profile.logo_file_id}
+        uri={logoUri}
         style={styles.logoImage}
       />
     );

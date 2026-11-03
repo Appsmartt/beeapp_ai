@@ -3,11 +3,10 @@ import {
   useEffect,
   useRef,
   useState,
-} from 'react';
+  } from 'react';
 import { useFocusEffect } from 'expo-router';
 import {
   ActivityIndicator,
-  Alert,
   Animated,
   AppState,
   Image,
@@ -20,6 +19,7 @@ import {
   Text,
   View,
 } from 'react-native';
+import { appAlert } from '../../../src/components/feedback/appAlert';
 import * as Clipboard from 'expo-clipboard';
 import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system';
@@ -1194,6 +1194,16 @@ function ConversationContent({
         || null
       );
 
+  const groupPermissions = conversation?.permissions ?? null;
+
+  const groupSendPermissionResolved = (
+    !isGroup
+    || (
+      groupPermissions !== null
+      && typeof groupPermissions.can_send_messages === 'boolean'
+    )
+  );
+
   const canPostInGroup = (
     !isGroup
     || Boolean(conversation?.permissions?.can_send_messages)
@@ -1201,8 +1211,18 @@ function ConversationContent({
 
   const isResolvingGroupPermission = (
     isGroup
-    && conversation !== null
-    && conversation.permissions === null
+    && !groupSendPermissionResolved
+    && (
+      conversation === null
+        ? (
+            !error
+            && (
+              loading
+              || initialLoadingPhase !== 'ready'
+            )
+          )
+        : true
+    )
   );
 
   /*
@@ -1483,7 +1503,7 @@ function ConversationContent({
       setReplyTarget(null);
       scrollToBottom();
     } catch (attachmentError) {
-      Alert.alert(
+      appAlert(
         'No fue posible enviar el adjunto',
         attachmentError instanceof Error
           ? attachmentError.message
@@ -1541,7 +1561,7 @@ function ConversationContent({
       scrollToBottom();
     } catch (sendError) {
       setPendingTextMessage(null);
-      Alert.alert(
+      appAlert(
         'No fue posible enviar el mensaje',
         sendError instanceof Error
           ? sendError.message
@@ -1792,7 +1812,7 @@ function ConversationContent({
 
       throw new Error('Tipo de adjunto no disponible.');
     } catch (attachmentError) {
-      Alert.alert(
+      appAlert(
         type === 'location' ? 'No fue posible compartir la ubicación' : 'No fue posible adjuntar el archivo',
         attachmentError instanceof Error
           ? attachmentError.message
@@ -1823,7 +1843,7 @@ function ConversationContent({
         await createChatMessageReaction(auth, target.id, activeIdentityId, emoji);
       }
     } catch (error) {
-      Alert.alert('No se pudo reaccionar',
+      appAlert('No se pudo reaccionar',
         error instanceof Error ? error.message : 'Inténtalo de nuevo.');
     } finally {
       try {
@@ -1885,7 +1905,7 @@ function ConversationContent({
           showToast('Mensaje copiado');
         })
         .catch(() => {
-          Alert.alert(
+          appAlert(
             'No fue posible copiar el mensaje',
             'Inténtalo nuevamente.',
           );
@@ -1906,7 +1926,7 @@ function ConversationContent({
           );
         })
         .catch((pinError) => {
-          Alert.alert(
+          appAlert(
             'No fue posible actualizar el mensaje',
             pinError instanceof Error
               ? pinError.message
@@ -1918,7 +1938,7 @@ function ConversationContent({
 
     }
     if (action === 'destroy') {
-      Alert.alert(
+      appAlert(
         'Destruir mensaje',
         (
           'Tu backend actual no expone una acción separada '
@@ -1938,7 +1958,7 @@ function ConversationContent({
       true,
     )
       .catch((pinError) => {
-        Alert.alert(
+        appAlert(
           'No fue posible desfijar el mensaje',
           pinError instanceof Error
             ? pinError.message
@@ -1955,7 +1975,7 @@ function ConversationContent({
     }
 
     if (isGroup) {
-      Alert.alert(
+      appAlert(
         'Llamadas grupales',
         'La prueba RTC actual está habilitada solo para chats individuales.',
       );
@@ -1963,7 +1983,7 @@ function ConversationContent({
     }
 
     if (!activeIdentityId) {
-      Alert.alert(
+      appAlert(
         'Preparando llamada',
         'Tu identidad de Chat aún se está cargando. Inténtalo nuevamente.',
       );
@@ -2029,7 +2049,7 @@ function ConversationContent({
         },
       });
     } catch (callError) {
-      Alert.alert(
+      appAlert(
         'No fue posible iniciar la llamada',
         callError instanceof Error
           ? callError.message
@@ -2079,7 +2099,7 @@ function ConversationContent({
   const handleToggleMute = async () => {
     if (muteInFlightRef.current) return;
     if (!activeIdentityId || !conversation) {
-      Alert.alert(
+      appAlert(
         'No fue posible actualizar el chat',
         'Espera a que termine de cargar e inténtalo nuevamente.',
       );
@@ -2111,7 +2131,7 @@ function ConversationContent({
         own_participant: response.conversation.own_participant,
       });
     } catch (failure) {
-      Alert.alert(
+      appAlert(
         'No fue posible actualizar las notificaciones',
         failure instanceof Error ? failure.message : 'Inténtalo nuevamente.',
       );
@@ -2298,7 +2318,7 @@ function ConversationContent({
           onOpenProfile={() => {
             if (!isGroup) {
               if (!contactIdentityId) {
-                Alert.alert(
+                appAlert(
                   'Cargando contacto',
                   'Espera un momento e inténtalo otra vez.',
                 );
@@ -2544,7 +2564,7 @@ function ConversationContent({
                       const coordinates = message.location;
                       if (!coordinates) return;
                       void openChatLocation(coordinates).catch(() => {
-                        Alert.alert(
+                        appAlert(
                           'No fue posible abrir mapas',
                           'Comprueba que tengas una aplicación de mapas o un navegador disponible.',
                         );
@@ -2683,7 +2703,7 @@ function ConversationContent({
                           );
                           if (savedDownloadUri) {
                             const uriToOpen = savedDownloadUri;
-                            Alert.alert(
+                            appAlert(
                               'Archivo descargado',
                               'Se guardó en Descargas. ¿Quieres abrir el archivo?',
                               [
@@ -2698,11 +2718,11 @@ function ConversationContent({
                                       ) => Promise<boolean>;
                                     } | undefined;
                                     if (!opener?.openDownloadedFile) {
-                                      Alert.alert('No se pudo abrir', 'Instala la APK nueva.');
+                                      appAlert('No se pudo abrir', 'Instala la APK nueva.');
                                       return;
                                     }
                                     void opener.openDownloadedFile(uriToOpen, mimeType).catch(
-                                      () => Alert.alert(
+                                      () => appAlert(
                                         'No se pudo abrir',
                                         'El archivo sigue en Descargas. Instala una aplicación compatible para abrirlo.',
                                       ),
@@ -2714,7 +2734,7 @@ function ConversationContent({
                           }
                         } catch (downloadError) {
                           if (!isVideo) setDownloadNotice(null);
-                          Alert.alert(
+                          appAlert(
                             'No fue posible descargar el archivo',
                             downloadError instanceof Error
                               ? downloadError.message
@@ -2868,24 +2888,7 @@ function ConversationContent({
           toastText={toastText}
         />
 
-        {isResolvingGroupPermission ? (
-          <View style={styles.readOnlyComposer}>
-            <ActivityIndicator
-              size="small"
-              color={colors.brand.primary}
-            />
-
-            <View style={styles.readOnlyComposerTextWrap}>
-              <Text style={styles.readOnlyComposerTitle}>
-                Verificando permisos del grupo...
-              </Text>
-
-              <Text style={styles.readOnlyComposerDescription}>
-                Espera un momento mientras confirmamos si puedes enviar mensajes.
-              </Text>
-            </View>
-          </View>
-        ) : canPostInGroup ? (
+        {isResolvingGroupPermission || canPostInGroup ? (
           <WriteBar
             onSendMessage={(text) => {
               void handleSendMessage(text);
@@ -2893,7 +2896,10 @@ function ConversationContent({
             onSendVoiceNote={handleSendVoiceNote}
             onSendAttachment={handleSendAttachment}
             uploadingAttachment={uploadingAttachment}
-            shouldFocus={focusComposer || replyTarget !== null}
+            shouldFocus={
+              !isResolvingGroupPermission
+              && (focusComposer || replyTarget !== null)
+            }
             value={
               editingMessage
                 ? editingText
@@ -2904,7 +2910,10 @@ function ConversationContent({
                 ? setEditingText
                 : undefined
             }
-            disabled={sending}
+            disabled={
+              isResolvingGroupPermission
+              || sending
+            }
           />
         ) : (
           <View style={styles.readOnlyComposer}>
@@ -2952,7 +2961,7 @@ function ConversationContent({
                   kind: capturedMedia.duration === null ? 'image' : 'video',
                 });
               } catch (captureError) {
-                Alert.alert(
+                appAlert(
                   'No fue posible enviar la captura',
                   captureError instanceof Error
                     ? captureError.message

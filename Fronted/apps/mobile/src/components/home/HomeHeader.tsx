@@ -5,6 +5,7 @@ import { colors, spacing } from '@beeapp/design-system';
 import { Menu, Search, SlidersHorizontal, X } from 'lucide-react-native';
 import SearchFilterMenu, { FilterAnchor } from './SearchFilterMenu';
 import { FILTER_OPTIONS, SearchFilterType } from './searchFilters';
+import { useHomeSearch } from './HomeSearchContext';
 
 export type { SearchFilterType };
 
@@ -13,9 +14,14 @@ interface HomeHeaderProps {
 }
 
 export default function HomeHeader({ onMenuPress }: HomeHeaderProps) {
-  const [activeFilter, setActiveFilter] = useState<SearchFilterType | null>(null);
+  const {
+    filter: activeFilter,
+    query: searchQuery,
+    setFilter,
+    setQuery,
+    clearSearch,
+  } = useHomeSearch();
   const [anchor, setAnchor] = useState<FilterAnchor | null>(null);
-  const [searchQuery, setSearchQuery] = useState('');
   const filterBtnRef = useRef<TouchableOpacity>(null);
 
   const activeOption = FILTER_OPTIONS.find((opt) => opt.id === activeFilter) ?? null;
@@ -29,7 +35,12 @@ export default function HomeHeader({ onMenuPress }: HomeHeaderProps) {
   };
 
   const handleSelectFilter = (filter: SearchFilterType) => {
-    setActiveFilter(filter);
+    if (filter === activeFilter) {
+      clearSearch();
+    } else {
+      setFilter(filter);
+    }
+
     setAnchor(null);
   };
 
@@ -57,10 +68,10 @@ export default function HomeHeader({ onMenuPress }: HomeHeaderProps) {
                 placeholder={`Buscar en ${activeOption.label.toLowerCase()}...`}
                 placeholderTextColor={colors.neutral.gray500}
                 value={searchQuery}
-                onChangeText={setSearchQuery}
+                onChangeText={setQuery}
               />
               {searchQuery.length > 0 && (
-                <TouchableOpacity onPress={() => setSearchQuery('')} activeOpacity={0.7}>
+                <TouchableOpacity onPress={() => setQuery('')} activeOpacity={0.7}>
                   <X size={14} color={colors.neutral.gray500} />
                 </TouchableOpacity>
               )}

@@ -1,10 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import {
-  Alert,
   Animated,
-  Image,
   Linking,
-  Modal,
+  StyleSheet,
   ScrollView,
   Share,
   Switch,
@@ -12,6 +10,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { appAlert } from '../feedback/appAlert';
 import { useRouter } from 'expo-router';
 import { colors } from '@beeapp/design-system';
 import { getCurrentProfile } from '@beeapp/api-client';
@@ -28,10 +27,13 @@ import {
   Share2,
   Shield,
   ShieldCheck,
+  SquarePen,
   X,
 } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import SignOutConfirmModal from '../security/SignOutConfirmModal';
+import CachedImage from '../CachedImage';
 import {
   getAuthSession,
   getSessionCredentials,
@@ -40,6 +42,16 @@ import {
 import {
   getProfileAvatarUrl,
 } from '../../services/profileAvatarService';
+import {
+  readSideMenuProfileSnapshot,
+  writeSideMenuProfileSnapshot,
+} from '../../services/sideMenuProfileCache';
+import {
+  hasCachedImage,
+  hydrateImageDiskCache,
+  imageCacheUri,
+  remoteImageCacheKey,
+} from '../../services/imageDiskCache';
 import {
   PANEL_WIDTH,
   sideMenuStyles as styles,
@@ -64,6 +76,7 @@ interface SideMenuUserProfile {
   email: string;
   initials: string;
   avatarUrl: string | null;
+  avatarFileId: string | null;
 }
 
 const INITIAL_USER_PROFILE: SideMenuUserProfile = {
@@ -71,6 +84,7 @@ const INITIAL_USER_PROFILE: SideMenuUserProfile = {
   email: '',
   initials: '?',
   avatarUrl: null,
+  avatarFileId: null,
 };
 
 function getUserInitials(
@@ -118,6 +132,8 @@ export default function HomeSideMenu({
       INITIAL_USER_PROFILE,
     );
 
+  const [signOutModalOpen, setSignOutModalOpen] = useState(false);
+
   const slideAnim = useRef(
     new Animated.Value(PANEL_WIDTH),
   ).current;
@@ -135,14 +151,70 @@ export default function HomeSideMenu({
       return;
     }
 
-    if (rendered) {
-      Animated.timing(slideAnim, {
-        toValue: PANEL_WIDTH,
-        duration: 180,
-        useNativeDriver: true,
-      }).start(() => setRendered(false));
+    if (!rendered) {
+      return;
     }
+
+    const animation = Animated.timing(slideAnim, {
+      toValue: PANEL_WIDTH,
+      duration: 180,
+      useNativeDriver: true,
+    });
+
+    animation.start(({ finished }) => {
+      if (finished) {
+        setRendered(false);
+      }
+    });
+
+    const timeout = setTimeout(() => {
+      setRendered(false);
+    }, 240);
+
+    return () => {
+      animation.stop();
+      clearTimeout(timeout);
+    };
   }, [visible, rendered, slideAnim]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    void (async () => {
+      const snapshot = await readSideMenuProfileSnapshot();
+      if (!snapshot || cancelled) {
+        return;
+      }
+
+      await hydrateImageDiskCache();
+      if (cancelled) {
+        return;
+      }
+
+      const stableKey = remoteImageCacheKey({
+        fileId: snapshot.avatarFileId,
+      });
+      const cachedAvatar = stableKey && hasCachedImage(stableKey)
+        ? imageCacheUri(stableKey)
+        : null;
+
+      setUserProfile((current) => (
+        current.name === INITIAL_USER_PROFILE.name
+          ? {
+              name: snapshot.name,
+              email: snapshot.email,
+              initials: snapshot.initials,
+              avatarFileId: snapshot.avatarFileId,
+              avatarUrl: cachedAvatar,
+            }
+          : current
+      ));
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     if (!visible) {
@@ -171,15 +243,21 @@ export default function HomeSideMenu({
           return;
         }
 
-        let avatarUrl: string | null = (
-          response.profile.avatar_url || null
-        );
+        const avatarFileId = response.profile.avatar_file_id || null;
+        await hydrateImageDiskCache();
+        const stableKey = remoteImageCacheKey({
+          fileId: avatarFileId,
+          url: response.profile.avatar_url,
+        });
+        let avatarUrl: string | null = stableKey && hasCachedImage(stableKey)
+          ? imageCacheUri(stableKey)
+          : (response.profile.avatar_url || null);
 
-        if (!avatarUrl && response.profile.avatar_file_id) {
+        if (!avatarUrl && avatarFileId) {
           try {
             const avatarAccess = await getProfileAvatarUrl(
               credentials,
-              response.profile.avatar_file_id,
+              avatarFileId,
             );
 
             avatarUrl = avatarAccess.url;
@@ -192,7 +270,7 @@ export default function HomeSideMenu({
           return;
         }
 
-        setUserProfile({
+        const nextProfile = {
           name: getFullName(
             response.profile.first_name,
             response.profile.last_name,
@@ -202,19 +280,32 @@ export default function HomeSideMenu({
             response.profile.first_name,
             response.profile.last_name,
           ),
+          avatarFileId,
           avatarUrl,
+        };
+        setUserProfile(nextProfile);
+        void writeSideMenuProfileSnapshot({
+          name: nextProfile.name,
+          email: nextProfile.email,
+          initials: nextProfile.initials,
+          avatarFileId,
         });
       } catch {
         if (!isMounted) {
           return;
         }
 
-        setUserProfile({
-          name: 'No fue posible cargar el perfil',
-          email: '',
-          initials: '?',
-          avatarUrl: null,
-        });
+        setUserProfile((current) => (
+          current.avatarFileId || current.name !== INITIAL_USER_PROFILE.name
+            ? current
+            : {
+                name: 'No fue posible cargar el perfil',
+                email: '',
+                initials: '?',
+                avatarFileId: null,
+                avatarUrl: null,
+              }
+        ));
       }
     };
 
@@ -265,7 +356,7 @@ export default function HomeSideMenu({
           return;
         }
 
-        Alert.alert(
+        appAlert(
           'Error',
           'No se pudo abrir WhatsApp en este dispositivo.',
         );
@@ -276,33 +367,21 @@ export default function HomeSideMenu({
   };
 
   const handleSignOut = () => {
-    Alert.alert(
-      'Cerrar Sesión',
-      '¿Estás seguro de que deseas cerrar sesión en Buddy?',
-      [
-        {
-          text: 'Cancelar',
-          style: 'cancel',
-        },
-        {
-          text: 'Cerrar Sesión',
-          style: 'destructive',
-          onPress: () => {
-            void signOutCurrentDevice()
-              .then(() => {
-                onClose();
-                router.replace('/(auth)/login');
-              })
-              .catch(() => {
-                Alert.alert(
-                  'No se pudo cerrar sesión',
-                  'Comprueba la conexión e inténtalo de nuevo.',
-                );
-              });
-          },
-        },
-      ],
-    );
+    setSignOutModalOpen(true);
+  };
+
+  const confirmSignOut = async () => {
+    try {
+      await signOutCurrentDevice();
+      setSignOutModalOpen(false);
+      onClose();
+      router.replace('/(auth)/login');
+    } catch {
+      appAlert(
+        'No se pudo cerrar sesión',
+        'Comprueba la conexión e inténtalo de nuevo.',
+      );
+    }
   };
 
   const accountRows: MenuRow[] = [
@@ -437,17 +516,17 @@ export default function HomeSideMenu({
   }
 
   return (
-    <Modal
-      transparent
-      visible
-      animationType="none"
-      onRequestClose={onClose}
+    <>
+    <View
+      pointerEvents={visible ? 'auto' : 'none'}
+      style={localStyles.host}
     >
       <View style={styles.overlay}>
         <TouchableOpacity
-          style={styles.backdrop}
+          disabled={!visible}
           onPress={onClose}
           activeOpacity={1}
+          style={styles.backdrop}
         />
 
         <Animated.View
@@ -483,9 +562,10 @@ export default function HomeSideMenu({
           >
             <View style={styles.profileCard}>
               <View style={styles.avatarWrap}>
-                {userProfile.avatarUrl ? (
-                  <Image
-                    source={{ uri: userProfile.avatarUrl }}
+                {userProfile.avatarUrl || userProfile.avatarFileId ? (
+                  <CachedImage
+                    cacheKey={userProfile.avatarFileId}
+                    uri={userProfile.avatarUrl}
                     style={styles.avatarImage}
                   />
                 ) : (
@@ -493,31 +573,44 @@ export default function HomeSideMenu({
                     {userProfile.initials}
                   </Text>
                 )}
-
-                <View style={styles.onlineBadge} />
               </View>
 
-              <Text style={styles.profileName}>
-                {userProfile.name}
-              </Text>
+              <View style={styles.profileInfoColumn}>
+                <View style={styles.profileTitleRow}>
+                  <Text
+                    numberOfLines={1}
+                    style={styles.profileName}
+                  >
+                    {userProfile.name}
+                  </Text>
 
-              {userProfile.email ? (
-                <Text style={styles.profileOccupation}>
-                  {userProfile.email}
-                </Text>
-              ) : null}
+                  <TouchableOpacity
+                    accessibilityLabel="Editar perfil"
+                    accessibilityRole="button"
+                    activeOpacity={0.7}
+                    hitSlop={8}
+                    onPress={() => {
+                      goTo('/(main)/profile/edit');
+                    }}
+                    style={styles.editProfileIconBtn}
+                  >
+                    <SquarePen
+                      color={colors.brand.primary}
+                      size={16}
+                      strokeWidth={2.3}
+                    />
+                  </TouchableOpacity>
+                </View>
 
-              <TouchableOpacity
-                style={styles.editProfileBtn}
-                onPress={() => {
-                  goTo('/(main)/profile/edit');
-                }}
-                activeOpacity={0.7}
-              >
-                <Text style={styles.editProfileBtnText}>
-                  Editar Perfil
-                </Text>
-              </TouchableOpacity>
+                {userProfile.email ? (
+                  <Text
+                    numberOfLines={1}
+                    style={styles.profileOccupation}
+                  >
+                    {userProfile.email}
+                  </Text>
+                ) : null}
+              </View>
             </View>
 
             <Text style={styles.groupHeader}>
@@ -651,6 +744,23 @@ export default function HomeSideMenu({
           </ScrollView>
         </Animated.View>
       </View>
-    </Modal>
+    </View>
+
+    <SignOutConfirmModal
+      onClose={() => {
+        setSignOutModalOpen(false);
+      }}
+      onConfirm={confirmSignOut}
+      visible={signOutModalOpen}
+    />
+    </>
   );
 }
+
+const localStyles = StyleSheet.create({
+  host: {
+    ...StyleSheet.absoluteFillObject,
+    elevation: 40,
+    zIndex: 40,
+  },
+});

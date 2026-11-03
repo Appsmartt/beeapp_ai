@@ -3,10 +3,9 @@ import {
   useEffect,
   useMemo,
   useState,
-} from 'react';
+  } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   Linking,
   Modal,
   ScrollView,
@@ -16,6 +15,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { appAlert } from '../../../src/components/feedback/appAlert';
 import {
   useNavigation,
 } from 'expo-router';
@@ -29,6 +29,7 @@ import {
   Pin,
   Save,
   Share2,
+  SquarePen,
   Star,
   Tag,
   Trash2,
@@ -43,6 +44,7 @@ import {
 import {
   createNote,
   getNote,
+  getSentNoteShares,
   getNoteAttachmentAccess,
   getSharedNote,
   getTagsForNote,
@@ -68,7 +70,9 @@ import FloatingTabBar from '../../../src/components/FloatingTabBar';
 import NoteAttachmentsSection from '../../../src/components/notes/NoteAttachmentsSection';
 import NoteBlocksEditor from '../../../src/components/notes/NoteBlocksEditor';
 import NoteBlocksRenderer from '../../../src/components/notes/NoteBlocksRenderer';
+import NoteOutgoingSharesSection from '../../../src/components/notes/NoteOutgoingSharesSection';
 import NoteShareModal from '../../../src/components/notes/NoteShareModal';
+import NoteDiscardChangesModal from '../../../src/components/notes/NoteDiscardChangesModal';
 import {
   noteEditStyles as sharedStyles,
 } from '../../../src/components/notes/noteEditStyles';
@@ -76,6 +80,7 @@ import {
   sanitizeNoteContent,
 } from '../../../src/components/notes/noteBlocks';
 import {
+  buildSharedWithNamesByNoteId,
   createEmptyNoteContent,
   ensureNoteContent,
   mapNoteToListItem,
@@ -86,6 +91,7 @@ import {
 } from '../../../src/services/authSession';
 import {
   getFolders,
+  getNoteById,
   getTags,
   getTemplates,
   removeNote,
@@ -102,6 +108,32 @@ type EditorLoadingState =
 
 const DEFAULT_NOTE_COLOR = '#6025D2';
 
+type NoteDraftSnapshot = {
+  title: string;
+  content: NoteContent;
+  folderId: string | null;
+  tagIds: string[];
+  isFavorite: boolean;
+  isPinned: boolean;
+  isArchived: boolean;
+  color: string;
+};
+
+function serializeNoteDraft(
+  draft: NoteDraftSnapshot,
+): string {
+  return JSON.stringify({
+    title: normalizeNoteTitle(draft.title),
+    content: sanitizeNoteContent(draft.content),
+    folderId: draft.folderId,
+    tagIds: [...draft.tagIds].sort(),
+    isFavorite: draft.isFavorite,
+    isPinned: draft.isPinned,
+    isArchived: draft.isArchived,
+    color: draft.color,
+  });
+}
+
 
 export default function NoteEditScreen() {
   const router = useModuleNav();
@@ -117,6 +149,8 @@ export default function NoteEditScreen() {
     : undefined;
 
   const isShared = params.shared === 'true';
+
+  const opensInViewMode = params.mode === 'view';
 
   const [status, setStatus] =
     useState<EditorLoadingState>(
@@ -149,7 +183,16 @@ export default function NoteEditScreen() {
     DEFAULT_NOTE_COLOR,
   );
 
-  const [preview, setPreview] = useState(false);
+  const [preview, setPreview] = useState(
+    () => opensInViewMode,
+  );
+
+  const [savedSnapshot, setSavedSnapshot] = useState<
+    string | null
+  >(null);
+
+  const [discardModalVisible, setDiscardModalVisible] =
+    useState(false);
 
   const [isInTrash, setIsInTrash] = useState(false);
 
@@ -165,6 +208,16 @@ export default function NoteEditScreen() {
   const [shareModalVisible, setShareModalVisible] =
     useState(false);
 
+  const [
+    outgoingSharesRefreshToken,
+    setOutgoingSharesRefreshToken,
+  ] = useState(0);
+
+  const [
+    outgoingShareNames,
+    setOutgoingShareNames,
+  ] = useState<string[]>([]);
+
   const [sharedByName, setSharedByName] = useState<
     string | null
   >(null);
@@ -177,6 +230,55 @@ export default function NoteEditScreen() {
   const tags = useMemo(
     () => getTags(),
     [],
+  );
+
+  const refreshNoteShareSummary = useCallback(
+    async () => {
+      if (!noteId) {
+        return;
+      }
+
+      try {
+        const auth =
+          await getValidSessionCredentials();
+
+        if (!auth) {
+          return;
+        }
+
+        const sentResponse = await getSentNoteShares(
+          auth,
+          {
+            limit: 100,
+            offset: 0,
+          },
+        );
+
+        const namesByNoteId =
+          buildSharedWithNamesByNoteId(
+            sentResponse.shares,
+          );
+
+        const currentNote = getNoteById(noteId);
+
+        const nextNames =
+          namesByNoteId.get(noteId) || [];
+
+        if (currentNote) {
+          upsertNote({
+            ...currentNote,
+            sharedWithNames: nextNames,
+          });
+        }
+
+        if (nextNames.length > 0) {
+          setOutgoingShareNames(nextNames);
+        }
+      } catch {
+        // Sin bloquear la edición si falla el resumen.
+      }
+    },
+    [noteId],
   );
 
   const templates = useMemo(
@@ -251,6 +353,19 @@ export default function NoteEditScreen() {
             : 'Usuario de Buddy',
         );
 
+        setSavedSnapshot(
+          serializeNoteDraft({
+            title: sharedNote.title || '',
+            content: ensureNoteContent(sharedNote.content),
+            folderId: sharedNote.folder_id,
+            tagIds: [],
+            isFavorite: sharedNote.is_favorite,
+            isPinned: sharedNote.is_pinned,
+            isArchived: sharedNote.is_archived,
+            color: sharedNote.color || DEFAULT_NOTE_COLOR,
+          }),
+        );
+
         setStatus('ready');
         return;
       }
@@ -283,6 +398,21 @@ export default function NoteEditScreen() {
         note.color || DEFAULT_NOTE_COLOR,
       );
 
+      setSavedSnapshot(
+        serializeNoteDraft({
+          title: note.title || '',
+          content: ensureNoteContent(note.content),
+          folderId: note.folder_id,
+          tagIds: noteTagsResponse.tags.map(
+            (tag) => tag.id,
+          ),
+          isFavorite: note.is_favorite,
+          isPinned: note.is_pinned,
+          isArchived: note.is_archived,
+          color: note.color || DEFAULT_NOTE_COLOR,
+        }),
+      );
+
       setStatus('ready');
     } catch (loadError) {
       setStatus('error');
@@ -298,6 +428,26 @@ export default function NoteEditScreen() {
   useEffect(() => {
     void loadNote();
   }, [loadNote]);
+
+  useEffect(() => {
+    if (!noteId || isShared) {
+      return;
+    }
+
+    const storedNote = getNoteById(noteId);
+
+    if (storedNote?.sharedWithNames?.length) {
+      setOutgoingShareNames(
+        storedNote.sharedWithNames,
+      );
+    }
+
+    void refreshNoteShareSummary();
+  }, [
+    isShared,
+    noteId,
+    refreshNoteShareSummary,
+  ]);
 
 
   useEffect(() => {
@@ -331,8 +481,40 @@ export default function NoteEditScreen() {
       setColor(
         template.color || DEFAULT_NOTE_COLOR,
       );
+
+      setSavedSnapshot(
+        serializeNoteDraft({
+          title: template.name,
+          content: ensureNoteContent(template.content),
+          folderId: null,
+          tagIds: [],
+          isFavorite: false,
+          isPinned: false,
+          isArchived: false,
+          color: template.color || DEFAULT_NOTE_COLOR,
+        }),
+      );
     }
   }, [noteId, templateId, templates]);
+
+  useEffect(() => {
+    if (noteId) {
+      return;
+    }
+
+    setSavedSnapshot(
+      serializeNoteDraft({
+        title: '',
+        content: createEmptyNoteContent(),
+        folderId: null,
+        tagIds: [],
+        isFavorite: false,
+        isPinned: false,
+        isArchived: false,
+        color: DEFAULT_NOTE_COLOR,
+      }),
+    );
+  }, [noteId]);
 
 
   const createThenUpdateNote = async () => {
@@ -530,7 +712,7 @@ export default function NoteEditScreen() {
 
       await Linking.openURL(response.url);
     } catch (openError) {
-      Alert.alert(
+      appAlert(
         'No fue posible abrir el adjunto',
         openError instanceof Error
           ? openError.message
@@ -594,7 +776,7 @@ export default function NoteEditScreen() {
       return;
     }
 
-    Alert.alert(
+    appAlert(
       'Mover a papelera',
       (
         'La nota se moverá a la papelera. '
@@ -640,7 +822,7 @@ export default function NoteEditScreen() {
 
       router.replace('/(main)/notes');
     } catch (trashError) {
-      Alert.alert(
+      appAlert(
         'No fue posible mover la nota',
         trashError instanceof Error
           ? trashError.message
@@ -689,7 +871,7 @@ export default function NoteEditScreen() {
 
       router.replace('/(main)/notes');
     } catch (restoreError) {
-      Alert.alert(
+      appAlert(
         'No fue posible restaurar la nota',
         restoreError instanceof Error
           ? restoreError.message
@@ -706,7 +888,7 @@ export default function NoteEditScreen() {
       return;
     }
 
-    Alert.alert(
+    appAlert(
       'Eliminar permanentemente',
       (
         'Esta nota se eliminará definitivamente. '
@@ -752,7 +934,7 @@ export default function NoteEditScreen() {
 
       router.replace('/(main)/notes');
     } catch (deleteError) {
-      Alert.alert(
+      appAlert(
         'No fue posible eliminar la nota',
         deleteError instanceof Error
           ? deleteError.message
@@ -764,6 +946,43 @@ export default function NoteEditScreen() {
   };
 
 
+  const currentDraft = useMemo(
+    (): NoteDraftSnapshot => ({
+      title,
+      content,
+      folderId,
+      tagIds,
+      isFavorite,
+      isPinned,
+      isArchived,
+      color,
+    }),
+    [
+      color,
+      content,
+      folderId,
+      isArchived,
+      isFavorite,
+      isPinned,
+      tagIds,
+      title,
+    ],
+  );
+
+  const hasUnsavedChanges = useMemo(
+    () => {
+      if (!savedSnapshot) {
+        return false;
+      }
+
+      return (
+        serializeNoteDraft(currentDraft)
+        !== savedSnapshot
+      );
+    },
+    [currentDraft, savedSnapshot],
+  );
+
   const handleDiscard = () => {
     if (status === 'saving') {
       return;
@@ -774,21 +993,12 @@ export default function NoteEditScreen() {
       return;
     }
 
-    Alert.alert(
-      'Descartar cambios',
-      'Los cambios que no hayas guardado se perderán.',
-      [
-        {
-          text: 'Seguir editando',
-          style: 'cancel',
-        },
-        {
-          text: 'Descartar',
-          style: 'destructive',
-          onPress: () => router.back(),
-        },
-      ],
-    );
+    if (!hasUnsavedChanges) {
+      router.back();
+      return;
+    }
+
+    setDiscardModalVisible(true);
   };
 
 
@@ -877,9 +1087,11 @@ export default function NoteEditScreen() {
                 ? 'Nota compartida'
                 : isInTrash
                   ? 'Nota en papelera'
-                  : noteId
-                    ? 'Editar nota'
-                    : 'Nueva nota'}
+                  : preview && noteId
+                    ? 'Ver nota'
+                    : noteId
+                      ? 'Editar nota'
+                      : 'Nueva nota'}
             </Text>
 
             {isShared && sharedByName && (
@@ -890,23 +1102,32 @@ export default function NoteEditScreen() {
           </View>
 
           <View style={styles.headerActions}>
-            <TouchableOpacity
-              onPress={() => setPreview((value) => !value)}
-              style={sharedStyles.saveHeaderBtn}
-              accessibilityLabel={
-                preview
-                  ? 'Editar nota'
-                  : 'Vista previa'
-              }
-              activeOpacity={0.7}
-            >
-              <Eye
-                size={19}
-                color={colors.neutral.text}
-              />
-            </TouchableOpacity>
-
             {!isReadOnly && (
+              <TouchableOpacity
+                onPress={() => setPreview((value) => !value)}
+                style={sharedStyles.saveHeaderBtn}
+                accessibilityLabel={
+                  preview
+                    ? 'Editar nota'
+                    : 'Vista previa'
+                }
+                activeOpacity={0.7}
+              >
+                {preview ? (
+                  <SquarePen
+                    size={19}
+                    color={colors.neutral.text}
+                  />
+                ) : (
+                  <Eye
+                    size={19}
+                    color={colors.neutral.text}
+                  />
+                )}
+              </TouchableOpacity>
+            )}
+
+            {!isReadOnly && !preview && (
               <TouchableOpacity
                 onPress={() => {
                   void handleSave();
@@ -983,9 +1204,24 @@ export default function NoteEditScreen() {
                 isArchived={isArchived}
               />
 
+              {noteId && !isShared && !isInTrash && (
+                <NoteOutgoingSharesSection
+                  noteId={noteId}
+                  variant="inline"
+                  refreshToken={outgoingSharesRefreshToken}
+                  fallbackSharedWithNames={
+                    outgoingShareNames
+                  }
+                  onSharesChanged={() => {
+                    void refreshNoteShareSummary();
+                  }}
+                />
+              )}
+
               <View style={styles.previewContent}>
                 <NoteBlocksRenderer
                   content={content}
+                  noteId={noteId}
                   onOpenAttachment={handleOpenAttachment}
                 />
               </View>
@@ -1026,9 +1262,24 @@ export default function NoteEditScreen() {
                 }
               />
 
+              {noteId && !isShared && !isInTrash && (
+                <NoteOutgoingSharesSection
+                  noteId={noteId}
+                  variant="inline"
+                  refreshToken={outgoingSharesRefreshToken}
+                  fallbackSharedWithNames={
+                    outgoingShareNames
+                  }
+                  onSharesChanged={() => {
+                    void refreshNoteShareSummary();
+                  }}
+                />
+              )}
+
               <NoteBlocksEditor
                 value={content}
                 onChange={setContent}
+                noteId={noteId}
               />
             </>
           )}
@@ -1043,7 +1294,7 @@ export default function NoteEditScreen() {
           <View style={{ height: 130 }} />
         </ScrollView>
 
-        {!isReadOnly && (
+        {!isReadOnly && !preview && (
           <TouchableOpacity
             style={styles.saveFab}
             onPress={() => {
@@ -1120,8 +1371,26 @@ export default function NoteEditScreen() {
           noteId={noteId}
           noteTitle={title}
           onClose={() => setShareModalVisible(false)}
-          onShared={() => {
+          onShared={(recipientName) => {
             setShareModalVisible(false);
+            setOutgoingSharesRefreshToken(
+              (value) => value + 1,
+            );
+            setOutgoingShareNames((current) =>
+              current.includes(recipientName)
+                ? current
+                : [...current, recipientName],
+            );
+            void refreshNoteShareSummary();
+          }}
+        />
+
+        <NoteDiscardChangesModal
+          visible={discardModalVisible}
+          onClose={() => setDiscardModalVisible(false)}
+          onDiscard={() => {
+            setDiscardModalVisible(false);
+            router.back();
           }}
         />
       </View>

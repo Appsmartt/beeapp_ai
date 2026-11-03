@@ -5,6 +5,8 @@ import type {
   StorageTag,
 } from '@beeapp/shared-types';
 
+import { createModuleSnapshot } from '../services/moduleSnapshot';
+
 
 export type StorageItemType =
   | 'folder'
@@ -52,6 +54,20 @@ let storageItems: StorageItem[] = [];
 let storageSummary: StorageSummary | null = null;
 let storageCategories: StorageCategory[] = [];
 
+const storageSnapshot = createModuleSnapshot<{
+  items: StorageItem[];
+  summary: StorageSummary | null;
+  categories: StorageCategory[];
+}>('storage');
+
+function persistStorage(): void {
+  storageSnapshot.schedule({
+    items: storageItems,
+    summary: storageSummary,
+    categories: storageCategories,
+  });
+}
+
 
 export function getItems(): StorageItem[] {
   return storageItems;
@@ -62,6 +78,7 @@ export function setItems(
   items: StorageItem[],
 ): void {
   storageItems = items;
+  persistStorage();
 }
 
 
@@ -74,6 +91,7 @@ export function setStorageSummary(
   summary: StorageSummary | null,
 ): void {
   storageSummary = summary;
+  persistStorage();
 }
 
 
@@ -86,6 +104,30 @@ export function setStorageCategories(
   categories: StorageCategory[],
 ): void {
   storageCategories = categories;
+  persistStorage();
+}
+
+export async function hydrateStorageStore(): Promise<boolean> {
+  const stored = await storageSnapshot.read();
+
+  if (!stored) {
+    return false;
+  }
+
+  storageItems = Array.isArray(stored.items) ? stored.items : [];
+  storageSummary = stored.summary ?? null;
+  storageCategories = Array.isArray(stored.categories)
+    ? stored.categories
+    : [];
+
+  return storageItems.length > 0;
+}
+
+export async function clearStorageStore(): Promise<void> {
+  storageItems = [];
+  storageSummary = null;
+  storageCategories = [];
+  await storageSnapshot.clear();
 }
 
 

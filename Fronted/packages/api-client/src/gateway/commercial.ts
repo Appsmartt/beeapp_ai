@@ -62,15 +62,145 @@ async function loadCategoryNames(
     ]));
 }
 
+function nestedBusinessOwnerId(row: Json): string {
+    const nested = nestedBusiness(row);
+    return String(nested?.owner_id || row.owner_id || '');
+}
+
+function nestedBusiness(row: Json): Json | null {
+    const nested = row.businesses;
+    if (Array.isArray(nested)) {
+        const first = nested[0];
+        return first && typeof first === 'object'
+            ? first as Json
+            : null;
+    }
+    if (nested && typeof nested === 'object') {
+        return nested as Json;
+    }
+    return null;
+}
+
+const FEED_OFFER_TYPES = new Set([
+    'products',
+    'services',
+    'mixed',
+]);
+
+const FEED_MODALITIES = new Set([
+    'at_establishment',
+    'in_person',
+    'virtual',
+    'home_visit',
+    'delivery',
+    'pickup',
+    'phone_call',
+    'buddy_chat',
+]);
+
+function feedFilterValue(
+    value: string | null,
+    allowed: Set<string>,
+): string | null {
+    const normalized = String(value || '').trim();
+    return allowed.has(normalized) ? normalized : null;
+}
+
+function modalityValues(value: unknown): string[] {
+    if (!Array.isArray(value)) {
+        return [];
+    }
+
+    return value
+        .map((item) => (
+            typeof item === 'string'
+                ? item
+                : String((item as Json)?.modality || '')
+        ))
+        .filter(Boolean);
+}
+
+function matchesBusinessFeedFilters(
+    row: Json,
+    offerType: string | null,
+    modality: string | null,
+): boolean {
+    if (
+        offerType
+        && String(row.offer_type || '') !== offerType
+    ) {
+        return false;
+    }
+
+    if (
+        modality
+        && !modalityValues(row.modalities).includes(modality)
+    ) {
+        return false;
+    }
+
+    return true;
+}
+
+function matchesOfferFeedFilters(
+    row: Json,
+    offerType: string | null,
+    modality: string | null,
+): boolean {
+    const business = nestedBusiness(row);
+
+    if (
+        (offerType || modality)
+        && (
+            !business
+            || !matchesBusinessFeedFilters(
+                business,
+                offerType,
+                modality,
+            )
+        )
+    ) {
+        return false;
+    }
+
+    if (
+        offerType === 'products'
+        && String(row.offer_kind || '') !== 'product'
+    ) {
+        return false;
+    }
+
+    if (
+        offerType === 'services'
+        && String(row.offer_kind || '') !== 'service'
+    ) {
+        return false;
+    }
+
+    if (
+        modality
+        && !modalityValues(row.modalities).includes(modality)
+    ) {
+        return false;
+    }
+
+    return true;
+}
+
 async function publishedBusinessRows(
     supabase: SupabaseClient,
+    excludeOwnerId?: string,
 ): Promise<Json[]> {
-    return (unwrap(await supabase
+    let request = supabase
         .from('businesses')
         .select('*')
         .eq('is_public', true)
         .eq('publication_status', 'published')
-        .is('archived_at', null)
+        .is('archived_at', null);
+    if (excludeOwnerId) {
+        request = request.neq('owner_id', excludeOwnerId);
+    }
+    return (unwrap(await request
         .order('created_at', { ascending: false })
         .limit(200)) ?? []) as Json[];
 }
@@ -98,14 +228,6 @@ function rankMarketplaceRows(
             right.score - left.score || byRecent(left.row, right.row)
         ))
         .map((item) => item.row);
-}
-
-function uniqueNestedBusinesses(rows: Json[]): Json[] {
-    const profiles = rows.map((row) => asJson(row.businesses));
-
-    return Array.from(new Map(
-        profiles.map((profile) => [String(profile.id), profile]),
-    ).values());
 }
 
 function offerStatus(value: unknown): string {
@@ -482,6 +604,14 @@ export async function handleCommercial(
             return emptyProductFeed(limit, offset, query.get('seed'));
         }
 
+        const offerType = feedFilterValue(
+            query.get('offer_type'),
+            FEED_OFFER_TYPES,
+        );
+        const modality = feedFilterValue(
+            query.get('modality'),
+            FEED_MODALITIES,
+        );
         const categoryNames = terms.length > 0
             ? await loadCategoryNames(supabase)
             : new Map<string, string>();
@@ -496,7 +626,11 @@ export async function handleCommercial(
             .order('created_at', { ascending: false })
             .limit(200)) ?? []) as Json[];
         const rankedOffers = rankMarketplaceRows(
-            rows.filter((row) => publishedOffer(row.status)),
+            rows.filter((row) => (
+                publishedOffer(row.status)
+                && nestedBusinessOwnerId(row) !== userId
+                && matchesOfferFeedFilters(row, offerType, modality)
+            )),
             terms,
             (row) => offerSearchBlob(row, categoryNames),
         );
@@ -504,25 +638,22 @@ export async function handleCommercial(
         const offers = await Promise.all(
             offerPage.map((row) => mapPublicOffer(supabase, row)),
         );
-        const discoverBusinesses = terms.length > 0 || rankedOffers.length === 0;
-        const rankedBusinesses = discoverBusinesses
-            ? rankMarketplaceRows(
-                await publishedBusinessRows(supabase),
-                terms,
-                (row) => businessSearchBlob(row, categoryNames),
-            )
-            : [];
-        const profileRows = discoverBusinesses
-            ? rankedBusinesses.slice(offset, offset + limit)
-            : uniqueNestedBusinesses(offerPage);
+        const rankedBusinesses = rankMarketplaceRows(
+            (await publishedBusinessRows(supabase, userId))
+                .filter((row) => matchesBusinessFeedFilters(
+                    row,
+                    offerType,
+                    modality,
+                )),
+            terms,
+            (row) => businessSearchBlob(row, categoryNames),
+        );
+        const profileRows = rankedBusinesses.slice(offset, offset + limit);
         const profiles = await Promise.all(
             profileRows.map((profile) => mapProfile(supabase, profile, false)),
         );
-        const profilesCount = discoverBusinesses
-            ? rankedBusinesses.length
-            : profileRows.length;
-        const profilesHasMore = discoverBusinesses
-            && offset + limit < rankedBusinesses.length;
+        const profilesCount = rankedBusinesses.length;
+        const profilesHasMore = offset + limit < rankedBusinesses.length;
 
         return {
             offers,
@@ -555,7 +686,8 @@ export async function handleCommercial(
             .select('*')
             .eq('is_public', true)
             .eq('publication_status', 'published')
-            .is('archived_at', null);
+            .is('archived_at', null)
+            .neq('owner_id', userId);
         if (query.get('country_code')) request = request.eq('country_code', query.get('country_code'));
         if (query.get('city')) request = request.eq('city', query.get('city'));
         if (query.get('offer_type')) request = request.eq('offer_type', query.get('offer_type'));
@@ -808,9 +940,16 @@ export async function handleCommercial(
         if (parts[3] === 'catalogs') {
             const catalogs = catalogsOf(business);
             if (!parts[4] && method === 'GET') {
+                const includeArchived = query.get('include_archived') === 'true';
+                const visibleCatalogs = includeArchived
+                    ? catalogs
+                    : catalogs.filter((catalog) => (
+                        catalog.status !== 'archived'
+                        && !catalog.archived_at
+                    ));
                 return {
                     commercial_profile_id: businessId,
-                    catalogs: catalogs.map((catalog) => mapCatalog(businessId, catalog)),
+                    catalogs: visibleCatalogs.map((catalog) => mapCatalog(businessId, catalog)),
                 };
             }
             if (!parts[4] && method === 'POST') {

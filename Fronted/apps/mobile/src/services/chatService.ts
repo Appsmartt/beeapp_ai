@@ -33,6 +33,7 @@ export interface ChatListItemModel {
   isAI: boolean;
   verified: boolean;
   avatarUrl: string | null;
+  avatarCacheKey: string | null;
   participantCount: number;
   participants: ChatParticipant[];
   raw: ChatConversation;
@@ -436,6 +437,7 @@ export function mapConversationToListItem(
       || directProfile?.avatar_url
       || null
     ),
+    avatarCacheKey: conversation.image_file_id?.trim() || null,
     participantCount: (
       conversation.participants?.filter((participant) => (
         Boolean(participant.joined_at?.trim())

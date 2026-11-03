@@ -7,7 +7,7 @@ import {
   getChatConversation,
   getChatParticipants,
 } from '@beeapp/api-client';
-import { Alert } from 'react-native';
+import { appAlert } from '../feedback/appAlert';
 import type {
   ChatConversation,
 } from '@beeapp/shared-types';
@@ -115,7 +115,7 @@ export default function GroupAwareChatOptionsSheet({
     }
     if (!identityId) {
       onClose();
-      Alert.alert('No fue posible eliminar', 'No se identificó tu identidad en el grupo.');
+      appAlert('No fue posible eliminar', 'No se identificó tu identidad en el grupo.');
       return;
     }
     try {
@@ -158,7 +158,7 @@ export default function GroupAwareChatOptionsSheet({
       onDelete();
     } catch (failure) {
       onClose();
-      Alert.alert(
+      appAlert(
         'No fue posible eliminar',
         failure instanceof Error ? failure.message : 'Inténtalo nuevamente.',
       );

@@ -1,11 +1,10 @@
 import {
   useCallback,
+  useEffect,
   useState,
-} from 'react';
+  } from 'react';
 import {
   ActivityIndicator,
-  Alert,
-  Image,
   Linking,
   ScrollView,
   Share,
@@ -15,6 +14,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { appAlert } from '../../../src/components/feedback/appAlert';
 import {
   useFocusEffect,
   useRouter,
@@ -39,6 +39,8 @@ import type {
 
 import ScreenSafeArea from '../../../src/components/layout/ScreenSafeArea';
 import FloatingTabBar from '../../../src/components/FloatingTabBar';
+import SignOutConfirmModal from '../../../src/components/security/SignOutConfirmModal';
+import CachedImage from '../../../src/components/CachedImage';
 import {
   getValidSessionCredentials,
   signOutCurrentDevice,
@@ -46,6 +48,16 @@ import {
 import {
   getProfileAvatarUrl,
 } from '../../../src/services/profileAvatarService';
+import {
+  hasCachedImage,
+  hydrateImageDiskCache,
+  imageCacheUri,
+  remoteImageCacheKey,
+} from '../../../src/services/imageDiskCache';
+import {
+  readSideMenuProfileSnapshot,
+  writeSideMenuProfileSnapshot,
+} from '../../../src/services/sideMenuProfileCache';
 
 function getInitials(
   firstName: string,
@@ -69,10 +81,14 @@ export default function ProfileMainScreen() {
   const [avatarUrl, setAvatarUrl] = useState<string | null>(
     null,
   );
+  const [avatarFileId, setAvatarFileId] = useState<string | null>(
+    null,
+  );
 
   const [avatarFailed, setAvatarFailed] = useState(false);
 
   const [isLoading, setIsLoading] = useState(true);
+  const [signOutModalOpen, setSignOutModalOpen] = useState(false);
 
   const getCredentials = async (): Promise<AuthCredentials> => {
     const credentials = await getValidSessionCredentials();
@@ -89,18 +105,24 @@ export default function ProfileMainScreen() {
 
   const loadProfile = useCallback(async () => {
     try {
-      setIsLoading(true);
-
       const credentials = await getCredentials();
 
       const response = await getCurrentProfile(credentials);
-      let nextAvatarUrl = response.profile.avatar_url || null;
+      const nextAvatarFileId = response.profile.avatar_file_id || null;
+      await hydrateImageDiskCache();
+      const stableKey = remoteImageCacheKey({
+        fileId: nextAvatarFileId,
+        url: response.profile.avatar_url,
+      });
+      let nextAvatarUrl = stableKey && hasCachedImage(stableKey)
+        ? imageCacheUri(stableKey)
+        : (response.profile.avatar_url || null);
 
-      if (!nextAvatarUrl && response.profile.avatar_file_id) {
+      if (!nextAvatarUrl && nextAvatarFileId) {
         try {
           const access = await getProfileAvatarUrl(
             credentials,
-            response.profile.avatar_file_id,
+            nextAvatarFileId,
           );
 
           nextAvatarUrl = access.url;
@@ -110,10 +132,21 @@ export default function ProfileMainScreen() {
       }
 
       setProfile(response.profile);
+      setAvatarFileId(nextAvatarFileId);
       setAvatarFailed(false);
       setAvatarUrl(nextAvatarUrl);
+      void writeSideMenuProfileSnapshot({
+        name: `${response.profile.first_name || ''} ${response.profile.last_name || ''}`.trim()
+          || 'Usuario Buddy',
+        email: response.profile.email ?? '',
+        initials: getInitials(
+          response.profile.first_name || '',
+          response.profile.last_name || '',
+        ),
+        avatarFileId: nextAvatarFileId,
+      });
     } catch (error) {
-      Alert.alert(
+      appAlert(
         'No fue posible cargar tu perfil',
         error instanceof Error
           ? error.message
@@ -122,6 +155,35 @@ export default function ProfileMainScreen() {
     } finally {
       setIsLoading(false);
     }
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    void (async () => {
+      const snapshot = await readSideMenuProfileSnapshot();
+      if (!snapshot || cancelled) {
+        return;
+      }
+
+      await hydrateImageDiskCache();
+      if (cancelled) {
+        return;
+      }
+
+      const stableKey = remoteImageCacheKey({
+        fileId: snapshot.avatarFileId,
+      });
+      if (stableKey && hasCachedImage(stableKey)) {
+        setAvatarFileId(snapshot.avatarFileId);
+        setAvatarUrl(imageCacheUri(stableKey));
+        setIsLoading(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   useFocusEffect(
@@ -160,7 +222,7 @@ export default function ProfileMainScreen() {
           return Linking.openURL(url);
         }
 
-        Alert.alert(
+        appAlert(
           'Error',
           'No se pudo abrir WhatsApp en este dispositivo.',
         );
@@ -176,30 +238,20 @@ export default function ProfileMainScreen() {
   };
 
   const handleSignOut = () => {
-    Alert.alert(
-      'Cerrar sesión',
-      '¿Estás seguro de que deseas cerrar sesión en Buddy?',
-      [
-        {
-          text: 'Cancelar',
-          style: 'cancel',
-        },
-        {
-          text: 'Cerrar sesión',
-          style: 'destructive',
-          onPress: () => {
-            void signOutCurrentDevice()
-              .then(() => router.replace('/(auth)/login'))
-              .catch(() => {
-                Alert.alert(
-                  'No se pudo cerrar sesión',
-                  'Comprueba la conexión e inténtalo de nuevo.',
-                );
-              });
-          },
-        },
-      ],
-    );
+    setSignOutModalOpen(true);
+  };
+
+  const confirmSignOut = async () => {
+    try {
+      await signOutCurrentDevice();
+      setSignOutModalOpen(false);
+      router.replace('/(auth)/login');
+    } catch {
+      appAlert(
+        'No se pudo cerrar sesión',
+        'Comprueba la conexión e inténtalo de nuevo.',
+      );
+    }
   };
 
   const navigateTo = (path: string) => {
@@ -244,9 +296,10 @@ export default function ProfileMainScreen() {
             <View style={styles.profileCard}>
               <View style={styles.avatarWrap}>
                 {avatarUrl && !avatarFailed ? (
-                  <Image
+                  <CachedImage
                     accessibilityLabel={`Foto de perfil de ${fullName || 'tu cuenta'}`}
-                    source={{ uri: avatarUrl }}
+                    cacheKey={avatarFileId}
+                    uri={avatarUrl}
                     style={styles.avatarImage}
                     onError={() => setAvatarFailed(true)}
                   />
@@ -568,6 +621,14 @@ export default function ProfileMainScreen() {
 
         <FloatingTabBar activeTab="profile" />
       </View>
+
+      <SignOutConfirmModal
+        onClose={() => {
+          setSignOutModalOpen(false);
+        }}
+        onConfirm={confirmSignOut}
+        visible={signOutModalOpen}
+      />
     </ScreenSafeArea>
   );
 }

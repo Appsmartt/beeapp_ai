@@ -2,10 +2,9 @@ import {
   useEffect,
   useMemo,
   useState,
-} from 'react';
+  } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   Modal,
   RefreshControl,
   ScrollView,
@@ -15,6 +14,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { appAlert } from '../../../src/components/feedback/appAlert';
 import {
   useNavigation,
 } from 'expo-router';
@@ -60,6 +60,10 @@ import ScreenSafeArea from '../../../src/components/layout/ScreenSafeArea';
 import {
   useModuleNav,
 } from '../../../src/components/embedded/EmbeddedNavContext';
+import {
+  homeSearchEmptyCopy,
+  useHomeModuleSearch,
+} from '../../../src/components/home/HomeSearchContext';
 import FloatingTabBar from '../../../src/components/FloatingTabBar';
 import ViewModeToggle, {
   type ViewMode,
@@ -130,6 +134,7 @@ function getFolderParentId(
 
 export default function NotesListScreen() {
   const router = useModuleNav();
+  const homeSearch = useHomeModuleSearch('nota');
   const navigation = useNavigation();
 
   const {
@@ -195,6 +200,15 @@ export default function NotesListScreen() {
 
     return unsubscribe;
   }, [loadNotes, navigation]);
+
+  useEffect(() => {
+    if (
+      activeFilter === 'trash'
+      && selectedItem?.id !== 'trash'
+    ) {
+      setActiveFilter('all');
+    }
+  }, [activeFilter, selectedItem?.id]);
 
   const fixedItems = useMemo(
     () => getFixedNotesHomeItems(),
@@ -312,6 +326,51 @@ export default function NotesListScreen() {
     [filteredNotes],
   );
 
+  const displayedNotes = useMemo(() => {
+    if (!homeSearch.hasActiveQuery) {
+      return sortedNotes;
+    }
+
+    return sortedNotes.filter((note) =>
+      homeSearch.matchesQuery(
+        note.title,
+        note.preview,
+      ),
+    );
+  }, [
+    homeSearch,
+    sortedNotes,
+  ]);
+
+  const isGlobalHomeSearch =
+    homeSearch.hasActiveQuery && !selectedItem;
+
+  const homeGlobalSearchNotes = useMemo(() => {
+    if (!isGlobalHomeSearch) {
+      return [];
+    }
+
+    return sortNotesByUpdatedAt(
+      getFixedViewNotes('all', notes).filter((note) =>
+        homeSearch.matchesQuery(
+          note.title,
+          note.preview,
+        ),
+      ),
+    );
+  }, [homeSearch, isGlobalHomeSearch, notes]);
+
+  const listContextNotes = isGlobalHomeSearch
+    ? homeGlobalSearchNotes
+    : displayedNotes;
+
+  const showNotesList =
+    Boolean(selectedItem) || isGlobalHomeSearch;
+
+  const notesEmptyCopy = homeSearch.hasActiveQuery
+    ? homeSearchEmptyCopy(homeSearch.query)
+    : null;
+
   const goBack = () => {
     if (selectedItem?.kind === 'folder') {
       const parentId = getFolderParentId(
@@ -345,11 +404,17 @@ export default function NotesListScreen() {
       return;
     }
 
+    if (isGlobalHomeSearch) {
+      homeSearch.clearSearch();
+      return;
+    }
+
     router.back();
   };
 
   const openNote = (
     note: NoteListItem,
+    mode: 'view' | 'edit' = 'view',
   ) => {
     router.push({
       pathname: '/(main)/notes/edit',
@@ -359,6 +424,7 @@ export default function NotesListScreen() {
           ? 'true'
           : 'false',
         shareId: note.shareId || '',
+        mode,
       },
     });
   };
@@ -426,7 +492,7 @@ export default function NotesListScreen() {
 
       await loadNotes(true);
     } catch (favoriteError) {
-      Alert.alert(
+      appAlert(
         'No fue posible actualizar la nota',
         favoriteError instanceof Error
           ? favoriteError.message
@@ -500,7 +566,7 @@ export default function NotesListScreen() {
     setNoteActionsVisible(false);
     setActiveNote(null);
 
-    openNote(note);
+    openNote(note, 'edit');
   };
 
   const handleStartRenameActiveNote = () => {
@@ -553,7 +619,7 @@ export default function NotesListScreen() {
 
       await loadNotes(true);
     } catch (renameError) {
-      Alert.alert(
+      appAlert(
         'No fue posible renombrar la nota',
         renameError instanceof Error
           ? renameError.message
@@ -614,7 +680,7 @@ export default function NotesListScreen() {
 
       await loadNotes(true);
     } catch (moveError) {
-      Alert.alert(
+      appAlert(
         'No fue posible mover la nota',
         moveError instanceof Error
           ? moveError.message
@@ -676,7 +742,7 @@ export default function NotesListScreen() {
 
       await loadNotes(true);
     } catch (archiveError) {
-      Alert.alert(
+      appAlert(
         'No fue posible actualizar la nota',
         archiveError instanceof Error
           ? archiveError.message
@@ -698,7 +764,7 @@ export default function NotesListScreen() {
 
     const note = activeNote;
 
-    Alert.alert(
+    appAlert(
       'Mover a papelera',
       (
         'La nota se moverá a la papelera. '
@@ -742,7 +808,7 @@ export default function NotesListScreen() {
 
       await loadNotes(true);
     } catch (trashError) {
-      Alert.alert(
+      appAlert(
         'No fue posible mover la nota',
         trashError instanceof Error
           ? trashError.message
@@ -784,7 +850,7 @@ export default function NotesListScreen() {
 
       await loadNotes(true);
     } catch (restoreError) {
-      Alert.alert(
+      appAlert(
         'No fue posible restaurar la nota',
         restoreError instanceof Error
           ? restoreError.message
@@ -802,7 +868,7 @@ export default function NotesListScreen() {
 
     const note = activeNote;
 
-    Alert.alert(
+    appAlert(
       'Eliminar permanentemente',
       (
         'Esta nota se eliminará definitivamente. '
@@ -853,7 +919,7 @@ export default function NotesListScreen() {
 
       await loadNotes(true);
     } catch (deleteError) {
-      Alert.alert(
+      appAlert(
         'No fue posible eliminar la nota',
         deleteError instanceof Error
           ? deleteError.message
@@ -902,7 +968,7 @@ export default function NotesListScreen() {
 
       await loadNotes(true);
     } catch (createError) {
-      Alert.alert(
+      appAlert(
         'No fue posible crear',
         createError instanceof Error
           ? createError.message
@@ -953,7 +1019,7 @@ export default function NotesListScreen() {
 
       await loadNotes(true);
     } catch (renameError) {
-      Alert.alert(
+      appAlert(
         'No fue posible renombrar',
         renameError instanceof Error
           ? renameError.message
@@ -971,7 +1037,7 @@ export default function NotesListScreen() {
 
     const entity = activeEntity;
 
-    Alert.alert(
+    appAlert(
       `Eliminar ${
         entity.kind === 'folder'
           ? 'carpeta'
@@ -1051,7 +1117,7 @@ export default function NotesListScreen() {
 
       await loadNotes(true);
     } catch (deleteError) {
-      Alert.alert(
+      appAlert(
         'No fue posible eliminar',
         deleteError instanceof Error
           ? deleteError.message
@@ -1098,7 +1164,7 @@ export default function NotesListScreen() {
 
       await loadNotes(true);
     } catch (moveError) {
-      Alert.alert(
+      appAlert(
         'No fue posible mover la carpeta',
         moveError instanceof Error
           ? moveError.message
@@ -1116,10 +1182,10 @@ export default function NotesListScreen() {
       return;
     }
 
-    Alert.alert(
+    appAlert(
       'Ocultar nota compartida',
       (
-        'La nota dejará de aparecer en “Compartidas”. '
+        'La nota dejará de aparecer en “Compartidas conmigo”. '
         + 'Podrás volver a verla cuando exista una '
         + 'vista de compartidas ocultas.'
       ),
@@ -1163,7 +1229,7 @@ export default function NotesListScreen() {
 
       await loadNotes(true);
     } catch (hideError) {
-      Alert.alert(
+      appAlert(
         'No fue posible ocultar la nota',
         hideError instanceof Error
           ? hideError.message
@@ -1242,11 +1308,13 @@ export default function NotesListScreen() {
     </View>
   );
 
-  const screenTitle = selectedItem
-    ? selectedItem.name
-    : currentFolder
-      ? currentFolder.name
-      : 'Mis Notas';
+  const screenTitle = isGlobalHomeSearch
+    ? 'Resultados'
+    : selectedItem
+      ? selectedItem.name
+      : currentFolder
+        ? currentFolder.name
+        : 'Mis Notas';
 
   return (
     <ScreenSafeArea style={styles.safeArea}>
@@ -1254,7 +1322,9 @@ export default function NotesListScreen() {
         <View style={styles.header}>
           <View style={styles.topRow}>
             <View style={styles.headerLeftCol}>
-              {(selectedItem || router.canGoBack) && (
+              {(selectedItem
+                || isGlobalHomeSearch
+                || router.canGoBack) && (
                 <TouchableOpacity
                   onPress={goBack}
                   style={styles.backBtn}
@@ -1295,7 +1365,7 @@ export default function NotesListScreen() {
           </View>
 
           <View style={styles.bottomRow}>
-            {selectedItem ? (
+            {selectedItem || isGlobalHomeSearch ? (
               <ViewModeToggle
                 mode={viewMode}
                 onChange={setViewMode}
@@ -1347,9 +1417,9 @@ export default function NotesListScreen() {
               </Text>
             </TouchableOpacity>
           </View>
-        ) : selectedItem ? (
+        ) : showNotesList ? (
           <View style={styles.selectedContent}>
-            {selectedItem.kind === 'folder'
+            {selectedItem?.kind === 'folder'
               && visibleFolderItems.length > 0 && (
               <View style={styles.subfolderSection}>
                 <View style={styles.subfolderHeader}>
@@ -1393,12 +1463,18 @@ export default function NotesListScreen() {
             )}
 
             <NotesListView
-              notes={sortedNotes}
+              notes={listContextNotes}
               viewMode={viewMode}
               activeFilter={activeFilter}
+              showFilters={
+                !isGlobalHomeSearch
+                && selectedItem?.id !== 'trash'
+              }
+              emptyTitle={notesEmptyCopy?.title}
+              emptyDescription={notesEmptyCopy?.description}
               onChangeFilter={setActiveFilter}
               onOpen={(noteId) => {
-                const note = sortedNotes.find(
+                const note = listContextNotes.find(
                   (item) => item.id === noteId,
                 );
 
@@ -1408,7 +1484,7 @@ export default function NotesListScreen() {
               }}
               onLongPress={handleOpenNoteActions}
               onToggleFavorite={(noteId, event) => {
-                const note = sortedNotes.find(
+                const note = listContextNotes.find(
                   (item) => item.id === noteId,
                 );
 

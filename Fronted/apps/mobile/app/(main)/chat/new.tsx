@@ -1,10 +1,9 @@
 import {
   useEffect,
   useState,
-} from 'react';
+  } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   Modal,
   ScrollView,
   StyleSheet,
@@ -13,6 +12,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { appAlert } from '../../../src/components/feedback/appAlert';
 import {
   ChevronLeft,
   Search,
@@ -178,7 +178,7 @@ export default function NewChatScreen() {
         online: conversation.online,
       });
     } catch (createError) {
-      Alert.alert(
+      appAlert(
         'No fue posible crear el chat',
         createError instanceof Error
           ? createError.message

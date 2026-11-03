@@ -18,6 +18,50 @@ export const formatDate = (date: Date) => {
   return `${yyyy}-${mm}-${dd}`;
 };
 
+/** Days of a month grid (Mon-first), with null placeholders. */
+export function buildCalendarGridDays(
+  month: Date,
+): Array<number | null> {
+  const year = month.getFullYear();
+  const monthIndex = month.getMonth();
+  const firstWeekday = new Date(
+    year,
+    monthIndex,
+    1,
+  ).getDay();
+  const leadingEmptyDays = (firstWeekday + 6) % 7;
+  const totalDays = new Date(
+    year,
+    monthIndex + 1,
+    0,
+  ).getDate();
+  const days: Array<number | null> = Array.from(
+    { length: leadingEmptyDays },
+    () => null,
+  );
+
+  for (let day = 1; day <= totalDays; day += 1) {
+    days.push(day);
+  }
+
+  return days;
+}
+
+export function formatDateLongLabel(
+  isoDate: string,
+): string {
+  try {
+    return new Intl.DateTimeFormat('es-CO', {
+      weekday: 'long',
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric',
+    }).format(parseDate(isoDate));
+  } catch {
+    return isoDate;
+  }
+}
+
 /** Monday of the week the given date belongs to */
 export const startOfWeek = (date: Date) => {
   const d = new Date(date);

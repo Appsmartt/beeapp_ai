@@ -375,6 +375,8 @@ export interface PublicCommercialOffersQuery {
 export interface PublicCommercialProductFeedQuery {
   search?: string;
   seed?: string;
+  offer_type?: CommercialOfferType;
+  modality?: CommercialModality;
   limit?: number;
   offset?: number;
 }

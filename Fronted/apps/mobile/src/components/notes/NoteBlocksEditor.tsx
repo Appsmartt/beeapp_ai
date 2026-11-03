@@ -45,17 +45,20 @@ import {
     updateNumberListBlockItem,
     updateStringListBlockItem,
     } from './noteBlocks';
+import NoteAttachmentImagePreview from './NoteAttachmentImagePreview';
 
 
 interface NoteBlocksEditorProps {
     value: NoteContent;
     onChange: (content: NoteContent) => void;
+    noteId?: string;
 }
 
 
 export default function NoteBlocksEditor({
     value,
     onChange,
+    noteId,
     }: NoteBlocksEditorProps) {
     const [pickerVisible, setPickerVisible] =
         useState(false);
@@ -162,6 +165,7 @@ export default function NoteBlocksEditor({
             onRemove={() => removeBlock(block.id)}
             onMoveUp={() => moveBlockBy(index, -1)}
             onMoveDown={() => moveBlockBy(index, 1)}
+            noteId={noteId}
             />
         ))}
 
@@ -206,6 +210,7 @@ interface EditableBlockProps {
     block: NoteBlock;
     index: number;
     totalBlocks: number;
+    noteId?: string;
     onUpdate: (block: NoteBlock) => void;
     onRemove: () => void;
     onMoveUp: () => void;
@@ -217,6 +222,7 @@ function EditableBlock({
     block,
     index,
     totalBlocks,
+    noteId,
     onUpdate,
     onRemove,
     onMoveUp,
@@ -286,6 +292,7 @@ function EditableBlock({
 
         <BlockInput
             block={block}
+            noteId={noteId}
             onUpdate={onUpdate}
         />
         </View>
@@ -295,9 +302,11 @@ function EditableBlock({
 
 function BlockInput({
     block,
+    noteId,
     onUpdate,
     }: {
     block: NoteBlock;
+    noteId?: string;
     onUpdate: (block: NoteBlock) => void;
     }) {
     switch (block.type) {
@@ -878,6 +887,13 @@ function BlockInput({
 
         case 'image':
         return (
+            noteId && block.attachment_id ? (
+            <NoteAttachmentImagePreview
+                noteId={noteId}
+                attachmentId={block.attachment_id}
+                caption={block.caption || undefined}
+            />
+            ) : (
             <View style={styles.attachmentPreview}>
             <Paperclip
                 size={18}
@@ -888,6 +904,7 @@ function BlockInput({
                 {block.caption || 'Imagen adjunta'}
             </Text>
             </View>
+            )
         );
 
         case 'file':

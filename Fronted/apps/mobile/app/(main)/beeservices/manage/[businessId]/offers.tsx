@@ -38,6 +38,12 @@ import {
   useScreenParams,
 } from '../../../../../src/components/embedded/EmbeddedNavContext';
 
+import {
+  LIST_CACHE_TTL,
+  ownedCommercialCatalogsCacheKey,
+  ownedCommercialOffersCacheKey,
+  ownedCommercialProfileCacheKey,
+} from '@beeapp/api-client';
 import type {
   CommercialCatalog,
   CommercialModality,
@@ -45,7 +51,12 @@ import type {
   CommercialOwnedOffer,
   CommercialPaymentPolicy,
   CommercialPricingStrategy,
+  GetOwnedCommercialCatalogsResponse,
+  GetOwnedCommercialOffersResponse,
+  GetOwnedCommercialProfileResponse,
 } from '@beeapp/shared-types';
+
+import { paintCachedValue } from '../../../../../src/hooks/useCachedResource';
 
 import ScreenSafeArea from '../../../../../src/components/layout/ScreenSafeArea';
 import {
@@ -342,8 +353,82 @@ export default function BuddyServicesManageOffersScreen() {
       return;
     }
 
-    setIsLoading(true);
     setErrorMessage(null);
+
+    const [
+      paintedCatalogs,
+      paintedOffers,
+      paintedProfile,
+    ] = await Promise.all([
+      paintCachedValue<GetOwnedCommercialCatalogsResponse>(
+        ownedCommercialCatalogsCacheKey(businessId, {
+          include_archived: false,
+        }),
+        LIST_CACHE_TTL.stable,
+        () => undefined,
+      ),
+      paintCachedValue<GetOwnedCommercialOffersResponse>(
+        ownedCommercialOffersCacheKey(businessId, {
+          include_archived: false,
+        }),
+        LIST_CACHE_TTL.stable,
+        () => undefined,
+      ),
+      paintCachedValue<GetOwnedCommercialProfileResponse>(
+        ownedCommercialProfileCacheKey(businessId),
+        LIST_CACHE_TTL.stable,
+        () => undefined,
+      ),
+    ]);
+
+    if (paintedCatalogs && paintedOffers && paintedProfile) {
+      const catalogsResponse = await paintCachedValue<
+        GetOwnedCommercialCatalogsResponse
+      >(
+        ownedCommercialCatalogsCacheKey(businessId, {
+          include_archived: false,
+        }),
+        LIST_CACHE_TTL.stable,
+        (cached) => {
+          const selectedCatalog = cached.catalogs.find(
+            (catalog) => catalog.id === catalogId,
+          );
+
+          if (selectedCatalog) {
+            setCatalogs([selectedCatalog]);
+          }
+        },
+      );
+      await paintCachedValue<GetOwnedCommercialOffersResponse>(
+        ownedCommercialOffersCacheKey(businessId, {
+          include_archived: false,
+        }),
+        LIST_CACHE_TTL.stable,
+        (cached) => {
+          setOffers(
+            cached.offers.filter((offer) => (
+              offer.status !== 'archived'
+              && offer.catalog_id === catalogId
+            )),
+          );
+        },
+      );
+      await paintCachedValue<GetOwnedCommercialProfileResponse>(
+        ownedCommercialProfileCacheKey(businessId),
+        LIST_CACHE_TTL.stable,
+        (cached) => {
+          setEnabledModalities(
+            cached.profile.modalities
+              .filter((record) => record.status !== 'archived')
+              .map((record) => record.modality),
+          );
+        },
+      );
+      void catalogsResponse;
+      setIsLoading(false);
+    } else {
+      setIsLoading(true);
+    }
 
     try {
       const [

@@ -1,4 +1,10 @@
-import { Text, TouchableOpacity, View } from "react-native";
+import {
+  Text,
+  TouchableOpacity,
+  View,
+  type StyleProp,
+  type ViewStyle,
+} from "react-native";
 import {
   ChevronDown,
   ChevronLeft,
@@ -14,18 +20,22 @@ interface BeeServicesHeaderProps {
   onBackToMainPress: () => void;
   onMenuPress: () => void;
   title?: string;
+  subtitle?: string;
   selectedBusinessName?: string | null;
   selectedBusinessError?: string | null;
   onChangeBusinessPress?: () => void;
+  containerStyle?: StyleProp<ViewStyle>;
 }
 
 export default function BeeServicesHeader({
   onBackToMainPress,
   onMenuPress,
   title = "Buddy Services",
+  subtitle = "Conecta necesidades con soluciones",
   selectedBusinessName = null,
   selectedBusinessError = null,
   onChangeBusinessPress,
+  containerStyle,
 }: BeeServicesHeaderProps) {
   const hasSelectedBusinessContext = Boolean(
     selectedBusinessName || selectedBusinessError,
@@ -37,7 +47,7 @@ export default function BeeServicesHeader({
   const selectorText = selectedBusinessName || "Elegir otro negocio";
 
   return (
-    <View style={styles.header}>
+    <View style={[styles.header, containerStyle]}>
       <TouchableOpacity
         accessibilityLabel="Volver al menú principal"
         accessibilityRole="button"
@@ -114,7 +124,7 @@ export default function BeeServicesHeader({
           </TouchableOpacity>
         ) : (
           <Text style={styles.headerSubtitle}>
-            Conecta necesidades con soluciones
+            {subtitle}
           </Text>
         )}
       </View>

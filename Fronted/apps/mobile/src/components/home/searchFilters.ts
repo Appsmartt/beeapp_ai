@@ -8,6 +8,16 @@ export interface SearchFilterOption {
   icon: typeof Mail;
 }
 
+/** Home module opened when the user picks a search type. */
+export const SEARCH_FILTER_TO_MODULE: Record<SearchFilterType, string> = {
+  correo: 'mail',
+  chat: 'chat',
+  contacto: 'chat',
+  nota: 'notes',
+  archivo: 'files',
+  evento: 'calendar',
+};
+
 /** Content types the Home search can be narrowed down to */
 export const FILTER_OPTIONS: SearchFilterOption[] = [
   { id: 'correo', label: 'Correo', icon: Mail },

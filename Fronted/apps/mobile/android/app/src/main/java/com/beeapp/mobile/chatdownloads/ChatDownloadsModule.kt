@@ -1,13 +1,12 @@
 package com.beeapp.mobile.chatdownloads
 
+import android.content.ActivityNotFoundException
 import android.content.ContentValues
+import android.content.Intent
+import android.net.Uri
 import android.os.Build
 import android.os.Environment
 import android.provider.MediaStore
-import android.app.DownloadManager
-import android.content.ActivityNotFoundException
-import android.content.Intent
-import android.net.Uri
 import com.facebook.react.bridge.Promise
 import com.facebook.react.bridge.ReactApplicationContext
 import com.facebook.react.bridge.ReactContextBaseJavaModule
@@ -23,6 +22,39 @@ class ChatDownloadsModule(
 
   @ReactMethod
   fun saveToDownloads(sourceUriValue: String, fileName: String, mimeType: String, promise: Promise) {
+    saveToMediaCollection(
+      sourceUriValue = sourceUriValue,
+      fileName = fileName,
+      mimeType = mimeType,
+      collection = MediaStore.Downloads.EXTERNAL_CONTENT_URI,
+      relativePath = Environment.DIRECTORY_DOWNLOADS + "/",
+      trackAsDownload = true,
+      promise = promise,
+    )
+  }
+
+  @ReactMethod
+  fun saveToGallery(sourceUriValue: String, fileName: String, mimeType: String, promise: Promise) {
+    saveToMediaCollection(
+      sourceUriValue = sourceUriValue,
+      fileName = fileName,
+      mimeType = mimeType,
+      collection = MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
+      relativePath = Environment.DIRECTORY_PICTURES + "/Buddy/",
+      trackAsDownload = false,
+      promise = promise,
+    )
+  }
+
+  private fun saveToMediaCollection(
+    sourceUriValue: String,
+    fileName: String,
+    mimeType: String,
+    collection: Uri,
+    relativePath: String,
+    trackAsDownload: Boolean,
+    promise: Promise,
+  ) {
     if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
       promise.reject("UNSUPPORTED_ANDROID", "La descarga automática requiere Android 10 o superior.")
       return
@@ -51,15 +83,16 @@ class ChatDownloadsModule(
           .trim()
           .take(255)
           .ifEmpty { "archivo" }
+        val resolvedMime = mimeType.ifBlank { "application/octet-stream" }
         val values = ContentValues().apply {
           put(MediaStore.MediaColumns.DISPLAY_NAME, safeName)
-          put(MediaStore.MediaColumns.MIME_TYPE, mimeType.ifBlank { "application/octet-stream" })
-          put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS + "/")
+          put(MediaStore.MediaColumns.MIME_TYPE, resolvedMime)
+          put(MediaStore.MediaColumns.RELATIVE_PATH, relativePath)
           put(MediaStore.MediaColumns.IS_PENDING, 1)
         }
         val resolver = reactContext.contentResolver
-        destination = resolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values)
-          ?: throw IllegalStateException("Android no permitió crear el archivo en Descargas.")
+        destination = resolver.insert(collection, values)
+          ?: throw IllegalStateException("Android no permitió crear el archivo en el almacenamiento.")
         val output = resolver.openOutputStream(destination, "w")
           ?: throw IllegalStateException("Android no permitió escribir el archivo.")
         output.use { stream ->
@@ -68,16 +101,19 @@ class ChatDownloadsModule(
         }
         val completed = ContentValues().apply { put(MediaStore.MediaColumns.IS_PENDING, 0) }
         if (resolver.update(destination, completed, null, null) != 1) {
-          throw IllegalStateException("No se pudo confirmar el archivo en Descargas.")
+          throw IllegalStateException("No se pudo confirmar el archivo guardado.")
         }
-        recentDownloads.add(destination.toString())
+        if (trackAsDownload) {
+          recentDownloads.add(destination.toString())
+        }
         promise.resolve(destination.toString())
       } catch (error: Exception) {
         destination?.let { runCatching { reactContext.contentResolver.delete(it, null, null) } }
-        promise.reject("SAVE_DOWNLOAD_FAILED", error.message ?: "No se pudo guardar en Descargas.", error)
+        promise.reject("SAVE_DOWNLOAD_FAILED", error.message ?: "No se pudo guardar el archivo.", error)
       }
     }.start()
   }
+
   @ReactMethod
   fun openDownloadedFile(uriValue: String, mimeType: String, promise: Promise) {
     if (!recentDownloads.contains(uriValue)) {
@@ -97,7 +133,7 @@ class ChatDownloadsModule(
       try {
         reactContext.startActivity(view)
       } catch (missingViewer: ActivityNotFoundException) {
-        val downloads = Intent(DownloadManager.ACTION_VIEW_DOWNLOADS).apply {
+        val downloads = Intent(android.app.DownloadManager.ACTION_VIEW_DOWNLOADS).apply {
           addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         }
         reactContext.startActivity(downloads)
@@ -111,5 +147,4 @@ class ChatDownloadsModule(
       )
     }
   }
-
 }

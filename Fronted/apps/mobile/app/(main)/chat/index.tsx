@@ -4,18 +4,19 @@ import {
   useMemo,
   useRef,
   useState,
-} from 'react';
+  } from 'react';
 import { useFocusEffect } from 'expo-router';
 import {
   ActivityIndicator,
-  Alert,
   RefreshControl,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
 } from 'react-native';
+import { appAlert } from '../../../src/components/feedback/appAlert';
 import {
+  MessageCircle,
   SquarePen,
   UserPlus,
 } from 'lucide-react-native';
@@ -36,15 +37,35 @@ import {
   listChatCategories,
   listChatCategoryAssignments,
   getAssistantSettings,
+  getBusinessChatUnreadCounts,
+  LIST_CACHE_TTL,
+  OWNED_COMMERCIAL_PROFILES_CACHE_KEY,
+  readRequestCache,
   type ChatCategoryRecord,
 } from '@beeapp/api-client';
+
+import type { CommercialOwnedProfile } from '@beeapp/shared-types';
 
 import ScreenSafeArea from '../../../src/components/layout/ScreenSafeArea';
 import {
   useModuleNav,
   useScreenParams,
 } from '../../../src/components/embedded/EmbeddedNavContext';
+import {
+  homeSearchEmptyCopy,
+  useHomeModuleSearch,
+} from '../../../src/components/home/HomeSearchContext';
+import ContactsListView from '../../../src/components/contacts/ContactsListView';
+import CommercialOwnedBusinessPickerSheet from '../../../src/components/buddyservices/CommercialOwnedBusinessPickerSheet';
 import ModuleNotificationBell from '../../../src/components/ModuleNotificationBell';
+import {
+  buddyServicesCommercialRoute,
+  buddyServicesMyBusinessesRoute,
+} from '../../../src/features/buddyservices/commercialRoutes';
+import {
+  loadOwnedCommercialProfiles,
+} from '../../../src/services/commercialService';
+import ModuleQuickMenu from '../../../src/components/ModuleQuickMenu';
 
 import ChatListView from '../../../src/components/chat/ChatListView';
 import ChatCategoryChips from '../../../src/components/chat/ChatCategoryChips';
@@ -150,6 +171,14 @@ type PinAction = {
 
 export default function ChatListScreen() {
   const router = useModuleNav();
+  const homeSearch = useHomeModuleSearch([
+    'chat',
+    'contacto',
+  ]);
+  const isContactSearchMode = (
+    homeSearch.active
+    && homeSearch.filter === 'contacto'
+  );
   const params = useScreenParams();
 
   const context = String(params.context || '').trim();
@@ -171,6 +200,13 @@ export default function ChatListScreen() {
   const [assistantName, setAssistantName] = useState('Buddy AI');
   const [assistantInboxPinned, setAssistantInboxPinned] = useState(true);
   const [assistantInboxMuted, setAssistantInboxMuted] = useState(false);
+  const [businessSwitcherOpen, setBusinessSwitcherOpen] = useState(false);
+  const [ownedBusinesses, setOwnedBusinesses] = useState<
+    CommercialOwnedProfile[]
+  >([]);
+  const [businessUnreadById, setBusinessUnreadById] = useState<
+    Record<string, number>
+  >({});
 
   useFocusEffect(useCallback(() => {
     let cancelled = false;
@@ -199,6 +235,73 @@ export default function ChatListScreen() {
       cancelled = true;
     };
   }, []));
+
+  const businessUnreadTotal = useMemo(
+    () => Object.values(businessUnreadById).reduce(
+      (total, count) => total + count,
+      0,
+    ),
+    [businessUnreadById],
+  );
+
+  useFocusEffect(useCallback(() => {
+    if (isCommercialContext) {
+      return undefined;
+    }
+
+    let cancelled = false;
+
+    const loadBusinessSwitcher = async () => {
+      const cachedProfiles = await readRequestCache<{
+        profiles: CommercialOwnedProfile[];
+      }>(
+        OWNED_COMMERCIAL_PROFILES_CACHE_KEY,
+        {
+          ttlMs: LIST_CACHE_TTL.standard,
+          allowStale: true,
+        },
+      );
+      if (cachedProfiles?.profiles?.length && !cancelled) {
+        setOwnedBusinesses(cachedProfiles.profiles);
+      }
+
+      const auth = await getValidSessionCredentials();
+
+      if (!auth || auth.scheme !== 'Bearer') {
+        return;
+      }
+
+      try {
+        const [profiles, unread] = await Promise.all([
+          loadOwnedCommercialProfiles(),
+          getBusinessChatUnreadCounts(auth),
+        ]);
+
+        if (cancelled) {
+          return;
+        }
+
+        setOwnedBusinesses(profiles.profiles);
+        setBusinessUnreadById(Object.fromEntries(
+          unread.businesses.map((business) => [
+            business.business_id,
+            Number(business.unread_count) || 0,
+          ]),
+        ));
+      } catch {
+        if (!cancelled) {
+          setOwnedBusinesses([]);
+          setBusinessUnreadById({});
+        }
+      }
+    };
+
+    void loadBusinessSwitcher();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isCommercialContext]));
 
   useEffect(() => {
     let cancelled = false;
@@ -321,9 +424,20 @@ export default function ChatListScreen() {
   const [savingCategory, setSavingCategory] = useState(false);
   const [savingAssignment, setSavingAssignment] = useState(false);
 
+  const inboxConversations = useMemo(
+    () => (
+      isCommercialContext
+        ? conversations.filter((chat) => (
+            chat.raw.business_id === businessId
+          ))
+        : conversations
+    ),
+    [businessId, conversations, isCommercialContext],
+  );
+
   const categoryConversationIds = useMemo(
-    () => conversations.filter((chat) => !chat.isAI).map((chat) => chat.id),
-    [conversations],
+    () => inboxConversations.filter((chat) => !chat.isAI).map((chat) => chat.id),
+    [inboxConversations],
   );
   const categoryConversationKey = categoryConversationIds.join(',');
 
@@ -391,7 +505,7 @@ export default function ChatListScreen() {
           setCategoryIdentityId((current) => (
             current === activeIdentityId ? current : null
           ));
-          Alert.alert(
+          appAlert(
             'No fue posible cargar las categorías',
             categoryError instanceof Error ? categoryError.message : 'Inténtalo nuevamente.',
           );
@@ -440,7 +554,6 @@ export default function ChatListScreen() {
     circleStatuses,
     ownStatuses,
     loading: statusesLoading,
-    refreshing: statusesRefreshing,
     error: statusesError,
     refresh: refreshStatuses,
     markStatusViewedLocally,
@@ -756,11 +869,8 @@ export default function ChatListScreen() {
   useFocusEffect(
     useCallback(() => {
       setChatListFocused(true);
-      setProtectionLoaded(false);
-      setProtectionRefresh((value) => value + 1);
       return () => {
         setChatListFocused(false);
-        setProtectionLoaded(false);
       };
     }, []),
   );
@@ -772,11 +882,13 @@ export default function ChatListScreen() {
   );
 
   useEffect(() => {
+    if (!activeIdentityId) {
+      return undefined;
+    }
+
     let cancelled = false;
     let hasCachedProtection = false;
     const mutationVersion = protectionMutationVersion.current;
-    setProtectionLoaded(false);
-    setCachedProtectionUserId(null);
     setProtectionError(null);
 
     const loadProtection = async () => {
@@ -794,6 +906,7 @@ export default function ChatListScreen() {
           setProtectedChatIds(new Set(cachedIds));
           setProtectionIdentityId(activeIdentityId);
           setCachedProtectionUserId(userId);
+          setProtectionLoaded(true);
         }
         const auth = await getValidSessionCredentials();
         if (!auth) throw new Error('Inicia sesión para cargar los chats protegidos.');
@@ -888,7 +1001,7 @@ export default function ChatListScreen() {
   ]);
 
   const categorizedChats = useMemo(
-    () => conversations
+    () => inboxConversations
       .filter((chat) => (
         chat.isAI
         || chat.isGroup
@@ -902,7 +1015,7 @@ export default function ChatListScreen() {
         isProtected: protectedChatIds.has(chat.id),
       })),
     [
-      conversations,
+      inboxConversations,
       protectedChatIds,
     ],
   );
@@ -947,6 +1060,7 @@ export default function ChatListScreen() {
             isAI: true,
             verified: false,
             avatarUrl: null,
+            avatarCacheKey: null,
             participantCount: 0,
             participants: [],
             raw: { id: 'assistant' } as ChatListItemModel['raw'],
@@ -1091,7 +1205,7 @@ export default function ChatListScreen() {
       });
     }
     setProtectionRefresh((value) => value + 1);
-    Alert.alert(
+    appAlert(
       'Protección removida',
       'El chat ya no requiere PIN para abrirse.',
     );
@@ -1120,7 +1234,7 @@ export default function ChatListScreen() {
       const status = await getAccountSecurityPinStatus(auth);
 
       if (!status.configured) {
-        Alert.alert(
+        appAlert(
           'PIN requerido',
           'Debes crear un PIN primero desde Seguridad.',
           [
@@ -1152,9 +1266,9 @@ export default function ChatListScreen() {
         }
       }
       setProtectionRefresh((value) => value + 1);
-      Alert.alert('Chat protegido', 'El chat quedó protegido con tu PIN.');
+      appAlert('Chat protegido', 'El chat quedó protegido con tu PIN.');
     } catch (failure) {
-      Alert.alert(
+      appAlert(
         'No fue posible proteger el chat',
         failure instanceof Error ? failure.message : 'Inténtalo nuevamente.',
       );
@@ -1175,7 +1289,7 @@ export default function ChatListScreen() {
         setAssistantInboxPinned(updated.isPinned);
       }
     } catch (updateError) {
-      Alert.alert(
+      appAlert(
         'No fue posible actualizar el chat',
         updateError instanceof Error
           ? updateError.message
@@ -1198,7 +1312,7 @@ export default function ChatListScreen() {
         setAssistantInboxMuted(updated.isMuted);
       }
     } catch (updateError) {
-      Alert.alert(
+      appAlert(
         'No fue posible actualizar el chat',
         updateError instanceof Error
           ? updateError.message
@@ -1213,14 +1327,14 @@ export default function ChatListScreen() {
     try {
       await archiveConversation(chat.id);
 
-      Alert.alert(
+      appAlert(
         'Chat archivado',
         chat.isGroup
           ? 'El grupo ahora está en Grupos archivados.'
           : 'El chat ahora está en Chats archivados.',
       );
     } catch (archiveError) {
-      Alert.alert(
+      appAlert(
         'No fue posible archivar el chat',
         archiveError instanceof Error
           ? archiveError.message
@@ -1235,14 +1349,14 @@ export default function ChatListScreen() {
     try {
       await restoreConversation(chat.id);
 
-      Alert.alert(
+      appAlert(
         'Chat restaurado',
         chat.isGroup
           ? 'El grupo volvió a la pestaña Grupos.'
           : 'El chat volvió a la pestaña Chats.',
       );
     } catch (restoreError) {
-      Alert.alert(
+      appAlert(
         'No fue posible restaurar el chat',
         restoreError instanceof Error
           ? restoreError.message
@@ -1254,7 +1368,7 @@ export default function ChatListScreen() {
   const handleDelete = (
     chat: ChatListItemModel,
   ) => {
-    Alert.alert(
+    appAlert(
       'Eliminar chat',
       (
         chat.isGroup
@@ -1276,7 +1390,7 @@ export default function ChatListScreen() {
           onPress: () => {
             void deleteConversation(chat.id)
               .catch((deleteError) => {
-                Alert.alert(
+                appAlert(
                   'No fue posible eliminar el chat',
                   deleteError instanceof Error
                     ? deleteError.message
@@ -1588,7 +1702,7 @@ export default function ChatListScreen() {
       if (!returnToAssignment) setActiveCategoryId(response.category.id);
       setReturnToAssignment(false);
     } catch (categoryError) {
-      Alert.alert('No fue posible crear la categoría',
+      appAlert('No fue posible crear la categoría',
         categoryError instanceof Error ? categoryError.message : 'Inténtalo nuevamente.');
     } finally {
       setSavingCategory(false);
@@ -1596,7 +1710,7 @@ export default function ChatListScreen() {
   };
 
   const handleDeleteChatCategory = (category: ChatCategoryRecord) => {
-    Alert.alert(
+    appAlert(
       'Eliminar categoría',
       `¿Eliminar "${category.name}"? Los chats y sus mensajes permanecerán intactos.`,
       [
@@ -1632,7 +1746,7 @@ export default function ChatListScreen() {
                 setActiveCategoryId((current) => current === category.id ? null : current);
                 setCategoryRefresh((value) => value + 1);
               } catch (categoryError) {
-                Alert.alert('No fue posible eliminar la categoría',
+                appAlert('No fue posible eliminar la categoría',
                   categoryError instanceof Error ? categoryError.message : 'Inténtalo nuevamente.');
               } finally {
                 setDeletingCategoryId(null);
@@ -1669,17 +1783,34 @@ export default function ChatListScreen() {
       setCategoryRefresh((value) => value + 1);
       setAssigningChat(null);
     } catch (categoryError) {
-      Alert.alert('No fue posible asignar la categoría',
+      appAlert('No fue posible asignar la categoría',
         categoryError instanceof Error ? categoryError.message : 'Inténtalo nuevamente.');
     } finally {
       setSavingAssignment(false);
     }
   };
 
-  const visibleListChats = (isGroupsTab ? groupChats : directChats)
+  const chatsForCurrentTab = isGroupsTab
+    ? groupChats
+    : directChats;
+
+  const visibleListChats = chatsForCurrentTab
     .filter((chat) => !activeCategoryId
       || categoryIdentityId !== activeIdentityId
-      || (categoryAssignments[chat.id] || []).includes(activeCategoryId));
+      || (categoryAssignments[chat.id] || []).includes(activeCategoryId))
+    .filter((chat) => {
+      if (
+        !homeSearch.active
+        || homeSearch.filter === 'contacto'
+      ) {
+        return true;
+      }
+
+      return homeSearch.matchesQuery(
+        chat.name,
+        chat.lastMessage,
+      );
+    });
 
   const categoriesByConversation = useMemo(() => {
     const byId = new Map(chatCategories.map((category) => [category.id, category]));
@@ -1767,50 +1898,90 @@ export default function ChatListScreen() {
       'Inicia un chat o crea un grupo para comenzar.'
     );
 
+  const businessChatsChipAction = (
+    !isCommercialContext && ownedBusinesses.length > 0
+  ) ? (
+    <TouchableOpacity
+      accessibilityLabel="Chats de mis negocios"
+      accessibilityRole="button"
+      activeOpacity={0.7}
+      onPress={() => {
+        setBusinessSwitcherOpen(true);
+      }}
+      style={styles.categoryBusinessBtn}
+    >
+      <MessageCircle
+        color={colors.neutral.text}
+        size={18}
+      />
+
+      {businessUnreadTotal > 0 ? (
+        <View style={styles.businessUnreadBadge}>
+          <Text style={styles.businessUnreadBadgeText}>
+            {businessUnreadTotal > 9
+              ? '9+'
+              : businessUnreadTotal}
+          </Text>
+        </View>
+      ) : null}
+    </TouchableOpacity>
+  ) : null;
+
   return (
     <ScreenSafeArea style={styles.safeArea}>
       <View style={styles.container}>
+        {!isCommercialContext ? (
         <View style={styles.header}>
           <View style={styles.topRow}>
+            <ModuleNotificationBell
+              moduleId="chat"
+              showQuickMenu={false}
+              tone="neutral"
+            />
+
             <Text
               style={styles.title}
               numberOfLines={1}
             >
-              Chats
+              {isContactSearchMode
+                ? 'Contactos'
+                : 'Buddy'}
             </Text>
 
             <View style={styles.headerActions}>
-              <ModuleNotificationBell moduleId="chat" />
-
               <TouchableOpacity
-                style={styles.newChatBtn}
+                accessibilityLabel="Actividad social y contactos"
+                activeOpacity={0.7}
                 onPress={() => {
                   setSocialActivityOpen(true);
                 }}
-                activeOpacity={0.7}
-                accessibilityLabel="Actividad social y contactos"
+                style={styles.newChatBtn}
               >
                 <UserPlus
-                  size={20}
                   color={colors.neutral.text}
+                  size={20}
                 />
               </TouchableOpacity>
 
               <TouchableOpacity
-                style={styles.newChatBtn}
-                onPress={() => setCreateMenuOpen(true)}
-                activeOpacity={0.7}
                 accessibilityLabel="Nuevo chat o grupo"
+                activeOpacity={0.7}
+                onPress={() => setCreateMenuOpen(true)}
+                style={styles.newChatBtn}
               >
                 <SquarePen
-                  size={20}
                   color={colors.neutral.text}
+                  size={20}
                 />
               </TouchableOpacity>
+
+              <ModuleQuickMenu />
             </View>
           </View>
         </View>
+        ) : null}
 
+        {!isCommercialContext && !isContactSearchMode ? (
         <View style={styles.statusesSection}>
           <StatusCirclesRow
             statuses={circleStatuses}
@@ -1862,12 +2033,25 @@ export default function ChatListScreen() {
             </View>
           ) : null}
         </View>
+        ) : null}
 
+        {isContactSearchMode ? (
+          <View style={styles.contactsSearchWrap}>
+            <ContactsListView
+              embedFromHomeSearch
+              homeSearchQuery={homeSearch.query}
+            />
+          </View>
+        ) : null}
+
+        {!isContactSearchMode ? (
         <ChatTabs
           activeTab={activeTab}
           onChange={setActiveTab}
         />
+        ) : null}
 
+        {!isContactSearchMode ? (
         <View style={styles.verTodoRow}>
           <TouchableOpacity
             onPress={() => {
@@ -1894,8 +2078,10 @@ export default function ChatListScreen() {
             </Text>
           </TouchableOpacity>
         </View>
+        ) : null}
 
-        {activeIdentityId && categoryIdentityId === activeIdentityId && (
+        {!isContactSearchMode
+        && (activeIdentityId || businessChatsChipAction) ? (
           <ChatCategoryChips
             categories={chatCategories}
             activeCategoryId={activeCategoryId}
@@ -1905,9 +2091,11 @@ export default function ChatListScreen() {
               setCreatingCategory(true);
             }}
             onManage={() => setManagingCategories(true)}
+            endAction={businessChatsChipAction}
           />
-        )}
+        ) : null}
 
+        {!isContactSearchMode ? (
         <>
           {(
             commercialIdentityLoading
@@ -1954,8 +2142,19 @@ export default function ChatListScreen() {
                 </View>
               ) : (
               <ChatListView
+                emptyMessage={
+                  homeSearch.hasActiveQuery
+                    ? homeSearchEmptyCopy(homeSearch.query).title
+                    : undefined
+                }
                 aiChat={
-                  isGroupsTab || activeCategoryId
+                  homeSearch.active
+                  && !homeSearch.matchesQuery(
+                    aiChat?.name,
+                    aiChat?.lastMessage,
+                  )
+                    ? undefined
+                    : isGroupsTab || activeCategoryId
                     ? undefined
                     : aiChat && !previewProtectionReady
                       ? {
@@ -1988,7 +2187,10 @@ export default function ChatListScreen() {
                 archivedCount={archivedCount}
                 archivedLabel={archivedLabel}
                 archivedSubtitle={archivedSubtitle}
-                onPressArchived={() => {
+                onPressArchived={
+                  homeSearch.hasActiveQuery
+                    ? undefined
+                    : () => {
                   if (!protectionReady) return;
                   router.push({
                     pathname: '/(main)/chat/archived',
@@ -2024,10 +2226,7 @@ export default function ChatListScreen() {
                 }}
                 refreshControl={
                   <RefreshControl
-                    refreshing={
-                      refreshing
-                      || statusesRefreshing
-                    }
+                    refreshing={refreshing && conversations.length === 0}
                     onRefresh={handleRefresh}
                     tintColor={colors.brand.primary}
                   />
@@ -2064,6 +2263,7 @@ export default function ChatListScreen() {
             </View>
           )}
         </>
+        ) : null}
       </View>
 
       <StatusViewer
@@ -2442,6 +2642,26 @@ export default function ChatListScreen() {
         onClose={() => setManagingCategories(false)}
       />
 
+      {!isCommercialContext ? (
+        <CommercialOwnedBusinessPickerSheet
+          businesses={ownedBusinesses}
+          eyebrow="Chats del negocio"
+          onClose={() => {
+            setBusinessSwitcherOpen(false);
+          }}
+          onSelect={(businessId) => {
+            router.push(buddyServicesCommercialRoute(businessId));
+          }}
+          onViewAllPress={() => {
+            router.push(buddyServicesMyBusinessesRoute());
+          }}
+          selectedBusinessId={null}
+          title="Elige un negocio"
+          unreadByBusinessId={businessUnreadById}
+          visible={businessSwitcherOpen}
+        />
+      ) : null}
+
     </ScreenSafeArea>
   );
 }
@@ -2503,7 +2723,36 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     height: 40,
     justifyContent: 'center',
+    position: 'relative',
     width: 40,
+  },
+  categoryBusinessBtn: {
+    alignItems: 'center',
+    backgroundColor: '#EEF2FF',
+    borderColor: '#D7DFF2',
+    borderRadius: 16,
+    borderWidth: 1,
+    height: 32,
+    justifyContent: 'center',
+    position: 'relative',
+    width: 32,
+  },
+  businessUnreadBadge: {
+    alignItems: 'center',
+    backgroundColor: '#7427D5',
+    borderColor: '#FFFFFF',
+    borderRadius: 9,
+    borderWidth: 2,
+    minWidth: 18,
+    paddingHorizontal: 3,
+    position: 'absolute',
+    right: -4,
+    top: -4,
+  },
+  businessUnreadBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 9,
+    fontWeight: '800',
   },
   loadingState: {
     alignItems: 'center',
@@ -2516,6 +2765,11 @@ const styles = StyleSheet.create({
     color: colors.neutral.gray600,
     fontSize: 14,
     fontWeight: '600',
+  },
+  contactsSearchWrap: {
+    flex: 1,
+    marginHorizontal: 12,
+    marginTop: 8,
   },
   listWrap: {
     flex: 1,

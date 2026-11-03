@@ -5,9 +5,7 @@ import {
   useRef,
   useState,
 } from 'react';
-import {
-  Alert,
-} from 'react-native';
+import { appAlert } from '../../components/feedback/appAlert';
 import type {
   StatusFollowDiscoverItem,
 } from '@beeapp/shared-types';
@@ -187,7 +185,7 @@ export function usePeopleDiscovery({
         online: conversation.online,
       });
     } catch (error) {
-      Alert.alert(
+      appAlert(
         'No fue posible abrir el chat',
         error instanceof Error
           ? error.message
@@ -226,7 +224,7 @@ export function usePeopleDiscovery({
       );
       onFollowChange?.();
     } catch (error) {
-      Alert.alert(
+      appAlert(
         'No fue posible seguir esta cuenta',
         error instanceof Error
           ? error.message
@@ -276,7 +274,7 @@ export function usePeopleDiscovery({
       );
       onFollowChange?.();
     } catch (error) {
-      Alert.alert(
+      appAlert(
         'No fue posible actualizar el seguimiento',
         error instanceof Error
           ? error.message

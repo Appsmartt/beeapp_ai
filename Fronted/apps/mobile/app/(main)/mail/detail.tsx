@@ -1,22 +1,19 @@
 import {
   ActivityIndicator,
-  Alert,
   ScrollView,
   StyleSheet,
   useWindowDimensions,
   Text,
   TouchableOpacity,
   View,
-  Linking,
 } from 'react-native';
-import RenderHTML, {
-  HTMLElementModel,
-  HTMLContentModel,
-} from 'react-native-render-html';
+import { appAlert } from '../../../src/components/feedback/appAlert';
+import MailHtmlView, {
+  cleanLeakedCssText,
+} from '../../../src/components/mail/MailHtmlView';
 import * as FileSystem from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 import {
-  askAssistantMail,
   downloadMailAttachment,
 } from '@beeapp/api-client';
 import {
@@ -56,24 +53,6 @@ import {
 import type {
   MailDetailModel,
 } from '../../../src/services/mailService';
-
-const MAIL_HTML_CUSTOM_ELEMENT_MODELS = {
-  center: HTMLElementModel.fromCustomModel({
-    tagName: 'center',
-    mixedUAStyles: {
-      textAlign: 'center',
-    },
-    contentModel: HTMLContentModel.block,
-  }),
-  font: HTMLElementModel.fromCustomModel({
-    tagName: 'font',
-    contentModel: HTMLContentModel.mixed,
-  }),
-  marquee: HTMLElementModel.fromCustomModel({
-    tagName: 'marquee',
-    contentModel: HTMLContentModel.mixed,
-  }),
-};
 
 function getErrorMessage(
   error: unknown,
@@ -253,26 +232,80 @@ function getMailBody(
   return 'Este correo no contiene texto disponible.';
 }
 
+function looksLikeHtml(value: string): boolean {
+  return /<\s*(html|body|table|div|p|!doctype|meta|style|center)\b/i.test(value);
+}
+
 function getReadableTextFromHtml(html: string): string {
-  return html
-    .replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, '')
-    .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, '')
-    .replace(/<head\b[^>]*>[\s\S]*?<\/head>/gi, '')
-    .replace(/<!--[\s\S]*?-->/g, '')
-    .replace(/<(?:br|\/p|\/div|\/li|\/tr|\/h[1-6])\s*\/?>/gi, '\n')
-    .replace(/<[^>]+>/g, ' ')
-    .replace(/&nbsp;|&#160;/gi, ' ')
-    .replace(/&amp;/gi, '&')
-    .replace(/&lt;/gi, '<')
-    .replace(/&gt;/gi, '>')
-    .replace(/&quot;/gi, '"')
-    .replace(/&#39;|&apos;/gi, "'")
-    .replace(/[\u200B-\u200D\u2060\uFEFF]/g, '')
+  const stripped = cleanLeakedCssText(
+    html
+      .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, '')
+      .replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, '')
+      .replace(/<head\b[^>]*>[\s\S]*?<\/head>/gi, '')
+      .replace(/(?:^|>)[^<]*<\/style>/gi, ' ')
+      .replace(/<!--[\s\S]*?-->/g, '')
+      .replace(/<!--[^>]*>/g, '')
+      .replace(/<(?:br|\/p|\/div|\/li|\/tr|\/h[1-6])\s*\/?>/gi, '\n')
+      .replace(/<[^>]+>/g, ' ')
+      .replace(/&nbsp;|&#160;/gi, ' ')
+      .replace(/&amp;/gi, '&')
+      .replace(/&lt;/gi, '<')
+      .replace(/&gt;/gi, '>')
+      .replace(/&quot;/gi, '"')
+      .replace(/&#39;|&apos;/gi, "'")
+      .replace(/[\u200B-\u200D\u2060\uFEFF]/g, ''),
+  )
     .replace(/[ \t]+\n/g, '\n')
     .replace(/\n[ \t]+/g, '\n')
     .replace(/\n{3,}/g, '\n\n')
     .replace(/[ \t]{2,}/g, ' ')
     .trim();
+
+  const lines = stripped
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .filter((line) => !/^(\.|#|[\w-]+\s*\{|[\w-]+\s*:|@media)/i.test(line));
+
+  const deduped: string[] = [];
+  for (const line of lines) {
+    if (deduped[deduped.length - 1] === line) continue;
+    deduped.push(line);
+  }
+
+  return deduped.join('\n\n');
+}
+
+function prepareMailHtmlForRender(html: string): string {
+  const sanitized = html.replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, '');
+
+  if (/<html[\s>]/i.test(sanitized)) {
+    return sanitized;
+  }
+
+  return (
+    '<!DOCTYPE html><html><head>'
+    + '<meta name="viewport" content="width=device-width, initial-scale=1" />'
+    + '</head><body style="margin:0;padding:0;">'
+    + sanitized
+    + '</body></html>'
+  );
+}
+
+function resolveDetailHtmlBody(
+  email: MailDetailModel,
+): string | null {
+  const html = email.bodyHtml?.trim();
+  if (html) {
+    return prepareMailHtmlForRender(html);
+  }
+
+  const body = email.body.trim();
+  if (body && looksLikeHtml(body)) {
+    return prepareMailHtmlForRender(body);
+  }
+
+  return null;
 }
 
 export default function MailDetailScreen() {
@@ -297,8 +330,6 @@ export default function MailDetailScreen() {
   ] = useState(true);
 
   const [showPlainText, setShowPlainText] = useState(false);
-  const [aiBusy, setAiBusy] = useState(false);
-  const [aiText, setAiText] = useState('');
 
   const [
     actionLoading,
@@ -464,104 +495,8 @@ export default function MailDetailScreen() {
   ), [email]);
 
   const htmlBody = useMemo(() => (
-    email?.bodyHtml?.trim() || null
-  ), [email?.bodyHtml]);
-
-  const htmlContentWidth = Math.max(
-    0,
-    windowWidth - 40,
-  );
-
-  const htmlIgnoredDomTags = useMemo(() => ([
-    'audio',
-    'base',
-    'embed',
-    'form',
-    'head',
-    'iframe',
-    'img',
-    'input',
-    'link',
-    'meta',
-    'object',
-    'script',
-    'style',
-    'title',
-    'video',
-  ]), []);
-
-  const htmlTagsStyles = useMemo(() => ({
-    body: {
-      color: colors.neutral.text,
-      fontSize: 14,
-      lineHeight: 22,
-    },
-    p: {
-      color: colors.neutral.text,
-      fontSize: 14,
-      lineHeight: 22,
-      marginBottom: 12,
-    },
-    a: {
-      color: colors.brand.primary,
-      textDecorationLine: 'underline' as const,
-    },
-    h1: {
-      color: colors.neutral.text,
-      fontSize: 22,
-      fontWeight: '800' as const,
-      lineHeight: 28,
-      marginBottom: 14,
-    },
-    h2: {
-      color: colors.neutral.text,
-      fontSize: 19,
-      fontWeight: '800' as const,
-      lineHeight: 25,
-      marginBottom: 12,
-    },
-    h3: {
-      color: colors.neutral.text,
-      fontSize: 16,
-      fontWeight: '800' as const,
-      lineHeight: 22,
-      marginBottom: 10,
-    },
-    li: {
-      color: colors.neutral.text,
-      fontSize: 14,
-      lineHeight: 22,
-      marginBottom: 5,
-    },
-    table: {
-      maxWidth: '100%' as const,
-    },
-    td: {
-      maxWidth: '100%' as const,
-    },
-  }), []);
-
-  const handleOpenHtmlLink = useCallback((
-    event: {
-      preventDefault: () => void;
-    },
-    href: string,
-  ) => {
-    event.preventDefault();
-
-    const normalizedHref = href.trim();
-
-    if (!/^https?:\/\//i.test(normalizedHref)) {
-      return;
-    }
-
-    void Linking.openURL(normalizedHref).catch(() => {
-      Alert.alert(
-        'No fue posible abrir el enlace',
-        'Inténtalo nuevamente.',
-      );
-    });
-  }, []);
+    email ? resolveDetailHtmlBody(email) : null
+  ), [email]);
 
   const handleToggleStar = useCallback(() => {
     if (!email || actionLoading) {
@@ -588,7 +523,7 @@ export default function MailDetailScreen() {
             : currentEmail
         ));
       } catch (error) {
-        Alert.alert(
+        appAlert(
           'No fue posible actualizar',
           getErrorMessage(error),
         );
@@ -614,7 +549,7 @@ export default function MailDetailScreen() {
         await archiveMessage(email.id);
         router.back();
       } catch (error) {
-        Alert.alert(
+        appAlert(
           'No fue posible archivar',
           getErrorMessage(error),
         );
@@ -634,7 +569,7 @@ export default function MailDetailScreen() {
       return;
     }
 
-    Alert.alert(
+    appAlert(
       'Mover a la papelera',
       (
         'El correo se moverá a la papelera de tu cuenta '
@@ -656,7 +591,7 @@ export default function MailDetailScreen() {
                 await trashMessage(email.id);
                 router.back();
               } catch (error) {
-                Alert.alert(
+                appAlert(
                   'No fue posible mover el correo',
                   getErrorMessage(error),
                 );
@@ -687,7 +622,7 @@ export default function MailDetailScreen() {
         await restoreMessage(email.id);
         router.back();
       } catch (error) {
-        Alert.alert(
+        appAlert(
           'No fue posible restaurar',
           getErrorMessage(error),
         );
@@ -724,7 +659,7 @@ export default function MailDetailScreen() {
     const normalizedAttachmentId = attachmentId.trim();
 
     if (!normalizedAttachmentId) {
-      Alert.alert(
+      appAlert(
         'No fue posible descargar',
         'El adjunto no tiene un identificador válido.',
       );
@@ -798,7 +733,7 @@ export default function MailDetailScreen() {
       const sharingAvailable = await Sharing.isAvailableAsync();
 
       if (!sharingAvailable) {
-        Alert.alert(
+        appAlert(
           'Archivo descargado',
           (
             'El archivo se descargó temporalmente, pero este '
@@ -823,7 +758,7 @@ export default function MailDetailScreen() {
         },
       );
     } catch (downloadError) {
-      Alert.alert(
+      appAlert(
         'No fue posible descargar el adjunto',
         getErrorMessage(
           downloadError,
@@ -854,7 +789,7 @@ export default function MailDetailScreen() {
       replyType !== 'forward'
       && !replyRecipient
     ) {
-      Alert.alert(
+      appAlert(
         'No fue posible responder',
         'Este correo no tiene una dirección de remitente válida.',
       );
@@ -880,42 +815,6 @@ export default function MailDetailScreen() {
     email,
     router,
   ]);
-
-  const runMailAssistant = useCallback(async (
-    operation: 'summarize' | 'translate' | 'suggest_reply',
-  ) => {
-    if (!email || aiBusy) return;
-    const auth = await getValidSessionCredentials();
-    if (!auth || auth.scheme !== 'Bearer') return;
-    setAiBusy(true);
-    try {
-      const response = await askAssistantMail(auth, operation, {
-        subject: email.subject,
-        from: email.senderEmail,
-        text: email.body,
-        language: 'es',
-      });
-      if (operation === 'suggest_reply') {
-        const subject = email.subject.startsWith('Re:')
-          ? email.subject
-          : `Re: ${email.subject}`;
-        router.push({
-          pathname: '/(main)/mail/compose',
-          params: {
-            to: email.senderEmail,
-            subject,
-            body: response.text,
-          },
-        });
-        return;
-      }
-      setAiText(response.text);
-    } catch (error) {
-      Alert.alert('Asistente', getErrorMessage(error));
-    } finally {
-      setAiBusy(false);
-    }
-  }, [aiBusy, email, router]);
 
   if (loading) {
     return (
@@ -1186,32 +1085,21 @@ export default function MailDetailScreen() {
 
           <View style={styles.emailBodyContainer}>
             {htmlBody && !showPlainText ? (
-              <RenderHTML
-                contentWidth={htmlContentWidth}
-                source={{
-                  html: htmlBody,
-                }}
-                ignoredDomTags={htmlIgnoredDomTags}
-                customHTMLElementModels={
-                  MAIL_HTML_CUSTOM_ELEMENT_MODELS
-                }
-                tagsStyles={htmlTagsStyles}
-                enableCSSInlineProcessing
-                enableUserAgentStyles={false}
-                defaultTextProps={{
-                  selectable: true,
-                }}
-                renderersProps={{
-                  a: {
-                    onPress: handleOpenHtmlLink,
-                  },
-                }}
-              />
+              <View style={styles.emailBodyBleed}>
+                <MailHtmlView
+                  html={htmlBody}
+                  width={windowWidth}
+                />
+              </View>
             ) : (
               <Text selectable style={styles.emailBodyText}>
                 {htmlBody
                   ? getReadableTextFromHtml(htmlBody)
-                  : bodyText}
+                  : (
+                    looksLikeHtml(bodyText)
+                      ? getReadableTextFromHtml(bodyText)
+                      : bodyText
+                  )}
               </Text>
             )}
           </View>
@@ -1311,38 +1199,6 @@ export default function MailDetailScreen() {
                 </View>
               </View>
             </>
-          ) : null}
-
-          {!isInTrash && email ? (
-            <View style={styles.replyActionsRow}>
-              <TouchableOpacity
-                style={styles.replyBtn}
-                disabled={aiBusy}
-                onPress={() => { void runMailAssistant('summarize'); }}
-              >
-                <Text style={styles.replyBtnText}>Resumir</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.replyBtn}
-                disabled={aiBusy}
-                onPress={() => { void runMailAssistant('translate'); }}
-              >
-                <Text style={styles.replyBtnText}>Traducir</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.replyBtn}
-                disabled={aiBusy}
-                onPress={() => { void runMailAssistant('suggest_reply'); }}
-              >
-                <Text style={styles.replyBtnText}>Sugerir</Text>
-              </TouchableOpacity>
-            </View>
-          ) : null}
-
-          {aiText ? (
-            <View style={styles.replyActionsRow}>
-              <Text style={styles.replyBtnText}>{aiText}</Text>
-            </View>
           ) : null}
 
           {!isInTrash ? (
@@ -1623,6 +1479,9 @@ const styles = StyleSheet.create({
   },
   emailBodyContainer: {
     minHeight: 90,
+  },
+  emailBodyBleed: {
+    marginHorizontal: -20,
   },
   mailViewModeButton: {
     alignSelf: 'flex-start',

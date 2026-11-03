@@ -2,10 +2,9 @@ import {
   useEffect,
   useMemo,
   useState,
-} from 'react';
+  } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   FlatList,
   Image,
   Modal,
@@ -18,6 +17,7 @@ import {
   TouchableWithoutFeedback,
   View,
 } from 'react-native';
+import { appAlert } from '../../../src/components/feedback/appAlert';
 import * as ImagePicker from 'expo-image-picker';
 import { withExternalActivity } from '../../../src/services/locationPermissionAppLockGuard';
 import { useRouter } from 'expo-router';
@@ -327,7 +327,7 @@ export default function EditProfileScreen() {
       setAvatarUrl(nextAvatarUrl);
       setPendingAvatar(null);
     } catch (error) {
-      Alert.alert(
+      appAlert(
         'No fue posible cargar tu perfil',
         error instanceof Error
           ? error.message
@@ -367,7 +367,7 @@ export default function EditProfileScreen() {
       ));
 
       if (!permission.granted) {
-        Alert.alert(
+        appAlert(
           'Permiso requerido',
           'Permite el acceso a tus fotos para elegir una imagen de perfil.',
         );
@@ -400,7 +400,7 @@ export default function EditProfileScreen() {
 
       setPendingAvatar(selectedAvatar);
     } catch (error) {
-      Alert.alert(
+      appAlert(
         'No fue posible seleccionar la foto',
         error instanceof Error
           ? error.message
@@ -431,7 +431,7 @@ export default function EditProfileScreen() {
     } catch (error) {
       setPendingAvatar(null);
 
-      Alert.alert(
+      appAlert(
         'No fue posible guardar la foto',
         error instanceof Error
           ? error.message
@@ -455,7 +455,7 @@ export default function EditProfileScreen() {
       setAvatarUrl(null);
       setPendingAvatar(null);
     } catch (error) {
-      Alert.alert(
+      appAlert(
         'No fue posible quitar la foto',
         error instanceof Error
           ? error.message
@@ -475,7 +475,7 @@ export default function EditProfileScreen() {
       return;
     }
 
-    Alert.alert(
+    appAlert(
       'Quitar foto de perfil',
       'Tu foto dejará de mostrarse en tu perfil.',
       [
@@ -496,19 +496,19 @@ export default function EditProfileScreen() {
 
   const validateForm = (): boolean => {
     if (!firstName.trim()) {
-      Alert.alert('Campo requerido', 'Ingresa tu nombre.');
+      appAlert('Campo requerido', 'Ingresa tu nombre.');
 
       return false;
     }
 
     if (!lastName.trim()) {
-      Alert.alert('Campo requerido', 'Ingresa tu apellido.');
+      appAlert('Campo requerido', 'Ingresa tu apellido.');
 
       return false;
     }
 
     if (!email.trim() || !isEmailValid) {
-      Alert.alert(
+      appAlert(
         'Correo inválido',
         'Ingresa un correo electrónico válido.',
       );
@@ -517,7 +517,7 @@ export default function EditProfileScreen() {
     }
 
     if (!phone.trim()) {
-      Alert.alert(
+      appAlert(
         'Campo requerido',
         'Ingresa tu número de teléfono.',
       );
@@ -532,7 +532,7 @@ export default function EditProfileScreen() {
     });
 
     if (invalidSocialField) {
-      Alert.alert(
+      appAlert(
         'URL inválida',
         `Ingresa una URL completa y válida para ${invalidSocialField.label}.`,
       );
@@ -573,7 +573,7 @@ export default function EditProfileScreen() {
 
       setProfile(profileResponse.profile);
 
-      Alert.alert(
+      appAlert(
         'Perfil actualizado',
         'Tus cambios se guardaron correctamente.',
         [
@@ -584,7 +584,7 @@ export default function EditProfileScreen() {
         ],
       );
     } catch (error) {
-      Alert.alert(
+      appAlert(
         'No fue posible guardar el perfil',
         error instanceof Error
           ? error.message

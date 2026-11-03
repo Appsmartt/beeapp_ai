@@ -35,18 +35,47 @@ export default function BeeServicesAiSearchCard({
 
     return (
         <View style={styles.aiSearchCard}>
-            <View pointerEvents="none" style={styles.aiGlowLarge} />
-            <View pointerEvents="none" style={styles.aiGlowSmall} />
+            <View
+                pointerEvents="none"
+                style={styles.aiSearchAccentOrb}
+            />
+            <View
+                pointerEvents="none"
+                style={styles.aiSearchAccentOrbSecondary}
+            />
 
-            <Text style={styles.aiSearchTitle}>¿Qué necesitas hoy?</Text>
+            <View style={styles.aiSearchTopBar} />
 
-            <Text style={styles.aiSearchDescription}>
-                Pregúntale a la IA para encontrar el servicio perfecto.
-            </Text>
+            <View style={styles.aiSearchHeaderRow}>
+                <View style={styles.aiSearchHeaderText}>
+                    <Text style={styles.aiSearchTitle}>
+                        ¿Qué necesitas{' '}
+                        <Text style={styles.aiSearchTitleAccent}>
+                            hoy?
+                        </Text>
+                    </Text>
+
+                    <Text style={styles.aiSearchDescription}>
+                        Pregúntale a la IA para encontrar el servicio perfecto.
+                    </Text>
+                </View>
+
+                <View style={styles.aiSearchBadge}>
+                    <Sparkles
+                        color="#7567D9"
+                        size={11}
+                        strokeWidth={2.4}
+                    />
+
+                    <Text style={styles.aiSearchBadgeText}>
+                        IA
+                    </Text>
+                </View>
+            </View>
 
             <View style={styles.searchInputMock}>
                 <View style={styles.sparkleIconWrap}>
-                    <Sparkles size={18} color="#7C2DE0" />
+                    <Sparkles size={16} color="#7567D9" />
                 </View>
 
                 <TextInput

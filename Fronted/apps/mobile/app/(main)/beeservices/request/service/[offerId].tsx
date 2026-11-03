@@ -1,20 +1,20 @@
 import {
-useCallback,
-useEffect,
-useMemo,
-useState,
-} from 'react';
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  } from 'react';
 import {
 ActivityIndicator,
-Alert,
-RefreshControl,
-ScrollView,
-StyleSheet,
-Text,
-TextInput,
-TouchableOpacity,
-View,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from 'react-native';
+import { appAlert } from '../../../../../src/components/feedback/appAlert';
 import {
 ArrowLeft,
 CheckCircle2,
@@ -231,7 +231,7 @@ if (
 requestedModality === 'delivery'
 && !deliveryAddress.trim()
 ) {
-Alert.alert(
+appAlert(
 'Dirección requerida',
 'Ingresa la dirección para la entrega a domicilio.',
 );
@@ -291,7 +291,7 @@ currentCommercialProfileName,
 incomingCommercialProfileName,
 } = result.conflict;
 
-Alert.alert(
+appAlert(
 'Carrito de otro negocio',
 (
 `Tu carrito actual pertenece a ${currentCommercialProfileName}. `

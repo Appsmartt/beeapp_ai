@@ -2,7 +2,7 @@ import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { colors, spacing, radii } from '@beeapp/design-system';
 import { ShieldCheck, Lock } from 'lucide-react-native';
 import { StorageItem } from '../../stores/storageStore';
-import { renderItemIcon } from './storageItemIcon';
+import StorageFileImageThumb from './StorageFileImageThumb';
 import { useGridColumns } from '../layout/ViewModeToggle';
 
 const GAP = 12;
@@ -29,8 +29,16 @@ export default function StorageItemsGrid({ items, protectedIds, onOpenItem, onOp
           onLongPress={() => onOpenMenu(item)}
           activeOpacity={0.8}
         >
-          <View style={styles.card}>
-            <View style={styles.iconCircle}>{renderItemIcon(item, 26)}</View>
+          <View
+            style={[
+              styles.card,
+              item.type === 'image' && styles.cardWithImage,
+            ]}
+          >
+            <StorageFileImageThumb
+              item={item}
+              variant="grid"
+            />
 
             <View style={styles.nameRow}>
               <Text style={styles.name} numberOfLines={1}>
@@ -80,14 +88,10 @@ const styles = StyleSheet.create({
     borderColor: colors.neutral.gray200,
     padding: 12,
   },
-  iconCircle: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.neutral.gray50,
-    marginBottom: 2,
+  cardWithImage: {
+    justifyContent: 'flex-start',
+    paddingTop: 10,
+    paddingHorizontal: 10,
   },
   nameRow: {
     flexDirection: 'row',

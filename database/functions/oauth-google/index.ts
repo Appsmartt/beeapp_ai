@@ -22,13 +22,21 @@ function notConfigured(): Response {
   });
 }
 
-function page(title: string, text: string): Response {
-  const safeTitle = title.replace(/[<>]/g, "");
-  const safeText = text.replace(/[<>]/g, "");
-  return new Response(
-    `<!doctype html><meta charset="utf-8"><title>${safeTitle}</title><body style="font-family:sans-serif;padding:32px"><h1>${safeTitle}</h1><p>${safeText}</p></body>`,
-    { headers: { "content-type": "text/html; charset=utf-8" } },
-  );
+// Supabase reescribe las respuestas text/html a text/plain en el dominio por
+// defecto, así que el callback devuelve un 302 al deep link de la app. Esto
+// cierra el navegador de WebBrowser.openAuthSessionAsync y devuelve al usuario.
+const APP_RETURN_URL = "beeapp://integrations/result";
+
+function finish(outcome: "success" | "failure", detail?: string): Response {
+  const query = new URLSearchParams({ outcome });
+  if (detail) query.set("detail", detail.slice(0, 200));
+  return new Response(null, {
+    status: 302,
+    headers: {
+      Location: `${APP_RETURN_URL}?${query.toString()}`,
+      "cache-control": "no-store",
+    },
+  });
 }
 
 function configured(): boolean {
@@ -158,7 +166,7 @@ Deno.serve(async (request: Request) => {
 });
 
 async function handleCallback(url: URL): Promise<Response> {
-  if (!configured()) return page("Conexión no configurada", "Faltan las credenciales de Google en Supabase.");
+  if (!configured()) return finish("failure", "Google: conexión no configurada.");
 
   const state = url.searchParams.get("state") || "";
   const providerError = url.searchParams.get("error");
@@ -169,17 +177,17 @@ async function handleCallback(url: URL): Promise<Response> {
     .filter("sync_state->>oauth_state", "eq", state)
     .maybeSingle();
 
-  if (found.error || !found.data) return page("Conexión no encontrada", "El enlace venció. Vuelve a intentarlo desde Buddy AI.");
+  if (found.error || !found.data) return finish("failure", "Google: el enlace venció.");
   const expires = String(found.data.sync_state?.oauth_state_expires_at || "");
   if (expires && new Date(expires).getTime() < Date.now()) {
-    return page("Enlace vencido", "Vuelve a iniciar la conexión desde Buddy AI.");
+    return finish("failure", "Google: el enlace venció.");
   }
   if (providerError) {
     await admin.from("integrations").update({
       status: "error",
       sync_state: { last_error_code: providerError, message: "Conexión no configurada" },
     }).eq("id", found.data.id);
-    return page("No se conectó la cuenta", "Google no autorizó el acceso. Puedes volver a Buddy AI.");
+    return finish("failure", "Google: no se autorizó el acceso.");
   }
 
   const exchanged = await fetch("https://oauth2.googleapis.com/token", {
@@ -199,7 +207,7 @@ async function handleCallback(url: URL): Promise<Response> {
       status: "error",
       sync_state: { last_error_code: "TOKEN_EXCHANGE_FAILED", message: "No fue posible conectar la cuenta." },
     }).eq("id", found.data.id);
-    return page("No se conectó la cuenta", "No fue posible completar la conexión. Vuelve a Buddy AI e inténtalo de nuevo.");
+    return finish("failure", "Google: no fue posible completar la conexión.");
   }
 
   const profile = await fetch("https://www.googleapis.com/oauth2/v2/userinfo", {
@@ -228,5 +236,5 @@ async function handleCallback(url: URL): Promise<Response> {
     },
   }).eq("id", found.data.id);
 
-  return page("Cuenta conectada", "Google quedó conectado. Puedes volver a Buddy AI.");
+  return finish("success");
 }

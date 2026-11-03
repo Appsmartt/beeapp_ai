@@ -1,5 +1,13 @@
-import { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity, Alert } from 'react-native';
+import {
+  useState } from 'react';
+import { View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  TextInput,
+  TouchableOpacity,
+} from 'react-native';
+import { appAlert } from '../feedback/appAlert';
 import { colors, spacing, radii } from '@beeapp/design-system';
 import { ChevronLeft, BellOff, LogOut, Trash2 } from 'lucide-react-native';
 import ScreenSafeArea from '../layout/ScreenSafeArea';
@@ -27,7 +35,7 @@ export default function CommunityProfileScreen() {
   const isAdmin = isCommunityAdmin(community);
 
   const confirm = (title: string, message: string) =>
-    Alert.alert(title, message, [
+    appAlert(title, message, [
       { text: 'Cancelar', style: 'cancel' },
       { text: 'Confirmar', style: 'destructive' },
     ]);

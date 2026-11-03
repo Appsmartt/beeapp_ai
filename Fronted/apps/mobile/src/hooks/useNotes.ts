@@ -9,6 +9,7 @@ import {
     getNoteTemplates,
     getNotes,
     getReceivedNoteShares,
+    getSentNoteShares,
     getTagsForNote,
     } from '@beeapp/api-client';
 import type {
@@ -24,6 +25,7 @@ import {
     getReceivedShares,
     getTags,
     getTemplates,
+    hydrateNotesStore,
     setFolders,
     setNotes,
     setReceivedShares,
@@ -31,6 +33,7 @@ import {
     setTemplates,
     } from '../stores/notesStore';
 import {
+    buildSharedWithNamesByNoteId,
     mapNoteToListItem,
     type NoteListItem,
     } from '../services/notesService';
@@ -90,9 +93,25 @@ export function useNotes(): UseNotesResult {
 
     const loadNotes = useCallback(
         async (showRefresh = false) => {
+        if (getStoredNotes().length === 0) {
+            const hydrated = await hydrateNotesStore();
+
+            if (hydrated) {
+                setLocalNotes(getStoredNotes());
+                setLocalFolders(getFolders());
+                setLocalTags(getTags());
+                setLocalTemplates(getTemplates());
+                setLocalReceivedShares(getReceivedShares());
+                setLoading(false);
+            }
+        }
+
         if (showRefresh) {
             setRefreshing(true);
-        } else {
+        } else if (
+            getStoredNotes().length === 0
+            && getFolders().length === 0
+        ) {
             setLoading(true);
         }
 
@@ -114,6 +133,7 @@ export function useNotes(): UseNotesResult {
             tagsResponse,
             templatesResponse,
             sharedNotesResponse,
+            sentSharesResponse,
             ] = await Promise.all([
             getNotes(auth, {
                 deleted: false,
@@ -133,7 +153,16 @@ export function useNotes(): UseNotesResult {
                 limit: 100,
                 offset: 0,
             }),
+            getSentNoteShares(auth, {
+                limit: 100,
+                offset: 0,
+            }),
             ]);
+
+            const sharedWithNamesByNoteId =
+            buildSharedWithNamesByNoteId(
+                sentSharesResponse.shares,
+            );
 
             const ownedNotes = [
             ...activeNotesResponse.notes,
@@ -173,6 +202,8 @@ export function useNotes(): UseNotesResult {
             const ownedListItems = ownedNotes.map((note) =>
             mapNoteToListItem(note, {
                 tagIds: tagIdsByNoteId.get(note.id) || [],
+                sharedWithNames:
+                sharedWithNamesByNoteId.get(note.id),
             }),
             );
 

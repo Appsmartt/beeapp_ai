@@ -1,11 +1,21 @@
 import {
   useCallback,
   useEffect,
+  useMemo,
+  useRef,
   useState,
 } from 'react';
+import {
+  LIST_CACHE_TTL,
+  readRequestCache,
+  readRequestCacheSync,
+} from '@beeapp/api-client';
 import { retryBackgroundLoad } from '../utils/retryBackgroundLoad';
 
 import type {
+  GetStatusFeedResponse,
+  GetStatusTextBackgroundsResponse,
+  StatusMineResponse,
   StatusStory,
   StatusTextBackground,
 } from '@beeapp/shared-types';
@@ -132,6 +142,96 @@ function groupStatusesForCircles(
     .map((group) => group.circleStatus);
 }
 
+type StatusesSnapshot = {
+  backgrounds: StatusTextBackground[];
+  ownStatuses: StatusItem[];
+  circleStatuses: StatusItem[];
+  statuses: StatusItem[];
+  loading: boolean;
+  hasLoaded: boolean;
+};
+
+function buildStatusesSnapshotFromCache(
+  commercialProfileId: string | null,
+): StatusesSnapshot {
+  const empty: StatusesSnapshot = {
+    backgrounds: [],
+    ownStatuses: [],
+    circleStatuses: [],
+    statuses: [],
+    loading: true,
+    hasLoaded: false,
+  };
+
+  const cachedBackgrounds = readRequestCacheSync<
+    GetStatusTextBackgroundsResponse
+  >(
+    '/statuses/text-backgrounds/',
+    {
+      ttlMs: LIST_CACHE_TTL.stable,
+      allowStale: true,
+    },
+  );
+  const cachedMine = readRequestCacheSync<StatusMineResponse>(
+    '/statuses/mine/',
+    {
+      ttlMs: LIST_CACHE_TTL.fresh,
+      allowStale: true,
+    },
+  );
+  const cachedFeed = commercialProfileId
+    ? null
+    : readRequestCacheSync<GetStatusFeedResponse>(
+      '/statuses/feed/',
+      {
+        ttlMs: LIST_CACHE_TTL.fresh,
+        allowStale: true,
+      },
+    );
+
+  if (!cachedBackgrounds || !cachedMine) {
+    return empty;
+  }
+
+  const ownStories = commercialProfileId
+    ? flattenCommercialStatusStories(
+      cachedMine,
+      commercialProfileId,
+    )
+    : flattenMyStatusStories(cachedMine);
+  const feedStories = cachedFeed
+    ? flattenFeedStories(cachedFeed)
+    : [];
+  const uniqueStories = new Map<string, StatusStory>();
+
+  [...ownStories, ...feedStories].forEach((story) => {
+    uniqueStories.set(story.id, story);
+  });
+
+  const sortedStories = [...uniqueStories.values()]
+    .sort((first, second) => (
+      new Date(second.created_at).getTime()
+      - new Date(first.created_at).getTime()
+    ));
+
+  const mappedStatuses = mapStoriesToUi(
+    sortedStories,
+    cachedBackgrounds.backgrounds,
+  );
+
+  return {
+    backgrounds: cachedBackgrounds.backgrounds,
+    ownStatuses: mapStoriesToUi(
+      ownStories,
+      cachedBackgrounds.backgrounds,
+    ),
+    circleStatuses: groupStatusesForCircles(mappedStatuses),
+    statuses: mappedStatuses,
+    loading: false,
+    hasLoaded: true,
+  };
+}
+
 export interface UseStatusesOptions {
   commercialProfileId?: string | null;
 }
@@ -157,29 +257,101 @@ export function useStatuses(
     commercialProfileId || '',
   ).trim() || null;
 
+  const initialSnapshot = useMemo(
+    () => buildStatusesSnapshotFromCache(
+      normalizedCommercialProfileId,
+    ),
+    [normalizedCommercialProfileId],
+  );
+
   const [statuses, setStatuses] = useState<StatusItem[]>(
-    [],
+    () => initialSnapshot.statuses,
   );
   const [ownStatuses, setOwnStatuses] = useState<StatusItem[]>(
-    [],
+    () => initialSnapshot.ownStatuses,
   );
   const [circleStatuses, setCircleStatuses] = useState<
     StatusItem[]
-  >([]);
+  >(() => initialSnapshot.circleStatuses);
   const [backgrounds, setBackgrounds] = useState<
     StatusTextBackground[]
-  >([]);
-  const [loading, setLoading] = useState(true);
+  >(() => initialSnapshot.backgrounds);
+  const [loading, setLoading] = useState(
+    () => initialSnapshot.loading,
+  );
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const hasLoadedRef = useRef(initialSnapshot.hasLoaded);
 
   const load = useCallback(
     async (options: { refresh?: boolean } = {}) => {
       const isRefresh = Boolean(options.refresh);
+      const hadLoaded = hasLoadedRef.current;
 
-      if (isRefresh) {
+      const [cachedBackgrounds, cachedMine, cachedFeed] = await Promise.all([
+        readRequestCache<GetStatusTextBackgroundsResponse>(
+          '/statuses/text-backgrounds/',
+          {
+            ttlMs: LIST_CACHE_TTL.stable,
+            allowStale: true,
+          },
+        ),
+        readRequestCache<StatusMineResponse>(
+          '/statuses/mine/',
+          {
+            ttlMs: LIST_CACHE_TTL.fresh,
+            allowStale: true,
+          },
+        ),
+        normalizedCommercialProfileId
+          ? Promise.resolve(null)
+          : readRequestCache<GetStatusFeedResponse>(
+            '/statuses/feed/',
+            {
+              ttlMs: LIST_CACHE_TTL.fresh,
+              allowStale: true,
+            },
+          ),
+      ]);
+
+      if (cachedBackgrounds && cachedMine) {
+        const ownStories = normalizedCommercialProfileId
+          ? flattenCommercialStatusStories(
+            cachedMine,
+            normalizedCommercialProfileId,
+          )
+          : flattenMyStatusStories(cachedMine);
+        const feedStories = cachedFeed
+          ? flattenFeedStories(cachedFeed)
+          : [];
+        const uniqueStories = new Map<string, StatusStory>();
+
+        [...ownStories, ...feedStories].forEach((story) => {
+          uniqueStories.set(story.id, story);
+        });
+
+        const sortedStories = [...uniqueStories.values()]
+          .sort((first, second) => (
+            new Date(second.created_at).getTime()
+            - new Date(first.created_at).getTime()
+          ));
+
+        setBackgrounds(cachedBackgrounds.backgrounds);
+        setOwnStatuses(mapStoriesToUi(
+          ownStories,
+          cachedBackgrounds.backgrounds,
+        ));
+        const mappedStatuses = mapStoriesToUi(
+          sortedStories,
+          cachedBackgrounds.backgrounds,
+        );
+        setCircleStatuses(groupStatusesForCircles(mappedStatuses));
+        setStatuses(mappedStatuses);
+        hasLoadedRef.current = true;
+        setLoading(false);
+      } else if (isRefresh && !hadLoaded) {
         setRefreshing(true);
-      } else {
+      } else if (!hadLoaded) {
         setLoading(true);
       }
 
@@ -239,6 +411,7 @@ export function useStatuses(
             groupStatusesForCircles(mappedStatuses),
           );
           setStatuses(mappedStatuses);
+          hasLoadedRef.current = true;
         });
       } catch (loadError) {
         setError(

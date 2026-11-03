@@ -267,9 +267,13 @@ export default function IncomingCallModal({
   );
   const callerName = call?.callerName || 'Un contacto';
 
+  if (!call) {
+    return null;
+  }
+
   return (
     <Modal
-      visible={Boolean(call)}
+      visible
       transparent
       animationType="fade"
       statusBarTranslucent

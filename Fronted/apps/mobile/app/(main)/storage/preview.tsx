@@ -3,13 +3,14 @@ import {
   useState,
 } from 'react';
 import {
-  Alert,
+  ActivityIndicator,
   Linking,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
 } from 'react-native';
+import { appAlert } from '../../../src/components/feedback/appAlert';
 import {
   ChevronLeft,
   Download,
@@ -24,7 +25,13 @@ import {
 } from '@beeapp/api-client';
 import { colors } from '@beeapp/design-system';
 
+import CachedImage from '../../../src/components/CachedImage';
+import NoteImageViewerModal from '../../../src/components/notes/NoteImageViewerModal';
+import StorageFileVideoPlayer from '../../../src/components/storage/StorageFileVideoPlayer';
 import ScreenSafeArea from '../../../src/components/layout/ScreenSafeArea';
+import {
+  useStorageFileAccessUrl,
+} from '../../../src/hooks/useStorageFileAccessUrl';
 import {
   useModuleNav,
   useScreenParams,
@@ -48,6 +55,18 @@ export default function FilePreviewScreen() {
     useState<StorageItem | null>(null);
 
   const [opening, setOpening] = useState(false);
+  const [viewerOpen, setViewerOpen] = useState(false);
+
+  const isImageItem = fileItem?.type === 'image';
+  const {
+    url: imageUrl,
+    loading: imageLoading,
+    failed: imageFailed,
+    cacheKey: imageCacheKey,
+  } = useStorageFileAccessUrl(
+    fileId,
+    Boolean(isImageItem),
+  );
 
 
   useEffect(() => {
@@ -118,7 +137,7 @@ export default function FilePreviewScreen() {
 
       await Linking.openURL(access.url);
     } catch (error) {
-      Alert.alert(
+      appAlert(
         'No fue posible abrir el archivo',
         error instanceof Error
           ? error.message
@@ -132,7 +151,7 @@ export default function FilePreviewScreen() {
 
   const handleDelete = () => {
     if (fileItem?.isShared) {
-      Alert.alert(
+      appAlert(
         'Archivo compartido',
         (
           'No puedes mover a la papelera un archivo '
@@ -142,7 +161,7 @@ export default function FilePreviewScreen() {
       return;
     }
 
-    Alert.alert(
+    appAlert(
       'Mover a papelera',
       'El archivo podrá restaurarse durante 30 días.',
       [
@@ -172,7 +191,7 @@ export default function FilePreviewScreen() {
                 fileId,
               );
 
-              Alert.alert(
+              appAlert(
                 'Archivo movido',
                 'El archivo está en la papelera.',
                 [
@@ -183,7 +202,7 @@ export default function FilePreviewScreen() {
                 ],
               );
             } catch (error) {
-              Alert.alert(
+              appAlert(
                 'No fue posible mover el archivo',
                 error instanceof Error
                   ? error.message
@@ -220,6 +239,7 @@ export default function FilePreviewScreen() {
   }
 
   const isImage = fileItem.type === 'image';
+  const isVideo = fileItem.type === 'video';
 
 
   return (
@@ -259,19 +279,57 @@ export default function FilePreviewScreen() {
                 Preparando acceso seguro...
               </Text>
             </View>
+          ) : isVideo ? (
+            <View style={styles.mediaPreviewWrap}>
+              <StorageFileVideoPlayer fileId={fileId} />
+            </View>
+          ) : isImage ? (
+            <View style={styles.imagePreviewWrap}>
+              {imageLoading ? (
+                <ActivityIndicator
+                  size="large"
+                  color={colors.brand.primary}
+                />
+              ) : imageFailed || !imageUrl ? (
+                <View style={styles.previewContent}>
+                  <ImageIcon
+                    size={52}
+                    color={colors.brand.primary}
+                  />
+
+                  <Text style={styles.previewHint}>
+                    No se pudo cargar la vista previa.
+                    Usa “Abrir” para intentar en el
+                    visor del sistema.
+                  </Text>
+                </View>
+              ) : (
+                <TouchableOpacity
+                  style={styles.imageTouchable}
+                  activeOpacity={0.92}
+                  onPress={() => setViewerOpen(true)}
+                  accessibilityRole="imagebutton"
+                  accessibilityLabel={`Ampliar ${fileItem.name}`}
+                >
+                  <CachedImage
+                    uri={imageUrl}
+                    cacheKey={imageCacheKey}
+                    style={styles.previewImage}
+                    resizeMode="contain"
+                  />
+
+                  <Text style={styles.tapToExpandHint}>
+                    Toca para ampliar
+                  </Text>
+                </TouchableOpacity>
+              )}
+            </View>
           ) : (
             <View style={styles.previewContent}>
-              {isImage ? (
-                <ImageIcon
-                  size={52}
-                  color={colors.brand.primary}
-                />
-              ) : (
-                <FileText
-                  size={52}
-                  color={colors.brand.primary}
-                />
-              )}
+              <FileText
+                size={52}
+                color={colors.brand.primary}
+              />
 
               <Text style={styles.previewTitle}>
                 {fileItem.name}
@@ -289,24 +347,35 @@ export default function FilePreviewScreen() {
           )}
         </View>
 
-        <View style={styles.bottomBar}>
-          <TouchableOpacity
-            style={styles.primaryActionButton}
-            onPress={() => {
-              void handleOpenFile(false);
-            }}
-            activeOpacity={0.8}
-            disabled={opening}
-          >
-            <FileText
-              size={20}
-              color={colors.neutral.white}
-            />
+        {isImage && imageUrl ? (
+          <NoteImageViewerModal
+            visible={viewerOpen}
+            url={imageUrl}
+            caption={fileItem.name}
+            onClose={() => setViewerOpen(false)}
+          />
+        ) : null}
 
-            <Text style={styles.primaryActionText}>
-              Abrir
-            </Text>
-          </TouchableOpacity>
+        <View style={styles.bottomBar}>
+          {!isVideo ? (
+            <TouchableOpacity
+              style={styles.primaryActionButton}
+              onPress={() => {
+                void handleOpenFile(false);
+              }}
+              activeOpacity={0.8}
+              disabled={opening}
+            >
+              <FileText
+                size={20}
+                color={colors.neutral.white}
+              />
+
+              <Text style={styles.primaryActionText}>
+                Abrir
+              </Text>
+            </TouchableOpacity>
+          ) : null}
 
           <TouchableOpacity
             style={styles.actionButton}
@@ -442,6 +511,38 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     padding: 24,
+  },
+  mediaPreviewWrap: {
+    flex: 1,
+    width: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  imagePreviewWrap: {
+    flex: 1,
+    width: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  imageTouchable: {
+    flex: 1,
+    width: '100%',
+    maxWidth: 420,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  previewImage: {
+    width: '100%',
+    flex: 1,
+    minHeight: 280,
+    borderRadius: 16,
+    backgroundColor: colors.neutral.white,
+  },
+  tapToExpandHint: {
+    marginTop: 12,
+    fontSize: 12,
+    fontWeight: '600',
+    color: colors.neutral.gray600,
   },
   previewContent: {
     width: '100%',

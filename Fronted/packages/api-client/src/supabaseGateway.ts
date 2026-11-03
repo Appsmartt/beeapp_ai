@@ -1,4 +1,4 @@
-import type { SupabaseClient } from '@supabase/supabase-js';
+import type { SupabaseClient, User } from '@supabase/supabase-js';
 
 import {
     buildAssistantChatConversation,
@@ -6,6 +6,7 @@ import {
     mergeAssistantInboxPreference,
 } from './gateway/assistant';
 import { handleCalendar } from './gateway/calendar';
+import { messageSenderColumns, resolveOwnedBusinessId } from './gateway/chatSender';
 import { handleCommercial } from './gateway/commercial';
 import {
     handleIntegrations,
@@ -251,15 +252,76 @@ function pendingProfileVerificationRequirements(
     return pending;
 }
 
-async function loadProfile(
+function friendlyProfileLoadError(message: string): string {
+    const text = message.trim();
+
+    if (
+        /coerce the result to a single JSON object|JSON object requested/i
+            .test(text)
+    ) {
+        return (
+            'No encontramos la información de tu perfil. '
+            + 'Cierra sesión e inicia de nuevo; si persiste, contacta soporte.'
+        );
+    }
+
+    if (/permission denied|row-level security|42501/i.test(text)) {
+        return 'No tienes permiso para ver este perfil. Vuelve a iniciar sesión.';
+    }
+
+    return text || 'No fue posible cargar tu perfil.';
+}
+
+function parseAuthPhoneFields(user: User): {
+    phone_dial_code: string | null;
+    phone_number: string | null;
+} {
+    const meta = asJson(user.user_metadata);
+    let dial = profileText(meta.phone_dial_code) || null;
+    let number = profileText(meta.phone_number) || null;
+
+    if ((!dial || !number) && user.phone) {
+        const e164 = String(user.phone).replace(/\s/g, '');
+        const match = e164.match(/^\+(\d{1,3})(\d+)$/);
+
+        if (match) {
+            dial = match[1];
+            number = match[2];
+        }
+    }
+
+    if ((dial && !number) || (!dial && number)) {
+        return {
+            phone_dial_code: null,
+            phone_number: null,
+        };
+    }
+
+    return {
+        phone_dial_code: dial,
+        phone_number: number,
+    };
+}
+
+function newProfilePayloadFromUser(user: User): Json {
+    const meta = asJson(user.user_metadata);
+    const phone = parseAuthPhoneFields(user);
+
+    return {
+        id: user.id,
+        first_name: profileText(meta.first_name),
+        last_name: profileText(meta.last_name),
+        email: user.email ?? null,
+        phone_dial_code: phone.phone_dial_code,
+        phone_number: phone.phone_number,
+        role: 'USER',
+    };
+}
+
+async function enrichLoadedProfile(
     supabase: SupabaseClient,
-    userId: string,
-) {
-    const profile = unwrap(await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', userId)
-        .single());
+    profile: Json,
+): Promise<Json> {
     const links = Array.isArray(profile.social_links)
         ? profile.social_links
         : [];
@@ -275,6 +337,81 @@ async function loadProfile(
             ? avatarUrls.get(String(profile.avatar_file_id)) ?? null
             : null,
     };
+}
+
+async function ensureProfileRow(
+    supabase: SupabaseClient,
+    userId: string,
+): Promise<Json> {
+    const existing = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', userId)
+        .maybeSingle();
+
+    if (existing.error) {
+        throw new GatewayError(
+            friendlyProfileLoadError(existing.error.message),
+            400,
+        );
+    }
+
+    if (existing.data) {
+        return existing.data as Json;
+    }
+
+    const { data: authData, error: authError } = (
+        await supabase.auth.getUser()
+    );
+
+    if (authError || !authData.user || authData.user.id !== userId) {
+        throw new GatewayError(
+            'Tu sesión no es válida. Vuelve a iniciar sesión.',
+            401,
+        );
+    }
+
+    const inserted = await supabase
+        .from('profiles')
+        .insert(newProfilePayloadFromUser(authData.user))
+        .select('*')
+        .maybeSingle();
+
+    if (inserted.error) {
+        if (/duplicate key|unique constraint/i.test(inserted.error.message)) {
+            const retry = await supabase
+                .from('profiles')
+                .select('*')
+                .eq('id', userId)
+                .maybeSingle();
+
+            if (retry.data) {
+                return retry.data as Json;
+            }
+        }
+
+        throw new GatewayError(
+            friendlyProfileLoadError(inserted.error.message),
+            400,
+        );
+    }
+
+    if (inserted.data) {
+        return inserted.data as Json;
+    }
+
+    throw new GatewayError(
+        'No pudimos preparar tu perfil. Cierra sesión e inténtalo de nuevo.',
+        500,
+    );
+}
+
+async function loadProfile(
+    supabase: SupabaseClient,
+    userId: string,
+): Promise<Json> {
+    const profile = await ensureProfileRow(supabase, userId);
+    return enrichLoadedProfile(supabase, profile);
 }
 
 function normalizeInboxRow(row: Json): Json {
@@ -882,7 +1019,11 @@ function mapMessage(row: Json | null): Json {
 
     return {
         ...message,
-        sender_identity_id: message.sender_id ?? null,
+        sender_identity_id: (
+            message.sender_business_id
+            ?? message.sender_id
+            ?? null
+        ),
         sender_user_id: message.sender_id ?? null,
         message_type: message.kind || 'text',
         body: message.body ?? '',
@@ -973,7 +1114,7 @@ async function loadConversation(
         .single());
     const members = unwrap(await supabase
         .from('conversation_members')
-        .select('id, conversation_id, user_id, role, status, joined_at, last_read_at, pinned, muted')
+        .select('id, conversation_id, user_id, business_id, role, status, joined_at, last_read_at, pinned, muted')
         .eq('conversation_id', conversationId)) ?? [];
     const profiles = members.length
         ? unwrap(await supabase
@@ -981,13 +1122,31 @@ async function loadConversation(
             .select('id, first_name, last_name, avatar_file_id')
             .in('id', members.map((member: Json) => member.user_id))) ?? []
         : [];
+    const businessIds = (members as Json[])
+        .map((member) => member.business_id)
+        .filter((id): id is string => typeof id === 'string' && Boolean(id));
+    const businesses = businessIds.length
+        ? unwrap(await supabase
+            .from('businesses')
+            .select('id, display_name, logo_file_id')
+            .in('id', businessIds)) ?? []
+        : [];
     const byId = new Map((profiles as Json[]).map((profile) => [String(profile.id), profile]));
+    const businessById = new Map((businesses as Json[]).map((item) => [String(item.id), item]));
     const participants = (members as Json[]).map((member) => {
         const profile = byId.get(String(member.user_id));
+        const business = member.business_id
+            ? businessById.get(String(member.business_id))
+            : null;
+        const actingIdentityId = business
+            ? String(member.business_id)
+            : String(member.user_id);
+
         return {
             id: member.id,
             conversation_id: conversationId,
-            identity_id: member.user_id,
+            identity_id: actingIdentityId,
+            user_id: member.user_id,
             role: member.role === 'owner' ? 'owner' : member.role,
             joined_at: member.joined_at,
             left_at: member.status === 'left' ? member.joined_at : null,
@@ -1004,24 +1163,36 @@ async function loadConversation(
             is_pinned: member.pinned === true,
             created_at: member.joined_at,
             updated_at: member.joined_at,
-            identity: {
-                id: member.user_id,
-                identity_type: 'profile',
-                profile_id: member.user_id,
-                commercial_profile_id: null,
-                display_name: profile
-                    ? `${profile.first_name || ''} ${profile.last_name || ''}`.trim()
-                    : 'Usuario',
-                avatar_file_id: profile?.avatar_file_id ?? null,
-                is_active: member.status === 'active',
-                is_available: true,
-            },
+            identity: business
+                ? {
+                    id: actingIdentityId,
+                    identity_type: 'commercial_profile',
+                    profile_id: null,
+                    commercial_profile_id: member.business_id,
+                    display_name: business.display_name || 'Negocio',
+                    avatar_file_id: business.logo_file_id ?? null,
+                    is_active: member.status === 'active',
+                    is_available: true,
+                }
+                : {
+                    id: actingIdentityId,
+                    identity_type: 'profile',
+                    profile_id: member.user_id,
+                    commercial_profile_id: null,
+                    display_name: profile
+                        ? `${profile.first_name || ''} ${profile.last_name || ''}`.trim()
+                        : 'Usuario',
+                    avatar_file_id: profile?.avatar_file_id ?? null,
+                    is_active: member.status === 'active',
+                    is_available: true,
+                },
         };
     });
-    const mine = participants.find((item) => item.identity_id === userId) || null;
+    const mine = participants.find((item) => item.user_id === userId) || null;
 
     return {
         id: conversation.id,
+        business_id: conversation.business_id ?? null,
         conversation_type: mapConversationKindToType(conversation.kind),
         direct_key: null,
         created_by_identity_id: conversation.owner_id,
@@ -1056,20 +1227,28 @@ async function loadConversation(
 async function inboxRows(
     supabase: SupabaseClient,
     limit: number,
+    businessId: string | null = null,
 ): Promise<Json[]> {
     const raw = unwrap(await supabase.rpc('get_chat_inbox', {
         p_limit: limit,
+        p_business_id: businessId,
     }));
 
     const conversations = asRows<Json>(raw).map((row) => {
         const normalized = normalizeInboxRow(row);
+        const otherCommercialId = normalized.other_commercial_profile_id || null;
+        const otherProfileId = normalized.other_profile_id || null;
         return {
             ...normalized,
+            conversation_business_id: normalized.conversation_business_id ?? null,
             conversation_type: mapConversationKindToType(
                 normalized.conversation_type,
             ),
-            other_identity_id: normalized.other_profile_id || null,
-            other_identity_type: normalized.other_profile_id ? 'profile' : null,
+            other_identity_id: otherCommercialId || otherProfileId,
+            other_identity_type: (
+                normalized.other_identity_type
+                || (otherProfileId ? 'profile' : null)
+            ),
             is_pinned: normalized.pinned === true,
             notifications_enabled: normalized.notifications_enabled !== false,
             other_logo_file_id: normalized.other_logo_file_id ?? null,
@@ -1108,7 +1287,12 @@ async function handleChat(
     if (method === 'GET' && path === '/chat/inbox/') {
         const limit = Number(query.get('limit') || 50);
         const before = query.get('before_last_message_at');
-        let conversations = await inboxRows(supabase, limit);
+        const businessId = await resolveOwnedBusinessId(
+            supabase,
+            userId,
+            query.get('identity_id'),
+        );
+        let conversations = await inboxRows(supabase, limit, businessId);
         if (before) {
             conversations = conversations.filter((row) => (
                 String(row.last_message_at || '') < before
@@ -1132,7 +1316,12 @@ async function handleChat(
     if (method === 'GET' && path === '/chat/inbox/by-type/') {
         const limit = Number(query.get('limit') || 10);
         const kind = query.get('conversation_type') || 'direct';
-        const conversations = (await inboxRows(supabase, 100))
+        const businessId = await resolveOwnedBusinessId(
+            supabase,
+            userId,
+            query.get('identity_id'),
+        );
+        const conversations = (await inboxRows(supabase, 100, businessId))
             .filter((row) => row.conversation_type === kind && row.is_pinned !== true)
             .slice(0, limit);
 
@@ -1144,6 +1333,14 @@ async function handleChat(
             has_more: false,
             next_before_sort_at: null,
             next_before_id: null,
+        };
+    }
+
+    if (method === 'GET' && path === '/chat/businesses/unread/') {
+        return {
+            businesses: asRows<Json>(unwrap(await supabase.rpc(
+                'get_business_chat_unread_counts',
+            ))),
         };
     }
 
@@ -1376,11 +1573,19 @@ async function handleChat(
         const attachments = payload.attachment_file_id
             ? [{ file_id: payload.attachment_file_id }]
             : [];
+        const sender = await messageSenderColumns(
+            supabase,
+            userId,
+            typeof payload.sender_identity_id === 'string'
+                ? payload.sender_identity_id
+                : null,
+        );
         const message = mapMessage(unwrap(await supabase
             .from('messages')
             .insert({
                 conversation_id: messagesMatch[1],
-                sender_id: userId,
+                sender_id: sender.sender_id,
+                sender_business_id: sender.sender_business_id,
                 body: payload.body || '',
                 kind: payload.message_type || 'text',
                 attachments,
@@ -1976,6 +2181,20 @@ async function statusFollowList(
     });
 }
 
+async function purgeExpiredStatuses(
+    supabase: SupabaseClient,
+): Promise<void> {
+    const { error } = await supabase.rpc('purge_expired_statuses');
+    if (error) {
+        return;
+    }
+}
+
+function statusIsExpired(row: Json): boolean {
+    const expiresAt = Date.parse(String(row.expires_at || ''));
+    return Number.isFinite(expiresAt) && expiresAt <= Date.now();
+}
+
 async function handleStatuses(
     method: string,
     path: string,
@@ -1987,6 +2206,7 @@ async function handleStatuses(
     const payload = asJson(body);
 
     if (method === 'GET' && path === '/statuses/feed/') {
+        await purgeExpiredStatuses(supabase);
         const limit = Number(query.get('limit') || 30);
         const followRows = asRows<Json>(unwrap(await supabase
             .from('contacts')
@@ -2058,10 +2278,13 @@ async function handleStatuses(
     }
 
     if (method === 'GET' && path === '/statuses/mine/') {
+        await purgeExpiredStatuses(supabase);
         const rows = unwrap(await supabase
             .from('statuses')
             .select('*')
             .eq('author_id', userId)
+            .is('archived_at', null)
+            .gt('expires_at', new Date().toISOString())
             .order('created_at', { ascending: false })) ?? [];
         const profile = unwrap(await supabase
             .from('profiles')
@@ -2147,7 +2370,10 @@ async function handleStatuses(
             .from('statuses')
             .select('*')
             .eq('id', statusMatch[1])
-            .single());
+            .maybeSingle());
+        if (!row || statusIsExpired(row)) {
+            throw new GatewayError('No encontramos ese estado.', 404);
+        }
         const profile = unwrap(await supabase
             .from('profiles')
             .select('id, first_name, last_name, avatar_file_id')

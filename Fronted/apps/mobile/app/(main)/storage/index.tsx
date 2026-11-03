@@ -5,12 +5,12 @@ import {
   useState,
 } from 'react';
 import {
-  Alert,
   RefreshControl,
   ScrollView,
   StyleSheet,
   View,
 } from 'react-native';
+import { appAlert } from '../../../src/components/feedback/appAlert';
 import * as DocumentPicker from 'expo-document-picker';
 import { withExternalActivity } from '../../../src/services/locationPermissionAppLockGuard';
 import { useNavigation } from 'expo-router';
@@ -51,6 +51,10 @@ import FloatingTabBar from '../../../src/components/FloatingTabBar';
 import {
   useModuleNav,
 } from '../../../src/components/embedded/EmbeddedNavContext';
+import {
+  homeSearchEmptyCopy,
+  useHomeModuleSearch,
+} from '../../../src/components/home/HomeSearchContext';
 import StorageCategoryChips from '../../../src/components/storage/StorageCategoryChips';
 import StorageCategoryModals from '../../../src/components/storage/StorageCategoryModals';
 import StorageContextMenu from '../../../src/components/storage/StorageContextMenu';
@@ -76,6 +80,7 @@ import {
 import {
   getItems,
   getStorageCategories,
+  hydrateStorageStore,
   mapStorageFileToItem,
   mapStorageFolderToItem,
   mapStorageTagToCategory,
@@ -167,6 +172,7 @@ function getFileNameWithOriginalExtension(
 
 export default function StorageIndexScreen() {
   const router = useModuleNav();
+  const homeSearch = useHomeModuleSearch('archivo');
   const navigation = useNavigation();
 
   const [items, setLocalItems] = useState<StorageItem[]>(
@@ -192,7 +198,9 @@ export default function StorageIndexScreen() {
     },
   ]);
 
-  const [searchQuery] = useState('');
+  const searchQuery = homeSearch.active
+    ? homeSearch.query
+    : '';
 
   const [sortBy, setSortBy] =
     useState<SortOption>('name');
@@ -268,9 +276,18 @@ export default function StorageIndexScreen() {
 
   const loadStorage = useCallback(
     async (showRefresh = false) => {
+      if (getItems().length === 0) {
+        const hydrated = await hydrateStorageStore();
+
+        if (hydrated) {
+          syncLocalItems(getItems());
+          setLoading(false);
+        }
+      }
+
       if (showRefresh) {
         setRefreshing(true);
-      } else {
+      } else if (getItems().length === 0) {
         setLoading(true);
       }
 
@@ -363,7 +380,7 @@ export default function StorageIndexScreen() {
 
         syncLocalItems(nextItems);
       } catch (error) {
-        Alert.alert(
+        appAlert(
           'No fue posible cargar archivos',
           error instanceof Error
             ? error.message
@@ -430,7 +447,7 @@ export default function StorageIndexScreen() {
 
     void loadSharedFiles()
       .catch((error) => {
-        Alert.alert(
+        appAlert(
           'No fue posible cargar compartidos',
           error instanceof Error
             ? error.message
@@ -503,14 +520,14 @@ export default function StorageIndexScreen() {
       if (!auth) throw new Error('No hay sesión activa.');
       const pinStatus = await getAccountSecurityPinStatus(auth);
       if (!pinStatus.configured) {
-        Alert.alert(
+        appAlert(
           'Configura tu PIN',
           'Primero crea tu PIN en Perfil → Seguridad.',
         );
         return;
       }
     } catch {
-      Alert.alert(
+      appAlert(
         'No pudimos consultar tu PIN',
         'Comprueba tu conexión e inténtalo de nuevo.',
       );
@@ -523,7 +540,7 @@ export default function StorageIndexScreen() {
       ...setProtected(item.id, !wasProtected),
     ]);
 
-    Alert.alert(
+    appAlert(
       wasProtected
         ? 'Protección retirada'
         : 'Elemento protegido',
@@ -534,7 +551,7 @@ export default function StorageIndexScreen() {
     const name = folderNameInput.trim();
 
     if (!name) {
-      Alert.alert(
+      appAlert(
         'Nombre requerido',
         'Ingresa un nombre para la carpeta.',
       );
@@ -560,7 +577,7 @@ export default function StorageIndexScreen() {
 
       await loadStorage(true);
     } catch (error) {
-      Alert.alert(
+      appAlert(
         'No fue posible crear la carpeta',
         error instanceof Error
           ? error.message
@@ -578,7 +595,7 @@ export default function StorageIndexScreen() {
     }
 
     if (!name) {
-      Alert.alert(
+      appAlert(
         'Nombre requerido',
         'Ingresa un nombre para continuar.',
       );
@@ -615,7 +632,7 @@ export default function StorageIndexScreen() {
 
       await loadStorage(true);
     } catch (error) {
-      Alert.alert(
+      appAlert(
         'No fue posible renombrar',
         error instanceof Error
           ? error.message
@@ -664,7 +681,7 @@ export default function StorageIndexScreen() {
 
       await loadStorage(true);
     } catch (error) {
-      Alert.alert(
+      appAlert(
         'No fue posible mover el elemento',
         error instanceof Error
           ? error.message
@@ -677,7 +694,7 @@ export default function StorageIndexScreen() {
     item: StorageItem,
   ) => {
     if (item.type === 'folder') {
-      Alert.alert(
+      appAlert(
         'Próximamente',
         (
           'La eliminación de carpetas se conectará '
@@ -687,7 +704,7 @@ export default function StorageIndexScreen() {
       return;
     }
 
-    Alert.alert(
+    appAlert(
       'Mover a papelera',
       `¿Deseas mover “${item.name}” a la papelera?`,
       [
@@ -722,7 +739,7 @@ export default function StorageIndexScreen() {
 
               await loadStorage(true);
             } catch (error) {
-              Alert.alert(
+              appAlert(
                 'No fue posible mover el archivo',
                 error instanceof Error
                   ? error.message
@@ -766,7 +783,7 @@ export default function StorageIndexScreen() {
     );
 
     if (tooLargeAsset) {
-      Alert.alert(
+      appAlert(
         'Archivo demasiado grande',
         (
           'Cada archivo debe pesar máximo 50 MB. '
@@ -813,7 +830,7 @@ export default function StorageIndexScreen() {
       await loadStorage(true);
 
       if (uploadResponse.failure_count > 0) {
-        Alert.alert(
+        appAlert(
           'Carga completada parcialmente',
           (
             `${uploadResponse.success_count} archivo(s) `
@@ -824,7 +841,7 @@ export default function StorageIndexScreen() {
         return;
       }
 
-      Alert.alert(
+      appAlert(
         'Archivos subidos',
         (
           `${uploadResponse.success_count} archivo(s) `
@@ -832,7 +849,7 @@ export default function StorageIndexScreen() {
         ),
       );
     } catch (error) {
-      Alert.alert(
+      appAlert(
         'No fue posible subir los archivos',
         error instanceof Error
           ? error.message
@@ -865,7 +882,7 @@ export default function StorageIndexScreen() {
 
       await loadStorage(true);
     } catch (error) {
-      Alert.alert(
+      appAlert(
         'No fue posible crear la categoría',
         error instanceof Error
           ? error.message
@@ -903,7 +920,7 @@ export default function StorageIndexScreen() {
 
       await loadStorage(true);
     } catch (error) {
-      Alert.alert(
+      appAlert(
         'No fue posible actualizar las categorías',
         error instanceof Error
           ? error.message
@@ -914,7 +931,7 @@ export default function StorageIndexScreen() {
 
   const handleOpenShare = async () => {
     if (!activeItem || activeItem.type === 'folder') {
-      Alert.alert(
+      appAlert(
         'No disponible',
         'Solo puedes compartir archivos.',
       );
@@ -934,7 +951,7 @@ export default function StorageIndexScreen() {
       setContextMenuVisible(false);
       setShareModalVisible(true);
     } catch (error) {
-      Alert.alert(
+      appAlert(
         'No fue posible preparar el compartido',
         error instanceof Error
           ? error.message
@@ -968,7 +985,7 @@ export default function StorageIndexScreen() {
       setShareModalVisible(false);
       setActiveItem(null);
 
-      Alert.alert(
+      appAlert(
         'Archivo compartido',
         (
           `“${activeItem.name}” fue compartido con `
@@ -1079,6 +1096,16 @@ export default function StorageIndexScreen() {
           <StorageItemsView
             items={visibleItems}
             protectedIds={protectedIds}
+            emptyTitle={
+              searchQuery.trim()
+                ? homeSearchEmptyCopy(searchQuery).title
+                : undefined
+            }
+            emptyDescription={
+              searchQuery.trim()
+                ? homeSearchEmptyCopy(searchQuery).description
+                : undefined
+            }
             onOpenItem={handleOpenItem}
             onOpenMenu={(item) => {
               setActiveItem(item);
@@ -1148,7 +1175,7 @@ export default function StorageIndexScreen() {
           onDelete={handleDeleteItem}
           onAssignCategory={(item) => {
             if (item.type === 'folder') {
-              Alert.alert(
+              appAlert(
                 'No disponible',
                 'Las categorías solo se asignan a archivos.',
               );

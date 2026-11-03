@@ -26,6 +26,7 @@ import type {
 } from '@beeapp/shared-types';
 
 import { api } from './client';
+import { LIST_CACHE_TTL } from './requestCache';
 
 const WEB_OPTIONS = {
     credentials: 'include' as RequestCredentials,
@@ -135,7 +136,10 @@ export function getCalendarBootstrap(
 ): Promise<GetCalendarBootstrapResponse> {
     return api.get<GetCalendarBootstrapResponse>(
         `/calendar/bootstrap/${buildQuery(query)}`,
-        { auth },
+        {
+            auth,
+            cache: { ttlMs: LIST_CACHE_TTL.standard },
+        },
     );
 }
 
@@ -145,7 +149,10 @@ export function getCalendarEvents(
 ): Promise<GetCalendarEventsResponse> {
     return api.get<GetCalendarEventsResponse>(
         `/calendar/events/${buildQuery(query)}`,
-        { auth },
+        {
+            auth,
+            cache: { ttlMs: LIST_CACHE_TTL.standard },
+        },
     );
 }
 

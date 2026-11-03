@@ -4,6 +4,7 @@ import {
     getNativeFileSize,
     getNativeUploader,
     } from '../nativeUpload';
+import { messageSenderColumns } from './chatSender';
 import { mapStatusRowToStory, profileAvatarUrl, statusBackgroundRecord } from './statusStories';
 import { mapStorageFile } from './storage';
 import {
@@ -254,7 +255,7 @@ function mapMessage(row: Json): Json {
 
     return {
         ...row,
-        sender_identity_id: row.sender_id ?? null,
+        sender_identity_id: row.sender_business_id ?? row.sender_id ?? null,
         sender_user_id: row.sender_id ?? null,
         message_type: row.kind || 'text',
         body: row.body ?? '',
@@ -564,11 +565,19 @@ export async function dispatchUpload(
             );
         }
 
+        const sender = await messageSenderColumns(
+            supabase,
+            userId,
+            typeof fields.sender_identity_id === 'string'
+                ? fields.sender_identity_id
+                : null,
+        );
         const message = mapMessage(unwrap(await supabase
             .from('messages')
             .insert({
                 conversation_id: chatUpload[1],
-                sender_id: userId,
+                sender_id: sender.sender_id,
+                sender_business_id: sender.sender_business_id,
                 body: fields.body || '',
                 kind: fields.message_type || 'file',
                 attachments: [{

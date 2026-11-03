@@ -1,22 +1,22 @@
 import {
-useCallback,
-useEffect,
-useMemo,
-useState,
-} from 'react';
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  } from 'react';
 import {
 ActivityIndicator,
-Alert,
-Modal,
-Pressable,
-RefreshControl,
-ScrollView,
-StyleSheet,
-Text,
-TextInput,
-TouchableOpacity,
-View,
+  Modal,
+  Pressable,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from 'react-native';
+import { appAlert } from '../../../../../../src/components/feedback/appAlert';
 import {
 ArrowLeft,
 CalendarClock,
@@ -415,7 +415,7 @@ setActionError(null);
 
 try {
 await operation();
-Alert.alert('Solicitud actualizada', successMessage);
+appAlert('Solicitud actualizada', successMessage);
 await loadRequest();
 } catch (actionErrorValue) {
 setActionError(toCommercialUiError(actionErrorValue));
@@ -497,7 +497,7 @@ runAction,
 ]);
 
 const confirmCompleteRequest = useCallback(() => {
-Alert.alert(
+appAlert(
 'Completar solicitud',
 'Confirma que la atención, reserva o entrega se completó correctamente.',
 [
@@ -916,7 +916,7 @@ const confirmAcceptCustomerCounteroffer = useCallback((
     item: CommercialRequestDetail['items'][number],
     proposalId: string,
 ) => {
-    Alert.alert(
+    appAlert(
         'Aceptar contraoferta',
         `¿Aceptar la contraoferta del cliente para ${item.title}?`,
         [
@@ -945,7 +945,7 @@ if (item.lifecycle_status !== 'pending_business') {
 return;
 }
 
-Alert.alert(
+appAlert(
 'Aceptar ítem',
 `¿Aceptar ${item.title} con las condiciones actuales?`,
 [
@@ -972,7 +972,7 @@ item.id,
 const confirmCloseItem = useCallback((
 item: CommercialRequestDetail['items'][number],
 ) => {
-Alert.alert(
+appAlert(
 'Rechazar ítem',
 'El ítem quedará rechazado y no podrá reabrirse en esta solicitud.',
 [
@@ -1004,7 +1004,7 @@ reason_code: 'rejected_by_business',
 const confirmWithdrawItemProposal = useCallback((
 proposalId: string,
 ) => {
-Alert.alert(
+appAlert(
 'Retirar propuesta del ítem',
 'La propuesta pendiente dejará de estar disponible para el cliente.',
 [
@@ -1105,7 +1105,7 @@ retryable: false,
 return;
 }
 
-Alert.alert(
+appAlert(
 isRejected ? 'Rechazar comprobante' : 'Aprobar comprobante',
 isRejected
 ? (
@@ -1248,7 +1248,7 @@ item: CommercialRequestDetail['items'][number],
 nextStatus: string,
 label: string,
 ) => {
-Alert.alert(
+appAlert(
 label,
 `Confirma el cambio operativo del ítem "${item.title}".`,
 [
@@ -1287,7 +1287,7 @@ next_status: nextStatus as (
 const confirmWithdrawProposal = useCallback((
 proposalId: string,
 ) => {
-Alert.alert(
+appAlert(
 'Retirar propuesta',
 'La propuesta dejará de estar disponible para el cliente.',
 [

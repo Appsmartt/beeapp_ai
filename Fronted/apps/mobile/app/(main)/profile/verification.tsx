@@ -1,13 +1,16 @@
-import { useCallback, useEffect, useState } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useState } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
 } from 'react-native';
+import { appAlert } from '../../../src/components/feedback/appAlert';
 import ScreenSafeArea from '../../../src/components/layout/ScreenSafeArea';
 import { useRouter } from 'expo-router';
 import { colors } from '@beeapp/design-system';
@@ -174,7 +177,7 @@ export default function VerificationScreen() {
       setProfile(profileResponse.profile);
       setBusinesses(businessResponse.profiles);
     } catch (error) {
-      Alert.alert(
+      appAlert(
         'No fue posible cargar la verificación',
         error instanceof Error
           ? error.message
@@ -208,12 +211,12 @@ export default function VerificationScreen() {
       const response = await submitProfileVerification(credentials);
 
       setProfile(response.profile);
-      Alert.alert(
+      appAlert(
         'Solicitud enviada',
         'Recibimos tu solicitud de verificación. La revisión es manual y tarda hasta 48 horas hábiles.',
       );
     } catch (error) {
-      Alert.alert(
+      appAlert(
         'No fue posible enviar la solicitud',
         error instanceof Error
           ? error.message

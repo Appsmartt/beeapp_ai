@@ -1,5 +1,4 @@
 import {
-  Image,
   StyleSheet,
   Text,
   View,
@@ -12,9 +11,16 @@ import {
   getStorageFileAccess,
 } from '@beeapp/api-client';
 
+import CachedImage from '../CachedImage';
 import {
   getValidSessionCredentials,
 } from '../../services/authSession';
+import {
+  hasCachedImage,
+  hydrateImageDiskCache,
+  imageCacheUri,
+  remoteImageCacheKey,
+} from '../../services/imageDiskCache';
 
 interface PeopleAvatarProps {
   displayName: string;
@@ -41,32 +47,45 @@ export default function PeopleAvatar({
   avatarUrl: providedAvatarUrl = null,
   size = 44,
 }: PeopleAvatarProps) {
-  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  const stableKey = remoteImageCacheKey({
+    fileId: avatarFileId,
+    url: providedAvatarUrl,
+  });
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(() => {
+    if (stableKey && hasCachedImage(stableKey)) {
+      return imageCacheUri(stableKey);
+    }
+    return providedAvatarUrl;
+  });
 
   useEffect(() => {
     let cancelled = false;
 
-    if (providedAvatarUrl) {
-      setAvatarUrl(providedAvatarUrl);
-
-      return () => {
-        cancelled = true;
-      };
-    }
-
-    setAvatarUrl(null);
-
-    if (!avatarFileId) {
-      return () => {
-        cancelled = true;
-      };
-    }
-
     const loadAvatarUrl = async () => {
+      await hydrateImageDiskCache();
+      if (cancelled) {
+        return;
+      }
+
+      if (stableKey && hasCachedImage(stableKey)) {
+        setAvatarUrl(imageCacheUri(stableKey));
+        return;
+      }
+
+      if (providedAvatarUrl) {
+        setAvatarUrl(providedAvatarUrl);
+        return;
+      }
+
+      if (!avatarFileId) {
+        setAvatarUrl(null);
+        return;
+      }
+
       try {
         const credentials = await getValidSessionCredentials();
 
-        if (!credentials) {
+        if (!credentials || cancelled) {
           return;
         }
 
@@ -90,7 +109,7 @@ export default function PeopleAvatar({
     return () => {
       cancelled = true;
     };
-  }, [avatarFileId, providedAvatarUrl]);
+  }, [avatarFileId, providedAvatarUrl, stableKey]);
 
   return (
     <View
@@ -105,9 +124,10 @@ export default function PeopleAvatar({
       ]}
     >
       {avatarUrl ? (
-        <Image
+        <CachedImage
           accessibilityLabel={`Foto de perfil de ${displayName}`}
-          source={{ uri: avatarUrl }}
+          cacheKey={avatarFileId}
+          uri={avatarUrl}
           style={[
             styles.image,
             {

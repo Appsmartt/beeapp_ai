@@ -1,11 +1,11 @@
 import React from 'react';
 import {
-  Alert,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
 } from 'react-native';
+import { appAlert } from '../feedback/appAlert';
 import {
   AtSign,
   Briefcase,
@@ -76,7 +76,7 @@ export default function SocialNetworksSection({
     label: string,
     url: string,
   ) => {
-    Alert.alert(
+    appAlert(
       'Abriendo enlace',
       `Abriendo enlace de ${label}: ${url}`,
     );

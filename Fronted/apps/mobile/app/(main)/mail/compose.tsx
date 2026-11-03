@@ -1,6 +1,5 @@
 import {
   ActivityIndicator,
-  Alert,
   ScrollView,
   StyleSheet,
   Text,
@@ -8,6 +7,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { appAlert } from '../../../src/components/feedback/appAlert';
 import {
   useCallback,
   useEffect,
@@ -405,7 +405,7 @@ export default function MailComposeScreen() {
     } = parseRecipientInput(value);
 
     if (invalidValues.length > 0) {
-      Alert.alert(
+      appAlert(
         'Correo no válido',
         (
           `Revisa esta dirección: "${invalidValues[0]}". `
@@ -436,7 +436,7 @@ export default function MailComposeScreen() {
     );
 
     if (duplicatedElsewhere) {
-      Alert.alert(
+      appAlert(
         'Destinatario repetido',
         (
           `"${duplicatedElsewhere.email}" ya está en `
@@ -541,7 +541,7 @@ export default function MailComposeScreen() {
         );
 
         if (remainingSlots <= 0) {
-          Alert.alert(
+          appAlert(
             'Límite de adjuntos',
             (
               `Puedes adjuntar máximo ${MAX_MAIL_ATTACHMENTS} `
@@ -574,7 +574,7 @@ export default function MailComposeScreen() {
         if (
           pickerResult.assets.length > remainingSlots
         ) {
-          Alert.alert(
+          appAlert(
             'Algunos archivos no se seleccionaron',
             (
               `Solo se agregarán ${remainingSlots} archivo(s), `
@@ -592,7 +592,7 @@ export default function MailComposeScreen() {
         );
 
         if (tooLargeAsset) {
-          Alert.alert(
+          appAlert(
             'Archivo demasiado grande',
             (
               `“${tooLargeAsset.name}” supera el límite de 3 MB `
@@ -613,7 +613,7 @@ export default function MailComposeScreen() {
           attachmentTotalSize + selectedSize
           > MAX_MAIL_ATTACHMENTS_TOTAL_SIZE_BYTES
         ) {
-          Alert.alert(
+          appAlert(
             'Adjuntos demasiado grandes',
             (
               'Los adjuntos de un correo no pueden superar '
@@ -657,7 +657,7 @@ export default function MailComposeScreen() {
         if (uploadResponse.failure_count > 0) {
           const firstFailure = uploadResponse.failed_files[0];
 
-          Alert.alert(
+          appAlert(
             'Algunos archivos no se subieron',
             firstFailure?.detail
               || (
@@ -701,7 +701,7 @@ export default function MailComposeScreen() {
           );
         });
       } catch (attachmentError) {
-        Alert.alert(
+        appAlert(
           'No fue posible adjuntar',
           getErrorMessage(attachmentError),
         );
@@ -760,7 +760,7 @@ export default function MailComposeScreen() {
     }
 
     if (!selectedIntegrationId) {
-      Alert.alert(
+      appAlert(
         'Selecciona una cuenta',
         (
           'Conecta o selecciona una cuenta de Google o '
@@ -775,7 +775,7 @@ export default function MailComposeScreen() {
     }
 
     if (toRecipients.length === 0) {
-      Alert.alert(
+      appAlert(
         'Falta un destinatario',
         'Especifica al menos un destinatario en el campo Para.',
       );
@@ -815,7 +815,7 @@ export default function MailComposeScreen() {
           draftResponse.message.id,
         );
 
-        Alert.alert(
+        appAlert(
           'Correo enviado',
           'Tu correo se envió correctamente.',
           [
@@ -828,7 +828,7 @@ export default function MailComposeScreen() {
           ],
         );
       } catch (sendError) {
-        Alert.alert(
+        appAlert(
           'No fue posible enviar',
           getErrorMessage(sendError),
         );
@@ -1191,7 +1191,7 @@ export default function MailComposeScreen() {
                     });
                     setBody(response.text);
                   } catch (error) {
-                    Alert.alert(
+                    appAlert(
                       'Asistente',
                       error instanceof Error ? error.message : 'No se pudo redactar el correo.',
                     );

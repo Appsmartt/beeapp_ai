@@ -1,16 +1,20 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState } from 'react';
 import {
     ActivityIndicator,
-    Alert,
-    KeyboardAvoidingView,
-    Platform,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from 'react-native';
+import { appAlert } from '../../../src/components/feedback/appAlert';
 import { Bot, ChevronLeft, Mic, Send, Volume2 } from 'lucide-react-native';
 import { colors, radii, spacing } from '@beeapp/design-system';
 import {
@@ -53,6 +57,7 @@ export default function AssistantChatScreen() {
     const [loading, setLoading] = useState(true);
     const [sending, setSending] = useState(false);
     const [recording, setRecording] = useState(false);
+    const micBusyRef = useRef(false);
 
     const load = useCallback(async () => {
         const auth = await getValidSessionCredentials();
@@ -68,7 +73,7 @@ export default function AssistantChatScreen() {
     useEffect(() => {
         load().catch((error) => {
             setLoading(false);
-            Alert.alert('Asistente', errorText(error));
+            appAlert('Asistente', errorText(error));
         });
         return () => {
             void cancelAssistantRecording();
@@ -95,14 +100,15 @@ export default function AssistantChatScreen() {
             const response = await sendAssistantMessage(auth, message);
             setMessages((current) => [...current, response.message]);
         } catch (error) {
-            Alert.alert('Asistente', errorText(error));
+            appAlert('Asistente', errorText(error));
         } finally {
             setSending(false);
         }
     }, [sending]);
 
     const toggleMic = useCallback(async () => {
-        if (sending) return;
+        if (sending || micBusyRef.current) return;
+        micBusyRef.current = true;
         try {
             if (!recording) {
                 await startAssistantRecording();
@@ -117,7 +123,7 @@ export default function AssistantChatScreen() {
             const durationCheck = validateVoiceRecordingDuration(durationMs);
             if (!durationCheck.ok) {
                 setSending(false);
-                Alert.alert('Voz', durationCheck.message);
+                appAlert('Voz', durationCheck.message);
                 return;
             }
             const transcript = await transcribeAssistantAudio(
@@ -127,14 +133,16 @@ export default function AssistantChatScreen() {
             const validation = validateVoiceTranscript(transcript.text);
             setSending(false);
             if (!validation.ok) {
-                Alert.alert('Voz', validation.message);
+                appAlert('Voz', validation.message);
                 return;
             }
             await send(validation.text);
         } catch (error) {
             setRecording(false);
             setSending(false);
-            Alert.alert('Voz', errorText(error));
+            appAlert('Voz', errorText(error));
+        } finally {
+            micBusyRef.current = false;
         }
     }, [recording, send, sending]);
 
@@ -145,7 +153,7 @@ export default function AssistantChatScreen() {
             const audio = await speakAssistantText(auth, text);
             await playAssistantSpeech(audio.audio_base64);
         } catch (error) {
-            Alert.alert('Voz', errorText(error));
+            appAlert('Voz', errorText(error));
         }
     }, []);
 
@@ -170,7 +178,7 @@ export default function AssistantChatScreen() {
             const response = await confirmAssistantAction(auth, actionId);
             if (response.message) setMessages((current) => [...current, response.message]);
         } catch (error) {
-            Alert.alert('Asistente', errorText(error));
+            appAlert('Asistente', errorText(error));
         } finally {
             setSending(false);
         }
@@ -206,55 +214,63 @@ export default function AssistantChatScreen() {
                     </TouchableOpacity>
                 </View>
 
-                {loading ? (
-                    <ActivityIndicator style={styles.loader} color={colors.brand.primary} />
-                ) : (
-                    <ScrollView
-                        ref={scrollRef}
-                        contentContainerStyle={styles.thread}
-                        onContentSizeChange={() => scrollRef.current?.scrollToEnd({ animated: true })}
-                    >
-                        {messages.length === 0 ? (
-                            <Text style={styles.empty}>
-                                Puedo crear reuniones, anotar, buscar en la app y sugerirte proveedores.
-                            </Text>
-                        ) : null}
-                        {messages.map((message) => (
-                            <View key={message.id}>
-                                <View style={[
-                                    styles.bubble,
-                                    message.role === 'user' ? styles.bubbleUser : styles.bubbleAssistant,
-                                ]}>
-                                    <Text style={[
-                                        styles.bubbleText,
-                                        message.role === 'user' && styles.bubbleTextUser,
+                <View style={styles.threadWrap}>
+                    {loading ? (
+                        <View style={styles.loaderWrap}>
+                            <ActivityIndicator
+                                color={colors.brand.primary}
+                                size="large"
+                            />
+                        </View>
+                    ) : (
+                        <ScrollView
+                            ref={scrollRef}
+                            contentContainerStyle={styles.thread}
+                            keyboardShouldPersistTaps="handled"
+                            onContentSizeChange={() => scrollRef.current?.scrollToEnd({ animated: true })}
+                        >
+                            {messages.length === 0 ? (
+                                <Text style={styles.empty}>
+                                    Puedo crear reuniones, anotar, buscar en la app y sugerirte proveedores.
+                                </Text>
+                            ) : null}
+                            {messages.map((message) => (
+                                <View key={message.id}>
+                                    <View style={[
+                                        styles.bubble,
+                                        message.role === 'user' ? styles.bubbleUser : styles.bubbleAssistant,
                                     ]}>
-                                        {message.content}
-                                    </Text>
-                                    {message.role === 'assistant' ? (
-                                        <TouchableOpacity onPress={() => void speak(message.content)}>
-                                            <Volume2 size={16} color={colors.brand.primary} />
-                                        </TouchableOpacity>
-                                    ) : null}
+                                        <Text style={[
+                                            styles.bubbleText,
+                                            message.role === 'user' && styles.bubbleTextUser,
+                                        ]}>
+                                            {message.content}
+                                        </Text>
+                                        {message.role === 'assistant' ? (
+                                            <TouchableOpacity onPress={() => void speak(message.content)}>
+                                                <Volume2 size={16} color={colors.brand.primary} />
+                                            </TouchableOpacity>
+                                        ) : null}
+                                    </View>
+                                    {(message.cards || []).map((card, index) => (
+                                        <CardView
+                                            key={`${message.id}-${index}`}
+                                            card={card}
+                                            busy={sending}
+                                            onConfirm={(confirm) => void resolveAction(card, confirm)}
+                                            onChoose={chooseProvider}
+                                            onOpenChat={(id) => router.push({
+                                                pathname: '/(main)/chat/conversation',
+                                                params: { id, name: 'Proveedor', isGroup: 'false' },
+                                            })}
+                                        />
+                                    ))}
                                 </View>
-                                {(message.cards || []).map((card, index) => (
-                                    <CardView
-                                        key={`${message.id}-${index}`}
-                                        card={card}
-                                        busy={sending}
-                                        onConfirm={(confirm) => void resolveAction(card, confirm)}
-                                        onChoose={chooseProvider}
-                                        onOpenChat={(id) => router.push({
-                                            pathname: '/(main)/chat/conversation',
-                                            params: { id, name: 'Proveedor', isGroup: 'false' },
-                                        })}
-                                    />
-                                ))}
-                            </View>
-                        ))}
-                        {sending ? <Text style={styles.typing}>Escribiendo...</Text> : null}
-                    </ScrollView>
-                )}
+                            ))}
+                            {sending ? <Text style={styles.typing}>Escribiendo...</Text> : null}
+                        </ScrollView>
+                    )}
+                </View>
 
                 <View style={styles.composer}>
                     <TouchableOpacity style={styles.mic} onPress={() => void toggleMic()}>
@@ -373,8 +389,13 @@ const styles = StyleSheet.create({
     title: { fontSize: 16, fontWeight: '600', color: colors.neutral.text },
     settings: { color: colors.brand.primary, fontSize: 13, fontWeight: '600' },
     iconBtn: { padding: 8, minWidth: 64 },
-    loader: { marginTop: 40 },
-    thread: { padding: spacing.md, paddingBottom: 24 },
+    threadWrap: { flex: 1 },
+    loaderWrap: {
+        alignItems: 'center',
+        flex: 1,
+        justifyContent: 'center',
+    },
+    thread: { padding: spacing.md, paddingBottom: 24, flexGrow: 1 },
     empty: { color: colors.neutral.gray600, textAlign: 'center', marginTop: 32, lineHeight: 20 },
     bubble: { maxWidth: '86%', borderRadius: radii.xl, padding: 12, marginBottom: 8 },
     bubbleUser: { alignSelf: 'flex-end', backgroundColor: colors.brand.primary },

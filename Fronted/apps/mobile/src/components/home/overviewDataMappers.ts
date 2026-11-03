@@ -270,6 +270,7 @@ const noteRows = (): OverviewRow[] =>
           pathname: '/(main)/notes/edit',
           params: {
             id: note.id,
+            mode: 'view',
           },
         },
       };

@@ -4,10 +4,9 @@ import {
   useMemo,
   useRef,
   useState,
-} from 'react';
+  } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   FlatList,
   Image,
   NativeScrollEvent,
@@ -19,6 +18,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { appAlert } from '../../../../src/components/feedback/appAlert';
 import {
   ArrowLeft,
   CalendarClock,
@@ -401,7 +401,7 @@ export default function BuddyServicesPublicOfferScreen() {
     } catch (chatError) {
       const uiError = toCommercialUiError(chatError);
 
-      Alert.alert(
+      appAlert(
         uiError.title || 'No fue posible abrir el chat',
         uiError.message || (
           'Inténtalo nuevamente en unos momentos.'
@@ -475,7 +475,7 @@ export default function BuddyServicesPublicOfferScreen() {
           incomingCommercialProfileName,
         } = result.conflict;
 
-        Alert.alert(
+        appAlert(
           'Carrito de otro negocio',
           (
             `Tu carrito actual pertenece a ${currentCommercialProfileName}. `
@@ -542,7 +542,7 @@ export default function BuddyServicesPublicOfferScreen() {
         incomingCommercialProfileName,
       } = result.conflict;
 
-      Alert.alert(
+      appAlert(
         'Carrito de otro negocio',
         (
           `Tu carrito actual pertenece a ${currentCommercialProfileName}. `
@@ -571,7 +571,7 @@ export default function BuddyServicesPublicOfferScreen() {
     } catch (actionError) {
       const uiError = toCommercialUiError(actionError);
 
-      Alert.alert(
+      appAlert(
         uiError.title,
         uiError.message,
       );

@@ -31,6 +31,7 @@ import type {
 import {
   api,
 } from './client';
+import { LIST_CACHE_TTL } from './requestCache';
 
 function toQueryString(
   values: Record<
@@ -167,6 +168,7 @@ export async function getStatusTextBackgrounds(
     '/statuses/text-backgrounds/',
     {
       auth,
+      cache: { ttlMs: LIST_CACHE_TTL.stable },
     },
   );
 }
@@ -181,6 +183,7 @@ export async function getStatusFeed(
     })}`,
     {
       auth,
+      cache: { ttlMs: LIST_CACHE_TTL.fresh },
     },
   );
 }
@@ -311,6 +314,7 @@ export async function getMyStatuses(
     })}`,
     {
       auth,
+      cache: { ttlMs: LIST_CACHE_TTL.fresh },
     },
   );
 }

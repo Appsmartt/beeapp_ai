@@ -27,6 +27,11 @@ import {
   getValidSessionCredentials,
 } from '../services/authSession';
 import {
+  getConnectedAccountsSyncRevision,
+  hasRecentMailProviderSync,
+  subscribeConnectedAccountsSynced,
+} from '../services/connectedAccountSync';
+import {
   getMailIntegrationMap,
   isMailMessageArchived,
   isMailMessageSpam,
@@ -47,6 +52,7 @@ import {
   setStoredMailDetail,
   setStoredMailInbox,
   setStoredMailIntegrations,
+  subscribeMailStore,
   touchStoredMailDetail,
   updateStoredMailMessage,
   type MailInboxCacheMetadata,
@@ -76,6 +82,7 @@ export interface UseMailResult {
   messages: MailListItemModel[];
   pagination: MailMessagesPagination;
   loading: boolean;
+  hasCompletedInitialLoad: boolean;
   refreshing: boolean;
   loadingMore: boolean;
   syncing: boolean;
@@ -399,12 +406,13 @@ export function useMail(
   );
 
   const initialInbox = getStoredMailInbox(inboxQuery);
+  const initialIntegrations = getStoredMailIntegrations();
 
   const [
     integrations,
     setIntegrations,
   ] = useState<MailIntegration[]>(
-    getStoredMailIntegrations(),
+    initialIntegrations,
   );
 
   const [
@@ -421,9 +429,15 @@ export function useMail(
     initialInbox?.pagination || EMPTY_PAGINATION,
   );
 
-  const [loading, setLoading] = useState(
-    !initialInbox?.messages.length,
-  );
+  const [loading, setLoading] = useState(() => (
+    !initialInbox?.messages.length
+    || initialIntegrations.length === 0
+  ));
+
+  const [
+    hasCompletedInitialLoad,
+    setHasCompletedInitialLoad,
+  ] = useState(false);
 
   const [refreshing, setRefreshing] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -448,6 +462,7 @@ export function useMail(
   );
 
   const currentUserIdRef = useRef<string | null>(null);
+  const connectedSyncRevision = useRef<number | null>(null);
 
   const setMessages = useCallback((
     messages: MailMessage[],
@@ -542,7 +557,10 @@ export function useMail(
 
     if (options.refresh) {
       setRefreshing(true);
-    } else if (!hasMemoryCache) {
+    } else if (
+      !hasMemoryCache
+      || integrationsRef.current.length === 0
+    ) {
       setLoading(true);
     }
 
@@ -637,6 +655,7 @@ export function useMail(
       if (requestId === requestIdRef.current) {
         setLoading(false);
         setRefreshing(false);
+        setHasCompletedInitialLoad(true);
       }
     }
   }, [
@@ -830,6 +849,7 @@ export function useMail(
         metadata.lastProviderSyncAt,
         maxAgeMs,
       )
+      || hasRecentMailProviderSync(maxAgeMs)
     ) {
       return null;
     }
@@ -1053,25 +1073,22 @@ export function useMail(
       );
 
       const serverMessage = response.message;
+      const serverMessages = previousMessages
+        .map((message) => (
+          message.id === normalizedMessageId
+            ? serverMessage
+            : message
+        ))
+        .filter((message) => shouldKeepMessageInCurrentView(
+          message,
+          accountFilter,
+          folder,
+        ));
 
-      if (targetMessage) {
-        const serverMessages = previousMessages
-          .map((message) => (
-            message.id === normalizedMessageId
-              ? serverMessage
-              : message
-          ))
-          .filter((message) => shouldKeepMessageInCurrentView(
-            message,
-            accountFilter,
-            folder,
-          ));
-
-        synchronizeInbox(
-          serverMessages,
-          pagination,
-        );
-      }
+      synchronizeInbox(
+        serverMessages,
+        pagination,
+      );
 
       updateStoredMailMessage(serverMessage);
       setStoredMailDetail(
@@ -1330,6 +1347,37 @@ export function useMail(
   ]);
 
   useEffect(() => {
+    const reloadAfterConnect = () => {
+      const nextRevision = getConnectedAccountsSyncRevision();
+      const previousRevision = connectedSyncRevision.current;
+
+      connectedSyncRevision.current = nextRevision;
+
+      if (
+        previousRevision === null
+        && nextRevision === 0
+      ) {
+        return;
+      }
+
+      if (previousRevision === nextRevision) {
+        return;
+      }
+
+      void loadMail({
+        refresh: true,
+        reloadIntegrations: true,
+      });
+    };
+
+    reloadAfterConnect();
+
+    return subscribeConnectedAccountsSynced(
+      reloadAfterConnect,
+    );
+  }, [loadMail]);
+
+  useEffect(() => {
     const cachedInbox = getStoredMailInbox(inboxQuery);
 
     if (!cachedInbox) {
@@ -1340,6 +1388,32 @@ export function useMail(
     setPagination(cachedInbox.pagination);
     setLoading(false);
   }, [
+    inboxQuery,
+    setMessages,
+  ]);
+
+  useEffect(() => {
+    return subscribeMailStore(() => {
+      const cachedInbox = getStoredMailInbox(inboxQuery);
+
+      if (!cachedInbox) {
+        return;
+      }
+
+      setMessages(
+        cachedInbox.messages.filter((message) => (
+          shouldKeepMessageInCurrentView(
+            message,
+            accountFilter,
+            folder,
+          )
+        )),
+      );
+      setPagination(cachedInbox.pagination);
+    });
+  }, [
+    accountFilter,
+    folder,
     inboxQuery,
     setMessages,
   ]);
@@ -1378,6 +1452,7 @@ export function useMail(
     messages,
     pagination,
     loading,
+    hasCompletedInitialLoad,
     refreshing,
     loadingMore,
     syncing,

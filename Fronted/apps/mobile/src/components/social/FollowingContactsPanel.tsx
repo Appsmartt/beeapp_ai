@@ -1,6 +1,7 @@
 import {
   useCallback,
   useEffect,
+  useMemo,
   useState,
 } from 'react';
 import {
@@ -27,6 +28,10 @@ import {
   loadStatusFollowing,
 } from '../../services/statusesService';
 import {
+  homeSearchEmptyCopy,
+  normalizeHomeSearchText,
+} from '../home/HomeSearchContext';
+import {
   contactsStyles as styles,
 } from '../contacts/contactsStyles';
 
@@ -39,11 +44,13 @@ type FollowingContactsPanelProps = {
     online: boolean;
   }) => void;
   onPressDiscover?: () => void;
+  searchQuery?: string;
 };
 
 export default function FollowingContactsPanel({
   onOpenConversation,
   onPressDiscover,
+  searchQuery = '',
 }: FollowingContactsPanelProps) {
   const {
     createDirectConversation,
@@ -77,6 +84,20 @@ export default function FollowingContactsPanel({
   useEffect(() => {
     void loadFollowing();
   }, [loadFollowing]);
+
+  const visibleItems = useMemo(() => {
+    const needle = normalizeHomeSearchText(searchQuery);
+
+    if (!needle) {
+      return items;
+    }
+
+    return items.filter((item) =>
+      normalizeHomeSearchText(
+        item.target.display_name,
+      ).includes(needle),
+    );
+  }, [items, searchQuery]);
 
   const handleChat = async (item: StatusFollowListItem) => {
     const identityId = item.target.profile_id
@@ -134,6 +155,25 @@ export default function FollowingContactsPanel({
     );
   }
 
+  if (
+    items.length > 0
+    && visibleItems.length === 0
+    && searchQuery.trim()
+  ) {
+    const emptyCopy = homeSearchEmptyCopy(searchQuery);
+
+    return (
+      <View style={styles.emptyState}>
+        <Text style={styles.emptyTitle}>
+          {emptyCopy.title}
+        </Text>
+        <Text style={styles.emptyDesc}>
+          {emptyCopy.description}
+        </Text>
+      </View>
+    );
+  }
+
   if (items.length === 0) {
     return (
       <View style={styles.emptyState}>
@@ -160,20 +200,22 @@ export default function FollowingContactsPanel({
 
   return (
     <View style={styles.contactsList}>
-      {items.map((item, index) => (
+      {visibleItems.map((item, index) => (
         <View
           key={item.id}
           style={[
             styles.contactRow,
-            index < items.length - 1 && styles.rowSeparator,
+            index < visibleItems.length - 1 && styles.rowSeparator,
           ]}
         >
-          <PeopleAvatar
-            displayName={item.target.display_name}
-            avatarFileId={item.target.avatar_file_id}
-            avatarUrl={item.target.avatar_url}
-            size={44}
-          />
+          <View style={styles.contactAvatar}>
+            <PeopleAvatar
+              displayName={item.target.display_name}
+              avatarFileId={item.target.avatar_file_id}
+              avatarUrl={item.target.avatar_url}
+              size={44}
+            />
+          </View>
           <View style={styles.detailsCol}>
             <Text style={styles.contactName} numberOfLines={1}>
               {item.target.display_name}

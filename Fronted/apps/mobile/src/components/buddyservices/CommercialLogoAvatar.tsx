@@ -1,5 +1,4 @@
 import {
-  Image,
   StyleSheet,
   Text,
   View,
@@ -12,9 +11,16 @@ import {
   getStorageFileAccess,
 } from '@beeapp/api-client';
 
+import CachedImage from '../CachedImage';
 import {
   getValidSessionCredentials,
 } from '../../services/authSession';
+import {
+  hasCachedImage,
+  hydrateImageDiskCache,
+  imageCacheUri,
+  remoteImageCacheKey,
+} from '../../services/imageDiskCache';
 
 interface CommercialLogoAvatarProps {
   displayName: string;
@@ -22,6 +28,8 @@ interface CommercialLogoAvatarProps {
   logoUrl?: string | null;
   size?: number;
   shape?: "circle" | "rectangle";
+  /** Solo con `rectangle`: ancho tipo mock (~cuadrado) o bandera. */
+  rectangleAspect?: "wide" | "square";
 }
 
 function getInitials(value: string): string {
@@ -42,33 +50,47 @@ export default function CommercialLogoAvatar({
   logoUrl: providedLogoUrl = null,
   size = 56,
   shape = "circle",
+  rectangleAspect = "wide",
 }: CommercialLogoAvatarProps) {
-  const [logoUrl, setLogoUrl] = useState<string | null>(null);
+  const stableKey = remoteImageCacheKey({
+    fileId: logoFileId,
+    url: providedLogoUrl,
+  });
+  const [logoUrl, setLogoUrl] = useState<string | null>(() => {
+    if (stableKey && hasCachedImage(stableKey)) {
+      return imageCacheUri(stableKey);
+    }
+    return providedLogoUrl;
+  });
 
   useEffect(() => {
     let cancelled = false;
 
-    if (providedLogoUrl) {
-      setLogoUrl(providedLogoUrl);
-
-      return () => {
-        cancelled = true;
-      };
-    }
-
-    setLogoUrl(null);
-
-    if (!logoFileId) {
-      return () => {
-        cancelled = true;
-      };
-    }
-
     const loadLogoUrl = async () => {
+      await hydrateImageDiskCache();
+      if (cancelled) {
+        return;
+      }
+
+      if (stableKey && hasCachedImage(stableKey)) {
+        setLogoUrl(imageCacheUri(stableKey));
+        return;
+      }
+
+      if (providedLogoUrl) {
+        setLogoUrl(providedLogoUrl);
+        return;
+      }
+
+      if (!logoFileId) {
+        setLogoUrl(null);
+        return;
+      }
+
       try {
         const credentials = await getValidSessionCredentials();
 
-        if (!credentials) {
+        if (!credentials || cancelled) {
           return;
         }
 
@@ -92,11 +114,16 @@ export default function CommercialLogoAvatar({
     return () => {
       cancelled = true;
     };
-  }, [logoFileId, providedLogoUrl]);
+  }, [logoFileId, providedLogoUrl, stableKey]);
 
   const avatarStyle = {
-    borderRadius: shape === "rectangle" ? 16 : size / 2,
-    height: shape === "rectangle" ? Math.round(size * 0.76) : size,
+    borderRadius: shape === "rectangle" ? 14 : size / 2,
+    height:
+      shape === "rectangle"
+        ? rectangleAspect === "square"
+          ? size
+          : Math.round(size * 0.76)
+        : size,
     width: size,
   };
 
@@ -109,9 +136,10 @@ export default function CommercialLogoAvatar({
       ]}
     >
       {logoUrl ? (
-        <Image
+        <CachedImage
           accessibilityLabel={`Logo de ${displayName}`}
-          source={{ uri: logoUrl }}
+          cacheKey={logoFileId}
+          uri={logoUrl}
           style={[
             styles.image,
             avatarStyle,

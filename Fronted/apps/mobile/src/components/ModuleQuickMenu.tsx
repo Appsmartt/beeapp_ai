@@ -17,7 +17,7 @@ import {
   CalendarDays,
   ChevronRight,
   Folder,
-  House,
+  LayoutGrid,
   Mail,
   NotebookPen,
   X,
@@ -135,7 +135,7 @@ export default function ModuleQuickMenu() {
         accessibilityHint="Muestra accesos a correos, agenda, notas y archivos"
       >
         <View style={styles.triggerInner}>
-          <House
+          <LayoutGrid
             size={19}
             color={colors.neutral.white}
             strokeWidth={2.3}
@@ -173,7 +173,7 @@ export default function ModuleQuickMenu() {
               <View style={styles.header}>
                 <View style={styles.headerBrand}>
                   <View style={styles.headerIconWrap}>
-                    <House
+                    <LayoutGrid
                       size={20}
                       color={colors.brand.primary}
                       strokeWidth={2.3}

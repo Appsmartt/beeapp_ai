@@ -1,5 +1,8 @@
 import {
   ActivityIndicator,
+  Modal,
+  Pressable,
+  ScrollView,
   StyleSheet,
   Switch,
   Text,
@@ -10,15 +13,19 @@ import {
 import {
   Bell,
   Check,
+  ChevronDown,
   ChevronRight,
   MapPin,
   Search,
   Video,
 } from 'lucide-react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   colors,
 } from '@beeapp/design-system';
 
+import IsoDatePickerField from '../forms/IsoDatePickerField';
+import IsoTimePickerField from '../forms/IsoTimePickerField';
 import type {
   CalendarUserOption,
 } from '../../services/calendarService';
@@ -26,6 +33,25 @@ import type {
   CalendarEventType,
 } from '../../stores/calendarStore';
 
+
+export interface EventAccountChoice {
+  id: string;
+  label: string;
+  provider: string;
+  integrationId?: string | null;
+}
+
+function accountColor(provider: string): string {
+  if (provider === 'google') {
+    return '#4285F4';
+  }
+
+  if (provider === 'microsoft') {
+    return '#0078D4';
+  }
+
+  return colors.brand.primary;
+}
 
 interface CalendarEditFormFieldsProps {
   eventType: CalendarEventType;
@@ -50,6 +76,13 @@ interface CalendarEditFormFieldsProps {
   onOpenReminderSheet: () => void;
   conferenceUrl: string;
   setConferenceUrl: (value: string) => void;
+  /** YYYY-MM-DD; fechas anteriores no se pueden elegir */
+  minimumEventDate?: string | null;
+  accounts?: EventAccountChoice[];
+  selectedAccountId?: string;
+  accountMenuVisible?: boolean;
+  onToggleAccountMenu?: () => void;
+  onSelectAccount?: (accountId: string) => void;
 }
 
 
@@ -74,9 +107,124 @@ export function CalendarEditFormFields({
   onOpenReminderSheet,
   conferenceUrl,
   setConferenceUrl,
+  minimumEventDate = null,
+  accounts = [],
+  selectedAccountId = '',
+  accountMenuVisible = false,
+  onToggleAccountMenu,
+  onSelectAccount,
 }: CalendarEditFormFieldsProps) {
+  const insets = useSafeAreaInsets();
+  const selectedAccount = accounts.find(
+    (account) => account.id === selectedAccountId,
+  ) || accounts[0];
+
   return (
     <>
+      {accounts.length > 0 ? (
+        <>
+          <Text style={styles.sectionHeader}>
+            Cuenta
+          </Text>
+
+          <TouchableOpacity
+            style={styles.accountButton}
+            onPress={onToggleAccountMenu}
+            activeOpacity={0.8}
+          >
+            <View
+              style={[
+                styles.accountDot,
+                {
+                  backgroundColor: accountColor(
+                    selectedAccount?.provider || '',
+                  ),
+                },
+              ]}
+            />
+
+            <Text
+              style={styles.accountButtonText}
+              numberOfLines={1}
+            >
+              {selectedAccount?.label || 'Elige una cuenta'}
+            </Text>
+
+            <ChevronDown
+              size={18}
+              color={colors.neutral.gray500}
+            />
+          </TouchableOpacity>
+
+          <Text style={styles.accountHint}>
+            Se guarda en el calendario principal de esa cuenta.
+          </Text>
+
+          <Modal
+            visible={accountMenuVisible}
+            transparent
+            animationType="fade"
+            onRequestClose={onToggleAccountMenu}
+          >
+            <Pressable
+              style={[
+                styles.accountBackdrop,
+                { paddingTop: insets.top + 72 },
+              ]}
+              onPress={onToggleAccountMenu}
+            >
+              <Pressable
+                style={styles.accountMenu}
+                onPress={() => undefined}
+              >
+                <ScrollView>
+                  {accounts.map((account) => {
+                    const selected = account.id === selectedAccount?.id;
+
+                    return (
+                      <TouchableOpacity
+                        key={account.id}
+                        style={styles.accountOption}
+                        onPress={() => onSelectAccount?.(account.id)}
+                        activeOpacity={0.7}
+                      >
+                        <View
+                          style={[
+                            styles.accountDot,
+                            {
+                              backgroundColor: accountColor(
+                                account.provider,
+                              ),
+                            },
+                          ]}
+                        />
+
+                        <Text
+                          style={[
+                            styles.accountOptionText,
+                            selected && styles.accountOptionTextSelected,
+                          ]}
+                          numberOfLines={1}
+                        >
+                          {account.label}
+                        </Text>
+
+                        {selected ? (
+                          <Check
+                            size={16}
+                            color={colors.brand.primary}
+                          />
+                        ) : null}
+                      </TouchableOpacity>
+                    );
+                  })}
+                </ScrollView>
+              </Pressable>
+            </Pressable>
+          </Modal>
+        </>
+      ) : null}
+
       <Text style={styles.sectionHeader}>
         Tipo de compromiso
       </Text>
@@ -149,69 +297,37 @@ export function CalendarEditFormFields({
         </View>
 
 
-        <View style={styles.inputGroup}>
-          <Text style={styles.inputLabel}>
-            Fecha (YYYY-MM-DD) *
-          </Text>
-
-
-          <TextInput
-            style={styles.textInput}
-            placeholder="2026-08-17"
-            placeholderTextColor={colors.neutral.gray400}
-            value={date}
-            onChangeText={setDate}
-            maxLength={10}
-            autoCapitalize="none"
-          />
-        </View>
+        <IsoDatePickerField
+          label="Fecha *"
+          value={date}
+          onChange={setDate}
+          minDate={minimumEventDate}
+          placeholder="Selecciona la fecha del evento"
+          sheetTitle="Fecha del evento"
+          sheetSubtitle="Solo puedes elegir hoy o fechas futuras."
+        />
 
 
         <View style={styles.rowTwoInputs}>
-          <View style={styles.halfInputGroup}>
-            <Text style={styles.inputLabel}>
-              Hora inicio
-            </Text>
+          <IsoTimePickerField
+            label="Hora inicio"
+            value={timeStart}
+            onChange={setTimeStart}
+            disabled={isAllDay}
+            placeholder="09:00"
+            sheetTitle="Hora de inicio"
+            sheetSubtitle="Elige hora, minutos y jornada AM o PM."
+          />
 
-
-            <TextInput
-              style={[
-                styles.textInput,
-                isAllDay && styles.textInputDisabled,
-              ]}
-              placeholder="09:00"
-              placeholderTextColor={colors.neutral.gray400}
-              value={timeStart}
-              onChangeText={setTimeStart}
-              editable={!isAllDay}
-              maxLength={5}
-              keyboardType="numbers-and-punctuation"
-              autoCapitalize="none"
-            />
-          </View>
-
-
-          <View style={styles.halfInputGroup}>
-            <Text style={styles.inputLabel}>
-              Hora fin
-            </Text>
-
-
-            <TextInput
-              style={[
-                styles.textInput,
-                isAllDay && styles.textInputDisabled,
-              ]}
-              placeholder="10:00"
-              placeholderTextColor={colors.neutral.gray400}
-              value={timeEnd}
-              onChangeText={setTimeEnd}
-              editable={!isAllDay}
-              maxLength={5}
-              keyboardType="numbers-and-punctuation"
-              autoCapitalize="none"
-            />
-          </View>
+          <IsoTimePickerField
+            label="Hora fin"
+            value={timeEnd}
+            onChange={setTimeEnd}
+            disabled={isAllDay}
+            placeholder="10:00 AM"
+            sheetTitle="Hora de fin"
+            sheetSubtitle="Elige hora, minutos y jornada AM o PM."
+          />
         </View>
 
 
@@ -231,9 +347,14 @@ export function CalendarEditFormFields({
           <Switch
             value={isAllDay}
             onValueChange={setIsAllDay}
+            thumbColor={
+              isAllDay
+                ? '#F5F3FF'
+                : colors.neutral.white
+            }
             trackColor={{
               false: colors.neutral.gray200,
-              true: colors.brand.primary,
+              true: '#C4B5FD',
             }}
           />
         </View>
@@ -369,6 +490,8 @@ export function CalendarEditFormFields({
 interface CalendarEditInviteesSectionProps {
   searchQuery: string;
   setSearchQuery: (query: string) => void;
+  suggestedInvitees: CalendarUserOption[];
+  loadingSuggestions: boolean;
   searchResults: CalendarUserOption[];
   selectedInvitees: CalendarUserOption[];
   searching: boolean;
@@ -378,15 +501,96 @@ interface CalendarEditInviteesSectionProps {
 }
 
 
+function InviteesContactList({
+  invitees,
+  selectedInvitees,
+  onToggleInvitee,
+}: {
+  invitees: CalendarUserOption[];
+  selectedInvitees: CalendarUserOption[];
+  onToggleInvitee: (
+    invitee: CalendarUserOption,
+  ) => void;
+}) {
+  return (
+    <View style={styles.contactsList}>
+      {invitees.map((invitee) => {
+        const isSelected = selectedInvitees.some(
+          (selectedInvitee) =>
+            selectedInvitee.id === invitee.id,
+        );
+
+        return (
+          <TouchableOpacity
+            key={invitee.id}
+            style={styles.contactRow}
+            onPress={() => onToggleInvitee(invitee)}
+            activeOpacity={0.7}
+          >
+            <View
+              style={[
+                styles.avatar,
+                {
+                  backgroundColor: invitee.color,
+                },
+              ]}
+            >
+              <Text style={styles.avatarText}>
+                {invitee.initials}
+              </Text>
+            </View>
+
+            <View style={styles.contactCopy}>
+              <Text style={styles.contactName}>
+                {invitee.name}
+              </Text>
+
+              {(invitee.email || invitee.phone) && (
+                <Text
+                  style={styles.contactSubtitle}
+                  numberOfLines={1}
+                >
+                  {invitee.email || invitee.phone}
+                </Text>
+              )}
+            </View>
+
+            <View
+              style={[
+                styles.checkCircle,
+                isSelected && styles.checkCircleSelected,
+              ]}
+            >
+              {isSelected && (
+                <Check
+                  size={14}
+                  color={colors.neutral.white}
+                />
+              )}
+            </View>
+          </TouchableOpacity>
+        );
+      })}
+    </View>
+  );
+}
+
+
 export function CalendarEditInviteesSection({
   searchQuery,
   setSearchQuery,
+  suggestedInvitees,
+  loadingSuggestions,
   searchResults,
   selectedInvitees,
   searching,
   onToggleInvitee,
 }: CalendarEditInviteesSectionProps) {
   const normalizedQuery = searchQuery.trim();
+  const isSearching = normalizedQuery.length >= 3;
+  const visibleSuggestions = isSearching
+    ? []
+    : suggestedInvitees;
 
 
   return (
@@ -417,8 +621,9 @@ export function CalendarEditInviteesSection({
 
 
         <Text style={styles.inputHint}>
-          Escribe al menos 3 caracteres para buscar
-          usuarios de Buddy.
+          Solo puedes invitar contactos con seguimiento
+          mutuo. Elige uno de la lista o escribe al menos
+          3 caracteres para buscar.
         </Text>
 
 
@@ -473,6 +678,47 @@ export function CalendarEditInviteesSection({
         )}
 
 
+        {!isSearching && loadingSuggestions ? (
+          <View style={styles.searchLoading}>
+            <ActivityIndicator
+              size="small"
+              color={colors.brand.primary}
+            />
+
+            <Text style={styles.searchStateText}>
+              Cargando contactos...
+            </Text>
+          </View>
+        ) : null}
+
+
+        {!isSearching
+          && !loadingSuggestions
+          && visibleSuggestions.length > 0 ? (
+          <>
+            <Text style={styles.suggestionsTitle}>
+              Contactos sugeridos
+            </Text>
+
+            <InviteesContactList
+              invitees={visibleSuggestions}
+              selectedInvitees={selectedInvitees}
+              onToggleInvitee={onToggleInvitee}
+            />
+          </>
+        ) : null}
+
+
+        {!isSearching
+          && !loadingSuggestions
+          && visibleSuggestions.length === 0 ? (
+          <Text style={styles.searchStateText}>
+            No tienes contactos con seguimiento mutuo para
+            invitar todavía.
+          </Text>
+        ) : null}
+
+
         {searching && (
           <View style={styles.searchLoading}>
             <ActivityIndicator
@@ -492,80 +738,19 @@ export function CalendarEditInviteesSection({
           && normalizedQuery.length >= 3
           && searchResults.length === 0 && (
           <Text style={styles.searchStateText}>
-            No se encontraron usuarios.
+            No se encontraron contactos mutuos con ese
+            criterio.
           </Text>
         )}
 
 
-        {searchResults.length > 0 && (
-          <View style={styles.contactsList}>
-            {searchResults.map((invitee) => {
-              const isSelected =
-                selectedInvitees.some(
-                  (selectedInvitee) =>
-                    selectedInvitee.id === invitee.id,
-                );
-
-
-              return (
-                <TouchableOpacity
-                  key={invitee.id}
-                  style={styles.contactRow}
-                  onPress={() =>
-                    onToggleInvitee(invitee)
-                  }
-                  activeOpacity={0.7}
-                >
-                  <View
-                    style={[
-                      styles.avatar,
-                      {
-                        backgroundColor: invitee.color,
-                      },
-                    ]}
-                  >
-                    <Text style={styles.avatarText}>
-                      {invitee.initials}
-                    </Text>
-                  </View>
-
-
-                  <View style={styles.contactCopy}>
-                    <Text style={styles.contactName}>
-                      {invitee.name}
-                    </Text>
-
-
-                    {(invitee.email || invitee.phone) && (
-                      <Text
-                        style={styles.contactSubtitle}
-                        numberOfLines={1}
-                      >
-                        {invitee.email || invitee.phone}
-                      </Text>
-                    )}
-                  </View>
-
-
-                  <View
-                    style={[
-                      styles.checkCircle,
-                      isSelected
-                        && styles.checkCircleSelected,
-                    ]}
-                  >
-                    {isSelected && (
-                      <Check
-                        size={14}
-                        color={colors.neutral.white}
-                      />
-                    )}
-                  </View>
-                </TouchableOpacity>
-              );
-            })}
-          </View>
-        )}
+        {searchResults.length > 0 ? (
+          <InviteesContactList
+            invitees={searchResults}
+            selectedInvitees={selectedInvitees}
+            onToggleInvitee={onToggleInvitee}
+          />
+        ) : null}
       </View>
     </>
   );
@@ -573,6 +758,64 @@ export function CalendarEditInviteesSection({
 
 
 const styles = StyleSheet.create({
+  accountButton: {
+    minHeight: 48,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: colors.neutral.gray200,
+    backgroundColor: colors.neutral.white,
+    paddingHorizontal: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  accountDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+  },
+  accountButtonText: {
+    flex: 1,
+    fontSize: 14,
+    fontWeight: '600',
+    color: colors.neutral.text,
+  },
+  accountHint: {
+    marginTop: 6,
+    fontSize: 12,
+    color: colors.neutral.gray500,
+  },
+  accountBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(26, 26, 46, 0.28)',
+    paddingHorizontal: 20,
+  },
+  accountMenu: {
+    maxHeight: '70%',
+    backgroundColor: colors.neutral.white,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: colors.neutral.gray200,
+    overflow: 'hidden',
+  },
+  accountOption: {
+    minHeight: 48,
+    paddingHorizontal: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.neutral.gray100,
+  },
+  accountOptionText: {
+    flex: 1,
+    fontSize: 14,
+    color: colors.neutral.text,
+  },
+  accountOptionTextSelected: {
+    fontWeight: '700',
+    color: colors.brand.primary,
+  },
   sectionHeader: {
     fontSize: 11,
     fontWeight: '600',
@@ -767,6 +1010,12 @@ const styles = StyleSheet.create({
     fontWeight: '400',
     color: colors.neutral.gray600,
     lineHeight: 16,
+  },
+  suggestionsTitle: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: colors.neutral.text,
+    marginTop: 4,
   },
   contactsList: {
     gap: 8,

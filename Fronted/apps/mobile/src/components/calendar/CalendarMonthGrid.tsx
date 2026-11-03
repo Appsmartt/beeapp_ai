@@ -19,7 +19,8 @@ import {
 
 interface CalendarMonthGridProps {
   events: CalendarEvent[];
-  selectedDate: string;
+  viewDate: string;
+  selectedDate: string | null;
   onSelectDate: (date: string) => void;
 }
 
@@ -34,10 +35,11 @@ function getTodayString(): string {
 
 export default function CalendarMonthGrid({
   events,
+  viewDate,
   selectedDate,
   onSelectDate,
 }: CalendarMonthGridProps) {
-  const selected = parseDate(selectedDate);
+  const selected = parseDate(viewDate);
   const year = selected.getFullYear();
   const month = selected.getMonth();
 
@@ -137,7 +139,8 @@ export default function CalendarMonthGrid({
         dateString,
       }) => {
         const isToday = dateString === todayString;
-        const isSelected = dateString === selectedDate;
+        const isSelected = selectedDate !== null
+          && dateString === selectedDate;
         const dayEvents = eventsByDate.get(
           dateString,
         ) || [];

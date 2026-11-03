@@ -4,12 +4,12 @@ import {
 } from 'react';
 import { useRouter } from 'expo-router';
 import {
-  Alert,
   ScrollView,
   Text,
   TouchableOpacity,
   View,
 } from 'react-native';
+import { appAlert } from '../feedback/appAlert';
 import {
   CameraView,
   useCameraPermissions,
@@ -109,7 +109,7 @@ export default function DevicesScreen() {
 
       setDevices(response.devices);
     } catch (error) {
-      Alert.alert(
+      appAlert(
         'Error',
         error instanceof Error
           ? error.message
@@ -130,7 +130,7 @@ export default function DevicesScreen() {
         await requestCameraPermission();
 
       if (!permissionResult.granted) {
-        Alert.alert(
+        appAlert(
           'Permiso requerido',
           'Debes permitir el uso de la cámara para '
             + 'escanear el código QR.',
@@ -155,7 +155,7 @@ export default function DevicesScreen() {
     const challengeToken = getChallengeToken(data);
 
     if (!challengeToken) {
-      Alert.alert(
+      appAlert(
         'Código no válido',
         'Escanea el código QR mostrado por Buddy Web.',
       );
@@ -179,12 +179,12 @@ export default function DevicesScreen() {
 
       await loadDevices();
 
-      Alert.alert(
+      appAlert(
         'Sesión iniciada',
         `Se inició sesión en ${response.device.device_name}.`,
       );
     } catch (error) {
-      Alert.alert(
+      appAlert(
         'No se pudo iniciar sesión',
         error instanceof Error
           ? error.message
@@ -199,7 +199,7 @@ export default function DevicesScreen() {
   };
 
   const confirmSignOut = (device: DeviceSession) => {
-    Alert.alert(
+    appAlert(
       'Cerrar sesión',
       `¿Cerrar sesión en ${device.device_name}?`,
       [
@@ -228,7 +228,7 @@ export default function DevicesScreen() {
 
               await loadDevices();
             } catch (error) {
-              Alert.alert(
+              appAlert(
                 'Error',
                 error instanceof Error
                   ? error.message
@@ -242,7 +242,7 @@ export default function DevicesScreen() {
   };
 
   const confirmSignOutAll = () => {
-    Alert.alert(
+    appAlert(
       'Cerrar todas las sesiones',
       'Se cerrarán todas las sesiones vinculadas '
         + 'a tu cuenta, incluida esta.',
@@ -262,7 +262,7 @@ export default function DevicesScreen() {
               await clearAuthSession();
               appRouter.replace('/(auth)/login');
             } catch (error) {
-              Alert.alert(
+              appAlert(
                 'Error',
                 error instanceof Error
                   ? error.message

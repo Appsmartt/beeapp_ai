@@ -1,5 +1,15 @@
-import { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity, Alert, ActivityIndicator } from 'react-native';
+import {
+  useEffect,
+  useState } from 'react';
+import { View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  TextInput,
+  TouchableOpacity,
+  ActivityIndicator,
+} from 'react-native';
+import { appAlert } from '../feedback/appAlert';
 import ScreenSafeArea from '../layout/ScreenSafeArea';
 import { colors, spacing, radii } from '@beeapp/design-system';
 import { ChevronLeft, Bot, Smile, Briefcase, Minus, Check } from 'lucide-react-native';
@@ -92,7 +102,7 @@ export default function AiSettingsScreen() {
         };
         load().catch((error) => {
             setLoading(false);
-            Alert.alert('Asistente', error instanceof Error ? error.message : 'No se pudo cargar la configuración.');
+            appAlert('Asistente', error instanceof Error ? error.message : 'No se pudo cargar la configuración.');
         });
         return () => {
             cancelled = true;
@@ -114,10 +124,10 @@ export default function AiSettingsScreen() {
                 memory_enabled: memoryEnabled,
                 permissions,
             });
-            Alert.alert('Cambios guardados', 'La configuración de tu asistente quedó guardada.');
+            appAlert('Cambios guardados', 'La configuración de tu asistente quedó guardada.');
             router.back();
         } catch (error) {
-            Alert.alert('Asistente', error instanceof Error ? error.message : 'No se pudo guardar.');
+            appAlert('Asistente', error instanceof Error ? error.message : 'No se pudo guardar.');
         } finally {
             setSaving(false);
         }
@@ -128,9 +138,9 @@ export default function AiSettingsScreen() {
         if (!auth || auth.scheme !== 'Bearer') return;
         try {
             await clearAssistantMemory(auth);
-            Alert.alert('Memoria', 'Borré lo que el asistente recordaba de ti.');
+            appAlert('Memoria', 'Borré lo que el asistente recordaba de ti.');
         } catch (error) {
-            Alert.alert('Memoria', error instanceof Error ? error.message : 'No se pudo borrar la memoria.');
+            appAlert('Memoria', error instanceof Error ? error.message : 'No se pudo borrar la memoria.');
         }
     };
 

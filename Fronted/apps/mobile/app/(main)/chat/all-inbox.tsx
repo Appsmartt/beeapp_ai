@@ -3,17 +3,17 @@ import {
   useEffect,
   useMemo,
   useState,
-} from 'react';
+  } from 'react';
 import { useFocusEffect } from 'expo-router';
 import {
   ActivityIndicator,
-  Alert,
   RefreshControl,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
 } from 'react-native';
+import { appAlert } from '../../../src/components/feedback/appAlert';
 import {
   ArrowLeft,
 } from 'lucide-react-native';
@@ -275,6 +275,7 @@ export default function AllInboxScreen() {
             isAI: true,
             verified: false,
             avatarUrl: null,
+            avatarCacheKey: null,
             participantCount: 0,
             participants: [],
             raw: { id: 'assistant' } as ChatListItemModel['raw'],
@@ -372,7 +373,7 @@ export default function AllInboxScreen() {
       if (!auth) throw new Error('Inicia sesión para proteger el chat.');
       const status = await getAccountSecurityPinStatus(auth);
       if (!status.configured) {
-        Alert.alert(
+        appAlert(
           'PIN requerido',
           'Debes crear un PIN primero desde Seguridad.',
           [
@@ -399,9 +400,9 @@ export default function AllInboxScreen() {
           );
         }
       }
-      Alert.alert('Chat protegido', 'El chat quedó protegido con tu PIN.');
+      appAlert('Chat protegido', 'El chat quedó protegido con tu PIN.');
     } catch (failure) {
-      Alert.alert(
+      appAlert(
         'No fue posible proteger el chat',
         failure instanceof Error ? failure.message : 'Inténtalo nuevamente.',
       );
@@ -433,7 +434,7 @@ export default function AllInboxScreen() {
         );
       }
     });
-    Alert.alert('Protección removida', 'El chat ya no requiere PIN para abrirse.');
+    appAlert('Protección removida', 'El chat ya no requiere PIN para abrirse.');
   };
 
   const handleLoadMore = () => {
@@ -453,7 +454,7 @@ export default function AllInboxScreen() {
   };
 
   const handleDelete = (chat: ChatListItemModel) => {
-    Alert.alert(
+    appAlert(
       'Eliminar chat',
       (
         chat.isGroup
@@ -470,7 +471,7 @@ export default function AllInboxScreen() {
           style: 'destructive',
           onPress: () => {
             void deleteConversation(chat.id).catch((deleteError) => {
-              Alert.alert(
+              appAlert(
                 'No fue posible eliminar el chat',
                 deleteError instanceof Error
                   ? deleteError.message
@@ -634,7 +635,7 @@ export default function AllInboxScreen() {
               setAssistantInboxPinned(updated.isPinned);
             }
           }).catch((failure) => {
-            Alert.alert(
+            appAlert(
               'No fue posible cambiar el fijado',
               failure instanceof Error
                 ? failure.message
@@ -653,7 +654,7 @@ export default function AllInboxScreen() {
               setAssistantInboxMuted(updated.isMuted);
             }
           }).catch((failure) => {
-            Alert.alert(
+            appAlert(
               'No fue posible cambiar las notificaciones',
               failure instanceof Error
                 ? failure.message
@@ -667,7 +668,7 @@ export default function AllInboxScreen() {
           setMenuChat(null);
           if (!chat) return;
           void archiveConversation(chat.id).catch((failure) => {
-            Alert.alert(
+            appAlert(
               'No fue posible archivar el chat',
               failure instanceof Error
                 ? failure.message

@@ -197,9 +197,13 @@ export default function MyStatusesModal({
     }
   };
 
+  if (!visible) {
+    return null;
+  }
+
   return (
     <Modal
-      visible={visible}
+      visible
       animationType="slide"
       onRequestClose={onClose}
       statusBarTranslucent

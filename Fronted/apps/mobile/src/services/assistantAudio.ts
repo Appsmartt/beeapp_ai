@@ -5,21 +5,100 @@ import { withExternalActivity } from './locationPermissionAppLockGuard';
 
 let activeRecording: Audio.Recording | null = null;
 let activeSound: Audio.Sound | null = null;
+let recordingGate: Promise<void> = Promise.resolve();
 
-export async function startAssistantRecording(): Promise<void> {
-    const permission = await withExternalActivity(() => Audio.requestPermissionsAsync());
-    if (!permission.granted) {
-        throw new Error('Necesitamos el micrófono para escucharte.');
+const MIC_BUSY_MESSAGE = (
+    'El micrófono sigue ocupado. Espera un momento e inténtalo de nuevo.'
+);
+
+function enqueueRecording<T>(task: () => Promise<T>): Promise<T> {
+    const run = recordingGate.then(task, task);
+    recordingGate = run.then(
+        () => undefined,
+        () => undefined,
+    );
+    return run;
+}
+
+function friendlyRecordingError(error: unknown): Error {
+    const message = error instanceof Error ? error.message : '';
+
+    if (/only one Recording object can be prepared/i.test(message)) {
+        return new Error(MIC_BUSY_MESSAGE);
     }
 
-    await Audio.setAudioModeAsync({
-        allowsRecordingIOS: true,
-        playsInSilentModeIOS: true,
+    if (error instanceof Error && error.message.trim()) {
+        return error;
+    }
+
+    return new Error('No se pudo usar el micrófono.');
+}
+
+async function stopAssistantSpeech(): Promise<void> {
+    const sound = activeSound;
+    activeSound = null;
+    if (!sound) return;
+
+    try {
+        await sound.stopAsync();
+    } catch {
+        // El audio ya pudo haberse detenido.
+    }
+
+    try {
+        await sound.unloadAsync();
+    } catch {
+        // El audio ya pudo haberse liberado.
+    }
+}
+
+async function releaseRecording(
+    recording: Audio.Recording | null,
+): Promise<void> {
+    if (!recording) return;
+
+    try {
+        await recording.stopAndUnloadAsync();
+    } catch {
+        // La grabación ya pudo haberse cerrado.
+    }
+}
+
+export async function startAssistantRecording(): Promise<void> {
+    return enqueueRecording(async () => {
+        if (activeRecording) {
+            return;
+        }
+
+        const permission = await withExternalActivity(() => (
+            Audio.requestPermissionsAsync()
+        ));
+        if (!permission.granted) {
+            throw new Error('Necesitamos el micrófono para escucharte.');
+        }
+
+        await stopAssistantSpeech();
+        await Audio.setAudioModeAsync({
+            allowsRecordingIOS: true,
+            playsInSilentModeIOS: true,
+        });
+
+        const recording = new Audio.Recording();
+        activeRecording = recording;
+
+        try {
+            await recording.prepareToRecordAsync(
+                Audio.RecordingOptionsPresets.HIGH_QUALITY,
+            );
+            await recording.startAsync();
+        } catch (error) {
+            if (activeRecording === recording) {
+                activeRecording = null;
+            }
+            await releaseRecording(recording);
+            throw friendlyRecordingError(error);
+        }
     });
-    const recording = new Audio.Recording();
-    await recording.prepareToRecordAsync(Audio.RecordingOptionsPresets.HIGH_QUALITY);
-    await recording.startAsync();
-    activeRecording = recording;
 }
 
 export type AssistantRecordingResult = {
@@ -28,50 +107,54 @@ export type AssistantRecordingResult = {
 };
 
 export async function stopAssistantRecording(): Promise<AssistantRecordingResult> {
-    const recording = activeRecording;
-    activeRecording = null;
-    if (!recording) {
-        throw new Error('No hay una grabación activa.');
-    }
-
-    let durationMs = 0;
-    try {
-        const status = await recording.getStatusAsync();
-        if (
-            status
-            && typeof status.durationMillis === 'number'
-        ) {
-            durationMs = status.durationMillis;
+    return enqueueRecording(async () => {
+        const recording = activeRecording;
+        activeRecording = null;
+        if (!recording) {
+            throw new Error('No hay una grabación activa.');
         }
-    } catch {
-        // Si no hay estado, igual intentamos transcribir con duración 0.
-    }
 
-    await recording.stopAndUnloadAsync();
-    await Audio.setAudioModeAsync({
-        allowsRecordingIOS: false,
-        playsInSilentModeIOS: true,
+        let durationMs = 0;
+        try {
+            const status = await recording.getStatusAsync();
+            if (
+                status
+                && typeof status.durationMillis === 'number'
+            ) {
+                durationMs = status.durationMillis;
+            }
+        } catch {
+            // Si no hay estado, igual intentamos transcribir con duración 0.
+        }
+
+        try {
+            await recording.stopAndUnloadAsync();
+        } catch (error) {
+            await releaseRecording(recording);
+            throw friendlyRecordingError(error);
+        }
+        await Audio.setAudioModeAsync({
+            allowsRecordingIOS: false,
+            playsInSilentModeIOS: true,
+        });
+        const uri = recording.getURI();
+        if (!uri) {
+            throw new Error('No se pudo guardar el audio.');
+        }
+
+        const audioBase64 = await FileSystem.readAsStringAsync(uri, {
+            encoding: FileSystem.EncodingType.Base64,
+        });
+
+        return {
+            audioBase64,
+            durationMs,
+        };
     });
-    const uri = recording.getURI();
-    if (!uri) {
-        throw new Error('No se pudo guardar el audio.');
-    }
-
-    const audioBase64 = await FileSystem.readAsStringAsync(uri, {
-        encoding: FileSystem.EncodingType.Base64,
-    });
-
-    return {
-        audioBase64,
-        durationMs,
-    };
 }
 
 export async function playAssistantSpeech(audioBase64: string): Promise<void> {
-    if (activeSound) {
-        await activeSound.unloadAsync();
-        activeSound = null;
-    }
+    await stopAssistantSpeech();
 
     const uri = `${FileSystem.cacheDirectory}assistant-speech.mp3`;
     await FileSystem.writeAsStringAsync(uri, audioBase64, {
@@ -93,12 +176,9 @@ export async function playAssistantSpeech(audioBase64: string): Promise<void> {
 }
 
 export async function cancelAssistantRecording(): Promise<void> {
-    const recording = activeRecording;
-    activeRecording = null;
-    if (!recording) return;
-    try {
-        await recording.stopAndUnloadAsync();
-    } catch {
-        // La grabación ya pudo haberse cerrado.
-    }
+    return enqueueRecording(async () => {
+        const recording = activeRecording;
+        activeRecording = null;
+        await releaseRecording(recording);
+    });
 }

@@ -1,7 +1,7 @@
-import { useState } from 'react';
+import {
+  useState } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   Image,
   Modal,
   SafeAreaView,
@@ -10,6 +10,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { appAlert } from '../feedback/appAlert';
 import * as FileSystem from 'expo-file-system';
 import * as MediaLibrary from 'expo-media-library';
 import { withExternalActivity } from '../../services/locationPermissionAppLockGuard';
@@ -98,9 +99,9 @@ export default function ChatImageViewerModal({
       }
 
       await MediaLibrary.saveToLibraryAsync(result.uri);
-      Alert.alert('Foto guardada', 'La imagen ya está en tu galería.');
+      appAlert('Foto guardada', 'La imagen ya está en tu galería.');
     } catch (error) {
-      Alert.alert(
+      appAlert(
         'No se pudo guardar la foto',
         error instanceof Error ? error.message : 'Inténtalo nuevamente.',
       );

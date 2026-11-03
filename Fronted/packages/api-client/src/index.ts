@@ -1,8 +1,19 @@
 export { registerNativeUploader } from './nativeUpload';
 export * from './client';
 export {
+    LIST_CACHE_TTL,
+    clearRequestCache,
+    configureRequestCache,
+    getRequestCacheUserId,
+    readRequestCache,
+    readRequestCacheSync,
+    } from './requestCache';
+export {
     adoptSupabaseSession,
+    configureSupabaseAuthStorage,
     getSupabase,
+    mapAuthSession,
+    readLiveSupabaseSession,
     signOutSupabase,
     } from './supabase';
 export * from './accounts';

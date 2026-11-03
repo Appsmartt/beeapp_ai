@@ -1,7 +1,7 @@
-import { useState } from 'react';
+import {
+  useState } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   Modal,
   SafeAreaView,
   StyleSheet,
@@ -9,6 +9,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { appAlert } from '../feedback/appAlert';
 import * as FileSystem from 'expo-file-system';
 import * as MediaLibrary from 'expo-media-library';
 import { withExternalActivity } from '../../services/locationPermissionAppLockGuard';
@@ -85,9 +86,9 @@ export default function ChatVideoViewerModal({
         throw new Error('La descarga del video no se completó.');
       }
       await MediaLibrary.saveToLibraryAsync(result.uri);
-      Alert.alert('Video guardado', 'El video ya está en tu galería.');
+      appAlert('Video guardado', 'El video ya está en tu galería.');
     } catch (error) {
-      Alert.alert(
+      appAlert(
         'No se pudo guardar el video',
         error instanceof Error ? error.message : 'Inténtalo nuevamente.',
       );

@@ -1,6 +1,5 @@
 import {
   ActivityIndicator,
-  Image,
   FlatList,
   Modal,
   StyleSheet,
@@ -21,6 +20,7 @@ import {
 import {
   colors,
 } from '@beeapp/design-system';
+import CachedImage from '../CachedImage';
 import {
   useEffect,
   useState,
@@ -369,8 +369,9 @@ export default function SocialActivitySheet({
       <View style={styles.card}>
         <View style={styles.groupAvatar}>
           {avatarUrl ? (
-            <Image
-              source={{ uri: avatarUrl }}
+            <CachedImage
+              cacheKey={avatarFileId}
+              uri={avatarUrl}
               style={styles.avatarImage}
             />
           ) : (
@@ -475,8 +476,9 @@ export default function SocialActivitySheet({
         >
           <View style={styles.personAvatar}>
             {avatarUrl ? (
-              <Image
-                source={{ uri: avatarUrl }}
+              <CachedImage
+                cacheKey={avatarFileId}
+                uri={avatarUrl}
                 style={styles.avatarImage}
               />
             ) : (
@@ -581,8 +583,9 @@ export default function SocialActivitySheet({
         >
           <View style={styles.personAvatar}>
             {avatarUrl ? (
-              <Image
-                source={{ uri: avatarUrl }}
+              <CachedImage
+                cacheKey={avatarFileId}
+                uri={avatarUrl}
                 style={styles.avatarImage}
               />
             ) : (
@@ -650,10 +653,14 @@ export default function SocialActivitySheet({
     );
   };
 
+  if (!visible) {
+    return null;
+  }
+
   return (
     <Modal
       transparent
-      visible={visible}
+      visible
       animationType="slide"
       onRequestClose={onClose}
     >

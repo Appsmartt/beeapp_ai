@@ -31,6 +31,17 @@ function syncState(row: Json): Json {
     return asJson(row.sync_state);
 }
 
+/** Edge Functions guardan `active`; la app espera `connected`. */
+function normalizeConnectionStatus(raw: unknown): string {
+    const status = String(raw || 'pending');
+
+    if (status === 'active') {
+        return 'connected';
+    }
+
+    return status;
+}
+
 export function mapConnection(row: Json): Json {
     const state = syncState(row);
     const configured = state.configured !== false;
@@ -44,7 +55,7 @@ export function mapConnection(row: Json): Json {
         provider_email: row.provider_email ?? null,
         provider_display_name: row.provider_display_name ?? null,
         provider_avatar_url: state.avatar_url ?? null,
-        status: row.status,
+        status: normalizeConnectionStatus(row.status),
         granted_scopes: Array.isArray(row.granted_scopes) ? row.granted_scopes : [],
         capabilities: Array.isArray(row.capabilities) ? row.capabilities : [],
         token_expires_at: row.token_expires_at ?? null,
@@ -69,6 +80,8 @@ function mapCapabilityIntegration(row: Json): Json {
 
     return {
         ...mapConnection(row),
+        // Correo y calendario usan el valor crudo `active` (no `connected`).
+        status: row.status,
         connected_at: row.connected_at ?? null,
         last_successful_sync_at: state.last_successful_sync_at ?? null,
         last_attempted_sync_at: state.last_attempted_sync_at ?? null,
@@ -120,10 +133,63 @@ export async function handleCalendarIntegrations(
     return { integrations: rows.map(mapCapabilityIntegration) };
 }
 
+function looksLikeHtml(value: string): boolean {
+    return /<\s*(html|body|table|div|p|!doctype|meta|style|center)\b/i.test(value);
+}
+
+function htmlToPlainText(html: string): string {
+    return html
+        .replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, '')
+        .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, '')
+        .replace(/<head\b[^>]*>[\s\S]*?<\/head>/gi, '')
+        .replace(/<!--[\s\S]*?-->/g, '')
+        .replace(/<(?:br|\/p|\/div|\/li|\/tr|\/h[1-6])\s*\/?>/gi, '\n')
+        .replace(/<[^>]+>/g, ' ')
+        .replace(/&nbsp;|&#160;/gi, ' ')
+        .replace(/&amp;/gi, '&')
+        .replace(/&lt;/gi, '<')
+        .replace(/&gt;/gi, '>')
+        .replace(/&quot;/gi, '"')
+        .replace(/&#39;|&apos;/gi, "'")
+        .replace(/[ \t]+\n/g, '\n')
+        .replace(/\n[ \t]+/g, '\n')
+        .replace(/\n{3,}/g, '\n\n')
+        .replace(/[ \t]{2,}/g, ' ')
+        .trim();
+}
+
+function resolveMailBodies(row: Json): { body_text: string | null; body_html: string | null } {
+    const actions = asJson(row.actions);
+    const storedHtml = typeof actions.body_html === 'string'
+        ? actions.body_html.trim()
+        : '';
+    const rawBody = String(row.body ?? '').trim();
+
+    if (storedHtml) {
+        return {
+            body_html: storedHtml,
+            body_text: rawBody || htmlToPlainText(storedHtml) || null,
+        };
+    }
+
+    if (rawBody && looksLikeHtml(rawBody)) {
+        return {
+            body_html: rawBody,
+            body_text: htmlToPlainText(rawBody) || null,
+        };
+    }
+
+    return {
+        body_html: null,
+        body_text: rawBody || null,
+    };
+}
+
 function mapMessage(row: Json, provider = 'google'): Json {
     const attachments = asRows<Json>(row.attachments);
     const recipients = asJson(row.recipients);
     const folder = String(row.folder || 'inbox');
+    const bodies = resolveMailBodies(row);
 
     return {
         id: row.id,
@@ -143,8 +209,8 @@ function mapMessage(row: Json, provider = 'google'): Json {
         subject: row.subject ?? null,
         body_preview: row.snippet ?? null,
         snippet: row.snippet ?? null,
-        body_text: row.body ?? null,
-        body_html: null,
+        body_text: bodies.body_text,
+        body_html: bodies.body_html,
         sent_at: row.received_at ?? null,
         received_at: row.received_at ?? null,
         has_attachments: attachments.length > 0,
@@ -173,6 +239,41 @@ function recipientsOf(payload: Json): Json {
     };
 }
 
+async function removeSyncedAccountData(
+    supabase: SupabaseClient,
+    userId: string,
+    integrationId: string,
+): Promise<void> {
+    unwrap(await supabase
+        .from('mail_messages')
+        .delete()
+        .eq('integration_id', integrationId)
+        .eq('user_id', userId));
+
+    const calendars = (unwrap(await supabase
+        .from('calendars')
+        .select('id')
+        .eq('integration_id', integrationId)
+        .eq('owner_id', userId)) ?? []) as Json[];
+    const calendarIds = calendars
+        .map((row) => String(row.id || ''))
+        .filter(Boolean);
+
+    if (calendarIds.length === 0) {
+        return;
+    }
+
+    unwrap(await supabase
+        .from('events')
+        .delete()
+        .in('calendar_id', calendarIds));
+    unwrap(await supabase
+        .from('calendars')
+        .delete()
+        .in('id', calendarIds)
+        .eq('owner_id', userId));
+}
+
 async function notConfiguredMessage(
     supabase: SupabaseClient,
     body: Json,
@@ -192,9 +293,12 @@ async function notConfiguredMessage(
         throw new GatewayError(message, 400);
     }
 
+    const authorizationUrl = String(data.authorization_url || '');
+
     return {
-        request_id: data.request_id || data.state,
-        authorization_url: data.authorization_url,
+        request_id: String(data.request_id || data.state || ''),
+        authorization_url: authorizationUrl,
+        browser_start_path: '',
         expires_at: data.expires_at || new Date(Date.now() + 10 * 60 * 1000).toISOString(),
     };
 }
@@ -247,6 +351,7 @@ export async function handleIntegrations(
 
     const record = path.match(new RegExp(`^/integrations/connections/(${UUID})/record/$`, 'i'));
     if (record && method === 'DELETE') {
+        await removeSyncedAccountData(supabase, userId, record[1]);
         unwrap(await supabase
             .from('integrations')
             .delete()
@@ -267,6 +372,7 @@ export async function handleIntegrations(
     }
 
     if (connection && method === 'DELETE') {
+        await removeSyncedAccountData(supabase, userId, connection[1]);
         unwrap(await supabase
             .from('integrations')
             .update({
@@ -286,6 +392,48 @@ export async function handleIntegrations(
             provider: payload.provider || 'google',
             action: 'start',
         });
+    }
+
+    if (method === 'POST' && path === '/integrations/oauth/confirm/') {
+        const requestId = String(payload.request_id || '').trim();
+
+        if (!requestId) {
+            throw new GatewayError(
+                'Falta request_id para confirmar la conexión.',
+                400,
+            );
+        }
+
+        const columns = (
+            'id, user_id, provider, provider_account_id, provider_email, '
+            + 'provider_display_name, status, granted_scopes, capabilities, '
+            + 'token_expires_at, connected_at, sync_state, created_at, updated_at'
+        );
+
+        let row = unwrap(await supabase
+            .from('integrations')
+            .select(columns)
+            .eq('user_id', userId)
+            .eq('id', requestId)
+            .maybeSingle()) as Json | null;
+
+        if (!row) {
+            row = unwrap(await supabase
+                .from('integrations')
+                .select(columns)
+                .eq('user_id', userId)
+                .filter('sync_state->>oauth_state', 'eq', requestId)
+                .maybeSingle()) as Json | null;
+        }
+
+        if (!row) {
+            throw new GatewayError(
+                'No encontramos la conexión OAuth solicitada.',
+                404,
+            );
+        }
+
+        return { connection: mapConnection(row) };
     }
 
     throw new GatewayError(
@@ -310,8 +458,19 @@ export async function handleMail(
             .from('integrations')
             .select('*')
             .eq('user_id', userId)
-            .contains('capabilities', ['mail'])) ?? []) as Json[];
-        return { integrations: rows.map(mapCapabilityIntegration) };
+            .in('status', ['active', 'connected'])) ?? []) as Json[];
+        const mailRows = rows.filter((row) => {
+            const capabilities = Array.isArray(row.capabilities)
+                ? row.capabilities.map((item) => String(item))
+                : [];
+
+            return (
+                capabilities.length === 0
+                || capabilities.includes('mail')
+            );
+        });
+
+        return { integrations: mailRows.map(mapCapabilityIntegration) };
     }
 
     const integration = path.match(new RegExp(`^/mail/integrations/(${UUID})/$`, 'i'));
@@ -396,7 +555,16 @@ export async function handleMail(
             requested_integration_count: Number(data.requested_integration_count || 0),
             synced_integration_count: Number(data.synced_integration_count || 0),
             failed_integration_count: Number(data.failed_integration_count || 0),
-            results: Array.isArray(data.results) ? data.results : [],
+            results: (Array.isArray(data.results) ? data.results : []).map((item) => {
+                const result = asJson(item);
+                const synced = Number(result.synced_count || 0);
+
+                return {
+                    ...result,
+                    created_message_count: Number(result.created_message_count ?? synced),
+                    updated_message_count: Number(result.updated_message_count || 0),
+                };
+            }),
             failures: Array.isArray(data.failures) ? data.failures : [],
         };
     }

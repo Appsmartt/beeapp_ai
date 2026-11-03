@@ -2,10 +2,10 @@ import { useState } from "react";
 import { useRouter } from "expo-router";
 import { StyleSheet, TouchableOpacity, View } from "react-native";
 import {
+  Receipt,
   ShoppingBag,
   Sparkles,
   Store,
-  UserRound,
 } from "lucide-react-native";
 import { colors } from "@beeapp/design-system";
 
@@ -19,22 +19,22 @@ export default function MainQuickActions() {
     <>
       <View style={styles.floatingMenu} accessibilityLabel="Accesos rápidos">
         <TouchableOpacity
-          style={[styles.actionButton, styles.profileButton]}
-          activeOpacity={0.76}
-          onPress={() => router.push("/(main)/profile/edit")}
-          accessibilityLabel="Editar perfil"
-          accessibilityHint="Abre la pantalla de edición del perfil"
-        >
-          <UserRound size={22} color="#7C6AA5" strokeWidth={2.1} />
-        </TouchableOpacity>
-
-        <TouchableOpacity
           style={[styles.actionButton, styles.aiButton]}
           activeOpacity={0.8}
           onPress={() => setVoiceVisible(true)}
           accessibilityLabel="Abrir asistente de IA"
         >
           <Sparkles size={23} color={colors.neutral.white} strokeWidth={2.2} />
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[styles.actionButton, styles.purchasesButton]}
+          activeOpacity={0.76}
+          onPress={() => router.push("/(main)/beeservices/my-purchases")}
+          accessibilityLabel="Abrir mis compras"
+          accessibilityHint="Abre el historial, el carrito y las promociones"
+        >
+          <Receipt size={22} color="#6B4FA0" strokeWidth={2.1} />
         </TouchableOpacity>
 
         <TouchableOpacity
@@ -50,9 +50,9 @@ export default function MainQuickActions() {
         <TouchableOpacity
           style={[styles.actionButton, styles.businessButton]}
           activeOpacity={0.76}
-          onPress={() => router.push("/(main)/beeservices-private")}
-          accessibilityLabel="Abrir Buddy Services privado"
-          accessibilityHint="Abre la pestaña privada de Buddy Services"
+          onPress={() => router.push("/(main)/beeservices")}
+          accessibilityLabel="Abrir Buddy Services"
+          accessibilityHint="Abre el marketplace de Buddy Services"
         >
           <Store size={20} color="#5D9D8C" strokeWidth={2.1} />
         </TouchableOpacity>
@@ -98,7 +98,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     width: 52,
   },
-  profileButton: {
+  purchasesButton: {
     backgroundColor: "#F1ECFA",
     borderColor: "#E2D8F2",
     borderWidth: 1,

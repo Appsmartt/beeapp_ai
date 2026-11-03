@@ -21,15 +21,23 @@ import {
   Package,
   Wrench,
 } from 'lucide-react-native';
+import { useRouter } from 'expo-router';
 
 import {
   useModuleNav,
   useScreenParams,
 } from '../../../../../src/components/embedded/EmbeddedNavContext';
 
+import {
+  LIST_CACHE_TTL,
+  ownedCommercialRequestsCacheKey,
+} from '@beeapp/api-client';
 import type {
   CommercialRequestListItem,
+  GetOwnedCommercialRequestsResponse,
 } from '@beeapp/shared-types';
+
+import { paintCachedValue } from '../../../../../src/hooks/useCachedResource';
 
 import ScreenSafeArea from '../../../../../src/components/layout/ScreenSafeArea';
 import {
@@ -148,6 +156,7 @@ function RequestTypeIcon(
 
 export default function BuddyServicesManageRequestsScreen() {
   const router = useModuleNav();
+  const appRouter = useRouter();
   const params = useScreenParams() as {
     businessId?: string | string[];
   };
@@ -188,17 +197,31 @@ export default function BuddyServicesManageRequestsScreen() {
       return;
     }
 
-    setLoading(true);
     setError(null);
+
+    const requestQuery = {
+      limit: REQUEST_LIST_LIMIT,
+      offset: 0,
+      statuses: selectedFilter.statuses,
+    };
+    const painted = await paintCachedValue<
+      GetOwnedCommercialRequestsResponse
+    >(
+      ownedCommercialRequestsCacheKey(businessId, requestQuery),
+      LIST_CACHE_TTL.fresh,
+      (cached) => {
+        setRequests(cached.requests);
+      },
+    );
+
+    if (!painted) {
+      setLoading(true);
+    }
 
     try {
       const response = await loadOwnedCommercialRequests(
         businessId,
-        {
-          limit: REQUEST_LIST_LIMIT,
-          offset: 0,
-          statuses: selectedFilter.statuses,
-        },
+        requestQuery,
       );
 
       setRequests(response.requests);
@@ -223,9 +246,23 @@ export default function BuddyServicesManageRequestsScreen() {
     }
   }, [loadRequests]);
 
+  const returnsToManagement = (
+    !router.canGoBack
+    && !(router.embedded && appRouter.canGoBack())
+    && Boolean(businessId)
+  );
+  const backLabel = returnsToManagement
+    ? 'Volver a gestión del negocio'
+    : 'Volver';
+
   const handleBack = useCallback(() => {
     if (router.canGoBack) {
       router.back();
+      return;
+    }
+
+    if (router.embedded && appRouter.canGoBack()) {
+      appRouter.back();
       return;
     }
 
@@ -234,7 +271,7 @@ export default function BuddyServicesManageRequestsScreen() {
         buddyServicesManageBusinessRoute(businessId),
       );
     }
-  }, [businessId, router]);
+  }, [appRouter, businessId, router]);
 
   const handleOpenRequest = useCallback((
     requestId: string,
@@ -293,14 +330,16 @@ export default function BuddyServicesManageRequestsScreen() {
           ) : null}
 
           <TouchableOpacity
-            accessibilityLabel="Volver a gestión del negocio"
+            accessibilityLabel={backLabel}
             accessibilityRole="button"
             activeOpacity={0.82}
             onPress={handleBack}
             style={styles.secondaryButton}
           >
             <Text style={styles.secondaryButtonText}>
-              Volver a gestión
+              {returnsToManagement
+                ? 'Volver a gestión'
+                : 'Volver'}
             </Text>
           </TouchableOpacity>
         </View>
@@ -324,7 +363,7 @@ export default function BuddyServicesManageRequestsScreen() {
       >
         <View style={styles.header}>
           <TouchableOpacity
-            accessibilityLabel="Volver a gestión del negocio"
+            accessibilityLabel={backLabel}
             accessibilityRole="button"
             activeOpacity={0.82}
             onPress={handleBack}

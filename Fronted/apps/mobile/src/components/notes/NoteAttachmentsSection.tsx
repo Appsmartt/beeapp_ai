@@ -1,17 +1,17 @@
 import {
-    useEffect,
-    useState,
-    } from 'react';
+  useEffect,
+  useState,
+  } from 'react';
 import {
     ActivityIndicator,
-    Alert,
-    Linking,
-    Modal,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
-    } from 'react-native';
+  Linking,
+  Modal,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from 'react-native';
+import { appAlert } from '../feedback/appAlert';
 import * as DocumentPicker from 'expo-document-picker';
 import { withExternalActivity } from '../../services/locationPermissionAppLockGuard';
 import {
@@ -42,6 +42,15 @@ import type {
 import {
     getValidSessionCredentials,
     } from '../../services/authSession';
+import NoteAttachmentImagePreview from './NoteAttachmentImagePreview';
+import NoteImageViewerModal from './NoteImageViewerModal';
+import {
+    useNoteAttachmentAccessUrl,
+    } from '../../hooks/useNoteAttachmentAccessUrl';
+import {
+    downloadNoteAttachment,
+    } from '../../services/noteAttachmentDownload';
+import NoteDownloadSuccessModal from './NoteDownloadSuccessModal';
 
 
 const MAX_ATTACHMENT_SIZE_BYTES = 52_428_800;
@@ -76,6 +85,19 @@ export default function NoteAttachmentsSection({
     const [pickerVisible, setPickerVisible] =
         useState(false);
 
+    const [
+        downloadingAttachmentId,
+        setDownloadingAttachmentId,
+    ] = useState<string | null>(null);
+
+    const [
+        downloadSuccessFeedback,
+        setDownloadSuccessFeedback,
+    ] = useState<{
+        title: string;
+        message: string;
+    } | null>(null);
+
 
     const loadAttachments = async () => {
         if (!noteId) {
@@ -102,7 +124,7 @@ export default function NoteAttachmentsSection({
 
         setAttachments(response.attachments);
         } catch (error) {
-        Alert.alert(
+        appAlert(
             'No fue posible cargar adjuntos',
             error instanceof Error
             ? error.message
@@ -123,7 +145,7 @@ export default function NoteAttachmentsSection({
         attachmentType: NoteAttachmentType,
     ) => {
         if (!noteId) {
-        Alert.alert(
+        appAlert(
             'Guarda la nota primero',
             'Primero guarda la nota para poder adjuntar archivos o imágenes.',
         );
@@ -159,7 +181,7 @@ export default function NoteAttachmentsSection({
         );
 
         if (oversizedAsset) {
-            Alert.alert(
+            appAlert(
             'Archivo demasiado grande',
             'Cada archivo debe pesar máximo 50 MB. '
                 + 'El archivo "'
@@ -223,7 +245,7 @@ export default function NoteAttachmentsSection({
         });
 
         if (response.failure_count > 0) {
-            Alert.alert(
+            appAlert(
             'Carga completada parcialmente',
             String(response.success_count)
                 + ' archivo(s) se adjuntaron correctamente. '
@@ -234,13 +256,13 @@ export default function NoteAttachmentsSection({
             return;
         }
 
-        Alert.alert(
+        appAlert(
             'Archivos adjuntados',
             String(response.success_count)
             + ' archivo(s) se adjuntaron correctamente.',
         );
         } catch (error) {
-        Alert.alert(
+        appAlert(
             'No fue posible adjuntar archivos',
             error instanceof Error
             ? error.message
@@ -289,12 +311,58 @@ export default function NoteAttachmentsSection({
 
         await Linking.openURL(response.url);
         } catch (error) {
-        Alert.alert(
+        appAlert(
             'No fue posible abrir el adjunto',
             error instanceof Error
             ? error.message
             : 'Intenta nuevamente.',
         );
+        }
+    };
+
+
+    const handleDownloadAttachment = async (
+        attachment: NoteAttachment,
+    ) => {
+        if (!noteId || downloadingAttachmentId) {
+        return;
+        }
+
+        setDownloadingAttachmentId(attachment.id);
+
+        try {
+        const outcome = await downloadNoteAttachment(
+            noteId,
+            attachment,
+        );
+
+        setDownloadSuccessFeedback({
+            title: outcome === 'shared'
+            ? 'Archivo listo'
+            : outcome === 'downloads'
+            ? 'Archivo descargado'
+            : 'Imagen guardada',
+            message: outcome === 'gallery'
+            ? (
+                'Busca la imagen en la app Fotos o Galería '
+                + '(carpeta Buddy o Recientes).'
+            )
+            : outcome === 'downloads'
+            ? 'El archivo quedó en la carpeta Descargas de tu dispositivo.'
+            : (
+                'Si apareció el menú de compartir, '
+                + 'elige guardar en archivos.'
+            ),
+        });
+        } catch (error) {
+        appAlert(
+            'No se pudo descargar',
+            error instanceof Error
+            ? error.message
+            : 'Intenta nuevamente.',
+        );
+        } finally {
+        setDownloadingAttachmentId(null);
         }
     };
 
@@ -306,7 +374,7 @@ export default function NoteAttachmentsSection({
         return;
         }
 
-        Alert.alert(
+        appAlert(
         'Quitar adjunto',
         '¿Deseas quitar "'
             + attachment.file.display_name
@@ -361,7 +429,7 @@ export default function NoteAttachmentsSection({
             onAttachmentDeleted(attachment.id);
         }
         } catch (error) {
-        Alert.alert(
+        appAlert(
             'No fue posible quitar el adjunto',
             error instanceof Error
             ? error.message
@@ -436,6 +504,7 @@ export default function NoteAttachmentsSection({
             {attachments.map((attachment) => (
                 <AttachmentRow
                 key={attachment.id}
+                noteId={noteId}
                 attachment={attachment}
                 readOnly={readOnly}
                 onOpen={() => {
@@ -444,10 +513,13 @@ export default function NoteAttachmentsSection({
                     false,
                     );
                 }}
+                downloading={
+                    downloadingAttachmentId
+                    === attachment.id
+                }
                 onDownload={() => {
-                    void handleOpenAttachment(
+                    void handleDownloadAttachment(
                     attachment,
-                    true,
                     );
                 }}
                 onDelete={() => {
@@ -479,20 +551,37 @@ export default function NoteAttachmentsSection({
             void handlePickAndUpload('attachment');
             }}
         />
+
+        <NoteDownloadSuccessModal
+            visible={downloadSuccessFeedback !== null}
+            title={
+            downloadSuccessFeedback?.title
+            || ''
+            }
+            message={
+            downloadSuccessFeedback?.message
+            || ''
+            }
+            onClose={() => setDownloadSuccessFeedback(null)}
+        />
         </View>
     );
 }
 
 
 function AttachmentRow({
+    noteId,
     attachment,
     readOnly,
+    downloading,
     onOpen,
     onDownload,
     onDelete,
     }: {
+    noteId?: string;
     attachment: NoteAttachment;
     readOnly: boolean;
+    downloading: boolean;
     onOpen: () => void;
     onDownload: () => void;
     onDelete: () => void;
@@ -501,13 +590,43 @@ function AttachmentRow({
         attachment.attachment_type === 'image'
         || attachment.file.kind === 'image';
 
+    const {
+        url: imageUrl,
+    } = useNoteAttachmentAccessUrl(
+        isImage ? noteId : undefined,
+        isImage ? attachment.id : undefined,
+    );
+
+    const [
+        imageViewerVisible,
+        setImageViewerVisible,
+    ] = useState(false);
+
+    const handleMainPress = () => {
+        if (isImage && imageUrl) {
+            setImageViewerVisible(true);
+            return;
+        }
+
+        onOpen();
+    };
+
     return (
         <View style={styles.attachmentRow}>
         <TouchableOpacity
             style={styles.attachmentMain}
-            onPress={onOpen}
+            onPress={handleMainPress}
             activeOpacity={0.75}
         >
+            {isImage && noteId ? (
+            <NoteAttachmentImagePreview
+                noteId={noteId}
+                attachmentId={attachment.id}
+                accessUrl={imageUrl}
+                variant="thumbnail"
+                pressable={false}
+            />
+            ) : (
             <View
             style={[
                 styles.attachmentIcon,
@@ -526,6 +645,7 @@ function AttachmentRow({
                 />
             )}
             </View>
+            )}
 
             <View style={styles.attachmentCopy}>
             <Text
@@ -550,12 +670,20 @@ function AttachmentRow({
             style={styles.rowAction}
             onPress={onDownload}
             activeOpacity={0.7}
+            disabled={downloading}
             accessibilityLabel="Descargar adjunto"
             >
+            {downloading ? (
+            <ActivityIndicator
+                size="small"
+                color={colors.brand.primary}
+            />
+            ) : (
             <Download
                 size={17}
                 color={colors.neutral.gray600}
             />
+            )}
             </TouchableOpacity>
 
             {!readOnly && (
@@ -572,6 +700,15 @@ function AttachmentRow({
             </TouchableOpacity>
             )}
         </View>
+
+        {isImage ? (
+            <NoteImageViewerModal
+            visible={imageViewerVisible}
+            url={imageUrl}
+            caption={attachment.file.display_name}
+            onClose={() => setImageViewerVisible(false)}
+            />
+        ) : null}
         </View>
     );
 }

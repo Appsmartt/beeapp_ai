@@ -29,9 +29,16 @@ import {
   useScreenParams,
 } from '../../../../../src/components/embedded/EmbeddedNavContext';
 
+import {
+  LIST_CACHE_TTL,
+  ownedCommercialCatalogsCacheKey,
+} from '@beeapp/api-client';
 import type {
   CommercialCatalog,
+  GetOwnedCommercialCatalogsResponse,
 } from '@beeapp/shared-types';
+
+import { paintCachedValue } from '../../../../../src/hooks/useCachedResource';
 
 import ScreenSafeArea from '../../../../../src/components/layout/ScreenSafeArea';
 import {
@@ -223,8 +230,27 @@ export default function BuddyServicesManageCatalogsScreen() {
       return;
     }
 
-    setIsLoading(true);
     setErrorMessage(null);
+
+    const painted = await paintCachedValue<
+      GetOwnedCommercialCatalogsResponse
+    >(
+      ownedCommercialCatalogsCacheKey(businessId, {
+        include_archived: false,
+      }),
+      LIST_CACHE_TTL.stable,
+      (cached) => {
+        setCatalogs(
+          cached.catalogs.filter(
+            (catalog) => catalog.status !== 'archived',
+          ),
+        );
+      },
+    );
+
+    if (!painted) {
+      setIsLoading(true);
+    }
 
     try {
       const response = await loadOwnedCommercialCatalogs(
@@ -234,7 +260,11 @@ export default function BuddyServicesManageCatalogsScreen() {
         },
       );
 
-      setCatalogs(response.catalogs);
+      setCatalogs(
+        response.catalogs.filter(
+          (catalog) => catalog.status !== 'archived',
+        ),
+      );
     } catch (error) {
       const uiError = toCommercialUiError(error);
 

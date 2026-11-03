@@ -30,6 +30,7 @@ import type {
 } from '@beeapp/shared-types';
 
 import ScreenSafeArea from '../../../src/components/layout/ScreenSafeArea';
+import BuddyServicesListPagination from '../../../src/components/beeservices/BuddyServicesListPagination';
 import CommercialRecentBusinesses from '../../../src/components/buddyservices/CommercialRecentBusinesses';
 import CommercialResultsFilters, {
   type CommercialResultsFilterValue,
@@ -43,11 +44,12 @@ import {
   buddyServicesPublicProfileRoute,
 } from '../../../src/features/buddyservices/commercialRoutes';
 import {
+  BUDDY_SERVICES_LIST_PAGE_SIZE,
+} from '../../../src/features/buddyservices/buddyServicesListPagination';
+import {
   loadPublicCommercialCategories,
   loadPublicCommercialProfiles,
 } from '../../../src/services/commercialService';
-
-const PAGE_SIZE = 20;
 
 const DEFAULT_FILTERS: CommercialResultsFilterValue = {
   offerType: null,
@@ -119,9 +121,9 @@ export default function BuddyServicesResultsScreen() {
     [categories, categoryId],
   );
 
-  const canLoadMore = (
-    profiles.length < totalCount
-  );
+  const resultsPage = (
+    Math.floor(offset / BUDDY_SERVICES_LIST_PAGE_SIZE)
+  ) + 1;
 
   const loadCategories = useCallback(async () => {
     if (!hasValidLocation) {
@@ -153,7 +155,7 @@ export default function BuddyServicesResultsScreen() {
       return;
     }
 
-    if (mode === 'append') {
+    if (mode === 'append' || nextOffset > 0) {
       setLoadingMore(true);
     } else {
       setLoading(true);
@@ -172,7 +174,7 @@ export default function BuddyServicesResultsScreen() {
         delivery_only: filters.deliveryOnly,
         search: submittedSearch || undefined,
         ordering: filters.ordering,
-        limit: PAGE_SIZE,
+        limit: BUDDY_SERVICES_LIST_PAGE_SIZE,
         offset: nextOffset,
       });
 
@@ -194,7 +196,7 @@ export default function BuddyServicesResultsScreen() {
     } catch (loadError) {
       setError(toCommercialUiError(loadError));
     } finally {
-      if (mode === 'append') {
+      if (mode === 'append' || nextOffset > 0) {
         setLoadingMore(false);
       } else {
         setLoading(false);
@@ -313,22 +315,19 @@ export default function BuddyServicesResultsScreen() {
     loadProfiles,
   ]);
 
-  const handleLoadMore = useCallback(() => {
-    if (
-      !canLoadMore
-      || loading
-      || loadingMore
-    ) {
+  const handleResultsPageChange = useCallback((page: number) => {
+    if (loading || loadingMore) {
       return;
     }
 
-    void loadProfiles(offset + PAGE_SIZE, 'append');
+    void loadProfiles(
+      (page - 1) * BUDDY_SERVICES_LIST_PAGE_SIZE,
+      'replace',
+    );
   }, [
-    canLoadMore,
     loadProfiles,
     loading,
     loadingMore,
-    offset,
   ]);
 
   const handleProfilePress = useCallback((
@@ -568,36 +567,12 @@ accessibilityRole="alert"
                 profiles={profiles}
               />
 
-              {canLoadMore ? (
-                <TouchableOpacity
-                  accessibilityLabel="Cargar más resultados"
-                  accessibilityRole="button"
-accessibilityState={{
-busy: loadingMore,
-disabled: loadingMore,
-}}
-                  activeOpacity={0.8}
-                  disabled={loadingMore}
-                  onPress={handleLoadMore}
-                  style={[
-                    styles.loadMoreButton,
-                    loadingMore && styles.loadMoreButtonDisabled,
-                  ]}
-                >
-                  {loadingMore ? (
-                    <ActivityIndicator
-                      color="#7427D5"
-                      size="small"
-                    />
-                  ) : null}
-
-                  <Text style={styles.loadMoreText}>
-                    {loadingMore
-                      ? 'Cargando…'
-                      : 'Cargar más'}
-                  </Text>
-                </TouchableOpacity>
-              ) : null}
+              <BuddyServicesListPagination
+                currentPage={resultsPage}
+                loading={loadingMore}
+                onPageChange={handleResultsPageChange}
+                totalCount={totalCount}
+              />
             </>
           ) : null}
 

@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { colors, spacing } from '@beeapp/design-system';
 import { MoreVertical, ShieldCheck, FolderOpen, Lock } from 'lucide-react-native';
 import { StorageItem } from '../../stores/storageStore';
-import { renderItemIcon } from './storageItemIcon';
+import StorageFileImageThumb from './StorageFileImageThumb';
 import StorageItemsGrid from './StorageItemsGrid';
 import { ViewMode } from '../layout/ViewModeToggle';
 
@@ -11,6 +11,8 @@ interface StorageItemsViewProps {
   items: StorageItem[];
   /** Ids protected with the global PIN: they show a lock and ask for it on open */
   protectedIds: string[];
+  emptyTitle?: string;
+  emptyDescription?: string;
   onOpenItem: (item: StorageItem) => void;
   onOpenMenu: (item: StorageItem) => void;
   /** Flat rows by default; 'grid' delegates to the adaptive card grid */
@@ -21,7 +23,7 @@ interface StorageItemsViewProps {
  * Single-column list of files and folders: flat rows (no cards) with the
  * same anatomy as the mail list — round icon, name, meta and date.
  */
-export default function StorageItemsView({ items, protectedIds, onOpenItem, onOpenMenu, viewMode }: StorageItemsViewProps) {
+export default function StorageItemsView({ items, protectedIds, emptyTitle, emptyDescription, onOpenItem, onOpenMenu, viewMode }: StorageItemsViewProps) {
   if (items.length === 0) {
     // Empty State
     return (
@@ -29,9 +31,9 @@ export default function StorageItemsView({ items, protectedIds, onOpenItem, onOp
         <View style={styles.emptyIconWrap}>
           <FolderOpen size={40} color={colors.neutral.gray400} />
         </View>
-        <Text style={styles.emptyTitle}>Carpeta Vacía</Text>
+        <Text style={styles.emptyTitle}>{emptyTitle || 'Carpeta Vacía'}</Text>
         <Text style={styles.emptyDesc}>
-          No hay archivos ni carpetas que mostrar en este directorio.
+          {emptyDescription || 'No hay archivos ni carpetas que mostrar en este directorio.'}
         </Text>
       </View>
     );
@@ -57,7 +59,10 @@ export default function StorageItemsView({ items, protectedIds, onOpenItem, onOp
           onPress={() => onOpenItem(item)}
           activeOpacity={0.7}
         >
-          <View style={styles.iconCircle}>{renderItemIcon(item)}</View>
+          <StorageFileImageThumb
+            item={item}
+            variant="list"
+          />
 
           <View style={styles.details}>
             <View style={styles.nameRow}>
@@ -105,15 +110,6 @@ const styles = StyleSheet.create({
   rowSeparator: {
     borderBottomWidth: 1,
     borderBottomColor: colors.neutral.gray100,
-  },
-  iconCircle: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.neutral.gray50,
-    marginRight: 12,
   },
   details: {
     flex: 1,

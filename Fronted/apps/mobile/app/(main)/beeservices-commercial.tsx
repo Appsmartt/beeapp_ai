@@ -32,7 +32,9 @@ import HomeSideMenu from "../../src/components/home/HomeSideMenu";
 import BeeServicesHeader from "../../src/components/beeservices/BeeServicesHeader";
 import EmbeddedModuleHost from "../../src/components/embedded/EmbeddedModuleHost";
 import CommercialChatPresenceController from "../../src/components/chat/CommercialChatPresenceController";
+import CommercialOwnedBusinessPickerSheet from "../../src/components/buddyservices/CommercialOwnedBusinessPickerSheet";
 import {
+  buddyServicesCommercialRoute,
   buddyServicesMyBusinessesRoute,
 } from "../../src/features/buddyservices/commercialRoutes";
 import {
@@ -40,6 +42,7 @@ import {
 } from "../../src/features/buddyservices/commercialErrors";
 import {
   loadOwnedCommercialProfile,
+  loadOwnedCommercialProfiles,
 } from "../../src/services/commercialService";
 import { styles as beeStyles } from "../../src/components/beeservices/beeServicesStyles";
 
@@ -125,6 +128,14 @@ export default function BeeServicesCommercialScreen() {
   const [activeModule, setActiveModule] =
     useState<CommercialWorkspaceModule>("chat");
   const [moduleReloadKey, setModuleReloadKey] = useState(0);
+  const [workspaceStackDepth, setWorkspaceStackDepth] = useState(0);
+  const [ownedBusinesses, setOwnedBusinesses] = useState<
+    CommercialOwnedProfile[]
+  >([]);
+  const [loadingOwnedBusinesses, setLoadingOwnedBusinesses] = useState(false);
+  const [businessPickerOpen, setBusinessPickerOpen] = useState(false);
+
+  const isWorkspaceDetailView = workspaceStackDepth > 0;
 
   useFocusEffect(
     useCallback(() => {
@@ -156,10 +167,25 @@ export default function BeeServicesCommercialScreen() {
     }
   }, [selectedBusinessId]);
 
+  const loadOwnedBusinesses = useCallback(async () => {
+    setLoadingOwnedBusinesses(true);
+
+    try {
+      const response = await loadOwnedCommercialProfiles();
+
+      setOwnedBusinesses(response.profiles);
+    } catch {
+      setOwnedBusinesses([]);
+    } finally {
+      setLoadingOwnedBusinesses(false);
+    }
+  }, []);
+
   useFocusEffect(
     useCallback(() => {
       void loadSelectedBusiness();
-    }, [loadSelectedBusiness]),
+      void loadOwnedBusinesses();
+    }, [loadOwnedBusinesses, loadSelectedBusiness]),
   );
 
   useEffect(() => {
@@ -171,9 +197,23 @@ export default function BeeServicesCommercialScreen() {
     router.push(buddyServicesMyBusinessesRoute());
   }, [router]);
 
+  const handleOpenBusinessPicker = useCallback(() => {
+    void loadOwnedBusinesses();
+    setBusinessPickerOpen(true);
+  }, [loadOwnedBusinesses]);
+
+  const handleSelectBusiness = useCallback((businessId: string) => {
+    if (businessId === selectedBusinessId) {
+      return;
+    }
+
+    router.replace(buddyServicesCommercialRoute(businessId));
+  }, [router, selectedBusinessId]);
+
   const openCommercialModule = useCallback((
     nextModule: CommercialWorkspaceModule,
   ) => {
+    setWorkspaceStackDepth(0);
     setActiveModule(nextModule);
     setModuleReloadKey((current) => current + 1);
   }, []);
@@ -274,10 +314,16 @@ export default function BeeServicesCommercialScreen() {
         };
 
     return (
-      <View style={localStyles.workspace}>
+      <View
+        style={[
+          localStyles.workspace,
+          isWorkspaceDetailView && localStyles.workspaceDetail,
+        ]}
+      >
         <EmbeddedModuleHost
           key={`${activeModule}-${moduleReloadKey}-${selectedBusinessId}`}
           moduleId="chat"
+          onStackDepthChange={setWorkspaceStackDepth}
           rootParams={rootParams}
           rootPathOverride={config.rootPath}
         />
@@ -296,15 +342,23 @@ export default function BeeServicesCommercialScreen() {
       <View style={beeStyles.container}>
         <View style={localStyles.headerWrap}>
           <BeeServicesHeader
+            containerStyle={localStyles.commercialHeader}
             onBackToMainPress={() => router.replace("/(main)")}
             onChangeBusinessPress={
-              selectedBusiness || selectedBusinessError
-                ? handleBusinessAction
-                : undefined
+              selectedBusinessId
+                ? handleOpenBusinessPicker
+                : handleBusinessAction
             }
             onMenuPress={() => setSideMenuVisible(true)}
             selectedBusinessError={selectedBusinessError}
-            selectedBusinessName={selectedBusiness?.display_name}
+            selectedBusinessName={
+              selectedBusiness?.display_name
+              || (
+                selectedBusinessId
+                  ? "Cargando negocio…"
+                  : null
+              )
+            }
           />
 
           <View style={localStyles.moduleCaption}>
@@ -325,39 +379,53 @@ export default function BeeServicesCommercialScreen() {
 
         {renderWorkspace()}
 
-        <View
-          accessibilityLabel="Menú de trabajo del negocio"
-          style={localStyles.floatingBusinessMenu}
-        >
-          {(
-            ["chat", "requests", "catalogs", "manage"] as CommercialWorkspaceModule[]
-          ).map((module) => {
-            const config = COMMERCIAL_MODULES[module];
-            const isActive = activeModule === module;
+        {!isWorkspaceDetailView && !sideMenuVisible ? (
+          <View
+            accessibilityLabel="Menú de trabajo del negocio"
+            style={localStyles.floatingBusinessMenu}
+          >
+            {(
+              ["chat", "requests", "catalogs", "manage"] as CommercialWorkspaceModule[]
+            ).map((module) => {
+              const config = COMMERCIAL_MODULES[module];
+              const isActive = activeModule === module;
 
-            return (
-              <TouchableOpacity
-                key={module}
-                accessibilityHint={config.accessibilityHint}
-                accessibilityLabel={config.accessibilityLabel}
-                accessibilityRole="button"
-                activeOpacity={0.78}
-                onPress={() => openCommercialModule(module)}
-                style={[
-                  localStyles.floatingBusinessAction,
-                  localStyles[`${module}BusinessAction`],
-                  isActive && localStyles.floatingBusinessActionActive,
-                ]}
-              >
-                {renderModuleIcon(module, isActive)}
-              </TouchableOpacity>
-            );
-          })}
-        </View>
+              return (
+                <TouchableOpacity
+                  key={module}
+                  accessibilityHint={config.accessibilityHint}
+                  accessibilityLabel={config.accessibilityLabel}
+                  accessibilityRole="button"
+                  activeOpacity={0.78}
+                  onPress={() => openCommercialModule(module)}
+                  style={[
+                    localStyles.floatingBusinessAction,
+                    localStyles[`${module}BusinessAction`],
+                    isActive && localStyles.floatingBusinessActionActive,
+                  ]}
+                >
+                  {renderModuleIcon(module, isActive)}
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        ) : null}
 
         <HomeSideMenu
           onClose={() => setSideMenuVisible(false)}
           visible={sideMenuVisible}
+        />
+
+        <CommercialOwnedBusinessPickerSheet
+          businesses={ownedBusinesses}
+          loading={loadingOwnedBusinesses}
+          onClose={() => {
+            setBusinessPickerOpen(false);
+          }}
+          onSelect={handleSelectBusiness}
+          onViewAllPress={handleBusinessAction}
+          selectedBusinessId={selectedBusinessId || null}
+          visible={businessPickerOpen}
         />
       </View>
     </ScreenSafeArea>
@@ -369,12 +437,16 @@ const localStyles = StyleSheet.create({
     backgroundColor: "#FFFCF9",
     borderBottomColor: "#EEE7F3",
     borderBottomWidth: 1,
+    paddingHorizontal: 20,
+    paddingTop: 8,
+  },
+  commercialHeader: {
+    marginBottom: 8,
   },
   moduleCaption: {
     alignItems: "baseline",
     flexDirection: "row",
     paddingBottom: 10,
-    paddingHorizontal: 20,
   },
   moduleCaptionText: {
     color: "#38294E",
@@ -392,6 +464,9 @@ const localStyles = StyleSheet.create({
     backgroundColor: "#F8F7FC",
     flex: 1,
     paddingBottom: 94,
+  },
+  workspaceDetail: {
+    paddingBottom: 0,
   },
   centeredState: {
     alignItems: "center",

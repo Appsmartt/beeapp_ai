@@ -1,14 +1,14 @@
 import * as ImagePicker from 'expo-image-picker';
-import { withExternalActivity } from '../../services/locationPermissionAppLockGuard';
+import {
+  withExternalActivity } from '../../services/locationPermissionAppLockGuard';
 
 import {
   useEffect,
   useMemo,
   useState,
-} from 'react';
+  } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   AlertButton,
   ScrollView,
   StyleSheet,
@@ -17,6 +17,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { appAlert } from '../feedback/appAlert';
 import {
   BellOff,
   ChevronLeft,
@@ -259,7 +260,7 @@ export default function ChatProfileScreen() {
       || 'este usuario'
     );
 
-    Alert.alert(
+    appAlert(
       'Cancelar invitación',
       `¿Cancelar la invitación enviada a ${displayName}?`,
       [
@@ -302,7 +303,7 @@ export default function ChatProfileScreen() {
                 );
                 await reloadGroupData();
               } catch (cancelError) {
-                Alert.alert(
+                appAlert(
                   'No fue posible cancelar la invitación',
                   cancelError instanceof Error
                     ? cancelError.message
@@ -320,7 +321,7 @@ export default function ChatProfileScreen() {
     identityId: string,
     displayName: string,
   ) => {
-    Alert.alert(
+    appAlert(
       'Quitar participante',
       `¿Seguro que quieres quitar a ${displayName}?`,
       [
@@ -335,7 +336,7 @@ export default function ChatProfileScreen() {
             void removeParticipant(identityId)
               .then(() => reloadGroupData())
               .catch((removeError) => {
-                Alert.alert(
+                appAlert(
                   'No fue posible quitar al participante',
                   removeError instanceof Error
                     ? removeError.message
@@ -369,7 +370,7 @@ export default function ChatProfileScreen() {
       setUpdatingGroupPhoto(true);
       await applyGroupPhoto(imageFileId);
     } catch (updateError) {
-      Alert.alert(
+      appAlert(
         'No fue posible actualizar la foto del grupo',
         updateError instanceof Error
           ? updateError.message
@@ -393,7 +394,7 @@ export default function ChatProfileScreen() {
       ));
 
       if (!permission.granted) {
-        Alert.alert(
+        appAlert(
           'Permiso necesario',
           'Permite el acceso a tu galería para seleccionar la foto del grupo.',
         );
@@ -431,7 +432,7 @@ export default function ChatProfileScreen() {
 
       await applyGroupPhoto(fileId);
     } catch (selectionError) {
-      Alert.alert(
+      appAlert(
         'No fue posible seleccionar la foto',
         selectionError instanceof Error
           ? selectionError.message
@@ -444,7 +445,7 @@ export default function ChatProfileScreen() {
 
   const handleChangeGroupPhoto = () => {
     if (!permissions?.can_update_group) {
-      Alert.alert(
+      appAlert(
         'Sin permiso',
         'Solo el owner puede editar este grupo.',
       );
@@ -474,7 +475,7 @@ export default function ChatProfileScreen() {
       });
     }
 
-    Alert.alert(
+    appAlert(
       'Foto del grupo',
       'Elige una acción para la foto del grupo.',
       actions,
@@ -522,7 +523,7 @@ export default function ChatProfileScreen() {
 
       await reloadGroupData();
     } catch (updateError) {
-      Alert.alert(
+      appAlert(
         'No fue posible actualizar el grupo',
         updateError instanceof Error
           ? updateError.message
@@ -541,7 +542,7 @@ export default function ChatProfileScreen() {
     }
 
     if (!activeIdentityId) {
-      Alert.alert(
+      appAlert(
         'No fue posible actualizar la preferencia',
         'No se pudo identificar tu identidad de Chat.',
       );
@@ -575,7 +576,7 @@ export default function ChatProfileScreen() {
     } catch (updateError) {
       setMuted(previousMuted);
 
-      Alert.alert(
+      appAlert(
         'No fue posible actualizar las notificaciones',
         updateError instanceof Error
           ? updateError.message
@@ -588,7 +589,7 @@ export default function ChatProfileScreen() {
 
   const handleLeaveGroup = () => {
     if (!permissions?.can_leave_group) {
-      Alert.alert(
+      appAlert(
         'No puedes salir del grupo',
         permissions?.own_role === 'owner'
           ? (
@@ -603,7 +604,7 @@ export default function ChatProfileScreen() {
       return;
     }
 
-    Alert.alert(
+    appAlert(
       'Salir del grupo',
       'Dejarás de recibir mensajes y el grupo se ocultará de tu lista de chats.',
       [
@@ -631,7 +632,7 @@ export default function ChatProfileScreen() {
                 );
               })
               .catch((leaveError) => {
-                Alert.alert(
+                appAlert(
                   'No fue posible salir del grupo',
                   leaveError instanceof Error
                     ? leaveError.message
@@ -757,7 +758,7 @@ export default function ChatProfileScreen() {
             name={groupName}
             onChangeName={() => {
               if (!permissions?.can_update_group) {
-                Alert.alert(
+                appAlert(
                   'Sin permiso',
                   'Solo el owner puede editar este grupo.',
                 );

@@ -5,7 +5,6 @@ useMemo,
 useState,
 } from 'react';
 import {
-Alert,
 Modal,
 Pressable,
 ScrollView,
@@ -15,6 +14,7 @@ TextInput,
 TouchableOpacity,
 View,
 } from 'react-native';
+import { appAlert } from '../../../src/components/feedback/appAlert';
 import {
 ArrowLeft,
 CalendarClock,
@@ -61,6 +61,7 @@ import {
 createCommercialRequestIdempotencyKey,
 } from '../../../src/features/buddyservices/cart/businessCartRequestPayload';
 import {
+buddyServicesHomeRoute,
 buddyServicesRequestDetailRoute,
 } from '../../../src/features/buddyservices/commercialRoutes';
 import {
@@ -894,7 +895,7 @@ if (!cart) {
 return;
 }
 
-Alert.alert(
+appAlert(
 'Vaciar carrito',
 'Se eliminarán todos los productos y servicios de esta solicitud.',
 [
@@ -920,7 +921,7 @@ return;
 }
 
 if (!cart.requestedModality) {
-Alert.alert(
+appAlert(
 'Selecciona una modalidad',
 'Elige cómo deseas recibir o atender los ítems de esta solicitud.',
 );
@@ -931,7 +932,7 @@ if (
 cart.requestedModality === 'delivery'
 && !cart.deliveryAddress?.trim()
 ) {
-Alert.alert(
+appAlert(
 'Dirección requerida',
 'Ingresa la dirección para la entrega a domicilio.',
 );
@@ -980,18 +981,18 @@ const notice = (
 
 setCartUpdateNotice(notice);
 
-Alert.alert(
+appAlert(
 'Carrito actualizado',
 `${uiError.message} ${notice}`,
 );
 } catch {
-Alert.alert(
+appAlert(
 uiError.title,
 uiError.message,
 );
 }
 } else {
-Alert.alert(
+appAlert(
 uiError.title,
 uiError.message,
 );
@@ -1041,7 +1042,9 @@ solicitud formal.
 accessibilityLabel="Explorar negocios"
 accessibilityRole="button"
 activeOpacity={0.8}
-onPress={handleBack}
+onPress={() => {
+  router.replace(buddyServicesHomeRoute());
+}}
 style={styles.primaryButton}
 >
 <Text style={styles.primaryButtonText}>
@@ -1202,7 +1205,7 @@ requestedModality,
 });
 }}
 onRemove={() => {
-Alert.alert(
+appAlert(
 getRemoveItemDialogTitle(line),
 `¿Quieres eliminar ${line.title} de la solicitud?`,
 [

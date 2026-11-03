@@ -27,9 +27,16 @@ import {
   useScreenParams,
 } from '../../../../src/components/embedded/EmbeddedNavContext';
 
+import {
+  LIST_CACHE_TTL,
+  ownedCommercialProfileCacheKey,
+} from '@beeapp/api-client';
 import type {
   CommercialOwnedProfile,
+  GetOwnedCommercialProfileResponse,
 } from '@beeapp/shared-types';
+
+import { paintCachedValue } from '../../../../src/hooks/useCachedResource';
 
 import CommercialLogoAvatar from '../../../../src/components/buddyservices/CommercialLogoAvatar';
 import ScreenSafeArea from '../../../../src/components/layout/ScreenSafeArea';
@@ -97,8 +104,21 @@ export default function BuddyServicesManageBusinessScreen() {
       return;
     }
 
-    setIsLoading(true);
     setErrorMessage(null);
+
+    const painted = await paintCachedValue<
+      GetOwnedCommercialProfileResponse
+    >(
+      ownedCommercialProfileCacheKey(normalizedBusinessId),
+      LIST_CACHE_TTL.stable,
+      (cached) => {
+        setProfile(cached.profile);
+      },
+    );
+
+    if (!painted) {
+      setIsLoading(true);
+    }
 
     try {
       const response = await loadOwnedCommercialProfile(

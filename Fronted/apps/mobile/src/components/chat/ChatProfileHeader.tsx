@@ -1,6 +1,7 @@
-import { Image, View, Text, StyleSheet, TextInput, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, TextInput, TouchableOpacity } from 'react-native';
 import { colors, spacing } from '@beeapp/design-system';
 import { Camera } from 'lucide-react-native';
+import CachedImage from '../CachedImage';
 
 interface ChatProfileHeaderProps {
   isGroup: boolean;
@@ -11,6 +12,7 @@ interface ChatProfileHeaderProps {
   meta: string;
   initials: string;
   avatarUrl?: string | null;
+  avatarCacheKey?: string | null;
   photoChangeDisabled?: boolean;
   onChangePhoto: () => void;
 }
@@ -23,6 +25,7 @@ export default function ChatProfileHeader({
   meta,
   initials,
   avatarUrl,
+  avatarCacheKey,
   photoChangeDisabled = false,
   onChangePhoto,
 }: ChatProfileHeaderProps) {
@@ -30,9 +33,10 @@ export default function ChatProfileHeader({
     <View style={styles.wrap}>
       <View style={styles.avatarWrap}>
         <View style={styles.avatar}>
-          {avatarUrl ? (
-            <Image
-              source={{ uri: avatarUrl }}
+          {avatarUrl || avatarCacheKey ? (
+            <CachedImage
+              uri={avatarUrl}
+              cacheKey={avatarCacheKey}
               style={styles.avatarImage}
               accessibilityLabel={`Foto de ${name}`}
             />

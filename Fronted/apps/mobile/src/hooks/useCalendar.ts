@@ -39,11 +39,13 @@ import {
     } from '../services/calendarService';
 import {
     getCalendarCache,
+    hydrateCalendarStore,
     removeCalendarEvent,
     setCalendarCache,
+    subscribeCalendarStore,
     upsertCalendarEvent,
     type CalendarEvent,
-    } from '../stores/calendarStore';
+} from '../stores/calendarStore';
 
 
 export interface CalendarRange {
@@ -99,10 +101,24 @@ interface AuthenticatedCalendarContext {
 }
 
 
+const deletedEventIds = new Set<string>();
+
+function withoutDeletedEvents(
+    events: CalendarEvent[],
+): CalendarEvent[] {
+    if (deletedEventIds.size === 0) {
+        return events;
+    }
+
+    return events.filter(
+        (event) => !deletedEventIds.has(event.id),
+    );
+}
+
 function mapEvents(
     events: ApiCalendarEvent[],
     currentUserId?: string | null,
-    ): CalendarEvent[] {
+): CalendarEvent[] {
     return events.map((event) =>
         mapApiEventToCalendarEvent(
         event,
@@ -203,15 +219,17 @@ export function useCalendar(): UseCalendarResult {
         nextPreferences: CalendarPreferences | null,
         range: CalendarRange,
     ) => {
+        const visibleEvents = withoutDeletedEvents(nextEvents);
+
         setCalendarCache({
-        events: nextEvents,
+        events: visibleEvents,
         calendars: nextCalendars,
         preferences: nextPreferences,
         rangeStart: range.rangeStart,
         rangeEnd: range.rangeEnd,
         });
 
-        setEvents(nextEvents);
+        setEvents(visibleEvents);
         setCalendars(nextCalendars);
         setPreferences(nextPreferences);
     }, []);
@@ -300,9 +318,21 @@ export function useCalendar(): UseCalendarResult {
 
         latestRequestId.current = requestId;
 
+        if (getCalendarCache().events.length === 0) {
+            const hydrated = await hydrateCalendarStore();
+
+            if (hydrated) {
+                const stored = getCalendarCache();
+                setEvents(stored.events);
+                setCalendars(stored.calendars);
+                setPreferences(stored.preferences);
+                setLoading(false);
+            }
+        }
+
         if (showRefresh) {
         setRefreshing(true);
-        } else {
+        } else if (getCalendarCache().events.length === 0) {
         setLoading(true);
         }
 
@@ -349,6 +379,12 @@ export function useCalendar(): UseCalendarResult {
         bootstrapWithProvisioning,
         syncCache,
     ]);
+
+    useEffect(() => {
+        return subscribeCalendarStore(() => {
+            setEvents(getCalendarCache().events);
+        });
+    }, []);
 
     useEffect(() => {
         const cachedRange = getCalendarCache();
@@ -450,17 +486,33 @@ export function useCalendar(): UseCalendarResult {
     const deleteEvent = useCallback(async (
         eventId: string,
     ) => {
-        const {
-        auth,
-        } = await getAuthenticatedCalendarContext();
-
-        await deleteCalendarEvent(
-        auth,
-        eventId,
+        const removedEvent = getCalendarCache().events.find(
+            (event) => event.id === eventId,
         );
 
+        deletedEventIds.add(eventId);
         removeCalendarEvent(eventId);
         setEvents(getCalendarCache().events);
+
+        try {
+            const {
+            auth,
+            } = await getAuthenticatedCalendarContext();
+
+            await deleteCalendarEvent(
+            auth,
+            eventId,
+            );
+        } catch (deleteError) {
+            deletedEventIds.delete(eventId);
+
+            if (removedEvent) {
+                upsertCalendarEvent(removedEvent);
+                setEvents(getCalendarCache().events);
+            }
+
+            throw deleteError;
+        }
     }, []);
 
     const duplicateEvent = useCallback(async (
