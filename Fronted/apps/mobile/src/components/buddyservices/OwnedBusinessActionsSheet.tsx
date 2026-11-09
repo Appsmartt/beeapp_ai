@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import {
+  ActivityIndicator,
   Modal,
   Pressable,
   StyleSheet,
@@ -12,8 +13,10 @@ import {
   ChevronRight,
   Eye,
   FilePenLine,
+  Trash2,
   X,
 } from 'lucide-react-native';
+import type { OwnedBusinessDeleteState } from '../../features/buddyservices/useDeleteOwnedBusiness';
 
 interface OwnedBusinessActionsSheetProps {
   businessName: string;
@@ -22,13 +25,21 @@ interface OwnedBusinessActionsSheetProps {
   onManage: () => void;
   onEdit: () => void;
   onViewPublic: () => void;
+  onDelete?: () => void;
+  deleteState?: OwnedBusinessDeleteState;
+  deleteDescription?: string;
+  isDeleting?: boolean;
 }
 
 type ActionRowProps = {
   accessibilityLabel: string;
   description: string;
+  disabled?: boolean;
   icon: ReactNode;
   iconBackground: string;
+  isBusy?: boolean;
+  isBlocked?: boolean;
+  isDestructive?: boolean;
   label: string;
   onPress: () => void;
 };
@@ -36,8 +47,12 @@ type ActionRowProps = {
 function ActionRow({
   accessibilityLabel,
   description,
+  disabled = false,
   icon,
   iconBackground,
+  isBusy = false,
+  isBlocked = false,
+  isDestructive = false,
   label,
   onPress,
 }: ActionRowProps) {
@@ -45,9 +60,14 @@ function ActionRow({
     <TouchableOpacity
       accessibilityLabel={accessibilityLabel}
       accessibilityRole="button"
+      accessibilityState={{ disabled: disabled || isBlocked }}
       activeOpacity={0.82}
+      disabled={disabled}
       onPress={onPress}
-      style={styles.actionRow}
+      style={[
+        styles.actionRow,
+        isBlocked && styles.actionRowBlocked,
+      ]}
     >
       <View
         style={[
@@ -59,20 +79,44 @@ function ActionRow({
       </View>
 
       <View style={styles.actionTextColumn}>
-        <Text style={styles.actionLabel}>
+        <Text
+          style={[
+            styles.actionLabel,
+            isDestructive && styles.actionLabelDestructive,
+            isBlocked && styles.actionLabelBlocked,
+          ]}
+        >
           {label}
         </Text>
 
-        <Text style={styles.actionDescription}>
+        <Text
+          style={[
+            styles.actionDescription,
+            isBlocked && styles.actionDescriptionBlocked,
+          ]}
+        >
           {description}
         </Text>
       </View>
 
-      <ChevronRight
-        color="#B8A8CC"
-        size={18}
-        strokeWidth={2.4}
-      />
+      {isBusy ? (
+        <ActivityIndicator
+          color={isDestructive ? '#DC2626' : '#7427D5'}
+          size="small"
+        />
+      ) : (
+        <ChevronRight
+          color={
+            isBlocked
+              ? '#CBD5E1'
+              : isDestructive
+                ? '#EF4444'
+                : '#B8A8CC'
+          }
+          size={18}
+          strokeWidth={2.4}
+        />
+      )}
     </TouchableOpacity>
   );
 }
@@ -84,6 +128,10 @@ export default function OwnedBusinessActionsSheet({
   onManage,
   onEdit,
   onViewPublic,
+  onDelete,
+  deleteState = 'idle',
+  deleteDescription,
+  isDeleting = false,
 }: OwnedBusinessActionsSheetProps) {
   const runAndClose = (action: () => void) => {
     action();
@@ -93,6 +141,9 @@ export default function OwnedBusinessActionsSheet({
   if (!visible) {
     return null;
   }
+
+  const isDeleteChecking = deleteState === 'checking' || isDeleting;
+  const isDeleteBlocked = deleteState === 'blocked';
 
   return (
     <Modal
@@ -197,6 +248,38 @@ export default function OwnedBusinessActionsSheet({
                 runAndClose(onViewPublic);
               }}
             />
+
+            {onDelete ? (
+              <>
+                <View style={styles.actionDivider} />
+
+                <ActionRow
+                  accessibilityLabel={`Eliminar ${businessName}`}
+                  description={
+                    deleteDescription
+                    ?? 'Solo disponible si no tiene chats ni compras'
+                  }
+                  disabled={isDeleteChecking}
+                  icon={
+                    <Trash2
+                      color={isDeleteBlocked ? '#94A3B8' : '#DC2626'}
+                      size={19}
+                      strokeWidth={2.3}
+                    />
+                  }
+                  iconBackground={isDeleteBlocked ? '#F1F5F9' : '#FEF2F2'}
+                  isBlocked={isDeleteBlocked}
+                  isBusy={isDeleteChecking}
+                  isDestructive={!isDeleteBlocked}
+                  label={
+                    isDeleting
+                      ? 'Eliminando negocio…'
+                      : 'Eliminar negocio'
+                  }
+                  onPress={onDelete}
+                />
+              </>
+            ) : null}
           </View>
         </View>
       </View>
@@ -277,6 +360,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 12,
   },
+  actionRowBlocked: {
+    backgroundColor: '#FAFAFC',
+  },
   actionIconWrap: {
     alignItems: 'center',
     borderRadius: 12,
@@ -294,11 +380,20 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '800',
   },
+  actionLabelDestructive: {
+    color: '#DC2626',
+  },
+  actionLabelBlocked: {
+    color: '#64748B',
+  },
   actionDescription: {
     color: '#6C7892',
     fontSize: 11,
     lineHeight: 15,
     marginTop: 2,
+  },
+  actionDescriptionBlocked: {
+    color: '#94A3B8',
   },
   actionDivider: {
     backgroundColor: '#F0EAF3',

@@ -7,6 +7,7 @@ import {
   View,
 } from "react-native";
 import {
+  BadgeCheck,
   BarChart3,
   ChevronRight,
   Eye,
@@ -88,6 +89,8 @@ export default function OwnedCommercialProfileGridCard({
   const isLive = isPublished && profile.is_available;
   const canTogglePublication = Boolean(onTogglePublication && !isSuspended);
   const categoryLabel = getOwnedProfileCategoryLabel(profile);
+  const isVerified = profile.verification_status === "verified"
+    && profile.verification_badge_visible;
 
   const stateBackground = isLive ? v.publishedBg : "#FFF6E8";
   const stateColor = isLive ? v.publishedText : "#9A5B00";
@@ -135,20 +138,37 @@ export default function OwnedCommercialProfileGridCard({
                 justifyContent: "space-between",
               }}
             >
-              <Text
-                numberOfLines={2}
+              <View
                 style={{
-                  color: v.name,
+                  alignItems: "center",
                   flex: 1,
-                  fontSize: v.nameSize,
-                  fontWeight: "800",
-                  letterSpacing: -0.3,
-                  lineHeight: 23,
+                  flexDirection: "row",
                   paddingRight: 4,
                 }}
               >
-                {profile.display_name}
-              </Text>
+                <Text
+                  numberOfLines={2}
+                  style={{
+                    color: v.name,
+                    flexShrink: 1,
+                    fontSize: v.nameSize,
+                    fontWeight: "800",
+                    letterSpacing: -0.3,
+                    lineHeight: 23,
+                  }}
+                >
+                  {profile.display_name}
+                </Text>
+                {isVerified ? (
+                  <BadgeCheck
+                    accessibilityLabel="Negocio verificado"
+                    color="#5B2DC7"
+                    fill="#EDE2FF"
+                    size={18}
+                    style={{ marginLeft: 6 }}
+                  />
+                ) : null}
+              </View>
 
               <TouchableOpacity
                 accessibilityLabel={`Más opciones de ${profile.display_name}`}

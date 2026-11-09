@@ -1,3 +1,8 @@
+import type {
+  CommercialProfileHour,
+  CommercialPublicProfile,
+} from '@beeapp/shared-types';
+
 export const COMMERCIAL_RESERVATION_PENDING_NOTICE = (
 'Una fecha retenida o propuesta no está confirmada hasta el acuerdo final.'
 );
@@ -225,4 +230,248 @@ remainingMilliseconds > 0
 ),
 isActive: remainingMilliseconds > 0,
 };
+}
+
+const WEEKDAY_LABELS_ES: Record<number, string> = {
+  0: 'Domingo',
+  1: 'Lunes',
+  2: 'Martes',
+  3: 'Miércoles',
+  4: 'Jueves',
+  5: 'Viernes',
+  6: 'Sábado',
+};
+
+function parseHHMMToMinutes(value: string | null | undefined): number | null {
+  const normalized = normalize(value).slice(0, 5);
+  if (!LOCAL_TIME_PATTERN.test(normalized)) {
+    return null;
+  }
+
+  const [hours, minutes] = normalized.split(':').map(Number);
+  if (
+    !Number.isInteger(hours)
+    || !Number.isInteger(minutes)
+    || hours < 0
+    || hours > 23
+    || minutes < 0
+    || minutes > 59
+  ) {
+    return null;
+  }
+
+  return hours * 60 + minutes;
+}
+
+export function hasConfiguredBusinessHours(
+  hours: CommercialProfileHour[] | null | undefined,
+): boolean {
+  if (!Array.isArray(hours) || hours.length === 0) {
+    return false;
+  }
+
+  return hours.some((hour) => {
+    if (!hour || hour.is_closed) {
+      return false;
+    }
+
+    const opens = parseHHMMToMinutes(hour.opens_at);
+    const closes = parseHHMMToMinutes(hour.closes_at);
+    return opens !== null && closes !== null && closes > opens;
+  });
+}
+
+export function getBusinessScheduleForWeekday(
+  hours: CommercialProfileHour[] | null | undefined,
+  dayOfWeek: number,
+): {
+  day_of_week: number;
+  dayLabel: string;
+  opens_at: string | null;
+  closes_at: string | null;
+  is_closed: boolean;
+} {
+  const dayLabel = WEEKDAY_LABELS_ES[dayOfWeek] || 'Este día';
+  const entry = (hours || []).find(
+    (item) => Number(item.day_of_week) === dayOfWeek,
+  );
+
+  if (!entry || entry.is_closed) {
+    return {
+      day_of_week: dayOfWeek,
+      dayLabel,
+      opens_at: null,
+      closes_at: null,
+      is_closed: true,
+    };
+  }
+
+  const opensAt = normalize(entry.opens_at).slice(0, 5) || null;
+  const closesAt = normalize(entry.closes_at).slice(0, 5) || null;
+  const opensMinutes = parseHHMMToMinutes(opensAt);
+  const closesMinutes = parseHHMMToMinutes(closesAt);
+
+  if (
+    opensMinutes === null
+    || closesMinutes === null
+    || closesMinutes <= opensMinutes
+  ) {
+    return {
+      day_of_week: dayOfWeek,
+      dayLabel,
+      opens_at: null,
+      closes_at: null,
+      is_closed: true,
+    };
+  }
+
+  return {
+    day_of_week: dayOfWeek,
+    dayLabel,
+    opens_at: opensAt,
+    closes_at: closesAt,
+    is_closed: false,
+  };
+}
+
+export function getBusinessScheduleForLocalDate(
+  hours: CommercialProfileHour[] | null | undefined,
+  localDate: string | null | undefined,
+): {
+  day_of_week: number;
+  dayLabel: string;
+  opens_at: string | null;
+  closes_at: string | null;
+  is_closed: boolean;
+} | null {
+  const normalizedDate = normalize(localDate);
+  if (!isValidCommercialLocalDate(normalizedDate)) {
+    return null;
+  }
+
+  const [year, month, day] = normalizedDate.split('-').map(Number);
+  const dayOfWeek = new Date(Date.UTC(year, month - 1, day)).getUTCDay();
+  return getBusinessScheduleForWeekday(hours, dayOfWeek);
+}
+
+export function isBusinessProfileOpenNow(
+  profile: Pick<
+    CommercialPublicProfile,
+    'hours' | 'timezone' | 'is_available' | 'is_open_now'
+  > | null | undefined,
+  now: Date = new Date(),
+): boolean {
+  if (!profile) {
+    return false;
+  }
+
+  if (profile.is_available === false) {
+    return false;
+  }
+
+  if (typeof profile.is_open_now === 'boolean') {
+    return profile.is_open_now;
+  }
+
+  const hours = profile.hours;
+  if (!hasConfiguredBusinessHours(hours)) {
+    return false;
+  }
+
+  const resolvedTimezone = isValidCommercialTimezone(profile.timezone)
+    ? profile.timezone
+    : 'America/Bogota';
+  const parts = getTimezoneParts(now, resolvedTimezone);
+  const year = parts.year || now.getUTCFullYear();
+  const month = parts.month || (now.getUTCMonth() + 1);
+  const day = parts.day || now.getUTCDate();
+  const hour = (parts.hour ?? now.getUTCHours()) % 24;
+  const minute = parts.minute ?? now.getUTCMinutes();
+  const dayOfWeek = new Date(Date.UTC(year, month - 1, day)).getUTCDay();
+  const currentMinutes = hour * 60 + minute;
+
+  const schedule = getBusinessScheduleForWeekday(hours, dayOfWeek);
+  if (schedule.is_closed || !schedule.opens_at || !schedule.closes_at) {
+    return false;
+  }
+
+  const opensMinutes = parseHHMMToMinutes(schedule.opens_at);
+  const closesMinutes = parseHHMMToMinutes(schedule.closes_at);
+  if (opensMinutes === null || closesMinutes === null) {
+    return false;
+  }
+
+  return currentMinutes >= opensMinutes && currentMinutes <= closesMinutes;
+}
+
+export function validateLocalReservationAgainstBusinessHours(params: {
+  localDate: string;
+  localTime: string;
+  hours: CommercialProfileHour[] | null | undefined;
+}): { ok: true } | { ok: false; message: string } {
+  if (!hasConfiguredBusinessHours(params.hours)) {
+    return {
+      ok: false,
+      message: 'Este negocio no tiene horarios de atención activos para recibir reservas.',
+    };
+  }
+
+  const schedule = getBusinessScheduleForLocalDate(params.hours, params.localDate);
+  if (!schedule) {
+    return {
+      ok: false,
+      message: 'Selecciona una fecha válida para la reserva.',
+    };
+  }
+
+  if (schedule.is_closed || !schedule.opens_at || !schedule.closes_at) {
+    return {
+      ok: false,
+      message: `El negocio permanece cerrado los días ${schedule.dayLabel.toLowerCase()}. Elige otro día disponible.`,
+    };
+  }
+
+  const selectedMinutes = parseHHMMToMinutes(params.localTime);
+  const opensMinutes = parseHHMMToMinutes(schedule.opens_at);
+  const closesMinutes = parseHHMMToMinutes(schedule.closes_at);
+
+  if (
+    selectedMinutes === null
+    || opensMinutes === null
+    || closesMinutes === null
+  ) {
+    return {
+      ok: false,
+      message: 'Selecciona una hora válida para la reserva.',
+    };
+  }
+
+  if (selectedMinutes < opensMinutes || selectedMinutes > closesMinutes) {
+    return {
+      ok: false,
+      message: `Para el día ${schedule.dayLabel.toLowerCase()}, el horario de atención del negocio es de ${schedule.opens_at} a ${schedule.closes_at}.`,
+    };
+  }
+
+  return { ok: true };
+}
+
+export function formatBusinessHoursSummary(
+  hours: CommercialProfileHour[] | null | undefined,
+): string {
+  if (!hasConfiguredBusinessHours(hours)) {
+    return 'Sin horario de atención configurado.';
+  }
+
+  const openDays = [1, 2, 3, 4, 5, 6, 0]
+    .map((day) => getBusinessScheduleForWeekday(hours, day))
+    .filter((item) => !item.is_closed && item.opens_at && item.closes_at);
+
+  if (openDays.length === 0) {
+    return 'Cerrado todos los días.';
+  }
+
+  return openDays
+    .map((item) => `${item.dayLabel}: ${item.opens_at} – ${item.closes_at}`)
+    .join(' · ');
 }

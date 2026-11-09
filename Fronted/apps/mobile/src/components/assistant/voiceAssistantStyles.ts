@@ -134,4 +134,55 @@ export const voiceStyles = StyleSheet.create({
     fontWeight: '600',
     color: 'rgba(237, 233, 254, 0.45)',
   },
+  confirmCard: {
+    backgroundColor: 'rgba(237, 233, 254, 0.1)',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(196, 181, 253, 0.3)',
+    padding: 14,
+    marginBottom: 16,
+    gap: 6,
+  },
+  confirmTitle: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#C4B5FD',
+  },
+  confirmSummary: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#FFFFFF',
+    lineHeight: 20,
+  },
+  confirmDetail: {
+    fontSize: 12,
+    color: 'rgba(237, 233, 254, 0.85)',
+  },
+  confirmActions: {
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: 8,
+  },
+  confirmCancelBtn: {
+    paddingHorizontal: 16,
+    paddingVertical: 9,
+    borderRadius: 12,
+    backgroundColor: 'rgba(237, 233, 254, 0.16)',
+  },
+  confirmCancelText: {
+    color: '#EDE9FE',
+    fontWeight: '700',
+    fontSize: 13,
+  },
+  confirmDoBtn: {
+    paddingHorizontal: 16,
+    paddingVertical: 9,
+    borderRadius: 12,
+    backgroundColor: colors.brand.primary,
+  },
+  confirmDoText: {
+    color: '#FFFFFF',
+    fontWeight: '700',
+    fontSize: 13,
+  },
 });

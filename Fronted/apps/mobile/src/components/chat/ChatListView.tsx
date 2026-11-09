@@ -78,6 +78,7 @@ export default function ChatListView({
       data={validChats}
       keyExtractor={(chat) => `conversation-${chat.id}`}
       style={styles.list}
+      contentContainerStyle={styles.contentContainer}
       showsVerticalScrollIndicator={false}
       refreshControl={refreshControl}
       onScrollBeginDrag={() => {
@@ -177,8 +178,12 @@ export default function ChatListView({
 
 const styles = StyleSheet.create({
   list: {
+    backgroundColor: '#FFFFFF',
     flex: 1,
-    paddingTop: 8,
+  },
+  contentContainer: {
+    backgroundColor: '#FFFFFF',
+    flexGrow: 1,
   },
   emptySearch: {
     alignItems: 'center',
@@ -236,6 +241,7 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   bottomGap: {
+    backgroundColor: '#FFFFFF',
     height: 146,
   },
 });

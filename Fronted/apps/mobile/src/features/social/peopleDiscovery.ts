@@ -194,7 +194,7 @@ export function mapSocialTarget(
     followState: target.follow_state,
     isAvailable: true,
     verified: false,
-    occupation: null,
+    occupation: target.occupation || null,
     location: null,
   };
 }

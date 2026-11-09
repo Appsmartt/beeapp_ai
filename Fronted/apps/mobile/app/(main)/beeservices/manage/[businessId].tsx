@@ -10,10 +10,8 @@ import {
   BadgeCheck,
   Building2,
   CalendarDays,
-ClipboardList,
   CreditCard,
   FileCheck2,
-  Layers3,
   MapPin,
   Settings2,
 } from 'lucide-react-native';
@@ -44,13 +42,14 @@ import {
   toCommercialUiError,
 } from '../../../../src/features/buddyservices/commercialErrors';
 import {
-  buddyServicesManageCatalogsRoute,
+  hasConfiguredBusinessHours,
+} from '../../../../src/features/buddyservices/commercialReservationDateTime';
+import {
   buddyServicesManageHoursRoute,
   buddyServicesManageOperationRoute,
-buddyServicesManageRequestsRoute,
   buddyServicesManagePaymentMethodsRoute,
   buddyServicesManageProfileRoute,
-buddyServicesManageVerificationRoute,
+  buddyServicesManageVerificationRoute,
 } from '../../../../src/features/buddyservices/commercialRoutes';
 import {
   loadOwnedCommercialProfile,
@@ -156,30 +155,32 @@ export default function BuddyServicesManageBusinessScreen() {
           paddingTop: 10,
         }}
       >
-        <TouchableOpacity
-          accessibilityLabel="Volver a mis negocios"
-          accessibilityRole="button"
-          activeOpacity={0.8}
-          onPress={() => router.back()}
-          style={{
-            alignItems: 'center',
-            backgroundColor: '#F4EDF9',
-            borderRadius: 14,
-            height: 42,
-            justifyContent: 'center',
-            width: 42,
-          }}
-        >
-          <ArrowLeft
-            color="#3D245E"
-            size={21}
-          />
-        </TouchableOpacity>
+        {router.canGoBack ? (
+          <TouchableOpacity
+            accessibilityLabel="Volver a mis negocios"
+            accessibilityRole="button"
+            activeOpacity={0.8}
+            onPress={() => router.back()}
+            style={{
+              alignItems: 'center',
+              backgroundColor: '#F4EDF9',
+              borderRadius: 14,
+              height: 42,
+              justifyContent: 'center',
+              width: 42,
+            }}
+          >
+            <ArrowLeft
+              color="#3D245E"
+              size={21}
+            />
+          </TouchableOpacity>
+        ) : null}
 
         <View
           style={{
             flex: 1,
-            marginLeft: 12,
+            marginLeft: router.canGoBack ? 12 : 0,
           }}
         >
           <Text
@@ -206,11 +207,13 @@ export default function BuddyServicesManageBusinessScreen() {
           </Text>
         </View>
 
-        <View
-          style={{
-            width: 42,
-          }}
-        />
+        {router.canGoBack ? (
+          <View
+            style={{
+              width: 42,
+            }}
+          />
+        ) : null}
       </View>
 
       {isLoading ? (
@@ -340,17 +343,35 @@ export default function BuddyServicesManageBusinessScreen() {
                   Gestionando
                 </Text>
 
-                <Text
-                  numberOfLines={2}
+                <View
                   style={{
-                    color: '#FFFFFF',
-                    fontSize: 22,
-                    fontWeight: '900',
+                    alignItems: 'center',
+                    flexDirection: 'row',
                     marginTop: 5,
                   }}
                 >
-                  {profile.display_name}
-                </Text>
+                  <Text
+                    numberOfLines={2}
+                    style={{
+                      color: '#FFFFFF',
+                      flex: 1,
+                      fontSize: 22,
+                      fontWeight: '900',
+                    }}
+                  >
+                    {profile.display_name}
+                  </Text>
+                  {profile.verification_status === 'verified'
+                    && profile.verification_badge_visible ? (
+                    <BadgeCheck
+                      accessibilityLabel="Negocio verificado"
+                      color="#EDE4FF"
+                      fill="#C4B5FD"
+                      size={22}
+                      style={{ marginLeft: 8 }}
+                    />
+                  ) : null}
+                </View>
 
                 <View
                   style={{
@@ -376,29 +397,16 @@ export default function BuddyServicesManageBusinessScreen() {
                   </Text>
                 </View>
 
-                <View
+                <Text
                   style={{
-                    alignItems: 'center',
-                    flexDirection: 'row',
+                    color: '#C7F2D6',
+                    fontSize: 13,
+                    fontWeight: '800',
                     marginTop: 12,
                   }}
                 >
-                  <BadgeCheck
-                    color="#C7F2D6"
-                    size={16}
-                  />
-
-                  <Text
-                    style={{
-                      color: '#C7F2D6',
-                      fontSize: 13,
-                      fontWeight: '800',
-                      marginLeft: 6,
-                    }}
-                  >
-                    {publicationLabel(profile)}
-                  </Text>
-                </View>
+                  {publicationLabel(profile)}
+                </Text>
               </View>
 
               <CommercialLogoAvatar
@@ -565,15 +573,47 @@ export default function BuddyServicesManageBusinessScreen() {
                   marginLeft: 12,
                 }}
               >
-                <Text
+                <View
                   style={{
-                    color: '#261743',
-                    fontSize: 15,
-                    fontWeight: '800',
+                    alignItems: 'center',
+                    flexDirection: 'row',
+                    flexWrap: 'wrap',
+                    gap: 8,
                   }}
                 >
-                  Horario del negocio
-                </Text>
+                  <Text
+                    style={{
+                      color: '#261743',
+                      fontSize: 15,
+                      fontWeight: '800',
+                    }}
+                  >
+                    Horario del negocio
+                  </Text>
+
+                  {!hasConfiguredBusinessHours(profile.hours) ? (
+                    <View
+                      style={{
+                        backgroundColor: '#FFF3E0',
+                        borderColor: '#F5C478',
+                        borderRadius: 999,
+                        borderWidth: 1,
+                        paddingHorizontal: 8,
+                        paddingVertical: 2,
+                      }}
+                    >
+                      <Text
+                        style={{
+                          color: '#9A5400',
+                          fontSize: 10,
+                          fontWeight: '800',
+                        }}
+                      >
+                        Sin configurar
+                      </Text>
+                    </View>
+                  ) : null}
+                </View>
 
                 <Text
                   style={{
@@ -583,7 +623,9 @@ export default function BuddyServicesManageBusinessScreen() {
                     marginTop: 3,
                   }}
                 >
-                  Define los días y horas en que atiendes a tus clientes.
+                  {hasConfiguredBusinessHours(profile.hours)
+                    ? 'Define los días y horas en que atiendes a tus clientes. Tus productos o servicios solo se mostrarán en Buddy Services durante tu horario activo.'
+                    : 'Configura al menos un día abierto para que tus productos o servicios aparezcan disponibles en Buddy Services.'}
                 </Text>
               </View>
             </View>
@@ -748,159 +790,6 @@ export default function BuddyServicesManageBusinessScreen() {
               </View>
             </View>
           </TouchableOpacity>
-
-
-          <TouchableOpacity
-            accessibilityHint="Organiza catálogos y entra a sus productos y servicios"
-            accessibilityLabel="Catálogos y productos"
-            accessibilityRole="button"
-            activeOpacity={0.82}
-            onPress={() => {
-              router.push(
-                buddyServicesManageCatalogsRoute(profile.id),
-              );
-            }}
-            style={{
-              backgroundColor: '#FFFFFF',
-              borderColor: '#EAE3F0',
-              borderRadius: 18,
-              borderWidth: 1,
-              marginBottom: 12,
-              padding: 16,
-              shadowColor: '#38294E',
-              shadowOffset: {
-                width: 0,
-                height: 3,
-              },
-              shadowOpacity: 0.05,
-              shadowRadius: 10,
-              elevation: 2,
-            }}
-          >
-            <View
-              style={{
-                alignItems: 'center',
-                flexDirection: 'row',
-              }}
-            >
-              <View
-                style={{
-                  alignItems: 'center',
-                  backgroundColor: '#F6EAFE',
-                  borderRadius: 12,
-                  height: 42,
-                  justifyContent: 'center',
-                  width: 42,
-                }}
-              >
-                <Layers3
-                  color="#7427D5"
-                  size={20}
-                />
-              </View>
-
-              <View
-                style={{
-                  flex: 1,
-                  marginLeft: 12,
-                }}
-              >
-                <Text
-                  style={{
-                    color: '#261743',
-                    fontSize: 15,
-                    fontWeight: '800',
-                  }}
-                >
-                  Catálogos y productos
-                </Text>
-
-                <Text
-                  style={{
-                    color: '#786593',
-                    fontSize: 12,
-                    lineHeight: 18,
-                    marginTop: 3,
-                  }}
-                >
-                  Organiza catálogos y sus productos o servicios.
-                </Text>
-              </View>
-            </View>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-accessibilityHint="Consulta y gestiona solicitudes recibidas por el negocio"
-accessibilityLabel="Solicitudes del negocio"
-accessibilityRole="button"
-activeOpacity={0.82}
-onPress={() => {
-router.push(
-buddyServicesManageRequestsRoute(profile.id),
-);
-}}
-style={{
-backgroundColor: '#FFFFFF',
-borderColor: '#E7DDF2',
-borderRadius: 16,
-borderWidth: 1,
-marginBottom: 11,
-padding: 15,
-}}
->
-<View
-style={{
-alignItems: 'center',
-flexDirection: 'row',
-}}
->
-<View
-style={{
-alignItems: 'center',
-backgroundColor: '#F6EAFE',
-borderRadius: 12,
-height: 42,
-justifyContent: 'center',
-width: 42,
-}}
->
-<ClipboardList
-color="#7427D5"
-size={20}
-/>
-</View>
-
-<View
-style={{
-flex: 1,
-marginLeft: 12,
-}}
->
-<Text
-style={{
-color: '#261743',
-fontSize: 15,
-fontWeight: '800',
-}}
->
-Solicitudes
-</Text>
-
-<Text
-style={{
-color: '#786593',
-fontSize: 12,
-lineHeight: 18,
-marginTop: 3,
-}}
->
-Revisa compras, servicios y reservas recibidas.
-</Text>
-</View>
-</View>
-</TouchableOpacity>
-
-
 
           <TouchableOpacity
             accessibilityHint="Configura disponibilidad, holds y costo de domicilio"

@@ -3,7 +3,7 @@ import {
   useEffect,
   useMemo,
   useState,
-  } from 'react';
+} from 'react';
 import {
   ActivityIndicator,
   Modal,
@@ -32,6 +32,7 @@ import {
 
 import type {
   CommercialModality,
+  CommercialProfileHour,
   CommercialPublicOffer,
 } from '@beeapp/shared-types';
 
@@ -45,9 +46,13 @@ import {
 } from '../../../../../src/features/buddyservices/commercialErrors';
 import {
   COMMERCIAL_RESERVATION_PENDING_NOTICE,
+  formatBusinessHoursSummary,
   formatCommercialReservationDateTime,
+  getBusinessScheduleForLocalDate,
+  hasConfiguredBusinessHours,
   isValidCommercialTimezone,
   toCommercialReservationStartsAtIso,
+  validateLocalReservationAgainstBusinessHours,
 } from '../../../../../src/features/buddyservices/commercialReservationDateTime';
 import {
   buddyServicesCartRoute,
@@ -87,6 +92,9 @@ export default function BuddyServicesBookingRequestScreen() {
     'Este negocio',
   );
   const [timezone, setTimezone] = useState('');
+  const [businessHours, setBusinessHours] = useState<
+    CommercialProfileHour[]
+  >([]);
   const [requestedModality, setRequestedModality] = useState<
     CommercialModality | null
   >(null);
@@ -129,6 +137,7 @@ export default function BuddyServicesBookingRequestScreen() {
       if (!isBookableServiceOffer(nextOffer)) {
         setOffer(null);
         setTimezone('');
+        setBusinessHours([]);
         setError({
           title: 'Reserva no disponible',
           message: (
@@ -149,10 +158,14 @@ export default function BuddyServicesBookingRequestScreen() {
       const nextCommercialProfileName = String(
         profileResponse.profile.display_name || '',
       ).trim();
+      const nextHours = Array.isArray(profileResponse.profile.hours)
+        ? profileResponse.profile.hours
+        : [];
 
       if (!isValidCommercialTimezone(nextTimezone)) {
         setOffer(null);
         setTimezone('');
+        setBusinessHours([]);
         setError({
           title: 'Zona horaria no disponible',
           message: (
@@ -164,11 +177,30 @@ export default function BuddyServicesBookingRequestScreen() {
         return;
       }
 
+      if (
+        profileResponse.profile.is_available === false
+        || !hasConfiguredBusinessHours(nextHours)
+      ) {
+        setOffer(null);
+        setTimezone('');
+        setBusinessHours([]);
+        setError({
+          title: 'Sin horario de atención disponible',
+          message: (
+            'Este negocio no tiene horarios de atención abiertos '
+            + 'configurados en este momento.'
+          ),
+          retryable: true,
+        });
+        return;
+      }
+
       setOffer(nextOffer);
       setCommercialProfileName(
         nextCommercialProfileName || 'Este negocio',
       );
       setTimezone(nextTimezone);
+      setBusinessHours(nextHours);
       setRequestedModality((currentModality) => (
         currentModality
         && nextOffer.modalities.includes(currentModality)
@@ -178,6 +210,7 @@ export default function BuddyServicesBookingRequestScreen() {
     } catch (loadError) {
       setOffer(null);
       setTimezone('');
+      setBusinessHours([]);
       setError(toCommercialUiError(loadError));
     } finally {
       setLoading(false);
@@ -215,6 +248,36 @@ export default function BuddyServicesBookingRequestScreen() {
 
     return `${year}-${month}-${day}`;
   }, []);
+
+  const hoursSummary = useMemo(
+    () => formatBusinessHoursSummary(businessHours),
+    [businessHours],
+  );
+
+  const selectedDaySchedule = useMemo(
+    () => getBusinessScheduleForLocalDate(businessHours, localDate),
+    [businessHours, localDate],
+  );
+
+  const isIsoDateBookable = useCallback(
+    (isoDate: string): boolean => {
+      if (!isoDate || isoDate < todayIso) {
+        return false;
+      }
+
+      const schedule = getBusinessScheduleForLocalDate(
+        businessHours,
+        isoDate,
+      );
+      return Boolean(
+        schedule
+        && !schedule.is_closed
+        && schedule.opens_at
+        && schedule.closes_at,
+      );
+    },
+    [businessHours, todayIso],
+  );
 
   const dateFieldLabel = useMemo(() => {
     if (!localDate) {
@@ -257,41 +320,84 @@ export default function BuddyServicesBookingRequestScreen() {
     return days;
   }, [calendarMonth]);
 
-  const timeOptions = useMemo(() => (
-    Array.from({ length: 48 }, (_, index) => {
+  const timeOptions = useMemo(() => {
+    const allOptions = Array.from({ length: 48 }, (_, index) => {
       const hour = String(Math.floor(index / 2)).padStart(2, '0');
       const minute = index % 2 === 0 ? '00' : '30';
 
       return `${hour}:${minute}`;
-    })
-  ), []);
+    });
+
+    if (
+      selectedDaySchedule
+      && !selectedDaySchedule.is_closed
+      && selectedDaySchedule.opens_at
+      && selectedDaySchedule.closes_at
+    ) {
+      const { opens_at: opensAt, closes_at: closesAt } = selectedDaySchedule;
+      const filtered = allOptions.filter(
+        (option) => option >= opensAt && option <= closesAt,
+      );
+      if (filtered.length > 0) {
+        return filtered;
+      }
+
+      return [opensAt, closesAt];
+    }
+
+    return allOptions;
+  }, [selectedDaySchedule]);
 
   const openDatePicker = useCallback(() => {
-    const initialDate = localDate || todayIso;
-    const [year, month] = initialDate.split('-').map(Number);
+    const baseDate = localDate || todayIso;
+    const [year, month] = baseDate.split('-').map(Number);
 
-    setPendingDate(initialDate);
+    setPendingDate(isIsoDateBookable(baseDate) ? baseDate : '');
     setCalendarMonth(new Date(year, month - 1, 1));
     setIsDatePickerVisible(true);
-  }, [localDate, todayIso]);
+  }, [isIsoDateBookable, localDate, todayIso]);
 
   const selectCalendarDate = useCallback((day: number) => {
     const year = calendarMonth.getFullYear();
     const month = String(calendarMonth.getMonth() + 1).padStart(2, '0');
+    const nextIso = `${year}-${month}-${String(day).padStart(2, '0')}`;
 
-    setPendingDate(`${year}-${month}-${String(day).padStart(2, '0')}`);
-  }, [calendarMonth]);
+    if (!isIsoDateBookable(nextIso)) {
+      return;
+    }
+
+    setPendingDate(nextIso);
+  }, [calendarMonth, isIsoDateBookable]);
 
   const confirmDate = useCallback(() => {
-    if (!pendingDate || pendingDate < todayIso) {
+    if (!pendingDate || !isIsoDateBookable(pendingDate)) {
       return;
+    }
+
+    const nextSchedule = getBusinessScheduleForLocalDate(
+      businessHours,
+      pendingDate,
+    );
+    if (
+      localTime
+      && nextSchedule
+      && nextSchedule.opens_at
+      && nextSchedule.closes_at
+      && (
+        localTime < nextSchedule.opens_at
+        || localTime > nextSchedule.closes_at
+      )
+    ) {
+      setLocalTime('');
     }
 
     setLocalDate(pendingDate);
     setIsDatePickerVisible(false);
   }, [
+    businessHours,
+    isIsoDateBookable,
+    localTime,
     pendingDate,
-    todayIso,
   ]);
 
   const selectTime = useCallback((value: string) => {
@@ -324,12 +430,25 @@ export default function BuddyServicesBookingRequestScreen() {
     timezone,
   ]);
 
+  const reservationScheduleValidation = useMemo(() => {
+    if (!localDate.trim() || !localTime.trim()) {
+      return null;
+    }
+
+    return validateLocalReservationAgainstBusinessHours({
+      localDate,
+      localTime,
+      hours: businessHours,
+    });
+  }, [businessHours, localDate, localTime]);
+
   const canSubmit = Boolean(
     offer
     && requestedModality
     && localDate.trim()
     && localTime.trim()
     && timezone
+    && reservationScheduleValidation?.ok
     && (
       requestedModality !== 'delivery'
       || deliveryAddress.trim()
@@ -338,6 +457,20 @@ export default function BuddyServicesBookingRequestScreen() {
 
   const handleSubmit = useCallback(() => {
     if (!offer || !requestedModality) {
+      return;
+    }
+
+    const scheduleCheck = validateLocalReservationAgainstBusinessHours({
+      localDate,
+      localTime,
+      hours: businessHours,
+    });
+
+    if (!scheduleCheck.ok) {
+      appAlert(
+        'Horario no disponible',
+        scheduleCheck.message,
+      );
       return;
     }
 
@@ -462,6 +595,7 @@ export default function BuddyServicesBookingRequestScreen() {
       ],
     );
   }, [
+    businessHours,
     commercialProfileName,
     customerNote,
     deliveryAddress,
@@ -490,11 +624,11 @@ export default function BuddyServicesBookingRequestScreen() {
   if (error || !offer) {
     return (
       <ScreenSafeArea style={styles.safeArea}>
-<View
-accessibilityLiveRegion="polite"
-accessibilityRole="alert"
-style={styles.centered}
->
+        <View
+          accessibilityLiveRegion="polite"
+          accessibilityRole="alert"
+          style={styles.centered}
+        >
           <CalendarClock color="#7427D5" size={36} />
           <Text style={styles.errorTitle}>
             {error?.title || 'Reserva no disponible'}
@@ -572,8 +706,8 @@ style={styles.centered}
             Servicio reservable
           </Text>
           <Text style={styles.cardText}>
-            Define una fecha propuesta. El negocio confirma
-            disponibilidad, condiciones y estado final.
+            Define una fecha propuesta dentro del horario del negocio.
+            El negocio confirma disponibilidad, condiciones y estado final.
           </Text>
         </View>
 
@@ -581,10 +715,10 @@ style={styles.centered}
           <Clock3 color="#5F5274" size={20} />
           <View style={styles.timezoneContent}>
             <Text style={styles.timezoneLabel}>
-              Zona horaria del negocio
+              Horario de atención ({timezone})
             </Text>
             <Text style={styles.timezoneValue}>
-              {timezone}
+              {hoursSummary}
             </Text>
           </View>
         </View>
@@ -594,8 +728,7 @@ style={styles.centered}
             Fecha y hora solicitadas
           </Text>
           <Text style={styles.cardText}>
-            El negocio valida disponibilidad y define la
-            confirmación final.
+            Elige un día y hora en los que el negocio atiende público.
           </Text>
 
           <Text style={styles.fieldLabel}>Fecha</Text>
@@ -619,6 +752,12 @@ style={styles.centered}
             <ChevronRight color="#79688C" size={20} />
           </TouchableOpacity>
 
+          {selectedDaySchedule && !selectedDaySchedule.is_closed ? (
+            <Text style={styles.previewText}>
+              {`Horario el ${selectedDaySchedule.dayLabel}: ${selectedDaySchedule.opens_at} - ${selectedDaySchedule.closes_at}`}
+            </Text>
+          ) : null}
+
           <Text style={styles.fieldLabel}>Hora</Text>
           <TouchableOpacity
             accessibilityHint="Abre las horas disponibles para tu solicitud"
@@ -640,6 +779,12 @@ style={styles.centered}
             <ChevronRight color="#79688C" size={20} />
           </TouchableOpacity>
 
+          {reservationScheduleValidation && !reservationScheduleValidation.ok ? (
+            <Text style={styles.scheduleWarningText}>
+              {reservationScheduleValidation.message}
+            </Text>
+          ) : null}
+
           {requestedDateLabel ? (
             <Text style={styles.previewText}>
               Vista previa: {requestedDateLabel}
@@ -656,9 +801,9 @@ style={styles.centered}
                 `Elegir modalidad ${modality}`
               }
               accessibilityRole="button"
-accessibilityState={{
-selected: requestedModality === modality,
-}}
+              accessibilityState={{
+                selected: requestedModality === modality,
+              }}
               key={modality}
               onPress={() => {
                 setRequestedModality(modality);
@@ -730,9 +875,9 @@ selected: requestedModality === modality,
         <TouchableOpacity
           accessibilityLabel="Agregar reserva al carrito"
           accessibilityRole="button"
-accessibilityState={{
-disabled: !canSubmit,
-}}
+          accessibilityState={{
+            disabled: !canSubmit,
+          }}
           disabled={!canSubmit}
           onPress={handleSubmit}
           style={[
@@ -766,7 +911,7 @@ disabled: !canSubmit,
                   Elige una fecha
                 </Text>
                 <Text style={styles.modalSubtitle}>
-                  Selecciona el día propuesto para tu reserva.
+                  Solo puedes elegir días en los que el negocio tiene atención activa.
                 </Text>
               </View>
 
@@ -843,7 +988,7 @@ disabled: !canSubmit,
                 const isoDate = (
                   `${year}-${month}-${String(day).padStart(2, '0')}`
                 );
-                const isDisabled = isoDate < todayIso;
+                const isDisabled = !isIsoDateBookable(isoDate);
                 const isSelected = isoDate === pendingDate;
 
                 return (
@@ -883,11 +1028,11 @@ disabled: !canSubmit,
             <TouchableOpacity
               accessibilityLabel="Confirmar fecha de reserva"
               accessibilityRole="button"
-              disabled={!pendingDate || pendingDate < todayIso}
+              disabled={!pendingDate || !isIsoDateBookable(pendingDate)}
               onPress={confirmDate}
               style={[
                 styles.modalPrimaryButton,
-                !pendingDate || pendingDate < todayIso
+                !pendingDate || !isIsoDateBookable(pendingDate)
                   ? styles.disabledButton
                   : null,
               ]}
@@ -920,7 +1065,9 @@ disabled: !canSubmit,
                   Elige una hora
                 </Text>
                 <Text style={styles.modalSubtitle}>
-                  Selecciona una hora propuesta para la reserva.
+                  {selectedDaySchedule && !selectedDaySchedule.is_closed
+                    ? `Horario disponible el ${selectedDaySchedule.dayLabel}: ${selectedDaySchedule.opens_at} - ${selectedDaySchedule.closes_at}`
+                    : 'Selecciona una hora dentro del horario de atención del negocio.'}
                 </Text>
               </View>
 
@@ -1056,8 +1203,9 @@ const styles = StyleSheet.create({
   },
   timezoneValue: {
     color: '#372849',
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: '800',
+    lineHeight: 20,
     marginTop: 2,
   },
   fieldLabel: {
@@ -1087,6 +1235,12 @@ const styles = StyleSheet.create({
   pickerPlaceholderText: {
     color: '#8D8497',
     fontWeight: '500',
+  },
+  scheduleWarningText: {
+    color: '#A82A3A',
+    fontSize: 12,
+    fontWeight: '700',
+    lineHeight: 18,
   },
   modalBackdrop: {
     backgroundColor: 'rgba(24, 11, 49, 0.44)',

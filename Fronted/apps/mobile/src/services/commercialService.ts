@@ -14,6 +14,7 @@ setOwnedCommercialOfferPrimaryImage,
 updateOwnedCommercialOfferImage,
 archiveOwnedCommercialPaymentMethod,
 createOwnedCommercialPaymentMethod,
+deleteOwnedCommercialPaymentMethod,
 getOwnedCommercialPaymentMethod,
 getOwnedCommercialPaymentMethods,
 updateOwnedCommercialPaymentMethod,
@@ -25,6 +26,8 @@ publishOwnedCommercialOffer,
 restoreOwnedCommercialOffer,
 updateOwnedCommercialOffer,
 updateOwnedCommercialOfferModalities,
+deleteOwnedCommercialOffer,
+getOwnedCommercialOfferDeletionStatus,
 createOwnedCommercialCatalog,
 getCommercialCities,
   getCommercialCountries,
@@ -42,6 +45,8 @@ getOwnedCommercialProfiles,
   openCommercialProfileChat,
   updateCommercialProfile,
 updateCommercialProfilePublication,
+deleteCommercialProfile,
+getCommercialProfileDeletionStatus,
 updateOwnedCommercialCatalog,
 getPublicCommercialProfiles,
 getCommercialRequest,
@@ -120,6 +125,8 @@ GetOwnedCommercialProfilesResponse,
 UpdateCommercialProfilePayload,
 UpdateCommercialProfilePublicationPayload,
 UpdateCommercialProfilePublicationResponse,
+GetCommercialProfileDeletionStatusResponse,
+GetCommercialOfferDeletionStatusResponse,
 PublicCommercialOffersQuery,
   PublicCommercialProductFeedQuery,
   UpdateCommercialCatalogResponse,
@@ -340,6 +347,24 @@ payload,
 );
 }
 
+export async function loadOwnedCommercialProfileDeletionStatus(
+profileId: string,
+): Promise<GetCommercialProfileDeletionStatusResponse> {
+return getCommercialProfileDeletionStatus(
+await getRequiredCommercialCredentials(),
+profileId,
+);
+}
+
+export async function deleteOwnedCommercialProfile(
+profileId: string,
+): Promise<void> {
+return deleteCommercialProfile(
+await getRequiredCommercialCredentials(),
+profileId,
+);
+}
+
 export async function loadOwnedCommercialVerification(
 profileId: string,
 ): Promise<GetOwnedCommercialVerificationResponse> {
@@ -551,6 +576,28 @@ offerId,
 );
 }
 
+export async function loadOwnedOfferDeletionStatus(
+profileId: string,
+offerId: string,
+): Promise<GetCommercialOfferDeletionStatusResponse> {
+return getOwnedCommercialOfferDeletionStatus(
+await getRequiredCommercialCredentials(),
+profileId,
+offerId,
+);
+}
+
+export async function deleteOwnedOffer(
+profileId: string,
+offerId: string,
+): Promise<void> {
+return deleteOwnedCommercialOffer(
+await getRequiredCommercialCredentials(),
+profileId,
+offerId,
+);
+}
+
 export async function updateOwnedOfferModalities(
 profileId: string,
 offerId: string,
@@ -727,6 +774,17 @@ await getRequiredCommercialCredentials(),
 profileId,
 paymentMethodId,
 payload,
+);
+}
+
+export async function deleteOwnedPaymentMethod(
+profileId: string,
+paymentMethodId: string,
+): Promise<void> {
+return deleteOwnedCommercialPaymentMethod(
+await getRequiredCommercialCredentials(),
+profileId,
+paymentMethodId,
 );
 }
 

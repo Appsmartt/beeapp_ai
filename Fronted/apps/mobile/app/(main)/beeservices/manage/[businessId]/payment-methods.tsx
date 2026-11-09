@@ -1,16 +1,19 @@
 import {
   ActivityIndicator,
+  Dimensions,
+  Keyboard,
   Modal,
+  Platform,
   ScrollView,
   Switch,
   Text,
   TextInput,
   TouchableOpacity,
   View,
+  type KeyboardEvent,
 } from 'react-native';
 import {
   ArrowLeft,
-  Archive,
   Building2,
   CreditCard,
   Edit3,
@@ -19,14 +22,18 @@ import {
   Save,
   ShieldAlert,
   Smartphone,
+  Trash2,
   X,
   CheckCircle2,
 } from 'lucide-react-native';
 import {
   useCallback,
   useEffect,
+  useRef,
   useState,
+  type ReactNode,
 } from 'react';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   useModuleNav,
   useScreenParams,
@@ -45,8 +52,8 @@ import {
   toCommercialUiError,
 } from '../../../../../src/features/buddyservices/commercialErrors';
 import {
-  archiveOwnedPaymentMethod,
   createOwnedPaymentMethod,
+  deleteOwnedPaymentMethod,
   loadOwnedCommercialProfile,
   loadOwnedPaymentMethods,
   updateOwnedCommercialProfile,
@@ -67,7 +74,7 @@ type PaymentMethodEditorState = {
   sortOrder: string;
 } | null;
 
-type ArchiveConfirmation = {
+type DeleteConfirmation = {
   method: CommercialOwnedPaymentMethod;
 } | null;
 
@@ -121,6 +128,37 @@ function typeLabel(
   return PAYMENT_METHOD_TYPES.find(
     (item) => item.value === type,
   )?.label || type;
+}
+
+function keyboardOverlap(event: KeyboardEvent): number {
+  const screenHeight = Dimensions.get('screen').height;
+  const screenY = event.endCoordinates?.screenY;
+
+  if (typeof screenY === 'number') {
+    return Math.max(0, Math.round(screenHeight - screenY));
+  }
+
+  return Math.max(0, Math.round(event.endCoordinates?.height || 0));
+}
+
+function EditorField({
+  children,
+  fieldKey,
+  onOffset,
+}: {
+  children: ReactNode;
+  fieldKey: string;
+  onOffset: (fieldKey: string, y: number) => void;
+}) {
+  return (
+    <View
+      onLayout={(event) => {
+        onOffset(fieldKey, event.nativeEvent.layout.y);
+      }}
+    >
+      {children}
+    </View>
+  );
 }
 
 function maskValue(value: string): string {
@@ -227,9 +265,83 @@ export default function BuddyServicesPaymentMethodsScreen() {
   const [editorError, setEditorError] = useState<
     string | null
   >(null);
-  const [archiveConfirmation, setArchiveConfirmation] = useState<
-    ArchiveConfirmation
+  const [deleteConfirmation, setDeleteConfirmation] = useState<
+    DeleteConfirmation
   >(null);
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
+  const editorScrollRef = useRef<ScrollView>(null);
+  const fieldOffsets = useRef<Record<string, number>>({});
+  const activeFieldKey = useRef<string | null>(null);
+  const insets = useSafeAreaInsets();
+
+  useEffect(() => {
+    const showEvent = Platform.OS === 'ios'
+      ? 'keyboardWillShow'
+      : 'keyboardDidShow';
+    const hideEvent = Platform.OS === 'ios'
+      ? 'keyboardWillHide'
+      : 'keyboardDidHide';
+    const showSubscription = Keyboard.addListener(
+      showEvent,
+      (event) => {
+        setKeyboardHeight(keyboardOverlap(event));
+      },
+    );
+    const hideSubscription = Keyboard.addListener(hideEvent, () => {
+      setKeyboardHeight(0);
+    });
+
+    return () => {
+      showSubscription.remove();
+      hideSubscription.remove();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!editor) {
+      setKeyboardHeight(0);
+      activeFieldKey.current = null;
+    }
+  }, [editor]);
+
+  const rememberFieldOffset = useCallback((fieldKey: string, y: number) => {
+    fieldOffsets.current[fieldKey] = y;
+  }, []);
+
+  const scrollEditorFieldIntoView = useCallback((fieldKey: string) => {
+    activeFieldKey.current = fieldKey;
+    const y = fieldOffsets.current[fieldKey] ?? 0;
+
+    const scroll = () => {
+      editorScrollRef.current?.scrollTo({
+        animated: true,
+        y: Math.max(0, y - 8),
+      });
+    };
+
+    requestAnimationFrame(scroll);
+    setTimeout(scroll, Platform.OS === 'ios' ? 60 : 160);
+  }, []);
+
+  useEffect(() => {
+    const fieldKey = activeFieldKey.current;
+
+    if (!editor || keyboardHeight <= 0 || !fieldKey) {
+      return;
+    }
+
+    const timer = setTimeout(() => {
+      const y = fieldOffsets.current[fieldKey] ?? 0;
+      editorScrollRef.current?.scrollTo({
+        animated: true,
+        y: Math.max(0, y - 8),
+      });
+    }, 80);
+
+    return () => {
+      clearTimeout(timer);
+    };
+  }, [editor, keyboardHeight]);
 
   const loadMethods = useCallback(async () => {
     if (!businessId) {
@@ -499,8 +611,8 @@ export default function BuddyServicesPaymentMethodsScreen() {
     isUpdatingCashOnDelivery,
   ]);
 
-  const archiveMethod = useCallback(async () => {
-    if (!archiveConfirmation || !businessId) {
+  const deleteMethod = useCallback(async () => {
+    if (!deleteConfirmation || !businessId) {
       return;
     }
 
@@ -508,28 +620,37 @@ export default function BuddyServicesPaymentMethodsScreen() {
     setErrorMessage(null);
 
     try {
-      await archiveOwnedPaymentMethod(
+      await deleteOwnedPaymentMethod(
         businessId,
-        archiveConfirmation.method.id,
+        deleteConfirmation.method.id,
       );
 
-      setArchiveConfirmation(null);
+      setDeleteConfirmation(null);
       await loadMethods();
     } catch (error) {
       const uiError = toCommercialUiError(error);
 
       setErrorMessage(uiError.message);
-      setArchiveConfirmation(null);
+      setDeleteConfirmation(null);
     } finally {
       setIsSaving(false);
     }
   }, [
-    archiveConfirmation,
     businessId,
+    deleteConfirmation,
     loadMethods,
   ]);
 
   const currentType = editor?.paymentMethodType || 'nequi';
+  const windowHeight = Dimensions.get('window').height;
+  const sheetTopGap = Math.max(insets.top, 8) + 12;
+  const sheetMaxHeight = Math.max(
+    220,
+    Math.min(
+      windowHeight * 0.88,
+      windowHeight - keyboardHeight - sheetTopGap,
+    ),
+  );
   const editingMobileAccount = isMobileType(currentType);
   const mobileLabel = currentType === 'breb'
     ? 'Llave Bre-B'
@@ -887,6 +1008,11 @@ export default function BuddyServicesPaymentMethodsScreen() {
                   : method.bank_account
                     ? `${method.bank_account.bank_name} · ${maskValue(method.bank_account.account_number)}`
                     : 'Sin datos';
+                const holderName = (
+                  method.mobile_account?.account_holder_name
+                  || method.bank_account?.account_holder_name
+                  || ''
+                ).trim();
 
                 return (
                   <View
@@ -941,6 +1067,18 @@ export default function BuddyServicesPaymentMethodsScreen() {
                         >
                           {detail}
                         </Text>
+                        {holderName ? (
+                          <Text
+                            style={{
+                              color: '#4E3B68',
+                              fontSize: 12,
+                              fontWeight: '600',
+                              marginTop: 6,
+                            }}
+                          >
+                            Titular: {holderName}
+                          </Text>
+                        ) : null}
                       </View>
                       <TouchableOpacity
                         accessibilityLabel={`Editar ${method.display_name}`}
@@ -983,12 +1121,12 @@ export default function BuddyServicesPaymentMethodsScreen() {
                         Activo
                       </Text>
                       <TouchableOpacity
-                        accessibilityLabel={`Archivar ${method.display_name}`}
+                        accessibilityLabel={`Eliminar ${method.display_name}`}
                         accessibilityRole="button"
                         activeOpacity={0.82}
                         disabled={isSaving}
                         onPress={() => {
-                          setArchiveConfirmation({ method });
+                          setDeleteConfirmation({ method });
                         }}
                         style={{
                           alignItems: 'center',
@@ -996,7 +1134,7 @@ export default function BuddyServicesPaymentMethodsScreen() {
                           opacity: isSaving ? 0.55 : 1,
                         }}
                       >
-                        <Archive color="#B42318" size={15} />
+                        <Trash2 color="#B42318" size={15} />
                         <Text
                           style={{
                             color: '#B42318',
@@ -1005,7 +1143,7 @@ export default function BuddyServicesPaymentMethodsScreen() {
                             marginLeft: 6,
                           }}
                         >
-                          Archivar
+                          Eliminar
                         </Text>
                       </TouchableOpacity>
                     </View>
@@ -1134,6 +1272,7 @@ export default function BuddyServicesPaymentMethodsScreen() {
       <Modal
         animationType="slide"
         onRequestClose={closeEditor}
+        statusBarTranslucent
         transparent
         visible={Boolean(editor)}
       >
@@ -1144,16 +1283,38 @@ export default function BuddyServicesPaymentMethodsScreen() {
             justifyContent: 'flex-end',
           }}
         >
-          <ScrollView
-            contentContainerStyle={{
+          <TouchableOpacity
+            accessibilityLabel="Cerrar formulario de pago"
+            accessibilityRole="button"
+            activeOpacity={1}
+            disabled={isSaving}
+            onPress={closeEditor}
+            style={{ flex: 1 }}
+          />
+          <View
+            style={{
               backgroundColor: '#FFFCF9',
               borderTopLeftRadius: 24,
               borderTopRightRadius: 24,
-              paddingBottom: 30,
+              marginBottom: keyboardHeight,
+              maxHeight: sheetMaxHeight,
+              overflow: 'hidden',
+              width: '100%',
+            }}
+          >
+          <ScrollView
+            bounces={false}
+            contentContainerStyle={{
+              paddingBottom: 28,
               paddingHorizontal: 18,
               paddingTop: 18,
             }}
             keyboardShouldPersistTaps="handled"
+            ref={editorScrollRef}
+            style={{
+              flexGrow: 0,
+              maxHeight: sheetMaxHeight,
+            }}
           >
             <View
               style={{
@@ -1290,34 +1451,46 @@ export default function BuddyServicesPaymentMethodsScreen() {
               </>
             ) : null}
 
-            <Text
-              style={{
-                color: '#261743',
-                fontSize: 14,
-                fontWeight: '800',
-                marginTop: 20,
-              }}
+            <EditorField
+              fieldKey="displayName"
+              onOffset={rememberFieldOffset}
             >
-              Nombre personalizado
-            </Text>
-            <TextInput
-              accessibilityLabel="Nombre personalizado del método de pago"
-              editable={!isSaving}
-              onChangeText={(value) => updateEditor({
-                displayName: value,
-              })}
-              placeholder={
-                currentType === 'bank_account'
-                  ? 'Ejemplo: Cuenta Bancolombia principal'
-                  : `Ejemplo: ${typeLabel(currentType)} principal`
-              }
-              placeholderTextColor="#A692B7"
-              style={inputStyle(9)}
-              value={editor?.displayName || ''}
-            />
+              <Text
+                style={{
+                  color: '#261743',
+                  fontSize: 14,
+                  fontWeight: '800',
+                  marginTop: 20,
+                }}
+              >
+                Nombre personalizado
+              </Text>
+              <TextInput
+                accessibilityLabel="Nombre personalizado del método de pago"
+                editable={!isSaving}
+                onChangeText={(value) => updateEditor({
+                  displayName: value,
+                })}
+                onFocus={() => {
+                  scrollEditorFieldIntoView('displayName');
+                }}
+                placeholder={
+                  currentType === 'bank_account'
+                    ? 'Ejemplo: Cuenta Bancolombia principal'
+                    : `Ejemplo: ${typeLabel(currentType)} principal`
+                }
+                placeholderTextColor="#A692B7"
+                style={inputStyle(9)}
+                value={editor?.displayName || ''}
+              />
+            </EditorField>
 
             {editingMobileAccount ? (
               <>
+                <EditorField
+                  fieldKey="paymentKey"
+                  onOffset={rememberFieldOffset}
+                >
                 <View
                   style={{
                     alignItems: 'center',
@@ -1360,6 +1533,9 @@ export default function BuddyServicesPaymentMethodsScreen() {
                       ? value
                       : normalizePhone(value),
                   })}
+                  onFocus={() => {
+                    scrollEditorFieldIntoView('paymentKey');
+                  }}
                   placeholder={mobilePlaceholder}
                   placeholderTextColor="#A692B7"
                   style={inputStyle(9)}
@@ -1377,28 +1553,37 @@ export default function BuddyServicesPaymentMethodsScreen() {
                     ? 'Ingresa la llave que usas para recibir pagos por Bre-B.'
                     : 'Ingresa un celular colombiano de 10 dígitos que empiece por 3.'}
                 </Text>
+                </EditorField>
 
-                <Text
-                  style={{
-                    color: '#261743',
-                    fontSize: 14,
-                    fontWeight: '800',
-                    marginTop: 18,
-                  }}
+                <EditorField
+                  fieldKey="accountHolderName"
+                  onOffset={rememberFieldOffset}
                 >
-                  Nombre del titular (opcional)
-                </Text>
-                <TextInput
-                  accessibilityLabel="Nombre del titular opcional"
-                  editable={!isSaving}
-                  onChangeText={(value) => updateEditor({
-                    accountHolderName: value,
-                  })}
-                  placeholder="Ejemplo: Andrea Mendoza"
-                  placeholderTextColor="#A692B7"
-                  style={inputStyle(9)}
-                  value={editor?.accountHolderName || ''}
-                />
+                  <Text
+                    style={{
+                      color: '#261743',
+                      fontSize: 14,
+                      fontWeight: '800',
+                      marginTop: 18,
+                    }}
+                  >
+                    Nombre del titular (opcional)
+                  </Text>
+                  <TextInput
+                    accessibilityLabel="Nombre del titular opcional"
+                    editable={!isSaving}
+                    onChangeText={(value) => updateEditor({
+                      accountHolderName: value,
+                    })}
+                    onFocus={() => {
+                      scrollEditorFieldIntoView('accountHolderName');
+                    }}
+                    placeholder="Ejemplo: Andrea Mendoza"
+                    placeholderTextColor="#A692B7"
+                    style={inputStyle(9)}
+                    value={editor?.accountHolderName || ''}
+                  />
+                </EditorField>
               </>
             ) : (
               <>
@@ -1422,76 +1607,126 @@ export default function BuddyServicesPaymentMethodsScreen() {
                   </Text>
                 </View>
 
-                <TextInput
-                  accessibilityLabel="Nombre del titular de la cuenta"
-                  editable={!isSaving}
-                  onChangeText={(value) => updateEditor({
-                    accountHolderName: value,
-                  })}
-                  placeholder="Nombre completo o razón social"
-                  placeholderTextColor="#A692B7"
-                  style={inputStyle(10)}
-                  value={editor?.accountHolderName || ''}
-                />
-                <TextInput
-                  accessibilityLabel="Tipo de documento del titular"
-                  editable={!isSaving}
-                  onChangeText={(value) => updateEditor({
-                    accountHolderDocumentType: value,
-                  })}
-                  placeholder="Ejemplo: CC, NIT, CE"
-                  placeholderTextColor="#A692B7"
-                  style={inputStyle()}
-                  value={editor?.accountHolderDocumentType || ''}
-                />
-                <TextInput
-                  accessibilityLabel="Documento del titular"
-                  editable={!isSaving}
-                  keyboardType="number-pad"
-                  onChangeText={(value) => updateEditor({
-                    accountHolderDocumentNumber: value,
-                  })}
-                  placeholder="Número de documento"
-                  placeholderTextColor="#A692B7"
-                  style={inputStyle()}
-                  value={
-                    editor?.accountHolderDocumentNumber || ''
-                  }
-                />
-                <TextInput
-                  accessibilityLabel="Nombre del banco"
-                  editable={!isSaving}
-                  onChangeText={(value) => updateEditor({
-                    bankName: value,
-                  })}
-                  placeholder="Ejemplo: Bancolombia"
-                  placeholderTextColor="#A692B7"
-                  style={inputStyle()}
-                  value={editor?.bankName || ''}
-                />
-                <TextInput
-                  accessibilityLabel="Tipo de cuenta"
-                  editable={!isSaving}
-                  onChangeText={(value) => updateEditor({
-                    bankAccountType: value,
-                  })}
-                  placeholder="Ejemplo: Ahorros"
-                  placeholderTextColor="#A692B7"
-                  style={inputStyle()}
-                  value={editor?.bankAccountType || ''}
-                />
-                <TextInput
-                  accessibilityLabel="Número de cuenta"
-                  editable={!isSaving}
-                  keyboardType="number-pad"
-                  onChangeText={(value) => updateEditor({
-                    accountNumber: value,
-                  })}
-                  placeholder="Número de cuenta"
-                  placeholderTextColor="#A692B7"
-                  style={inputStyle()}
-                  value={editor?.accountNumber || ''}
-                />
+                <EditorField
+                  fieldKey="accountHolderName"
+                  onOffset={rememberFieldOffset}
+                >
+                  <TextInput
+                    accessibilityLabel="Nombre del titular de la cuenta"
+                    editable={!isSaving}
+                    onChangeText={(value) => updateEditor({
+                      accountHolderName: value,
+                    })}
+                    onFocus={() => {
+                      scrollEditorFieldIntoView('accountHolderName');
+                    }}
+                    placeholder="Nombre completo o razón social"
+                    placeholderTextColor="#A692B7"
+                    style={inputStyle(10)}
+                    value={editor?.accountHolderName || ''}
+                  />
+                </EditorField>
+                <EditorField
+                  fieldKey="accountHolderDocumentType"
+                  onOffset={rememberFieldOffset}
+                >
+                  <TextInput
+                    accessibilityLabel="Tipo de documento del titular"
+                    editable={!isSaving}
+                    onChangeText={(value) => updateEditor({
+                      accountHolderDocumentType: value,
+                    })}
+                    onFocus={() => {
+                      scrollEditorFieldIntoView('accountHolderDocumentType');
+                    }}
+                    placeholder="Ejemplo: CC, NIT, CE"
+                    placeholderTextColor="#A692B7"
+                    style={inputStyle()}
+                    value={editor?.accountHolderDocumentType || ''}
+                  />
+                </EditorField>
+                <EditorField
+                  fieldKey="accountHolderDocumentNumber"
+                  onOffset={rememberFieldOffset}
+                >
+                  <TextInput
+                    accessibilityLabel="Documento del titular"
+                    editable={!isSaving}
+                    keyboardType="number-pad"
+                    onChangeText={(value) => updateEditor({
+                      accountHolderDocumentNumber: value,
+                    })}
+                    onFocus={() => {
+                      scrollEditorFieldIntoView(
+                        'accountHolderDocumentNumber',
+                      );
+                    }}
+                    placeholder="Número de documento"
+                    placeholderTextColor="#A692B7"
+                    style={inputStyle()}
+                    value={
+                      editor?.accountHolderDocumentNumber || ''
+                    }
+                  />
+                </EditorField>
+                <EditorField
+                  fieldKey="bankName"
+                  onOffset={rememberFieldOffset}
+                >
+                  <TextInput
+                    accessibilityLabel="Nombre del banco"
+                    editable={!isSaving}
+                    onChangeText={(value) => updateEditor({
+                      bankName: value,
+                    })}
+                    onFocus={() => {
+                      scrollEditorFieldIntoView('bankName');
+                    }}
+                    placeholder="Ejemplo: Bancolombia"
+                    placeholderTextColor="#A692B7"
+                    style={inputStyle()}
+                    value={editor?.bankName || ''}
+                  />
+                </EditorField>
+                <EditorField
+                  fieldKey="bankAccountType"
+                  onOffset={rememberFieldOffset}
+                >
+                  <TextInput
+                    accessibilityLabel="Tipo de cuenta"
+                    editable={!isSaving}
+                    onChangeText={(value) => updateEditor({
+                      bankAccountType: value,
+                    })}
+                    onFocus={() => {
+                      scrollEditorFieldIntoView('bankAccountType');
+                    }}
+                    placeholder="Ejemplo: Ahorros"
+                    placeholderTextColor="#A692B7"
+                    style={inputStyle()}
+                    value={editor?.bankAccountType || ''}
+                  />
+                </EditorField>
+                <EditorField
+                  fieldKey="accountNumber"
+                  onOffset={rememberFieldOffset}
+                >
+                  <TextInput
+                    accessibilityLabel="Número de cuenta"
+                    editable={!isSaving}
+                    keyboardType="number-pad"
+                    onChangeText={(value) => updateEditor({
+                      accountNumber: value,
+                    })}
+                    onFocus={() => {
+                      scrollEditorFieldIntoView('accountNumber');
+                    }}
+                    placeholder="Número de cuenta"
+                    placeholderTextColor="#A692B7"
+                    style={inputStyle()}
+                    value={editor?.accountNumber || ''}
+                  />
+                </EditorField>
               </>
             )}
 
@@ -1532,6 +1767,7 @@ export default function BuddyServicesPaymentMethodsScreen() {
               </Text>
             </TouchableOpacity>
           </ScrollView>
+          </View>
         </View>
       </Modal>
 
@@ -1539,11 +1775,11 @@ export default function BuddyServicesPaymentMethodsScreen() {
         animationType="fade"
         onRequestClose={() => {
           if (!isSaving) {
-            setArchiveConfirmation(null);
+            setDeleteConfirmation(null);
           }
         }}
         transparent
-        visible={Boolean(archiveConfirmation)}
+        visible={Boolean(deleteConfirmation)}
       >
         <View
           style={{
@@ -1569,7 +1805,7 @@ export default function BuddyServicesPaymentMethodsScreen() {
                 fontWeight: '900',
               }}
             >
-              Archivar método de pago
+              Eliminar método de pago
             </Text>
             <Text
               style={{
@@ -1579,7 +1815,7 @@ export default function BuddyServicesPaymentMethodsScreen() {
                 marginTop: 9,
               }}
             >
-              El método dejará de estar disponible para nuevas instrucciones de pago. Su historial se conservará.
+              Este método se borrará y dejará de mostrarse a tus clientes. Esta acción no se puede deshacer.
             </Text>
             <Text
               style={{
@@ -1589,7 +1825,7 @@ export default function BuddyServicesPaymentMethodsScreen() {
                 marginTop: 13,
               }}
             >
-              {archiveConfirmation?.method.display_name || ''}
+              {deleteConfirmation?.method.display_name || ''}
             </Text>
             <View
               style={{
@@ -1600,12 +1836,12 @@ export default function BuddyServicesPaymentMethodsScreen() {
               }}
             >
               <TouchableOpacity
-                accessibilityLabel="Cancelar archivo de método de pago"
+                accessibilityLabel="Cancelar eliminación de método de pago"
                 accessibilityRole="button"
                 activeOpacity={0.82}
                 disabled={isSaving}
                 onPress={() => {
-                  setArchiveConfirmation(null);
+                  setDeleteConfirmation(null);
                 }}
                 style={{
                   alignItems: 'center',
@@ -1628,12 +1864,12 @@ export default function BuddyServicesPaymentMethodsScreen() {
                 </Text>
               </TouchableOpacity>
               <TouchableOpacity
-                accessibilityLabel="Confirmar archivo de método de pago"
+                accessibilityLabel="Confirmar eliminación de método de pago"
                 accessibilityRole="button"
                 activeOpacity={0.82}
                 disabled={isSaving}
                 onPress={() => {
-                  void archiveMethod();
+                  void deleteMethod();
                 }}
                 style={{
                   alignItems: 'center',
@@ -1652,7 +1888,7 @@ export default function BuddyServicesPaymentMethodsScreen() {
                     fontWeight: '800',
                   }}
                 >
-                  {isSaving ? 'Archivando…' : 'Archivar'}
+                  {isSaving ? 'Eliminando…' : 'Eliminar'}
                 </Text>
               </TouchableOpacity>
             </View>

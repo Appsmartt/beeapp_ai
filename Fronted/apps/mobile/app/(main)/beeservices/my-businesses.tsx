@@ -48,6 +48,7 @@ import {
   buddyServicesManageProfileRoute,
   buddyServicesPublicProfileRoute,
 } from "../../../src/features/buddyservices/commercialRoutes";
+import { useDeleteOwnedBusiness } from "../../../src/features/buddyservices/useDeleteOwnedBusiness";
 import {
   loadOwnedCommercialProfiles,
   updateOwnedCommercialProfilePublication,
@@ -70,6 +71,28 @@ export default function BuddyServicesMyBusinessesScreen() {
   const [updatingProfileId, setUpdatingProfileId] = useState<string | null>(
     null,
   );
+
+  const deleteFlow = useDeleteOwnedBusiness({
+    onDeleted: (deletedId) => {
+      setProfiles((currentProfiles) =>
+        currentProfiles.filter((profile) => profile.id !== deletedId),
+      );
+      setActionsProfile(null);
+    },
+  });
+  const checkDeleteStatus = deleteFlow.checkStatus;
+  const resetDeleteStatus = deleteFlow.reset;
+
+  useEffect(() => {
+    const targetId = actionsProfile?.id;
+
+    if (!targetId) {
+      resetDeleteStatus();
+      return;
+    }
+
+    void checkDeleteStatus(targetId);
+  }, [actionsProfile?.id, checkDeleteStatus, resetDeleteStatus]);
 
   const loadProfiles = useCallback(async (options?: { silent?: boolean }) => {
     setErrorMessage(null);
@@ -378,8 +401,18 @@ export default function BuddyServicesMyBusinessesScreen() {
 
       <OwnedBusinessActionsSheet
         businessName={actionsProfile?.display_name ?? ""}
+        deleteDescription={deleteFlow.description}
+        deleteState={deleteFlow.state}
+        isDeleting={deleteFlow.deleting}
         onClose={() => {
           setActionsProfile(null);
+        }}
+        onDelete={() => {
+          if (!actionsProfile) {
+            return;
+          }
+
+          void deleteFlow.requestDelete(actionsProfile);
         }}
         onEdit={() => {
           if (!actionsProfile) {

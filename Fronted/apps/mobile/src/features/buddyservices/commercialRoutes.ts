@@ -70,11 +70,19 @@ export function buddyServicesPublicCatalogRoute(
   };
 }
 
-export function buddyServicesPublicOfferRoute(offerId: string): Href {
+export function buddyServicesPublicOfferRoute(
+  offerId: string,
+  options?: {
+    businessId?: string;
+    fromManage?: boolean;
+  },
+): Href {
   return {
     pathname: "/(main)/beeservices/offer/[offerId]",
     params: {
       offerId: requireId(offerId, "la oferta"),
+      ...(options?.businessId ? { businessId: options.businessId } : {}),
+      ...(options?.fromManage ? { fromManage: "true" } : {}),
     },
   };
 }
@@ -99,12 +107,16 @@ export function buddyServicesManageBusinessRoute(businessId: string): Href {
 export function buddyServicesManageOfferRoute(
   businessId: string,
   offerId: string,
+  options?: {
+    mode?: 'edit' | 'view';
+  },
 ): Href {
   return {
     pathname: "/(main)/beeservices/manage/[businessId]/offers/[offerId]",
     params: {
       businessId: requireId(businessId, "el negocio"),
       offerId: requireId(offerId, "la oferta"),
+      ...(options?.mode ? { mode: options.mode } : {}),
     },
   };
 }

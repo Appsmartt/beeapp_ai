@@ -17,6 +17,7 @@ import {
   ChevronDown,
   ImagePlus,
   Save,
+  Trash2,
   X,
 } from 'lucide-react-native';
 import {
@@ -58,6 +59,12 @@ import {
 import {
   toCommercialUiError,
 } from '../../../../../src/features/buddyservices/commercialErrors';
+import {
+  buddyServicesMyBusinessesRoute,
+} from '../../../../../src/features/buddyservices/commercialRoutes';
+import {
+  useDeleteOwnedBusiness,
+} from '../../../../../src/features/buddyservices/useDeleteOwnedBusiness';
 import {
   loadOwnedCommercialProfile,
   loadPublicCommercialCategories,
@@ -500,6 +507,13 @@ export default function BuddyServicesManageProfileScreen() {
     showCategoryLimitNotice,
   ]);
 
+  const deleteFlow = useDeleteOwnedBusiness({
+    onDeleted: () => {
+      router.replace(buddyServicesMyBusinessesRoute() as any);
+    },
+  });
+  const checkDeleteStatus = deleteFlow.checkStatus;
+
   const loadProfile = useCallback(async () => {
     if (!businessId) {
       setErrorMessage(
@@ -518,6 +532,7 @@ export default function BuddyServicesManageProfileScreen() {
       );
 
       applyProfile(response.profile);
+      void checkDeleteStatus(response.profile.id);
     } catch (error) {
       const uiError = toCommercialUiError(error);
 
@@ -529,6 +544,7 @@ export default function BuddyServicesManageProfileScreen() {
   }, [
     applyProfile,
     businessId,
+    checkDeleteStatus,
   ]);
 
   useEffect(() => {
@@ -1810,7 +1826,7 @@ export default function BuddyServicesManageProfileScreen() {
             accessibilityLabel="Guardar perfil comercial"
             accessibilityRole="button"
             activeOpacity={0.82}
-            disabled={isSaving}
+            disabled={isSaving || deleteFlow.deleting}
             onPress={() => {
               void save();
             }}
@@ -1822,7 +1838,7 @@ export default function BuddyServicesManageProfileScreen() {
               justifyContent: 'center',
               marginTop: 28,
               minHeight: 52,
-              opacity: isSaving ? 0.65 : 1,
+              opacity: isSaving || deleteFlow.deleting ? 0.65 : 1,
               paddingHorizontal: 18,
             }}
           >
@@ -1844,6 +1860,119 @@ export default function BuddyServicesManageProfileScreen() {
                 : 'Guardar perfil'}
             </Text>
           </TouchableOpacity>
+
+          <View
+            style={{
+              backgroundColor:
+                deleteFlow.state === 'blocked' ? '#F8FAFC' : '#FEF2F2',
+              borderColor:
+                deleteFlow.state === 'blocked' ? '#E2E8F0' : '#FECACA',
+              borderRadius: 16,
+              borderWidth: 1,
+              marginTop: 26,
+              padding: 16,
+            }}
+          >
+            <Text
+              style={{
+                color:
+                  deleteFlow.state === 'blocked' ? '#475569' : '#991B1B',
+                fontSize: 13,
+                fontWeight: '800',
+                letterSpacing: 0.3,
+                textTransform: 'uppercase',
+              }}
+            >
+              Zona de peligro
+            </Text>
+
+            <Text
+              style={{
+                color:
+                  deleteFlow.state === 'blocked' ? '#64748B' : '#7F1D1D',
+                fontSize: 13,
+                lineHeight: 19,
+                marginTop: 6,
+              }}
+            >
+              {deleteFlow.state === 'blocked'
+                ? `${deleteFlow.description} Los negocios con actividad previa no se pueden borrar para conservar el historial de clientes.`
+                : 'Puedes eliminar este negocio de forma permanente mientras no tenga ningún chat activo ni compras o solicitudes registradas.'}
+            </Text>
+
+            <TouchableOpacity
+              accessibilityLabel={`Eliminar ${profile.display_name}`}
+              accessibilityRole="button"
+              accessibilityState={{
+                disabled:
+                  isSaving
+                  || deleteFlow.deleting
+                  || deleteFlow.state === 'checking'
+                  || deleteFlow.state === 'blocked',
+              }}
+              activeOpacity={0.82}
+              disabled={
+                isSaving
+                || deleteFlow.deleting
+                || deleteFlow.state === 'checking'
+              }
+              onPress={() => {
+                void deleteFlow.requestDelete(profile);
+              }}
+              style={{
+                alignItems: 'center',
+                backgroundColor:
+                  deleteFlow.state === 'blocked' ? '#E2E8F0' : '#FFFFFF',
+                borderColor:
+                  deleteFlow.state === 'blocked' ? '#CBD5E1' : '#FCA5A5',
+                borderRadius: 13,
+                borderWidth: 1,
+                flexDirection: 'row',
+                justifyContent: 'center',
+                marginTop: 14,
+                minHeight: 46,
+                opacity:
+                  isSaving
+                  || deleteFlow.deleting
+                  || deleteFlow.state === 'checking'
+                    ? 0.65
+                    : 1,
+                paddingHorizontal: 16,
+              }}
+            >
+              {deleteFlow.deleting || deleteFlow.state === 'checking' ? (
+                <ActivityIndicator
+                  color={
+                    deleteFlow.state === 'blocked' ? '#64748B' : '#DC2626'
+                  }
+                  size="small"
+                />
+              ) : (
+                <Trash2
+                  color={
+                    deleteFlow.state === 'blocked' ? '#64748B' : '#DC2626'
+                  }
+                  size={18}
+                />
+              )}
+
+              <Text
+                style={{
+                  color:
+                    deleteFlow.state === 'blocked' ? '#64748B' : '#DC2626',
+                  fontSize: 14,
+                  fontWeight: '800',
+                  marginLeft: 8,
+                }}
+              >
+                {deleteFlow.deleting
+                  ? 'Eliminando negocio…'
+                  : deleteFlow.state === 'checking'
+                    ? 'Verificando actividad…'
+                    : 'Eliminar negocio'}
+              </Text>
+            </TouchableOpacity>
+          </View>
         </ScrollView>
 
         <Modal

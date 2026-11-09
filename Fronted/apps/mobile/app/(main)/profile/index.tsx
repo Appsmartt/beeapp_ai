@@ -32,6 +32,10 @@ import {
 } from 'lucide-react-native';
 import { colors } from '@beeapp/design-system';
 import { getCurrentProfile } from '@beeapp/api-client';
+import {
+  isProfileVisibleInNetwork,
+  saveNetworkVisibility,
+} from '../../../src/services/networkVisibility';
 import type {
   AuthCredentials,
   CurrentUserProfile,
@@ -74,6 +78,8 @@ export default function ProfileMainScreen() {
 
   const [isVisibleInNetwork, setIsVisibleInNetwork] =
     useState(true);
+  const [isSavingVisibility, setIsSavingVisibility] =
+    useState(false);
 
   const [profile, setProfile] =
     useState<CurrentUserProfile | null>(null);
@@ -132,6 +138,9 @@ export default function ProfileMainScreen() {
       }
 
       setProfile(response.profile);
+      setIsVisibleInNetwork(
+        isProfileVisibleInNetwork(response.profile),
+      );
       setAvatarFileId(nextAvatarFileId);
       setAvatarFailed(false);
       setAvatarUrl(nextAvatarUrl);
@@ -451,7 +460,32 @@ export default function ProfileMainScreen() {
 
                 <Switch
                   value={isVisibleInNetwork}
-                  onValueChange={setIsVisibleInNetwork}
+                  disabled={isSavingVisibility}
+                  onValueChange={(visible) => {
+                    const previous = isVisibleInNetwork;
+                    setIsVisibleInNetwork(visible);
+                    setIsSavingVisibility(true);
+
+                    void (async () => {
+                      try {
+                        const credentials = await getCredentials();
+                        await saveNetworkVisibility(
+                          credentials,
+                          visible,
+                        );
+                      } catch (error) {
+                        setIsVisibleInNetwork(previous);
+                        appAlert(
+                          'No fue posible guardar la visibilidad',
+                          error instanceof Error
+                            ? error.message
+                            : 'Inténtalo nuevamente.',
+                        );
+                      } finally {
+                        setIsSavingVisibility(false);
+                      }
+                    })();
+                  }}
                   trackColor={{
                     false: colors.neutral.gray300,
                     true: `${colors.brand.primary}80`,

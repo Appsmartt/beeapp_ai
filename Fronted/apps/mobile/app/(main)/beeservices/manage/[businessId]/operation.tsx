@@ -45,27 +45,27 @@ const DELIVERY_FEE_OPTIONS: Array<{
   label: string;
   description: string;
 }> = [
-  {
-    value: 'not_offered',
-    label: 'No ofrezco domicilio',
-    description: 'El negocio no entrega a domicilio.',
-  },
-  {
-    value: 'free',
-    label: 'Domicilio gratis',
-    description: 'No se agrega costo de entrega.',
-  },
-  {
-    value: 'fixed',
-    label: 'Costo fijo',
-    description: 'Define un monto fijo para el domicilio.',
-  },
-  {
-    value: 'to_be_confirmed',
-    label: 'Por confirmar',
-    description: 'El costo se confirma durante la solicitud.',
-  },
-];
+    {
+      value: 'not_offered',
+      label: 'No ofrezco domicilio',
+      description: 'El negocio no entrega a domicilio.',
+    },
+    {
+      value: 'free',
+      label: 'Domicilio gratis',
+      description: 'No se agrega costo de entrega.',
+    },
+    {
+      value: 'fixed',
+      label: 'Costo fijo',
+      description: 'Define un monto fijo para el domicilio.',
+    },
+    {
+      value: 'to_be_confirmed',
+      label: 'Por confirmar',
+      description: 'El costo se confirma durante la solicitud.',
+    },
+  ];
 
 function normalizeBusinessId(
   value: string | string[] | undefined,
@@ -95,6 +95,34 @@ function toSafeDeliveryMode(
   }
 
   return 'not_offered';
+}
+
+function operationPageIntro(
+  offerType: CommercialOwnedProfile['offer_type'],
+): string {
+  if (offerType === 'services') {
+    return 'Configura la disponibilidad de tu negocio, el tiempo de apartado para reservas y las opciones de domicilio.';
+  }
+
+  if (offerType === 'products') {
+    return 'Configura la disponibilidad de tu negocio, el tiempo de apartado de inventario y las opciones de domicilio.';
+  }
+
+  return 'Configura la disponibilidad de tu negocio, los tiempos de apartado para reservas e inventario, y las opciones de domicilio.';
+}
+
+function operationHoldIntro(
+  offerType: CommercialOwnedProfile['offer_type'],
+): string {
+  if (offerType === 'services') {
+    return 'Controla cuánto tiempo se aparta un cupo o cita antes de confirmarse o liberarse.';
+  }
+
+  if (offerType === 'products') {
+    return 'Controla cuánto tiempo se aparta un producto antes de confirmarse o liberarse.';
+  }
+
+  return 'Controla cuánto tiempo se aparta un cupo o producto antes de confirmarse o liberarse.';
 }
 
 export default function BuddyServicesOperationScreen() {
@@ -195,6 +223,8 @@ export default function BuddyServicesOperationScreen() {
     const normalizedCurrencyCode = (
       deliveryCurrencyCode.trim().toUpperCase()
     );
+    const sellsServices = profile.offer_type !== 'products';
+    const sellsProducts = profile.offer_type !== 'services';
     const parsedBookingHoldMinutes = Number(
       bookingHoldMinutes.trim(),
     );
@@ -211,23 +241,29 @@ export default function BuddyServicesOperationScreen() {
     }
 
     if (
-      !Number.isInteger(parsedBookingHoldMinutes)
-      || parsedBookingHoldMinutes < 5
-      || parsedBookingHoldMinutes > 240
+      sellsServices
+      && (
+        !Number.isInteger(parsedBookingHoldMinutes)
+        || parsedBookingHoldMinutes < 5
+        || parsedBookingHoldMinutes > 240
+      )
     ) {
       setErrorMessage(
-        'El hold de reserva debe estar entre 5 y 240 minutos.',
+        'El tiempo de apartado de reservas debe estar entre 5 y 240 minutos.',
       );
       return;
     }
 
     if (
-      !Number.isInteger(parsedInventoryHoldMinutes)
-      || parsedInventoryHoldMinutes < 5
-      || parsedInventoryHoldMinutes > 240
+      sellsProducts
+      && (
+        !Number.isInteger(parsedInventoryHoldMinutes)
+        || parsedInventoryHoldMinutes < 5
+        || parsedInventoryHoldMinutes > 240
+      )
     ) {
       setErrorMessage(
-        'El hold de inventario debe estar entre 5 y 240 minutos.',
+        'El tiempo de apartado de inventario debe estar entre 5 y 240 minutos.',
       );
       return;
     }
@@ -275,8 +311,12 @@ export default function BuddyServicesOperationScreen() {
         {
           is_available: isAvailable,
           timezone: normalizedTimezone,
-          booking_hold_minutes: parsedBookingHoldMinutes,
-          inventory_hold_minutes: parsedInventoryHoldMinutes,
+          ...(sellsServices
+            ? { booking_hold_minutes: parsedBookingHoldMinutes }
+            : {}),
+          ...(sellsProducts
+            ? { inventory_hold_minutes: parsedInventoryHoldMinutes }
+            : {}),
           delivery_fee_mode: deliveryFeeMode,
           delivery_fee_amount: (
             deliveryFeeMode === 'fixed'
@@ -473,14 +513,13 @@ export default function BuddyServicesOperationScreen() {
               marginTop: 6,
             }}
           >
-            Estas reglas las aplica el backend en solicitudes,
-            reservas e inventario.
+            {operationPageIntro(profile.offer_type)}
           </Text>
 
           {errorMessage ? (
             <View
               accessibilityLiveRegion="polite"
-            accessibilityRole="alert"
+              accessibilityRole="alert"
               style={{
                 backgroundColor: '#FFF0F0',
                 borderColor: '#F7B2B2',
@@ -539,8 +578,9 @@ export default function BuddyServicesOperationScreen() {
                   marginTop: 3,
                 }}
               >
-                Si lo desactivas, no debería aceptar nuevas
-                solicitudes según las reglas del backend.
+                {isAvailable
+                  ? 'Tu negocio está visible y listo para recibir pedidos y solicitudes de clientes.'
+                  : 'Tu negocio no aceptará nuevas solicitudes ni compras mientras esté desactivado.'}
               </Text>
             </View>
 
@@ -552,89 +592,214 @@ export default function BuddyServicesOperationScreen() {
             />
           </View>
 
-          <Text
+          <View style={{ marginTop: 26 }}>
+            <Text
+              style={{
+                color: '#261743',
+                fontSize: 16,
+                fontWeight: '800',
+              }}
+            >
+              Zona horaria y tiempos de apartado
+            </Text>
+
+            <Text
+              style={{
+                color: '#786593',
+                fontSize: 13,
+                lineHeight: 19,
+                marginTop: 4,
+              }}
+            >
+              {operationHoldIntro(profile.offer_type)}
+            </Text>
+          </View>
+
+          {/* Campo: Zona horaria */}
+          <View
             style={{
-              color: '#261743',
-              fontSize: 15,
-              fontWeight: '800',
-              marginTop: 24,
+              backgroundColor: '#FFFFFF',
+              borderColor: '#E7DDF2',
+              borderRadius: 16,
+              borderWidth: 1,
+              marginTop: 14,
+              padding: 15,
             }}
           >
-            Zona horaria y holds
-          </Text>
+            <Text
+              style={{
+                color: '#261743',
+                fontSize: 14,
+                fontWeight: '800',
+              }}
+            >
+              Zona horaria
+            </Text>
 
-          <TextInput
-            accessibilityLabel="Zona horaria"
-            editable={!isSaving}
-            onChangeText={setTimezone}
-            placeholder="America/Bogota"
-            placeholderTextColor="#A692B7"
+            <Text
+              style={{
+                color: '#786593',
+                fontSize: 12,
+                lineHeight: 18,
+                marginTop: 4,
+                marginBottom: 10,
+              }}
+            >
+              Zona horaria local del negocio para sincronizar citas, horarios de atención y entregas.
+            </Text>
+
+            <TextInput
+              accessibilityLabel="Zona horaria"
+              editable={!isSaving}
+              onChangeText={setTimezone}
+              placeholder="America/Bogota"
+              placeholderTextColor="#A692B7"
+              style={{
+                backgroundColor: '#FAFAFD',
+                borderColor: '#DCCBEE',
+                borderRadius: 12,
+                borderWidth: 1,
+                color: '#261743',
+                fontSize: 14,
+                minHeight: 48,
+                paddingHorizontal: 13,
+              }}
+              value={timezone}
+            />
+          </View>
+
+          {profile.offer_type !== 'products' ? (
+          <View
             style={{
               backgroundColor: '#FFFFFF',
-              borderColor: '#DCCBEE',
-              borderRadius: 13,
+              borderColor: '#E7DDF2',
+              borderRadius: 16,
               borderWidth: 1,
-              color: '#261743',
-              fontSize: 14,
-              marginTop: 10,
-              minHeight: 48,
-              paddingHorizontal: 13,
-            }}
-            value={timezone}
-          />
-
-          <TextInput
-            accessibilityLabel="Minutos de hold de reserva"
-            editable={!isSaving}
-            keyboardType="number-pad"
-            onChangeText={setBookingHoldMinutes}
-            placeholder="30"
-            placeholderTextColor="#A692B7"
-            style={{
-              backgroundColor: '#FFFFFF',
-              borderColor: '#DCCBEE',
-              borderRadius: 13,
-              borderWidth: 1,
-              color: '#261743',
-              fontSize: 14,
-              marginTop: 10,
-              minHeight: 48,
-              paddingHorizontal: 13,
-            }}
-            value={bookingHoldMinutes}
-          />
-
-          <TextInput
-            accessibilityLabel="Minutos de hold de inventario"
-            editable={!isSaving}
-            keyboardType="number-pad"
-            onChangeText={setInventoryHoldMinutes}
-            placeholder="30"
-            placeholderTextColor="#A692B7"
-            style={{
-              backgroundColor: '#FFFFFF',
-              borderColor: '#DCCBEE',
-              borderRadius: 13,
-              borderWidth: 1,
-              color: '#261743',
-              fontSize: 14,
-              marginTop: 10,
-              minHeight: 48,
-              paddingHorizontal: 13,
-            }}
-            value={inventoryHoldMinutes}
-          />
-
-          <Text
-            style={{
-              color: '#261743',
-              fontSize: 15,
-              fontWeight: '800',
-              marginTop: 24,
+              marginTop: 12,
+              padding: 15,
             }}
           >
-            Domicilio
-          </Text>
+            <Text
+              style={{
+                color: '#261743',
+                fontSize: 14,
+                fontWeight: '800',
+              }}
+            >
+              Tiempo de apartado para reservas (minutos)
+            </Text>
+
+            <Text
+              style={{
+                color: '#786593',
+                fontSize: 12,
+                lineHeight: 18,
+                marginTop: 4,
+                marginBottom: 10,
+              }}
+            >
+              Minutos que se aparta el cupo o cita mientras el cliente completa y confirma su solicitud (entre 5 y 240 minutos). Si expira sin confirmarse, el cupo vuelve a quedar libre.
+            </Text>
+
+            <TextInput
+              accessibilityLabel="Minutos de apartado de reserva"
+              editable={!isSaving}
+              keyboardType="number-pad"
+              onChangeText={setBookingHoldMinutes}
+              placeholder="30"
+              placeholderTextColor="#A692B7"
+              style={{
+                backgroundColor: '#FAFAFD',
+                borderColor: '#DCCBEE',
+                borderRadius: 12,
+                borderWidth: 1,
+                color: '#261743',
+                fontSize: 14,
+                minHeight: 48,
+                paddingHorizontal: 13,
+              }}
+              value={bookingHoldMinutes}
+            />
+          </View>
+          ) : null}
+
+          {profile.offer_type !== 'services' ? (
+          <View
+            style={{
+              backgroundColor: '#FFFFFF',
+              borderColor: '#E7DDF2',
+              borderRadius: 16,
+              borderWidth: 1,
+              marginTop: 12,
+              padding: 15,
+            }}
+          >
+            <Text
+              style={{
+                color: '#261743',
+                fontSize: 14,
+                fontWeight: '800',
+              }}
+            >
+              Tiempo de apartado de inventario (minutos)
+            </Text>
+
+            <Text
+              style={{
+                color: '#786593',
+                fontSize: 12,
+                lineHeight: 18,
+                marginTop: 4,
+                marginBottom: 10,
+              }}
+            >
+              Minutos que se retiene el stock de tus productos durante el proceso de compra antes de liberarlo si no se finaliza la compra (entre 5 y 240 minutos).
+            </Text>
+
+            <TextInput
+              accessibilityLabel="Minutos de apartado de inventario"
+              editable={!isSaving}
+              keyboardType="number-pad"
+              onChangeText={setInventoryHoldMinutes}
+              placeholder="30"
+              placeholderTextColor="#A692B7"
+              style={{
+                backgroundColor: '#FAFAFD',
+                borderColor: '#DCCBEE',
+                borderRadius: 12,
+                borderWidth: 1,
+                color: '#261743',
+                fontSize: 14,
+                minHeight: 48,
+                paddingHorizontal: 13,
+              }}
+              value={inventoryHoldMinutes}
+            />
+          </View>
+          ) : null}
+
+          <View style={{ marginTop: 26 }}>
+            <Text
+              style={{
+                color: '#261743',
+                fontSize: 16,
+                fontWeight: '800',
+              }}
+            >
+              Opciones de domicilio y entrega
+            </Text>
+
+            <Text
+              style={{
+                color: '#786593',
+                fontSize: 13,
+                lineHeight: 19,
+                marginTop: 4,
+              }}
+            >
+              Define cómo entregas tus productos o si prestas servicios a domicilio.
+            </Text>
+          </View>
 
           <View
             style={{
@@ -704,53 +869,85 @@ export default function BuddyServicesOperationScreen() {
           {deliveryFeeMode === 'fixed' ? (
             <View
               style={{
-                flexDirection: 'row',
-                gap: 10,
+                backgroundColor: '#FFFFFF',
+                borderColor: '#E7DDF2',
+                borderRadius: 16,
+                borderWidth: 1,
                 marginTop: 12,
+                padding: 15,
               }}
             >
-              <TextInput
-                accessibilityLabel="Costo fijo de domicilio"
-                editable={!isSaving}
-                keyboardType="number-pad"
-                onChangeText={setDeliveryFeeAmount}
-                placeholder="Ejemplo: 8000"
-                placeholderTextColor="#A692B7"
+              <Text
                 style={{
-                  backgroundColor: '#FFFFFF',
-                  borderColor: '#DCCBEE',
-                  borderRadius: 13,
-                  borderWidth: 1,
                   color: '#261743',
-                  flex: 0.7,
                   fontSize: 14,
-                  minHeight: 48,
-                  paddingHorizontal: 13,
+                  fontWeight: '800',
                 }}
-                value={deliveryFeeAmount}
-              />
+              >
+                Costo fijo de entrega
+              </Text>
 
-              <TextInput
-                accessibilityLabel="Moneda del domicilio"
-                autoCapitalize="characters"
-                editable={!isSaving}
-                maxLength={3}
-                onChangeText={setDeliveryCurrencyCode}
-                placeholder="COP"
-                placeholderTextColor="#A692B7"
+              <Text
                 style={{
-                  backgroundColor: '#FFFFFF',
-                  borderColor: '#DCCBEE',
-                  borderRadius: 13,
-                  borderWidth: 1,
-                  color: '#261743',
-                  flex: 0.3,
-                  fontSize: 14,
-                  minHeight: 48,
-                  paddingHorizontal: 13,
+                  color: '#786593',
+                  fontSize: 12,
+                  lineHeight: 18,
+                  marginTop: 4,
+                  marginBottom: 10,
                 }}
-                value={deliveryCurrencyCode}
-              />
+              >
+                Monto que se sumará al total de la compra por concepto de envío.
+              </Text>
+
+              <View
+                style={{
+                  flexDirection: 'row',
+                  gap: 10,
+                }}
+              >
+                <TextInput
+                  accessibilityLabel="Costo fijo de domicilio"
+                  editable={!isSaving}
+                  keyboardType="number-pad"
+                  onChangeText={setDeliveryFeeAmount}
+                  placeholder="Ejemplo: 8000"
+                  placeholderTextColor="#A692B7"
+                  style={{
+                    backgroundColor: '#FAFAFD',
+                    borderColor: '#DCCBEE',
+                    borderRadius: 12,
+                    borderWidth: 1,
+                    color: '#261743',
+                    flex: 0.7,
+                    fontSize: 14,
+                    minHeight: 48,
+                    paddingHorizontal: 13,
+                  }}
+                  value={deliveryFeeAmount}
+                />
+
+                <TextInput
+                  accessibilityLabel="Moneda del domicilio"
+                  autoCapitalize="characters"
+                  editable={!isSaving}
+                  maxLength={3}
+                  onChangeText={setDeliveryCurrencyCode}
+                  placeholder="COP"
+                  placeholderTextColor="#A692B7"
+                  style={{
+                    backgroundColor: '#FAFAFD',
+                    borderColor: '#DCCBEE',
+                    borderRadius: 12,
+                    borderWidth: 1,
+                    color: '#261743',
+                    flex: 0.3,
+                    fontSize: 14,
+                    minHeight: 48,
+                    paddingHorizontal: 13,
+                  }}
+                  value={deliveryCurrencyCode}
+                />
+              </View>
             </View>
           ) : null}
 
@@ -759,13 +956,13 @@ export default function BuddyServicesOperationScreen() {
             accessibilityRole="button"
             accessibilityState={{
               busy: isSaving,
-disabled: isSaving,
-}}
-activeOpacity={0.82}
-disabled={isSaving}
-onPress={() => {
-void save();
-}}
+              disabled: isSaving,
+            }}
+            activeOpacity={0.82}
+            disabled={isSaving}
+            onPress={() => {
+              void save();
+            }}
             style={{
               alignItems: 'center',
               backgroundColor: '#7427D5',

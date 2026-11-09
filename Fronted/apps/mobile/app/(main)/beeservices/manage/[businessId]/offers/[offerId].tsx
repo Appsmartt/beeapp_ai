@@ -28,10 +28,12 @@ import {
   RotateCcw,
   Save,
   Star,
+  Trash2,
 } from 'lucide-react-native';
 import {
   useCallback,
   useEffect,
+  useRef,
   useState,
 } from 'react';
 import * as ImagePicker from 'expo-image-picker';
@@ -53,13 +55,15 @@ import {
   toCommercialUiError,
 } from '../../../../../../src/features/buddyservices/commercialErrors';
 import {
+  useDeleteOwnedOffer,
+} from '../../../../../../src/features/buddyservices/useDeleteOwnedOffer';
+import {
   archiveOwnedOffer,
   createOwnedOfferImage,
   deleteOwnedOfferImage,
   disableOwnedOffer,
   enableOwnedOffer,
   loadOwnedCommercialOffer,
-  loadOwnedCommercialProfile,
   pauseOwnedOffer,
   publishOwnedOffer,
   restoreOwnedOffer,
@@ -107,7 +111,10 @@ type ImageActionConfirmation = {
 type OfferEditor = {
   basePriceAmount: string;
   description: string;
+  discountedPriceAmount: string;
+  discountPercent: string;
   durationMinutes: string;
+  hasDiscount: boolean;
   paymentPolicy:
     | 'not_required'
     | 'required_before_confirmation'
@@ -125,17 +132,68 @@ type OfferEditor = {
   trackInventory: boolean;
 };
 
+const PRODUCT_MODALITIES: CommercialModality[] = [
+  'delivery',
+  'pickup',
+  'at_establishment',
+  'in_person',
+  'buddy_chat',
+  'phone_call',
+];
+
+const SERVICE_MODALITIES: CommercialModality[] = [
+  'at_establishment',
+  'in_person',
+  'home_visit',
+  'virtual',
+  'buddy_chat',
+  'phone_call',
+];
+
+function formatCopAmount(amount: number): string {
+  return new Intl.NumberFormat('es-CO', {
+    currency: 'COP',
+    maximumFractionDigits: 0,
+    style: 'currency',
+  }).format(amount);
+}
+
 function createOfferEditor(
   offer: CommercialOwnedOffer,
 ): OfferEditor {
+  const hasActiveDiscount = Boolean(
+    offer.original_price_amount !== null
+    && offer.original_price_amount !== undefined
+    && offer.base_price_amount !== null
+    && offer.original_price_amount > offer.base_price_amount,
+  );
+  const originalBase = hasActiveDiscount
+    ? offer.original_price_amount!
+    : offer.base_price_amount;
+  const computedPercent = hasActiveDiscount && originalBase
+    ? (
+      offer.discount_percent
+      ?? Math.round(
+        ((originalBase - offer.base_price_amount!) / originalBase) * 100,
+      )
+    )
+    : null;
+
   return {
-    basePriceAmount: offer.base_price_amount === null
+    basePriceAmount: originalBase === null || originalBase === undefined
       ? ''
-      : String(offer.base_price_amount),
+      : String(originalBase),
     description: offer.description || '',
+    discountedPriceAmount: hasActiveDiscount && offer.base_price_amount !== null
+      ? String(offer.base_price_amount)
+      : '',
+    discountPercent: computedPercent !== null
+      ? String(computedPercent)
+      : '',
     durationMinutes: offer.duration_minutes === null
       ? ''
       : String(offer.duration_minutes),
+    hasDiscount: hasActiveDiscount,
     paymentPolicy: offer.payment_policy || 'to_be_agreed',
     pricingStrategy: offer.pricing_strategy,
     requiresBooking: offer.requires_booking,
@@ -198,8 +256,8 @@ function actionCopy(
     return {
       title: 'Publicar oferta',
       description: (
-        'La oferta quedará visible solo si cumple '
-        + 'las reglas de publicación del backend.'
+        'La oferta quedará visible para tus clientes '
+        + 'según las condiciones del negocio.'
       ),
       confirmLabel: 'Publicar',
       color: '#177245',
@@ -247,7 +305,7 @@ function actionCopy(
       title: 'Habilitar disponibilidad',
       description: (
         'La oferta podrá aceptar nuevas solicitudes '
-        + 'si su estado y reglas del backend lo permiten.'
+        + 'si su estado y configuración lo permiten.'
       ),
       confirmLabel: 'Habilitar',
       color: '#177245',
@@ -277,8 +335,7 @@ function imageActionCopy(
     return {
       title: 'Usar como imagen principal',
       description: (
-        'Esta imagen será la principal de la oferta. '
-        + 'El backend garantiza una única imagen principal activa.'
+        'Esta imagen será la principal de la oferta visible para los clientes.'
       ),
       confirmLabel: 'Marcar principal',
       color: '#7427D5',
@@ -303,11 +360,14 @@ export default function BuddyServicesManageOfferScreen() {
     businessId?: string | string[];
     offerId?: string | string[];
     notice?: string | string[];
+    mode?: string | string[];
   };
 
   const businessId = getParam(params.businessId);
   const offerId = getParam(params.offerId);
   const recoveryNotice = getParam(params.notice);
+  const initialMode = getParam(params.mode);
+  const initialModeApplied = useRef(false);
 
   const [offer, setOffer] = useState<
     CommercialOwnedOffer | null
@@ -318,9 +378,6 @@ export default function BuddyServicesManageOfferScreen() {
   const [isEditing, setIsEditing] = useState(false);
   const [editor, setEditor] = useState<OfferEditor | null>(null);
   const [inventoryDelta, setInventoryDelta] = useState('1');
-  const [enabledModalities, setEnabledModalities] = useState<
-    CommercialModality[]
-  >([]);
   const [errorMessage, setErrorMessage] = useState<
     string | null
   >(null);
@@ -332,6 +389,24 @@ export default function BuddyServicesManageOfferScreen() {
     imageActionConfirmation,
     setImageActionConfirmation,
   ] = useState<ImageActionConfirmation>(null);
+
+  const deleteFlow = useDeleteOwnedOffer({
+    onDeleted: () => {
+      if (router.canGoBack) {
+        router.back();
+        return;
+      }
+
+      router.replace({
+        pathname: '/(main)/beeservices/manage/[businessId]/offers',
+        params: {
+          businessId,
+        },
+      });
+    },
+  });
+
+  const { checkStatus: checkDeleteStatus } = deleteFlow;
 
   const loadOffer = useCallback(async () => {
     if (!businessId || !offerId) {
@@ -346,42 +421,27 @@ export default function BuddyServicesManageOfferScreen() {
     setErrorMessage(null);
 
     try {
-      const [
-        offerResponse,
-        profileResponse,
-      ] = await Promise.all([
-        loadOwnedCommercialOffer(
-          businessId,
-          offerId,
-        ),
-        loadOwnedCommercialProfile(businessId),
-      ]);
-
-      const activeModalities = profileResponse.profile.modalities
-        .filter((record) => record.status !== 'archived')
-        .map((record) => record.modality);
+      const offerResponse = await loadOwnedCommercialOffer(
+        businessId,
+        offerId,
+      );
 
       const nextEditor = createOfferEditor(offerResponse.offer);
 
       setOffer(offerResponse.offer);
-      setEnabledModalities(activeModalities);
-      setEditor({
-        ...nextEditor,
-        selectedModalities: nextEditor.selectedModalities.filter(
-          (modality) => activeModalities.includes(modality),
-        ),
-      });
+      setEditor(nextEditor);
+      void checkDeleteStatus(businessId, offerResponse.offer.id);
     } catch (error) {
       const uiError = toCommercialUiError(error);
 
       setErrorMessage(uiError.message);
-      setEnabledModalities([]);
       setOffer(null);
     } finally {
       setIsLoading(false);
     }
   }, [
     businessId,
+    checkDeleteStatus,
     offerId,
   ]);
 
@@ -405,6 +465,18 @@ export default function BuddyServicesManageOfferScreen() {
     setErrorMessage(null);
     setIsEditing(true);
   }, [offer]);
+
+  useEffect(() => {
+    if (
+      offer
+      && offer.status !== 'archived'
+      && (initialMode === 'edit' || initialMode === 'editar')
+      && !initialModeApplied.current
+    ) {
+      initialModeApplied.current = true;
+      startEditing();
+    }
+  }, [initialMode, offer, startEditing]);
 
   const cancelEditing = useCallback(() => {
     if (offer) {
@@ -433,6 +505,8 @@ export default function BuddyServicesManageOfferScreen() {
       || editor.pricingStrategy === 'starting_at'
     );
     const parsedPrice = Number(editor.basePriceAmount);
+    const parsedDiscountedPrice = Number(editor.discountedPriceAmount);
+    const parsedDiscountPercent = Number(editor.discountPercent);
     const parsedStock = Number(editor.stockQuantity);
     const parsedDuration = Number(editor.durationMinutes);
 
@@ -452,6 +526,30 @@ export default function BuddyServicesManageOfferScreen() {
         'Escribe un valor entero igual o mayor que cero.',
       );
       return;
+    }
+
+    if (requiresPrice && editor.hasDiscount) {
+      if (
+        !Number.isInteger(parsedDiscountedPrice)
+        || parsedDiscountedPrice < 0
+        || parsedDiscountedPrice >= parsedPrice
+      ) {
+        setErrorMessage(
+          'El precio final con descuento debe ser menor al precio original.',
+        );
+        return;
+      }
+
+      if (
+        !Number.isInteger(parsedDiscountPercent)
+        || parsedDiscountPercent < 1
+        || parsedDiscountPercent > 99
+      ) {
+        setErrorMessage(
+          'El porcentaje de descuento debe estar entre 1% y 99%.',
+        );
+        return;
+      }
     }
 
     if (
@@ -482,16 +580,30 @@ export default function BuddyServicesManageOfferScreen() {
       return;
     }
 
+    const compatibleModalities = offer.offer_kind === 'product'
+      ? PRODUCT_MODALITIES
+      : SERVICE_MODALITIES;
+
     const validModalities = editor.selectedModalities.filter(
-      (modality) => enabledModalities.includes(modality),
+      (modality) => compatibleModalities.includes(modality),
     );
 
     if (validModalities.length === 0) {
       setErrorMessage(
-        'Selecciona al menos una modalidad activa del negocio.',
+        'Selecciona al menos una modalidad disponible.',
       );
       return;
     }
+
+    const effectivePrice = requiresPrice
+      ? (editor.hasDiscount ? parsedDiscountedPrice : parsedPrice)
+      : null;
+    const originalPrice = requiresPrice && editor.hasDiscount
+      ? parsedPrice
+      : null;
+    const discountPercentValue = requiresPrice && editor.hasDiscount
+      ? parsedDiscountPercent
+      : null;
 
     setIsSaving(true);
     setErrorMessage(null);
@@ -504,9 +616,9 @@ export default function BuddyServicesManageOfferScreen() {
           title,
           description: description || null,
           pricing_strategy: editor.pricingStrategy,
-          base_price_amount: requiresPrice
-            ? parsedPrice
-            : null,
+          base_price_amount: effectivePrice,
+          original_price_amount: originalPrice,
+          discount_percent: discountPercentValue,
           track_inventory: offer.offer_kind === 'product'
             ? editor.trackInventory
             : false,
@@ -556,7 +668,6 @@ export default function BuddyServicesManageOfferScreen() {
   }, [
     businessId,
     editor,
-    enabledModalities,
     loadOffer,
     offer,
   ]);
@@ -958,11 +1069,17 @@ export default function BuddyServicesManageOfferScreen() {
         }}
       >
         <TouchableOpacity
-          accessibilityLabel="Volver a productos y servicios"
+          accessibilityLabel={isEditing ? 'Cancelar edición' : 'Volver a productos y servicios'}
           accessibilityRole="button"
           activeOpacity={0.8}
           disabled={isSaving || isUploadingImage}
-          onPress={() => router.back()}
+          onPress={() => {
+            if (isEditing) {
+              cancelEditing();
+            } else {
+              router.back();
+            }
+          }}
           style={{
             alignItems: 'center',
             backgroundColor: '#F4EDF9',
@@ -986,7 +1103,9 @@ export default function BuddyServicesManageOfferScreen() {
             fontWeight: '800',
           }}
         >
-          Oferta
+          {isEditing
+            ? (offer?.offer_kind === 'product' ? 'Editar producto' : 'Editar servicio')
+            : (offer?.offer_kind === 'product' ? 'Producto' : offer?.offer_kind === 'service' ? 'Servicio' : 'Oferta')}
         </Text>
 
         <View
@@ -1385,7 +1504,9 @@ export default function BuddyServicesManageOfferScreen() {
                         marginBottom: 6,
                       }}
                     >
-                      Valor en pesos colombianos
+                      {editor.hasDiscount
+                        ? 'Precio original antes del descuento (COP)'
+                        : 'Valor en pesos colombianos'}
                     </Text>
 
                     <TextInput
@@ -1394,12 +1515,37 @@ export default function BuddyServicesManageOfferScreen() {
                       keyboardType="number-pad"
                       maxLength={14}
                       onChangeText={(value) => {
-                        setEditor((current) => current
-                          ? {
-                            ...current,
-                            basePriceAmount: value.replace(/[^0-9]/g, ''),
+                        const cleanBase = value.replace(/[^0-9]/g, '');
+
+                        setEditor((current) => {
+                          if (!current) {
+                            return current;
                           }
-                          : current);
+
+                          const baseNum = Number(cleanBase);
+                          const pctNum = Number(current.discountPercent);
+                          let nextDiscounted = current.discountedPriceAmount;
+
+                          if (
+                            current.hasDiscount
+                            && baseNum > 0
+                            && pctNum >= 1
+                            && pctNum <= 99
+                          ) {
+                            nextDiscounted = String(
+                              Math.max(
+                                0,
+                                Math.round(baseNum * (1 - pctNum / 100)),
+                              ),
+                            );
+                          }
+
+                          return {
+                            ...current,
+                            basePriceAmount: cleanBase,
+                            discountedPriceAmount: nextDiscounted,
+                          };
+                        });
                       }}
                       placeholder="0"
                       placeholderTextColor="#A89AB9"
@@ -1416,6 +1562,377 @@ export default function BuddyServicesManageOfferScreen() {
                       }}
                       value={editor.basePriceAmount}
                     />
+
+                    <View
+                      style={{
+                        backgroundColor: '#F9F6FC',
+                        borderColor: '#E7DDF2',
+                        borderRadius: 14,
+                        borderWidth: 1,
+                        marginTop: 12,
+                        padding: 12,
+                      }}
+                    >
+                      <View
+                        style={{
+                          alignItems: 'center',
+                          flexDirection: 'row',
+                          justifyContent: 'space-between',
+                        }}
+                      >
+                        <View style={{ flex: 1, paddingRight: 10 }}>
+                          <Text
+                            style={{
+                              color: '#4E3B68',
+                              fontSize: 13,
+                              fontWeight: '900',
+                            }}
+                          >
+                            ¿Tiene descuento?
+                          </Text>
+
+                          <Text
+                            style={{
+                              color: '#786593',
+                              fontSize: 12,
+                              marginTop: 2,
+                            }}
+                          >
+                            Muestra el precio anterior tachado y el % de ahorro.
+                          </Text>
+                        </View>
+
+                        <Switch
+                          accessibilityLabel="Activar descuento"
+                          disabled={isSaving}
+                          onValueChange={(value) => {
+                            setEditor((current) => {
+                              if (!current) {
+                                return current;
+                              }
+
+                              if (!value) {
+                                return {
+                                  ...current,
+                                  hasDiscount: false,
+                                };
+                              }
+
+                              const baseNum = Number(current.basePriceAmount);
+                              const defaultPct = current.discountPercent || '10';
+                              const pctNum = Number(defaultPct);
+                              const computedDiscounted = baseNum > 0 && pctNum > 0
+                                ? String(
+                                  Math.max(
+                                    0,
+                                    Math.round(baseNum * (1 - pctNum / 100)),
+                                  ),
+                                )
+                                : current.discountedPriceAmount;
+
+                              return {
+                                ...current,
+                                discountPercent: defaultPct,
+                                discountedPriceAmount: computedDiscounted,
+                                hasDiscount: true,
+                              };
+                            });
+                          }}
+                          thumbColor={editor.hasDiscount ? '#7427D5' : '#FFFFFF'}
+                          trackColor={{
+                            false: '#DCCDED',
+                            true: '#D6B8F5',
+                          }}
+                          value={editor.hasDiscount}
+                        />
+                      </View>
+
+                      {editor.hasDiscount ? (
+                        <View style={{ marginTop: 12 }}>
+                          <View
+                            style={{
+                              flexDirection: 'row',
+                              flexWrap: 'wrap',
+                              gap: 6,
+                              marginBottom: 10,
+                            }}
+                          >
+                            {[10, 15, 20, 30, 50].map((preset) => {
+                              const isPresetSelected = (
+                                Number(editor.discountPercent) === preset
+                              );
+
+                              return (
+                                <TouchableOpacity
+                                  key={preset}
+                                  accessibilityRole="button"
+                                  activeOpacity={0.82}
+                                  disabled={isSaving}
+                                  onPress={() => {
+                                    setEditor((current) => {
+                                      if (!current) {
+                                        return current;
+                                      }
+
+                                      const baseNum = Number(
+                                        current.basePriceAmount,
+                                      );
+                                      const nextDiscounted = baseNum > 0
+                                        ? String(
+                                          Math.max(
+                                            0,
+                                            Math.round(
+                                              baseNum * (1 - preset / 100),
+                                            ),
+                                          ),
+                                        )
+                                        : '';
+
+                                      return {
+                                        ...current,
+                                        discountPercent: String(preset),
+                                        discountedPriceAmount: nextDiscounted,
+                                      };
+                                    });
+                                  }}
+                                  style={{
+                                    backgroundColor: isPresetSelected
+                                      ? '#7427D5'
+                                      : '#FFFFFF',
+                                    borderColor: isPresetSelected
+                                      ? '#7427D5'
+                                      : '#DCCDED',
+                                    borderRadius: 999,
+                                    borderWidth: 1,
+                                    paddingHorizontal: 10,
+                                    paddingVertical: 5,
+                                  }}
+                                >
+                                  <Text
+                                    style={{
+                                      color: isPresetSelected
+                                        ? '#FFFFFF'
+                                        : '#54209E',
+                                      fontSize: 11,
+                                      fontWeight: '800',
+                                    }}
+                                  >
+                                    -{preset}%
+                                  </Text>
+                                </TouchableOpacity>
+                              );
+                            })}
+                          </View>
+
+                          <View style={{ flexDirection: 'row', gap: 10 }}>
+                            <View style={{ flex: 1 }}>
+                              <Text
+                                style={{
+                                  color: '#786593',
+                                  fontSize: 11,
+                                  fontWeight: '700',
+                                  marginBottom: 5,
+                                }}
+                              >
+                                Descuento (%)
+                              </Text>
+
+                              <TextInput
+                                accessibilityLabel="Porcentaje de descuento"
+                                editable={!isSaving}
+                                keyboardType="number-pad"
+                                maxLength={2}
+                                onChangeText={(value) => {
+                                  const cleanPct = value.replace(/[^0-9]/g, '');
+
+                                  setEditor((current) => {
+                                    if (!current) {
+                                      return current;
+                                    }
+
+                                    const baseNum = Number(
+                                      current.basePriceAmount,
+                                    );
+                                    const pctNum = Number(cleanPct);
+                                    const nextDiscounted = (
+                                      baseNum > 0 && pctNum >= 1 && pctNum <= 99
+                                    )
+                                      ? String(
+                                        Math.max(
+                                          0,
+                                          Math.round(
+                                            baseNum * (1 - pctNum / 100),
+                                          ),
+                                        ),
+                                      )
+                                      : '';
+
+                                    return {
+                                      ...current,
+                                      discountPercent: cleanPct,
+                                      discountedPriceAmount: nextDiscounted,
+                                    };
+                                  });
+                                }}
+                                placeholder="15"
+                                placeholderTextColor="#A89AB9"
+                                style={{
+                                  backgroundColor: '#FFFFFF',
+                                  borderColor: '#DCCDED',
+                                  borderRadius: 12,
+                                  borderWidth: 1,
+                                  color: '#261743',
+                                  fontSize: 15,
+                                  fontWeight: '800',
+                                  minHeight: 44,
+                                  paddingHorizontal: 12,
+                                }}
+                                value={editor.discountPercent}
+                              />
+                            </View>
+
+                            <View style={{ flex: 1.4 }}>
+                              <Text
+                                style={{
+                                  color: '#786593',
+                                  fontSize: 11,
+                                  fontWeight: '700',
+                                  marginBottom: 5,
+                                }}
+                              >
+                                Precio final con descuento
+                              </Text>
+
+                              <TextInput
+                                accessibilityLabel="Precio final con descuento"
+                                editable={!isSaving}
+                                keyboardType="number-pad"
+                                maxLength={14}
+                                onChangeText={(value) => {
+                                  const cleanFinal = value.replace(
+                                    /[^0-9]/g,
+                                    '',
+                                  );
+
+                                  setEditor((current) => {
+                                    if (!current) {
+                                      return current;
+                                    }
+
+                                    const baseNum = Number(
+                                      current.basePriceAmount,
+                                    );
+                                    const finalNum = Number(cleanFinal);
+                                    const nextPct = (
+                                      baseNum > 0
+                                      && cleanFinal !== ''
+                                      && finalNum >= 0
+                                      && finalNum < baseNum
+                                    )
+                                      ? String(
+                                        Math.min(
+                                          99,
+                                          Math.max(
+                                            1,
+                                            Math.round(
+                                              ((baseNum - finalNum) / baseNum)
+                                              * 100,
+                                            ),
+                                          ),
+                                        ),
+                                      )
+                                      : current.discountPercent;
+
+                                    return {
+                                      ...current,
+                                      discountedPriceAmount: cleanFinal,
+                                      discountPercent: nextPct,
+                                    };
+                                  });
+                                }}
+                                placeholder="0"
+                                placeholderTextColor="#A89AB9"
+                                style={{
+                                  backgroundColor: '#FFFFFF',
+                                  borderColor: '#DCCDED',
+                                  borderRadius: 12,
+                                  borderWidth: 1,
+                                  color: '#261743',
+                                  fontSize: 15,
+                                  fontWeight: '800',
+                                  minHeight: 44,
+                                  paddingHorizontal: 12,
+                                }}
+                                value={editor.discountedPriceAmount}
+                              />
+                            </View>
+                          </View>
+
+                          {Number(editor.basePriceAmount) > 0
+                          && Number(editor.discountedPriceAmount) > 0
+                          && Number(editor.discountedPriceAmount)
+                            < Number(editor.basePriceAmount) ? (
+                              <View
+                                style={{
+                                  alignItems: 'center',
+                                  backgroundColor: '#EDF9F0',
+                                  borderColor: '#B9E6C9',
+                                  borderRadius: 11,
+                                  borderWidth: 1,
+                                  flexDirection: 'row',
+                                  flexWrap: 'wrap',
+                                  gap: 8,
+                                  marginTop: 10,
+                                  paddingHorizontal: 11,
+                                  paddingVertical: 8,
+                                }}
+                              >
+                                <Text
+                                  style={{
+                                    color: '#8D7BA6',
+                                    fontSize: 12,
+                                    fontWeight: '700',
+                                    textDecorationLine: 'line-through',
+                                  }}
+                                >
+                                  Antes {formatCopAmount(Number(editor.basePriceAmount))}
+                                </Text>
+
+                                <Text
+                                  style={{
+                                    color: '#177245',
+                                    fontSize: 14,
+                                    fontWeight: '900',
+                                  }}
+                                >
+                                  Ahora {formatCopAmount(Number(editor.discountedPriceAmount))}
+                                </Text>
+
+                                {Number(editor.discountPercent) > 0 ? (
+                                  <View
+                                    style={{
+                                      backgroundColor: '#177245',
+                                      borderRadius: 999,
+                                      paddingHorizontal: 8,
+                                      paddingVertical: 2,
+                                    }}
+                                  >
+                                    <Text
+                                      style={{
+                                        color: '#FFFFFF',
+                                        fontSize: 10,
+                                        fontWeight: '900',
+                                      }}
+                                    >
+                                      {editor.discountPercent}% OFF
+                                    </Text>
+                                  </View>
+                                ) : null}
+                              </View>
+                            ) : null}
+                        </View>
+                      ) : null}
+                    </View>
                   </View>
                 ) : null}
 
@@ -1969,9 +2486,10 @@ export default function BuddyServicesManageOfferScreen() {
                         label: 'Chat Buddy AI',
                       },
                     ].filter((modality) => (
-                      enabledModalities.includes(
-                        modality.id as CommercialModality,
-                      )
+                      (offer.offer_kind === 'product'
+                        ? PRODUCT_MODALITIES
+                        : SERVICE_MODALITIES
+                      ).includes(modality.id as CommercialModality)
                     )).map((modality) => {
                       const selectedModality = (
                         modality.id as CommercialModality
@@ -2041,19 +2559,6 @@ export default function BuddyServicesManageOfferScreen() {
                       );
                     })}
                   </View>
-
-                  {enabledModalities.length === 0 ? (
-                    <Text
-                      style={{
-                        color: '#9A5B00',
-                        fontSize: 12,
-                        lineHeight: 18,
-                        marginTop: 12,
-                      }}
-                    >
-                      Configura modalidades activas en el perfil del negocio antes de asignarlas a esta oferta.
-                    </Text>
-                  ) : null}
                 </View>
 
                 <View
@@ -2164,16 +2669,70 @@ export default function BuddyServicesManageOfferScreen() {
                   </Text>
                 ) : null}
 
-                <Text
+                <View
                   style={{
-                    color: '#4E3B68',
-                    fontSize: 17,
-                    fontWeight: '900',
+                    alignItems: 'center',
+                    flexDirection: 'row',
+                    flexWrap: 'wrap',
+                    gap: 8,
                     marginTop: 17,
                   }}
                 >
-                  {priceCopy(offer)}
-                </Text>
+                  {offer.original_price_amount !== null
+                  && offer.original_price_amount !== undefined
+                  && offer.base_price_amount !== null
+                  && offer.original_price_amount > offer.base_price_amount ? (
+                    <Text
+                      style={{
+                        color: '#9C8AB4',
+                        fontSize: 14,
+                        fontWeight: '700',
+                        textDecorationLine: 'line-through',
+                      }}
+                    >
+                      {formatCopAmount(offer.original_price_amount)}
+                    </Text>
+                  ) : null}
+
+                  <Text
+                    style={{
+                      color: '#4E3B68',
+                      fontSize: 17,
+                      fontWeight: '900',
+                    }}
+                  >
+                    {priceCopy(offer)}
+                  </Text>
+
+                  {offer.original_price_amount !== null
+                  && offer.original_price_amount !== undefined
+                  && offer.base_price_amount !== null
+                  && offer.original_price_amount > offer.base_price_amount ? (
+                    <View
+                      style={{
+                        backgroundColor: '#E8F7EE',
+                        borderRadius: 999,
+                        paddingHorizontal: 9,
+                        paddingVertical: 3,
+                      }}
+                    >
+                      <Text
+                        style={{
+                          color: '#177245',
+                          fontSize: 11,
+                          fontWeight: '900',
+                        }}
+                      >
+                        -
+                        {offer.discount_percent ?? Math.round(
+                          ((offer.original_price_amount - offer.base_price_amount)
+                            / offer.original_price_amount) * 100,
+                        )}
+                        % OFF
+                      </Text>
+                    </View>
+                  ) : null}
+                </View>
               </View>
             )}
           </View>
@@ -2759,7 +3318,212 @@ export default function BuddyServicesManageOfferScreen() {
               </TouchableOpacity>
             ) : null}
           </View>
+
+          <View
+            style={{
+              backgroundColor:
+                deleteFlow.state === 'blocked' ? '#F8FAFC' : '#FEF2F2',
+              borderColor:
+                deleteFlow.state === 'blocked' ? '#E2E8F0' : '#FECACA',
+              borderRadius: 16,
+              borderWidth: 1,
+              marginTop: 22,
+              padding: 16,
+            }}
+          >
+            <Text
+              style={{
+                color:
+                  deleteFlow.state === 'blocked' ? '#475569' : '#991B1B',
+                fontSize: 13,
+                fontWeight: '800',
+                letterSpacing: 0.3,
+                textTransform: 'uppercase',
+              }}
+            >
+              Zona de peligro
+            </Text>
+
+            <Text
+              style={{
+                color:
+                  deleteFlow.state === 'blocked' ? '#64748B' : '#7F1D1D',
+                fontSize: 13,
+                lineHeight: 19,
+                marginTop: 6,
+              }}
+            >
+              {deleteFlow.state === 'blocked'
+                ? `${deleteFlow.description} Los ${offer.offer_kind === 'product' ? 'productos' : 'servicios'} con actividad previa no se pueden borrar para conservar el historial de clientes.`
+                : `Puedes eliminar este ${offer.offer_kind === 'product' ? 'producto' : 'servicio'} de forma permanente mientras no se haya usado antes en chats, compras o solicitudes.`}
+            </Text>
+
+            <TouchableOpacity
+              accessibilityLabel={`Eliminar ${offer.title}`}
+              accessibilityRole="button"
+              accessibilityState={{
+                disabled:
+                  isSaving
+                  || isUploadingImage
+                  || deleteFlow.deleting
+                  || deleteFlow.state === 'checking'
+                  || deleteFlow.state === 'blocked',
+              }}
+              activeOpacity={0.82}
+              disabled={
+                isSaving
+                || isUploadingImage
+                || deleteFlow.deleting
+                || deleteFlow.state === 'checking'
+              }
+              onPress={() => {
+                void deleteFlow.requestDelete(offer);
+              }}
+              style={{
+                alignItems: 'center',
+                backgroundColor:
+                  deleteFlow.state === 'blocked' ? '#E2E8F0' : '#FFFFFF',
+                borderColor:
+                  deleteFlow.state === 'blocked' ? '#CBD5E1' : '#FCA5A5',
+                borderRadius: 13,
+                borderWidth: 1,
+                flexDirection: 'row',
+                justifyContent: 'center',
+                marginTop: 14,
+                minHeight: 46,
+                opacity:
+                  isSaving
+                  || isUploadingImage
+                  || deleteFlow.deleting
+                  || deleteFlow.state === 'checking'
+                    ? 0.65
+                    : 1,
+                paddingHorizontal: 16,
+              }}
+            >
+              {deleteFlow.deleting || deleteFlow.state === 'checking' ? (
+                <ActivityIndicator
+                  color={
+                    deleteFlow.state === 'blocked' ? '#64748B' : '#DC2626'
+                  }
+                  size="small"
+                />
+              ) : (
+                <Trash2
+                  color={
+                    deleteFlow.state === 'blocked' ? '#64748B' : '#DC2626'
+                  }
+                  size={18}
+                />
+              )}
+
+              <Text
+                style={{
+                  color:
+                    deleteFlow.state === 'blocked' ? '#64748B' : '#DC2626',
+                  fontSize: 14,
+                  fontWeight: '800',
+                  marginLeft: 8,
+                }}
+              >
+                {deleteFlow.deleting
+                  ? `Eliminando ${offer.offer_kind === 'product' ? 'producto' : 'servicio'}…`
+                  : deleteFlow.state === 'checking'
+                    ? 'Verificando actividad…'
+                    : `Eliminar ${offer.offer_kind === 'product' ? 'producto' : 'servicio'}`}
+              </Text>
+            </TouchableOpacity>
+          </View>
         </ScrollView>
+      )}
+
+      {isEditing && (
+        <View
+          style={{
+            backgroundColor: '#FFFFFF',
+            borderTopColor: '#E7DDF2',
+            borderTopWidth: 1,
+            elevation: 8,
+            flexDirection: 'row',
+            gap: 10,
+            paddingHorizontal: 18,
+            paddingVertical: 12,
+            shadowColor: '#170624',
+            shadowOffset: { width: 0, height: -3 },
+            shadowOpacity: 0.06,
+            shadowRadius: 8,
+          }}
+        >
+          <TouchableOpacity
+            accessibilityLabel="Cancelar edición"
+            accessibilityRole="button"
+            activeOpacity={0.82}
+            disabled={isSaving || isUploadingImage}
+            onPress={cancelEditing}
+            style={{
+              alignItems: 'center',
+              backgroundColor: '#F4EDF9',
+              borderRadius: 13,
+              flex: 1,
+              justifyContent: 'center',
+              minHeight: 48,
+              opacity: isSaving || isUploadingImage ? 0.55 : 1,
+            }}
+          >
+            <Text
+              style={{
+                color: '#54209E',
+                fontSize: 14,
+                fontWeight: '800',
+              }}
+            >
+              Cancelar
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            accessibilityLabel="Guardar cambios de la oferta"
+            accessibilityRole="button"
+            activeOpacity={0.82}
+            disabled={isSaving || isUploadingImage}
+            onPress={() => {
+              void saveOfferChanges();
+            }}
+            style={{
+              alignItems: 'center',
+              backgroundColor: '#7427D5',
+              borderRadius: 13,
+              flex: 2,
+              flexDirection: 'row',
+              justifyContent: 'center',
+              minHeight: 48,
+              opacity: isSaving || isUploadingImage ? 0.65 : 1,
+            }}
+          >
+            {isSaving ? (
+              <ActivityIndicator
+                color="#FFFFFF"
+                size="small"
+              />
+            ) : (
+              <Save
+                color="#FFFFFF"
+                size={18}
+              />
+            )}
+
+            <Text
+              style={{
+                color: '#FFFFFF',
+                fontSize: 15,
+                fontWeight: '800',
+                marginLeft: 8,
+              }}
+            >
+              {isSaving ? 'Guardando…' : 'Guardar cambios'}
+            </Text>
+          </TouchableOpacity>
+        </View>
       )}
 
       <Modal

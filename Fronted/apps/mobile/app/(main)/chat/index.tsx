@@ -2756,6 +2756,7 @@ const styles = StyleSheet.create({
   },
   loadingState: {
     alignItems: 'center',
+    backgroundColor: '#FFFFFF',
     flex: 1,
     gap: 12,
     justifyContent: 'center',
@@ -2767,13 +2768,14 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   contactsSearchWrap: {
+    backgroundColor: colors.neutral.white,
     flex: 1,
     marginHorizontal: 12,
     marginTop: 8,
   },
   listWrap: {
+    backgroundColor: '#FFFFFF',
     flex: 1,
-    paddingTop: 4,
   },
   errorBox: {
     alignItems: 'center',

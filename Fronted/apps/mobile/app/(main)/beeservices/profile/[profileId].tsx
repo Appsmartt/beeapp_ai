@@ -18,8 +18,6 @@ import {
   ArrowLeft,
   BadgeCheck,
   CalendarClock,
-  ChevronRight,
-  ClipboardList,
   Mail,
   MapPin,
   MessageCircle,
@@ -34,15 +32,12 @@ import {
 
 import {
   LIST_CACHE_TTL,
-  publicCommercialCatalogsCacheKey,
   publicCommercialOffersCacheKey,
   publicCommercialProfileCacheKey,
 } from '@beeapp/api-client';
 import type {
-  CommercialCatalog,
   CommercialPublicOffer,
   CommercialPublicProfile,
-  GetPublicCommercialCatalogsResponse,
   GetPublicCommercialOffersResponse,
   GetPublicCommercialProfileResponse,
 } from '@beeapp/shared-types';
@@ -57,11 +52,9 @@ import {
 } from '../../../../src/features/buddyservices/commercialErrors';
 import {
   buddyServicesCartRoute,
-  buddyServicesPublicCatalogRoute,
   buddyServicesPublicOfferRoute,
 } from '../../../../src/features/buddyservices/commercialRoutes';
 import {
-  loadPublicCommercialCatalogs,
   loadPublicCommercialOffers,
   loadPublicCommercialProfile,
 } from '../../../../src/services/commercialService';
@@ -84,7 +77,6 @@ import {
 type ProfileTab =
   | 'products'
   | 'services'
-  | 'catalogs'
   | 'information';
 
 function normalizeParam(
@@ -154,64 +146,6 @@ function ProfileLogo({
   );
 }
 
-function CatalogList({
-  catalogs,
-  onPressCatalog,
-}: {
-  catalogs: CommercialCatalog[];
-  onPressCatalog: (catalog: CommercialCatalog) => void;
-}) {
-  if (catalogs.length === 0) {
-    return (
-      <Text style={styles.tabEmptyText}>
-        Este negocio aún no tiene catálogos publicados.
-      </Text>
-    );
-  }
-
-  return (
-    <View style={styles.catalogList}>
-      {catalogs.map((catalog) => (
-        <TouchableOpacity
-          key={catalog.id}
-          accessibilityLabel={`Ver catálogo ${catalog.name}`}
-          accessibilityRole="button"
-          activeOpacity={0.8}
-          onPress={() => onPressCatalog(catalog)}
-          style={styles.catalogCard}
-        >
-          <View style={styles.catalogIcon}>
-            <ClipboardList
-              color="#7B2DD9"
-              size={19}
-            />
-          </View>
-
-          <View style={styles.catalogContent}>
-            <Text style={styles.catalogName}>
-              {catalog.name}
-            </Text>
-
-            {catalog.description ? (
-              <Text
-                numberOfLines={2}
-                style={styles.catalogDescription}
-              >
-                {catalog.description}
-              </Text>
-            ) : null}
-          </View>
-
-          <ChevronRight
-            color="#8A72B2"
-            size={20}
-          />
-        </TouchableOpacity>
-      ))}
-    </View>
-  );
-}
-
 export default function BuddyServicesPublicProfileScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{
@@ -226,9 +160,6 @@ export default function BuddyServicesPublicProfileScreen() {
   const [profile, setProfile] = useState<
     CommercialPublicProfile | null
   >(null);
-  const [catalogs, setCatalogs] = useState<
-    CommercialCatalog[]
-  >([]);
   const [offers, setOffers] = useState<
     CommercialPublicOffer[]
   >([]);
@@ -342,19 +273,12 @@ export default function BuddyServicesPublicProfileScreen() {
       limit: 20,
       offset: 0,
     };
-    const [paintedProfile, paintedCatalogs, paintedOffers] = await Promise.all([
+    const [paintedProfile, paintedOffers] = await Promise.all([
       paintCachedValue<GetPublicCommercialProfileResponse>(
         publicCommercialProfileCacheKey(profileId),
         LIST_CACHE_TTL.stable,
         (cached) => {
           setProfile(cached.profile);
-        },
-      ),
-      paintCachedValue<GetPublicCommercialCatalogsResponse>(
-        publicCommercialCatalogsCacheKey(profileId),
-        LIST_CACHE_TTL.stable,
-        (cached) => {
-          setCatalogs(cached.catalogs);
         },
       ),
       paintCachedValue<GetPublicCommercialOffersResponse>(
@@ -366,23 +290,20 @@ export default function BuddyServicesPublicProfileScreen() {
       ),
     ]);
 
-    if (!paintedProfile || !paintedCatalogs || !paintedOffers) {
+    if (!paintedProfile || !paintedOffers) {
       setLoading(true);
     }
 
     try {
       const [
         profileResponse,
-        catalogsResponse,
         offersResponse,
       ] = await Promise.all([
         loadPublicCommercialProfile(profileId),
-        loadPublicCommercialCatalogs(profileId),
         loadPublicCommercialOffers(profileId, offerQuery),
       ]);
 
       setProfile(profileResponse.profile);
-      setCatalogs(catalogsResponse.catalogs);
       setOffers(offersResponse.offers);
     } catch (loadError) {
       setError(toCommercialUiError(loadError));
@@ -767,12 +688,6 @@ export default function BuddyServicesPublicProfileScreen() {
             ) : null}
 
             <ProfileTabButton
-              active={activeTab === 'catalogs'}
-              label="Catálogos"
-              onPress={() => setActiveTab('catalogs')}
-            />
-
-            <ProfileTabButton
               active={activeTab === 'information'}
               label="Información"
               onPress={() => setActiveTab('information')}
@@ -821,24 +736,6 @@ export default function BuddyServicesPublicProfileScreen() {
                   Este negocio aún no tiene servicios publicados.
                 </Text>
               )}
-            </View>
-          ) : null}
-
-          {activeTab === 'catalogs' ? (
-            <View style={styles.tabContent}>
-              <Text style={styles.sectionTitle}>
-                Catálogos publicados
-              </Text>
-
-              <CatalogList
-                catalogs={catalogs}
-                onPressCatalog={(catalog) => router.push(
-                  buddyServicesPublicCatalogRoute(
-                    profileId,
-                    catalog.id,
-                  ),
-                )}
-              />
             </View>
           ) : null}
 
@@ -1217,43 +1114,6 @@ const styles = StyleSheet.create({
     color: '#806899',
     fontSize: 13,
     lineHeight: 20,
-  },
-  catalogList: {
-    gap: 10,
-  },
-  catalogCard: {
-    alignItems: 'center',
-    backgroundColor: '#FFFFFF',
-    borderColor: '#F0EAF3',
-    borderRadius: 16,
-    borderWidth: 1,
-    flexDirection: 'row',
-    minHeight: 74,
-    paddingHorizontal: 13,
-    paddingVertical: 12,
-  },
-  catalogIcon: {
-    alignItems: 'center',
-    backgroundColor: '#F6EAFE',
-    borderRadius: 12,
-    height: 42,
-    justifyContent: 'center',
-    width: 42,
-  },
-  catalogContent: {
-    flex: 1,
-    marginHorizontal: 11,
-  },
-  catalogName: {
-    color: '#38294E',
-    fontSize: 14,
-    fontWeight: '800',
-  },
-  catalogDescription: {
-    color: '#806899',
-    fontSize: 12,
-    lineHeight: 17,
-    marginTop: 3,
   },
   infoRow: {
     alignItems: 'flex-start',

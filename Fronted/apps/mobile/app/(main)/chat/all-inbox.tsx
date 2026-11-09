@@ -724,6 +724,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   listWrap: {
+    backgroundColor: '#FFFFFF',
     flex: 1,
   },
   errorBox: {

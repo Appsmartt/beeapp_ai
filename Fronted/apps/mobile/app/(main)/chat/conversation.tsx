@@ -1941,8 +1941,8 @@ function ConversationContent({
       appAlert(
         'Destruir mensaje',
         (
-          'Tu backend actual no expone una acción separada '
-          + 'para destruir mensajes para todos.'
+          'Esta opción aún no está disponible '
+          + 'para eliminar mensajes para todos.'
         ),
       );
     }
@@ -3011,10 +3011,7 @@ function ConversationContent({
           }}
           onSelectChat={(targetChatName) => {
             showToast(
-              (
-                `Reenvío a ${targetChatName} pendiente: `
-                + 'el backend aún requiere endpoint de reenviar.'
-              ),
+              `Reenvío a ${targetChatName} no disponible en este momento.`,
             );
           }}
         />

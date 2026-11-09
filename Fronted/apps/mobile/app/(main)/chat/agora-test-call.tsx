@@ -498,7 +498,7 @@ export default function AgoraTestCallScreen() {
 
         <Text style={styles.note}>
           Plataforma: {Platform.OS}. Prueba temporal para validar unión RTC,
-          confirmación backend y renovación de token.
+          confirmación de la llamada y renovación de token.
         </Text>
       </View>
     </ScreenSafeArea>

@@ -30,6 +30,8 @@ import type { AssistantCard, AssistantMessage } from '@beeapp/shared-types';
 import ScreenSafeArea from '../../../src/components/layout/ScreenSafeArea';
 import { useModuleNav } from '../../../src/components/embedded/EmbeddedNavContext';
 import { getValidSessionCredentials } from '../../../src/services/authSession';
+import { getBusinessCart } from '../../../src/features/buddyservices/cart/businessCartStore';
+import { setChatConversationArchived } from '../../../src/stores/chatStore';
 import {
     cancelAssistantRecording,
     playAssistantSpeech,
@@ -49,6 +51,15 @@ function providerName(item: Record<string, unknown>): string {
     return String(item.business_name || item.title || 'Proveedor');
 }
 
+function applyClientEffects(cards: AssistantCard[] | undefined): void {
+    if (!Array.isArray(cards)) return;
+    for (const card of cards) {
+        if (card.type === 'client_effect' && card.effect === 'archive_chat' && card.conversation_id) {
+            setChatConversationArchived(String(card.conversation_id), card.archived !== false);
+        }
+    }
+}
+
 export default function AssistantChatScreen() {
     const router = useModuleNav();
     const scrollRef = useRef<ScrollView>(null);
@@ -57,6 +68,7 @@ export default function AssistantChatScreen() {
     const [loading, setLoading] = useState(true);
     const [sending, setSending] = useState(false);
     const [recording, setRecording] = useState(false);
+    const [resolvedActions, setResolvedActions] = useState<Record<string, 'confirmed' | 'cancelled'>>({});
     const micBusyRef = useRef(false);
 
     const load = useCallback(async () => {
@@ -97,7 +109,10 @@ export default function AssistantChatScreen() {
         setDraft('');
         setSending(true);
         try {
-            const response = await sendAssistantMessage(auth, message);
+            const response = await sendAssistantMessage(auth, message, false, {
+                cart: getBusinessCart(),
+            });
+            applyClientEffects(response.cards);
             setMessages((current) => [...current, response.message]);
         } catch (error) {
             appAlert('Asistente', errorText(error));
@@ -159,30 +174,37 @@ export default function AssistantChatScreen() {
 
     const resolveAction = useCallback(async (card: AssistantCard, confirm: boolean) => {
         const actionId = String(card.action_id || '');
-        if (!actionId) return;
+        if (!actionId || resolvedActions[actionId]) return;
         const auth = await getValidSessionCredentials();
         if (!auth || auth.scheme !== 'Bearer') return;
         setSending(true);
         try {
             if (!confirm) {
-                await cancelAssistantAction(auth, actionId);
-                setMessages((current) => [...current, {
-                    id: `local-${Date.now()}`,
-                    role: 'assistant',
-                    content: 'Cancelé esa acción.',
-                    cards: [],
-                    created_at: new Date().toISOString(),
-                }]);
+                const cancelledRes = await cancelAssistantAction(auth, actionId);
+                setResolvedActions((prev) => ({ ...prev, [actionId]: 'cancelled' }));
+                if (cancelledRes.message) {
+                    setMessages((current) => [...current, cancelledRes.message!]);
+                } else {
+                    setMessages((current) => [...current, {
+                        id: `local-${Date.now()}`,
+                        role: 'assistant',
+                        content: 'Entendido, cancelé esa solicitud y no realicé ningún cambio.',
+                        cards: [],
+                        created_at: new Date().toISOString(),
+                    }]);
+                }
                 return;
             }
             const response = await confirmAssistantAction(auth, actionId);
+            setResolvedActions((prev) => ({ ...prev, [actionId]: 'confirmed' }));
+            applyClientEffects(response.cards || response.message?.cards);
             if (response.message) setMessages((current) => [...current, response.message]);
         } catch (error) {
             appAlert('Asistente', errorText(error));
         } finally {
             setSending(false);
         }
-    }, []);
+    }, [resolvedActions]);
 
     const chooseProvider = useCallback((item: Record<string, unknown>) => {
         const name = providerName(item);
@@ -231,7 +253,7 @@ export default function AssistantChatScreen() {
                         >
                             {messages.length === 0 ? (
                                 <Text style={styles.empty}>
-                                    Puedo crear reuniones, anotar, buscar en la app y sugerirte proveedores.
+                                    Puedo consultar toda tu información en Buddy, leer y agendar en tus calendarios sincronizados, leer y enviar correos, crear notas, responder o gestionar tus chats y negocios, revisar tu carrito o reservas y buscar en Buddy Services.
                                 </Text>
                             ) : null}
                             {messages.map((message) => (
@@ -257,6 +279,7 @@ export default function AssistantChatScreen() {
                                             key={`${message.id}-${index}`}
                                             card={card}
                                             busy={sending}
+                                            resolvedStatus={card.action_id ? resolvedActions[String(card.action_id)] : undefined}
                                             onConfirm={(confirm) => void resolveAction(card, confirm)}
                                             onChoose={chooseProvider}
                                             onOpenChat={(id) => router.push({
@@ -300,29 +323,58 @@ export default function AssistantChatScreen() {
 function CardView({
     card,
     busy,
+    resolvedStatus,
     onConfirm,
     onChoose,
     onOpenChat,
 }: {
     card: AssistantCard;
     busy: boolean;
+    resolvedStatus?: 'confirmed' | 'cancelled';
     onConfirm: (confirm: boolean) => void;
     onChoose: (item: Record<string, unknown>) => void;
     onOpenChat: (id: string) => void;
 }) {
     if (card.type === 'confirm') {
+        const details = Array.isArray(card.details) ? card.details : [];
         return (
             <View style={styles.card}>
-                <Text style={styles.cardTitle}>Confirmar</Text>
+                <Text style={styles.cardTitle}>
+                    {String(card.title || 'Confirmar acción a realizar')}
+                </Text>
                 <Text style={styles.cardText}>{String(card.summary || '')}</Text>
-                <View style={styles.cardActions}>
-                    <TouchableOpacity style={styles.secondary} disabled={busy} onPress={() => onConfirm(false)}>
-                        <Text style={styles.secondaryText}>Cancelar</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity style={styles.primary} disabled={busy} onPress={() => onConfirm(true)}>
-                        <Text style={styles.primaryText}>Confirmar</Text>
-                    </TouchableOpacity>
-                </View>
+                {details.length > 0 ? (
+                    <View style={styles.detailsBox}>
+                        {details.map((detail, idx) => (
+                            <View key={`${detail.label}-${idx}`} style={styles.detailRow}>
+                                <Text style={styles.detailLabel}>{detail.label}:</Text>
+                                <Text style={styles.detailValue}>{detail.value}</Text>
+                            </View>
+                        ))}
+                    </View>
+                ) : null}
+                {resolvedStatus ? (
+                    <View style={[
+                        styles.resolvedBadge,
+                        resolvedStatus === 'confirmed' ? styles.resolvedConfirmed : styles.resolvedCancelled,
+                    ]}>
+                        <Text style={[
+                            styles.resolvedBadgeText,
+                            resolvedStatus === 'confirmed' ? styles.resolvedConfirmedText : styles.resolvedCancelledText,
+                        ]}>
+                            {resolvedStatus === 'confirmed' ? 'Acción ejecutada («Hazlo»)' : 'Acción cancelada («Cancela»)'}
+                        </Text>
+                    </View>
+                ) : (
+                    <View style={styles.cardActions}>
+                        <TouchableOpacity style={styles.secondary} disabled={busy} onPress={() => onConfirm(false)}>
+                            <Text style={styles.secondaryText}>Cancela</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity style={styles.primary} disabled={busy} onPress={() => onConfirm(true)}>
+                            <Text style={styles.primaryText}>Hazlo</Text>
+                        </TouchableOpacity>
+                    </View>
+                )}
             </View>
         );
     }
@@ -414,15 +466,60 @@ const styles = StyleSheet.create({
         maxWidth: '92%',
         gap: 8,
     },
-    cardTitle: { fontSize: 12, fontWeight: '700', color: colors.brand.primary },
-    cardText: { fontSize: 13, color: colors.neutral.text },
+    cardTitle: { fontSize: 13, fontWeight: '700', color: colors.brand.primary },
+    cardText: { fontSize: 13, color: colors.neutral.text, lineHeight: 18 },
     cardMuted: { fontSize: 12, color: colors.neutral.gray600 },
-    cardActions: { flexDirection: 'row', gap: 8 },
+    detailsBox: {
+        backgroundColor: colors.neutral.gray50,
+        borderRadius: radii.md,
+        padding: 10,
+        gap: 6,
+        borderWidth: 1,
+        borderColor: colors.neutral.gray100,
+    },
+    detailRow: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        gap: 4,
+    },
+    detailLabel: {
+        fontSize: 12,
+        fontWeight: '700',
+        color: colors.neutral.gray700,
+    },
+    detailValue: {
+        fontSize: 12,
+        color: colors.neutral.text,
+        flexShrink: 1,
+    },
+    resolvedBadge: {
+        borderRadius: radii.md,
+        paddingHorizontal: 10,
+        paddingVertical: 6,
+        alignSelf: 'flex-start',
+    },
+    resolvedConfirmed: {
+        backgroundColor: '#ECFDF5',
+    },
+    resolvedCancelled: {
+        backgroundColor: colors.neutral.gray100,
+    },
+    resolvedBadgeText: {
+        fontSize: 12,
+        fontWeight: '600',
+    },
+    resolvedConfirmedText: {
+        color: '#047857',
+    },
+    resolvedCancelledText: {
+        color: colors.neutral.gray600,
+    },
+    cardActions: { flexDirection: 'row', gap: 10, marginTop: 4 },
     provider: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-    primary: { backgroundColor: colors.brand.primary, borderRadius: radii.lg, paddingHorizontal: 12, paddingVertical: 8 },
-    primaryText: { color: colors.neutral.white, fontWeight: '600', fontSize: 12 },
-    secondary: { borderRadius: radii.lg, paddingHorizontal: 12, paddingVertical: 8, backgroundColor: colors.neutral.gray100 },
-    secondaryText: { color: colors.neutral.text, fontSize: 12 },
+    primary: { backgroundColor: colors.brand.primary, borderRadius: radii.lg, paddingHorizontal: 16, paddingVertical: 9 },
+    primaryText: { color: colors.neutral.white, fontWeight: '700', fontSize: 13 },
+    secondary: { borderRadius: radii.lg, paddingHorizontal: 16, paddingVertical: 9, backgroundColor: colors.neutral.gray100 },
+    secondaryText: { color: colors.neutral.text, fontWeight: '600', fontSize: 13 },
     composer: {
         flexDirection: 'row',
         alignItems: 'center',

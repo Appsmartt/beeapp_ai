@@ -98,8 +98,7 @@ function catalogActionCopy(
     return {
       title: 'Publicar catálogo',
       description: (
-        'El catálogo quedará visible según las reglas '
-        + 'de publicación definidas por el backend.'
+        'El catálogo quedará visible públicamente para tus clientes.'
       ),
       confirmLabel: 'Publicar catálogo',
       color: '#177245',
@@ -421,32 +420,34 @@ export default function BuddyServicesManageCatalogsScreen() {
           paddingTop: 10,
         }}
       >
-        <TouchableOpacity
-          accessibilityLabel="Volver a gestión del negocio"
-          accessibilityRole="button"
-          activeOpacity={0.8}
-          disabled={isSaving}
-          onPress={() => router.back()}
-          style={{
-            alignItems: 'center',
-            backgroundColor: '#F4EDF9',
-            borderRadius: 14,
-            height: 42,
-            justifyContent: 'center',
-            opacity: isSaving ? 0.55 : 1,
-            width: 42,
-          }}
-        >
-          <ArrowLeft
-            color="#3D245E"
-            size={21}
-          />
-        </TouchableOpacity>
+        {router.canGoBack ? (
+          <TouchableOpacity
+            accessibilityLabel="Volver a gestión del negocio"
+            accessibilityRole="button"
+            activeOpacity={0.8}
+            disabled={isSaving}
+            onPress={() => router.back()}
+            style={{
+              alignItems: 'center',
+              backgroundColor: '#F4EDF9',
+              borderRadius: 14,
+              height: 42,
+              justifyContent: 'center',
+              opacity: isSaving ? 0.55 : 1,
+              width: 42,
+            }}
+          >
+            <ArrowLeft
+              color="#3D245E"
+              size={21}
+            />
+          </TouchableOpacity>
+        ) : null}
 
         <View
           style={{
             flex: 1,
-            marginLeft: 12,
+            marginLeft: router.canGoBack ? 12 : 0,
           }}
         >
           <Text

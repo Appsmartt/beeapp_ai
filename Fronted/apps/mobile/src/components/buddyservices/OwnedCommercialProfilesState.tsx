@@ -25,8 +25,9 @@ export default function OwnedCommercialProfilesState({
       <View
         style={{
           alignItems: 'center',
+          flex: 1,
+          justifyContent: 'center',
           paddingHorizontal: 30,
-          paddingTop: 70,
         }}
       >
         <ActivityIndicator
@@ -97,7 +98,7 @@ export default function OwnedCommercialProfilesState({
       >
         {message || (
           kind === 'empty'
-            ? 'Cuando el backend habilite la creación, tus perfiles comerciales aparecerán aquí.'
+            ? 'Cuando registres o agregues un negocio, tus perfiles comerciales aparecerán aquí.'
             : 'Revisa tu conexión e inténtalo nuevamente.'
         )}
       </Text>

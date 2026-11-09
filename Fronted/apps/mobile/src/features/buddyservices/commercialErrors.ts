@@ -206,6 +206,20 @@ export function toCommercialUiError(
     }
 
     if (error.status === 409) {
+      const normalizedDetail = error.message.trim();
+
+      if (
+        normalizedDetail
+        && normalizedDetail.toLowerCase().includes('no se puede eliminar')
+      ) {
+        return createCommercialUiError(
+          'CONFLICT',
+          'No se puede eliminar',
+          normalizedDetail,
+          false,
+        );
+      }
+
       return createCommercialUiError(
         'CONFLICT',
         'Información actualizada',

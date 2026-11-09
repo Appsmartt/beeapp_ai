@@ -25,18 +25,20 @@ import {
   Clock3,
   MessageCircle,
   Package,
+  Pencil,
   ShoppingBag,
   Store,
   Wrench,
 } from 'lucide-react-native';
 import {
-  useLocalSearchParams,
-  useRouter,
-} from 'expo-router';
+  useModuleNav,
+  useScreenParams,
+} from '../../../../src/components/embedded/EmbeddedNavContext';
 
 import type {
   CommercialOfferImage,
   CommercialPublicOffer,
+  CommercialPublicProfile,
 } from '@beeapp/shared-types';
 
 import ScreenSafeArea from '../../../../src/components/layout/ScreenSafeArea';
@@ -45,6 +47,11 @@ import {
   type CommercialUiError,
 } from '../../../../src/features/buddyservices/commercialErrors';
 import {
+  formatBusinessHoursSummary,
+  isBusinessProfileOpenNow,
+} from '../../../../src/features/buddyservices/commercialReservationDateTime';
+import {
+  loadOwnedCommercialProfiles,
   loadPublicCommercialOffer,
   loadPublicCommercialProfile,
 } from '../../../../src/services/commercialService';
@@ -62,6 +69,7 @@ import {
   getDefaultRequestedModality,
 } from '../../../../src/features/buddyservices/commercialOfferAction';
 import {
+  buddyServicesManageOfferRoute,
   buddyServicesPublicProfileRoute,
   buddyServicesServiceRequestRoute,
 } from '../../../../src/features/buddyservices/commercialRoutes';
@@ -195,15 +203,23 @@ function getPrimaryImageUrl(
 }
 
 export default function BuddyServicesPublicOfferScreen() {
-  const router = useRouter();
-  const params = useLocalSearchParams<{
+  const router = useModuleNav();
+  const params = useScreenParams() as {
     offerId?: string | string[];
-  }>();
+    businessId?: string | string[];
+    fromManage?: string | string[];
+  };
 
   const offerId = normalizeParam(params.offerId);
+  const businessIdParam = normalizeParam(params.businessId);
+  const fromManageParam = normalizeParam(params.fromManage) === 'true';
 
+  const [ownedBusinessIds, setOwnedBusinessIds] = useState<string[]>([]);
   const [offer, setOffer] = useState<
     CommercialPublicOffer | null
+  >(null);
+  const [businessProfile, setBusinessProfile] = useState<
+    CommercialPublicProfile | null
   >(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -333,6 +349,17 @@ export default function BuddyServicesPublicOfferScreen() {
       const response = await loadPublicCommercialOffer(offerId);
 
       setOffer(response.offer);
+
+      if (response.offer?.commercial_profile_id) {
+        try {
+          const profileRes = await loadPublicCommercialProfile(
+            response.offer.commercial_profile_id,
+          );
+          setBusinessProfile(profileRes.profile);
+        } catch {
+          // Si falla la carga secundaria del perfil, no bloquea la vista
+        }
+      }
     } catch (loadError) {
       setError(toCommercialUiError(loadError));
     } finally {
@@ -354,8 +381,64 @@ export default function BuddyServicesPublicOfferScreen() {
     }
   }, [loadOffer]);
 
+  useEffect(() => {
+    let isMounted = true;
+    void (async () => {
+      try {
+        const owned = await loadOwnedCommercialProfiles();
+        if (isMounted && Array.isArray(owned?.profiles)) {
+          setOwnedBusinessIds(owned.profiles.map((item) => item.id));
+        }
+      } catch {
+        // Ignorar si no está autenticado
+      }
+    })();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  const canEdit = Boolean(
+    fromManageParam
+    || (businessIdParam && offer?.commercial_profile_id === businessIdParam)
+    || (offer?.commercial_profile_id && ownedBusinessIds.includes(offer.commercial_profile_id))
+  );
+
+  const isClosedForCustomer = Boolean(
+    !canEdit
+    && businessProfile
+    && !isBusinessProfileOpenNow(businessProfile),
+  );
+
+  const hoursSummary = useMemo(
+    () => (
+      businessProfile
+        ? formatBusinessHoursSummary(businessProfile.hours)
+        : ''
+    ),
+    [businessProfile],
+  );
+
+  const handleGoToEdit = useCallback(() => {
+    if (!offer?.commercial_profile_id || !offer?.id) {
+      return;
+    }
+
+    const targetBusinessId = businessIdParam || offer.commercial_profile_id;
+    router.push(
+      buddyServicesManageOfferRoute(targetBusinessId, offer.id, {
+        mode: 'edit',
+      }),
+    );
+  }, [businessIdParam, offer?.commercial_profile_id, offer?.id, router]);
+
   const handleBack = useCallback(() => {
-    if (router.canGoBack()) {
+    const canBack = typeof (router as any).canGoBack === 'function'
+      ? (router as any).canGoBack()
+      : Boolean((router as any).canGoBack);
+
+    if (canBack) {
       router.back();
       return;
     }
@@ -421,6 +504,14 @@ export default function BuddyServicesPublicOfferScreen() {
       return;
     }
 
+    if (isClosedForCustomer) {
+      appAlert(
+        'Fuera de horario de atención',
+        'Este negocio se encuentra cerrado en este momento. Solo puedes solicitar sus productos o servicios dentro de su horario configurado.',
+      );
+      return;
+    }
+
     const action = getCommercialOfferAction(offer);
 
     if (action === 'request_service') {
@@ -436,6 +527,15 @@ export default function BuddyServicesPublicOfferScreen() {
       const profileResponse = await loadPublicCommercialProfile(
         offer.commercial_profile_id,
       );
+      setBusinessProfile(profileResponse.profile);
+
+      if (!isBusinessProfileOpenNow(profileResponse.profile)) {
+        appAlert(
+          'Fuera de horario de atención',
+          'Este negocio se encuentra cerrado en este momento. Solo puedes solicitar sus productos o servicios dentro de su horario configurado.',
+        );
+        return;
+      }
 
       if (offer.offer_kind === 'service' && offer.requires_booking) {
         const cartService: AddBusinessCartServiceInput = {
@@ -580,6 +680,7 @@ export default function BuddyServicesPublicOfferScreen() {
     }
   }, [
     addingToCart,
+    isClosedForCustomer,
     offer,
     primaryImageUrl,
     router,
@@ -675,20 +776,38 @@ export default function BuddyServicesPublicOfferScreen() {
 
           <Text
             numberOfLines={1}
-            style={styles.headerTitle}
+            style={[
+              styles.headerTitle,
+              canEdit && styles.headerTitleWithActions,
+            ]}
           >
             {isProduct ? 'Producto' : 'Servicio'}
           </Text>
 
-          <TouchableOpacity
-            accessibilityLabel="Ver perfil del comercio"
-            accessibilityRole="button"
-            activeOpacity={0.78}
-            onPress={handleViewBusinessProfile}
-            style={styles.businessProfileHeaderButton}
-          >
-            <Store color="#623D8B" size={20} />
-          </TouchableOpacity>
+          <View style={styles.headerRightActions}>
+            {canEdit ? (
+              <TouchableOpacity
+                accessibilityLabel={isProduct ? 'Editar producto' : 'Editar servicio'}
+                accessibilityRole="button"
+                activeOpacity={0.8}
+                onPress={handleGoToEdit}
+                style={styles.editHeaderButton}
+              >
+                <Pencil color="#FFFFFF" size={14} />
+                <Text style={styles.editHeaderButtonText}>Editar</Text>
+              </TouchableOpacity>
+            ) : null}
+
+            <TouchableOpacity
+              accessibilityLabel="Ver perfil del comercio"
+              accessibilityRole="button"
+              activeOpacity={0.78}
+              onPress={handleViewBusinessProfile}
+              style={styles.businessProfileHeaderButton}
+            >
+              <Store color="#623D8B" size={20} />
+            </TouchableOpacity>
+          </View>
         </View>
 
         <ScrollView
@@ -815,9 +934,36 @@ export default function BuddyServicesPublicOfferScreen() {
             {offer.title}
           </Text>
 
-          <Text style={styles.price}>
-            {priceLabel(offer)}
-          </Text>
+          <View style={styles.priceRow}>
+            {offer.original_price_amount !== null
+            && offer.original_price_amount !== undefined
+            && offer.base_price_amount !== null
+            && offer.original_price_amount > offer.base_price_amount ? (
+              <Text style={styles.originalPrice}>
+                {formatCop(offer.original_price_amount)}
+              </Text>
+            ) : null}
+
+            <Text style={styles.price}>
+              {priceLabel(offer)}
+            </Text>
+
+            {offer.original_price_amount !== null
+            && offer.original_price_amount !== undefined
+            && offer.base_price_amount !== null
+            && offer.original_price_amount > offer.base_price_amount ? (
+              <View style={styles.discountBadge}>
+                <Text style={styles.discountBadgeText}>
+                  -
+                  {offer.discount_percent ?? Math.round(
+                    ((offer.original_price_amount - offer.base_price_amount)
+                      / offer.original_price_amount) * 100,
+                  )}
+                  % OFF
+                </Text>
+              </View>
+            ) : null}
+          </View>
 
           {offer.pricing_strategy === 'starting_at' ? (
             <Text style={styles.priceHint}>
@@ -879,7 +1025,7 @@ export default function BuddyServicesPublicOfferScreen() {
                 <Text style={styles.infoText}>
                   El horario será una propuesta hasta que el negocio
                   lo acepte. La disponibilidad final siempre la
-                  confirma el backend.
+                  confirma el negocio.
                 </Text>
               </View>
             </View>
@@ -965,66 +1111,114 @@ export default function BuddyServicesPublicOfferScreen() {
               </Text>
             </View>
 
-            <TouchableOpacity
-              accessibilityLabel="Abrir chat con el negocio"
-              accessibilityRole="button"
-              activeOpacity={0.8}
-              disabled={openingChat}
-              onPress={() => void handleOpenCommercialChat()}
-              style={[
-                styles.chatButton,
-                openingChat && styles.chatButtonDisabled,
-              ]}
-            >
-              {openingChat ? (
-                <ActivityIndicator
-                  color="#7427D5"
-                  size="small"
-                />
-              ) : (
+            {canEdit ? (
+              <View
+                accessibilityHint="En la vista previa este botón es solo visual"
+                accessibilityLabel="Botón de chat con el negocio"
+                style={styles.chatButton}
+              >
                 <MessageCircle
                   color="#7427D5"
                   size={18}
                 />
-              )}
 
-              <Text style={styles.chatButtonText}>
-                Chat
-              </Text>
-            </TouchableOpacity>
+                <Text style={styles.chatButtonText}>
+                  Chat
+                </Text>
+              </View>
+            ) : (
+              <TouchableOpacity
+                accessibilityLabel="Abrir chat con el negocio"
+                accessibilityRole="button"
+                activeOpacity={0.8}
+                disabled={openingChat}
+                onPress={() => void handleOpenCommercialChat()}
+                style={[
+                  styles.chatButton,
+                  openingChat && styles.chatButtonDisabled,
+                ]}
+              >
+                {openingChat ? (
+                  <ActivityIndicator
+                    color="#7427D5"
+                    size="small"
+                  />
+                ) : (
+                  <MessageCircle
+                    color="#7427D5"
+                    size={18}
+                  />
+                )}
+
+                <Text style={styles.chatButtonText}>
+                  Chat
+                </Text>
+              </TouchableOpacity>
+            )}
           </View>
 
-          <TouchableOpacity
-            accessibilityLabel={(
-              addingToCart
-                ? 'Agregando al carrito'
-                : actionLabel
-            )}
-            accessibilityRole="button"
-            activeOpacity={0.8}
-            disabled={addingToCart}
-            onPress={() => void handleCommercialAction()}
-            style={[
-              styles.actionButton,
-              addingToCart && styles.actionButtonDisabled,
-            ]}
-          >
-            {addingToCart ? (
-              <ActivityIndicator
-                color="#FFFFFF"
-                size="small"
+          {!canEdit && isClosedForCustomer ? (
+            <View style={styles.closedNoticeCard}>
+              <Clock3
+                color="#A82A3A"
+                size={18}
               />
-            ) : (
-              <ShoppingBag
-                color="#FFFFFF"
-                size={19}
-              />
-            )}
 
-            <Text style={styles.actionButtonText}>
-              {addingToCart ? 'Agregando...' : actionLabel}
-            </Text>
-          </TouchableOpacity>
+              <View style={styles.infoContent}>
+                <Text style={styles.closedNoticeTitle}>
+                  Cerrado en este momento
+                </Text>
+
+                <Text style={styles.closedNoticeText}>
+                  Este producto o servicio solo está disponible dentro del horario de atención configurado por el negocio.
+                </Text>
+
+                <Text style={styles.closedNoticeHours}>
+                  {`Horario: ${hoursSummary}`}
+                </Text>
+              </View>
+            </View>
+          ) : null}
+
+          {!canEdit ? (
+            <TouchableOpacity
+              accessibilityLabel={(
+                isClosedForCustomer
+                  ? 'Cerrado en este momento'
+                  : addingToCart
+                    ? 'Agregando al carrito'
+                    : actionLabel
+              )}
+              accessibilityRole="button"
+              activeOpacity={0.8}
+              disabled={addingToCart || isClosedForCustomer}
+              onPress={() => void handleCommercialAction()}
+              style={[
+                styles.actionButton,
+                (addingToCart || isClosedForCustomer) && styles.actionButtonDisabled,
+              ]}
+            >
+              {addingToCart ? (
+                <ActivityIndicator
+                  color="#FFFFFF"
+                  size="small"
+                />
+              ) : (
+                <ShoppingBag
+                  color="#FFFFFF"
+                  size={19}
+                />
+              )}
+
+              <Text style={styles.actionButtonText}>
+                {isClosedForCustomer
+                  ? 'Fuera de horario de atención'
+                  : addingToCart
+                    ? 'Agregando...'
+                    : actionLabel}
+              </Text>
+            </TouchableOpacity>
+          ) : null}
         </ScrollView>
       </View>
     </ScreenSafeArea>
@@ -1060,6 +1254,30 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '800',
     textAlign: 'center',
+  },
+  headerTitleWithActions: {
+    marginLeft: 10,
+    textAlign: 'left',
+  },
+  headerRightActions: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: 8,
+  },
+  editHeaderButton: {
+    alignItems: 'center',
+    backgroundColor: '#7427D5',
+    borderRadius: 21,
+    flexDirection: 'row',
+    height: 38,
+    justifyContent: 'center',
+    paddingHorizontal: 12,
+  },
+  editHeaderButtonText: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '800',
+    marginLeft: 5,
   },
   businessProfileHeaderButton: {
     alignItems: 'center',
@@ -1156,11 +1374,34 @@ const styles = StyleSheet.create({
     lineHeight: 29,
     marginTop: 6,
   },
+  priceRow: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginTop: 9,
+  },
+  originalPrice: {
+    color: '#9C8AB4',
+    fontSize: 16,
+    fontWeight: '700',
+    textDecorationLine: 'line-through',
+  },
   price: {
     color: '#6527AA',
     fontSize: 21,
     fontWeight: '800',
-    marginTop: 9,
+  },
+  discountBadge: {
+    backgroundColor: '#E8F7EE',
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+  },
+  discountBadgeText: {
+    color: '#177245',
+    fontSize: 12,
+    fontWeight: '900',
   },
   priceHint: {
     color: '#806899',
@@ -1332,9 +1573,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: '#7427D5',
     borderRadius: 15,
+    flexDirection: 'row',
+    gap: 8,
+    justifyContent: 'center',
     marginTop: 28,
     minHeight: 51,
-    justifyContent: 'center',
+    paddingHorizontal: 20,
   },
   actionButtonDisabled: {
     opacity: 0.72,
@@ -1343,6 +1587,34 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 15,
     fontWeight: '800',
+  },
+  closedNoticeCard: {
+    alignItems: 'flex-start',
+    backgroundColor: '#FFF5F6',
+    borderColor: '#F3C7CD',
+    borderRadius: 16,
+    borderWidth: 1,
+    flexDirection: 'row',
+    marginTop: 20,
+    padding: 14,
+  },
+  closedNoticeTitle: {
+    color: '#9B2435',
+    fontSize: 13,
+    fontWeight: '800',
+  },
+  closedNoticeText: {
+    color: '#7A3540',
+    fontSize: 12,
+    lineHeight: 18,
+    marginTop: 3,
+  },
+  closedNoticeHours: {
+    color: '#5C222B',
+    fontSize: 12,
+    fontWeight: '700',
+    lineHeight: 18,
+    marginTop: 6,
   },
   primaryButton: {
     backgroundColor: '#7427D5',

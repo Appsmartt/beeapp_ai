@@ -99,6 +99,20 @@ export default function CommercialOfferCard({
   const imageUrl = getPrimaryImage(offer);
   const isGrid = variant === 'grid';
   const isProduct = offer.offer_kind === 'product';
+  const hasDiscount = Boolean(
+    offer.original_price_amount !== null
+    && offer.original_price_amount !== undefined
+    && offer.base_price_amount !== null
+    && offer.original_price_amount > offer.base_price_amount,
+  );
+  const discountPercent = hasDiscount && offer.original_price_amount
+    ? (
+      offer.discount_percent ?? Math.round(
+        ((offer.original_price_amount - offer.base_price_amount!)
+          / offer.original_price_amount) * 100,
+      )
+    )
+    : null;
 
   return (
     <View style={[
@@ -187,12 +201,33 @@ export default function CommercialOfferCard({
             </Text>
           ) : null}
 
-          <Text style={[
-            styles.price,
-            isGrid && styles.priceGrid,
-          ]}>
-            {getPriceLabel(offer)}
-          </Text>
+          <View style={styles.priceRow}>
+            {hasDiscount && offer.original_price_amount !== undefined ? (
+              <Text
+                style={[
+                  styles.originalPrice,
+                  isGrid && styles.originalPriceGrid,
+                ]}
+              >
+                {formatCop(offer.original_price_amount)}
+              </Text>
+            ) : null}
+
+            <Text style={[
+              styles.price,
+              isGrid && styles.priceGrid,
+            ]}>
+              {getPriceLabel(offer)}
+            </Text>
+
+            {hasDiscount && discountPercent ? (
+              <View style={styles.discountBadge}>
+                <Text style={styles.discountBadgeText}>
+                  -{discountPercent}%
+                </Text>
+              </View>
+            ) : null}
+          </View>
         </View>
       </TouchableOpacity>
 
@@ -317,15 +352,40 @@ const styles = StyleSheet.create({
     fontSize: 11,
     lineHeight: 15,
   },
+  priceRow: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginTop: 7,
+  },
+  originalPrice: {
+    color: '#9C8AB4',
+    fontSize: 11,
+    fontWeight: '700',
+    textDecorationLine: 'line-through',
+  },
+  originalPriceGrid: {
+    fontSize: 10,
+  },
   price: {
     color: '#6527AA',
     fontSize: 13,
     fontWeight: '800',
-    marginTop: 7,
   },
   priceGrid: {
     fontSize: 12,
-    marginTop: 6,
+  },
+  discountBadge: {
+    backgroundColor: '#E8F7EE',
+    borderRadius: 999,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+  },
+  discountBadgeText: {
+    color: '#177245',
+    fontSize: 10,
+    fontWeight: '900',
   },
   quickAddButton: {
     alignItems: 'center',

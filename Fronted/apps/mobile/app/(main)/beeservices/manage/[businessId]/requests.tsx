@@ -362,15 +362,17 @@ export default function BuddyServicesManageRequestsScreen() {
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.header}>
-          <TouchableOpacity
-            accessibilityLabel={backLabel}
-            accessibilityRole="button"
-            activeOpacity={0.82}
-            onPress={handleBack}
-            style={styles.backButton}
-          >
-            <ArrowLeft color="#38294E" size={21} />
-          </TouchableOpacity>
+          {router.canGoBack ? (
+            <TouchableOpacity
+              accessibilityLabel={backLabel}
+              accessibilityRole="button"
+              activeOpacity={0.82}
+              onPress={handleBack}
+              style={styles.backButton}
+            >
+              <ArrowLeft color="#38294E" size={21} />
+            </TouchableOpacity>
+          ) : null}
 
           <View style={styles.headerText}>
             <Text style={styles.eyebrow}>

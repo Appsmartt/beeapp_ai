@@ -75,10 +75,10 @@ const COMMERCIAL_MODULES: Record<
     rootPath: "/(main)/beeservices/manage/[businessId]/requests",
   },
   catalogs: {
-    accessibilityHint: "Reinicia los catálogos del negocio",
-    accessibilityLabel: "Catálogos y productos del negocio",
+    accessibilityHint: "Reinicia los productos y servicios del negocio",
+    accessibilityLabel: "Productos y servicios del negocio",
     icon: "catalogs",
-    rootPath: "/(main)/beeservices/manage/[businessId]/catalogs",
+    rootPath: "/(main)/beeservices/manage/[businessId]/offers",
   },
   manage: {
     accessibilityHint: "Reinicia la gestión del negocio",
@@ -88,7 +88,10 @@ const COMMERCIAL_MODULES: Record<
   },
 };
 
-function moduleLabel(module: CommercialWorkspaceModule): string {
+function moduleLabel(
+  module: CommercialWorkspaceModule,
+  offerType?: CommercialOwnedProfile["offer_type"],
+): string {
   if (module === "chat") {
     return "Chats";
   }
@@ -98,7 +101,15 @@ function moduleLabel(module: CommercialWorkspaceModule): string {
   }
 
   if (module === "catalogs") {
-    return "Catálogos";
+    if (offerType === "products") {
+      return "Productos";
+    }
+
+    if (offerType === "services") {
+      return "Servicios";
+    }
+
+    return "Productos y servicios";
   }
 
   return "Gestión";
@@ -363,7 +374,7 @@ export default function BeeServicesCommercialScreen() {
 
           <View style={localStyles.moduleCaption}>
             <Text style={localStyles.moduleCaptionText}>
-              {moduleLabel(activeModule)}
+              {moduleLabel(activeModule, selectedBusiness?.offer_type)}
             </Text>
 
             {selectedBusiness ? (
@@ -461,13 +472,10 @@ const localStyles = StyleSheet.create({
     marginLeft: 8,
   },
   workspace: {
-    backgroundColor: "#F8F7FC",
+    backgroundColor: "transparent",
     flex: 1,
-    paddingBottom: 94,
   },
-  workspaceDetail: {
-    paddingBottom: 0,
-  },
+  workspaceDetail: {},
   centeredState: {
     alignItems: "center",
     backgroundColor: "#F8F7FC",

@@ -3,6 +3,8 @@ import { View, Text, Modal, ScrollView, TouchableOpacity } from 'react-native';
 import { X, Mic, Pause, RotateCcw } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
 import {
+    cancelAssistantAction,
+    confirmAssistantAction,
     getAssistantSettings,
     sendAssistantMessage,
     transcribeAssistantAudio,
@@ -12,6 +14,8 @@ import type { AssistantCard } from '@beeapp/shared-types';
 import VoiceOrb, { OrbState } from './VoiceOrb';
 import { voiceStyles as styles } from './voiceAssistantStyles';
 import { getValidSessionCredentials } from '../../services/authSession';
+import { getBusinessCart } from '../../features/buddyservices/cart/businessCartStore';
+import { setChatConversationArchived } from '../../stores/chatStore';
 import {
     cancelAssistantRecording,
     playAssistantSpeech,
@@ -46,11 +50,21 @@ function providersOf(cards: AssistantCard[]): Array<Record<string, unknown>> {
     ));
 }
 
+function applyClientEffects(cards: AssistantCard[] | undefined): void {
+    if (!Array.isArray(cards)) return;
+    for (const card of cards) {
+        if (card.type === 'client_effect' && card.effect === 'archive_chat' && card.conversation_id) {
+            setChatConversationArchived(String(card.conversation_id), card.archived !== false);
+        }
+    }
+}
+
 export default function VoiceAssistantScreen({ visible, onClose }: VoiceAssistantScreenProps) {
     const router = useRouter();
     const [phase, setPhase] = useState<OrbState>('idle');
     const [history, setHistory] = useState<Line[]>([]);
     const [providers, setProviders] = useState<Array<Record<string, unknown>>>([]);
+    const [pendingConfirmations, setPendingConfirmations] = useState<AssistantCard[]>([]);
     const [conversationId, setConversationId] = useState<string | null>(null);
     const [notice, setNotice] = useState('');
     const scrollRef = useRef<ScrollView>(null);
@@ -90,11 +104,16 @@ export default function VoiceAssistantScreen({ visible, onClose }: VoiceAssistan
         if (!auth || auth.scheme !== 'Bearer') return;
         setPhase('thinking');
         setHistory((current) => [...current, { speaker: 'user', text }]);
-        const response = await sendAssistantMessage(auth, text, true);
+        const response = await sendAssistantMessage(auth, text, true, {
+            cart: getBusinessCart(),
+        });
         const answer = response.message?.content || 'Listo.';
         setHistory((current) => [...current, { speaker: 'assistant', text: answer }]);
         const cards = response.cards || response.message?.cards || [];
+        applyClientEffects(cards);
         setProviders(providersOf(cards));
+        const confirmCards = cards.filter((card) => card.type === 'confirm' && card.action_id);
+        setPendingConfirmations(confirmCards);
         const request = cards.find((card) => card.type === 'request' && card.conversation_id);
         setConversationId(request?.conversation_id ? String(request.conversation_id) : null);
         if (response.audio_base64) {
@@ -102,6 +121,39 @@ export default function VoiceAssistantScreen({ visible, onClose }: VoiceAssistan
             await playAssistantSpeech(response.audio_base64);
         }
         setPhase('idle');
+    };
+
+    const handleConfirmCard = async (card: AssistantCard, confirm: boolean) => {
+        const actionId = String(card.action_id || '');
+        if (!actionId || busy) return;
+        const auth = await getValidSessionCredentials();
+        if (!auth || auth.scheme !== 'Bearer') return;
+        setPhase('thinking');
+        try {
+            if (!confirm) {
+                const cancelledRes = await cancelAssistantAction(auth, actionId);
+                setPendingConfirmations((prev) => prev.filter((item) => item.action_id !== actionId));
+                setHistory((current) => [...current, {
+                    speaker: 'assistant',
+                    text: cancelledRes.message?.content || 'Entendido, cancelé esa solicitud.',
+                }]);
+                setPhase('idle');
+                return;
+            }
+            const response = await confirmAssistantAction(auth, actionId);
+            setPendingConfirmations((prev) => prev.filter((item) => item.action_id !== actionId));
+            applyClientEffects(response.cards || response.message?.cards);
+            if (response.message?.content) {
+                setHistory((current) => [...current, {
+                    speaker: 'assistant',
+                    text: response.message.content,
+                }]);
+            }
+        } catch (error) {
+            setNotice(error instanceof Error ? error.message : 'No se pudo procesar la confirmación.');
+        } finally {
+            setPhase('idle');
+        }
     };
 
     const handleMic = async () => {
@@ -189,6 +241,38 @@ export default function VoiceAssistantScreen({ visible, onClose }: VoiceAssistan
                             <Text style={[styles.lineText, styles.linePast]}>{line.text}</Text>
                         </View>
                     ))}
+                    {pendingConfirmations.map((card) => {
+                        const details = Array.isArray(card.details) ? card.details : [];
+                        return (
+                            <View key={String(card.action_id)} style={styles.confirmCard}>
+                                <Text style={styles.confirmTitle}>
+                                    {String(card.title || 'Confirmar acción a realizar')}
+                                </Text>
+                                <Text style={styles.confirmSummary}>{String(card.summary || '')}</Text>
+                                {details.map((detail, idx) => (
+                                    <Text key={`${detail.label}-${idx}`} style={styles.confirmDetail}>
+                                        {detail.label}: {detail.value}
+                                    </Text>
+                                ))}
+                                <View style={styles.confirmActions}>
+                                    <TouchableOpacity
+                                        style={styles.confirmCancelBtn}
+                                        disabled={busy}
+                                        onPress={() => void handleConfirmCard(card, false)}
+                                    >
+                                        <Text style={styles.confirmCancelText}>Cancela</Text>
+                                    </TouchableOpacity>
+                                    <TouchableOpacity
+                                        style={styles.confirmDoBtn}
+                                        disabled={busy}
+                                        onPress={() => void handleConfirmCard(card, true)}
+                                    >
+                                        <Text style={styles.confirmDoText}>Hazlo</Text>
+                                    </TouchableOpacity>
+                                </View>
+                            </View>
+                        );
+                    })}
                     {providers.map((item) => (
                         <TouchableOpacity
                             key={String(item.offer_id || item.business_id)}
@@ -223,6 +307,7 @@ export default function VoiceAssistantScreen({ visible, onClose }: VoiceAssistan
                         onPress={() => {
                             setHistory([]);
                             setProviders([]);
+                            setPendingConfirmations([]);
                             setNotice('');
                             setPhase('idle');
                         }}
