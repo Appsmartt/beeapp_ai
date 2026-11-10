@@ -6,7 +6,7 @@ import CreateBusinessForm from '@/components/client/beeservices/CreateBusinessFo
 
 export default function CreateBusinessPage() {
   return (
-    <div className="min-h-full bg-[#FFFCF9] pb-24">
+    <div className="h-full overflow-y-auto bg-[#FFFCF9] pb-24">
       <header className="sticky top-0 z-10 border-b border-[#F0EAF3] bg-[#FFFCF9]/95 backdrop-blur-sm">
         <div className="mx-auto flex w-full max-w-2xl items-center gap-3 px-5 py-4">
           <Link

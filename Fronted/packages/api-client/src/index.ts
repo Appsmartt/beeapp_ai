@@ -36,4 +36,5 @@ export * from './admin';
 export * from './directory';
 export * from './assistant';
 export * from './appSettings';
+export * from './billing';
 export * from './parityBackend';

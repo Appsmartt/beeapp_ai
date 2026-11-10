@@ -12,6 +12,8 @@ interface WriteBarProps {
   /** Solo texto (chat del asistente IA). */
   variant?: 'default' | 'assistant';
   disabled?: boolean;
+  dictating?: boolean;
+  onDictate?: () => void;
 }
 
 export default function WriteBar({
@@ -22,6 +24,8 @@ export default function WriteBar({
   onChangeText,
   variant = 'default',
   disabled = false,
+  dictating = false,
+  onDictate,
 }: WriteBarProps) {
   const isAssistant = variant === 'assistant';
   const [internalText, setInternalText] = useState('');
@@ -208,11 +212,25 @@ export default function WriteBar({
               </>
             ) : null}
 
+            {isAssistant && onDictate ? (
+              <button
+                type="button"
+                onClick={onDictate}
+                disabled={disabled && !dictating}
+                title={dictating ? 'Detener dictado' : 'Dictar'}
+                className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${
+                  dictating ? 'bg-red-500 text-white' : 'bg-neutral-100 text-brand-primary hover:bg-neutral-200'
+                } disabled:opacity-40`}
+              >
+                <Mic className="h-4 w-4" />
+              </button>
+            ) : null}
+
             <input
               type="text"
-              placeholder={isAssistant ? 'Pídele algo al asistente...' : 'Escribe un mensaje...'}
+              placeholder={dictating ? 'Escuchando...' : isAssistant ? 'Pídele algo al asistente...' : 'Escribe un mensaje...'}
               value={text}
-              disabled={disabled}
+              disabled={disabled || dictating}
               onChange={(e) => setText(e.target.value)}
               className="flex-1 h-10 px-4 bg-neutral-100 border border-neutral-200/80 rounded-full text-xs font-normal text-neutral-900 outline-none focus:ring-2 focus:ring-brand-primary disabled:opacity-60"
             />

@@ -18,6 +18,10 @@ import {
     marketplaceSearchTerms,
     offerSearchBlob,
     } from './marketplaceSearch';
+import {
+    isBusinessRowOpenNow,
+    validateReservationIsoAgainstBusinessHours,
+    } from './businessSchedule';
 
 function partsOf(path: string): string[] {
     return path.split('/').filter(Boolean);
@@ -26,6 +30,13 @@ function partsOf(path: string): string[] {
 function publishedOffer(status: unknown): boolean {
     const value = String(status || '');
     return value === 'published' || value === 'active';
+}
+
+function offerIsAvailableToCustomers(row: Json): boolean {
+    return !row.archived_at
+        && String(row.status || '') !== 'archived'
+        && publishedOffer(row.status)
+        && row.is_available !== false;
 }
 
 function emptyProductFeed(
@@ -195,14 +206,16 @@ async function publishedBusinessRows(
         .from('businesses')
         .select('*')
         .eq('is_public', true)
+        .eq('is_available', true)
         .eq('publication_status', 'published')
         .is('archived_at', null);
     if (excludeOwnerId) {
         request = request.neq('owner_id', excludeOwnerId);
     }
-    return (unwrap(await request
+    const rows = (unwrap(await request
         .order('created_at', { ascending: false })
         .limit(200)) ?? []) as Json[];
+    return rows.filter((row) => isBusinessRowOpenNow(row));
 }
 
 function rankMarketplaceRows(
@@ -266,6 +279,347 @@ async function anyBusiness(
     return row;
 }
 
+function isMissingRpcError(error: { code?: string; message?: string } | null): boolean {
+    if (!error) {
+        return false;
+    }
+
+    const code = String(error.code || '').toUpperCase();
+    const message = String(error.message || '').toLowerCase();
+
+    return (
+        code === 'PGRST202'
+        || code === '42883'
+        || message.includes('could not find the function')
+        || message.includes('does not exist')
+    );
+}
+
+async function computeBusinessDeletionStatusDirect(
+    supabase: SupabaseClient,
+    businessId: string,
+): Promise<{ can_delete: boolean; orders: number; chats: number }> {
+    const [ordersResult, conversationsResult] = await Promise.all([
+        supabase
+            .from('orders')
+            .select('id', { count: 'exact', head: true })
+            .eq('business_id', businessId),
+        supabase
+            .from('conversations')
+            .select('id')
+            .eq('business_id', businessId)
+            .eq('kind', 'business'),
+    ]);
+
+    if (ordersResult.error) {
+        throw new GatewayError(ordersResult.error.message, 400);
+    }
+
+    if (conversationsResult.error) {
+        throw new GatewayError(conversationsResult.error.message, 400);
+    }
+
+    const ordersCount = ordersResult.count ?? 0;
+    const conversationIds = ((conversationsResult.data ?? []) as Json[])
+        .map((row) => String(row.id || '').trim())
+        .filter(Boolean);
+
+    let activeChatsCount = 0;
+
+    if (conversationIds.length > 0) {
+        const [messagesResult, callsResult] = await Promise.all([
+            supabase
+                .from('messages')
+                .select('conversation_id')
+                .in('conversation_id', conversationIds),
+            supabase
+                .from('calls')
+                .select('conversation_id')
+                .in('conversation_id', conversationIds),
+        ]);
+
+        if (messagesResult.error) {
+            throw new GatewayError(messagesResult.error.message, 400);
+        }
+
+        if (callsResult.error) {
+            throw new GatewayError(callsResult.error.message, 400);
+        }
+
+        const activeConversationIds = new Set<string>();
+
+        for (const row of (messagesResult.data ?? []) as Json[]) {
+            const cid = String(row.conversation_id || '').trim();
+            if (cid) {
+                activeConversationIds.add(cid);
+            }
+        }
+
+        for (const row of (callsResult.data ?? []) as Json[]) {
+            const cid = String(row.conversation_id || '').trim();
+            if (cid) {
+                activeConversationIds.add(cid);
+            }
+        }
+
+        activeChatsCount = activeConversationIds.size;
+    }
+
+    return {
+        can_delete: ordersCount === 0 && activeChatsCount === 0,
+        orders: ordersCount,
+        chats: activeChatsCount,
+    };
+}
+
+async function getBusinessDeletionStatus(
+    supabase: SupabaseClient,
+    businessId: string,
+): Promise<{ can_delete: boolean; orders: number; chats: number }> {
+    const rpcResult = await supabase.rpc('get_business_delete_status', {
+        p_business_id: businessId,
+    });
+
+    if (!rpcResult.error && rpcResult.data && typeof rpcResult.data === 'object') {
+        const payload = asJson(rpcResult.data);
+        return {
+            can_delete: payload.can_delete === true,
+            orders: Number(payload.orders ?? 0) || 0,
+            chats: Number(payload.chats ?? 0) || 0,
+        };
+    }
+
+    if (isMissingRpcError(rpcResult.error)) {
+        return computeBusinessDeletionStatusDirect(supabase, businessId);
+    }
+
+    throw new GatewayError(
+        rpcResult.error?.message || 'No pudimos comprobar el estado del negocio.',
+        400,
+    );
+}
+
+async function deleteOwnedBusiness(
+    supabase: SupabaseClient,
+    userId: string,
+    businessId: string,
+): Promise<void> {
+    const deleted = await supabase.rpc('delete_business', {
+        p_business_id: businessId,
+    });
+
+    if (!deleted.error) {
+        return;
+    }
+
+    if (deleted.error.code === '23503') {
+        throw new GatewayError(
+            'Este negocio ya tiene chats, compras o solicitudes y no se puede eliminar. Puedes desactivarlo.',
+            409,
+        );
+    }
+
+    if (!isMissingRpcError(deleted.error)) {
+        throw new GatewayError(deleted.error.message, 400);
+    }
+
+    const status = await computeBusinessDeletionStatusDirect(supabase, businessId);
+
+    if (!status.can_delete) {
+        throw new GatewayError(
+            'Este negocio ya tiene chats, compras o solicitudes y no se puede eliminar. Puedes desactivarlo.',
+            409,
+        );
+    }
+
+    // Limpia conversaciones vacías del negocio antes de borrarlo.
+    await supabase
+        .from('conversations')
+        .delete()
+        .eq('business_id', businessId)
+        .eq('kind', 'business');
+
+    const deleteRes = await supabase
+        .from('businesses')
+        .delete()
+        .eq('id', businessId)
+        .eq('owner_id', userId);
+
+    if (deleteRes.error) {
+        throw new GatewayError(deleteRes.error.message, 400);
+    }
+}
+
+async function computeOfferDeletionStatusDirect(
+    supabase: SupabaseClient,
+    businessId: string,
+    offerId: string,
+): Promise<{ can_delete: boolean; orders: number; chats: number }> {
+    const normalizedOfferId = String(offerId || '').trim();
+    const [ordersResult, conversationsResult] = await Promise.all([
+        supabase
+            .from('orders')
+            .select('id, items, reservation')
+            .eq('business_id', businessId),
+        supabase
+            .from('conversations')
+            .select('id')
+            .eq('business_id', businessId)
+            .eq('kind', 'business'),
+    ]);
+
+    if (ordersResult.error) {
+        throw new GatewayError(ordersResult.error.message, 400);
+    }
+
+    if (conversationsResult.error) {
+        throw new GatewayError(conversationsResult.error.message, 400);
+    }
+
+    let ordersCount = 0;
+
+    for (const orderRow of (ordersResult.data ?? []) as Json[]) {
+        const items = asRows<Json>(orderRow.items);
+        const reservation = asJson(orderRow.reservation);
+        const matchesItem = items.some((item) => {
+            const snapshot = asJson(item.offer_snapshot);
+            const itemOfferId = String(
+                item.commercial_offer_id
+                || item.offer_id
+                || snapshot.id
+                || '',
+            ).trim();
+            return itemOfferId === normalizedOfferId;
+        });
+        const reservationOfferId = String(
+            reservation.commercial_offer_id
+            || reservation.offer_id
+            || '',
+        ).trim();
+
+        if (matchesItem || reservationOfferId === normalizedOfferId) {
+            ordersCount += 1;
+        }
+    }
+
+    const conversationIds = ((conversationsResult.data ?? []) as Json[])
+        .map((row) => String(row.id || '').trim())
+        .filter(Boolean);
+
+    let chatsCount = 0;
+
+    if (conversationIds.length > 0 && normalizedOfferId) {
+        const messagesResult = await supabase
+            .from('messages')
+            .select('conversation_id, body, attachments')
+            .in('conversation_id', conversationIds)
+            .is('deleted_at', null);
+
+        if (messagesResult.error) {
+            throw new GatewayError(messagesResult.error.message, 400);
+        }
+
+        const matchedConversations = new Set<string>();
+        const lowerOfferId = normalizedOfferId.toLowerCase();
+
+        for (const row of (messagesResult.data ?? []) as Json[]) {
+            const cid = String(row.conversation_id || '').trim();
+            const bodyText = String(row.body || '').toLowerCase();
+            const attachmentsText = JSON.stringify(row.attachments ?? []).toLowerCase();
+
+            if (
+                cid
+                && (
+                    bodyText.includes(lowerOfferId)
+                    || attachmentsText.includes(lowerOfferId)
+                )
+            ) {
+                matchedConversations.add(cid);
+            }
+        }
+
+        chatsCount = matchedConversations.size;
+    }
+
+    return {
+        can_delete: ordersCount === 0 && chatsCount === 0,
+        orders: ordersCount,
+        chats: chatsCount,
+    };
+}
+
+async function getOfferDeletionStatus(
+    supabase: SupabaseClient,
+    businessId: string,
+    offerId: string,
+): Promise<{ can_delete: boolean; orders: number; chats: number }> {
+    const rpcResult = await supabase.rpc('get_offer_delete_status', {
+        p_offer_id: offerId,
+    });
+
+    if (!rpcResult.error && rpcResult.data && typeof rpcResult.data === 'object') {
+        const payload = asJson(rpcResult.data);
+        return {
+            can_delete: payload.can_delete === true,
+            orders: Number(payload.orders ?? 0) || 0,
+            chats: Number(payload.chats ?? 0) || 0,
+        };
+    }
+
+    if (isMissingRpcError(rpcResult.error)) {
+        return computeOfferDeletionStatusDirect(supabase, businessId, offerId);
+    }
+
+    throw new GatewayError(
+        rpcResult.error?.message || 'No pudimos comprobar el estado de la oferta.',
+        400,
+    );
+}
+
+async function deleteOwnedOfferRecord(
+    supabase: SupabaseClient,
+    businessId: string,
+    offerId: string,
+): Promise<void> {
+    const deleted = await supabase.rpc('delete_offer', {
+        p_offer_id: offerId,
+    });
+
+    if (!deleted.error) {
+        return;
+    }
+
+    if (deleted.error.code === '23503') {
+        throw new GatewayError(
+            'Este producto o servicio ya se usó en chats, compras o solicitudes y no se puede eliminar. Puedes pausarlo o desactivarlo.',
+            409,
+        );
+    }
+
+    if (!isMissingRpcError(deleted.error)) {
+        throw new GatewayError(deleted.error.message, 400);
+    }
+
+    const status = await computeOfferDeletionStatusDirect(supabase, businessId, offerId);
+
+    if (!status.can_delete) {
+        throw new GatewayError(
+            'Este producto o servicio ya se usó en chats, compras o solicitudes y no se puede eliminar. Puedes pausarlo o desactivarlo.',
+            409,
+        );
+    }
+
+    const deleteRes = await supabase
+        .from('offers')
+        .delete()
+        .eq('id', offerId)
+        .eq('business_id', businessId);
+
+    if (deleteRes.error) {
+        throw new GatewayError(deleteRes.error.message, 400);
+    }
+}
+
 function catalogsOf(business: Json): Json[] {
     return asRows<Json>(business.catalogs);
 }
@@ -311,7 +665,9 @@ async function mapPublicOffer(
         title: row.title,
         description: row.description ?? null,
         pricing_strategy: row.pricing_strategy || 'fixed',
-        base_price_amount: row.base_price_amount ?? null,
+        base_price_amount: row.base_price_amount == null ? null : Number(row.base_price_amount),
+        original_price_amount: row.original_price_amount == null ? null : Number(row.original_price_amount),
+        discount_percent: row.discount_percent == null ? null : Number(row.discount_percent),
         currency_code: row.currency_code || 'COP',
         modalities: Array.isArray(row.modalities) ? row.modalities : [],
         duration_minutes: row.duration_minutes ?? null,
@@ -394,6 +750,9 @@ async function mapProfile(
             delivery_fee_mode: row.delivery_fee_mode,
             delivery_currency_code: 'COP',
             is_verified: row.verification_status === 'verified' && row.verification_badge_visible === true,
+            is_available: row.is_available !== false,
+            is_open_now: isBusinessRowOpenNow(row),
+            hours: asRows(row.hours),
             timezone: row.timezone,
             created_at: row.created_at,
             updated_at: row.updated_at,
@@ -535,9 +894,80 @@ function findOrderWith(
     return null;
 }
 
-function permissions(role: 'customer' | 'business', status: string): Json {
-    const open = !['completed', 'rejected', 'cancelled', 'expired'].includes(status);
+function orderIsOpen(status: string): boolean {
+    return !['completed', 'rejected', 'cancelled', 'expired'].includes(status);
+}
+
+function scheduledServiceStartIso(order: Json): string | null {
+    const requestType = String(order.request_type || '');
+    const times: number[] = [];
+    const pushTime = (value: unknown) => {
+        const raw = String(value || '').trim();
+        if (!raw) return;
+        const parsed = Date.parse(raw);
+        if (!Number.isNaN(parsed)) times.push(parsed);
+    };
+
+    for (const item of asRows<Json>(order.items)) {
+        const kind = String(item.offer_kind || '');
+        const booksTime = item.requires_booking === true;
+        const isService = kind === 'service'
+            || booksTime
+            || requestType === 'service_request'
+            || requestType === 'booking_request';
+        const isPlainProduct = kind === 'product'
+            && !booksTime
+            && requestType !== 'service_request'
+            && requestType !== 'booking_request';
+        if (!isService || isPlainProduct) continue;
+        const terms = item.original_terms && typeof item.original_terms === 'object'
+            ? item.original_terms as Json
+            : null;
+        const acceptedProposal = asRows<Json>(item.proposals).find((proposal) => (
+            proposal.status === 'accepted' && String(proposal.proposed_starts_at || '').trim()
+        ));
+        pushTime(acceptedProposal?.proposed_starts_at || item.requested_starts_at || terms?.requested_starts_at);
+    }
+
+    if (
+        requestType === 'service_request'
+        || requestType === 'booking_request'
+        || requestType === 'mixed_request'
+    ) {
+        const reservation = order.reservation && typeof order.reservation === 'object'
+            ? order.reservation as Json
+            : null;
+        if (reservation) pushTime(reservation.starts_at);
+        const acceptedRequestProposal = asRows<Json>(order.proposals).find((proposal) => (
+            proposal.status === 'accepted' && String(proposal.proposed_starts_at || '').trim()
+        ));
+        if (acceptedRequestProposal) pushTime(acceptedRequestProposal.proposed_starts_at);
+    }
+
+    if (!times.length) return null;
+    return new Date(Math.max(...times)).toISOString();
+}
+
+function paymentConfirmationGate(order: Json): {
+    ready: boolean;
+    availableAt: string | null;
+} {
+    const availableAt = scheduledServiceStartIso(order);
+    if (!availableAt) return { ready: true, availableAt: null };
+    return {
+        ready: Date.now() >= Date.parse(availableAt),
+        availableAt,
+    };
+}
+
+function permissions(role: 'customer' | 'business', order: Json): Json {
+    const status = String(order.status || '');
+    const open = orderIsOpen(status);
     const business = role === 'business';
+    const proofs = asRows<Json>(order.payment_proofs);
+    const hasSubmittedProof = proofs.some((proof) => proof.status === 'submitted');
+    const hasRejectedProof = proofs.some((proof) => proof.status === 'rejected');
+    const gate = paymentConfirmationGate(order);
 
     return {
         can_start_review: business && status === 'submitted',
@@ -548,13 +978,16 @@ function permissions(role: 'customer' | 'business', status: string): Json {
         can_accept_proposal: role === 'customer' && open,
         can_reject_proposal: role === 'customer' && open,
         can_withdraw_proposal: business && open,
-        can_request_payment: business,
+        can_request_payment: business && open,
         can_view_payment_methods: true,
-        can_submit_payment_proof: role === 'customer' && open,
-        can_replace_payment_proof: role === 'customer',
-        can_review_payment_proof: business,
-        can_create_reservation_hold: business,
-        can_complete: business && open,
+        can_submit_payment_proof: role === 'customer' && open && !hasSubmittedProof,
+        can_replace_payment_proof: role === 'customer' && open && hasRejectedProof && !hasSubmittedProof,
+        can_review_payment_proof: business && open,
+        can_create_reservation_hold: business && open,
+        can_complete: false,
+        can_confirm_payment: business && open && gate.ready,
+        can_mark_order_unpaid: business && open,
+        payment_confirmation_available_at: gate.availableAt,
         can_open_dispute: open,
         can_open_chat: true,
     };
@@ -619,6 +1052,7 @@ export async function handleCommercial(
             .from('offers')
             .select('*, businesses!inner(*)')
             .eq('businesses.is_public', true)
+            .eq('businesses.is_available', true)
             .eq('businesses.publication_status', 'published')
             .is('businesses.archived_at', null)
             .is('archived_at', null)
@@ -627,8 +1061,9 @@ export async function handleCommercial(
             .limit(200)) ?? []) as Json[];
         const rankedOffers = rankMarketplaceRows(
             rows.filter((row) => (
-                publishedOffer(row.status)
+                offerIsAvailableToCustomers(row)
                 && nestedBusinessOwnerId(row) !== userId
+                && isBusinessRowOpenNow(nestedBusiness(row))
                 && matchesOfferFeedFilters(row, offerType, modality)
             )),
             terms,
@@ -676,7 +1111,9 @@ export async function handleCommercial(
             .select('*')
             .eq('id', parts[3])
             .maybeSingle()) as Json | null;
-        if (!row) throw new GatewayError('No encontramos la oferta.', 404);
+        if (!row || !offerIsAvailableToCustomers(row)) {
+            throw new GatewayError('Este producto o servicio ya no está disponible.', 404);
+        }
         return { offer: await mapPublicOffer(supabase, row) };
     }
 
@@ -685,6 +1122,7 @@ export async function handleCommercial(
             .from('businesses')
             .select('*')
             .eq('is_public', true)
+            .eq('is_available', true)
             .eq('publication_status', 'published')
             .is('archived_at', null)
             .neq('owner_id', userId);
@@ -696,7 +1134,8 @@ export async function handleCommercial(
         const verifiedOnly = query.get('verified_only') === 'true';
         const ordering = query.get('ordering') === 'name' ? 'name' : 'recent';
         const isPublicProfile = (row: Json) => (
-            verifiedOnly ? row.verification_status === 'verified' : true
+            (verifiedOnly ? row.verification_status === 'verified' : true)
+            && isBusinessRowOpenNow(row)
         );
 
         if (rawSearch) {
@@ -739,12 +1178,15 @@ export async function handleCommercial(
             };
         }
 
-        const rows = ((unwrap(await request.range(offset, offset + limit - 1)) ?? []) as Json[])
+        const openRows = ((unwrap(await request
+            .order('created_at', { ascending: false })
+            .limit(200)) ?? []) as Json[])
             .filter(isPublicProfile);
-        const profiles = await Promise.all(rows.map((row) => mapProfile(supabase, row, false)));
+        const page = openRows.slice(offset, offset + limit);
+        const profiles = await Promise.all(page.map((row) => mapProfile(supabase, row, false)));
         return {
             profiles,
-            count: profiles.length,
+            count: openRows.length,
             limit,
             offset,
             ordering,
@@ -762,13 +1204,24 @@ export async function handleCommercial(
             };
         }
         if (parts[4] === 'offers') {
+            const isOwner = String(business.owner_id || '') === userId;
+            if (!isOwner && !isBusinessRowOpenNow(business)) {
+                return {
+                    commercial_profile_id: business.id,
+                    offers: [],
+                    count: 0,
+                    limit,
+                    offset,
+                };
+            }
+
             const rows = (unwrap(await supabase
                 .from('offers')
                 .select('*')
                 .eq('business_id', business.id)
                 .is('archived_at', null)) ?? []) as Json[];
             const offers = await Promise.all(
-                rows.filter((row) => publishedOffer(row.status))
+                rows.filter((row) => offerIsAvailableToCustomers(row))
                     .map((row) => mapPublicOffer(supabase, row)),
             );
             return {
@@ -849,6 +1302,15 @@ export async function handleCommercial(
             return { profile: await mapProfile(supabase, business, true) };
         }
 
+        if (parts[3] === 'deletion-status' && method === 'GET') {
+            return await getBusinessDeletionStatus(supabase, businessId);
+        }
+
+        if (!parts[3] && method === 'DELETE') {
+            await deleteOwnedBusiness(supabase, userId, businessId);
+            return undefined;
+        }
+
         if (!parts[3] && method === 'PATCH') {
             const patch: Json = {};
             for (const key of [
@@ -858,8 +1320,33 @@ export async function handleCommercial(
                 'is_email_public', 'logo_file_id', 'offer_type', 'modalities', 'hours',
                 'social_links', 'is_public', 'is_available', 'cash_on_delivery_enabled',
                 'delivery_fee_mode', 'delivery_fee_amount', 'timezone',
+                'booking_hold_minutes', 'inventory_hold_minutes',
+                'delivery_currency_code',
             ]) {
                 if (key in payload) patch[key] = payload[key];
+            }
+            for (const key of ['booking_hold_minutes', 'inventory_hold_minutes']) {
+                if (!(key in patch)) continue;
+                const minutes = Number(patch[key]);
+                if (!Number.isInteger(minutes) || minutes < 5 || minutes > 240) {
+                    throw new GatewayError(
+                        'El tiempo de apartado debe estar entre 5 y 240 minutos.',
+                        400,
+                    );
+                }
+                patch[key] = minutes;
+            }
+            if ('delivery_currency_code' in patch) {
+                const currencyCode = String(patch.delivery_currency_code || '')
+                    .trim()
+                    .toUpperCase();
+                if (!/^[A-Z]{3}$/.test(currencyCode)) {
+                    throw new GatewayError(
+                        'La moneda debe tener tres letras, por ejemplo COP.',
+                        400,
+                    );
+                }
+                patch.delivery_currency_code = currencyCode;
             }
             if (Array.isArray(payload.category_ids)) {
                 patch.category_ids = payload.category_ids;
@@ -913,11 +1400,15 @@ export async function handleCommercial(
                     ...current,
                     status: 'pending_review',
                     submitted_at: new Date().toISOString(),
+                    reviewed_at: null,
+                    review_reason_code: null,
+                    review_reason_text: null,
                     is_editable: false,
                 };
                 const saved = await saveBusiness(supabase, businessId, {
                     verification: request,
                     verification_status: 'pending_review',
+                    verification_badge_visible: false,
                 });
                 return { request: asJson(saved.verification) };
             }
@@ -1011,6 +1502,8 @@ export async function handleCommercial(
                         description: payload.description ?? null,
                         pricing_strategy: payload.pricing_strategy || 'fixed',
                         base_price_amount: payload.base_price_amount ?? null,
+                        original_price_amount: payload.original_price_amount ?? null,
+                        discount_percent: payload.discount_percent ?? null,
                         currency_code: payload.currency_code || 'COP',
                         modalities: payload.modalities || [],
                         duration_minutes: payload.duration_minutes ?? null,
@@ -1018,7 +1511,7 @@ export async function handleCommercial(
                         payment_policy: payload.payment_policy ?? null,
                         track_inventory: payload.track_inventory === true,
                         stock_quantity: payload.stock_quantity ?? null,
-                        status: 'published',
+                        status: payload.status === 'paused' ? 'paused' : 'published',
                     })
                     .select('*')
                     .single()) as Json;
@@ -1036,10 +1529,26 @@ export async function handleCommercial(
             if (!parts[5] && method === 'GET') {
                 return { offer: await mapOwnedOffer(supabase, offer) };
             }
+            if (parts[5] === 'deletion-status' && method === 'GET') {
+                return await getOfferDeletionStatus(
+                    supabase,
+                    businessId,
+                    String(offer.id),
+                );
+            }
+            if (!parts[5] && method === 'DELETE') {
+                await deleteOwnedOfferRecord(
+                    supabase,
+                    businessId,
+                    String(offer.id),
+                );
+                return undefined;
+            }
             if (!parts[5] && method === 'PATCH') {
                 const patch: Json = {};
                 for (const key of [
                     'title', 'description', 'pricing_strategy', 'base_price_amount',
+                    'original_price_amount', 'discount_percent',
                     'currency_code', 'duration_minutes', 'requires_booking',
                     'payment_policy', 'is_available', 'sort_order', 'track_inventory',
                     'stock_quantity',
@@ -1084,10 +1593,12 @@ export async function handleCommercial(
                 if (parts[5] === 'publish' || parts[5] === 'restore') {
                     patch.status = 'published';
                     patch.archived_at = null;
+                    patch.is_available = true;
                 }
                 if (parts[5] === 'archive') {
                     patch.status = 'archived';
                     patch.archived_at = new Date().toISOString();
+                    patch.is_available = false;
                 }
                 if (parts[5] === 'enable') patch.is_available = true;
                 if (parts[5] === 'disable') patch.is_available = false;
@@ -1177,11 +1688,44 @@ export async function handleCommercial(
             const methodRow = methods.find((item) => item.id === parts[4]);
             if (!methodRow) throw new GatewayError('No encontramos el método de pago.', 404);
             if (method === 'GET') return { payment_method: methodRow };
+            if (method === 'DELETE') {
+                await saveBusiness(supabase, businessId, {
+                    payment_methods: methods.filter((item) => item.id !== methodRow.id),
+                });
+                return undefined;
+            }
             if (method === 'PATCH') Object.assign(methodRow, payload);
             if (parts[5] === 'archive') methodRow.status = 'archived';
             methodRow.updated_at = new Date().toISOString();
             await saveBusiness(supabase, businessId, { payment_methods: methods });
             return { payment_method: methodRow };
+        }
+
+        if (parts[3] === 'metrics' && method === 'GET') {
+            const grain = String(query.get('grain') || 'month').trim().toLowerCase();
+            const anchor = String(query.get('anchor') || '').trim();
+
+            if (!['day', 'week', 'month'].includes(grain)) {
+                throw new GatewayError(
+                    'El periodo debe ser día, semana o mes.',
+                    400,
+                );
+            }
+
+            const rpcResult = await supabase.rpc('get_business_sales_metrics', {
+                p_business_id: businessId,
+                p_grain: grain,
+                p_anchor: anchor || null,
+            });
+
+            if (rpcResult.error) {
+                throw new GatewayError(
+                    rpcResult.error.message || 'No fue posible cargar las métricas.',
+                    400,
+                );
+            }
+
+            return rpcResult.data;
         }
 
         if (parts[3] === 'requests' && method === 'GET') {
@@ -1213,7 +1757,31 @@ export async function handleCommercial(
             }
         }
 
+        const targetBusiness = await anyBusiness(
+            supabase,
+            String(payload.commercial_profile_id || ''),
+        );
+        if (!isBusinessRowOpenNow(targetBusiness)) {
+            throw new GatewayError(
+                'Este negocio se encuentra fuera de su horario de atención en este momento.',
+                409,
+            );
+        }
+
         const items = Array.isArray(payload.items) ? payload.items as Json[] : [];
+        for (const item of items) {
+            const requestedStartsAt = String(item.requested_starts_at || '').trim();
+            if (requestedStartsAt) {
+                const check = validateReservationIsoAgainstBusinessHours({
+                    rawHours: targetBusiness.hours,
+                    timezone: targetBusiness.timezone,
+                    startsAtIso: requestedStartsAt,
+                });
+                if (!check.ok) {
+                    throw new GatewayError(check.message, 400);
+                }
+            }
+        }
         const offerIds = items.map((item) => String(item.commercial_offer_id || '')).filter(Boolean);
         const offers = offerIds.length
             ? (unwrap(await supabase
@@ -1222,6 +1790,17 @@ export async function handleCommercial(
                 .in('id', offerIds)) ?? []) as Json[]
             : [];
         const byId = new Map(offers.map((offer) => [String(offer.id), offer]));
+        for (const item of items) {
+            const offerId = String(item.commercial_offer_id || '').trim();
+            if (!offerId) continue;
+            const offer = byId.get(offerId);
+            if (!offer || !offerIsAvailableToCustomers(offer)) {
+                throw new GatewayError(
+                    'Este producto o servicio ya no está disponible.',
+                    409,
+                );
+            }
+        }
         let subtotal = 0;
         const storedItems = items.map((item, index) => {
             const offer = byId.get(String(item.commercial_offer_id || ''));
@@ -1241,12 +1820,17 @@ export async function handleCommercial(
                 unit_price_amount: unit,
                 currency_code: 'COP',
                 modality: item.requested_modality ?? null,
+                requested_starts_at: item.requested_starts_at ?? null,
                 duration_minutes: offer?.duration_minutes ?? null,
                 requires_booking: offer?.requires_booking === true,
                 payment_policy: offer?.payment_policy ?? null,
                 line_total_amount: line,
                 offer_snapshot: offer || {},
-                original_terms: {},
+                original_terms: {
+                    requested_starts_at: item.requested_starts_at ?? null,
+                    requested_ends_at: item.requested_ends_at ?? null,
+                    timezone: item.timezone ?? null,
+                },
                 lifecycle_status: 'open',
                 created_at: new Date().toISOString(),
                 updated_at: new Date().toISOString(),
@@ -1299,6 +1883,9 @@ export async function handleCommercial(
         const mapped = mapOrder(order);
         const business = await anyBusiness(supabase, String(order.business_id));
         const role = order.customer_id === userId ? 'customer' : 'business';
+        const requestPermissions = permissions(role, order);
+        const submittedProof = asRows<Json>(order.payment_proofs)
+            .find((proof) => proof.status === 'submitted');
 
         if (!parts[3] && method === 'GET') return { request: mapped };
 
@@ -1317,22 +1904,22 @@ export async function handleCommercial(
             return {
                 request: mapped,
                 context: {
-                    actor_role: role,
+                    actor_role: role === 'customer' ? 'customer' : 'business_owner',
                     business: {
                         id: business.id,
                         display_name: business.display_name,
                         logo_file_id: business.logo_file_id ?? null,
                     },
-                    permissions: permissions(role, String(order.status)),
+                    permissions: requestPermissions,
                     timeline: { events: asRows(order.history) },
                     payment_proofs: asRows(order.payment_proofs),
                     payment_attempts: {
                         attempts_used: asRows(order.payment_proofs).length,
                         attempts_remaining: 3,
                         max_attempts: 3,
-                        active_submitted_proof_id: null,
-                        can_submit_payment_proof: role === 'customer',
-                        can_replace_payment_proof: role === 'customer',
+                        active_submitted_proof_id: submittedProof?.id ?? null,
+                        can_submit_payment_proof: requestPermissions.can_submit_payment_proof === true,
+                        can_replace_payment_proof: requestPermissions.can_replace_payment_proof === true,
                         is_exhausted: false,
                         cancelled_after_max_attempts: false,
                     },
@@ -1345,8 +1932,8 @@ export async function handleCommercial(
                         attempts_used: asRows(order.payment_proofs).length,
                         attempts_remaining: 3,
                         max_attempts: 3,
-                        active_submitted_proof_id: null,
-                        can_submit_payment_proof: role === 'customer',
+                        active_submitted_proof_id: submittedProof?.id ?? null,
+                        can_submit_payment_proof: requestPermissions.can_submit_payment_proof === true,
                         manual_payment_methods: paymentMethodsOf(business),
                     },
                     dispute: order.dispute ?? null,
@@ -1359,20 +1946,39 @@ export async function handleCommercial(
         }
 
         if (parts[3] === 'transition' && method === 'POST') {
-            const next = payload.action === 'start_review'
+            const currentStatus = String(order.status || '');
+            if (!orderIsOpen(currentStatus)) {
+                throw new GatewayError(
+                    currentStatus === 'completed'
+                        ? 'Un pago ya confirmado no se puede cancelar desde aquí.'
+                        : 'Esta solicitud ya no se puede cambiar.',
+                    409,
+                );
+            }
+            const action = String(payload.action || '');
+            if (
+                (action === 'start_review' || action === 'accept' || action === 'reject')
+                && role !== 'business'
+            ) {
+                throw new GatewayError('Solo el negocio puede hacer este cambio.', 403);
+            }
+            if (action === 'cancel' && role !== 'customer' && role !== 'business') {
+                throw new GatewayError('No puedes cancelar esta solicitud.', 403);
+            }
+            const next = action === 'start_review'
                 ? 'under_review'
-                : payload.action === 'accept'
+                : action === 'accept'
                     ? 'accepted'
-                    : payload.action === 'reject'
+                    : action === 'reject'
                         ? 'rejected'
                         : 'cancelled';
-            const saved = await mutateOrder(supabase, order, { status: next }, String(payload.action));
+            const saved = await mutateOrder(supabase, order, { status: next }, action || 'cancel');
             return {
                 request: {
                     request_id: saved.id,
                     status: saved.status,
                     previous_status: order.status,
-                    action: payload.action,
+                    action: action || 'cancel',
                 },
             };
         }
@@ -1406,12 +2012,50 @@ export async function handleCommercial(
         }
 
         if (parts[3] === 'complete' && method === 'POST') {
-            const saved = await mutateOrder(supabase, order, { status: 'completed' }, 'complete');
+            throw new GatewayError(
+                'El ingreso se registra al confirmar que el pago fue recibido.',
+                409,
+            );
+        }
+
+        if (parts[3] === 'confirm-payment' && method === 'POST') {
+            if (role !== 'business') {
+                throw new GatewayError('Solo quien recibe el pago puede confirmarlo.', 403);
+            }
+            if (!orderIsOpen(String(order.status || ''))) {
+                throw new GatewayError('Esta solicitud ya no admite confirmación de pago.', 409);
+            }
+            const gate = paymentConfirmationGate(order);
+            if (!gate.ready) {
+                throw new GatewayError(
+                    'Podrás confirmar el pago cuando llegue la fecha y hora del servicio.',
+                    409,
+                );
+            }
+            const confirmedAt = new Date().toISOString();
+            const proofs = asRows<Json>(order.payment_proofs).map((proof) => (
+                proof.status === 'submitted'
+                    ? { ...proof, status: 'confirmed', confirmed_at: confirmedAt }
+                    : proof
+            ));
+            const saved = await mutateOrder(supabase, order, {
+                status: 'completed',
+                payment_proofs: proofs,
+            }, 'complete');
             return { request: mapOrder(saved) };
         }
 
         if (parts[3] === 'payment-proofs' && method === 'POST') {
+            if (role !== 'customer') {
+                throw new GatewayError('Solo quien paga puede enviar el comprobante.', 403);
+            }
+            if (!orderIsOpen(String(order.status || ''))) {
+                throw new GatewayError('Esta solicitud ya no admite comprobantes.', 409);
+            }
             const proofs = asRows<Json>(order.payment_proofs);
+            if (proofs.some((proof) => proof.status === 'submitted')) {
+                throw new GatewayError('Ya hay un comprobante en revisión.', 409);
+            }
             const proof = {
                 id: createId(),
                 ...payload,
@@ -1442,31 +2086,115 @@ export async function handleCommercial(
     if (parts[1] === 'payment-proofs' && parts[2]) {
         const found = findOrderWith(await loadOrders(supabase), 'payment_proofs', parts[2]);
         if (!found) throw new GatewayError('No encontramos el comprobante.', 404);
+        const proofRole = found.order.customer_id === userId ? 'customer' : 'business';
         if (parts[3] === 'access' && method === 'GET') {
             const fileId = found.entry.file_id;
             const file = unwrap(await supabase
                 .from('files')
-                .select('bucket, path')
+                .select('*')
                 .eq('id', fileId)
                 .single()) as Json;
             const signed = await supabase.storage
                 .from(String(file.bucket))
                 .createSignedUrl(String(file.path), SIGNED_URL_SECONDS);
+            if (signed.error || !signed.data?.signedUrl) {
+                throw new GatewayError('No fue posible abrir el comprobante.', 400);
+            }
+            const fileName = String(file.name || file.original_name || 'comprobante');
             return {
-                url: signed.data?.signedUrl || null,
+                payment_proof_id: parts[2],
+                file: {
+                    id: file.id,
+                    display_name: fileName,
+                    original_name: fileName,
+                    mime_type: String(file.mime_type || 'application/octet-stream'),
+                    size_bytes: Number(file.size_bytes || 0),
+                },
+                url: signed.data.signedUrl,
                 expires_in_seconds: SIGNED_URL_SECONDS,
+                download: query.get('download') === 'true',
             };
         }
-        const proofs = asRows<Json>(found.order.payment_proofs).map((item) => (
-            item.id === parts[2] ? { ...item, ...payload, status: payload.decision || item.status } : item
-        ));
-        const saved = await mutateOrder(
-            supabase,
-            found.order,
-            { payment_proofs: proofs },
-            parts[3] || 'payment-proof',
-        );
-        return { payment_proof: proofs.find((item) => item.id === parts[2]), request: mapOrder(saved) };
+        if (parts[3] === 'replace' && method === 'POST') {
+            if (proofRole !== 'customer') {
+                throw new GatewayError('Solo quien paga puede reemplazar el comprobante.', 403);
+            }
+            if (!orderIsOpen(String(found.order.status || ''))) {
+                throw new GatewayError('Esta solicitud ya no admite comprobantes.', 409);
+            }
+            if (found.entry.status !== 'rejected') {
+                throw new GatewayError('Solo puedes reemplazar un comprobante rechazado.', 409);
+            }
+            const existingProofs = asRows<Json>(found.order.payment_proofs);
+            if (existingProofs.some((proof) => proof.status === 'submitted')) {
+                throw new GatewayError('Ya hay un comprobante en revisión.', 409);
+            }
+            const fileId = String(payload.file_id || '').trim();
+            if (!fileId) {
+                throw new GatewayError('Adjunta el comprobante corregido.', 400);
+            }
+            const proofs = existingProofs.map((item) => (
+                item.id === parts[2]
+                    ? {
+                        ...item,
+                        file_id: fileId,
+                        status: 'submitted',
+                        rejection_reason: null,
+                        rejected_at: null,
+                    }
+                    : item
+            ));
+            const saved = await mutateOrder(supabase, found.order, {
+                payment_proofs: proofs,
+                status: 'payment_submitted',
+            }, 'payment-proof');
+            return {
+                payment_proof: proofs.find((item) => item.id === parts[2]),
+                request: mapOrder(saved),
+            };
+        }
+        if (parts[3] === 'review' && method === 'POST') {
+            if (proofRole !== 'business') {
+                throw new GatewayError('Solo quien recibe el pago puede revisar el comprobante.', 403);
+            }
+            if (!orderIsOpen(String(found.order.status || ''))) {
+                throw new GatewayError('Esta solicitud ya no admite revisión del comprobante.', 409);
+            }
+            const decision = String(payload.decision || '');
+            if (decision !== 'confirmed' && decision !== 'rejected') {
+                throw new GatewayError('Indica si confirmas o rechazas el comprobante.', 400);
+            }
+            if (decision === 'rejected' && !String(payload.rejection_reason || '').trim()) {
+                throw new GatewayError('Indica el motivo del rechazo.', 400);
+            }
+            if (found.entry.status !== 'submitted') {
+                throw new GatewayError('Este comprobante ya fue revisado.', 409);
+            }
+            const reviewedAt = new Date().toISOString();
+            const proofs = asRows<Json>(found.order.payment_proofs).map((item) => (
+                item.id === parts[2]
+                    ? {
+                        ...item,
+                        status: decision,
+                        rejection_reason: decision === 'rejected'
+                            ? String(payload.rejection_reason || '').trim()
+                            : null,
+                        rejected_at: decision === 'rejected' ? reviewedAt : null,
+                        confirmed_at: decision === 'confirmed' ? reviewedAt : item.confirmed_at ?? null,
+                    }
+                    : item
+            ));
+            const saved = await mutateOrder(
+                supabase,
+                found.order,
+                { payment_proofs: proofs },
+                'payment-proof',
+            );
+            return {
+                payment_proof: proofs.find((item) => item.id === parts[2]),
+                request: mapOrder(saved),
+            };
+        }
     }
 
     if (parts[1] === 'request-items' && parts[2]) {

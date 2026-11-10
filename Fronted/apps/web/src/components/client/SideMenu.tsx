@@ -5,6 +5,7 @@ import {
   useState,
   type ReactNode,
 } from 'react';
+import { createPortal } from 'react-dom';
 import { useRouter } from 'next/navigation';
 import {
   X,
@@ -21,8 +22,9 @@ import {
   LogOut,
   Smartphone,
   UserCheck,
+  BadgeCheck,
 } from 'lucide-react';
-import { getCurrentWebProfile } from '@beeapp/api-client';
+import { getCurrentWebProfile, updateNetworkVisibility } from '@beeapp/api-client';
 import type { CurrentUserProfile } from '@beeapp/shared-types';
 import BuddyLogo from '@/components/shared/BuddyLogo';
 import ProfileAvatar from '@/components/client/ProfileAvatar';
@@ -83,6 +85,24 @@ function getInitials(
   return `${firstInitial}${lastInitial}` || '?';
 }
 
+function isVisibleInNetwork(profile: CurrentUserProfile): boolean {
+  const visibility = String(profile.network_visibility || '')
+    .trim()
+    .toLowerCase();
+
+  if (
+    visibility === 'private'
+    || visibility === 'privado'
+    || visibility === 'contacts'
+    || visibility === 'solo_equipo'
+    || visibility === 'team'
+  ) {
+    return false;
+  }
+
+  return profile.is_public !== false;
+}
+
 function getMenuUser(
   profile: CurrentUserProfile,
   avatarUrl: string | null = null,
@@ -112,6 +132,8 @@ export default function SideMenu({
 
   const [networkVisibility, setNetworkVisibility] =
     useState(true);
+  const [savingVisibility, setSavingVisibility] = useState(false);
+  const [visibilityError, setVisibilityError] = useState('');
 
   const [toastVisible, setToastVisible] = useState(false);
 
@@ -131,6 +153,23 @@ export default function SideMenu({
       initials: getInitials(profile.firstName, profile.lastName),
     }));
   }, [profile]);
+
+  useEffect(() => {
+    if (!menuMotion.mounted) {
+      return undefined;
+    }
+
+    const html = document.documentElement;
+    const previousHtml = html.style.overflow;
+    const previousBody = document.body.style.overflow;
+    html.style.overflow = 'hidden';
+    document.body.style.overflow = 'hidden';
+
+    return () => {
+      html.style.overflow = previousHtml;
+      document.body.style.overflow = previousBody;
+    };
+  }, [menuMotion.mounted]);
 
   useEffect(() => {
     if (!isOpen) {
@@ -153,6 +192,7 @@ export default function SideMenu({
         }
 
         setMenuUser(getMenuUser(response.profile, avatarUrl));
+        setNetworkVisibility(isVisibleInNetwork(response.profile));
       } catch {
         if (!isMounted) {
           return;
@@ -175,6 +215,32 @@ export default function SideMenu({
       isMounted = false;
     };
   }, [isOpen]);
+
+  const handleToggleVisibility = async () => {
+    if (savingVisibility) {
+      return;
+    }
+
+    const next = !networkVisibility;
+    setNetworkVisibility(next);
+    setSavingVisibility(true);
+    setVisibilityError('');
+
+    try {
+      const auth = await getWebAuth();
+      const response = await updateNetworkVisibility(auth, next);
+      setNetworkVisibility(isVisibleInNetwork(response.profile));
+    } catch (error) {
+      setNetworkVisibility(!next);
+      setVisibilityError(
+        error instanceof Error
+          ? error.message
+          : 'No fue posible guardar la visibilidad.',
+      );
+    } finally {
+      setSavingVisibility(false);
+    }
+  };
 
   const handleLogout = async () => {
     try {
@@ -217,13 +283,13 @@ export default function SideMenu({
     </button>
   );
 
-  if (!menuMotion.mounted) {
+  if (!menuMotion.mounted || typeof document === 'undefined') {
     return null;
   }
 
-  return (
+  return createPortal(
     <div
-      className="fixed inset-0 z-50 flex justify-end"
+      className="fixed inset-0 z-50 flex justify-end overflow-hidden"
       aria-hidden={!menuMotion.visible}
     >
       <MotionOverlay
@@ -235,9 +301,9 @@ export default function SideMenu({
       <MotionDrawer
         visible={menuMotion.visible}
         side="right"
-        className="relative z-50 flex h-full overflow-hidden rounded-l-3xl bg-white shadow-2xl"
+        className="relative z-50 flex h-dvh max-h-dvh w-[min(340px,100vw)] shrink-0 overflow-hidden rounded-l-3xl bg-white shadow-2xl"
       >
-        <aside className="flex h-full w-[340px] flex-col overflow-y-auto bg-white">
+        <aside className="flex h-full min-h-0 w-full flex-col overflow-hidden bg-white">
           <div className="px-5 pt-5">
             <BuddyLogo height={30} />
           </div>
@@ -277,7 +343,7 @@ export default function SideMenu({
             </button>
           </div>
 
-          <div className="flex-1 space-y-6 p-4">
+          <div className="min-h-0 flex-1 space-y-6 overflow-y-auto overscroll-contain p-4">
             <div className="space-y-1">
               <div className="mb-1 px-3 text-[11px] font-semibold uppercase tracking-wider text-neutral-400">
                 Mis Negocios
@@ -307,7 +373,13 @@ export default function SideMenu({
               {navItem(
                 '/app/profile/subscription',
                 <CreditCard className="h-4 w-4 text-neutral-500" />,
-                'Suscripción y Verificación',
+                'Suscripción',
+              )}
+
+              {navItem(
+                '/app/profile/verification',
+                <BadgeCheck className="h-4 w-4 text-neutral-500" />,
+                'Verificación de identidad',
               )}
 
               {navItem(
@@ -334,32 +406,41 @@ export default function SideMenu({
                 'Dispositivos',
               )}
 
-              <div className="flex items-center justify-between px-3 py-2.5 text-sm font-normal text-neutral-700">
-                <div className="flex items-center gap-3">
-                  <Eye className="h-4 w-4 text-neutral-500" />
-                  <span>Visibilidad en la red</span>
-                </div>
+              <div className="px-3 py-2.5">
+                <div className="flex items-center justify-between text-sm font-normal text-neutral-700">
+                  <div className="flex items-center gap-3">
+                    <Eye className="h-4 w-4 text-neutral-500" />
+                    <span>Visibilidad en la red</span>
+                  </div>
 
-                <button
-                  type="button"
-                  onClick={() => {
-                    setNetworkVisibility((visible) => !visible);
-                  }}
-                  aria-label="Cambiar visibilidad en la red"
-                  className={`relative h-6 w-10 rounded-full p-0.5 transition-colors ${
-                    networkVisibility
-                      ? 'bg-brand-primary'
-                      : 'bg-neutral-300'
-                  }`}
-                >
-                  <span
-                    className={`block h-5 w-5 rounded-full bg-white transition-transform ${
+                  <button
+                    type="button"
+                    disabled={savingVisibility}
+                    aria-pressed={networkVisibility}
+                    onClick={() => {
+                      void handleToggleVisibility();
+                    }}
+                    aria-label="Cambiar visibilidad en la red"
+                    className={`relative h-6 w-10 rounded-full p-0.5 transition-colors disabled:opacity-60 ${
                       networkVisibility
-                        ? 'translate-x-4'
-                        : 'translate-x-0'
+                        ? 'bg-brand-primary'
+                        : 'bg-neutral-300'
                     }`}
-                  />
-                </button>
+                  >
+                    <span
+                      className={`block h-5 w-5 rounded-full bg-white transition-transform ${
+                        networkVisibility
+                          ? 'translate-x-4'
+                          : 'translate-x-0'
+                      }`}
+                    />
+                  </button>
+                </div>
+                {visibilityError ? (
+                  <p className="mt-1 pl-7 text-[11px] leading-snug text-red-600">
+                    {visibilityError}
+                  </p>
+                ) : null}
               </div>
             </div>
 
@@ -423,6 +504,7 @@ export default function SideMenu({
           Enlace copiado
         </div>
       ) : null}
-    </div>
+    </div>,
+    document.body,
   );
 }

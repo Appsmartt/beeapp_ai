@@ -39,148 +39,127 @@ export function VoiceFabVisibility({
 const FAB_SIZE = 64;
 const FAB_MARGIN = 24;
 
-function defaultFabPosition() {
-  if (typeof window === 'undefined') {
-    return { left: FAB_MARGIN, top: 600 };
-  }
+/**
+ * El botón vive anclado a una esquina (lado + distancia al borde inferior), no a una
+ * posición en píxeles. Así, al cambiar el zoom o el tamaño de la ventana sigue pegado
+ * a su esquina en lugar de quedarse a la mitad de la pantalla.
+ */
+type FabAnchor = { side: 'left' | 'right'; bottom: number };
 
-  return {
-    left: window.innerWidth - FAB_MARGIN - FAB_SIZE,
-    top: window.innerHeight - FAB_MARGIN - FAB_SIZE,
-  };
-}
+type DragState = {
+  pointerX: number;
+  pointerY: number;
+  startLeft: number;
+  startTop: number;
+  moved: boolean;
+};
 
 export default function VoiceAssistantFab({ hidden = false }: { hidden?: boolean }) {
   const [voiceOpen, setVoiceOpen] = useState(false);
   const [portalRoot, setPortalRoot] = useState<HTMLElement | null>(null);
-  const [position, setPosition] = useState<{ left: number; top: number } | null>(null);
-  const [isDragging, setIsDragging] = useState(false);
+  const [anchor, setAnchor] = useState<FabAnchor>({ side: 'right', bottom: FAB_MARGIN });
+  const [dragPosition, setDragPosition] = useState<{ left: number; top: number } | null>(null);
 
-  const isDraggingRef = useRef(false);
-  const dragStartRef = useRef<{ mouseX: number; mouseY: number; startLeft: number; startTop: number }>({
-    mouseX: 0,
-    mouseY: 0,
-    startLeft: FAB_MARGIN,
-    startTop: 0,
-  });
-  const isClickRef = useRef(true);
+  const buttonRef = useRef<HTMLButtonElement | null>(null);
+  const dragRef = useRef<DragState | null>(null);
 
   useEffect(() => {
     setPortalRoot(document.body);
-    setPosition(defaultFabPosition());
   }, []);
 
   useEffect(() => {
-    const handleResize = () => {
-      setPosition((current) => {
-        if (!current) {
-          return defaultFabPosition();
-        }
+    if (hidden) setVoiceOpen(false);
+  }, [hidden]);
 
-        return {
-          left: Math.max(0, Math.min(window.innerWidth - FAB_SIZE, current.left)),
-          top: Math.max(FAB_MARGIN, Math.min(window.innerHeight - FAB_SIZE, current.top)),
-        };
-      });
+  const handlePointerDown = (event: React.PointerEvent<HTMLButtonElement>) => {
+    if (event.pointerType === 'mouse' && event.button !== 0) return;
+    const rect = buttonRef.current?.getBoundingClientRect();
+    if (!rect) return;
+
+    event.currentTarget.setPointerCapture(event.pointerId);
+    dragRef.current = {
+      pointerX: event.clientX,
+      pointerY: event.clientY,
+      startLeft: rect.left,
+      startTop: rect.top,
+      moved: false,
     };
-
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
-  }, []);
-
-  useEffect(() => {
-    const handleMouseMove = (e: MouseEvent) => {
-      if (!isDraggingRef.current) return;
-
-      const deltaX = e.clientX - dragStartRef.current.mouseX;
-      const deltaY = e.clientY - dragStartRef.current.mouseY;
-
-      if (Math.abs(deltaX) > 5 || Math.abs(deltaY) > 5) {
-        isClickRef.current = false;
-      }
-
-      const rawLeft = dragStartRef.current.startLeft + deltaX;
-      const rawTop = dragStartRef.current.startTop + deltaY;
-
-      const clampedLeft = Math.max(0, Math.min(window.innerWidth - FAB_SIZE, rawLeft));
-      const clampedTop = Math.max(FAB_MARGIN, Math.min(window.innerHeight - FAB_SIZE, rawTop));
-
-      setPosition({ left: clampedLeft, top: clampedTop });
-    };
-
-    const handleMouseUp = () => {
-      if (!isDraggingRef.current) return;
-      isDraggingRef.current = false;
-      setIsDragging(false);
-
-      if (isClickRef.current) {
-        setVoiceOpen(true);
-        return;
-      }
-
-      const currentLeft = position?.left ?? defaultFabPosition().left;
-      const currentTop = position?.top ?? defaultFabPosition().top;
-      const isLeftHalf = currentLeft + FAB_SIZE / 2 < window.innerWidth / 2;
-      const targetLeft = isLeftHalf
-        ? FAB_MARGIN
-        : window.innerWidth - FAB_MARGIN - FAB_SIZE;
-      const clampedTop = Math.max(
-        FAB_MARGIN,
-        Math.min(window.innerHeight - FAB_SIZE, currentTop),
-      );
-
-      setPosition({ left: targetLeft, top: clampedTop });
-    };
-
-    window.addEventListener('mousemove', handleMouseMove);
-    window.addEventListener('mouseup', handleMouseUp);
-    return () => {
-      window.removeEventListener('mousemove', handleMouseMove);
-      window.removeEventListener('mouseup', handleMouseUp);
-    };
-  }, [position]);
-
-  const handleMouseDown = (e: React.MouseEvent<HTMLButtonElement>) => {
-    if (e.button !== 0) return;
-    const defaults = defaultFabPosition();
-    const currentLeft = position?.left ?? defaults.left;
-    const currentTop = position?.top ?? defaults.top;
-
-    dragStartRef.current = {
-      mouseX: e.clientX,
-      mouseY: e.clientY,
-      startLeft: currentLeft,
-      startTop: currentTop,
-    };
-    isDraggingRef.current = true;
-    isClickRef.current = true;
-    setIsDragging(true);
   };
 
-  if (!portalRoot || !position) {
+  const handlePointerMove = (event: React.PointerEvent<HTMLButtonElement>) => {
+    const drag = dragRef.current;
+    if (!drag) return;
+
+    const deltaX = event.clientX - drag.pointerX;
+    const deltaY = event.clientY - drag.pointerY;
+    if (!drag.moved && Math.abs(deltaX) < 6 && Math.abs(deltaY) < 6) return;
+    drag.moved = true;
+
+    setDragPosition({
+      left: Math.max(0, Math.min(window.innerWidth - FAB_SIZE, drag.startLeft + deltaX)),
+      top: Math.max(FAB_MARGIN, Math.min(window.innerHeight - FAB_SIZE, drag.startTop + deltaY)),
+    });
+  };
+
+  const finishDrag = (event: React.PointerEvent<HTMLButtonElement>, cancelled = false) => {
+    const drag = dragRef.current;
+    dragRef.current = null;
+    if (!drag) return;
+
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+
+    if (!drag.moved) {
+      setDragPosition(null);
+      if (!cancelled) setVoiceOpen(true);
+      return;
+    }
+
+    const rect = buttonRef.current?.getBoundingClientRect();
+    if (rect) {
+      const side = rect.left + FAB_SIZE / 2 < window.innerWidth / 2 ? 'left' : 'right';
+      const bottom = Math.max(
+        FAB_MARGIN,
+        Math.min(window.innerHeight - FAB_SIZE - FAB_MARGIN, window.innerHeight - rect.bottom),
+      );
+      setAnchor({ side, bottom });
+    }
+    setDragPosition(null);
+  };
+
+  if (!portalRoot) {
     return null;
   }
+
+  const style: React.CSSProperties = dragPosition
+    ? { left: `${dragPosition.left}px`, top: `${dragPosition.top}px` }
+    : {
+        [anchor.side]: `${FAB_MARGIN}px`,
+        bottom: `min(${anchor.bottom}px, calc(100dvh - ${FAB_SIZE + FAB_MARGIN}px))`,
+      };
 
   return createPortal(
     <>
       {hidden ? null : (
-      <button
-        type="button"
-        onMouseDown={handleMouseDown}
-        style={{
-          left: `${position.left}px`,
-          top: `${position.top}px`,
-        }}
-        className={`fixed z-[120] w-16 h-16 rounded-full bg-brand-primary text-white flex items-center justify-center shadow-lg shadow-brand-primary/40 select-none group ${
-          isDragging
-            ? 'cursor-grabbing opacity-80 scale-105 duration-100'
-            : 'cursor-grab opacity-100 scale-100 duration-300'
-        }`}
-        aria-label="Asistente de IA por voz"
-      >
-        <span className="absolute inset-0 rounded-full bg-brand-primary opacity-40 animate-ping pointer-events-none" />
-        <Mic className="w-7 h-7 relative z-10 pointer-events-none" />
-      </button>
+        <button
+          ref={buttonRef}
+          type="button"
+          onPointerDown={handlePointerDown}
+          onPointerMove={handlePointerMove}
+          onPointerUp={(event) => finishDrag(event)}
+          onPointerCancel={(event) => finishDrag(event, true)}
+          style={{ ...style, touchAction: 'none' }}
+          className={`group fixed z-[120] flex h-16 w-16 select-none items-center justify-center rounded-full bg-brand-primary text-white shadow-lg shadow-brand-primary/40 ${
+            dragPosition
+              ? 'scale-105 cursor-grabbing opacity-80 duration-100'
+              : 'scale-100 cursor-grab opacity-100 duration-300'
+          }`}
+          aria-label="Asistente de IA por voz"
+        >
+          <span className="pointer-events-none absolute inset-0 animate-ping rounded-full bg-brand-primary opacity-40" />
+          <Mic className="pointer-events-none relative z-10 h-7 w-7" />
+        </button>
       )}
 
       <VoiceAssistantModal

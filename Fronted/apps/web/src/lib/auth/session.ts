@@ -1,4 +1,4 @@
-import { api, getSupabase, signOutSupabase } from '@beeapp/api-client';
+import { api, getSupabase } from '@beeapp/api-client';
 
 export type AppRole = 'USER' | 'ADMIN' | 'SUPERADMIN';
 
@@ -13,6 +13,7 @@ export type AuthProfile = {
 };
 
 const DEVICE_SESSION_KEY = 'beeapp.web.deviceSessionId';
+const PROFILE_CACHE_KEY = 'beeapp.web.authProfile';
 
 export function isAdminRole(role: AppRole | null | undefined): boolean {
   return role === 'ADMIN' || role === 'SUPERADMIN';
@@ -38,6 +39,43 @@ export function rememberWebDeviceSession(deviceSessionId: string): void {
   window.localStorage.setItem(DEVICE_SESSION_KEY, deviceSessionId);
 }
 
+export function readCachedAuthProfile(): AuthProfile | null {
+  if (typeof window === 'undefined') {
+    return null;
+  }
+
+  const raw = window.localStorage.getItem(PROFILE_CACHE_KEY);
+  if (!raw) {
+    return null;
+  }
+
+  try {
+    const parsed = JSON.parse(raw) as AuthProfile;
+    if (!parsed?.id) {
+      return null;
+    }
+    return { ...parsed, role: normalizeRole(parsed.role) };
+  } catch {
+    return null;
+  }
+}
+
+export function rememberAuthProfile(profile: AuthProfile): void {
+  if (typeof window === 'undefined') {
+    return;
+  }
+
+  window.localStorage.setItem(PROFILE_CACHE_KEY, JSON.stringify(profile));
+}
+
+export function forgetAuthProfile(): void {
+  if (typeof window === 'undefined') {
+    return;
+  }
+
+  window.localStorage.removeItem(PROFILE_CACHE_KEY);
+}
+
 let deviceRegistration: Promise<string | null> | null = null;
 
 async function registerWebDevice(): Promise<string | null> {
@@ -52,6 +90,10 @@ async function registerWebDevice(): Promise<string | null> {
   });
 
   if (error || !data) {
+    const message = error?.message || '';
+    if (/esta sesión fue cerrada/i.test(message)) {
+      throw new Error('Esta sesión fue cerrada');
+    }
     return null;
   }
 
@@ -110,7 +152,23 @@ export async function signOutWeb(): Promise<void> {
 
       window.localStorage.removeItem(DEVICE_SESSION_KEY);
     }
+
+    forgetAuthProfile();
   }
 
-  await signOutSupabase();
+  // Solo este navegador. No revoca el teléfono ni otras sesiones abiertas.
+  await getSupabase().auth.signOut({ scope: 'local' });
+}
+
+export function isClosedDeviceSession(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : '';
+  return /esta sesión fue cerrada/i.test(message);
+}
+
+export async function leaveClosedWebSession(): Promise<void> {
+  try {
+    await signOutWeb();
+  } catch {
+    await getSupabase().auth.signOut({ scope: 'local' });
+  }
 }

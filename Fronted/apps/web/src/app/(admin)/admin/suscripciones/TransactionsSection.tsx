@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { listAdminTransactions } from '@beeapp/api-client';
+import { listAdminTransactions, markAdminRefund } from '@beeapp/api-client';
 import FilterBar, { type FilterConfig } from '@/components/admin/FilterBar';
 import DataTable, { type DataTableColumn } from '@/components/admin/DataTable';
 import Pagination from '@/components/admin/Pagination';
@@ -32,13 +32,19 @@ export default function TransactionsSection() {
   const [selected, setSelected] = useState<Transaction | null>(null);
   const [rows, setRows] = useState<Transaction[]>([]);
   const [error, setError] = useState('');
+  const [refundReason, setRefundReason] = useState('');
+  const [refunding, setRefunding] = useState(false);
 
-  useEffect(() => {
+  const loadRows = () => {
     listAdminTransactions({ page: 1, pageSize: 100 })
       .then((result) => setRows(result.items.map(toTransaction)))
       .catch((loadError: unknown) => {
         setError(loadError instanceof Error ? loadError.message : 'No fue posible cargar las transacciones.');
       });
+  };
+
+  useEffect(() => {
+    loadRows();
   }, []);
 
   const filters: FilterConfig[] = [
@@ -149,6 +155,41 @@ export default function TransactionsSection() {
               <span className="detail-row-label">ID de transacción</span>
               <span className="detail-row-value">{selected.id}</span>
             </div>
+            {selected.estado !== 'reembolsado' ? (
+              <div className="form-field">
+                <label className="form-field-label">Motivo del reembolso</label>
+                <textarea
+                  className="form-field-textarea"
+                  rows={2}
+                  value={refundReason}
+                  onChange={(event) => setRefundReason(event.target.value)}
+                />
+                <p className="form-hint">
+                  Esto marca el pago como reembolsado en Buddy. La devolución del dinero se hace en Wompi.
+                </p>
+                <button
+                  className="confirm-dialog-btn-confirm"
+                  type="button"
+                  disabled={refunding}
+                  onClick={() => {
+                    setRefunding(true);
+                    setError('');
+                    void markAdminRefund(selected.id, refundReason)
+                      .then(() => {
+                        setSelected(null);
+                        setRefundReason('');
+                        loadRows();
+                      })
+                      .catch((refundError: unknown) => {
+                        setError(refundError instanceof Error ? refundError.message : 'No se pudo marcar el reembolso.');
+                      })
+                      .finally(() => setRefunding(false));
+                  }}
+                >
+                  {refunding ? 'Guardando…' : 'Marcar como reembolsado'}
+                </button>
+              </div>
+            ) : null}
           </div>
         )}
       </SlidePanel>

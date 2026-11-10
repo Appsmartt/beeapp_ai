@@ -5,7 +5,6 @@ import {
   } from 'react';
 import {
   ActivityIndicator,
-  Linking,
   ScrollView,
   Share,
   StyleSheet,
@@ -49,6 +48,7 @@ import {
   getValidSessionCredentials,
   signOutCurrentDevice,
 } from '../../../src/services/authSession';
+import { openConfiguredSupportEmail } from '../../../src/services/openSupportEmail';
 import {
   getProfileAvatarUrl,
 } from '../../../src/services/profileAvatarService';
@@ -216,34 +216,7 @@ export default function ProfileMainScreen() {
   };
 
   const handleContactSupport = () => {
-    const supportPhone = '573001234567';
-    const message =
-      'Hola soporte de Buddy, necesito ayuda con mi cuenta.';
-
-    const url = (
-      `https://wa.me/${supportPhone}?text=`
-      + encodeURIComponent(message)
-    );
-
-    Linking.canOpenURL(url)
-      .then((supported) => {
-        if (supported) {
-          return Linking.openURL(url);
-        }
-
-        appAlert(
-          'Error',
-          'No se pudo abrir WhatsApp en este dispositivo.',
-        );
-
-        return undefined;
-      })
-      .catch((error) => {
-        console.error(
-          'No fue posible abrir WhatsApp:',
-          error,
-        );
-      });
+    void openConfiguredSupportEmail();
   };
 
   const handleSignOut = () => {

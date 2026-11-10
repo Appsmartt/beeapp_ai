@@ -1,7 +1,16 @@
 'use client';
 
 import { useState } from 'react';
-import { setConversationDisappearing } from '@beeapp/api-client';
+import {
+  inviteToChatGroup,
+  leaveChatGroup,
+  removeChatGroupParticipant,
+  searchChatRecipients,
+  setChatGroupParticipantRole,
+  setConversationDisappearing,
+  updateChatConversationNotifications,
+} from '@beeapp/api-client';
+import { getWebAuth } from '@/lib/client/webAuth';
 import { disappearingIntervalToSeconds } from '@/lib/client/disappearingMessages';
 import { ArrowLeft, Timer, BellOff, Search, Image as ImageIcon, LogOut, ShieldCheck, Camera } from 'lucide-react';
 import { ChatItem, GroupMember } from '@/lib/client/chats';
@@ -44,14 +53,34 @@ export default function ChatProfile({ chat, onBack }: ChatProfileProps) {
     if (val) setIntervalModal(true);
   };
 
+  const identityId = chat.postingIdentityId;
+
   const handleConfirmLeave = () => {
-    if (confirm(isGroup ? '¿Seguro que quieres salir de este grupo?' : '¿Seguro que quieres eliminar esta conversación?')) {
+    if (!confirm(isGroup ? '¿Seguro que quieres salir de este grupo?' : '¿Seguro que quieres eliminar esta conversación?')) return;
+    if (!isGroup || !identityId) {
       onBack();
+      return;
     }
+    void getWebAuth()
+      .then((auth) => leaveChatGroup(auth, chat.id, { identity_id: identityId }))
+      .then(() => onBack())
+      .catch(() => onBack());
+  };
+
+  const toggleMute = () => {
+    const next = !muted;
+    setMuted(next);
+    if (!identityId) return;
+    void getWebAuth()
+      .then((auth) => updateChatConversationNotifications(auth, chat.id, {
+        identity_id: identityId,
+        notifications_enabled: !next,
+      }))
+      .catch(() => setMuted(!next));
   };
 
   return (
-    <div className="bg-white min-h-full flex flex-col">
+    <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden bg-white">
       {/* Top Header */}
       <div className="flex items-center gap-2 px-4 py-3 border-b border-neutral-100 bg-white sticky top-0 z-10">
         <button
@@ -66,7 +95,7 @@ export default function ChatProfile({ chat, onBack }: ChatProfileProps) {
         </h1>
       </div>
 
-      <div className="p-5 space-y-6 flex-1 overflow-y-auto max-w-lg mx-auto w-full">
+      <div className="mx-auto min-h-0 w-full max-w-lg flex-1 space-y-6 overflow-y-auto overscroll-contain p-5">
         {/* Avatar & Name Section */}
         <div className="text-center space-y-3">
           <div className="relative w-20 h-20 mx-auto">
@@ -145,7 +174,24 @@ export default function ChatProfile({ chat, onBack }: ChatProfileProps) {
               members={members}
               canManage={isAdmin}
               onAdd={() => setAddMemberModal(true)}
-              onRemove={(memberId) => setMembers((list) => list.filter((m) => m.id !== memberId))}
+              onRemove={(memberId) => {
+                setMembers((list) => list.filter((m) => m.id !== memberId));
+                if (!identityId) return;
+                void getWebAuth()
+                  .then((auth) => removeChatGroupParticipant(auth, chat.id, memberId, { actor_identity_id: identityId }))
+                  .catch(() => undefined);
+              }}
+              onToggleRole={(member) => {
+                if (!identityId) return;
+                const role = member.role === 'admin' ? 'member' : 'admin';
+                setMembers((list) => list.map((item) => item.id === member.id ? { ...item, role } : item));
+                void getWebAuth()
+                  .then((auth) => setChatGroupParticipantRole(auth, chat.id, member.id, {
+                    actor_identity_id: identityId,
+                    role,
+                  }))
+                  .catch(() => undefined);
+              }}
             />
           </>
         )}
@@ -169,7 +215,7 @@ export default function ChatProfile({ chat, onBack }: ChatProfileProps) {
             </div>
             <button
               type="button"
-              onClick={() => setMuted(!muted)}
+              onClick={toggleMute}
               className={`w-9 h-5 rounded-full transition-colors relative p-0.5 shrink-0 ${
                 muted ? 'bg-brand-primary' : 'bg-neutral-300'
               }`}
@@ -221,6 +267,18 @@ export default function ChatProfile({ chat, onBack }: ChatProfileProps) {
         onAdd={(added) => {
           setMembers((list) => [...list, ...added]);
           setAddMemberModal(false);
+          if (!identityId) return;
+          void getWebAuth().then(async (auth) => {
+            for (const member of added) {
+              const found = await searchChatRecipients(auth, member.name, 5);
+              const recipient = found.users[0];
+              if (!recipient) continue;
+              await inviteToChatGroup(auth, chat.id, {
+                actor_identity_id: identityId,
+                invited_identity_id: recipient.id,
+              });
+            }
+          }).catch(() => undefined);
         }}
         onClose={() => setAddMemberModal(false)}
       />

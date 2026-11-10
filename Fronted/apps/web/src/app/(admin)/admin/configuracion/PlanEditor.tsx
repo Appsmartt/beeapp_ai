@@ -3,7 +3,7 @@
 import { useMemo, useState } from 'react';
 import { ArrowLeft, Save, Users } from 'lucide-react';
 import ConfirmDialog from '@/components/admin/ConfirmDialog';
-import type { Plan, PlanLimits } from '@/lib/admin/types';
+import type { Plan } from '@/lib/admin/types';
 import { formatNumber } from '@/lib/admin/format';
 import PlanFeaturesEditor from './PlanFeaturesEditor';
 import PlanPreviewCard from './PlanPreviewCard';
@@ -25,10 +25,6 @@ export default function PlanEditor({ plan, onSave, onCancel }: PlanEditorProps) 
 
   const setField = <K extends keyof Plan>(key: K, value: Plan[K]) => {
     setDraft((prev) => ({ ...prev, [key]: value }));
-  };
-
-  const setLimit = (key: keyof PlanLimits, value: string) => {
-    setField('limites', { ...draft.limites, [key]: Math.max(0, Number(value) || 0) });
   };
 
   return (
@@ -70,29 +66,10 @@ export default function PlanEditor({ plan, onSave, onCancel }: PlanEditorProps) 
             </p>
           </div>
 
-          <div className="panel-card">
-            <span className="panel-card-title">Límites del plan</span>
-            <div className="plan-limits-grid">
-              <div className="form-field">
-                <label className="form-field-label">Almacenamiento (GB)</label>
-                <input type="number" min={0} className="form-field-input" value={draft.limites.almacenamientoGB} onChange={(e) => setLimit('almacenamientoGB', e.target.value)} />
-              </div>
-              <div className="form-field">
-                <label className="form-field-label">Dispositivos</label>
-                <input type="number" min={0} className="form-field-input" value={draft.limites.dispositivos} onChange={(e) => setLimit('dispositivos', e.target.value)} />
-              </div>
-              <div className="form-field">
-                <label className="form-field-label">Ofertas de perfil profesional</label>
-                <input type="number" min={0} className="form-field-input" value={draft.limites.ofertasPerfil} onChange={(e) => setLimit('ofertasPerfil', e.target.value)} />
-              </div>
-            </div>
-            <p className="form-hint">Usa 0 en almacenamiento para indicar sin límite.</p>
-          </div>
-
           <PlanFeaturesEditor
-            funciones={draft.funciones}
+            entitlements={draft.entitlements}
             caracteristicas={draft.caracteristicas}
-            onToggle={(key, value) => setField('funciones', { ...draft.funciones, [key]: value })}
+            onEntitlementsChange={(value) => setField('entitlements', value)}
             onCaracteristicasChange={(list) => setField('caracteristicas', list)}
           />
         </div>

@@ -35,6 +35,7 @@ import {
     } from './gateway/statusStories';
 import {
     getSupabase,
+    invokeAnonFunction,
     mapAuthSession,
     } from './supabase';
 
@@ -447,6 +448,43 @@ function mapConversationKindToType(
     return 'direct';
 }
 
+async function edgeMessage(
+    error: unknown,
+    data: unknown,
+    fallback: string,
+): Promise<string> {
+    if (data && typeof data === 'object' && 'message' in data) {
+        const message = (data as { message?: unknown }).message;
+        if (typeof message === 'string' && message.trim()) {
+            return message;
+        }
+    }
+
+    const context = (error as { context?: { json?: () => Promise<unknown> } } | null)?.context;
+    if (context && typeof context.json === 'function') {
+        try {
+            const body = await context.json();
+            if (
+                body
+                && typeof body === 'object'
+                && 'message' in body
+                && typeof body.message === 'string'
+                && body.message.trim()
+            ) {
+                return body.message;
+            }
+        } catch {
+            // El cuerpo del error no siempre es JSON.
+        }
+    }
+
+    if (error instanceof Error && error.message && !/non-2xx/i.test(error.message)) {
+        return error.message;
+    }
+
+    return fallback;
+}
+
 async function handleQrLogin(
     method: string,
     path: string,
@@ -456,27 +494,32 @@ async function handleQrLogin(
     const payload = asJson(body);
 
     if (method === 'POST' && path === '/accounts/qr-login/challenges/') {
-        const created = await supabase.functions.invoke('qr-login', {
-            body: { action: 'create' },
-        });
-        if (created.error || !created.data) {
-            throw new GatewayError(created.error?.message || 'No fue posible crear el código.', 400);
+        try {
+            return await invokeAnonFunction('qr-login', {
+                action: 'create',
+                browser_nonce: payload.browser_nonce,
+            });
+        } catch (error) {
+            throw new GatewayError(
+                error instanceof Error ? error.message : 'No fue posible crear el código.',
+                400,
+            );
         }
-        return created.data;
     }
 
     const statusMatch = path.match(/^\/accounts\/qr-login\/challenges\/([^/]+)\/$/i);
     if (method === 'GET' && statusMatch) {
-        const status = await supabase.functions.invoke('qr-login', {
-            body: {
+        try {
+            return await invokeAnonFunction('qr-login', {
                 action: 'status',
                 challenge_token: decodeURIComponent(statusMatch[1]),
-            },
-        });
-        if (status.error || !status.data) {
-            throw new GatewayError(status.error?.message || 'No encontramos el código.', 404);
+            });
+        } catch (error) {
+            throw new GatewayError(
+                error instanceof Error ? error.message : 'No encontramos el código.',
+                404,
+            );
         }
-        return status.data;
     }
 
     if (method === 'POST' && path === '/accounts/qr-login/scan/') {
@@ -487,7 +530,14 @@ async function handleQrLogin(
             },
         });
         if (scanned.error || !scanned.data) {
-            throw new GatewayError(scanned.error?.message || 'No fue posible aprobar el acceso.', 400);
+            throw new GatewayError(
+                await edgeMessage(
+                    scanned.error,
+                    scanned.data,
+                    'No fue posible aprobar el acceso.',
+                ),
+                400,
+            );
         }
         return scanned.data;
     }
@@ -737,6 +787,36 @@ async function handleAccounts(
         return handleQrLogin(method, path, body);
     }
 
+    if (method === 'POST' && path === '/accounts/web-session/activate/') {
+        let activated: Record<string, unknown>;
+        try {
+            activated = await invokeAnonFunction('qr-login', {
+                action: 'activate',
+                challenge_token: payload.challenge_token,
+            });
+        } catch (error) {
+            throw new GatewayError(
+                error instanceof Error ? error.message : 'No fue posible activar la sesión web.',
+                400,
+            );
+        }
+
+        const session = asJson(activated.session);
+        if (!session.access_token || !session.refresh_token) {
+            throw new GatewayError('No fue posible activar la sesión web.', 400);
+        }
+
+        const { error } = await supabase.auth.setSession({
+            access_token: String(session.access_token),
+            refresh_token: String(session.refresh_token),
+        });
+        if (error) {
+            throw new GatewayError(error.message, 400);
+        }
+
+        return { ok: true };
+    }
+
     const { supabase: authed, userId } = await requireClient();
 
     if (method === 'GET' && path === '/accounts/me/') {
@@ -770,6 +850,13 @@ async function handleAccounts(
 
         if (Array.isArray(payload.social_links)) {
             patch.social_links = payload.social_links;
+        }
+
+        if ('is_visible_in_network' in payload) {
+            const visible = payload.is_visible_in_network === true
+                || payload.is_visible_in_network === 'true';
+            patch.network_visibility = visible ? 'publico' : 'privado';
+            patch.is_public = visible;
         }
 
         if (Object.keys(patch).length > 0) {
@@ -911,27 +998,23 @@ async function handleAccounts(
     );
 
     if (method === 'DELETE' && deviceMatch) {
-        unwrap(await authed
-            .from('devices')
-            .update({
-                is_active: false,
-                revoked_at: new Date().toISOString(),
-            })
-            .eq('id', deviceMatch[1])
-            .eq('user_id', userId));
+        unwrap(await authed.rpc('revoke_device_session', {
+            p_device_id: deviceMatch[1],
+        }));
         return undefined;
     }
 
     if (method === 'DELETE' && path === '/accounts/me/devices/others/') {
-        unwrap(await authed
-            .from('devices')
-            .update({
-                is_active: false,
-                revoked_at: new Date().toISOString(),
-            })
-            .eq('user_id', userId)
-            .eq('is_active', true)
-            .neq('device_type', 'MOBILE'));
+        unwrap(await authed.rpc('revoke_device_sessions', {
+            p_include_current: false,
+        }));
+        return undefined;
+    }
+
+    if (method === 'DELETE' && path === '/accounts/me/devices/all/') {
+        unwrap(await authed.rpc('revoke_device_sessions', {
+            p_include_current: true,
+        }));
         return undefined;
     }
 
@@ -971,31 +1054,6 @@ async function handleAccounts(
 
     if (method === 'GET' && path === '/accounts/web-session/me/') {
         return { profile: await loadProfile(authed, userId) };
-    }
-
-    if (method === 'POST' && path === '/accounts/web-session/activate/') {
-        const activated = await authed.functions.invoke('qr-login', {
-            body: {
-                action: 'activate',
-                challenge_token: payload.challenge_token,
-            },
-        });
-        const data = asJson(activated.data);
-        const session = asJson(data.session);
-
-        if (session.access_token && session.refresh_token) {
-            await authed.auth.setSession({
-                access_token: String(session.access_token),
-                refresh_token: String(session.refresh_token),
-            });
-        } else if (activated.error) {
-            throw new GatewayError(
-                activated.error.message || 'No fue posible activar la sesión web.',
-                400,
-            );
-        }
-
-        return undefined;
     }
 
     if (method === 'POST' && path === '/accounts/web-session/logout/') {
@@ -2515,11 +2573,11 @@ async function handleStatuses(
         const profiles = profileIds.length
             ? asRows<Json>(unwrap(await supabase
                 .from('profiles')
-                .select('id, avatar_file_id')
+                .select('id, avatar_file_id, occupation')
                 .in('id', profileIds))) ?? []
             : [];
-        const avatarByProfile = new Map(
-            profiles.map((profile) => [String(profile.id), profile.avatar_file_id]),
+        const profileById = new Map(
+            profiles.map((profile) => [String(profile.id), profile]),
         );
         const avatarUrls = await signedUrlsForFileIds(
             supabase,
@@ -2532,7 +2590,8 @@ async function handleStatuses(
             next_cursor: null,
             items: found.map((row) => {
                 const current = byUser.get(String(row.user_id));
-                const avatarFileId = avatarByProfile.get(String(row.user_id)) ?? null;
+                const profile = profileById.get(String(row.user_id));
+                const avatarFileId = profile?.avatar_file_id ?? null;
                 const avatarId = avatarFileId ? String(avatarFileId) : null;
 
                 return {
@@ -2541,6 +2600,9 @@ async function handleStatuses(
                     commercial_profile_id: null,
                     identity_id: row.user_id,
                     display_name: `${row.first_name || ''} ${row.last_name || ''}`.trim() || 'Usuario',
+                    occupation: profile?.occupation
+                        ? String(profile.occupation)
+                        : null,
                     avatar_file_id: avatarId,
                     avatar_url: avatarId
                         ? avatarUrls.get(avatarId) ?? null

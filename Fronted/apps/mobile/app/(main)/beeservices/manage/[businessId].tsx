@@ -8,6 +8,7 @@ import {
 import {
   ArrowLeft,
   BadgeCheck,
+  BarChart3,
   Building2,
   CalendarDays,
   CreditCard,
@@ -46,6 +47,7 @@ import {
 } from '../../../../src/features/buddyservices/commercialReservationDateTime';
 import {
   buddyServicesManageHoursRoute,
+  buddyServicesManageMetricsRoute,
   buddyServicesManageOperationRoute,
   buddyServicesManagePaymentMethodsRoute,
   buddyServicesManageProfileRoute,
@@ -428,6 +430,85 @@ export default function BuddyServicesManageBusinessScreen() {
           >
             Administración
           </Text>
+
+          <TouchableOpacity
+            accessibilityHint="Consulta el dinero ganado, las ventas y los productos o servicios más vendidos"
+            accessibilityLabel="Métricas del negocio"
+            accessibilityRole="button"
+            activeOpacity={0.82}
+            onPress={() => {
+              router.push(
+                buddyServicesManageMetricsRoute(profile.id),
+              );
+            }}
+            style={{
+              backgroundColor: '#FFFFFF',
+              borderColor: '#EAE3F0',
+              borderRadius: 18,
+              borderWidth: 1,
+              marginBottom: 12,
+              padding: 16,
+              shadowColor: '#38294E',
+              shadowOffset: {
+                width: 0,
+                height: 3,
+              },
+              shadowOpacity: 0.05,
+              shadowRadius: 10,
+              elevation: 2,
+            }}
+          >
+            <View
+              style={{
+                alignItems: 'center',
+                flexDirection: 'row',
+              }}
+            >
+              <View
+                style={{
+                  alignItems: 'center',
+                  backgroundColor: '#F6EAFE',
+                  borderRadius: 12,
+                  height: 42,
+                  justifyContent: 'center',
+                  width: 42,
+                }}
+              >
+                <BarChart3
+                  color="#7427D5"
+                  size={20}
+                />
+              </View>
+
+              <View
+                style={{
+                  flex: 1,
+                  marginLeft: 12,
+                }}
+              >
+                <Text
+                  style={{
+                    color: '#261743',
+                    fontSize: 15,
+                    fontWeight: '800',
+                  }}
+                >
+                  Métricas del negocio
+                </Text>
+
+                <Text
+                  style={{
+                    color: '#786593',
+                    fontSize: 12,
+                    lineHeight: 18,
+                    marginTop: 3,
+                  }}
+                >
+                  Dinero ganado, ventas y lo más vendido por día, semana o mes.
+                </Text>
+              </View>
+            </View>
+          </TouchableOpacity>
 
           <TouchableOpacity
             accessibilityHint="Edita datos públicos y contacto del negocio"

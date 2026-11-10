@@ -28,6 +28,8 @@ UpdateCommercialProfilePayload,
 UpdateCommercialProfileResponse,
 UpdateCommercialProfilePublicationPayload,
 UpdateCommercialProfilePublicationResponse,
+GetCommercialProfileDeletionStatusResponse,
+GetCommercialOfferDeletionStatusResponse,
 CreateCommercialCatalogPayload,
 CreateCommercialCatalogResponse,
 UpdateCommercialCatalogPayload,
@@ -75,7 +77,9 @@ RejectCommercialRequestProposalPayload,
 WithdrawCommercialRequestProposalPayload,
 PaymentProofSubmissionPayload,
 PaymentProofSubmissionResponse,
-ReplaceCommercialPaymentProofPayload,
+  BusinessSalesMetrics,
+  BusinessSalesMetricsGrain,
+  ReplaceCommercialPaymentProofPayload,
 ReplaceCommercialPaymentProofResponse,
 
   AttachCommercialVerificationDocumentPayload,
@@ -557,6 +561,26 @@ payload,
 );
 }
 
+export function getCommercialProfileDeletionStatus(
+auth: AuthCredentials,
+profileId: string,
+): Promise<GetCommercialProfileDeletionStatusResponse> {
+return api.get<GetCommercialProfileDeletionStatusResponse>(
+`${profilePath(profileId)}deletion-status/`,
+{ auth },
+);
+}
+
+export function deleteCommercialProfile(
+auth: AuthCredentials,
+profileId: string,
+): Promise<void> {
+return api.delete<void>(
+profilePath(profileId),
+{ auth },
+);
+}
+
 export function createOwnedCommercialCatalog(
 auth: AuthCredentials,
 profileId: string,
@@ -723,6 +747,28 @@ offerId: string,
 return api.post<CommercialOfferMutationResponse>(
 `${offerPath(profileId, offerId)}disable/`,
 undefined,
+{ auth },
+);
+}
+
+export function getOwnedCommercialOfferDeletionStatus(
+auth: AuthCredentials,
+profileId: string,
+offerId: string,
+): Promise<GetCommercialOfferDeletionStatusResponse> {
+return api.get<GetCommercialOfferDeletionStatusResponse>(
+`${offerPath(profileId, offerId)}deletion-status/`,
+{ auth },
+);
+}
+
+export function deleteOwnedCommercialOffer(
+auth: AuthCredentials,
+profileId: string,
+offerId: string,
+): Promise<void> {
+return api.delete<void>(
+offerPath(profileId, offerId),
 { auth },
 );
 }
@@ -942,6 +988,17 @@ payload,
 );
 }
 
+export function deleteOwnedCommercialPaymentMethod(
+auth: AuthCredentials,
+profileId: string,
+paymentMethodId: string,
+): Promise<void> {
+return api.delete<void>(
+paymentMethodPath(profileId, paymentMethodId),
+{ auth },
+);
+}
+
 export function archiveOwnedCommercialPaymentMethod(
 auth: AuthCredentials,
 profileId: string,
@@ -1117,6 +1174,28 @@ export function getOwnedCommercialRequests(
   );
 }
 
+export function getOwnedBusinessSalesMetrics(
+  auth: AuthCredentials,
+  profileId: string,
+  query: {
+    grain: BusinessSalesMetricsGrain;
+    anchor?: string;
+  },
+): Promise<BusinessSalesMetrics> {
+  const parameters = new URLSearchParams();
+  parameters.set('grain', query.grain);
+
+  const anchor = String(query.anchor || '').trim();
+  if (anchor) {
+    parameters.set('anchor', anchor);
+  }
+
+  return api.get<BusinessSalesMetrics>(
+    `${profilePath(profileId)}metrics/?${parameters.toString()}`,
+    { auth },
+  );
+}
+
 export function getCommercialRequestTimeline(
   auth: AuthCredentials,
   requestId: string,
@@ -1191,6 +1270,17 @@ export function completeCommercialRequest(
   return api.post<CompleteCommercialRequestResponse>(
     `${commercialRequestPath(requestId)}complete/`,
     payload,
+    { auth },
+  );
+}
+
+export function confirmCommercialPaymentReceived(
+  auth: AuthCredentials,
+  requestId: string,
+): Promise<CompleteCommercialRequestResponse> {
+  return api.post<CompleteCommercialRequestResponse>(
+    `${commercialRequestPath(requestId)}confirm-payment/`,
+    {},
     { auth },
   );
 }

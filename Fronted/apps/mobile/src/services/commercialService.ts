@@ -52,6 +52,7 @@ getPublicCommercialProfiles,
 getCommercialRequest,
 getCommercialRequests,
 getOwnedCommercialRequests,
+getOwnedBusinessSalesMetrics,
 getCommercialRequestTimeline,
 getCommercialRequestFormalDetail,
 getCommercialRequestPaymentMethods,
@@ -59,6 +60,7 @@ transitionCommercialRequest,
 createCommercialRequestProposal,
 createCommercialReservationHold,
 completeCommercialRequest,
+confirmCommercialPaymentReceived,
 acceptCommercialRequestProposal,
 rejectCommercialRequestProposal,
 withdrawCommercialRequestProposal,
@@ -137,6 +139,8 @@ GetCommercialRequestResponse,
 GetCommercialRequestsQuery,
 GetCommercialRequestsResponse,
 GetOwnedCommercialRequestsResponse,
+BusinessSalesMetrics,
+BusinessSalesMetricsGrain,
 GetCommercialRequestTimelineResponse,
 GetCommercialRequestFormalDetailResponse,
 GetCommercialRequestPaymentMethodsResponse,
@@ -875,6 +879,20 @@ query,
 );
 }
 
+export async function loadOwnedBusinessSalesMetrics(
+  profileId: string,
+  query: {
+    grain: BusinessSalesMetricsGrain;
+    anchor?: string;
+  },
+): Promise<BusinessSalesMetrics> {
+  return getOwnedBusinessSalesMetrics(
+    await getRequiredCommercialCredentials(),
+    profileId,
+    query,
+  );
+}
+
 export async function loadCommercialRequestTimeline(
 requestId: string,
 ): Promise<GetCommercialRequestTimelineResponse> {
@@ -943,6 +961,15 @@ return completeCommercialRequest(
 await getRequiredCommercialCredentials(),
 requestId,
 payload,
+);
+}
+
+export async function confirmOwnedCommercialPayment(
+requestId: string,
+): Promise<CompleteCommercialRequestResponse> {
+return confirmCommercialPaymentReceived(
+await getRequiredCommercialCredentials(),
+requestId,
 );
 }
 

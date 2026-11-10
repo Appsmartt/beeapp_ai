@@ -8,7 +8,7 @@ import type { ChatSection } from './chatSections';
 
 interface ChatInboxHeaderProps {
   title: string;
-  onOpenOverview: () => void;
+  onGoHome?: () => void;
   onNewChat: () => void;
   onNewGroup: () => void;
   onNewCommunity: () => void;
@@ -25,7 +25,7 @@ const SOCIAL_ITEMS: { section: ChatSection; label: string; icon: typeof Users }[
 
 export default function ChatInboxHeader({
   title,
-  onOpenOverview,
+  onGoHome,
   onNewChat,
   onNewGroup,
   onNewCommunity,
@@ -57,16 +57,16 @@ export default function ChatInboxHeader({
           >
             <ArrowLeft className="h-5 w-5" />
           </button>
-        ) : (
+        ) : onGoHome ? (
           <button
             type="button"
-            onClick={onOpenOverview}
+            onClick={onGoHome}
             className="flex h-10 w-10 items-center justify-center rounded-2xl bg-brand-primary text-white"
-            aria-label="Abrir módulos"
+            aria-label="Ir al inicio"
           >
             <Home className="h-5 w-5" />
           </button>
-        )}
+        ) : null}
         <h1 className="truncate text-xl font-semibold text-neutral-900">{title}</h1>
       </div>
 

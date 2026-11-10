@@ -23,7 +23,7 @@ export default function ActivityFeed({ activities, emptyMessage = 'Sin actividad
   return (
     <div className="activity-feed">
       {activities.map((activity) => {
-        const Icon = ACTIVITY_ICONS[activity.tipo];
+        const Icon = ACTIVITY_ICONS[activity.tipo] ?? RefreshCcw;
         return (
           <div key={activity.id} className="activity-feed-row">
             <div className={`activity-feed-icon-wrap activity-feed-icon-${activity.tipo}`}>

@@ -1,10 +1,8 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { Monitor, Trash2, Smartphone, Loader2, QrCode } from 'lucide-react';
-import QRCode from 'react-qr-code';
+import { Loader2, Monitor, QrCode, Shield, Smartphone, Trash2 } from 'lucide-react';
 import {
-  createQrLoginChallenge,
   getDeviceSessions,
   revokeAllDeviceSessions,
   revokeDeviceSession,
@@ -19,7 +17,7 @@ interface DeviceItem {
 }
 
 function formatLastSeen(value: string | null | undefined, isCurrent: boolean): string {
-  if (isCurrent) return 'Activo ahora (Este dispositivo)';
+  if (isCurrent) return 'Activo ahora · Este dispositivo';
   if (!value) return 'Sin actividad reciente';
   try {
     return new Intl.DateTimeFormat('es', {
@@ -31,13 +29,21 @@ function formatLastSeen(value: string | null | undefined, isCurrent: boolean): s
   }
 }
 
+function isMobileDeviceName(name: string): boolean {
+  return /iphone|android|mobile|app/i.test(name);
+}
+
+const QR_STEPS = [
+  'Abre Buddy Web en el navegador donde quieras entrar.',
+  'Ve a inicio de sesión y abre la pestaña QR.',
+  'En el teléfono, entra a Dispositivos y escanea el código.',
+];
+
 export function DevicesPanel() {
   const [devices, setDevices] = useState<DeviceItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [busyId, setBusyId] = useState<string | null>(null);
-  const [qrToken, setQrToken] = useState<string | null>(null);
-  const [qrLoading, setQrLoading] = useState(false);
 
   const loadDevices = useCallback(async () => {
     setLoading(true);
@@ -47,9 +53,7 @@ export function DevicesPanel() {
       const response = await getDeviceSessions(auth);
       const sessions = response.devices ?? [];
       const currentSessionId =
-        typeof window !== 'undefined'
-          ? window.localStorage.getItem('beeapp.web.deviceSessionId')
-          : null;
+        typeof window !== 'undefined' ? window.localStorage.getItem('beeapp.web.deviceSessionId') : null;
       setDevices(
         sessions.map((session) => {
           const isCurrent = currentSessionId === session.id;
@@ -103,109 +107,139 @@ export function DevicesPanel() {
 
   const otherSessions = devices.filter((d) => !d.isCurrent);
 
-  const handleCreateQr = async () => {
-    setQrLoading(true);
-    try {
-      const challenge = await createQrLoginChallenge({
-        browser_nonce: crypto.randomUUID(),
-      });
-      setQrToken(challenge.challenge_token);
-    } catch (qrError) {
-      setError(qrError instanceof Error ? qrError.message : 'No fue posible generar el código QR.');
-    } finally {
-      setQrLoading(false);
-    }
-  };
-
   return (
-    <div className="space-y-6 select-none">
-      <div className="p-4 rounded-2xl bg-neutral-50 border border-neutral-200/80 space-y-3">
-        <div className="flex items-center gap-2 text-xs font-semibold text-neutral-800">
-          <QrCode className="w-4 h-4 text-brand-primary" />
-          <span>Vincular otro dispositivo</span>
+    <div className="select-none space-y-5">
+      <div className="flex gap-3 rounded-2xl border border-[#E8D1F1] bg-gradient-to-r from-[#FAF4FF] via-[#FFFCF9] to-white p-4 shadow-sm sm:p-5">
+        <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-white text-[#7427D5] shadow-sm">
+          <Shield className="h-5 w-5" aria-hidden />
+        </span>
+        <div className="min-w-0 flex-1">
+          <h2 className="text-base font-extrabold text-[#261743]">Sesiones de tu cuenta</h2>
+          <p className="mt-1 text-xs leading-relaxed text-[#786593]">
+            Controla dónde iniciaste sesión y vincula la app móvil con Buddy Web usando QR.
+          </p>
         </div>
-        <p className="text-xs text-neutral-600 font-normal leading-relaxed">
-          Genera un código QR y escanéalo desde la app móvil de Buddy (Iniciar sesión → Escanear QR).
-        </p>
-        {qrToken ? (
-          <div className="flex flex-col items-center gap-2 p-3 bg-white rounded-xl border border-neutral-200">
-            <QRCode value={JSON.stringify({ type: 'buddy_qr_login', challenge_token: qrToken })} size={160} />
-            <p className="text-[10px] text-neutral-500 break-all text-center max-w-xs">{qrToken}</p>
-          </div>
-        ) : null}
-        <button
-          type="button"
-          onClick={() => void handleCreateQr()}
-          disabled={qrLoading}
-          className="w-full h-10 rounded-xl bg-brand-primary text-white text-xs font-semibold hover:bg-brand-dark disabled:opacity-50"
-        >
-          {qrLoading ? 'Generando…' : qrToken ? 'Generar nuevo código' : 'Mostrar código QR'}
-        </button>
+        <div className="hidden shrink-0 flex-col items-end sm:flex">
+          <span className="text-2xl font-extrabold leading-none text-[#7427D5]">{loading ? '…' : devices.length}</span>
+          <span className="mt-0.5 text-[10px] font-extrabold uppercase tracking-wide text-[#8A72B2]">Activos</span>
+        </div>
       </div>
 
-      <div className="space-y-3">
-        <span className="text-[11px] font-semibold text-neutral-400 uppercase tracking-wider">
-          Dispositivos activos ({devices.length})
-        </span>
-
-        {loading ? (
-          <div className="flex items-center justify-center gap-2 p-6 text-xs text-neutral-500">
-            <Loader2 className="w-4 h-4 animate-spin" />
-            Cargando dispositivos…
-          </div>
-        ) : error ? (
-          <div className="p-4 rounded-2xl bg-red-50 border border-red-100 text-xs text-red-700">{error}</div>
-        ) : devices.length === 0 ? (
-          <div className="p-4 rounded-2xl bg-neutral-50 text-center text-xs text-neutral-500 font-normal">
-            No hay dispositivos vinculados a tu cuenta.
-          </div>
-        ) : (
-          <div className="space-y-2">
-            {devices.map((d) => (
-              <div
-                key={d.id}
-                className="p-3.5 rounded-2xl bg-neutral-50 border border-neutral-200/80 flex items-center justify-between gap-3"
-              >
-                <div className="flex items-center gap-3 min-w-0">
-                  <div className="w-9 h-9 rounded-xl bg-white border border-neutral-200 flex items-center justify-center text-neutral-600 shrink-0">
-                    {/iphone|android|mobile|app/i.test(d.name) ? (
-                      <Smartphone className="w-4.5 h-4.5 text-brand-primary" />
-                    ) : (
-                      <Monitor className="w-4.5 h-4.5 text-neutral-600" />
-                    )}
-                  </div>
-                  <div className="min-w-0">
-                    <p className="text-xs font-semibold text-neutral-900 truncate">{d.name}</p>
-                    <p className="text-[11px] text-neutral-500 font-normal truncate mt-0.5">{d.lastSeen}</p>
-                  </div>
-                </div>
-
-                {!d.isCurrent && (
-                  <button
-                    type="button"
-                    disabled={busyId !== null}
-                    onClick={() => void handleSignOutDevice(d.id)}
-                    className="h-8 px-2.5 rounded-lg border border-red-200 bg-red-50 text-red-600 text-[11px] font-medium hover:bg-red-100 transition-colors shrink-0 disabled:opacity-50"
-                  >
-                    {busyId === d.id ? 'Cerrando…' : 'Cerrar sesión'}
-                  </button>
-                )}
+      <div className="grid gap-5 lg:grid-cols-[minmax(0,300px)_minmax(0,1fr)] lg:items-start">
+        <aside className="order-2 space-y-4 lg:sticky lg:top-24 lg:order-1">
+          <section className="overflow-hidden rounded-2xl border border-[#E7DDF2] bg-white shadow-[0_10px_30px_rgba(116,39,213,0.06)]">
+            <div className="border-b border-[#F1EAF6] bg-gradient-to-r from-[#FFFCF9] to-[#FAF4FF] px-4 py-4 sm:px-5">
+              <div className="flex items-center gap-2">
+                <QrCode className="h-5 w-5 text-[#7427D5]" aria-hidden />
+                <h3 className="text-sm font-extrabold text-[#261743]">Vincular app y web</h3>
               </div>
-            ))}
-          </div>
-        )}
+            </div>
+            <div className="space-y-3 p-4 sm:p-5">
+              <p className="text-xs leading-relaxed text-[#786593]">
+                El código QR aparece al iniciar sesión en Buddy Web. El teléfono aprueba el acceso al navegador que lo muestra.
+              </p>
+              <ol className="space-y-2">
+                {QR_STEPS.map((step, index) => (
+                  <li key={step} className="flex gap-2 text-xs text-[#5E506B]">
+                    <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[#F6EAFE] text-[10px] font-extrabold text-[#7427D5]">
+                      {index + 1}
+                    </span>
+                    <span className="leading-relaxed">{step}</span>
+                  </li>
+                ))}
+              </ol>
+            </div>
+          </section>
+        </aside>
 
-        {otherSessions.length > 0 && (
-          <button
-            type="button"
-            disabled={busyId !== null}
-            onClick={() => void handleSignOutAll()}
-            className="w-full h-10 rounded-xl bg-red-50 text-red-600 border border-red-200 text-xs font-medium hover:bg-red-100 transition-colors flex items-center justify-center gap-1.5 mt-2 disabled:opacity-50"
-          >
-            <Trash2 className="w-4 h-4" />
-            <span>{busyId === 'all' ? 'Cerrando sesiones…' : 'Cerrar todas las sesiones excepto esta'}</span>
-          </button>
-        )}
+        <section className="order-1 overflow-hidden rounded-2xl border border-[#E7DDF2] bg-white shadow-[0_10px_30px_rgba(116,39,213,0.06)] lg:order-2">
+          <div className="border-b border-[#F1EAF6] bg-gradient-to-r from-[#FFFCF9] to-[#FAF4FF] px-4 py-4 sm:px-5">
+            <h3 className="text-sm font-extrabold text-[#261743]">Dispositivos activos</h3>
+            <p className="mt-0.5 text-xs text-[#786593]">
+              {loading ? 'Cargando…' : `${devices.length} ${devices.length === 1 ? 'sesión' : 'sesiones'} vinculadas`}
+            </p>
+          </div>
+
+          <div className="p-4 sm:p-5">
+            {loading ? (
+              <div className="flex items-center justify-center gap-2 rounded-xl border border-dashed border-[#E7DDF2] py-10 text-xs text-[#786593]">
+                <Loader2 className="h-4 w-4 animate-spin text-[#7427D5]" />
+                Cargando dispositivos…
+              </div>
+            ) : error ? (
+              <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-xs text-rose-700">{error}</div>
+            ) : devices.length === 0 ? (
+              <div className="rounded-2xl border border-dashed border-[#E7DDF2] bg-[#FFFCF9] px-5 py-10 text-center">
+                <Monitor className="mx-auto h-8 w-8 text-[#B8A5D6]" aria-hidden />
+                <p className="mt-3 text-sm font-extrabold text-[#261743]">Sin dispositivos vinculados</p>
+                <p className="mt-1 text-xs text-[#786593]">Cuando inicies sesión en otro equipo, aparecerá aquí.</p>
+              </div>
+            ) : (
+              <ul className="space-y-3">
+                {devices.map((device) => {
+                  const mobile = isMobileDeviceName(device.name);
+                  const Icon = mobile ? Smartphone : Monitor;
+                  return (
+                    <li
+                      key={device.id}
+                      className={`overflow-hidden rounded-2xl border transition hover:border-[#C9A8E8] ${
+                        device.isCurrent ? 'border-[#C6F6D5] bg-[#F6FFF8]' : 'border-[#E7DDF2] bg-white'
+                      }`}
+                    >
+                      <div className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
+                        <div className="flex min-w-0 items-start gap-3">
+                          <span
+                            className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border ${
+                              mobile
+                                ? 'border-[#E8D1F1] bg-[#F6EAFE] text-[#7427D5]'
+                                : 'border-[#E7DDF2] bg-[#FFFCF9] text-[#5E506B]'
+                            }`}
+                          >
+                            <Icon className="h-5 w-5" aria-hidden />
+                          </span>
+                          <div className="min-w-0">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <p className="text-sm font-extrabold text-[#261743] [overflow-wrap:anywhere]">{device.name}</p>
+                              {device.isCurrent ? (
+                                <span className="rounded-full bg-[#C6F6D5] px-2 py-0.5 text-[10px] font-extrabold text-[#276749]">
+                                  Este dispositivo
+                                </span>
+                              ) : null}
+                            </div>
+                            <p className="mt-0.5 text-xs text-[#786593]">{device.lastSeen}</p>
+                          </div>
+                        </div>
+
+                        {!device.isCurrent ? (
+                          <button
+                            type="button"
+                            disabled={busyId !== null}
+                            onClick={() => void handleSignOutDevice(device.id)}
+                            className="inline-flex h-10 w-full shrink-0 items-center justify-center rounded-xl border border-rose-200 bg-rose-50 px-3 text-xs font-extrabold text-rose-700 transition hover:bg-rose-100 disabled:opacity-50 sm:w-auto"
+                          >
+                            {busyId === device.id ? 'Cerrando…' : 'Cerrar sesión'}
+                          </button>
+                        ) : null}
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+
+            {otherSessions.length > 0 ? (
+              <button
+                type="button"
+                disabled={busyId !== null}
+                onClick={() => void handleSignOutAll()}
+                className="mt-4 flex h-11 w-full items-center justify-center gap-2 rounded-xl border border-rose-200 bg-rose-50/80 text-xs font-extrabold text-rose-700 transition hover:bg-rose-100 disabled:opacity-50"
+              >
+                <Trash2 className="h-4 w-4" aria-hidden />
+                {busyId === 'all' ? 'Cerrando sesiones…' : 'Cerrar todas excepto esta'}
+              </button>
+            ) : null}
+          </div>
+        </section>
       </div>
     </div>
   );

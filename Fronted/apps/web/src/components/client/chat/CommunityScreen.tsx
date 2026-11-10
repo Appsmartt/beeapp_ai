@@ -75,9 +75,9 @@ export default function CommunityScreen({
   const handleSendAttachment = () => undefined;
 
   return (
-    <div className="bg-neutral-50 h-full min-h-0 flex flex-col relative select-none">
+    <div className="relative grid h-full min-h-0 grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden bg-neutral-50 select-none">
       {/* Top Header without Phone/Video call buttons */}
-      <div className="flex items-center gap-2 px-3 py-2.5 bg-white border-b border-neutral-200 sticky top-0 z-20">
+      <div className="z-20 flex shrink-0 items-center gap-2 border-b border-neutral-200 bg-white px-3 py-2.5">
         <button
           type="button"
           onClick={onBack}
@@ -109,7 +109,7 @@ export default function CommunityScreen({
       </div>
 
       {/* Feed area */}
-      <div className="flex-1 min-h-0 overflow-y-auto p-4 pb-3">
+      <div className="min-h-0 overflow-y-auto overscroll-contain p-4 pb-3">
         {posts.length === 0 ? (
           <p className="text-xs text-neutral-500 text-center py-12 font-normal">
             Todavía no hay publicaciones en esta comunidad.
@@ -126,7 +126,7 @@ export default function CommunityScreen({
       </div>
 
       {/* Bottom bar: Admin WriteBar vs Member notice (positioned sticky bottom-14 directly above AppBottomBar) */}
-      <div className="shrink-0 mt-auto z-20 bg-white border-t border-neutral-200">
+      <div className="z-20 border-t border-neutral-200 bg-white">
         {isAdmin ? (
           <WriteBar
             onSendMessage={handlePublish}

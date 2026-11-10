@@ -491,6 +491,15 @@ export function createCurrentWebStorageTag(
     );
 }
 
+export async function deleteCurrentWebStorageTag(
+    tagId: string,
+): Promise<void> {
+    await api.delete<void>(
+        `/storage/tags/${encodeURIComponent(tagId)}/`,
+        WEB_OPTIONS,
+    );
+}
+
 export function getCurrentWebStorageFileTags(
     fileId: string,
     ): Promise<GetStorageFileTagsResponse> {

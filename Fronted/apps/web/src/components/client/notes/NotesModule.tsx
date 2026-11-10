@@ -25,6 +25,7 @@ import {
   type NotesViewId,
 } from './notesWebTypes';
 import { webNotesApi } from './webNotesApi';
+import { useHomeModuleSearch, useHomeSearch } from '@/components/client/home/HomeSearchContext';
 
 type ViewMode = 'list' | 'grid';
 
@@ -69,6 +70,8 @@ function sortNotes(notes: Note[]): Note[] {
 }
 
 export default function NotesModule() {
+  const homeSearch = useHomeModuleSearch('nota');
+  const { pendingHit, consumePendingHit } = useHomeSearch();
   const [notes, setNotes] = useState<Note[]>([]);
   const [folders, setFolders] = useState<NoteFolder[]>([]);
   const [tags, setTags] = useState<NoteTag[]>([]);
@@ -235,7 +238,10 @@ export default function NotesModule() {
       );
     }
 
-    const normalizedSearch = search.trim().toLocaleLowerCase();
+    const moduleSearch = homeSearch.active ? homeSearch.query : '';
+    const normalizedSearch = (
+      moduleSearch || search
+    ).trim().toLocaleLowerCase();
 
     if (normalizedSearch) {
       result = result.filter((note) => {
@@ -252,7 +258,19 @@ export default function NotesModule() {
     }
 
     return sortNotes(result);
-  }, [activeView, notes, search, tagsByNote]);
+  }, [activeView, homeSearch.active, homeSearch.query, notes, search, tagsByNote]);
+
+  useEffect(() => {
+    if (homeSearch.active) {
+      setSearch(homeSearch.query);
+    }
+  }, [homeSearch.active, homeSearch.query]);
+
+  useEffect(() => {
+    if (pendingHit?.kind !== 'nota') return;
+    setSelectedNoteId(pendingHit.id);
+    consumePendingHit();
+  }, [consumePendingHit, pendingHit]);
 
   const systemCounts = useMemo(
     () => ({

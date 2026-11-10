@@ -46,7 +46,7 @@ export default function CommunityProfile({ community, onBack }: CommunityProfile
   };
 
   return (
-    <div className="bg-white min-h-full flex flex-col">
+    <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden bg-white">
       {/* Top Header */}
       <div className="flex items-center gap-2 px-4 py-3 border-b border-neutral-100 bg-white sticky top-0 z-10">
         <button
@@ -59,7 +59,7 @@ export default function CommunityProfile({ community, onBack }: CommunityProfile
         <h1 className="font-semibold text-sm text-neutral-900 ml-1">Perfil de la comunidad</h1>
       </div>
 
-      <div className="p-5 space-y-6 flex-1 overflow-y-auto max-w-lg mx-auto w-full">
+      <div className="mx-auto min-h-0 w-full max-w-lg flex-1 space-y-6 overflow-y-auto overscroll-contain p-5">
         {/* Avatar, Name & Description */}
         <div className="text-center space-y-3">
           <div

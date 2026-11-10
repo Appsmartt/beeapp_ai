@@ -1,6 +1,7 @@
 const { spawnSync } = require('node:child_process');
 const fs = require('node:fs');
 const path = require('node:path');
+const { resolveAndroidJavaHome } = require('./resolve-android-java-home');
 
 const mobileRoot = path.resolve(__dirname, '..');
 const frontedRoot = path.resolve(mobileRoot, '..', '..');
@@ -13,8 +14,7 @@ const substDrive = process.env.BEEAPP_BUILD_DRIVE || 'X:';
 const localAppData = process.env.LOCALAPPDATA || '';
 const env = {
   ...process.env,
-  JAVA_HOME: process.env.JAVA_HOME
-    || 'C:\\Program Files\\Android\\Android Studio\\jbr',
+  JAVA_HOME: resolveAndroidJavaHome(),
   ANDROID_HOME: process.env.ANDROID_HOME
     || path.join(localAppData, 'Android', 'Sdk'),
 };

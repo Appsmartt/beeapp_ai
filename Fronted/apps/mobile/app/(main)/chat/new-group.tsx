@@ -58,11 +58,13 @@ export default function NewGroupScreen() {
   const [description, setDescription] = useState('');
   const [adminsOnly, setAdminsOnly] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [quotaNotice, setQuotaNotice] = useState('');
 
   const normalizedName = name.trim();
   const canSubmit = (
     Boolean(normalizedName)
     && !submitting
+    && !quotaNotice
   );
 
   const openGroupProfile = (
@@ -102,11 +104,15 @@ export default function NewGroupScreen() {
 
       openGroupProfile(result.conversation.id);
     } catch (createError) {
+      const message = createError instanceof Error
+        ? createError.message
+        : 'Inténtalo nuevamente.';
+      if (/Límite:|Necesitas el plan/.test(message)) {
+        setQuotaNotice(message);
+      }
       appAlert(
         'No fue posible crear el grupo',
-        createError instanceof Error
-          ? createError.message
-          : 'Inténtalo nuevamente.',
+        message,
       );
     } finally {
       setSubmitting(false);
@@ -244,6 +250,10 @@ export default function NewGroupScreen() {
               ? 'Este será un grupo de anuncios.'
               : 'Todos los miembros podrán enviar mensajes.'}
           </Text>
+
+          {quotaNotice ? (
+            <Text style={styles.helperText}>{quotaNotice}</Text>
+          ) : null}
 
           <TouchableOpacity
             style={[

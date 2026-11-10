@@ -17,6 +17,10 @@ import {
 import { ContactItem, CallLogItem } from '@/lib/client/contacts';
 import { loadCallLogs, loadDiscoverContacts } from '@/lib/client/liveData';
 import { ContactsTab } from './chatSections';
+import {
+  homeSearchEmptyCopy,
+  normalizeHomeSearchText,
+} from '../home/HomeSearchContext';
 
 interface ContactsPanelProps {
   contacts: ContactItem[];
@@ -25,6 +29,7 @@ interface ContactsPanelProps {
   selectedContactId?: string;
   onSelectContact: (contact: ContactItem) => void;
   onCreateContact: () => void;
+  homeSearchQuery?: string;
 }
 
 const callIconOf = (type: CallLogItem['type']) => {
@@ -45,6 +50,7 @@ export default function ContactsPanel({
   selectedContactId,
   onSelectContact,
   onCreateContact,
+  homeSearchQuery = '',
 }: ContactsPanelProps) {
   const currentTabKey = tab === 'calls' ? 'calls' : tab === 'discover' ? 'discover' : 'my_contacts';
   const [discoverContacts, setDiscoverContacts] = useState<ContactItem[]>([]);
@@ -59,8 +65,29 @@ export default function ContactsPanel({
     }
   }, [currentTabKey]);
 
-  const items: (ContactItem | CallLogItem)[] =
+  const baseItems: (ContactItem | CallLogItem)[] =
     currentTabKey === 'calls' ? callLogs : currentTabKey === 'discover' ? discoverContacts : contacts;
+
+  const needle = normalizeHomeSearchText(homeSearchQuery);
+  const items = !needle
+    ? baseItems
+    : baseItems.filter((item) => {
+      if ('profession' in item) {
+        const contact = item as ContactItem;
+        return (
+          normalizeHomeSearchText(contact.name).includes(needle)
+          || normalizeHomeSearchText(contact.profession).includes(needle)
+          || normalizeHomeSearchText(contact.phone).includes(needle)
+        );
+      }
+
+      const log = item as CallLogItem;
+      return normalizeHomeSearchText(log.name).includes(needle);
+    });
+
+  const searchEmpty = needle && items.length === 0
+    ? homeSearchEmptyCopy(homeSearchQuery)
+    : null;
 
   return (
     <div className="flex-1 flex flex-col min-h-0 bg-white">
@@ -92,7 +119,14 @@ export default function ContactsPanel({
         {items.length === 0 ? (
           <div className="p-12 text-center text-neutral-400 space-y-2">
             <Users className="w-10 h-10 mx-auto text-neutral-300" />
-            <p className="text-xs font-normal">Todavía no hay registros en esta pestaña.</p>
+            {searchEmpty ? (
+              <>
+                <p className="text-sm font-semibold text-[#432064]">{searchEmpty.title}</p>
+                <p className="text-xs text-[#786593]">{searchEmpty.description}</p>
+              </>
+            ) : (
+              <p className="text-xs font-normal">Todavía no hay registros en esta pestaña.</p>
+            )}
           </div>
         ) : currentTabKey === 'calls' ? (
           (items as CallLogItem[]).map((log) => (

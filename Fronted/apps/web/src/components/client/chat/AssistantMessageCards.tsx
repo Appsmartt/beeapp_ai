@@ -1,6 +1,7 @@
 'use client';
 
 import type { AssistantCard } from '@beeapp/shared-types';
+import { assistantDecision } from '@/lib/client/assistantChat';
 
 interface AssistantMessageCardsProps {
   cards: AssistantCard[];
@@ -25,31 +26,53 @@ export default function AssistantMessageCards({
     <div className="mt-2 space-y-2 max-w-[min(100%,28rem)]">
       {cards.map((card, index) => {
         if (card.type === 'confirm') {
+          const decision = assistantDecision(card);
+          const details = Array.isArray(card.details) ? card.details : [];
           return (
             <div
               key={`${card.action_id || index}-confirm`}
               className="rounded-2xl border border-neutral-200 bg-white p-3 text-xs shadow-sm"
             >
-              <p className="font-semibold text-neutral-900">Confirmar</p>
+              <p className="font-semibold text-neutral-900">{String(card.title || 'Confirmar acción a realizar')}</p>
               <p className="mt-1 text-neutral-700">{String(card.summary || '')}</p>
-              <div className="mt-3 flex gap-2">
-                <button
-                  type="button"
-                  disabled={busy}
-                  onClick={() => onConfirm(card, false)}
-                  className="flex-1 rounded-xl border border-neutral-200 py-2 font-medium text-neutral-700 hover:bg-neutral-50 disabled:opacity-50"
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="button"
-                  disabled={busy}
-                  onClick={() => onConfirm(card, true)}
-                  className="flex-1 rounded-xl bg-brand-primary py-2 font-medium text-white hover:opacity-90 disabled:opacity-50"
-                >
-                  Confirmar
-                </button>
-              </div>
+              {details.length > 0 ? (
+                <dl className="mt-2 space-y-1 rounded-xl bg-neutral-50 px-2.5 py-2">
+                  {details.map((detail, detailIndex) => (
+                    <div key={`${detail.label}-${detailIndex}`} className="flex gap-2">
+                      <dt className="font-semibold text-neutral-500">{detail.label}:</dt>
+                      <dd className="min-w-0 text-neutral-800">{detail.value}</dd>
+                    </div>
+                  ))}
+                </dl>
+              ) : null}
+              {decision ? (
+                <p className={`mt-3 inline-flex rounded-xl px-2.5 py-1.5 text-[12px] font-semibold ${
+                  decision === 'confirmed'
+                    ? 'bg-[#ECFDF5] text-[#047857]'
+                    : 'bg-neutral-100 text-neutral-600'
+                }`}>
+                  {decision === 'confirmed' ? 'Acción ejecutada («Hazlo»)' : 'Acción cancelada («Cancela»)'}
+                </p>
+              ) : (
+                <div className="mt-3 flex gap-2">
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={() => onConfirm(card, false)}
+                    className="flex-1 rounded-xl border border-neutral-200 py-2 font-medium text-neutral-700 hover:bg-neutral-50 disabled:opacity-50"
+                  >
+                    Cancela
+                  </button>
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={() => onConfirm(card, true)}
+                    className="flex-1 rounded-xl bg-brand-primary py-2 font-medium text-white hover:opacity-90 disabled:opacity-50"
+                  >
+                    Hazlo
+                  </button>
+                </div>
+              )}
             </div>
           );
         }

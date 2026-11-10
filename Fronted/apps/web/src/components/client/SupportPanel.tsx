@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { MessageCircle, Mail, Phone, ExternalLink, ChevronDown, ChevronUp, Loader2 } from 'lucide-react';
+import { Mail, Phone, ExternalLink, Link2, ChevronDown, ChevronUp, Loader2 } from 'lucide-react';
 import { loadSupportConfig, type SupportFaqItem } from '@/lib/client/publicAppSettings';
 
 export function SupportPanel() {
@@ -25,7 +25,9 @@ export function SupportPanel() {
       .finally(() => setLoading(false));
   }, []);
 
-  const chatHref = supportUrl || (email ? `mailto:${email}` : '');
+  const mailHref = email
+    ? `mailto:${email}?subject=${encodeURIComponent('Ayuda con mi cuenta Buddy')}&body=${encodeURIComponent('Hola soporte de Buddy, necesito ayuda con mi cuenta.')}`
+    : '';
 
   return (
     <div className="space-y-6 select-none">
@@ -48,31 +50,9 @@ export function SupportPanel() {
           </span>
 
           <div className="divide-y divide-neutral-100 border border-neutral-200/80 rounded-2xl bg-neutral-50 overflow-hidden">
-            {chatHref ? (
+            {mailHref ? (
               <a
-                href={chatHref}
-                target={supportUrl ? '_blank' : undefined}
-                rel={supportUrl ? 'noreferrer' : undefined}
-                className="p-3.5 flex items-center justify-between hover:bg-white transition-colors text-left"
-              >
-                <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-lg bg-brand-primary/10 text-brand-primary flex items-center justify-center shrink-0">
-                    <MessageCircle className="w-4.5 h-4.5" />
-                  </div>
-                  <div>
-                    <p className="text-xs font-semibold text-neutral-900">Chat de soporte</p>
-                    <p className="text-[11px] text-neutral-500 font-normal">Abrir canal configurado</p>
-                  </div>
-                </div>
-                <span className="text-xs font-semibold text-brand-primary">Iniciar</span>
-              </a>
-            ) : (
-              <div className="p-3.5 text-xs text-neutral-500">Canal de chat no configurado.</div>
-            )}
-
-            {email ? (
-              <a
-                href={`mailto:${email}`}
+                href={mailHref}
                 className="p-3.5 flex items-center justify-between hover:bg-white transition-colors text-left"
               >
                 <div className="flex items-center gap-3">
@@ -80,11 +60,33 @@ export function SupportPanel() {
                     <Mail className="w-4.5 h-4.5" />
                   </div>
                   <div>
-                    <p className="text-xs font-semibold text-neutral-900">Correo electrónico</p>
+                    <p className="text-xs font-semibold text-neutral-900">Correo de soporte</p>
                     <p className="text-[11px] text-neutral-500 font-normal">{email}</p>
                   </div>
                 </div>
                 <span className="text-xs font-semibold text-blue-600">Enviar correo</span>
+              </a>
+            ) : (
+              <div className="p-3.5 text-xs text-neutral-500">Correo de soporte no configurado.</div>
+            )}
+
+            {supportUrl ? (
+              <a
+                href={supportUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="p-3.5 flex items-center justify-between hover:bg-white transition-colors text-left"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-lg bg-brand-primary/10 text-brand-primary flex items-center justify-center shrink-0">
+                    <Link2 className="w-4.5 h-4.5" />
+                  </div>
+                  <div>
+                    <p className="text-xs font-semibold text-neutral-900">Enlace adicional</p>
+                    <p className="text-[11px] text-neutral-500 font-normal">Abrir canal configurado</p>
+                  </div>
+                </div>
+                <span className="text-xs font-semibold text-brand-primary">Abrir</span>
               </a>
             ) : null}
 

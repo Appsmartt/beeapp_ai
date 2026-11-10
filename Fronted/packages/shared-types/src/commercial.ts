@@ -215,6 +215,9 @@ export interface CommercialPublicProfile {
     | null;
   delivery_currency_code: 'COP' | null;
   is_verified: boolean;
+  is_available?: boolean;
+  is_open_now?: boolean;
+  hours?: CommercialProfileHour[];
   timezone: string | null;
   created_at: string | null;
   updated_at: string | null;
@@ -300,6 +303,8 @@ export interface CommercialPublicOffer {
   description: string | null;
   pricing_strategy: CommercialPricingStrategy;
   base_price_amount: number | null;
+  original_price_amount?: number | null;
+  discount_percent?: number | null;
   currency_code: 'COP';
   modalities: CommercialModality[];
   duration_minutes: number | null;
@@ -319,6 +324,8 @@ export interface CommercialOwnedOffer {
   description: string | null;
   pricing_strategy: CommercialPricingStrategy;
   base_price_amount: number | null;
+  original_price_amount?: number | null;
+  discount_percent?: number | null;
   currency_code: 'COP';
   is_available: boolean;
   sort_order: number;
@@ -541,6 +548,30 @@ export interface UpdateCommercialProfilePublicationResponse {
   profile: CommercialOwnedProfile;
 }
 
+/** Uso del negocio que decide si se puede eliminar. */
+export interface CommercialProfileDeletionStatus {
+  can_delete: boolean;
+  /** Compras y solicitudes realizadas al negocio. */
+  orders: number;
+  /** Chats del negocio con al menos un mensaje o llamada. */
+  chats: number;
+}
+
+export type GetCommercialProfileDeletionStatusResponse =
+  CommercialProfileDeletionStatus;
+
+/** Uso del producto o servicio que decide si se puede eliminar. */
+export interface CommercialOfferDeletionStatus {
+  can_delete: boolean;
+  /** Compras, ventas o solicitudes donde aparece este producto o servicio. */
+  orders: number;
+  /** Chats donde se ha compartido o usado este producto o servicio. */
+  chats: number;
+}
+
+export type GetCommercialOfferDeletionStatusResponse =
+  CommercialOfferDeletionStatus;
+
 export interface CreateCommercialCatalogPayload {
   name: string;
   description?: string | null;
@@ -573,6 +604,8 @@ export interface CreateCommercialOfferPayload {
   description?: string | null;
   pricing_strategy?: CommercialPricingStrategy;
   base_price_amount?: number | null;
+  original_price_amount?: number | null;
+  discount_percent?: number | null;
   currency_code?: 'COP';
   is_available?: boolean;
   sort_order?: number;
@@ -591,6 +624,8 @@ export interface UpdateCommercialOfferPayload {
   description?: string | null;
   pricing_strategy?: CommercialPricingStrategy;
   base_price_amount?: number | null;
+  original_price_amount?: number | null;
+  discount_percent?: number | null;
   currency_code?: 'COP';
   is_available?: boolean;
   sort_order?: number;
@@ -1044,6 +1079,9 @@ export interface CommercialRequestPermissions {
   can_review_payment_proof: boolean;
   can_create_reservation_hold: boolean;
   can_complete: boolean;
+  can_confirm_payment?: boolean;
+  can_mark_order_unpaid?: boolean;
+  payment_confirmation_available_at?: string | null;
   can_open_dispute: boolean;
   can_open_chat: boolean;
 }
@@ -1347,4 +1385,42 @@ export interface ReplaceCommercialPaymentProofResponse {
   payment_proof_id: string;
   replaced_payment_proof_id: string;
   status: 'submitted';
+}
+
+export type BusinessSalesMetricsGrain = 'day' | 'week' | 'month';
+
+export interface BusinessSalesMetricsPeriod {
+  grain: BusinessSalesMetricsGrain;
+  anchor: string;
+  start: string;
+  end: string;
+  timezone: string;
+  label: string;
+}
+
+export interface BusinessSalesMetricsTotals {
+  sales_count: number;
+  amount: number;
+  currency_code: string;
+}
+
+export interface BusinessSalesMetricsBucket {
+  date: string;
+  sales_count: number;
+  amount: number;
+}
+
+export interface BusinessSalesMetricsOffer {
+  id: string | null;
+  title: string;
+  offer_kind: string;
+  units: number;
+  amount: number;
+}
+
+export interface BusinessSalesMetrics {
+  period: BusinessSalesMetricsPeriod;
+  totals: BusinessSalesMetricsTotals;
+  buckets: BusinessSalesMetricsBucket[];
+  top_offers: BusinessSalesMetricsOffer[];
 }

@@ -30,6 +30,8 @@ export interface BusinessItem {
   serviceModalities: string[];
   products: BusinessProduct[];
   services: BusinessService[];
+  publicationStatus?: 'published' | 'paused' | 'archived' | 'suspended';
+  offerType?: 'products' | 'services' | 'mixed';
 }
 
 export function formatPrice(price: string | number): string {

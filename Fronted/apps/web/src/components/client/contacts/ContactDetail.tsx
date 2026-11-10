@@ -36,13 +36,13 @@ export default function ContactDetail({ contact, onBack, onSendMessage, onStartC
   };
 
   return (
-    <div className="bg-neutral-50 min-h-full flex flex-col select-none">
+    <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden bg-neutral-50 select-none">
       <div className="flex items-center px-4 py-3 border-b border-neutral-200 bg-white sticky top-0 z-10">
         <button type="button" onClick={onBack} className="p-1.5 rounded-full text-neutral-600 hover:bg-neutral-100"><ArrowLeft className="w-5 h-5" /></button>
         <h1 className="font-semibold text-sm text-neutral-900 ml-2">Perfil del Contacto</h1>
       </div>
 
-      <div className="flex-1 overflow-y-auto p-4 space-y-5 max-w-lg mx-auto w-full">
+      <div className="mx-auto min-h-0 w-full max-w-lg flex-1 space-y-5 overflow-y-auto overscroll-contain p-4">
         <div className="bg-white rounded-2xl border border-neutral-200 p-5 text-center shadow-xs space-y-2">
           <div className="relative w-20 h-20 mx-auto">
             <div className="w-20 h-20 rounded-full flex items-center justify-center font-bold text-2xl text-brand-primary" style={{ backgroundColor: contact.color || '#F3E8FF' }}>{initials}</div>

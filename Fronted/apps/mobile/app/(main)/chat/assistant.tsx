@@ -47,8 +47,86 @@ function errorText(error: unknown): string {
     return error instanceof Error ? error.message : 'No se pudo completar la acción.';
 }
 
+function rememberedResolution(
+    card: AssistantCard,
+    localStatus?: 'confirmed' | 'cancelled',
+): 'confirmed' | 'cancelled' | undefined {
+    if (localStatus) return localStatus;
+    const stored = String(card.resolved_status || '');
+    if (stored === 'confirmed' || stored === 'cancelled') return stored;
+    return undefined;
+}
+
 function providerName(item: Record<string, unknown>): string {
     return String(item.business_name || item.title || 'Proveedor');
+}
+
+const INLINE_MARK = /(\*\*[^*]+\*\*|\*[^*\n]+\*|`[^`\n]+`)/g;
+
+function plainSpeech(text: string): string {
+    return text
+        .replace(/\*\*([^*]+)\*\*/g, '$1')
+        .replace(/(^|\s)\*([^*\n]+)\*(?=\s|$)/g, '$1$2')
+        .replace(/`([^`]+)`/g, '$1');
+}
+
+function renderInline(line: string, light: boolean) {
+    const color = light ? colors.neutral.white : colors.neutral.text;
+    return line.split(INLINE_MARK).map((part, index) => {
+        if (part.startsWith('**') && part.endsWith('**')) {
+            return (
+                <Text key={index} style={{ fontWeight: '700', color }}>
+                    {part.slice(2, -2)}
+                </Text>
+            );
+        }
+        if (part.startsWith('*') && part.endsWith('*') && part.length > 2) {
+            return (
+                <Text key={index} style={{ fontStyle: 'italic', color }}>
+                    {part.slice(1, -1)}
+                </Text>
+            );
+        }
+        if (part.startsWith('`') && part.endsWith('`')) {
+            return (
+                <Text key={index} style={{ fontWeight: '600', color }}>
+                    {part.slice(1, -1)}
+                </Text>
+            );
+        }
+        return (
+            <Text key={index} style={{ color }}>
+                {part}
+            </Text>
+        );
+    });
+}
+
+function AssistantMessageText({ content, light }: { content: string; light?: boolean }) {
+    const textStyle = [styles.bubbleText, light ? styles.bubbleTextUser : null];
+    return (
+        <View style={styles.messageBody}>
+            {content.split('\n').map((line, index) => {
+                const bullet = /^[-*]\s+/.test(line);
+                const text = bullet ? line.replace(/^[-*]\s+/, '') : line;
+                if (!bullet) {
+                    return (
+                        <Text key={index} style={textStyle}>
+                            {line.length ? renderInline(text, Boolean(light)) : ' '}
+                        </Text>
+                    );
+                }
+                return (
+                    <View key={index} style={styles.messageBulletRow}>
+                        <Text style={textStyle}>•</Text>
+                        <Text style={[textStyle, styles.messageBulletText]}>
+                            {renderInline(text, Boolean(light))}
+                        </Text>
+                    </View>
+                );
+            })}
+        </View>
+    );
 }
 
 function applyClientEffects(cards: AssistantCard[] | undefined): void {
@@ -67,6 +145,7 @@ export default function AssistantChatScreen() {
     const [draft, setDraft] = useState('');
     const [loading, setLoading] = useState(true);
     const [sending, setSending] = useState(false);
+    const [planBlock, setPlanBlock] = useState('');
     const [recording, setRecording] = useState(false);
     const [resolvedActions, setResolvedActions] = useState<Record<string, 'confirmed' | 'cancelled'>>({});
     const micBusyRef = useRef(false);
@@ -115,14 +194,16 @@ export default function AssistantChatScreen() {
             applyClientEffects(response.cards);
             setMessages((current) => [...current, response.message]);
         } catch (error) {
-            appAlert('Asistente', errorText(error));
+            const message = errorText(error);
+            if (/Límite:|Necesitas el plan/.test(message)) setPlanBlock(message);
+            appAlert('Asistente', message);
         } finally {
             setSending(false);
         }
     }, [sending]);
 
     const toggleMic = useCallback(async () => {
-        if (sending || micBusyRef.current) return;
+        if (sending || micBusyRef.current || planBlock) return;
         micBusyRef.current = true;
         try {
             if (!recording) {
@@ -155,11 +236,13 @@ export default function AssistantChatScreen() {
         } catch (error) {
             setRecording(false);
             setSending(false);
-            appAlert('Voz', errorText(error));
+            const message = errorText(error);
+            if (/Límite:|Necesitas el plan/.test(message)) setPlanBlock(message);
+            appAlert('Voz', message);
         } finally {
             micBusyRef.current = false;
         }
-    }, [recording, send, sending]);
+    }, [recording, send, sending, planBlock]);
 
     const speak = useCallback(async (text: string) => {
         try {
@@ -200,7 +283,9 @@ export default function AssistantChatScreen() {
             applyClientEffects(response.cards || response.message?.cards);
             if (response.message) setMessages((current) => [...current, response.message]);
         } catch (error) {
-            appAlert('Asistente', errorText(error));
+            const message = errorText(error);
+            if (/Límite:|Necesitas el plan/.test(message)) setPlanBlock(message);
+            appAlert('Asistente', message);
         } finally {
             setSending(false);
         }
@@ -262,14 +347,12 @@ export default function AssistantChatScreen() {
                                         styles.bubble,
                                         message.role === 'user' ? styles.bubbleUser : styles.bubbleAssistant,
                                     ]}>
-                                        <Text style={[
-                                            styles.bubbleText,
-                                            message.role === 'user' && styles.bubbleTextUser,
-                                        ]}>
-                                            {message.content}
-                                        </Text>
+                                        <AssistantMessageText
+                                            content={message.content}
+                                            light={message.role === 'user'}
+                                        />
                                         {message.role === 'assistant' ? (
-                                            <TouchableOpacity onPress={() => void speak(message.content)}>
+                                            <TouchableOpacity onPress={() => void speak(plainSpeech(message.content))}>
                                                 <Volume2 size={16} color={colors.brand.primary} />
                                             </TouchableOpacity>
                                         ) : null}
@@ -279,7 +362,12 @@ export default function AssistantChatScreen() {
                                             key={`${message.id}-${index}`}
                                             card={card}
                                             busy={sending}
-                                            resolvedStatus={card.action_id ? resolvedActions[String(card.action_id)] : undefined}
+                                            resolvedStatus={rememberedResolution(
+                                                card,
+                                                card.action_id
+                                                    ? resolvedActions[String(card.action_id)]
+                                                    : undefined,
+                                            )}
                                             onConfirm={(confirm) => void resolveAction(card, confirm)}
                                             onChoose={chooseProvider}
                                             onOpenChat={(id) => router.push({
@@ -290,13 +378,17 @@ export default function AssistantChatScreen() {
                                     ))}
                                 </View>
                             ))}
-                            {sending ? <Text style={styles.typing}>Escribiendo...</Text> : null}
+                            {sending ? <Text style={styles.typing}>Pensando...</Text> : null}
                         </ScrollView>
                     )}
                 </View>
 
-                <View style={styles.composer}>
-                    <TouchableOpacity style={styles.mic} onPress={() => void toggleMic()}>
+                <View>
+                    {planBlock ? (
+                        <Text style={[styles.typing, { paddingHorizontal: 16, paddingTop: 8 }]}>{planBlock}</Text>
+                    ) : null}
+                    <View style={styles.composer}>
+                    <TouchableOpacity style={styles.mic} onPress={() => void toggleMic()} disabled={Boolean(planBlock)}>
                         <Mic size={20} color={recording ? colors.semantic.error : colors.brand.primary} />
                     </TouchableOpacity>
                     <TextInput
@@ -305,15 +397,16 @@ export default function AssistantChatScreen() {
                         onChangeText={setDraft}
                         placeholder={recording ? 'Escuchando...' : 'Pídele algo al asistente'}
                         placeholderTextColor={colors.neutral.gray500}
-                        editable={!sending && !recording}
+                        editable={!sending && !recording && !planBlock}
                     />
                     <TouchableOpacity
                         style={styles.send}
                         onPress={() => void send(draft)}
-                        disabled={sending || recording}
+                        disabled={sending || recording || Boolean(planBlock)}
                     >
                         <Send size={18} color={colors.neutral.white} />
                     </TouchableOpacity>
+                </View>
                 </View>
             </KeyboardAvoidingView>
         </ScreenSafeArea>
@@ -454,6 +547,9 @@ const styles = StyleSheet.create({
     bubbleAssistant: { alignSelf: 'flex-start', backgroundColor: colors.neutral.white, gap: 8 },
     bubbleText: { color: colors.neutral.text, fontSize: 14, lineHeight: 20 },
     bubbleTextUser: { color: colors.neutral.white },
+    messageBody: { gap: 2 },
+    messageBulletRow: { flexDirection: 'row', gap: 6 },
+    messageBulletText: { flex: 1 },
     typing: { color: colors.neutral.gray500, marginTop: 4 },
     card: {
         alignSelf: 'flex-start',

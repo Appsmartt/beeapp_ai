@@ -4050,6 +4050,8 @@ export type Database = {
         Row: {
           archived_at: string | null
           base_price_amount: number | null
+          original_price_amount: number | null
+          discount_percent: number | null
           catalog_id: string
           commercial_profile_id: string
           created_at: string
@@ -4074,6 +4076,8 @@ export type Database = {
         Insert: {
           archived_at?: string | null
           base_price_amount?: number | null
+          original_price_amount?: number | null
+          discount_percent?: number | null
           catalog_id: string
           commercial_profile_id: string
           created_at?: string
@@ -4098,6 +4102,8 @@ export type Database = {
         Update: {
           archived_at?: string | null
           base_price_amount?: number | null
+          original_price_amount?: number | null
+          discount_percent?: number | null
           catalog_id?: string
           commercial_profile_id?: string
           created_at?: string
@@ -8056,6 +8062,18 @@ export type Database = {
           p_plan?: string
           p_search?: string
           p_status?: string
+        }
+        Returns: Json
+      }
+      admin_list_business_verifications: {
+        Args: { p_status?: string }
+        Returns: Json
+      }
+      admin_review_business_verification: {
+        Args: {
+          p_business_id: string
+          p_decision: string
+          p_reason?: string
         }
         Returns: Json
       }

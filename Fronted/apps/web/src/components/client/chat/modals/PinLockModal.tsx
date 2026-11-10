@@ -10,6 +10,8 @@ interface PinLockModalProps {
   itemName?: string;
   onClose: () => void;
   onSuccess: () => void;
+  /** Si se pasa, verifica el PIN con esa acción (por ejemplo, quitar la protección). */
+  onVerify?: (pin: string) => Promise<void>;
 }
 
 export default function PinLockModal({
@@ -17,6 +19,7 @@ export default function PinLockModal({
   itemName,
   onClose,
   onSuccess,
+  onVerify,
 }: PinLockModalProps) {
   const [digits, setDigits] = useState(['', '', '', '']);
   const [error, setError] = useState<string | null>(null);
@@ -45,20 +48,26 @@ export default function PinLockModal({
     setVerifying(true);
     setError(null);
     try {
-      const auth = await getWebAuth();
-      const result = await verifyAccountSecurityPin(auth, pin);
-      if (!result.verified) {
-        setError('PIN incorrecto.');
-        setDigits(['', '', '', '']);
-        inputRefs[0].current?.focus();
-        return;
+      if (onVerify) {
+        await onVerify(pin);
+      } else {
+        const auth = await getWebAuth();
+        const result = await verifyAccountSecurityPin(auth, pin);
+        if (!result.verified) {
+          setError('PIN incorrecto.');
+          setDigits(['', '', '', '']);
+          inputRefs[0].current?.focus();
+          return;
+        }
       }
       setSuccess(true);
       setTimeout(() => {
         onSuccess();
       }, 400);
-    } catch {
-      setError('No fue posible verificar el PIN.');
+    } catch (verifyError) {
+      setError(verifyError instanceof Error && verifyError.message
+        ? verifyError.message
+        : 'No fue posible verificar el PIN.');
       setDigits(['', '', '', '']);
       inputRefs[0].current?.focus();
     } finally {

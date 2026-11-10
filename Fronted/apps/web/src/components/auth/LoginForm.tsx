@@ -1,14 +1,16 @@
 'use client';
 
-import { type FormEvent, type KeyboardEvent, useEffect, useState } from 'react';
+import { type FormEvent, type KeyboardEvent, useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Eye, EyeOff, LockKeyhole, Mail } from 'lucide-react';
 import Link from 'next/link';
+import QRCode from 'react-qr-code';
 import {
   activateWebSession,
   adoptSupabaseSession,
   createQrLoginChallenge,
   getQrLoginChallengeStatus,
+  getSupabase,
   loginUser,
   requestPhoneOtp,
   verifyPhoneOtpMobile,
@@ -17,6 +19,7 @@ import AuthPageShell from '@/components/auth/AuthPageShell';
 import { useAuth } from '@/lib/auth/AuthProvider';
 import {
   homePathForRole,
+  isAdminRole,
   normalizeRole,
   rememberWebDeviceSession,
 } from '@/lib/auth/session';
@@ -54,7 +57,7 @@ type LoginMode = 'email' | 'phone' | 'qr';
 
 export default function LoginForm() {
   const router = useRouter();
-  const { status, profile, refreshProfile } = useAuth();
+  const { status, profile, refreshProfile, signOut } = useAuth();
   const [mode, setMode] = useState<LoginMode>('email');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -62,6 +65,9 @@ export default function LoginForm() {
   const [otpCode, setOtpCode] = useState('');
   const [otpSent, setOtpSent] = useState(false);
   const [qrToken, setQrToken] = useState<string | null>(null);
+  const [qrExpiresAt, setQrExpiresAt] = useState<string | null>(null);
+  const [qrOpening, setQrOpening] = useState(false);
+  const qrOpeningRef = useRef(false);
   const [browserNonce, setBrowserNonce] = useState<string | null>(null);
   const [showPassword, setShowPassword] = useState(false);
   const [capsLockOn, setCapsLockOn] = useState(false);
@@ -69,43 +75,117 @@ export default function LoginForm() {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
-    if (status === 'ready' && profile) {
-      router.replace(homePathForRole(profile.role));
+    if (new URLSearchParams(window.location.search).get('adminSso') === '1') {
+      window.sessionStorage.setItem('buddy.adminSso', '1');
     }
-  }, [profile, router, status]);
+  }, []);
+
+  useEffect(() => {
+    if (status !== 'ready' || !profile) return;
+    const adminSso = window.sessionStorage.getItem('buddy.adminSso') === '1';
+    if (adminSso && !isAdminRole(profile.role)) {
+      window.sessionStorage.removeItem('buddy.adminSso');
+      void signOut().finally(() => setError('Esta cuenta no es de administrador.'));
+      return;
+    }
+    if (adminSso) window.sessionStorage.removeItem('buddy.adminSso');
+    router.replace(homePathForRole(profile.role));
+  }, [profile, router, signOut, status]);
+
+  const startGoogle = async () => {
+    setError('');
+    setIsSubmitting(true);
+    window.sessionStorage.setItem('buddy.adminSso', '1');
+    const { error: oauthError } = await getSupabase().auth.signInWithOAuth({
+      provider: 'google',
+      options: { redirectTo: `${window.location.origin}/login?adminSso=1` },
+    });
+    if (oauthError) {
+      window.sessionStorage.removeItem('buddy.adminSso');
+      setError('Google no está activo en el acceso. Usa correo y contraseña.');
+      setIsSubmitting(false);
+    }
+  };
+
+  const startQrChallenge = useCallback(() => {
+    const nonce = globalThis.crypto?.randomUUID?.()
+      ?? `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+    qrOpeningRef.current = false;
+    setQrOpening(false);
+    setBrowserNonce(nonce);
+    setQrToken(null);
+    setQrExpiresAt(null);
+    void createQrLoginChallenge({ browser_nonce: nonce })
+      .then((challenge) => {
+        setBrowserNonce(challenge.browser_nonce || nonce);
+        setQrToken(challenge.challenge_token);
+        setQrExpiresAt(challenge.expires_at);
+        setError('');
+      })
+      .catch((qrError: unknown) => {
+        setError(qrError instanceof Error && qrError.message
+          ? qrError.message
+          : 'No fue posible generar el QR.');
+      });
+  }, []);
 
   useEffect(() => {
     if (mode !== 'qr' || !qrToken || !browserNonce) return undefined;
     let cancelled = false;
-    const interval = window.setInterval(() => {
-      void getQrLoginChallengeStatus(qrToken).then(async (statusResponse) => {
-        if (cancelled) return;
-        if (statusResponse.status === 'APPROVED' || statusResponse.status === 'CONSUMED') {
-          await activateWebSession({
-            challenge_token: qrToken,
-            browser_nonce: browserNonce,
-          });
-          const nextProfile = await refreshProfile();
+
+    const watchScan = async () => {
+      if (cancelled || qrOpeningRef.current) return;
+      try {
+        const statusResponse = await getQrLoginChallengeStatus(qrToken);
+        if (cancelled || qrOpeningRef.current) return;
+        if (statusResponse.status === 'EXPIRED') {
+          startQrChallenge();
+          return;
+        }
+        if (statusResponse.status !== 'APPROVED' && statusResponse.status !== 'CONSUMED') {
+          return;
+        }
+        qrOpeningRef.current = true;
+        setQrOpening(true);
+        setError('');
+        await activateWebSession({
+          challenge_token: qrToken,
+          browser_nonce: browserNonce,
+        });
+        const nextProfile = await refreshProfile();
+        if (!cancelled) {
           router.replace(homePathForRole(nextProfile?.role ?? normalizeRole('USER')));
         }
-      }).catch(() => undefined);
-    }, 2500);
+      } catch (openError) {
+        qrOpeningRef.current = false;
+        if (!cancelled) {
+          setQrOpening(false);
+          setError(openError instanceof Error ? openError.message : 'No fue posible abrir la sesión.');
+        }
+      }
+    };
+
+    void watchScan();
+    const interval = window.setInterval(() => {
+      void watchScan();
+    }, 400);
     return () => {
       cancelled = true;
       window.clearInterval(interval);
     };
-  }, [browserNonce, mode, qrToken, refreshProfile, router]);
+  }, [browserNonce, mode, qrToken, refreshProfile, router, startQrChallenge]);
 
   useEffect(() => {
     if (mode !== 'qr') return;
-    const nonce = crypto.randomUUID();
-    void createQrLoginChallenge({ browser_nonce: nonce })
-      .then((challenge) => {
-        setBrowserNonce(nonce);
-        setQrToken(challenge.challenge_token);
-      })
-      .catch(() => setError('No fue posible generar el QR.'));
-  }, [mode]);
+    startQrChallenge();
+  }, [mode, startQrChallenge]);
+
+  useEffect(() => {
+    if (mode !== 'qr' || !qrExpiresAt) return undefined;
+    const delay = new Date(qrExpiresAt).getTime() - Date.now();
+    const timer = window.setTimeout(() => startQrChallenge(), Math.max(delay, 1000));
+    return () => window.clearTimeout(timer);
+  }, [mode, qrExpiresAt, startQrChallenge]);
 
   const handlePasswordKey = (event: KeyboardEvent<HTMLInputElement>) => {
     setCapsLockOn(event.getModifierState?.('CapsLock') ?? false);
@@ -114,6 +194,7 @@ export default function LoginForm() {
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setError('');
+    window.sessionStorage.removeItem('buddy.adminSso');
 
     if (!email.trim() || !password) {
       setError('Ingresa tu correo y tu contraseña.');
@@ -148,6 +229,7 @@ export default function LoginForm() {
   const handlePhoneOtpRequest = async (event: FormEvent) => {
     event.preventDefault();
     setError('');
+    window.sessionStorage.removeItem('buddy.adminSso');
     if (!phone.trim()) {
       setError('Ingresa tu número de celular.');
       return;
@@ -306,13 +388,33 @@ export default function LoginForm() {
 
       {mode === 'qr' ? (
         <div className="space-y-3 text-center">
-          <p className="text-xs text-neutral-600">Escanea con la app móvil de Buddy para iniciar sesión en web.</p>
-          {qrToken ? (
-            <p className="text-[10px] break-all text-neutral-500 bg-neutral-50 p-2 rounded-lg">{qrToken}</p>
-          ) : null}
+          <p className="text-xs text-neutral-600">
+            {qrOpening
+              ? 'Código leído. Abriendo tu sesión…'
+              : 'En el teléfono abre Dispositivos y escanea este código. El acceso dura dos minutos.'}
+          </p>
+          <div className="mx-auto flex h-[220px] w-[220px] items-center justify-center rounded-2xl border border-neutral-200 bg-white p-3">
+            {qrToken ? (
+              <QRCode
+                value={`beeapp://web-login?token=${encodeURIComponent(qrToken)}`}
+                size={188}
+              />
+            ) : (
+              <span className="text-xs text-neutral-500">Generando código…</span>
+            )}
+          </div>
           {error ? <p className="text-xs text-semantic-error">{error}</p> : null}
         </div>
       ) : null}
+
+      <button
+        type="button"
+        onClick={() => void startGoogle()}
+        disabled={isSubmitting}
+        className="mt-3 w-full h-10 rounded-full border border-neutral-300 bg-white text-sm font-semibold text-neutral-800 disabled:opacity-60"
+      >
+        Continuar con Google
+      </button>
     </AuthPageShell>
   );
 }

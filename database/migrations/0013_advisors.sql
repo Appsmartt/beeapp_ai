@@ -47,9 +47,26 @@ begin
       'almacenamientoUsadoGB', round(p.storage_used_bytes / 1073741824.0, 2),
       'ultimaConexion', coalesce((select max(d.last_seen_at) from public.devices d where d.user_id = p.id), p.created_at)
     ),
-    'integraciones', coalesce((select jsonb_agg(jsonb_build_object('id', i.id, 'nombre', i.provider, 'conectado', i.status = 'connected', 'fechaConexion', i.connected_at)) from public.integrations i where i.user_id = p.id), '[]'::jsonb),
+    'integraciones', coalesce((select jsonb_agg(jsonb_build_object(
+      'id', i.id,
+      'nombre', case lower(i.provider) when 'google' then 'Google' when 'microsoft' then 'Microsoft' else initcap(i.provider) end,
+      'correo', i.provider_email,
+      'conectado', lower(i.status) in ('connected', 'active'),
+      'fechaConexion', i.connected_at
+    ) order by i.provider) from public.integrations i where i.user_id = p.id), '[]'::jsonb),
     'reportesCount', (select count(*) from public.moderation r where r.kind = 'report' and r.user_id = p.id),
-    'verificacionRed', case p.verification_status when 'unverified' then 'no_solicitado' when 'verified' then 'verificado' when 'pending' then 'pendiente' else coalesce(p.verification_status, 'no_solicitado') end,
+    'verificacionRed', case p.verification_status
+      when 'verified' then 'verificado'
+      when 'verificado' then 'verificado'
+      when 'pending' then 'en_revision'
+      when 'pendiente' then 'en_revision'
+      when 'en_revision' then 'en_revision'
+      when 'rejected' then 'rechazado'
+      when 'rechazado' then 'rechazado'
+      when 'unverified' then 'no_solicitado'
+      when 'no_solicitado' then 'no_solicitado'
+      else coalesce(p.verification_status, 'no_solicitado')
+    end,
     'actividadComercial', coalesce((select jsonb_build_object('tipo', case b.offer_type when 'products' then 'productos' when 'services' then 'servicios' when 'mixed' then 'ambos' else 'ninguno' end, 'rubro', c.name, 'descripcion', b.description, 'cantidadPublicaciones', (select count(*) from public.offers o where o.business_id = b.id), 'estadoPerfil', case when b.archived_at is not null then 'archivado' when b.is_available then 'activo' else 'inactivo' end) from public.businesses b left join public.categories c on c.id = b.category_id where b.owner_id = p.id order by b.created_at limit 1), jsonb_build_object('tipo', 'ninguno'))
   )
   into result

@@ -1,12 +1,15 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Plus, Users } from 'lucide-react';
 import {
   createChatCategory,
   createChatGroup,
   createDirectChatConversation,
   createMyCommunity,
+  getAccountSecurityPinStatus,
+  protectChatWithPin,
+  removeChatPinProtection,
   saveChatConversationCategories,
   searchChatRecipients,
   updateChatConversationNotifications,
@@ -31,6 +34,11 @@ import {
   markStatusSeen,
   publishTextStatus,
 } from '@/lib/client/liveData';
+import {
+  ASSISTANT_ARCHIVE_EVENT,
+  consumeAssistantArchives,
+} from '@/lib/client/assistantChat';
+import GroupInvitesPanel from './GroupInvitesPanel';
 import ChatConversation from './ChatConversation';
 import ChatProfile from './ChatProfile';
 import CommunityScreen from './CommunityScreen';
@@ -56,22 +64,44 @@ import { CommunityRow } from './ChatRow';
 import { ChatSection, ContactsTab } from './chatSections';
 import AiSettingsScreen from './modals/AiSettingsScreen';
 import ContactDetail from '../contacts/ContactDetail';
+import HomeDesktopCanvas from '../HomeDesktopCanvas';
+import type { QuickModuleKey } from '../ModuleQuickMenu';
+import HomeSearchResults from '../home/HomeSearchResults';
+import {
+  homeSearchEmptyCopy,
+  useHomeModuleSearch,
+  type HomeSearchHit,
+} from '../home/HomeSearchContext';
 
 interface ChatModuleProps {
   section: ChatSection;
   onSectionChange: (section: ChatSection) => void;
-  onOpenOverview: () => void;
+  onOpenModule?: (key: QuickModuleKey) => void;
   onConversationOpenChange?: (open: boolean) => void;
+  onChatModalOpenChange?: (open: boolean) => void;
+  onOpenSearchHit?: (hit: HomeSearchHit) => void;
 }
 
 export default function ChatModule({
   section,
   onSectionChange,
-  onOpenOverview,
+  onOpenModule,
   onConversationOpenChange,
+  onChatModalOpenChange,
+  onOpenSearchHit,
 }: ChatModuleProps) {
   const { profile } = useAuth();
+  const homeSearch = useHomeModuleSearch(['chat', 'contacto']);
+  const chatListSearchActive = (
+    homeSearch.active
+    && homeSearch.filter !== 'contacto'
+  );
+  const contactListSearchActive = (
+    homeSearch.active
+    && (homeSearch.filter === 'contacto' || homeSearch.filter === 'todos')
+  );
   const [chats, setChats] = useState<ChatItem[]>([]);
+  const [inboxLoading, setInboxLoading] = useState(true);
   const [communities, setCommunities] = useState<CommunityItem[]>([]);
   const [statuses, setStatuses] = useState<StatusItem[]>([]);
   const [contacts, setContacts] = useState<ContactItem[]>([]);
@@ -82,6 +112,8 @@ export default function ChatModule({
   const [viewingProfile, setViewingProfile] = useState<'chat' | 'community' | null>(null);
 
   const [lockedChat, setLockedChat] = useState<ChatItem | null>(null);
+  const [pinPurpose, setPinPurpose] = useState<'open' | 'remove'>('open');
+  const [protectionNotice, setProtectionNotice] = useState<string | null>(null);
 
 
   const [viewerIndex, setViewerIndex] = useState<number | null>(null);
@@ -99,6 +131,9 @@ export default function ChatModule({
   const [aiSettingsOpen, setAiSettingsOpen] = useState(false);
   const [inboxTab, setInboxTab] = useState<InboxTab>('chats');
   const [showingAll, setShowingAll] = useState(false);
+  const [invitesOpen, setInvitesOpen] = useState(false);
+  const [pendingOpenChat, setPendingOpenChat] = useState<string | null>(null);
+  const archivePatchesRef = useRef<Record<string, boolean>>({});
 
   const networkTab: ContactsTab = 'my_contacts';
 
@@ -113,19 +148,34 @@ export default function ChatModule({
 
   useEffect(() => {
     let active = true;
+    setInboxLoading(true);
+
     Promise.all([
       loadInbox().catch(() => ({ identityId: '', chats: [] as ChatItem[], categories: [] as ChatCategory[] })),
       loadContacts().catch(() => [] as ContactItem[]),
       loadCommunities(profile?.id || '').catch(() => [] as CommunityItem[]),
       loadStatuses().catch(() => [] as StatusItem[]),
-    ]).then(([inbox, nextContacts, nextCommunities, nextStatuses]) => {
-      if (!active) return;
-      setChats(inbox.chats);
-      setCategories(inbox.categories);
-      setContacts(nextContacts);
-      setCommunities(nextCommunities);
-      setStatuses(nextStatuses);
-    });
+    ])
+      .then(([inbox, nextContacts, nextCommunities, nextStatuses]) => {
+        if (!active) return;
+        setChats(inbox.chats.map((chat) => (
+          archivePatchesRef.current[chat.id] === undefined
+            ? chat
+            : { ...chat, isArchived: archivePatchesRef.current[chat.id] }
+        )));
+        setCategories(inbox.categories);
+        setContacts(nextContacts);
+        setCommunities(nextCommunities);
+        setStatuses(nextStatuses);
+        const requested = new URLSearchParams(window.location.search).get('openChat');
+        if (requested) setPendingOpenChat(requested);
+      })
+      .finally(() => {
+        if (active) {
+          setInboxLoading(false);
+        }
+      });
+
     return () => {
       active = false;
     };
@@ -134,12 +184,40 @@ export default function ChatModule({
   const inContacts = section === 'contacts' || section === 'calls' || section === 'discover';
   const contactsTab: ContactsTab = section === 'calls' ? 'calls' : networkTab;
 
+  const requestChatPin = (chat: ChatItem, purpose: 'open' | 'remove') => {
+    setPinPurpose(purpose);
+    setLockedChat(chat);
+  };
+
   const handleChatPress = (chat: ChatItem) => {
     if (chat.isProtected) {
-      setLockedChat(chat);
+      requestChatPin(chat, 'open');
       return;
     }
     openChatWith(chat);
+  };
+
+  const showProtectionNotice = (text: string) => {
+    setProtectionNotice(text);
+    window.setTimeout(() => setProtectionNotice((current) => (current === text ? null : current)), 3200);
+  };
+
+  const handleToggleProtection = (chat: ChatItem) => {
+    if (chat.isProtected) {
+      requestChatPin(chat, 'remove');
+      return;
+    }
+    void getWebAuth().then(async (auth) => {
+      const status = await getAccountSecurityPinStatus(auth);
+      if (!status.configured) {
+        showProtectionNotice('Crea un PIN en Seguridad antes de proteger un chat.');
+        return;
+      }
+      await protectChatWithPin(auth, chat.id);
+      setChats((prev) => prev.map((item) => (
+        item.id === chat.id ? { ...item, isProtected: true, lastMessage: '', unreadCount: 0 } : item
+      )));
+    }).catch(() => showProtectionNotice('No fue posible proteger el chat.'));
   };
 
   const openChatWith = (chat: ChatItem) => {
@@ -151,13 +229,40 @@ export default function ChatModule({
     onSectionChange('chats');
   };
 
+  useEffect(() => {
+    if (!pendingOpenChat) return;
+    const target = chats.find((item) => item.id === pendingOpenChat);
+    if (target) handleChatPress(target);
+    else {
+      openChatWith({
+        id: pendingOpenChat,
+        name: 'Proveedor',
+        lastMessage: '',
+        time: '',
+        unreadCount: 0,
+        isGroup: false,
+        status: 'sent',
+        postingIdentityId: getRememberedChatIdentity(),
+      });
+    }
+    setPendingOpenChat(null);
+    window.history.replaceState(null, '', '/app');
+  }, [pendingOpenChat, chats]);
+
   const persistAssistantInboxPreference = (
     chatId: string,
     patch: { isPinned?: boolean; isMuted?: boolean },
   ) => {
-    if (chatId !== ASSISTANT_CHAT_ID) return;
     const identityId = getRememberedChatIdentity();
     if (!identityId) return;
+    if (chatId !== ASSISTANT_CHAT_ID) {
+      if (patch.isMuted === undefined) return;
+      void getWebAuth().then((auth) => updateChatConversationNotifications(auth, chatId, {
+        identity_id: identityId,
+        notifications_enabled: !patch.isMuted,
+      })).catch(() => undefined);
+      return;
+    }
     void getWebAuth().then(async (auth) => {
       if (patch.isPinned !== undefined) {
         await updateChatConversationPinned(auth, ASSISTANT_CHAT_ID, {
@@ -178,7 +283,7 @@ export default function ChatModule({
     const existing = chats.find((chat) => chat.name === name);
     if (existing) {
       onSectionChange('chats');
-      openChatWith(existing);
+      handleChatPress(existing);
       return;
     }
     const identityId = getRememberedChatIdentity();
@@ -201,11 +306,34 @@ export default function ChatModule({
     }).catch(() => undefined);
   };
 
-  const handleArchiveChat = (id: string) => {
-    setChats((prev) => prev.map((c) => (c.id === id ? { ...c, isArchived: true } : c)));
+  const handleArchiveChat = (id: string, archived = true) => {
+    archivePatchesRef.current[id] = archived;
+    setChats((prev) => prev.map((c) => (c.id === id ? { ...c, isArchived: archived } : c)));
   };
 
+  useEffect(() => {
+    for (const item of consumeAssistantArchives()) {
+      archivePatchesRef.current[item.id] = item.archived;
+    }
+    const onArchive = (event: Event) => {
+      const detail = (event as CustomEvent<{ id?: string; archived?: boolean }>).detail;
+      if (detail?.id) handleArchiveChat(detail.id, detail.archived !== false);
+    };
+    window.addEventListener(ASSISTANT_ARCHIVE_EVENT, onArchive);
+    return () => window.removeEventListener(ASSISTANT_ARCHIVE_EVENT, onArchive);
+  }, []);
+
   const renderLeftPanel = () => {
+    if (invitesOpen && (section === 'chats' || section === 'archived')) {
+      return (
+        <GroupInvitesPanel
+          onAccepted={() => {
+            void loadInbox().then((inbox) => setChats(inbox.chats)).catch(() => undefined);
+          }}
+        />
+      );
+    }
+
     if (section === 'discover') {
       return (
         <DiscoverPanel
@@ -218,8 +346,12 @@ export default function ChatModule({
     if (inContacts) {
       return (
         <ContactsPanel
-          contacts={contacts} tab={contactsTab} selectedContactId={selectedContact?.id}
-          onSelectContact={setSelectedContact} onCreateContact={() => setCreatingContact(true)}
+          contacts={contacts}
+          tab={contactsTab}
+          selectedContactId={selectedContact?.id}
+          onSelectContact={setSelectedContact}
+          onCreateContact={() => setCreatingContact(true)}
+          homeSearchQuery={contactListSearchActive ? homeSearch.query : ''}
         />
       );
     }
@@ -256,7 +388,7 @@ export default function ChatModule({
       }
 
       return (
-        <div className="flex-1 overflow-y-auto pt-3">
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain pt-3">
           {communities.map((community) => (
             <CommunityRow key={community.id} community={community} isSelected={selectedCommunity?.id === community.id} onClick={() => { setSelectedCommunity(community); setSelectedChat(null); }} />
           ))}
@@ -274,9 +406,25 @@ export default function ChatModule({
       });
     const archivedCount = chats.filter((chat) => chat.isArchived && !chat.isAI).length;
 
+    const listedChats = chatListSearchActive
+      ? visibleChats.filter((chat) => (
+        homeSearch.matchesQuery(chat.name, chat.lastMessage)
+      ))
+      : visibleChats;
+
+    const searchEmptyCopy = (
+      chatListSearchActive
+      && homeSearch.hasActiveQuery
+      && listedChats.length === 0
+    )
+      ? homeSearchEmptyCopy(homeSearch.query)
+      : null;
+
     return (
       <ChatListPanel
-        chats={visibleChats}
+        loading={inboxLoading}
+        chats={listedChats}
+        searchEmpty={searchEmptyCopy}
         categories={categories}
         activeCategoryId={showingAll ? null : activeCategoryId}
         selectedChatId={selectedChat?.id}
@@ -306,7 +454,7 @@ export default function ChatModule({
         }}
         onDeleteChat={(id) => { setChats((prev) => prev.filter((c) => c.id !== id)); if (selectedChat?.id === id) setSelectedChat(null); }}
         onAssignCategory={setAssigningChat}
-        onToggleProtection={(chat) => setChats((prev) => prev.map((c) => (c.id === chat.id ? { ...c, isProtected: !c.isProtected } : c)))}
+        onToggleProtection={handleToggleProtection}
         onArchiveChat={handleArchiveChat}
       />
     );
@@ -338,17 +486,18 @@ export default function ChatModule({
           onBack={() => setSelectedChat(null)}
           onOpenProfile={() => setViewingProfile('chat')}
           onOpenAiSettings={() => setAiSettingsOpen(true)}
+          onArchiveChat={handleArchiveChat}
           onNavigateToChat={(chatId, chatName) => {
             const target = chats.find((item) => item.id === chatId);
             if (target) {
-              openChatWith(target);
+              handleChatPress(target);
               return;
             }
             void loadInbox().then((inbox) => {
               setChats(inbox.chats);
               const loaded = inbox.chats.find((item) => item.id === chatId);
               if (loaded) {
-                openChatWith(loaded);
+                handleChatPress(loaded);
               } else {
                 openChatWith({
                   id: chatId,
@@ -370,12 +519,55 @@ export default function ChatModule({
   };
 
   const detail = renderDetail();
+  const searchScopeKey = `${homeSearch.filter}:${homeSearch.query}`;
+  const previousSearchScope = useRef(searchScopeKey);
+
+  useEffect(() => {
+    if (previousSearchScope.current === searchScopeKey) return;
+    previousSearchScope.current = searchScopeKey;
+    const searching = homeSearch.filter !== 'todos' || homeSearch.query.trim().length > 0;
+    if (!searching) return;
+    setSelectedChat(null);
+    setSelectedCommunity(null);
+    setSelectedContact(null);
+    setViewingProfile(null);
+  }, [homeSearch.filter, homeSearch.query, searchScopeKey]);
+
   const paneOpen = detail != null;
+  const showSearchResults = (
+    !paneOpen
+    && (homeSearch.filter !== 'todos' || homeSearch.query.trim().length > 0)
+  );
   const conversationOpen = selectedChat != null;
 
   useEffect(() => {
     onConversationOpenChange?.(conversationOpen);
   }, [conversationOpen, onConversationOpenChange]);
+
+  const chatModalOpen = creatingContact
+    || creatingStatus
+    || creatingCategory
+    || newChatModalOpen
+    || createGroupModalOpen
+    || creatingCommunity
+    || aiSettingsOpen
+    || Boolean(assigningChat)
+    || Boolean(lockedChat)
+    || viewerIndex !== null
+    || invitesOpen;
+
+  useEffect(() => {
+    onChatModalOpenChange?.(chatModalOpen);
+  }, [chatModalOpen, onChatModalOpenChange]);
+
+  const goHome = () => {
+    setSelectedChat(null);
+    setSelectedCommunity(null);
+    setSelectedContact(null);
+    setViewingProfile(null);
+    setAiSettingsOpen(false);
+    onSectionChange('chats');
+  };
 
   const inboxTitle = section === 'archived' ? 'Chats archivados' : 'Chats';
   const showInboxChrome = section === 'chats' || section === 'archived';
@@ -384,13 +576,15 @@ export default function ChatModule({
   );
 
   return (
-    <div className="relative flex min-h-0 flex-1 flex-row bg-[#F3EEF8]">
-      <div className={`${paneOpen ? 'w-[440px] shrink-0 border-r border-[#E4D8F2] bg-[#F3EEF8]' : 'min-w-0 flex-1'} flex flex-col min-h-0`}>
+    <div className="relative h-full min-h-0 overflow-hidden bg-[#F7F4FB]">
+    <div className="grid h-full min-h-0 grid-cols-1 grid-rows-[minmax(0,1fr)] overflow-hidden md:grid-cols-[minmax(300px,360px)_minmax(0,1fr)] lg:grid-cols-[400px_minmax(0,1fr)]">
+      <div className={`h-full min-h-0 min-w-0 grid-rows-[auto_minmax(0,1fr)] overflow-hidden bg-[#F3EEF8] md:grid md:border-r md:border-[#E4D8F2] ${paneOpen || showSearchResults ? 'hidden' : 'grid'}`}>
+        <div className="min-w-0">
         {showInboxChrome ? (
           <>
             <ChatInboxHeader
               title={inboxTitle}
-              onOpenOverview={onOpenOverview}
+              onGoHome={section === 'chats' && !paneOpen ? undefined : goHome}
               onBack={section === 'archived' ? () => onSectionChange('chats') : undefined}
               onNewChat={() => setNewChatModalOpen(true)}
               onNewGroup={() => setCreateGroupModalOpen(true)}
@@ -399,21 +593,23 @@ export default function ChatModule({
             />
             {section === 'chats' ? (
               <>
-                <StatusCirclesRow
-                  statuses={statuses}
-                  authorInitials={authorInitials}
-                  onCreateStatus={() => setCreatingStatus(true)}
-                  onOpenStatus={(index) => {
-                    const status = statuses[index];
-                    if (status) {
-                      void markStatusSeen(status.id).catch(() => undefined);
-                      setStatuses((prev) => prev.map((item) => (
-                        item.id === status.id ? { ...item, viewed: true } : item
-                      )));
-                    }
-                    setViewerIndex(index);
-                  }}
-                />
+                <div className="[@media(max-height:720px)]:hidden">
+                  <StatusCirclesRow
+                    statuses={statuses}
+                    authorInitials={authorInitials}
+                    onCreateStatus={() => setCreatingStatus(true)}
+                    onOpenStatus={(index) => {
+                      const status = statuses[index];
+                      if (status) {
+                        void markStatusSeen(status.id).catch(() => undefined);
+                        setStatuses((prev) => prev.map((item) => (
+                          item.id === status.id ? { ...item, viewed: true } : item
+                        )));
+                      }
+                      setViewerIndex(index);
+                    }}
+                  />
+                </div>
                 <ChatInboxTabs
                   activeTab={inboxTab}
                   onChange={(tab) => {
@@ -421,7 +617,14 @@ export default function ChatModule({
                     setInboxTab(tab);
                   }}
                 />
-                <div className="flex justify-end px-4 py-1.5">
+                <div className="flex justify-end gap-3 px-4 py-1.5">
+                  <button
+                    type="button"
+                    onClick={() => setInvitesOpen((open) => !open)}
+                    className="text-xs font-medium text-brand-primary hover:underline"
+                  >
+                    {invitesOpen ? 'Ver chats' : 'Invitaciones'}
+                  </button>
                   <button
                     type="button"
                     onClick={() => {
@@ -448,13 +651,37 @@ export default function ChatModule({
             onNewContact={() => setCreatingContact(true)}
           />
         )}
-        {renderLeftPanel()}
-      </div>
-      {paneOpen ? (
-        <div className="flex min-h-0 min-w-0 flex-1 flex-col bg-white">
-          {detail}
         </div>
-      ) : null}
+        <div className="flex h-full min-h-0 flex-col overflow-y-auto overscroll-contain">
+          {renderLeftPanel()}
+        </div>
+      </div>
+      <div className={`relative min-h-0 min-w-0 overflow-hidden ${paneOpen || showSearchResults ? 'block' : 'hidden md:block'}`}>
+        {paneOpen ? (
+          <div className="absolute inset-0 flex min-h-0 flex-col overflow-hidden bg-white">
+            {detail}
+          </div>
+        ) : showSearchResults ? (
+          <HomeSearchResults
+            chats={chats}
+            contacts={contacts}
+            onOpenChat={(chat) => {
+              onSectionChange('chats');
+              handleChatPress(chat);
+            }}
+            onOpenContact={(contact) => {
+              onSectionChange('contacts');
+              setSelectedContact(contact);
+              setSelectedChat(null);
+              setSelectedCommunity(null);
+            }}
+            onOpenRemoteHit={(hit) => onOpenSearchHit?.(hit)}
+          />
+        ) : onOpenModule ? (
+          <HomeDesktopCanvas onOpenModule={onOpenModule} />
+        ) : null}
+      </div>
+    </div>
 
       <NewChatModal isOpen={newChatModalOpen} onClose={() => setNewChatModalOpen(false)} onSelectContact={(contact) => startDirectChat(contact.name)} />
       <CreateGroupModal isOpen={createGroupModalOpen} onClose={() => setCreateGroupModalOpen(false)} onCreateGroup={(name) => {
@@ -540,7 +767,35 @@ export default function ChatModule({
       }} />
       <CreateContactModal isOpen={creatingContact} onClose={() => setCreatingContact(false)} onCreate={(c) => { setContacts((prev) => [c, ...prev]); setSelectedContact(c); setCreatingContact(false); }} />
       
-      <PinLockModal visible={!!lockedChat} itemName={lockedChat?.name} onClose={() => setLockedChat(null)} onSuccess={() => { if (lockedChat) { const c = lockedChat; setLockedChat(null); openChatWith(c); } }} />
+      {protectionNotice ? (
+        <div className="fixed bottom-24 left-1/2 z-[90] -translate-x-1/2 rounded-full bg-neutral-900 px-4 py-2 text-xs font-semibold text-white shadow-lg">
+          {protectionNotice}
+        </div>
+      ) : null}
+      <PinLockModal
+        visible={!!lockedChat}
+        itemName={lockedChat?.name}
+        onClose={() => setLockedChat(null)}
+        onVerify={pinPurpose === 'remove' && lockedChat ? async (pin) => {
+          const auth = await getWebAuth();
+          await removeChatPinProtection(auth, lockedChat.id, pin);
+        } : undefined}
+        onSuccess={() => {
+          if (!lockedChat) return;
+          const chat = lockedChat;
+          setLockedChat(null);
+          if (pinPurpose === 'remove') {
+            setChats((prev) => prev.map((item) => (
+              item.id === chat.id ? { ...item, isProtected: false } : item
+            )));
+            void loadInbox().then((inbox) => {
+              setChats(inbox.chats);
+            }).catch(() => undefined);
+            return;
+          }
+          openChatWith({ ...chat, isProtected: false });
+        }}
+      />
 
     </div>
   );

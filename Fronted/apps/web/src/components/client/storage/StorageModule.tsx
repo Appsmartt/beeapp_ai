@@ -19,6 +19,7 @@ import {
   createCurrentWebStorageFileShare,
   createCurrentWebStorageFolder,
   createCurrentWebStorageTag,
+  deleteCurrentWebStorageTag,
   getCurrentWebStorageFileAccess,
   getCurrentWebStorageFiles,
   getCurrentWebStorageFileTags,
@@ -33,6 +34,11 @@ import {
   replaceCurrentWebStorageFileTags,
   uploadCurrentWebStorageFiles,
 } from '@beeapp/api-client';
+import {
+  homeSearchEmptyCopy,
+  useHomeModuleSearch,
+  useHomeSearch,
+} from '@/components/client/home/HomeSearchContext';
 import type {
   FileSharePermission,
   StorageFile,
@@ -42,7 +48,6 @@ import type {
   StorageTag,
 } from '@beeapp/shared-types';
 
-import ModuleNotificationBell from '../ModuleNotificationBell';
 import StorageOptionsBar, {
   StorageFilter,
 } from './StorageOptionsBar';
@@ -270,6 +275,8 @@ function getFileNameWithExtension(
 }
 
 export default function StorageModule() {
+  const homeSearch = useHomeModuleSearch('archivo');
+  const { pendingHit, consumePendingHit } = useHomeSearch();
   const [items, setItems] = useState<WebStorageItem[]>([]);
   const [categories, setCategories] = useState<
     StorageCategory[]
@@ -327,6 +334,14 @@ export default function StorageModule() {
 
   const [selectedItem, setSelectedItem] =
     useState<WebStorageItem | null>(null);
+
+  useEffect(() => {
+    if (pendingHit?.kind !== 'archivo') return;
+    const match = items.find((item) => item.id === pendingHit.id);
+    if (!match) return;
+    setSelectedItem(match);
+    consumePendingHit();
+  }, [consumePendingHit, items, pendingHit]);
 
   const [shareItem, setShareItem] =
     useState<WebStorageItem | null>(null);
@@ -537,11 +552,15 @@ export default function StorageModule() {
       }
 
       return true;
-    }),
+    }).filter((item) => (
+      !homeSearch.hasActiveQuery
+      || homeSearch.matchesQuery(item.name)
+    )),
     [
       activeCategoryId,
       currentFolderId,
       filter,
+      homeSearch,
       items,
     ],
   );
@@ -605,6 +624,42 @@ export default function StorageModule() {
         error instanceof Error
           ? error.message
           : 'No fue posible crear la categoría.',
+      );
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleDeleteCategory = async (
+    category: StorageCategory,
+  ) => {
+    if (category.isDefault) {
+      return;
+    }
+
+    const confirmed = window.confirm(
+      `¿Deseas eliminar la etiqueta “${category.name}”?`,
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    try {
+      setIsSubmitting(true);
+      await deleteCurrentWebStorageTag(category.id);
+
+      if (activeCategoryId === category.id) {
+        setActiveCategoryId(null);
+      }
+
+      await loadStorage(true);
+      showSuccess('Etiqueta eliminada.');
+    } catch (error) {
+      showError(
+        error instanceof Error
+          ? error.message
+          : 'No fue posible eliminar la etiqueta.',
       );
     } finally {
       setIsSubmitting(false);
@@ -914,14 +969,14 @@ export default function StorageModule() {
   };
 
   return (
-    <div className="relative flex min-h-full select-none bg-white">
+    <div className="relative flex h-full min-h-0 select-none overflow-hidden bg-white">
       <StorageOptionsBar
         filter={filter}
         onSelectFilter={setFilter}
       />
 
-      <div className="flex w-[380px] shrink-0 flex-col border-r border-neutral-200 bg-white lg:w-[420px]">
-        <div className="space-y-3 border-b border-neutral-100 p-3.5">
+      <div className="flex h-full min-h-0 w-[380px] shrink-0 flex-col overflow-hidden border-r border-neutral-200 bg-white lg:w-[420px]">
+        <div className="shrink-0 space-y-3 border-b border-neutral-100 p-3.5">
           <div className="flex items-center justify-between gap-2">
             <h1 className="truncate text-base font-semibold text-neutral-900">
               Almacenamiento
@@ -967,10 +1022,6 @@ export default function StorageModule() {
                 <Plus className="h-3.5 w-3.5" />
                 <span>Subir</span>
               </button>
-
-              <div className="flex h-8 items-center justify-center">
-                <ModuleNotificationBell moduleId="storage" />
-              </div>
 
               <StorageCreateMenu
                 visible={createMenuOpen}
@@ -1051,19 +1102,23 @@ export default function StorageModule() {
             </div>
           </div>
 
-          <StorageBreadcrumbs
-            pathStack={pathStack}
-            onNavigate={handleNavigateBreadcrumb}
-          />
-
-          <StorageCategoryChips
-            categories={categories}
-            activeCategoryId={activeCategoryId}
-            onChange={setActiveCategoryId}
-            onCreate={() =>
-              setCreateCategoryOpen(true)
-            }
-          />
+          <div className="flex items-center gap-2 overflow-x-auto border-b border-neutral-100 pb-2">
+            <StorageBreadcrumbs
+              pathStack={pathStack}
+              onNavigate={handleNavigateBreadcrumb}
+            />
+            <StorageCategoryChips
+              categories={categories}
+              activeCategoryId={activeCategoryId}
+              onChange={setActiveCategoryId}
+              onCreate={() =>
+                setCreateCategoryOpen(true)
+              }
+              onDelete={(category) => {
+                void handleDeleteCategory(category);
+              }}
+            />
+          </div>
 
           {errorMessage && (
             <div className="flex items-start justify-between gap-2 rounded-xl border border-red-100 bg-red-50 px-3 py-2">
@@ -1098,7 +1153,7 @@ export default function StorageModule() {
           )}
         </div>
 
-        <div className="flex-1 overflow-y-auto p-3">
+        <div className="min-h-0 flex-1 overflow-y-auto p-3">
           <div className="mb-3 flex items-center justify-between">
             <span className="text-[11px] font-normal text-neutral-500">
               {loading
@@ -1135,9 +1190,20 @@ export default function StorageModule() {
           ) : filteredItems.length === 0 ? (
             <div className="space-y-2 py-16 text-center text-neutral-400">
               <FolderOpen className="mx-auto h-10 w-10 text-neutral-300" />
-              <p className="text-xs font-normal">
-                Carpeta o categoría vacía
-              </p>
+              {homeSearch.hasActiveQuery ? (
+                <>
+                  <p className="text-sm font-semibold text-[#432064]">
+                    {homeSearchEmptyCopy(homeSearch.query).title}
+                  </p>
+                  <p className="text-xs text-[#786593]">
+                    {homeSearchEmptyCopy(homeSearch.query).description}
+                  </p>
+                </>
+              ) : (
+                <p className="text-xs font-normal">
+                  Carpeta o categoría vacía
+                </p>
+              )}
             </div>
           ) : (
             <div
@@ -1197,7 +1263,7 @@ export default function StorageModule() {
         </div>
       </div>
 
-      <div className="flex min-w-0 flex-1 flex-col">
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
         {selectedItem ? (
           <StoragePreview
             key={selectedItem.id}

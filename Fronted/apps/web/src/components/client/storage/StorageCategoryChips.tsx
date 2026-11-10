@@ -1,14 +1,22 @@
 'use client';
 
-import { Plus } from 'lucide-react';
-import { StorageCategory } from '@/lib/client/storageItems';
+import { Plus, X } from 'lucide-react';
 import { getCategoryIcon } from '../chat/categoryIcons';
 
+interface StorageChipCategory {
+  id: string;
+  name: string;
+  icon: string;
+  color: string;
+  isDefault?: boolean;
+}
+
 interface StorageCategoryChipsProps {
-  categories: StorageCategory[];
+  categories: StorageChipCategory[];
   activeCategoryId: string | null;
   onChange: (categoryId: string | null) => void;
   onCreate: () => void;
+  onDelete: (category: StorageChipCategory) => void;
 }
 
 /** Horizontal category chips bar for web Storage module */
@@ -17,10 +25,11 @@ export default function StorageCategoryChips({
   activeCategoryId,
   onChange,
   onCreate,
+  onDelete,
 }: StorageCategoryChipsProps) {
   return (
-    <div className="py-2 bg-white border-b border-neutral-100 overflow-x-auto no-scrollbar">
-      <div className="flex items-center gap-2 px-3.5">
+    <div className="min-w-0 bg-white">
+      <div className="flex items-center gap-2">
         {/* Chip "Todos" */}
         <button
           type="button"
@@ -39,20 +48,40 @@ export default function StorageCategoryChips({
           const isActive = activeCategoryId === category.id;
           const Icon = getCategoryIcon(category.icon);
           return (
-            <button
+            <div
               key={category.id}
-              type="button"
-              onClick={() => onChange(category.id)}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-2xl text-xs font-normal transition-colors shrink-0 ${
+              className={`flex shrink-0 items-center rounded-2xl text-xs ${
                 isActive
-                  ? 'bg-brand-primary text-white font-semibold'
-                  : 'text-neutral-700 hover:opacity-90'
+                  ? 'bg-brand-primary font-semibold text-white'
+                  : 'font-normal text-neutral-700'
               }`}
               style={{ backgroundColor: isActive ? '#6025d2' : category.color }}
             >
-              <Icon className={`w-3.5 h-3.5 ${isActive ? 'text-white' : 'text-neutral-700'}`} />
-              <span>{category.name}</span>
-            </button>
+              <button
+                type="button"
+                onClick={() => onChange(category.id)}
+                className="flex max-w-[9rem] items-center gap-1.5 py-1.5 pl-3 pr-1.5"
+                title={category.name}
+              >
+                <Icon className={`h-3.5 w-3.5 shrink-0 ${isActive ? 'text-white' : 'text-neutral-700'}`} />
+                <span className="truncate">{category.name}</span>
+              </button>
+              {!category.isDefault ? (
+                <button
+                  type="button"
+                  onClick={() => onDelete(category)}
+                  aria-label={`Eliminar ${category.name}`}
+                  title="Eliminar etiqueta"
+                  className={`mr-1.5 flex h-5 w-5 items-center justify-center rounded-full ${
+                    isActive
+                      ? 'text-white hover:bg-white/20'
+                      : 'text-neutral-600 hover:bg-black/10'
+                  }`}
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              ) : null}
+            </div>
           );
         })}
 

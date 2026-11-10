@@ -22,8 +22,8 @@ import {
 import { colors } from '@beeapp/design-system';
 import {
   getDeviceSessions,
-  revokeAllDeviceSessions,
   revokeDeviceSession,
+  revokeEveryDeviceSession,
   scanQrLogin,
 } from '@beeapp/api-client';
 import type {
@@ -53,15 +53,18 @@ function formatLastSeen(value: string): string {
 function getChallengeToken(
   scannedValue: string,
 ): string | null {
-  const match = scannedValue.match(
-    /^beeapp:\/\/web-login\?token=([^&]+)$/,
-  );
+  const value = scannedValue.trim();
+  const match = value.match(/beeapp:\/\/web-login\?token=([^&\s]+)/i);
 
-  if (!match) {
-    return null;
+  if (match?.[1]) {
+    return decodeURIComponent(match[1]);
   }
 
-  return decodeURIComponent(match[1]);
+  if (/^[0-9a-f-]{36,}$/i.test(value)) {
+    return value;
+  }
+
+  return null;
 }
 
 
@@ -168,7 +171,7 @@ export default function DevicesScreen() {
 
       const credentials = await getCredentials();
 
-      const response = await scanQrLogin(
+      await scanQrLogin(
         credentials,
         {
           challenge_token: challengeToken,
@@ -180,8 +183,8 @@ export default function DevicesScreen() {
       await loadDevices();
 
       appAlert(
-        'Sesión iniciada',
-        `Se inició sesión en ${response.device.device_name}.`,
+        'Acceso autorizado',
+        'El acceso quedó autorizado en Buddy Web.',
       );
     } catch (error) {
       appAlert(
@@ -258,7 +261,7 @@ export default function DevicesScreen() {
             try {
               const credentials = await getCredentials();
 
-              await revokeAllDeviceSessions(credentials);
+              await revokeEveryDeviceSession(credentials);
               await clearAuthSession();
               appRouter.replace('/(auth)/login');
             } catch (error) {

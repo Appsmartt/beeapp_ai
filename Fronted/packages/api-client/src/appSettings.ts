@@ -41,11 +41,26 @@ export type PublicPlan = {
   color: string | null;
   sort_order: number;
   is_active: boolean;
+  purchasable?: boolean;
+  entitlements?: Record<string, unknown>;
+};
+
+export type PlanUsage = {
+  groups?: number;
+  mailAccounts?: number;
+  calendars?: number;
+  filesBytes?: number;
+  mailBytes?: number;
+  catalogOffers?: number;
+  callMinutes?: number;
+  aiCredits?: number;
 };
 
 export type MySubscriptionPayload = {
   subscription: Record<string, unknown> | null;
   plan: PublicPlan | null;
+  entitlements?: Record<string, unknown>;
+  usage?: PlanUsage;
 };
 
 function parseJson<T>(raw: string | undefined, fallback: T): T {

@@ -95,6 +95,15 @@ export function buddyServicesCreateBusinessRoute(): Href {
   return "/(main)/beeservices/create-business";
 }
 
+export function buddyServicesManageMetricsRoute(businessId: string): Href {
+  return {
+    pathname: "/(main)/beeservices/manage/[businessId]/metrics",
+    params: {
+      businessId: requireId(businessId, "el negocio"),
+    },
+  };
+}
+
 export function buddyServicesManageBusinessRoute(businessId: string): Href {
   return {
     pathname: "/(main)/beeservices/manage/[businessId]",

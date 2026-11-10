@@ -44,6 +44,7 @@ useLocalSearchParams,
 useRouter,
 } from 'expo-router';
 import * as DocumentPicker from 'expo-document-picker';
+import * as ImagePicker from 'expo-image-picker';
 import { withExternalActivity } from '../../../../src/services/locationPermissionAppLockGuard';
 import * as FileSystem from 'expo-file-system';
 
@@ -86,6 +87,7 @@ rejectCommercialItemProposal,
 rejectCommercialProposal,
 replaceRejectedCommercialPaymentProof,
 submitCommercialPaymentProofForRequest,
+transitionOwnedCommercialRequest,
 } from '../../../../src/services/commercialService';
 import {
 uploadCommercialPaymentProof,
@@ -102,6 +104,72 @@ return String(value[0] || '').trim();
 }
 
 return String(value || '').trim();
+}
+
+interface SelectedCommercialPaymentProof {
+uri: string;
+name: string;
+mimeType: string;
+sizeBytes: number | null;
+}
+
+function proofNameFromUri(uri: string, fallback: string): string {
+const clean = uri.split('?')[0] || '';
+const name = clean.split('/').pop() || fallback;
+return name || fallback;
+}
+
+function imageMimeFromName(name: string): string {
+const lower = name.toLowerCase();
+if (lower.endsWith('.png')) return 'image/png';
+if (lower.endsWith('.webp')) return 'image/webp';
+return 'image/jpeg';
+}
+
+async function pickCommercialPaymentProof(
+kind: 'image' | 'pdf',
+): Promise<SelectedCommercialPaymentProof | null> {
+if (kind === 'pdf') {
+const result = await withExternalActivity(() => (
+DocumentPicker.getDocumentAsync({
+type: 'application/pdf',
+copyToCacheDirectory: true,
+multiple: false,
+})
+));
+if (result.canceled || !result.assets[0]) return null;
+const asset = result.assets[0];
+return {
+uri: asset.uri,
+name: asset.name || 'comprobante.pdf',
+mimeType: asset.mimeType || 'application/pdf',
+sizeBytes: asset.size ?? null,
+};
+}
+
+const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+if (!permission.granted) {
+throw new Error('Necesitamos acceso a tus fotos para adjuntar la captura.');
+}
+
+const result = await withExternalActivity(() => (
+ImagePicker.launchImageLibraryAsync({
+mediaTypes: ImagePicker.MediaTypeOptions.Images,
+quality: 0.85,
+})
+));
+if (result.canceled || !result.assets[0]) return null;
+const asset = result.assets[0];
+const name = asset.fileName || proofNameFromUri(
+asset.uri,
+`comprobante-${Date.now()}.jpg`,
+);
+return {
+uri: asset.uri,
+name,
+mimeType: asset.mimeType || imageMimeFromName(name),
+sizeBytes: asset.fileSize ?? null,
+};
 }
 
 function formatCop(
@@ -1117,45 +1185,32 @@ setSelectedPaymentMethodId(paymentMethodId);
 setExpandedPaymentMethodId(paymentMethodId);
 }, []);
 
-const handleSubmitPaymentProof = useCallback(async () => {
+const handleSubmitPaymentProof = useCallback(async (
+kind: 'image' | 'pdf',
+) => {
+const availableMethods = formalContext?.payment_options?.manual_payment_methods || [];
 if (
 pendingAction !== null
 || !requestId
 || !formalContext?.permissions.can_submit_payment_proof
-|| !selectedPaymentMethodId
 ) {
-if (
-formalContext?.permissions.can_submit_payment_proof
-&& !selectedPaymentMethodId
-) {
+return;
+}
+
+if (availableMethods.length > 0 && !selectedPaymentMethodId) {
 setActionError({
-title: 'Método de pago no disponible',
-message: (
-'El comercio no tiene un método de pago disponible '
-+ 'para recibir el comprobante.'
-),
+title: 'Elige cómo pagaste',
+message: 'Selecciona el método de pago antes de enviar el comprobante.',
 retryable: true,
 });
-}
 return;
 }
 
 let selectedProofUri: string | null = null;
 
 try {
-const result = await withExternalActivity(() => (
-DocumentPicker.getDocumentAsync({
-type: 'application/pdf',
-copyToCacheDirectory: true,
-multiple: false,
-})
-));
-
-if (result.canceled || !result.assets[0]) {
-return;
-}
-
-const asset = result.assets[0];
+const asset = await pickCommercialPaymentProof(kind);
+if (!asset) return;
 selectedProofUri = asset.uri;
 
 setPendingAction('submit-proof');
@@ -1173,9 +1228,9 @@ const uploadedFile = await uploadCommercialPaymentProof(
 credentials,
 {
 uri: asset.uri,
-name: asset.name || 'comprobante.pdf',
-mimeType: asset.mimeType || 'application/pdf',
-sizeBytes: asset.size ?? null,
+name: asset.name,
+mimeType: asset.mimeType,
+sizeBytes: asset.sizeBytes,
 },
 );
 
@@ -1183,7 +1238,7 @@ await submitCommercialPaymentProofForRequest(
 requestId,
 {
 file_id: uploadedFile.id,
-payment_method_id: selectedPaymentMethodId,
+payment_method_id: selectedPaymentMethodId || null,
 },
 );
 
@@ -1224,6 +1279,7 @@ selectedPaymentMethodId,
 
 const handleReplacePaymentProof = useCallback(async (
 paymentProofId: string,
+kind: 'image' | 'pdf',
 ) => {
 if (
 pendingAction !== null
@@ -1235,19 +1291,8 @@ return;
 let selectedProofUri: string | null = null;
 
 try {
-const result = await withExternalActivity(() => (
-DocumentPicker.getDocumentAsync({
-type: 'application/pdf',
-copyToCacheDirectory: true,
-multiple: false,
-})
-));
-
-if (result.canceled || !result.assets[0]) {
-return;
-}
-
-const asset = result.assets[0];
+const asset = await pickCommercialPaymentProof(kind);
+if (!asset) return;
 selectedProofUri = asset.uri;
 
 setPendingAction(`replace-proof:${paymentProofId}`);
@@ -1265,9 +1310,9 @@ const uploadedFile = await uploadCommercialPaymentProof(
 credentials,
 {
 uri: asset.uri,
-name: asset.name || 'comprobante.pdf',
-mimeType: asset.mimeType || 'application/pdf',
-sizeBytes: asset.size ?? null,
+name: asset.name,
+mimeType: asset.mimeType,
+sizeBytes: asset.sizeBytes,
 },
 );
 
@@ -1309,6 +1354,38 @@ setPendingAction(null);
 formalContext,
 loadRequest,
 pendingAction,
+]);
+
+const confirmCancelRequest = useCallback(() => {
+if (!requestId || !formalContext?.permissions.can_cancel) return;
+
+appAlert(
+'Cancelar solicitud',
+'La solicitud se cancelará y no se sumará como venta. Solo puedes hacerlo mientras no se haya realizado.',
+[
+{
+text: 'Volver',
+style: 'cancel',
+},
+{
+text: 'Cancelar solicitud',
+style: 'destructive',
+onPress: () => {
+void runRequestAction(
+'cancel-request',
+() => transitionOwnedCommercialRequest(requestId, {
+action: 'cancel',
+}),
+'La solicitud fue cancelada.',
+);
+},
+},
+],
+);
+}, [
+formalContext?.permissions.can_cancel,
+requestId,
+runRequestAction,
 ]);
 
 const confirmRejectProposal = useCallback((
@@ -2240,26 +2317,23 @@ El comercio rechazó el comprobante del tercer intento. La solicitud fue cancela
 </View>
 ) : null}
 
-{requestDetail.status === 'payment_pending'
-&& formalContext?.permissions.can_submit_payment_proof
-&& paymentProofs.length === 0 ? (
+{formalContext?.permissions.can_submit_payment_proof ? (
 <View
 accessibilityLiveRegion="polite"
 accessibilityRole="alert"
 style={styles.paymentMethodsCard}
 >
 <Text style={styles.paymentMethodsTitle}>
-Métodos de pago disponibles
+{paymentProofs.some((proof) => proof.status === 'rejected')
+? 'Envía otro comprobante'
+: 'Ya envié el dinero'}
 </Text>
 
 <Text style={styles.paymentMethodsDescription}>
-Puedes pagar por cualquiera de las siguientes opciones. Luego
-adjunta el comprobante de pago en formato PDF.
-{paymentAttempts.attempts_used > 0
-? ` Este será el intento ${
-paymentAttempts.attempts_used + 1
-}/${paymentAttempts.max_attempts}.`
-: ` Este será el intento 1/${paymentAttempts.max_attempts}.`}
+Cuando hayas enviado el dinero, adjunta la captura o el PDF para que el comercio lo revise.
+{paymentProofs.some((proof) => proof.status === 'rejected')
+? ' El comprobante anterior fue rechazado y puedes enviar uno nuevo.'
+: ''}
 </Text>
 
 {paymentMethods.length ? (
@@ -2371,20 +2445,46 @@ El comercio aún no tiene métodos de pago disponibles.
 )}
 
 <TouchableOpacity
-accessibilityLabel="Subir comprobante de pago en PDF"
+accessibilityLabel="Ya envié el dinero"
 accessibilityRole="button"
 accessibilityState={{
 busy: pendingAction === 'submit-proof',
-disabled: pendingAction !== null || !selectedPaymentMethodId,
+disabled: pendingAction !== null
+|| (paymentMethods.length > 0 && !selectedPaymentMethodId),
 }}
 activeOpacity={0.85}
-disabled={pendingAction !== null || !selectedPaymentMethodId}
+disabled={
+pendingAction !== null
+|| (paymentMethods.length > 0 && !selectedPaymentMethodId)
+}
 onPress={() => {
-void handleSubmitPaymentProof();
+appAlert(
+'Comprobante de pago',
+'Elige una captura de pantalla o un PDF.',
+[
+{
+text: 'Captura',
+onPress: () => {
+void handleSubmitPaymentProof('image');
+},
+},
+{
+text: 'PDF',
+onPress: () => {
+void handleSubmitPaymentProof('pdf');
+},
+},
+{
+text: 'Cancelar',
+style: 'cancel',
+},
+],
+);
 }}
 style={[
 styles.paymentProofSubmitButton,
 pendingAction !== null
+|| (paymentMethods.length > 0 && !selectedPaymentMethodId)
 ? styles.actionButtonDisabled
 : null,
 ]}
@@ -2393,7 +2493,7 @@ pendingAction !== null
 <Text style={styles.paymentProofSubmitButtonText}>
 {pendingAction === 'submit-proof'
 ? 'Enviando comprobante...'
-: 'Subir comprobante de pago'}
+: 'Ya envié el dinero'}
 </Text>
 </TouchableOpacity>
 </View>
@@ -2425,13 +2525,13 @@ style={styles.paymentProofNotice}
 Comprobante rechazado
 </Text>
 <Text style={styles.paymentProofNoticeText}>
-Adjunta un comprobante corregido en formato PDF para enviarlo nuevamente.
+Adjunta una captura o un PDF corregido para enviarlo nuevamente.
 El próximo envío será el intento {paymentAttempts.attempts_used + 1}/{
 paymentAttempts.max_attempts
 }.
 </Text>
 <TouchableOpacity
-accessibilityLabel="Subir comprobante corregido en PDF"
+accessibilityLabel="Subir comprobante corregido"
 accessibilityRole="button"
 accessibilityState={{
 busy: pendingAction?.startsWith('replace-proof:') || false,
@@ -2440,8 +2540,28 @@ disabled: pendingAction !== null,
 disabled={pendingAction !== null}
 onPress={() => {
 if (latestRejectedPaymentProofEvent.reference_id) {
-void handleReplacePaymentProof(
-latestRejectedPaymentProofEvent.reference_id,
+const paymentProofId = latestRejectedPaymentProofEvent.reference_id;
+appAlert(
+'Comprobante de pago',
+'Elige una captura de pantalla o un PDF.',
+[
+{
+text: 'Captura',
+onPress: () => {
+void handleReplacePaymentProof(paymentProofId, 'image');
+},
+},
+{
+text: 'PDF',
+onPress: () => {
+void handleReplacePaymentProof(paymentProofId, 'pdf');
+},
+},
+{
+text: 'Cancelar',
+style: 'cancel',
+},
+],
 );
 return;
 }
@@ -2471,6 +2591,37 @@ pendingAction !== null
 </View>
 ) : null;
 })()}
+</View>
+) : null}
+
+{formalContext?.permissions.can_cancel ? (
+<View style={styles.section}>
+<Text style={styles.sectionTitle}>
+Cancelar solicitud
+</Text>
+<Text style={styles.row}>
+Puedes cancelarla mientras no se haya realizado. Si el pago ya fue confirmado, esta opción deja de estar disponible.
+</Text>
+<TouchableOpacity
+accessibilityLabel="Cancelar solicitud"
+accessibilityRole="button"
+accessibilityState={{
+busy: pendingAction === 'cancel-request',
+disabled: pendingAction !== null,
+}}
+disabled={pendingAction !== null}
+onPress={confirmCancelRequest}
+style={[
+styles.cancelRequestButton,
+pendingAction !== null ? styles.actionButtonDisabled : null,
+]}
+>
+<Text style={styles.cancelRequestButtonText}>
+{pendingAction === 'cancel-request'
+? 'Cancelando...'
+: 'Cancelar solicitud'}
+</Text>
+</TouchableOpacity>
 </View>
 ) : null}
 
@@ -3586,5 +3737,18 @@ color: '#FFFFFF',
 fontSize: 14,
 fontWeight: '900',
 marginLeft: 8,
+},
+cancelRequestButton: {
+alignItems: 'center',
+backgroundColor: '#F8E8EA',
+borderRadius: 12,
+marginTop: 8,
+paddingHorizontal: 18,
+paddingVertical: 13,
+},
+cancelRequestButtonText: {
+color: '#8A2533',
+fontSize: 14,
+fontWeight: '800',
 },
 });

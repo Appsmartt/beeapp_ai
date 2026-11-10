@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import {
   Archive,
   ArrowLeft,
@@ -12,7 +13,12 @@ import {
   Star,
   Trash2,
 } from 'lucide-react';
+import { downloadMailAttachment } from '@beeapp/api-client';
+import type { MailMessageAttachment } from '@beeapp/shared-types';
 
+import { getWebAuth } from '@/lib/client/webAuth';
+
+import MailHtmlView from './MailHtmlView';
 import type {
   MailDetailModel,
 } from './mailTypes';
@@ -54,18 +60,58 @@ export default function MailDetail({
   onReplyAll,
   onForward,
 }: MailDetailProps) {
+  const [downloadingId, setDownloadingId] = useState<string | null>(
+    null,
+  );
+  const [downloadError, setDownloadError] = useState('');
   const emailDate = formatMailDetailDate(
     email.receivedAt || email.sentAt,
   );
-
-  const canShowHtml = Boolean(
-    email.bodyHtml
-    && !email.body.trim(),
+  const html = email.bodyHtml?.trim() || '';
+  const files = email.attachments.filter(
+    (file) => !file.is_inline,
   );
 
+  const downloadFile = (file: MailMessageAttachment) => {
+    if (downloadingId) {
+      return;
+    }
+
+    setDownloadError('');
+    setDownloadingId(file.id);
+
+    void (async () => {
+      try {
+        const auth = await getWebAuth();
+        const result = await downloadMailAttachment(
+          auth,
+          email.id,
+          file.id,
+        );
+        const url = URL.createObjectURL(result.blob);
+        const anchor = window.document.createElement('a');
+
+        anchor.href = url;
+        anchor.download = file.filename || 'adjunto';
+        anchor.click();
+        window.setTimeout(() => {
+          URL.revokeObjectURL(url);
+        }, 1_000);
+      } catch (error) {
+        setDownloadError(
+          error instanceof Error
+            ? error.message
+            : 'No fue posible descargar el archivo.',
+        );
+      } finally {
+        setDownloadingId(null);
+      }
+    })();
+  };
+
   return (
-    <div className="flex min-h-full flex-col bg-white">
-      <div className="sticky top-0 z-10 flex items-center justify-between border-b border-neutral-100 bg-white px-4 py-3">
+    <div className="flex h-full min-h-0 flex-col overflow-hidden bg-white">
+      <div className="flex shrink-0 items-center justify-between border-b border-neutral-100 bg-white px-4 py-3">
         <button
           type="button"
           onClick={onBack}
@@ -133,8 +179,8 @@ export default function MailDetail({
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto p-6">
-        <div className="mx-auto max-w-3xl">
+      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
+        <div className="mx-auto w-full max-w-3xl px-6 pb-6 pt-6">
           {actionLoading ? (
             <div className="mb-4 inline-flex items-center gap-2 rounded-xl bg-brand-primary/10 px-3 py-2 text-xs font-semibold text-brand-primary">
               <span className="h-3 w-3 animate-spin rounded-full border-2 border-brand-primary border-t-transparent" />
@@ -182,27 +228,34 @@ export default function MailDetail({
             </span>
           </div>
 
-          {canShowHtml ? (
-            <div
-              className="mail-html-content py-6 text-sm leading-relaxed text-neutral-800"
-              dangerouslySetInnerHTML={{
-                __html: email.bodyHtml || '',
-              }}
-            />
+          {html ? (
+            <div className="py-4">
+              <MailHtmlView
+                messageId={email.id}
+                html={html}
+                attachments={email.attachments}
+              />
+            </div>
           ) : (
             <div className="whitespace-pre-wrap py-6 text-sm font-normal leading-relaxed text-neutral-800">
               {email.body}
             </div>
           )}
 
-          {email.attachments.length > 0 ? (
+          {files.length > 0 ? (
             <div className="space-y-3 border-t border-neutral-100 pt-5">
               <span className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.08em] text-neutral-500">
                 <FileText className="h-3.5 w-3.5" />
-                Archivos adjuntos ({email.attachments.length})
+                Archivos adjuntos ({files.length})
               </span>
 
-              {email.attachments.map((file) => (
+              {downloadError ? (
+                <p className="text-xs text-red-600">
+                  {downloadError}
+                </p>
+              ) : null}
+
+              {files.map((file) => (
                 <div
                   key={file.id}
                   className="flex items-center justify-between gap-3 rounded-xl border border-neutral-200 bg-white p-3"
@@ -228,10 +281,11 @@ export default function MailDetail({
 
                   <button
                     type="button"
-                    disabled
-                    title="La descarga de adjuntos se habilitará próximamente."
+                    disabled={downloadingId === file.id}
+                    onClick={() => downloadFile(file)}
+                    title="Descargar archivo"
                     aria-label={`Descargar ${file.filename}`}
-                    className="flex h-8 w-8 shrink-0 cursor-not-allowed items-center justify-center rounded-full bg-brand-primary/10 text-brand-primary opacity-50"
+                    className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-brand-primary/10 text-brand-primary transition-colors hover:bg-brand-primary/20 disabled:cursor-wait disabled:opacity-50"
                   >
                     <Download className="h-4 w-4" />
                   </button>

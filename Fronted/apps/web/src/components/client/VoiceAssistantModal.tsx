@@ -1,16 +1,29 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { Loader2, Mic, Square, X } from 'lucide-react';
+import type { AssistantCard } from '@beeapp/shared-types';
 import {
   cancelAssistantAction,
   confirmAssistantAction,
-  listAssistantMessages,
+  getAssistantSettings,
   sendAssistantMessage,
-  speakAssistantText,
   transcribeAssistantAudio,
 } from '@beeapp/api-client';
+import {
+  applyAssistantClientEffects,
+  assistantSendContext,
+  buildChooseProviderMessage,
+  playAssistantAudio,
+  providerDisplayName,
+} from '@/lib/client/assistantChat';
+import { startBrowserRecording, type BrowserRecording } from '@/lib/client/assistantAudio';
 import { getWebAuth } from '@/lib/client/liveData';
+import {
+  validateVoiceRecordingDuration,
+  validateVoiceTranscript,
+} from '@/lib/client/voiceTranscriptValidation';
 import VoiceOrb from './VoiceOrb';
 
 interface VoiceAssistantModalProps {
@@ -20,115 +33,169 @@ interface VoiceAssistantModalProps {
 
 type OrbState = 'idle' | 'listening' | 'thinking' | 'speaking';
 
-export default function VoiceAssistantModal({ isOpen, onClose }: VoiceAssistantModalProps) {
-  const [orbState, setOrbState] = useState<OrbState>('idle');
-  const [transcript, setTranscript] = useState('');
-  const [reply, setReply] = useState('');
-  const [error, setError] = useState('');
-  const [pendingActionId, setPendingActionId] = useState<string | null>(null);
-  const recorderRef = useRef<MediaRecorder | null>(null);
-  const chunksRef = useRef<BlobPart[]>([]);
-  const audioRef = useRef<HTMLAudioElement | null>(null);
+interface Line {
+  speaker: 'user' | 'assistant';
+  text: string;
+}
 
-  const loadHistory = useCallback(async () => {
-    try {
-      const auth = await getWebAuth();
-      const response = await listAssistantMessages(auth);
-      const last = response.messages?.[response.messages.length - 1];
-      if (last?.role === 'assistant') {
-        setReply(last.content || '');
-      }
-    } catch {
-      /* ignore */
-    }
-  }, []);
+const STATE_LABEL: Record<OrbState, string> = {
+  idle: 'Toca el micrófono para hablar',
+  listening: 'Escuchando...',
+  thinking: 'Pensando...',
+  speaking: 'Respondiendo',
+};
+
+function providersOf(cards: AssistantCard[]): Array<Record<string, unknown>> {
+  return cards.flatMap((card) => (
+    card.type === 'providers' && Array.isArray(card.items) ? card.items : []
+  ));
+}
+
+export default function VoiceAssistantModal({ isOpen, onClose }: VoiceAssistantModalProps) {
+  const router = useRouter();
+  const [phase, setPhase] = useState<OrbState>('idle');
+  const [history, setHistory] = useState<Line[]>([]);
+  const [providers, setProviders] = useState<Array<Record<string, unknown>>>([]);
+  const [pendingConfirmations, setPendingConfirmations] = useState<AssistantCard[]>([]);
+  const [conversationId, setConversationId] = useState<string | null>(null);
+  const [notice, setNotice] = useState('');
+  const recordingRef = useRef<BrowserRecording | null>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const busy = phase === 'thinking' || phase === 'speaking';
 
   useEffect(() => {
-    if (isOpen) void loadHistory();
-  }, [isOpen, loadHistory]);
-
-  const playTts = async (text: string) => {
-    const auth = await getWebAuth();
-    const spoken = await speakAssistantText(auth, text);
-    const binary = atob(spoken.audio_base64);
-    const bytes = new Uint8Array(binary.length);
-    for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
-    const blob = new Blob([bytes], { type: spoken.audio_mime || 'audio/mpeg' });
-    const url = URL.createObjectURL(blob);
-    if (audioRef.current) {
-      audioRef.current.pause();
+    if (!isOpen) {
+      recordingRef.current?.cancel();
+      recordingRef.current = null;
+      audioRef.current?.pause();
+      setPhase('idle');
+      return undefined;
     }
-    const audio = new Audio(url);
-    audioRef.current = audio;
-    setOrbState('speaking');
-    await audio.play();
-    audio.onended = () => {
-      URL.revokeObjectURL(url);
-      setOrbState('idle');
+
+    let cancelled = false;
+    const open = async () => {
+      try {
+        const auth = await getWebAuth();
+        const response = await getAssistantSettings(auth);
+        if (cancelled || !response.settings.voice_activation) return;
+        const recording = await startBrowserRecording();
+        if (cancelled) {
+          recording.cancel();
+          return;
+        }
+        recordingRef.current = recording;
+        setPhase('listening');
+      } catch (error) {
+        if (!cancelled) {
+          setNotice(error instanceof Error ? error.message : 'No pude iniciar el micrófono.');
+        }
+      }
     };
+    void open();
+    return () => {
+      cancelled = true;
+      recordingRef.current?.cancel();
+      recordingRef.current = null;
+    };
+  }, [isOpen]);
+
+  const playReply = async (audioBase64: string, mime?: string) => {
+    audioRef.current?.pause();
+    setPhase('speaking');
+    const audio = await playAssistantAudio(audioBase64, mime);
+    audioRef.current = audio;
+    await new Promise<void>((resolve) => {
+      audio.addEventListener('ended', () => resolve(), { once: true });
+    });
   };
 
-  const handleAssistantResponse = async (message: string, speak: boolean) => {
+  const ask = async (text: string) => {
     const auth = await getWebAuth();
-    setOrbState('thinking');
-    const response = await sendAssistantMessage(auth, message, speak);
-    const assistantText = response.message?.content || '';
-    setReply(assistantText);
-    const actionCard = response.cards?.find((card) => card.action_id);
-    setPendingActionId(actionCard?.action_id ?? null);
-    if (speak && assistantText) {
-      await playTts(assistantText);
-    } else {
-      setOrbState('idle');
+    setPhase('thinking');
+    setHistory((current) => [...current, { speaker: 'user', text }]);
+    const response = await sendAssistantMessage(auth, text, true, assistantSendContext());
+    const answer = response.message?.content || 'Listo.';
+    setHistory((current) => [...current, { speaker: 'assistant', text: answer }]);
+    const cards = response.cards || response.message?.cards || [];
+    applyAssistantClientEffects(cards);
+    setProviders(providersOf(cards));
+    setPendingConfirmations(cards.filter((card) => card.type === 'confirm' && card.action_id));
+    const request = cards.find((card) => card.type === 'request' && card.conversation_id);
+    setConversationId(request?.conversation_id ? String(request.conversation_id) : null);
+    if (response.audio_base64) {
+      await playReply(response.audio_base64, response.audio_mime);
     }
+    setPhase('idle');
   };
 
-  const startListening = async () => {
-    setError('');
-    setTranscript('');
+  const handleConfirmCard = async (card: AssistantCard, confirm: boolean) => {
+    const actionId = String(card.action_id || '');
+    if (!actionId || busy) return;
+    const auth = await getWebAuth();
+    setPhase('thinking');
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const recorder = new MediaRecorder(stream);
-      chunksRef.current = [];
-      recorder.ondataavailable = (event) => {
-        if (event.data.size > 0) chunksRef.current.push(event.data);
-      };
-      recorder.onstop = () => {
-        stream.getTracks().forEach((track) => track.stop());
-        void (async () => {
-          try {
-            const blob = new Blob(chunksRef.current, { type: 'audio/webm' });
-            const base64 = await new Promise<string>((resolve, reject) => {
-              const reader = new FileReader();
-              reader.onloadend = () => {
-                const result = String(reader.result || '');
-                resolve(result.includes(',') ? result.split(',')[1] : result);
-              };
-              reader.onerror = () => reject(reader.error);
-              reader.readAsDataURL(blob);
-            });
-            const auth = await getWebAuth();
-            setOrbState('thinking');
-            const { text } = await transcribeAssistantAudio(auth, base64, blob.type);
-            setTranscript(text);
-            await handleAssistantResponse(text, true);
-          } catch (listenError) {
-            setError(listenError instanceof Error ? listenError.message : 'No fue posible procesar el audio.');
-            setOrbState('idle');
-          }
-        })();
-      };
-      recorderRef.current = recorder;
-      recorder.start();
-      setOrbState('listening');
-    } catch {
-      setError('Necesitamos permiso de micrófono para el asistente de voz.');
+      if (!confirm) {
+        const cancelled = await cancelAssistantAction(auth, actionId);
+        setPendingConfirmations((current) => current.filter((item) => item.action_id !== actionId));
+        setHistory((current) => [...current, {
+          speaker: 'assistant',
+          text: cancelled.message?.content || 'Entendido, cancelé esa solicitud.',
+        }]);
+        setPhase('idle');
+        return;
+      }
+      const response = await confirmAssistantAction(auth, actionId);
+      setPendingConfirmations((current) => current.filter((item) => item.action_id !== actionId));
+      applyAssistantClientEffects(response.cards || response.message?.cards);
+      if (response.message?.content) {
+        setHistory((current) => [...current, {
+          speaker: 'assistant',
+          text: response.message.content,
+        }]);
+      }
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : 'No se pudo procesar la confirmación.');
+    } finally {
+      setPhase('idle');
     }
   };
 
-  const stopListening = () => {
-    if (recorderRef.current && recorderRef.current.state !== 'inactive') {
-      recorderRef.current.stop();
+  const handleMic = async () => {
+    if (busy) return;
+    setNotice('');
+    try {
+      if (phase !== 'listening') {
+        recordingRef.current = await startBrowserRecording();
+        setPhase('listening');
+        return;
+      }
+      const clip = await recordingRef.current?.stop();
+      recordingRef.current = null;
+      setPhase('thinking');
+      if (!clip) {
+        setPhase('idle');
+        return;
+      }
+      const durationCheck = validateVoiceRecordingDuration(clip.durationMs);
+      if (!durationCheck.ok) {
+        setNotice(durationCheck.message);
+        setPhase('idle');
+        return;
+      }
+      const auth = await getWebAuth();
+      const transcript = await transcribeAssistantAudio(auth, clip.audioBase64, clip.mime);
+      const validation = validateVoiceTranscript(transcript.text);
+      if (!validation.ok) {
+        setNotice(validation.message);
+        setPhase('idle');
+        return;
+      }
+      await ask(validation.text);
+    } catch (error) {
+      recordingRef.current?.cancel();
+      recordingRef.current = null;
+      setPhase('idle');
+      setNotice(error instanceof Error ? error.message : 'No se pudo usar la voz.');
     }
   };
 
@@ -150,47 +217,100 @@ export default function VoiceAssistantModal({ isOpen, onClose }: VoiceAssistantM
           </button>
         </div>
 
-        <div className="mt-8 flex flex-col items-center px-8 text-center flex-1 overflow-y-auto">
-          <VoiceOrb state={orbState === 'listening' ? 'listening' : orbState === 'speaking' ? 'speaking' : orbState === 'thinking' ? 'thinking' : 'idle'} />
-          {transcript ? (
-            <p className="mt-4 text-sm text-[#DDD6FE] max-w-sm">Tú: {transcript}</p>
-          ) : null}
-          {reply ? (
-            <p className="mt-3 text-sm leading-6 text-white max-w-sm">{reply}</p>
-          ) : (
-            <p className="mt-6 text-sm text-[#C4B5FD]">Mantén el micrófono para hablar con tu asistente.</p>
-          )}
-          {error ? <p className="mt-3 text-xs text-red-300">{error}</p> : null}
-          {pendingActionId ? (
-            <div className="mt-4 flex gap-2">
-              <button
-                type="button"
-                className="px-3 py-2 rounded-lg bg-emerald-600 text-white text-xs font-semibold"
-                onClick={() => void getWebAuth().then((auth) => confirmAssistantAction(auth, pendingActionId).then(() => setPendingActionId(null)))}
-              >
-                Confirmar acción
-              </button>
-              <button
-                type="button"
-                className="px-3 py-2 rounded-lg bg-neutral-700 text-white text-xs font-semibold"
-                onClick={() => void getWebAuth().then((auth) => cancelAssistantAction(auth, pendingActionId).then(() => setPendingActionId(null)))}
-              >
-                Cancelar
-              </button>
-            </div>
-          ) : null}
+        <div className="mt-6 flex shrink-0 flex-col items-center px-8 text-center">
+          <VoiceOrb state={phase} />
+          <p className="mt-3 text-sm text-[#C4B5FD]">{STATE_LABEL[phase]}</p>
         </div>
 
-        <div className="px-8 pb-2 flex justify-center">
-          {orbState === 'listening' ? (
-            <button type="button" onClick={stopListening} className="h-14 w-14 rounded-full bg-red-500 text-white flex items-center justify-center">
-              <Square className="w-5 h-5" />
+        <div className="mt-4 min-h-0 flex-1 space-y-3 overflow-y-auto px-6 pb-4">
+          {history.length === 0 ? (
+            <p className="text-center text-sm text-[#C4B5FD]">Toca el micrófono para hablar. La palabra clave permanente no está disponible.</p>
+          ) : null}
+          {history.map((line, index) => (
+            <div key={`${line.speaker}-${index}`}>
+              <p className={`text-[11px] font-semibold ${line.speaker === 'user' ? 'text-[#DDD6FE]' : 'text-white'}`}>
+                {line.speaker === 'user' ? 'Tú' : 'Buddy AI'}
+              </p>
+              <p className="text-sm leading-6 text-white/90">{line.text}</p>
+            </div>
+          ))}
+          {pendingConfirmations.map((card) => {
+            const details = Array.isArray(card.details) ? card.details : [];
+            return (
+              <div key={String(card.action_id)} className="rounded-2xl bg-white/10 p-3 text-left">
+                <p className="text-sm font-semibold text-white">{String(card.title || 'Confirmar acción a realizar')}</p>
+                {card.summary ? <p className="mt-1 text-xs text-[#EDE9FE]">{String(card.summary)}</p> : null}
+                {details.map((detail, index) => (
+                  <p key={`${detail.label}-${index}`} className="mt-1 text-xs text-[#DDD6FE]">
+                    {detail.label}: {detail.value}
+                  </p>
+                ))}
+                <div className="mt-3 flex gap-2">
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={() => void handleConfirmCard(card, false)}
+                    className="rounded-lg bg-white/15 px-3 py-2 text-xs font-semibold text-white disabled:opacity-40"
+                  >
+                    Cancela
+                  </button>
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={() => void handleConfirmCard(card, true)}
+                    className="rounded-lg bg-brand-primary px-3 py-2 text-xs font-semibold text-white disabled:opacity-40"
+                  >
+                    Hazlo
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+          {providers.map((item) => (
+            <button
+              key={String(item.offer_id || item.business_id)}
+              type="button"
+              onClick={() => {
+                void ask(buildChooseProviderMessage(item)).catch((error) => {
+                  setPhase('idle');
+                  setNotice(error instanceof Error ? error.message : 'No se pudo contactar al proveedor.');
+                });
+              }}
+              className="block w-full rounded-xl bg-white/10 px-3 py-2 text-left text-sm text-white"
+            >
+              Elegir {providerDisplayName(item)}
+              {item.city ? ` · ${String(item.city)}` : ''}
             </button>
-          ) : orbState === 'thinking' ? (
-            <Loader2 className="w-8 h-8 text-[#C4B5FD] animate-spin" />
+          ))}
+          {conversationId ? (
+            <button
+              type="button"
+              onClick={() => {
+                onClose();
+                router.push(`/app?openChat=${encodeURIComponent(conversationId)}`);
+              }}
+              className="text-sm font-semibold text-[#EDE9FE] underline"
+            >
+              Abrir el chat con el proveedor
+            </button>
+          ) : null}
+          {notice ? <p className="text-xs text-red-300">{notice}</p> : null}
+        </div>
+
+        <div className="flex justify-center px-8 pb-2">
+          {phase === 'thinking' ? (
+            <Loader2 className="h-8 w-8 animate-spin text-[#C4B5FD]" />
           ) : (
-            <button type="button" onClick={() => void startListening()} className="h-14 w-14 rounded-full bg-brand-primary text-white flex items-center justify-center">
-              <Mic className="w-6 h-6" />
+            <button
+              type="button"
+              onClick={() => void handleMic()}
+              disabled={phase === 'speaking'}
+              className={`flex h-14 w-14 items-center justify-center rounded-full text-white ${
+                phase === 'listening' ? 'bg-red-500' : 'bg-brand-primary'
+              } disabled:opacity-40`}
+              aria-label={phase === 'listening' ? 'Detener' : 'Hablar'}
+            >
+              {phase === 'listening' ? <Square className="h-5 w-5" /> : <Mic className="h-6 w-6" />}
             </button>
           )}
         </div>

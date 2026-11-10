@@ -24,6 +24,7 @@ interface MessageBubbleProps {
   isEdited?: boolean;
   isDestroyed?: boolean;
   isPinned?: boolean;
+  onOpenMedia?: () => void;
   onLongPress?: () => void;
 }
 
@@ -45,6 +46,7 @@ export default function MessageBubble({
   isEdited,
   isDestroyed,
   isPinned,
+  onOpenMedia,
   onLongPress,
 }: MessageBubbleProps) {
   const [isPlaying, setIsPlaying] = useState(false);
@@ -127,11 +129,13 @@ export default function MessageBubble({
             {type === 'image' && (
               <div className="w-[200px] sm:w-[240px]">
                 {mediaUrl ? (
-                  <img
-                    src={mediaUrl}
-                    alt="Media"
-                    className="w-full h-36 object-cover rounded-xl mb-1.5"
-                  />
+                  <button type="button" onClick={onOpenMedia} className="block w-full">
+                    <img
+                      src={mediaUrl}
+                      alt="Media"
+                      className="w-full h-36 object-cover rounded-xl mb-1.5"
+                    />
+                  </button>
                 ) : (
                   <div className="w-full h-36 rounded-xl bg-neutral-100 flex items-center justify-center text-xs text-neutral-500 mb-1.5 border border-neutral-200">
                     Imagen adjunta

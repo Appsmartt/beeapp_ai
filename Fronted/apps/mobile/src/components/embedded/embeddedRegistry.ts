@@ -26,6 +26,7 @@ import CalendarEditScreen from '../../../app/(main)/calendar/edit';
 // abre desde la pestaña Contactos del módulo de Chat
 import ContactDetailScreen from '../../../app/(main)/contacts/detail';
 import BuddyServicesManageBusinessScreen from '../../../app/(main)/beeservices/manage/[businessId]';
+import BuddyServicesBusinessMetricsScreen from '../../../app/(main)/beeservices/manage/[businessId]/metrics';
 import BuddyServicesManageProfileScreen from '../../../app/(main)/beeservices/manage/[businessId]/profile';
 import BuddyServicesManageHoursScreen from '../../../app/(main)/beeservices/manage/[businessId]/hours';
 import BuddyServicesOperationScreen from '../../../app/(main)/beeservices/manage/[businessId]/operation';
@@ -77,6 +78,7 @@ export const EMBEDDED_SCREENS: Record<string, ComponentType<any>> = {
   '/(main)/calendar/edit': CalendarEditScreen,
   '/(main)/contacts/detail': ContactDetailScreen,
   '/(main)/beeservices/manage/[businessId]': BuddyServicesManageBusinessScreen,
+  '/(main)/beeservices/manage/[businessId]/metrics': BuddyServicesBusinessMetricsScreen,
   '/(main)/beeservices/manage/[businessId]/profile': BuddyServicesManageProfileScreen,
   '/(main)/beeservices/manage/[businessId]/hours': BuddyServicesManageHoursScreen,
   '/(main)/beeservices/manage/[businessId]/operation': BuddyServicesOperationScreen,

@@ -23,7 +23,7 @@ export default function MailFolderRail({
   messages,
 }: MailFolderRailProps) {
   return (
-    <nav className="hidden w-14 shrink-0 flex-col items-center justify-between border-r border-neutral-200 bg-white py-3 lg:flex">
+    <nav className="hidden h-full min-h-0 w-14 shrink-0 flex-col items-center justify-between overflow-hidden border-r border-neutral-200 bg-white pb-24 pt-3 lg:flex">
       <div className="flex w-full flex-col items-center gap-1">
         {MAIL_FOLDERS.map((option) => (
           <IconRailButton

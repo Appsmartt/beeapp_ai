@@ -4,6 +4,7 @@ import { TermsPanel } from '@/components/client/LegalPanels';
 export default function TermsPage() {
   return (
     <ProfileSectionPage
+      wide
       title="Términos y condiciones"
       description="Condiciones de uso de Buddy."
     >

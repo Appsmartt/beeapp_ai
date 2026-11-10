@@ -11,9 +11,9 @@ import { VISIBILITY_LABELS } from '@/lib/admin/labels';
 type NetworkAction = 'aprobar' | 'rechazar' | 'revocar_verificacion' | 'revocar_visibilidad';
 
 const ACTION_META: Record<NetworkAction, { title: string; description: string }> = {
-  aprobar: { title: 'Aprobar verificación', description: 'El usuario recibirá la insignia azul de cuenta verificada junto a su nombre en la app.' },
-  rechazar: { title: 'Rechazar verificación', description: 'La solicitud de verificación quedará marcada como no solicitada.' },
-  revocar_verificacion: { title: 'Revocar verificación', description: 'El usuario perderá la insignia azul de cuenta verificada en toda la app.' },
+  aprobar: { title: 'Aprobar Buddy Verify', description: 'La cuenta quedará verificada y el usuario verá la insignia en la app.' },
+  rechazar: { title: 'Desaprobar Buddy Verify', description: 'La solicitud quedará rechazada. La persona puede volver a enviarla.' },
+  revocar_verificacion: { title: 'Desaprobar Buddy Verify', description: 'La cuenta perderá la insignia de verificación.' },
   revocar_visibilidad: { title: 'Revocar visibilidad en la red', description: 'El perfil dejará de ser visible para otros usuarios de la red empresarial.' },
 };
 
@@ -44,8 +44,8 @@ export default function NetworkSection({
 
   const confirmAction = () => {
     if (action === 'aprobar') onSetVerification('verificado');
-    if (action === 'rechazar') onSetVerification('no_solicitado');
-    if (action === 'revocar_verificacion') onSetVerification('no_solicitado');
+    if (action === 'rechazar') onSetVerification('rechazado');
+    if (action === 'revocar_verificacion') onSetVerification('rechazado');
     if (action === 'revocar_visibilidad') onSetVisibility('privado');
     setAction(null);
   };
@@ -78,22 +78,16 @@ export default function NetworkSection({
       </div>
 
       <div className="account-actions-row">
-        {verificacionRed === 'pendiente' && (
-          <>
-            <button className="confirm-dialog-btn-confirm" onClick={() => openAction('aprobar')}>
-              <ShieldCheck size={14} />
-              <span>Aprobar</span>
-            </button>
-            <button className="confirm-dialog-btn-cancel" onClick={() => openAction('rechazar')}>
-              <ShieldX size={14} />
-              <span>Rechazar</span>
-            </button>
-          </>
+        {(verificacionRed === 'pendiente' || verificacionRed === 'en_revision' || verificacionRed === 'no_solicitado' || verificacionRed === 'rechazado') && (
+          <button className="confirm-dialog-btn-confirm" onClick={() => openAction('aprobar')}>
+            <ShieldCheck size={14} />
+            <span>Aprobar Buddy Verify</span>
+          </button>
         )}
-        {verificacionRed === 'verificado' && (
-          <button className="confirm-dialog-btn-cancel" onClick={() => openAction('revocar_verificacion')}>
+        {(verificacionRed === 'pendiente' || verificacionRed === 'en_revision' || verificacionRed === 'verificado') && (
+          <button className="confirm-dialog-btn-cancel" onClick={() => openAction(verificacionRed === 'verificado' ? 'revocar_verificacion' : 'rechazar')}>
             <ShieldX size={14} />
-            <span>Revocar verificación</span>
+            <span>Desaprobar</span>
           </button>
         )}
         {visibilidadRed !== 'privado' && (

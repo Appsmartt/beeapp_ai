@@ -22,6 +22,7 @@ export interface UsageMetrics {
 export interface Integration {
   id: string;
   nombre: string;
+  correo?: string;
   conectado: boolean;
   fechaConexion?: string;
 }
@@ -34,7 +35,7 @@ export interface OnboardingInfo {
   fechaFinalizacion?: string;
 }
 
-export type VerificationStatus = 'verificado' | 'pendiente' | 'no_solicitado';
+export type VerificationStatus = 'verificado' | 'en_revision' | 'pendiente' | 'rechazado' | 'no_solicitado';
 
 export interface AdminUser {
   id: string;
@@ -99,6 +100,28 @@ export interface PlanLimits {
   ofertasPerfil: number;
 }
 
+export interface PlanEntitlements {
+  groups: number | null;
+  groupMembers: number | null;
+  callMinutes: number | null;
+  mailAccounts: number | null;
+  calendars: number | null;
+  filesGb: number | null;
+  mailStorageGb: number | null;
+  catalogOffers: number | null;
+  aiCredits: number | null;
+  signatures: number | null;
+  documentJobs: number | null;
+  transcriptionMinutes: number | null;
+  aiLevel: string;
+  transcription: boolean;
+  documentProcessing: boolean;
+  automations: string;
+  storageAddon: boolean | string;
+  extraAiCredits: boolean | string;
+  promotedSpaces: boolean | string;
+}
+
 export type PlanFeatureKey =
   | 'sinPublicidad'
   | 'copiasNube'
@@ -119,6 +142,8 @@ export interface Plan {
   color: string;
   limites: PlanLimits;
   funciones: Record<PlanFeatureKey, boolean>;
+  entitlements: PlanEntitlements;
+  purchasable: boolean;
 }
 
 export interface Transaction {

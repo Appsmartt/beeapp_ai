@@ -104,18 +104,18 @@ export default function SecurityScreen() {
       const auth = await getValidSessionCredentials();
       if (!auth) throw new Error('No hay sesión activa.');
       const result = await verifyAccountSecurityPin(auth, pin);
-      if (!result.verified) throw new Error('Verificación rechazada.');
+      if (!result.verified) {
+        setSuccess(null);
+        setError('PIN incorrecto. Inténtalo de nuevo.');
+        return;
+      }
       setSuccess('PIN correcto');
       setStage('menu');
     } catch (cause) {
       setSuccess(null);
-      if (cause instanceof ApiRequestError && cause.status === 429) {
-        setError('Demasiados intentos. Inténtalo en 15 minutos.');
-      } else if (cause instanceof ApiRequestError && cause.status === 403) {
-        setError('PIN incorrecto. Inténtalo de nuevo.');
-      } else {
-        setError('No pudimos verificar el PIN. Comprueba tu conexión.');
-      }
+      setError(cause instanceof ApiRequestError && cause.message.trim()
+        ? cause.message
+        : 'No pudimos verificar el PIN. Comprueba tu conexión.');
     } finally {
       pending.current = false;
     }
@@ -173,11 +173,14 @@ export default function SecurityScreen() {
       const auth = await getValidSessionCredentials();
       if (!auth) throw new Error('No hay sesión activa.');
       const result = await verifyAccountSecurityPinPassword(auth, password);
-      if (!result.verified) throw new Error('Verificación rechazada.');
+      if (!result.verified) {
+        setError('La contraseña no es correcta.');
+        return;
+      }
       setStage('recover-create');
     } catch (cause) {
-      setError(cause instanceof ApiRequestError && cause.status === 403
-        ? 'La contraseña no es correcta.'
+      setError(cause instanceof ApiRequestError && cause.message.trim()
+        ? cause.message
         : 'No pudimos verificar la contraseña. Inténtalo de nuevo.');
     } finally {
       pending.current = false;

@@ -131,6 +131,21 @@ export function getCurrentWebProfile(): Promise<GetCurrentProfileResponse> {
     );
 }
 
+export function updateNetworkVisibility(
+    auth: AuthCredentials,
+    visible: boolean,
+    ): Promise<UpdateProfileResponse> {
+    return api.patch<UpdateProfileResponse>(
+        '/accounts/me/profile/',
+        {
+            is_visible_in_network: visible,
+        },
+        {
+            auth,
+        },
+    );
+}
+
 export function updateProfile(
     auth: AuthCredentials,
     payload: UpdateProfilePayload,
@@ -278,6 +293,17 @@ export async function revokeAllDeviceSessions(
     ): Promise<void> {
     await api.delete<void>(
         '/accounts/me/devices/others/',
+        {
+        auth,
+        },
+    );
+}
+
+export async function revokeEveryDeviceSession(
+    auth: AuthCredentials,
+    ): Promise<void> {
+    await api.delete<void>(
+        '/accounts/me/devices/all/',
         {
         auth,
         },

@@ -8,6 +8,7 @@ import {
   getAdminUserDetail,
   listAdminPlans,
   setAdminReportStatus,
+  setAdminSubscription,
   setAdminUserStatus,
 } from '@beeapp/api-client';
 import KpiGrid, { type KpiItem } from '@/components/admin/KpiGrid';
@@ -15,6 +16,7 @@ import DataTable, { type DataTableColumn } from '@/components/admin/DataTable';
 import StatusBadge from '@/components/admin/StatusBadge';
 import VerifiedBadge from '@/components/admin/VerifiedBadge';
 import PlanBadge from '@/components/admin/PlanBadge';
+import ConfirmDialog from '@/components/admin/ConfirmDialog';
 import ModerationSection from './ModerationSection';
 import NetworkSection from './NetworkSection';
 import type {
@@ -33,6 +35,11 @@ import { detailCollections, toPlan } from '@/lib/admin/mapRecords';
 import { formatCurrencyCOP, formatDate, formatRelativeTime } from '@/lib/admin/format';
 import { VISIBILITY_LABELS } from '@/lib/admin/labels';
 
+function localDateTimeInput(date: Date): string {
+  const pad = (value: number) => String(value).padStart(2, '0');
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
 const TRANSACTION_COLUMNS: DataTableColumn<Transaction>[] = [
   { key: 'fecha', header: 'Fecha', render: (row) => (row.fecha ? formatDate(row.fecha) : '—') },
   { key: 'plan', header: 'Plan', render: (row) => <PlanBadge planId={row.planId} /> },
@@ -43,6 +50,17 @@ const TRANSACTION_COLUMNS: DataTableColumn<Transaction>[] = [
 export default function UsuarioDetallePage({ params }: { params: { id: string } }) {
   const [user, setUser] = useState<AdminUser | null>(null);
   const [plan, setPlan] = useState<Plan | null>(null);
+  const [plans, setPlans] = useState<Plan[]>([]);
+  const [selectedPlanId, setSelectedPlanId] = useState('free');
+  const [planReason, setPlanReason] = useState('Cambio manual');
+  const [planNotice, setPlanNotice] = useState('');
+  const [planEndsAt, setPlanEndsAt] = useState(() => {
+    const date = new Date();
+    date.setMonth(date.getMonth() + 1);
+    return localDateTimeInput(date);
+  });
+  const [busy, setBusy] = useState(false);
+  const [confirmInactive, setConfirmInactive] = useState(false);
   const [history, setHistory] = useState<Transaction[]>([]);
   const [estado, setEstado] = useState<UserStatus>('activo');
   const [visibilidadRed, setVisibilidadRed] = useState<NetworkVisibility>('publico');
@@ -62,6 +80,7 @@ export default function UsuarioDetallePage({ params }: { params: { id: string } 
     setVisibilidadRed(detail.user.visibilidadRed);
     setVerificacionRed(detail.user.verificacionRed);
     setPlan(plans.find((item) => item.id === detail.user.planId) ?? null);
+    setSelectedPlanId(detail.user.planId);
   };
 
   useEffect(() => {
@@ -70,6 +89,7 @@ export default function UsuarioDetallePage({ params }: { params: { id: string } 
       .then(([detail, planRows]) => {
         if (!active) return;
         applyDetail(detail, planRows.map(toPlan));
+        setPlans(planRows.map(toPlan));
       })
       .catch((loadError: unknown) => {
         if (!active) return;
@@ -82,6 +102,58 @@ export default function UsuarioDetallePage({ params }: { params: { id: string } 
       active = false;
     };
   }, [params.id]);
+
+  const reload = async () => {
+    const [detail, planRows] = await Promise.all([getAdminUserDetail(params.id), listAdminPlans()]);
+    const mapped = planRows.map(toPlan);
+    setPlans(mapped);
+    applyDetail(detail, mapped);
+  };
+
+  const changeAccount = async (status: 'activo' | 'inactivo') => {
+    if (!user) return;
+    setBusy(true);
+    setError('');
+    try {
+      await setAdminUserStatus({ userId: user.id, status });
+      await reload();
+    } catch (actionError) {
+      setError(actionError instanceof Error ? actionError.message : 'No fue posible cambiar el estado de la cuenta.');
+    } finally {
+      setBusy(false);
+      setConfirmInactive(false);
+    }
+  };
+
+  const changePlan = async () => {
+    if (!user) return;
+    const reason = planReason.trim() || 'Cambio manual';
+    if (selectedPlanId !== 'free' && Number.isNaN(new Date(planEndsAt).getTime())) {
+      setPlanNotice('');
+      setError('Indica una fecha de fin válida.');
+      return;
+    }
+    setBusy(true);
+    setError('');
+    setPlanNotice('');
+    try {
+      await setAdminSubscription({
+        userId: user.id,
+        planId: selectedPlanId,
+        startsAt: new Date().toISOString(),
+        endsAt: selectedPlanId === 'free' ? null : new Date(planEndsAt).toISOString(),
+        reason,
+      });
+      const savedName = plans.find((item) => item.id === selectedPlanId)?.nombre ?? selectedPlanId;
+      setPlanReason(reason);
+      setPlanNotice(`Plan actualizado a ${savedName}.`);
+      await reload();
+    } catch (actionError) {
+      setError(actionError instanceof Error ? actionError.message : 'No fue posible cambiar el plan.');
+    } finally {
+      setBusy(false);
+    }
+  };
 
   const handleReportStatusChange = (id: string, nuevoEstado: ReportStatus) => {
     setAdminReportStatus(id, nuevoEstado)
@@ -148,6 +220,78 @@ export default function UsuarioDetallePage({ params }: { params: { id: string } 
             <StatusBadge status={verificacionRed} />
           </span>
         </div>
+      </div>
+
+      {error ? <p className="form-alert" role="alert">{error}</p> : null}
+
+      <div className="panel-card" style={{ display: 'flex', flexDirection: 'column', gap: 16, marginTop: 16 }}>
+        <span className="panel-card-title">Cuenta y plan</span>
+        <div className="account-actions-row">
+          {estado === 'activo' ? (
+            <button className="confirm-dialog-btn-cancel" type="button" disabled={busy} onClick={() => setConfirmInactive(true)}>
+              Desactivar cuenta
+            </button>
+          ) : (
+            <button className="confirm-dialog-btn-confirm" type="button" disabled={busy} onClick={() => void changeAccount('activo')}>
+              Activar cuenta
+            </button>
+          )}
+        </div>
+        <div className="plan-limits-grid">
+          <div className="form-field">
+            <label className="form-field-label">Plan</label>
+            <select className="form-field-input" value={selectedPlanId} onChange={(event) => setSelectedPlanId(event.target.value)}>
+              {(plans.length > 0 ? plans : [{ id: user.planId, nombre: user.planId, precioMensual: 0 } as Plan]).map((item) => (
+                <option key={item.id} value={item.id}>
+                  {item.precioMensual > 0
+                    ? `${item.nombre} · ${formatCurrencyCOP(item.precioMensual)} / mes`
+                    : item.nombre}
+                </option>
+              ))}
+            </select>
+          </div>
+          {selectedPlanId !== 'free' ? (
+            <div className="form-field">
+              <label className="form-field-label">Fin del periodo</label>
+              <input className="form-field-input" type="datetime-local" value={planEndsAt} onChange={(event) => setPlanEndsAt(event.target.value)} />
+            </div>
+          ) : null}
+          <div className="form-field">
+            <label className="form-field-label">Motivo del cambio</label>
+            <input className="form-field-input" value={planReason} onChange={(event) => setPlanReason(event.target.value)} placeholder="Cortesía, corrección o cambio manual" />
+          </div>
+        </div>
+        {planNotice ? <p className="form-alert form-alert-success" role="status">{planNotice}</p> : null}
+        <button className="confirm-dialog-btn-confirm" type="button" disabled={busy} onClick={() => void changePlan()}>
+          {busy ? 'Guardando…' : 'Cambiar plan'}
+        </button>
+        {plans.length > 0 ? (
+          <div className="plans-grid">
+            {plans.map((item) => (
+              <div key={item.id} className="plan-manage-card">
+                <div className="plan-manage-card-top">
+                  <span className="plan-manage-name">{item.nombre}</span>
+                  <span className="plan-manage-dot" style={{ backgroundColor: item.color }} />
+                </div>
+                <div>
+                  <span className="plan-manage-price">
+                    {item.precioMensual === 0 ? 'Gratis' : formatCurrencyCOP(item.precioMensual)}
+                  </span>
+                  {item.precioMensual > 0 ? <span className="plan-manage-price-period"> / mes</span> : null}
+                </div>
+                {item.descripcion ? <p className="plan-manage-description">{item.descripcion}</p> : null}
+                <div className="plan-manage-features">
+                  {item.caracteristicas.map((feature) => (
+                    <div key={feature} className="plan-manage-feature-row">
+                      <Check size={14} />
+                      <span>{feature}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : null}
       </div>
 
       <div className="user-detail-grid">
@@ -259,8 +403,10 @@ export default function UsuarioDetallePage({ params }: { params: { id: string } 
                   <div className="table-user-name-col">
                     <span className="table-user-name">{integration.nombre}</span>
                     <span className="table-user-email">
-                      {integration.conectado && integration.fechaConexion
-                        ? `Conectada desde ${formatDate(integration.fechaConexion)}`
+                      {integration.conectado
+                        ? [integration.correo, integration.fechaConexion ? `conectada desde ${formatDate(integration.fechaConexion)}` : 'Conectada']
+                          .filter(Boolean)
+                          .join(' · ')
                         : 'No conectada'}
                     </span>
                   </div>
@@ -325,14 +471,27 @@ export default function UsuarioDetallePage({ params }: { params: { id: string } 
               });
             }}
             onSetVerification={(value) => {
-              setVerificacionRed(value);
-              void setAdminUserStatus({ userId: user.id, verification: value }).catch((actionError: unknown) => {
-                setError(actionError instanceof Error ? actionError.message : 'No fue posible actualizar la verificación.');
-              });
+              setBusy(true);
+              setError('');
+              void setAdminUserStatus({ userId: user.id, verification: value })
+                .then(() => reload())
+                .catch((actionError: unknown) => {
+                  setError(actionError instanceof Error ? actionError.message : 'No fue posible actualizar Buddy Verify.');
+                })
+                .finally(() => setBusy(false));
             }}
           />
         </div>
       </div>
+      <ConfirmDialog
+        open={confirmInactive}
+        title="¿Desactivar esta cuenta?"
+        description="La persona no podrá iniciar sesión hasta que la vuelvas a activar."
+        tone="danger"
+        confirmLabel="Desactivar"
+        onConfirm={() => void changeAccount('inactivo')}
+        onCancel={() => setConfirmInactive(false)}
+      />
     </div>
   );
 }

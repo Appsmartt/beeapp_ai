@@ -6,15 +6,17 @@ interface ProfileSectionPageProps {
   title: string;
   description: string;
   children: ReactNode;
+  wide?: boolean;
 }
 
 export function ProfileSectionPage({
   title,
   description,
   children,
+  wide = false,
 }: ProfileSectionPageProps) {
   return (
-    <div className="h-screen overflow-y-auto bg-[#F3EEF8] pb-16">
+    <div className="h-full overflow-y-auto bg-[#F3EEF8] pb-16">
       <header className="sticky top-0 z-10 flex items-center gap-3 border-b border-[#E4D8F2] bg-[#EFE8F8]/95 px-5 py-4 backdrop-blur">
         <Link
           href="/app"
@@ -30,7 +32,7 @@ export function ProfileSectionPage({
         </div>
       </header>
 
-      <main className="mx-auto w-full max-w-3xl px-4 py-8 sm:px-6">
+      <main className={`mx-auto w-full px-4 py-6 sm:px-6 sm:py-8 ${wide ? 'max-w-5xl' : 'max-w-3xl'}`}>
         {children}
       </main>
     </div>

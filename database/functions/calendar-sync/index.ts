@@ -3,8 +3,14 @@ import { createClient, type SupabaseClient } from "npm:@supabase/supabase-js@2";
 
 type Json = Record<string, unknown>;
 
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+};
+
 function json(body: Record<string, unknown>, status = 200): Response {
-  return Response.json(body, { status });
+  return Response.json(body, { status, headers: corsHeaders });
 }
 
 function service(): SupabaseClient {
@@ -286,10 +292,26 @@ async function syncEvents(admin: SupabaseClient, row: Json, token: string) {
       fetched += 1;
       const existing = await admin
         .from("events")
-        .select("id")
+        .select("id, metadata, color, kind")
         .eq("calendar_id", calendar.id)
         .eq("external_id", String(item.id))
         .maybeSingle();
+      const existingMetadata = existing.data?.metadata
+        && typeof existing.data.metadata === "object"
+        && !Array.isArray(existing.data.metadata)
+        ? existing.data.metadata as Json
+        : {};
+      const localEditAt = existingMetadata.local_edit_at
+        ? new Date(String(existingMetadata.local_edit_at)).getTime()
+        : 0;
+      const providerUpdated = new Date(String(item.updated || item.lastModifiedDateTime || "")).getTime();
+      if (
+        existing.data
+        && localEditAt
+        && (!providerUpdated || localEditAt > providerUpdated + 1500)
+      ) {
+        continue;
+      }
       const startRecord = (item.start && typeof item.start === "object") ? item.start as Json : {};
       const endRecord = (item.end && typeof item.end === "object") ? item.end as Json : {};
       const allDay = Boolean(startRecord.date && !startRecord.dateTime) || item.isAllDay === true;
@@ -302,7 +324,8 @@ async function syncEvents(admin: SupabaseClient, row: Json, token: string) {
         organizer_id: row.user_id,
         title: item.summary || item.subject || "Evento",
         description: typeof description === "string" ? description.slice(0, 4000) : null,
-        kind: "in_person",
+        kind: existing.data?.kind || "in_person",
+        ...(existing.data?.color ? { color: existing.data.color } : {}),
         status: "confirmed",
         starts_at: allDay ? null : (startRecord.dateTime || null),
         ends_at: allDay ? null : (endRecord.dateTime || null),
@@ -314,7 +337,10 @@ async function syncEvents(admin: SupabaseClient, row: Json, token: string) {
           ? (item.location as Json).displayName || null
           : (typeof item.location === "string" ? item.location : null),
         external_id: String(item.id),
-        metadata: { source: row.provider },
+        metadata: {
+          ...existingMetadata,
+          source: row.provider,
+        },
       };
       const saved = existing.data
         ? await admin.from("events").update(write).eq("id", existing.data.id)
@@ -342,6 +368,12 @@ function eventDescription(event: Json): string {
   return [description, ...links].filter(Boolean).join("\n");
 }
 
+function rfc3339(value: string): string {
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) throw new Error("El evento no tiene un horario válido.");
+  return parsed.toISOString();
+}
+
 function googleBounds(event: Json) {
   if (event.is_all_day === true) {
     const start = dateOnly(event.starts_on);
@@ -349,8 +381,8 @@ function googleBounds(event: Json) {
     if (!start || !end) throw new Error("El evento no tiene una fecha válida.");
     return { start: { date: start }, end: { date: end } };
   }
-  const start = event.starts_at ? String(event.starts_at) : "";
-  const end = event.ends_at ? String(event.ends_at) : "";
+  const start = event.starts_at ? rfc3339(String(event.starts_at)) : "";
+  const end = event.ends_at ? rfc3339(String(event.ends_at)) : "";
   if (!start || !end) throw new Error("El evento no tiene un horario válido.");
   return {
     start: { dateTime: start, timeZone: String(event.timezone || "America/Bogota") },
@@ -369,8 +401,8 @@ function microsoftBounds(event: Json) {
       end: { dateTime: `${end}T00:00:00`, timeZone },
     };
   }
-  const start = event.starts_at ? String(event.starts_at) : "";
-  const end = event.ends_at ? String(event.ends_at) : "";
+  const start = event.starts_at ? rfc3339(String(event.starts_at)) : "";
+  const end = event.ends_at ? rfc3339(String(event.ends_at)) : "";
   if (!start || !end) throw new Error("El evento no tiene un horario válido.");
   return {
     start: { dateTime: start, timeZone },
@@ -436,14 +468,14 @@ async function syncOwnedEvent(
     ? {
       subject: event.title || "Evento",
       body: { contentType: "text", content: description },
-      location: event.location_name ? { displayName: event.location_name } : undefined,
+      location: { displayName: String(event.location_name || "") },
       isAllDay: event.is_all_day === true,
       ...microsoftBounds(event),
     }
     : {
       summary: event.title || "Evento",
       description,
-      location: event.location_name || undefined,
+      location: String(event.location_name || ""),
       ...googleBounds(event),
     };
   const response = await fetch(
@@ -470,6 +502,10 @@ async function syncOwnedEvent(
 }
 
 Deno.serve(async (request: Request) => {
+  if (request.method === "OPTIONS") {
+    return new Response("ok", { headers: corsHeaders });
+  }
+
   const owner = await userId(request);
   if (!owner) return json({ message: "Inicia sesión para sincronizar la agenda." }, 401);
 

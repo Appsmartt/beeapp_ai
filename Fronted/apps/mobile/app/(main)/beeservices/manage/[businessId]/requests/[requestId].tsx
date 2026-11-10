@@ -73,7 +73,8 @@ import {
 acceptCommercialFixedRequestItem,
 acceptCommercialItemProposal,
 closeCommercialRequestItem,
-completeOwnedCommercialRequest,
+confirmOwnedCommercialPayment,
+transitionOwnedCommercialRequest,
 createCommercialItemProposal,
 createCommercialReservationHoldForRequest,
 loadCommercialPaymentProofAccess,
@@ -83,6 +84,17 @@ updateCommercialItemOperationalStatus,
 withdrawCommercialItemProposal,
 withdrawCommercialProposal,
 } from '../../../../../../src/services/commercialService';
+
+function formatPaymentConfirmationMoment(isoValue: string): string {
+const date = new Date(isoValue);
+if (Number.isNaN(date.getTime())) return 'la fecha y hora del servicio';
+return new Intl.DateTimeFormat('es-CO', {
+day: 'numeric',
+month: 'long',
+hour: '2-digit',
+minute: '2-digit',
+}).format(date);
+}
 
 function normalizeParam(
 value: string | string[] | undefined,
@@ -496,28 +508,63 @@ requestId,
 runAction,
 ]);
 
-const confirmCompleteRequest = useCallback(() => {
+const confirmPaymentReceived = useCallback(() => {
+if (!formalContext?.permissions.can_confirm_payment) return;
+
 appAlert(
-'Completar solicitud',
-'Confirma que la atención, reserva o entrega se completó correctamente.',
+'Confirmar pago recibido',
+'El dinero se sumará a las métricas del negocio solo si confirmas que ya lo recibiste.',
 [
 {
-text: 'Cancelar',
+text: 'Volver',
 style: 'cancel',
 },
 {
-text: 'Completar',
+text: 'Confirmar pago recibido',
 onPress: () => {
 void runAction(
-'complete',
-() => completeOwnedCommercialRequest(requestId, {}),
-'La solicitud fue marcada como completada.',
+'confirm-payment',
+() => confirmOwnedCommercialPayment(requestId),
+'El pago quedó confirmado y la venta se sumó a tus métricas.',
 );
 },
 },
 ],
 );
 }, [
+formalContext?.permissions.can_confirm_payment,
+requestId,
+runAction,
+]);
+
+const confirmOrderUnpaid = useCallback(() => {
+if (!formalContext?.permissions.can_mark_order_unpaid) return;
+
+appAlert(
+'Orden cancelada o no pagada',
+'La solicitud quedará cancelada y no sumará ingreso.',
+[
+{
+text: 'Volver',
+style: 'cancel',
+},
+{
+text: 'Marcar no pagada',
+style: 'destructive',
+onPress: () => {
+void runAction(
+'mark-unpaid',
+() => transitionOwnedCommercialRequest(requestId, {
+action: 'cancel',
+}),
+'La solicitud quedó cancelada y no suma ingreso.',
+);
+},
+},
+],
+);
+}, [
+formalContext?.permissions.can_mark_order_unpaid,
 requestId,
 runAction,
 ]);
@@ -1071,10 +1118,13 @@ await WebBrowser.openBrowserAsync(access.url);
 return access;
 }
 
+const proofMimeType = access.file.mime_type || 'application/pdf';
 await Sharing.shareAsync(downloadResult.uri, {
 dialogTitle: 'Guardar o compartir comprobante',
-mimeType: access.file.mime_type || 'application/pdf',
-UTI: 'com.adobe.pdf',
+mimeType: proofMimeType,
+UTI: proofMimeType.startsWith('image/')
+? 'public.image'
+: 'com.adobe.pdf',
 });
 
 return access;
@@ -2285,8 +2335,6 @@ Nota: {proof.note}
 Motivo de rechazo: {proof.rejection_reason}
 </Text>
 ) : null}
-{proof.status === 'submitted' ? (
-<>
 <View style={styles.itemActionRow}>
 <TouchableOpacity
 accessibilityLabel="Ver comprobante de pago"
@@ -2326,6 +2374,8 @@ pendingAction !== null ? styles.disabledButton : null,
 Archivo disponible: {proofAccessName}
 </Text>
 ) : null}
+{proof.status === 'submitted' ? (
+<>
 <TextInput
 accessibilityLabel="Motivo para rechazar comprobante"
 multiline
@@ -2337,23 +2387,6 @@ textAlignVertical="top"
 value={proofRejectionReason}
 />
 <View style={styles.itemActionRow}>
-<TouchableOpacity
-accessibilityLabel="Aprobar comprobante"
-accessibilityRole="button"
-disabled={pendingAction !== null}
-onPress={() => confirmReviewPaymentProof(
-proof.id,
-'confirmed',
-)}
-style={[
-styles.itemActionPrimary,
-pendingAction !== null ? styles.disabledButton : null,
-]}
->
-<Text style={styles.itemActionPrimaryText}>
-Aprobar
-</Text>
-</TouchableOpacity>
 <TouchableOpacity
 accessibilityLabel="Rechazar comprobante"
 accessibilityRole="button"
@@ -2400,31 +2433,65 @@ Rechazar
 </View>
 ) : null}
 
-{!isMixedRequest
-&& formalContext?.permissions.can_complete ? (
+{formalContext?.permissions.can_confirm_payment
+|| formalContext?.permissions.can_mark_order_unpaid ? (
 <View style={styles.section}>
 <Text style={styles.sectionTitle}>
-Acciones
+Pago recibido
 </Text>
 <Text style={styles.row}>
-Confirma la finalización solo cuando la atención, reserva o entrega haya concluido.
+{formalContext.permissions.can_confirm_payment
+? 'Confirma el pago solo cuando ya hayas recibido el dinero. Si no llegó, marca la orden como no pagada.'
+: 'Confirmar pago recibido se habilita al llegar la fecha y hora del servicio. Puedes cancelar la orden antes si no se va a realizar.'}
 </Text>
+{!formalContext.permissions.can_confirm_payment
+&& formalContext.permissions.payment_confirmation_available_at ? (
+<Text style={styles.row}>
+Se habilita el {formatPaymentConfirmationMoment(
+formalContext.permissions.payment_confirmation_available_at,
+)}.
+</Text>
+) : null}
 <TouchableOpacity
-accessibilityLabel="Marcar solicitud como completada"
+accessibilityLabel="Confirmar pago recibido"
 accessibilityRole="button"
-disabled={pendingAction !== null}
-onPress={confirmCompleteRequest}
+accessibilityState={{
+disabled: pendingAction !== null
+|| !formalContext.permissions.can_confirm_payment,
+}}
+disabled={
+pendingAction !== null
+|| !formalContext.permissions.can_confirm_payment
+}
+onPress={confirmPaymentReceived}
 style={[
 styles.primaryButton,
 pendingAction !== null
+|| !formalContext.permissions.can_confirm_payment
 ? styles.disabledButton
 : null,
 ]}
 >
 <Text style={styles.primaryButtonText}>
-{pendingAction === 'complete'
-? 'Completando...'
-: 'Marcar como completada'}
+{pendingAction === 'confirm-payment'
+? 'Confirmando pago...'
+: 'Confirmar pago recibido'}
+</Text>
+</TouchableOpacity>
+<TouchableOpacity
+accessibilityLabel="Orden cancelada o no pagada"
+accessibilityRole="button"
+disabled={pendingAction !== null}
+onPress={confirmOrderUnpaid}
+style={[
+styles.unpaidButton,
+pendingAction !== null ? styles.disabledButton : null,
+]}
+>
+<Text style={styles.unpaidButtonText}>
+{pendingAction === 'mark-unpaid'
+? 'Cancelando orden...'
+: 'Orden cancelada o no pagada'}
 </Text>
 </TouchableOpacity>
 </View>
@@ -3344,6 +3411,19 @@ paddingVertical: 13,
 },
 primaryButtonText: {
 color: '#FFFFFF',
+fontSize: 14,
+fontWeight: '800',
+},
+unpaidButton: {
+alignItems: 'center',
+backgroundColor: '#F8E8EA',
+borderRadius: 12,
+marginTop: 10,
+paddingHorizontal: 18,
+paddingVertical: 13,
+},
+unpaidButtonText: {
+color: '#8A2533',
 fontSize: 14,
 fontWeight: '800',
 },

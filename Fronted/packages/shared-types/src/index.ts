@@ -181,6 +181,8 @@ export interface CurrentUserProfile
   avatar_file_id: string | null;
   avatar_url?: string | null;
   verification_status?: ProfileVerificationStatus | null;
+  network_visibility?: string | null;
+  is_public?: boolean;
   created_at?: string | null;
   settings?: {
     verification_request?: ProfileVerificationRequest | null;
@@ -254,6 +256,7 @@ export interface ActivateWebSessionPayload {
 
 export interface QrLoginChallengeResponse {
   challenge_token: string;
+  browser_nonce?: string;
   expires_at: string;
 }
 
@@ -2366,6 +2369,7 @@ export interface StatusFollowDiscoverItem {
   display_name: string;
   avatar_file_id: string | null;
   avatar_url: string | null;
+  occupation?: string | null;
   follow_id: string | null;
   follow_state: StatusFollowState | null;
 }
@@ -3037,15 +3041,25 @@ export interface AssistantSettings {
   updated_at: string | null;
 }
 
+export interface AssistantCardDetail {
+  label: string;
+  value: string;
+}
+
 export interface AssistantCard {
   type: string;
   action_id?: string;
   action?: string;
+  tool?: string;
   title?: string;
   summary?: string;
+  details?: AssistantCardDetail[];
   content?: string;
   conversation_id?: string;
   business_id?: string;
+  effect?: string;
+  pinned?: boolean;
+  archived?: boolean;
   items?: Array<Record<string, unknown>>;
   [key: string]: unknown;
 }

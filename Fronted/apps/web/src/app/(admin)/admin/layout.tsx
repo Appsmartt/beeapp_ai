@@ -18,8 +18,16 @@ import {
   ChevronDown,
   User,
   Settings,
+  ShieldCheck,
+  CircleDollarSign,
+  FileDown,
+  Flag,
+  Sparkles,
+  Tags,
+  UserCog,
+  ScrollText,
 } from 'lucide-react';
-import { getAdminActivityFeed } from '@beeapp/api-client';
+import { getAdminActivityFeed, listAdminStaff } from '@beeapp/api-client';
 import ConfirmDialog from '@/components/admin/ConfirmDialog';
 import { useExitTransition } from '@/components/motion/useExitTransition';
 import AuthGuard from '@/lib/auth/AuthGuard';
@@ -27,19 +35,35 @@ import { useAuth } from '@/lib/auth/AuthProvider';
 import { formatRelativeTime } from '@/lib/admin/format';
 
 const NAV_ITEMS = [
-  { href: '/admin', label: 'Dashboard', icon: LayoutDashboard },
-  { href: '/admin/usuarios', label: 'Usuarios', icon: Users },
-  { href: '/admin/suscripciones', label: 'Suscripciones', icon: CreditCard },
-  { href: '/admin/notificaciones', label: 'Notificaciones', icon: Bell },
-  { href: '/admin/configuracion', label: 'Configuraciones', icon: Settings },
+  { href: '/admin', label: 'Dashboard', icon: LayoutDashboard, permission: '' },
+  { href: '/admin/usuarios', label: 'Usuarios', icon: Users, permission: 'usuarios' },
+  { href: '/admin/verificaciones', label: 'Verificaciones', icon: ShieldCheck, permission: 'verificaciones' },
+  { href: '/admin/suscripciones', label: 'Suscripciones', icon: CreditCard, permission: 'suscripciones' },
+  { href: '/admin/notificaciones', label: 'Notificaciones', icon: Bell, permission: 'notificaciones' },
+  { href: '/admin/costos', label: 'Costos', icon: CircleDollarSign, permission: 'costos' },
+  { href: '/admin/reportes', label: 'Reportes', icon: FileDown, permission: 'reportes' },
+  { href: '/admin/moderacion', label: 'Moderación', icon: Flag, permission: 'moderacion' },
+  { href: '/admin/promocionados', label: 'Promocionados', icon: Sparkles, permission: 'promocionados' },
+  { href: '/admin/categorias', label: 'Categorías', icon: Tags, permission: 'categorias' },
+  { href: '/admin/equipo', label: 'Equipo', icon: UserCog, permission: 'equipo' },
+  { href: '/admin/auditoria', label: 'Auditoría', icon: ScrollText, permission: 'auditoria' },
+  { href: '/admin/configuracion', label: 'Configuraciones', icon: Settings, permission: 'configuracion' },
 ];
 
 function getPageTitle(pathname: string): string {
   if (pathname === '/admin') return 'Resumen del Panel';
   if (/^\/admin\/usuarios\/[^/]+$/.test(pathname)) return 'Detalle de Usuario';
   if (pathname.startsWith('/admin/usuarios')) return 'Usuarios Registrados';
+  if (pathname.startsWith('/admin/verificaciones')) return 'Verificación de negocios';
   if (pathname.startsWith('/admin/suscripciones')) return 'Control de Suscripciones';
   if (pathname.startsWith('/admin/notificaciones')) return 'Notificaciones Push';
+  if (pathname.startsWith('/admin/costos')) return 'Costos y simulador';
+  if (pathname.startsWith('/admin/reportes')) return 'Reportes';
+  if (pathname.startsWith('/admin/moderacion')) return 'Moderación';
+  if (pathname.startsWith('/admin/promocionados')) return 'Espacios promocionados';
+  if (pathname.startsWith('/admin/categorias')) return 'Categorías';
+  if (pathname.startsWith('/admin/equipo')) return 'Equipo';
+  if (pathname.startsWith('/admin/auditoria')) return 'Auditoría';
   if (pathname.startsWith('/admin/configuracion')) return 'Configuraciones Generales';
   if (pathname.startsWith('/admin/perfil')) return 'Perfil del Administrador';
   return 'Panel de Control';
@@ -66,6 +90,31 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [confirmLogoutOpen, setConfirmLogoutOpen] = useState(false);
   const [alerts, setAlerts] = useState<Array<{ id: string; text: string; time: string }>>([]);
+  const [permissions, setPermissions] = useState<string[]>([]);
+
+  useEffect(() => {
+    if (!profile?.id) return;
+    listAdminStaff()
+      .then((rows) => {
+        const mine = rows.find((row) => row.id === profile.id);
+        setPermissions(mine?.permissions || []);
+      })
+      .catch(() => setPermissions([]));
+  }, [profile?.id]);
+
+  const limited = profile?.role !== 'SUPERADMIN' && permissions.length > 0;
+  const visibleItems = NAV_ITEMS.filter((item) => (
+    !limited || item.permission === '' || item.permission === 'equipo' || permissions.includes(item.permission)
+  ));
+  const currentItem = NAV_ITEMS.find((item) => (
+    item.href === '/admin' ? pathname === item.href : pathname.startsWith(item.href)
+  ));
+  const blocked = Boolean(
+    limited
+    && currentItem?.permission
+    && currentItem.permission !== 'equipo'
+    && !permissions.includes(currentItem.permission),
+  );
 
   useEffect(() => {
     getAdminActivityFeed()
@@ -115,7 +164,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         </div>
 
         <nav className="sidebar-nav">
-          {NAV_ITEMS.map((item) => {
+          {visibleItems.map((item) => {
             const isActive = item.href === '/admin' ? pathname === item.href : pathname.startsWith(item.href);
             return (
               <Link
@@ -236,7 +285,13 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           </div>
         </header>
 
-        <main className="admin-content-canvas">{children}</main>
+        <main className="admin-content-canvas">
+          {blocked ? (
+            <div className="panel-card">
+              <span className="panel-card-title">Sin permiso para esta sección</span>
+            </div>
+          ) : children}
+        </main>
       </div>
 
       <ConfirmDialog

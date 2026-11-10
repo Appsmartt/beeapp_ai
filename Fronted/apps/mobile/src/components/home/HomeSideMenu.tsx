@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import {
   Animated,
-  Linking,
   StyleSheet,
   ScrollView,
   Share,
@@ -60,6 +59,7 @@ import {
   PANEL_WIDTH,
   sideMenuStyles as styles,
 } from './homeSideMenuStyles';
+import { openConfiguredSupportEmail } from '../../services/openSupportEmail';
 
 
 interface HomeSideMenuProps {
@@ -348,31 +348,8 @@ export default function HomeSideMenu({
   };
 
   const handleContactSupport = () => {
-    const supportPhone = '573001234567';
-
-    const message =
-      'Hola soporte de Buddy, necesito ayuda con mi cuenta.';
-
-    const url =
-      `https://wa.me/${supportPhone}?text=${encodeURIComponent(
-        message,
-      )}`;
-
-    Linking.canOpenURL(url)
-      .then((supported) => {
-        if (supported) {
-          Linking.openURL(url);
-          return;
-        }
-
-        appAlert(
-          'Error',
-          'No se pudo abrir WhatsApp en este dispositivo.',
-        );
-      })
-      .catch((error) => {
-        console.error('An error occurred', error);
-      });
+    onClose();
+    void openConfiguredSupportEmail();
   };
 
   const handleSignOut = () => {

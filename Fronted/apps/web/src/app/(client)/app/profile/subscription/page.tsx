@@ -4,6 +4,7 @@ import { SubscriptionPanel } from '@/components/client/SubscriptionPanel';
 export default function SubscriptionPage() {
   return (
     <ProfileSectionPage
+      wide
       title="Suscripción y verificación"
       description="Tu plan, el almacenamiento y la insignia de cuenta verificada."
     >

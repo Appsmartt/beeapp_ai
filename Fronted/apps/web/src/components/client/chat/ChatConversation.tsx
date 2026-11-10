@@ -1,13 +1,26 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { ChevronLeft, Phone, Video, MoreVertical, BellOff, Trash2, Bot, SlidersHorizontal, CheckCircle2, Reply, Pencil, X } from 'lucide-react';
+import { ChevronLeft, Phone, Video, MoreVertical, BellOff, Trash2, Bot, SlidersHorizontal, CheckCircle2, Reply, Pencil, X, Volume2 } from 'lucide-react';
 import type { AssistantCard } from '@beeapp/shared-types';
 import { ChatItem, ChatMessage, ASSISTANT_CHAT_ID } from '@/lib/client/chats';
 import {
+  applyAssistantClientEffects,
+  assistantDecision,
+  assistantSendContext,
   buildChooseProviderMessage,
+  isAssistantPlanBlock,
   mapAssistantMessagesToChat,
+  plainAssistantSpeech,
+  playAssistantAudio,
+  stampResolvedCards,
+  type AssistantDecision,
 } from '@/lib/client/assistantChat';
+import { startBrowserRecording, type BrowserRecording } from '@/lib/client/assistantAudio';
+import {
+  validateVoiceRecordingDuration,
+  validateVoiceTranscript,
+} from '@/lib/client/voiceTranscriptValidation';
 import {
   getRememberedChatIdentity,
   getWebAuth,
@@ -25,7 +38,9 @@ import {
   endCall,
   listAssistantMessages,
   sendAssistantMessage,
+  speakAssistantText,
   startCall,
+  transcribeAssistantAudio,
   updateChatConversationNotifications,
   type CallCredentialsResponse,
 } from '@beeapp/api-client';
@@ -46,10 +61,11 @@ interface ChatConversationProps {
   onOpenProfile: () => void;
   onOpenAiSettings?: () => void;
   onNavigateToChat?: (chatId: string, chatName: string, initialText: string) => void;
+  onArchiveChat?: (conversationId: string, archived: boolean) => void;
 }
 
 export default function ChatConversation({
-  chat, onBack, onOpenProfile, onOpenAiSettings, onNavigateToChat,
+  chat, onBack, onOpenProfile, onOpenAiSettings, onNavigateToChat, onArchiveChat,
 }: ChatConversationProps) {
   const isAI = chat.id === ASSISTANT_CHAT_ID || !!chat.isAI;
   const isGroup = chat.isGroup;
@@ -74,8 +90,19 @@ export default function ChatConversation({
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [viewerUrl, setViewerUrl] = useState<string | null>(null);
   const [aiLoading, setAiLoading] = useState(false);
   const [aiSending, setAiSending] = useState(false);
+  const [planBlock, setPlanBlock] = useState('');
+  const [dictating, setDictating] = useState(false);
+  const recordingRef = useRef<BrowserRecording | null>(null);
+  const speechRef = useRef<HTMLAudioElement | null>(null);
+  const micBusyRef = useRef(false);
+
+  useEffect(() => () => {
+    recordingRef.current?.cancel();
+    speechRef.current?.pause();
+  }, []);
 
   const pinnedMessage = isAI ? undefined : messages.find((m) => m.isPinned);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -155,9 +182,16 @@ export default function ChatConversation({
     });
   };
 
+  const noteAssistantError = (error: unknown, fallback: string) => {
+    const message = error instanceof Error ? error.message : fallback;
+    if (isAssistantPlanBlock(message)) setPlanBlock(message);
+    setToastText(message);
+    setTimeout(() => setToastText(null), 2500);
+  };
+
   const sendAssistantText = (rawText: string) => {
     const text = rawText.trim();
-    if (!text || aiSending) return;
+    if (!text || aiSending || planBlock) return;
 
     const optimistic: ChatMessage = {
       id: `local-${Date.now()}`,
@@ -173,48 +207,64 @@ export default function ChatConversation({
 
     void getWebAuth()
       .then(async (auth) => {
-        const response = await sendAssistantMessage(auth, text, false);
+        const response = await sendAssistantMessage(auth, text, false, assistantSendContext());
         const assistantMsg = response.message;
         if (assistantMsg) {
           const mapped = mapAssistantMessagesToChat([assistantMsg])[0];
           const cards = response.cards?.length ? response.cards : assistantMsg.cards;
+          applyAssistantClientEffects(cards, onArchiveChat);
           appendAssistantReply(mapped, cards);
         }
       })
-      .catch(() => {
-        setToastText('No fue posible enviar el mensaje al asistente.');
-        setTimeout(() => setToastText(null), 2500);
+      .catch((error) => {
+        noteAssistantError(error, 'No fue posible enviar el mensaje al asistente.');
       })
       .finally(() => setAiSending(false));
   };
 
+  const rememberDecision = (actionId: string, decision: AssistantDecision) => {
+    setMessages((prev) => prev.map((message) => {
+      const cards = stampResolvedCards(message.assistantCards, actionId, decision);
+      if (cards === message.assistantCards) return message;
+      return { ...message, assistantCards: cards };
+    }));
+  };
+
   const resolveAssistantAction = (card: AssistantCard, confirm: boolean) => {
     const actionId = String(card.action_id || '');
-    if (!actionId || aiSending) return;
+    if (!actionId || aiSending || assistantDecision(card)) return;
     setAiSending(true);
+    const decision: AssistantDecision = confirm ? 'confirmed' : 'cancelled';
     void getWebAuth()
       .then(async (auth) => {
         if (!confirm) {
-          await cancelAssistantAction(auth, actionId);
+          const cancelled = await cancelAssistantAction(auth, actionId);
+          rememberDecision(actionId, decision);
+          if (cancelled.message) {
+            appendAssistantReply(mapAssistantMessagesToChat([cancelled.message])[0], cancelled.cards);
+            return;
+          }
           appendAssistantReply({
             id: `local-${Date.now()}`,
             isUser: false,
             type: 'text',
-            text: 'Cancelé esa acción.',
+            text: 'Entendido, cancelé la solicitud y no realicé ningún cambio.',
             time: 'Ahora',
             status: 'read',
           });
           return;
         }
         const response = await confirmAssistantAction(auth, actionId);
+        rememberDecision(actionId, decision);
+        const cards = response.cards?.length ? response.cards : response.message?.cards;
+        applyAssistantClientEffects(cards, onArchiveChat);
         if (response.message) {
           const mapped = mapAssistantMessagesToChat([response.message])[0];
-          appendAssistantReply(mapped, response.cards);
+          appendAssistantReply(mapped, cards);
         }
       })
-      .catch(() => {
-        setToastText('No fue posible completar la acción.');
-        setTimeout(() => setToastText(null), 2500);
+      .catch((error) => {
+        noteAssistantError(error, 'No fue posible completar la acción.');
       })
       .finally(() => setAiSending(false));
   };
@@ -224,6 +274,61 @@ export default function ChatConversation({
   };
 
   useEffect(() => { scrollToBottom(); }, [messages]);
+
+  const speakMessage = (text: string) => {
+    const spoken = plainAssistantSpeech(text);
+    if (!spoken) return;
+    void getWebAuth()
+      .then((auth) => speakAssistantText(auth, spoken))
+      .then((audio) => playAssistantAudio(audio.audio_base64, audio.audio_mime))
+      .then((audio) => {
+        speechRef.current?.pause();
+        speechRef.current = audio;
+      })
+      .catch((error) => noteAssistantError(error, 'No se pudo reproducir la respuesta.'));
+  };
+
+  const toggleDictation = () => {
+    if (!isAI || aiSending || micBusyRef.current || planBlock) return;
+    micBusyRef.current = true;
+    void (async () => {
+      try {
+        if (!recordingRef.current) {
+          recordingRef.current = await startBrowserRecording();
+          setDictating(true);
+          return;
+        }
+        const clip = await recordingRef.current.stop();
+        recordingRef.current = null;
+        setDictating(false);
+        const durationCheck = validateVoiceRecordingDuration(clip.durationMs);
+        if (!durationCheck.ok) {
+          setToastText(durationCheck.message);
+          setTimeout(() => setToastText(null), 2500);
+          return;
+        }
+        setAiSending(true);
+        const auth = await getWebAuth();
+        const transcript = await transcribeAssistantAudio(auth, clip.audioBase64, clip.mime);
+        const validation = validateVoiceTranscript(transcript.text);
+        setAiSending(false);
+        if (!validation.ok) {
+          setToastText(validation.message);
+          setTimeout(() => setToastText(null), 2500);
+          return;
+        }
+        sendAssistantText(validation.text);
+      } catch (error) {
+        recordingRef.current?.cancel();
+        recordingRef.current = null;
+        setDictating(false);
+        setAiSending(false);
+        noteAssistantError(error, 'No se pudo usar el micrófono.');
+      } finally {
+        micBusyRef.current = false;
+      }
+    })();
+  };
 
   const handleSendMessage = (text: string) => {
     if (editingMessage) {
@@ -413,9 +518,10 @@ export default function ChatConversation({
   };
 
   return (
-    <div className="bg-neutral-50 h-full min-h-0 flex flex-col relative select-none">
-      {/* Header bar */}
-      <div className="flex items-center justify-between px-3 py-2.5 bg-white border-b border-neutral-200 sticky top-0 z-20">
+    <div className="relative h-full min-h-0 overflow-hidden bg-neutral-50 select-none">
+      <div className="grid h-full min-h-0 grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden">
+      <div className="min-w-0">
+      <div className="z-20 flex items-center justify-between border-b border-neutral-200 bg-white px-3 py-2.5">
         <div className="flex items-center gap-1.5 flex-1 min-w-0 mr-2">
           <button type="button" onClick={onBack} className="p-1 rounded-lg text-neutral-700 hover:bg-neutral-100">
             <ChevronLeft className="w-6 h-6" />
@@ -458,27 +564,10 @@ export default function ChatConversation({
         <PinnedMessageBanner text={pinnedMessage.text || 'Mensaje fijado'} onUnpin={() => setMessages((prev) => prev.map((m) => ({ ...m, isPinned: false })))} />
       )}
 
-      {menuOpen && (
-        <div className="absolute top-14 right-3 w-44 bg-white border border-neutral-200 rounded-2xl shadow-xl z-40 py-1 text-xs text-neutral-800">
-          <button type="button" onClick={() => { setMenuOpen(false); if (isAI) { onOpenAiSettings?.(); } else { onOpenProfile(); } }} className="w-full text-left px-4 py-2.5 hover:bg-neutral-50 font-normal">
-            {isAI ? 'Configuración IA' : 'Ver info'}
-          </button>
-          <button
-            type="button"
-            onClick={toggleMuteConversation}
-            className="w-full text-left px-4 py-2.5 hover:bg-neutral-50 flex items-center gap-2 font-normal"
-          >
-            <BellOff className="w-3.5 h-3.5" /> {muted ? 'Activar notificaciones' : 'Silenciar'}
-          </button>
-          <button type="button" onClick={clearConversation} className="w-full text-left px-4 py-2.5 hover:bg-red-50 text-red-600 flex items-center gap-2 font-normal">
-            <Trash2 className="w-3.5 h-3.5" /> Vaciar chat
-          </button>
-        </div>
-      )}
-
       {isSellerChat && !isAI && <AiAutoReplyBanner enabled={aiAutoReply} onChange={setAiAutoReply} />}
+      </div>
 
-      <div ref={scrollRef} className="flex-1 min-h-0 overflow-y-auto p-4 pb-3 space-y-3">
+      <div ref={scrollRef} className="min-h-0 space-y-3 overflow-y-auto overscroll-contain p-4 pb-3">
         <div className="flex justify-center my-3">
           <span className="text-[10px] font-bold text-neutral-500 bg-neutral-200 px-2.5 py-1 rounded-md tracking-wider">HOY</span>
         </div>
@@ -489,15 +578,27 @@ export default function ChatConversation({
 
         {!aiLoading && isAI && messages.length === 0 ? (
           <p className="text-center text-xs text-neutral-500 py-4 px-6">
-            Puedo crear reuniones, anotar, buscar en la app y sugerirte proveedores.
+            Puedo consultar tu información en Buddy, leer y agendar en tus calendarios, leer y enviar correos, crear notas, gestionar chats y negocios, revisar tu carrito y buscar en Buddy Services.
           </p>
         ) : null}
 
         {messages.map((msg) => (
           <div key={msg.id} className={msg.isUser ? '' : 'pl-0'}>
             <div onContextMenu={(e) => { if (!isAI) { e.preventDefault(); setContextMenu({ message: msg, x: e.clientX, y: e.clientY }); } }}>
+              {isAI && !msg.isUser && msg.text ? (
+                <button
+                  type="button"
+                  onClick={() => speakMessage(msg.text || '')}
+                  className="mb-1 ml-1 inline-flex items-center gap-1 text-[11px] font-semibold text-brand-primary"
+                  aria-label="Escuchar respuesta"
+                >
+                  <Volume2 className="h-3.5 w-3.5" />
+                  Escuchar
+                </button>
+              ) : null}
               <MessageBubble
-                senderName={msg.senderName} senderVerified={msg.senderVerified} isUser={msg.isUser} isAI={isAI && !msg.isUser} sentByAi={msg.sentByAi} type={msg.type} text={msg.text} mediaUrl={msg.mediaUrl} fileName={msg.fileName} fileSize={msg.fileSize} audioDuration={msg.audioDuration} status={msg.status} time={msg.time} replyTo={msg.replyTo} isEdited={msg.isEdited} isDestroyed={msg.isDestroyed} isPinned={msg.isPinned}
+                senderName={msg.senderName} senderVerified={msg.senderVerified} isUser={msg.isUser} isAI={isAI && !msg.isUser} sentByAi={msg.sentByAi} type={msg.type} text={msg.text} mediaUrl={msg.mediaUrl} fileName={msg.fileName} fileSize={msg.fileSize} audioDuration={msg.audioDuration} status={msg.status} time={msg.time} replyTo={msg.replyTo}                 isEdited={msg.isEdited} isDestroyed={msg.isDestroyed} isPinned={msg.isPinned}
+                onOpenMedia={msg.mediaUrl && msg.type === 'image' ? () => setViewerUrl(msg.mediaUrl || null) : undefined}
               />
             </div>
             {msg.assistantCards?.length ? (
@@ -522,10 +623,7 @@ export default function ChatConversation({
         ) : null}
       </div>
 
-      <ChatMessageContextMenu position={contextMenu ? { x: contextMenu.x, y: contextMenu.y } : null} message={contextMenu?.message || null} onClose={() => setContextMenu(null)} onSelectAction={handleSelectMessageAction} />
-
-      <ForwardMessageModal isOpen={forwardModalOpen} onClose={() => setForwardModalOpen(false)} onSelectChat={(cName) => { setToastText(`Mensaje reenviado a ${cName}`); setTimeout(() => setToastText(null), 2000); }} />
-
+      <div className="min-w-0 bg-white">
       {replyTarget && (
         <div className="flex items-center justify-between px-4 py-2 bg-brand-primary/5 border-t border-brand-primary/20 text-xs shrink-0">
           <div className="flex items-center gap-2 min-w-0">
@@ -552,6 +650,47 @@ export default function ChatConversation({
         </div>
       )}
 
+      <div className="z-20 border-t border-neutral-200 bg-white">
+        {isAI && planBlock ? (
+          <p className="px-4 pt-2 text-xs text-neutral-600">{planBlock}</p>
+        ) : null}
+        <WriteBar
+          onSendMessage={handleSendMessage}
+          onSendVoiceNote={handleVoiceNote}
+          onSendAttachment={handleAttachment}
+          value={editingMessage ? editingText : undefined}
+          onChangeText={editingMessage ? setEditingText : undefined}
+          variant={isAI ? 'assistant' : 'default'}
+          disabled={isAI && (aiSending || aiLoading || Boolean(planBlock))}
+          dictating={dictating}
+          onDictate={isAI ? toggleDictation : undefined}
+        />
+      </div>
+      </div>
+      </div>
+
+      {menuOpen && (
+        <div className="absolute top-14 right-3 z-40 w-44 rounded-2xl border border-neutral-200 bg-white py-1 text-xs text-neutral-800 shadow-xl">
+          <button type="button" onClick={() => { setMenuOpen(false); if (isAI) { onOpenAiSettings?.(); } else { onOpenProfile(); } }} className="w-full text-left px-4 py-2.5 hover:bg-neutral-50 font-normal">
+            {isAI ? 'Configuración IA' : 'Ver info'}
+          </button>
+          <button
+            type="button"
+            onClick={toggleMuteConversation}
+            className="w-full text-left px-4 py-2.5 hover:bg-neutral-50 flex items-center gap-2 font-normal"
+          >
+            <BellOff className="w-3.5 h-3.5" /> {muted ? 'Activar notificaciones' : 'Silenciar'}
+          </button>
+          <button type="button" onClick={clearConversation} className="w-full text-left px-4 py-2.5 hover:bg-red-50 text-red-600 flex items-center gap-2 font-normal">
+            <Trash2 className="w-3.5 h-3.5" /> Vaciar chat
+          </button>
+        </div>
+      )}
+
+      <ChatMessageContextMenu position={contextMenu ? { x: contextMenu.x, y: contextMenu.y } : null} message={contextMenu?.message || null} onClose={() => setContextMenu(null)} onSelectAction={handleSelectMessageAction} />
+
+      <ForwardMessageModal isOpen={forwardModalOpen} onClose={() => setForwardModalOpen(false)} onSelectChat={(cName) => { setToastText(`Mensaje reenviado a ${cName}`); setTimeout(() => setToastText(null), 2000); }} />
+
       {activeCall ? (
         <CallOverlay
           contactName={chat.name}
@@ -562,19 +701,13 @@ export default function ChatConversation({
         />
       ) : null}
 
-      <input ref={fileInputRef} type="file" className="hidden" onChange={handleFileSelected} />
+      {viewerUrl ? (
+        <button type="button" className="fixed inset-0 z-[80] flex items-center justify-center bg-black/80 p-6" onClick={() => setViewerUrl(null)}>
+          <img src={viewerUrl} alt="Imagen del chat" className="max-h-full max-w-full object-contain" />
+        </button>
+      ) : null}
 
-      <div className="shrink-0 mt-auto z-20 bg-white border-t border-neutral-200">
-        <WriteBar
-          onSendMessage={handleSendMessage}
-          onSendVoiceNote={handleVoiceNote}
-          onSendAttachment={handleAttachment}
-          value={editingMessage ? editingText : undefined}
-          onChangeText={editingMessage ? setEditingText : undefined}
-          variant={isAI ? 'assistant' : 'default'}
-          disabled={isAI && (aiSending || aiLoading)}
-        />
-      </div>
+      <input ref={fileInputRef} type="file" className="hidden" onChange={handleFileSelected} />
 
       {toastText && (
         <div className="fixed bottom-24 left-1/2 -translate-x-1/2 z-50 bg-neutral-900 text-white text-xs font-semibold px-4 py-2 rounded-full shadow-lg">

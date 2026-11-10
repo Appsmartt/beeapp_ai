@@ -3,6 +3,9 @@ export const MAX_COMMERCIAL_PAYMENT_PROOF_SIZE_BYTES =
 
 const ALLOWED_COMMERCIAL_PAYMENT_PROOF_MIME_TYPES = new Set([
 'application/pdf',
+'image/jpeg',
+'image/png',
+'image/webp',
 ]);
 
 export interface UploadableCommercialPaymentProof {
@@ -15,7 +18,11 @@ sizeBytes?: number | null;
 function normalizeMimeType(
 mimeType: string | null | undefined,
 ): string {
-return String(mimeType || '').trim().toLowerCase();
+const normalized = String(mimeType || '').trim().toLowerCase();
+if (normalized === 'image/jpg' || normalized === 'image/pjpeg') {
+return 'image/jpeg';
+}
+return normalized;
 }
 
 export function validateCommercialPaymentProof(
@@ -33,7 +40,7 @@ if (
 !ALLOWED_COMMERCIAL_PAYMENT_PROOF_MIME_TYPES.has(mimeType)
 ) {
 throw new Error(
-'Selecciona un comprobante en formato PDF.',
+'Selecciona una captura JPG, PNG o WEBP, o un comprobante PDF.',
 );
 }
 

@@ -11,7 +11,24 @@ function upperStatus(status: string): string {
   return status.toUpperCase();
 }
 
+const corsHeaders: Record<string, string> = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+};
+
+function json(body: unknown, status = 200): Response {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
+}
+
 Deno.serve(async (request: Request) => {
+  if (request.method === "OPTIONS") {
+    return new Response("ok", { headers: corsHeaders });
+  }
+
   const supabase = createClient(
     Deno.env.get("SUPABASE_URL") ?? "",
     Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
@@ -22,7 +39,7 @@ Deno.serve(async (request: Request) => {
 
   if (action === "create") {
     const token = crypto.randomUUID() + crypto.randomUUID();
-    const nonce = crypto.randomUUID();
+    const nonce = String(body.browser_nonce || "").trim() || crypto.randomUUID();
     const expiresAt = new Date(Date.now() + 2 * 60 * 1000).toISOString();
     const { error } = await supabase.from("qr_logins").insert({
       token_hash: await sha256(token),
@@ -30,8 +47,8 @@ Deno.serve(async (request: Request) => {
       status: "pending",
       expires_at: expiresAt,
     });
-    if (error) return Response.json({ error: error.message }, { status: 400 });
-    return Response.json({ challenge_token: token, browser_nonce: nonce, expires_at: expiresAt });
+    if (error) return json({ error: error.message }, 400);
+    return json({ challenge_token: token, browser_nonce: nonce, expires_at: expiresAt });
   }
 
   if (action === "status") {
@@ -41,8 +58,11 @@ Deno.serve(async (request: Request) => {
       .select("status, expires_at")
       .eq("token_hash", await sha256(token))
       .maybeSingle();
-    if (error || !data) return Response.json({ error: "NOT_FOUND" }, { status: 404 });
-    return Response.json({ status: upperStatus(String(data.status)), expires_at: data.expires_at });
+    if (error || !data) return json({ error: "NOT_FOUND", message: "No encontramos el código." }, 404);
+    if (data.status === "pending" && new Date(String(data.expires_at)).getTime() < Date.now()) {
+      return json({ status: "EXPIRED", expires_at: data.expires_at });
+    }
+    return json({ status: upperStatus(String(data.status)), expires_at: data.expires_at });
   }
 
   if (action === "scan") {
@@ -53,8 +73,23 @@ Deno.serve(async (request: Request) => {
       { global: { headers: { Authorization: authHeader } } },
     );
     const user = await userClient.auth.getUser();
-    if (user.error || !user.data.user) return Response.json({ error: "NOT_AUTHENTICATED" }, { status: 401 });
+    if (user.error || !user.data.user) return json({ error: "NOT_AUTHENTICATED", message: "Inicia sesión en la app para escanear el código." }, 401);
     const token = String(body.challenge_token || "");
+    const pending = await supabase
+      .from("qr_logins")
+      .select("id, status, expires_at")
+      .eq("token_hash", await sha256(token))
+      .maybeSingle();
+    if (pending.error || !pending.data) {
+      return json({ error: "CHALLENGE_NOT_PENDING", message: "El código QR no es válido." }, 400);
+    }
+    if (new Date(String(pending.data.expires_at)).getTime() < Date.now() || pending.data.status === "expired") {
+      await supabase.from("qr_logins").update({ status: "expired" }).eq("id", pending.data.id).eq("status", "pending");
+      return json({ error: "EXPIRED", message: "El código QR venció." }, 400);
+    }
+    if (pending.data.status !== "pending") {
+      return json({ error: "CHALLENGE_NOT_PENDING", message: "Este código ya se usó." }, 400);
+    }
     const { data, error } = await supabase
       .from("qr_logins")
       .update({
@@ -62,12 +97,15 @@ Deno.serve(async (request: Request) => {
         approved_at: new Date().toISOString(),
         approved_by: user.data.user.id,
       })
-      .eq("token_hash", await sha256(token))
+      .eq("id", pending.data.id)
       .eq("status", "pending")
       .select("id, status")
       .maybeSingle();
-    if (error || !data) return Response.json({ error: "CHALLENGE_NOT_PENDING" }, { status: 400 });
-    return Response.json({ message: "Acceso aprobado.", device: data });
+    if (error || !data) return json({ error: "CHALLENGE_NOT_PENDING", message: "El código QR no es válido." }, 400);
+    return json({
+      message: "El acceso quedó autorizado en Buddy Web.",
+      device: data,
+    });
   }
 
   if (action === "activate") {
@@ -78,23 +116,23 @@ Deno.serve(async (request: Request) => {
       .eq("token_hash", await sha256(token))
       .maybeSingle();
     const row = found.data;
-    if (found.error || !row) return Response.json({ error: "NOT_FOUND", message: "El código no existe." }, { status: 404 });
-    if (row.consumed_at) return Response.json({ error: "CONSUMED", message: "Este código ya se usó." }, { status: 400 });
+    if (found.error || !row) return json({ error: "NOT_FOUND", message: "El código no existe." }, 404);
+    if (row.consumed_at) return json({ error: "CONSUMED", message: "Este código ya se usó." }, 400);
     if (row.status !== "approved" || !row.approved_by) {
-      return Response.json({ error: "NOT_APPROVED", message: "Todavía no se aprobó el acceso." }, { status: 400 });
+      return json({ error: "NOT_APPROVED", message: "Todavía no se aprobó el acceso." }, 400);
     }
     if (new Date(row.expires_at).getTime() < Date.now()) {
-      return Response.json({ error: "EXPIRED", message: "El código venció." }, { status: 400 });
+      return json({ error: "EXPIRED", message: "El código venció." }, 400);
     }
 
     const account = await supabase.auth.admin.getUserById(row.approved_by);
     const email = account.data.user?.email;
-    if (!email) return Response.json({ error: "NO_EMAIL", message: "La cuenta no tiene correo para abrir la sesión." }, { status: 400 });
+    if (!email) return json({ error: "NO_EMAIL", message: "La cuenta no tiene correo para abrir la sesión." }, 400);
 
     const link = await supabase.auth.admin.generateLink({ type: "magiclink", email });
     const tokenHash = link.data.properties?.hashed_token;
     if (link.error || !tokenHash) {
-      return Response.json({ error: "SESSION_FAILED", message: "No fue posible abrir la sesión web." }, { status: 400 });
+      return json({ error: "SESSION_FAILED", message: "No fue posible abrir la sesión web." }, 400);
     }
 
     const anon = createClient(
@@ -103,7 +141,7 @@ Deno.serve(async (request: Request) => {
     );
     const verified = await anon.auth.verifyOtp({ type: "magiclink", token_hash: tokenHash });
     if (verified.error || !verified.data.session) {
-      return Response.json({ error: "SESSION_FAILED", message: "No fue posible abrir la sesión web." }, { status: 400 });
+      return json({ error: "SESSION_FAILED", message: "No fue posible abrir la sesión web." }, 400);
     }
 
     await supabase.from("qr_logins").update({
@@ -111,7 +149,7 @@ Deno.serve(async (request: Request) => {
       consumed_at: new Date().toISOString(),
     }).eq("id", row.id);
 
-    return Response.json({
+    return json({
       session: {
         access_token: verified.data.session.access_token,
         refresh_token: verified.data.session.refresh_token,
@@ -119,5 +157,5 @@ Deno.serve(async (request: Request) => {
     });
   }
 
-  return Response.json({ error: "UNSUPPORTED" }, { status: 400 });
+  return json({ error: "UNSUPPORTED" }, 400);
 });

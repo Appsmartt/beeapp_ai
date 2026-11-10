@@ -70,6 +70,46 @@ function mapMessage(row: Json): Json {
     };
 }
 
+async function messagesWithResolvedActions(
+    supabase: SupabaseClient,
+    userId: string,
+    messages: Json[],
+): Promise<Json[]> {
+    const actionIds = new Set<string>();
+    for (const message of messages) {
+        for (const card of asRows<Json>(message.cards)) {
+            if (card.type === 'confirm' && card.action_id) {
+                actionIds.add(String(card.action_id));
+            }
+        }
+    }
+
+    const statusById = new Map<string, string>();
+    const ids = [...actionIds];
+    if (ids.length) {
+        const actions = asRows<Json>(unwrap(await supabase
+            .from('assistant_pending_actions')
+            .select('id, status')
+            .eq('user_id', userId)
+            .in('id', ids)) ?? []);
+        for (const action of actions) {
+            statusById.set(String(action.id), String(action.status || ''));
+        }
+    }
+
+    return messages.map((message) => {
+        const mapped = mapMessage(message);
+        mapped.cards = asRows<Json>(mapped.cards).map((card) => {
+            const status = statusById.get(String(card.action_id || ''));
+            if (status === 'confirmed' || status === 'cancelled') {
+                return { ...card, resolved_status: status };
+            }
+            return card;
+        });
+        return mapped;
+    });
+}
+
 export async function mergeAssistantInboxPreference(
     supabase: SupabaseClient,
     userId: string,
@@ -296,7 +336,9 @@ export async function handleAssistant(
             .eq('user_id', userId)
             .order('created_at', { ascending: true })
             .limit(80)) ?? []) as Json[];
-        return { messages: messages.map(mapMessage) };
+        return {
+            messages: await messagesWithResolvedActions(supabase, userId, messages),
+        };
     }
 
     if (method === 'POST' && path === '/assistant/messages/') {
@@ -304,6 +346,7 @@ export async function handleAssistant(
             action: 'chat',
             message: payload.message,
             speak: payload.speak === true,
+            ...(payload.context ? { context: payload.context } : {}),
         });
         return {
             message: mapMessage(asJson(data.message)),

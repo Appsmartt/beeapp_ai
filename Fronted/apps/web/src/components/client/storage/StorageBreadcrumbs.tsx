@@ -14,7 +14,7 @@ interface StorageBreadcrumbsProps {
 
 export default function StorageBreadcrumbs({ pathStack, onNavigate }: StorageBreadcrumbsProps) {
   return (
-    <div className="flex items-center gap-1 text-xs text-neutral-500 font-normal overflow-x-auto no-scrollbar py-1 select-none">
+    <div className="flex shrink-0 items-center gap-1 select-none text-xs font-normal text-neutral-500">
       {pathStack.map((node, index) => {
         const isLast = index === pathStack.length - 1;
         return (

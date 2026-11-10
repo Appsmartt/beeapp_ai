@@ -53,8 +53,18 @@ export default function PinPad({
     if (success) setValue('');
   }, [success]);
 
+  const waiting = useRef(false);
+  const mounted = useRef(true);
+
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
+
   const press = (key: string) => {
-    if (key === '') return;
+    if (key === '' || waiting.current) return;
     if (key === 'del') {
       setValue((v) => v.slice(0, -1));
       return;
@@ -63,8 +73,13 @@ export default function PinPad({
     const next = value + key;
     setValue(next);
     if (next.length === length) {
-      // Small delay so the last dot is visible before the result
-      setTimeout(() => onComplete(next), 120);
+      waiting.current = true;
+      setTimeout(() => {
+        void Promise.resolve(onComplete(next)).finally(() => {
+          waiting.current = false;
+          if (mounted.current) setValue('');
+        });
+      }, 120);
     }
   };
 

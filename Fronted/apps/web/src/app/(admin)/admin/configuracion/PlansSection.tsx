@@ -30,11 +30,12 @@ export default function PlansSection() {
       description: updated.descripcion,
       monthlyPrice: updated.precioMensual,
       yearlyPrice: updated.precioAnual,
-      storageGb: updated.limites.almacenamientoGB,
+      storageGb: updated.entitlements.filesGb ?? 0,
       deviceLimit: updated.limites.dispositivos,
-      offerLimit: updated.limites.ofertasPerfil,
+      offerLimit: updated.entitlements.catalogOffers ?? 0,
       features: updated.funciones,
       highlights: updated.caracteristicas,
+      entitlements: updated.entitlements,
     });
     const nextPlan = toPlan(saved);
     setPlans((prev) => prev.map((plan) => (plan.id === nextPlan.id ? { ...nextPlan, usuariosActivos: plan.usuariosActivos } : plan)));

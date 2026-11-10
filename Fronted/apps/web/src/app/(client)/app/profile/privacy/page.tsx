@@ -4,6 +4,7 @@ import { PrivacyPanel } from '@/components/client/LegalPanels';
 export default function PrivacyPage() {
   return (
     <ProfileSectionPage
+      wide
       title="Política de privacidad"
       description="Cómo se tratan tus datos."
     >

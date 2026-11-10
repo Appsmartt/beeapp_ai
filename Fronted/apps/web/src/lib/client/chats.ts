@@ -47,6 +47,8 @@ export interface ChatItem {
   isSellerChat?: boolean;
   linkedProduct?: SellerChatProduct | null;
   postingIdentityId?: string;
+  businessId?: string | null;
+  commercialProfileId?: string | null;
 }
 
 export interface ChatMessage {
@@ -72,4 +74,5 @@ export interface ChatMessage {
   isEdited?: boolean;
   isDestroyed?: boolean;
   assistantCards?: AssistantCard[];
+  reactions?: Array<{ emoji: string; count: number; mine: boolean }>;
 }

@@ -1,5 +1,7 @@
 import type {
     AuthCredentials,
+    AssistantCard,
+    AssistantMessage,
     AssistantSettings,
     GetAssistantMessagesResponse,
     GetAssistantSettingsResponse,
@@ -31,10 +33,12 @@ export function sendAssistantMessage(
     auth: AuthCredentials,
     message: string,
     speak = false,
+    context?: Record<string, unknown>,
 ): Promise<SendAssistantMessageResponse> {
     return api.post<SendAssistantMessageResponse>('/assistant/messages/', {
         message,
         speak,
+        ...(context ? { context } : {}),
     }, { auth });
 }
 
@@ -52,8 +56,8 @@ export function confirmAssistantAction(
 export function cancelAssistantAction(
     auth: AuthCredentials,
     actionId: string,
-): Promise<{ cancelled: boolean }> {
-    return api.post<{ cancelled: boolean }>(
+): Promise<{ cancelled: boolean; message?: AssistantMessage | null; cards?: AssistantCard[] }> {
+    return api.post<{ cancelled: boolean; message?: AssistantMessage | null; cards?: AssistantCard[] }>(
         `/assistant/actions/${actionId}/cancel/`,
         {},
         { auth },

@@ -19,6 +19,7 @@ import ChartTooltip from '@/components/admin/ChartTooltip';
 import { formatCurrencyCOP } from '@/lib/admin/format';
 import { CHART_COLORS, CHART_GRID_STROKE, CHART_AXIS_TICK, CHART_AXIS_LINE, CHART_CURSOR, formatMillionsTick } from '@/lib/admin/chart';
 import TransactionsSection from './TransactionsSection';
+import ManualSubscriptionSection from './ManualSubscriptionSection';
 
 const EMPTY_KPIS: AdminSubscriptionKpis = {
   ingresosMes: 0,
@@ -103,6 +104,10 @@ export default function SuscripcionesPage() {
             </div>
           </ChartCard>
         </div>
+      </div>
+
+      <div className="page-section">
+        <ManualSubscriptionSection />
       </div>
 
       <div className="page-section">

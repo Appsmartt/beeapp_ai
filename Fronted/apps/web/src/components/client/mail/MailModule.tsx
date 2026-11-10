@@ -46,6 +46,7 @@ import {
   type MailDetailModel,
   type MailViewFolder,
 } from './mailTypes';
+import { useHomeModuleSearch, useHomeSearch } from '@/components/client/home/HomeSearchContext';
 
 type SyncFeedbackKind = 'success' | 'warning' | 'error';
 
@@ -149,6 +150,8 @@ function getProviderColor(
 export default function MailModule({
   onOpenIntegrations,
 }: MailModuleProps) {
+  const homeSearch = useHomeModuleSearch('correo');
+  const { pendingHit, consumePendingHit } = useHomeSearch();
   const [folder, setFolder] = useState<MailViewFolder>('inbox');
 
   const [account, setAccount] = useState<MailAccountFilter>('all');
@@ -180,7 +183,7 @@ export default function MailModule({
     ReturnType<typeof setTimeout> | null
   >(null);
 
-  const hasStartedBackgroundSyncRef = useRef(false);
+  const autoSyncInFlightRef = useRef(false);
 
   const {
     integrations,
@@ -192,6 +195,7 @@ export default function MailModule({
     updatingMessageId,
     error,
     hasActiveIntegrations,
+    clearError,
     loadMore,
     refreshMail,
     syncInbox,
@@ -207,6 +211,12 @@ export default function MailModule({
     folder,
     search,
   });
+
+  const syncInboxRef = useRef(syncInbox);
+  const clearErrorRef = useRef(clearError);
+
+  syncInboxRef.current = syncInbox;
+  clearErrorRef.current = clearError;
 
   const selectedIntegration = useMemo(
     () => (
@@ -299,26 +309,68 @@ export default function MailModule({
   }, [searchInput]);
 
   useEffect(() => {
-    if (
-      loading
-      || syncing
-      || !hasActiveIntegrations
-      || hasStartedBackgroundSyncRef.current
-    ) {
+    if (!homeSearch.active) {
       return;
     }
 
-    hasStartedBackgroundSyncRef.current = true;
-
-    void syncInbox().catch(() => {
-      // La bandeja local debe seguir disponible aunque falle el sync automático.
-    });
+    setSearchInput(homeSearch.query);
+    setSearch(homeSearch.query.trim());
   }, [
-    hasActiveIntegrations,
-    loading,
-    syncInbox,
-    syncing,
+    homeSearch.active,
+    homeSearch.query,
   ]);
+
+  useEffect(() => {
+    if (!hasActiveIntegrations) {
+      return;
+    }
+
+    let cancelled = false;
+
+    const run = () => {
+      if (
+        cancelled
+        || autoSyncInFlightRef.current
+        || document.visibilityState === 'hidden'
+      ) {
+        return;
+      }
+
+      autoSyncInFlightRef.current = true;
+
+      void syncInboxRef.current()
+        .catch(() => {
+          clearErrorRef.current();
+        })
+        .finally(() => {
+          autoSyncInFlightRef.current = false;
+        });
+    };
+
+    run();
+
+    const intervalId = window.setInterval(
+      run,
+      3 * 60 * 1000,
+    );
+
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') {
+        run();
+      }
+    };
+
+    document.addEventListener('visibilitychange', onVisible);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(intervalId);
+      document.removeEventListener(
+        'visibilitychange',
+        onVisible,
+      );
+    };
+  }, [hasActiveIntegrations]);
 
   useEffect(() => {
     setSelectedId(null);
@@ -391,6 +443,13 @@ export default function MailModule({
     showSyncFeedback,
     updateMessageState,
   ]);
+
+  useEffect(() => {
+    if (pendingHit?.kind !== 'correo') return;
+    const messageId = pendingHit.id;
+    consumePendingHit();
+    void openMessage(messageId);
+  }, [consumePendingHit, openMessage, pendingHit]);
 
   const handleSync = useCallback(() => {
     if (syncing) {
@@ -619,16 +678,22 @@ export default function MailModule({
     account !== 'all',
   );
 
+  const readingOpen = selectedId !== null;
+
   return (
-    <div className="relative flex min-h-full bg-white">
+    <div className="relative flex h-full min-h-0 overflow-hidden bg-white">
       <MailFolderRail
         folder={folder}
         onSelectFolder={setFolder}
         messages={messages}
       />
 
-      <section className="flex min-w-[380px] max-w-[460px] flex-[0_0_40%] flex-col border-r border-neutral-200 bg-white">
-        <header className="space-y-3 border-b border-neutral-100 p-4">
+      <section
+        className={`h-full min-h-0 min-w-0 flex-col overflow-hidden border-r border-neutral-200 bg-white md:flex md:w-[min(40%,460px)] md:max-w-[460px] md:flex-none ${
+          readingOpen ? 'hidden' : 'flex flex-1'
+        }`}
+      >
+        <header className="shrink-0 space-y-3 border-b border-neutral-100 p-4">
           <div className="flex items-center justify-between gap-2">
             <div className="relative min-w-0">
               <button
@@ -832,7 +897,7 @@ export default function MailModule({
         ) : null}
 
         <div
-          className="min-h-0 flex-1 overflow-y-auto"
+          className="min-h-0 flex-1 overflow-y-auto overscroll-contain pb-6"
           onScroll={(event) => {
             const element = event.currentTarget;
 
@@ -961,9 +1026,23 @@ export default function MailModule({
         </div>
       </section>
 
-      <main className="flex min-w-0 flex-1 flex-col bg-neutral-50/50">
+      <main
+        className={`h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-neutral-50/50 ${
+          readingOpen ? 'flex' : 'hidden md:flex'
+        }`}
+      >
         {detailLoading ? (
-          <div className="flex flex-1 items-center justify-center">
+          <div className="flex min-h-0 flex-1 flex-col items-center justify-center px-6">
+            <button
+              type="button"
+              onClick={() => {
+                setSelectedId(null);
+                setSelectedEmail(null);
+              }}
+              className="mb-6 text-sm font-medium text-neutral-600 md:hidden"
+            >
+              Volver a la lista
+            </button>
             <div className="text-center">
               <span className="mx-auto block h-8 w-8 animate-spin rounded-full border-2 border-brand-primary border-t-transparent" />
 
@@ -999,8 +1078,20 @@ export default function MailModule({
             })}
           />
         ) : (
-          <div className="flex flex-1 items-center justify-center p-12 text-center">
+          <div className="flex min-h-0 flex-1 flex-col items-center justify-center p-12 text-center">
             <div className="max-w-xs space-y-3">
+              {readingOpen ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedId(null);
+                    setSelectedEmail(null);
+                  }}
+                  className="text-sm font-medium text-neutral-600 md:hidden"
+                >
+                  Volver a la lista
+                </button>
+              ) : null}
               <Mail className="mx-auto h-12 w-12 text-neutral-300" />
 
               <h3 className="text-sm font-semibold text-neutral-700">
@@ -1101,7 +1192,7 @@ function EmptyState({
   onSecondaryAction?: () => void;
 }) {
   return (
-    <div className="flex h-full min-h-[420px] flex-col items-center justify-center px-10 py-16 text-center">
+    <div className="flex h-full min-h-full flex-col items-center justify-center px-10 py-10 text-center">
       <div
         className={`flex h-20 w-20 items-center justify-center rounded-full border ${
           warning

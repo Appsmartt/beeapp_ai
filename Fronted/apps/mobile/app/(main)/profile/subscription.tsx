@@ -1,67 +1,124 @@
-import {
-  useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   ScrollView,
   TouchableOpacity,
+  ActivityIndicator,
 } from 'react-native';
 import { appAlert } from '../../../src/components/feedback/appAlert';
 import ScreenSafeArea from '../../../src/components/layout/ScreenSafeArea';
 import { useRouter } from 'expo-router';
+import * as WebBrowser from 'expo-web-browser';
 import { colors } from '@beeapp/design-system';
-import { ChevronLeft, Check, Sparkles, Database, AlertCircle, RefreshCw, CreditCard } from 'lucide-react-native';
-import { BENEFICIOS_PLUS } from '../../../src/mocks/subscription';
+import { ChevronLeft, Check, Sparkles, Database, RefreshCw } from 'lucide-react-native';
+import {
+  cancelSubscription,
+  getMySubscription,
+  listPublicPlans,
+  reactivateSubscription,
+  startBillingCheckout,
+  type PlanUsage,
+  type PublicPlan,
+} from '@beeapp/api-client';
 import FloatingTabBar from '../../../src/components/FloatingTabBar';
 
+function cop(value: number): string {
+  return new Intl.NumberFormat('es-CO', {
+    style: 'currency',
+    currency: 'COP',
+    maximumFractionDigits: 0,
+  }).format(value);
+}
+
+function gb(bytes: number): string {
+  return `${(bytes / 1073741824).toFixed(1)} GB`;
+}
 
 export default function SubscriptionScreen() {
   const router = useRouter();
+  const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState(false);
+  const [plans, setPlans] = useState<PublicPlan[]>([]);
+  const [current, setCurrent] = useState<PublicPlan | null>(null);
+  const [usage, setUsage] = useState<PlanUsage>({});
+  const [periodEnd, setPeriodEnd] = useState('');
+  const [cancelled, setCancelled] = useState(false);
+  const [billingCycle, setBillingCycle] = useState<'monthly' | 'yearly'>('monthly');
 
-  // Local state to simulate subscription plan stages:
-  // 'free' | 'plus_active' | 'plus_cancelled'
-  const [subStatus, setSubStatus] = useState<'free' | 'plus_active' | 'plus_cancelled'>('free');
-  const [billingCycle, setBillingCycle] = useState<'monthly' | 'yearly'>('yearly');
+  const load = useCallback(async () => {
+    const [subscription, catalog] = await Promise.all([
+      getMySubscription(),
+      listPublicPlans(),
+    ]);
+    setPlans(catalog);
+    setCurrent(subscription.plan);
+    setUsage(subscription.usage || {});
+    const end = subscription.subscription?.current_period_end;
+    setPeriodEnd(end ? new Date(String(end)).toLocaleString('es-CO') : '');
+    setCancelled(Boolean(subscription.subscription?.cancelled_at));
+  }, []);
 
-  const priceText = billingCycle === 'monthly' ? '$9.99 USD' : '$7.99 USD';
-  const billingPeriod = billingCycle === 'monthly' ? '/mes' : '/mes (facturado anual)';
+  useEffect(() => {
+    load()
+      .catch((error: unknown) => {
+        appAlert('Planes', error instanceof Error ? error.message : 'No se pudo cargar tu plan.');
+      })
+      .finally(() => setLoading(false));
+  }, [load]);
 
-  const handleCancelSubscription = () => {
+  const pay = async (plan: PublicPlan) => {
+    setBusy(true);
+    try {
+      const checkout = await startBillingCheckout({
+        planId: plan.id,
+        billingPeriod: billingCycle,
+        redirectUrl: 'beeapp://subscription',
+      });
+      await WebBrowser.openAuthSessionAsync(checkout.url, 'beeapp://subscription');
+      await load();
+    } catch (error) {
+      appAlert('Pago', error instanceof Error ? error.message : 'No se pudo abrir Wompi.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const cancel = () => {
     appAlert(
-      'Cancelar Suscripción',
-      '¿Estás seguro de que deseas cancelar tu plan Buddy Plus? Mantendrás el acceso a todas las funciones premium hasta el 15 de Agosto de 2026.',
+      'Cancelar suscripción',
+      periodEnd
+        ? `Mantienes el plan hasta ${periodEnd}. Después vuelves a Free porque el pago no se renueva solo.`
+        : 'El acceso sigue hasta el final del periodo que ya pagaste.',
       [
+        { text: 'Volver', style: 'cancel' },
         {
-          text: 'Volver',
-          style: 'cancel',
-        },
-        {
-          text: 'Confirmar Cancelación',
+          text: 'Confirmar',
           style: 'destructive',
           onPress: () => {
-            setSubStatus('plus_cancelled');
-            appAlert('Suscripción Cancelada', 'Tu plan se cancelará al finalizar el ciclo de facturación actual.');
+            setBusy(true);
+            cancelSubscription()
+              .then(() => load())
+              .catch((error: unknown) => {
+                appAlert('Planes', error instanceof Error ? error.message : 'No se pudo cancelar.');
+              })
+              .finally(() => setBusy(false));
           },
         },
-      ]
+      ],
     );
   };
 
-  const handleReactivateSubscription = () => {
-    setSubStatus('plus_active');
-    appAlert('Suscripción Reactivada', '¡Gracias por continuar con Buddy Plus!');
-  };
-
-  const handleUpgradeSubscription = () => {
-    setSubStatus('plus_active');
-    appAlert('¡Mejorado a Plus!', 'Tu cuenta ha sido mejorada al plan Buddy Plus con éxito.');
-  };
+  const fileLimit = Number(current?.entitlements?.filesGb ?? current?.storage_gb ?? 0);
+  const fileLabel = fileLimit > 0
+    ? `${gb(Number(usage.filesBytes || 0))} de ${fileLimit} GB`
+    : `${gb(Number(usage.filesBytes || 0))} en uso`;
+  const purchasable = plans.filter((plan) => plan.purchasable && plan.id !== current?.id);
 
   return (
     <ScreenSafeArea style={styles.safeArea}>
       <View style={styles.container}>
-        {/* Header */}
         <View style={styles.header}>
           <TouchableOpacity onPress={() => router.back()} style={styles.backBtn} activeOpacity={0.7}>
             <ChevronLeft size={24} color={colors.neutral.text} />
@@ -70,235 +127,111 @@ export default function SubscriptionScreen() {
           <View style={{ width: 32 }} />
         </View>
 
-        <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
-          
-          {/* AJUSTE 4: Seccion de MI PLAN ACTUAL */}
-          <Text style={styles.sectionHeader}>Mi Plan Actual</Text>
-          
-          {subStatus === 'free' && (
+        {loading ? (
+          <ActivityIndicator color={colors.brand.primary} style={{ marginTop: 40 }} />
+        ) : (
+          <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
+            <Text style={styles.sectionHeader}>Mi Plan Actual</Text>
             <View style={styles.planStatusCard}>
               <View style={styles.statusBadgeRow}>
-                <View style={[styles.statusDot, { backgroundColor: colors.neutral.gray500 }]} />
-                <Text style={styles.statusLabelText}>Plan Activo: Buddy Gratis</Text>
+                <View style={[styles.statusDot, { backgroundColor: current?.id === 'free' ? colors.neutral.gray500 : colors.semantic.success }]} />
+                <Text style={styles.statusLabelText}>Plan activo: {current?.name || 'Free'}</Text>
               </View>
               <Text style={styles.statusDescription}>
-                Tu plan actual es gratuito. Tienes funciones de organización básicas con límites de almacenamiento.
+                {current?.description || 'Tu plan se cobra en pesos, por un periodo.'}
               </Text>
+              {periodEnd ? (
+                <Text style={styles.storageText}>
+                  {cancelled ? `Acceso hasta ${periodEnd}. Luego vuelves a Free.` : `Vigente hasta ${periodEnd}.`}
+                </Text>
+              ) : null}
               <View style={styles.divider} />
               <View style={styles.storageHeaderRow}>
                 <Database size={16} color={colors.neutral.gray600} style={{ marginRight: 8 }} />
-                <Text style={styles.storageText}>8.2 GB de 15 GB usados (55%)</Text>
+                <Text style={styles.storageText}>{fileLabel}</Text>
               </View>
-              <TouchableOpacity
-                style={styles.primaryActionBtn}
-                onPress={handleUpgradeSubscription}
-                activeOpacity={0.8}
-              >
-                <Sparkles size={14} color={colors.neutral.white} style={{ marginRight: 6 }} />
-                <Text style={styles.primaryActionBtnText}>Mejorar a Buddy Plus</Text>
-              </TouchableOpacity>
-            </View>
-          )}
-
-          {subStatus === 'plus_active' && (
-            <View style={[styles.planStatusCard, styles.planStatusCardPremium]}>
-              <View style={styles.statusBadgeRow}>
-                <View style={[styles.statusDot, { backgroundColor: colors.semantic.success }]} />
-                <Text style={[styles.statusLabelText, { color: colors.brand.primary }]}>
-                  Plan Activo: Buddy Plus
-                </Text>
-                <View style={styles.activePlanPill}>
-                  <Sparkles size={10} color={colors.brand.primary} style={{ marginRight: 4 }} />
-                  <Text style={styles.activePlanPillText}>Premium</Text>
-                </View>
-              </View>
-              <Text style={styles.statusDescription}>
-                Tu suscripción está activa y se renovará automáticamente.
+              <Text style={styles.storageText}>
+                {`IA: ${Number(usage.aiCredits || 0)} créditos usados este mes · Llamadas: ${Number(usage.callMinutes || 0)} min`}
               </Text>
-              
-              <View style={styles.subDetailBox}>
-                <View style={styles.subDetailRow}>
-                  <CreditCard size={14} color={colors.neutral.gray700} style={{ marginRight: 8 }} />
-                  <Text style={styles.subDetailText}>Método de Pago: Visa terminada en 4242</Text>
-                </View>
-                <View style={styles.subDetailRow}>
-                  <RefreshCw size={14} color={colors.neutral.gray700} style={{ marginRight: 8 }} />
-                  <Text style={styles.subDetailText}>Próximo Cobro: 15 de Agosto, 2026 ($7.99 USD)</Text>
-                </View>
-              </View>
-
-              <View style={styles.divider} />
-              <View style={styles.storageHeaderRow}>
-                <Database size={16} color={colors.brand.primary} style={{ marginRight: 8 }} />
-                <Text style={[styles.storageText, { color: colors.neutral.text }]}>
-                  8.2 GB de Almacenamiento Ilimitado usado
-                </Text>
-              </View>
-              <TouchableOpacity
-                style={styles.dangerActionBtn}
-                onPress={handleCancelSubscription}
-                activeOpacity={0.8}
-              >
-                <Text style={styles.dangerActionBtnText}>Cancelar Suscripción</Text>
-              </TouchableOpacity>
-            </View>
-          )}
-
-          {subStatus === 'plus_cancelled' && (
-            <View style={[styles.planStatusCard, styles.planStatusCardWarning]}>
-              <View style={styles.statusBadgeRow}>
-                <View style={[styles.statusDot, { backgroundColor: colors.semantic.error }]} />
-                <Text style={[styles.statusLabelText, { color: colors.semantic.error }]}>
-                  Suscripción en Fase de Cancelación
-                </Text>
-              </View>
-              <Text style={styles.statusDescription}>
-                Has cancelado tu suscripción. Perderás el acceso a los beneficios premium el 15 de Agosto de 2026.
-              </Text>
-              
-              <View style={styles.warningAlertBox}>
-                <AlertCircle size={16} color="#B45309" style={{ marginRight: 8 }} />
-                <Text style={styles.warningAlertText}>
-                  Vence el 15 de Agosto, 2026. Al vencer, tu almacenamiento volverá al límite de 15 GB.
-                </Text>
-              </View>
-
-              <View style={styles.divider} />
-              <TouchableOpacity
-                style={styles.primaryActionBtn}
-                onPress={handleReactivateSubscription}
-                activeOpacity={0.8}
-              >
-                <RefreshCw size={14} color={colors.neutral.white} style={{ marginRight: 6 }} />
-                <Text style={styles.primaryActionBtnText}>Reactivar Suscripción</Text>
-              </TouchableOpacity>
-            </View>
-          )}
-
-          {/* Comparative Plans Section */}
-          <Text style={[styles.sectionHeader, { marginTop: 28 }]}>Planes Disponibles</Text>
-
-          {/* Billing Cycle Switch */}
-          <View style={styles.cycleSwitchContainer}>
-            <TouchableOpacity
-              style={[styles.cycleBtn, billingCycle === 'monthly' && styles.cycleBtnActive]}
-              onPress={() => setBillingCycle('monthly')}
-              activeOpacity={0.7}
-            >
-              <Text style={[styles.cycleBtnText, billingCycle === 'monthly' && styles.cycleBtnTextActive]}>
-                Mensual
-              </Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[styles.cycleBtn, billingCycle === 'yearly' && styles.cycleBtnActive]}
-              onPress={() => setBillingCycle('yearly')}
-              activeOpacity={0.7}
-            >
-              <View style={styles.yearlyBtnContent}>
-                <Text style={[styles.cycleBtnText, billingCycle === 'yearly' && styles.cycleBtnTextActive]}>
-                  Anual
-                </Text>
-                <View style={styles.discountBadge}>
-                  <Text style={styles.discountBadgeText}>-20%</Text>
-                </View>
-              </View>
-            </TouchableOpacity>
-          </View>
-
-          {/* Plan Comparison Cards */}
-          <View style={styles.plansColumn}>
-            
-            {/* Plan Buddy Plus (Premium - Highlighted) */}
-            <View style={styles.premiumCard}>
-              <View style={styles.premiumBadgeRow}>
-                <Sparkles size={14} color={colors.neutral.white} style={{ marginRight: 6 }} />
-                <Text style={styles.premiumBadgeText}>RECOMENDADO</Text>
-              </View>
-
-              <Text style={styles.planNameTextPremium}>Buddy Plus</Text>
-              <Text style={styles.planDescTextPremium}>
-                Acceso completo e ilimitado para potenciar tu productividad corporativa.
-              </Text>
-
-              <View style={styles.priceRow}>
-                <Text style={styles.priceNumberPremium}>{priceText}</Text>
-                <Text style={styles.pricePeriodPremium}>{billingPeriod}</Text>
-              </View>
-
-              {subStatus !== 'plus_active' ? (
-                <TouchableOpacity
-                  style={styles.premiumBtn}
-                  onPress={handleUpgradeSubscription}
-                  activeOpacity={0.8}
-                >
-                  <Text style={styles.premiumBtnText}>Mejorar a Plus</Text>
+              {current && current.id !== 'free' ? (
+                <TouchableOpacity style={styles.dangerActionBtn} onPress={cancel} disabled={busy}>
+                  <Text style={styles.dangerActionBtnText}>
+                    {cancelled ? 'Cancelación registrada' : 'No renovar al final del periodo'}
+                  </Text>
                 </TouchableOpacity>
-              ) : (
-                <View style={styles.alreadyActivePremiumBadge}>
-                  <Text style={styles.alreadyActivePremiumText}>Plan Activo</Text>
-                </View>
-              )}
+              ) : null}
+              {cancelled ? (
+                <TouchableOpacity
+                  style={[styles.primaryActionBtn, { marginTop: 8 }]}
+                  disabled={busy}
+                  onPress={() => {
+                    setBusy(true);
+                    reactivateSubscription()
+                      .then(() => load())
+                      .catch((error: unknown) => appAlert('Planes', error instanceof Error ? error.message : 'No se pudo reactivar.'))
+                      .finally(() => setBusy(false));
+                  }}
+                >
+                  <RefreshCw size={14} color={colors.neutral.white} style={{ marginRight: 6 }} />
+                  <Text style={styles.primaryActionBtnText}>Quitar la cancelación</Text>
+                </TouchableOpacity>
+              ) : null}
+            </View>
 
-              <View style={styles.dividerPremium} />
+            <Text style={[styles.sectionHeader, { marginTop: 28 }]}>Planes disponibles</Text>
+            <View style={styles.cycleSwitchContainer}>
+              <TouchableOpacity
+                style={[styles.cycleBtn, billingCycle === 'monthly' && styles.cycleBtnActive]}
+                onPress={() => setBillingCycle('monthly')}
+              >
+                <Text style={[styles.cycleBtnText, billingCycle === 'monthly' && styles.cycleBtnTextActive]}>Mensual</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.cycleBtn, billingCycle === 'yearly' && styles.cycleBtnActive]}
+                onPress={() => setBillingCycle('yearly')}
+              >
+                <Text style={[styles.cycleBtnText, billingCycle === 'yearly' && styles.cycleBtnTextActive]}>Anual</Text>
+              </TouchableOpacity>
+            </View>
 
-              <Text style={styles.beneficiosTitlePremium}>Incluye todos los beneficios:</Text>
-              <View style={styles.beneficiosList}>
-                {BENEFICIOS_PLUS.map((ben, i) => (
-                  <View key={i} style={styles.beneficioRow}>
-                    <View style={styles.checkWrapPremium}>
-                      <Check size={10} color={colors.brand.primary} strokeWidth={3} />
+            <View style={styles.plansColumn}>
+              {purchasable.map((plan) => {
+                const price = billingCycle === 'yearly' ? Number(plan.yearly_price) : Number(plan.monthly_price);
+                const highlights = Array.isArray(plan.highlights) ? plan.highlights : [];
+                return (
+                  <View key={plan.id} style={styles.premiumCard}>
+                    <View style={styles.premiumBadgeRow}>
+                      <Sparkles size={14} color={colors.neutral.white} style={{ marginRight: 6 }} />
+                      <Text style={styles.premiumBadgeText}>{plan.name.toUpperCase()}</Text>
                     </View>
-                    <Text style={styles.beneficioTextPremium}>{ben}</Text>
+                    <Text style={styles.planNameTextPremium}>{plan.name}</Text>
+                    <Text style={styles.planDescTextPremium}>{plan.description || ''}</Text>
+                    <View style={styles.priceRow}>
+                      <Text style={styles.priceNumberPremium}>{cop(price)}</Text>
+                      <Text style={styles.pricePeriodPremium}>{billingCycle === 'yearly' ? '/año' : '/mes'}</Text>
+                    </View>
+                    <TouchableOpacity style={styles.premiumBtn} disabled={busy || price <= 0} onPress={() => void pay(plan)}>
+                      <Text style={styles.premiumBtnText}>{busy ? 'Abriendo Wompi…' : `Pagar ${plan.name}`}</Text>
+                    </TouchableOpacity>
+                    <View style={styles.dividerPremium} />
+                    <Text style={styles.beneficiosTitlePremium}>Incluye</Text>
+                    <View style={styles.beneficiosList}>
+                      {highlights.map((item) => (
+                        <View key={item} style={styles.beneficioRow}>
+                          <View style={styles.checkWrapPremium}>
+                            <Check size={10} color={colors.brand.primary} strokeWidth={3} />
+                          </View>
+                          <Text style={styles.beneficioTextPremium}>{item}</Text>
+                        </View>
+                      ))}
+                    </View>
                   </View>
-                ))}
-              </View>
+                );
+              })}
             </View>
-
-            {/* Plan Gratis (Standard) */}
-            <View style={styles.standardCard}>
-              <Text style={styles.planNameText}>Buddy Gratis</Text>
-              <Text style={styles.planDescText}>
-                Plan básico ideal para organizar tus tareas y notas iniciales.
-              </Text>
-
-              <View style={styles.priceRow}>
-                <Text style={styles.priceNumber}>$0 USD</Text>
-                <Text style={styles.pricePeriod}>/siempre gratis</Text>
-              </View>
-
-              <View style={styles.divider} />
-
-              <Text style={styles.beneficiosTitle}>Características de plan gratuito:</Text>
-              <View style={styles.beneficiosList}>
-                <View style={styles.beneficioRow}>
-                  <View style={styles.checkWrap}>
-                    <Check size={10} color={colors.neutral.gray600} strokeWidth={3} />
-                  </View>
-                  <Text style={styles.beneficioText}>Hasta 15 GB de almacenamiento</Text>
-                </View>
-                <View style={styles.beneficioRow}>
-                  <View style={styles.checkWrap}>
-                    <Check size={10} color={colors.neutral.gray600} strokeWidth={3} />
-                  </View>
-                  <Text style={styles.beneficioText}>Soporte para 1 dispositivo</Text>
-                </View>
-                <View style={styles.beneficioRow}>
-                  <View style={styles.checkWrap}>
-                    <Check size={10} color={colors.neutral.gray600} strokeWidth={3} />
-                  </View>
-                  <Text style={styles.beneficioText}>Integración básica de correo</Text>
-                </View>
-              </View>
-            </View>
-
-          </View>
-
-          {/* Clearance for the floating menu */}
-          <View style={{ height: 100 }} />
-        </ScrollView>
-
-        {/* Assistant always within reach */}
+            <View style={{ height: 100 }} />
+          </ScrollView>
+        )}
         <FloatingTabBar />
       </View>
     </ScreenSafeArea>

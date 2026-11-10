@@ -8,6 +8,7 @@ interface MemberListSectionProps {
   canManage: boolean;
   onAdd: () => void;
   onRemove: (memberId: string) => void;
+  onToggleRole?: (member: GroupMember) => void;
 }
 
 const ROLE_LABEL: Record<GroupMember['role'], string> = {
@@ -20,6 +21,7 @@ export default function MemberListSection({
   canManage,
   onAdd,
   onRemove,
+  onToggleRole,
 }: MemberListSectionProps) {
   const ordered = [...members].sort((a, b) => Number(!!b.isCurrentUser) - Number(!!a.isCurrentUser));
 
@@ -60,16 +62,27 @@ export default function MemberListSection({
               <p className="text-xs font-normal text-neutral-500">{ROLE_LABEL[member.role]}</p>
             </div>
 
-            {canManage && member.role !== 'admin' && (
-              <button
-                type="button"
-                onClick={() => onRemove(member.id)}
-                className="p-1.5 text-neutral-400 hover:text-neutral-700 rounded-lg hover:bg-neutral-100 shrink-0"
-                title={`Quitar a ${member.name}`}
-              >
-                <X className="w-4 h-4" />
-              </button>
-            )}
+            {canManage && !member.isCurrentUser ? (
+              <div className="flex shrink-0 items-center gap-1">
+                {onToggleRole ? (
+                  <button
+                    type="button"
+                    onClick={() => onToggleRole(member)}
+                    className="rounded-lg px-2 py-1 text-[11px] font-medium text-brand-primary hover:bg-brand-primary/10"
+                  >
+                    {member.role === 'admin' ? 'Quitar admin' : 'Hacer admin'}
+                  </button>
+                ) : null}
+                <button
+                  type="button"
+                  onClick={() => onRemove(member.id)}
+                  className="p-1.5 text-neutral-400 hover:text-neutral-700 rounded-lg hover:bg-neutral-100 shrink-0"
+                  title={`Quitar a ${member.name}`}
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            ) : null}
           </div>
         ))}
       </div>

@@ -5,6 +5,7 @@ import {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from 'react';
 import {
@@ -31,26 +32,28 @@ import {
   getCurrentWebCalendarBootstrap,
   getCurrentWebCalendarConflicts,
   respondCurrentWebCalendarEvent,
+  syncCalendarIntegration,
   updateCurrentWebCalendarEvent,
 } from '@beeapp/api-client';
+import { useIntegrations } from '@/hooks/useIntegrations';
+import { getWebAuth } from '@/lib/client/webAuth';
+import {
+  homeSearchEmptyCopy,
+  useHomeModuleSearch,
+  useHomeSearch,
+} from '@/components/client/home/HomeSearchContext';
 import type {
   Calendar,
   CalendarConflict,
   CalendarEvent,
+  CalendarEventAttendee,
   CalendarEventKind,
+  CalendarEventSource,
   CalendarPreferences,
   CreateCalendarEventPayload,
   UpdateCalendarEventPayload,
 } from '@beeapp/shared-types';
-
-import ModuleNotificationBell from '../ModuleNotificationBell';
-
-type CalendarFilter =
-  | 'all'
-  | 'upcoming'
-  | 'past'
-  | 'meetings'
-  | 'events';
+import { useAuth } from '@/lib/auth/AuthProvider';
 
 type EventFormValues = {
   calendarId: string;
@@ -81,32 +84,6 @@ const CALENDAR_COLORS = [
   '#DB2777',
   '#9333EA',
   '#475569',
-];
-
-const FILTERS: {
-  id: CalendarFilter;
-  label: string;
-}[] = [
-  {
-    id: 'all',
-    label: 'Todos',
-  },
-  {
-    id: 'upcoming',
-    label: 'Próximos',
-  },
-  {
-    id: 'past',
-    label: 'Pasados',
-  },
-  {
-    id: 'meetings',
-    label: 'Reuniones',
-  },
-  {
-    id: 'events',
-    label: 'Eventos',
-  },
 ];
 
 function padNumber(
@@ -146,13 +123,14 @@ function parseDateKey(
 function formatMonthLabel(
   date: Date,
 ): string {
-  return date.toLocaleDateString(
+  const label = date.toLocaleDateString(
     'es-CO',
     {
       month: 'long',
       year: 'numeric',
     },
   );
+  return label.charAt(0).toUpperCase() + label.slice(1);
 }
 
 function formatSelectedDate(
@@ -329,6 +307,48 @@ function eventOverlapsDay(
   );
 }
 
+function formatEventDate(
+  event: CalendarEvent,
+): string | null {
+  const start = getEventStartDate(event);
+
+  if (!start) {
+    return null;
+  }
+
+  const dateOptions: Intl.DateTimeFormatOptions = {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+  };
+
+  if (event.is_all_day) {
+    const end = getEventEndDate(event);
+
+    const startLabel = start.toLocaleDateString(
+      'es-CO',
+      dateOptions,
+    );
+
+    if (end && !isSameDate(start, end)) {
+      const endLabel = end.toLocaleDateString(
+        'es-CO',
+        dateOptions,
+      );
+
+      return `${startLabel} – ${endLabel}`;
+    }
+
+    return startLabel;
+  }
+
+  return start.toLocaleDateString(
+    'es-CO',
+    dateOptions,
+  );
+}
+
 function formatEventTime(
   event: CalendarEvent,
 ): string {
@@ -416,13 +436,90 @@ function getDurationLabel(
     : `${hours} h`;
 }
 
-function isMeeting(
-  event: CalendarEvent,
-): boolean {
+const EVENT_KIND_LABELS: Record<CalendarEventKind, string> = {
+  in_person: 'Presencial',
+  virtual: 'Virtual',
+  hybrid: 'Híbrido',
+};
+
+const SOURCE_LABELS: Record<CalendarEventSource, string> = {
+  beeapp: 'Buddy',
+  google: 'Google',
+  microsoft: 'Outlook',
+  detached: 'Externa',
+};
+
+function looksLikeCode(value: string): boolean {
+  const text = value.trim();
   return (
-    event.event_kind === 'virtual'
-    || event.event_kind === 'hybrid'
-    || Boolean(getMeetingUrl(event))
+    /^[0-9a-f]{8}-[0-9a-f-]{8,}$/i.test(text)
+    || /^[0-9a-f]{16,}$/i.test(text)
+  );
+}
+
+function readableText(
+  value: string | null | undefined,
+  fallback: string,
+): string {
+  const text = (value || '').trim();
+  if (!text || looksLikeCode(text)) return fallback;
+  return text;
+}
+
+function eventKindLabel(event: CalendarEvent): string {
+  const custom = event.custom_type_name?.trim().toLowerCase().replace(/[_-]+/g, ' ');
+  if (custom === 'in person' || custom === 'presencial') return 'Presencial';
+  if (custom === 'virtual') return 'Virtual';
+  if (custom === 'hybrid' || custom === 'hibrido' || custom === 'híbrido') return 'Híbrido';
+  if (custom && !looksLikeCode(custom)) {
+    return event.custom_type_name!.trim();
+  }
+  return EVENT_KIND_LABELS[event.event_kind] || 'Evento';
+}
+
+function calendarDisplayName(
+  calendars: Calendar[],
+  event: CalendarEvent,
+): string {
+  const match = calendars.find((calendar) => calendar.id === event.calendar_id);
+  const name = readableText(match?.name, '');
+  if (name) return name;
+  if (match?.is_default) return 'Mi agenda';
+  return SOURCE_LABELS[event.source] || 'Agenda';
+}
+
+function personName(
+  attendee: CalendarEventAttendee | undefined,
+  fallback: string,
+): string {
+  const metadataName = typeof attendee?.metadata?.display_name === 'string'
+    ? attendee.metadata.display_name
+    : '';
+  return readableText(
+    attendee?.external_display_name || metadataName || attendee?.external_email,
+    fallback,
+  );
+}
+
+function organizerLabel(
+  event: CalendarEvent,
+  currentUserId?: string | null,
+): string {
+  if (currentUserId && event.organizer_id === currentUserId) return 'Tú';
+  const attendee = event.attendees?.find((item) => (
+    item.is_organizer || item.attendee_user_id === event.organizer_id
+  ));
+  return personName(attendee, 'Organizador');
+}
+
+function attendeeLabel(
+  attendee: CalendarEventAttendee,
+  currentUserId?: string | null,
+): string {
+  if (currentUserId && attendee.attendee_user_id === currentUserId) return 'Tú';
+  return personName(
+    attendee,
+    attendee.is_organizer ? 'Organizador' : 'Participante',
   );
 }
 
@@ -543,6 +640,9 @@ function getErrorMessage(
 }
 
 export default function CalendarModule() {
+  const { profile } = useAuth();
+  const homeSearch = useHomeModuleSearch('evento');
+  const { pendingHit, consumePendingHit } = useHomeSearch();
   const today = useMemo(
     () => new Date(),
     [],
@@ -571,11 +671,14 @@ export default function CalendarModule() {
   const [preferences, setPreferences] =
     useState<CalendarPreferences | null>(null);
 
-  const [filter, setFilter] =
-    useState<CalendarFilter>('all');
-
   const [selectedEventId, setSelectedEventId] =
     useState<string | null>(null);
+
+  useEffect(() => {
+    if (pendingHit?.kind !== 'evento') return;
+    setSelectedEventId(pendingHit.id);
+    consumePendingHit();
+  }, [consumePendingHit, pendingHit]);
 
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] =
@@ -651,6 +754,69 @@ export default function CalendarModule() {
     void loadCalendar();
   }, [loadCalendar]);
 
+  const { connections } = useIntegrations();
+  const calendarAccountKey = connections
+    .filter((connection) => (
+      connection.status === 'connected'
+      && connection.capabilities.includes('calendar')
+    ))
+    .map((connection) => connection.id)
+    .sort()
+    .join(',');
+  const loadCalendarRef = useRef(loadCalendar);
+  const lastAccountSyncAtRef = useRef(0);
+  const accountSyncInFlightRef = useRef(false);
+  loadCalendarRef.current = loadCalendar;
+
+  useEffect(() => {
+    if (!calendarAccountKey) return undefined;
+
+    const accountIds = calendarAccountKey.split(',');
+    let cancelled = false;
+
+    const run = () => {
+      const now = Date.now();
+      if (
+        cancelled
+        || accountSyncInFlightRef.current
+        || document.visibilityState === 'hidden'
+        || now - lastAccountSyncAtRef.current < 90_000
+      ) {
+        return;
+      }
+
+      lastAccountSyncAtRef.current = now;
+      accountSyncInFlightRef.current = true;
+
+      void (async () => {
+        try {
+          const auth = await getWebAuth();
+          await Promise.all(accountIds.map((accountId) => (
+            syncCalendarIntegration(auth, accountId, {}).catch(() => undefined)
+          )));
+          if (!cancelled) await loadCalendarRef.current(true);
+        } finally {
+          accountSyncInFlightRef.current = false;
+        }
+      })();
+    };
+
+    run();
+
+    const intervalId = window.setInterval(run, 3 * 60 * 1000);
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') run();
+    };
+
+    document.addEventListener('visibilitychange', onVisible);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(intervalId);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
+  }, [calendarAccountKey]);
+
   const showSuccess = (
     message: string,
   ) => {
@@ -681,44 +847,7 @@ export default function CalendarModule() {
       eventOverlapsDay(event, selectedDate),
     );
 
-    const now = new Date();
-
-    const filtered = dateEvents.filter((event) => {
-      if (filter === 'all') {
-        return true;
-      }
-
-      if (filter === 'meetings') {
-        return isMeeting(event);
-      }
-
-      if (filter === 'events') {
-        return !isMeeting(event);
-      }
-
-      const eventEnd = getEventEndDate(event);
-      const eventStart = getEventStartDate(event);
-
-      if (!eventStart) {
-        return false;
-      }
-
-      if (filter === 'past') {
-        return Boolean(
-          eventEnd
-            ? eventEnd < now
-            : eventStart < now,
-        );
-      }
-
-      return Boolean(
-        eventEnd
-          ? eventEnd >= now
-          : eventStart >= now,
-      );
-    });
-
-    return [...filtered].sort((left, right) => {
+    return [...dateEvents].sort((left, right) => {
       if (left.is_all_day !== right.is_all_day) {
         return left.is_all_day ? -1 : 1;
       }
@@ -730,8 +859,37 @@ export default function CalendarModule() {
     });
   }, [
     events,
-    filter,
     selectedDate,
+  ]);
+
+  const listedDayEvents = useMemo(() => {
+    if (!homeSearch.hasActiveQuery) {
+      return eventsForSelectedDate;
+    }
+
+  return [...events]
+    .filter((event) => (
+      homeSearch.matchesQuery(
+        event.title,
+        event.description,
+        event.location_name,
+        event.location_address,
+      )
+    ))
+    .sort((left, right) => {
+      if (left.is_all_day !== right.is_all_day) {
+        return left.is_all_day ? -1 : 1;
+      }
+
+      return (
+        (getEventStartDate(left)?.getTime() || 0)
+        - (getEventStartDate(right)?.getTime() || 0)
+      );
+    });
+  }, [
+    events,
+    eventsForSelectedDate,
+    homeSearch,
   ]);
 
   const eventsByDate = useMemo(() => {
@@ -918,16 +1076,20 @@ export default function CalendarModule() {
     }
 
     const updatePayload: UpdateCalendarEventPayload = {
-      title: values.title.trim(),
-      description: values.description.trim() || null,
-      is_all_day: values.isAllDay,
+      title: payload.title,
+      description: payload.description,
+      event_kind: payload.event_kind,
+      color: payload.color,
+      is_all_day: payload.is_all_day,
       starts_at: payload.starts_at,
       ends_at: payload.ends_at,
       starts_on: payload.starts_on,
       ends_on: payload.ends_on,
-      timezone: preferences?.timezone || 'America/Bogota',
-      location_name: values.locationName.trim() || null,
-      location_address: values.locationAddress.trim() || null,
+      timezone: payload.timezone,
+      location_name: payload.location_name,
+      location_address: payload.location_address,
+      notifications_enabled: payload.notifications_enabled,
+      conferences: payload.conferences,
     };
 
     try {
@@ -947,10 +1109,33 @@ export default function CalendarModule() {
       setConflicts(conflictResponse.conflicts);
 
       if (editingEvent) {
-        await updateCurrentWebCalendarEvent(
+        const updated = await updateCurrentWebCalendarEvent(
           editingEvent.id,
           updatePayload,
         );
+
+        setEvents((current) => current.map((event) => (
+          event.id === editingEvent.id
+            ? {
+              ...event,
+              ...updated.event,
+              title: payload.title,
+              description: payload.description ?? null,
+              color: payload.color || event.color,
+              event_kind: payload.event_kind || event.event_kind,
+              is_all_day: payload.is_all_day,
+              starts_at: payload.starts_at,
+              ends_at: payload.ends_at,
+              starts_on: payload.starts_on,
+              ends_on: payload.ends_on,
+              timezone: payload.timezone || event.timezone,
+              location_name: payload.location_name ?? null,
+              location_address: payload.location_address ?? null,
+              notifications_enabled: payload.notifications_enabled !== false,
+              conferences: payload.conferences || [],
+            }
+            : event
+        )));
 
         showSuccess(
           'Evento actualizado correctamente.',
@@ -1045,96 +1230,33 @@ export default function CalendarModule() {
     }
   };
 
+  const openDayEvent = (eventId: string) => {
+    setSelectedEventId(eventId);
+  };
+
   return (
-    <div className="flex min-h-full select-none bg-white">
-      <aside className="flex w-14 shrink-0 flex-col items-center justify-between border-r border-neutral-200 bg-white py-4">
-        <div className="flex w-full flex-col items-center gap-2">
-          {FILTERS.map((item) => {
-            const isActive = filter === item.id;
-
-            return (
-              <button
-                key={item.id}
-                type="button"
-                onClick={() => setFilter(item.id)}
-                title={item.label}
-                className={`relative flex h-10 w-10 items-center justify-center rounded-xl text-neutral-500 transition-colors ${
-                  isActive
-                    ? 'bg-brand-primary/10 text-brand-primary'
-                    : 'hover:bg-neutral-100 hover:text-neutral-900'
-                }`}
-              >
-                {item.id === 'all' ? (
-                  <CalendarDays className="h-5 w-5" />
-                ) : item.id === 'upcoming' ? (
-                  <Clock3 className="h-5 w-5" />
-                ) : item.id === 'past' ? (
-                  <CheckCircle2 className="h-5 w-5" />
-                ) : item.id === 'meetings' ? (
-                  <Video className="h-5 w-5" />
-                ) : (
-                  <CalendarDays className="h-5 w-5" />
-                )}
-
-                {isActive ? (
-                  <span className="absolute bottom-2 left-0 top-2 w-1 rounded-r-full bg-brand-primary" />
-                ) : null}
-              </button>
-            );
-          })}
-        </div>
-
-        <ModuleNotificationBell moduleId="calendar" />
-      </aside>
-
-      <section className="flex w-[410px] shrink-0 flex-col border-r border-neutral-200 bg-white xl:w-[460px]">
-        <header className="space-y-3 border-b border-neutral-100 p-4">
-          <div className="flex items-center justify-between gap-2">
-            <div>
-              <h1 className="text-base font-semibold text-neutral-900">
-                Agenda
-              </h1>
-
-              <p className="mt-0.5 text-xs text-neutral-500">
-                Organiza reuniones, compromisos y recordatorios.
-              </p>
-            </div>
-
-            <div className="flex shrink-0 items-center gap-1.5">
-              <button
-                type="button"
-                onClick={() => void loadCalendar(true)}
-                disabled={loading || refreshing || saving}
-                title="Actualizar agenda"
-                className="rounded-lg p-2 text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-brand-primary disabled:opacity-50"
-              >
-                <RefreshCw
-                  className={`h-4 w-4 ${
-                    refreshing
-                      ? 'animate-spin'
-                      : ''
-                  }`}
-                />
-              </button>
-
-              <button
-                type="button"
-                onClick={handleToday}
-                className="h-8 rounded-full border border-neutral-200 px-3 text-xs font-medium text-neutral-700 transition-colors hover:bg-neutral-50"
-              >
-                Hoy
-              </button>
-
-              <button
-                type="button"
-                onClick={openCreateModal}
-                disabled={saving}
-                className="flex h-8 items-center gap-1 rounded-full bg-brand-primary px-3 text-xs font-semibold text-white transition-colors hover:bg-brand-dark disabled:bg-neutral-300"
-              >
-                <Plus className="h-3.5 w-3.5" />
-                <span>Nuevo</span>
-              </button>
-            </div>
+    <div className="grid h-full max-h-full min-h-0 select-none grid-cols-1 overflow-hidden bg-[#F7F4FB] md:grid-cols-[minmax(300px,360px)_minmax(0,1fr)]">
+      <aside className="flex h-full min-h-0 flex-col overflow-hidden border-b border-[#E4D8F2] bg-white md:border-b-0 md:border-r">
+        <div className="shrink-0 space-y-3 border-b border-neutral-100 p-4">
+          <div className="flex items-center justify-end gap-1">
+            <button
+              type="button"
+              onClick={() => void loadCalendar(true)}
+              disabled={loading || refreshing || saving}
+              title="Actualizar agenda"
+              className="rounded-lg p-2 text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-brand-primary disabled:opacity-50"
+            >
+              <RefreshCw
+                className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`}
+              />
+            </button>
+            <button
+              type="button"
+              onClick={handleToday}
+              className="h-8 rounded-full border border-neutral-200 px-3 text-xs font-medium text-neutral-700 hover:bg-neutral-50"
+            >
+              Hoy
+            </button>
           </div>
 
           <div className="flex items-center justify-between">
@@ -1142,26 +1264,25 @@ export default function CalendarModule() {
               type="button"
               onClick={handlePreviousMonth}
               title="Mes anterior"
-              className="rounded-lg p-1.5 text-neutral-500 transition-colors hover:bg-neutral-100 hover:text-neutral-900"
+              className="rounded-lg p-1.5 text-neutral-500 hover:bg-neutral-100 hover:text-neutral-900"
             >
               <ChevronLeft className="h-4 w-4" />
             </button>
-
-            <h2 className="text-sm font-semibold capitalize text-neutral-900">
+            <h2 className="text-sm font-semibold text-neutral-900">
               {formatMonthLabel(visibleMonth)}
             </h2>
-
             <button
               type="button"
               onClick={handleNextMonth}
               title="Mes siguiente"
-              className="rounded-lg p-1.5 text-neutral-500 transition-colors hover:bg-neutral-100 hover:text-neutral-900"
+              className="rounded-lg p-1.5 text-neutral-500 hover:bg-neutral-100 hover:text-neutral-900"
             >
               <ChevronRight className="h-4 w-4" />
             </button>
           </div>
+        </div>
 
-          <div className="grid grid-cols-7 overflow-hidden rounded-xl border border-neutral-200 bg-neutral-50">
+        <div className="grid min-h-0 flex-1 auto-rows-max grid-cols-7 overflow-y-auto overscroll-contain bg-neutral-50 content-start pb-4">
             {[
               'Lun',
               'Mar',
@@ -1199,8 +1320,11 @@ export default function CalendarModule() {
                 <button
                   key={dateKey}
                   type="button"
-                  onClick={() => setSelectedDate(date)}
-                  className={`relative min-h-12 border-b border-r border-neutral-200 p-1 text-center text-[10px] transition-colors ${
+                  onClick={() => {
+                    setSelectedDate(date);
+                    setSelectedEventId(null);
+                  }}
+                  className={`flex min-h-10 flex-col items-center justify-center gap-0.5 border-b border-r border-neutral-200 px-0.5 py-1.5 text-center text-[11px] transition-colors ${
                     isSelected
                       ? 'bg-brand-primary/10 text-brand-primary'
                       : isCurrentMonth
@@ -1209,9 +1333,9 @@ export default function CalendarModule() {
                   }`}
                 >
                   <span
-                    className={`mx-auto flex h-5 w-5 items-center justify-center rounded-full ${
+                    className={`flex h-5 w-5 items-center justify-center rounded-full leading-none ${
                       isToday
-                        ? 'bg-brand-primary text-white'
+                        ? 'bg-brand-primary font-semibold text-white'
                         : ''
                     }`}
                   >
@@ -1219,7 +1343,7 @@ export default function CalendarModule() {
                   </span>
 
                   {dayEvents.length > 0 ? (
-                    <div className="mt-1 flex justify-center gap-0.5">
+                    <div className="flex h-1.5 justify-center gap-0.5">
                       {dayEvents.slice(0, 3).map((event) => (
                         <span
                           key={event.id}
@@ -1234,169 +1358,15 @@ export default function CalendarModule() {
                 </button>
               );
             })}
-          </div>
-
-          {errorMessage ? (
-            <div className="flex items-start gap-2 rounded-xl border border-red-100 bg-red-50 px-3 py-2">
-              <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-red-600" />
-
-              <p className="flex-1 text-[11px] text-red-700">
-                {errorMessage}
-              </p>
-
-              <button
-                type="button"
-                onClick={() => setErrorMessage(null)}
-                className="text-sm font-semibold text-red-600"
-                title="Cerrar error"
-              >
-                ×
-              </button>
-            </div>
-          ) : null}
-
-          {successMessage ? (
-            <div className="flex items-start gap-2 rounded-xl border border-emerald-100 bg-emerald-50 px-3 py-2">
-              <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />
-
-              <p className="flex-1 text-[11px] text-emerald-700">
-                {successMessage}
-              </p>
-
-              <button
-                type="button"
-                onClick={() => setSuccessMessage(null)}
-                className="text-sm font-semibold text-emerald-600"
-                title="Cerrar mensaje"
-              >
-                ×
-              </button>
-            </div>
-          ) : null}
-        </header>
-
-        <div className="flex-1 overflow-y-auto p-3">
-          <div className="mb-3 flex items-center justify-between">
-            <div>
-              <p className="text-xs font-semibold text-neutral-800">
-                {formatSelectedDate(selectedDate)}
-              </p>
-
-              <p className="mt-0.5 text-[11px] text-neutral-500">
-                {loading
-                  ? 'Cargando eventos...'
-                  : `${eventsForSelectedDate.length} evento(s)`}
-              </p>
-            </div>
-
-            <span className="rounded-full bg-brand-primary/10 px-2 py-1 text-[10px] font-medium text-brand-primary">
-              {FILTERS.find(
-                (item) => item.id === filter,
-              )?.label}
-            </span>
-          </div>
-
-          {loading ? (
-            <div className="space-y-2">
-              {[1, 2, 3, 4].map((index) => (
-                <div
-                  key={index}
-                  className="h-16 animate-pulse rounded-xl bg-neutral-100"
-                />
-              ))}
-            </div>
-          ) : eventsForSelectedDate.length === 0 ? (
-            <div className="space-y-3 py-16 text-center text-neutral-400">
-              <CalendarDays className="mx-auto h-10 w-10 text-neutral-300" />
-
-              <p className="text-xs">
-                No hay eventos para este día.
-              </p>
-
-              <button
-                type="button"
-                onClick={openCreateModal}
-                className="rounded-full bg-brand-primary px-4 py-2 text-xs font-semibold text-white transition-colors hover:bg-brand-dark"
-              >
-                Crear evento
-              </button>
-            </div>
-          ) : (
-            <div className="space-y-2">
-              {eventsForSelectedDate.map((event) => {
-                const isSelected =
-                  selectedEventId === event.id;
-
-                return (
-                  <button
-                    key={event.id}
-                    type="button"
-                    onClick={() =>
-                      setSelectedEventId(event.id)
-                    }
-                    className={`flex w-full items-center gap-3 rounded-xl border p-3 text-left transition-colors ${
-                      isSelected
-                        ? 'border-brand-primary bg-brand-primary/10'
-                        : 'border-neutral-200 bg-white hover:bg-neutral-50'
-                    }`}
-                  >
-                    <span
-                      className="h-10 w-1 shrink-0 rounded-full"
-                      style={{
-                        backgroundColor: event.color,
-                      }}
-                    />
-
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2">
-                        <p className="truncate text-sm font-semibold text-neutral-900">
-                          {event.title}
-                        </p>
-
-                        {event.source !== 'beeapp' ? (
-                          <span className="rounded bg-neutral-100 px-1.5 py-0.5 text-[9px] font-medium uppercase text-neutral-500">
-                            {event.source}
-                          </span>
-                        ) : null}
-                      </div>
-
-                      <p className="mt-1 flex items-center gap-1 text-[11px] text-neutral-500">
-                        <Clock3 className="h-3.5 w-3.5 shrink-0" />
-                        <span>
-                          {formatEventTime(event)}
-                        </span>
-
-                        {getDurationLabel(event) ? (
-                          <>
-                            <span>·</span>
-                            <span>
-                              {getDurationLabel(event)}
-                            </span>
-                          </>
-                        ) : null}
-                      </p>
-
-                      {event.location_name ? (
-                        <p className="mt-1 flex items-center gap-1 truncate text-[11px] text-neutral-500">
-                          <MapPin className="h-3.5 w-3.5 shrink-0" />
-                          <span>
-                            {event.location_name}
-                          </span>
-                        </p>
-                      ) : null}
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-          )}
         </div>
-      </section>
+      </aside>
 
-      <main className="flex min-w-0 flex-1 flex-col bg-neutral-50/50">
+      <main className="flex h-full max-h-full min-h-0 min-w-0 flex-col overflow-hidden bg-[#FAF8FC]">
         {selectedEvent ? (
           <CalendarEventPanel
             event={selectedEvent}
+            calendars={calendars}
+            currentUserId={profile?.id}
             saving={saving}
             onBack={() => setSelectedEventId(null)}
             onEdit={() => openEditModal(selectedEvent)}
@@ -1408,20 +1378,143 @@ export default function CalendarModule() {
             }}
           />
         ) : (
-          <div className="flex flex-1 items-center justify-center p-12 text-center">
-            <div className="max-w-sm space-y-3">
-              <CalendarDays className="mx-auto h-12 w-12 text-neutral-300" />
+          <>
+            <header className="shrink-0 border-b border-[#E7DDF2] bg-white px-5 py-4">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="text-[11px] font-semibold uppercase tracking-wide text-brand-primary">
+                    Día seleccionado
+                  </p>
+                  <h2 className="mt-0.5 text-base font-semibold capitalize text-neutral-900">
+                    {formatSelectedDate(selectedDate)}
+                  </h2>
+                  <p className="mt-1 text-xs text-neutral-500">
+                    {loading
+                      ? 'Cargando eventos...'
+                      : homeSearch.hasActiveQuery
+                        ? `${listedDayEvents.length} coincidencia(s)`
+                        : `${eventsForSelectedDate.length} evento(s)`}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={openCreateModal}
+                  disabled={saving}
+                  className="flex h-9 shrink-0 items-center gap-1.5 rounded-xl bg-brand-primary px-4 text-xs font-semibold text-white hover:bg-brand-dark disabled:opacity-50"
+                >
+                  <Plus className="h-4 w-4" />
+                  Nuevo evento
+                </button>
+              </div>
 
-              <h3 className="text-sm font-semibold text-neutral-700">
-                Ningún evento seleccionado
-              </h3>
+              {errorMessage ? (
+                <div className="mt-3 flex items-start gap-2 rounded-xl border border-red-100 bg-red-50 px-3 py-2">
+                  <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-red-600" />
+                  <p className="flex-1 text-xs text-red-700">{errorMessage}</p>
+                  <button type="button" onClick={() => setErrorMessage(null)} className="text-red-600">×</button>
+                </div>
+              ) : null}
 
-              <p className="text-xs leading-relaxed text-neutral-500">
-                Selecciona un evento de la lista para ver sus
-                detalles, responder una invitación o editarlo.
-              </p>
+              {successMessage ? (
+                <div className="mt-3 flex items-start gap-2 rounded-xl border border-emerald-100 bg-emerald-50 px-3 py-2">
+                  <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />
+                  <p className="flex-1 text-xs text-emerald-700">{successMessage}</p>
+                  <button type="button" onClick={() => setSuccessMessage(null)} className="text-emerald-600">×</button>
+                </div>
+              ) : null}
+            </header>
+
+            <div className="h-0 min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 py-4 pb-6 [scrollbar-gutter:stable]">
+              {loading ? (
+                <div className="mx-auto max-w-2xl space-y-3">
+                  {[1, 2, 3].map((index) => (
+                    <div key={index} className="h-20 animate-pulse rounded-2xl bg-white" />
+                  ))}
+                </div>
+              ) : listedDayEvents.length === 0 ? (
+                <div className="mx-auto flex max-w-md flex-col items-center rounded-2xl border border-[#E7DDF2] bg-white px-6 py-12 text-center">
+                  <CalendarDays className="h-12 w-12 text-neutral-300" />
+                  {homeSearch.hasActiveQuery ? (
+                    <>
+                      <p className="mt-3 text-sm font-semibold text-[#432064]">
+                        {homeSearchEmptyCopy(homeSearch.query).title}
+                      </p>
+                      <p className="mt-1 text-xs text-[#786593]">
+                        {homeSearchEmptyCopy(homeSearch.query).description}
+                      </p>
+                    </>
+                  ) : (
+                    <>
+                      <p className="mt-3 text-sm font-medium text-neutral-800">
+                        Sin eventos este día
+                      </p>
+                      <p className="mt-1 text-xs text-neutral-500">
+                        Elige otra fecha en el calendario o crea un compromiso nuevo.
+                      </p>
+                    </>
+                  )}
+                  <button
+                    type="button"
+                    onClick={openCreateModal}
+                    className="mt-4 rounded-full bg-brand-primary px-5 py-2.5 text-xs font-semibold text-white hover:bg-brand-dark"
+                  >
+                    Crear evento
+                  </button>
+                </div>
+              ) : (
+                <div className="mx-auto max-w-2xl space-y-3">
+                  {listedDayEvents.map((event) => (
+                    <button
+                      key={event.id}
+                      type="button"
+                      onClick={() => openDayEvent(event.id)}
+                      className="flex w-full gap-3 rounded-2xl border border-[#E7DDF2] bg-white p-4 text-left shadow-sm transition-shadow hover:shadow-md"
+                    >
+                      <span
+                        className="mt-0.5 h-12 w-1.5 shrink-0 rounded-full"
+                        style={{ backgroundColor: event.color }}
+                      />
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <p className="text-sm font-semibold text-neutral-900">
+                            {event.title}
+                          </p>
+                          {event.source !== 'beeapp' ? (
+                            <span className="rounded-full bg-neutral-100 px-2 py-0.5 text-[10px] font-medium text-neutral-600">
+                              {SOURCE_LABELS[event.source]}
+                            </span>
+                          ) : null}
+                        </div>
+                        <p className="mt-1.5 flex flex-wrap items-center gap-1 text-xs capitalize text-neutral-600">
+                          <CalendarDays className="h-3.5 w-3.5 shrink-0 text-brand-primary" />
+                          <span>{formatEventDate(event) ?? formatSelectedDate(selectedDate)}</span>
+                        </p>
+                        <p className="mt-1 flex flex-wrap items-center gap-1 text-xs text-neutral-600">
+                          <Clock3 className="h-3.5 w-3.5 shrink-0 text-brand-primary" />
+                          <span>{formatEventTime(event)}</span>
+                          {getDurationLabel(event) ? (
+                            <>
+                              <span className="text-neutral-300">·</span>
+                              <span>{getDurationLabel(event)}</span>
+                            </>
+                          ) : null}
+                        </p>
+                        {event.location_name ? (
+                          <p className="mt-1 flex items-center gap-1 text-xs text-neutral-500">
+                            <MapPin className="h-3.5 w-3.5 shrink-0" />
+                            <span className="truncate">{event.location_name}</span>
+                          </p>
+                        ) : null}
+                        <p className="mt-2 text-[11px] font-medium text-brand-primary">
+                          Ver detalle →
+                        </p>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
-          </div>
+          </>
         )}
       </main>
 
@@ -1459,6 +1552,8 @@ export default function CalendarModule() {
 
 function CalendarEventPanel({
   event,
+  calendars,
+  currentUserId,
   saving,
   onBack,
   onEdit,
@@ -1466,6 +1561,8 @@ function CalendarEventPanel({
   onRsvp,
 }: {
   event: CalendarEvent;
+  calendars: Calendar[];
+  currentUserId?: string | null;
   saving: boolean;
   onBack: () => void;
   onEdit: () => void;
@@ -1483,12 +1580,11 @@ function CalendarEventPanel({
     (attendee) => attendee.response_status !== 'removed',
   ).length || 0;
 
-  const organizerName = event.organizer_id
-    ? `Organizador ${event.organizer_id.slice(0, 8)}`
-    : 'Organizador Buddy';
+  const organizerName = organizerLabel(event, currentUserId);
+  const eventDateLabel = formatEventDate(event);
 
   return (
-    <div className="flex min-h-full flex-col bg-white">
+    <div className="flex h-full min-h-0 flex-col overflow-hidden bg-white">
       <header className="sticky top-0 z-10 flex items-center justify-between border-b border-neutral-100 bg-white px-5 py-3">
         <button
           type="button"
@@ -1530,7 +1626,7 @@ function CalendarEventPanel({
         </div>
       </header>
 
-      <div className="flex-1 space-y-6 overflow-y-auto p-6">
+      <div className="h-0 min-h-0 flex-1 space-y-6 overflow-y-auto overscroll-contain p-6 pb-6 [scrollbar-gutter:stable]">
         <div className="flex items-start gap-3 border-b border-neutral-100 pb-5">
           <span
             className="mt-1 h-11 w-1.5 shrink-0 rounded-full"
@@ -1544,18 +1640,27 @@ function CalendarEventPanel({
               {event.title}
             </h1>
 
-            <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-neutral-500">
-              <span className="inline-flex items-center gap-1">
-                <Clock3 className="h-3.5 w-3.5" />
-                {formatEventTime(event)}
-              </span>
-
-              {getDurationLabel(event) ? (
-                <span>
-                  {getDurationLabel(event)}
-                </span>
+            <div className="mt-2 space-y-1.5 text-xs text-neutral-600">
+              {eventDateLabel ? (
+                <p className="flex items-start gap-1.5 capitalize">
+                  <CalendarDays className="mt-0.5 h-3.5 w-3.5 shrink-0 text-brand-primary" />
+                  <span>{eventDateLabel}</span>
+                </p>
               ) : null}
-            </p>
+
+              <p className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                <span className="inline-flex items-center gap-1.5">
+                  <Clock3 className="h-3.5 w-3.5 shrink-0 text-brand-primary" />
+                  {formatEventTime(event)}
+                </span>
+
+                {getDurationLabel(event) ? (
+                  <span className="text-neutral-500">
+                    {getDurationLabel(event)}
+                  </span>
+                ) : null}
+              </p>
+            </div>
           </div>
         </div>
 
@@ -1627,7 +1732,7 @@ function CalendarEventPanel({
             </p>
 
             <p className="text-xs text-neutral-800">
-              {event.calendar_id}
+              {calendarDisplayName(calendars, event)}
             </p>
           </section>
 
@@ -1636,23 +1741,25 @@ function CalendarEventPanel({
               Tipo
             </p>
 
-            <p className="text-xs capitalize text-neutral-800">
-              {event.event_kind.replace('_', ' ')}
+            <p className="text-xs text-neutral-800">
+              {eventKindLabel(event)}
             </p>
           </section>
 
-          {event.location_name ? (
+          {event.location_name || event.location_address ? (
             <section className="space-y-1">
               <p className="text-[11px] font-semibold uppercase tracking-wider text-neutral-400">
                 Ubicación
               </p>
 
-              <p className="flex items-start gap-1.5 text-xs text-neutral-800">
+              <div className="flex items-start gap-1.5 text-xs text-neutral-800">
                 <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0 text-neutral-400" />
                 <span>
                   {event.location_name}
+                  {event.location_name && event.location_address ? <br /> : null}
+                  {event.location_address}
                 </span>
-              </p>
+              </div>
             </section>
           ) : null}
 
@@ -1699,10 +1806,7 @@ function CalendarEventPanel({
                       ? 'Rechazó'
                       : 'Pendiente';
 
-                const displayName = attendee.external_display_name
-                  || attendee.external_email
-                  || attendee.attendee_user_id
-                  || 'Usuario Buddy';
+                const displayName = attendeeLabel(attendee, currentUserId);
 
                 return (
                   <div
@@ -1876,7 +1980,10 @@ function CalendarEventModal({
                   key={calendar.id}
                   value={calendar.id}
                 >
-                  {calendar.name}
+                  {readableText(
+                    calendar.name,
+                    calendar.is_default ? 'Mi agenda' : 'Agenda',
+                  )}
                 </option>
               ))}
             </select>

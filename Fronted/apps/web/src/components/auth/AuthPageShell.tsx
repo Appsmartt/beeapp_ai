@@ -106,7 +106,7 @@ export default function AuthPageShell({
 
             {/* Form card */}
             <div className="lg:col-span-7 w-full max-w-xl lg:max-w-none lg:ml-auto">
-              <div className="motion-content-enter rounded-2xl border border-neutral-200/80 bg-white p-4 sm:p-5 shadow-sm">
+              <div className={`motion-content-enter rounded-2xl border p-4 sm:p-5 shadow-sm ${mode === 'login' ? 'border-[#CDB4F2] bg-[#E7D4FF]' : 'border-neutral-200/80 bg-white'}`}>
                 <div className="mb-3 space-y-0.5">
                   <h2 className="text-xl font-bold text-neutral-900 tracking-tight">
                     {title}
@@ -118,7 +118,7 @@ export default function AuthPageShell({
 
                 {footer}
 
-                <p className="mt-3 pt-3 border-t border-neutral-100 text-center text-xs text-neutral-600">
+                <p className={`mt-3 border-t pt-3 text-center text-xs text-neutral-600 ${mode === 'login' ? 'border-[#D4B8F5]' : 'border-neutral-100'}`}>
                   {mode === 'login' ? '¿No tienes cuenta?' : '¿Ya tienes cuenta?'}{' '}
                   <Link
                     href={alternateHref}

@@ -84,6 +84,37 @@ export function getSupabaseUrl(): string {
     return supabaseUrl;
 }
 
+export async function invokeAnonFunction(
+    name: string,
+    body: Record<string, unknown>,
+): Promise<Record<string, unknown>> {
+    if (!supabaseUrl || !supabaseAnonKey) {
+        throw new Error('Faltan las credenciales de Supabase.');
+    }
+
+    const response = await fetch(`${supabaseUrl}/functions/v1/${name}`, {
+        method: 'POST',
+        headers: {
+            apikey: supabaseAnonKey,
+            Authorization: `Bearer ${supabaseAnonKey}`,
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(body),
+    });
+    const payload = await response.json().catch(() => ({})) as Record<string, unknown>;
+
+    if (!response.ok) {
+        const message = typeof payload.message === 'string'
+            ? payload.message
+            : typeof payload.error === 'string'
+                ? payload.error
+                : 'No fue posible completar la solicitud.';
+        throw new Error(message);
+    }
+
+    return payload;
+}
+
 export async function adoptSupabaseSession(session: {
     access_token: string;
     refresh_token: string;

@@ -1,16 +1,14 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import ScreenSafeArea from '../../../src/components/layout/ScreenSafeArea';
-import { useRouter } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import { colors } from '@beeapp/design-system';
-import { getCurrentProfile } from '@beeapp/api-client';
+import { getCurrentProfile, getMySubscription } from '@beeapp/api-client';
 import type { ProfileVerificationStatus } from '@beeapp/shared-types';
 import { ChevronLeft, ChevronRight, CreditCard, BadgeCheck } from 'lucide-react-native';
 import FloatingTabBar from '../../../src/components/FloatingTabBar';
 import { VERIFIED_COLOR } from '../../../src/components/VerifiedBadge';
 import { getValidSessionCredentials } from '../../../src/services/authSession';
-
-const MOCK_PLAN = 'Buddy Gratis';
 
 function verificationLabel(
   status: ProfileVerificationStatus,
@@ -35,27 +33,32 @@ export default function SubscriptionHubScreen() {
   const router = useRouter();
   const [verificationStatus, setVerificationStatus] =
     useState<ProfileVerificationStatus>('no_solicitado');
+  const [planName, setPlanName] = useState('Cargando…');
 
   const loadStatus = useCallback(async () => {
     try {
       const credentials = await getValidSessionCredentials();
+      const [profileResponse, subscription] = await Promise.all([
+        credentials ? getCurrentProfile(credentials) : Promise.resolve(null),
+        getMySubscription().catch(() => null),
+      ]);
 
-      if (!credentials) {
-        return;
+      if (profileResponse) {
+        setVerificationStatus(
+          profileResponse.profile.verification_status || 'no_solicitado',
+        );
       }
 
-      const response = await getCurrentProfile(credentials);
-      setVerificationStatus(
-        response.profile.verification_status || 'no_solicitado',
-      );
+      setPlanName(subscription?.plan?.name || 'Free');
     } catch {
       setVerificationStatus('no_solicitado');
+      setPlanName('Free');
     }
   }, []);
 
-  useEffect(() => {
+  useFocusEffect(useCallback(() => {
     void loadStatus();
-  }, [loadStatus]);
+  }, [loadStatus]));
 
   return (
     <ScreenSafeArea style={styles.safeArea}>
@@ -73,7 +76,7 @@ export default function SubscriptionHubScreen() {
           <View style={styles.statusCard}>
             <View style={styles.statusRow}>
               <Text style={styles.statusLabel}>Plan actual</Text>
-              <Text style={styles.statusValue}>{MOCK_PLAN}</Text>
+              <Text style={styles.statusValue}>{planName}</Text>
             </View>
             <View style={styles.statusDivider} />
             <View style={styles.statusRow}>

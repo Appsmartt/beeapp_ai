@@ -2,6 +2,7 @@ import {
   bootstrapChat,
   createCommercialProfile,
   createTextStatus,
+  getChatIdentities,
   getChatInbox,
   getChatMessages,
   getCurrentWebCalendarBootstrap,
@@ -23,6 +24,7 @@ import {
   getStatusViewers,
   getAssistantSettings,
   listAssistantMessages,
+  listProtectedChats,
   getChatMessageAttachmentAccess,
 } from '@beeapp/api-client';
 import type { ChatConversation, ChatMessage as ApiChatMessage, CommercialModality, Note, StatusFeedItem } from '@beeapp/shared-types';
@@ -81,6 +83,10 @@ function toChatItem(conversation: ChatConversation, identityId: string): ChatIte
     isAI: Boolean(conversation.is_ai) || conversation.conversation_type === 'ai',
     isSellerChat: conversation.other_identity_type === 'commercial_profile',
     postingIdentityId: identityId,
+    businessId: conversation.business_id || conversation.commercial?.id || null,
+    commercialProfileId: conversation.other_commercial_profile_id
+      || conversation.commercial?.id
+      || null,
     members: (conversation.participants || []).map((participant) => {
       const name = [participant.user?.first_name, participant.user?.last_name].filter(Boolean).join(' ') || 'Miembro';
       return {
@@ -98,12 +104,33 @@ function toChatItem(conversation: ChatConversation, identityId: string): ChatIte
 const ASSISTANT_INBOX_PLACEHOLDER =
   'Pregúntame o pídeme que haga algo en la app.';
 
-async function loadAssistantInboxItem(identityId: string): Promise<ChatItem | null> {
+async function protectedConversationIds(): Promise<Set<string>> {
+  try {
+    const auth = await getWebAuth();
+    const result = await listProtectedChats(auth);
+    return new Set(result.conversation_ids || []);
+  } catch {
+    return new Set();
+  }
+}
+
+function lockChatItem(chat: ChatItem): ChatItem {
+  return {
+    ...chat,
+    isProtected: true,
+    lastMessage: '',
+    unreadCount: 0,
+  };
+}
+
+async function loadAssistantInboxItem(identityId: string, locked = false): Promise<ChatItem | null> {
   try {
     const auth = await getWebAuth();
     const [settingsResponse, messagesResponse] = await Promise.all([
       getAssistantSettings(auth),
-      listAssistantMessages(auth).catch(() => ({ messages: [] })),
+      locked
+        ? Promise.resolve({ messages: [] })
+        : listAssistantMessages(auth).catch(() => ({ messages: [] })),
     ]);
     const settings = settingsResponse.settings;
     if (settings?.inbox_pinned === false) {
@@ -116,7 +143,8 @@ async function loadAssistantInboxItem(identityId: string): Promise<ChatItem | nu
     return {
       id: ASSISTANT_CHAT_ID,
       name: settings?.name?.trim() || AI_ASSISTANT_NAME,
-      lastMessage: last?.content?.trim() || ASSISTANT_INBOX_PLACEHOLDER,
+      lastMessage: locked ? '' : (last?.content?.trim() || ASSISTANT_INBOX_PLACEHOLDER),
+      isProtected: locked,
       time: clock(last?.created_at),
       unreadCount: 0,
       isGroup: false,
@@ -148,11 +176,15 @@ export async function loadInbox(): Promise<{ identityId: string; chats: ChatItem
   const conversations = [...inbox.pinned_conversations, ...inbox.conversations];
   const unique = new Map(conversations.map((conversation) => [conversation.id, conversation]));
 
-  const chats = Array.from(unique.values()).map((conversation) => toChatItem(conversation, identity.id));
+  const protectedIds = await protectedConversationIds();
+  const chats = Array.from(unique.values())
+    .map((conversation) => toChatItem(conversation, identity.id))
+    .map((chat) => (protectedIds.has(chat.id) ? lockChatItem(chat) : chat));
+  const assistantLocked = chats.some((chat) => chat.isAI && chat.isProtected);
   const withoutAssistant = chats.filter(
     (chat) => chat.id !== ASSISTANT_CHAT_ID && !chat.isAI,
   );
-  const assistantRow = await loadAssistantInboxItem(identity.id);
+  const assistantRow = await loadAssistantInboxItem(identity.id, assistantLocked);
   const mergedChats = assistantRow
     ? [assistantRow, ...withoutAssistant]
     : withoutAssistant;
@@ -167,6 +199,40 @@ export async function loadInbox(): Promise<{ identityId: string; chats: ChatItem
       color: category.color || '#F3E8FF',
     })),
   };
+}
+
+export async function loadCommercialInbox(businessId: string): Promise<ChatItem[]> {
+  const auth = await getWebAuth();
+  await bootstrapChat(auth);
+  const identities = await getChatIdentities(auth);
+  const identity = identities.identities.find((item) => (
+    item.identity_type === 'commercial_profile'
+    && item.commercial_profile_id === businessId
+    && item.is_active
+  ));
+
+  if (!identity) {
+    throw new Error('No fue posible preparar la identidad de chat de este negocio.');
+  }
+
+  chatIdentityId = identity.id;
+  const [inbox, protectedIds] = await Promise.all([
+    getChatInbox(auth, identity.id, { limit: 50 }),
+    protectedConversationIds(),
+  ]);
+  const conversations = [...inbox.pinned_conversations, ...inbox.conversations];
+  const unique = new Map(conversations.map((conversation) => [conversation.id, conversation]));
+  return Array.from(unique.values())
+    .map((conversation) => toChatItem(conversation, identity.id))
+    .map((chat) => (protectedIds.has(chat.id) ? lockChatItem(chat) : chat))
+    .filter((chat) => (
+      !chat.isAI
+      && (
+        chat.businessId === businessId
+        || chat.commercialProfileId === businessId
+        || !chat.businessId
+      )
+    ));
 }
 
 function formatAttachmentSize(size?: number | null): string | undefined {
@@ -202,7 +268,22 @@ export function toUiChatMessage(message: ApiChatMessage, identityId: string): Ch
     isEdited: Boolean(message.edited_at),
     isDestroyed: Boolean(message.destroyed_at),
     sentByAi: Boolean(message.is_sent_by_ai),
+    reactions: summarizeReactions(message.reactions, identityId),
   };
+}
+
+function summarizeReactions(
+  reactions: ApiChatMessage['reactions'],
+  identityId: string,
+): ChatMessage['reactions'] {
+  const grouped = new Map<string, { emoji: string; count: number; mine: boolean }>();
+  for (const reaction of reactions || []) {
+    const current = grouped.get(reaction.emoji) || { emoji: reaction.emoji, count: 0, mine: false };
+    current.count += 1;
+    if (reaction.identity_id === identityId) current.mine = true;
+    grouped.set(reaction.emoji, current);
+  }
+  return Array.from(grouped.values());
 }
 
 export async function hydrateChatMedia(message: ChatMessage, identityId: string): Promise<ChatMessage> {
@@ -594,6 +675,8 @@ export async function loadOwnedBusinesses(): Promise<BusinessItem[]> {
       serviceModalities: profile.modalities.map((item) => item.modality),
       products,
       services,
+      publicationStatus: profile.publication_status,
+      offerType: profile.offer_type,
     } satisfies BusinessItem;
   }));
 

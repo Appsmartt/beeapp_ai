@@ -238,6 +238,44 @@ async function loadVisibleEvents(
         .filter((event) => overlaps(event, query));
 }
 
+function instant(value: string): number {
+    if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+        const [year, month, day] = value.split('-').map(Number);
+        return new Date(year, month - 1, day).getTime();
+    }
+
+    const time = new Date(value).getTime();
+    return Number.isNaN(time) ? Number.NaN : time;
+}
+
+function eventSpan(event: Json): { start: number; end: number } | null {
+    const allDay = event.is_all_day === true;
+    const startValue = String(allDay ? event.starts_on || '' : event.starts_at || '');
+    const endValue = String(allDay ? event.ends_on || event.starts_on || '' : event.ends_at || '');
+    const start = instant(startValue);
+    const end = instant(endValue);
+
+    if (Number.isNaN(start) || Number.isNaN(end) || end <= start) {
+        return null;
+    }
+
+    return { start, end };
+}
+
+function requestedSpan(query: URLSearchParams): { start: number; end: number } | null {
+    const allDay = query.get('is_all_day') === 'true';
+    const startValue = allDay ? query.get('starts_on') || '' : query.get('starts_at') || '';
+    const endValue = allDay ? query.get('ends_on') || '' : query.get('ends_at') || '';
+    const start = instant(startValue);
+    const end = instant(endValue);
+
+    if (Number.isNaN(start) || Number.isNaN(end) || end <= start) {
+        return null;
+    }
+
+    return { start, end };
+}
+
 function overlaps(event: Json, query: URLSearchParams): boolean {
     const start = query.get('range_start');
     const end = query.get('range_end');
@@ -384,9 +422,18 @@ export async function handleCalendar(
                 .select('id, calendar_id, title, kind, starts_at, ends_at, starts_on, ends_on, is_all_day')
                 .in('calendar_id', calendarIds)) ?? []) as Json[])
             : [];
+        const requested = requestedSpan(query);
         const conflicts = events
             .filter((event) => String(event.id) !== (query.get('exclude_event_id') || ''))
-            .filter((event) => overlaps(event, query))
+            .filter((event) => {
+                if (!requested) return false;
+                const span = eventSpan(event);
+                return Boolean(
+                    span
+                    && span.start < requested.end
+                    && requested.start < span.end,
+                );
+            })
             .map((event) => {
                 const calendar = calendars.find((item) => item.id === event.calendar_id);
                 return {
@@ -538,9 +585,11 @@ export async function handleCalendar(
             .eq('id', eventMatch[1])
             .single()) as Json;
         const write = eventWrite(payload, userId);
-        if (write.metadata) {
-            write.metadata = { ...asJson(current.metadata), ...asJson(write.metadata) };
-        }
+        write.metadata = {
+            ...asJson(current.metadata),
+            ...asJson(write.metadata),
+            local_edit_at: new Date().toISOString(),
+        };
         const row = unwrap(await supabase
             .from('events')
             .update(write)

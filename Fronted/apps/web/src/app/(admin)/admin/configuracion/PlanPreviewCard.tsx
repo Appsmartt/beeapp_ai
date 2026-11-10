@@ -1,7 +1,6 @@
-import { Check, HardDrive, Smartphone, BriefcaseBusiness } from 'lucide-react';
-import type { Plan, PlanFeatureKey } from '@/lib/admin/types';
+import { Check, HardDrive, BriefcaseBusiness } from 'lucide-react';
+import type { Plan } from '@/lib/admin/types';
 import { formatCurrencyCOP } from '@/lib/admin/format';
-import { PLAN_FEATURE_LABELS } from '@/lib/admin/labels';
 
 interface PlanPreviewCardProps {
   plan: Plan;
@@ -9,7 +8,6 @@ interface PlanPreviewCardProps {
 }
 
 export default function PlanPreviewCard({ plan, descuentoAnual }: PlanPreviewCardProps) {
-  const funcionesActivas = (Object.keys(PLAN_FEATURE_LABELS) as PlanFeatureKey[]).filter((key) => plan.funciones[key]);
 
   return (
     <div className="plan-preview-card" style={{ borderColor: plan.color }}>
@@ -40,26 +38,24 @@ export default function PlanPreviewCard({ plan, descuentoAnual }: PlanPreviewCar
             <span>{feature}</span>
           </div>
         ))}
-        {funcionesActivas.map((key) => (
-          <div key={key} className="plan-manage-feature-row">
-            <Check size={14} />
-            <span>{PLAN_FEATURE_LABELS[key]}</span>
-          </div>
-        ))}
+        <div className="plan-manage-feature-row">
+          <Check size={14} />
+          <span>
+            {plan.entitlements.aiCredits == null
+              ? 'Créditos de IA sin límite'
+              : `${plan.entitlements.aiCredits} créditos de IA al mes`}
+          </span>
+        </div>
       </div>
 
       <div className="plan-preview-limits">
         <span className="plan-preview-limit-item">
           <HardDrive size={13} />
-          {plan.limites.almacenamientoGB === 0 ? 'Almacenamiento ilimitado' : `${plan.limites.almacenamientoGB} GB`}
-        </span>
-        <span className="plan-preview-limit-item">
-          <Smartphone size={13} />
-          {plan.limites.dispositivos} {plan.limites.dispositivos === 1 ? 'dispositivo' : 'dispositivos'}
+          {plan.entitlements.filesGb == null ? 'Archivos sin límite' : `${plan.entitlements.filesGb} GB de archivos`}
         </span>
         <span className="plan-preview-limit-item">
           <BriefcaseBusiness size={13} />
-          {plan.limites.ofertasPerfil} {plan.limites.ofertasPerfil === 1 ? 'oferta de perfil' : 'ofertas de perfil'}
+          {plan.entitlements.catalogOffers == null ? 'Catálogo sin límite' : `${plan.entitlements.catalogOffers} productos`}
         </span>
       </div>
     </div>

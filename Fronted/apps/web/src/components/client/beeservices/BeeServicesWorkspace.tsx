@@ -1,387 +1,672 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import {
-    ArrowLeft,
-    ChevronRight,
-    MessageCircle,
-    Plus,
-    Search,
-    Store,
-    TrendingUp,
-    } from 'lucide-react';
-import {
-    BusinessItem,
-    } from '@/lib/client/myServices';
-import { loadOwnedBusinesses, getWebAuth } from '@/lib/client/liveData';
-import { getPublicCommercialProfiles } from '@beeapp/api-client';
-import { BeeServicesQuickAction } from '@/lib/client/beeServicesExplore';
-import BusinessDetailView from './BusinessDetailView';
+  ArrowLeft,
+  BadgeCheck,
+  ChevronLeft,
+  ChevronRight,
+  ClipboardList,
+  LayoutGrid,
+  List,
+  MapPin,
+  Package,
+  Store,
+  Wrench,
+} from 'lucide-react';
+import { getPublicCommercialProductFeed } from '@beeapp/api-client';
+import type {
+  CommercialModality,
+  CommercialOfferType,
+  CommercialPublicOffer,
+  CommercialPublicProfile,
+} from '@beeapp/shared-types';
+
+import { getWebAuth } from '@/lib/client/webAuth';
 import BeeServicesAiSearchCard from './BeeServicesAiSearchCard';
-import BeeServicesQuickActions from './BeeServicesQuickActions';
+
+const PAGE_SIZE = 5;
+const SEARCH_DEBOUNCE_MS = 350;
+const MINIMUM_SEARCH_LENGTH = 2;
+
+const OFFER_TYPE_OPTIONS: Array<{
+  value: CommercialOfferType | '';
+  label: string;
+}> = [
+  { value: '', label: 'Todos' },
+  { value: 'products', label: 'Productos' },
+  { value: 'services', label: 'Servicios' },
+  { value: 'mixed', label: 'Productos y servicios' },
+];
+
+const MODALITY_OPTIONS: Array<{
+  value: CommercialModality | '';
+  label: string;
+}> = [
+  { value: '', label: 'Todas' },
+  { value: 'at_establishment', label: 'En establecimiento' },
+  { value: 'in_person', label: 'Presencial' },
+  { value: 'virtual', label: 'Virtual' },
+  { value: 'home_visit', label: 'Visita a domicilio' },
+  { value: 'delivery', label: 'Entrega a domicilio' },
+  { value: 'pickup', label: 'Recoger en negocio' },
+  { value: 'phone_call', label: 'Llamada telefónica' },
+  { value: 'buddy_chat', label: 'Chat Buddy' },
+];
+
+const MODALITY_LABEL: Record<string, string> = Object.fromEntries(
+  MODALITY_OPTIONS.filter((option) => option.value).map((option) => [
+    option.value,
+    option.label,
+  ]),
+);
+
+type FeedTarget = 'both' | 'offers' | 'profiles';
+type OfferViewMode = 'grid' | 'list';
+
+type SpeechCtor = new () => {
+  lang: string;
+  interimResults: boolean;
+  onresult: ((event: {
+    results: ArrayLike<ArrayLike<{ transcript: string }>>;
+  }) => void) | null;
+  onerror: (() => void) | null;
+  onend: (() => void) | null;
+  start: () => void;
+  stop: () => void;
+};
+
+function speechCtor(): SpeechCtor | null {
+  if (typeof window === 'undefined') return null;
+  const host = window as Window & {
+    SpeechRecognition?: SpeechCtor;
+    webkitSpeechRecognition?: SpeechCtor;
+  };
+  return host.SpeechRecognition || host.webkitSpeechRecognition || null;
+}
+
+function moneyCop(amount: number | null): string {
+  if (amount === null) return '';
+  return new Intl.NumberFormat('es-CO', {
+    currency: 'COP',
+    maximumFractionDigits: 0,
+    style: 'currency',
+  }).format(amount);
+}
+
+function priceLabel(offer: CommercialPublicOffer): string {
+  if (offer.pricing_strategy === 'free') return 'Gratis';
+  if (offer.pricing_strategy === 'to_be_confirmed') return 'Precio por confirmar';
+  const amount = moneyCop(offer.base_price_amount);
+  if (offer.pricing_strategy === 'starting_at') {
+    return amount ? `Desde ${amount}` : 'Precio desde por confirmar';
+  }
+  return amount || 'Precio por confirmar';
+}
+
+function offerKindLabel(offer: CommercialPublicOffer): string {
+  if (offer.offer_kind === 'product') return 'Producto';
+  return offer.requires_booking ? 'Servicio con reserva' : 'Servicio';
+}
+
+function primaryImage(offer: CommercialPublicOffer): string | null {
+  return offer.images.find((image) => image.is_primary && image.url)?.url
+    || offer.images.find((image) => image.url)?.url
+    || null;
+}
+
+function initials(value: string): string {
+  const result = value
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part.charAt(0).toUpperCase())
+    .join('');
+  return result || 'B';
+}
+
+function modalitiesLabel(modalities: CommercialModality[]): string {
+  const values = modalities
+    .slice(0, 2)
+    .map((item) => MODALITY_LABEL[item] || item);
+  if (modalities.length > 2) values.push(`+${modalities.length - 2}`);
+  return values.join(' · ');
+}
+
+function totalPages(count: number): number {
+  if (count <= 0) return 1;
+  return Math.ceil(count / PAGE_SIZE);
+}
 
 export default function BeeServicesWorkspace() {
-    const router = useRouter();
-    const searchParams = useSearchParams();
-    const [businesses, setBusinesses] = useState<BusinessItem[]>([]);
-    const [selectedBusiness, setSelectedBusiness] =
-        useState<BusinessItem | null>(null);
-    const [activeAction, setActiveAction] = useState<string | null>(null);
-    const [notice, setNotice] = useState<string | null>(null);
-    const [searchResults, setSearchResults] = useState<Array<{ id: string; name: string; city: string }>>([]);
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const [search, setSearch] = useState('');
+  const [activeSearch, setActiveSearch] = useState('');
+  const [offerType, setOfferType] = useState<CommercialOfferType | ''>('');
+  const [modality, setModality] = useState<CommercialModality | ''>('');
+  const [offerViewMode, setOfferViewMode] = useState<OfferViewMode>('grid');
+  const [offers, setOffers] = useState<CommercialPublicOffer[]>([]);
+  const [profiles, setProfiles] = useState<CommercialPublicProfile[]>([]);
+  const [offersPage, setOffersPage] = useState(1);
+  const [profilesPage, setProfilesPage] = useState(1);
+  const [offersCount, setOffersCount] = useState(0);
+  const [profilesCount, setProfilesCount] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [pagingOffers, setPagingOffers] = useState(false);
+  const [pagingProfiles, setPagingProfiles] = useState(false);
+  const [error, setError] = useState('');
+  const [listening, setListening] = useState(false);
+  const [voiceNotice, setVoiceNotice] = useState('');
+  const seedRef = useRef('');
+  const requestRef = useRef(0);
+  const recognitionRef = useRef<{ stop: () => void } | null>(null);
 
-    const showNotice = useCallback((message: string) => {
-        setNotice(message);
+  const loadFeed = useCallback(async (params: {
+    search: string;
+    offerType: CommercialOfferType | '';
+    modality: CommercialModality | '';
+    offersPage: number;
+    profilesPage: number;
+    target: FeedTarget;
+  }) => {
+    const requestId = requestRef.current + 1;
+    requestRef.current = requestId;
+    const page = params.target === 'profiles'
+      ? params.profilesPage
+      : params.offersPage;
 
-        window.setTimeout(() => {
-        setNotice(null);
-        }, 3200);
-    }, []);
+    if (params.target === 'both') setLoading(true);
+    if (params.target === 'offers') setPagingOffers(true);
+    if (params.target === 'profiles') setPagingProfiles(true);
 
-    useEffect(() => {
-        loadOwnedBusinesses().then(setBusinesses).catch(() => setBusinesses([]));
-    }, []);
+    try {
+      const auth = await getWebAuth();
+      const response = await getPublicCommercialProductFeed(auth, {
+        limit: PAGE_SIZE,
+        offset: (page - 1) * PAGE_SIZE,
+        search: params.search || undefined,
+        offer_type: params.offerType || undefined,
+        modality: params.modality || undefined,
+        seed: params.search ? undefined : seedRef.current || undefined,
+      });
 
-    useEffect(() => {
-        if (searchParams.get('created') !== '1') {
-            return;
-        }
+      if (requestId !== requestRef.current) return;
 
-        const businessId = searchParams.get('businessId');
+      seedRef.current = response.seed;
+      if (params.target !== 'profiles') {
+        setOffers(response.offers);
+        setOffersPage(params.offersPage);
+        setOffersCount(response.count);
+      }
+      if (params.target !== 'offers') {
+        setProfiles(response.profiles || []);
+        setProfilesPage(params.profilesPage);
+        setProfilesCount(response.profiles_count ?? response.profiles?.length ?? 0);
+      }
+      setError('');
+    } catch (loadError) {
+      if (requestId !== requestRef.current) return;
+      setError(loadError instanceof Error
+        ? loadError.message
+        : 'No fue posible cargar Buddy Services.');
+      if (params.target === 'both') {
+        setOffers([]);
+        setProfiles([]);
+        setOffersCount(0);
+        setProfilesCount(0);
+      }
+    } finally {
+      if (requestId !== requestRef.current) return;
+      setLoading(false);
+      setPagingOffers(false);
+      setPagingProfiles(false);
+    }
+  }, []);
 
-        void loadOwnedBusinesses()
-            .then((loaded) => {
-                setBusinesses(loaded);
+  useEffect(() => {
+    if (searchParams.get('created') !== '1') return;
+    const businessId = searchParams.get('businessId');
+    if (businessId) {
+      router.replace(`/app/beeservices/manage/${businessId}`);
+      return;
+    }
+    router.replace('/app/beeservices');
+  }, [router, searchParams]);
 
-                if (businessId) {
-                    const created = loaded.find(
-                        (business) => business.id === businessId,
-                    );
+  useEffect(() => {
+    const timeoutId = window.setTimeout(() => {
+      const text = search.trim();
+      if (text.length > 0 && text.length < MINIMUM_SEARCH_LENGTH) return;
+      setActiveSearch(text);
+      setOffersPage(1);
+      setProfilesPage(1);
+    }, SEARCH_DEBOUNCE_MS);
+    return () => window.clearTimeout(timeoutId);
+  }, [search]);
 
-                    if (created) {
-                        setSelectedBusiness(created);
-                    }
-                }
+  useEffect(() => {
+    void loadFeed({
+      search: activeSearch,
+      offerType,
+      modality,
+      offersPage: 1,
+      profilesPage: 1,
+      target: 'both',
+    });
+  }, [activeSearch, loadFeed, modality, offerType]);
 
-                showNotice('Negocio creado correctamente.');
-            })
-            .catch(() => showNotice('Negocio creado. Recarga si no lo ves.'));
+  useEffect(() => () => {
+    recognitionRef.current?.stop();
+  }, []);
 
-        router.replace('/app/beeservices');
-    }, [searchParams, router, showNotice]);
+  const toggleVoice = () => {
+    const Ctor = speechCtor();
+    if (!Ctor) {
+      setVoiceNotice('El navegador no permite dictar la búsqueda. Escríbela en el campo.');
+      return;
+    }
 
-    const metrics = useMemo(() => {
-        const productCount = businesses.reduce(
-        (total, business) => total + business.products.length,
-        0,
-        );
+    if (listening) {
+      recognitionRef.current?.stop();
+      setListening(false);
+      return;
+    }
 
-        const serviceCount = businesses.reduce(
-        (total, business) => total + business.services.length,
-        0,
-        );
-
-        return {
-        businesses: businesses.length,
-        products: productCount,
-        services: serviceCount,
-        };
-    }, [businesses]);
-
-    const handleUpdateBusiness = (updatedBusiness: BusinessItem) => {
-        setBusinesses((current) =>
-        current.map((business) =>
-            business.id === updatedBusiness.id ? updatedBusiness : business,
-        ),
-        );
-
-        setSelectedBusiness(updatedBusiness);
+    const recognition = new Ctor();
+    recognition.lang = 'es-CO';
+    recognition.interimResults = false;
+    recognition.onresult = (event) => {
+      const transcript = event.results[0]?.[0]?.transcript?.trim() || '';
+      if (transcript) setSearch(transcript);
     };
-
-    const handleQuickAction = (action: BeeServicesQuickAction) => {
-        setActiveAction(action.id);
+    recognition.onerror = () => {
+      setVoiceNotice('No se pudo escuchar. Inténtalo de nuevo.');
+      setListening(false);
     };
+    recognition.onend = () => setListening(false);
+    recognitionRef.current = recognition;
+    setVoiceNotice('');
+    setListening(true);
+    recognition.start();
+  };
 
-    const handleSearch = (query: string) => {
-        void getWebAuth()
-            .then((auth) => getPublicCommercialProfiles(auth, { search: query, limit: 12 }))
-            .then((response) => {
-                setSearchResults(
-                    response.profiles.map((profile) => ({
-                        id: profile.id,
-                        name: profile.display_name,
-                        city: profile.city || '',
-                    })),
-                );
-                showNotice(`${response.profiles.length} resultados para "${query}".`);
-            })
-            .catch(() => showNotice('No fue posible buscar negocios.'));
-    };
+  const emptyTitle = activeSearch
+    ? 'No encontramos coincidencias'
+    : offerType || modality
+      ? 'Ningún negocio coincide con el filtro'
+      : 'Aún no hay negocios disponibles';
+  const emptyText = activeSearch
+    ? 'Prueba con otro nombre, producto o servicio.'
+    : offerType || modality
+      ? 'Prueba con otro tipo de negocio o con otra modalidad.'
+      : 'Cuando alguien publique un negocio o un servicio, aparecerá aquí.';
+  const showEmpty = !loading && !error && offers.length === 0 && profiles.length === 0;
 
-    const handleVoiceSearch = () => {
-        showNotice('Usa el micrófono del buscador IA en la tarjeta superior.');
-    };
-
-    const openBusinessManagement = () => {
-        if (businesses.length === 0) {
-        router.push('/app/beeservices/create');
-        return;
-        }
-
-        setSelectedBusiness(businesses[0]);
-
-        window.setTimeout(() => {
-        document
-            .getElementById('bee-services-businesses')
-            ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        }, 0);
-    };
-
-    return (
-        <div className="min-h-full bg-[#FFFCF9] pb-24">
-        <div className="mx-auto w-full max-w-7xl px-5 py-6 sm:px-7 lg:px-10 lg:py-8">
-            <header className="mb-6 flex items-start justify-between">
-            <div>
-                <div className="flex items-center gap-2">
-                <Link
-                    href="/app"
-                    aria-label="Volver al inicio"
-                    className="rounded-full p-1.5 text-[#7865AD] transition-colors hover:bg-[#F6EAFE] hover:text-[#7427D5]"
-                >
-                    <ArrowLeft className="h-5 w-5" />
-                </Link>
-
-                <h1 className="text-2xl font-extrabold leading-tight text-[#7427D5]">
-                    BuddyServices
-                </h1>
-                </div>
-
-                <p className="ml-9 mt-1 text-sm text-[#7865AD]">
-                Conecta necesidades con soluciones
-                </p>
-            </div>
-
-            <Link
-                href="/app/beeservices/create"
-                className="hidden h-10 items-center gap-2 rounded-full bg-[#7427D5] px-4 text-xs font-semibold text-white shadow-sm transition-colors hover:bg-[#5E1ABF] sm:flex"
-            >
-                <Plus className="h-4 w-4" />
-                Crear negocio
-            </Link>
-            </header>
-
-            <BeeServicesAiSearchCard
-            onSearch={handleSearch}
-            onPressVoice={handleVoiceSearch}
-            />
-
-            {notice && (
-            <div
-                role="status"
-                className="mt-4 rounded-xl border border-[#E8D1F1] bg-[#F6EAFE] px-4 py-3 text-sm text-[#5E1ABF]"
-            >
-                {notice}
-            </div>
-            )}
-
-            {searchResults.length > 0 ? (
-            <div className="mt-4 rounded-xl border border-neutral-200 bg-white p-4 space-y-2">
-                <p className="text-xs font-semibold text-neutral-700">Resultados de búsqueda</p>
-                {searchResults.map((result) => (
-                <div key={result.id} className="text-xs text-neutral-600 flex justify-between gap-2">
-                    <span className="font-semibold text-neutral-900">{result.name}</span>
-                    <span>{result.city}</span>
-                </div>
-                ))}
-            </div>
-            ) : null}
-
-            <div className="mt-6 grid gap-6 xl:grid-cols-[minmax(0,1fr)_340px]">
-            <main className="min-w-0 space-y-6">
-                <button
-                type="button"
-                onClick={openBusinessManagement}
-                className="flex min-h-[116px] w-full items-center rounded-[20px] border border-[#E8D1F1] bg-[#F6EAFE] p-5 text-left transition-all hover:border-[#CBA0DA] hover:shadow-[0_8px_20px_rgba(116,39,213,0.10)]"
-                >
-                <span className="flex h-[52px] w-[52px] shrink-0 items-center justify-center rounded-[15px] bg-white shadow-[0_3px_7px_rgba(167,136,178,0.12)]">
-                    <Store className="h-6 w-6 text-[#7B2DD9]" />
-                </span>
-
-                <span className="ml-4 min-w-0 flex-1">
-                    <span className="block text-[15px] font-bold text-[#261743]">
-                    Gestiona tu negocio
-                    </span>
-
-                    <span className="mt-1 block max-w-xl text-xs leading-5 text-[#8A68B5]">
-                    Crea tu perfil, agrega servicios y recibe solicitudes.
-                    </span>
-                </span>
-
-                <span className="ml-3 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[#7427D5] text-white">
-                    <ChevronRight className="h-5 w-5" />
-                </span>
-                </button>
-
-                <section
-                id="bee-services-businesses"
-                className="scroll-mt-6 rounded-[20px] border border-[#F0EAF3] bg-white shadow-[0_4px_12px_rgba(42,26,69,0.05)]"
-                >
-                <div className="flex items-center justify-between border-b border-[#F4EFF6] px-5 py-4">
-                    <div>
-                    <h2 className="text-base font-bold text-[#261743]">
-                        Mis negocios y catálogo
-                    </h2>
-                    <p className="mt-1 text-xs text-[#8A72B2]">
-                        Administra tus productos y servicios publicados.
-                    </p>
-                    </div>
-
-                    <Link
-                    href="/app/beeservices/create"
-                    className="flex h-9 items-center gap-1.5 rounded-full bg-[#7427D5] px-3 text-xs font-semibold text-white transition-colors hover:bg-[#5E1ABF]"
-                    >
-                    <Plus className="h-4 w-4" />
-                    <span className="hidden sm:inline">Crear negocio</span>
-                    </Link>
-                </div>
-
-                <div className="p-4">
-                    {businesses.length === 0 ? (
-                    <div className="py-12 text-center">
-                        <Store className="mx-auto h-12 w-12 text-[#D8AEE5]" />
-                        <h3 className="mt-3 text-sm font-semibold text-[#261743]">
-                        Aún no tienes negocios
-                        </h3>
-                        <p className="mx-auto mt-1 max-w-sm text-xs leading-5 text-[#8A72B2]">
-                        Crea tu primer negocio para publicar productos y
-                        servicios.
-                        </p>
-                    </div>
-                    ) : (
-                    <div className="divide-y divide-[#F4EFF6]">
-                        {businesses.map((business) => {
-                        const isSelected =
-                            selectedBusiness?.id === business.id;
-
-                        return (
-                            <button
-                            key={business.id}
-                            type="button"
-                            onClick={() => setSelectedBusiness(business)}
-                            className={`flex w-full items-center gap-3 rounded-xl px-3 py-3.5 text-left transition-colors ${
-                                isSelected
-                                ? 'bg-[#F6EAFE]'
-                                : 'hover:bg-[#FCFAFD]'
-                            }`}
-                            >
-                            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-[#F6EAFE] text-xs font-bold text-[#7427D5]">
-                                {business.name.slice(0, 2).toUpperCase()}
-                            </span>
-
-                            <span className="min-w-0 flex-1">
-                                <span className="block truncate text-sm font-semibold text-[#261743]">
-                                {business.name}
-                                </span>
-
-                                <span className="mt-1 block truncate text-xs text-[#8A72B2]">
-                                {business.category} ·{' '}
-                                {business.products.length} productos ·{' '}
-                                {business.services.length} servicios
-                                </span>
-                            </span>
-
-                            <ChevronRight className="h-5 w-5 shrink-0 text-[#A98BC2]" />
-                            </button>
-                        );
-                        })}
-                    </div>
-                    )}
-                </div>
-                </section>
-
-                {selectedBusiness && (
-                <section className="overflow-hidden rounded-[20px] border border-[#F0EAF3] bg-white shadow-[0_4px_12px_rgba(42,26,69,0.05)]">
-                    <BusinessDetailView
-                    business={selectedBusiness}
-                    onBack={() => setSelectedBusiness(null)}
-                    onUpdateBusiness={handleUpdateBusiness}
-                    />
-                </section>
-                )}
-            </main>
-
-            <aside className="space-y-6">
-                <section className="rounded-[20px] border border-[#F0EAF3] bg-white p-5 shadow-[0_4px_12px_rgba(42,26,69,0.05)]">
-                <h2 className="mb-4 text-base font-bold text-[#261743]">
-                    Tu actividad
-                </h2>
-
-                <div className="grid grid-cols-3 gap-2">
-                    <div className="rounded-xl bg-[#F6EAFE] px-2 py-3 text-center">
-                    <span className="block text-lg font-extrabold text-[#7427D5]">
-                        {metrics.businesses}
-                    </span>
-                    <span className="text-[10px] text-[#8A68B5]">
-                        Negocios
-                    </span>
-                    </div>
-
-                    <div className="rounded-xl bg-[#F6EAFE] px-2 py-3 text-center">
-                    <span className="block text-lg font-extrabold text-[#7427D5]">
-                        {metrics.products}
-                    </span>
-                    <span className="text-[10px] text-[#8A68B5]">
-                        Productos
-                    </span>
-                    </div>
-
-                    <div className="rounded-xl bg-[#F6EAFE] px-2 py-3 text-center">
-                    <span className="block text-lg font-extrabold text-[#7427D5]">
-                        {metrics.services}
-                    </span>
-                    <span className="text-[10px] text-[#8A68B5]">
-                        Servicios
-                    </span>
-                    </div>
-                </div>
-
-                <div className="mt-4 space-y-2 border-t border-[#F4EFF6] pt-4 text-xs text-[#594C67]">
-                    <div className="flex items-center gap-2">
-                    <Search className="h-4 w-4 text-[#7427D5]" />
-                    Los clientes te encuentran vía IA
-                    </div>
-
-                    <div className="flex items-center gap-2">
-                    <MessageCircle className="h-4 w-4 text-[#7427D5]" />
-                    Chat directo con compradores
-                    </div>
-
-                    <div className="flex items-center gap-2">
-                    <TrendingUp className="h-4 w-4 text-[#7427D5]" />
-                    Visibilidad en la red empresarial
-                    </div>
-                </div>
-                </section>
-
-                <section className="rounded-[20px] border border-[#F0EAF3] bg-white p-5 shadow-[0_4px_12px_rgba(42,26,69,0.05)]">
-                <BeeServicesQuickActions
-                    activeAction={activeAction}
-                    onPressAction={handleQuickAction}
-                />
-                </section>
-            </aside>
-            </div>
-
-            <footer className="flex flex-col items-center py-7">
-            <p className="text-[11px] text-[#594C67]">
-                Impulsando economías locales con Buddy AI
+  return (
+    <div className="h-full overflow-y-auto bg-[#FFFCF9] pb-28">
+      <div className="mx-auto w-full max-w-6xl px-5 py-6 sm:px-7">
+        <header className="mb-5 flex items-center gap-2">
+          <Link
+            href="/app"
+            aria-label="Volver al menú principal"
+            className="rounded-full p-1.5 text-[#7567D9] hover:bg-[#F3EEFC]"
+          >
+            <ArrowLeft className="h-5 w-5" />
+          </Link>
+          <div>
+            <h1 className="text-2xl font-extrabold leading-tight text-[#7427D5]">
+              Buddy Services
+            </h1>
+            <p className="text-sm text-[#7865AD]">
+              Conecta necesidades con soluciones
             </p>
-            <span className="mt-2 h-1 w-9 rounded-full bg-[#D8AEE5]" />
-            </footer>
-        </div>
+          </div>
+        </header>
 
-        </div>
-    );
+        <BeeServicesAiSearchCard
+          value={search}
+          onChangeText={setSearch}
+          onSubmit={() => {
+            const text = search.trim();
+            if (text.length > 0 && text.length < MINIMUM_SEARCH_LENGTH) return;
+            setActiveSearch(text);
+          }}
+          onPressVoice={toggleVoice}
+          listening={listening}
+          busy={false}
+        />
+
+        {voiceNotice ? (
+          <p className="mt-3 text-sm text-[#5E1ABF]" role="status">{voiceNotice}</p>
+        ) : null}
+
+        <Link
+          href="/app/beeservices/my-purchases"
+          className="mt-6 inline-flex items-center rounded-[17px] border border-[#E2D6F0] bg-white py-2.5 pl-2.5 pr-4 shadow-[0_4px_10px_rgba(95,82,197,0.08)]"
+        >
+          <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#7567D9] text-white">
+            <ClipboardList className="h-[18px] w-[18px]" />
+          </span>
+          <span className="ml-2.5">
+            <span className="block text-[13px] font-extrabold leading-4 text-[#26314D]">
+              Mis compras y reservas
+            </span>
+            <span className="mt-0.5 block text-[11px] leading-4 text-[#6C7892]">
+              Consulta el estado de tus solicitudes
+            </span>
+          </span>
+        </Link>
+
+        <section className="mt-6">
+          <h2 className="text-sm font-bold text-[#261743]">Filtrar negocios</h2>
+          <div className="mt-3 grid gap-3 sm:grid-cols-2">
+            <label className="text-xs font-semibold text-[#5C4A78]">
+              Productos o servicios
+              <select
+                value={offerType}
+                onChange={(event) => {
+                  setOfferType(event.target.value as CommercialOfferType | '');
+                  setOffersPage(1);
+                  setProfilesPage(1);
+                }}
+                className="mt-1 h-11 w-full rounded-xl border border-[#E7D9F0] bg-white px-3 text-sm font-medium text-[#261743]"
+              >
+                {OFFER_TYPE_OPTIONS.map((option) => (
+                  <option key={option.label} value={option.value}>{option.label}</option>
+                ))}
+              </select>
+            </label>
+            <label className="text-xs font-semibold text-[#5C4A78]">
+              Modalidad
+              <select
+                value={modality}
+                onChange={(event) => {
+                  setModality(event.target.value as CommercialModality | '');
+                  setOffersPage(1);
+                  setProfilesPage(1);
+                }}
+                className="mt-1 h-11 w-full rounded-xl border border-[#E7D9F0] bg-white px-3 text-sm font-medium text-[#261743]"
+              >
+                {MODALITY_OPTIONS.map((option) => (
+                  <option key={option.label} value={option.value}>{option.label}</option>
+                ))}
+              </select>
+            </label>
+          </div>
+        </section>
+
+        {error ? (
+          <div role="alert" className="mt-5 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3">
+            <p className="text-sm font-semibold text-rose-700">No fue posible cargar</p>
+            <p className="mt-1 text-sm text-rose-600">{error}</p>
+            <button
+              type="button"
+              onClick={() => void loadFeed({
+                search: activeSearch,
+                offerType,
+                modality,
+                offersPage,
+                profilesPage,
+                target: 'both',
+              })}
+              className="mt-3 rounded-full bg-[#7427D5] px-4 py-2 text-xs font-semibold text-white"
+            >
+              Reintentar
+            </button>
+          </div>
+        ) : null}
+
+        {loading ? (
+          <div className="mt-5 flex items-center gap-3 rounded-2xl border border-[#E7D9F0] bg-white px-4 py-4">
+            <span className="h-4 w-4 animate-spin rounded-full border-2 border-[#7427D5] border-t-transparent" />
+            <p className="text-sm font-semibold text-[#5C4A78]">
+              {activeSearch ? 'Buscando coincidencias…' : 'Cargando negocios y servicios…'}
+            </p>
+          </div>
+        ) : null}
+
+        {showEmpty ? (
+          <div className="mt-5 rounded-2xl border border-[#E7D9F0] bg-[#F7F1FB] px-5 py-8 text-center">
+            <Store className="mx-auto h-6 w-6 text-[#7B2DD9]" />
+            <h3 className="mt-3 text-sm font-extrabold text-[#432064]">{emptyTitle}</h3>
+            <p className="mx-auto mt-1 max-w-md text-xs leading-5 text-[#786593]">{emptyText}</p>
+          </div>
+        ) : null}
+
+        {!loading && !error && (offerType || modality) && profiles.length === 0 && offers.length > 0 ? (
+          <p className="mt-5 rounded-2xl border border-[#E7D9F0] bg-[#F7F1FB] px-4 py-3 text-sm font-bold text-[#5C4A78]">
+            No hay negocios con ese filtro.
+          </p>
+        ) : null}
+
+        {!loading && profiles.length > 0 ? (
+          <section className="mt-7">
+            <h2 className="text-base font-extrabold text-[#261743]">
+              {activeSearch ? 'Negocios' : 'Negocios recientes'}
+            </h2>
+            <ul className="mt-3 space-y-2">
+              {profiles.map((profile) => (
+                <li key={profile.id}>
+                  <Link
+                    href={`/app/beeservices/profile/${profile.id}`}
+                    className="flex items-center gap-3 rounded-2xl border border-[#F0EAF3] bg-white px-3 py-3 hover:bg-[#FBF8FE]"
+                  >
+                    {profile.logo_url ? (
+                      <img
+                        src={profile.logo_url}
+                        alt=""
+                        className="h-12 w-12 shrink-0 rounded-xl object-cover"
+                      />
+                    ) : (
+                      <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-[#F3EEFC] text-sm font-bold text-[#7427D5]">
+                        {initials(profile.display_name)}
+                      </span>
+                    )}
+                    <span className="min-w-0 flex-1">
+                      <span className="flex items-center gap-1 text-sm font-bold text-[#261743]">
+                        <span className="truncate">{profile.display_name}</span>
+                        {profile.is_verified ? <BadgeCheck className="h-4 w-4 shrink-0 text-[#7427D5]" /> : null}
+                      </span>
+                      <span className="mt-0.5 flex items-center gap-1 text-xs text-[#6C7892]">
+                        <MapPin className="h-3.5 w-3.5" />
+                        {profile.city || 'Sin ciudad'}
+                      </span>
+                      {profile.modalities.length > 0 ? (
+                        <span className="mt-0.5 block truncate text-[11px] text-[#8A72B2]">
+                          {modalitiesLabel(profile.modalities)}
+                        </span>
+                      ) : null}
+                    </span>
+                    <ChevronRight className="h-4 w-4 shrink-0 text-[#8A72B2]" />
+                  </Link>
+                </li>
+              ))}
+            </ul>
+            <Pager
+              page={profilesPage}
+              count={profilesCount}
+              loading={pagingProfiles}
+              onPage={(page) => {
+                void loadFeed({
+                  search: activeSearch,
+                  offerType,
+                  modality,
+                  offersPage,
+                  profilesPage: page,
+                  target: 'profiles',
+                });
+              }}
+            />
+          </section>
+        ) : null}
+
+        {!loading && offers.length > 0 ? (
+          <section className="mt-7">
+            <div className="flex items-center justify-between gap-3">
+              <h2 className="text-base font-extrabold text-[#261743]">
+                {activeSearch ? 'Productos y servicios' : 'Productos y servicios destacados'}
+              </h2>
+              <div className="flex rounded-xl border border-[#E7D9F0] bg-[#F7F1FB] p-0.5" role="tablist" aria-label="Cambiar vista de productos y servicios">
+                <button
+                  type="button"
+                  role="tab"
+                  aria-label="Ver productos y servicios en grilla"
+                  aria-selected={offerViewMode === 'grid'}
+                  onClick={() => setOfferViewMode('grid')}
+                  className={`flex h-8 w-8 items-center justify-center rounded-lg ${
+                    offerViewMode === 'grid' ? 'bg-[#7427D5] text-white' : 'text-[#7A579D]'
+                  }`}
+                >
+                  <LayoutGrid className="h-4 w-4" />
+                </button>
+                <button
+                  type="button"
+                  role="tab"
+                  aria-label="Ver productos y servicios en lista"
+                  aria-selected={offerViewMode === 'list'}
+                  onClick={() => setOfferViewMode('list')}
+                  className={`flex h-8 w-8 items-center justify-center rounded-lg ${
+                    offerViewMode === 'list' ? 'bg-[#7427D5] text-white' : 'text-[#7A579D]'
+                  }`}
+                >
+                  <List className="h-4 w-4" />
+                </button>
+              </div>
+            </div>
+            <ul className={offerViewMode === 'grid'
+              ? 'mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3'
+              : 'mt-3 space-y-2'}
+            >
+              {offers.map((offer) => {
+                const image = primaryImage(offer);
+                const discounted = offer.original_price_amount != null
+                  && offer.base_price_amount != null
+                  && offer.original_price_amount > offer.base_price_amount;
+                return (
+                  <li key={offer.id}>
+                    <Link
+                      href={`/app/beeservices/offer/${offer.id}`}
+                      className={`flex overflow-hidden rounded-2xl border border-[#F0EAF3] bg-white hover:bg-[#FBF8FE] ${
+                        offerViewMode === 'grid' ? 'flex-col' : 'items-center'
+                      }`}
+                    >
+                      <span className={`flex shrink-0 items-center justify-center bg-[#F6EAFE] text-[#7B2DD9] ${
+                        offerViewMode === 'grid' ? 'h-28 w-full' : 'h-16 w-16'
+                      }`}
+                      >
+                        {image ? (
+                          <img src={image} alt="" className="h-full w-full object-cover" />
+                        ) : offer.offer_kind === 'product' ? (
+                          <Package className="h-6 w-6" />
+                        ) : (
+                          <Wrench className="h-6 w-6" />
+                        )}
+                      </span>
+                      <span className="min-w-0 flex-1 px-3 py-2.5">
+                        <span className="block text-[11px] font-bold text-[#7642AE]">
+                          {offerKindLabel(offer)}
+                        </span>
+                        <span className="mt-0.5 block line-clamp-2 text-sm font-bold text-[#261743]">
+                          {offer.title}
+                        </span>
+                        {offer.description ? (
+                          <span className="mt-0.5 block line-clamp-2 text-xs text-[#8A72B2]">
+                            {offer.description}
+                          </span>
+                        ) : null}
+                        <span className="mt-1 flex flex-wrap items-center gap-1.5">
+                          {discounted && offer.original_price_amount != null ? (
+                            <span className="text-[11px] text-[#8A72B2] line-through">
+                              {moneyCop(offer.original_price_amount)}
+                            </span>
+                          ) : null}
+                          <span className="text-sm font-extrabold text-[#7427D5]">
+                            {priceLabel(offer)}
+                          </span>
+                        </span>
+                      </span>
+                    </Link>
+                  </li>
+                );
+              })}
+            </ul>
+            <Pager
+              page={offersPage}
+              count={offersCount}
+              loading={pagingOffers}
+              onPage={(page) => {
+                void loadFeed({
+                  search: activeSearch,
+                  offerType,
+                  modality,
+                  offersPage: page,
+                  profilesPage,
+                  target: 'offers',
+                });
+              }}
+            />
+          </section>
+        ) : null}
+
+        <footer className="flex flex-col items-center py-8">
+          <p className="text-[11px] text-[#594C67]">
+            Impulsando economías locales con Buddy AI
+          </p>
+          <span className="mt-2 h-1 w-9 rounded-full bg-[#D8AEE5]" />
+        </footer>
+      </div>
+    </div>
+  );
+}
+
+function Pager({
+  page,
+  count,
+  loading,
+  onPage,
+}: {
+  page: number;
+  count: number;
+  loading: boolean;
+  onPage: (page: number) => void;
+}) {
+  const pages = totalPages(count);
+  if (count <= PAGE_SIZE) return null;
+  const canPrevious = page > 1 && !loading;
+  const canNext = page < pages && !loading;
+
+  return (
+    <div className="mt-3 flex items-center justify-between" aria-label={`Paginación, página ${page} de ${pages}`}>
+      <button
+        type="button"
+        aria-label="Página anterior"
+        disabled={!canPrevious}
+        onClick={() => onPage(page - 1)}
+        className="flex h-9 w-9 items-center justify-center rounded-full border border-[#E3D7F5] text-[#7567D9] disabled:text-[#C4B8D9]"
+      >
+        <ChevronLeft className="h-5 w-5" />
+      </button>
+      <span className="text-xs font-bold text-[#5C4A78]">
+        {loading ? 'Cargando…' : `${page} de ${pages}`}
+      </span>
+      <button
+        type="button"
+        aria-label="Página siguiente"
+        disabled={!canNext}
+        onClick={() => onPage(page + 1)}
+        className="flex h-9 w-9 items-center justify-center rounded-full border border-[#E3D7F5] text-[#7567D9] disabled:text-[#C4B8D9]"
+      >
+        <ChevronRight className="h-5 w-5" />
+      </button>
+    </div>
+  );
 }

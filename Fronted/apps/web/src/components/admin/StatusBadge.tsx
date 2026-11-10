@@ -11,6 +11,8 @@ type KnownStatus =
   | 'programada'
   | 'fallida'
   | 'cancelada'
+  | 'en_revision'
+  | 'rechazado'
   | 'verificado'
   | 'no_solicitado'
   | 'revisado'
@@ -21,6 +23,8 @@ const STATUS_CONFIG: Record<KnownStatus, { label: string; className: string }> =
   pagado: { label: 'Pagado', className: 'status-badge-success' },
   enviada: { label: 'Enviada', className: 'status-badge-success' },
   verificado: { label: 'Verificado', className: 'status-badge-success' },
+  en_revision: { label: 'En revisión', className: 'status-badge-warning' },
+  rechazado: { label: 'Rechazado', className: 'status-badge-error' },
   revisado: { label: 'Revisado', className: 'status-badge-success' },
   inactivo: { label: 'Inactivo', className: 'status-badge-neutral' },
   cancelada: { label: 'Cancelada', className: 'status-badge-neutral' },

@@ -1,22 +1,30 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { Sliders, FileText, ShieldAlert, Save, CheckCircle, HelpCircle, Link2 } from 'lucide-react';
+import { Sliders, FileText, ShieldAlert, Save, CheckCircle, AlertCircle, HelpCircle, Link2, Mail } from 'lucide-react';
 import { getAdminSettings, setAdminSetting } from '@beeapp/api-client';
 import PlansSection from './PlansSection';
 
-type ConfigTab = 'planes' | 'terminos' | 'privacidad' | 'soporte';
+type ConfigTab = 'planes' | 'terminos' | 'privacidad' | 'soporte' | 'plataforma';
 
 export default function ConfiguracionPage() {
   const [activeTab, setActiveTab] = useState<ConfigTab>('planes');
   const [saveFeedback, setSaveFeedback] = useState('');
+  const [saveFeedbackIsError, setSaveFeedbackIsError] = useState(false);
 
   const [termsText, setTermsText] = useState('');
   const [privacyText, setPrivacyText] = useState('');
 
   // Support channel states
+  const [supportEmail, setSupportEmail] = useState('');
   const [supportUrl, setSupportUrl] = useState('');
   const [channelType, setChannelType] = useState('');
+  const [iosVersion, setIosVersion] = useState('1.0.0');
+  const [androidVersion, setAndroidVersion] = useState('1.0.0');
+  const [webVersion, setWebVersion] = useState('1.0.0');
+  const [admobEnabled, setAdmobEnabled] = useState(false);
+  const [admobFrequency, setAdmobFrequency] = useState('3');
+  const [admobPlacements, setAdmobPlacements] = useState('chats,estados,beeservices');
   const [settingsError, setSettingsError] = useState('');
 
   useEffect(() => {
@@ -24,8 +32,15 @@ export default function ConfiguracionPage() {
       .then((settings) => {
         if (settings.terms) setTermsText(settings.terms);
         if (settings.privacy) setPrivacyText(settings.privacy);
+        if (settings.support_email) setSupportEmail(settings.support_email);
         if (settings.support_url) setSupportUrl(settings.support_url);
         if (settings.support_channel) setChannelType(settings.support_channel);
+        if (settings.ios_min_version) setIosVersion(settings.ios_min_version);
+        if (settings.android_min_version) setAndroidVersion(settings.android_min_version);
+        if (settings.web_min_version) setWebVersion(settings.web_min_version);
+        setAdmobEnabled(settings.admob_enabled === 'true');
+        if (settings.admob_frequency) setAdmobFrequency(settings.admob_frequency);
+        if (settings.admob_placements) setAdmobPlacements(settings.admob_placements);
       })
       .catch((loadError: unknown) => {
         setSettingsError(loadError instanceof Error ? loadError.message : 'No fue posible cargar la configuración.');
@@ -33,6 +48,8 @@ export default function ConfiguracionPage() {
   }, []);
 
   const isUrlValid = supportUrl.startsWith('http://') || supportUrl.startsWith('https://');
+  const isEmailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(supportEmail.trim());
+  const canSaveSupport = isEmailValid && (supportUrl.trim() === '' || isUrlValid);
 
   const handleSave = async (tab: ConfigTab) => {
     const messages: Record<ConfigTab, string> = {
@@ -40,16 +57,38 @@ export default function ConfiguracionPage() {
       terminos: '¡Términos y condiciones guardados exitosamente!',
       privacidad: '¡Política de privacidad guardada exitosamente!',
       soporte: 'Configuración de soporte actualizada',
+      plataforma: 'Versiones y publicidad guardadas',
     };
     try {
       if (tab === 'terminos') await setAdminSetting('terms', termsText);
       if (tab === 'privacidad') await setAdminSetting('privacy', privacyText);
       if (tab === 'soporte') {
+        if (!isEmailValid) {
+          setSaveFeedbackIsError(true);
+          setSaveFeedback('Ingresa un correo de soporte válido.');
+          return;
+        }
+        if (supportUrl.trim() !== '' && !isUrlValid) {
+          setSaveFeedbackIsError(true);
+          setSaveFeedback('Ingresa una URL válida que comience con http:// o https://');
+          return;
+        }
+        await setAdminSetting('support_email', supportEmail.trim());
         await setAdminSetting('support_url', supportUrl.trim());
         await setAdminSetting('support_channel', channelType.trim());
       }
+      if (tab === 'plataforma') {
+        await setAdminSetting('ios_min_version', iosVersion.trim());
+        await setAdminSetting('android_min_version', androidVersion.trim());
+        await setAdminSetting('web_min_version', webVersion.trim());
+        await setAdminSetting('admob_enabled', admobEnabled ? 'true' : 'false');
+        await setAdminSetting('admob_frequency', admobFrequency.trim());
+        await setAdminSetting('admob_placements', admobPlacements.trim());
+      }
+      setSaveFeedbackIsError(false);
       setSaveFeedback(messages[tab]);
     } catch (error) {
+      setSaveFeedbackIsError(true);
       setSaveFeedback(error instanceof Error ? error.message : 'No fue posible guardar.');
     }
   };
@@ -107,12 +146,24 @@ export default function ConfiguracionPage() {
           <HelpCircle size={16} />
           <span>Soporte</span>
         </button>
+        <button
+          onClick={() => setActiveTab('plataforma')}
+          style={{
+            ...tabButtonStyle,
+            borderBottomColor: activeTab === 'plataforma' ? '#6025d2' : 'transparent',
+            color: activeTab === 'plataforma' ? '#6025d2' : '#6C757D',
+            fontWeight: activeTab === 'plataforma' ? '600' : '400',
+          }}
+        >
+          <Sliders size={16} />
+          <span>App y anuncios</span>
+        </button>
       </div>
 
       {/* Save feedback indicator */}
       {saveFeedback && (
-        <div style={toastStyle}>
-          <CheckCircle size={16} />
+        <div style={saveFeedbackIsError ? errorToastStyle : toastStyle}>
+          {saveFeedbackIsError ? <AlertCircle size={16} /> : <CheckCircle size={16} />}
           <span>{saveFeedback}</span>
         </div>
       )}
@@ -198,11 +249,35 @@ export default function ConfiguracionPage() {
             <div>
               <span className="panel-card-title">Canal de Soporte</span>
               <p style={{ margin: '4px 0 0 0', fontSize: '13px', color: '#6C757D' }}>
-                Configura el enlace al que serán dirigidos los usuarios cuando toquen &apos;Soporte&apos; en la aplicación.
+                El correo que guardes aquí es el destino de &apos;Contactar a Soporte&apos; en la aplicación móvil. Al tocarlo se abre el cliente de correo con ese destinatario.
               </p>
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', maxWidth: '500px' }}>
+              <div className="form-field">
+                <label className="form-field-label">Correo de soporte</label>
+                <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                  <Mail size={16} color="#9EA5B1" style={{ position: 'absolute', left: '12px' }} />
+                  <input
+                    type="email"
+                    className="form-field-input"
+                    style={{
+                      paddingLeft: '36px',
+                      borderColor: !isEmailValid && supportEmail.trim() !== '' ? '#F44336' : '#E9ECEF',
+                    }}
+                    placeholder="soporte@buddy.ai"
+                    value={supportEmail}
+                    onChange={(e) => setSupportEmail(e.target.value)}
+                    autoComplete="off"
+                  />
+                </div>
+                {!isEmailValid && supportEmail.trim() !== '' && (
+                  <p style={{ color: '#F44336', fontSize: '12px', margin: '4px 0 0 0' }}>
+                    Ingresa un correo electrónico válido.
+                  </p>
+                )}
+              </div>
+
               <div className="form-field">
                 <label className="form-field-label">Enlace de soporte</label>
                 <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
@@ -224,6 +299,9 @@ export default function ConfiguracionPage() {
                     Ingresa una URL válida que comience con http:// o https://
                   </p>
                 )}
+                <p style={{ color: '#6C757D', fontSize: '12px', margin: '6px 0 0 0' }}>
+                  Opcional. Este enlace sigue disponible como canal adicional en la web y no cambia el correo de la app móvil.
+                </p>
               </div>
 
               <div className="form-field">
@@ -261,19 +339,67 @@ export default function ConfiguracionPage() {
             <div style={{ display: 'flex', justifyContent: 'flex-end', borderTop: '1px solid #E9ECEF', paddingTop: '16px' }}>
               <button
                 onClick={() => handleSave('soporte')}
-                disabled={!isUrlValid || supportUrl.trim() === ''}
+                disabled={!canSaveSupport}
                 className="confirm-dialog-btn-confirm"
                 style={{
                   display: 'flex',
                   alignItems: 'center',
                   gap: '8px',
                   padding: '12px 24px',
-                  opacity: (!isUrlValid || supportUrl.trim() === '') ? 0.6 : 1,
-                  cursor: (!isUrlValid || supportUrl.trim() === '') ? 'not-allowed' : 'pointer',
+                  opacity: !canSaveSupport ? 0.6 : 1,
+                  cursor: !canSaveSupport ? 'not-allowed' : 'pointer',
                 }}
               >
                 <Save size={16} />
                 <span>Guardar Configuración</span>
+              </button>
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'plataforma' && (
+          <div className="panel-card" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            <span className="panel-card-title">Versiones mínimas y anuncios</span>
+            <p className="form-hint">
+              Las apps leen estos valores para pedir una actualización y para decidir si muestran anuncios. Este panel no conecta el SDK de AdMob.
+            </p>
+            <div className="plan-limits-grid">
+              <div className="form-field">
+                <label className="form-field-label">iOS</label>
+                <input className="form-field-input" value={iosVersion} onChange={(event) => setIosVersion(event.target.value)} />
+              </div>
+              <div className="form-field">
+                <label className="form-field-label">Android</label>
+                <input className="form-field-input" value={androidVersion} onChange={(event) => setAndroidVersion(event.target.value)} />
+              </div>
+              <div className="form-field">
+                <label className="form-field-label">Web</label>
+                <input className="form-field-input" value={webVersion} onChange={(event) => setWebVersion(event.target.value)} />
+              </div>
+            </div>
+            <div className="feature-toggle-row">
+              <span className="feature-toggle-label">Anuncios AdMob encendidos</span>
+              <button
+                type="button"
+                className={`toggle-switch ${admobEnabled ? 'on' : ''}`}
+                onClick={() => setAdmobEnabled((current) => !current)}
+              >
+                <span className="toggle-switch-knob" />
+              </button>
+            </div>
+            <div className="plan-limits-grid">
+              <div className="form-field">
+                <label className="form-field-label">Frecuencia</label>
+                <input className="form-field-input" value={admobFrequency} onChange={(event) => setAdmobFrequency(event.target.value)} />
+              </div>
+              <div className="form-field">
+                <label className="form-field-label">Ubicaciones</label>
+                <input className="form-field-input" value={admobPlacements} onChange={(event) => setAdmobPlacements(event.target.value)} />
+              </div>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+              <button className="confirm-dialog-btn-confirm" type="button" onClick={() => void handleSave('plataforma')}>
+                Guardar
               </button>
             </div>
           </div>
@@ -318,4 +444,11 @@ const toastStyle: React.CSSProperties = {
   fontWeight: '400',
   alignSelf: 'flex-start',
   animation: 'fadeIn 0.3s ease-out',
+};
+
+const errorToastStyle: React.CSSProperties = {
+  ...toastStyle,
+  backgroundColor: '#F8D7DA',
+  color: '#721C24',
+  border: '1px solid #F5C6CB',
 };

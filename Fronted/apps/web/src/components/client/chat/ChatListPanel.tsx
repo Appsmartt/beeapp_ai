@@ -4,9 +4,11 @@ import { Archive } from 'lucide-react';
 import { ChatItem, ChatCategory } from '@/lib/client/chats';
 import ChatCategoryChips from './ChatCategoryChips';
 import AiChatListItem from './AiChatListItem';
+import ChatListSkeleton from './ChatListSkeleton';
 import { ChatRow } from './ChatRow';
 
 interface ChatListPanelProps {
+  loading?: boolean;
   chats: ChatItem[];
   categories: ChatCategory[];
   activeCategoryId: string | null;
@@ -22,9 +24,14 @@ interface ChatListPanelProps {
   onArchiveChat?: (id: string) => void;
   archivedCount?: number;
   onOpenArchived?: () => void;
+  searchEmpty?: {
+    title: string;
+    description: string;
+  } | null;
 }
 
 export default function ChatListPanel({
+  loading = false,
   chats,
   categories,
   activeCategoryId,
@@ -40,6 +47,7 @@ export default function ChatListPanel({
   onArchiveChat,
   archivedCount = 0,
   onOpenArchived,
+  searchEmpty = null,
 }: ChatListPanelProps) {
   // Assistant AI chat is pinned on top and is not filtered out unless a category is explicitly active
   const aiChat = activeCategoryId ? undefined : chats.find((c) => c.isAI);
@@ -50,7 +58,7 @@ export default function ChatListPanel({
     .sort((a, b) => (a.isPinned === b.isPinned ? 0 : a.isPinned ? -1 : 1));
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col bg-transparent">
+    <div className="flex h-full min-h-0 flex-col overflow-hidden bg-transparent">
       {/* Category filter chips */}
       <ChatCategoryChips
         categories={categories}
@@ -60,8 +68,12 @@ export default function ChatListPanel({
       />
 
       {/* Chat list */}
-      <div className="flex-1 overflow-y-auto px-1 pb-28 pt-2">
-        {onOpenArchived && archivedCount > 0 ? (
+      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-1 pb-28 pt-2">
+        {loading ? (
+          <ChatListSkeleton />
+        ) : null}
+
+        {!loading && onOpenArchived && archivedCount > 0 ? (
           <button
             type="button"
             onClick={onOpenArchived}
@@ -79,7 +91,7 @@ export default function ChatListPanel({
           </button>
         ) : null}
 
-        {aiChat && (
+        {!loading && aiChat && (
           <AiChatListItem
             chat={aiChat}
             isSelected={selectedChatId === aiChat.id}
@@ -91,7 +103,14 @@ export default function ChatListPanel({
           />
         )}
 
-        {filteredChats.map((chat) => (
+        {!loading && searchEmpty ? (
+          <div className="mx-4 mt-4 rounded-2xl border border-[#E7DFF3] bg-white px-5 py-8 text-center">
+            <p className="text-sm font-semibold text-[#432064]">{searchEmpty.title}</p>
+            <p className="mt-1 text-xs text-[#786593]">{searchEmpty.description}</p>
+          </div>
+        ) : null}
+
+        {!loading && filteredChats.map((chat) => (
           <ChatRow
             key={chat.id}
             chat={chat}

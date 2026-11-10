@@ -88,7 +88,7 @@ export default function NotificationsPage() {
   };
 
   return (
-    <div className="bg-white min-h-full flex flex-col pb-24">
+    <div className="flex h-full min-h-0 flex-col overflow-hidden bg-white">
       <div className="flex items-center justify-between px-4 py-3 border-b border-neutral-100 bg-white sticky top-0 z-10">
         <div className="flex items-center">
           <Link href="/app" className="p-1.5 rounded-full text-neutral-600 hover:bg-neutral-100">
@@ -101,7 +101,7 @@ export default function NotificationsPage() {
         </button>
       </div>
 
-      <div className="p-4 space-y-6 flex-1 overflow-y-auto">
+      <div className="min-h-0 flex-1 space-y-6 overflow-y-auto p-4 pb-24">
         {loading ? (
           <div className="flex justify-center gap-2 text-xs text-neutral-500 py-8">
             <Loader2 className="w-4 h-4 animate-spin" />

@@ -302,7 +302,7 @@ async function parseApiResponse<T>(
     ): Promise<T> {
     if (!response.ok) {
         const fallbackMessage = (
-        `Error ${response.status}: backend request failed.`
+        `Error ${response.status}: la solicitud no pudo completarse.`
         );
 
         const errorBody = await getErrorBody(response);
@@ -326,7 +326,7 @@ async function parseApiResponse<T>(
         return await response.json() as T;
     } catch {
         throw new ApiRequestError(
-        'El backend respondió correctamente, pero devolvió JSON inválido.',
+        'El servidor respondió con un formato de datos no válido.',
         response.status,
         endpoint,
         null,

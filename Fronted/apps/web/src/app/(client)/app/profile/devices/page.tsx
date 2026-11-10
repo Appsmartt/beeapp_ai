@@ -4,6 +4,7 @@ import { DevicesPanel } from '@/components/client/DevicesPanel';
 export default function DevicesPage() {
   return (
     <ProfileSectionPage
+      wide
       title="Dispositivos"
       description="Sesiones activas y acceso con código QR."
     >

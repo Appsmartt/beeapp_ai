@@ -46,7 +46,10 @@ export function loadSupportConfig() {
   return supportPromise;
 }
 
-export function loadLegalContent() {
+export function loadLegalContent(options?: { fresh?: boolean }) {
+  if (options?.fresh) {
+    legalPromise = null;
+  }
   if (!legalPromise) {
     legalPromise = getLegalContent().catch(() => ({ terms: '', privacy: '' }));
   }
