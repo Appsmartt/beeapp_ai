@@ -3,10 +3,13 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Archive,
+  ArrowDown,
+  ArrowUp,
   CalendarDays,
   Check,
   ChevronDown,
   Download,
+  Eye,
   File,
   FileText,
   Files,
@@ -21,8 +24,10 @@ import {
   Minus,
   MoreHorizontal,
   Paperclip,
+  Pencil,
   Pin,
   Plus,
+  Share2,
   Star,
   Tag,
   Trash2,
@@ -70,6 +75,7 @@ interface NoteEditProps {
   onMoveToTrash: (note: Note) => void;
   onRestore: (note: Note) => void;
   onPermanentlyDelete: (note: Note) => void;
+  onShare?: (note: Note) => void;
 }
 
 type NewBlockType =
@@ -79,8 +85,11 @@ type NewBlockType =
   | 'checklist'
   | 'bulleted_list'
   | 'numbered_list'
+  | 'field'
+  | 'date'
   | 'date_list'
   | 'number_list'
+  | 'image'
   | 'file'
   | 'file_list'
   | 'divider';
@@ -162,6 +171,22 @@ function createBlock(type: NewBlockType): NoteBlock {
         items: [''],
       };
 
+    case 'field':
+      return {
+        id,
+        type: 'field',
+        label: '',
+        value: '',
+      };
+
+    case 'date':
+      return {
+        id,
+        type: 'date',
+        label: '',
+        value: null,
+      };
+
     case 'date_list':
       return {
         id,
@@ -174,6 +199,15 @@ function createBlock(type: NewBlockType): NoteBlock {
         id,
         type: 'number_list',
         items: [createEmptyNumberListItem()],
+      };
+
+    case 'image':
+      return {
+        id,
+        type: 'image',
+        attachment_id: undefined,
+        file_id: undefined,
+        caption: '',
       };
 
     case 'file':
@@ -239,18 +273,84 @@ function attachmentToReference(
 
 function BlockActions({
   onRemove,
+  onMoveUp,
+  onMoveDown,
 }: {
   onRemove: () => void;
+  onMoveUp?: () => void;
+  onMoveDown?: () => void;
 }) {
   return (
-    <button
-      type="button"
-      onClick={onRemove}
-      title="Eliminar bloque"
-      className="opacity-0 group-hover:opacity-100 p-1 rounded-md text-neutral-300 hover:text-red-600 hover:bg-red-50 transition-all"
-    >
-      <X className="w-3.5 h-3.5" />
-    </button>
+    <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-all">
+      {onMoveUp ? (
+        <button
+          type="button"
+          onClick={onMoveUp}
+          title="Subir bloque"
+          className="p-1 rounded-md text-neutral-300 hover:text-brand-primary hover:bg-neutral-100"
+        >
+          <ArrowUp className="w-3.5 h-3.5" />
+        </button>
+      ) : null}
+      {onMoveDown ? (
+        <button
+          type="button"
+          onClick={onMoveDown}
+          title="Bajar bloque"
+          className="p-1 rounded-md text-neutral-300 hover:text-brand-primary hover:bg-neutral-100"
+        >
+          <ArrowDown className="w-3.5 h-3.5" />
+        </button>
+      ) : null}
+      <button
+        type="button"
+        onClick={onRemove}
+        title="Eliminar bloque"
+        className="p-1 rounded-md text-neutral-300 hover:text-red-600 hover:bg-red-50"
+      >
+        <X className="w-3.5 h-3.5" />
+      </button>
+    </div>
+  );
+}
+
+function NoteImagePreview({
+  noteId,
+  attachmentId,
+  alt,
+}: {
+  noteId: string;
+  attachmentId?: string;
+  alt: string;
+}) {
+  const [url, setUrl] = useState<string | null>(null);
+  useEffect(() => {
+    let active = true;
+    if (!attachmentId) {
+      setUrl(null);
+      return undefined;
+    }
+    webNotesApi
+      .getAttachmentAccess(noteId, attachmentId, false)
+      .then((res) => {
+        if (active) setUrl(res.url);
+      })
+      .catch(() => {
+        if (active) setUrl(null);
+      });
+    return () => {
+      active = false;
+    };
+  }, [noteId, attachmentId]);
+
+  if (!url) return null;
+  return (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      src={url}
+      alt={alt}
+      className="mt-2 max-h-72 w-full rounded-xl object-contain border border-neutral-200 bg-white"
+    />
   );
 }
 
@@ -390,6 +490,7 @@ export default function NoteEdit({
   onMoveToTrash,
   onRestore,
   onPermanentlyDelete,
+  onShare,
 }: NoteEditProps) {
   const [title, setTitle] = useState('');
   const [content, setContent] = useState<NoteContent>(normalizeNoteContent());
@@ -401,12 +502,14 @@ export default function NoteEdit({
   const [tagIds, setTagIds] = useState<string[]>([]);
   const [showMeta, setShowMeta] = useState(false);
   const [showAddBlock, setShowAddBlock] = useState(false);
+  const [isPreviewMode, setIsPreviewMode] = useState(false);
   const [attachments, setAttachments] = useState<NoteAttachment[]>([]);
   const [isLoadingAttachments, setIsLoadingAttachments] = useState(false);
   const [uploadingBlockId, setUploadingBlockId] = useState<string | null>(null);
 
   const singleFileInputRef = useRef<HTMLInputElement>(null);
   const listFileInputRef = useRef<HTMLInputElement>(null);
+  const generalFileInputRef = useRef<HTMLInputElement>(null);
   const [targetFileBlockId, setTargetFileBlockId] = useState<string | null>(
     null,
   );
@@ -528,6 +631,15 @@ export default function NoteEdit({
     );
   };
 
+  const moveBlock = (index: number, direction: -1 | 1) => {
+    const nextIndex = index + direction;
+    if (nextIndex < 0 || nextIndex >= content.blocks.length) return;
+    const copy = [...content.blocks];
+    const [moved] = copy.splice(index, 1);
+    copy.splice(nextIndex, 0, moved);
+    setBlocks(copy);
+  };
+
   const addBlock = (type: NewBlockType) => {
     setBlocks([...content.blocks, createBlock(type)]);
     setShowAddBlock(false);
@@ -564,6 +676,29 @@ export default function NoteEdit({
     setTargetFileListBlockId(blockId);
     setTargetFileBlockId(null);
     listFileInputRef.current?.click();
+  };
+
+  const uploadGeneralAttachments = async (
+    event: React.ChangeEvent<HTMLInputElement>,
+  ) => {
+    const files = Array.from(event.target.files || []);
+    event.target.value = '';
+    if (files.length === 0 || isTrashView) return;
+    try {
+      setUploadingBlockId('general');
+      const formData = new FormData();
+      files.forEach((file) => formData.append('files', file));
+      const response = await webNotesApi.uploadAttachments(note.id, formData);
+      setAttachments((current) => {
+        const next = new Map(current.map((a) => [a.id, a]));
+        response.attachments.forEach((a) => next.set(a.id, a));
+        return Array.from(next.values());
+      });
+    } catch {
+      window.alert('No fue posible subir el archivo adjunto.');
+    } finally {
+      setUploadingBlockId(null);
+    }
   };
 
   const uploadFilesForBlock = async (
@@ -618,12 +753,12 @@ export default function NoteEdit({
         if (firstReference) {
           setBlocks(
             updateBlock(content.blocks, targetBlockId, (block) =>
-              block.type === 'file'
+              block.type === 'file' || block.type === 'image'
                 ? {
                     ...block,
                     attachment_id: firstReference.attachment_id,
                     file_id: firstReference.file_id,
-                    caption: firstReference.caption,
+                    caption: block.caption || firstReference.caption,
                   }
                 : block,
             ),
@@ -677,7 +812,7 @@ export default function NoteEdit({
 
       setBlocks(
         updateBlock(content.blocks, blockId, (block) => {
-          if (mode === 'single' && block.type === 'file') {
+          if (mode === 'single' && (block.type === 'file' || block.type === 'image')) {
             return {
               ...block,
               attachment_id: undefined,
@@ -725,6 +860,14 @@ export default function NoteEdit({
         onChange={(event) => void uploadFilesForBlock(event)}
       />
 
+      <input
+        ref={generalFileInputRef}
+        type="file"
+        multiple
+        className="hidden"
+        onChange={(event) => void uploadGeneralAttachments(event)}
+      />
+
       <header className="min-h-[57px] px-5 border-b border-neutral-100 flex items-center justify-between gap-3">
         <div className="flex items-center gap-1.5">
           <button
@@ -768,6 +911,19 @@ export default function NoteEdit({
           >
             <Archive className="w-4 h-4" />
           </button>
+
+          <button
+            type="button"
+            onClick={() => setIsPreviewMode((prev) => !prev)}
+            title={isPreviewMode ? 'Modo edición' : 'Vista previa'}
+            className={`p-2 rounded-lg transition-colors ${
+              isPreviewMode
+                ? 'text-brand-primary bg-brand-primary/10'
+                : 'text-neutral-400 hover:bg-neutral-100'
+            }`}
+          >
+            {isPreviewMode ? <Pencil className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+          </button>
         </div>
 
         <div className="flex items-center gap-2">
@@ -796,6 +952,18 @@ export default function NoteEdit({
             </>
           ) : (
             <>
+              {onShare ? (
+                <button
+                  type="button"
+                  onClick={() => onShare(note)}
+                  title="Compartir nota"
+                  className="h-8 px-3 rounded-full border border-neutral-200 text-xs font-semibold text-neutral-700 flex items-center gap-1.5 hover:bg-neutral-50 transition-colors"
+                >
+                  <Share2 className="w-3.5 h-3.5 text-brand-primary" />
+                  <span>Compartir</span>
+                </button>
+              ) : null}
+
               <button
                 type="button"
                 onClick={() => onMoveToTrash(note)}
@@ -1015,9 +1183,27 @@ export default function NoteEdit({
 
                 {block.type === 'heading' && (
                   <div className="flex items-start gap-2">
+                    {!isTrashView && !isPreviewMode ? (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setBlocks(
+                            updateBlock(content.blocks, block.id, (current) =>
+                              current.type === 'heading'
+                                ? { ...current, level: current.level === 1 ? 2 : 1 }
+                                : current,
+                            ),
+                          )
+                        }
+                        title="Cambiar nivel H1 / H2"
+                        className="mt-1 shrink-0 rounded-md border border-neutral-200 bg-neutral-50 px-1.5 py-0.5 text-[10px] font-bold text-neutral-600 hover:border-brand-primary hover:text-brand-primary"
+                      >
+                        H{block.level || 2}
+                      </button>
+                    ) : null}
                     <input
                       value={block.text}
-                      disabled={isTrashView}
+                      disabled={isTrashView || isPreviewMode}
                       placeholder="Encabezado"
                       onChange={(event) =>
                         setBlocks(
@@ -1032,8 +1218,16 @@ export default function NoteEdit({
                         block.level === 1 ? 'text-2xl' : 'text-xl'
                       }`}
                     />
-                    {!isTrashView && (
-                      <BlockActions onRemove={() => removeBlock(block.id)} />
+                    {!isTrashView && !isPreviewMode && (
+                      <BlockActions
+                        onMoveUp={index > 0 ? () => moveBlock(index, -1) : undefined}
+                        onMoveDown={
+                          index < content.blocks.length - 1
+                            ? () => moveBlock(index, 1)
+                            : undefined
+                        }
+                        onRemove={() => removeBlock(block.id)}
+                      />
                     )}
                   </div>
                 )}
@@ -1636,25 +1830,80 @@ export default function NoteEdit({
 
                 {block.type === 'image' && (
                   <div className="flex items-start gap-2">
-                    <div className="flex-1 rounded-2xl border border-dashed border-neutral-300 bg-neutral-50 p-4">
-                      <div className="flex items-start gap-3">
-                        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white text-brand-primary shadow-sm">
-                          <Image className="h-4 w-4" />
+                    <div className="flex-1 rounded-2xl border border-neutral-200 bg-neutral-50/70 p-4">
+                      <div className="mb-3 flex items-center justify-between gap-3">
+                        <div className="flex items-center gap-2">
+                          <Image className="h-4 w-4 text-brand-primary" />
+                          <span className="text-sm font-semibold text-neutral-800">
+                            Imagen adjunta
+                          </span>
                         </div>
 
-                        <div className="min-w-0 flex-1">
-                          <p className="text-sm font-semibold text-neutral-800">
-                            Imagen adjunta
-                          </p>
-                          <p className="mt-1 text-xs text-neutral-500">
-                            {block.caption || 'Imagen sin descripción'}
-                          </p>
-                        </div>
+                        {!isTrashView && !isPreviewMode && (
+                          <button
+                            type="button"
+                            onClick={() => openSingleFilePicker(block.id)}
+                            disabled={uploadingBlockId === block.id}
+                            className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-brand-primary px-2.5 text-xs font-medium text-white hover:bg-brand-dark disabled:opacity-60"
+                          >
+                            {uploadingBlockId === block.id ? (
+                              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                            ) : (
+                              <Upload className="h-3.5 w-3.5" />
+                            )}
+                            {block.attachment_id ? 'Reemplazar imagen' : 'Subir imagen'}
+                          </button>
+                        )}
                       </div>
+
+                      {block.attachment_id ? (
+                        <div className="space-y-2">
+                          <NoteImagePreview
+                            noteId={note.id}
+                            attachmentId={block.attachment_id}
+                            alt={block.caption || 'Imagen de nota'}
+                          />
+                          {!isTrashView && !isPreviewMode ? (
+                            <input
+                              value={block.caption || ''}
+                              onChange={(event) =>
+                                setBlocks(
+                                  updateBlock(content.blocks, block.id, (current) =>
+                                    current.type === 'image'
+                                      ? { ...current, caption: event.target.value }
+                                      : current,
+                                  ),
+                                )
+                              }
+                              placeholder="Pie de imagen o descripción"
+                              className="h-8 w-full rounded-lg border border-neutral-200 bg-white px-2.5 text-xs text-neutral-700 outline-none focus:border-brand-primary"
+                            />
+                          ) : block.caption ? (
+                            <p className="text-xs text-neutral-500">{block.caption}</p>
+                          ) : null}
+                        </div>
+                      ) : (
+                        <button
+                          type="button"
+                          disabled={isTrashView || isPreviewMode}
+                          onClick={() => openSingleFilePicker(block.id)}
+                          className="w-full rounded-xl border border-dashed border-neutral-300 bg-white px-3 py-6 text-center text-xs text-neutral-500 hover:border-brand-primary hover:text-brand-primary disabled:cursor-default"
+                        >
+                          Selecciona una imagen para insertarla en este bloque.
+                        </button>
+                      )}
                     </div>
 
-                    {!isTrashView && (
-                      <BlockActions onRemove={() => removeBlock(block.id)} />
+                    {!isTrashView && !isPreviewMode && (
+                      <BlockActions
+                        onMoveUp={index > 0 ? () => moveBlock(index, -1) : undefined}
+                        onMoveDown={
+                          index < content.blocks.length - 1
+                            ? () => moveBlock(index, 1)
+                            : undefined
+                        }
+                        onRemove={() => removeBlock(block.id)}
+                      />
                     )}
                   </div>
                 )}
@@ -1844,7 +2093,7 @@ export default function NoteEdit({
               </div>
             ))}
 
-            {!isTrashView && (
+            {!isTrashView && !isPreviewMode && (
               <div className="relative pt-2">
                 <button
                   type="button"
@@ -1856,7 +2105,7 @@ export default function NoteEdit({
                 </button>
 
                 {showAddBlock && (
-                  <div className="absolute left-0 top-12 z-30 w-60 rounded-2xl border border-neutral-200 bg-white p-1.5 shadow-xl">
+                  <div className="absolute left-0 top-12 z-30 w-60 rounded-2xl border border-neutral-200 bg-white p-1.5 shadow-xl max-h-80 overflow-y-auto">
                     {[
                       { type: 'text' as const, label: 'Texto', icon: Type },
                       {
@@ -1885,6 +2134,16 @@ export default function NoteEdit({
                         icon: ListOrdered,
                       },
                       {
+                        type: 'field' as const,
+                        label: 'Campo clave / valor',
+                        icon: FileText,
+                      },
+                      {
+                        type: 'date' as const,
+                        label: 'Fecha individual',
+                        icon: CalendarDays,
+                      },
+                      {
                         type: 'date_list' as const,
                         label: 'Lista de fechas',
                         icon: CalendarDays,
@@ -1893,6 +2152,11 @@ export default function NoteEdit({
                         type: 'number_list' as const,
                         label: 'Lista numérica',
                         icon: Hash,
+                      },
+                      {
+                        type: 'image' as const,
+                        label: 'Imagen',
+                        icon: Image,
                       },
                       {
                         type: 'file' as const,
@@ -1928,6 +2192,53 @@ export default function NoteEdit({
                 )}
               </div>
             )}
+
+            <div className="mt-8 border-t border-neutral-100 pt-5">
+              <div className="flex items-center justify-between gap-2 mb-3">
+                <span className="flex items-center gap-1.5 text-xs font-semibold text-neutral-700">
+                  <Paperclip className="w-3.5 h-3.5 text-brand-primary" />
+                  <span>Adjuntos de la nota ({attachments.length})</span>
+                </span>
+                {!isTrashView && !isPreviewMode ? (
+                  <button
+                    type="button"
+                    disabled={uploadingBlockId === 'general'}
+                    onClick={() => generalFileInputRef.current?.click()}
+                    className="inline-flex h-7 items-center gap-1 rounded-lg border border-neutral-200 bg-white px-2.5 text-[11px] font-medium text-neutral-700 hover:border-brand-primary hover:text-brand-primary disabled:opacity-50"
+                  >
+                    {uploadingBlockId === 'general' ? (
+                      <Loader2 className="h-3 w-3 animate-spin" />
+                    ) : (
+                      <Upload className="h-3 w-3" />
+                    )}
+                    <span>Adjuntar archivo</span>
+                  </button>
+                ) : null}
+              </div>
+
+              {attachments.length > 0 ? (
+                <div className="space-y-2">
+                  {attachments.map((att) => (
+                    <AttachmentRow
+                      key={att.id}
+                      noteId={note.id}
+                      reference={attachmentToReference(att)}
+                      attachment={att}
+                      disabled={true}
+                      onCaptionChange={() => undefined}
+                      onRemove={() => {
+                        if (isTrashView || isPreviewMode) return;
+                        void removeAttachmentReference('', att.id, 'single');
+                      }}
+                    />
+                  ))}
+                </div>
+              ) : (
+                <p className="text-xs text-neutral-400">
+                  Sin archivos adjuntos generales en esta nota.
+                </p>
+              )}
+            </div>
           </div>
         </div>
       </div>

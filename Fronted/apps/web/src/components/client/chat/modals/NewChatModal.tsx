@@ -42,9 +42,9 @@ export default function NewChatModal({
         .then((res) => {
           if (!active) return;
           const mapped = (res.users ?? []).map((u) => {
-            const name = u.display_name || [u.first_name, u.last_name].filter(Boolean).join(' ') || 'Usuario Buddy';
+            const name = [u.first_name, u.last_name].filter(Boolean).join(' ') || u.email || 'Usuario Buddy';
             return {
-              id: u.user_id || u.id,
+              id: u.id,
               recipientIdentityId: u.id,
               name,
               profession: u.occupation || u.email || 'Usuario en Buddy',
@@ -52,10 +52,10 @@ export default function NewChatModal({
               interests: [],
               initials: contactInitials(name),
               color: contactColor(u.id),
-              phone: u.phone || '',
+              phone: '',
               email: u.email || '',
               company: '',
-              location: '',
+              location: u.location || '',
               verified: Boolean(u.is_verified),
             };
           });

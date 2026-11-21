@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import {
   Info,
-  CheckCircle2,
   Check,
   Search,
   UserPlus,
@@ -23,8 +22,9 @@ import {
   rejectStatusFollowRequest,
 } from '@beeapp/api-client';
 import type {
-  StatusFollowDiscoverTarget,
-  StatusFollowRelationshipItem,
+  StatusFollowDiscoverItem,
+  StatusFollowListItem,
+  StatusFollowTarget,
 } from '@beeapp/shared-types';
 import { ContactItem, contactColor, contactInitials } from '@/lib/client/contacts';
 import { getWebAuth, loadDiscoverContacts } from '@/lib/client/liveData';
@@ -43,11 +43,11 @@ export default function DiscoverPanel({
   const [subTab, setSubTab] = useState<SocialSubTab>('discover');
   const [query, setQuery] = useState('');
   const [loading, setLoading] = useState(false);
-  const [targets, setTargets] = useState<StatusFollowDiscoverTarget[]>([]);
+  const [targets, setTargets] = useState<StatusFollowDiscoverItem[]>([]);
   const [networkContacts, setNetworkContacts] = useState<ContactItem[]>([]);
-  const [following, setFollowing] = useState<StatusFollowRelationshipItem[]>([]);
-  const [followers, setFollowers] = useState<StatusFollowRelationshipItem[]>([]);
-  const [requests, setRequests] = useState<StatusFollowRelationshipItem[]>([]);
+  const [following, setFollowing] = useState<StatusFollowListItem[]>([]);
+  const [followers, setFollowers] = useState<StatusFollowListItem[]>([]);
+  const [requests, setRequests] = useState<StatusFollowListItem[]>([]);
   const [busyKey, setBusyKey] = useState<string | null>(null);
 
   const loadAll = useCallback(async (searchText: string) => {
@@ -55,10 +55,10 @@ export default function DiscoverPanel({
     try {
       const auth = await getWebAuth();
       const [discoverRes, followingRes, followersRes, requestsRes, fallbackContacts] = await Promise.all([
-        discoverStatusFollowTargets(auth, { q: searchText.trim() || undefined, limit: 30 }).catch(() => ({ items: [] as StatusFollowDiscoverTarget[] })),
-        getStatusFollowing(auth, { limit: 50 }).catch(() => ({ items: [] as StatusFollowRelationshipItem[] })),
-        getStatusFollowers(auth, { limit: 50 }).catch(() => ({ items: [] as StatusFollowRelationshipItem[] })),
-        getStatusFollowRequests(auth, { limit: 50 }).catch(() => ({ items: [] as StatusFollowRelationshipItem[] })),
+        discoverStatusFollowTargets(auth, { q: searchText.trim(), limit: 30 }).catch(() => ({ items: [] as StatusFollowDiscoverItem[] })),
+        getStatusFollowing(auth, { limit: 50 }).catch(() => ({ items: [] as StatusFollowListItem[] })),
+        getStatusFollowers(auth, { limit: 50 }).catch(() => ({ items: [] as StatusFollowListItem[] })),
+        getStatusFollowRequests(auth, { limit: 50 }).catch(() => ({ items: [] as StatusFollowListItem[] })),
         loadDiscoverContacts().catch(() => [] as ContactItem[]),
       ]);
       setTargets(discoverRes.items || []);
@@ -78,20 +78,21 @@ export default function DiscoverPanel({
     return () => window.clearTimeout(timer);
   }, [query, loadAll]);
 
-  const handleFollowTarget = async (e: React.MouseEvent, target: StatusFollowDiscoverTarget) => {
+  const handleFollowTarget = async (e: React.MouseEvent, target: StatusFollowDiscoverItem) => {
     e.stopPropagation();
-    const key = `${target.actor.actor_type}:${target.actor.actor_id}`;
+    const actorId = target.commercial_profile_id || target.profile_id || target.identity_id || target.display_name;
+    const key = `${target.actor_type}:${actorId}`;
     setBusyKey(key);
     try {
       const auth = await getWebAuth();
-      if (target.relationship.outgoing_follow_id) {
-        await deleteStatusFollow(auth, target.relationship.outgoing_follow_id);
+      if (target.follow_id) {
+        await deleteStatusFollow(auth, target.follow_id);
       } else {
         await createStatusFollow(auth, {
-          target_actor_type: target.actor.actor_type,
-          ...(target.actor.actor_type === 'profile'
-            ? { target_profile_id: target.actor.actor_id }
-            : { target_commercial_profile_id: target.actor.actor_id }),
+          target_actor_type: target.actor_type,
+          ...(target.actor_type === 'profile'
+            ? { target_profile_id: target.profile_id }
+            : { target_commercial_profile_id: target.commercial_profile_id }),
         });
       }
       await loadAll(query);
@@ -144,24 +145,37 @@ export default function DiscoverPanel({
     }
   };
 
-  const actorToContact = (actor: {
-    actor_id: string;
-    actor_type: string;
-    display_name: string;
-    subtitle?: string | null;
-    is_verified?: boolean;
-  }): ContactItem => ({
-    id: actor.actor_id,
-    name: actor.display_name || 'Usuario',
-    profession: actor.subtitle || (actor.actor_type === 'commercial_profile' ? 'Perfil comercial' : 'Red Buddy'),
-    activity: actor.subtitle || '',
-    interests: [],
-    initials: contactInitials(actor.display_name || 'U'),
-    color: contactColor(actor.actor_id),
-    verified: Boolean(actor.is_verified),
-    isDiscovery: true,
-    linkedUserId: actor.actor_id,
-  });
+  const discoverToContact = (item: StatusFollowDiscoverItem): ContactItem => {
+    const actorId = item.commercial_profile_id || item.profile_id || item.identity_id || item.display_name;
+    return {
+      id: actorId,
+      name: item.display_name || 'Usuario',
+      profession: item.occupation || (item.actor_type === 'commercial_profile' ? 'Perfil comercial' : 'Red Buddy'),
+      activity: item.occupation || '',
+      interests: [],
+      initials: contactInitials(item.display_name || 'U'),
+      color: contactColor(actorId),
+      verified: false,
+      isDiscovery: true,
+      linkedUserId: item.profile_id || actorId,
+    };
+  };
+
+  const targetToContact = (target: StatusFollowTarget): ContactItem => {
+    const actorId = target.commercial_profile_id || target.profile_id || target.display_name;
+    return {
+      id: actorId,
+      name: target.display_name || 'Usuario',
+      profession: target.actor_type === 'commercial_profile' ? 'Perfil comercial' : 'Red Buddy',
+      activity: '',
+      interests: [],
+      initials: contactInitials(target.display_name || 'U'),
+      color: contactColor(actorId),
+      verified: false,
+      isDiscovery: true,
+      linkedUserId: target.profile_id || actorId,
+    };
+  };
 
   return (
     <div className="flex-1 flex flex-col min-h-0 bg-white">
@@ -228,10 +242,11 @@ export default function DiscoverPanel({
         ) : subTab === 'discover' ? (
           targets.length > 0 ? (
             targets.map((target) => {
-              const contact = actorToContact(target.actor);
+              const contact = discoverToContact(target);
               const isSelected = selectedContactId === contact.id;
-              const status = target.relationship.outgoing_status;
-              const key = `${target.actor.actor_type}:${target.actor.actor_id}`;
+              const status = target.follow_state;
+              const actorId = target.commercial_profile_id || target.profile_id || target.identity_id || target.display_name;
+              const key = `${target.actor_type}:${actorId}`;
               const isBusy = busyKey === key;
 
               return (
@@ -247,10 +262,10 @@ export default function DiscoverPanel({
                       className="w-10 h-10 rounded-full flex items-center justify-center font-semibold text-xs text-brand-primary shrink-0 overflow-hidden"
                       style={{ backgroundColor: contact.color }}
                     >
-                      {target.actor.avatar_url ? (
+                      {target.avatar_url ? (
                         // eslint-disable-next-line @next/next/no-img-element
                         <img
-                          src={target.actor.avatar_url}
+                          src={target.avatar_url}
                           alt={contact.name}
                           className="h-full w-full object-cover"
                         />
@@ -264,10 +279,7 @@ export default function DiscoverPanel({
                         <span className="font-semibold text-xs text-neutral-900 truncate">
                           {contact.name}
                         </span>
-                        {target.actor.is_verified && (
-                          <CheckCircle2 className="w-3.5 h-3.5 text-brand-primary shrink-0" />
-                        )}
-                        {target.actor.actor_type === 'commercial_profile' ? (
+                        {target.actor_type === 'commercial_profile' ? (
                           <Building2 className="w-3 h-3 text-neutral-400 shrink-0" />
                         ) : (
                           <User className="w-3 h-3 text-neutral-400 shrink-0" />
@@ -349,7 +361,7 @@ export default function DiscoverPanel({
             </div>
           ) : (
             following.map((item) => {
-              const contact = actorToContact(item.target);
+              const contact = targetToContact(item.target);
               return (
                 <div
                   key={item.id}
@@ -368,7 +380,7 @@ export default function DiscoverPanel({
                         {contact.name}
                       </span>
                       <p className="text-[11px] text-neutral-500 truncate">
-                        {item.status === 'pending' ? 'Solicitud pendiente' : contact.profession}
+                        {item.state === 'pending' ? 'Solicitud pendiente' : contact.profession}
                       </p>
                     </div>
                   </div>
@@ -391,7 +403,7 @@ export default function DiscoverPanel({
             </div>
           ) : (
             followers.map((item) => {
-              const contact = actorToContact(item.follower);
+              const contact = targetToContact(item.target);
               return (
                 <div
                   key={item.id}
@@ -422,7 +434,7 @@ export default function DiscoverPanel({
           </div>
         ) : (
           requests.map((item) => {
-            const contact = actorToContact(item.follower);
+            const contact = targetToContact(item.target);
             return (
               <div
                 key={item.id}

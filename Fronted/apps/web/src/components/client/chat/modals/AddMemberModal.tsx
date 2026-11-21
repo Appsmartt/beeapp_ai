@@ -49,7 +49,7 @@ export default function AddMemberModal({
         .then((res) => {
           if (!active) return;
           const mapped: Candidate[] = (res.users ?? []).map((u) => {
-            const name = u.display_name || [u.first_name, u.last_name].filter(Boolean).join(' ') || 'Usuario Buddy';
+            const name = [u.first_name, u.last_name].filter(Boolean).join(' ') || u.email || 'Usuario Buddy';
             return {
               id: u.id,
               recipientIdentityId: u.id,
@@ -59,10 +59,10 @@ export default function AddMemberModal({
               interests: [],
               initials: contactInitials(name),
               color: contactColor(u.id),
-              phone: u.phone || '',
+              phone: '',
               email: u.email || '',
               company: '',
-              location: '',
+              location: u.location || '',
               verified: Boolean(u.is_verified),
             };
           });

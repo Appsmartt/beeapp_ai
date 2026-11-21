@@ -393,6 +393,12 @@ export default function StorageModule() {
   const [isSubmitting, setIsSubmitting] =
     useState(false);
 
+  const [sortBy, setSortBy] = useState<'date' | 'name' | 'size' | 'type'>('date');
+  const [trashedItems, setTrashedItems] = useState<WebStorageItem[]>([]);
+  const [sharedItems, setSharedItems] = useState<WebStorageItem[]>([]);
+  const [pinTargetItem, setPinTargetItem] = useState<WebStorageItem | null>(null);
+  const [pinPurpose, setPinPurpose] = useState<'open' | 'download' | 'unprotect'>('open');
+
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const showError = (
@@ -426,20 +432,32 @@ export default function StorageModule() {
       }
 
       try {
+        const protectedSet = readProtectedStorageIds();
         const [
           summaryResponse,
           foldersResponse,
           filesResponse,
+          trashedResponse,
+          sharedResponse,
           tagsResponse,
         ] = await Promise.all([
           getCurrentWebStorageSummary(),
           getCurrentWebStorageFolders({}),
           getCurrentWebStorageFiles({
             status: 'ready',
-            scope: 'recent',
+            scope: 'all',
             limit: 100,
             offset: 0,
           }),
+          getCurrentWebStorageFiles({
+            status: 'trashed',
+            limit: 100,
+            offset: 0,
+          }).catch(() => ({ files: [] as StorageFile[], count: 0, limit: 100, offset: 0 })),
+          getCurrentWebReceivedStorageShares({
+            limit: 100,
+            offset: 0,
+          }).catch(() => ({ shares: [], count: 0, limit: 100, offset: 0 })),
           getCurrentWebStorageTags(),
         ]);
 
@@ -476,21 +494,44 @@ export default function StorageModule() {
             mapFolderToItem(
               folder,
               folderCounts.get(folder.id) || 0,
+              protectedSet.has(folder.id),
             ),
           ),
           ...filesResponse.files.map((file) =>
             mapFileToItem(
               file,
               tagIdsByFileId.get(file.id) || [],
+              protectedSet.has(file.id),
             ),
           ),
         ];
+
+        const nextTrashed = (trashedResponse.files || []).map((file) => ({
+          ...mapFileToItem(file, [], false),
+          isTrashed: true,
+        }));
+
+        const nextShared: WebStorageItem[] = (sharedResponse.shares || [])
+          .filter((s) => Boolean(s.file) && !s.revoked_at && !s.hidden_at)
+          .map((share) => {
+            const file = share.file!;
+            const senderName = [share.shared_by?.first_name, share.shared_by?.last_name]
+              .filter(Boolean)
+              .join(' ') || 'Contacto';
+            return {
+              ...mapFileToItem(file, [], false),
+              shareId: share.id,
+              sharedByName: senderName,
+            };
+          });
 
         setSummary(summaryResponse.storage);
         setCategories(
           tagsResponse.tags.map(mapTagToCategory),
         );
         setItems(nextItems);
+        setTrashedItems(nextTrashed);
+        setSharedItems(nextShared);
 
         setSelectedItem((currentItem) => {
           if (!currentItem) {
@@ -533,7 +574,7 @@ export default function StorageModule() {
     setSelectedItem(null);
   };
 
-  const openItemContent = (
+  const openItemContentImmediate = (
     item: WebStorageItem,
   ) => {
     if (item.type === 'folder') {
@@ -552,58 +593,111 @@ export default function StorageModule() {
     setSelectedItem(item);
   };
 
+  const openItemContent = (
+    item: WebStorageItem,
+  ) => {
+    if (item.isProtected) {
+      setPinPurpose('open');
+      setPinTargetItem(item);
+      return;
+    }
+    openItemContentImmediate(item);
+  };
+
   const filteredItems = useMemo(
-    () => items.filter((item) => {
-      if (
-        activeCategoryId
-        && !item.categoryIds?.includes(
-          activeCategoryId,
-        )
-      ) {
-        return false;
-      }
+    () => {
+      const basePool =
+        filter === 'trash'
+          ? trashedItems
+          : filter === 'shared'
+            ? sharedItems
+            : items;
 
-      if (filter === 'all') {
-        return item.parentId === currentFolderId;
-      }
+      const list = basePool
+        .filter((item) => {
+          if (filter === 'trash' || filter === 'shared') {
+            return true;
+          }
 
-      if (filter === 'recent') {
-        return (
-          item.date.includes('Hoy')
-          || item.date.includes('Ayer')
-        );
-      }
+          if (
+            activeCategoryId
+            && !item.categoryIds?.includes(
+              activeCategoryId,
+            )
+          ) {
+            return false;
+          }
 
-      if (filter === 'docs') {
-        return (
-          item.type === 'pdf'
-          || item.type === 'doc'
-          || item.type === 'sheet'
-        );
-      }
+          if (filter === 'all') {
+            if (homeSearch.hasActiveQuery) return true;
+            return item.parentId === currentFolderId;
+          }
 
-      if (filter === 'media') {
-        return (
-          item.type === 'image'
-          || item.type === 'video'
-        );
-      }
+          if (filter === 'recent') {
+            if (item.type === 'folder') return false;
+            if (item.updatedAtIso) {
+              const diffMs = Date.now() - new Date(item.updatedAtIso).getTime();
+              return diffMs <= 7 * 24 * 60 * 60 * 1000;
+            }
+            return (
+              item.date.includes('Hoy')
+              || item.date.includes('Ayer')
+            );
+          }
 
-      if (filter === 'protected') {
-        return item.isProtected;
-      }
+          if (filter === 'docs') {
+            return (
+              item.type === 'pdf'
+              || item.type === 'doc'
+              || item.type === 'sheet'
+            );
+          }
 
-      return true;
-    }).filter((item) => (
-      !homeSearch.hasActiveQuery
-      || homeSearch.matchesQuery(item.name)
-    )),
+          if (filter === 'media') {
+            return (
+              item.type === 'image'
+              || item.type === 'video'
+              || item.type === 'audio'
+            );
+          }
+
+          if (filter === 'protected') {
+            return Boolean(item.isProtected);
+          }
+
+          return true;
+        })
+        .filter((item) => (
+          !homeSearch.hasActiveQuery
+          || homeSearch.matchesQuery(item.name)
+        ));
+
+      return [...list].sort((a, b) => {
+        if (a.type === 'folder' && b.type !== 'folder') return -1;
+        if (a.type !== 'folder' && b.type === 'folder') return 1;
+        if (sortBy === 'name') {
+          return a.name.localeCompare(b.name, 'es');
+        }
+        if (sortBy === 'size') {
+          return (b.sizeBytes || 0) - (a.sizeBytes || 0);
+        }
+        if (sortBy === 'type') {
+          return a.type.localeCompare(b.type, 'es');
+        }
+        const tA = a.updatedAtIso ? new Date(a.updatedAtIso).getTime() : 0;
+        const tB = b.updatedAtIso ? new Date(b.updatedAtIso).getTime() : 0;
+        return tB - tA;
+      });
+    },
     [
       activeCategoryId,
       currentFolderId,
       filter,
       homeSearch,
       items,
+      sharedItems,
+      sortBy,
+      trashedItems,
     ],
   );
 
@@ -867,10 +961,49 @@ export default function StorageModule() {
   const handleTrash = async (
     item: WebStorageItem,
   ) => {
-    if (item.type === 'folder') {
-      showError(
-        'La eliminación de carpetas todavía no está disponible desde la vista web.',
+    if (item.shareId) {
+      const confirmed = window.confirm(
+        `¿Ocultar “${item.name}” de tus archivos compartidos?`,
       );
+      if (!confirmed) return;
+      try {
+        setIsSubmitting(true);
+        await hideCurrentWebReceivedStorageShare(item.shareId);
+        setSelectedItem(null);
+        await loadStorage(true);
+        showSuccess('Archivo compartido ocultado.');
+      } catch (error) {
+        showError(
+          error instanceof Error
+            ? error.message
+            : 'No fue posible ocultar el archivo compartido.',
+        );
+      } finally {
+        setIsSubmitting(false);
+      }
+      return;
+    }
+
+    if (item.type === 'folder') {
+      const confirmed = window.confirm(
+        `¿Deseas eliminar la carpeta “${item.name}”?`,
+      );
+      if (!confirmed) return;
+      try {
+        setIsSubmitting(true);
+        await deleteCurrentWebStorageFolder(item.id);
+        setSelectedItem(null);
+        await loadStorage(true);
+        showSuccess('Carpeta eliminada correctamente.');
+      } catch (error) {
+        showError(
+          error instanceof Error
+            ? error.message
+            : 'No fue posible eliminar la carpeta.',
+        );
+      } finally {
+        setIsSubmitting(false);
+      }
       return;
     }
 
@@ -904,7 +1037,76 @@ export default function StorageModule() {
     }
   };
 
-  const handleDownload = async (
+  const handleRestoreFile = async (item: WebStorageItem) => {
+    if (item.type === 'folder') return;
+    try {
+      setIsSubmitting(true);
+      await restoreCurrentWebStorageFile(item.id);
+      setSelectedItem(null);
+      await loadStorage(true);
+      showSuccess('Archivo restaurado correctamente.');
+    } catch (error) {
+      showError(
+        error instanceof Error
+          ? error.message
+          : 'No fue posible restaurar el archivo.',
+      );
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handlePermanentlyDeleteFile = async (item: WebStorageItem) => {
+    if (item.type === 'folder') return;
+    if (!window.confirm(`¿Eliminar “${item.name}” permanentemente? Esta acción no se puede deshacer.`)) {
+      return;
+    }
+    try {
+      setIsSubmitting(true);
+      await permanentlyDeleteCurrentWebStorageFile(item.id);
+      setSelectedItem(null);
+      await loadStorage(true);
+      showSuccess('Archivo eliminado permanentemente.');
+    } catch (error) {
+      showError(
+        error instanceof Error
+          ? error.message
+          : 'No fue posible eliminar el archivo permanentemente.',
+      );
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleToggleProtection = async (item: WebStorageItem) => {
+    if (item.isProtected) {
+      setPinPurpose('unprotect');
+      setPinTargetItem(item);
+      return;
+    }
+    try {
+      const auth = await getWebAuth();
+      const status = await getAccountSecurityPinStatus(auth);
+      if (!status.configured) {
+        showError('Configura primero un PIN en Seguridad para proteger archivos.');
+        return;
+      }
+      const nextSet = readProtectedStorageIds();
+      nextSet.add(item.id);
+      writeProtectedStorageIds(nextSet);
+      setItems((prev) =>
+        prev.map((it) => (it.id === item.id ? { ...it, isProtected: true } : it)),
+      );
+      if (selectedItem?.id === item.id) {
+        setSelectedItem(null);
+      }
+      showSuccess(`“${item.name}” ahora está protegido con PIN.`);
+    } catch {
+      showError('No fue posible verificar el estado de tu PIN de seguridad.');
+    }
+  };
+
+  const handleDownloadImmediate = async (
     item: WebStorageItem,
   ) => {
     if (item.type === 'folder') {
@@ -930,6 +1132,17 @@ export default function StorageModule() {
           : 'No fue posible preparar la descarga.',
       );
     }
+  };
+
+  const handleDownload = async (
+    item: WebStorageItem,
+  ) => {
+    if (item.isProtected) {
+      setPinPurpose('download');
+      setPinTargetItem(item);
+      return;
+    }
+    await handleDownloadImmediate(item);
   };
 
   const handleUploadClick = (
@@ -1081,11 +1294,6 @@ export default function StorageModule() {
                 onUploadVideo={() =>
                   handleUploadClick('video/*')
                 }
-                onScanDocument={() =>
-                  showError(
-                    'El escáner de documentos está disponible únicamente en la app móvil.',
-                  )
-                }
               />
             </div>
           </div>
@@ -1197,28 +1405,42 @@ export default function StorageModule() {
         </div>
 
         <div className="min-h-0 flex-1 overflow-y-auto p-3">
-          <div className="mb-3 flex items-center justify-between">
+          <div className="mb-3 flex items-center justify-between gap-2">
             <span className="text-[11px] font-normal text-neutral-500">
               {loading
                 ? 'Cargando archivos...'
                 : `${filteredItems.length} elemento(s)`}
             </span>
 
-            <button
-              type="button"
-              onClick={() => {
-                void loadStorage(true);
-              }}
-              disabled={refreshing || isSubmitting}
-              className="rounded-lg p-1 text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-brand-primary disabled:opacity-50"
-              title="Actualizar"
-            >
-              <RefreshCw
-                className={`h-3.5 w-3.5 ${
-                  refreshing ? 'animate-spin' : ''
-                }`}
-              />
-            </button>
+            <div className="flex items-center gap-1.5">
+              <select
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value as 'date' | 'name' | 'size' | 'type')}
+                className="h-7 rounded-lg border border-neutral-200 bg-neutral-50 px-2 text-[11px] text-neutral-700 outline-none focus:border-brand-primary"
+                aria-label="Ordenar archivos"
+              >
+                <option value="date">Orden: Fecha</option>
+                <option value="name">Orden: Nombre</option>
+                <option value="size">Orden: Tamaño</option>
+                <option value="type">Orden: Tipo</option>
+              </select>
+
+              <button
+                type="button"
+                onClick={() => {
+                  void loadStorage(true);
+                }}
+                disabled={refreshing || isSubmitting}
+                className="rounded-lg p-1 text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-brand-primary disabled:opacity-50"
+                title="Actualizar"
+              >
+                <RefreshCw
+                  className={`h-3.5 w-3.5 ${
+                    refreshing ? 'animate-spin' : ''
+                  }`}
+                />
+              </button>
+            </div>
           </div>
 
           {loading ? (
@@ -1258,7 +1480,7 @@ export default function StorageModule() {
             >
               {filteredItems.map((item) => (
                 <StorageRow
-                  key={item.id}
+                  key={`${item.id}-${item.shareId || ''}`}
                   item={item}
                   isSelected={
                     selectedItem?.id === item.id
@@ -1282,12 +1504,16 @@ export default function StorageModule() {
                     void handleDownload(nextItem);
                   }}
                   onToggleProtection={(nextItem) => {
-                    showError(
-                      `La protección con PIN de “${nextItem.name}” se implementará más adelante.`,
-                    );
+                    void handleToggleProtection(nextItem);
                   }}
                   onDelete={(nextItem) => {
                     void handleTrash(nextItem);
+                  }}
+                  onRestore={(nextItem) => {
+                    void handleRestoreFile(nextItem);
+                  }}
+                  onPermanentDelete={(nextItem) => {
+                    void handlePermanentlyDeleteFile(nextItem);
                   }}
                   onAssignCategory={(nextItem) => {
                     if (nextItem.type === 'folder') {
@@ -1401,9 +1627,46 @@ export default function StorageModule() {
         }}
         onShare={handleShare}
       />
+
+      <PinLockModal
+        visible={Boolean(pinTargetItem)}
+        itemName={pinTargetItem?.name}
+        onClose={() => setPinTargetItem(null)}
+        onSuccess={() => {
+          const target = pinTargetItem;
+          setPinTargetItem(null);
+          if (!target) return;
+          if (pinPurpose === 'unprotect') {
+            const nextSet = readProtectedStorageIds();
+            nextSet.delete(target.id);
+            writeProtectedStorageIds(nextSet);
+            setItems((prev) =>
+              prev.map((it) => (it.id === target.id ? { ...it, isProtected: false } : it)),
+            );
+            showSuccess(`Se quitó la protección con PIN de “${target.name}”.`);
+            return;
+          }
+          if (pinPurpose === 'download') {
+            void handleDownloadImmediate(target);
+            return;
+          }
+          openItemContentImmediate(target);
+        }}
+      />
     </div>
   );
 }
+
+const STORAGE_CATEGORY_COLORS = [
+  '#7C3AED',
+  '#2563EB',
+  '#0891B2',
+  '#059669',
+  '#CA8A04',
+  '#EA580C',
+  '#DC2626',
+  '#DB2777',
+];
 
 function CreateWebCategoryModal({
   submitting,
@@ -1417,6 +1680,7 @@ function CreateWebCategoryModal({
   ) => Promise<void>;
 }) {
   const [name, setName] = useState('');
+  const [color, setColor] = useState(STORAGE_CATEGORY_COLORS[0]);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -1440,6 +1704,23 @@ function CreateWebCategoryModal({
           className="h-9 w-full rounded-xl border border-neutral-200 px-3 text-xs outline-none focus:border-brand-primary disabled:bg-neutral-100"
         />
 
+        <div className="space-y-1.5">
+          <span className="text-[11px] font-medium text-neutral-500">Color</span>
+          <div className="flex items-center gap-2">
+            {STORAGE_CATEGORY_COLORS.map((c) => (
+              <button
+                key={c}
+                type="button"
+                onClick={() => setColor(c)}
+                className={`h-6 w-6 rounded-full transition-transform ${
+                  color === c ? 'scale-110 ring-2 ring-neutral-700 ring-offset-1' : ''
+                }`}
+                style={{ backgroundColor: c }}
+              />
+            ))}
+          </div>
+        </div>
+
         <div className="flex gap-2">
           <button
             type="button"
@@ -1458,7 +1739,7 @@ function CreateWebCategoryModal({
                 id: '',
                 name: name.trim(),
                 icon: 'Tag',
-                color: '#F3E8FF',
+                color,
               });
             }}
             className="h-9 flex-1 rounded-full bg-brand-primary text-xs font-semibold text-white disabled:bg-neutral-300"

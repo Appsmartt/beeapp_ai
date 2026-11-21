@@ -2523,6 +2523,111 @@ function CalendarEventModal({
             />
           </div>
 
+          <div className="space-y-2 rounded-xl border border-neutral-200 bg-neutral-50/70 p-3">
+            <label className="flex items-center gap-1.5 text-xs font-semibold text-neutral-700">
+              <Users className="h-3.5 w-3.5 text-brand-primary" />
+              <span>Asistentes</span>
+            </label>
+            <input
+              type="text"
+              value={userQuery}
+              disabled={saving}
+              onChange={(e) => setUserQuery(e.target.value)}
+              placeholder="Buscar usuario en Buddy por nombre o correo..."
+              className="h-9 w-full rounded-xl border border-neutral-200 bg-white px-3 text-xs text-neutral-800 outline-none focus:border-brand-primary"
+            />
+            {userResults.length > 0 ? (
+              <div className="max-h-36 divide-y divide-neutral-100 overflow-y-auto rounded-xl border border-neutral-200 bg-white">
+                {userResults.map((u) => {
+                  const fullName = [u.first_name, u.last_name].filter(Boolean).join(' ') || u.email || 'Usuario';
+                  const already = values.attendeeIds.includes(u.user_id);
+                  return (
+                    <button
+                      key={u.user_id}
+                      type="button"
+                      disabled={already}
+                      onClick={() => {
+                        if (!already) {
+                          updateValue('attendeeIds', [...values.attendeeIds, u.user_id]);
+                          setSelectedUsers((prev) => ({ ...prev, [u.user_id]: fullName }));
+                        }
+                        setUserQuery('');
+                        setUserResults([]);
+                      }}
+                      className="flex w-full items-center justify-between px-3 py-2 text-left text-xs hover:bg-neutral-50 disabled:opacity-50"
+                    >
+                      <span className="truncate font-medium text-neutral-800">{fullName}</span>
+                      <span className="text-[11px] font-semibold text-brand-primary">
+                        {already ? 'Agregado' : '+ Agregar'}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            ) : null}
+            {values.attendeeIds.length > 0 ? (
+              <div className="flex flex-wrap gap-1.5 pt-1">
+                {values.attendeeIds.map((uid) => (
+                  <span
+                    key={uid}
+                    className="inline-flex items-center gap-1 rounded-full border border-brand-primary/20 bg-white px-2.5 py-1 text-[11px] font-medium text-neutral-700"
+                  >
+                    <span>{selectedUsers[uid] || 'Participante'}</span>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        updateValue(
+                          'attendeeIds',
+                          values.attendeeIds.filter((id) => id !== uid),
+                        )
+                      }
+                      className="text-neutral-400 hover:text-red-600"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </span>
+                ))}
+              </div>
+            ) : null}
+          </div>
+
+          <div className="space-y-2 rounded-xl border border-neutral-200 bg-neutral-50/70 p-3">
+            <label className="flex items-center gap-1.5 text-xs font-semibold text-neutral-700">
+              <Bell className="h-3.5 w-3.5 text-brand-primary" />
+              <span>Recordatorios</span>
+            </label>
+            <div className="flex flex-wrap gap-1.5">
+              {[
+                { mins: 10, label: '10 min antes' },
+                { mins: 30, label: '30 min antes' },
+                { mins: 60, label: '1 hora antes' },
+                { mins: 1440, label: '1 día antes' },
+              ].map((opt) => {
+                const active = values.reminderMinutes.includes(opt.mins);
+                return (
+                  <button
+                    key={opt.mins}
+                    type="button"
+                    disabled={saving}
+                    onClick={() => {
+                      const next = active
+                        ? values.reminderMinutes.filter((m) => m !== opt.mins)
+                        : [...values.reminderMinutes, opt.mins];
+                      updateValue('reminderMinutes', next);
+                    }}
+                    className={`rounded-full px-2.5 py-1 text-[11px] font-medium transition-colors ${
+                      active
+                        ? 'bg-brand-primary text-white'
+                        : 'border border-neutral-200 bg-white text-neutral-600 hover:border-brand-primary'
+                    }`}
+                  >
+                    {opt.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
           <div className="flex items-center justify-between rounded-xl border border-neutral-200 bg-neutral-50 px-3 py-2.5">
             <div>
               <p className="text-xs font-semibold text-neutral-700">

@@ -26,9 +26,7 @@ import {
   Camera,
   Loader2,
   LogOut,
-  Mail,
   MapPin,
-  Phone,
   ShieldCheck,
   Timer,
   Trash2,
@@ -147,8 +145,8 @@ export default function ChatProfile({
           }
         } else if (chat.peerIdentityId) {
           const profileRes = await getChatContactProfile(auth, chat.peerIdentityId).catch(() => null);
-          if (active && profileRes?.contact) {
-            setContactProfile(profileRes.contact);
+          if (active && profileRes) {
+            setContactProfile(profileRes);
           }
         }
       })

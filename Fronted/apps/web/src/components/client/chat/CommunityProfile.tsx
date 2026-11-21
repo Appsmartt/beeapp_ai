@@ -27,7 +27,10 @@ export default function CommunityProfile({ community, onBack }: CommunityProfile
     });
   }, [community.category]);
   const [members, setMembers] = useState<CommunityMember[]>(community.members || []);
-  const [muted, setMuted] = useState(false);
+  const [muted, setMuted] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    return window.localStorage.getItem(`beeapp.community.muted.${community.id}`) === '1';
+  });
   const [addMemberVisible, setAddMemberVisible] = useState(false);
 
   const handleLeave = () => {
@@ -36,8 +39,12 @@ export default function CommunityProfile({ community, onBack }: CommunityProfile
   };
 
   const handleDelete = () => {
-    if (!confirm('Esta acción eliminaría la comunidad para todos sus miembros. ¿Deseas continuar?')) return;
-    void leaveCommunity(community.id).then(onBack).catch(() => undefined);
+    if (!confirm('Esta acción eliminará la comunidad para todos sus miembros. ¿Deseas continuar?')) return;
+    void getSupabase()
+      .from('conversations')
+      .delete()
+      .eq('id', community.id)
+      .then(() => onBack());
   };
 
   const handleSaveDetails = (nextCategory?: string) => {
@@ -79,7 +86,7 @@ export default function CommunityProfile({ community, onBack }: CommunityProfile
                 type="text"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                onBlur={handleSaveDetails}
+                onBlur={() => handleSaveDetails()}
                 placeholder="Nombre de la comunidad"
                 className="text-center font-bold text-lg text-neutral-900 outline-none border-b border-neutral-200 focus:border-brand-primary px-2 py-0.5"
               />
@@ -91,7 +98,7 @@ export default function CommunityProfile({ community, onBack }: CommunityProfile
               <textarea
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
-                onBlur={handleSaveDetails}
+                onBlur={() => handleSaveDetails()}
                 placeholder="¿De qué trata la comunidad?"
                 rows={2}
                 className="w-full text-center text-xs font-normal text-neutral-600 outline-none border-b border-neutral-200 focus:border-brand-primary resize-none p-1"
@@ -167,7 +174,15 @@ export default function CommunityProfile({ community, onBack }: CommunityProfile
             </div>
             <button
               type="button"
-              onClick={() => setMuted(!muted)}
+              onClick={() => {
+                const next = !muted;
+                setMuted(next);
+                try {
+                  window.localStorage.setItem(`beeapp.community.muted.${community.id}`, next ? '1' : '0');
+                } catch {
+                  // ignore
+                }
+              }}
               className={`w-9 h-5 rounded-full transition-colors relative p-0.5 shrink-0 ${
                 muted ? 'bg-brand-primary' : 'bg-neutral-300'
               }`}
@@ -211,8 +226,27 @@ export default function CommunityProfile({ community, onBack }: CommunityProfile
         visible={addMemberVisible}
         memberIds={members.map((m) => m.id)}
         onAdd={(added) => {
-          setMembers((list) => [...list, ...added]);
+          const mapped: CommunityMember[] = added.map((m) => ({
+            id: m.id,
+            name: m.name,
+            role: m.role === 'owner' || m.role === 'admin' ? 'admin' : 'member',
+            initials: m.initials,
+            color: m.color,
+            isCurrentUser: m.isCurrentUser,
+          }));
+          setMembers((list) => [...list, ...mapped]);
           setAddMemberVisible(false);
+          if (mapped.length > 0) {
+            void getSupabase()
+              .from('conversation_members')
+              .insert(
+                mapped.map((m) => ({
+                  conversation_id: community.id,
+                  user_id: m.id,
+                  role: m.role,
+                })),
+              );
+          }
         }}
         onClose={() => setAddMemberVisible(false)}
       />

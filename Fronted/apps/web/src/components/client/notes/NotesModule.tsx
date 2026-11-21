@@ -19,13 +19,19 @@ import NotesSidebar from './NotesSidebar';
 import NotesListPanel from './NotesListPanel';
 import NoteEdit from './NoteEdit';
 import CreateNoteModal from './CreateNoteModal';
+import NoteShareModal from './NoteShareModal';
 import {
   EMPTY_NOTE_CONTENT,
   cloneTemplateContent,
+  getNotePreview,
   type NotesViewId,
 } from './notesWebTypes';
 import { webNotesApi } from './webNotesApi';
-import { useHomeModuleSearch, useHomeSearch } from '@/components/client/home/HomeSearchContext';
+import {
+  normalizeHomeSearchText,
+  useHomeModuleSearch,
+  useHomeSearch,
+} from '@/components/client/home/HomeSearchContext';
 
 type ViewMode = 'list' | 'grid';
 
@@ -87,6 +93,8 @@ export default function NotesModule() {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [isCreatingNote, setIsCreatingNote] = useState(false);
   const [savingNoteId, setSavingNoteId] = useState<string | null>(null);
+  const [sharedNotes, setSharedNotes] = useState<Note[]>([]);
+  const [shareModalNote, setShareModalNote] = useState<Note | null>(null);
 
   const loadTagsForNotes = async (items: Note[]) => {
     const entries = await Promise.all(
@@ -120,6 +128,7 @@ export default function NotesModule() {
         foldersResponse,
         tagsResponse,
         templatesResponse,
+        receivedSharesResponse,
       ] = await Promise.all([
         webNotesApi.getNotes({
           deleted: false,
@@ -141,7 +150,25 @@ export default function NotesModule() {
         webNotesApi.getFolders(),
         webNotesApi.getTags(),
         webNotesApi.getTemplates(),
+        webNotesApi.getReceivedShares().catch(() => ({ shares: [] })),
       ]);
+
+      const activeReceivedShares = (receivedSharesResponse.shares || []).filter(
+        (s) => !s.revoked_at && !s.hidden_at,
+      );
+      const fetchedSharedNotes = await Promise.all(
+        activeReceivedShares.map(async (share) => {
+          if (share.note) return share.note;
+          try {
+            const res = await webNotesApi.getSharedNote(share.note_id);
+            return res.note;
+          } catch {
+            return null;
+          }
+        }),
+      );
+      const validSharedNotes = fetchedSharedNotes.filter((n): n is Note => Boolean(n));
+      setSharedNotes(validSharedNotes);
 
       const uniqueNotes = new Map<string, Note>();
 
@@ -179,12 +206,15 @@ export default function NotesModule() {
   }, []);
 
   const selectedNote = useMemo(
-    () => notes.find((note) => note.id === selectedNoteId) ?? null,
-    [notes, selectedNoteId],
+    () =>
+      notes.find((note) => note.id === selectedNoteId) ??
+      sharedNotes.find((note) => note.id === selectedNoteId) ??
+      null,
+    [notes, sharedNotes, selectedNoteId],
   );
 
   const visibleNotes = useMemo(() => {
-    let result = [...notes];
+    let result = activeView === 'shared' ? [...sharedNotes] : [...notes];
 
     if (activeView === 'all') {
       result = result.filter(
@@ -214,10 +244,6 @@ export default function NotesModule() {
       result = result.filter((note) => !!note.deleted_at);
     }
 
-    if (activeView === 'shared') {
-      result = [];
-    }
-
     if (activeView.startsWith('folder:')) {
       const folderId = activeView.slice('folder:'.length);
       result = result.filter(
@@ -239,26 +265,26 @@ export default function NotesModule() {
     }
 
     const moduleSearch = homeSearch.active ? homeSearch.query : '';
-    const normalizedSearch = (
-      moduleSearch || search
-    ).trim().toLocaleLowerCase();
+    const normalizedSearch = normalizeHomeSearchText(moduleSearch || search);
 
     if (normalizedSearch) {
       result = result.filter((note) => {
-        const title = (note.title || '').toLocaleLowerCase();
+        const title = normalizeHomeSearchText(note.title || '');
+        const snippet = normalizeHomeSearchText(getNotePreview(note));
         const noteTags = tagsByNote[note.id] ?? [];
 
         return (
           title.includes(normalizedSearch) ||
+          snippet.includes(normalizedSearch) ||
           noteTags.some((tag) =>
-            tag.name.toLocaleLowerCase().includes(normalizedSearch),
+            normalizeHomeSearchText(tag.name).includes(normalizedSearch),
           )
         );
       });
     }
 
     return sortNotes(result);
-  }, [activeView, homeSearch.active, homeSearch.query, notes, search, tagsByNote]);
+  }, [activeView, homeSearch.active, homeSearch.query, notes, search, sharedNotes, tagsByNote]);
 
   const prevHomeSearchActiveRef = useRef(homeSearch.active);
   useEffect(() => {
@@ -291,9 +317,9 @@ export default function NotesModule() {
       archived: notes.filter((note) => !note.deleted_at && note.is_archived)
         .length,
       trash: notes.filter((note) => !!note.deleted_at).length,
-      shared: 0,
+      shared: sharedNotes.length,
     }),
-    [notes],
+    [notes, sharedNotes.length],
   );
 
   const folderCounts = useMemo(
@@ -815,6 +841,7 @@ export default function NotesModule() {
                 void handlePermanentlyDelete(note);
               }
             }}
+            onShare={activeView === 'shared' ? undefined : (note) => setShareModalNote(note)}
           />
         ) : (
           <div className="h-full min-h-[460px] flex items-center justify-center p-10 text-center">
@@ -866,6 +893,15 @@ export default function NotesModule() {
           void handleCreateFromTemplate(template)
         }
       />
+
+      {shareModalNote ? (
+        <NoteShareModal
+          isOpen={true}
+          noteId={shareModalNote.id}
+          noteTitle={shareModalNote.title || 'Sin título'}
+          onClose={() => setShareModalNote(null)}
+        />
+      ) : null}
     </div>
   );
 }

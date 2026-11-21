@@ -10,7 +10,6 @@ interface StorageCreateMenuProps {
   onUploadDocument: () => void;
   onUploadPhoto: () => void;
   onUploadVideo: () => void;
-  onScanDocument?: () => void;
 }
 
 export default function StorageCreateMenu({

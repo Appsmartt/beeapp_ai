@@ -120,7 +120,7 @@ export default function IncomingCallManager() {
         let identityId = getRememberedChatIdentity() || identityIdRef.current;
         if (!identityId) {
           const identities = await getChatIdentities(auth);
-          const personal = identities.identities.find((i) => i.type === 'user') || identities.identities[0];
+          const personal = identities.identities.find((i) => i.identity_type === 'profile') || identities.identities[0];
           identityId = personal?.id || '';
         }
         if (!identityId || !mounted) return;

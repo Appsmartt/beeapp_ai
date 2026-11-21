@@ -81,7 +81,7 @@ export default function ContactsPanel({
         return (
           normalizeHomeSearchText(contact.name).includes(needle)
           || normalizeHomeSearchText(contact.profession).includes(needle)
-          || normalizeHomeSearchText(contact.phone).includes(needle)
+          || normalizeHomeSearchText(contact.phone || '').includes(needle)
         );
       }
 

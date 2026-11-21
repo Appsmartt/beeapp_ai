@@ -3,10 +3,10 @@
 import { FormEvent, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { Eye, Loader2, Send, ShoppingBag, Trash2, X } from 'lucide-react';
-import { archiveStatus, sendStatusReply } from '@beeapp/api-client';
+import { archiveStatus, getChatIdentities, sendStatusReply } from '@beeapp/api-client';
 import { StatusItem } from '@/lib/client/statuses';
 import { formatPrice } from '@/lib/client/myServices';
-import { getWebAuth, loadStatusViewers } from '@/lib/client/liveData';
+import { getRememberedChatIdentity, getWebAuth, loadStatusViewers } from '@/lib/client/liveData';
 import StatusProgressPills from './StatusProgressPills';
 
 const STATUS_DURATION = 6000;
@@ -158,7 +158,21 @@ export default function StatusViewer({
     setFeedback('');
     try {
       const auth = await getWebAuth();
-      await sendStatusReply(auth, status.id, { body: trimmed });
+      let senderIdentityId = getRememberedChatIdentity() || '';
+      if (!senderIdentityId) {
+        const identities = await getChatIdentities(auth);
+        senderIdentityId =
+          identities.identities.find((i) => i.identity_type === 'profile')?.id ||
+          identities.identities[0]?.id ||
+          '';
+      }
+      if (!senderIdentityId) {
+        throw new Error('No se encontró una identidad activa para responder.');
+      }
+      await sendStatusReply(auth, status.id, {
+        sender_identity_id: senderIdentityId,
+        body: trimmed,
+      });
       setReplyText('');
       setFeedback('Respuesta enviada al chat.');
       window.setTimeout(() => setFeedback(''), 2200);
