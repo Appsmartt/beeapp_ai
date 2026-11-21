@@ -47,6 +47,7 @@ import {
 } from '@/lib/client/voiceTranscriptValidation';
 import { getWebAuth } from '@/lib/client/liveData';
 import AssistantMessageCards from '@/components/client/chat/AssistantMessageCards';
+import ChatFormattedText from '@/components/client/chat/ChatFormattedText';
 
 function clock(value: string | null | undefined): string {
   if (!value) return '';
@@ -374,9 +375,11 @@ export default function AssistantTextPage() {
                           : 'rounded-bl-[4px] border border-neutral-200 bg-white text-neutral-900 shadow-sm'
                       }`}
                     >
-                      <p className="whitespace-pre-wrap break-words font-normal">
-                        {row.text}
-                      </p>
+                      <ChatFormattedText
+                        text={row.text || ''}
+                        inverted={isUser}
+                        className="font-normal"
+                      />
                       {!isUser && row.text ? (
                         <button
                           type="button"

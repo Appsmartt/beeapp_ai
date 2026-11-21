@@ -19,21 +19,29 @@ import {
   createCurrentWebStorageFileShare,
   createCurrentWebStorageFolder,
   createCurrentWebStorageTag,
+  deleteCurrentWebStorageFolder,
   deleteCurrentWebStorageTag,
+  getAccountSecurityPinStatus,
+  getCurrentWebReceivedStorageShares,
   getCurrentWebStorageFileAccess,
   getCurrentWebStorageFiles,
   getCurrentWebStorageFileTags,
   getCurrentWebStorageFolders,
   getCurrentWebStorageSummary,
   getCurrentWebStorageTags,
+  hideCurrentWebReceivedStorageShare,
   moveCurrentWebStorageFile,
   moveCurrentWebStorageFileToTrash,
   moveCurrentWebStorageFolder,
+  permanentlyDeleteCurrentWebStorageFile,
   renameCurrentWebStorageFile,
   renameCurrentWebStorageFolder,
   replaceCurrentWebStorageFileTags,
+  restoreCurrentWebStorageFile,
   uploadCurrentWebStorageFiles,
 } from '@beeapp/api-client';
+import { getWebAuth } from '@/lib/client/webAuth';
+import PinLockModal from '../chat/modals/PinLockModal';
 import {
   homeSearchEmptyCopy,
   useHomeModuleSearch,
@@ -59,6 +67,7 @@ import StorageRow from './StorageRow';
 import StoragePreview from './StoragePreview';
 import StorageCreateMenu from './StorageCreateMenu';
 import StorageShareModal from './StorageShareModal';
+import ModuleNotificationBell from '@/components/client/ModuleNotificationBell';
 import {
   CreateFolderModal,
   MoveFolderModal,
@@ -148,6 +157,10 @@ function getItemType(
     return 'video';
   }
 
+  if (file.kind === 'audio' || file.mime_type?.startsWith('audio/')) {
+    return 'audio';
+  }
+
   if (file.kind === 'archive') {
     return 'zip';
   }
@@ -161,6 +174,29 @@ function getItemType(
   }
 
   return 'doc';
+}
+
+const STORAGE_PROTECTED_IDS_KEY = 'beeapp.web.storage.protected-ids.v1';
+
+function readProtectedStorageIds(): Set<string> {
+  if (typeof window === 'undefined') return new Set();
+  try {
+    const raw = window.localStorage.getItem(STORAGE_PROTECTED_IDS_KEY);
+    if (!raw) return new Set();
+    const parsed = JSON.parse(raw) as unknown;
+    return Array.isArray(parsed) ? new Set(parsed.map(String)) : new Set();
+  } catch {
+    return new Set();
+  }
+}
+
+function writeProtectedStorageIds(ids: Set<string>): void {
+  if (typeof window === 'undefined') return;
+  try {
+    window.localStorage.setItem(STORAGE_PROTECTED_IDS_KEY, JSON.stringify(Array.from(ids)));
+  } catch {
+    // ignore
+  }
 }
 
 function mapTagToCategory(
@@ -179,6 +215,7 @@ function mapTagToCategory(
 function mapFolderToItem(
   folder: StorageFolder,
   itemCount: number,
+  isProtected = false,
 ): WebStorageItem {
   return {
     id: folder.id,
@@ -186,13 +223,16 @@ function mapFolderToItem(
     type: 'folder',
     itemCount,
     date: formatStorageDate(folder.updated_at),
+    updatedAtIso: folder.updated_at,
     parentId: folder.parent_id,
+    isProtected,
   };
 }
 
 function mapFileToItem(
   file: StorageFile,
   categoryIds: string[],
+  isProtected = false,
 ): WebStorageItem {
   return {
     id: file.id,
@@ -201,10 +241,12 @@ function mapFileToItem(
     size: formatBytes(file.size_bytes),
     sizeBytes: file.size_bytes,
     date: formatStorageDate(file.updated_at),
+    updatedAtIso: file.updated_at,
     parentId: file.folder_id,
     categoryIds,
     extension: file.extension,
     mimeType: file.mime_type,
+    isProtected,
   };
 }
 
@@ -983,6 +1025,7 @@ export default function StorageModule() {
             </h1>
 
             <div className="relative flex shrink-0 items-center gap-1.5">
+              <ModuleNotificationBell moduleId="storage" placement="header" />
               <div className="flex items-center rounded-xl border border-neutral-200/60 bg-neutral-100 p-0.5">
                 <button
                   type="button"

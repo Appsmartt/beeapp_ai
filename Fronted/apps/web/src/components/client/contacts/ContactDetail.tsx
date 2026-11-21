@@ -1,31 +1,64 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   ArrowLeft, MessageSquare, Phone, Video, Mail, Briefcase, Layers, Heart,
   VolumeX, Volume2, ShieldAlert, Trash2, ArrowDownLeft, ArrowUpRight,
   PhoneOff, CheckCircle2,
 } from 'lucide-react';
-import { deleteMyContact } from '@beeapp/api-client';
-import { ContactItem } from '@/lib/client/contacts';
+import { deleteMyContact, setContactFlags } from '@beeapp/api-client';
+import { CallLogItem, ContactItem } from '@/lib/client/contacts';
+import { loadCallLogs } from '@/lib/client/liveData';
 
 interface ContactDetailProps {
   contact: ContactItem;
   onBack: () => void;
   onSendMessage?: () => void;
   onStartCall?: (video: boolean) => void;
+  onContactDeleted?: (contactId: string) => void;
 }
 
-export default function ContactDetail({ contact, onBack, onSendMessage, onStartCall }: ContactDetailProps) {
+export default function ContactDetail({
+  contact,
+  onBack,
+  onSendMessage,
+  onStartCall,
+  onContactDeleted,
+}: ContactDetailProps) {
   const detail = {
     ...contact,
     phone: contact.phone || '',
     email: contact.email || '',
     online: false,
   };
-  const callLogs: Array<{ type: 'incoming' | 'outgoing' | 'missed'; isVideo: boolean; time: string; duration: string }> = [];
+  const [callLogs, setCallLogs] = useState<CallLogItem[]>([]);
   const [isMuted, setIsMuted] = useState(false);
   const [isBlocked, setIsBlocked] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    loadCallLogs()
+      .then((logs) => {
+        if (!active) return;
+        const normalizedName = contact.name.trim().toLowerCase();
+        setCallLogs(
+          logs.filter((log) => log.name.trim().toLowerCase() === normalizedName),
+        );
+      })
+      .catch(() => {
+        if (active) setCallLogs([]);
+      });
+    return () => {
+      active = false;
+    };
+  }, [contact.id, contact.name]);
+
+  const totalMinutes = callLogs.reduce((acc, log) => {
+    if (log.type === 'missed' || !log.duration) return acc;
+    const parsed = parseInt(log.duration, 10);
+    return acc + (Number.isFinite(parsed) ? parsed : 0);
+  }, 0);
+  const talkDurationLabel = totalMinutes > 0 ? `${totalMinutes} min` : '0 min';
 
   const initials = contact.name.split(' ').map((n) => n[0]).join('').toUpperCase().slice(0, 2);
 
@@ -33,6 +66,18 @@ export default function ContactDetail({ contact, onBack, onSendMessage, onStartC
     if (type === 'incoming') return <ArrowDownLeft className="w-3.5 h-3.5 text-emerald-600" />;
     if (type === 'outgoing') return <ArrowUpRight className="w-3.5 h-3.5 text-blue-600" />;
     return <PhoneOff className="w-3.5 h-3.5 text-red-500" />;
+  };
+
+  const handleToggleMuted = () => {
+    const next = !isMuted;
+    setIsMuted(next);
+    void setContactFlags(contact.id, { isMuted: next }).catch(() => setIsMuted(!next));
+  };
+
+  const handleToggleBlocked = () => {
+    const next = !isBlocked;
+    setIsBlocked(next);
+    void setContactFlags(contact.id, { isBlocked: next }).catch(() => setIsBlocked(!next));
   };
 
   return (
@@ -86,16 +131,20 @@ export default function ContactDetail({ contact, onBack, onSendMessage, onStartC
           <div className="bg-white rounded-2xl border border-neutral-200 shadow-xs overflow-hidden">
             <div className="grid grid-cols-3 border-b border-neutral-100 p-3 text-center">
               <div><p className="text-sm font-semibold text-brand-primary">{callLogs.length}</p><p className="text-[10px] font-normal text-neutral-500">Total Llamadas</p></div>
-              <div className="border-x border-neutral-100"><p className="text-sm font-semibold text-brand-primary">{callLogs.filter((l) => l.type !== 'missed').length > 0 ? '18m 10s' : '0s'}</p><p className="text-[10px] font-normal text-neutral-500">Tiempo Hablado</p></div>
+              <div className="border-x border-neutral-100"><p className="text-sm font-semibold text-brand-primary">{talkDurationLabel}</p><p className="text-[10px] font-normal text-neutral-500">Tiempo Hablado</p></div>
               <div><p className="text-sm font-semibold text-brand-primary">{callLogs[0]?.time.split(',')[0] || 'N/A'}</p><p className="text-[10px] font-normal text-neutral-500">Última Llamada</p></div>
             </div>
             <div className="p-3 divide-y divide-neutral-100">
-              {callLogs.map((log, idx) => (
-                <div key={idx} className="py-2 flex items-center justify-between text-xs">
-                  <div className="flex items-center gap-2">{renderCallIcon(log.type)}<span className={`font-normal ${log.type === 'missed' ? 'text-red-500' : 'text-neutral-800'}`}>Llamada {log.type === 'incoming' ? 'Entrante' : log.type === 'outgoing' ? 'Saliente' : 'Perdida'}</span></div>
-                  <div className="text-right"><p className="text-[11px] text-neutral-500 font-normal">{log.time}</p>{log.type !== 'missed' && <p className="text-[9px] text-neutral-400 font-normal">{log.duration}</p>}</div>
-                </div>
-              ))}
+              {callLogs.length === 0 ? (
+                <p className="py-2 text-xs text-neutral-400 text-center">Sin llamadas registradas</p>
+              ) : (
+                callLogs.map((log, idx) => (
+                  <div key={idx} className="py-2 flex items-center justify-between text-xs">
+                    <div className="flex items-center gap-2">{renderCallIcon(log.type)}<span className={`font-normal ${log.type === 'missed' ? 'text-red-500' : 'text-neutral-800'}`}>Llamada {log.type === 'incoming' ? 'Entrante' : log.type === 'outgoing' ? 'Saliente' : 'Perdida'}</span></div>
+                    <div className="text-right"><p className="text-[11px] text-neutral-500 font-normal">{log.time}</p>{log.type !== 'missed' && <p className="text-[9px] text-neutral-400 font-normal">{log.duration}</p>}</div>
+                  </div>
+                ))
+              )}
             </div>
           </div>
         </div>
@@ -110,12 +159,17 @@ export default function ContactDetail({ contact, onBack, onSendMessage, onStartC
         <div className="space-y-1.5 pb-6">
           <h3 className="text-[11px] uppercase tracking-wider font-semibold text-neutral-500 px-1">Opciones</h3>
           <div className="bg-white rounded-2xl border border-neutral-200 divide-y divide-neutral-100 shadow-xs">
-            <div onClick={() => setIsMuted(!isMuted)} className="p-3 flex items-center gap-3 cursor-pointer hover:bg-neutral-50 text-xs font-normal text-neutral-800">{isMuted ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4" />}<span>{isMuted ? 'Activar notificaciones' : 'Silenciar notificaciones'}</span></div>
-            <div onClick={() => setIsBlocked(!isBlocked)} className="p-3 flex items-center gap-3 cursor-pointer hover:bg-neutral-50 text-xs font-normal text-red-600"><ShieldAlert className="w-4 h-4" /><span>{isBlocked ? 'Desbloquear contacto' : 'Bloquear contacto'}</span></div>
+            <div onClick={handleToggleMuted} className="p-3 flex items-center gap-3 cursor-pointer hover:bg-neutral-50 text-xs font-normal text-neutral-800">{isMuted ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4" />}<span>{isMuted ? 'Activar notificaciones' : 'Silenciar notificaciones'}</span></div>
+            <div onClick={handleToggleBlocked} className="p-3 flex items-center gap-3 cursor-pointer hover:bg-neutral-50 text-xs font-normal text-red-600"><ShieldAlert className="w-4 h-4" /><span>{isBlocked ? 'Desbloquear contacto' : 'Bloquear contacto'}</span></div>
             <div
               onClick={() => {
                 if (!confirm(`¿Eliminar a ${contact.name} de tus contactos?`)) return;
-                void deleteMyContact(contact.id).then(onBack).catch(() => undefined);
+                void deleteMyContact(contact.id)
+                  .then(() => {
+                    onContactDeleted?.(contact.id);
+                    onBack();
+                  })
+                  .catch(() => undefined);
               }}
               className="p-3 flex items-center gap-3 cursor-pointer hover:bg-red-50 text-xs font-normal text-red-600"
             >

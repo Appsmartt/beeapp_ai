@@ -14,6 +14,7 @@ import {
   Link as LinkIcon,
   ShieldCheck,
   Bot,
+  Bell,
   Eye,
   Share2,
   HelpCircle,
@@ -23,6 +24,7 @@ import {
   Smartphone,
   UserCheck,
   BadgeCheck,
+  Sparkles,
 } from 'lucide-react';
 import { getCurrentWebProfile, updateNetworkVisibility } from '@beeapp/api-client';
 import type { CurrentUserProfile } from '@beeapp/shared-types';
@@ -243,6 +245,10 @@ export default function SideMenu({
   };
 
   const handleLogout = async () => {
+    const confirmed = window.confirm('¿Estás seguro de que deseas cerrar sesión?');
+    if (!confirmed) {
+      return;
+    }
     try {
       await signOut();
     } finally {
@@ -260,7 +266,27 @@ export default function SideMenu({
     router.push(href);
   };
 
-  const handleShare = () => {
+  const handleShare = async () => {
+    const shareUrl = typeof window !== 'undefined' ? window.location.origin : 'https://buddy.ai';
+    try {
+      if (typeof navigator !== 'undefined' && typeof navigator.share === 'function') {
+        await navigator.share({
+          title: 'Buddy AI',
+          text: 'Conecta tus chats, agenda, correo, archivos y servicios con Buddy AI.',
+          url: shareUrl,
+        });
+        return;
+      }
+      if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(shareUrl);
+      }
+    } catch {
+      try {
+        await navigator.clipboard?.writeText(shareUrl);
+      } catch {
+        // Ignore clipboard rejection
+      }
+    }
     setToastVisible(true);
 
     window.setTimeout(() => {
@@ -406,6 +432,18 @@ export default function SideMenu({
                 'Dispositivos',
               )}
 
+              {navItem(
+                '/app/notifications',
+                <Bell className="h-4 w-4 text-neutral-500" />,
+                'Centro de Notificaciones',
+              )}
+
+              {navItem(
+                '/app/assistant',
+                <Sparkles className="h-4 w-4 text-neutral-500" />,
+                'Asistente IA',
+              )}
+
               <div className="px-3 py-2.5">
                 <div className="flex items-center justify-between text-sm font-normal text-neutral-700">
                   <div className="flex items-center gap-3">
@@ -421,18 +459,16 @@ export default function SideMenu({
                       void handleToggleVisibility();
                     }}
                     aria-label="Cambiar visibilidad en la red"
-                    className={`relative h-6 w-10 rounded-full p-0.5 transition-colors disabled:opacity-60 ${
-                      networkVisibility
-                        ? 'bg-brand-primary'
-                        : 'bg-neutral-300'
-                    }`}
+                    className={`relative h-6 w-10 rounded-full p-0.5 transition-colors disabled:opacity-60 ${networkVisibility
+                      ? 'bg-brand-primary'
+                      : 'bg-neutral-300'
+                      }`}
                   >
                     <span
-                      className={`block h-5 w-5 rounded-full bg-white transition-transform ${
-                        networkVisibility
-                          ? 'translate-x-4'
-                          : 'translate-x-0'
-                      }`}
+                      className={`block h-5 w-5 rounded-full bg-white transition-transform ${networkVisibility
+                        ? 'translate-x-4'
+                        : 'translate-x-0'
+                        }`}
                     />
                   </button>
                 </div>

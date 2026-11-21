@@ -2,6 +2,7 @@ import type { AssistantCard, AssistantMessage } from '@beeapp/shared-types';
 
 import { readBusinessCart } from './businessCart';
 import type { ChatMessage } from './chats';
+import { writeArchivedChatPatch } from './liveData';
 
 function clock(value: string | null | undefined): string {
   if (!value) return '';
@@ -115,6 +116,7 @@ function readPendingArchives(): Record<string, boolean> {
 
 export function publishAssistantArchive(id: string, archived: boolean): void {
   if (typeof window === 'undefined' || !id) return;
+  writeArchivedChatPatch(id, archived);
   const current = readPendingArchives();
   current[id] = archived;
   window.sessionStorage.setItem(ARCHIVE_KEY, JSON.stringify(current));

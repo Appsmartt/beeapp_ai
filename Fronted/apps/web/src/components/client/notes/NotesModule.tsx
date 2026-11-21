@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Grid2x2,
   List,
@@ -260,9 +260,14 @@ export default function NotesModule() {
     return sortNotes(result);
   }, [activeView, homeSearch.active, homeSearch.query, notes, search, tagsByNote]);
 
+  const prevHomeSearchActiveRef = useRef(homeSearch.active);
   useEffect(() => {
     if (homeSearch.active) {
+      prevHomeSearchActiveRef.current = true;
       setSearch(homeSearch.query);
+    } else if (prevHomeSearchActiveRef.current) {
+      prevHomeSearchActiveRef.current = false;
+      setSearch('');
     }
   }, [homeSearch.active, homeSearch.query]);
 
@@ -519,9 +524,12 @@ export default function NotesModule() {
     }
   };
 
-  const handleCreateFolder = async (name: string) => {
+  const handleCreateFolder = async (name: string, parentId?: string | null) => {
     try {
-      const response = await webNotesApi.createFolder({ name });
+      const response = await webNotesApi.createFolder({
+        name,
+        parent_id: parentId ?? null,
+      });
       setFolders((current) => [...current, response.folder]);
     } catch (folderError) {
       console.error('No se pudo crear la carpeta', folderError);
@@ -566,11 +574,11 @@ export default function NotesModule() {
     }
   };
 
-  const handleCreateTag = async (name: string) => {
+  const handleCreateTag = async (name: string, color?: string) => {
     try {
       const response = await webNotesApi.createTag({
         name,
-        color: '#7C3AED',
+        color: color || '#7C3AED',
         icon: 'tag',
       });
 
@@ -582,9 +590,12 @@ export default function NotesModule() {
     }
   };
 
-  const handleRenameTag = async (tag: NoteTag, name: string) => {
+  const handleRenameTag = async (tag: NoteTag, name: string, color?: string) => {
     try {
-      const response = await webNotesApi.updateTag(tag.id, { name });
+      const response = await webNotesApi.updateTag(tag.id, {
+        name,
+        ...(color ? { color } : {}),
+      });
 
       setTags((current) =>
         current.map((item) => (item.id === tag.id ? response.tag : item)),

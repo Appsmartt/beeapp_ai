@@ -2142,6 +2142,8 @@ export interface MailSyncRun {
 }
 
 export interface MailSyncIntegrationResult {
+  in_progress?: boolean;
+  has_more?: boolean;
   integration_id: string;
   provider: MailProvider;
   sync_run: MailSyncRun;

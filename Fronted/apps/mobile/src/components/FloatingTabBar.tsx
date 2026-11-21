@@ -21,7 +21,7 @@ import NotificationsPopover from './NotificationsPopover';
 import { GENERAL_NOTIFICATIONS, CHAT_NOTIFICATIONS, TickerItem, TickerTarget } from '../mocks/tabNotifications';
 
 interface FloatingTabBarProps {
-  activeTab?: 'home' | 'explore' | 'chat' | 'profile';
+  activeTab?: 'home' | 'chat' | 'profile';
   onOpenNotificationTarget?: (target: TickerTarget) => void;
 }
 

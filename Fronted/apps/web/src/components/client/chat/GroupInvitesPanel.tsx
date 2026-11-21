@@ -5,7 +5,11 @@ import { getChatGroupInvites, respondToChatGroupInvite } from '@beeapp/api-clien
 import type { ChatGroupInvite } from '@beeapp/shared-types';
 import { getWebAuth } from '@/lib/client/webAuth';
 
-export default function GroupInvitesPanel({ onAccepted }: { onAccepted: () => void }) {
+export default function GroupInvitesPanel({
+  onAccepted,
+}: {
+  onAccepted: (conversationId?: string) => void;
+}) {
   const [invites, setInvites] = useState<ChatGroupInvite[]>([]);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
@@ -33,7 +37,9 @@ export default function GroupInvitesPanel({ onAccepted }: { onAccepted: () => vo
       const auth = await getWebAuth();
       await respondToChatGroupInvite(auth, invite.id, accept);
       setInvites((current) => current.filter((item) => item.id !== invite.id));
-      if (accept) onAccepted();
+      if (accept) {
+        onAccepted(invite.conversation_id || invite.conversation?.id);
+      }
     } catch (respondError) {
       setError(respondError instanceof Error ? respondError.message : 'No fue posible responder la invitación.');
     }
@@ -56,8 +62,20 @@ export default function GroupInvitesPanel({ onAccepted }: { onAccepted: () => vo
             </p>
           </div>
           <div className="flex shrink-0 gap-2">
-            <button type="button" className="rounded-full bg-brand-primary px-3 py-1.5 text-xs font-semibold text-white" onClick={() => void respond(invite, true)}>Aceptar</button>
-            <button type="button" className="rounded-full border border-neutral-200 px-3 py-1.5 text-xs font-medium text-neutral-700" onClick={() => void respond(invite, false)}>Rechazar</button>
+            <button
+              type="button"
+              className="rounded-full bg-brand-primary px-3 py-1.5 text-xs font-semibold text-white"
+              onClick={() => void respond(invite, true)}
+            >
+              Aceptar
+            </button>
+            <button
+              type="button"
+              className="rounded-full border border-neutral-200 px-3 py-1.5 text-xs font-medium text-neutral-700"
+              onClick={() => void respond(invite, false)}
+            >
+              Rechazar
+            </button>
           </div>
         </li>
       ))}

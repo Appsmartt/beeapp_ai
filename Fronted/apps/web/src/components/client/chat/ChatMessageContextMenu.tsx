@@ -1,22 +1,18 @@
 'use client';
 
-import { Reply, Pencil, Forward, Pin, Copy, Trash2, Bomb } from 'lucide-react';
+import { Reply, Copy } from 'lucide-react';
 import { ChatMessage } from '@/lib/client/chats';
 
-export type ChatMessageAction =
-  | 'reply'
-  | 'edit'
-  | 'forward'
-  | 'pin'
-  | 'copy'
-  | 'delete'
-  | 'destroy';
+export type ChatMessageAction = 'reply' | 'copy';
+
+const QUICK_REACTIONS = ['👍', '❤️', '😂', '😮', '😢', '🙏'] as const;
 
 interface ChatMessageContextMenuProps {
   position: { x: number; y: number } | null;
   message: ChatMessage | null;
   onClose: () => void;
   onSelectAction: (action: ChatMessageAction) => void;
+  onToggleReaction?: (message: ChatMessage, emoji: string) => void;
 }
 
 export default function ChatMessageContextMenu({
@@ -24,16 +20,12 @@ export default function ChatMessageContextMenu({
   message,
   onClose,
   onSelectAction,
+  onToggleReaction,
 }: ChatMessageContextMenuProps) {
   if (!position || !message) return null;
 
-  const isUser = message.isUser;
-  const isDestroyed = message.isDestroyed;
-  const isPinned = message.isPinned;
-
   return (
     <>
-      {/* Backdrop */}
       <div
         className="fixed inset-0 z-50 bg-transparent"
         onClick={onClose}
@@ -43,86 +35,57 @@ export default function ChatMessageContextMenu({
         }}
       />
 
-      {/* Positioned Menu */}
       <div
         style={{
           position: 'fixed',
-          left: `${Math.min(position.x, window.innerWidth - 200)}px`,
-          top: `${Math.min(position.y, window.innerHeight - 280)}px`,
+          left: `${Math.min(position.x, window.innerWidth - 230)}px`,
+          top: `${Math.min(position.y, window.innerHeight - 170)}px`,
         }}
-        className="z-50 bg-white border border-neutral-200 rounded-2xl shadow-xl py-1.5 w-48 text-xs select-none animate-in fade-in zoom-in-95 duration-100"
+        className="z-50 w-52 select-none rounded-2xl border border-neutral-200 bg-white py-2 text-xs shadow-xl animate-in fade-in zoom-in-95 duration-100"
       >
-        {/* 1. Responder */}
+        {onToggleReaction ? (
+          <div className="mb-1.5 flex items-center justify-between border-b border-neutral-100 px-3 pb-2">
+            {QUICK_REACTIONS.map((emoji) => {
+              const active = message.reactions?.some((r) => r.emoji === emoji && r.mine);
+              return (
+                <button
+                  key={emoji}
+                  type="button"
+                  onClick={() => {
+                    onToggleReaction(message, emoji);
+                    onClose();
+                  }}
+                  className={`flex h-7 w-7 items-center justify-center rounded-full text-base transition hover:scale-110 ${
+                    active ? 'bg-brand-primary/15 ring-1 ring-brand-primary' : 'hover:bg-neutral-100'
+                  }`}
+                  title={`Reaccionar con ${emoji}`}
+                >
+                  {emoji}
+                </button>
+              );
+            })}
+          </div>
+        ) : null}
+
         <button
           type="button"
           onClick={() => onSelectAction('reply')}
-          className="w-full text-left px-3.5 py-2 hover:bg-neutral-50 flex items-center gap-2.5 font-normal text-neutral-800"
+          className="flex w-full items-center gap-2.5 px-3.5 py-2 text-left font-normal text-neutral-800 hover:bg-neutral-50"
         >
-          <Reply className="w-4 h-4 text-neutral-500" />
+          <Reply className="h-4 w-4 text-neutral-500" />
           <span>Responder</span>
         </button>
 
-        {/* 2. Editar (solo mensajes propios y no destruidos) */}
-        {isUser && !isDestroyed && (
+        {message.text ? (
           <button
             type="button"
-            onClick={() => onSelectAction('edit')}
-            className="w-full text-left px-3.5 py-2 hover:bg-neutral-50 flex items-center gap-2.5 font-normal text-neutral-800"
+            onClick={() => onSelectAction('copy')}
+            className="flex w-full items-center gap-2.5 px-3.5 py-2 text-left font-normal text-neutral-800 hover:bg-neutral-50"
           >
-            <Pencil className="w-4 h-4 text-neutral-500" />
-            <span>Editar</span>
+            <Copy className="h-4 w-4 text-neutral-500" />
+            <span>Copiar texto</span>
           </button>
-        )}
-
-        {/* 3. Reenviar */}
-        <button
-          type="button"
-          onClick={() => onSelectAction('forward')}
-          className="w-full text-left px-3.5 py-2 hover:bg-neutral-50 flex items-center gap-2.5 font-normal text-neutral-800"
-        >
-          <Forward className="w-4 h-4 text-neutral-500" />
-          <span>Reenviar</span>
-        </button>
-
-        {/* 4. Fijar */}
-        <button
-          type="button"
-          onClick={() => onSelectAction('pin')}
-          className="w-full text-left px-3.5 py-2 hover:bg-neutral-50 flex items-center gap-2.5 font-normal text-neutral-800"
-        >
-          <Pin className="w-4 h-4 text-neutral-500" />
-          <span>{isPinned ? 'Desfijar mensaje' : 'Fijar mensaje'}</span>
-        </button>
-
-        {/* 5. Copiar */}
-        <button
-          type="button"
-          onClick={() => onSelectAction('copy')}
-          className="w-full text-left px-3.5 py-2 hover:bg-neutral-50 flex items-center gap-2.5 font-normal text-neutral-800"
-        >
-          <Copy className="w-4 h-4 text-neutral-500" />
-          <span>Copiar</span>
-        </button>
-
-        {/* 6. Eliminar */}
-        <button
-          type="button"
-          onClick={() => onSelectAction('delete')}
-          className="w-full text-left px-3.5 py-2 hover:bg-neutral-50 flex items-center gap-2.5 font-normal text-neutral-800 border-t border-neutral-100"
-        >
-          <Trash2 className="w-4 h-4 text-neutral-500" />
-          <span>Eliminar</span>
-        </button>
-
-        {/* 7. Destruir (Rojo) */}
-        <button
-          type="button"
-          onClick={() => onSelectAction('destroy')}
-          className="w-full text-left px-3.5 py-2 hover:bg-red-50 flex items-center gap-2.5 font-normal text-red-600"
-        >
-          <Bomb className="w-4 h-4 text-red-500" />
-          <span>Destruir</span>
-        </button>
+        ) : null}
       </div>
     </>
   );

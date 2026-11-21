@@ -10,7 +10,6 @@ import {
 import { appAlert } from '../../../src/components/feedback/appAlert';
 import ScreenSafeArea from '../../../src/components/layout/ScreenSafeArea';
 import { useRouter } from 'expo-router';
-import * as WebBrowser from 'expo-web-browser';
 import { colors } from '@beeapp/design-system';
 import { ChevronLeft, Check, Sparkles, Database, RefreshCw } from 'lucide-react-native';
 import {
@@ -19,10 +18,12 @@ import {
   listPublicPlans,
   reactivateSubscription,
   startBillingCheckout,
+  type BillingCheckout,
   type PlanUsage,
   type PublicPlan,
 } from '@beeapp/api-client';
 import FloatingTabBar from '../../../src/components/FloatingTabBar';
+import FactusPayModal from '../../../src/components/profile/FactusPayModal';
 
 function cop(value: number): string {
   return new Intl.NumberFormat('es-CO', {
@@ -46,6 +47,7 @@ export default function SubscriptionScreen() {
   const [periodEnd, setPeriodEnd] = useState('');
   const [cancelled, setCancelled] = useState(false);
   const [billingCycle, setBillingCycle] = useState<'monthly' | 'yearly'>('monthly');
+  const [activeCheckout, setActiveCheckout] = useState<BillingCheckout | null>(null);
 
   const load = useCallback(async () => {
     const [subscription, catalog] = await Promise.all([
@@ -74,16 +76,44 @@ export default function SubscriptionScreen() {
       const checkout = await startBillingCheckout({
         planId: plan.id,
         billingPeriod: billingCycle,
-        redirectUrl: 'beeapp://subscription',
       });
-      await WebBrowser.openAuthSessionAsync(checkout.url, 'beeapp://subscription');
-      await load();
+      setActiveCheckout(checkout);
+      if (checkout.status === 'paid') {
+        await load();
+      }
     } catch (error) {
-      appAlert('Pago', error instanceof Error ? error.message : 'No se pudo abrir Wompi.');
+      appAlert('Pago', error instanceof Error ? error.message : 'No se pudo generar el cobro en Factus Pay.');
     } finally {
       setBusy(false);
     }
   };
+
+  const renewCheckout = async (currentCheckout: BillingCheckout) => {
+    const renewed = await startBillingCheckout({
+      planId: currentCheckout.planId,
+      billingPeriod: currentCheckout.billingPeriod,
+      renewReference: currentCheckout.reference,
+    });
+    const isStillExpired = renewed.expiresAt ? new Date(renewed.expiresAt).getTime() <= Date.now() : false;
+    if (isStillExpired && renewed.status !== 'paid') {
+      const fresh = await startBillingCheckout({
+        planId: currentCheckout.planId,
+        billingPeriod: currentCheckout.billingPeriod,
+        forceNew: true,
+      });
+      setActiveCheckout(fresh);
+      return;
+    }
+    setActiveCheckout(renewed);
+    if (renewed.status === 'paid') {
+      await load();
+    }
+  };
+
+  const handlePaymentConfirmed = useCallback(async () => {
+    setActiveCheckout((prev) => (prev ? { ...prev, status: 'paid' } : prev));
+    await load();
+  }, [load]);
 
   const cancel = () => {
     appAlert(
@@ -114,7 +144,7 @@ export default function SubscriptionScreen() {
   const fileLabel = fileLimit > 0
     ? `${gb(Number(usage.filesBytes || 0))} de ${fileLimit} GB`
     : `${gb(Number(usage.filesBytes || 0))} en uso`;
-  const purchasable = plans.filter((plan) => plan.purchasable && plan.id !== current?.id);
+  const purchasable = plans.filter((plan) => plan.purchasable);
 
   return (
     <ScreenSafeArea style={styles.safeArea}>
@@ -198,11 +228,14 @@ export default function SubscriptionScreen() {
               {purchasable.map((plan) => {
                 const price = billingCycle === 'yearly' ? Number(plan.yearly_price) : Number(plan.monthly_price);
                 const highlights = Array.isArray(plan.highlights) ? plan.highlights : [];
+                const isCurrentPlan = plan.id === current?.id;
                 return (
                   <View key={plan.id} style={styles.premiumCard}>
                     <View style={styles.premiumBadgeRow}>
                       <Sparkles size={14} color={colors.neutral.white} style={{ marginRight: 6 }} />
-                      <Text style={styles.premiumBadgeText}>{plan.name.toUpperCase()}</Text>
+                      <Text style={styles.premiumBadgeText}>
+                        {isCurrentPlan ? `${plan.name.toUpperCase()} · PLAN ACTUAL` : plan.name.toUpperCase()}
+                      </Text>
                     </View>
                     <Text style={styles.planNameTextPremium}>{plan.name}</Text>
                     <Text style={styles.planDescTextPremium}>{plan.description || ''}</Text>
@@ -211,7 +244,13 @@ export default function SubscriptionScreen() {
                       <Text style={styles.pricePeriodPremium}>{billingCycle === 'yearly' ? '/año' : '/mes'}</Text>
                     </View>
                     <TouchableOpacity style={styles.premiumBtn} disabled={busy || price <= 0} onPress={() => void pay(plan)}>
-                      <Text style={styles.premiumBtnText}>{busy ? 'Abriendo Wompi…' : `Pagar ${plan.name}`}</Text>
+                      <Text style={styles.premiumBtnText}>
+                        {busy
+                          ? 'Generando QR…'
+                          : isCurrentPlan
+                            ? `Renovar ${plan.name} con Bre-B`
+                            : `Pagar ${plan.name} con Bre-B`}
+                      </Text>
                     </TouchableOpacity>
                     <View style={styles.dividerPremium} />
                     <Text style={styles.beneficiosTitlePremium}>Incluye</Text>
@@ -233,6 +272,12 @@ export default function SubscriptionScreen() {
           </ScrollView>
         )}
         <FloatingTabBar />
+        <FactusPayModal
+          checkout={activeCheckout}
+          onClose={() => setActiveCheckout(null)}
+          onRenew={renewCheckout}
+          onPaid={handlePaymentConfirmed}
+        />
       </View>
     </ScreenSafeArea>
   );

@@ -165,7 +165,7 @@ export default function TransactionsSection() {
                   onChange={(event) => setRefundReason(event.target.value)}
                 />
                 <p className="form-hint">
-                  Esto marca el pago como reembolsado en Buddy. La devolución del dinero se hace en Wompi.
+                  Esto marca el pago como reembolsado en Buddy. Las transferencias Bre-B en Factus Pay no tienen reverso automático; la devolución se gestiona por fuera.
                 </p>
                 <button
                   className="confirm-dialog-btn-confirm"

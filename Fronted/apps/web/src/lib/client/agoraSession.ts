@@ -11,6 +11,7 @@ export type AgoraCallSession = {
   client: IAgoraRTCClient;
   localAudioTrack: ILocalAudioTrack;
   localVideoTrack?: ILocalVideoTrack;
+  currentCameraId?: string;
 };
 
 async function loadAgoraRtc() {
@@ -21,7 +22,11 @@ async function loadAgoraRtc() {
 export async function joinAgoraCall(
   agora: AgoraCallCredentials,
   isVideo: boolean,
-  elements: { localVideo?: HTMLElement | null; remoteVideo?: HTMLElement | null },
+  elements: {
+    localVideo?: HTMLElement | null;
+    remoteVideo?: HTMLElement | null;
+    onRemoteLeft?: () => void;
+  },
 ): Promise<AgoraCallSession> {
   const AgoraRTC = await loadAgoraRtc();
   const client = AgoraRTC.createClient({ mode: 'rtc', codec: 'vp8' });
@@ -52,7 +57,36 @@ export async function joinAgoraCall(
     }
   });
 
+  client.on('user-left', () => {
+    if (client.remoteUsers.length === 0) {
+      elements.onRemoteLeft?.();
+    }
+  });
+
   return { client, localAudioTrack, localVideoTrack };
+}
+
+export async function switchAgoraCamera(session: AgoraCallSession | null): Promise<boolean> {
+  if (!session?.localVideoTrack) return false;
+  try {
+    const AgoraRTC = await loadAgoraRtc();
+    const cameras = await AgoraRTC.getCameras();
+    if (!cameras || cameras.length < 2) return false;
+    const currentId = session.currentCameraId || cameras[0]?.deviceId;
+    const currentIndex = cameras.findIndex((cam) => cam.deviceId === currentId);
+    const nextCamera = cameras[(currentIndex + 1) % cameras.length];
+    if (!nextCamera) return false;
+    const trackWithDevice = session.localVideoTrack as unknown as {
+      setDevice?: (deviceId: string) => Promise<void>;
+    };
+    if (trackWithDevice.setDevice) {
+      await trackWithDevice.setDevice(nextCamera.deviceId);
+    }
+    session.currentCameraId = nextCamera.deviceId;
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 export async function leaveAgoraCall(session: AgoraCallSession | null): Promise<void> {

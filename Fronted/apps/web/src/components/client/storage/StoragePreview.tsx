@@ -39,6 +39,7 @@ export default function StoragePreview({
   const [accessUrl, setAccessUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(item.type !== 'folder');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [lightboxOpen, setLightboxOpen] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -141,12 +142,28 @@ export default function StoragePreview({
 
     if (item.type === 'image') {
       return (
-        <div className="flex h-full w-full items-center justify-center">
+        <div className="flex h-full w-full flex-col items-center justify-center gap-3">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={accessUrl}
             alt={item.name}
-            className="max-h-full max-w-full rounded-xl object-contain shadow-sm"
+            onClick={() => setLightboxOpen(true)}
+            title="Clic para ampliar a pantalla completa"
+            className="max-h-full max-w-full cursor-zoom-in rounded-xl object-contain shadow-sm"
           />
+          {lightboxOpen ? (
+            <div
+              onClick={() => setLightboxOpen(false)}
+              className="fixed inset-0 z-[90] flex items-center justify-center bg-black/90 p-6 cursor-zoom-out"
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={accessUrl}
+                alt={item.name}
+                className="max-h-[92vh] max-w-[92vw] rounded-xl object-contain shadow-2xl"
+              />
+            </div>
+          ) : null}
         </div>
       );
     }
@@ -161,6 +178,19 @@ export default function StoragePreview({
           >
             Tu navegador no puede reproducir este video.
           </video>
+        </div>
+      );
+    }
+
+    if (item.type === 'audio' || item.mimeType?.startsWith('audio/')) {
+      return (
+        <div className="w-full max-w-md space-y-4 rounded-2xl border border-neutral-200 bg-white p-8 text-center shadow-sm">
+          <h2 className="break-all text-sm font-semibold text-neutral-900">
+            {item.name}
+          </h2>
+          <audio src={accessUrl} controls className="w-full">
+            Tu navegador no puede reproducir este audio.
+          </audio>
         </div>
       );
     }

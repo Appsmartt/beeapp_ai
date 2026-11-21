@@ -1,10 +1,12 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { X, ShoppingBag, Eye, Loader2 } from 'lucide-react';
+import { FormEvent, useEffect, useState } from 'react';
+import Link from 'next/link';
+import { Eye, Loader2, Send, ShoppingBag, Trash2, X } from 'lucide-react';
+import { archiveStatus, sendStatusReply } from '@beeapp/api-client';
 import { StatusItem } from '@/lib/client/statuses';
 import { formatPrice } from '@/lib/client/myServices';
-import { loadStatusViewers } from '@/lib/client/liveData';
+import { getWebAuth, loadStatusViewers } from '@/lib/client/liveData';
 import StatusProgressPills from './StatusProgressPills';
 
 const STATUS_DURATION = 6000;
@@ -16,6 +18,7 @@ interface StatusViewerProps {
   currentUserId?: string | null;
   onChangeIndex: (index: number) => void;
   onClose: () => void;
+  onDeleted?: (statusId: string) => void;
 }
 
 export default function StatusViewer({
@@ -25,6 +28,7 @@ export default function StatusViewer({
   currentUserId,
   onChangeIndex,
   onClose,
+  onDeleted,
 }: StatusViewerProps) {
   const [progress, setProgress] = useState(0);
   const [productHidden, setProductHidden] = useState(false);
@@ -34,6 +38,11 @@ export default function StatusViewer({
     Array<{ contactId: string; contactName: string; viewedAt: string }>
   >([]);
   const [viewersLoading, setViewersLoading] = useState(false);
+  const [replyText, setReplyText] = useState('');
+  const [replyFocused, setReplyFocused] = useState(false);
+  const [replySending, setReplySending] = useState(false);
+  const [archiving, setArchiving] = useState(false);
+  const [feedback, setFeedback] = useState('');
 
   const status = statuses[index];
 
@@ -61,10 +70,12 @@ export default function StatusViewer({
     setProgress(0);
     setViewers([]);
     setViewersCount(0);
-  }, [visible, index, status?.id]);
+    setReplyText('');
+    setFeedback('');
+  }, [visible, index, status?.id, status]);
 
   useEffect(() => {
-    if (!visible || !status || viewersOpen) {
+    if (!visible || !status || viewersOpen || replyFocused || replySending) {
       return;
     }
 
@@ -84,10 +95,11 @@ export default function StatusViewer({
     }, step);
 
     return () => clearInterval(timer);
-  }, [visible, index, status?.id, viewersOpen]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visible, index, status?.id, viewersOpen, replyFocused, replySending]);
 
   const isOwnStatusPreview = Boolean(
-    currentUserId && status?.authorId === currentUserId,
+    status && (status.authorId === 'me' || (currentUserId && status.authorId === currentUserId)),
   );
 
   useEffect(() => {
@@ -102,7 +114,7 @@ export default function StatusViewer({
       .catch(() => {
         setViewersCount(0);
       });
-  }, [isOwnStatusPreview, status?.id]);
+  }, [isOwnStatusPreview, status?.id, status]);
 
   useEffect(() => {
     if (!viewersOpen || !status) {
@@ -123,116 +135,314 @@ export default function StatusViewer({
       .finally(() => {
         setViewersLoading(false);
       });
-  }, [viewersOpen, status?.id]);
+  }, [viewersOpen, status?.id, status]);
 
   if (!visible || !status) {
     return null;
   }
 
   const isPhoto = status.type === 'photo';
-  const isOwnStatus = Boolean(
-    currentUserId && status.authorId === currentUserId,
-  );
+  const isVideo = status.type === 'video';
+  const isMedia = isPhoto || isVideo;
+  const isOwnStatus = isOwnStatusPreview;
   const background = status.bgColor ?? '#1A1A2E';
-  const onDark = isPhoto || background !== '#FFFFFF';
+  const onDark = isMedia || background !== '#FFFFFF';
   const product = status.linkedProduct;
   const textPos = status.textPosition ?? { x: 50, y: 50 };
 
+  const handleSendReply = async (event: FormEvent) => {
+    event.preventDefault();
+    const trimmed = replyText.trim();
+    if (!trimmed || replySending) return;
+    setReplySending(true);
+    setFeedback('');
+    try {
+      const auth = await getWebAuth();
+      await sendStatusReply(auth, status.id, { body: trimmed });
+      setReplyText('');
+      setFeedback('Respuesta enviada al chat.');
+      window.setTimeout(() => setFeedback(''), 2200);
+    } catch (err) {
+      setFeedback(err instanceof Error ? err.message : 'No fue posible enviar la respuesta.');
+    } finally {
+      setReplySending(false);
+    }
+  };
+
+  const handleArchiveStatus = async () => {
+    if (archiving) return;
+    if (!confirm('¿Eliminar este estado?')) return;
+    setArchiving(true);
+    try {
+      const auth = await getWebAuth();
+      await archiveStatus(auth, status.id);
+      onDeleted?.(status.id);
+      if (statuses.length <= 1) {
+        onClose();
+      } else {
+        goNext();
+      }
+    } catch (err) {
+      setFeedback(err instanceof Error ? err.message : 'No fue posible eliminar el estado.');
+    } finally {
+      setArchiving(false);
+    }
+  };
+
   return (
-    <div className="fixed inset-0 z-50 bg-neutral-950 flex flex-col justify-between select-none overflow-hidden">
-      {isPhoto ? (
+    <div className="fixed inset-0 z-50 flex select-none flex-col justify-between overflow-hidden bg-neutral-950">
+      {isPhoto && status.photoUrl ? (
         <>
           <div
-            className="absolute inset-0 bg-cover bg-center blur-2xl scale-110 opacity-70"
+            className="absolute inset-0 scale-110 bg-cover bg-center opacity-70 blur-2xl"
             style={{ backgroundImage: `url(${status.photoUrl})` }}
           />
           <div className="absolute inset-0 bg-black/45" />
         </>
+      ) : isVideo ? (
+        <div className="absolute inset-0 bg-black/80" />
       ) : (
         <div className="absolute inset-0" style={{ background }} />
       )}
 
-      <div className="absolute top-0 bottom-0 left-0 w-1/3 z-20 cursor-pointer" onClick={goPrev} />
-      <div className="absolute top-0 bottom-0 right-0 w-1/3 z-20 cursor-pointer" onClick={goNext} />
+      <div className="absolute bottom-20 left-0 top-16 z-20 w-1/3 cursor-pointer" onClick={goPrev} />
+      <div className="absolute bottom-20 right-0 top-16 z-20 w-1/3 cursor-pointer" onClick={goNext} />
 
-      <div className="relative z-30 flex-1 flex flex-col justify-between max-w-md mx-auto w-full p-4 pointer-events-none">
+      <div className="pointer-events-none relative z-30 mx-auto flex w-full max-w-md flex-1 flex-col justify-between p-4">
         <div className="pointer-events-auto space-y-2">
-          <StatusProgressPills count={statuses.length} index={index} progressPercent={progress} onDark={onDark} />
+          <StatusProgressPills
+            count={statuses.length}
+            index={index}
+            progressPercent={progress}
+            onDark={onDark}
+          />
 
-          <div className="flex items-center justify-between pt-2 px-2">
+          <div className="flex items-center justify-between px-2 pt-2">
             <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-full flex items-center justify-center font-semibold text-xs text-brand-primary shrink-0" style={{ backgroundColor: status.authorColor }}>
-                {status.authorInitials}
+              <div
+                className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full text-xs font-semibold text-brand-primary"
+                style={{ backgroundColor: status.authorColor }}
+              >
+                {status.authorAvatarUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={status.authorAvatarUrl}
+                    alt={status.authorName}
+                    className="h-full w-full object-cover"
+                  />
+                ) : (
+                  status.authorInitials
+                )}
               </div>
               <div>
-                <p className={`text-xs font-semibold ${onDark ? 'text-white' : 'text-neutral-900'}`}>{status.authorName}</p>
-                <p className={`text-[10px] ${onDark ? 'text-white/70' : 'text-neutral-500'}`}>{status.timestamp}</p>
+                <p className={`text-xs font-semibold ${onDark ? 'text-white' : 'text-neutral-900'}`}>
+                  {status.authorName}
+                </p>
+                <p className={`text-[10px] ${onDark ? 'text-white/70' : 'text-neutral-500'}`}>
+                  {status.timestamp}
+                </p>
               </div>
             </div>
 
-            <button type="button" onClick={onClose} className={`p-2 rounded-full ${onDark ? 'bg-white/10 hover:bg-white/20 text-white' : 'bg-neutral-100 text-neutral-800'}`}>
-              <X className="w-5 h-5" />
-            </button>
+            <div className="flex items-center gap-1.5">
+              {isOwnStatus ? (
+                <button
+                  type="button"
+                  disabled={archiving}
+                  onClick={() => void handleArchiveStatus()}
+                  title="Eliminar estado"
+                  className={`rounded-full p-2 ${
+                    onDark
+                      ? 'bg-white/10 text-rose-300 hover:bg-white/20'
+                      : 'bg-rose-50 text-rose-600'
+                  } disabled:opacity-50`}
+                >
+                  <Trash2 className="h-4.5 w-4.5" />
+                </button>
+              ) : null}
+              <button
+                type="button"
+                onClick={onClose}
+                className={`rounded-full p-2 ${
+                  onDark ? 'bg-white/10 text-white hover:bg-white/20' : 'bg-neutral-100 text-neutral-800'
+                }`}
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
           </div>
         </div>
 
-        <div className="relative flex-1 my-4 flex items-center justify-center">
-          {isPhoto && status.photoUrl && (
-            <img src={status.photoUrl} alt="Status" className="w-full h-full max-h-[70vh] object-cover rounded-3xl shadow-2xl" />
-          )}
+        <div className="relative my-4 flex flex-1 items-center justify-center">
+          {isPhoto && status.photoUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={status.photoUrl}
+              alt="Status"
+              className="h-full max-h-[68vh] w-full rounded-3xl object-cover shadow-2xl"
+            />
+          ) : null}
 
-          <div className="absolute w-[86%] transform -translate-x-1/2 -translate-y-1/2 pointer-events-none" style={{ top: `${textPos.y}%`, left: `${textPos.x}%`, textAlign: status.textAlign ?? 'center' }}>
-            <p className="whitespace-pre-wrap break-words" style={{ fontSize: `${status.textSize ?? 24}px`, fontWeight: status.textWeight === '700' ? 700 : 400, color: status.textColor ?? '#FFFFFF', lineHeight: 1.3 }}>
-              {status.text}
-            </p>
-          </div>
-        </div>
+          {isVideo && status.photoUrl ? (
+            <video
+              src={status.photoUrl}
+              autoPlay
+              controls
+              playsInline
+              className="pointer-events-auto h-full max-h-[68vh] w-full rounded-3xl bg-black object-contain shadow-2xl"
+            />
+          ) : null}
 
-        {isOwnStatus ? (
-          <div className="pointer-events-auto flex justify-center mb-2">
-            <button
-              type="button"
-              onClick={() => setViewersOpen(true)}
-              className="flex items-center gap-2 px-4 py-2 rounded-full bg-black/60 backdrop-blur-md text-white text-xs font-semibold hover:bg-black/70 transition-colors shadow-lg"
+          {status.imageLayers && status.imageLayers.length > 0
+            ? status.imageLayers.map((imgLayer) =>
+              imgLayer.src ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  key={imgLayer.id}
+                  src={imgLayer.src}
+                  alt="Layer"
+                  className="pointer-events-none absolute -translate-x-1/2 -translate-y-1/2 rounded-2xl object-cover shadow-md"
+                  style={{
+                    top: `${imgLayer.y}%`,
+                    left: `${imgLayer.x}%`,
+                    width: `${imgLayer.size || 110}px`,
+                    height: `${imgLayer.size || 110}px`,
+                  }}
+                />
+              ) : null,
+            )
+            : null}
+
+          {status.textLayers && status.textLayers.length > 0 ? (
+            status.textLayers.map((layer) => (
+              <div
+                key={layer.id}
+                className="pointer-events-none absolute w-[86%] -translate-x-1/2 -translate-y-1/2"
+                style={{
+                  top: `${layer.y}%`,
+                  left: `${layer.x}%`,
+                  textAlign: layer.align ?? 'center',
+                }}
+              >
+                <p
+                  className="whitespace-pre-wrap break-words"
+                  style={{
+                    fontSize: `${layer.fontSize ?? 24}px`,
+                    fontWeight: layer.fontWeight === '700' ? 700 : 400,
+                    color: layer.color ?? '#FFFFFF',
+                    lineHeight: 1.3,
+                  }}
+                >
+                  {layer.content}
+                </p>
+              </div>
+            ))
+          ) : status.text ? (
+            <div
+              className="pointer-events-none absolute w-[86%] -translate-x-1/2 -translate-y-1/2"
+              style={{
+                top: `${textPos.y}%`,
+                left: `${textPos.x}%`,
+                textAlign: status.textAlign ?? 'center',
+              }}
             >
-              <Eye className="w-4 h-4 text-brand-primary" />
-              <span>Visto por {viewersCount}</span>
-            </button>
-          </div>
-        ) : null}
+              <p
+                className="whitespace-pre-wrap break-words"
+                style={{
+                  fontSize: `${status.textSize ?? 24}px`,
+                  fontWeight: status.textWeight === '700' ? 700 : 400,
+                  color: status.textColor ?? '#FFFFFF',
+                  lineHeight: 1.3,
+                }}
+              >
+                {status.text}
+              </p>
+            </div>
+          ) : null}
+        </div>
 
-        {product && !productHidden ? (
-          <div className="pointer-events-auto bg-white rounded-2xl p-3 shadow-xl flex items-center justify-between gap-3 mb-2 animate-slide-up">
-            <div className="w-10 h-10 rounded-xl bg-brand-primary/10 text-brand-primary flex items-center justify-center shrink-0">
-              <ShoppingBag className="w-5 h-5" />
+        <div className="pointer-events-auto space-y-2">
+          {feedback ? (
+            <p className="rounded-full bg-black/70 px-4 py-1.5 text-center text-xs font-semibold text-white">
+              {feedback}
+            </p>
+          ) : null}
+
+          {isOwnStatus ? (
+            <div className="flex justify-center">
+              <button
+                type="button"
+                onClick={() => setViewersOpen(true)}
+                className="flex items-center gap-2 rounded-full bg-black/60 px-4 py-2 text-xs font-semibold text-white shadow-lg backdrop-blur-md transition-colors hover:bg-black/70"
+              >
+                <Eye className="h-4 w-4 text-brand-primary" />
+                <span>Visto por {viewersCount}</span>
+              </button>
             </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-xs font-semibold text-neutral-900 truncate">{product.name}</p>
-              <p className="text-[11px] text-neutral-500 font-normal">{product.price !== null ? formatPrice(product.price) : 'Cotización'}</p>
+          ) : null}
+
+          {product && !productHidden ? (
+            <div className="flex items-center justify-between gap-3 rounded-2xl bg-white p-3 shadow-xl animate-slide-up">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-brand-primary/10 text-brand-primary">
+                <ShoppingBag className="h-5 w-5" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-xs font-semibold text-neutral-900">{product.name}</p>
+                <p className="text-[11px] font-normal text-neutral-500">
+                  {product.price !== null ? formatPrice(product.price) : 'Ver oferta'}
+                </p>
+              </div>
+              <Link
+                href={`/app/beeservices/offer/${encodeURIComponent(product.id)}`}
+                onClick={onClose}
+                className="shrink-0 rounded-xl bg-brand-primary px-3.5 py-2 text-xs font-semibold text-white hover:bg-brand-dark"
+              >
+                Ver oferta
+              </Link>
             </div>
-            <a href="/app/beeservices" className="px-3.5 py-2 bg-brand-primary text-white text-xs font-semibold rounded-xl shrink-0">
-              Solicitar
-            </a>
-          </div>
-        ) : null}
+          ) : null}
+
+          {!isOwnStatus ? (
+            <form onSubmit={(e) => void handleSendReply(e)} className="flex items-center gap-2">
+              <input
+                type="text"
+                value={replyText}
+                onFocus={() => setReplyFocused(true)}
+                onBlur={() => setReplyFocused(false)}
+                onChange={(e) => setReplyText(e.target.value)}
+                placeholder={`Responder a ${status.authorName}…`}
+                className="h-10 flex-1 rounded-full border border-white/25 bg-black/50 px-4 text-xs text-white outline-none backdrop-blur-md placeholder:text-white/60 focus:border-white"
+              />
+              <button
+                type="submit"
+                disabled={replySending || !replyText.trim()}
+                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-brand-primary text-white disabled:opacity-40"
+              >
+                {replySending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+              </button>
+            </form>
+          ) : null}
+        </div>
       </div>
 
       {viewersOpen ? (
-        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-end sm:items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-sm w-full p-5 space-y-4 shadow-2xl animate-in fade-in zoom-in-95 duration-150">
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 p-4 backdrop-blur-xs sm:items-center">
+          <div className="w-full max-w-sm space-y-4 rounded-2xl bg-white p-5 shadow-2xl animate-in fade-in zoom-in-95 duration-150">
             <div className="flex items-center justify-between border-b border-neutral-100 pb-3">
               <div className="flex items-center gap-2">
-                <Eye className="w-4 h-4 text-brand-primary" />
-                <h3 className="font-semibold text-sm text-neutral-900">
-                  Visto por {viewersCount}
-                </h3>
+                <Eye className="h-4 w-4 text-brand-primary" />
+                <h3 className="text-sm font-semibold text-neutral-900">Visto por {viewersCount}</h3>
               </div>
-              <button type="button" onClick={() => setViewersOpen(false)} className="p-1 rounded-full text-neutral-400 hover:text-neutral-700">
-                <X className="w-4 h-4" />
+              <button
+                type="button"
+                onClick={() => setViewersOpen(false)}
+                className="rounded-full p-1 text-neutral-400 hover:text-neutral-700"
+              >
+                <X className="h-4 w-4" />
               </button>
             </div>
 
-            <div className="space-y-2 max-h-60 overflow-y-auto divide-y divide-neutral-100">
+            <div className="max-h-60 divide-y divide-neutral-100 space-y-2 overflow-y-auto">
               {viewersLoading ? (
                 <div className="flex items-center justify-center gap-2 py-6 text-xs text-neutral-500">
                   <Loader2 className="h-4 w-4 animate-spin text-brand-primary" />
@@ -241,21 +451,19 @@ export default function StatusViewer({
               ) : null}
 
               {!viewersLoading && viewers.length === 0 ? (
-                <p className="py-4 text-center text-xs text-neutral-500">
-                  Aún sin vistas
-                </p>
+                <p className="py-4 text-center text-xs text-neutral-500">Aún sin vistas</p>
               ) : null}
 
               {!viewersLoading
                 ? viewers.map((viewer) => (
-                  <div key={viewer.contactId} className="pt-2 flex items-center justify-between">
+                  <div key={viewer.contactId} className="flex items-center justify-between pt-2">
                     <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-full bg-brand-primary/10 text-brand-primary font-semibold text-xs flex items-center justify-center">
+                      <div className="flex h-8 w-8 items-center justify-center rounded-full bg-brand-primary/10 text-xs font-semibold text-brand-primary">
                         {viewer.contactName.slice(0, 2).toUpperCase()}
                       </div>
                       <div>
                         <p className="text-xs font-semibold text-neutral-800">{viewer.contactName}</p>
-                        <p className="text-[10px] text-neutral-500 font-normal">{viewer.viewedAt}</p>
+                        <p className="text-[10px] font-normal text-neutral-500">{viewer.viewedAt}</p>
                       </div>
                     </div>
                   </div>

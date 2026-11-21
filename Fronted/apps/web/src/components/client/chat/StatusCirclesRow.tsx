@@ -16,6 +16,39 @@ export default function StatusCirclesRow({
   onOpenStatus,
   onCreateStatus,
 }: StatusCirclesRowProps) {
+  const authorCircles: Array<{
+    authorId: string;
+    authorName: string;
+    authorInitials: string;
+    authorColor: string;
+    authorAvatarUrl?: string | null;
+    allViewed: boolean;
+    firstOpenIndex: number;
+  }> = [];
+
+  const indexByAuthor = new Map<string, number>();
+  statuses.forEach((status, idx) => {
+    const existingIdx = indexByAuthor.get(status.authorId);
+    if (existingIdx === undefined) {
+      indexByAuthor.set(status.authorId, authorCircles.length);
+      authorCircles.push({
+        authorId: status.authorId,
+        authorName: status.authorName,
+        authorInitials: status.authorInitials,
+        authorColor: status.authorColor,
+        authorAvatarUrl: status.authorAvatarUrl,
+        allViewed: status.viewed,
+        firstOpenIndex: idx,
+      });
+    } else {
+      const circle = authorCircles[existingIdx];
+      if (circle && !status.viewed && circle.allViewed) {
+        circle.allViewed = false;
+        circle.firstOpenIndex = idx;
+      }
+    }
+  });
+
   return (
     <div className="border-b border-[#E6DCF4]">
       <div className="flex gap-4 overflow-x-auto px-4 py-3 no-scrollbar">
@@ -33,33 +66,39 @@ export default function StatusCirclesRow({
           <span className="max-w-full truncate text-[11px] text-neutral-600">Tu estado</span>
         </button>
 
-        {statuses.map((status) => {
-          const index = statuses.findIndex((item) => item.id === status.id);
-          return (
-            <button
-              key={status.id}
-              type="button"
-              onClick={() => onOpenStatus(index)}
-              className="flex w-16 shrink-0 flex-col items-center gap-1.5"
+        {authorCircles.map((circle) => (
+          <button
+            key={circle.authorId}
+            type="button"
+            onClick={() => onOpenStatus(circle.firstOpenIndex)}
+            className="flex w-16 shrink-0 flex-col items-center gap-1.5"
+          >
+            <span
+              className={`flex h-14 w-14 items-center justify-center rounded-full border-2 p-0.5 ${
+                circle.allViewed ? 'border-neutral-300' : 'border-brand-primary'
+              }`}
             >
               <span
-                className={`flex h-14 w-14 items-center justify-center rounded-full border-2 p-0.5 ${
-                  status.viewed ? 'border-neutral-300' : 'border-brand-primary'
-                }`}
+                className="flex h-full w-full items-center justify-center overflow-hidden rounded-full text-xs font-semibold text-white"
+                style={{ backgroundColor: circle.authorColor }}
               >
-                <span
-                  className="flex h-full w-full items-center justify-center rounded-full text-xs font-semibold text-white"
-                  style={{ backgroundColor: status.authorColor }}
-                >
-                  {status.authorInitials}
-                </span>
+                {circle.authorAvatarUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={circle.authorAvatarUrl}
+                    alt={circle.authorName}
+                    className="h-full w-full object-cover"
+                  />
+                ) : (
+                  circle.authorInitials
+                )}
               </span>
-              <span className="max-w-full truncate text-[11px] text-neutral-700">
-                {status.authorName}
-              </span>
-            </button>
-          );
-        })}
+            </span>
+            <span className="max-w-full truncate text-[11px] text-neutral-700">
+              {circle.authorName}
+            </span>
+          </button>
+        ))}
       </div>
     </div>
   );

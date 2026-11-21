@@ -2,6 +2,7 @@ import {
     attachCurrentWebExistingFileToNote,
     createCurrentWebNote,
     createCurrentWebNoteFolder,
+    createCurrentWebNoteShare,
     createCurrentWebNoteTag,
     deleteCurrentWebNoteAttachment,
     deleteCurrentWebNoteFolder,
@@ -10,10 +11,14 @@ import {
     getCurrentWebNoteAttachmentAccess,
     getCurrentWebNoteAttachments,
     getCurrentWebNoteFolders,
+    getCurrentWebNoteOutgoingShares,
+    getCurrentWebNoteShareRecipients,
     getCurrentWebNoteTags,
     getCurrentWebNoteTemplates,
     getCurrentWebNotes,
     getCurrentWebReceivedNoteShares,
+    getCurrentWebSentNoteShares,
+    getCurrentWebSharedNote,
     getCurrentWebTagsForNote,
     hideCurrentWebReceivedNoteShare,
     moveCurrentWebNoteFolder,
@@ -22,6 +27,7 @@ import {
     renameCurrentWebNoteFolder,
     replaceCurrentWebNoteTags,
     restoreCurrentWebNote,
+    revokeCurrentWebNoteShare,
     updateCurrentWebNote,
     updateCurrentWebNoteAttachment,
     updateCurrentWebNoteTag,
@@ -34,16 +40,22 @@ import type {
     CreateNoteFolderResponse,
     CreateNotePayload,
     CreateNoteResponse,
+    CreateNoteSharePayload,
+    CreateNoteShareResponse,
     CreateNoteTagPayload,
     CreateNoteTagResponse,
     NoteAttachmentAccessResponse,
     GetNoteAttachmentsResponse,
     GetNoteFoldersResponse,
+    GetNoteOutgoingSharesResponse,
     GetNoteResponse,
+    GetNoteShareRecipientsResponse,
     GetNoteTagsResponse,
     GetNoteTemplatesResponse,
     GetNotesResponse,
     GetReceivedNoteSharesResponse,
+    GetSentNoteSharesResponse,
+    GetSharedNoteResponse,
     MoveNoteFolderPayload,
     NotesQuery,
     RenameNoteFolderPayload,
@@ -216,7 +228,20 @@ export const webNotesApi = {
         );
     },
 
-    /* Notas recibidas por compartición */
+    /* Notas recibidas y enviadas por compartición */
+
+    getShareRecipients(
+        query: { q?: string; limit?: number; offset?: number } = {},
+    ): Promise<GetNoteShareRecipientsResponse> {
+        return getCurrentWebNoteShareRecipients(query);
+    },
+
+    createShare(
+        noteId: string,
+        payload: CreateNoteSharePayload,
+    ): Promise<CreateNoteShareResponse> {
+        return createCurrentWebNoteShare(noteId, payload);
+    },
 
     getReceivedShares(): Promise<GetReceivedNoteSharesResponse> {
         return getCurrentWebReceivedNoteShares({
@@ -224,6 +249,31 @@ export const webNotesApi = {
         limit: 100,
         offset: 0,
         });
+    },
+
+    getSentShares(): Promise<GetSentNoteSharesResponse> {
+        return getCurrentWebSentNoteShares({
+        limit: 100,
+        offset: 0,
+        });
+    },
+
+    getOutgoingShares(
+        noteId: string,
+    ): Promise<GetNoteOutgoingSharesResponse> {
+        return getCurrentWebNoteOutgoingShares(noteId);
+    },
+
+    getSharedNote(
+        shareId: string,
+    ): Promise<GetSharedNoteResponse> {
+        return getCurrentWebSharedNote(shareId);
+    },
+
+    revokeShare(
+        shareId: string,
+    ): Promise<UpdateNoteShareResponse> {
+        return revokeCurrentWebNoteShare(shareId);
     },
 
     hideReceivedShare(

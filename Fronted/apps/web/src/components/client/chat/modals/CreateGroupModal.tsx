@@ -1,17 +1,28 @@
 'use client';
 
-import { useEffect, useState, useMemo } from 'react';
-import { Search, Check, X, Users, Camera, Image as ImageIcon } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { Camera, Check, Loader2, Search, Users, X } from 'lucide-react';
+import { searchChatRecipients } from '@beeapp/api-client';
 import { useAuth } from '@/lib/auth/AuthProvider';
-import { contactInitials, ContactItem } from '@/lib/client/contacts';
-import { loadContacts } from '@/lib/client/liveData';
 import { GroupMember } from '@/lib/client/chats';
+import { contactColor, contactInitials, ContactItem } from '@/lib/client/contacts';
+import { getWebAuth, loadContacts } from '@/lib/client/liveData';
+
+export interface CreateGroupOptions {
+  description?: string;
+  postingPolicy: 'all_members' | 'admins_only';
+  imageFile?: File | null;
+}
 
 interface CreateGroupModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onCreateGroup: (name: string, members: GroupMember[], hasPhoto?: boolean) => void;
+  onCreateGroup: (name: string, members: GroupMember[], options: CreateGroupOptions) => void;
 }
+
+type SelectableCandidate = ContactItem & {
+  recipientIdentityId?: string;
+};
 
 export default function CreateGroupModal({
   isOpen,
@@ -20,183 +31,286 @@ export default function CreateGroupModal({
 }: CreateGroupModalProps) {
   const { profile } = useAuth();
   const [groupName, setGroupName] = useState('');
+  const [description, setDescription] = useState('');
+  const [postingPolicy, setPostingPolicy] = useState<'all_members' | 'admins_only'>('all_members');
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [query, setQuery] = useState('');
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
-  const [hasPhoto, setHasPhoto] = useState(false);
-  const [contacts, setContacts] = useState<ContactItem[]>([]);
+  const [contacts, setContacts] = useState<SelectableCandidate[]>([]);
+  const [remoteCandidates, setRemoteCandidates] = useState<SelectableCandidate[]>([]);
+  const [searching, setSearching] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (!isOpen) return;
-    loadContacts().then(setContacts).catch(() => setContacts([]));
+    loadContacts()
+      .then((list) => setContacts(list))
+      .catch(() => setContacts([]));
   }, [isOpen]);
+
+  useEffect(() => {
+    if (!isOpen) return undefined;
+    let active = true;
+    const trimmed = query.trim();
+    const timer = window.setTimeout(() => {
+      setSearching(true);
+      getWebAuth()
+        .then((auth) => searchChatRecipients(auth, trimmed, 20))
+        .then((res) => {
+          if (!active) return;
+          const mapped: SelectableCandidate[] = (res.users ?? []).map((u) => {
+            const name = u.display_name || [u.first_name, u.last_name].filter(Boolean).join(' ') || 'Usuario Buddy';
+            return {
+              id: u.id,
+              recipientIdentityId: u.id,
+              name,
+              profession: u.occupation || u.email || 'Usuario en Buddy',
+              activity: '',
+              interests: [],
+              initials: contactInitials(name),
+              color: contactColor(u.id),
+              phone: u.phone || '',
+              email: u.email || '',
+              company: '',
+              location: '',
+              verified: Boolean(u.is_verified),
+            };
+          });
+          setRemoteCandidates(mapped);
+        })
+        .catch(() => {
+          if (active) setRemoteCandidates([]);
+        })
+        .finally(() => {
+          if (active) setSearching(false);
+        });
+    }, 220);
+
+    return () => {
+      active = false;
+      window.clearTimeout(timer);
+    };
+  }, [isOpen, query]);
+
+  const allCandidates = useMemo(() => {
+    const map = new Map<string, SelectableCandidate>();
+    for (const c of contacts) {
+      map.set(c.id, c);
+    }
+    for (const r of remoteCandidates) {
+      if (!Array.from(map.values()).some((item) => item.name.toLowerCase() === r.name.toLowerCase())) {
+        map.set(r.id, r);
+      } else {
+        const existingKey = Array.from(map.entries()).find(
+          ([, val]) => val.name.toLowerCase() === r.name.toLowerCase(),
+        )?.[0];
+        if (existingKey) {
+          const existing = map.get(existingKey)!;
+          map.set(existingKey, { ...existing, recipientIdentityId: r.recipientIdentityId || r.id });
+        }
+      }
+    }
+    return Array.from(map.values());
+  }, [contacts, remoteCandidates]);
 
   const filtered = useMemo(() => {
     const text = query.trim().toLowerCase();
-    return contacts.filter(
-      (c) => text === '' || c.name.toLowerCase().includes(text)
+    return allCandidates.filter(
+      (c) => text === '' || c.name.toLowerCase().includes(text) || c.profession.toLowerCase().includes(text),
     );
-  }, [query, contacts]);
+  }, [allCandidates, query]);
 
   if (!isOpen) return null;
 
   const toggle = (id: string) => {
-    setSelectedIds((prev) =>
-      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
-    );
+    setSelectedIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+  };
+
+  const handlePhotoChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0] || null;
+    event.target.value = '';
+    if (!file) return;
+    setImageFile(file);
+    setImagePreview(URL.createObjectURL(file));
   };
 
   const handleCreate = () => {
-    if (!groupName.trim() || selectedIds.length < 2) return;
+    if (!groupName.trim() || selectedIds.length < 1) return;
 
     const meName = [profile?.firstName, profile?.lastName].filter(Boolean).join(' ') || 'Tú';
     const me: GroupMember = {
       id: profile?.id || 'me',
       name: meName,
-      role: 'admin',
+      role: 'owner',
       initials: contactInitials(meName),
       color: '#F3E8FF',
       isCurrentUser: true,
     };
 
-    const selectedMembers: GroupMember[] = contacts.filter((c) =>
-      selectedIds.includes(c.id)
-    ).map((c) => ({
-      id: c.id,
-      name: c.name,
-      role: 'member',
-      initials: c.name
-        .split(' ')
-        .map((n) => n[0])
-        .join('')
-        .toUpperCase()
-        .slice(0, 2),
-      color: '#EBF5FF',
-    }));
+    const selectedMembers: GroupMember[] = allCandidates
+      .filter((c) => selectedIds.includes(c.id))
+      .map((c) => ({
+        id: c.recipientIdentityId || c.id,
+        name: c.name,
+        role: 'member',
+        initials: contactInitials(c.name),
+        color: '#EBF5FF',
+      }));
 
-    onCreateGroup(groupName.trim(), [me, ...selectedMembers], hasPhoto);
+    onCreateGroup(groupName.trim(), [me, ...selectedMembers], {
+      description: description.trim() || undefined,
+      postingPolicy,
+      imageFile,
+    });
     setGroupName('');
+    setDescription('');
+    setPostingPolicy('all_members');
+    setImageFile(null);
+    if (imagePreview) URL.revokeObjectURL(imagePreview);
+    setImagePreview(null);
     setSelectedIds([]);
-    setHasPhoto(false);
     onClose();
   };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="fixed inset-0 bg-black/60 backdrop-blur-xl" onClick={onClose} />
-      <div className="relative w-full max-w-md bg-white rounded-3xl shadow-xl z-50 p-6 space-y-4 max-h-[90vh] flex flex-col">
+      <div className="relative z-50 flex max-h-[90vh] w-full max-w-md flex-col space-y-3.5 rounded-3xl bg-white p-6 shadow-xl">
         <div className="flex items-center justify-between border-b border-neutral-100 pb-3">
           <div className="flex items-center gap-2">
-            <Users className="w-5 h-5 text-brand-primary" />
-            <h2 className="font-semibold text-base text-neutral-900">Nuevo grupo</h2>
+            <Users className="h-5 w-5 text-brand-primary" />
+            <h2 className="text-base font-semibold text-neutral-900">Nuevo grupo</h2>
           </div>
           <button type="button" onClick={onClose} className="p-1 text-neutral-400 hover:text-neutral-900">
-            <X className="w-5 h-5" />
+            <X className="h-5 w-5" />
           </button>
         </div>
 
-        {/* Group Photo Setup Section */}
-        <div className="flex flex-col items-center justify-center py-2 space-y-1">
+        <div className="flex flex-col items-center justify-center space-y-1 py-1">
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={handlePhotoChange}
+          />
           <button
             type="button"
-            onClick={() => setHasPhoto(!hasPhoto)}
-            className={`w-20 h-20 rounded-full flex flex-col items-center justify-center transition-colors cursor-pointer ${
-              hasPhoto
-                ? 'bg-neutral-300 border-2 border-neutral-400 text-neutral-700'
-                : 'bg-neutral-100 border-2 border-dashed border-neutral-300 text-neutral-500 hover:bg-neutral-200'
-            }`}
+            onClick={() => fileInputRef.current?.click()}
+            className="relative flex h-18 w-18 flex-col items-center justify-center overflow-hidden rounded-full border-2 border-dashed border-neutral-300 bg-neutral-100 text-neutral-500 transition-colors hover:bg-neutral-200"
           >
-            {hasPhoto ? (
-              <>
-                <ImageIcon className="w-6 h-6 text-neutral-700 mb-0.5" />
-                <span className="text-[10px] font-semibold text-neutral-700">Foto</span>
-              </>
+            {imagePreview ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={imagePreview} alt="Foto del grupo" className="h-full w-full object-cover" />
             ) : (
               <>
-                <Camera className="w-6 h-6 text-neutral-500 mb-0.5" />
-                <span className="text-[9px] font-normal text-neutral-500">Agregar foto</span>
+                <Camera className="mb-0.5 h-5 w-5 text-neutral-500" />
+                <span className="text-[9px] font-normal text-neutral-500">Foto</span>
               </>
             )}
           </button>
-          <span className="text-[11px] text-neutral-500 font-normal">
-            {hasPhoto ? 'Foto seleccionada' : 'Toca para agregar foto'}
+          <span className="text-[11px] font-normal text-neutral-500">
+            {imageFile ? imageFile.name : 'Toca para subir foto del grupo'}
           </span>
         </div>
 
-        {/* Group Name input */}
-        <div className="space-y-1">
-          <label className="text-xs uppercase tracking-wider font-semibold text-neutral-500">
-            Nombre del grupo *
-          </label>
-          <input
-            type="text"
-            value={groupName}
-            onChange={(e) => setGroupName(e.target.value)}
-            placeholder="Ej. Proyecto Alfa, Marketing Buddy..."
-            className="w-full h-11 px-4 bg-neutral-50 border border-neutral-200 rounded-xl text-xs font-normal outline-none focus:border-brand-primary text-neutral-900"
-          />
+        <div className="grid gap-2.5">
+          <div>
+            <label className="text-[11px] font-semibold uppercase tracking-wider text-neutral-500">
+              Nombre del grupo *
+            </label>
+            <input
+              type="text"
+              value={groupName}
+              onChange={(e) => setGroupName(e.target.value)}
+              placeholder="Ej. Proyecto Alfa, Marketing Buddy..."
+              className="mt-1 h-10 w-full rounded-xl border border-neutral-200 bg-neutral-50 px-3.5 text-xs font-normal text-neutral-900 outline-none focus:border-brand-primary"
+            />
+          </div>
+
+          <div>
+            <label className="text-[11px] font-semibold uppercase tracking-wider text-neutral-500">
+              Descripción (opcional)
+            </label>
+            <input
+              type="text"
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder="Propósito o reglas del grupo..."
+              className="mt-1 h-10 w-full rounded-xl border border-neutral-200 bg-neutral-50 px-3.5 text-xs font-normal text-neutral-900 outline-none focus:border-brand-primary"
+            />
+          </div>
+
+          <div>
+            <label className="text-[11px] font-semibold uppercase tracking-wider text-neutral-500">
+              ¿Quién puede enviar mensajes?
+            </label>
+            <select
+              value={postingPolicy}
+              onChange={(e) => setPostingPolicy(e.target.value as 'all_members' | 'admins_only')}
+              className="mt-1 h-10 w-full rounded-xl border border-neutral-200 bg-neutral-50 px-3 text-xs font-normal text-neutral-900 outline-none focus:border-brand-primary"
+            >
+              <option value="all_members">Todos los miembros</option>
+              <option value="admins_only">Solo administradores</option>
+            </select>
+          </div>
         </div>
 
-        {/* Search Participants */}
-        <div className="space-y-1.5 flex-1 min-h-0 flex flex-col">
+        <div className="flex min-h-0 flex-1 flex-col space-y-1.5">
           <div className="flex items-center justify-between">
-            <label className="text-xs uppercase tracking-wider font-semibold text-neutral-500">
-              Selecciona miembros (mínimo 2)
+            <label className="text-[11px] font-semibold uppercase tracking-wider text-neutral-500">
+              Invitar miembros
             </label>
-            <span className="text-xs text-brand-primary font-semibold">
+            <span className="text-xs font-semibold text-brand-primary">
               {selectedIds.length} seleccionados
             </span>
           </div>
 
-          <div className="flex items-center gap-2 bg-neutral-100 rounded-xl px-3 py-2">
-            <Search className="w-4 h-4 text-neutral-500 shrink-0" />
+          <div className="flex items-center gap-2 rounded-xl bg-neutral-100 px-3 py-2">
+            <Search className="h-4 w-4 shrink-0 text-neutral-500" />
             <input
               type="text"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Buscar contacto..."
-              className="flex-1 bg-transparent text-xs font-normal outline-none text-neutral-900 placeholder:text-neutral-500"
+              placeholder="Buscar contacto o usuario..."
+              className="flex-1 bg-transparent text-xs font-normal text-neutral-900 outline-none placeholder:text-neutral-500"
             />
+            {searching ? <Loader2 className="h-3.5 w-3.5 animate-spin text-brand-primary" /> : null}
           </div>
 
-          <div className="flex-1 overflow-y-auto divide-y divide-neutral-100 border border-neutral-100 rounded-xl p-1 mt-1">
+          <div className="mt-1 flex-1 divide-y divide-neutral-100 overflow-y-auto rounded-xl border border-neutral-100 p-1">
             {filtered.map((contact) => {
               const isSelected = selectedIds.includes(contact.id);
-              const initials = contact.name
-                .split(' ')
-                .map((n) => n[0])
-                .join('')
-                .toUpperCase()
-                .slice(0, 2);
+              const initials = contactInitials(contact.name);
 
               return (
                 <div
                   key={contact.id}
                   onClick={() => toggle(contact.id)}
-                  className="py-2.5 px-3 flex items-center justify-between cursor-pointer hover:bg-neutral-50 rounded-lg transition-colors"
+                  className="flex cursor-pointer items-center justify-between rounded-lg px-3 py-2 transition-colors hover:bg-neutral-50"
                 >
-                  <div className="flex items-center gap-3 min-w-0">
+                  <div className="flex min-w-0 items-center gap-3">
                     <div
-                      className="w-9 h-9 rounded-full flex items-center justify-center font-semibold text-xs text-brand-primary shrink-0"
+                      className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-semibold text-brand-primary"
                       style={{ backgroundColor: contact.color || '#F3E8FF' }}
                     >
                       {initials}
                     </div>
                     <div className="min-w-0">
-                      <p className="text-xs font-semibold text-neutral-900 truncate">{contact.name}</p>
-                      <p className="text-[11px] text-neutral-500 font-normal truncate">
-                        {contact.profession}
-                      </p>
+                      <p className="truncate text-xs font-semibold text-neutral-900">{contact.name}</p>
+                      <p className="truncate text-[11px] font-normal text-neutral-500">{contact.profession}</p>
                     </div>
                   </div>
 
                   <div
-                    className={`w-5 h-5 rounded-md border flex items-center justify-center transition-colors ${
+                    className={`flex h-5 w-5 items-center justify-center rounded-md border transition-colors ${
                       isSelected
-                        ? 'bg-brand-primary border-brand-primary text-white'
+                        ? 'border-brand-primary bg-brand-primary text-white'
                         : 'border-neutral-300 bg-white'
                     }`}
                   >
-                    {isSelected && <Check className="w-3.5 h-3.5" />}
+                    {isSelected ? <Check className="h-3.5 w-3.5" /> : null}
                   </div>
                 </div>
               );
@@ -204,15 +318,23 @@ export default function CreateGroupModal({
           </div>
         </div>
 
-        {/* Footer Submit Button */}
-        <button
-          type="button"
-          disabled={!groupName.trim() || selectedIds.length < 2}
-          onClick={handleCreate}
-          className="w-full h-12 rounded-xl bg-brand-primary text-white text-sm font-semibold hover:bg-brand-dark transition-colors disabled:opacity-50 shadow-sm"
-        >
-          Crear grupo
-        </button>
+        <div className="flex items-center gap-2 pt-2">
+          <button
+            type="button"
+            onClick={onClose}
+            className="h-10 flex-1 rounded-full border border-neutral-200 text-xs font-semibold text-neutral-700 hover:bg-neutral-50"
+          >
+            Cancelar
+          </button>
+          <button
+            type="button"
+            disabled={!groupName.trim() || selectedIds.length < 1}
+            onClick={handleCreate}
+            className="h-10 flex-1 rounded-full bg-brand-primary text-xs font-semibold text-white hover:bg-brand-dark disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            Crear grupo
+          </button>
+        </div>
       </div>
     </div>
   );

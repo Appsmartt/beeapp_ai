@@ -8,8 +8,9 @@ export const AI_ASSISTANT_NAME = 'Buddy AI';
 
 export interface GroupMember {
   id: string;
+  recipientIdentityId?: string;
   name: string;
-  role: 'admin' | 'member';
+  role: 'owner' | 'admin' | 'member';
   initials: string;
   color: string;
   isCurrentUser?: boolean;
@@ -30,6 +31,12 @@ export interface SellerChatProduct {
 export interface ChatItem {
   id: string;
   name: string;
+  avatarUrl?: string | null;
+  description?: string | null;
+  postingPolicy?: 'all_members' | 'admins_only';
+  disappearingSeconds?: number | null;
+  peerIdentityId?: string | null;
+  lastSeenAt?: string | null;
   lastMessage: string;
   time: string;
   unreadCount: number;
@@ -56,17 +63,49 @@ export interface ChatMessage {
   senderName?: string;
   senderVerified?: boolean;
   isUser: boolean;
-  type: 'text' | 'image' | 'file' | 'audio';
+  type:
+    | 'text'
+    | 'image'
+    | 'video'
+    | 'file'
+    | 'audio'
+    | 'location'
+    | 'contact'
+    | 'status_reply'
+    | 'call_notice';
   text?: string;
   mediaUrl?: string;
   fileName?: string;
   fileSize?: string;
   audioDuration?: string;
-  status: 'sent' | 'delivered' | 'read';
+  status?: 'sent' | 'delivered' | 'read';
   time: string;
+  createdAt?: string;
+  dateLabel?: string;
   replyTo?: {
+    id?: string;
     sender: string;
     text: string;
+  };
+  location?: {
+    latitude: number;
+    longitude: number;
+    label?: string;
+  };
+  contactCard?: {
+    name: string;
+    phone?: string;
+    email?: string;
+  };
+  statusReply?: {
+    statusId?: string;
+    previewText?: string;
+    mediaType?: string;
+  };
+  callNotice?: {
+    callType: 'voice' | 'video';
+    status: string;
+    durationSeconds?: number | null;
   };
   showCatalog?: boolean;
   sentByAi?: boolean;

@@ -29,6 +29,8 @@ interface ContactsPanelProps {
   selectedContactId?: string;
   onSelectContact: (contact: ContactItem) => void;
   onCreateContact: () => void;
+  onStartChat?: (contactName: string) => void;
+  onStartCall?: (contactName: string, video: boolean) => void;
   homeSearchQuery?: string;
 }
 
@@ -50,6 +52,8 @@ export default function ContactsPanel({
   selectedContactId,
   onSelectContact,
   onCreateContact,
+  onStartChat,
+  onStartCall,
   homeSearchQuery = '',
 }: ContactsPanelProps) {
   const currentTabKey = tab === 'calls' ? 'calls' : tab === 'discover' ? 'discover' : 'my_contacts';
@@ -162,15 +166,17 @@ export default function ContactsPanel({
               <div className="flex items-center gap-2 shrink-0">
                 <button
                   type="button"
+                  onClick={() => onStartCall?.(log.name, false)}
                   className="w-8 h-8 rounded-full bg-neutral-100 text-brand-primary flex items-center justify-center hover:bg-brand-primary/10"
-                  aria-label="Ver detalle de llamada"
+                  aria-label="Llamar por voz"
                 >
                   <PhoneCall className="w-3.5 h-3.5" />
                 </button>
                 <button
                   type="button"
+                  onClick={() => onStartCall?.(log.name, true)}
                   className="w-8 h-8 rounded-full bg-neutral-100 text-brand-primary flex items-center justify-center hover:bg-brand-primary/10"
-                  aria-label="Historial de video"
+                  aria-label="Videollamada"
                 >
                   <Video className="w-3.5 h-3.5" />
                 </button>
@@ -226,7 +232,11 @@ export default function ContactsPanel({
                     type="button"
                     onClick={(e) => {
                       e.stopPropagation();
-                      onSelectContact(contact);
+                      if (onStartCall) {
+                        onStartCall(contact.name, false);
+                      } else {
+                        onSelectContact(contact);
+                      }
                     }}
                     className="w-8 h-8 rounded-full bg-neutral-100 text-brand-primary flex items-center justify-center hover:bg-brand-primary/10"
                     aria-label={`Llamar a ${contact.name}`}
@@ -237,7 +247,11 @@ export default function ContactsPanel({
                     type="button"
                     onClick={(e) => {
                       e.stopPropagation();
-                      onSelectContact(contact);
+                      if (onStartChat) {
+                        onStartChat(contact.name);
+                      } else {
+                        onSelectContact(contact);
+                      }
                     }}
                     className="w-8 h-8 rounded-full bg-brand-primary/10 text-brand-primary flex items-center justify-center hover:bg-brand-primary/20"
                   >

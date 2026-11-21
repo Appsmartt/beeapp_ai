@@ -1,15 +1,38 @@
 'use client';
 
 import { useState } from 'react';
-import { SlidersHorizontal, Search, Menu, Check, X } from 'lucide-react';
+import {
+  SlidersHorizontal,
+  Search,
+  Menu,
+  Check,
+  X,
+  Mail,
+  MessageCircle,
+  FileText,
+  Users,
+  FolderOpen,
+  Calendar,
+} from 'lucide-react';
 import ModuleQuickMenu, { type QuickModuleKey } from './ModuleQuickMenu';
 import type { ModuleKey } from './modules';
 import {
   HOME_FILTER_LABELS,
   HOME_FILTER_TO_LABEL,
   LABEL_TO_HOME_FILTER,
+  type HomeContentFilter,
 } from './home/homeSearchFilters';
 import { useHomeSearch } from './home/HomeSearchContext';
+
+const FILTER_ICON_MAP: Record<HomeContentFilter, typeof SlidersHorizontal> = {
+  todos: SlidersHorizontal,
+  correo: Mail,
+  chat: MessageCircle,
+  nota: FileText,
+  contacto: Users,
+  archivo: FolderOpen,
+  evento: Calendar,
+};
 
 interface HomeHeaderProps {
   onOpenSideMenu: () => void;
@@ -29,6 +52,7 @@ export default function HomeHeader({ onOpenSideMenu, onSelectModule, activeModul
 
   const selectedFilter = HOME_FILTER_TO_LABEL[filter];
   const filterActive = filter !== 'todos';
+  const ActiveFilterIcon = FILTER_ICON_MAP[filter] || SlidersHorizontal;
 
   const handleSelectFilter = (label: (typeof HOME_FILTER_LABELS)[number]) => {
     const next = LABEL_TO_HOME_FILTER[label];
@@ -62,7 +86,7 @@ export default function HomeHeader({ onOpenSideMenu, onSelectModule, activeModul
             title="Filtrar por tipo"
             aria-expanded={filterOpen}
           >
-            <SlidersHorizontal className="w-5 h-5" />
+            <ActiveFilterIcon className="w-5 h-5" />
           </button>
 
           {/* Filter Dropdown Overlay */}

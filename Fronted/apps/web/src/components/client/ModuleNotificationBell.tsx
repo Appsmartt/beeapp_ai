@@ -7,6 +7,8 @@ import {
   useRef,
   useState,
 } from 'react';
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import {
   Bell,
   FileText,
@@ -94,6 +96,7 @@ export default function ModuleNotificationBell({
   moduleId,
   placement = 'sidebar',
 }: ModuleNotificationBellProps) {
+  const router = useRouter();
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
@@ -239,29 +242,52 @@ export default function ModuleNotificationBell({
                 Sin notificaciones nuevas
               </p>
             ) : (
-              notifications.map((notification) => (
-                <div
-                  key={notification.id}
-                  className="rounded-xl border border-brand-primary/20 bg-brand-primary/5 p-2.5 text-xs text-neutral-900"
-                >
-                  <div className="mb-1 flex items-center gap-2">
-                    <NotificationIcon notification={notification} />
+              notifications.map((notification) => {
+                const meta = (notification.metadata as Record<string, unknown> | null) ?? {};
+                const conversationId = typeof meta.conversation_id === 'string' ? meta.conversation_id : null;
+                return (
+                  <button
+                    key={notification.id}
+                    type="button"
+                    onClick={() => {
+                      setOpen(false);
+                      if (conversationId) {
+                        router.push(`/app?openChat=${encodeURIComponent(conversationId)}`);
+                        return;
+                      }
+                      router.push('/app/notifications');
+                    }}
+                    className="w-full rounded-xl border border-brand-primary/20 bg-brand-primary/5 p-2.5 text-left text-xs text-neutral-900 transition hover:bg-brand-primary/10"
+                  >
+                    <div className="mb-1 flex items-center gap-2">
+                      <NotificationIcon notification={notification} />
 
-                    <span className="truncate text-xs font-medium">
-                      {notification.title}
-                    </span>
+                      <span className="truncate text-xs font-medium">
+                        {notification.title}
+                      </span>
 
-                    <span className="ml-auto shrink-0 text-[10px] text-neutral-400">
-                      {formatTime(notification.created_at)}
-                    </span>
-                  </div>
+                      <span className="ml-auto shrink-0 text-[10px] text-neutral-400">
+                        {formatTime(notification.created_at)}
+                      </span>
+                    </div>
 
-                  <p className="line-clamp-2 text-[11px] font-normal text-neutral-500">
-                    {notification.body}
-                  </p>
-                </div>
-              ))
+                    <p className="line-clamp-2 text-[11px] font-normal text-neutral-500">
+                      {notification.body}
+                    </p>
+                  </button>
+                );
+              })
             )}
+          </div>
+
+          <div className="mt-3 border-t border-neutral-100 pt-2.5 text-center">
+            <Link
+              href="/app/notifications"
+              onClick={() => setOpen(false)}
+              className="text-xs font-semibold text-brand-primary hover:underline"
+            >
+              Ver todas las notificaciones
+            </Link>
           </div>
         </div>
       )}

@@ -34,7 +34,7 @@ export default function ContactsScreen() {
 
         <ContactsListView />
 
-        {!router.embedded && <FloatingTabBar activeTab="explore" />}
+        {!router.embedded && <FloatingTabBar />}
       </View>
     </ScreenSafeArea>
   );

@@ -60,7 +60,7 @@ export default function PlanFeaturesEditor({
     <>
       <div className="panel-card">
         <span className="panel-card-title">Cupos del plan</span>
-        <p className="form-hint">Vacío o “Sin límite” significa que ese cupo no se corta. Los precios de arriba son los que cobra Wompi, en pesos.</p>
+        <p className="form-hint">Vacío o “Sin límite” significa que ese cupo no se corta. Los precios de arriba son los que cobra Factus Pay (Bre-B), en pesos.</p>
         <div className="plan-limits-grid">
           {NUMBER_FIELDS.map((field) => {
             const value = entitlements[field.key];

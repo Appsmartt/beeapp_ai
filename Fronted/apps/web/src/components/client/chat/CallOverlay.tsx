@@ -1,15 +1,29 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { PhoneOff, Mic, MicOff, Volume2, VolumeX, Video, VideoOff, CheckCircle2 } from 'lucide-react';
-import type { AgoraCallCredentials } from '@beeapp/api-client';
-import { joinAgoraCall, leaveAgoraCall, type AgoraCallSession } from '@/lib/client/agoraSession';
+import { PhoneOff, Mic, MicOff, Volume2, VolumeX, Video, VideoOff, CheckCircle2, RefreshCw } from 'lucide-react';
+import {
+  cancelCallJoinAttempt,
+  confirmCallJoined,
+  leaveCall,
+  refreshCallToken,
+  type AgoraCallCredentials,
+} from '@beeapp/api-client';
+import {
+  joinAgoraCall,
+  leaveAgoraCall,
+  switchAgoraCamera,
+  type AgoraCallSession,
+} from '@/lib/client/agoraSession';
+import { getWebAuth } from '@/lib/client/liveData';
 
 interface CallOverlayProps {
   contactName: string;
   isVideo?: boolean;
   isVerified?: boolean;
   agora: AgoraCallCredentials | null;
+  callId?: string;
+  actorIdentityId?: string;
   onHangUp: () => void;
 }
 
@@ -18,6 +32,8 @@ export default function CallOverlay({
   isVideo = false,
   isVerified = false,
   agora,
+  callId,
+  actorIdentityId,
   onHangUp,
 }: CallOverlayProps) {
   const [isMuted, setIsMuted] = useState(false);
@@ -31,6 +47,8 @@ export default function CallOverlay({
   const localVideoRef = useRef<HTMLDivElement>(null);
   const remoteVideoRef = useRef<HTMLDivElement>(null);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const hangUpRef = useRef(onHangUp);
+  hangUpRef.current = onHangUp;
 
   useEffect(() => {
     if (!agora) return;
@@ -38,6 +56,12 @@ export default function CallOverlay({
     void joinAgoraCall(agora, isVideo, {
       localVideo: localVideoRef.current,
       remoteVideo: remoteVideoRef.current,
+      onRemoteLeft: () => {
+        if (!active) return;
+        void leaveAgoraCall(sessionRef.current);
+        sessionRef.current = null;
+        hangUpRef.current();
+      },
     })
       .then((session) => {
         if (!active) {
@@ -46,9 +70,25 @@ export default function CallOverlay({
         }
         sessionRef.current = session;
         setConnected(true);
+        if (callId && actorIdentityId) {
+          void getWebAuth()
+            .then((auth) => confirmCallJoined(auth, callId, { actor_identity_id: actorIdentityId }))
+            .catch(() => undefined);
+        }
       })
       .catch((error: unknown) => {
-        setConnectError(error instanceof Error ? error.message : 'No fue posible conectar la llamada.');
+        const message = error instanceof Error ? error.message : 'No fue posible conectar la llamada.';
+        setConnectError(message);
+        if (callId && actorIdentityId) {
+          void getWebAuth()
+            .then((auth) =>
+              cancelCallJoinAttempt(auth, callId, {
+                actor_identity_id: actorIdentityId,
+                failure_reason: message,
+              }),
+            )
+            .catch(() => undefined);
+        }
       });
 
     return () => {
@@ -56,7 +96,22 @@ export default function CallOverlay({
       void leaveAgoraCall(sessionRef.current);
       sessionRef.current = null;
     };
-  }, [agora, isVideo]);
+  }, [agora, isVideo, callId, actorIdentityId]);
+
+  useEffect(() => {
+    if (!connected || !callId || !actorIdentityId) return;
+    const refreshInterval = window.setInterval(() => {
+      void getWebAuth()
+        .then((auth) => refreshCallToken(auth, callId, { actor_identity_id: actorIdentityId }))
+        .then((res) => {
+          if (res.agora?.token && sessionRef.current?.client) {
+            void sessionRef.current.client.renewToken(res.agora.token).catch(() => undefined);
+          }
+        })
+        .catch(() => undefined);
+    }, 10 * 60 * 1000);
+    return () => window.clearInterval(refreshInterval);
+  }, [connected, callId, actorIdentityId]);
 
   useEffect(() => {
     if (!connected) return;
@@ -89,7 +144,16 @@ export default function CallOverlay({
   const handleHangUp = () => {
     void leaveAgoraCall(sessionRef.current);
     sessionRef.current = null;
+    if (callId && actorIdentityId) {
+      void getWebAuth()
+        .then((auth) => leaveCall(auth, callId, { actor_identity_id: actorIdentityId }))
+        .catch(() => undefined);
+    }
     onHangUp();
+  };
+
+  const handleSwitchCamera = () => {
+    void switchAgoraCamera(sessionRef.current);
   };
 
   return (
@@ -155,18 +219,28 @@ export default function CallOverlay({
         </button>
 
         {isVideo ? (
-          <button
-            type="button"
-            onClick={() => setIsVideoOff(!isVideoOff)}
-            className={`w-12 h-12 rounded-full flex items-center justify-center transition-colors border ${
-              isVideoOff
-                ? 'bg-white text-neutral-900 border-white'
-                : 'bg-white/15 border-white/20 text-white hover:bg-white/25'
-            }`}
-            title={isVideoOff ? 'Activar cámara' : 'Apagar cámara'}
-          >
-            {isVideoOff ? <VideoOff className="w-5 h-5" /> : <Video className="w-5 h-5" />}
-          </button>
+          <>
+            <button
+              type="button"
+              onClick={() => setIsVideoOff(!isVideoOff)}
+              className={`w-12 h-12 rounded-full flex items-center justify-center transition-colors border ${
+                isVideoOff
+                  ? 'bg-white text-neutral-900 border-white'
+                  : 'bg-white/15 border-white/20 text-white hover:bg-white/25'
+              }`}
+              title={isVideoOff ? 'Activar cámara' : 'Apagar cámara'}
+            >
+              {isVideoOff ? <VideoOff className="w-5 h-5" /> : <Video className="w-5 h-5" />}
+            </button>
+            <button
+              type="button"
+              onClick={handleSwitchCamera}
+              className="w-12 h-12 rounded-full flex items-center justify-center transition-colors border bg-white/15 border-white/20 text-white hover:bg-white/25"
+              title="Cambiar cámara"
+            >
+              <RefreshCw className="w-5 h-5" />
+            </button>
+          </>
         ) : null}
 
         <button

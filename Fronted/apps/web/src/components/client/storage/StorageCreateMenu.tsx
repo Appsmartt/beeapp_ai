@@ -1,7 +1,7 @@
 'use client';
 
 import { useRef, useEffect } from 'react';
-import { FolderPlus, FileUp, Image as ImageIcon, Film, ScanLine } from 'lucide-react';
+import { FolderPlus, FileUp, Image as ImageIcon, Film } from 'lucide-react';
 
 interface StorageCreateMenuProps {
   visible: boolean;
@@ -10,7 +10,7 @@ interface StorageCreateMenuProps {
   onUploadDocument: () => void;
   onUploadPhoto: () => void;
   onUploadVideo: () => void;
-  onScanDocument: () => void;
+  onScanDocument?: () => void;
 }
 
 export default function StorageCreateMenu({
@@ -20,7 +20,6 @@ export default function StorageCreateMenu({
   onUploadDocument,
   onUploadPhoto,
   onUploadVideo,
-  onScanDocument,
 }: StorageCreateMenuProps) {
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -77,15 +76,6 @@ export default function StorageCreateMenu({
       >
         <Film className="w-4 h-4 text-rose-600 shrink-0" />
         <span>Subir video</span>
-      </button>
-
-      <button
-        type="button"
-        onClick={() => { onClose(); onScanDocument(); }}
-        className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-neutral-50 text-left font-normal transition-colors border-t border-neutral-100"
-      >
-        <ScanLine className="w-4 h-4 text-emerald-600 shrink-0" />
-        <span>Escanear documento</span>
       </button>
     </div>
   );

@@ -1,25 +1,34 @@
 import {
   bootstrapChat,
+  createChatMessageReaction,
   createCommercialProfile,
+  createMediaStatus,
   createTextStatus,
+  createTextStatusWithImageLayers,
+  deleteChatMessageReaction,
   getChatIdentities,
   getChatInbox,
+  getChatInboxPresence,
   getChatMessages,
   getCurrentWebCalendarBootstrap,
   getCurrentWebNoteTags,
   getCurrentWebNotes,
   getCurrentWebNotifications,
   getMailMessages,
+  getMyStatuses,
   getOwnedCommercialOffers,
   getOwnedCommercialProfiles,
   getStatusFeed,
+  getStatusTextBackgrounds,
   listChatCategories,
+  listChatCategoryAssignments,
   listMyCallLogs,
   listMyCommunities,
   listMyContacts,
   discoverNetworkProfiles,
   registerStatusView,
   sendChatMessage,
+  setChatIdentityPresence,
   uploadChatAttachment,
   getStatusViewers,
   getAssistantSettings,
@@ -61,16 +70,63 @@ function clock(value: string | null | undefined): string {
   return date.toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' });
 }
 
+const ARCHIVED_CHATS_STORAGE_KEY = 'beeapp.web.archived-chats.v1';
+
+export function readArchivedChatMap(): Record<string, boolean> {
+  if (typeof window === 'undefined') return {};
+  try {
+    const raw = window.localStorage.getItem(ARCHIVED_CHATS_STORAGE_KEY);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw) as unknown;
+    return parsed && typeof parsed === 'object' ? (parsed as Record<string, boolean>) : {};
+  } catch {
+    return {};
+  }
+}
+
+export function writeArchivedChatPatch(conversationId: string, archived: boolean): Record<string, boolean> {
+  const current = readArchivedChatMap();
+  const next = { ...current, [conversationId]: archived };
+  if (typeof window !== 'undefined') {
+    try {
+      window.localStorage.setItem(ARCHIVED_CHATS_STORAGE_KEY, JSON.stringify(next));
+    } catch {
+      // Ignore storage error
+    }
+  }
+  return next;
+}
+
+function formatDateHeading(value: string | null | undefined): string | undefined {
+  if (!value) return undefined;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return undefined;
+  const now = new Date();
+  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const startOfYesterday = new Date(startOfToday.getTime() - 24 * 60 * 60 * 1000);
+  if (date >= startOfToday) return 'HOY';
+  if (date >= startOfYesterday) return 'AYER';
+  return date.toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric' }).toUpperCase();
+}
+
 function toChatItem(conversation: ChatConversation, identityId: string): ChatItem {
   const name = conversation.name
     || conversation.other_display_name
     || conversation.commercial?.display_name
     || 'Conversación';
   const status = conversation.last_message?.status;
+  const rawPolicy = (conversation as { posting_policy?: string }).posting_policy;
+  const postingPolicy = rawPolicy === 'admins_only' ? 'admins_only' : 'all_members';
+  const disappearingSeconds = (conversation as { disappearing_seconds?: number | null }).disappearing_seconds ?? null;
 
   return {
     id: conversation.id,
     name,
+    avatarUrl: conversation.avatar_url || conversation.direct_profile?.avatar_url || null,
+    description: conversation.description || null,
+    postingPolicy,
+    disappearingSeconds,
+    peerIdentityId: conversation.other_identity_id || null,
     lastMessage: conversation.last_message?.content || '',
     time: clock(conversation.last_message_at),
     unreadCount: conversation.unread_count || 0,
@@ -88,12 +144,17 @@ function toChatItem(conversation: ChatConversation, identityId: string): ChatIte
       || conversation.commercial?.id
       || null,
     members: (conversation.participants || []).map((participant) => {
-      const name = [participant.user?.first_name, participant.user?.last_name].filter(Boolean).join(' ') || 'Miembro';
+      const memberName = [participant.user?.first_name, participant.user?.last_name].filter(Boolean).join(' ') || 'Miembro';
+      const role = participant.role === 'owner'
+        ? 'owner' as const
+        : participant.role === 'admin'
+          ? 'admin' as const
+          : 'member' as const;
       return {
         id: participant.identity_id || participant.id,
-        name,
-        role: participant.role === 'owner' || participant.role === 'admin' ? 'admin' as const : 'member' as const,
-        initials: initials(name),
+        name: memberName,
+        role,
+        initials: initials(memberName),
         color: contactColor(participant.identity_id || participant.id),
         isCurrentUser: participant.identity_id === identityId,
       };
@@ -169,16 +230,66 @@ export async function loadInbox(): Promise<{ identityId: string; chats: ChatItem
   }
 
   chatIdentityId = identity.id;
+  void setChatIdentityPresence(auth, identity.id, true).catch(() => undefined);
   const [inbox, categories] = await Promise.all([
-    getChatInbox(auth, identity.id, { limit: 50 }),
+    getChatInbox(auth, identity.id, { limit: 100 }),
     listChatCategories(auth, identity.id).catch(() => ({ categories: [] })),
   ]);
   const conversations = [...inbox.pinned_conversations, ...inbox.conversations];
   const unique = new Map(conversations.map((conversation) => [conversation.id, conversation]));
+  const conversationIds = Array.from(unique.keys());
+  const targetIdentityIds = Array.from(
+    new Set(
+      Array.from(unique.values())
+        .map((c) => c.other_identity_id)
+        .filter((id): id is string => Boolean(id)),
+    ),
+  );
 
+  const [categoryAssignments, presenceResult] = await Promise.all([
+    conversationIds.length > 0
+      ? listChatCategoryAssignments(auth, identity.id, conversationIds).catch(() => ({ assignments: [] }))
+      : Promise.resolve({ assignments: [] }),
+    targetIdentityIds.length > 0
+      ? getChatInboxPresence(auth, identity.id, targetIdentityIds).catch(() => ({ presences: [] }))
+      : Promise.resolve({ presences: [] }),
+  ]);
+
+  const categoryMap = new Map<string, string[]>();
+  for (const assignment of categoryAssignments.assignments || []) {
+    const existing = categoryMap.get(assignment.conversation_id) || [];
+    if (!existing.includes(assignment.category_id)) {
+      existing.push(assignment.category_id);
+      categoryMap.set(assignment.conversation_id, existing);
+    }
+  }
+
+  const presenceByIdentity = new Map<string, { online: boolean; lastSeenAt: string | null }>();
+  for (const p of presenceResult.presences || []) {
+    if (p.identity_id) {
+      presenceByIdentity.set(p.identity_id, {
+        online: Boolean(p.is_online),
+        lastSeenAt: p.last_seen_at ?? null,
+      });
+    }
+  }
+
+  const archivedPatches = readArchivedChatMap();
   const protectedIds = await protectedConversationIds();
   const chats = Array.from(unique.values())
-    .map((conversation) => toChatItem(conversation, identity.id))
+    .map((conversation) => {
+      const base = toChatItem(conversation, identity.id);
+      const assignedCategories = categoryMap.get(conversation.id);
+      const peerPresence = base.peerIdentityId ? presenceByIdentity.get(base.peerIdentityId) : undefined;
+      const archivedPatch = archivedPatches[conversation.id];
+      return {
+        ...base,
+        categoryIds: assignedCategories ?? base.categoryIds,
+        online: peerPresence ? peerPresence.online : base.online,
+        lastSeenAt: peerPresence ? peerPresence.lastSeenAt : base.lastSeenAt,
+        isArchived: archivedPatch !== undefined ? archivedPatch : base.isArchived,
+      };
+    })
     .map((chat) => (protectedIds.has(chat.id) ? lockChatItem(chat) : chat));
   const assistantLocked = chats.some((chat) => chat.isAI && chat.isProtected);
   const withoutAssistant = chats.filter(
@@ -216,8 +327,9 @@ export async function loadCommercialInbox(businessId: string): Promise<ChatItem[
   }
 
   chatIdentityId = identity.id;
+  void setChatIdentityPresence(auth, identity.id, true).catch(() => undefined);
   const [inbox, protectedIds] = await Promise.all([
-    getChatInbox(auth, identity.id, { limit: 50 }),
+    getChatInbox(auth, identity.id, { limit: 100 }),
     protectedConversationIds(),
   ]);
   const conversations = [...inbox.pinned_conversations, ...inbox.conversations];
@@ -243,15 +355,43 @@ function formatAttachmentSize(size?: number | null): string | undefined {
 }
 
 export function toUiChatMessage(message: ApiChatMessage, identityId: string): ChatMessage {
-  const kind = message.message_type === 'image'
-    ? 'image'
-    : message.message_type === 'audio'
-      ? 'audio'
-      : message.message_type === 'file'
-        ? 'file'
-        : 'text';
+  const rawType = String(message.message_type || 'text');
+  const rawMeta = ((message as { metadata?: Record<string, unknown> | null }).metadata ?? {}) as Record<string, unknown>;
+  const refType = (message as { reference_type?: string | null }).reference_type;
+  const replySource = (message as {
+    reply_to?: {
+      id?: string;
+      content?: string | null;
+      sender_display_name?: string | null;
+      sender?: { first_name?: string | null; last_name?: string | null } | null;
+    } | null;
+  }).reply_to;
+
+  const locObj = (rawMeta.location && typeof rawMeta.location === 'object'
+    ? rawMeta.location
+    : rawMeta) as { latitude?: unknown; longitude?: unknown; label?: unknown };
+  const hasLocation = Number.isFinite(Number(locObj?.latitude)) && Number.isFinite(Number(locObj?.longitude));
+
+  const contactObj = (rawMeta.contact && typeof rawMeta.contact === 'object'
+    ? rawMeta.contact
+    : null) as { name?: unknown; phone?: unknown; email?: unknown } | null;
+
+  let kind: ChatMessage['type'] = 'text';
+  if (rawType === 'image') kind = 'image';
+  else if (rawType === 'video') kind = 'video';
+  else if (rawType === 'audio' || rawType === 'voice') kind = 'audio';
+  else if (rawType === 'file' || rawType === 'document') kind = 'file';
+  else if (rawType === 'location' || hasLocation) kind = 'location';
+  else if (rawType === 'contact' || contactObj?.name) kind = 'contact';
+  else if (refType === 'status_story') kind = 'status_reply';
+  else if (refType === 'call_session' || rawType === 'call_notice') kind = 'call_notice';
+
   const attachment = message.attachments?.[0];
   const mediaUrl = attachment?.url?.trim() || attachment?.thumbnail_url?.trim() || undefined;
+
+  const replySender = replySource?.sender_display_name
+    || [replySource?.sender?.first_name, replySource?.sender?.last_name].filter(Boolean).join(' ')
+    || 'Mensaje';
 
   return {
     id: message.id,
@@ -264,6 +404,42 @@ export function toUiChatMessage(message: ApiChatMessage, identityId: string): Ch
     fileSize: formatAttachmentSize(attachment?.size_bytes),
     status: message.status === 'read' || message.status === 'delivered' ? message.status : 'sent',
     time: clock(message.created_at),
+    createdAt: message.created_at,
+    dateLabel: formatDateHeading(message.created_at),
+    replyTo: replySource
+      ? {
+        id: replySource.id,
+        sender: replySender,
+        text: replySource.content || 'Adjunto',
+      }
+      : undefined,
+    location: hasLocation
+      ? {
+        latitude: Number(locObj.latitude),
+        longitude: Number(locObj.longitude),
+        label: typeof locObj.label === 'string' ? locObj.label : undefined,
+      }
+      : undefined,
+    contactCard: contactObj?.name
+      ? {
+        name: String(contactObj.name),
+        phone: typeof contactObj.phone === 'string' ? contactObj.phone : undefined,
+        email: typeof contactObj.email === 'string' ? contactObj.email : undefined,
+      }
+      : undefined,
+    statusReply: refType === 'status_story'
+      ? {
+        statusId: (message as { reference_id?: string | null }).reference_id || undefined,
+        previewText: typeof rawMeta.status_preview === 'string' ? rawMeta.status_preview : 'Respondió a un estado',
+      }
+      : undefined,
+    callNotice: kind === 'call_notice'
+      ? {
+        callType: rawMeta.call_type === 'video' ? 'video' : 'voice',
+        status: typeof rawMeta.call_status === 'string' ? rawMeta.call_status : (message.content || 'Llamada'),
+        durationSeconds: typeof rawMeta.duration_seconds === 'number' ? rawMeta.duration_seconds : null,
+      }
+      : undefined,
     isPinned: Boolean(message.is_pinned),
     isEdited: Boolean(message.edited_at),
     isDestroyed: Boolean(message.destroyed_at),
@@ -288,12 +464,22 @@ function summarizeReactions(
 
 export async function hydrateChatMedia(message: ChatMessage, identityId: string): Promise<ChatMessage> {
   if (message.mediaUrl || message.isDestroyed) return message;
-  if (message.type !== 'image' && message.type !== 'file' && message.type !== 'audio') return message;
+  if (
+    message.type !== 'image'
+    && message.type !== 'video'
+    && message.type !== 'file'
+    && message.type !== 'audio'
+  ) {
+    return message;
+  }
   try {
     const auth = await getWebAuth();
     const access = await getChatMessageAttachmentAccess(auth, message.id, identityId);
+    const mime = access.attachment.mime_type || '';
+    const inferredType = mime.startsWith('video/') ? 'video' : message.type;
     return {
       ...message,
+      type: inferredType,
       mediaUrl: access.url,
       fileName: message.fileName || access.attachment.display_name || access.attachment.original_name || undefined,
       fileSize: message.fileSize || formatAttachmentSize(access.attachment.size_bytes),
@@ -303,19 +489,34 @@ export async function hydrateChatMedia(message: ChatMessage, identityId: string)
   }
 }
 
-export async function loadChatMessages(conversationId: string, identityId: string): Promise<ChatMessage[]> {
+export async function loadChatMessages(
+  conversationId: string,
+  identityId: string,
+  limit = 100,
+): Promise<ChatMessage[]> {
   const auth = await getWebAuth();
-  const result = await getChatMessages(auth, conversationId, { limit: 50 });
+  const result = await getChatMessages(auth, conversationId, { limit });
   const mapped = result.messages.map((message) => toUiChatMessage(message, identityId)).reverse();
   return Promise.all(mapped.map((message) => hydrateChatMedia(message, identityId)));
 }
 
-export async function sendTextChatMessage(conversationId: string, identityId: string, text: string): Promise<ChatMessage> {
+export async function sendTextChatMessage(
+  conversationId: string,
+  identityId: string,
+  text: string,
+  replyToMessageId?: string,
+): Promise<ChatMessage> {
   const auth = await getWebAuth();
   const result = await sendChatMessage(auth, conversationId, {
     sender_identity_id: identityId,
     body: text,
     message_type: 'text',
+    ...(replyToMessageId
+      ? {
+        reference_type: 'message',
+        reference_id: replyToMessageId,
+      }
+      : {}),
   });
   return toUiChatMessage(result.message, identityId);
 }
@@ -324,21 +525,26 @@ export async function sendChatAttachmentMessage(
   conversationId: string,
   identityId: string,
   file: File,
-  messageType: 'image' | 'document' | 'audio',
+  messageType: 'image' | 'video' | 'document' | 'audio',
 ): Promise<ChatMessage> {
   const auth = await getWebAuth();
   const uri = URL.createObjectURL(file);
+  const uploadType: 'image' | 'document' | 'audio' = messageType === 'video' ? 'document' : messageType;
   try {
     const result = await uploadChatAttachment(auth, conversationId, {
       sender_identity_id: identityId,
-      message_type: messageType,
+      message_type: uploadType,
       file: {
         uri,
         name: file.name,
         type: file.type || 'application/octet-stream',
       },
     });
-    return hydrateChatMedia(toUiChatMessage(result.message, identityId), identityId);
+    const uiMessage = toUiChatMessage(result.message, identityId);
+    if (messageType === 'video' || file.type.startsWith('video/')) {
+      uiMessage.type = 'video';
+    }
+    return hydrateChatMedia(uiMessage, identityId);
   } finally {
     URL.revokeObjectURL(uri);
   }
@@ -355,9 +561,56 @@ export async function sendLocationChatMessage(
     sender_identity_id: identityId,
     message_type: 'location',
     body: `${latitude.toFixed(5)}, ${longitude.toFixed(5)}`,
-    metadata: { latitude, longitude },
+    metadata: {
+      latitude,
+      longitude,
+      location: { latitude, longitude },
+    },
   });
   return toUiChatMessage(result.message, identityId);
+}
+
+export async function sendContactChatMessage(
+  conversationId: string,
+  identityId: string,
+  contact: { name: string; phone?: string; email?: string },
+): Promise<ChatMessage> {
+  const auth = await getWebAuth();
+  const summary = [contact.name, contact.phone, contact.email].filter(Boolean).join(' · ');
+  const result = await sendChatMessage(auth, conversationId, {
+    sender_identity_id: identityId,
+    message_type: 'text',
+    body: `Contacto: ${summary}`,
+    metadata: {
+      contact: {
+        name: contact.name,
+        phone: contact.phone || null,
+        email: contact.email || null,
+      },
+    },
+  });
+  const mapped = toUiChatMessage(result.message, identityId);
+  return {
+    ...mapped,
+    type: 'contact',
+    contactCard: contact,
+  };
+}
+
+export async function toggleChatMessageReaction(
+  conversationId: string,
+  messageId: string,
+  identityId: string,
+  emoji: string,
+  currentlyMine: boolean,
+): Promise<void> {
+  void conversationId;
+  const auth = await getWebAuth();
+  if (currentlyMine) {
+    await deleteChatMessageReaction(auth, messageId, identityId, emoji);
+  } else {
+    await createChatMessageReaction(auth, messageId, identityId, emoji);
+  }
 }
 
 export function toContactItem(row: {
@@ -459,36 +712,107 @@ export async function loadCommunities(userId: string): Promise<CommunityItem[]> 
 }
 
 function storyToStatus(item: StatusFeedItem): StatusItem[] {
-  return item.stories.map((story) => ({
-    id: story.id,
-    authorId: item.author.actor_id,
-    authorName: item.author.display_name,
-    authorInitials: initials(item.author.display_name),
-    authorColor: contactColor(item.author.actor_id),
-    type: story.media?.url ? 'photo' : 'text',
-    text: story.text_content || story.caption || '',
-    photoUrl: story.media?.url || null,
-    bgColor: story.media?.url ? null : '#6025d2',
-    linkedProduct: story.commercial_offer_link
-      ? {
-        id: story.commercial_offer_link.commercial_offer_id,
-        name: story.commercial_offer_link.offer_title_snapshot || 'Oferta',
-        price: null,
-      }
-      : null,
-    textPosition: { x: 50, y: 70 },
-    textSize: 22,
-    textWeight: '700',
-    textColor: '#FFFFFF',
-    timestamp: clock(story.created_at),
-    viewed: story.is_viewed,
-  }));
+  return item.stories.map((story) => {
+    const rawMedia = story.media as { url?: string | null; media_type?: string | null; mime_type?: string | null } | null | undefined;
+    const mediaUrl = rawMedia?.url || null;
+    const isVideo = Boolean(
+      mediaUrl
+      && (
+        rawMedia?.media_type === 'video'
+        || rawMedia?.mime_type?.startsWith('video/')
+        || story.kind === 'video'
+        || /\.(mp4|webm|mov|m4v)(\?|$)/i.test(mediaUrl)
+      ),
+    );
+    const bgHex = (story as { text_background?: { background_hex?: string | null; gradient_start_hex?: string | null } }).text_background?.background_hex
+      || (story as { text_background?: { gradient_start_hex?: string | null } }).text_background?.gradient_start_hex
+      || '#6025d2';
+
+    return {
+      id: story.id,
+      authorId: item.author.actor_id,
+      authorName: item.author.display_name,
+      authorInitials: initials(item.author.display_name),
+      authorColor: contactColor(item.author.actor_id),
+      authorAvatarUrl: item.author.avatar_url || null,
+      actorType: item.author.actor_type,
+      actorCommercialProfileId: item.author.actor_type === 'commercial_profile' ? item.author.actor_id : null,
+      type: mediaUrl ? (isVideo ? 'video' : 'photo') : 'text',
+      text: story.text_content || story.caption || '',
+      photoUrl: mediaUrl,
+      bgColor: mediaUrl ? null : bgHex,
+      linkedProduct: story.commercial_offer_link
+        ? {
+          id: story.commercial_offer_link.commercial_offer_id,
+          name: story.commercial_offer_link.offer_title_snapshot || 'Oferta',
+          price: null,
+        }
+        : null,
+      textPosition: { x: 50, y: 70 },
+      textSize: 22,
+      textWeight: '700',
+      textColor: '#FFFFFF',
+      timestamp: clock(story.created_at),
+      viewed: story.is_viewed,
+    };
+  });
 }
 
 export async function loadStatuses(): Promise<StatusItem[]> {
   const auth = await getWebAuth();
-  const feed = await getStatusFeed(auth, { limit: 30 });
-  return feed.items.flatMap(storyToStatus);
+  const [feed, mine] = await Promise.all([
+    getStatusFeed(auth, { limit: 30 }).catch(() => ({ items: [] as StatusFeedItem[] })),
+    getMyStatuses(auth).catch(() => null),
+  ]);
+  const feedItems = feed.items.flatMap(storyToStatus);
+  const existingIds = new Set(feedItems.map((item) => item.id));
+  const rawMineStories = [
+    ...(mine?.active?.profile?.stories || []),
+    ...(mine?.active?.commercial_profiles?.flatMap((cp) => cp.stories || []) || []),
+  ];
+  const myItems: StatusItem[] = rawMineStories
+    .filter((story) => !existingIds.has(story.id))
+    .map((story) => {
+      const rawMedia = story.media as { url?: string | null; media_type?: string | null; mime_type?: string | null } | null | undefined;
+      const mediaUrl = rawMedia?.url || null;
+      const isVideo = Boolean(
+        mediaUrl
+        && (
+          rawMedia?.media_type === 'video'
+          || rawMedia?.mime_type?.startsWith('video/')
+          || story.kind === 'video'
+          || /\.(mp4|webm|mov|m4v)(\?|$)/i.test(mediaUrl)
+        ),
+      );
+      return {
+        id: story.id,
+        authorId: story.actor.actor_id,
+        authorName: story.actor.display_name || 'Tú',
+        authorInitials: initials(story.actor.display_name || 'Tú'),
+        authorColor: contactColor(story.actor.actor_id),
+        authorAvatarUrl: story.actor.avatar_url || null,
+        actorType: story.actor.actor_type,
+        actorCommercialProfileId: story.actor.actor_type === 'commercial_profile' ? story.actor.actor_id : null,
+        type: mediaUrl ? (isVideo ? 'video' : 'photo') : 'text',
+        text: story.text_content || story.caption || '',
+        photoUrl: mediaUrl,
+        bgColor: mediaUrl ? null : '#6025d2',
+        linkedProduct: story.commercial_offer_link
+          ? {
+            id: story.commercial_offer_link.commercial_offer_id,
+            name: story.commercial_offer_link.offer_title_snapshot || 'Oferta',
+            price: null,
+          }
+          : null,
+        textPosition: { x: 50, y: 70 },
+        textSize: 22,
+        textWeight: '700',
+        textColor: '#FFFFFF',
+        timestamp: clock(story.created_at),
+        viewed: true,
+      };
+    });
+  return [...myItems, ...feedItems];
 }
 
 export async function markStatusSeen(statusId: string): Promise<void> {
@@ -524,34 +848,119 @@ export async function loadStatusViewers(statusId: string): Promise<{
   };
 }
 
-export async function publishTextStatus(text: string, authorName: string): Promise<StatusItem> {
+export async function publishStatus(
+  draft: Omit<StatusItem, 'id' | 'timestamp' | 'viewed'>,
+  authorName: string,
+): Promise<StatusItem> {
   const auth = await getWebAuth();
-  const response = await createTextStatus(auth, {
-    kind: 'text',
-    text_content: text,
-    caption: text,
-    text_background_id: '',
-    actor_type: 'profile',
-  });
+  const actorType = draft.actorType || 'profile';
+  const actorCommercialProfileId = actorType === 'commercial_profile' ? draft.actorCommercialProfileId || undefined : undefined;
+  const editorMetadata: Record<string, unknown> = {
+    textPosition: draft.textPosition,
+    textSize: draft.textSize,
+    textWeight: draft.textWeight,
+    textColor: draft.textColor,
+    textLayers: draft.textLayers || [],
+    ...(draft.linkedProduct ? { linkedProduct: draft.linkedProduct } : {}),
+  };
+
+  if ((draft.type === 'photo' || draft.type === 'video') && (draft.mediaFile || draft.photoUrl)) {
+    const file = draft.mediaFile;
+    const uri = file ? URL.createObjectURL(file) : (draft.photoUrl || '');
+    try {
+      const response = await createMediaStatus(
+        auth,
+        {
+          kind: draft.type === 'video' ? 'video' : 'image',
+          caption: draft.text?.trim() || undefined,
+          duration_seconds: draft.type === 'video' ? Math.max(1, Math.round(draft.videoDurationSeconds || 5)) : undefined,
+          actor_type: actorType,
+          actor_commercial_profile_id: actorCommercialProfileId,
+          editor_metadata: editorMetadata,
+        },
+        {
+          uri,
+          name: file?.name || (draft.type === 'video' ? 'status.mp4' : 'status.jpg'),
+          mimeType: file?.type || (draft.type === 'video' ? 'video/mp4' : 'image/jpeg'),
+        },
+      );
+      const story = response.status;
+      return {
+        ...draft,
+        id: story.id,
+        authorId: story.actor.actor_id,
+        authorName: story.actor.display_name || authorName,
+        authorInitials: initials(story.actor.display_name || authorName),
+        authorColor: '#F3E8FF',
+        photoUrl: story.media?.url || draft.photoUrl,
+        timestamp: 'Ahora',
+        viewed: true,
+      };
+    } finally {
+      if (file) URL.revokeObjectURL(uri);
+    }
+  }
+
+  let backgroundId = '';
+  try {
+    const bgs = await getStatusTextBackgrounds(auth);
+    const items = bgs.backgrounds || [];
+    const matched = items.find((b) => b.hex_color?.toLowerCase() === draft.bgColor?.toLowerCase());
+    backgroundId = matched?.id || items[0]?.id || '';
+  } catch {
+    backgroundId = '';
+  }
+
+  const textContent = draft.text?.trim() || 'Estado';
+  const payload = {
+    kind: 'text' as const,
+    text_content: textContent,
+    caption: textContent,
+    text_background_id: backgroundId,
+    actor_type: actorType,
+    actor_commercial_profile_id: actorCommercialProfileId,
+    editor_metadata: editorMetadata,
+  };
+
+  const response = draft.imageLayers && draft.imageLayers.length > 0
+    ? await createTextStatusWithImageLayers(auth, payload)
+    : await createTextStatus(auth, payload);
   const story = response.status;
   return {
+    ...draft,
     id: story.id,
     authorId: story.actor.actor_id,
-    authorName,
-    authorInitials: initials(authorName),
+    authorName: story.actor.display_name || authorName,
+    authorInitials: initials(story.actor.display_name || authorName),
     authorColor: '#F3E8FF',
     type: 'text',
-    text,
+    text: textContent,
     photoUrl: null,
-    bgColor: '#6025d2',
-    linkedProduct: null,
-    textPosition: { x: 50, y: 50 },
-    textSize: 24,
-    textWeight: '700',
-    textColor: '#FFFFFF',
+    bgColor: draft.bgColor || '#6025d2',
     timestamp: 'Ahora',
     viewed: true,
   };
+}
+
+export async function publishTextStatus(text: string, authorName: string): Promise<StatusItem> {
+  return publishStatus(
+    {
+      authorId: 'me',
+      authorName,
+      authorInitials: initials(authorName),
+      authorColor: '#F3E8FF',
+      type: 'text',
+      text,
+      photoUrl: null,
+      bgColor: '#6025d2',
+      linkedProduct: null,
+      textPosition: { x: 50, y: 50 },
+      textSize: 24,
+      textWeight: '700',
+      textColor: '#FFFFFF',
+    },
+    authorName,
+  );
 }
 
 export async function loadOverviewNotes(): Promise<Array<{ id: string; title: string; preview: string; timestamp: string; isProtected: boolean }>> {
@@ -694,11 +1103,15 @@ export async function createOwnedBusiness(input: BusinessItem): Promise<Business
     ...(input.offersProducts ? ['delivery', 'pickup'] as const : []),
     ...(input.offersServices ? ['virtual', 'in_person'] as const : []),
   ];
+  const rawAddressParts = (input.address || '').split(',').map((part) => part.trim()).filter(Boolean);
+  const extractedCity = rawAddressParts.length > 1
+    ? rawAddressParts[rawAddressParts.length - 1]
+    : (rawAddressParts[0] || 'Bogotá');
   const created = await createCommercialProfile(auth, {
     offer_type: offerType,
     display_name: input.name.trim(),
     description: input.description.trim() || input.name.trim(),
-    city: 'Sin ciudad',
+    city: extractedCity,
     address: input.address || null,
     custom_activity_text: input.category,
     new_category_names: input.category ? [input.category] : [],

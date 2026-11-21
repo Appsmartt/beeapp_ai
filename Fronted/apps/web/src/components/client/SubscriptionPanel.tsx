@@ -8,16 +8,25 @@ import {
   getCurrentWebProfile,
   getCurrentWebStorageSummary,
   getMySubscription,
+  getOwnedCommercialProfiles,
+  listMyPayments,
   listPublicPlans,
   startBillingCheckout,
   submitProfileVerification,
   cancelSubscription,
   reactivateSubscription,
+  type BillingCheckout,
+  type MyPaymentRecord,
   type PublicPlan,
 } from '@beeapp/api-client';
-import type { CurrentUserProfile } from '@beeapp/shared-types';
+import FactusPayModal from './FactusPayModal';
+import type {
+  CommercialOwnedProfile,
+  CurrentUserProfile,
+  ProfileVerificationStatus,
+} from '@beeapp/shared-types';
 import {
-  Check, Sparkles, Database, ShieldCheck, BadgeCheck, Store, Search, MessageCircle, Clock, Loader2,
+  Check, Sparkles, Database, ShieldCheck, BadgeCheck, Store, Search, MessageCircle, Clock, Loader2, Receipt,
 } from 'lucide-react';
 
 const VERIFY_BENEFITS = [
@@ -52,7 +61,19 @@ function planHighlights(plan: PublicPlan | null): string[] {
   return plan.description ? [plan.description] : [];
 }
 
-function buildRequirements(profile: CurrentUserProfile | null): RequirementItem[] {
+const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
+
+function hasCompanyData(businesses: CommercialOwnedProfile[]): boolean {
+  return businesses.some((business) => (
+    Boolean(business.display_name?.trim())
+    && Boolean(business.custom_activity_text?.trim() || business.description?.trim())
+  ));
+}
+
+function buildRequirements(
+  profile: CurrentUserProfile | null,
+  businesses: CommercialOwnedProfile[] = [],
+): RequirementItem[] {
   if (!profile) return [];
   const hasProfile = Boolean(
     profile.first_name?.trim()
@@ -61,23 +82,20 @@ function buildRequirements(profile: CurrentUserProfile | null): RequirementItem[
     && profile.avatar_file_id,
   );
   const phoneVerified = Boolean(profile.phone_number?.trim());
+  const createdAt = Date.parse(profile.created_at || '');
+  const hasAge = Number.isFinite(createdAt) && Date.now() - createdAt >= THIRTY_DAYS_MS;
   const verificationRequest = profile.settings?.verification_request ?? null;
-  const verificationStatus = profile.verification_status ?? verificationRequest?.status ?? 'no_solicitado';
   const pendingFromApi = verificationRequest?.pending_requirements ?? [];
 
   const base: RequirementItem[] = [
     { text: 'Perfil completo: nombre, ocupación y foto de perfil', done: hasProfile },
-    { text: 'Número de celular registrado', done: phoneVerified },
-    { text: 'Ocupación o actividad registrada', done: Boolean(profile.occupation?.trim()) },
+    { text: 'Número de celular verificado por SMS', done: phoneVerified },
+    { text: 'Datos de empresa registrados (nombre y actividad)', done: hasCompanyData(businesses) || Boolean(profile.occupation?.trim()) },
+    { text: 'Al menos 30 días de actividad en Buddy', done: hasAge },
   ];
 
   const dynamic = pendingFromApi.map((text) => ({ text, done: false }));
-  const submission: RequirementItem = {
-    text: 'Solicitud de verificación enviada o aprobada',
-    done: verificationStatus === 'en_revision' || verificationStatus === 'verificado',
-  };
-
-  return [...base, ...dynamic, submission];
+  return [...base, ...dynamic];
 }
 
 export function SubscriptionPanel() {
@@ -89,32 +107,43 @@ export function SubscriptionPanel() {
   const [activePlan, setActivePlan] = useState<PublicPlan | null>(null);
   const [upgradePlans, setUpgradePlans] = useState<PublicPlan[]>([]);
   const [periodLabel, setPeriodLabel] = useState('');
+  const [isCancelled, setIsCancelled] = useState(false);
   const [usageLabel, setUsageLabel] = useState('');
   const [billingCycle, setBillingCycle] = useState<'monthly' | 'yearly'>('monthly');
   const [storageLabel, setStorageLabel] = useState('');
   const [storagePercent, setStoragePercent] = useState(0);
   const [requirements, setRequirements] = useState<RequirementItem[]>([]);
-  const [verifyRequested, setVerifyRequested] = useState(false);
+  const [verificationStatus, setVerificationStatus] = useState<ProfileVerificationStatus>('no_solicitado');
   const [verifyError, setVerifyError] = useState('');
   const [verifySubmitting, setVerifySubmitting] = useState(false);
   const [planBusy, setPlanBusy] = useState(false);
+  const [busyPlanId, setBusyPlanId] = useState<string | null>(null);
+  const [activeCheckout, setActiveCheckout] = useState<BillingCheckout | null>(null);
+  const [payments, setPayments] = useState<MyPaymentRecord[]>([]);
 
-  const loadData = useCallback(async () => {
-    setLoading(true);
+  const loadData = useCallback(async (options?: { silent?: boolean }) => {
+    if (!options?.silent) {
+      setLoading(true);
+    }
     setError('');
     try {
-      const [subscriptionPayload, plans, storageResponse, profileResponse] = await Promise.all([
+      const auth = await getWebAuth().catch(() => null);
+      const [subscriptionPayload, plans, storageResponse, profileResponse, myPayments, ownedBusinesses] = await Promise.all([
         getMySubscription(),
         listPublicPlans(),
         getCurrentWebStorageSummary().catch(() => null),
         getCurrentWebProfile().catch(() => null),
+        listMyPayments(10).catch(() => []),
+        auth ? getOwnedCommercialProfiles(auth).catch(() => ({ profiles: [] })) : Promise.resolve({ profiles: [] }),
       ]);
 
       const plan = subscriptionPayload.plan ?? plans.find((p) => p.id === 'free') ?? null;
       setActivePlan(plan);
-      setUpgradePlans(plans.filter((item) => item.purchasable && item.id !== plan?.id));
+      setUpgradePlans(plans.filter((item) => item.purchasable));
+      setPayments(myPayments);
       const end = subscriptionPayload.subscription?.current_period_end;
       const cancelledAt = subscriptionPayload.subscription?.cancelled_at;
+      setIsCancelled(Boolean(cancelledAt));
       setPeriodLabel(end
         ? `${cancelledAt ? 'Acceso hasta' : 'Vigente hasta'} ${new Date(String(end)).toLocaleString('es-CO')}. Si no hay otro pago, vuelves a Free.`
         : '');
@@ -144,11 +173,11 @@ export function SubscriptionPanel() {
         setStorageLabel('Almacenamiento no disponible');
       }
 
-      setRequirements(buildRequirements(profileResponse?.profile ?? null));
-      const vStatus = profileResponse?.profile?.verification_status
+      setRequirements(buildRequirements(profileResponse?.profile ?? null, ownedBusinesses.profiles ?? []));
+      const vStatus: ProfileVerificationStatus = profileResponse?.profile?.verification_status
         ?? profileResponse?.profile?.settings?.verification_request?.status
         ?? 'no_solicitado';
-      setVerifyRequested(vStatus === 'en_revision' || vStatus === 'verificado');
+      setVerificationStatus(vStatus);
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : 'No fue posible cargar tu suscripción.');
     } finally {
@@ -160,32 +189,68 @@ export function SubscriptionPanel() {
     void loadData();
   }, [loadData]);
 
+  const handlePaymentConfirmed = useCallback(async () => {
+    setActiveCheckout((prev) => (prev ? { ...prev, status: 'paid' } : prev));
+    await loadData({ silent: true });
+  }, [loadData]);
+
   const pendingReqs = requirements.filter((r) => !r.done).length;
   const benefits = useMemo(() => planHighlights(activePlan), [activePlan]);
   const isFreePlan = !activePlan || activePlan.id === 'free';
 
   const handleUpgrade = async (planId: string) => {
     setPlanBusy(true);
+    setBusyPlanId(planId);
     setError('');
     try {
       const checkout = await startBillingCheckout({
         planId,
         billingPeriod: billingCycle,
-        redirectUrl: `${window.location.origin}/app/profile/subscription`,
       });
-      window.location.assign(checkout.url);
+      setActiveCheckout(checkout);
+      if (checkout.status === 'paid') {
+        await loadData({ silent: true });
+      }
     } catch (upgradeError) {
-      setError(upgradeError instanceof Error ? upgradeError.message : 'No se pudo abrir el pago.');
+      setError(upgradeError instanceof Error ? upgradeError.message : 'No se pudo generar el cobro con Factus Pay.');
+    } finally {
       setPlanBusy(false);
+      setBusyPlanId(null);
+    }
+  };
+
+  const handleRenewCheckout = async (currentCheckout: BillingCheckout) => {
+    const renewed = await startBillingCheckout({
+      planId: currentCheckout.planId,
+      billingPeriod: currentCheckout.billingPeriod,
+      renewReference: currentCheckout.reference,
+    });
+    const isStillExpired = renewed.expiresAt ? new Date(renewed.expiresAt).getTime() <= Date.now() : false;
+    if (isStillExpired && renewed.status !== 'paid') {
+      const fresh = await startBillingCheckout({
+        planId: currentCheckout.planId,
+        billingPeriod: currentCheckout.billingPeriod,
+        forceNew: true,
+      });
+      setActiveCheckout(fresh);
+      return;
+    }
+    setActiveCheckout(renewed);
+    if (renewed.status === 'paid') {
+      await loadData({ silent: true });
     }
   };
 
   const handleCancelPlan = async () => {
+    const confirmed = window.confirm(
+      '¿Deseas desactivar la renovación de tu suscripción al final del periodo actual? Mantendrás tus beneficios hasta la fecha de vencimiento.',
+    );
+    if (!confirmed) return;
     setPlanBusy(true);
     setError('');
     try {
       await cancelSubscription();
-      await loadData();
+      await loadData({ silent: true });
     } catch (cancelError) {
       setError(cancelError instanceof Error ? cancelError.message : 'No fue posible cancelar.');
     } finally {
@@ -198,7 +263,7 @@ export function SubscriptionPanel() {
     setError('');
     try {
       await reactivateSubscription();
-      await loadData();
+      await loadData({ silent: true });
     } catch (reactivateError) {
       setError(reactivateError instanceof Error ? reactivateError.message : 'No fue posible reactivar.');
     } finally {
@@ -212,8 +277,8 @@ export function SubscriptionPanel() {
     try {
       const auth = await getWebAuth();
       await submitProfileVerification(auth);
-      setVerifyRequested(true);
-      await loadData();
+      setVerificationStatus('en_revision');
+      await loadData({ silent: true });
     } catch (submitError) {
       setVerifyError(submitError instanceof Error ? submitError.message : 'No fue posible enviar la solicitud.');
     } finally {
@@ -221,7 +286,7 @@ export function SubscriptionPanel() {
     }
   };
 
-  if (loading) {
+  if (loading && !activeCheckout) {
     return (
       <div className="flex items-center justify-center gap-2 rounded-2xl border border-[#E7DDF2] bg-white px-6 py-12 text-xs text-[#786593]">
         <Loader2 className="h-4 w-4 animate-spin text-[#7427D5]" />
@@ -309,7 +374,7 @@ export function SubscriptionPanel() {
                 </div>
               ) : null}
 
-              {!isFreePlan && upgradePlans.length > 0 ? (
+              {!isFreePlan && !isCancelled ? (
                 <button
                   type="button"
                   disabled={planBusy}
@@ -320,25 +385,15 @@ export function SubscriptionPanel() {
                 </button>
               ) : null}
 
-              {upgradePlans.length === 0 && !isFreePlan ? (
-                <div className="flex flex-col gap-2 sm:flex-row">
-                  <button
-                    type="button"
-                    disabled={planBusy}
-                    onClick={() => void handleCancelPlan()}
-                    className="flex-1 rounded-xl border border-[#E8D1F1] bg-white px-3 py-2.5 text-xs font-extrabold text-[#5E506B] disabled:opacity-50"
-                  >
-                    Cancelar suscripción
-                  </button>
-                  <button
-                    type="button"
-                    disabled={planBusy}
-                    onClick={() => void handleReactivatePlan()}
-                    className="flex-1 rounded-xl bg-emerald-600 px-3 py-2.5 text-xs font-extrabold text-white hover:bg-emerald-700 disabled:opacity-50"
-                  >
-                    Reactivar suscripción
-                  </button>
-                </div>
+              {!isFreePlan && isCancelled ? (
+                <button
+                  type="button"
+                  disabled={planBusy}
+                  onClick={() => void handleReactivatePlan()}
+                  className="w-full rounded-xl bg-emerald-600 px-3 py-2.5 text-xs font-extrabold text-white transition hover:bg-emerald-700 disabled:opacity-50"
+                >
+                  Quitar cancelación y mantener suscripción
+                </button>
               ) : null}
             </div>
           </section>
@@ -347,7 +402,7 @@ export function SubscriptionPanel() {
             <section className="space-y-4">
               <div>
                 <h3 className="text-sm font-extrabold text-[#261743]">Planes disponibles</h3>
-                <p className="mt-0.5 text-xs text-[#786593]">Elige ciclo de facturación y continúa con Wompi.</p>
+                <p className="mt-0.5 text-xs text-[#786593]">Elige ciclo de facturación y paga al instante con QR o llave Bre-B vía Factus Pay.</p>
               </div>
 
               <div className="flex rounded-xl border border-[#E8D1F1] bg-[#F6EAFE]/40 p-1 text-xs">
@@ -379,6 +434,8 @@ export function SubscriptionPanel() {
                 {upgradePlans.map((plan) => {
                   const price = billingCycle === 'yearly' ? Number(plan.yearly_price) : Number(plan.monthly_price);
                   const highlights = planHighlights(plan);
+                  const isCurrentPlan = plan.id === activePlan?.id;
+                  const isThisBusy = planBusy && busyPlanId === plan.id;
                   return (
                     <article
                       key={plan.id}
@@ -386,10 +443,17 @@ export function SubscriptionPanel() {
                     >
                       <div className="h-1.5 bg-gradient-to-r from-[#5E1ABF] via-[#7427D5] to-[#9B6DD7]" aria-hidden />
                       <div className="flex flex-1 flex-col space-y-4 p-4 sm:p-5">
-                        <span className="inline-flex w-fit items-center gap-1.5 rounded-full bg-[#F6EAFE] px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-wide text-[#54209E]">
-                          <Sparkles className="h-3.5 w-3.5" aria-hidden />
-                          {plan.name}
-                        </span>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="inline-flex w-fit items-center gap-1.5 rounded-full bg-[#F6EAFE] px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-wide text-[#54209E]">
+                            <Sparkles className="h-3.5 w-3.5" aria-hidden />
+                            {plan.name}
+                          </span>
+                          {isCurrentPlan ? (
+                            <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[10px] font-extrabold text-emerald-700">
+                              Plan actual
+                            </span>
+                          ) : null}
+                        </div>
                         {plan.description ? (
                           <p className="text-xs leading-relaxed text-[#786593]">{plan.description}</p>
                         ) : null}
@@ -405,11 +469,11 @@ export function SubscriptionPanel() {
                           onClick={() => void handleUpgrade(plan.id)}
                           className="w-full rounded-xl bg-[#7427D5] py-2.5 text-sm font-extrabold text-white shadow-sm hover:bg-[#5E1ABF] disabled:opacity-50"
                         >
-                          {planBusy ? 'Abriendo Wompi…' : `Pagar ${plan.name}`}
+                          {isThisBusy ? 'Generando QR…' : isCurrentPlan ? `Renovar ${plan.name}` : `Pagar ${plan.name}`}
                         </button>
                         {highlights.length > 0 ? (
                           <ul className="space-y-2 border-t border-[#F1EAF6] pt-3 text-xs text-[#5E506B]">
-                            {highlights.slice(0, 6).map((item) => (
+                            {highlights.map((item) => (
                               <li key={item} className="flex items-start gap-2">
                                 <Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[#7427D5]" aria-hidden />
                                 <span>{item}</span>
@@ -425,6 +489,65 @@ export function SubscriptionPanel() {
               <p className="text-center text-[10px] text-[#8A72B2]">
                 El pago cubre un periodo. Sin renovación, la cuenta vuelve a Free.
               </p>
+            </section>
+          ) : null}
+
+          {payments.length > 0 ? (
+            <section className="overflow-hidden rounded-2xl border border-[#E7DDF2] bg-white shadow-[0_8px_24px_rgba(116,39,213,0.06)]">
+              <div className="flex items-center gap-2 border-b border-[#F1EAF6] bg-[#FAF7FF] px-4 py-3 sm:px-5">
+                <Receipt className="h-4 w-4 text-[#7427D5]" aria-hidden />
+                <h3 className="text-xs font-extrabold uppercase tracking-wide text-[#261743]">
+                  Historial de pagos
+                </h3>
+              </div>
+              <ul className="divide-y divide-[#F1EAF6]">
+                {payments.map((payment) => {
+                  const statusLower = payment.status.toLowerCase();
+                  const isPaid = statusLower === 'pagado' || statusLower === 'paid';
+                  const isFailed = statusLower === 'fallido' || statusLower === 'failed';
+                  const badgeClass = isPaid
+                    ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                    : isFailed
+                      ? 'border-rose-200 bg-rose-50 text-rose-700'
+                      : 'border-amber-200 bg-amber-50 text-amber-800';
+                  const statusLabel = isPaid ? 'Pagado' : isFailed ? 'Fallido' : 'Pendiente';
+                  const planLabel = payment.planId
+                    ? payment.planId.charAt(0).toUpperCase() + payment.planId.slice(1)
+                    : 'Suscripción';
+                  const cycleText = payment.billingPeriod === 'yearly' ? 'Anual' : 'Mensual';
+                  const dateText = payment.updatedAt || payment.createdAt
+                    ? new Date(payment.updatedAt || payment.createdAt).toLocaleString('es-CO', {
+                        day: '2-digit',
+                        month: 'short',
+                        year: 'numeric',
+                        hour: '2-digit',
+                        minute: '2-digit',
+                      })
+                    : '';
+                  return (
+                    <li key={payment.id} className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 sm:px-5">
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="text-xs font-extrabold text-[#261743]">
+                            Plan {planLabel} ({cycleText})
+                          </span>
+                          <span className={`rounded-full border px-2 py-0.5 text-[10px] font-extrabold ${badgeClass}`}>
+                            {statusLabel}
+                          </span>
+                        </div>
+                        <p className="mt-0.5 text-[11px] text-[#786593]">
+                          {dateText}
+                          {payment.provider === 'factus_pay' ? ' · Factus Pay (Bre-B)' : ''}
+                          {payment.reference ? ` · Ref: ${payment.reference}` : ''}
+                        </p>
+                      </div>
+                      <span className="text-sm font-extrabold text-[#261743]">
+                        {cop(payment.amount)}
+                      </span>
+                    </li>
+                  );
+                })}
+              </ul>
             </section>
           ) : null}
         </div>
@@ -499,23 +622,38 @@ export function SubscriptionPanel() {
             <button
               type="button"
               onClick={() => void handleVerify()}
-              disabled={verifyRequested || verifySubmitting || pendingReqs > 0}
+              disabled={
+                verificationStatus === 'en_revision'
+                || verificationStatus === 'verificado'
+                || verifySubmitting
+                || pendingReqs > 0
+              }
               className={`flex w-full items-center justify-center gap-2 rounded-xl px-3 py-2.5 text-xs font-extrabold transition ${
-                verifyRequested
+                verificationStatus === 'en_revision' || verificationStatus === 'verificado'
                   ? 'border border-emerald-200 bg-emerald-50 text-emerald-800'
                   : 'bg-[#7427D5] text-white hover:bg-[#5E1ABF] disabled:cursor-not-allowed disabled:opacity-50'
               }`}
             >
               <ShieldCheck className="h-4 w-4" aria-hidden />
-              {verifyRequested
-                ? 'Solicitud en revisión'
-                : verifySubmitting
-                  ? 'Enviando…'
-                  : `Solicitar verificación (${pendingReqs} pendientes)`}
+              {verificationStatus === 'verificado'
+                ? 'Cuenta verificada'
+                : verificationStatus === 'en_revision'
+                  ? 'Solicitud en revisión'
+                  : verifySubmitting
+                    ? 'Enviando…'
+                    : pendingReqs > 0
+                      ? `Solicitar verificación (${pendingReqs} pendientes)`
+                      : 'Solicitar verificación'}
             </button>
           </div>
         </section>
       </div>
+      <FactusPayModal
+        checkout={activeCheckout}
+        onClose={() => setActiveCheckout(null)}
+        onRenew={handleRenewCheckout}
+        onPaid={handlePaymentConfirmed}
+      />
     </div>
   );
 }

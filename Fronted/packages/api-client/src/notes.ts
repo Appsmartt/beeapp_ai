@@ -662,6 +662,25 @@ export function getCurrentWebReceivedNoteShares(
     );
 }
 
+export function getCurrentWebSentNoteShares(
+    query: ReceivedNoteSharesQuery = {},
+    ): Promise<GetSentNoteSharesResponse> {
+    return api.get<GetSentNoteSharesResponse>(
+        `/notes/shares/sent/${buildQuery(query)}`,
+        WEB_OPTIONS,
+    );
+}
+
+export function getCurrentWebNoteOutgoingShares(
+    noteId: string,
+    query: ReceivedNoteSharesQuery = {},
+    ): Promise<GetNoteOutgoingSharesResponse> {
+    return api.get<GetNoteOutgoingSharesResponse>(
+        `${notePath(noteId)}shares/${buildQuery(query)}`,
+        WEB_OPTIONS,
+    );
+}
+
 export function getCurrentWebSharedNote(
     noteId: string,
     ): Promise<GetSharedNoteResponse> {

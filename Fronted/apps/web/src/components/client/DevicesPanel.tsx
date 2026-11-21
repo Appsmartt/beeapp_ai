@@ -1,12 +1,15 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { Loader2, Monitor, QrCode, Shield, Smartphone, Trash2 } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { Loader2, LogOut, Monitor, QrCode, Shield, Smartphone, Trash2 } from 'lucide-react';
 import {
   getDeviceSessions,
   revokeAllDeviceSessions,
   revokeDeviceSession,
+  revokeEveryDeviceSession,
 } from '@beeapp/api-client';
+import { useAuth } from '@/lib/auth/AuthProvider';
 import { getWebAuth } from '@/lib/client/liveData';
 
 interface DeviceItem {
@@ -40,6 +43,8 @@ const QR_STEPS = [
 ];
 
 export function DevicesPanel() {
+  const router = useRouter();
+  const { signOut } = useAuth();
   const [devices, setDevices] = useState<DeviceItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -102,6 +107,24 @@ export function DevicesPanel() {
       setError(actionError instanceof Error ? actionError.message : 'No fue posible cerrar las sesiones.');
     } finally {
       setBusyId(null);
+    }
+  };
+
+  const handleSignOutEveryDevice = async () => {
+    if (!confirm('¿Cerrar todas las sesiones activas, incluida la de este navegador?')) return;
+    setBusyId('every');
+    try {
+      const auth = await getWebAuth();
+      await revokeEveryDeviceSession(auth);
+    } catch (actionError) {
+      setError(actionError instanceof Error ? actionError.message : 'No fue posible cerrar todas las sesiones.');
+      setBusyId(null);
+      return;
+    }
+    try {
+      await signOut();
+    } finally {
+      router.replace('/login');
     }
   };
 
@@ -182,18 +205,16 @@ export function DevicesPanel() {
                   return (
                     <li
                       key={device.id}
-                      className={`overflow-hidden rounded-2xl border transition hover:border-[#C9A8E8] ${
-                        device.isCurrent ? 'border-[#C6F6D5] bg-[#F6FFF8]' : 'border-[#E7DDF2] bg-white'
-                      }`}
+                      className={`overflow-hidden rounded-2xl border transition hover:border-[#C9A8E8] ${device.isCurrent ? 'border-[#C6F6D5] bg-[#F6FFF8]' : 'border-[#E7DDF2] bg-white'
+                        }`}
                     >
                       <div className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
                         <div className="flex min-w-0 items-start gap-3">
                           <span
-                            className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border ${
-                              mobile
-                                ? 'border-[#E8D1F1] bg-[#F6EAFE] text-[#7427D5]'
-                                : 'border-[#E7DDF2] bg-[#FFFCF9] text-[#5E506B]'
-                            }`}
+                            className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border ${mobile
+                              ? 'border-[#E8D1F1] bg-[#F6EAFE] text-[#7427D5]'
+                              : 'border-[#E7DDF2] bg-[#FFFCF9] text-[#5E506B]'
+                              }`}
                           >
                             <Icon className="h-5 w-5" aria-hidden />
                           </span>
@@ -236,6 +257,18 @@ export function DevicesPanel() {
               >
                 <Trash2 className="h-4 w-4" aria-hidden />
                 {busyId === 'all' ? 'Cerrando sesiones…' : 'Cerrar todas excepto esta'}
+              </button>
+            ) : null}
+
+            {devices.length > 0 ? (
+              <button
+                type="button"
+                disabled={busyId !== null}
+                onClick={() => void handleSignOutEveryDevice()}
+                className="mt-2.5 flex h-11 w-full items-center justify-center gap-2 rounded-xl border border-rose-300 bg-rose-600 text-xs font-extrabold text-white transition hover:bg-rose-700 disabled:opacity-50"
+              >
+                <LogOut className="h-4 w-4" aria-hidden />
+                {busyId === 'every' ? 'Cerrando todas las sesiones…' : 'Cerrar todas las sesiones (incluida esta)'}
               </button>
             ) : null}
           </div>

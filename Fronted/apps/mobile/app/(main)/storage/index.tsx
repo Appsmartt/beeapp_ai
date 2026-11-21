@@ -1164,14 +1164,6 @@ export default function StorageIndexScreen() {
 
             setContextMenuVisible(false);
           }}
-          onSign={(item) => {
-            router.push({
-              pathname: '/(main)/storage/sign',
-              params: {
-                id: item.id,
-              },
-            });
-          }}
           onDelete={handleDeleteItem}
           onAssignCategory={(item) => {
             if (item.type === 'folder') {
@@ -1280,7 +1272,7 @@ export default function StorageIndexScreen() {
         />
 
         {!router.embedded && (
-          <FloatingTabBar activeTab="explore" />
+          <FloatingTabBar />
         )}
 
         <StorageCategoryModals

@@ -6,6 +6,8 @@ import {
   FolderOpen,
   Image as ImageIcon,
   Lock,
+  Share2,
+  Trash2,
 } from 'lucide-react';
 
 export type StorageFilter =
@@ -13,7 +15,9 @@ export type StorageFilter =
   | 'recent'
   | 'docs'
   | 'media'
-  | 'protected';
+  | 'shared'
+  | 'protected'
+  | 'trash';
 
 interface StorageOptionsBarProps {
   filter: StorageFilter;
@@ -42,13 +46,23 @@ const NAV_ITEMS: {
   },
   {
     id: 'media',
-    label: 'Fotos y Videos',
+    label: 'Fotos, Videos y Audio',
     icon: ImageIcon,
+  },
+  {
+    id: 'shared',
+    label: 'Compartidos conmigo',
+    icon: Share2,
   },
   {
     id: 'protected',
     label: 'Protegidos con PIN',
     icon: Lock,
+  },
+  {
+    id: 'trash',
+    label: 'Papelera',
+    icon: Trash2,
   },
 ];
 

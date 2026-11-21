@@ -17,6 +17,7 @@ import {
   getAccountSecurityPinStatus,
   listProtectedChats,
   replaceAccountSecurityPin,
+  verifyAccountSecurityPin,
 } from '@beeapp/api-client';
 import { getWebAuth } from '@/lib/client/liveData';
 import {
@@ -25,14 +26,17 @@ import {
   secondaryButtonClass,
 } from '@/components/client/beeservices/CommercialShell';
 
-const securityFieldLabel = 'mb-1.5 block text-[11px] font-extrabold text-[#4E3B68]';
-
 export function SecurityPanel() {
   const [loading, setLoading] = useState(true);
   const [pinConfigured, setPinConfigured] = useState(false);
+  const [unlocked, setUnlocked] = useState(false);
+  const [gatePin, setGatePin] = useState('');
+  const [gateBusy, setGateBusy] = useState(false);
+  const [gateError, setGateError] = useState('');
   const [protectedCount, setProtectedCount] = useState(0);
   const [changingPin, setChangingPin] = useState(false);
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [newPin, setNewPin] = useState('');
   const [confirmPin, setConfirmPin] = useState('');
   const [showPin, setShowPin] = useState(false);
@@ -49,7 +53,11 @@ export function SecurityPanel() {
         getAccountSecurityPinStatus(auth),
         listProtectedChats(auth).catch(() => ({ conversation_ids: [] as string[] })),
       ]);
-      setPinConfigured(Boolean(status.configured));
+      const configured = Boolean(status.configured);
+      setPinConfigured(configured);
+      if (!configured) {
+        setUnlocked(true);
+      }
       setProtectedCount(protectedChats.conversation_ids?.length ?? 0);
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : 'No fue posible cargar la seguridad.');
@@ -61,6 +69,30 @@ export function SecurityPanel() {
   useEffect(() => {
     void loadStatus();
   }, [loadStatus]);
+
+  const handleVerifyGatePin = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (gatePin.length !== 4) {
+      setGateError('Ingresa tu PIN de 4 dígitos.');
+      return;
+    }
+    setGateBusy(true);
+    setGateError('');
+    try {
+      const auth = await getWebAuth();
+      const res = await verifyAccountSecurityPin(auth, gatePin);
+      if (!res.verified) {
+        setGateError('PIN incorrecto.');
+        return;
+      }
+      setUnlocked(true);
+      setGatePin('');
+    } catch (err) {
+      setGateError(err instanceof Error ? err.message : 'PIN incorrecto. Inténtalo de nuevo.');
+    } finally {
+      setGateBusy(false);
+    }
+  };
 
   const handleSavePin = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -105,6 +137,44 @@ export function SecurityPanel() {
       <div className="flex items-center justify-center gap-2 rounded-2xl border border-[#E7DDF2] bg-white px-6 py-12 text-xs text-[#786593]">
         <Loader2 className="h-4 w-4 animate-spin text-[#7427D5]" />
         Cargando seguridad…
+      </div>
+    );
+  }
+
+  if (pinConfigured && !unlocked) {
+    return (
+      <div className="mx-auto max-w-md rounded-2xl border border-[#E7DDF2] bg-white p-6 shadow-[0_10px_30px_rgba(116,39,213,0.08)]">
+        <div className="flex items-center gap-3">
+          <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[#F6EAFE] text-[#7427D5]">
+            <Lock className="h-5 w-5" aria-hidden />
+          </span>
+          <div>
+            <h2 className="text-base font-extrabold text-[#261743]">Verifica tu PIN actual</h2>
+            <p className="mt-0.5 text-xs text-[#786593]">
+              Ingresa tu PIN de 4 dígitos para acceder a la configuración de seguridad.
+            </p>
+          </div>
+        </div>
+        <form onSubmit={(event) => void handleVerifyGatePin(event)} className="mt-5 space-y-3">
+          <input
+            type="password"
+            inputMode="numeric"
+            maxLength={4}
+            value={gatePin}
+            onChange={(event) => setGatePin(event.target.value.replace(/\D/g, '').slice(0, 4))}
+            placeholder="••••"
+            className={`${fieldClass} text-center font-mono text-lg tracking-[0.4em]`}
+            autoFocus
+          />
+          {gateError ? <p className="text-xs text-rose-600">{gateError}</p> : null}
+          <button
+            type="submit"
+            disabled={gateBusy || gatePin.length !== 4}
+            className={`${primaryButtonClass} w-full`}
+          >
+            {gateBusy ? 'Verificando…' : 'Desbloquear ajustes'}
+          </button>
+        </form>
       </div>
     );
   }
@@ -232,12 +302,22 @@ export function SecurityPanel() {
               <form onSubmit={(event) => void handleSavePin(event)} className="space-y-4 rounded-2xl border border-[#E8D1F1] bg-white p-4">
                 {pinConfigured ? (
                   <div>
-                    <label className={securityFieldLabel} htmlFor="security-password">
-                      Contraseña actual
-                    </label>
+                    <div className="mb-1.5 flex items-center justify-between">
+                      <label className="text-[11px] font-extrabold text-[#4E3B68]" htmlFor="security-password">
+                        Contraseña actual
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword((value) => !value)}
+                        className="rounded-lg p-1 text-[#8A72B2] hover:bg-[#F6EAFE] hover:text-[#7427D5]"
+                        aria-label={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+                      >
+                        {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      </button>
+                    </div>
                     <input
                       id="security-password"
-                      type="password"
+                      type={showPassword ? 'text' : 'password'}
                       value={password}
                       onChange={(event) => setPassword(event.target.value)}
                       className={fieldClass}

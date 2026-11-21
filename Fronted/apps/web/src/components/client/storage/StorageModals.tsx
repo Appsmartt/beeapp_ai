@@ -16,11 +16,12 @@ import {
 export interface WebStorageItem {
   id: string;
   name: string;
-  type: 'folder' | 'pdf' | 'image' | 'doc' | 'video' | 'zip' | 'sheet';
+  type: 'folder' | 'pdf' | 'image' | 'doc' | 'video' | 'audio' | 'zip' | 'sheet';
   size?: string;
   sizeBytes?: number;
   itemCount?: number;
   date: string;
+  updatedAtIso?: string;
   parentId: string | null;
   categoryIds?: string[];
   isProtected?: boolean;
@@ -29,6 +30,9 @@ export interface WebStorageItem {
   signedAt?: string;
   extension?: string | null;
   mimeType?: string;
+  shareId?: string;
+  sharedByName?: string;
+  isTrashed?: boolean;
 }
 
 interface CreateFolderModalProps {

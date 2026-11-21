@@ -13,9 +13,11 @@ import {
   FileText,
   Paperclip,
   Send,
+  Sparkles,
   X,
 } from 'lucide-react';
 import {
+  askAssistantMail,
   createMailDraft,
   sendMailDraft,
   uploadCurrentWebStorageFiles,
@@ -25,6 +27,7 @@ import type {
   MailIntegration,
   StorageFile,
 } from '@beeapp/shared-types';
+import { getWebAuth } from '@/lib/client/webAuth';
 
 import {
   getMailIntegrationLabel,
@@ -52,6 +55,7 @@ export interface ComposeDraft {
   cc?: string;
   bcc?: string;
   subject?: string;
+  body?: string;
 }
 
 interface MailComposeProps {
@@ -244,6 +248,9 @@ export default function MailCompose({
 
   const [subject, setSubject] = useState('');
   const [body, setBody] = useState('');
+  const [aiPromptOpen, setAiPromptOpen] = useState(false);
+  const [aiPrompt, setAiPrompt] = useState('');
+  const [aiGenerating, setAiGenerating] = useState(false);
 
   const [attachments, setAttachments] = useState<
     MailAttachment[]
@@ -302,7 +309,9 @@ export default function MailCompose({
     });
 
     setSubject(draft?.subject || '');
-    setBody('');
+    setBody(draft?.body || '');
+    setAiPromptOpen(false);
+    setAiPrompt('');
     setAttachments([]);
     setError(null);
   }, [
@@ -1003,7 +1012,89 @@ export default function MailCompose({
                   }}
                   className="min-w-0 flex-1 bg-transparent text-xs text-neutral-900 outline-none placeholder:text-neutral-400 disabled:opacity-50"
                 />
+
+                <button
+                  type="button"
+                  disabled={sending || aiGenerating}
+                  onClick={() => setAiPromptOpen((curr) => !curr)}
+                  className="inline-flex shrink-0 items-center gap-1 rounded-full bg-brand-primary/10 px-2.5 py-1 text-[11px] font-semibold text-brand-primary hover:bg-brand-primary/20 disabled:opacity-50"
+                >
+                  <Sparkles className="h-3 w-3" />
+                  <span>Redactar con IA</span>
+                </button>
               </div>
+
+              {aiPromptOpen ? (
+                <div className="flex items-center gap-2 border-b border-brand-primary/15 bg-brand-primary/5 px-5 py-2.5">
+                  <Sparkles className="h-4 w-4 shrink-0 text-brand-primary" />
+                  <input
+                    type="text"
+                    value={aiPrompt}
+                    disabled={aiGenerating}
+                    onChange={(e) => setAiPrompt(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        if (!aiPrompt.trim() || aiGenerating) return;
+                        void (async () => {
+                          setAiGenerating(true);
+                          setError(null);
+                          try {
+                            const auth = await getWebAuth();
+                            const res = await askAssistantMail(auth, 'draft', {
+                              prompt: aiPrompt.trim(),
+                              subject: subject.trim() || undefined,
+                              text: body.trim() || undefined,
+                            });
+                            if (res.text?.trim()) {
+                              setBody(res.text.trim());
+                              setAiPromptOpen(false);
+                              setAiPrompt('');
+                            }
+                          } catch (err) {
+                            setError(err instanceof Error ? err.message : 'No se pudo generar el borrador con IA.');
+                          } finally {
+                            setAiGenerating(false);
+                          }
+                        })();
+                      }
+                    }}
+                    placeholder="Ej. Escribe un correo formal confirmando la reunión de mañana..."
+                    className="min-w-0 flex-1 bg-transparent text-xs text-neutral-800 outline-none placeholder:text-neutral-400"
+                  />
+                  <button
+                    type="button"
+                    disabled={!aiPrompt.trim() || aiGenerating}
+                    onClick={() => {
+                      if (!aiPrompt.trim() || aiGenerating) return;
+                      void (async () => {
+                        setAiGenerating(true);
+                        setError(null);
+                        try {
+                          const auth = await getWebAuth();
+                          const res = await askAssistantMail(auth, 'draft', {
+                            prompt: aiPrompt.trim(),
+                            subject: subject.trim() || undefined,
+                            text: body.trim() || undefined,
+                          });
+                          if (res.text?.trim()) {
+                            setBody(res.text.trim());
+                            setAiPromptOpen(false);
+                            setAiPrompt('');
+                          }
+                        } catch (err) {
+                          setError(err instanceof Error ? err.message : 'No se pudo generar el borrador con IA.');
+                        } finally {
+                          setAiGenerating(false);
+                        }
+                      })();
+                    }}
+                    className="rounded-lg bg-brand-primary px-3 py-1 text-[11px] font-semibold text-white hover:bg-brand-dark disabled:opacity-50"
+                  >
+                    {aiGenerating ? 'Generando...' : 'Generar'}
+                  </button>
+                </div>
+              ) : null}
 
               <textarea
                 value={body}

@@ -1,5 +1,11 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
+import {
+  getFactusCollection,
+  normalizeFactusDate,
+  readFactusPayConfig,
+  timingSafeEqualStrings,
+} from "../_shared/factusPay.ts";
 
 type Json = Record<string, unknown>;
 
@@ -10,55 +16,85 @@ function json(body: unknown, status = 200): Response {
   });
 }
 
-async function sha256Hex(value: string): Promise<string> {
-  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(value));
-  return Array.from(new Uint8Array(digest)).map((byte) => byte.toString(16).padStart(2, "0")).join("");
-}
-
-function readPath(source: unknown, path: string): string {
-  let current = source;
-  for (const part of path.split(".")) {
-    if (!current || typeof current !== "object") return "";
-    current = (current as Json)[part];
-  }
-  return current == null ? "" : String(current);
-}
-
 Deno.serve(async (request) => {
   if (request.method !== "POST") return json({ message: "Método no permitido." }, 405);
 
-  const secret = Deno.env.get("WOMPI_EVENTS_SECRET") || "";
-  if (!secret) return json({ message: "Falta el secreto de eventos de Wompi." }, 503);
+  const config = readFactusPayConfig();
+  if (!config.webhookKey) {
+    return json({ message: "Falta FACTUS_PAY_WEBHOOK_KEY en los secretos del proyecto." }, 503);
+  }
+
+  const incomingKey = new URL(request.url).searchParams.get("key") || "";
+  if (!incomingKey || !timingSafeEqualStrings(incomingKey, config.webhookKey)) {
+    return json({ message: "Llave de webhook inválida." }, 401);
+  }
 
   const body = await request.json().catch(() => null) as Json | null;
-  if (!body) return json({ message: "Evento vacío." }, 400);
+  const data = (body?.data && typeof body.data === "object")
+    ? body.data as Json
+    : null;
+  if (!data) return json({ message: "Notificación vacía o inválida." }, 400);
 
-  const eventName = String(body.event || "");
-  if (eventName && eventName !== "transaction.updated") {
-    return json({ ok: true, ignored: true });
+  const reference = String(data.reference_code ?? "").trim();
+  const webhookStatus = String(data.status ?? "").trim().toLowerCase();
+  const webhookAmount = Number(data.amount);
+
+  if (!reference || !Number.isFinite(webhookAmount)) {
+    return json({ received: true, ignored: true, reason: "missing_reference_or_amount" }, 200);
   }
 
-  const signature = (body.signature || {}) as Json;
-  const properties = Array.isArray(signature.properties) ? signature.properties.map(String) : [];
-  const checksum = String(signature.checksum || "");
-  const timestamp = String(body.timestamp ?? "");
-  const data = body.data;
-  if (!properties.length || !checksum || !timestamp) {
-    return json({ message: "El evento no trae firma." }, 401);
+  if (webhookStatus !== "paid") {
+    return json({ received: true, ignored: true, status: webhookStatus }, 200);
   }
 
-  const signed = properties.map((property) => readPath(data, property)).join("");
-  const expected = await sha256Hex(`${signed}${timestamp}${secret}`);
-  if (expected.toLowerCase() !== checksum.toLowerCase()) {
-    return json({ message: "La firma del evento no coincide." }, 401);
-  }
+  const webhookPayer = (data.payer && typeof data.payer === "object")
+    ? data.payer as Json
+    : undefined;
 
-  const reference = readPath(data, "transaction.reference");
-  const status = readPath(data, "transaction.status");
-  const transactionId = readPath(data, "transaction.id");
-  const amount = Number(readPath(data, "transaction.amount_in_cents"));
-  if (!reference || !Number.isFinite(amount)) {
-    return json({ message: "El evento no trae la referencia o el monto." }, 400);
+  let confirmedStatus = webhookStatus;
+  let confirmedAmount = webhookAmount;
+  let confirmedBrebKey = String(data.breb_key ?? "").trim() || null;
+  let confirmedCollectedAt = normalizeFactusDate(data.collected_at);
+  let confirmedExpiresAt = normalizeFactusDate(data.qr_expires_at);
+  let confirmedPayer = webhookPayer;
+  let verifiedViaApi = false;
+
+  // Verificación adicional recomendada por Factus Pay contra GET /v1/collections/{reference_code}.
+  if (config.apiToken) {
+    try {
+      const apiCheck = await getFactusCollection(config, reference);
+      verifiedViaApi = true;
+      confirmedStatus = apiCheck.data.status;
+      confirmedAmount = apiCheck.data.amount;
+      confirmedBrebKey = apiCheck.data.breb_key || confirmedBrebKey;
+      confirmedCollectedAt = apiCheck.data.collected_at || confirmedCollectedAt;
+      confirmedExpiresAt = apiCheck.data.qr_expires_at || confirmedExpiresAt;
+      confirmedPayer = (apiCheck.data.payer as Json | undefined) || confirmedPayer;
+
+      if (confirmedStatus !== "paid") {
+        console.warn("[billing-webhook] Factus Pay API no confirma estado paid aún:", {
+          reference,
+          webhookStatus,
+          confirmedStatus,
+        });
+        return json({ message: "Recaudo aún no confirmado como paid en la API." }, 502);
+      }
+
+      if (Math.abs(confirmedAmount - webhookAmount) > 0.01) {
+        console.error("[billing-webhook] Diferencia de monto entre webhook y API:", {
+          reference,
+          webhookAmount,
+          confirmedAmount,
+        });
+        return json({ received: true, flagged: true, reason: "amount_mismatch_webhook_vs_api" }, 200);
+      }
+    } catch (error) {
+      console.error("[billing-webhook] Error al verificar recaudo contra Factus Pay API:", {
+        reference,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      return json({ message: "Error temporal verificando recaudo en Factus Pay." }, 502);
+    }
   }
 
   const supabase = createClient(
@@ -66,12 +102,36 @@ Deno.serve(async (request) => {
     Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "",
     { auth: { persistSession: false, autoRefreshToken: false } },
   );
-  const applied = await supabase.rpc("apply_wompi_payment", {
+
+  const metadata = {
+    breb_key: confirmedBrebKey,
+    qr_expires_at: confirmedExpiresAt,
+    collected_at: confirmedCollectedAt,
+    webhook_received_at: new Date().toISOString(),
+    verified_via_api: verifiedViaApi,
+    ...(confirmedPayer ? { payer: confirmedPayer } : {}),
+  };
+
+  const applied = await supabase.rpc("apply_factus_payment", {
     p_reference: reference,
-    p_transaction_id: transactionId,
-    p_status: status,
-    p_amount_in_cents: Math.round(amount),
+    p_status: confirmedStatus,
+    p_amount: confirmedAmount,
+    p_metadata: metadata,
   });
-  if (applied.error) return json({ message: applied.error.message }, 400);
-  return json({ ok: true, result: applied.data });
+
+  if (applied.error) {
+    const errMsg = applied.error.message || "";
+    console.error("[billing-webhook] No se pudo aplicar el pago:", { reference, errMsg });
+    // Según documentación de Factus Pay: si la referencia no existe o el monto no coincide,
+    // registrar para revisión manual y responder 200 para detener reintentos inútiles.
+    if (
+      errMsg.includes("No existe un pago con esa referencia")
+      || errMsg.includes("El monto pagado no coincide")
+    ) {
+      return json({ received: true, flagged: true, message: errMsg }, 200);
+    }
+    return json({ message: errMsg }, 500);
+  }
+
+  return json({ received: true, ok: true, result: applied.data }, 200);
 });

@@ -1,0 +1,9 @@
+{
+  "extends": "../tsconfig.json",
+  "compilerOptions": { "target": "ES2017", "incremental": false },
+  "include": [
+    "../next-env.d.ts",
+    "../src/components/client/mail/MailModule.tsx",
+    "../src/hooks/useMail.ts"
+  ]
+}

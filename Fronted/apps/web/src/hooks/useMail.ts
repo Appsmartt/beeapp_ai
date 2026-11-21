@@ -69,6 +69,7 @@ export interface UseMailResult {
         options?: {
         refresh?: boolean;
         reloadIntegrations?: boolean;
+        background?: boolean;
         },
     ) => Promise<void>;
     loadMore: () => Promise<void>;
@@ -250,6 +251,7 @@ export function useMail(
     const [error, setError] = useState<string | null>(null);
 
     const requestIdRef = useRef(0);
+    const loadingMoreRef = useRef(false);
     const rawMessagesRef = useRef<MailMessage[]>([]);
     const integrationsRef = useRef<MailIntegration[]>([]);
 
@@ -289,6 +291,7 @@ export function useMail(
         options: {
         refresh?: boolean;
         reloadIntegrations?: boolean;
+        background?: boolean;
         } = {},
     ) => {
         const requestId = requestIdRef.current + 1;
@@ -301,7 +304,7 @@ export function useMail(
         setLoading(true);
         }
 
-        setError(null);
+        if (!options.background) setError(null);
 
         try {
         const shouldReloadIntegrations = (
@@ -309,13 +312,15 @@ export function useMail(
             || integrationsRef.current.length === 0
         );
 
-        const messagesRequest = getMailMessages({
+        const query = {
             integration_id: integrationId,
             ...normalizeFolderQuery(folder),
             search: normalizedSearch || undefined,
-            limit: DEFAULT_PAGE_LIMIT,
-            offset: 0,
-        });
+        };
+        // Keep the pages the reader has opened. Each request stays within the gateway's row limit.
+        const visibleCount = options.refresh ? rawMessagesRef.current.length : 0;
+        const limit = Math.min(100, Math.max(DEFAULT_PAGE_LIMIT, visibleCount));
+        const messagesRequest = getMailMessages({ ...query, limit, offset: 0 });
 
         const integrationsRequest = shouldReloadIntegrations
             ? getMailIntegrations({
@@ -341,10 +346,19 @@ export function useMail(
             );
         }
 
-        setMessages(messagesResponse.messages);
-        setPagination(messagesResponse.pagination);
+        const loaded = [...messagesResponse.messages];
+        let page = messagesResponse.pagination;
+        while (loaded.length < visibleCount && page.has_more && page.next_offset !== null) {
+            const next = await getMailMessages({ ...query, limit, offset: page.next_offset });
+            if (requestId !== requestIdRef.current) return;
+            loaded.push(...next.messages);
+            page = next.pagination;
+        }
+        setMessages(mergeMailMessages([], loaded));
+        setPagination(page);
+        setError(null);
         } catch (loadError) {
-        if (requestId !== requestIdRef.current) {
+        if (requestId !== requestIdRef.current || options.background) {
             return;
         }
 
@@ -372,13 +386,15 @@ export function useMail(
         if (
         loading
         || refreshing
-        || loadingMore
+        || loadingMoreRef.current
         || !pagination.has_more
         || pagination.next_offset === null
         ) {
         return;
         }
 
+        loadingMoreRef.current = true;
+        const requestId = requestIdRef.current;
         setLoadingMore(true);
         setError(null);
 
@@ -391,6 +407,7 @@ export function useMail(
             offset: pagination.next_offset,
         });
 
+        if (requestId !== requestIdRef.current) return;
         setMessages(
             mergeMailMessages(
             rawMessagesRef.current,
@@ -400,6 +417,7 @@ export function useMail(
 
         setPagination(response.pagination);
         } catch (loadMoreError) {
+        if (requestId !== requestIdRef.current) return;
         setError(
             getErrorMessage(
             loadMoreError,
@@ -407,13 +425,13 @@ export function useMail(
             ),
         );
         } finally {
+        loadingMoreRef.current = false;
         setLoadingMore(false);
         }
     }, [
         folder,
         integrationId,
         loading,
-        loadingMore,
         normalizedSearch,
         pagination.has_more,
         pagination.next_offset,
@@ -428,6 +446,9 @@ export function useMail(
         });
     }, [loadMail]);
 
+    const currentLoad = useRef(loadMail);
+    useEffect(() => { currentLoad.current = loadMail; }, [loadMail]);
+
     const syncInbox = useCallback(async () => {
         setSyncing(true);
         setError(null);
@@ -440,7 +461,7 @@ export function useMail(
             force_full_sync: false,
         });
 
-        await loadMail({
+        await currentLoad.current({
             refresh: true,
             reloadIntegrations: true,
         });
@@ -460,7 +481,6 @@ export function useMail(
         }
     }, [
         integrationId,
-        loadMail,
     ]);
 
     const updateMessageState = useCallback(async (
@@ -587,36 +607,32 @@ export function useMail(
         (message) => message.id === normalizedMessageId,
         );
 
-        if (!targetMessage) {
-        throw new Error(
-            'No fue posible encontrar el correo.',
-        );
-        }
-
-        const optimisticTargetMessage: MailMessage = {
-        ...targetMessage,
-        folder: destinationFolder,
-        is_archived: destinationFolder === 'archived',
-        is_spam: destinationFolder === 'spam',
-        is_trashed: destinationFolder === 'trash',
-        };
-
         setUpdatingMessageId(normalizedMessageId);
         setError(null);
 
+        if (targetMessage) {
+        const optimisticTargetMessage: MailMessage = {
+            ...targetMessage,
+            folder: destinationFolder,
+            is_archived: destinationFolder === 'archived',
+            is_spam: destinationFolder === 'spam',
+            is_trashed: destinationFolder === 'trash',
+        };
+
         setMessages(
-        previousMessages
-            .map((message) => (
-            message.id === normalizedMessageId
-                ? optimisticTargetMessage
-                : message
-            ))
-            .filter((message) => shouldKeepMessageInCurrentView(
-            message,
-            accountFilter,
-            folder,
-            )),
+            previousMessages
+                .map((message) => (
+                message.id === normalizedMessageId
+                    ? optimisticTargetMessage
+                    : message
+                ))
+                .filter((message) => shouldKeepMessageInCurrentView(
+                message,
+                accountFilter,
+                folder,
+                )),
         );
+        }
 
         try {
         const response = await moveMailMessage(
@@ -626,23 +642,27 @@ export function useMail(
             },
         );
 
-        setMessages(
-            previousMessages
-            .map((message) => (
-                message.id === normalizedMessageId
-                ? response.message
-                : message
-            ))
-            .filter((message) => shouldKeepMessageInCurrentView(
-                message,
-                accountFilter,
-                folder,
-            )),
-        );
+        if (targetMessage) {
+            setMessages(
+                previousMessages
+                .map((message) => (
+                    message.id === normalizedMessageId
+                    ? response.message
+                    : message
+                ))
+                .filter((message) => shouldKeepMessageInCurrentView(
+                    message,
+                    accountFilter,
+                    folder,
+                )),
+            );
+        }
 
         return response.message;
         } catch (moveError) {
-        setMessages(previousMessages);
+        if (targetMessage) {
+            setMessages(previousMessages);
+        }
 
         const message = getErrorMessage(
             moveError,
@@ -673,8 +693,12 @@ export function useMail(
         );
 
         if (!message) {
-        throw new Error(
-            'No fue posible encontrar el correo.',
+        const fetched = await getMailMessage(messageId);
+        return updateMessageState(
+            messageId,
+            {
+            is_read: !fetched.message.is_read,
+            },
         );
         }
 
@@ -694,8 +718,12 @@ export function useMail(
         );
 
         if (!message) {
-        throw new Error(
-            'No fue posible encontrar el correo.',
+        const fetched = await getMailMessage(messageId);
+        return updateMessageState(
+            messageId,
+            {
+            is_starred: !fetched.message.is_starred,
+            },
         );
         }
 
@@ -771,6 +799,7 @@ export function useMail(
             integrationsRef.current.length === 0
         ),
         });
+        return () => { requestIdRef.current += 1; };
     }, [
         autoLoad,
         loadMail,

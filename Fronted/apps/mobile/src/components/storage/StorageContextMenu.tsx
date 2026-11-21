@@ -8,7 +8,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors } from '@beeapp/design-system';
-import { Eye, Edit2, Move, Share2, Download, Trash2, ShieldCheck, Lock, LockOpen, Tag } from 'lucide-react-native';
+import { Eye, Edit2, Move, Share2, Download, Trash2, Lock, LockOpen, Tag } from 'lucide-react-native';
 import { StorageItem } from '../../stores/storageStore';
 
 interface StorageContextMenuProps {
@@ -20,7 +20,6 @@ interface StorageContextMenuProps {
   onMove: () => void;
   onShare: () => void;
   onDownload: () => void;
-  onSign: (item: StorageItem) => void;
   onDelete: (item: StorageItem) => void;
   /** Whether the item is currently PIN-protected */
   isProtected: boolean;
@@ -37,7 +36,6 @@ export default function StorageContextMenu({
   onMove,
   onShare,
   onDownload,
-  onSign,
   onDelete,
   isProtected,
   onToggleProtect,
@@ -150,29 +148,6 @@ export default function StorageContextMenu({
                       : 'Proteger con PIN'}
                   </Text>
                 </TouchableOpacity>
-
-                {item.type === 'pdf' && (
-                  <TouchableOpacity
-                    style={styles.menuRow}
-                    onPress={() => {
-                      onClose();
-                      onSign(item);
-                    }}
-                  >
-                    <ShieldCheck
-                      size={18}
-                      color={colors.brand.primary}
-                    />
-                    <Text
-                      style={[
-                        styles.menuRowText,
-                        styles.menuRowTextAccent,
-                      ]}
-                    >
-                      Firmar documento
-                    </Text>
-                  </TouchableOpacity>
-                )}
 
                 <TouchableOpacity
                   style={[

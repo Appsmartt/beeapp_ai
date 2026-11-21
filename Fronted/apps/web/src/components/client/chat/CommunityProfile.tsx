@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { ArrowLeft, BellOff, LogOut, Trash2 } from 'lucide-react';
-import { leaveCommunity, updateCommunityDetails } from '@beeapp/api-client';
+import { getSupabase, leaveCommunity, updateCommunityDetails } from '@beeapp/api-client';
 import { CommunityItem, loadCommunityCategoryLabels, CommunityMember } from '@/lib/client/communities';
 import MemberListSection from './MemberListSection';
 import AddMemberModal from './modals/AddMemberModal';
@@ -40,9 +40,13 @@ export default function CommunityProfile({ community, onBack }: CommunityProfile
     void leaveCommunity(community.id).then(onBack).catch(() => undefined);
   };
 
-  const handleSaveDetails = () => {
+  const handleSaveDetails = (nextCategory?: string) => {
     if (!isAdmin) return;
-    void updateCommunityDetails(community.id, { name, description, category }).catch(() => undefined);
+    void updateCommunityDetails(community.id, {
+      name,
+      description,
+      category: nextCategory ?? category,
+    }).catch(() => undefined);
   };
 
   return (
@@ -116,7 +120,11 @@ export default function CommunityProfile({ community, onBack }: CommunityProfile
                 <button
                   key={option}
                   type="button"
-                  onClick={() => isAdmin && setCategory(option)}
+                  onClick={() => {
+                    if (!isAdmin) return;
+                    setCategory(option);
+                    handleSaveDetails(option);
+                  }}
                   disabled={!isAdmin}
                   className={`px-3.5 py-2 rounded-xl text-xs font-normal transition-colors ${
                     isActive
@@ -138,7 +146,14 @@ export default function CommunityProfile({ community, onBack }: CommunityProfile
           members={members}
           canManage={isAdmin}
           onAdd={() => setAddMemberVisible(true)}
-          onRemove={(memberId) => setMembers((list) => list.filter((m) => m.id !== memberId))}
+          onRemove={(memberId) => {
+            setMembers((list) => list.filter((m) => m.id !== memberId));
+            void getSupabase()
+              .from('conversation_members')
+              .delete()
+              .eq('conversation_id', community.id)
+              .eq('user_id', memberId);
+          }}
         />
 
         <div className="h-px bg-neutral-100" />

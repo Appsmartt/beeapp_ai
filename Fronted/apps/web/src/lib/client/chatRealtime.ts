@@ -2,17 +2,24 @@
 
 import { getSupabase } from '@beeapp/api-client';
 
-type MessageRow = {
+export type RealtimeMessageRow = {
   id: string;
-  sender_id: string;
+  sender_id?: string | null;
+  sender_identity_id?: string | null;
   body: string | null;
-  kind: string;
+  content?: string | null;
+  kind?: string | null;
+  message_type?: string | null;
+  status?: string | null;
+  reference_type?: string | null;
+  reference_id?: string | null;
+  metadata?: Record<string, unknown> | null;
   created_at: string;
 };
 
 export function subscribeConversationMessages(
   conversationId: string,
-  onMessage: (row: MessageRow) => void,
+  onMessage: (row: RealtimeMessageRow, eventType: 'INSERT' | 'UPDATE') => void,
 ): () => void {
   const channel = getSupabase()
     .channel(`web-messages:${conversationId}`)
@@ -25,8 +32,21 @@ export function subscribeConversationMessages(
         filter: `conversation_id=eq.${conversationId}`,
       },
       (payload) => {
-        const row = payload.new as MessageRow;
-        if (row?.id) onMessage(row);
+        const row = payload.new as RealtimeMessageRow;
+        if (row?.id) onMessage(row, 'INSERT');
+      },
+    )
+    .on(
+      'postgres_changes',
+      {
+        event: 'UPDATE',
+        schema: 'public',
+        table: 'messages',
+        filter: `conversation_id=eq.${conversationId}`,
+      },
+      (payload) => {
+        const row = payload.new as RealtimeMessageRow;
+        if (row?.id) onMessage(row, 'UPDATE');
       },
     )
     .subscribe();

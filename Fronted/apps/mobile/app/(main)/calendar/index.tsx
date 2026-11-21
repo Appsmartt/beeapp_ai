@@ -1386,7 +1386,7 @@ export default function CalendarIndexScreen() {
         ) : null}
 
         {!router.embedded ? (
-          <FloatingTabBar activeTab="explore" />
+          <FloatingTabBar />
         ) : null}
       </View>
     </ScreenSafeArea>

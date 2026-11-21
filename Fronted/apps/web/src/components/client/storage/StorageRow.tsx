@@ -6,6 +6,7 @@ import {
   FileText,
   Image as ImageIcon,
   Film,
+  Music,
   Archive,
   FileSpreadsheet,
   Lock,
@@ -15,29 +16,32 @@ import {
   Download,
   Share2,
   Trash2,
+  RotateCcw,
   Eye,
   Pencil,
   FolderInput,
   Tag,
 } from 'lucide-react';
-import { StorageItem } from '@/lib/client/storageItems';
+import type { WebStorageItem } from './StorageModals';
 
 interface StorageRowProps {
-  item: StorageItem;
+  item: WebStorageItem;
   isSelected: boolean;
   viewMode: 'list' | 'grid';
   onClick: () => void;
-  onOpenPreview: (item: StorageItem) => void;
-  onRename: (item: StorageItem) => void;
-  onMove: (item: StorageItem) => void;
-  onShare: (item: StorageItem) => void;
-  onDownload: (item: StorageItem) => void;
-  onToggleProtection: (item: StorageItem) => void;
-  onDelete: (item: StorageItem) => void;
-  onAssignCategory?: (item: StorageItem) => void;
+  onOpenPreview: (item: WebStorageItem) => void;
+  onRename: (item: WebStorageItem) => void;
+  onMove: (item: WebStorageItem) => void;
+  onShare: (item: WebStorageItem) => void;
+  onDownload: (item: WebStorageItem) => void;
+  onToggleProtection: (item: WebStorageItem) => void;
+  onDelete: (item: WebStorageItem) => void;
+  onRestore?: (item: WebStorageItem) => void;
+  onPermanentDelete?: (item: WebStorageItem) => void;
+  onAssignCategory?: (item: WebStorageItem) => void;
 }
 
-export function renderStorageIcon(type: StorageItem['type'], isProtected?: boolean) {
+export function renderStorageIcon(type: WebStorageItem['type'], isProtected?: boolean) {
   if (isProtected) return <Lock className="w-5 h-5 text-neutral-600" />;
   switch (type) {
     case 'folder':
@@ -46,6 +50,8 @@ export function renderStorageIcon(type: StorageItem['type'], isProtected?: boole
       return <ImageIcon className="w-5 h-5 text-purple-600" />;
     case 'video':
       return <Film className="w-5 h-5 text-blue-600" />;
+    case 'audio':
+      return <Music className="w-5 h-5 text-pink-600" />;
     case 'zip':
       return <Archive className="w-5 h-5 text-amber-600" />;
     case 'sheet':
@@ -67,6 +73,8 @@ export default function StorageRow({
   onDownload,
   onToggleProtection,
   onDelete,
+  onRestore,
+  onPermanentDelete,
   onAssignCategory,
 }: StorageRowProps) {
   const [menuOpen, setMenuOpen] = useState(false);
@@ -85,7 +93,9 @@ export default function StorageRow({
   const subtext =
     item.type === 'folder'
       ? `${item.itemCount || 0} ${item.itemCount === 1 ? 'elemento' : 'elementos'}`
-      : item.size || 'Archivo';
+      : item.sharedByName
+        ? `${item.size || 'Archivo'} · Compartido por ${item.sharedByName}`
+        : item.size || 'Archivo';
 
   const menuContent = (
     <div
@@ -102,76 +112,109 @@ export default function StorageRow({
         <span>Abrir / Vista previa</span>
       </button>
 
-      <button
-        type="button"
-        onClick={() => { setMenuOpen(false); onRename(item); }}
-        className="w-full flex items-center gap-2.5 px-3 py-2 hover:bg-neutral-50 text-left font-normal transition-colors"
-      >
-        <Pencil className="w-3.5 h-3.5 text-neutral-500" />
-        <span>Renombrar</span>
-      </button>
+      {item.isTrashed ? (
+        <>
+          {onRestore && (
+            <button
+              type="button"
+              onClick={() => { setMenuOpen(false); onRestore(item); }}
+              className="w-full flex items-center gap-2.5 px-3 py-2 hover:bg-neutral-50 text-brand-primary text-left font-normal transition-colors"
+            >
+              <RotateCcw className="w-3.5 h-3.5" />
+              <span>Restaurar</span>
+            </button>
+          )}
+          {onPermanentDelete && (
+            <button
+              type="button"
+              onClick={() => { setMenuOpen(false); onPermanentDelete(item); }}
+              className="w-full flex items-center gap-2.5 px-3 py-2 hover:bg-red-50 text-red-600 text-left font-normal transition-colors border-t border-neutral-100"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+              <span>Eliminar permanentemente</span>
+            </button>
+          )}
+        </>
+      ) : (
+        <>
+          {!item.shareId && (
+            <>
+              <button
+                type="button"
+                onClick={() => { setMenuOpen(false); onRename(item); }}
+                className="w-full flex items-center gap-2.5 px-3 py-2 hover:bg-neutral-50 text-left font-normal transition-colors"
+              >
+                <Pencil className="w-3.5 h-3.5 text-neutral-500" />
+                <span>Renombrar</span>
+              </button>
 
-      <button
-        type="button"
-        onClick={() => { setMenuOpen(false); onMove(item); }}
-        className="w-full flex items-center gap-2.5 px-3 py-2 hover:bg-neutral-50 text-left font-normal transition-colors"
-      >
-        <FolderInput className="w-3.5 h-3.5 text-neutral-500" />
-        <span>Mover a otra carpeta</span>
-      </button>
+              <button
+                type="button"
+                onClick={() => { setMenuOpen(false); onMove(item); }}
+                className="w-full flex items-center gap-2.5 px-3 py-2 hover:bg-neutral-50 text-left font-normal transition-colors"
+              >
+                <FolderInput className="w-3.5 h-3.5 text-neutral-500" />
+                <span>Mover a otra carpeta</span>
+              </button>
 
-      <button
-        type="button"
-        onClick={() => { setMenuOpen(false); onShare(item); }}
-        className="w-full flex items-center gap-2.5 px-3 py-2 hover:bg-neutral-50 text-left font-normal transition-colors"
-      >
-        <Share2 className="w-3.5 h-3.5 text-neutral-500" />
-        <span>Compartir</span>
-      </button>
+              <button
+                type="button"
+                onClick={() => { setMenuOpen(false); onShare(item); }}
+                className="w-full flex items-center gap-2.5 px-3 py-2 hover:bg-neutral-50 text-left font-normal transition-colors"
+              >
+                <Share2 className="w-3.5 h-3.5 text-neutral-500" />
+                <span>Compartir</span>
+              </button>
+            </>
+          )}
 
-      <button
-        type="button"
-        onClick={() => { setMenuOpen(false); onDownload(item); }}
-        className="w-full flex items-center gap-2.5 px-3 py-2 hover:bg-neutral-50 text-left font-normal transition-colors"
-      >
-        <Download className="w-3.5 h-3.5 text-neutral-500" />
-        <span>Descargar</span>
-      </button>
+          <button
+            type="button"
+            onClick={() => { setMenuOpen(false); onDownload(item); }}
+            className="w-full flex items-center gap-2.5 px-3 py-2 hover:bg-neutral-50 text-left font-normal transition-colors"
+          >
+            <Download className="w-3.5 h-3.5 text-neutral-500" />
+            <span>Descargar</span>
+          </button>
 
-      {onAssignCategory && (
-        <button
-          type="button"
-          onClick={() => { setMenuOpen(false); onAssignCategory(item); }}
-          className="w-full flex items-center gap-2.5 px-3 py-2 hover:bg-neutral-50 text-left font-normal transition-colors"
-        >
-          <Tag className="w-3.5 h-3.5 text-brand-primary" />
-          <span className="text-brand-primary font-normal">Asignar a categoría</span>
-        </button>
+          {!item.shareId && onAssignCategory && (
+            <button
+              type="button"
+              onClick={() => { setMenuOpen(false); onAssignCategory(item); }}
+              className="w-full flex items-center gap-2.5 px-3 py-2 hover:bg-neutral-50 text-left font-normal transition-colors"
+            >
+              <Tag className="w-3.5 h-3.5 text-brand-primary" />
+              <span className="text-brand-primary font-normal">Asignar a categoría</span>
+            </button>
+          )}
+
+          {!item.shareId && (
+            <button
+              type="button"
+              onClick={() => { setMenuOpen(false); onToggleProtection(item); }}
+              className="w-full flex items-center gap-2.5 px-3 py-2 hover:bg-neutral-50 text-left font-normal transition-colors"
+            >
+              {item.isProtected ? (
+                <Unlock className="w-3.5 h-3.5 text-brand-primary" />
+              ) : (
+                <Lock className="w-3.5 h-3.5 text-brand-primary" />
+              )}
+              <span className="text-brand-primary font-normal">
+                {item.isProtected ? 'Quitar protección' : 'Proteger con PIN'}
+              </span>
+            </button>
+          )}
+
+          <button
+            type="button"
+            onClick={() => { setMenuOpen(false); onDelete(item); }}
+            className="w-full flex items-center gap-2.5 px-3 py-2 hover:bg-red-50 text-red-600 text-left font-normal transition-colors border-t border-neutral-100"
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+            <span>{item.shareId ? 'Ocultar compartido' : 'Eliminar'}</span>
+          </button>
+        </>
       )}
-
-      <button
-        type="button"
-        onClick={() => { setMenuOpen(false); onToggleProtection(item); }}
-        className="w-full flex items-center gap-2.5 px-3 py-2 hover:bg-neutral-50 text-left font-normal transition-colors"
-      >
-        {item.isProtected ? (
-          <Unlock className="w-3.5 h-3.5 text-brand-primary" />
-        ) : (
-          <Lock className="w-3.5 h-3.5 text-brand-primary" />
-        )}
-        <span className="text-brand-primary font-normal">
-          {item.isProtected ? 'Quitar protección' : 'Proteger con PIN'}
-        </span>
-      </button>
-
-      <button
-        type="button"
-        onClick={() => { setMenuOpen(false); onDelete(item); }}
-        className="w-full flex items-center gap-2.5 px-3 py-2 hover:bg-red-50 text-red-600 text-left font-normal transition-colors border-t border-neutral-100"
-      >
-        <Trash2 className="w-3.5 h-3.5" />
-        <span>Eliminar</span>
-      </button>
     </div>
   );
 

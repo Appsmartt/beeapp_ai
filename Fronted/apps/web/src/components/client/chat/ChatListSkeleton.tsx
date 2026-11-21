@@ -18,16 +18,16 @@ export default function ChatListSkeleton() {
       {Array.from({ length: 6 }, (_, index) => (
         <div
           key={index}
-          className="mx-3 flex items-center gap-3.5 rounded-2xl border border-[#E7DFF3] bg-white px-4 py-[14px]"
+          className="mx-2.5 flex items-center gap-2.5 rounded-xl border border-[#E7DFF3] bg-white px-3 py-2"
         >
-          <div className="h-12 w-12 shrink-0 animate-pulse rounded-[14px] bg-neutral-200/90" />
-          <div className="min-w-0 flex-1 space-y-2.5">
+          <div className="h-9 w-9 shrink-0 animate-pulse rounded-xl bg-neutral-200/90" />
+          <div className="min-w-0 flex-1 space-y-2">
             <div
-              className="h-3.5 animate-pulse rounded-md bg-neutral-200/90"
+              className="h-3 animate-pulse rounded-md bg-neutral-200/90"
               style={{ width: `${48 + (index % 3) * 12}%` }}
             />
             <div
-              className="h-3 animate-pulse rounded-md bg-neutral-100"
+              className="h-2.5 animate-pulse rounded-md bg-neutral-100"
               style={{ width: `${72 + (index % 2) * 10}%` }}
             />
           </div>

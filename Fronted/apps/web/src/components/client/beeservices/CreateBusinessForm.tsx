@@ -16,6 +16,7 @@ export default function CreateBusinessForm({
   const router = useRouter();
   const [name, setName] = useState('');
   const [category, setCategory] = useState('Diseño & Publicidad');
+  const [city, setCity] = useState('Bogotá');
   const [address, setAddress] = useState('');
   const [description, setDescription] = useState('');
   const [offersProducts, setOffersProducts] = useState(true);
@@ -26,15 +27,17 @@ export default function CreateBusinessForm({
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
 
-    if (!name.trim()) {
+    if (!name.trim() || !city.trim()) {
       return;
     }
+
+    const combinedAddress = [address.trim(), city.trim()].filter(Boolean).join(', ');
 
     const draft: BusinessItem = {
       id: `biz-${Date.now()}`,
       name: name.trim(),
       category,
-      address: address.trim() || 'Dirección no especificada',
+      address: combinedAddress || city.trim(),
       description: description.trim(),
       offersProducts,
       offersServices,
@@ -101,18 +104,35 @@ export default function CreateBusinessForm({
         </select>
       </div>
 
-      <div>
-        <label className="text-xs font-semibold text-neutral-700">
-          Dirección o ciudad
-        </label>
-        <input
-          type="text"
-          placeholder="Calle 10 # 5-20, Bogotá"
-          value={address}
-          onChange={(event) => setAddress(event.target.value)}
-          disabled={isSaving}
-          className="mt-1 h-11 w-full rounded-xl border border-neutral-200 bg-neutral-50 px-3 text-xs font-normal text-neutral-900 outline-none transition-colors focus:border-brand-primary disabled:opacity-60"
-        />
+      <div className="grid gap-3 sm:grid-cols-2">
+        <div>
+          <label className="text-xs font-semibold text-neutral-700">
+            Ciudad
+          </label>
+          <input
+            type="text"
+            required
+            placeholder="Ej. Bogotá, Medellín, Montería"
+            value={city}
+            onChange={(event) => setCity(event.target.value)}
+            disabled={isSaving}
+            className="mt-1 h-11 w-full rounded-xl border border-neutral-200 bg-neutral-50 px-3 text-xs font-normal text-neutral-900 outline-none transition-colors focus:border-brand-primary disabled:opacity-60"
+          />
+        </div>
+
+        <div>
+          <label className="text-xs font-semibold text-neutral-700">
+            Dirección (opcional)
+          </label>
+          <input
+            type="text"
+            placeholder="Calle 10 # 5-20"
+            value={address}
+            onChange={(event) => setAddress(event.target.value)}
+            disabled={isSaving}
+            className="mt-1 h-11 w-full rounded-xl border border-neutral-200 bg-neutral-50 px-3 text-xs font-normal text-neutral-900 outline-none transition-colors focus:border-brand-primary disabled:opacity-60"
+          />
+        </div>
       </div>
 
       <div>

@@ -157,7 +157,11 @@ sequenceDiagram
 - Después de conectar, el usuario usa **Correos externos** / **Calendarios externos** en la app.
 - Las funciones `mail-sync` y `calendar-sync` usan los mismos secretos OAuth + `INTEGRATION_TOKEN_KEY` para refrescar tokens.
 
-Programar invocaciones periódicas (pg_cron, GitHub Actions, etc.): [Scheduling Edge Functions](https://supabase.com/docs/guides/functions/schedule-functions)
+Para el correo, configura una vez en Vault `buddy_mail_functions_url` con la URL propia del proyecto
+(`https://TU_PROJECT_REF.supabase.co/functions/v1/mail-sync`) y `buddy_mail_anon_jwt` con la clave pública anon (JWT) del proyecto. La migración `mail_background_sync`
+programa `buddy-mail-sync` cada minuto. El cron entrega un ticket de un solo uso por cuenta y
+la función comprueba el JWT de Supabase Auth para las acciones iniciadas por un usuario.
+El estado de cada importación queda en `public.mail_sync_state`, accesible solo desde el servidor.
 
 ---
 

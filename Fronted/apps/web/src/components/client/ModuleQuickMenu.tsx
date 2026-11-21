@@ -154,7 +154,7 @@ export function QuickModuleCards({
   activeModule?: ModuleKey;
 }) {
   return (
-    <div className="grid gap-3 sm:grid-cols-2">
+    <div className="grid gap-2.5 sm:grid-cols-2">
       {QUICK_MODULES.map((item) => {
         const Icon = item.icon;
         const selected = activeModule === item.key;
@@ -163,20 +163,20 @@ export function QuickModuleCards({
             key={item.key}
             type="button"
             onClick={() => onSelect(item.key)}
-            className="flex items-center gap-3 rounded-[20px] border bg-white px-4 py-4 text-left shadow-[0_8px_24px_rgba(116,39,213,0.05)] transition hover:-translate-y-0.5 hover:shadow-[0_12px_28px_rgba(116,39,213,0.1)]"
+            className="flex items-center gap-2.5 rounded-2xl border bg-white px-3 py-2.5 text-left shadow-[0_6px_18px_rgba(116,39,213,0.05)] transition hover:-translate-y-0.5 hover:shadow-[0_10px_22px_rgba(116,39,213,0.1)]"
             style={{ borderColor: selected ? item.accent : item.strong, backgroundColor: selected ? item.soft : '#FFFFFF' }}
           >
             <span
-              className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border"
+              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border"
               style={{ backgroundColor: item.soft, borderColor: item.strong, color: item.accent }}
             >
-              <Icon className="h-5 w-5" />
+              <Icon className="h-4 w-4" />
             </span>
             <span className="min-w-0 flex-1">
-              <span className="block text-sm font-extrabold text-[#303B5A]">{item.label}</span>
-              <span className="mt-0.5 block text-xs text-[#6C7892]">{item.subtitle}</span>
+              <span className="block text-[13px] font-extrabold text-[#303B5A]">{item.label}</span>
+              <span className="block text-[11px] text-[#6C7892]">{item.subtitle}</span>
             </span>
-            <ChevronRight className="h-4 w-4 shrink-0" style={{ color: item.accent }} />
+            <ChevronRight className="h-3.5 w-3.5 shrink-0" style={{ color: item.accent }} />
           </button>
         );
       })}

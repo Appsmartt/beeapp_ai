@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Loader2, Mic, Square, X } from 'lucide-react';
+import { Loader2, X } from 'lucide-react';
 import type { AssistantCard } from '@beeapp/shared-types';
 import {
   cancelAssistantAction,
@@ -25,6 +25,8 @@ import {
   validateVoiceTranscript,
 } from '@/lib/client/voiceTranscriptValidation';
 import VoiceOrb from './VoiceOrb';
+import VoiceControls from './VoiceControls';
+import ChatFormattedText from './chat/ChatFormattedText';
 
 interface VoiceAssistantModalProps {
   isOpen: boolean;
@@ -61,7 +63,14 @@ export default function VoiceAssistantModal({ isOpen, onClose }: VoiceAssistantM
   const [notice, setNotice] = useState('');
   const recordingRef = useRef<BrowserRecording | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const scrollContainerRef = useRef<HTMLDivElement | null>(null);
   const busy = phase === 'thinking' || phase === 'speaking';
+
+  useEffect(() => {
+    if (scrollContainerRef.current) {
+      scrollContainerRef.current.scrollTop = scrollContainerRef.current.scrollHeight;
+    }
+  }, [history, pendingConfirmations, providers, notice]);
 
   useEffect(() => {
     if (!isOpen) {
@@ -96,6 +105,7 @@ export default function VoiceAssistantModal({ isOpen, onClose }: VoiceAssistantM
       cancelled = true;
       recordingRef.current?.cancel();
       recordingRef.current = null;
+      audioRef.current?.pause();
     };
   }, [isOpen]);
 
@@ -105,7 +115,15 @@ export default function VoiceAssistantModal({ isOpen, onClose }: VoiceAssistantM
     const audio = await playAssistantAudio(audioBase64, mime);
     audioRef.current = audio;
     await new Promise<void>((resolve) => {
-      audio.addEventListener('ended', () => resolve(), { once: true });
+      const done = () => {
+        audio.removeEventListener('ended', done);
+        audio.removeEventListener('pause', done);
+        audio.removeEventListener('error', done);
+        resolve();
+      };
+      audio.addEventListener('ended', done, { once: true });
+      audio.addEventListener('pause', done, { once: true });
+      audio.addEventListener('error', done, { once: true });
     });
   };
 
@@ -199,6 +217,18 @@ export default function VoiceAssistantModal({ isOpen, onClose }: VoiceAssistantM
     }
   };
 
+  const handleRestart = () => {
+    recordingRef.current?.cancel();
+    recordingRef.current = null;
+    audioRef.current?.pause();
+    setPhase('idle');
+    setHistory([]);
+    setProviders([]);
+    setPendingConfirmations([]);
+    setConversationId(null);
+    setNotice('');
+  };
+
   if (!isOpen) return null;
 
   return (
@@ -211,7 +241,18 @@ export default function VoiceAssistantModal({ isOpen, onClose }: VoiceAssistantM
         aria-label="Asistente Buddy AI"
       >
         <div className="flex shrink-0 items-center justify-between px-5">
-          <span className="text-[13px] font-semibold tracking-[0.3px] text-[#EDE9FE]">Asistente Buddy AI</span>
+          <div className="flex items-center gap-2">
+            <span
+              className={`h-2.5 w-2.5 rounded-full ${
+                phase === 'listening'
+                  ? 'bg-red-400 animate-pulse'
+                  : phase === 'speaking' || phase === 'thinking'
+                    ? 'bg-emerald-400 animate-pulse'
+                    : 'bg-purple-300'
+              }`}
+            />
+            <span className="text-[13px] font-semibold tracking-[0.3px] text-[#EDE9FE]">Asistente Buddy AI</span>
+          </div>
           <button type="button" onClick={onClose} aria-label="Cerrar" className="flex h-9 w-9 items-center justify-center rounded-xl bg-[rgba(237,233,254,0.12)] text-[#EDE9FE]">
             <X className="h-5 w-5" />
           </button>
@@ -222,7 +263,7 @@ export default function VoiceAssistantModal({ isOpen, onClose }: VoiceAssistantM
           <p className="mt-3 text-sm text-[#C4B5FD]">{STATE_LABEL[phase]}</p>
         </div>
 
-        <div className="mt-4 min-h-0 flex-1 space-y-3 overflow-y-auto px-6 pb-4">
+        <div ref={scrollContainerRef} className="mt-4 min-h-0 flex-1 space-y-3 overflow-y-auto px-6 pb-4">
           {history.length === 0 ? (
             <p className="text-center text-sm text-[#C4B5FD]">Toca el micrófono para hablar. La palabra clave permanente no está disponible.</p>
           ) : null}
@@ -231,7 +272,11 @@ export default function VoiceAssistantModal({ isOpen, onClose }: VoiceAssistantM
               <p className={`text-[11px] font-semibold ${line.speaker === 'user' ? 'text-[#DDD6FE]' : 'text-white'}`}>
                 {line.speaker === 'user' ? 'Tú' : 'Buddy AI'}
               </p>
-              <p className="text-sm leading-6 text-white/90">{line.text}</p>
+              <ChatFormattedText
+                text={line.text}
+                inverted
+                className="text-sm leading-6 text-white/90"
+              />
             </div>
           ))}
           {pendingConfirmations.map((card) => {
@@ -286,8 +331,12 @@ export default function VoiceAssistantModal({ isOpen, onClose }: VoiceAssistantM
             <button
               type="button"
               onClick={() => {
+                const targetId = conversationId;
                 onClose();
-                router.push(`/app?openChat=${encodeURIComponent(conversationId)}`);
+                window.dispatchEvent(
+                  new CustomEvent('beeapp:open-chat', { detail: { conversationId: targetId } }),
+                );
+                router.push(`/app?openChat=${encodeURIComponent(targetId)}`);
               }}
               className="text-sm font-semibold text-[#EDE9FE] underline"
             >
@@ -301,17 +350,19 @@ export default function VoiceAssistantModal({ isOpen, onClose }: VoiceAssistantM
           {phase === 'thinking' ? (
             <Loader2 className="h-8 w-8 animate-spin text-[#C4B5FD]" />
           ) : (
-            <button
-              type="button"
-              onClick={() => void handleMic()}
-              disabled={phase === 'speaking'}
-              className={`flex h-14 w-14 items-center justify-center rounded-full text-white ${
-                phase === 'listening' ? 'bg-red-500' : 'bg-brand-primary'
-              } disabled:opacity-40`}
-              aria-label={phase === 'listening' ? 'Detener' : 'Hablar'}
-            >
-              {phase === 'listening' ? <Square className="h-5 w-5" /> : <Mic className="h-6 w-6" />}
-            </button>
+            <VoiceControls
+              isTalking={phase === 'listening' || phase === 'speaking'}
+              onRestart={handleRestart}
+              onToggleMic={() => {
+                if (phase === 'speaking') {
+                  audioRef.current?.pause();
+                  setPhase('idle');
+                  return;
+                }
+                void handleMic();
+              }}
+              onClose={onClose}
+            />
           )}
         </div>
       </div>

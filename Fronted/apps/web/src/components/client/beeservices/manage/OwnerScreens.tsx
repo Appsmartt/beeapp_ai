@@ -848,13 +848,14 @@ export function ManageOperation({ businessId }: { businessId: string }) {
   const save = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
+    const feeMode = String(form.get('delivery_fee_mode') || 'not_offered') as CommercialOwnedProfile['delivery_fee_mode'];
     try {
       const auth = await getWebAuth();
       await updateCommercialProfile(auth, businessId, {
         is_available: form.get('is_available') === 'on',
         cash_on_delivery_enabled: form.get('cash_on_delivery_enabled') === 'on',
-        delivery_fee_mode: String(form.get('delivery_fee_mode') || 'not_offered') as CommercialOwnedProfile['delivery_fee_mode'],
-        delivery_fee_amount: Number(form.get('delivery_fee_amount') || 0),
+        delivery_fee_mode: feeMode,
+        delivery_fee_amount: feeMode === 'fixed' ? Number(form.get('delivery_fee_amount') || 0) : null,
         booking_hold_minutes: Number(form.get('booking_hold_minutes') || 30),
         inventory_hold_minutes: Number(form.get('inventory_hold_minutes') || 30),
       });
@@ -1282,10 +1283,10 @@ function PaymentMethodCreateForm({
           ? {
             bank_account: {
               account_holder_name: String(data.get('holder') || ''),
-              account_holder_document_type: 'CC',
+              account_holder_document_type: String(data.get('document_type') || 'CC') as 'CC' | 'NIT' | 'CE',
               account_holder_document_number: String(data.get('document') || ''),
               bank_name: String(data.get('bank') || ''),
-              account_type: 'savings',
+              account_type: String(data.get('account_type') || 'savings') as 'savings' | 'checking',
               account_number: String(data.get('account') || ''),
             },
           }
@@ -1356,12 +1357,27 @@ function PaymentMethodCreateForm({
             <input name="holder" placeholder="Nombre completo" className={fieldClass} required />
           </label>
           <label className={paymentFieldLabel}>
-            Documento
-            <input name="document" placeholder="Cédula" className={fieldClass} required />
+            Tipo de documento
+            <select name="document_type" defaultValue="CC" className={fieldClass}>
+              <option value="CC">Cédula de ciudadanía (CC)</option>
+              <option value="NIT">NIT</option>
+              <option value="CE">Cédula de extranjería (CE)</option>
+            </select>
+          </label>
+          <label className={paymentFieldLabel}>
+            Número de documento
+            <input name="document" placeholder="Número de documento" className={fieldClass} required />
           </label>
           <label className={paymentFieldLabel}>
             Banco
             <input name="bank" placeholder="Ej. Bancolombia" className={fieldClass} required />
+          </label>
+          <label className={paymentFieldLabel}>
+            Tipo de cuenta
+            <select name="account_type" defaultValue="savings" className={fieldClass}>
+              <option value="savings">Ahorros</option>
+              <option value="checking">Corriente</option>
+            </select>
           </label>
           <label className={paymentFieldLabel}>
             Número de cuenta
@@ -1672,8 +1688,22 @@ export function ManageOffers({
     const data = new FormData(form);
     try {
       const auth = await getWebAuth();
+      let targetCatalogId = String(data.get('catalog_id') || catalogId || loaded.data?.catalogs?.[0]?.id || '');
+      if (!targetCatalogId) {
+        const defaultName = heading === 'Productos'
+          ? 'Productos'
+          : heading === 'Servicios'
+            ? 'Servicios'
+            : 'Catálogo principal';
+        const createdCatalog = await createOwnedCommercialCatalog(auth, businessId, {
+          name: defaultName,
+          description: null,
+          status: 'published',
+        });
+        targetCatalogId = createdCatalog.catalog.id;
+      }
       await createOwnedCommercialOffer(auth, businessId, {
-        catalog_id: String(data.get('catalog_id') || ''),
+        catalog_id: targetCatalogId,
         offer_kind: String(data.get('offer_kind') || 'product') as 'product' | 'service',
         title: String(data.get('title') || ''),
         description: String(data.get('description') || ''),
@@ -1717,6 +1747,7 @@ export function ManageOffers({
           </div>
           {!archived ? (
             <div className="flex flex-wrap gap-2">
+              <Link href={`/app/beeservices/manage/${businessId}/catalogs`} className={secondaryButtonClass}>Catálogos</Link>
               <Link href={`/app/beeservices/manage/${businessId}/offers/archived`} className={secondaryButtonClass}>Ver archivadas</Link>
               <button
                 type="button"
@@ -1742,11 +1773,18 @@ export function ManageOffers({
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-6 lg:items-end">
             <label className="block text-xs font-semibold text-[#4E3B68]">
               Catálogo
-              <select name="catalog_id" className={fieldClass} required defaultValue={catalogId || ''}>
-                <option value="" disabled>Elige un catálogo</option>
-                {(loaded.data?.catalogs || []).map((catalog) => (
-                  <option key={catalog.id} value={catalog.id}>{catalog.name}</option>
-                ))}
+              <select
+                name="catalog_id"
+                className={fieldClass}
+                defaultValue={catalogId || loaded.data?.catalogs?.[0]?.id || ''}
+              >
+                {(loaded.data?.catalogs || []).length === 0 ? (
+                  <option value="">Catálogo principal (se creará automáticamente)</option>
+                ) : (
+                  (loaded.data?.catalogs || []).map((catalog) => (
+                    <option key={catalog.id} value={catalog.id}>{catalog.name}</option>
+                  ))
+                )}
               </select>
             </label>
             <label className="block text-xs font-semibold text-[#4E3B68]">
@@ -2316,15 +2354,17 @@ function OfferEditorForm({
             <section className="space-y-3">
               <h3 className="text-[11px] font-extrabold uppercase tracking-wide text-[#8A72B2]">Disponibilidad</h3>
               <div className="grid gap-2 sm:grid-cols-2">
-                <label className="flex cursor-pointer items-center gap-2 rounded-xl border border-[#E8D1F1] bg-white px-3 py-3 text-sm font-semibold text-[#38294E]">
-                  <input
-                    type="checkbox"
-                    checked={requiresBooking}
-                    onChange={(event) => setRequiresBooking(event.target.checked)}
-                    className="rounded border-[#C9A8E8] text-[#7427D5]"
-                  />
-                  Requiere reserva
-                </label>
+                {!isProduct ? (
+                  <label className="flex cursor-pointer items-center gap-2 rounded-xl border border-[#E8D1F1] bg-white px-3 py-3 text-sm font-semibold text-[#38294E]">
+                    <input
+                      type="checkbox"
+                      checked={requiresBooking}
+                      onChange={(event) => setRequiresBooking(event.target.checked)}
+                      className="rounded border-[#C9A8E8] text-[#7427D5]"
+                    />
+                    Requiere reserva
+                  </label>
+                ) : null}
                 <label className="flex cursor-pointer items-center gap-2 rounded-xl border border-[#E8D1F1] bg-white px-3 py-3 text-sm font-semibold text-[#38294E]">
                   <input
                     type="checkbox"

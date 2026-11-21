@@ -56,9 +56,14 @@ export interface StatusItem {
   authorName: string;
   authorInitials: string;
   authorColor: string;
-  type: 'photo' | 'text';
+  authorAvatarUrl?: string | null;
+  type: 'photo' | 'video' | 'text';
   text: string;
   photoUrl: string | null;
+  mediaFile?: File | null;
+  videoDurationSeconds?: number | null;
+  actorType?: 'profile' | 'commercial_profile';
+  actorCommercialProfileId?: string | null;
   bgColor: string | null;
   linkedProduct: StatusProductLink | null;
   textPosition: StatusTextPosition;

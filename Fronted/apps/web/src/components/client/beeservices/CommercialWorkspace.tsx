@@ -46,6 +46,7 @@ const MODULES: Array<{
 
 const MANAGE_LINKS = [
   { label: 'Perfil', path: 'profile', hint: 'Nombre, ciudad y descripción', icon: UserRound },
+  { label: 'Catálogos', path: 'catalogs', hint: 'Grupos de productos y servicios', icon: PackageSearch },
   { label: 'Horario', path: 'hours', hint: 'Días y horas de atención', icon: Clock3 },
   { label: 'Operación', path: 'operation', hint: 'Entrega, reservas e inventario', icon: Store },
   { label: 'Métodos de pago', path: 'payment-methods', hint: 'Cómo te pueden pagar', icon: CreditCard },

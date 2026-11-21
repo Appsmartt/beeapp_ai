@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { ArrowLeft } from 'lucide-react';
 
@@ -49,6 +49,30 @@ function HomePageBody() {
   const [chatSection, setChatSection] = useState<ChatSection>('chats');
   const [chatConversationOpen, setChatConversationOpen] = useState(false);
   const [chatModalOpen, setChatModalOpen] = useState(false);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const params = new URLSearchParams(window.location.search);
+    const requestedModule = params.get('module') as ModuleKey | null;
+    if (requestedModule && ['chat', 'mail', 'notes', 'storage', 'calendar'].includes(requestedModule)) {
+      setActiveModule(requestedModule);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (filter === 'todos') {
+      return;
+    }
+    const targetModule = HOME_FILTER_TO_MODULE[filter];
+    if (targetModule && targetModule !== activeModule) {
+      setActiveModule(targetModule);
+    }
+    if (filter === 'contacto') {
+      setChatSection('contacts');
+    } else if (filter === 'chat') {
+      setChatSection('chats');
+    }
+  }, [activeModule, filter]);
 
   const handleSelectModule = (key: ModuleKey) => {
     if (

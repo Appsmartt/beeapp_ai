@@ -1,0 +1,451 @@
+{
+  "exported_at": "2026-10-15",
+  "schema": "backup_20261015",
+  "tables": 111,
+  "rows": [
+    {
+      "table": "account_security_pins.json",
+      "rows": 2
+    },
+    {
+      "table": "calendar_event_attendees.json",
+      "rows": 18
+    },
+    {
+      "table": "calendar_event_conferences.json",
+      "rows": 5
+    },
+    {
+      "table": "calendar_event_external_mappings.json",
+      "rows": 0
+    },
+    {
+      "table": "calendar_event_invitee_requests.json",
+      "rows": 0
+    },
+    {
+      "table": "calendar_event_recurrence_exceptions.json",
+      "rows": 0
+    },
+    {
+      "table": "calendar_event_recurrences.json",
+      "rows": 2
+    },
+    {
+      "table": "calendar_event_reminders.json",
+      "rows": 19
+    },
+    {
+      "table": "calendar_event_tag_assignments.json",
+      "rows": 5
+    },
+    {
+      "table": "calendar_events.json",
+      "rows": 16
+    },
+    {
+      "table": "calendar_external_calendars.json",
+      "rows": 0
+    },
+    {
+      "table": "calendar_integration_export_preferences.json",
+      "rows": 0
+    },
+    {
+      "table": "calendar_integrations.json",
+      "rows": 4
+    },
+    {
+      "table": "calendar_preferences.json",
+      "rows": 8
+    },
+    {
+      "table": "calendar_shares.json",
+      "rows": 0
+    },
+    {
+      "table": "calendar_sync_conflicts.json",
+      "rows": 0
+    },
+    {
+      "table": "calendar_sync_jobs.json",
+      "rows": 0
+    },
+    {
+      "table": "calendar_sync_runs.json",
+      "rows": 0
+    },
+    {
+      "table": "calendar_tags.json",
+      "rows": 5
+    },
+    {
+      "table": "calendars.json",
+      "rows": 12
+    },
+    {
+      "table": "call_events.json",
+      "rows": 61
+    },
+    {
+      "table": "call_participants.json",
+      "rows": 34
+    },
+    {
+      "table": "call_sessions.json",
+      "rows": 17
+    },
+    {
+      "table": "chat_categories.json",
+      "rows": 1
+    },
+    {
+      "table": "chat_category_assignments.json",
+      "rows": 2
+    },
+    {
+      "table": "chat_conversation_participants.json",
+      "rows": 242
+    },
+    {
+      "table": "chat_conversations.json",
+      "rows": 122
+    },
+    {
+      "table": "chat_group_invites.json",
+      "rows": 115
+    },
+    {
+      "table": "chat_identities.json",
+      "rows": 13
+    },
+    {
+      "table": "chat_identity_presence.json",
+      "rows": 4
+    },
+    {
+      "table": "chat_message_notifications.json",
+      "rows": 306
+    },
+    {
+      "table": "chat_message_reactions.json",
+      "rows": 5
+    },
+    {
+      "table": "chat_messages.json",
+      "rows": 310
+    },
+    {
+      "table": "chat_pin_protections.json",
+      "rows": 1
+    },
+    {
+      "table": "chat_sync_events.json",
+      "rows": 1976
+    },
+    {
+      "table": "commerce_chat_conversations.json",
+      "rows": 1
+    },
+    {
+      "table": "commerce_dispute_events.json",
+      "rows": 0
+    },
+    {
+      "table": "commerce_dispute_evidence.json",
+      "rows": 0
+    },
+    {
+      "table": "commerce_disputes.json",
+      "rows": 0
+    },
+    {
+      "table": "commerce_idempotency_keys.json",
+      "rows": 54
+    },
+    {
+      "table": "commerce_inventory_holds.json",
+      "rows": 14
+    },
+    {
+      "table": "commerce_notification_deliveries.json",
+      "rows": 49
+    },
+    {
+      "table": "commerce_payment_proof_events.json",
+      "rows": 21
+    },
+    {
+      "table": "commerce_payment_proofs.json",
+      "rows": 10
+    },
+    {
+      "table": "commerce_request_events.json",
+      "rows": 210
+    },
+    {
+      "table": "commerce_request_items.json",
+      "rows": 44
+    },
+    {
+      "table": "commerce_request_proposals.json",
+      "rows": 44
+    },
+    {
+      "table": "commerce_requests.json",
+      "rows": 43
+    },
+    {
+      "table": "commerce_reservation_events.json",
+      "rows": 16
+    },
+    {
+      "table": "commerce_reservations.json",
+      "rows": 7
+    },
+    {
+      "table": "commercial_audit_events.json",
+      "rows": 242
+    },
+    {
+      "table": "commercial_bank_accounts.json",
+      "rows": 0
+    },
+    {
+      "table": "commercial_catalogs.json",
+      "rows": 13
+    },
+    {
+      "table": "commercial_categories.json",
+      "rows": 64
+    },
+    {
+      "table": "commercial_mobile_payment_accounts.json",
+      "rows": 4
+    },
+    {
+      "table": "commercial_offer_images.json",
+      "rows": 19
+    },
+    {
+      "table": "commercial_offer_modalities.json",
+      "rows": 22
+    },
+    {
+      "table": "commercial_offers.json",
+      "rows": 22
+    },
+    {
+      "table": "commercial_payment_methods.json",
+      "rows": 4
+    },
+    {
+      "table": "commercial_profile_categories.json",
+      "rows": 6
+    },
+    {
+      "table": "commercial_profile_hours.json",
+      "rows": 0
+    },
+    {
+      "table": "commercial_profile_modalities.json",
+      "rows": 8
+    },
+    {
+      "table": "commercial_profile_social_links.json",
+      "rows": 14
+    },
+    {
+      "table": "commercial_profiles.json",
+      "rows": 5
+    },
+    {
+      "table": "commercial_verification_documents.json",
+      "rows": 0
+    },
+    {
+      "table": "commercial_verification_events.json",
+      "rows": 0
+    },
+    {
+      "table": "commercial_verification_requests.json",
+      "rows": 0
+    },
+    {
+      "table": "device_sessions.json",
+      "rows": 963
+    },
+    {
+      "table": "file_shares.json",
+      "rows": 146
+    },
+    {
+      "table": "file_tags.json",
+      "rows": 4
+    },
+    {
+      "table": "files.json",
+      "rows": 238
+    },
+    {
+      "table": "integration_connections.json",
+      "rows": 4
+    },
+    {
+      "table": "integration_credentials.json",
+      "rows": 4
+    },
+    {
+      "table": "integration_events.json",
+      "rows": 338
+    },
+    {
+      "table": "integration_notification_deliveries.json",
+      "rows": 2
+    },
+    {
+      "table": "integration_oauth_requests.json",
+      "rows": 139
+    },
+    {
+      "table": "mail_draft_attachments.json",
+      "rows": 0
+    },
+    {
+      "table": "mail_drafts.json",
+      "rows": 0
+    },
+    {
+      "table": "mail_integrations.json",
+      "rows": 4
+    },
+    {
+      "table": "mail_message_actions.json",
+      "rows": 0
+    },
+    {
+      "table": "mail_message_attachments.json",
+      "rows": 1
+    },
+    {
+      "table": "mail_message_recipients.json",
+      "rows": 115
+    },
+    {
+      "table": "mail_messages.json",
+      "rows": 49
+    },
+    {
+      "table": "mail_sync_runs.json",
+      "rows": 18
+    },
+    {
+      "table": "mail_webhook_subscriptions.json",
+      "rows": 0
+    },
+    {
+      "table": "note_attachments.json",
+      "rows": 1
+    },
+    {
+      "table": "note_folders.json",
+      "rows": 1
+    },
+    {
+      "table": "note_shares.json",
+      "rows": 0
+    },
+    {
+      "table": "note_tag_assignments.json",
+      "rows": 1
+    },
+    {
+      "table": "note_tags.json",
+      "rows": 1
+    },
+    {
+      "table": "note_templates.json",
+      "rows": 9
+    },
+    {
+      "table": "notes.json",
+      "rows": 4
+    },
+    {
+      "table": "notifications.json",
+      "rows": 722
+    },
+    {
+      "table": "password_reset_challenges.json",
+      "rows": 5
+    },
+    {
+      "table": "profile.json",
+      "rows": 8
+    },
+    {
+      "table": "profile_social_links.json",
+      "rows": 7
+    },
+    {
+      "table": "push_devices.json",
+      "rows": 199
+    },
+    {
+      "table": "qr_login_challenges.json",
+      "rows": 129
+    },
+    {
+      "table": "status_follows.json",
+      "rows": 8
+    },
+    {
+      "table": "status_stories.json",
+      "rows": 64
+    },
+    {
+      "table": "status_story_archives.json",
+      "rows": 33
+    },
+    {
+      "table": "status_story_commercial_offers.json",
+      "rows": 2
+    },
+    {
+      "table": "status_story_image_layers.json",
+      "rows": 24
+    },
+    {
+      "table": "status_story_media.json",
+      "rows": 43
+    },
+    {
+      "table": "status_story_views.json",
+      "rows": 9
+    },
+    {
+      "table": "status_text_backgrounds.json",
+      "rows": 14
+    },
+    {
+      "table": "status_user_blocks.json",
+      "rows": 0
+    },
+    {
+      "table": "storage_folders.json",
+      "rows": 3
+    },
+    {
+      "table": "storage_quotas.json",
+      "rows": 8
+    },
+    {
+      "table": "storage_tags.json",
+      "rows": 7
+    },
+    {
+      "table": "storage_uploads.json",
+      "rows": 238
+    }
+  ]
+}

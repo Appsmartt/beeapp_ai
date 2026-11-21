@@ -1,10 +1,11 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
-import { Search, Check, X } from 'lucide-react';
-import { ContactItem } from '@/lib/client/contacts';
-import { loadContacts } from '@/lib/client/liveData';
+import { useEffect, useMemo, useState } from 'react';
+import { Check, Loader2, Search, X } from 'lucide-react';
+import { searchChatRecipients } from '@beeapp/api-client';
 import { GroupMember } from '@/lib/client/chats';
+import { contactColor, contactInitials, ContactItem } from '@/lib/client/contacts';
+import { getWebAuth, loadContacts } from '@/lib/client/liveData';
 
 interface AddMemberModalProps {
   visible: boolean;
@@ -12,6 +13,10 @@ interface AddMemberModalProps {
   onAdd: (members: GroupMember[]) => void;
   onClose: () => void;
 }
+
+type Candidate = ContactItem & {
+  recipientIdentityId?: string;
+};
 
 export default function AddMemberModal({
   visible,
@@ -21,7 +26,9 @@ export default function AddMemberModal({
 }: AddMemberModalProps) {
   const [query, setQuery] = useState('');
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
-  const [contacts, setContacts] = useState<ContactItem[]>([]);
+  const [contacts, setContacts] = useState<Candidate[]>([]);
+  const [remoteUsers, setRemoteUsers] = useState<Candidate[]>([]);
+  const [searching, setSearching] = useState(false);
 
   useEffect(() => {
     if (visible) {
@@ -31,14 +38,74 @@ export default function AddMemberModal({
     }
   }, [visible]);
 
+  useEffect(() => {
+    if (!visible) return undefined;
+    let active = true;
+    const trimmed = query.trim();
+    const timer = window.setTimeout(() => {
+      setSearching(true);
+      getWebAuth()
+        .then((auth) => searchChatRecipients(auth, trimmed, 20))
+        .then((res) => {
+          if (!active) return;
+          const mapped: Candidate[] = (res.users ?? []).map((u) => {
+            const name = u.display_name || [u.first_name, u.last_name].filter(Boolean).join(' ') || 'Usuario Buddy';
+            return {
+              id: u.id,
+              recipientIdentityId: u.id,
+              name,
+              profession: u.occupation || u.email || 'Usuario en Buddy',
+              activity: '',
+              interests: [],
+              initials: contactInitials(name),
+              color: contactColor(u.id),
+              phone: u.phone || '',
+              email: u.email || '',
+              company: '',
+              location: '',
+              verified: Boolean(u.is_verified),
+            };
+          });
+          setRemoteUsers(mapped);
+        })
+        .catch(() => {
+          if (active) setRemoteUsers([]);
+        })
+        .finally(() => {
+          if (active) setSearching(false);
+        });
+    }, 220);
+
+    return () => {
+      active = false;
+      window.clearTimeout(timer);
+    };
+  }, [query, visible]);
+
   const available = useMemo(() => {
+    const map = new Map<string, Candidate>();
+    for (const c of contacts) {
+      map.set(c.id, c);
+    }
+    for (const r of remoteUsers) {
+      if (!Array.from(map.values()).some((item) => item.name.toLowerCase() === r.name.toLowerCase())) {
+        map.set(r.id, r);
+      } else {
+        const key = Array.from(map.entries()).find(([, val]) => val.name.toLowerCase() === r.name.toLowerCase())?.[0];
+        if (key) {
+          map.set(key, { ...map.get(key)!, recipientIdentityId: r.recipientIdentityId || r.id });
+        }
+      }
+    }
+
     const text = query.trim().toLowerCase();
-    return contacts.filter(
+    return Array.from(map.values()).filter(
       (contact) =>
         !memberIds.includes(contact.id) &&
-        (text === '' || contact.name.toLowerCase().includes(text))
+        !memberIds.includes(contact.recipientIdentityId || '') &&
+        (text === '' || contact.name.toLowerCase().includes(text) || contact.profession.toLowerCase().includes(text)),
     );
-  }, [query, memberIds, contacts]);
+  }, [contacts, memberIds, query, remoteUsers]);
 
   if (!visible) return null;
 
@@ -47,79 +114,70 @@ export default function AddMemberModal({
   };
 
   const handleAdd = () => {
-    const newMembers: GroupMember[] = contacts.filter((c) => selectedIds.includes(c.id)).map(
-      (c) => ({
-        id: c.id,
+    const newMembers: GroupMember[] = available
+      .filter((c) => selectedIds.includes(c.id))
+      .map((c) => ({
+        id: c.recipientIdentityId || c.id,
         name: c.name,
         role: 'member',
-        initials: c.name
-          .split(' ')
-          .map((n) => n[0])
-          .join('')
-          .toUpperCase()
-          .slice(0, 2),
+        initials: contactInitials(c.name),
         color: '#EBF5FF',
-      })
-    );
+      }));
     onAdd(newMembers);
   };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="fixed inset-0 bg-black/60 backdrop-blur-xl" onClick={onClose} />
-      <div className="relative w-full max-w-md bg-white rounded-3xl shadow-xl z-50 p-6 space-y-4 max-h-[80vh] flex flex-col">
+      <div className="relative z-50 flex max-h-[80vh] w-full max-w-md flex-col space-y-4 rounded-3xl bg-white p-6 shadow-xl">
         <div className="flex items-center justify-between border-b border-neutral-100 pb-3">
-          <h2 className="font-semibold text-base text-neutral-900">Agregar miembro</h2>
+          <h2 className="text-base font-semibold text-neutral-900">Agregar miembro</h2>
           <button type="button" onClick={onClose} className="p-1 text-neutral-400 hover:text-neutral-900">
-            <X className="w-5 h-5" />
+            <X className="h-5 w-5" />
           </button>
         </div>
 
-        <div className="flex items-center gap-2 bg-neutral-100 rounded-xl px-3 py-2">
-          <Search className="w-4 h-4 text-neutral-500" />
+        <div className="flex items-center gap-2 rounded-xl bg-neutral-100 px-3 py-2">
+          <Search className="h-4 w-4 text-neutral-500" />
           <input
             type="text"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Buscar contacto"
-            className="flex-1 bg-transparent text-sm font-normal outline-none text-neutral-900 placeholder:text-neutral-500"
+            placeholder="Buscar contacto o usuario en Buddy"
+            className="flex-1 bg-transparent text-sm font-normal text-neutral-900 outline-none placeholder:text-neutral-500"
           />
+          {searching ? <Loader2 className="h-3.5 w-3.5 animate-spin text-brand-primary" /> : null}
         </div>
 
-        <div className="flex-1 overflow-y-auto divide-y divide-neutral-100">
+        <div className="flex-1 divide-y divide-neutral-100 overflow-y-auto">
           {available.length === 0 ? (
-            <p className="text-xs text-neutral-500 text-center py-6">
-              No hay contactos disponibles para agregar.
+            <p className="py-6 text-center text-xs text-neutral-500">
+              {searching ? 'Buscando personas…' : 'No hay contactos disponibles para agregar.'}
             </p>
           ) : (
             available.map((contact) => {
               const isSelected = selectedIds.includes(contact.id);
-              const initials = contact.name
-                .split(' ')
-                .map((n) => n[0])
-                .join('')
-                .toUpperCase()
-                .slice(0, 2);
+              const initials = contactInitials(contact.name);
 
               return (
                 <div
                   key={contact.id}
                   onClick={() => toggle(contact.id)}
-                  className="py-3 px-2 flex items-center justify-between cursor-pointer hover:bg-neutral-50 rounded-xl transition-colors"
+                  className="flex cursor-pointer items-center justify-between rounded-xl px-2 py-3 transition-colors hover:bg-neutral-50"
                 >
-                  <div className="flex items-center gap-3 min-w-0">
-                    <div className="w-10 h-10 rounded-full bg-brand-primary/10 text-brand-primary flex items-center justify-center font-semibold text-xs shrink-0">
+                  <div className="flex min-w-0 items-center gap-3">
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-brand-primary/10 text-xs font-semibold text-brand-primary">
                       {initials}
                     </div>
                     <div className="min-w-0">
-                      <p className="text-sm font-normal text-neutral-900 truncate">{contact.name}</p>
-                      <p className="text-xs text-neutral-500 truncate font-normal">
-                        {contact.phone || contact.email || 'Contacto'}
+                      <p className="truncate text-sm font-normal text-neutral-900">{contact.name}</p>
+                      <p className="truncate text-xs font-normal text-neutral-500">
+                        {contact.phone || contact.email || contact.profession || 'Usuario Buddy'}
                       </p>
                     </div>
                   </div>
 
-                  {isSelected && <Check className="w-4.5 h-4.5 text-brand-primary shrink-0" />}
+                  {isSelected ? <Check className="h-4.5 w-4.5 shrink-0 text-brand-primary" /> : null}
                 </div>
               );
             })
@@ -130,9 +188,9 @@ export default function AddMemberModal({
           type="button"
           disabled={selectedIds.length === 0}
           onClick={handleAdd}
-          className="w-full h-12 rounded-xl bg-brand-primary text-white text-sm font-semibold hover:bg-brand-dark transition-colors disabled:opacity-50"
+          className="h-12 w-full rounded-xl bg-brand-primary text-sm font-semibold text-white transition-colors hover:bg-brand-dark disabled:opacity-50"
         >
-          {selectedIds.length > 0 ? `Agregar (${selectedIds.length})` : 'Agregar'}
+          {selectedIds.length > 0 ? `Invitar (${selectedIds.length})` : 'Invitar'}
         </button>
       </div>
     </div>

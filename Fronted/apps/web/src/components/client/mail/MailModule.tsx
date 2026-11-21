@@ -37,6 +37,7 @@ import MailListItem from './MailListItem';
 import {
   getEmptyStateCopy,
   getMailFolderLabel,
+  MAIL_FOLDERS,
 } from './mailFolders';
 import {
   getMailIntegrationLabel,
@@ -84,24 +85,28 @@ function getSyncFeedback(
   );
 
   if (result.failed_integration_count > 0) {
-    if (createdCount === 0 && updatedCount === 0) {
-      return {
-        kind: 'error',
-        title: 'No fue posible sincronizar',
-        description: (
-          `${result.failed_integration_count} cuenta(s) requieren atención. `
-          + 'Revisa Correo externo o tus integraciones.'
-        ),
-      };
-    }
+    const partial = result.synced_integration_count > 0;
+    const failure = result.failures.find(item => item.error_code === 'RECONNECT_REQUIRED')
+      ?? result.failures[0];
+    return {
+      kind: partial ? 'warning' : 'error',
+      title: partial ? 'Sincronización parcial' : 'No fue posible sincronizar',
+      description: failure?.detail || 'Buddy volverá a intentar la sincronización.',
+    };
+  }
 
+  if (result.results.some(item => item.in_progress || item.has_more)) {
+    return {
+      kind: 'success',
+      title: 'Sincronización en curso',
+      description: 'Los correos aparecerán a medida que se importen.',
+    };
+  }
+  if (!result.requested_integration_count) {
     return {
       kind: 'warning',
-      title: 'Sincronización parcial',
-      description: (
-        `${createdCount} nuevo(s) · ${updatedCount} actualizado(s). `
-        + `${result.failed_integration_count} cuenta(s) requieren atención.`
-      ),
+      title: 'Sin cuentas activas',
+      description: 'Revisa la conexión de tu cuenta en Integraciones.',
     };
   }
 
@@ -183,20 +188,19 @@ export default function MailModule({
     ReturnType<typeof setTimeout> | null
   >(null);
 
-  const autoSyncInFlightRef = useRef(false);
-
   const {
     integrations,
     messages,
     pagination,
     loading,
     loadingMore,
+    refreshing,
     syncing,
     updatingMessageId,
     error,
     hasActiveIntegrations,
-    clearError,
     loadMore,
+    loadMail,
     refreshMail,
     syncInbox,
     getMessageById,
@@ -212,11 +216,12 @@ export default function MailModule({
     search,
   });
 
-  const syncInboxRef = useRef(syncInbox);
-  const clearErrorRef = useRef(clearError);
-
-  syncInboxRef.current = syncInbox;
-  clearErrorRef.current = clearError;
+  const readInbox = useRef(loadMail);
+  const readingOrEditing = useRef(false);
+  useEffect(() => {
+    readInbox.current = loadMail;
+    readingOrEditing.current = loading || loadingMore || refreshing || syncing || !!updatingMessageId;
+  }, [loadMail, loading, loadingMore, refreshing, syncing, updatingMessageId]);
 
   const selectedIntegration = useMemo(
     () => (
@@ -240,22 +245,29 @@ export default function MailModule({
       || !selectedIntegration.can_sync
     ),
   );
+  const reconnectAccounts = integrations.filter(integration =>
+    (account === 'all' || account === integration.id)
+    && (integration.status === 'error' || integration.status === 'reauth_required'),
+  );
 
   const showNoConnectionState = (
     !loading
     && integrations.length === 0
+    && messages.length === 0
   );
 
   const showNoActiveIntegrationState = (
     !loading
     && integrations.length > 0
     && !hasActiveIntegrations
+    && messages.length === 0
   );
 
   const showSelectedIntegrationAttentionState = (
     !loading
     && !showNoActiveIntegrationState
     && selectedIntegrationNeedsAttention
+    && messages.length === 0
   );
 
   const showEmptyMessagesState = (
@@ -308,69 +320,40 @@ export default function MailModule({
     return () => window.clearTimeout(timeoutId);
   }, [searchInput]);
 
+  const prevHomeSearchActiveRef = useRef(homeSearch.active);
   useEffect(() => {
-    if (!homeSearch.active) {
-      return;
+    if (homeSearch.active) {
+      prevHomeSearchActiveRef.current = true;
+      setSearchInput(homeSearch.query);
+      setSearch(homeSearch.query.trim());
+    } else if (prevHomeSearchActiveRef.current) {
+      prevHomeSearchActiveRef.current = false;
+      setSearchInput('');
+      setSearch('');
     }
-
-    setSearchInput(homeSearch.query);
-    setSearch(homeSearch.query.trim());
   }, [
     homeSearch.active,
     homeSearch.query,
   ]);
 
   useEffect(() => {
-    if (!hasActiveIntegrations) {
-      return;
-    }
-
-    let cancelled = false;
-
-    const run = () => {
-      if (
-        cancelled
-        || autoSyncInFlightRef.current
-        || document.visibilityState === 'hidden'
-      ) {
-        return;
-      }
-
-      autoSyncInFlightRef.current = true;
-
-      void syncInboxRef.current()
-        .catch(() => {
-          clearErrorRef.current();
-        })
-        .finally(() => {
-          autoSyncInFlightRef.current = false;
-        });
+    // The server imports mail even when Buddy is closed. Only refresh the displayed view here.
+    let pending = false;
+    const refresh = () => {
+      if (pending || readingOrEditing.current || !navigator.onLine || document.visibilityState !== 'visible') return;
+      pending = true;
+      void readInbox.current({ refresh: true, reloadIntegrations: true, background: true })
+        .finally(() => { pending = false; });
     };
-
-    run();
-
-    const intervalId = window.setInterval(
-      run,
-      3 * 60 * 1000,
-    );
-
-    const onVisible = () => {
-      if (document.visibilityState === 'visible') {
-        run();
-      }
-    };
-
-    document.addEventListener('visibilitychange', onVisible);
-
+    const intervalId = window.setInterval(refresh, 60_000);
+    document.addEventListener('visibilitychange', refresh);
+    window.addEventListener('online', refresh);
     return () => {
-      cancelled = true;
       window.clearInterval(intervalId);
-      document.removeEventListener(
-        'visibilitychange',
-        onVisible,
-      );
+      document.removeEventListener('visibilitychange', refresh);
+      window.removeEventListener('online', refresh);
     };
-  }, [hasActiveIntegrations]);
+  }, []);
 
   useEffect(() => {
     setSelectedId(null);
@@ -445,6 +428,13 @@ export default function MailModule({
   ]);
 
   useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('external') === '1') {
+      setAccountMenuOpen(true);
+    }
+  }, []);
+
+  useEffect(() => {
     if (pendingHit?.kind !== 'correo') return;
     const messageId = pendingHit.id;
     consumePendingHit();
@@ -456,13 +446,12 @@ export default function MailModule({
       return;
     }
 
-    if (!hasActiveIntegrations) {
+    if (!hasActiveIntegrations || selectedIntegrationNeedsAttention) {
       showSyncFeedback({
         kind: 'warning',
         title: 'Revisa tus cuentas de correo',
         description: (
-          'No hay cuentas activas para sincronizar. '
-          + 'Conecta o reconecta una cuenta desde Integraciones.'
+          'Conecta o reconecta tu cuenta de correo desde Integraciones.'
         ),
       });
 
@@ -484,6 +473,7 @@ export default function MailModule({
     })();
   }, [
     hasActiveIntegrations,
+    selectedIntegrationNeedsAttention,
     showSyncFeedback,
     syncInbox,
     syncing,
@@ -874,7 +864,35 @@ export default function MailModule({
                 : `${pagination.total_count} correo(s)`}
             </span>
           </div>
+
+          <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5 lg:hidden no-scrollbar">
+            {MAIL_FOLDERS.map((opt) => (
+              <button
+                key={opt.key}
+                type="button"
+                onClick={() => setFolder(opt.key)}
+                className={`shrink-0 rounded-full px-3 py-1 text-[11px] font-semibold transition-colors ${
+                  folder === opt.key
+                    ? 'bg-brand-primary text-white'
+                    : 'bg-neutral-100 text-neutral-600 hover:bg-neutral-200'
+                }`}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
         </header>
+
+        {reconnectAccounts.length > 0 && messages.length > 0 && !loading ? (
+          <div role="status" className="mx-3 mt-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 text-xs text-amber-800">
+            Vuelve a conectar {reconnectAccounts.map(getMailIntegrationLabel).join(', ')} para recibir correos nuevos.
+            {onOpenIntegrations && (
+              <button type="button" onClick={onOpenIntegrations} className="ml-2 font-semibold text-brand-primary">
+                Ir a Integraciones
+              </button>
+            )}
+          </div>
+        ) : null}
 
         {error && !loading ? (
           <div className="mx-3 mt-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5">
@@ -1065,16 +1083,39 @@ export default function MailModule({
             onArchive={handleArchive}
             onDelete={handleTrash}
             onRestore={handleRestore}
-            onReply={(mail) => openCompose({
-              to: getReplyRecipient(mail),
-              subject: `Re: ${mail.subject}`,
-            })}
-            onReplyAll={(mail) => openCompose({
-              to: getReplyAllRecipients(mail),
-              subject: `Re: ${mail.subject}`,
-            })}
+            onReply={(mail) => {
+              const to = getReplyRecipient(mail);
+              if (!to.trim()) {
+                showSyncFeedback({
+                  kind: 'warning',
+                  title: 'Sin destinatario de respuesta',
+                  description: 'Este correo no incluye una dirección válida para responder.',
+                });
+                return;
+              }
+              openCompose({
+                to,
+                subject: mail.subject.toLowerCase().startsWith('re:') ? mail.subject : `Re: ${mail.subject}`,
+              });
+            }}
+            onReplyAll={(mail) => {
+              const to = getReplyAllRecipients(mail);
+              if (!to.trim()) {
+                showSyncFeedback({
+                  kind: 'warning',
+                  title: 'Sin destinatarios',
+                  description: 'Este correo no incluye destinatarios válidos para responder a todos.',
+                });
+                return;
+              }
+              openCompose({
+                to,
+                subject: mail.subject.toLowerCase().startsWith('re:') ? mail.subject : `Re: ${mail.subject}`,
+              });
+            }}
             onForward={(mail) => openCompose({
-              subject: `Fwd: ${mail.subject}`,
+              subject: mail.subject.toLowerCase().startsWith('fwd:') ? mail.subject : `Fwd: ${mail.subject}`,
+              body: `\n\n---------- Mensaje reenviado ----------\nDe: ${mail.senderName} <${mail.senderEmail}>\nAsunto: ${mail.subject}\n\n${mail.body || ''}`,
             })}
           />
         ) : (

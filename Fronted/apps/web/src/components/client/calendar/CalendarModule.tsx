@@ -10,17 +10,21 @@ import {
 } from 'react';
 import {
   AlertCircle,
+  Bell,
   CalendarDays,
   CheckCircle2,
   ChevronLeft,
   ChevronRight,
   Clock3,
+  Copy,
   Edit3,
   ExternalLink,
   Loader2,
   MapPin,
   Plus,
   RefreshCw,
+  Repeat,
+  Settings,
   Trash2,
   Users,
   Video,
@@ -29,14 +33,19 @@ import {
 import {
   createCurrentWebCalendarEvent,
   deleteCurrentWebCalendarEvent,
+  duplicateCurrentWebCalendarEvent,
   getCurrentWebCalendarBootstrap,
   getCurrentWebCalendarConflicts,
+  getCurrentWebCalendarEvent,
   respondCurrentWebCalendarEvent,
+  searchCurrentWebCalendarUsers,
   syncCalendarIntegration,
   updateCurrentWebCalendarEvent,
 } from '@beeapp/api-client';
 import { useIntegrations } from '@/hooks/useIntegrations';
 import { getWebAuth } from '@/lib/client/webAuth';
+import ModuleNotificationBell from '@/components/client/ModuleNotificationBell';
+import ExternalCalendarsModal from './ExternalCalendarsModal';
 import {
   homeSearchEmptyCopy,
   useHomeModuleSearch,
@@ -50,10 +59,14 @@ import type {
   CalendarEventKind,
   CalendarEventSource,
   CalendarPreferences,
+  CalendarUserSearchResult,
   CreateCalendarEventPayload,
   UpdateCalendarEventPayload,
 } from '@beeapp/shared-types';
 import { useAuth } from '@/lib/auth/AuthProvider';
+
+type CalendarViewMode = 'day' | 'week' | 'month';
+type CalendarQuickFilter = 'all' | 'next7' | 'past7' | 'virtual' | 'in_person';
 
 type EventFormValues = {
   calendarId: string;
@@ -70,6 +83,8 @@ type EventFormValues = {
   locationAddress: string;
   meetingUrl: string;
   notificationsEnabled: boolean;
+  attendeeIds: string[];
+  reminderMinutes: number[];
 };
 
 const CALENDAR_COLORS = [
@@ -599,6 +614,8 @@ function getInitialEventForm(
     locationAddress: '',
     meetingUrl: '',
     notificationsEnabled: true,
+    attendeeIds: [],
+    reminderMinutes: [30],
   };
 }
 
@@ -607,6 +624,12 @@ function getEventFormValues(
 ): EventFormValues {
   const startsAt = isoToFormDateTime(event.starts_at);
   const endsAt = isoToFormDateTime(event.ends_at);
+  const existingAttendeeIds = (event.attendees || [])
+    .filter((a) => !a.is_organizer && a.attendee_user_id && a.response_status !== 'removed')
+    .map((a) => a.attendee_user_id as string);
+  const existingReminders = (event.reminders || [])
+    .map((r) => r.offset_minutes)
+    .filter((m): m is number => typeof m === 'number');
 
   return {
     calendarId: event.calendar_id,
@@ -627,6 +650,8 @@ function getEventFormValues(
     locationAddress: event.location_address || '',
     meetingUrl: getMeetingUrl(event) || '',
     notificationsEnabled: event.notifications_enabled,
+    attendeeIds: existingAttendeeIds,
+    reminderMinutes: existingReminders.length > 0 ? existingReminders : [30],
   };
 }
 
@@ -673,11 +698,37 @@ export default function CalendarModule() {
 
   const [selectedEventId, setSelectedEventId] =
     useState<string | null>(null);
+  const [viewMode, setViewMode] = useState<CalendarViewMode>('month');
+  const [quickFilter, setQuickFilter] = useState<CalendarQuickFilter>('all');
+  const [externalModalOpen, setExternalModalOpen] = useState(false);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('external') === '1') {
+      setExternalModalOpen(true);
+    }
+  }, []);
 
   useEffect(() => {
     if (pendingHit?.kind !== 'evento') return;
-    setSelectedEventId(pendingHit.id);
+    const hitId = pendingHit.id;
+    setSelectedEventId(hitId);
     consumePendingHit();
+    void getCurrentWebCalendarEvent(hitId)
+      .then((res) => {
+        if (!res.event) return;
+        setEvents((curr) =>
+          curr.some((item) => item.id === res.event.id)
+            ? curr
+            : [...curr, res.event],
+        );
+        const start = getEventStartDate(res.event);
+        if (start) {
+          setSelectedDate(start);
+          setVisibleMonth(new Date(start.getFullYear(), start.getMonth(), 1));
+        }
+      })
+      .catch(() => undefined);
   }, [consumePendingHit, pendingHit]);
 
   const [loading, setLoading] = useState(true);
@@ -863,33 +914,87 @@ export default function CalendarModule() {
   ]);
 
   const listedDayEvents = useMemo(() => {
-    if (!homeSearch.hasActiveQuery) {
-      return eventsForSelectedDate;
+    const applyQuickFilter = (list: CalendarEvent[]): CalendarEvent[] => {
+      if (quickFilter === 'all') return list;
+      const now = new Date();
+      const startToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      const plus7 = new Date(startToday.getTime() + 7 * 24 * 60 * 60 * 1000);
+      const minus7 = new Date(startToday.getTime() - 7 * 24 * 60 * 60 * 1000);
+
+      return list.filter((event) => {
+        if (quickFilter === 'virtual') {
+          return event.event_kind === 'virtual' || event.event_kind === 'hybrid' || Boolean(getMeetingUrl(event));
+        }
+        if (quickFilter === 'in_person') {
+          return event.event_kind === 'in_person' || event.event_kind === 'hybrid';
+        }
+        const start = getEventStartDate(event);
+        if (!start) return false;
+        if (quickFilter === 'next7') {
+          return start >= startToday && start <= plus7;
+        }
+        if (quickFilter === 'past7') {
+          return start >= minus7 && start <= now;
+        }
+        return true;
+      });
+    };
+
+    if (homeSearch.hasActiveQuery) {
+      return applyQuickFilter([...events])
+        .filter((event) => (
+          homeSearch.matchesQuery(
+            event.title,
+            event.description,
+            event.location_name,
+            event.location_address,
+          )
+        ))
+        .sort((left, right) => {
+          if (left.is_all_day !== right.is_all_day) {
+            return left.is_all_day ? -1 : 1;
+          }
+          return (
+            (getEventStartDate(left)?.getTime() || 0)
+            - (getEventStartDate(right)?.getTime() || 0)
+          );
+        });
     }
 
-  return [...events]
-    .filter((event) => (
-      homeSearch.matchesQuery(
-        event.title,
-        event.description,
-        event.location_name,
-        event.location_address,
-      )
-    ))
-    .sort((left, right) => {
-      if (left.is_all_day !== right.is_all_day) {
-        return left.is_all_day ? -1 : 1;
-      }
+    if (quickFilter === 'next7' || quickFilter === 'past7') {
+      return applyQuickFilter([...events]).sort((left, right) => (
+        (getEventStartDate(left)?.getTime() || 0) - (getEventStartDate(right)?.getTime() || 0)
+      ));
+    }
 
-      return (
-        (getEventStartDate(left)?.getTime() || 0)
-        - (getEventStartDate(right)?.getTime() || 0)
+    if (viewMode === 'week') {
+      const dayOfWeek = (selectedDate.getDay() + 6) % 7;
+      const weekStart = new Date(
+        selectedDate.getFullYear(),
+        selectedDate.getMonth(),
+        selectedDate.getDate() - dayOfWeek,
       );
-    });
+      const weekDays = Array.from({ length: 7 }, (_, i) => {
+        const d = new Date(weekStart);
+        d.setDate(weekStart.getDate() + i);
+        return d;
+      });
+      const weekEvents = events.filter((ev) =>
+        weekDays.some((d) => eventOverlapsDay(ev, d)),
+      );
+      return applyQuickFilter(weekEvents).sort((left, right) => (
+        (getEventStartDate(left)?.getTime() || 0) - (getEventStartDate(right)?.getTime() || 0)
+      ));
+    }
+
+    return applyQuickFilter(eventsForSelectedDate);
   }, [
     events,
     eventsForSelectedDate,
     homeSearch,
+    quickFilter,
+    selectedDate,
+    viewMode,
   ]);
 
   const eventsByDate = useMemo(() => {
@@ -1003,8 +1108,11 @@ export default function CalendarModule() {
       is_private: false,
       notifications_enabled: values.notificationsEnabled,
       tag_ids: [],
-      attendee_ids: [],
-      reminders: [],
+      attendee_ids: values.attendeeIds,
+      reminders: values.reminderMinutes.map((minutes) => ({
+        offset_minutes: minutes,
+        channel: 'in_app' as const,
+      })),
       recurrence: null,
       conferences: values.meetingUrl.trim()
         ? [
@@ -1089,6 +1197,8 @@ export default function CalendarModule() {
       location_name: payload.location_name,
       location_address: payload.location_address,
       notifications_enabled: payload.notifications_enabled,
+      attendee_ids: payload.attendee_ids,
+      reminders: payload.reminders,
       conferences: payload.conferences,
     };
 
@@ -1116,7 +1226,7 @@ export default function CalendarModule() {
 
         setEvents((current) => current.map((event) => (
           event.id === editingEvent.id
-            ? {
+            ? ({
               ...event,
               ...updated.event,
               title: payload.title,
@@ -1132,8 +1242,7 @@ export default function CalendarModule() {
               location_name: payload.location_name ?? null,
               location_address: payload.location_address ?? null,
               notifications_enabled: payload.notifications_enabled !== false,
-              conferences: payload.conferences || [],
-            }
+            } as CalendarEvent)
             : event
         )));
 
@@ -1152,6 +1261,28 @@ export default function CalendarModule() {
       setEditingEvent(null);
 
       await loadCalendar(true);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDuplicate = async (event: CalendarEvent) => {
+    try {
+      setSaving(true);
+      const duplicated = await duplicateCurrentWebCalendarEvent(event.id, {
+        calendar_id: event.calendar_id,
+        include_attendees: true,
+        include_reminders: true,
+      });
+      await loadCalendar(true);
+      if (duplicated.event?.id) {
+        setSelectedEventId(duplicated.event.id);
+      }
+      showSuccess('Evento duplicado correctamente.');
+    } catch (error) {
+      setErrorMessage(
+        getErrorMessage(error, 'No fue posible duplicar el evento.'),
+      );
     } finally {
       setSaving(false);
     }
@@ -1238,25 +1369,37 @@ export default function CalendarModule() {
     <div className="grid h-full max-h-full min-h-0 select-none grid-cols-1 overflow-hidden bg-[#F7F4FB] md:grid-cols-[minmax(300px,360px)_minmax(0,1fr)]">
       <aside className="flex h-full min-h-0 flex-col overflow-hidden border-b border-[#E4D8F2] bg-white md:border-b-0 md:border-r">
         <div className="shrink-0 space-y-3 border-b border-neutral-100 p-4">
-          <div className="flex items-center justify-end gap-1">
+          <div className="flex items-center justify-between gap-1">
             <button
               type="button"
-              onClick={() => void loadCalendar(true)}
-              disabled={loading || refreshing || saving}
-              title="Actualizar agenda"
-              className="rounded-lg p-2 text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-brand-primary disabled:opacity-50"
+              onClick={() => setExternalModalOpen(true)}
+              className="inline-flex h-8 items-center gap-1.5 rounded-full border border-neutral-200 px-3 text-xs font-medium text-neutral-700 hover:bg-neutral-50 hover:text-brand-primary"
+              title="Gestionar calendarios externos"
             >
-              <RefreshCw
-                className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`}
-              />
+              <Settings className="h-3.5 w-3.5" />
+              <span>Externos</span>
             </button>
-            <button
-              type="button"
-              onClick={handleToday}
-              className="h-8 rounded-full border border-neutral-200 px-3 text-xs font-medium text-neutral-700 hover:bg-neutral-50"
-            >
-              Hoy
-            </button>
+            <div className="flex items-center gap-1">
+              <ModuleNotificationBell moduleId="calendar" placement="header" />
+              <button
+                type="button"
+                onClick={() => void loadCalendar(true)}
+                disabled={loading || refreshing || saving}
+                title="Actualizar agenda"
+                className="rounded-lg p-2 text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-brand-primary disabled:opacity-50"
+              >
+                <RefreshCw
+                  className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`}
+                />
+              </button>
+              <button
+                type="button"
+                onClick={handleToday}
+                className="h-8 rounded-full border border-neutral-200 px-3 text-xs font-medium text-neutral-700 hover:bg-neutral-50"
+              >
+                Hoy
+              </button>
+            </div>
           </div>
 
           <div className="flex items-center justify-between">
@@ -1370,6 +1513,9 @@ export default function CalendarModule() {
             saving={saving}
             onBack={() => setSelectedEventId(null)}
             onEdit={() => openEditModal(selectedEvent)}
+            onDuplicate={() => {
+              void handleDuplicate(selectedEvent);
+            }}
             onDelete={() => {
               void handleDelete(selectedEvent);
             }}
@@ -1383,7 +1529,7 @@ export default function CalendarModule() {
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
                   <p className="text-[11px] font-semibold uppercase tracking-wide text-brand-primary">
-                    Día seleccionado
+                    {viewMode === 'week' ? 'Vista semanal' : viewMode === 'day' ? 'Agenda del día' : 'Día seleccionado'}
                   </p>
                   <h2 className="mt-0.5 text-base font-semibold capitalize text-neutral-900">
                     {formatSelectedDate(selectedDate)}
@@ -1393,18 +1539,67 @@ export default function CalendarModule() {
                       ? 'Cargando eventos...'
                       : homeSearch.hasActiveQuery
                         ? `${listedDayEvents.length} coincidencia(s)`
-                        : `${eventsForSelectedDate.length} evento(s)`}
+                        : `${listedDayEvents.length} evento(s)`}
                   </p>
                 </div>
-                <button
-                  type="button"
-                  onClick={openCreateModal}
-                  disabled={saving}
-                  className="flex h-9 shrink-0 items-center gap-1.5 rounded-xl bg-brand-primary px-4 text-xs font-semibold text-white hover:bg-brand-dark disabled:opacity-50"
-                >
-                  <Plus className="h-4 w-4" />
-                  Nuevo evento
-                </button>
+                <div className="flex items-center gap-2 shrink-0">
+                  <div className="inline-flex rounded-xl border border-neutral-200 bg-neutral-50 p-0.5 text-xs font-semibold">
+                    {(
+                      [
+                        { id: 'day', label: 'Día' },
+                        { id: 'week', label: 'Semana' },
+                        { id: 'month', label: 'Mes' },
+                      ] as const
+                    ).map((mode) => (
+                      <button
+                        key={mode.id}
+                        type="button"
+                        onClick={() => setViewMode(mode.id)}
+                        className={`rounded-lg px-2.5 py-1 transition-colors ${
+                          viewMode === mode.id
+                            ? 'bg-white text-brand-primary shadow-xs'
+                            : 'text-neutral-500 hover:text-neutral-800'
+                        }`}
+                      >
+                        {mode.label}
+                      </button>
+                    ))}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={openCreateModal}
+                    disabled={saving}
+                    className="flex h-9 shrink-0 items-center gap-1.5 rounded-xl bg-brand-primary px-4 text-xs font-semibold text-white hover:bg-brand-dark disabled:opacity-50"
+                  >
+                    <Plus className="h-4 w-4" />
+                    Nuevo evento
+                  </button>
+                </div>
+              </div>
+
+              <div className="mt-3 flex items-center gap-1.5 overflow-x-auto no-scrollbar">
+                {(
+                  [
+                    { id: 'all', label: 'Todos' },
+                    { id: 'next7', label: 'Próximos 7 días' },
+                    { id: 'past7', label: 'Pasados 7 días' },
+                    { id: 'virtual', label: 'Virtuales' },
+                    { id: 'in_person', label: 'Presenciales' },
+                  ] as const
+                ).map((item) => (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => setQuickFilter(item.id)}
+                    className={`shrink-0 rounded-full px-3 py-1 text-[11px] font-semibold transition-colors ${
+                      quickFilter === item.id
+                        ? 'bg-brand-primary text-white'
+                        : 'bg-neutral-100 text-neutral-600 hover:bg-neutral-200'
+                    }`}
+                  >
+                    {item.label}
+                  </button>
+                ))}
               </div>
 
               {errorMessage ? (
@@ -1545,6 +1740,14 @@ export default function CalendarModule() {
           onSave={handleSaveEvent}
         />
       ) : null}
+
+      <ExternalCalendarsModal
+        isOpen={externalModalOpen}
+        onClose={() => setExternalModalOpen(false)}
+        onUpdated={() => {
+          void loadCalendar(true);
+        }}
+      />
     </div>
   );
 }
@@ -1557,6 +1760,7 @@ function CalendarEventPanel({
   saving,
   onBack,
   onEdit,
+  onDuplicate,
   onDelete,
   onRsvp,
 }: {
@@ -1566,11 +1770,13 @@ function CalendarEventPanel({
   saving: boolean;
   onBack: () => void;
   onEdit: () => void;
+  onDuplicate?: () => void;
   onDelete: () => void;
   onRsvp: (
     responseStatus: 'accepted' | 'declined',
   ) => void;
 }) {
+  const [copiedLink, setCopiedLink] = useState(false);
   const meetingUrl = getMeetingUrl(event);
   const canEdit = event.can_edit !== false;
 
@@ -1600,6 +1806,18 @@ function CalendarEventPanel({
         </h2>
 
         <div className="flex items-center gap-1">
+          {onDuplicate ? (
+            <button
+              type="button"
+              onClick={onDuplicate}
+              disabled={saving}
+              className="rounded-lg p-1.5 text-neutral-500 transition-colors hover:bg-neutral-100 hover:text-neutral-900 disabled:opacity-50"
+              title="Duplicar evento"
+            >
+              <Copy className="h-4 w-4" />
+            </button>
+          ) : null}
+
           {canEdit ? (
             <button
               type="button"
@@ -1704,9 +1922,23 @@ function CalendarEventPanel({
 
         {meetingUrl ? (
           <section className="rounded-2xl border border-neutral-200 bg-neutral-50 p-4">
-            <div className="flex items-center gap-2 text-xs font-semibold text-brand-primary">
-              <Video className="h-4 w-4" />
-              Videollamada
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2 text-xs font-semibold text-brand-primary">
+                <Video className="h-4 w-4" />
+                Videollamada
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  void navigator.clipboard?.writeText(meetingUrl);
+                  setCopiedLink(true);
+                  window.setTimeout(() => setCopiedLink(false), 2000);
+                }}
+                className="inline-flex items-center gap-1 rounded-lg bg-white px-2.5 py-1 text-[11px] font-semibold text-neutral-700 border border-neutral-200 hover:bg-neutral-100"
+              >
+                <Copy className="h-3 w-3" />
+                <span>{copiedLink ? 'Copiado' : 'Copiar enlace'}</span>
+              </button>
             </div>
 
             <p className="mt-2 break-all text-xs text-neutral-600">
@@ -1722,6 +1954,15 @@ function CalendarEventPanel({
               Unirse a la reunión
               <ExternalLink className="h-3.5 w-3.5" />
             </a>
+          </section>
+        ) : null}
+
+        {event.recurrence ? (
+          <section className="flex items-center gap-2 rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-3 text-xs text-neutral-700">
+            <Repeat className="h-4 w-4 shrink-0 text-brand-primary" />
+            <span>
+              Evento recurrente ({event.recurrence.frequency})
+            </span>
           </section>
         ) : null}
 
@@ -1862,6 +2103,31 @@ function CalendarEventModal({
 
   const [errorMessage, setErrorMessage] =
     useState<string | null>(null);
+  const [userQuery, setUserQuery] = useState('');
+  const [userResults, setUserResults] = useState<CalendarUserSearchResult[]>([]);
+  const [selectedUsers, setSelectedUsers] = useState<Record<string, string>>(() => {
+    const map: Record<string, string> = {};
+    (event?.attendees || []).forEach((att) => {
+      if (att.attendee_user_id && !att.is_organizer) {
+        map[att.attendee_user_id] = personName(att, 'Participante');
+      }
+    });
+    return map;
+  });
+
+  useEffect(() => {
+    const q = userQuery.trim();
+    if (q.length < 2) {
+      setUserResults([]);
+      return undefined;
+    }
+    const timer = window.setTimeout(() => {
+      void searchCurrentWebCalendarUsers(q, 10)
+        .then((res) => setUserResults(res.users || []))
+        .catch(() => setUserResults([]));
+    }, 220);
+    return () => window.clearTimeout(timer);
+  }, [userQuery]);
 
   const updateValue = <Key extends keyof EventFormValues>(
     key: Key,

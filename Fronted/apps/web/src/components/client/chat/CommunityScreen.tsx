@@ -125,13 +125,14 @@ export default function CommunityScreen({
         )}
       </div>
 
-      {/* Bottom bar: Admin WriteBar vs Member notice (positioned sticky bottom-14 directly above AppBottomBar) */}
+      {/* Bottom bar: Admin WriteBar vs Member notice */}
       <div className="z-20 border-t border-neutral-200 bg-white">
         {isAdmin ? (
           <WriteBar
             onSendMessage={handlePublish}
             onSendVoiceNote={handleSendVoiceNote}
             onSendAttachment={handleSendAttachment}
+            variant="assistant"
           />
         ) : (
           <div className="py-3 bg-white border-t border-neutral-200 text-center text-xs text-neutral-500 font-normal flex items-center justify-center gap-1.5">

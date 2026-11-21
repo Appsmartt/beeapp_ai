@@ -75,13 +75,14 @@ export function mapConnection(row: Json): Json {
 
 function mapCapabilityIntegration(row: Json): Json {
     const state = syncState(row);
-    const active = row.status === 'active' && Boolean(row.access_token_ciphertext);
-    const needsReauth = row.status !== 'active' || !row.access_token_ciphertext;
+    const connected = row.status === 'active' || row.status === 'connected';
+    const active = connected && Boolean(row.access_token_ciphertext || row.refresh_token_ciphertext);
+    const needsReauth = !active;
 
     return {
         ...mapConnection(row),
         // Correo y calendario usan el valor crudo `active` (no `connected`).
-        status: row.status,
+        status: connected ? 'active' : row.status,
         connected_at: row.connected_at ?? null,
         last_successful_sync_at: state.last_successful_sync_at ?? null,
         last_attempted_sync_at: state.last_attempted_sync_at ?? null,
@@ -372,7 +373,6 @@ export async function handleIntegrations(
     }
 
     if (connection && method === 'DELETE') {
-        await removeSyncedAccountData(supabase, userId, connection[1]);
         unwrap(await supabase
             .from('integrations')
             .update({
@@ -383,6 +383,7 @@ export async function handleIntegrations(
             })
             .eq('id', connection[1])
             .eq('user_id', userId));
+        await removeSyncedAccountData(supabase, userId, connection[1]);
         return undefined;
     }
 
@@ -454,23 +455,18 @@ export async function handleMail(
     const offset = Number(query.get('offset') || 0);
 
     if (method === 'GET' && path === '/mail/integrations/') {
-        const rows = (unwrap(await supabase
+        let request = supabase
             .from('integrations')
             .select('*')
             .eq('user_id', userId)
-            .in('status', ['active', 'connected'])) ?? []) as Json[];
-        const mailRows = rows.filter((row) => {
-            const capabilities = Array.isArray(row.capabilities)
-                ? row.capabilities.map((item) => String(item))
-                : [];
-
-            return (
-                capabilities.length === 0
-                || capabilities.includes('mail')
-            );
-        });
-
-        return { integrations: mailRows.map(mapCapabilityIntegration) };
+            .contains('capabilities', ['mail']);
+        if (query.get('include_inactive') === 'true') {
+            request = request.neq('status', 'disconnected');
+        } else {
+            request = request.in('status', ['active', 'connected']);
+        }
+        const rows = (unwrap(await request) ?? []) as Json[];
+        return { integrations: rows.map(mapCapabilityIntegration) };
     }
 
     const integration = path.match(new RegExp(`^/mail/integrations/(${UUID})/$`, 'i'));
@@ -540,16 +536,10 @@ export async function handleMail(
         const invoked = await supabase.functions.invoke('mail-sync', { body: payload });
         const data = asJson(invoked.data);
         if (invoked.error && !data.failures) {
-            return {
-                requested_integration_count: 0,
-                synced_integration_count: 0,
-                failed_integration_count: 1,
-                results: [],
-                failures: [{
-                    detail: invoked.error.message,
-                    error_code: 'MAIL_SYNC_FAILED',
-                }],
-            };
+            const status = invoked.response?.status ?? 503;
+            throw new GatewayError(status === 401
+                ? 'Inicia sesión de nuevo en Buddy para actualizar el correo.'
+                : 'No se pudo contactar con el servicio de correo. Buddy volverá a intentarlo.', status);
         }
         return {
             requested_integration_count: Number(data.requested_integration_count || 0),

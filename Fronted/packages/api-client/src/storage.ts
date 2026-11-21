@@ -543,3 +543,71 @@ export function createCurrentWebStorageFileShare(
         WEB_OPTIONS,
     );
 }
+
+export async function deleteCurrentWebStorageFolder(
+    folderId: string,
+    ): Promise<void> {
+    await api.delete<void>(
+        `/storage/folders/${encodeURIComponent(folderId)}/`,
+        WEB_OPTIONS,
+    );
+}
+
+export async function restoreCurrentWebStorageFile(
+    fileId: string,
+    ): Promise<void> {
+    await api.post<void>(
+        `/storage/files/${encodeURIComponent(fileId)}/restore/`,
+        undefined,
+        WEB_OPTIONS,
+    );
+}
+
+export async function permanentlyDeleteCurrentWebStorageFile(
+    fileId: string,
+    ): Promise<void> {
+    await api.delete<void>(
+        `/storage/files/${encodeURIComponent(fileId)}/`,
+        WEB_OPTIONS,
+    );
+}
+
+export function updateCurrentWebStorageTag(
+    tagId: string,
+    payload: UpdateStorageTagPayload,
+    ): Promise<UpdateStorageTagResponse> {
+    return api.patch<UpdateStorageTagResponse>(
+        `/storage/tags/${encodeURIComponent(tagId)}/`,
+        payload,
+        WEB_OPTIONS,
+    );
+}
+
+export function getCurrentWebReceivedStorageShares(
+    query: ReceivedSharesQuery = {},
+    ): Promise<GetReceivedSharesResponse> {
+    return api.get<GetReceivedSharesResponse>(
+        `/storage/shares/received/${buildQuery(query)}`,
+        WEB_OPTIONS,
+    );
+}
+
+export function hideCurrentWebReceivedStorageShare(
+    shareId: string,
+    ): Promise<UpdateFileShareResponse> {
+    return api.post<UpdateFileShareResponse>(
+        `/storage/shares/${encodeURIComponent(shareId)}/hide/`,
+        undefined,
+        WEB_OPTIONS,
+    );
+}
+
+export function revokeCurrentWebStorageFileShare(
+    shareId: string,
+    ): Promise<UpdateFileShareResponse> {
+    return api.post<UpdateFileShareResponse>(
+        `/storage/shares/${encodeURIComponent(shareId)}/revoke/`,
+        undefined,
+        WEB_OPTIONS,
+    );
+}

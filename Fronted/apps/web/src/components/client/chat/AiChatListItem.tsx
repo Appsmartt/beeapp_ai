@@ -1,8 +1,9 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { Bot, Pin, Sparkles, Lock, MoreVertical, BellOff, Tag, Unlock } from 'lucide-react';
+import { Bot, Pin, Sparkles, Lock, MoreVertical, BellOff } from 'lucide-react';
 import { ChatItem } from '@/lib/client/chats';
+import { ChatInlineText } from './ChatFormattedText';
 
 interface AiChatListItemProps {
   chat: ChatItem;
@@ -20,8 +21,6 @@ export default function AiChatListItem({
   onClick,
   onPin,
   onMute,
-  onAssignCategory,
-  onToggleProtection,
 }: AiChatListItemProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -39,45 +38,46 @@ export default function AiChatListItem({
   return (
     <div
       onClick={onClick}
-      className={`group relative mx-3 mb-2 flex cursor-pointer items-center gap-3.5 rounded-2xl border px-4 py-3.5 transition-colors ${
+      className={`group relative mx-2.5 mb-1.5 flex cursor-pointer items-center gap-2.5 rounded-xl border px-3 py-2 transition-colors ${
         isSelected
           ? 'border-brand-primary/30 bg-[#F4EDFF]'
           : 'border-[#E7DFF3] bg-white hover:border-[#D9CCEF] hover:bg-[#FCFAFF]'
       }`}
     >
       <div className="relative shrink-0">
-        <div className="w-12 h-12 rounded-full bg-brand-primary flex items-center justify-center text-white shadow-xs">
-          <Bot className="w-6 h-6" />
+        <div className="flex h-9 w-9 items-center justify-center rounded-full bg-brand-primary text-white shadow-xs">
+          <Bot className="h-[18px] w-[18px]" />
         </div>
         {chat.isProtected && (
-          <div className="absolute -bottom-0.5 -right-0.5 w-[18px] h-[18px] rounded-full bg-brand-primary border-[1.5px] border-white flex items-center justify-center text-white">
-            <Lock className="w-2.5 h-2.5" />
+          <div className="absolute -bottom-0.5 -right-0.5 flex h-4 w-4 items-center justify-center rounded-full border-[1.5px] border-white bg-brand-primary text-white">
+            <Lock className="h-2 w-2" />
           </div>
         )}
       </div>
 
       <div className="flex-1 min-w-0">
-        <div className="flex items-center justify-between mb-0.5">
+        <div className="mb-0.5 flex items-center justify-between">
           <div className="flex items-center gap-1.5 min-w-0">
-            <span className="font-semibold text-[15px] text-neutral-900 truncate">
+            <span className="truncate text-[13.5px] font-semibold text-neutral-900">
               {chat.name}
             </span>
-            <div className="flex items-center gap-0.5 bg-brand-primary/15 px-1.5 py-0.5 rounded-md shrink-0">
-              <Sparkles className="w-2.5 h-2.5 text-brand-primary" />
-              <span className="text-[9px] font-normal text-brand-primary tracking-wide">IA</span>
+            <div className="flex items-center gap-0.5 rounded-md bg-brand-primary/15 px-1.5 py-0.5 shrink-0">
+              <Sparkles className="h-2.5 w-2.5 text-brand-primary" />
+              <span className="text-[9px] font-normal tracking-wide text-brand-primary">IA</span>
             </div>
           </div>
           <div className="flex items-center gap-1 shrink-0 text-brand-primary">
-            <Pin className="w-3 h-3" />
+            {chat.isMuted && <BellOff className="h-2.5 w-2.5 text-neutral-400" />}
+            {chat.isPinned && <Pin className="h-2.5 w-2.5" />}
             <span className="text-[11px] font-normal">{chat.time}</span>
           </div>
         </div>
 
-        <p className="text-[12.5px] font-normal text-neutral-500 truncate">
+        <p className="truncate text-xs leading-4 font-normal text-neutral-500">
           {chat.isProtected ? (
             <span className="italic text-neutral-400">Chat protegido</span>
           ) : (
-            chat.lastMessage
+            <ChatInlineText text={chat.lastMessage || ''} />
           )}
         </p>
       </div>
@@ -89,10 +89,10 @@ export default function AiChatListItem({
           e.stopPropagation();
           setMenuOpen(!menuOpen);
         }}
-        className="p-1 rounded-lg text-neutral-400 hover:text-neutral-600 hover:bg-neutral-100 transition-colors shrink-0"
+        className="shrink-0 rounded-lg p-1 text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-neutral-600"
         title="Opciones de chat"
       >
-        <MoreVertical className="w-4 h-4" />
+        <MoreVertical className="h-3.5 w-3.5" />
       </button>
 
       {/* Menú contextual desplegable (sin eliminar ni archivar) */}
@@ -100,7 +100,7 @@ export default function AiChatListItem({
         <div
           ref={menuRef}
           onClick={(e) => e.stopPropagation()}
-          className="absolute right-3 top-10 w-48 bg-white border border-neutral-200 rounded-xl shadow-xl z-30 py-1.5 text-xs text-neutral-800 select-none animate-in fade-in zoom-in-95 duration-100"
+          className="animate-in fade-in zoom-in-95 duration-100 absolute right-3 top-8 z-30 w-48 select-none rounded-xl border border-neutral-200 bg-white py-1.5 text-xs text-neutral-800 shadow-xl"
         >
           {onPin && (
             <button
@@ -127,38 +127,6 @@ export default function AiChatListItem({
             >
               <BellOff className="w-3.5 h-3.5 text-neutral-500" />
               <span>{chat.isMuted ? 'Activar notificaciones' : 'Silenciar'}</span>
-            </button>
-          )}
-
-          {onToggleProtection && (
-            <button
-              type="button"
-              onClick={() => {
-                setMenuOpen(false);
-                onToggleProtection(chat);
-              }}
-              className="w-full flex items-center gap-2.5 px-3 py-2 hover:bg-neutral-50 text-left font-normal"
-            >
-              {chat.isProtected ? (
-                <Unlock className="w-3.5 h-3.5 text-brand-primary" />
-              ) : (
-                <Lock className="w-3.5 h-3.5 text-neutral-500" />
-              )}
-              <span>{chat.isProtected ? 'Quitar protección' : 'Proteger con PIN'}</span>
-            </button>
-          )}
-
-          {onAssignCategory && (
-            <button
-              type="button"
-              onClick={() => {
-                setMenuOpen(false);
-                onAssignCategory(chat);
-              }}
-              className="w-full flex items-center gap-2.5 px-3 py-2 hover:bg-neutral-50 text-left font-normal"
-            >
-              <Tag className="w-3.5 h-3.5 text-neutral-500" />
-              <span>Asignar a categoría</span>
             </button>
           )}
         </div>

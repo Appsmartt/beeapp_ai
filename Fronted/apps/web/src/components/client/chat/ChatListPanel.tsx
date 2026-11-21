@@ -15,6 +15,7 @@ interface ChatListPanelProps {
   selectedChatId?: string;
   onSelectCategory: (id: string | null) => void;
   onCreateCategory: () => void;
+  onDeleteCategory?: (id: string) => void;
   onSelectChat: (chat: ChatItem) => void;
   onPinChat?: (id: string) => void;
   onMuteChat?: (id: string) => void;
@@ -38,6 +39,7 @@ export default function ChatListPanel({
   selectedChatId,
   onSelectCategory,
   onCreateCategory,
+  onDeleteCategory,
   onSelectChat,
   onPinChat,
   onMuteChat,
@@ -65,6 +67,7 @@ export default function ChatListPanel({
         activeCategoryId={activeCategoryId}
         onChange={onSelectCategory}
         onCreate={onCreateCategory}
+        onDelete={onDeleteCategory}
       />
 
       {/* Chat list */}
@@ -77,14 +80,14 @@ export default function ChatListPanel({
           <button
             type="button"
             onClick={onOpenArchived}
-            className="mx-3 mb-2 flex w-[calc(100%-1.5rem)] items-center gap-3 rounded-2xl border border-[#E7DFF3] bg-white px-4 py-3 text-left hover:bg-[#FCFAFF]"
+            className="mx-2.5 mb-1.5 flex w-[calc(100%-1.25rem)] items-center gap-2.5 rounded-xl border border-[#E7DFF3] bg-white px-3 py-2 text-left hover:bg-[#FCFAFF]"
           >
-            <span className="flex h-11 w-11 items-center justify-center rounded-full bg-neutral-100 text-neutral-600">
-              <Archive className="h-5 w-5" />
+            <span className="flex h-9 w-9 items-center justify-center rounded-full bg-neutral-100 text-neutral-600">
+              <Archive className="h-4 w-4" />
             </span>
             <span className="min-w-0">
-              <span className="block text-sm font-medium text-neutral-900">Chats archivados</span>
-              <span className="block text-xs text-neutral-500">
+              <span className="block text-[13.5px] font-medium text-neutral-900">Chats archivados</span>
+              <span className="block text-[11px] text-neutral-500">
                 {archivedCount === 1 ? '1 chat archivado' : `${archivedCount} chats archivados`}
               </span>
             </span>

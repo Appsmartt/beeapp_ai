@@ -264,7 +264,7 @@ export default function IdentityVerificationPage() {
               <button
                 type="button"
                 className={`${primaryButtonClass} w-full gap-2`}
-                disabled={!canRequest || busy || status === 'verificado' || status === 'en_revision'}
+                disabled={!canRequest || busy || pendingCount > 0}
                 onClick={() => void submit()}
               >
                 <ShieldCheck className="h-4 w-4" aria-hidden />

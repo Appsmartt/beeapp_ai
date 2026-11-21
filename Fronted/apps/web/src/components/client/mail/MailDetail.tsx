@@ -64,10 +64,15 @@ export default function MailDetail({
     null,
   );
   const [downloadError, setDownloadError] = useState('');
+  const [viewMode, setViewMode] = useState<'html' | 'text'>('html');
   const emailDate = formatMailDetailDate(
     email.receivedAt || email.sentAt,
   );
-  const html = email.bodyHtml?.trim() || '';
+  const looksLikeHtml = /<\/?[a-z][\s\S]*>/i.test(email.body || '');
+  const html = email.bodyHtml?.trim() || (looksLikeHtml ? email.body : '');
+  const plainText = email.body
+    ? email.body.replace(/<style[\s\S]*?<\/style>/gi, '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim()
+    : '';
   const files = email.attachments.filter(
     (file) => !file.is_inline,
   );
@@ -230,11 +235,43 @@ export default function MailDetail({
 
           {html ? (
             <div className="py-4">
-              <MailHtmlView
-                messageId={email.id}
-                html={html}
-                attachments={email.attachments}
-              />
+              <div className="mb-3 flex justify-end">
+                <div className="inline-flex rounded-xl border border-neutral-200 bg-neutral-50 p-0.5 text-[11px] font-semibold">
+                  <button
+                    type="button"
+                    onClick={() => setViewMode('html')}
+                    className={`rounded-lg px-2.5 py-1 transition-colors ${
+                      viewMode === 'html'
+                        ? 'bg-white text-brand-primary shadow-xs'
+                        : 'text-neutral-500 hover:text-neutral-800'
+                    }`}
+                  >
+                    Vista HTML
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setViewMode('text')}
+                    className={`rounded-lg px-2.5 py-1 transition-colors ${
+                      viewMode === 'text'
+                        ? 'bg-white text-brand-primary shadow-xs'
+                        : 'text-neutral-500 hover:text-neutral-800'
+                    }`}
+                  >
+                    Texto plano
+                  </button>
+                </div>
+              </div>
+              {viewMode === 'html' ? (
+                <MailHtmlView
+                  messageId={email.id}
+                  html={html}
+                  attachments={email.attachments}
+                />
+              ) : (
+                <div className="whitespace-pre-wrap py-4 text-sm font-normal leading-relaxed text-neutral-800">
+                  {plainText || email.body}
+                </div>
+              )}
             </div>
           ) : (
             <div className="whitespace-pre-wrap py-6 text-sm font-normal leading-relaxed text-neutral-800">

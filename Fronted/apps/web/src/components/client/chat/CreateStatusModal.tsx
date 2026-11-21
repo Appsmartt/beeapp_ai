@@ -1,6 +1,8 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
+import { getOwnedCommercialProfiles } from '@beeapp/api-client';
+import type { CommercialOwnedProfile } from '@beeapp/shared-types';
 import {
   STATUS_BACKGROUNDS,
   STATUS_TEXT_COLORS,
@@ -9,6 +11,7 @@ import {
 } from '@/lib/client/statuses';
 import { useAuth } from '@/lib/auth/AuthProvider';
 import type { ContactItem } from '@/lib/client/contacts';
+import { getWebAuth } from '@/lib/client/liveData';
 import StatusPreviewStage from './status/StatusPreviewStage';
 import StatusToolPanel from './status/StatusToolPanel';
 import { StatusVisibility } from './status/StatusPrivacySection';
@@ -37,8 +40,13 @@ export default function CreateStatusModal({
   onClose,
 }: CreateStatusModalProps) {
   const { profile } = useAuth();
-  const authorName = [profile?.firstName, profile?.lastName].filter(Boolean).join(' ') || 'Tú';
+  const personalName = [profile?.firstName, profile?.lastName].filter(Boolean).join(' ') || 'Tú';
   const [photo, setPhoto] = useState<string | null>(null);
+  const [mediaFile, setMediaFile] = useState<File | null>(null);
+  const [isVideoMedia, setIsVideoMedia] = useState(false);
+  const [videoDurationSeconds, setVideoDurationSeconds] = useState<number | null>(null);
+  const [businesses, setBusinesses] = useState<CommercialOwnedProfile[]>([]);
+  const [actorBusinessId, setActorBusinessId] = useState<string>('');
   const [background, setBackground] = useState(STATUS_BACKGROUNDS[0]);
   const [lastTextColor, setLastTextColor] = useState(STATUS_TEXT_COLORS[0]);
   const [product, setProduct] = useState<StatusProductLink | null>(null);
@@ -55,6 +63,10 @@ export default function CreateStatusModal({
   useEffect(() => {
     if (!visible) return;
     setPhoto(null);
+    setMediaFile(null);
+    setIsVideoMedia(false);
+    setVideoDurationSeconds(null);
+    setActorBusinessId('');
     setBackground(STATUS_BACKGROUNDS[0]);
     setLastTextColor(STATUS_TEXT_COLORS[0]);
     setProduct(null);
@@ -64,10 +76,18 @@ export default function CreateStatusModal({
     setSelectedContactIds([]);
     setSelectedCategoryId(null);
     layers.reset(STATUS_TEXT_COLORS[0]);
+
+    void getWebAuth()
+      .then((auth) => getOwnedCommercialProfiles(auth))
+      .then((res) => setBusinesses(res.profiles || []))
+      .catch(() => setBusinesses([]));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visible]);
 
   if (!visible) return null;
+
+  const selectedBusiness = businesses.find((b) => b.id === actorBusinessId) || null;
+  const authorName = selectedBusiness ? selectedBusiness.display_name : personalName;
 
   const handleTextChange = (content: string) => {
     if (!selectedText) return;
@@ -92,20 +112,32 @@ export default function CreateStatusModal({
   const canPublish =
     texts.some((layer) => layer.content.trim()) ||
     !!photo ||
+    !!mediaFile ||
     images.length > 0 ||
     stickers.length > 0;
 
   const handlePublish = () => {
     const first = texts[0];
+    const kind: StatusItem['type'] = mediaFile
+      ? isVideoMedia
+        ? 'video'
+        : 'photo'
+      : photo
+        ? 'photo'
+        : 'text';
 
     onPublish({
-      authorId: 'me',
+      authorId: selectedBusiness ? selectedBusiness.id : 'me',
       authorName,
       authorInitials: initialsOf(authorName),
       authorColor: '#F3E8FF',
-      type: photo ? 'photo' : 'text',
+      type: kind,
       text: first?.content.trim() ?? '',
       photoUrl: photo,
+      mediaFile,
+      videoDurationSeconds,
+      actorType: selectedBusiness ? 'commercial_profile' : 'profile',
+      actorCommercialProfileId: selectedBusiness ? selectedBusiness.id : null,
       bgColor: photo ? null : background,
       linkedProduct: product,
       textPosition: { x: first?.x ?? 50, y: first?.y ?? 50 },
@@ -124,7 +156,25 @@ export default function CreateStatusModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-white flex flex-col md:flex-row select-none">
+    <div className="fixed inset-0 z-50 flex select-none flex-col bg-white md:flex-row">
+      {businesses.length > 0 ? (
+        <div className="absolute left-4 top-4 z-50 flex items-center gap-2 rounded-full border border-neutral-200 bg-white/95 px-3 py-1.5 text-xs shadow-md backdrop-blur">
+          <span className="font-semibold text-neutral-500">Publicar como:</span>
+          <select
+            value={actorBusinessId}
+            onChange={(e) => setActorBusinessId(e.target.value)}
+            className="bg-transparent font-bold text-brand-primary outline-none"
+          >
+            <option value="">{personalName} (Personal)</option>
+            {businesses.map((biz) => (
+              <option key={biz.id} value={biz.id}>
+                {biz.display_name} (Negocio)
+              </option>
+            ))}
+          </select>
+        </div>
+      ) : null}
+
       <StatusPreviewStage
         background={background}
         photo={photo}
@@ -139,7 +189,12 @@ export default function CreateStatusModal({
         onMoveSticker={layers.moveSticker}
         onResizeImage={layers.resizeImage}
         onRemoveLayer={layers.removeLayer}
-        onRemovePhoto={() => setPhoto(null)}
+        onRemovePhoto={() => {
+          setPhoto(null);
+          setMediaFile(null);
+          setIsVideoMedia(false);
+          setVideoDurationSeconds(null);
+        }}
         onRemoveMusic={() => layers.setMusic(null)}
       />
 
@@ -170,17 +225,38 @@ export default function CreateStatusModal({
         onPickPhoto={() => {
           const input = document.createElement('input');
           input.type = 'file';
-          input.accept = 'image/*';
+          input.accept = 'image/*,video/*';
           input.onchange = () => {
             const file = input.files?.[0];
             if (!file) return;
-            const reader = new FileReader();
-            reader.onload = () => setPhoto(typeof reader.result === 'string' ? reader.result : null);
-            reader.readAsDataURL(file);
+            setMediaFile(file);
+            const isVid = file.type.startsWith('video/');
+            setIsVideoMedia(isVid);
+            if (isVid) {
+              const objUrl = URL.createObjectURL(file);
+              setPhoto(objUrl);
+              const vid = document.createElement('video');
+              vid.preload = 'metadata';
+              vid.onloadedmetadata = () => {
+                const dur = Number.isFinite(vid.duration) && vid.duration > 0 ? Math.round(vid.duration) : 10;
+                setVideoDurationSeconds(Math.min(60, Math.max(1, dur)));
+              };
+              vid.src = objUrl;
+            } else {
+              setVideoDurationSeconds(null);
+              const reader = new FileReader();
+              reader.onload = () => setPhoto(typeof reader.result === 'string' ? reader.result : null);
+              reader.readAsDataURL(file);
+            }
           };
           input.click();
         }}
-        onRemovePhoto={() => setPhoto(null)}
+        onRemovePhoto={() => {
+          setPhoto(null);
+          setMediaFile(null);
+          setIsVideoMedia(false);
+          setVideoDurationSeconds(null);
+        }}
         imageCount={images.length}
         onAddImage={() => {
           const input = document.createElement('input');

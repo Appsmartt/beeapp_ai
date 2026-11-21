@@ -11,6 +11,7 @@ import {
     Pencil,
     Pin,
     Plus,
+    Share2,
     Star,
     Tag,
     Tags,
@@ -35,28 +36,43 @@ interface NotesSidebarProps {
     };
     onSelectView: (view: NotesViewId) => void;
     onCreateNote: () => void;
-    onCreateFolder: (name: string) => Promise<void>;
+    onCreateFolder: (name: string, parentId?: string | null) => Promise<void>;
     onRenameFolder: (folder: NoteFolder, name: string) => Promise<void>;
+    onMoveFolder?: (folder: NoteFolder, parentId: string | null) => Promise<void>;
     onDeleteFolder: (folder: NoteFolder) => Promise<void>;
-    onCreateTag: (name: string) => Promise<void>;
-    onRenameTag: (tag: NoteTag, name: string) => Promise<void>;
+    onCreateTag: (name: string, color?: string) => Promise<void>;
+    onRenameTag: (tag: NoteTag, name: string, color?: string) => Promise<void>;
     onDeleteTag: (tag: NoteTag) => Promise<void>;
 }
+
+const TAG_COLORS = [
+    '#7C3AED',
+    '#2563EB',
+    '#0891B2',
+    '#059669',
+    '#CA8A04',
+    '#EA580C',
+    '#DC2626',
+    '#DB2777',
+];
 
 interface CreateInlineFormProps {
     placeholder: string;
     submitLabel: string;
+    withColorPicker?: boolean;
     onCancel: () => void;
-    onSubmit: (name: string) => Promise<void>;
+    onSubmit: (name: string, color?: string) => Promise<void>;
 }
 
 function CreateInlineForm({
     placeholder,
     submitLabel,
+    withColorPicker = false,
     onCancel,
     onSubmit,
     }: CreateInlineFormProps) {
     const [name, setName] = useState('');
+    const [color, setColor] = useState(TAG_COLORS[0]);
     const [saving, setSaving] = useState(false);
 
     const handleSubmit = async () => {
@@ -68,7 +84,7 @@ function CreateInlineForm({
 
         try {
         setSaving(true);
-        await onSubmit(normalized);
+        await onSubmit(normalized, withColorPicker ? color : undefined);
         setName('');
         onCancel();
         } finally {
@@ -96,6 +112,22 @@ function CreateInlineForm({
             className="w-full h-8 rounded-lg border border-neutral-200 bg-white px-2 text-xs text-neutral-800 outline-none focus:border-brand-primary"
         />
 
+        {withColorPicker ? (
+            <div className="mt-2 flex items-center gap-1.5">
+            {TAG_COLORS.map((c) => (
+                <button
+                key={c}
+                type="button"
+                onClick={() => setColor(c)}
+                className={`h-4 w-4 rounded-full transition-transform ${
+                    color === c ? 'scale-110 ring-2 ring-neutral-700 ring-offset-1' : ''
+                }`}
+                style={{ backgroundColor: c }}
+                />
+            ))}
+            </div>
+        ) : null}
+
         <div className="flex items-center justify-end gap-1 mt-1.5">
             <button
             type="button"
@@ -121,10 +153,11 @@ function CreateInlineForm({
 
 interface SectionItemMenuProps {
     onRename: () => void;
+    onAddSubfolder?: () => void;
     onDelete: () => void;
 }
 
-function SectionItemMenu({ onRename, onDelete }: SectionItemMenuProps) {
+function SectionItemMenu({ onRename, onAddSubfolder, onDelete }: SectionItemMenuProps) {
     const [open, setOpen] = useState(false);
 
     return (
@@ -151,7 +184,21 @@ function SectionItemMenu({ onRename, onDelete }: SectionItemMenuProps) {
                 className="fixed inset-0 z-20 cursor-default"
             />
 
-            <div className="absolute right-0 top-7 z-30 w-32 rounded-xl border border-neutral-200 bg-white py-1 shadow-xl">
+            <div className="absolute right-0 top-7 z-30 w-40 rounded-xl border border-neutral-200 bg-white py-1 shadow-xl">
+                {onAddSubfolder ? (
+                <button
+                    type="button"
+                    onClick={() => {
+                    setOpen(false);
+                    onAddSubfolder();
+                    }}
+                    className="w-full flex items-center gap-2 px-3 py-2 text-left text-xs text-neutral-700 hover:bg-neutral-50"
+                >
+                    <FolderPlus className="w-3.5 h-3.5" />
+                    Nueva subcarpeta
+                </button>
+                ) : null}
+
                 <button
                 type="button"
                 onClick={() => {
@@ -258,6 +305,7 @@ export default function NotesSidebar({
     const [foldersOpen, setFoldersOpen] = useState(true);
     const [tagsOpen, setTagsOpen] = useState(true);
     const [creatingFolder, setCreatingFolder] = useState(false);
+    const [creatingSubfolderParentId, setCreatingSubfolderParentId] = useState<string | null>(null);
     const [creatingTag, setCreatingTag] = useState(false);
 
     const requestRenameFolder = async (folder: NoteFolder) => {
@@ -354,6 +402,14 @@ export default function NotesSidebar({
             />
 
             <SidebarRow
+                active={activeView === 'shared'}
+                icon={<Share2 className="w-4 h-4" />}
+                label="Compartidas conmigo"
+                count={systemCounts.shared}
+                onClick={() => onSelectView('shared')}
+            />
+
+            <SidebarRow
                 active={activeView === 'trash'}
                 icon={<Trash2 className="w-4 h-4" />}
                 label="Papelera"
@@ -404,20 +460,32 @@ export default function NotesSidebar({
                 )}
 
                 {folders.map((folder) => (
+                    <div key={folder.id} className={folder.parent_id ? 'pl-4' : ''}>
                     <SidebarRow
-                    key={folder.id}
-                    active={activeView === `folder:${folder.id}`}
-                    icon={<Folder className="w-4 h-4" />}
-                    label={folder.name}
-                    count={folderCounts[folder.id] ?? 0}
-                    onClick={() => onSelectView(`folder:${folder.id}`)}
-                    trailing={
+                        active={activeView === `folder:${folder.id}`}
+                        icon={<Folder className="w-4 h-4" />}
+                        label={folder.name}
+                        count={folderCounts[folder.id] ?? 0}
+                        onClick={() => onSelectView(`folder:${folder.id}`)}
+                        trailing={
                         <SectionItemMenu
-                        onRename={() => void requestRenameFolder(folder)}
-                        onDelete={() => void requestDeleteFolder(folder)}
+                            onAddSubfolder={() => setCreatingSubfolderParentId(folder.id)}
+                            onRename={() => void requestRenameFolder(folder)}
+                            onDelete={() => void requestDeleteFolder(folder)}
                         />
-                    }
+                        }
                     />
+                    {creatingSubfolderParentId === folder.id ? (
+                        <div className="pl-3 pt-1">
+                        <CreateInlineForm
+                            placeholder={`Subcarpeta en ${folder.name}`}
+                            submitLabel="Crear"
+                            onCancel={() => setCreatingSubfolderParentId(null)}
+                            onSubmit={(subName) => onCreateFolder(subName, folder.id)}
+                        />
+                        </div>
+                    ) : null}
+                    </div>
                 ))}
 
                 {!creatingFolder && folders.length === 0 && (
@@ -465,6 +533,7 @@ export default function NotesSidebar({
                     <CreateInlineForm
                     placeholder="Nombre de etiqueta"
                     submitLabel="Crear"
+                    withColorPicker
                     onCancel={() => setCreatingTag(false)}
                     onSubmit={onCreateTag}
                     />

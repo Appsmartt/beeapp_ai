@@ -4,11 +4,14 @@ import {
   useMemo,
   useState,
 } from 'react';
+import Link from 'next/link';
 import {
   AlertTriangle,
+  Calendar,
   ChevronRight,
   Link2,
   Loader2,
+  Mail,
   Plus,
   RefreshCw,
   ShieldCheck,
@@ -147,7 +150,7 @@ export function IntegrationsPanel() {
 
       const authorizationUrl = await startAuthorization(
         provider.provider,
-        [],
+        ['calendar', 'mail'],
       );
 
       redirectToProvider(authorizationUrl);
@@ -170,7 +173,9 @@ export function IntegrationsPanel() {
 
       const authorizationUrl = await reauthorize(
         item.connection.id,
-        item.connection.capabilities,
+        item.connection.capabilities?.length
+          ? item.connection.capabilities
+          : ['calendar', 'mail'],
       );
 
       redirectToProvider(authorizationUrl);
@@ -445,6 +450,45 @@ export function IntegrationsPanel() {
           </p>
         </div>
       </div>
+
+      <section className="space-y-3">
+        <h2 className="text-xs font-bold uppercase tracking-wider text-neutral-600">
+          Servicios sincronizados
+        </h2>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <Link
+            href="/app?module=calendar&external=1"
+            className="flex items-center gap-3 rounded-2xl border border-neutral-200 bg-white p-4 transition-colors hover:border-brand-primary/40 hover:bg-neutral-50"
+          >
+            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-blue-600">
+              <Calendar className="h-5 w-5" />
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block text-sm font-bold text-neutral-900">Calendarios externos</span>
+              <span className="mt-0.5 block text-xs text-neutral-500">
+                Elige qué calendarios de Google o Microsoft mostrar y sincronizar.
+              </span>
+            </span>
+            <ChevronRight className="h-5 w-5 shrink-0 text-neutral-400" />
+          </Link>
+
+          <Link
+            href="/app?module=mail&external=1"
+            className="flex items-center gap-3 rounded-2xl border border-neutral-200 bg-white p-4 transition-colors hover:border-brand-primary/40 hover:bg-neutral-50"
+          >
+            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-purple-50 text-brand-primary">
+              <Mail className="h-5 w-5" />
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block text-sm font-bold text-neutral-900">Correos externos</span>
+              <span className="mt-0.5 block text-xs text-neutral-500">
+                Consulta el estado de tus buzones vinculados y sincronízalos.
+              </span>
+            </span>
+            <ChevronRight className="h-5 w-5 shrink-0 text-neutral-400" />
+          </Link>
+        </div>
+      </section>
 
       {isProviderModalOpen ? (
         <div

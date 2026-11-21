@@ -3,17 +3,24 @@
 import { useEffect, useRef, useState } from 'react';
 import { Plus, Users } from 'lucide-react';
 import {
+  clearChatConversation,
   createChatCategory,
   createChatGroup,
   createDirectChatConversation,
   createMyCommunity,
+  deleteChatCategory,
   getAccountSecurityPinStatus,
+  getAssistantSettings,
+  getChatPinProtection,
+  inviteToChatGroup,
+  leaveChatGroup,
   protectChatWithPin,
   removeChatPinProtection,
   saveChatConversationCategories,
   searchChatRecipients,
   updateChatConversationNotifications,
   updateChatConversationPinned,
+  uploadCurrentWebStorageFiles,
 } from '@beeapp/api-client';
 import {
   ASSISTANT_CHAT_ID,
@@ -32,7 +39,8 @@ import {
   loadInbox,
   loadStatuses,
   markStatusSeen,
-  publishTextStatus,
+  publishStatus,
+  writeArchivedChatPatch,
 } from '@/lib/client/liveData';
 import {
   ASSISTANT_ARCHIVE_EVENT,
@@ -230,48 +238,62 @@ export default function ChatModule({
   };
 
   useEffect(() => {
-    if (!pendingOpenChat) return;
-    const target = chats.find((item) => item.id === pendingOpenChat);
-    if (target) handleChatPress(target);
-    else {
-      openChatWith({
-        id: pendingOpenChat,
-        name: 'Proveedor',
-        lastMessage: '',
-        time: '',
-        unreadCount: 0,
-        isGroup: false,
-        status: 'sent',
-        postingIdentityId: getRememberedChatIdentity(),
-      });
-    }
+    const onOpenChatEvent = (event: Event) => {
+      const detail = (event as CustomEvent<{ conversationId?: string }>).detail;
+      if (detail?.conversationId) {
+        setPendingOpenChat(detail.conversationId);
+      }
+    };
+    window.addEventListener('beeapp:open-chat', onOpenChatEvent);
+    return () => window.removeEventListener('beeapp:open-chat', onOpenChatEvent);
+  }, []);
+
+  useEffect(() => {
+    if (!pendingOpenChat || inboxLoading) return;
+    const requestedId = pendingOpenChat;
     setPendingOpenChat(null);
     window.history.replaceState(null, '', '/app');
-  }, [pendingOpenChat, chats]);
 
-  const persistAssistantInboxPreference = (
+    const target = chats.find((item) => item.id === requestedId);
+    if (target) {
+      handleChatPress(target);
+      return;
+    }
+
+    void getWebAuth()
+      .then(async (auth) => {
+        const pinStatus = await getChatPinProtection(auth, requestedId).catch(() => ({ protected: false }));
+        const fallbackChat: ChatItem = {
+          id: requestedId,
+          name: 'Proveedor',
+          lastMessage: '',
+          time: '',
+          unreadCount: 0,
+          isGroup: false,
+          status: 'sent',
+          isProtected: Boolean(pinStatus.protected),
+          postingIdentityId: getRememberedChatIdentity(),
+        };
+        handleChatPress(fallbackChat);
+      })
+      .catch(() => undefined);
+  }, [pendingOpenChat, chats, inboxLoading]);
+
+  const persistInboxPreference = (
     chatId: string,
     patch: { isPinned?: boolean; isMuted?: boolean },
   ) => {
     const identityId = getRememberedChatIdentity();
     if (!identityId) return;
-    if (chatId !== ASSISTANT_CHAT_ID) {
-      if (patch.isMuted === undefined) return;
-      void getWebAuth().then((auth) => updateChatConversationNotifications(auth, chatId, {
-        identity_id: identityId,
-        notifications_enabled: !patch.isMuted,
-      })).catch(() => undefined);
-      return;
-    }
     void getWebAuth().then(async (auth) => {
       if (patch.isPinned !== undefined) {
-        await updateChatConversationPinned(auth, ASSISTANT_CHAT_ID, {
+        await updateChatConversationPinned(auth, chatId, {
           identity_id: identityId,
           is_pinned: patch.isPinned,
         });
       }
       if (patch.isMuted !== undefined) {
-        await updateChatConversationNotifications(auth, ASSISTANT_CHAT_ID, {
+        await updateChatConversationNotifications(auth, chatId, {
           identity_id: identityId,
           notifications_enabled: !patch.isMuted,
         });
@@ -279,8 +301,16 @@ export default function ChatModule({
     }).catch(() => undefined);
   };
 
-  const startDirectChat = (name: string) => {
-    const existing = chats.find((chat) => chat.name === name);
+  const startDirectChat = (name: string, recipientIdentityId?: string | null) => {
+    const existing = chats.find(
+      (chat) =>
+        !chat.isGroup
+        && !chat.isAI
+        && (
+          (recipientIdentityId && chat.peerIdentityId === recipientIdentityId)
+          || chat.name.toLowerCase() === name.trim().toLowerCase()
+        ),
+    );
     if (existing) {
       onSectionChange('chats');
       handleChatPress(existing);
@@ -289,12 +319,16 @@ export default function ChatModule({
     const identityId = getRememberedChatIdentity();
     if (!identityId) return;
     void getWebAuth().then(async (auth) => {
-      const found = await searchChatRecipients(auth, name, 5);
-      const recipient = found.users[0];
-      if (!recipient) return;
+      let targetIdentityId = recipientIdentityId || '';
+      if (!targetIdentityId) {
+        const found = await searchChatRecipients(auth, name, 5);
+        const recipient = found.users[0];
+        if (!recipient) return;
+        targetIdentityId = recipient.id;
+      }
       const created = await createDirectChatConversation(auth, {
         sender_identity_id: identityId,
-        recipient_identity_id: recipient.id,
+        recipient_identity_id: targetIdentityId,
       });
       const inbox = await loadInbox();
       setChats(inbox.chats);
@@ -306,9 +340,46 @@ export default function ChatModule({
     }).catch(() => undefined);
   };
 
-  const handleArchiveChat = (id: string, archived = true) => {
-    archivePatchesRef.current[id] = archived;
-    setChats((prev) => prev.map((c) => (c.id === id ? { ...c, isArchived: archived } : c)));
+  const handleArchiveChat = (id: string, explicitArchived?: boolean) => {
+    setChats((prev) => {
+      const target = prev.find((c) => c.id === id);
+      const nextArchived = explicitArchived !== undefined ? explicitArchived : !target?.isArchived;
+      archivePatchesRef.current[id] = nextArchived;
+      writeArchivedChatPatch(id, nextArchived);
+      return prev.map((c) => (c.id === id ? { ...c, isArchived: nextArchived } : c));
+    });
+  };
+
+  const handleDeleteChat = (id: string) => {
+    const target = chats.find((c) => c.id === id);
+    if (!target || target.isAI) return;
+    const message = target.isGroup
+      ? `¿Salir y eliminar el grupo "${target.name}" de tu bandeja?`
+      : `¿Eliminar la conversación con "${target.name}"?`;
+    if (!confirm(message)) return;
+    setChats((prev) => prev.filter((c) => c.id !== id));
+    if (selectedChat?.id === id) setSelectedChat(null);
+    const identityId = target.postingIdentityId || getRememberedChatIdentity();
+    if (!identityId) return;
+    void getWebAuth().then(async (auth) => {
+      if (target.isGroup) {
+        await leaveChatGroup(auth, id, { identity_id: identityId }).catch(() => undefined);
+      }
+      await clearChatConversation(auth, id, { identity_id: identityId }).catch(() => undefined);
+    });
+  };
+
+  const handleDeleteCategory = (categoryId: string) => {
+    const cat = categories.find((c) => c.id === categoryId);
+    if (!cat) return;
+    if (!confirm(`¿Eliminar la categoría "${cat.name}"?`)) return;
+    setCategories((prev) => prev.filter((c) => c.id !== categoryId));
+    if (activeCategoryId === categoryId) setActiveCategoryId(null);
+    const identityId = getRememberedChatIdentity();
+    if (!identityId || categoryId.startsWith('local-')) return;
+    void getWebAuth()
+      .then((auth) => deleteChatCategory(auth, identityId, categoryId))
+      .catch(() => undefined);
   };
 
   useEffect(() => {
@@ -327,8 +398,17 @@ export default function ChatModule({
     if (invitesOpen && (section === 'chats' || section === 'archived')) {
       return (
         <GroupInvitesPanel
-          onAccepted={() => {
-            void loadInbox().then((inbox) => setChats(inbox.chats)).catch(() => undefined);
+          onAccepted={(conversationId) => {
+            setInvitesOpen(false);
+            void loadInbox()
+              .then((inbox) => {
+                setChats(inbox.chats);
+                if (conversationId) {
+                  const acceptedChat = inbox.chats.find((c) => c.id === conversationId);
+                  if (acceptedChat) openChatWith(acceptedChat);
+                }
+              })
+              .catch(() => undefined);
           }}
         />
       );
@@ -351,6 +431,8 @@ export default function ChatModule({
           selectedContactId={selectedContact?.id}
           onSelectContact={setSelectedContact}
           onCreateContact={() => setCreatingContact(true)}
+          onStartChat={(contactName) => startDirectChat(contactName)}
+          onStartCall={(contactName) => startDirectChat(contactName)}
           homeSearchQuery={contactListSearchActive ? homeSearch.query : ''}
         />
       );
@@ -358,7 +440,20 @@ export default function ChatModule({
 
     if (section === 'statuses') {
       return (
-        <StatusesPanel statuses={statuses} authorInitials={contactInitials([profile?.firstName, profile?.lastName].filter(Boolean).join(' ') || 'Tú')} onOpenStatus={(i) => { const status = statuses[i]; if (status) { void markStatusSeen(status.id).catch(() => undefined); setStatuses((prev) => prev.map((item) => item.id === status.id ? { ...item, viewed: true } : item)); } setViewerIndex(i); }} onCreateStatus={() => setCreatingStatus(true)} />
+        <StatusesPanel
+          statuses={statuses}
+          currentUserId={profile?.id}
+          authorInitials={contactInitials([profile?.firstName, profile?.lastName].filter(Boolean).join(' ') || 'Tú')}
+          onOpenStatus={(i) => {
+            const status = statuses[i];
+            if (status) {
+              void markStatusSeen(status.id).catch(() => undefined);
+              setStatuses((prev) => prev.map((item) => item.id === status.id ? { ...item, viewed: true } : item));
+            }
+            setViewerIndex(i);
+          }}
+          onCreateStatus={() => setCreatingStatus(true)}
+        />
       );
     }
 
@@ -433,6 +528,7 @@ export default function ChatModule({
           setActiveCategoryId(id);
         }}
         onCreateCategory={() => setCreatingCategory(true)}
+        onDeleteCategory={handleDeleteCategory}
         onSelectChat={handleChatPress}
         archivedCount={section === 'chats' ? archivedCount : 0}
         onOpenArchived={section === 'chats' ? () => onSectionChange('archived') : undefined}
@@ -440,7 +536,7 @@ export default function ChatModule({
           setChats((prev) => {
             const target = prev.find((c) => c.id === id);
             const nextPinned = !target?.isPinned;
-            persistAssistantInboxPreference(id, { isPinned: nextPinned });
+            persistInboxPreference(id, { isPinned: nextPinned });
             return prev.map((c) => (c.id === id ? { ...c, isPinned: nextPinned } : c));
           });
         }}
@@ -448,20 +544,41 @@ export default function ChatModule({
           setChats((prev) => {
             const target = prev.find((c) => c.id === id);
             const nextMuted = !target?.isMuted;
-            persistAssistantInboxPreference(id, { isMuted: nextMuted });
+            persistInboxPreference(id, { isMuted: nextMuted });
             return prev.map((c) => (c.id === id ? { ...c, isMuted: nextMuted } : c));
           });
         }}
-        onDeleteChat={(id) => { setChats((prev) => prev.filter((c) => c.id !== id)); if (selectedChat?.id === id) setSelectedChat(null); }}
+        onDeleteChat={handleDeleteChat}
         onAssignCategory={setAssigningChat}
         onToggleProtection={handleToggleProtection}
-        onArchiveChat={handleArchiveChat}
+        onArchiveChat={(id) => handleArchiveChat(id)}
       />
     );
   };
 
   const renderDetail = () => {
-    if (aiSettingsOpen) return <AiSettingsScreen onBack={() => setAiSettingsOpen(false)} />;
+    if (aiSettingsOpen) {
+      return (
+        <AiSettingsScreen
+          onBack={() => {
+            setAiSettingsOpen(false);
+            void getWebAuth()
+              .then((auth) => getAssistantSettings(auth))
+              .then((res) => {
+                const nextName = res.settings.name?.trim();
+                if (!nextName) return;
+                setChats((prev) =>
+                  prev.map((c) => (c.id === ASSISTANT_CHAT_ID ? { ...c, name: nextName } : c)),
+                );
+                setSelectedChat((curr) =>
+                  curr && curr.id === ASSISTANT_CHAT_ID ? { ...curr, name: nextName } : curr,
+                );
+              })
+              .catch(() => undefined);
+          }}
+        />
+      );
+    }
     if (inContacts) {
       if (!selectedContact) return null;
       return (
@@ -472,10 +589,32 @@ export default function ChatModule({
           onStartCall={() => {
             startDirectChat(selectedContact.name);
           }}
+          onContactDeleted={(deletedId) => {
+            setContacts((prev) => prev.filter((c) => c.id !== deletedId));
+            setSelectedContact(null);
+          }}
         />
       );
     }
-    if (viewingProfile === 'chat' && selectedChat) return <ChatProfile chat={selectedChat} onBack={() => setViewingProfile(null)} />;
+    if (viewingProfile === 'chat' && selectedChat) {
+      return (
+        <ChatProfile
+          chat={selectedChat}
+          onBack={() => setViewingProfile(null)}
+          onChatUpdated={(patch) => {
+            setSelectedChat((curr) => (curr ? { ...curr, ...patch } : curr));
+            setChats((prev) =>
+              prev.map((c) => (c.id === selectedChat.id ? { ...c, ...patch } : c)),
+            );
+          }}
+          onChatDeleted={(deletedId) => {
+            setChats((prev) => prev.filter((c) => c.id !== deletedId));
+            setSelectedChat(null);
+            setViewingProfile(null);
+          }}
+        />
+      );
+    }
     if (viewingProfile === 'community' && selectedCommunity) return <CommunityProfile community={selectedCommunity} onBack={() => setViewingProfile(null)} />;
     if (selectedCommunity) return <CommunityScreen community={selectedCommunity} onBack={() => setSelectedCommunity(null)} onOpenProfile={() => setViewingProfile('community')} />;
     if (selectedChat) {
@@ -486,7 +625,7 @@ export default function ChatModule({
           onBack={() => setSelectedChat(null)}
           onOpenProfile={() => setViewingProfile('chat')}
           onOpenAiSettings={() => setAiSettingsOpen(true)}
-          onArchiveChat={handleArchiveChat}
+          onArchiveChat={(id) => handleArchiveChat(id, true)}
           onNavigateToChat={(chatId, chatName) => {
             const target = chats.find((item) => item.id === chatId);
             if (target) {
@@ -683,25 +822,58 @@ export default function ChatModule({
       </div>
     </div>
 
-      <NewChatModal isOpen={newChatModalOpen} onClose={() => setNewChatModalOpen(false)} onSelectContact={(contact) => startDirectChat(contact.name)} />
-      <CreateGroupModal isOpen={createGroupModalOpen} onClose={() => setCreateGroupModalOpen(false)} onCreateGroup={(name) => {
-        const identityId = getRememberedChatIdentity();
-        if (!identityId) return;
-        void getWebAuth().then(async (auth) => {
-          const created = await createChatGroup(auth, {
-            creator_identity_id: identityId,
-            name,
-            posting_policy: 'all_members',
-          });
-          const inbox = await loadInbox();
-          setChats(inbox.chats);
-          const chat = inbox.chats.find((item) => item.id === created.conversation.id);
-          if (chat) {
-            onSectionChange('chats');
-            openChatWith(chat);
-          }
-        }).catch(() => undefined);
-      }} />
+      <NewChatModal
+        isOpen={newChatModalOpen}
+        onClose={() => setNewChatModalOpen(false)}
+        onSelectContact={(contact) => startDirectChat(contact.name, contact.recipientIdentityId)}
+      />
+      <CreateGroupModal
+        isOpen={createGroupModalOpen}
+        onClose={() => setCreateGroupModalOpen(false)}
+        onCreateGroup={(name, members, options) => {
+          const identityId = getRememberedChatIdentity();
+          if (!identityId) return;
+          void getWebAuth()
+            .then(async (auth) => {
+              let imageFileId: string | null = null;
+              if (options?.imageFile) {
+                const fd = new FormData();
+                fd.append('files', options.imageFile);
+                const uploaded = await uploadCurrentWebStorageFiles(fd).catch(() => null);
+                imageFileId = uploaded?.files?.[0]?.id || null;
+              }
+              const created = await createChatGroup(auth, {
+                creator_identity_id: identityId,
+                name,
+                description: options?.description || null,
+                posting_policy: options?.postingPolicy || 'all_members',
+                image_file_id: imageFileId,
+              });
+              const groupId = created.conversation.id;
+              for (const member of members) {
+                let targetId = member.recipientIdentityId || '';
+                if (!targetId) {
+                  const found = await searchChatRecipients(auth, member.name, 3).catch(() => ({ users: [] }));
+                  targetId = found.users[0]?.id || '';
+                }
+                if (targetId && targetId !== identityId) {
+                  await inviteToChatGroup(auth, groupId, {
+                    actor_identity_id: identityId,
+                    invited_identity_id: targetId,
+                  }).catch(() => undefined);
+                }
+              }
+              const inbox = await loadInbox();
+              setChats(inbox.chats);
+              const chat = inbox.chats.find((item) => item.id === groupId);
+              if (chat) {
+                onSectionChange('chats');
+                openChatWith(chat);
+              }
+            })
+            .catch(() => undefined);
+        }}
+      />
       <StatusViewer
         visible={viewerIndex !== null}
         statuses={statuses}
@@ -709,15 +881,23 @@ export default function ChatModule({
         currentUserId={profile?.id}
         onChangeIndex={(i) => setViewerIndex(i)}
         onClose={() => setViewerIndex(null)}
+        onDeleted={(deletedId) => {
+          setStatuses((prev) => prev.filter((item) => item.id !== deletedId));
+        }}
       />
-      <CreateStatusModal visible={creatingStatus} onPublish={(st) => {
-        setCreatingStatus(false);
-        if (st.type !== 'text' || !st.text?.trim()) return;
-        const authorName = [profile?.firstName, profile?.lastName].filter(Boolean).join(' ') || 'Tú';
-        void publishTextStatus(st.text.trim(), authorName).then((saved) => {
-          setStatuses((prev) => [saved, ...prev]);
-        }).catch(() => undefined);
-      }} onClose={() => setCreatingStatus(false)} />
+      <CreateStatusModal
+        visible={creatingStatus}
+        onPublish={(st) => {
+          setCreatingStatus(false);
+          const authorName = [profile?.firstName, profile?.lastName].filter(Boolean).join(' ') || 'Tú';
+          void publishStatus(st, authorName)
+            .then((saved) => {
+              setStatuses((prev) => [saved, ...prev]);
+            })
+            .catch(() => undefined);
+        }}
+        onClose={() => setCreatingStatus(false)}
+      />
       <CreateCategoryModal isOpen={creatingCategory} onClose={() => setCreatingCategory(false)} onCreate={(catData) => {
         const created: ChatCategory = { ...catData, id: `local-${Date.now()}` };
         setCategories((prev) => [...prev, created]);

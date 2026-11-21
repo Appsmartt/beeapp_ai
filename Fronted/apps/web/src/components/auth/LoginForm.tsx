@@ -16,6 +16,8 @@ import {
   verifyPhoneOtpMobile,
 } from '@beeapp/api-client';
 import AuthPageShell from '@/components/auth/AuthPageShell';
+import CountrySelector, { type Country } from '@/components/auth/CountrySelector';
+import { loadRegistrationCountries } from '@/lib/client/publicAppSettings';
 import { useAuth } from '@/lib/auth/AuthProvider';
 import {
   homePathForRole,
@@ -62,8 +64,11 @@ export default function LoginForm() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [phone, setPhone] = useState('');
+  const [countries, setCountries] = useState<Country[]>([]);
+  const [country, setCountry] = useState<Country | null>(null);
   const [otpCode, setOtpCode] = useState('');
   const [otpSent, setOtpSent] = useState(false);
+  const [otpCooldown, setOtpCooldown] = useState(0);
   const [qrToken, setQrToken] = useState<string | null>(null);
   const [qrExpiresAt, setQrExpiresAt] = useState<string | null>(null);
   const [qrOpening, setQrOpening] = useState(false);
@@ -73,6 +78,22 @@ export default function LoginForm() {
   const [capsLockOn, setCapsLockOn] = useState(false);
   const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  useEffect(() => {
+    void loadRegistrationCountries().then((list) => {
+      setCountries(list);
+      const co = list.find((item) => item.code === 'CO') ?? list[0] ?? null;
+      setCountry((prev) => prev ?? co);
+    });
+  }, []);
+
+  useEffect(() => {
+    if (otpCooldown <= 0) return undefined;
+    const timer = window.setInterval(() => {
+      setOtpCooldown((prev) => Math.max(0, prev - 1));
+    }, 1000);
+    return () => window.clearInterval(timer);
+  }, [otpCooldown]);
 
   useEffect(() => {
     if (new URLSearchParams(window.location.search).get('adminSso') === '1') {
@@ -226,18 +247,32 @@ export default function LoginForm() {
     }
   };
 
-  const handlePhoneOtpRequest = async (event: FormEvent) => {
-    event.preventDefault();
+  const buildNormalizedPhone = () => {
+    const rawTrimmed = phone.trim();
+    const digitsOnly = rawTrimmed.replace(/\D/g, '');
+    const selectedDial = (country?.dialCode ?? '+57').replace(/\D/g, '');
+    if (digitsOnly.length < 7) {
+      return null;
+    }
+    return rawTrimmed.startsWith('+')
+      ? `+${digitsOnly}`
+      : `+${selectedDial}${digitsOnly}`;
+  };
+
+  const handlePhoneOtpRequest = async (event?: FormEvent) => {
+    event?.preventDefault();
     setError('');
     window.sessionStorage.removeItem('buddy.adminSso');
-    if (!phone.trim()) {
-      setError('Ingresa tu número de celular.');
+    const normalizedPhone = buildNormalizedPhone();
+    if (!normalizedPhone) {
+      setError('Ingresa un número de celular válido.');
       return;
     }
     setIsSubmitting(true);
     try {
-      await requestPhoneOtp({ phone: phone.trim() });
+      await requestPhoneOtp({ phone: normalizedPhone });
       setOtpSent(true);
+      setOtpCooldown(60);
     } catch (requestError) {
       setError(loginErrorMessage(requestError));
     } finally {
@@ -248,9 +283,19 @@ export default function LoginForm() {
   const handlePhoneVerify = async (event: FormEvent) => {
     event.preventDefault();
     setError('');
+    const normalizedPhone = buildNormalizedPhone();
+    const digitsCode = otpCode.replace(/\D/g, '');
+    if (!normalizedPhone) {
+      setError('Ingresa un número de celular válido.');
+      return;
+    }
+    if (digitsCode.length !== 6) {
+      setError('Ingresa el código de 6 dígitos.');
+      return;
+    }
     setIsSubmitting(true);
     try {
-      const response = await verifyPhoneOtpMobile({ phone: phone.trim(), code: otpCode.trim() });
+      const response = await verifyPhoneOtpMobile({ phone: normalizedPhone, code: digitsCode });
       await adoptSupabaseSession({
         access_token: response.session.access_token,
         refresh_token: response.session.refresh_token,
@@ -362,22 +407,57 @@ export default function LoginForm() {
 
       {mode === 'phone' ? (
         <form onSubmit={(e) => void (otpSent ? handlePhoneVerify(e) : handlePhoneOtpRequest(e))} className="space-y-3">
-          <input
-            type="tel"
-            value={phone}
-            onChange={(e) => setPhone(e.target.value)}
-            placeholder="+57 300 123 4567"
-            className="w-full h-10 rounded-lg border border-neutral-300 px-3 text-sm"
-            disabled={otpSent}
-          />
-          {otpSent ? (
-            <input
-              type="text"
-              value={otpCode}
-              onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
-              placeholder="Código de 6 dígitos"
-              className="w-full h-10 rounded-lg border border-neutral-300 px-3 text-sm tracking-widest text-center"
+          <div className="flex h-10 items-center overflow-hidden rounded-lg border border-neutral-300 bg-white focus-within:border-brand-primary">
+            <CountrySelector
+              countries={countries}
+              selectedCountry={country}
+              onSelectCountry={setCountry}
+              variant="inline"
+              disabled={otpSent || isSubmitting}
             />
+            <input
+              type="tel"
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
+              placeholder="300 123 4567"
+              className="h-full min-w-0 flex-1 border-l border-neutral-200 px-3 text-sm outline-none disabled:bg-neutral-50"
+              disabled={otpSent}
+            />
+          </div>
+          {otpSent ? (
+            <>
+              <input
+                type="text"
+                inputMode="numeric"
+                maxLength={6}
+                value={otpCode}
+                onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                placeholder="Código de 6 dígitos"
+                className="w-full h-10 rounded-lg border border-neutral-300 px-3 text-sm tracking-widest text-center"
+              />
+              <div className="flex items-center justify-between text-xs">
+                <button
+                  type="button"
+                  disabled={isSubmitting || otpCooldown > 0}
+                  onClick={() => void handlePhoneOtpRequest()}
+                  className="font-semibold text-brand-primary disabled:text-neutral-400"
+                >
+                  {otpCooldown > 0 ? `Reenviar código (${otpCooldown}s)` : 'Reenviar código'}
+                </button>
+                <button
+                  type="button"
+                  disabled={isSubmitting}
+                  onClick={() => {
+                    setOtpSent(false);
+                    setOtpCode('');
+                    setError('');
+                  }}
+                  className="font-semibold text-neutral-600 hover:text-brand-primary"
+                >
+                  Cambiar número
+                </button>
+              </div>
+            </>
           ) : null}
           {error ? <p className="text-xs text-semantic-error">{error}</p> : null}
           <button type="submit" disabled={isSubmitting} className="w-full h-10 rounded-full bg-brand-primary text-white text-sm font-semibold disabled:opacity-60">
@@ -415,6 +495,18 @@ export default function LoginForm() {
       >
         Continuar con Google
       </button>
+
+      <p className="mt-3 text-center text-[11px] text-neutral-500">
+        Al continuar aceptas nuestros{' '}
+        <Link href="/terms" className="font-semibold text-brand-primary hover:underline">
+          Términos y Condiciones
+        </Link>{' '}
+        y la{' '}
+        <Link href="/privacy" className="font-semibold text-brand-primary hover:underline">
+          Política de Privacidad
+        </Link>
+        .
+      </p>
     </AuthPageShell>
   );
 }

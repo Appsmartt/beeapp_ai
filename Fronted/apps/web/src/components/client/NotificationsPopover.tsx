@@ -1,6 +1,7 @@
 'use client';
 
 import { useRef, useEffect } from 'react';
+import Link from 'next/link';
 import { X, Mail, Calendar, FolderOpen, FileText, Phone, MessageSquare, ChevronRight } from 'lucide-react';
 import { TickerNotification } from '@/lib/client/tabNotifications';
 
@@ -156,6 +157,16 @@ export default function NotificationsPopover({
             );
           })
         )}
+      </div>
+
+      <div className="shrink-0 border-t border-neutral-100 bg-neutral-50/70 px-4 py-2.5 text-center">
+        <Link
+          href="/app/notifications"
+          onClick={onClose}
+          className="text-xs font-semibold text-brand-primary hover:underline"
+        >
+          Ver todas las notificaciones
+        </Link>
       </div>
     </div>
   );

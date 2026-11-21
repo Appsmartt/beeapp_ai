@@ -1,17 +1,37 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
-import { Paperclip, Mic, Send, Image as ImageIcon, Camera, FileText, MapPin, User, X } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import {
+  Camera,
+  FileText,
+  Film,
+  Image as ImageIcon,
+  MapPin,
+  Mic,
+  Paperclip,
+  Send,
+  User,
+  X,
+} from 'lucide-react';
+
+export type ChatAttachmentActionType =
+  | 'photo'
+  | 'video'
+  | 'camera'
+  | 'file'
+  | 'location'
+  | 'contact';
 
 interface WriteBarProps {
   onSendMessage: (text: string) => void;
-  onSendVoiceNote: (duration: string) => void;
-  onSendAttachment: (type: 'photo' | 'camera' | 'file' | 'location' | 'contact') => void;
+  onSendVoiceNote: (duration: string, audioFile?: File) => void;
+  onSendAttachment: (type: ChatAttachmentActionType) => void;
   value?: string;
   onChangeText?: (text: string) => void;
   /** Solo texto (chat del asistente IA). */
   variant?: 'default' | 'assistant';
   disabled?: boolean;
+  disabledReason?: string;
   dictating?: boolean;
   onDictate?: () => void;
 }
@@ -24,6 +44,7 @@ export default function WriteBar({
   onChangeText,
   variant = 'default',
   disabled = false,
+  disabledReason,
   dictating = false,
   onDictate,
 }: WriteBarProps) {
@@ -35,6 +56,18 @@ export default function WriteBar({
   const [isRecording, setIsRecording] = useState(false);
   const [recordTime, setRecordTime] = useState(0);
   const recordInterval = useRef<NodeJS.Timeout | null>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const mediaStreamRef = useRef<MediaStream | null>(null);
+  const audioChunksRef = useRef<BlobPart[]>([]);
+
+  const cleanupRecordingStream = () => {
+    if (mediaStreamRef.current) {
+      mediaStreamRef.current.getTracks().forEach((track) => track.stop());
+      mediaStreamRef.current = null;
+    }
+    mediaRecorderRef.current = null;
+    audioChunksRef.current = [];
+  };
 
   useEffect(() => {
     if (isRecording) {
@@ -54,6 +87,12 @@ export default function WriteBar({
     };
   }, [isRecording]);
 
+  useEffect(() => {
+    return () => {
+      cleanupRecordingStream();
+    };
+  }, []);
+
   const handleSend = (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     if (disabled || !text.trim()) return;
@@ -61,44 +100,89 @@ export default function WriteBar({
     setText('');
   };
 
-  const handleStartRecord = () => {
-    setIsRecording(true);
+  const handleStartRecord = async () => {
+    if (disabled) return;
     setAttachOpen(false);
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const recorder = new MediaRecorder(stream);
+      audioChunksRef.current = [];
+      recorder.ondataavailable = (ev) => {
+        if (ev.data.size > 0) {
+          audioChunksRef.current.push(ev.data);
+        }
+      };
+      mediaStreamRef.current = stream;
+      mediaRecorderRef.current = recorder;
+      recorder.start();
+      setIsRecording(true);
+    } catch {
+      cleanupRecordingStream();
+      setIsRecording(false);
+    }
   };
 
   const handleCancelRecord = () => {
+    const recorder = mediaRecorderRef.current;
+    if (recorder && recorder.state !== 'inactive') {
+      recorder.onstop = null;
+      recorder.stop();
+    }
+    cleanupRecordingStream();
     setIsRecording(false);
   };
 
   const handleStopRecord = () => {
-    if (isRecording) {
-      setIsRecording(false);
-      const minutes = Math.floor(recordTime / 60);
-      const seconds = recordTime % 60;
-      const formattedDuration = `${minutes}:${seconds.toString().padStart(2, '0')}`;
-      onSendVoiceNote(recordTime > 0 ? formattedDuration : '0:03');
+    if (!isRecording) return;
+    const elapsed = Math.max(1, recordTime);
+    const minutes = Math.floor(elapsed / 60);
+    const seconds = elapsed % 60;
+    const formattedDuration = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+    const recorder = mediaRecorderRef.current;
+    setIsRecording(false);
+
+    if (recorder && recorder.state !== 'inactive') {
+      recorder.onstop = () => {
+        const mimeType = recorder.mimeType || 'audio/webm';
+        const blob = new Blob(audioChunksRef.current, { type: mimeType });
+        const ext = mimeType.includes('mp4') || mimeType.includes('aac') ? 'm4a' : 'webm';
+        const file = new File([blob], `voice-${Date.now()}.${ext}`, { type: mimeType });
+        cleanupRecordingStream();
+        onSendVoiceNote(formattedDuration, file);
+      };
+      recorder.stop();
+    } else {
+      cleanupRecordingStream();
+      onSendVoiceNote(formattedDuration);
     }
   };
 
-  const handleAttachItemClick = (type: 'photo' | 'camera' | 'file' | 'location' | 'contact') => {
+  const handleAttachItemClick = (type: ChatAttachmentActionType) => {
     onSendAttachment(type);
     setAttachOpen(false);
   };
 
+  if (disabledReason && !isAssistant) {
+    return (
+      <div className="w-full border-t border-neutral-100 bg-neutral-50 px-4 py-3 text-center text-xs font-medium text-neutral-500">
+        {disabledReason}
+      </div>
+    );
+  }
+
   return (
-    <div className="w-full bg-white z-20">
-      {/* Attachment popup menu */}
-      {attachOpen && (
-        <div className="flex items-center justify-around py-3 px-4 bg-neutral-50 border-b border-neutral-200 animate-slide-up">
+    <div className="z-20 w-full bg-white">
+      {attachOpen ? (
+        <div className="flex items-center justify-around border-b border-neutral-200 bg-neutral-50 px-4 py-3 animate-slide-up">
           <button
             type="button"
             onClick={() => handleAttachItemClick('file')}
             className="flex flex-col items-center gap-1.5 hover:opacity-80"
           >
-            <div className="w-10 h-10 rounded-full bg-neutral-200/80 text-neutral-700 flex items-center justify-center">
-              <FileText className="w-5 h-5" />
+            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-neutral-200/80 text-neutral-700">
+              <FileText className="h-5 w-5" />
             </div>
-            <span className="text-[11px] text-neutral-700 font-normal">Documento</span>
+            <span className="text-[11px] font-normal text-neutral-700">Documento</span>
           </button>
 
           <button
@@ -106,10 +190,21 @@ export default function WriteBar({
             onClick={() => handleAttachItemClick('photo')}
             className="flex flex-col items-center gap-1.5 hover:opacity-80"
           >
-            <div className="w-10 h-10 rounded-full bg-neutral-200/80 text-neutral-700 flex items-center justify-center">
-              <ImageIcon className="w-5 h-5" />
+            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-neutral-200/80 text-neutral-700">
+              <ImageIcon className="h-5 w-5" />
             </div>
-            <span className="text-[11px] text-neutral-700 font-normal">Foto</span>
+            <span className="text-[11px] font-normal text-neutral-700">Foto</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => handleAttachItemClick('video')}
+            className="flex flex-col items-center gap-1.5 hover:opacity-80"
+          >
+            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-neutral-200/80 text-neutral-700">
+              <Film className="h-5 w-5" />
+            </div>
+            <span className="text-[11px] font-normal text-neutral-700">Video</span>
           </button>
 
           <button
@@ -117,10 +212,10 @@ export default function WriteBar({
             onClick={() => handleAttachItemClick('camera')}
             className="flex flex-col items-center gap-1.5 hover:opacity-80"
           >
-            <div className="w-10 h-10 rounded-full bg-neutral-200/80 text-neutral-700 flex items-center justify-center">
-              <Camera className="w-5 h-5" />
+            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-neutral-200/80 text-neutral-700">
+              <Camera className="h-5 w-5" />
             </div>
-            <span className="text-[11px] text-neutral-700 font-normal">Cámara</span>
+            <span className="text-[11px] font-normal text-neutral-700">Cámara</span>
           </button>
 
           <button
@@ -128,10 +223,10 @@ export default function WriteBar({
             onClick={() => handleAttachItemClick('location')}
             className="flex flex-col items-center gap-1.5 hover:opacity-80"
           >
-            <div className="w-10 h-10 rounded-full bg-neutral-200/80 text-neutral-700 flex items-center justify-center">
-              <MapPin className="w-5 h-5" />
+            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-neutral-200/80 text-neutral-700">
+              <MapPin className="h-5 w-5" />
             </div>
-            <span className="text-[11px] text-neutral-700 font-normal">Ubicación</span>
+            <span className="text-[11px] font-normal text-neutral-700">Ubicación</span>
           </button>
 
           <button
@@ -139,22 +234,20 @@ export default function WriteBar({
             onClick={() => handleAttachItemClick('contact')}
             className="flex flex-col items-center gap-1.5 hover:opacity-80"
           >
-            <div className="w-10 h-10 rounded-full bg-neutral-200/80 text-neutral-700 flex items-center justify-center">
-              <User className="w-5 h-5" />
+            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-neutral-200/80 text-neutral-700">
+              <User className="h-5 w-5" />
             </div>
-            <span className="text-[11px] text-neutral-700 font-normal">Contacto</span>
+            <span className="text-[11px] font-normal text-neutral-700">Contacto</span>
           </button>
         </div>
-      )}
+      ) : null}
 
-      {/* Main write bar */}
       <div className="p-3">
         {isRecording ? (
-          /* Recording state UI */
-          <div className="flex items-center justify-between h-10 px-2">
+          <div className="flex h-10 items-center justify-between px-2">
             <div className="flex items-center gap-2">
-              <div className="w-2.5 h-2.5 rounded-full bg-red-500 animate-ping" />
-              <span className="text-xs text-neutral-800 font-normal">
+              <div className="h-2.5 w-2.5 animate-ping rounded-full bg-red-500" />
+              <span className="text-xs font-normal text-neutral-800">
                 Grabando... {Math.floor(recordTime / 60)}:
                 {(recordTime % 60).toString().padStart(2, '0')}
               </span>
@@ -163,21 +256,20 @@ export default function WriteBar({
               <button
                 type="button"
                 onClick={handleCancelRecord}
-                className="text-xs text-red-600 font-medium px-2 py-1 hover:underline"
+                className="px-2 py-1 text-xs font-medium text-red-600 hover:underline"
               >
                 Cancelar
               </button>
               <button
                 type="button"
                 onClick={handleStopRecord}
-                className="w-9 h-9 rounded-full bg-brand-primary text-white flex items-center justify-center"
+                className="flex h-9 w-9 items-center justify-center rounded-full bg-brand-primary text-white"
               >
-                <Send className="w-4 h-4" />
+                <Send className="h-4 w-4" />
               </button>
             </div>
           </div>
         ) : (
-          /* Normal input state UI */
           <form onSubmit={handleSend} className="flex items-center gap-2">
             {!isAssistant ? (
               <>
@@ -185,29 +277,29 @@ export default function WriteBar({
                   type="button"
                   onClick={() => setAttachOpen(!attachOpen)}
                   title="Adjuntar"
-                  className={`w-9.5 h-9.5 rounded-full flex items-center justify-center shrink-0 transition-colors ${
+                  className={`flex h-9.5 w-9.5 shrink-0 items-center justify-center rounded-full transition-colors ${
                     attachOpen ? 'bg-neutral-200 text-neutral-800' : 'text-neutral-500 hover:bg-neutral-100'
                   }`}
                 >
-                  {attachOpen ? <X className="w-5 h-5" /> : <Paperclip className="w-5 h-5" />}
+                  {attachOpen ? <X className="h-5 w-5" /> : <Paperclip className="h-5 w-5" />}
                 </button>
 
                 <button
                   type="button"
                   onClick={() => handleAttachItemClick('camera')}
                   title="Cámara"
-                  className="w-9.5 h-9.5 rounded-full text-neutral-500 hover:bg-neutral-100 flex items-center justify-center shrink-0"
+                  className="flex h-9.5 w-9.5 shrink-0 items-center justify-center rounded-full text-neutral-500 hover:bg-neutral-100"
                 >
-                  <Camera className="w-5 h-5" />
+                  <Camera className="h-5 w-5" />
                 </button>
 
                 <button
                   type="button"
                   onClick={() => handleAttachItemClick('location')}
                   title="Ubicación"
-                  className="w-9.5 h-9.5 rounded-full text-neutral-500 hover:bg-neutral-100 flex items-center justify-center shrink-0"
+                  className="flex h-9.5 w-9.5 shrink-0 items-center justify-center rounded-full text-neutral-500 hover:bg-neutral-100"
                 >
-                  <MapPin className="w-5 h-5" />
+                  <MapPin className="h-5 w-5" />
                 </button>
               </>
             ) : null}
@@ -228,29 +320,35 @@ export default function WriteBar({
 
             <input
               type="text"
-              placeholder={dictating ? 'Escuchando...' : isAssistant ? 'Pídele algo al asistente...' : 'Escribe un mensaje...'}
+              placeholder={
+                dictating
+                  ? 'Escuchando...'
+                  : isAssistant
+                    ? 'Pídele algo al asistente...'
+                    : 'Escribe un mensaje...'
+              }
               value={text}
               disabled={disabled || dictating}
               onChange={(e) => setText(e.target.value)}
-              className="flex-1 h-10 px-4 bg-neutral-100 border border-neutral-200/80 rounded-full text-xs font-normal text-neutral-900 outline-none focus:ring-2 focus:ring-brand-primary disabled:opacity-60"
+              className="h-10 flex-1 rounded-full border border-neutral-200/80 bg-neutral-100 px-4 text-xs font-normal text-neutral-900 outline-none focus:ring-2 focus:ring-brand-primary disabled:opacity-60"
             />
 
             {text.trim() || isAssistant ? (
               <button
                 type="submit"
                 disabled={disabled || !text.trim()}
-                className="w-9.5 h-9.5 rounded-full bg-brand-primary text-white flex items-center justify-center shrink-0 hover:bg-brand-dark transition-colors disabled:opacity-50"
+                className="flex h-9.5 w-9.5 shrink-0 items-center justify-center rounded-full bg-brand-primary text-white transition-colors hover:bg-brand-dark disabled:opacity-50"
               >
-                <Send className="w-4.5 h-4.5" />
+                <Send className="h-4.5 w-4.5" />
               </button>
             ) : (
               <button
                 type="button"
-                onClick={handleStartRecord}
+                onClick={() => void handleStartRecord()}
                 title="Nota de voz"
-                className="w-9.5 h-9.5 rounded-full bg-neutral-100 text-neutral-600 flex items-center justify-center shrink-0 hover:bg-neutral-200 transition-colors"
+                className="flex h-9.5 w-9.5 shrink-0 items-center justify-center rounded-full bg-neutral-100 text-neutral-600 transition-colors hover:bg-neutral-200"
               >
-                <Mic className="w-5 h-5" />
+                <Mic className="h-5 w-5" />
               </button>
             )}
           </form>

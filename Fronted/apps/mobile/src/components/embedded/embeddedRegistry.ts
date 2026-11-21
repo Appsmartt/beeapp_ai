@@ -18,7 +18,6 @@ import CommunityRoute from '../../../app/(main)/chat/community';
 import CommunityProfileRoute from '../../../app/(main)/chat/community-profile';
 import StorageScreen from '../../../app/(main)/storage/index';
 import StoragePreviewScreen from '../../../app/(main)/storage/preview';
-import StorageSignScreen from '../../../app/(main)/storage/sign';
 import CalendarScreen from '../../../app/(main)/calendar/index';
 import CalendarDetailScreen from '../../../app/(main)/calendar/detail';
 import CalendarEditScreen from '../../../app/(main)/calendar/edit';
@@ -72,7 +71,6 @@ export const EMBEDDED_SCREENS: Record<string, ComponentType<any>> = {
   '/(main)/chat/community-profile': CommunityProfileRoute,
   '/(main)/storage': StorageScreen,
   '/(main)/storage/preview': StoragePreviewScreen,
-  '/(main)/storage/sign': StorageSignScreen,
   '/(main)/calendar': CalendarScreen,
   '/(main)/calendar/detail': CalendarDetailScreen,
   '/(main)/calendar/edit': CalendarEditScreen,

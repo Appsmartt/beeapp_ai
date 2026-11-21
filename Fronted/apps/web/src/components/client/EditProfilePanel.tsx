@@ -259,6 +259,16 @@ export function EditProfilePanel({
   }, []);
 
   useEffect(() => {
+    if (!countries.length || !initialProfile) {
+      return;
+    }
+
+    setCountry((current) => (
+      current ?? getCountryByDialCode(initialProfile.phone_dial_code, countries)
+    ));
+  }, [countries, initialProfile]);
+
+  useEffect(() => {
     let isMounted = true;
 
     const loadProfile = async () => {
@@ -378,7 +388,12 @@ export function EditProfilePanel({
         }))
         .filter((socialLink) => Boolean(socialLink.url));
 
-      if (!country) {
+      const resolvedCountry = country
+        ?? getCountryByDialCode(initialProfile?.phone_dial_code ?? null, countries)
+        ?? countries[0]
+        ?? null;
+
+      if (!resolvedCountry) {
         setRequestError('Lista de países no disponible.');
         return;
       }
@@ -387,7 +402,7 @@ export function EditProfilePanel({
         first_name: firstName.trim(),
         last_name: lastName.trim(),
         email: email.trim().toLowerCase(),
-        phone_dial_code: country.dialCode.replace('+', ''),
+        phone_dial_code: resolvedCountry.dialCode.replace('+', ''),
         phone_number: phone.replace(/\D/g, ''),
         occupation: occupation.trim() || null,
         location: location.trim() || null,
@@ -806,7 +821,7 @@ export function EditProfilePanel({
           <button
             type="button"
             onClick={handleDiscard}
-            disabled={isSaving}
+            disabled={isSaving || isAvatarBusy}
             className="h-12 rounded-xl border border-[#E4D8F2] bg-white px-5 text-sm font-medium text-neutral-700 transition-colors hover:bg-[#F7F2FC] disabled:cursor-not-allowed disabled:opacity-60 sm:min-w-36"
           >
             Descartar
@@ -816,6 +831,7 @@ export function EditProfilePanel({
             type="submit"
             disabled={
               isSaving
+              || isAvatarBusy
               || !firstName.trim()
               || !lastName.trim()
               || !isEmailValid
