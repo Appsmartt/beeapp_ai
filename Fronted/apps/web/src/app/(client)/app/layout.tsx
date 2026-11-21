@@ -10,6 +10,7 @@ import NavigationProgress from '@/components/client/NavigationProgress';
 import { AppRouteSkeleton } from '@/components/client/RouteSkeleton';
 import { VoiceFabVisibility } from '@/components/client/VoiceAssistantFab';
 import IncomingCallManager from '@/components/client/chat/IncomingCallManager';
+import { setActiveBusinessCartUserId } from '@/lib/client/businessCart';
 import { getWebAuth } from '@/lib/client/webAuth';
 
 let sessionOnboarding: 'unknown' | 'complete' | 'incomplete' = 'unknown';
@@ -20,6 +21,10 @@ function OnboardingGate({ children }: { children: ReactNode }) {
   const router = useRouter();
   const { profile: authProfile } = useAuth();
   const currentUserId = authProfile?.id ?? null;
+
+  useEffect(() => {
+    setActiveBusinessCartUserId(currentUserId);
+  }, [currentUserId]);
 
   if (sessionOnboardingUserId !== currentUserId) {
     sessionOnboardingUserId = currentUserId;

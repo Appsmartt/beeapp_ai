@@ -32,6 +32,8 @@ export interface BusinessItem {
   services: BusinessService[];
   publicationStatus?: 'published' | 'paused' | 'archived' | 'suspended';
   offerType?: 'products' | 'services' | 'mixed';
+  logoUrl?: string | null;
+  isVerified?: boolean;
 }
 
 export function formatPrice(price: string | number): string {

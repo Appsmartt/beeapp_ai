@@ -11,6 +11,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import {
   ArrowLeft,
   BadgeCheck,
+  CalendarDays,
   ChevronLeft,
   ChevronRight,
   ClipboardList,
@@ -21,7 +22,10 @@ import {
   Store,
   Wrench,
 } from 'lucide-react';
-import { getPublicCommercialProductFeed } from '@beeapp/api-client';
+import {
+  getPublicCommercialProductFeed,
+  transcribeAssistantAudio,
+} from '@beeapp/api-client';
 import type {
   CommercialModality,
   CommercialOfferType,
@@ -30,6 +34,14 @@ import type {
 } from '@beeapp/shared-types';
 
 import { getWebAuth } from '@/lib/client/webAuth';
+import {
+  startBrowserRecording,
+  type BrowserRecording,
+} from '@/lib/client/assistantAudio';
+import {
+  validateVoiceRecordingDuration,
+  validateVoiceTranscript,
+} from '@/lib/client/voiceTranscriptValidation';
 import BeeServicesAiSearchCard from './BeeServicesAiSearchCard';
 
 const PAGE_SIZE = 5;
@@ -70,27 +82,6 @@ const MODALITY_LABEL: Record<string, string> = Object.fromEntries(
 
 type FeedTarget = 'both' | 'offers' | 'profiles';
 type OfferViewMode = 'grid' | 'list';
-
-type SpeechCtor = new () => {
-  lang: string;
-  interimResults: boolean;
-  onresult: ((event: {
-    results: ArrayLike<ArrayLike<{ transcript: string }>>;
-  }) => void) | null;
-  onerror: (() => void) | null;
-  onend: (() => void) | null;
-  start: () => void;
-  stop: () => void;
-};
-
-function speechCtor(): SpeechCtor | null {
-  if (typeof window === 'undefined') return null;
-  const host = window as Window & {
-    SpeechRecognition?: SpeechCtor;
-    webkitSpeechRecognition?: SpeechCtor;
-  };
-  return host.SpeechRecognition || host.webkitSpeechRecognition || null;
-}
 
 function moneyCop(amount: number | null): string {
   if (amount === null) return '';
@@ -165,10 +156,12 @@ export default function BeeServicesWorkspace() {
   const [pagingProfiles, setPagingProfiles] = useState(false);
   const [error, setError] = useState('');
   const [listening, setListening] = useState(false);
+  const [voiceBusy, setVoiceBusy] = useState(false);
   const [voiceNotice, setVoiceNotice] = useState('');
   const seedRef = useRef('');
   const requestRef = useRef(0);
-  const recognitionRef = useRef<{ stop: () => void } | null>(null);
+  const recordingRef = useRef<BrowserRecording | null>(null);
+  const resultsRef = useRef<HTMLDivElement | null>(null);
 
   const loadFeed = useCallback(async (params: {
     search: string;
@@ -265,38 +258,58 @@ export default function BeeServicesWorkspace() {
   }, [activeSearch, loadFeed, modality, offerType]);
 
   useEffect(() => () => {
-    recognitionRef.current?.stop();
+    recordingRef.current?.cancel();
   }, []);
 
-  const toggleVoice = () => {
-    const Ctor = speechCtor();
-    if (!Ctor) {
-      setVoiceNotice('El navegador no permite dictar la búsqueda. Escríbela en el campo.');
+  const toggleVoice = async () => {
+    if (voiceBusy) return;
+
+    if (listening && recordingRef.current) {
+      setListening(false);
+      setVoiceBusy(true);
+      setVoiceNotice('Transcribiendo tu búsqueda…');
+      try {
+        const clip = await recordingRef.current.stop();
+        recordingRef.current = null;
+        const durationCheck = validateVoiceRecordingDuration(clip.durationMs);
+        if (!durationCheck.ok) {
+          setVoiceNotice(durationCheck.message);
+          return;
+        }
+        const auth = await getWebAuth();
+        const res = await transcribeAssistantAudio(auth, clip.audioBase64, clip.mime);
+        const transcriptCheck = validateVoiceTranscript(res.text || '', {
+          minLength: MINIMUM_SEARCH_LENGTH,
+        });
+        if (!transcriptCheck.ok) {
+          setVoiceNotice(transcriptCheck.message);
+          return;
+        }
+        setSearch(transcriptCheck.text);
+        setActiveSearch(transcriptCheck.text);
+        setOffersPage(1);
+        setProfilesPage(1);
+        setVoiceNotice('');
+        window.setTimeout(() => {
+          resultsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }, 120);
+      } catch {
+        setVoiceNotice('No fue posible transcribir el audio. Inténtalo de nuevo o escribe tu búsqueda.');
+      } finally {
+        setVoiceBusy(false);
+      }
       return;
     }
 
-    if (listening) {
-      recognitionRef.current?.stop();
+    try {
+      setVoiceNotice('Escuchando… Toca nuevamente el micrófono al terminar.');
+      const recorder = await startBrowserRecording();
+      recordingRef.current = recorder;
+      setListening(true);
+    } catch {
+      setVoiceNotice('Permite el acceso al micrófono para dictar tu búsqueda.');
       setListening(false);
-      return;
     }
-
-    const recognition = new Ctor();
-    recognition.lang = 'es-CO';
-    recognition.interimResults = false;
-    recognition.onresult = (event) => {
-      const transcript = event.results[0]?.[0]?.transcript?.trim() || '';
-      if (transcript) setSearch(transcript);
-    };
-    recognition.onerror = () => {
-      setVoiceNotice('No se pudo escuchar. Inténtalo de nuevo.');
-      setListening(false);
-    };
-    recognition.onend = () => setListening(false);
-    recognitionRef.current = recognition;
-    setVoiceNotice('');
-    setListening(true);
-    recognition.start();
   };
 
   const emptyTitle = activeSearch
@@ -339,15 +352,20 @@ export default function BeeServicesWorkspace() {
             const text = search.trim();
             if (text.length > 0 && text.length < MINIMUM_SEARCH_LENGTH) return;
             setActiveSearch(text);
+            window.setTimeout(() => {
+              resultsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }, 80);
           }}
-          onPressVoice={toggleVoice}
+          onPressVoice={() => void toggleVoice()}
           listening={listening}
-          busy={false}
+          busy={voiceBusy}
         />
 
         {voiceNotice ? (
           <p className="mt-3 text-sm text-[#5E1ABF]" role="status">{voiceNotice}</p>
         ) : null}
+
+        <div ref={resultsRef} />
 
         <Link
           href="/app/beeservices/my-purchases"
@@ -476,9 +494,15 @@ export default function BeeServicesWorkspace() {
                         <span className="truncate">{profile.display_name}</span>
                         {profile.is_verified ? <BadgeCheck className="h-4 w-4 shrink-0 text-[#7427D5]" /> : null}
                       </span>
+                      {profile.description ? (
+                        <span className="mt-0.5 block truncate text-xs text-[#594C67]">
+                          {profile.description}
+                        </span>
+                      ) : null}
                       <span className="mt-0.5 flex items-center gap-1 text-xs text-[#6C7892]">
                         <MapPin className="h-3.5 w-3.5" />
                         {profile.city || 'Sin ciudad'}
+                        {profile.country_code ? `, ${profile.country_code}` : ''}
                       </span>
                       {profile.modalities.length > 0 ? (
                         <span className="mt-0.5 block truncate text-[11px] text-[#8A72B2]">
@@ -551,6 +575,16 @@ export default function BeeServicesWorkspace() {
                 const discounted = offer.original_price_amount != null
                   && offer.base_price_amount != null
                   && offer.original_price_amount > offer.base_price_amount;
+                const discountPct =
+                  offer.discount_percent && offer.discount_percent > 0
+                    ? Math.round(offer.discount_percent)
+                    : discounted && offer.original_price_amount && offer.base_price_amount != null
+                      ? Math.round(
+                          ((offer.original_price_amount - offer.base_price_amount) /
+                            offer.original_price_amount) *
+                            100,
+                        )
+                      : null;
                 return (
                   <li key={offer.id}>
                     <Link
@@ -559,7 +593,7 @@ export default function BeeServicesWorkspace() {
                         offerViewMode === 'grid' ? 'flex-col' : 'items-center'
                       }`}
                     >
-                      <span className={`flex shrink-0 items-center justify-center bg-[#F6EAFE] text-[#7B2DD9] ${
+                      <span className={`relative flex shrink-0 items-center justify-center bg-[#F6EAFE] text-[#7B2DD9] ${
                         offerViewMode === 'grid' ? 'h-28 w-full' : 'h-16 w-16'
                       }`}
                       >
@@ -570,10 +604,16 @@ export default function BeeServicesWorkspace() {
                         ) : (
                           <Wrench className="h-6 w-6" />
                         )}
+                        {discountPct ? (
+                          <span className="absolute left-2 top-2 rounded-full bg-rose-600 px-2 py-0.5 text-[10px] font-extrabold text-white shadow">
+                            -{discountPct}%
+                          </span>
+                        ) : null}
                       </span>
                       <span className="min-w-0 flex-1 px-3 py-2.5">
-                        <span className="block text-[11px] font-bold text-[#7642AE]">
-                          {offerKindLabel(offer)}
+                        <span className="flex items-center gap-1 text-[11px] font-bold text-[#7642AE]">
+                          {offer.requires_booking ? <CalendarDays className="h-3 w-3 shrink-0" /> : null}
+                          <span>{offerKindLabel(offer)}</span>
                         </span>
                         <span className="mt-0.5 block line-clamp-2 text-sm font-bold text-[#261743]">
                           {offer.title}

@@ -51,11 +51,10 @@ export default function ChatListPanel({
   onOpenArchived,
   searchEmpty = null,
 }: ChatListPanelProps) {
-  // Assistant AI chat is pinned on top and is not filtered out unless a category is explicitly active
-  const aiChat = activeCategoryId ? undefined : chats.find((c) => c.isAI);
+  const pinnedAiChat = activeCategoryId ? undefined : chats.find((c) => c.isAI && c.isPinned);
 
   const filteredChats = chats
-    .filter((c) => !c.isAI)
+    .filter((c) => !(c.isAI && c.isPinned))
     .filter((c) => !activeCategoryId || (c.categoryIds ?? []).includes(activeCategoryId))
     .sort((a, b) => (a.isPinned === b.isPinned ? 0 : a.isPinned ? -1 : 1));
 
@@ -94,15 +93,13 @@ export default function ChatListPanel({
           </button>
         ) : null}
 
-        {!loading && aiChat && (
+        {!loading && pinnedAiChat && (
           <AiChatListItem
-            chat={aiChat}
-            isSelected={selectedChatId === aiChat.id}
-            onClick={() => onSelectChat(aiChat)}
+            chat={pinnedAiChat}
+            isSelected={selectedChatId === pinnedAiChat.id}
+            onClick={() => onSelectChat(pinnedAiChat)}
             onPin={onPinChat}
             onMute={onMuteChat}
-            onAssignCategory={onAssignCategory}
-            onToggleProtection={onToggleProtection}
           />
         )}
 
@@ -114,18 +111,29 @@ export default function ChatListPanel({
         ) : null}
 
         {!loading && filteredChats.map((chat) => (
-          <ChatRow
-            key={chat.id}
-            chat={chat}
-            isSelected={selectedChatId === chat.id}
-            onClick={() => onSelectChat(chat)}
-            onPin={onPinChat}
-            onMute={onMuteChat}
-            onDelete={onDeleteChat}
-            onAssignCategory={onAssignCategory}
-            onToggleProtection={onToggleProtection}
-            onArchive={onArchiveChat}
-          />
+          chat.isAI ? (
+            <AiChatListItem
+              key={chat.id}
+              chat={chat}
+              isSelected={selectedChatId === chat.id}
+              onClick={() => onSelectChat(chat)}
+              onPin={onPinChat}
+              onMute={onMuteChat}
+            />
+          ) : (
+            <ChatRow
+              key={chat.id}
+              chat={chat}
+              isSelected={selectedChatId === chat.id}
+              onClick={() => onSelectChat(chat)}
+              onPin={onPinChat}
+              onMute={onMuteChat}
+              onDelete={onDeleteChat}
+              onAssignCategory={onAssignCategory}
+              onToggleProtection={onToggleProtection}
+              onArchive={onArchiveChat}
+            />
+          )
         ))}
       </div>
     </div>

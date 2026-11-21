@@ -625,6 +625,12 @@ export default function ChatModule({
           onBack={() => setSelectedChat(null)}
           onOpenProfile={() => setViewingProfile('chat')}
           onOpenAiSettings={() => setAiSettingsOpen(true)}
+          onMuteChanged={(nextMuted) => {
+            setChats((prev) =>
+              prev.map((c) => (c.id === selectedChat.id ? { ...c, isMuted: nextMuted } : c)),
+            );
+            setSelectedChat((curr) => (curr ? { ...curr, isMuted: nextMuted } : curr));
+          }}
           onArchiveChat={(id) => handleArchiveChat(id, true)}
           onNavigateToChat={(chatId, chatName) => {
             const target = chats.find((item) => item.id === chatId);

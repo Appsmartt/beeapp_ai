@@ -399,7 +399,12 @@ export default function AssistantTextPage() {
                         busy={sending}
                         onConfirm={(card, confirm) => void resolveAction(card, confirm)}
                         onChooseProvider={(item) => void sendText(buildChooseProviderMessage(item))}
-                        onOpenChat={(conversationId) => router.push(`/app?openChat=${encodeURIComponent(conversationId)}`)}
+                        onOpenChat={(conversationId) => {
+                          window.dispatchEvent(
+                            new CustomEvent('beeapp:open-chat', { detail: { conversationId } }),
+                          );
+                          router.push(`/app?openChat=${encodeURIComponent(conversationId)}`);
+                        }}
                       />
                     ) : null}
 

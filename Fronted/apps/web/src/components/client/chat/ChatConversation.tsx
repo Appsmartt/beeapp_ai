@@ -18,6 +18,7 @@ import {
 import type { AssistantCard } from '@beeapp/shared-types';
 import {
   cancelAssistantAction,
+  clearAssistantMessages,
   clearChatConversation,
   confirmAssistantAction,
   endCall,
@@ -79,6 +80,7 @@ interface ChatConversationProps {
   onBack: () => void;
   onOpenProfile: () => void;
   onOpenAiSettings?: () => void;
+  onMuteChanged?: (muted: boolean) => void;
   onNavigateToChat?: (chatId: string, chatName: string, initialText: string) => void;
   onArchiveChat?: (conversationId: string, archived: boolean) => void;
 }
@@ -106,6 +108,7 @@ export default function ChatConversation({
   onBack,
   onOpenProfile,
   onOpenAiSettings,
+  onMuteChanged,
   onNavigateToChat,
   onArchiveChat,
 }: ChatConversationProps) {
@@ -573,7 +576,9 @@ export default function ChatConversation({
     if (!identityId) return;
     const next = !muted;
     setMuted(next);
+    onMuteChanged?.(next);
     setMenuOpen(false);
+    if (isAI) return;
     void getWebAuth()
       .then((auth) =>
         updateChatConversationNotifications(auth, chat.id, {
@@ -581,7 +586,10 @@ export default function ChatConversation({
           notifications_enabled: !next,
         }),
       )
-      .catch(() => setMuted(!next));
+      .catch(() => {
+        setMuted(!next);
+        onMuteChanged?.(!next);
+      });
   };
 
   const clearConversation = () => {
@@ -589,7 +597,10 @@ export default function ChatConversation({
     if (!confirm('¿Vaciar todos los mensajes de este chat?')) return;
     if (isAI) {
       setMessages([]);
-      showToast('Conversación limpiada en pantalla.');
+      void getWebAuth()
+        .then((auth) => clearAssistantMessages(auth))
+        .catch(() => undefined);
+      showToast('Historial de conversación con el asistente limpiado.');
       return;
     }
     const identityId = chat.postingIdentityId;

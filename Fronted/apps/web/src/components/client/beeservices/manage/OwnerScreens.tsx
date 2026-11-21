@@ -1,8 +1,11 @@
 'use client';
 
-import { FormEvent, useEffect, useMemo, useState, type MouseEvent } from 'react';
+import { FormEvent, useEffect, useMemo, useRef, useState, type ChangeEvent, type MouseEvent } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import {
+  ArrowDown,
+  ArrowUp,
   BarChart3,
   BriefcaseBusiness,
   CalendarDays,
@@ -12,14 +15,20 @@ import {
   Clock3,
   Archive,
   Building2,
+  Camera,
+  ExternalLink,
+  FileUp,
   Landmark,
   Mail,
   MapPin,
   Package,
+  Pencil,
   Phone,
   Plus,
   Send,
+  Star,
   Timer,
+  Trash2,
   ShieldAlert,
   ShieldCheck,
   ShoppingBag,
@@ -28,7 +37,14 @@ import {
   Wallet,
   Wrench,
 } from 'lucide-react';
-import type { CommercialModality } from '@beeapp/shared-types';
+import type {
+  CommercialCategory,
+  CommercialModality,
+  CommercialOfferType,
+  CommercialPaymentPolicy,
+  CommercialPricingStrategy,
+  CommercialProfileSocialLink,
+} from '@beeapp/shared-types';
 import {
   formatCommercialRequestListAmount,
   formatCommercialRequestListDate,
@@ -40,22 +56,30 @@ import {
   type CommercialRequestListStatusTone,
 } from '@/lib/client/beeservices/commercialRequestListPresentation';
 import {
+  adjustOwnedCommercialOfferInventory,
   archiveOwnedCommercialCatalog,
   archiveOwnedCommercialOffer,
   archiveOwnedCommercialPaymentMethod,
-  completeCommercialRequest,
+  attachOwnedCommercialVerificationDocument,
   createOwnedCommercialCatalog,
   createOwnedCommercialOffer,
+  createOwnedCommercialOfferImage,
   createOwnedCommercialPaymentMethod,
-  getCommercialRequest,
+  deleteCommercialProfile,
+  deleteOwnedCommercialOffer,
+  deleteOwnedCommercialOfferImage,
+  deleteOwnedCommercialPaymentMethod,
+  getCommercialProfileDeletionStatus,
   getOwnedBusinessSalesMetrics,
   getOwnedCommercialCatalogs,
   getOwnedCommercialOffer,
+  getOwnedCommercialOfferDeletionStatus,
   getOwnedCommercialOffers,
   getOwnedCommercialPaymentMethods,
   getOwnedCommercialProfile,
   getOwnedCommercialRequests,
   getOwnedCommercialVerification,
+  getPublicCommercialCategories,
   pauseOwnedCommercialCatalog,
   pauseOwnedCommercialOffer,
   publishOwnedCommercialCatalog,
@@ -63,12 +87,16 @@ import {
   restoreOwnedCommercialCatalog,
   restoreOwnedCommercialOffer,
   saveOwnedCommercialVerification,
+  setOwnedCommercialOfferPrimaryImage,
   submitOwnedCommercialVerification,
-  transitionCommercialRequest,
   updateCommercialProfile,
   updateCommercialProfilePublication,
+  updateOwnedCommercialCatalog,
   updateOwnedCommercialOffer,
+  updateOwnedCommercialOfferImage,
   updateOwnedCommercialOfferModalities,
+  updateOwnedCommercialPaymentMethod,
+  uploadCurrentWebStorageFiles,
 } from '@beeapp/api-client';
 import type {
   BusinessSalesMetrics,
@@ -77,7 +105,6 @@ import type {
   CommercialOwnedPaymentMethod,
   CommercialOwnedProfile,
   CommercialPaymentMethodType,
-  CommercialRequestDetail,
   CommercialRequestListItem,
   CommercialVerificationRequest,
   CommercialVerificationStatus,
@@ -92,6 +119,18 @@ import {
   primaryButtonClass,
   secondaryButtonClass,
 } from '../CommercialShell';
+import ManageRequestDetailView from './ManageRequestDetailView';
+
+const ALL_MODALITIES: CommercialModality[] = [
+  'at_establishment',
+  'in_person',
+  'virtual',
+  'home_visit',
+  'delivery',
+  'pickup',
+  'phone_call',
+  'buddy_chat',
+];
 
 const DAYS = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
 
@@ -139,74 +178,18 @@ function StatusLine({ loading, error }: { loading: boolean; error: string }) {
   return null;
 }
 
-export function ManageHub({ businessId }: { businessId: string }) {
-  const { data, error, loading } = useAsync(async () => {
-    const auth = await getWebAuth();
-    return (await getOwnedCommercialProfile(auth, businessId)).profile;
-  }, [businessId]);
-
-  const links = [
-    ['Perfil', 'profile'],
-    ['Horario', 'hours'],
-    ['Operación', 'operation'],
-    ['Métodos de pago', 'payment-methods'],
-    ['Catálogos', 'catalogs'],
-    ['Ofertas', 'offers'],
-    ['Solicitudes', 'requests'],
-    ['Métricas', 'metrics'],
-    ['Verificación', 'verification'],
-  ] as const;
-
-  return (
-    <CommercialShell title={data?.display_name || 'Negocio'} description="Administra tu negocio" backHref="/app/beeservices/my-businesses">
-      {loading ? <ListSkeleton rows={3} /> : null}
-      {error ? <p className="text-sm text-rose-600">{error}</p> : null}
-      {data ? (
-        <div className="space-y-4">
-          <p className="text-sm text-[#594C67]">
-            {data.city} · {data.publication_status} · {data.verification_status}
-          </p>
-          <div className="grid gap-2 sm:grid-cols-2">
-            {links.map(([label, path]) => (
-              <Link
-                key={path}
-                href={`/app/beeservices/manage/${businessId}/${path}`}
-                className="rounded-2xl border border-[#F0EAF3] bg-white px-4 py-4 text-sm font-semibold text-[#261743] hover:bg-[#F6EAFE]"
-              >
-                {label}
-              </Link>
-            ))}
-          </div>
-        </div>
-      ) : null}
-    </CommercialShell>
-  );
-}
-
 export function ManageProfile({ businessId }: { businessId: string }) {
+  const router = useRouter();
   const loaded = useAsync(async () => {
     const auth = await getWebAuth();
     return (await getOwnedCommercialProfile(auth, businessId)).profile;
   }, [businessId]);
   const [notice, setNotice] = useState('');
 
-  const save = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    const form = new FormData(event.currentTarget);
+  const save = async (payload: Parameters<typeof updateCommercialProfile>[2]) => {
     try {
       const auth = await getWebAuth();
-      await updateCommercialProfile(auth, businessId, {
-        display_name: String(form.get('display_name') || ''),
-        description: String(form.get('description') || ''),
-        city: String(form.get('city') || ''),
-        address: String(form.get('address') || ''),
-        phone_dial_code: String(form.get('phone_dial_code') || ''),
-        phone_number: String(form.get('phone_number') || ''),
-        public_email: String(form.get('public_email') || ''),
-        is_address_public: form.get('is_address_public') === 'on',
-        is_phone_public: form.get('is_phone_public') === 'on',
-        is_email_public: form.get('is_email_public') === 'on',
-      });
+      await updateCommercialProfile(auth, businessId, payload);
       setNotice('Perfil actualizado.');
       loaded.reload();
     } catch (saveError) {
@@ -214,10 +197,17 @@ export function ManageProfile({ businessId }: { businessId: string }) {
     }
   };
 
-  const publish = async (status: 'published' | 'paused' | 'archived') => {
+  const publish = async (
+    status: 'published' | 'paused' | 'archived',
+    reason?: { reason_code?: string; reason_text?: string },
+  ) => {
     try {
       const auth = await getWebAuth();
-      await updateCommercialProfilePublication(auth, businessId, { publication_status: status });
+      await updateCommercialProfilePublication(auth, businessId, {
+        publication_status: status,
+        reason_code: reason?.reason_code || null,
+        reason_text: reason?.reason_text || null,
+      });
       setNotice(
         status === 'published'
           ? 'Negocio publicado.'
@@ -231,6 +221,26 @@ export function ManageProfile({ businessId }: { businessId: string }) {
     }
   };
 
+  const handleDeleteBusiness = async () => {
+    try {
+      const auth = await getWebAuth();
+      const status = await getCommercialProfileDeletionStatus(auth, businessId);
+      if (!status.can_delete) {
+        setNotice(
+          `No puedes eliminar este negocio porque tiene ${status.orders} solicitudes y ${status.chats} chats registrados. Puedes archivarlo.`,
+        );
+        return;
+      }
+      if (!confirm('¿Eliminar permanentemente este negocio? Esta acción no se puede deshacer.')) {
+        return;
+      }
+      await deleteCommercialProfile(auth, businessId);
+      router.push('/app/beeservices/my-businesses');
+    } catch (err) {
+      setNotice(actionError(err, 'No fue posible eliminar el negocio.'));
+    }
+  };
+
   const profile = loaded.data;
   return (
     <CommercialShell title="Perfil del negocio" backHref={`/app/beeservices/manage/${businessId}`} wide compact>
@@ -239,9 +249,11 @@ export function ManageProfile({ businessId }: { businessId: string }) {
         <ProfileForm
           key={profile.updated_at || profile.id}
           profile={profile}
-          onSubmit={save}
+          onSave={save}
           onPublish={publish}
+          onDelete={handleDeleteBusiness}
           notice={notice}
+          setNotice={setNotice}
         />
       ) : null}
     </CommercialShell>
@@ -288,25 +300,149 @@ function profilePublicationPresentation(status: CommercialOwnedProfile['publicat
 
 function ProfileForm({
   profile,
-  onSubmit,
+  onSave,
   onPublish,
+  onDelete,
   notice,
+  setNotice,
 }: {
   profile: CommercialOwnedProfile;
-  onSubmit: (event: FormEvent<HTMLFormElement>) => void;
-  onPublish: (status: 'published' | 'paused' | 'archived') => void;
+  onSave: (payload: Parameters<typeof updateCommercialProfile>[2]) => Promise<void>;
+  onPublish: (
+    status: 'published' | 'paused' | 'archived',
+    reason?: { reason_code?: string; reason_text?: string },
+  ) => Promise<void>;
+  onDelete: () => Promise<void>;
   notice: string;
+  setNotice: (val: string) => void;
 }) {
   const [displayName, setDisplayName] = useState(profile.display_name);
   const [description, setDescription] = useState(profile.description || '');
+  const [offerType, setOfferType] = useState<CommercialOfferType>(profile.offer_type || 'mixed');
+  const [countryCode, setCountryCode] = useState(profile.country_code || 'CO');
   const [city, setCity] = useState(profile.city || '');
   const [address, setAddress] = useState(profile.address || '');
+  const [neighborhood, setNeighborhood] = useState(profile.neighborhood || '');
+  const [locationReference, setLocationReference] = useState(profile.location_reference || '');
   const [phoneDialCode, setPhoneDialCode] = useState(profile.phone_dial_code || '+57');
   const [phoneNumber, setPhoneNumber] = useState(profile.phone_number || '');
   const [publicEmail, setPublicEmail] = useState(profile.public_email || '');
   const [isAddressPublic, setIsAddressPublic] = useState(profile.is_address_public);
   const [isPhonePublic, setIsPhonePublic] = useState(profile.is_phone_public);
   const [isEmailPublic, setIsEmailPublic] = useState(profile.is_email_public);
+  const [customActivityText, setCustomActivityText] = useState(profile.custom_activity_text || '');
+  const [logoFileId, setLogoFileId] = useState<string | null>(profile.logo_file_id);
+  const [logoPreviewUrl, setLogoPreviewUrl] = useState<string | null>(profile.logo_url);
+  const [uploadingLogo, setUploadingLogo] = useState(false);
+  const logoInputRef = useRef<HTMLInputElement>(null);
+
+  const [selectedModalities, setSelectedModalities] = useState<CommercialModality[]>(() =>
+    (profile.modalities || [])
+      .filter((m) => m.status !== 'archived')
+      .map((m) => m.modality),
+  );
+
+  const [availableCategories, setAvailableCategories] = useState<CommercialCategory[]>([]);
+  const [selectedCategoryIds, setSelectedCategoryIds] = useState<string[]>(
+    () => profile.category_ids || (profile.category_id ? [profile.category_id] : []),
+  );
+
+  const getSocialUrl = (platform: CommercialProfileSocialLink['platform']) =>
+    profile.social_links?.find((s) => s.platform === platform)?.url || '';
+
+  const [instagramUrl, setInstagramUrl] = useState(() => getSocialUrl('instagram'));
+  const [websiteUrl, setWebsiteUrl] = useState(() => getSocialUrl('website'));
+  const [facebookUrl, setFacebookUrl] = useState(() => getSocialUrl('facebook'));
+  const [tiktokUrl, setTiktokUrl] = useState(() => getSocialUrl('tiktok'));
+
+  // Archive modal state
+  const [archiveModalOpen, setArchiveModalOpen] = useState(false);
+  const [archiveReasonCode, setArchiveReasonCode] = useState('seasonal_pause');
+  const [archiveReasonText, setArchiveReasonText] = useState('');
+
+  useEffect(() => {
+    let active = true;
+    void getWebAuth()
+      .then((auth) => getPublicCommercialCategories(auth, { offer_type: offerType, limit: 100 }))
+      .then((res) => {
+        if (active) setAvailableCategories(res.categories || []);
+      })
+      .catch(() => undefined);
+    return () => {
+      active = false;
+    };
+  }, [offerType]);
+
+  const handleLogoFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+    setUploadingLogo(true);
+    setNotice('');
+    try {
+      const formData = new FormData();
+      formData.append('files', file);
+      const uploaded = await uploadCurrentWebStorageFiles(formData);
+      const created = uploaded.files?.[0];
+      if (created?.id) {
+        setLogoFileId(created.id);
+        setLogoPreviewUrl(URL.createObjectURL(file));
+        setNotice('Logo cargado. Guarda los cambios para aplicarlo.');
+      }
+    } catch (err) {
+      setNotice(actionError(err, 'No se pudo subir el logo.'));
+    } finally {
+      setUploadingLogo(false);
+    }
+  };
+
+  const toggleModality = (mod: CommercialModality) => {
+    setSelectedModalities((curr) =>
+      curr.includes(mod) ? curr.filter((m) => m !== mod) : [...curr, mod],
+    );
+  };
+
+  const toggleCategory = (catId: string) => {
+    setSelectedCategoryIds((curr) => {
+      if (curr.includes(catId)) return curr.filter((id) => id !== catId);
+      if (curr.length >= 5) {
+        setNotice('Puedes elegir máximo 5 categorías.');
+        return curr;
+      }
+      return [...curr, catId];
+    });
+  };
+
+  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const socialLinks: CommercialProfileSocialLink[] = [];
+    if (instagramUrl.trim()) socialLinks.push({ platform: 'instagram', url: instagramUrl.trim() });
+    if (websiteUrl.trim()) socialLinks.push({ platform: 'website', url: websiteUrl.trim() });
+    if (facebookUrl.trim()) socialLinks.push({ platform: 'facebook', url: facebookUrl.trim() });
+    if (tiktokUrl.trim()) socialLinks.push({ platform: 'tiktok', url: tiktokUrl.trim() });
+
+    void onSave({
+      display_name: displayName.trim(),
+      description: description.trim(),
+      offer_type: offerType,
+      country_code: countryCode.trim().toUpperCase() || 'CO',
+      city: city.trim(),
+      address: address.trim() || null,
+      neighborhood: neighborhood.trim() || null,
+      location_reference: locationReference.trim() || null,
+      phone_dial_code: phoneDialCode.trim() || '+57',
+      phone_number: phoneNumber.trim() || null,
+      public_email: publicEmail.trim() || null,
+      is_address_public: Boolean(address.trim()) && isAddressPublic,
+      is_phone_public: Boolean(phoneNumber.trim()) && isPhonePublic,
+      is_email_public: Boolean(publicEmail.trim()) && isEmailPublic,
+      logo_file_id: logoFileId,
+      modalities: selectedModalities,
+      category_ids: selectedCategoryIds,
+      custom_activity_text: customActivityText.trim() || null,
+      social_links: socialLinks,
+    });
+  };
 
   const publication = profilePublicationPresentation(profile.publication_status);
   const descriptionPreview = description.trim();
@@ -323,21 +459,37 @@ function ProfileForm({
         <div className="min-w-0">
           <h2 className="text-base font-extrabold text-[#261743]">Cara pública del negocio</h2>
           <p className="mt-1 text-xs leading-relaxed text-[#786593]">
-            Nombre, contacto y ubicación son lo primero que ven tus clientes. Marca qué datos quieres mostrar.
+            Nombre, logo, categorías, modalidades, contacto y ubicación son lo primero que ven tus clientes.
           </p>
         </div>
       </div>
 
-      <form onSubmit={onSubmit} className="grid gap-5 md:gap-6 lg:grid-cols-[minmax(0,320px)_minmax(0,1fr)] lg:items-start xl:grid-cols-[minmax(300px,360px)_minmax(0,1fr)]">
+      <form onSubmit={handleSubmit} className="grid gap-5 md:gap-6 lg:grid-cols-[minmax(0,320px)_minmax(0,1fr)] lg:items-start xl:grid-cols-[minmax(300px,360px)_minmax(0,1fr)]">
         <aside className="space-y-4 lg:sticky lg:top-20">
           <article className="overflow-hidden rounded-2xl border border-[#E7DDF2] bg-white shadow-[0_10px_30px_rgba(116,39,213,0.08)]">
             <div className="flex items-center gap-4 border-b border-[#F1EAF6] bg-gradient-to-br from-[#F6EAFE] to-white p-4 sm:p-5">
-              <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-[#E8D1F1] bg-white shadow-sm">
-                {profile.logo_url ? (
-                  <img src={profile.logo_url} alt="" className="h-full w-full object-cover" />
+              <div className="relative flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-[#E8D1F1] bg-white shadow-sm">
+                {logoPreviewUrl ? (
+                  <img src={logoPreviewUrl} alt="" className="h-full w-full object-cover" />
                 ) : (
                   <Building2 className="h-8 w-8 text-[#7427D5]" aria-hidden />
                 )}
+                <button
+                  type="button"
+                  onClick={() => logoInputRef.current?.click()}
+                  disabled={uploadingLogo}
+                  title="Cambiar logo"
+                  className="absolute bottom-0.5 right-0.5 flex h-6 w-6 items-center justify-center rounded-full bg-[#7427D5] text-white shadow"
+                >
+                  <Camera className="h-3.5 w-3.5" />
+                </button>
+                <input
+                  ref={logoInputRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={(e) => void handleLogoFileChange(e)}
+                />
               </div>
               <div className="min-w-0">
                 <p className="text-[10px] font-extrabold uppercase tracking-wide text-[#8A72B2]">Vista previa</p>
@@ -347,7 +499,7 @@ function ProfileForm({
                 {city.trim() ? (
                   <p className="mt-1 flex items-center gap-1.5 text-xs font-semibold text-[#7A579D]">
                     <MapPin className="h-3.5 w-3.5 shrink-0" aria-hidden />
-                    {city.trim()}
+                    {city.trim()} ({countryCode})
                   </p>
                 ) : null}
               </div>
@@ -398,26 +550,41 @@ function ProfileForm({
                 <button
                   type="button"
                   className={`${primaryButtonClass} w-full text-sm`}
-                  onClick={() => onPublish('published')}
+                  onClick={() => void onPublish('published')}
                 >
                   Publicar
                 </button>
                 <button
                   type="button"
                   className={`${secondaryButtonClass} w-full text-sm`}
-                  onClick={() => onPublish('paused')}
+                  onClick={() => void onPublish('paused')}
                 >
                   Pausar
                 </button>
                 <button
                   type="button"
                   className={`${secondaryButtonClass} w-full text-sm`}
-                  onClick={() => onPublish('archived')}
+                  onClick={() => setArchiveModalOpen(true)}
                 >
                   Archivar
                 </button>
               </div>
             ) : null}
+          </div>
+
+          <div className="rounded-2xl border border-rose-200 bg-rose-50/60 p-4 shadow-sm">
+            <p className="text-[10px] font-extrabold uppercase tracking-wide text-rose-700">Zona de peligro</p>
+            <p className="mt-1 text-xs text-rose-800">
+              Solo puedes eliminar el negocio si no registra solicitudes ni conversaciones activas.
+            </p>
+            <button
+              type="button"
+              onClick={() => void onDelete()}
+              className="mt-3 inline-flex h-9 w-full items-center justify-center gap-1.5 rounded-xl border border-rose-300 bg-white px-3 text-xs font-bold text-rose-700 hover:bg-rose-100"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+              Eliminar negocio
+            </button>
           </div>
         </aside>
 
@@ -429,19 +596,44 @@ function ProfileForm({
 
           <div className="space-y-5 p-4 sm:p-5">
             <section className="space-y-4">
-              <h4 className="text-[11px] font-extrabold uppercase tracking-wide text-[#8A72B2]">Identidad</h4>
-              <div>
-                <label className={profileFieldLabelClass} htmlFor="profile-display-name">Nombre</label>
-                <input
-                  id="profile-display-name"
-                  name="display_name"
-                  value={displayName}
-                  onChange={(event) => setDisplayName(event.target.value)}
-                  className={fieldClass}
-                  required
-                  maxLength={200}
-                  placeholder="Nombre comercial"
-                />
+              <h4 className="text-[11px] font-extrabold uppercase tracking-wide text-[#8A72B2]">Identidad y tipo de oferta</h4>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="sm:col-span-2">
+                  <label className={profileFieldLabelClass} htmlFor="profile-display-name">Nombre comercial</label>
+                  <input
+                    id="profile-display-name"
+                    name="display_name"
+                    value={displayName}
+                    onChange={(event) => setDisplayName(event.target.value)}
+                    className={fieldClass}
+                    required
+                    maxLength={200}
+                    placeholder="Nombre comercial"
+                  />
+                </div>
+                <div>
+                  <label className={profileFieldLabelClass} htmlFor="profile-offer-type">¿Qué ofreces?</label>
+                  <select
+                    id="profile-offer-type"
+                    value={offerType}
+                    onChange={(e) => setOfferType(e.target.value as CommercialOfferType)}
+                    className={fieldClass}
+                  >
+                    <option value="products">Solo productos</option>
+                    <option value="services">Solo servicios</option>
+                    <option value="mixed">Productos y servicios</option>
+                  </select>
+                </div>
+                <div>
+                  <label className={profileFieldLabelClass} htmlFor="profile-custom-activity">Actividad o especialidad</label>
+                  <input
+                    id="profile-custom-activity"
+                    value={customActivityText}
+                    onChange={(e) => setCustomActivityText(e.target.value)}
+                    placeholder="Ej. Cafetería de especialidad"
+                    className={fieldClass}
+                  />
+                </div>
               </div>
               <div>
                 <label className={profileFieldLabelClass} htmlFor="profile-description">Descripción</label>
@@ -458,10 +650,80 @@ function ProfileForm({
               </div>
             </section>
 
+            {/* Categorías (hasta 5) */}
+            {availableCategories.length > 0 ? (
+              <section className="space-y-2">
+                <h4 className="text-[11px] font-extrabold uppercase tracking-wide text-[#8A72B2]">
+                  Categorías ({selectedCategoryIds.length}/5)
+                </h4>
+                <div className="flex max-h-40 flex-wrap gap-1.5 overflow-y-auto rounded-xl border border-[#E8D1F1] bg-white p-2.5">
+                  {availableCategories.map((cat) => {
+                    const active = selectedCategoryIds.includes(cat.id);
+                    return (
+                      <button
+                        key={cat.id}
+                        type="button"
+                        onClick={() => toggleCategory(cat.id)}
+                        className={`rounded-full border px-2.5 py-1 text-xs font-bold transition ${
+                          active
+                            ? 'border-[#7427D5] bg-[#7427D5] text-white'
+                            : 'border-[#E7DDF2] bg-[#FAF7FD] text-[#5E506B] hover:border-[#C9A8E8]'
+                        }`}
+                      >
+                        {cat.name}
+                      </button>
+                    );
+                  })}
+                </div>
+              </section>
+            ) : null}
+
+            {/* Modalidades (8) */}
+            <section className="space-y-2">
+              <h4 className="text-[11px] font-extrabold uppercase tracking-wide text-[#8A72B2]">Modalidades de atención</h4>
+              <div className="flex flex-wrap gap-2">
+                {ALL_MODALITIES.map((mod) => {
+                  const active = selectedModalities.includes(mod);
+                  return (
+                    <button
+                      key={mod}
+                      type="button"
+                      onClick={() => toggleModality(mod)}
+                      className={`rounded-full border px-3 py-1.5 text-xs font-extrabold transition ${
+                        active
+                          ? 'border-[#7427D5] bg-[#7427D5] text-white shadow-sm'
+                          : 'border-[#E7DDF2] bg-white text-[#5E506B] hover:border-[#C9A8E8]'
+                      }`}
+                    >
+                      {getCommercialModalityLabel(mod)}
+                    </button>
+                  );
+                })}
+              </div>
+            </section>
+
             <section className="space-y-4">
               <h4 className="text-[11px] font-extrabold uppercase tracking-wide text-[#8A72B2]">Ubicación</h4>
               <div className="grid gap-4 sm:grid-cols-2">
-                <div className="sm:col-span-2 md:col-span-1">
+                <div>
+                  <label className={profileFieldLabelClass} htmlFor="profile-country">País</label>
+                  <select
+                    id="profile-country"
+                    value={countryCode}
+                    onChange={(e) => setCountryCode(e.target.value)}
+                    className={fieldClass}
+                  >
+                    <option value="CO">Colombia (CO)</option>
+                    <option value="MX">México (MX)</option>
+                    <option value="PE">Perú (PE)</option>
+                    <option value="CL">Chile (CL)</option>
+                    <option value="AR">Argentina (AR)</option>
+                    <option value="EC">Ecuador (EC)</option>
+                    <option value="US">Estados Unidos (US)</option>
+                    <option value="ES">España (ES)</option>
+                  </select>
+                </div>
+                <div>
                   <label className={profileFieldLabelClass} htmlFor="profile-city">Ciudad</label>
                   <input
                     id="profile-city"
@@ -472,23 +734,47 @@ function ProfileForm({
                     placeholder="Ej. Medellín"
                   />
                 </div>
+                <div>
+                  <label className={profileFieldLabelClass} htmlFor="profile-neighborhood">Barrio / Sector</label>
+                  <input
+                    id="profile-neighborhood"
+                    value={neighborhood}
+                    onChange={(event) => setNeighborhood(event.target.value)}
+                    className={fieldClass}
+                    placeholder="Ej. El Poblado"
+                  />
+                </div>
+                <div>
+                  <label className={profileFieldLabelClass} htmlFor="profile-loc-ref">Referencia de ubicación</label>
+                  <input
+                    id="profile-loc-ref"
+                    value={locationReference}
+                    onChange={(event) => setLocationReference(event.target.value)}
+                    className={fieldClass}
+                    placeholder="Ej. Local 204, junto al parque"
+                  />
+                </div>
                 <div className="sm:col-span-2">
                   <label className={profileFieldLabelClass} htmlFor="profile-address">Dirección</label>
                   <input
                     id="profile-address"
                     name="address"
                     value={address}
-                    onChange={(event) => setAddress(event.target.value)}
+                    onChange={(event) => {
+                      setAddress(event.target.value);
+                      if (!event.target.value.trim()) setIsAddressPublic(false);
+                    }}
                     className={fieldClass}
                     placeholder="Calle, número, barrio"
                   />
                 </div>
               </div>
-              <label className="flex cursor-pointer items-center gap-2 rounded-xl border border-[#E8D1F1] bg-white px-3 py-3 text-sm font-semibold text-[#38294E]">
+              <label className={`flex cursor-pointer items-center gap-2 rounded-xl border border-[#E8D1F1] bg-white px-3 py-3 text-sm font-semibold text-[#38294E] ${!address.trim() ? 'opacity-50' : ''}`}>
                 <input
                   type="checkbox"
                   name="is_address_public"
-                  checked={isAddressPublic}
+                  disabled={!address.trim()}
+                  checked={Boolean(address.trim()) && isAddressPublic}
                   onChange={(event) => setIsAddressPublic(event.target.checked)}
                   className="rounded border-[#C9A8E8] text-[#7427D5]"
                 />
@@ -517,18 +803,22 @@ function ProfileForm({
                     id="profile-phone"
                     name="phone_number"
                     value={phoneNumber}
-                    onChange={(event) => setPhoneNumber(event.target.value)}
+                    onChange={(event) => {
+                      setPhoneNumber(event.target.value);
+                      if (!event.target.value.trim()) setIsPhonePublic(false);
+                    }}
                     className={fieldClass}
                     placeholder="300 000 0000"
                     autoComplete="tel-national"
                   />
                 </div>
               </div>
-              <label className="flex cursor-pointer items-center gap-2 rounded-xl border border-[#E8D1F1] bg-white px-3 py-3 text-sm font-semibold text-[#38294E]">
+              <label className={`flex cursor-pointer items-center gap-2 rounded-xl border border-[#E8D1F1] bg-white px-3 py-3 text-sm font-semibold text-[#38294E] ${!phoneNumber.trim() ? 'opacity-50' : ''}`}>
                 <input
                   type="checkbox"
                   name="is_phone_public"
-                  checked={isPhonePublic}
+                  disabled={!phoneNumber.trim()}
+                  checked={Boolean(phoneNumber.trim()) && isPhonePublic}
                   onChange={(event) => setIsPhonePublic(event.target.checked)}
                   className="rounded border-[#C9A8E8] text-[#7427D5]"
                 />
@@ -541,22 +831,68 @@ function ProfileForm({
                   name="public_email"
                   type="email"
                   value={publicEmail}
-                  onChange={(event) => setPublicEmail(event.target.value)}
+                  onChange={(event) => {
+                    setPublicEmail(event.target.value);
+                    if (!event.target.value.trim()) setIsEmailPublic(false);
+                  }}
                   className={fieldClass}
                   placeholder="contacto@tunegocio.com"
                   autoComplete="email"
                 />
               </div>
-              <label className="flex cursor-pointer items-center gap-2 rounded-xl border border-[#E8D1F1] bg-white px-3 py-3 text-sm font-semibold text-[#38294E]">
+              <label className={`flex cursor-pointer items-center gap-2 rounded-xl border border-[#E8D1F1] bg-white px-3 py-3 text-sm font-semibold text-[#38294E] ${!publicEmail.trim() ? 'opacity-50' : ''}`}>
                 <input
                   type="checkbox"
                   name="is_email_public"
-                  checked={isEmailPublic}
+                  disabled={!publicEmail.trim()}
+                  checked={Boolean(publicEmail.trim()) && isEmailPublic}
                   onChange={(event) => setIsEmailPublic(event.target.checked)}
                   className="rounded border-[#C9A8E8] text-[#7427D5]"
                 />
                 Mostrar correo a clientes
               </label>
+            </section>
+
+            <section className="space-y-4">
+              <h4 className="text-[11px] font-extrabold uppercase tracking-wide text-[#8A72B2]">Redes sociales y sitio web</h4>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div>
+                  <label className={profileFieldLabelClass}>Instagram</label>
+                  <input
+                    value={instagramUrl}
+                    onChange={(e) => setInstagramUrl(e.target.value)}
+                    placeholder="https://instagram.com/tunegocio"
+                    className={fieldClass}
+                  />
+                </div>
+                <div>
+                  <label className={profileFieldLabelClass}>Sitio web</label>
+                  <input
+                    value={websiteUrl}
+                    onChange={(e) => setWebsiteUrl(e.target.value)}
+                    placeholder="https://tunegocio.com"
+                    className={fieldClass}
+                  />
+                </div>
+                <div>
+                  <label className={profileFieldLabelClass}>Facebook</label>
+                  <input
+                    value={facebookUrl}
+                    onChange={(e) => setFacebookUrl(e.target.value)}
+                    placeholder="https://facebook.com/tunegocio"
+                    className={fieldClass}
+                  />
+                </div>
+                <div>
+                  <label className={profileFieldLabelClass}>TikTok</label>
+                  <input
+                    value={tiktokUrl}
+                    onChange={(e) => setTiktokUrl(e.target.value)}
+                    placeholder="https://tiktok.com/@tunegocio"
+                    className={fieldClass}
+                  />
+                </div>
+              </div>
             </section>
           </div>
 
@@ -574,6 +910,64 @@ function ProfileForm({
           </div>
         </div>
       </form>
+
+      {archiveModalOpen ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-md rounded-3xl bg-white p-6 shadow-xl">
+            <h3 className="text-base font-extrabold text-[#261743]">Archivar negocio</h3>
+            <p className="mt-1 text-xs text-[#786593]">
+              El negocio dejará de aparecer en el directorio público. Podrás restaurarlo cuando quieras.
+            </p>
+            <div className="mt-4 space-y-3 text-xs">
+              <div>
+                <label className={profileFieldLabelClass}>Motivo principal</label>
+                <select
+                  value={archiveReasonCode}
+                  onChange={(e) => setArchiveReasonCode(e.target.value)}
+                  className={fieldClass}
+                >
+                  <option value="seasonal_pause">Pausa temporal / Vacaciones</option>
+                  <option value="restructuring">Reestructuración del negocio</option>
+                  <option value="closing">Cierre de operaciones</option>
+                  <option value="other">Otro motivo</option>
+                </select>
+              </div>
+              <div>
+                <label className={profileFieldLabelClass}>Detalle adicional (opcional)</label>
+                <textarea
+                  rows={2}
+                  value={archiveReasonText}
+                  onChange={(e) => setArchiveReasonText(e.target.value)}
+                  placeholder="Comentario opcional…"
+                  className={fieldClass}
+                />
+              </div>
+            </div>
+            <div className="mt-5 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setArchiveModalOpen(false)}
+                className={secondaryButtonClass}
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setArchiveModalOpen(false);
+                  void onPublish('archived', {
+                    reason_code: archiveReasonCode,
+                    reason_text: archiveReasonText.trim() || undefined,
+                  });
+                }}
+                className={primaryButtonClass}
+              >
+                Confirmar archivo
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -600,9 +994,11 @@ function buildWeeklyHourRows(hours: CommercialOwnedProfile['hours'] | undefined)
 function HoursScheduleForm({
   businessId,
   initialHours,
+  timezone,
 }: {
   businessId: string;
   initialHours: CommercialOwnedProfile['hours'];
+  timezone: string;
 }) {
   const [rows, setRows] = useState<WeeklyHourRow[]>(() => buildWeeklyHourRows(initialHours));
   const [notice, setNotice] = useState('');
@@ -620,8 +1016,16 @@ function HoursScheduleForm({
 
   const save = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    setSaving(true);
     setNotice('');
+    for (const row of rows) {
+      if (!row.is_closed) {
+        if (!row.opens_at || !row.closes_at || row.closes_at <= row.opens_at) {
+          setNotice(`En ${DAYS[row.day_of_week]}, la hora de cierre debe ser posterior a la hora de apertura.`);
+          return;
+        }
+      }
+    }
+    setSaving(true);
     const hours = rows.map((row) => ({
       day_of_week: row.day_of_week,
       is_closed: row.is_closed,
@@ -642,8 +1046,8 @@ function HoursScheduleForm({
   const openDays = rows.filter((row) => !row.is_closed).length;
 
   const summarySuffix = openDays > 0
-    ? `Abres ${openDays} ${openDays === 1 ? 'día' : 'días'} a la semana.`
-    : 'Marca los días que atiendes.';
+    ? `Abres ${openDays} ${openDays === 1 ? 'día' : 'días'} a la semana. Zona horaria: ${timezone}.`
+    : `Marca los días que atiendes. Zona horaria: ${timezone}.`;
 
   const renderStatusToggle = (row: WeeklyHourRow, label: string) => {
     const closed = row.is_closed;
@@ -776,13 +1180,19 @@ function HoursScheduleForm({
 export function ManageHours({ businessId }: { businessId: string }) {
   const loaded = useAsync(async () => {
     const auth = await getWebAuth();
-    return (await getOwnedCommercialProfile(auth, businessId)).profile.hours;
+    return (await getOwnedCommercialProfile(auth, businessId)).profile;
   }, [businessId]);
 
   return (
     <CommercialShell title="Horario" backHref={`/app/beeservices/manage/${businessId}`} wide compact>
       <StatusLine loading={loaded.loading} error={loaded.error} />
-      {loaded.data ? <HoursScheduleForm businessId={businessId} initialHours={loaded.data} /> : null}
+      {loaded.data ? (
+        <HoursScheduleForm
+          businessId={businessId}
+          initialHours={loaded.data.hours}
+          timezone={loaded.data.timezone || 'America/Bogota'}
+        />
+      ) : null}
     </CommercialShell>
   );
 }
@@ -854,8 +1264,10 @@ export function ManageOperation({ businessId }: { businessId: string }) {
       await updateCommercialProfile(auth, businessId, {
         is_available: form.get('is_available') === 'on',
         cash_on_delivery_enabled: form.get('cash_on_delivery_enabled') === 'on',
+        timezone: String(form.get('timezone') || 'America/Bogota'),
         delivery_fee_mode: feeMode,
         delivery_fee_amount: feeMode === 'fixed' ? Number(form.get('delivery_fee_amount') || 0) : null,
+        delivery_currency_code: String(form.get('delivery_currency_code') || 'COP'),
         booking_hold_minutes: Number(form.get('booking_hold_minutes') || 30),
         inventory_hold_minutes: Number(form.get('inventory_hold_minutes') || 30),
       });
@@ -893,6 +1305,8 @@ function OperationForm({
 }) {
   const [isAvailable, setIsAvailable] = useState(profile.is_available);
   const [cashOnDelivery, setCashOnDelivery] = useState(profile.cash_on_delivery_enabled);
+  const [timezone, setTimezone] = useState(profile.timezone || 'America/Bogota');
+  const [deliveryCurrency, setDeliveryCurrency] = useState(profile.delivery_currency_code || 'COP');
   const [deliveryMode, setDeliveryMode] = useState<DeliveryFeeModeOption>(
     profile.delivery_fee_mode || 'not_offered',
   );
@@ -941,6 +1355,10 @@ function OperationForm({
                 </span>
               </li>
               <li className="flex gap-2 rounded-xl border border-[#F1EAF6] bg-[#FFFCF9] px-3 py-2">
+                <Clock3 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[#7427D5]" aria-hidden />
+                <span>Zona: {timezone}</span>
+              </li>
+              <li className="flex gap-2 rounded-xl border border-[#F1EAF6] bg-[#FFFCF9] px-3 py-2">
                 <Wallet className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[#7427D5]" aria-hidden />
                 <span>{cashOnDelivery ? 'Contraentrega activa' : 'Sin contraentrega'}</span>
               </li>
@@ -949,7 +1367,7 @@ function OperationForm({
                 <span className="min-w-0 [overflow-wrap:anywhere]">
                   {deliveryFeeModeLabel(deliveryMode)}
                   {deliveryMode === 'fixed' && Number.isFinite(parsedDeliveryFee)
-                    ? ` · ${moneyCop(parsedDeliveryFee)}`
+                    ? ` · ${moneyCop(parsedDeliveryFee)} (${deliveryCurrency})`
                     : null}
                 </span>
               </li>
@@ -1009,6 +1427,42 @@ function OperationForm({
                     </span>
                   </span>
                 </label>
+              </div>
+            </section>
+
+            <section className="grid gap-4 sm:grid-cols-2">
+              <div>
+                <label className={profileFieldLabelClass} htmlFor="operation-timezone">
+                  Zona horaria del negocio
+                </label>
+                <select
+                  id="operation-timezone"
+                  name="timezone"
+                  value={timezone}
+                  onChange={(e) => setTimezone(e.target.value)}
+                  className={fieldClass}
+                >
+                  <option value="America/Bogota">Colombia / Lima (America/Bogota)</option>
+                  <option value="America/Mexico_City">México (America/Mexico_City)</option>
+                  <option value="America/Santiago">Chile (America/Santiago)</option>
+                  <option value="America/Argentina/Buenos_Aires">Argentina (America/Argentina/Buenos_Aires)</option>
+                  <option value="America/New_York">EE.UU. Este (America/New_York)</option>
+                  <option value="Europe/Madrid">España (Europe/Madrid)</option>
+                </select>
+              </div>
+              <div>
+                <label className={profileFieldLabelClass} htmlFor="operation-currency">
+                  Moneda de domicilio
+                </label>
+                <select
+                  id="operation-currency"
+                  name="delivery_currency_code"
+                  value={deliveryCurrency}
+                  onChange={(e) => setDeliveryCurrency(e.target.value)}
+                  className={fieldClass}
+                >
+                  <option value="COP">Peso colombiano (COP)</option>
+                </select>
               </div>
             </section>
 
@@ -1194,10 +1648,14 @@ function paymentMethodCredential(method: CommercialOwnedPaymentMethod): {
 
 function PaymentMethodCard({
   method,
+  onEdit,
   onArchive,
+  onDelete,
 }: {
   method: CommercialOwnedPaymentMethod;
+  onEdit: () => void;
   onArchive: () => void;
+  onDelete: () => void;
 }) {
   const isBank = method.payment_method_type === 'bank_account';
   const Icon = isBank ? Landmark : Wallet;
@@ -1242,14 +1700,32 @@ function PaymentMethodCard({
             ) : null}
           </div>
 
-          <button
-            type="button"
-            className="inline-flex h-10 w-full shrink-0 items-center justify-center gap-1.5 rounded-xl border border-[#E8D1F1] bg-[#FFFCF9] px-4 text-xs font-semibold text-[#5E506B] transition group-hover:border-[#D8C4F0] group-hover:text-[#5E1ABF] md:h-10 md:w-auto"
-            onClick={onArchive}
-          >
-            <Archive className="h-3.5 w-3.5" aria-hidden />
-            Archivar
-          </button>
+          <div className="flex flex-wrap gap-2 md:shrink-0">
+            <button
+              type="button"
+              className="inline-flex h-10 items-center justify-center gap-1.5 rounded-xl border border-[#E8D1F1] bg-white px-3.5 text-xs font-semibold text-[#5E1ABF] transition hover:bg-[#F6EAFE]"
+              onClick={onEdit}
+            >
+              <Pencil className="h-3.5 w-3.5" aria-hidden />
+              Editar
+            </button>
+            <button
+              type="button"
+              className="inline-flex h-10 items-center justify-center gap-1.5 rounded-xl border border-[#E8D1F1] bg-[#FFFCF9] px-3.5 text-xs font-semibold text-[#5E506B] transition hover:border-[#D8C4F0] hover:text-[#5E1ABF]"
+              onClick={onArchive}
+            >
+              <Archive className="h-3.5 w-3.5" aria-hidden />
+              Archivar
+            </button>
+            <button
+              type="button"
+              className="inline-flex h-10 items-center justify-center gap-1.5 rounded-xl border border-rose-200 bg-rose-50 px-3.5 text-xs font-semibold text-rose-700 transition hover:bg-rose-100"
+              onClick={onDelete}
+            >
+              <Trash2 className="h-3.5 w-3.5" aria-hidden />
+              Eliminar
+            </button>
+          </div>
         </div>
       </div>
     </li>
@@ -1258,49 +1734,77 @@ function PaymentMethodCard({
 
 function PaymentMethodCreateForm({
   businessId,
+  editingMethod,
+  onCancelEdit,
   onCreated,
   onNotice,
 }: {
   businessId: string;
+  editingMethod?: CommercialOwnedPaymentMethod | null;
+  onCancelEdit?: () => void;
   onCreated: () => void;
   onNotice: (message: string) => void;
 }) {
-  const [methodType, setMethodType] = useState<CommercialPaymentMethodType>('nequi');
+  const [methodType, setMethodType] = useState<CommercialPaymentMethodType>(
+    editingMethod?.payment_method_type || 'nequi',
+  );
   const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (editingMethod) {
+      setMethodType(editingMethod.payment_method_type);
+    }
+  }, [editingMethod]);
+
   const isBank = methodType === 'bank_account';
 
   const create = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const form = event.currentTarget;
     const data = new FormData(form);
+
+    if (!isBank && (methodType === 'nequi' || methodType === 'daviplata')) {
+      const cleanKey = String(data.get('key') || '').replace(/\s+/g, '');
+      if (!/^3\d{9}$/.test(cleanKey)) {
+        onNotice(`Para ${paymentMethodTypeLabel(methodType)} ingresa un número celular válido de 10 dígitos que inicie en 3.`);
+        return;
+      }
+    }
+
     setSaving(true);
     try {
       const auth = await getWebAuth();
-      await createOwnedCommercialPaymentMethod(auth, businessId, {
-        payment_method_type: methodType,
-        display_name: String(data.get('display_name') || methodType),
-        ...(isBank
-          ? {
-            bank_account: {
-              account_holder_name: String(data.get('holder') || ''),
-              account_holder_document_type: String(data.get('document_type') || 'CC') as 'CC' | 'NIT' | 'CE',
-              account_holder_document_number: String(data.get('document') || ''),
-              bank_name: String(data.get('bank') || ''),
-              account_type: String(data.get('account_type') || 'savings') as 'savings' | 'checking',
-              account_number: String(data.get('account') || ''),
-            },
-          }
-          : {
-            mobile_account: {
-              wallet_type: methodType,
-              payment_key: String(data.get('key') || ''),
-              account_holder_name: String(data.get('holder') || '') || null,
-            },
-          }),
-      });
-      form.reset();
-      setMethodType('nequi');
-      onNotice('Método agregado.');
+      const bankAccountPayload = {
+        account_holder_name: String(data.get('holder') || ''),
+        account_holder_document_type: String(data.get('document_type') || 'CC') as 'CC' | 'NIT' | 'CE',
+        account_holder_document_number: String(data.get('document') || ''),
+        bank_name: String(data.get('bank') || ''),
+        account_type: String(data.get('account_type') || 'savings') as 'savings' | 'checking',
+        account_number: String(data.get('account') || ''),
+      };
+      const mobileAccountPayload = {
+        wallet_type: (methodType === 'bank_account' ? 'nequi' : methodType),
+        payment_key: String(data.get('key') || '').replace(/\s+/g, ''),
+        account_holder_name: String(data.get('holder') || '') || null,
+      };
+
+      if (editingMethod) {
+        await updateOwnedCommercialPaymentMethod(auth, businessId, editingMethod.id, {
+          display_name: String(data.get('display_name') || methodType),
+          sort_order: editingMethod.sort_order ?? 0,
+          ...(isBank ? { bank_account: bankAccountPayload } : { mobile_account: mobileAccountPayload }),
+        });
+        onNotice('Método actualizado.');
+      } else {
+        await createOwnedCommercialPaymentMethod(auth, businessId, {
+          payment_method_type: methodType,
+          display_name: String(data.get('display_name') || methodType),
+          ...(isBank ? { bank_account: bankAccountPayload } : { mobile_account: mobileAccountPayload }),
+        });
+        form.reset();
+        setMethodType('nequi');
+        onNotice('Método agregado.');
+      }
       onCreated();
     } catch (saveError) {
       onNotice(actionError(saveError));
@@ -1314,11 +1818,14 @@ function PaymentMethodCreateForm({
 
   return (
     <form
+      key={editingMethod?.id || 'create'}
       onSubmit={create}
       className="overflow-hidden rounded-2xl border border-[#E7DDF2] bg-gradient-to-br from-white via-[#FFFCF9] to-[#F6EAFE] shadow-[0_10px_30px_rgba(116,39,213,0.08)]"
     >
       <div className="border-b border-[#F1EAF6] bg-white/80 px-4 py-4 backdrop-blur sm:px-5">
-        <h3 className="text-base font-extrabold text-[#261743]">Nuevo método</h3>
+        <h3 className="text-base font-extrabold text-[#261743]">
+          {editingMethod ? 'Editar método' : 'Nuevo método'}
+        </h3>
         <p className="mt-1 text-xs text-[#786593]">Visible cuando un cliente debe pagarte.</p>
       </div>
       <div className="space-y-4 p-4 sm:p-5">
@@ -1332,12 +1839,13 @@ function PaymentMethodCreateForm({
                 <button
                   key={type}
                   type="button"
+                  disabled={Boolean(editingMethod)}
                   onClick={() => setMethodType(type)}
                   className={`rounded-full border px-3 py-1.5 text-xs font-extrabold transition ${
                     selected
                       ? 'border-[#7427D5] bg-[#7427D5] text-white shadow-sm'
                       : `border-[#E7DDF2] bg-white text-[#5E506B] hover:border-[#C9A8E8]`
-                  }`}
+                  } disabled:opacity-70`}
                 >
                   <span className={`mr-1.5 inline-block h-2 w-2 rounded-full ${selected ? 'bg-white/90' : accent.dot}`} />
                   {paymentMethodTypeLabel(type)}
@@ -1348,17 +1856,33 @@ function PaymentMethodCreateForm({
         </div>
         <label className={paymentFieldLabel}>
           Nombre visible
-          <input name="display_name" placeholder="Ej. Nequi personal" className={fieldClass} required />
+          <input
+            name="display_name"
+            defaultValue={editingMethod?.display_name || ''}
+            placeholder="Ej. Nequi personal"
+            className={fieldClass}
+            required
+          />
         </label>
       {isBank ? (
         <div className="grid gap-3 sm:grid-cols-2">
           <label className={paymentFieldLabel}>
             Titular
-            <input name="holder" placeholder="Nombre completo" className={fieldClass} required />
+            <input
+              name="holder"
+              defaultValue={editingMethod?.bank_account?.account_holder_name || ''}
+              placeholder="Nombre completo"
+              className={fieldClass}
+              required
+            />
           </label>
           <label className={paymentFieldLabel}>
             Tipo de documento
-            <select name="document_type" defaultValue="CC" className={fieldClass}>
+            <select
+              name="document_type"
+              defaultValue={editingMethod?.bank_account?.account_holder_document_type || 'CC'}
+              className={fieldClass}
+            >
               <option value="CC">Cédula de ciudadanía (CC)</option>
               <option value="NIT">NIT</option>
               <option value="CE">Cédula de extranjería (CE)</option>
@@ -1366,40 +1890,78 @@ function PaymentMethodCreateForm({
           </label>
           <label className={paymentFieldLabel}>
             Número de documento
-            <input name="document" placeholder="Número de documento" className={fieldClass} required />
+            <input
+              name="document"
+              defaultValue={editingMethod?.bank_account?.account_holder_document_number || ''}
+              placeholder="Número de documento"
+              className={fieldClass}
+              required
+            />
           </label>
           <label className={paymentFieldLabel}>
             Banco
-            <input name="bank" placeholder="Ej. Bancolombia" className={fieldClass} required />
+            <input
+              name="bank"
+              defaultValue={editingMethod?.bank_account?.bank_name || ''}
+              placeholder="Ej. Bancolombia"
+              className={fieldClass}
+              required
+            />
           </label>
           <label className={paymentFieldLabel}>
             Tipo de cuenta
-            <select name="account_type" defaultValue="savings" className={fieldClass}>
+            <select
+              name="account_type"
+              defaultValue={editingMethod?.bank_account?.account_type || 'savings'}
+              className={fieldClass}
+            >
               <option value="savings">Ahorros</option>
               <option value="checking">Corriente</option>
             </select>
           </label>
           <label className={paymentFieldLabel}>
             Número de cuenta
-            <input name="account" placeholder="Número de cuenta" className={fieldClass} required />
+            <input
+              name="account"
+              defaultValue={editingMethod?.bank_account?.account_number || ''}
+              placeholder="Número de cuenta"
+              className={fieldClass}
+              required
+            />
           </label>
         </div>
       ) : (
         <div className="grid gap-3 sm:grid-cols-2">
           <label className={paymentFieldLabel}>
             Titular (opcional)
-            <input name="holder" placeholder="Nombre del titular" className={fieldClass} />
+            <input
+              name="holder"
+              defaultValue={editingMethod?.mobile_account?.account_holder_name || ''}
+              placeholder="Nombre del titular"
+              className={fieldClass}
+            />
           </label>
           <label className={paymentFieldLabel}>
-            {methodType === 'breb' ? 'Llave Bre-B' : 'Celular o llave'}
-            <input name="key" placeholder={methodType === 'breb' ? '@usuario' : '300 123 4567'} className={fieldClass} required />
+            {methodType === 'breb' ? 'Llave Bre-B' : 'Celular (10 dígitos)'}
+            <input
+              name="key"
+              defaultValue={editingMethod?.mobile_account?.payment_key || ''}
+              placeholder={methodType === 'breb' ? '@usuario' : '3001234567'}
+              className={fieldClass}
+              required
+            />
           </label>
         </div>
       )}
         <div className="flex flex-col gap-2 border-t border-[#F1EAF6] pt-4 sm:flex-row sm:justify-end">
+          {editingMethod && onCancelEdit ? (
+            <button type="button" onClick={onCancelEdit} className={secondaryButtonClass}>
+              Cancelar edición
+            </button>
+          ) : null}
           <button type="submit" className={`${primaryButtonClass} inline-flex w-full items-center justify-center gap-2 sm:w-auto`} disabled={saving}>
             <Plus className="h-4 w-4" aria-hidden />
-            {saving ? 'Agregando…' : 'Agregar método'}
+            {saving ? 'Guardando…' : editingMethod ? 'Guardar cambios' : 'Agregar método'}
           </button>
         </div>
       </div>
@@ -1410,12 +1972,34 @@ function PaymentMethodCreateForm({
 export function ManagePayments({ businessId }: { businessId: string }) {
   const loaded = useAsync(async () => {
     const auth = await getWebAuth();
-    return (await getOwnedCommercialPaymentMethods(auth, businessId)).payment_methods;
+    const [methodsRes, profileRes] = await Promise.all([
+      getOwnedCommercialPaymentMethods(auth, businessId),
+      getOwnedCommercialProfile(auth, businessId),
+    ]);
+    return {
+      methods: methodsRes.payment_methods,
+      cashOnDeliveryEnabled: profileRes.profile.cash_on_delivery_enabled,
+    };
   }, [businessId]);
   const [notice, setNotice] = useState('');
   const [composerOpen, setComposerOpen] = useState(false);
+  const [editingMethod, setEditingMethod] = useState<CommercialOwnedPaymentMethod | null>(null);
 
-  const activeMethods = (loaded.data || []).filter((item) => item.status === 'active');
+  const activeMethods = (loaded.data?.methods || []).filter((item) => item.status === 'active');
+  const codEnabled = Boolean(loaded.data?.cashOnDeliveryEnabled);
+
+  const toggleCod = async (nextVal: boolean) => {
+    try {
+      const auth = await getWebAuth();
+      await updateCommercialProfile(auth, businessId, {
+        cash_on_delivery_enabled: nextVal,
+      });
+      setNotice(nextVal ? 'Pago contraentrega activado.' : 'Pago contraentrega desactivado.');
+      loaded.reload();
+    } catch (err) {
+      setNotice(actionError(err));
+    }
+  };
 
   const archive = async (method: CommercialOwnedPaymentMethod) => {
     try {
@@ -1428,15 +2012,36 @@ export function ManagePayments({ businessId }: { businessId: string }) {
     }
   };
 
-  const closeComposer = () => setComposerOpen(false);
-  const openComposer = () => setComposerOpen(true);
+  const removeMethod = async (method: CommercialOwnedPaymentMethod) => {
+    if (!confirm(`¿Eliminar el método "${method.display_name}"?`)) return;
+    try {
+      const auth = await getWebAuth();
+      await deleteOwnedCommercialPaymentMethod(auth, businessId, method.id);
+      setNotice('Método eliminado.');
+      loaded.reload();
+    } catch (saveError) {
+      setNotice(actionError(saveError));
+    }
+  };
+
+  const closeComposer = () => {
+    setComposerOpen(false);
+    setEditingMethod(null);
+  };
+  const openComposer = () => {
+    setEditingMethod(null);
+    setComposerOpen(true);
+  };
 
   const composerForm = (
     <PaymentMethodCreateForm
       businessId={businessId}
+      editingMethod={editingMethod}
+      onCancelEdit={closeComposer}
       onCreated={() => {
         loaded.reload();
         setComposerOpen(false);
+        setEditingMethod(null);
       }}
       onNotice={setNotice}
     />
@@ -1447,27 +2052,32 @@ export function ManagePayments({ businessId }: { businessId: string }) {
       <StatusLine loading={loaded.loading} error={loaded.error} />
       {!loaded.loading ? (
         <div className="mx-auto w-full max-w-5xl space-y-5">
-          <div className="flex gap-3 rounded-2xl border border-[#E8D1F1] bg-gradient-to-r from-[#FAF4FF] via-[#FFFCF9] to-white p-4 shadow-sm sm:p-5">
-            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-white text-[#7427D5] shadow-sm">
-              <ShieldCheck className="h-5 w-5" aria-hidden />
-            </span>
-            <div className="min-w-0 flex-1">
-              <h2 className="text-base font-extrabold text-[#261743]">Cuentas para recibir pagos</h2>
-              <p className="mt-1 text-xs leading-relaxed text-[#786593]">
-                Publica métodos claros y verificables. Tus clientes verán exactamente dónde transferirte.
-              </p>
-            </div>
-            <div className="hidden shrink-0 flex-col items-end text-right sm:flex">
-              <span className="text-2xl font-extrabold leading-none text-[#7427D5]">{activeMethods.length}</span>
-              <span className="mt-0.5 text-[10px] font-extrabold uppercase tracking-wide text-[#8A72B2]">
-                {activeMethods.length === 1 ? 'Activo' : 'Activos'}
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[#E8D1F1] bg-gradient-to-r from-[#FAF4FF] via-[#FFFCF9] to-white p-4 shadow-sm sm:p-5">
+            <div className="flex items-start gap-3">
+              <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-white text-[#7427D5] shadow-sm">
+                <ShieldCheck className="h-5 w-5" aria-hidden />
               </span>
+              <div className="min-w-0 flex-1">
+                <h2 className="text-base font-extrabold text-[#261743]">Cuentas para recibir pagos</h2>
+                <p className="mt-1 text-xs leading-relaxed text-[#786593]">
+                  Publica métodos claros y verificables. Tus clientes verán exactamente dónde transferirte.
+                </p>
+              </div>
             </div>
+            <label className="flex cursor-pointer items-center gap-2.5 rounded-xl border border-[#E8D1F1] bg-white px-3.5 py-2.5 text-xs font-extrabold text-[#261743] shadow-sm">
+              <input
+                type="checkbox"
+                checked={codEnabled}
+                onChange={(e) => void toggleCod(e.target.checked)}
+                className="h-4 w-4 rounded border-[#C9A8E8] text-[#7427D5]"
+              />
+              Aceptar pago contraentrega
+            </label>
           </div>
 
           <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(280px,340px)] lg:items-start xl:gap-6">
             <div className="space-y-4">
-              {composerOpen ? <div className="lg:hidden">{composerForm}</div> : null}
+              {composerOpen || editingMethod ? <div className="lg:hidden">{composerForm}</div> : null}
 
               <section className="overflow-hidden rounded-2xl border border-[#E7DDF2] bg-white shadow-[0_10px_30px_rgba(116,39,213,0.06)]">
                 <div className="flex flex-col gap-3 border-b border-[#F1EAF6] bg-gradient-to-r from-[#FFFCF9] to-[#FAF4FF] px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-5">
@@ -1506,7 +2116,12 @@ export function ManagePayments({ businessId }: { businessId: string }) {
                         <PaymentMethodCard
                           key={item.id}
                           method={item}
+                          onEdit={() => {
+                            setEditingMethod(item);
+                            setComposerOpen(true);
+                          }}
                           onArchive={() => void archive(item)}
+                          onDelete={() => void removeMethod(item)}
                         />
                       ))}
                     </ul>
@@ -1522,7 +2137,7 @@ export function ManagePayments({ businessId }: { businessId: string }) {
             </div>
 
             <aside className="hidden space-y-4 lg:block lg:sticky lg:top-20">
-              {composerOpen || activeMethods.length === 0 ? (
+              {composerOpen || editingMethod || activeMethods.length === 0 ? (
                 composerForm
               ) : (
                 <div className="overflow-hidden rounded-2xl border border-[#E7DDF2] bg-gradient-to-br from-white via-[#FFFCF9] to-[#F6EAFE] p-5 shadow-[0_10px_30px_rgba(116,39,213,0.08)]">
@@ -1538,7 +2153,7 @@ export function ManagePayments({ businessId }: { businessId: string }) {
                   </button>
                 </div>
               )}
-              {composerOpen && activeMethods.length > 0 ? (
+              {(composerOpen || editingMethod) && activeMethods.length > 0 ? (
                 <button type="button" className={`${secondaryButtonClass} w-full`} onClick={closeComposer}>
                   Cerrar formulario
                 </button>
@@ -1555,6 +2170,12 @@ export function ManagePayments({ businessId }: { businessId: string }) {
   );
 }
 
+const CATALOG_STATUS_LABELS: Record<string, string> = {
+  published: 'Publicado',
+  paused: 'En pausa',
+  archived: 'Archivado',
+};
+
 export function ManageCatalogs({ businessId, archived = false }: { businessId: string; archived?: boolean }) {
   const loaded = useAsync(async () => {
     const auth = await getWebAuth();
@@ -1567,6 +2188,7 @@ export function ManageCatalogs({ businessId, archived = false }: { businessId: s
 
   const run = async (action: () => Promise<unknown>) => {
     try {
+      setNotice('');
       await action();
       loaded.reload();
     } catch (saveError) {
@@ -1622,35 +2244,109 @@ function CatalogList({
   archived: boolean;
   onRun: (action: () => Promise<unknown>) => Promise<void>;
 }) {
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editName, setEditName] = useState('');
+  const [editDescription, setEditDescription] = useState('');
+
+  const startEdit = (catalog: CommercialCatalog) => {
+    setEditingId(catalog.id);
+    setEditName(catalog.name);
+    setEditDescription(catalog.description || '');
+  };
+
   return (
     <ul className="space-y-2">
-      {catalogs.map((catalog) => (
-        <li key={catalog.id} className="rounded-xl border border-[#F0EAF3] bg-white px-3 py-3">
-          <p className="text-sm font-semibold">{catalog.name}</p>
-          <p className="text-xs text-[#8A72B2]">{catalog.status || 'published'}</p>
-          <div className="mt-2 flex flex-wrap gap-2">
-            <Link href={`/app/beeservices/manage/${businessId}/offers?catalog=${catalog.id}`} className={secondaryButtonClass}>Ofertas</Link>
-            {archived ? (
-              <button type="button" className={secondaryButtonClass} onClick={() => void onRun(async () => {
-                const auth = await getWebAuth();
-                await restoreOwnedCommercialCatalog(auth, businessId, catalog.id);
-              })}>Restaurar</button>
+      {catalogs.map((catalog) => {
+        const isEditing = editingId === catalog.id;
+        return (
+          <li key={catalog.id} className="rounded-xl border border-[#F0EAF3] bg-white px-4 py-3">
+            {isEditing ? (
+              <div className="space-y-2">
+                <input
+                  value={editName}
+                  onChange={(e) => setEditName(e.target.value)}
+                  placeholder="Nombre del catálogo"
+                  className={fieldClass}
+                />
+                <input
+                  value={editDescription}
+                  onChange={(e) => setEditDescription(e.target.value)}
+                  placeholder="Descripción (opcional)"
+                  className={fieldClass}
+                />
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    className={primaryButtonClass}
+                    onClick={() =>
+                      void onRun(async () => {
+                        const auth = await getWebAuth();
+                        await updateOwnedCommercialCatalog(auth, businessId, catalog.id, {
+                          name: editName.trim() || catalog.name,
+                          description: editDescription.trim() || null,
+                        });
+                        setEditingId(null);
+                      })
+                    }
+                  >
+                    Guardar
+                  </button>
+                  <button
+                    type="button"
+                    className={secondaryButtonClass}
+                    onClick={() => setEditingId(null)}
+                  >
+                    Cancelar
+                  </button>
+                </div>
+              </div>
             ) : (
               <>
-                <button type="button" className={secondaryButtonClass} onClick={() => void onRun(async () => {
-                  const auth = await getWebAuth();
-                  if (catalog.status === 'paused') await publishOwnedCommercialCatalog(auth, businessId, catalog.id);
-                  else await pauseOwnedCommercialCatalog(auth, businessId, catalog.id);
-                })}>{catalog.status === 'paused' ? 'Publicar' : 'Pausar'}</button>
-                <button type="button" className={secondaryButtonClass} onClick={() => void onRun(async () => {
-                  const auth = await getWebAuth();
-                  await archiveOwnedCommercialCatalog(auth, businessId, catalog.id);
-                })}>Archivar</button>
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-sm font-semibold text-[#261743]">{catalog.name}</p>
+                  <span className="rounded-full bg-[#F6EAFE] px-2.5 py-0.5 text-[11px] font-bold text-[#7427D5]">
+                    {CATALOG_STATUS_LABELS[catalog.status || 'published'] || catalog.status}
+                  </span>
+                </div>
+                {catalog.description ? (
+                  <p className="mt-0.5 text-xs text-[#786593]">{catalog.description}</p>
+                ) : null}
+                <div className="mt-2.5 flex flex-wrap gap-2">
+                  <Link href={`/app/beeservices/manage/${businessId}/offers?catalog=${catalog.id}`} className={secondaryButtonClass}>Ofertas</Link>
+                  {archived ? (
+                    <button type="button" className={secondaryButtonClass} onClick={() => void onRun(async () => {
+                      const auth = await getWebAuth();
+                      await restoreOwnedCommercialCatalog(auth, businessId, catalog.id);
+                    })}>Restaurar</button>
+                  ) : (
+                    <>
+                      <button
+                        type="button"
+                        className={secondaryButtonClass}
+                        onClick={() => startEdit(catalog)}
+                      >
+                        Editar
+                      </button>
+                      <button type="button" className={secondaryButtonClass} onClick={() => void onRun(async () => {
+                        const auth = await getWebAuth();
+                        if (catalog.status === 'paused') await publishOwnedCommercialCatalog(auth, businessId, catalog.id);
+                        else await pauseOwnedCommercialCatalog(auth, businessId, catalog.id);
+                      })}>{catalog.status === 'paused' ? 'Publicar' : 'Pausar'}</button>
+                      <button type="button" className={secondaryButtonClass} onClick={() => {
+                        if (!confirm(`¿Archivar el catálogo "${catalog.name}"?`)) return;
+                        void onRun(async () => {
+                          const auth = await getWebAuth();
+                          await archiveOwnedCommercialCatalog(auth, businessId, catalog.id);
+                        });
+                      }}>Archivar</button>
+                    </>
+                  )}
+                </div>
               </>
             )}
-          </div>
-        </li>
-      ))}
+          </li>
+        );
+      })}
     </ul>
   );
 }
@@ -2022,6 +2718,7 @@ const offerFieldLabelClass =
   'mb-1.5 block text-[13px] font-extrabold text-[#4E3B68]';
 
 export function ManageOfferEditor({ businessId, offerId }: { businessId: string; offerId: string }) {
+  const router = useRouter();
   const loaded = useAsync(async () => {
     const auth = await getWebAuth();
     return (await getOwnedCommercialOffer(auth, businessId, offerId)).offer;
@@ -2031,7 +2728,12 @@ export function ManageOfferEditor({ businessId, offerId }: { businessId: string;
   const shellTitle = offer?.offer_kind === 'product' ? 'Producto' : offer ? 'Servicio' : 'Editar oferta';
 
   return (
-    <CommercialShell title={shellTitle} backHref={`/app/beeservices/manage/${businessId}/offers`} wide compact>
+    <CommercialShell
+      title={shellTitle}
+      backHref={`/app/beeservices/manage/${businessId}/offers`}
+      wide
+      compact
+    >
       <StatusLine loading={loaded.loading} error={loaded.error} />
       {offer ? (
         <OfferEditorForm
@@ -2041,11 +2743,14 @@ export function ManageOfferEditor({ businessId, offerId }: { businessId: string;
           notice={notice}
           setNotice={setNotice}
           onSaved={loaded.reload}
+          onDeleted={() => router.push(`/app/beeservices/manage/${businessId}/offers`)}
         />
       ) : null}
     </CommercialShell>
   );
 }
+
+const DISCOUNT_PRESETS = [10, 15, 20, 30, 50];
 
 function OfferEditorForm({
   businessId,
@@ -2054,6 +2759,7 @@ function OfferEditorForm({
   notice,
   setNotice,
   onSaved,
+  onDeleted,
 }: {
   businessId: string;
   offerId: string;
@@ -2061,12 +2767,23 @@ function OfferEditorForm({
   notice: string;
   setNotice: (value: string) => void;
   onSaved: () => void;
+  onDeleted: () => void;
 }) {
   const [title, setTitle] = useState(offer.title);
   const [description, setDescription] = useState(offer.description || '');
+  const [pricingStrategy, setPricingStrategy] = useState<CommercialPricingStrategy>(
+    offer.pricing_strategy || 'fixed',
+  );
   const [price, setPrice] = useState(
     offer.base_price_amount === null ? '' : String(offer.base_price_amount),
   );
+  const [originalPrice, setOriginalPrice] = useState(
+    offer.original_price_amount == null ? '' : String(offer.original_price_amount),
+  );
+  const [discountPercent, setDiscountPercent] = useState(
+    offer.discount_percent == null ? '' : String(offer.discount_percent),
+  );
+  const [trackInventory, setTrackInventory] = useState(Boolean(offer.track_inventory));
   const [stock, setStock] = useState(
     offer.stock_quantity === null ? '' : String(offer.stock_quantity),
   );
@@ -2074,20 +2791,36 @@ function OfferEditorForm({
     offer.duration_minutes === null ? '' : String(offer.duration_minutes),
   );
   const [requiresBooking, setRequiresBooking] = useState(offer.requires_booking);
+  const [paymentPolicy, setPaymentPolicy] = useState<CommercialPaymentPolicy>(
+    offer.payment_policy || 'not_required',
+  );
   const [isAvailable, setIsAvailable] = useState(offer.is_available);
   const [modalities, setModalities] = useState<CommercialModality[]>(
     () => activeOfferModalities(offer),
   );
   const [saving, setSaving] = useState(false);
   const [activeImageIndex, setActiveImageIndex] = useState(0);
+  const [uploadingImage, setUploadingImage] = useState(false);
+  const imageInputRef = useRef<HTMLInputElement>(null);
+
+  // Inventory adjustment modal state
+  const [adjustModalOpen, setAdjustModalOpen] = useState(false);
+  const [adjustDelta, setAdjustDelta] = useState('1');
+  const [adjustReasonCode, setAdjustReasonCode] = useState('restock');
+  const [adjustReasonText, setAdjustReasonText] = useState('');
 
   useEffect(() => {
     setTitle(offer.title);
     setDescription(offer.description || '');
+    setPricingStrategy(offer.pricing_strategy || 'fixed');
     setPrice(offer.base_price_amount === null ? '' : String(offer.base_price_amount));
+    setOriginalPrice(offer.original_price_amount == null ? '' : String(offer.original_price_amount));
+    setDiscountPercent(offer.discount_percent == null ? '' : String(offer.discount_percent));
+    setTrackInventory(Boolean(offer.track_inventory));
     setStock(offer.stock_quantity === null ? '' : String(offer.stock_quantity));
     setDuration(offer.duration_minutes === null ? '' : String(offer.duration_minutes));
     setRequiresBooking(offer.requires_booking);
+    setPaymentPolicy(offer.payment_policy || 'not_required');
     setIsAvailable(offer.is_available);
     setModalities(activeOfferModalities(offer));
     setActiveImageIndex(0);
@@ -2096,12 +2829,14 @@ function OfferEditorForm({
   const isProduct = offer.offer_kind === 'product';
   const modalityOptions = isProduct ? PRODUCT_OFFER_MODALITIES : SERVICE_OFFER_MODALITIES;
   const status = offerStatusCopy(offer);
-  const sortedImages = [...offer.images].sort((left, right) => {
-    if (left.is_primary !== right.is_primary) {
-      return left.is_primary ? -1 : 1;
-    }
-    return (left.sort_order || 0) - (right.sort_order || 0);
-  });
+  const sortedImages = [...offer.images]
+    .filter((img) => img.status !== 'archived')
+    .sort((left, right) => {
+      if (left.is_primary !== right.is_primary) {
+        return left.is_primary ? -1 : 1;
+      }
+      return (left.sort_order || 0) - (right.sort_order || 0);
+    });
   const parsedDuration = Number(duration);
   const parsedPrice = Number(price);
   const galleryImages = sortedImages.filter((image) => Boolean(image.url));
@@ -2109,6 +2844,146 @@ function OfferEditorForm({
     ? Math.min(activeImageIndex, galleryImages.length - 1)
     : 0;
   const activeImageUrl = galleryImages[safeImageIndex]?.url || null;
+
+  const applyDiscountPreset = (pct: number) => {
+    setDiscountPercent(String(pct));
+    const orig = Number(originalPrice) || Number(price) || 0;
+    if (orig > 0) {
+      if (!originalPrice.trim()) setOriginalPrice(String(orig));
+      const discounted = Math.round(orig * (1 - pct / 100));
+      setPrice(String(discounted));
+    }
+  };
+
+  const handleUploadImage = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+    if (sortedImages.length >= 5) {
+      setNotice('Puedes subir máximo 5 imágenes por oferta.');
+      return;
+    }
+    setUploadingImage(true);
+    setNotice('');
+    try {
+      const fd = new FormData();
+      fd.append('files', file);
+      const uploaded = await uploadCurrentWebStorageFiles(fd);
+      const createdFile = uploaded.files?.[0];
+      if (!createdFile?.id) throw new Error('No se pudo cargar el archivo.');
+      const auth = await getWebAuth();
+      await createOwnedCommercialOfferImage(auth, businessId, offerId, {
+        file_id: createdFile.id,
+        sort_order: sortedImages.length,
+        is_primary: sortedImages.length === 0,
+      });
+      setNotice('Imagen agregada a la oferta.');
+      onSaved();
+    } catch (err) {
+      setNotice(actionError(err, 'No fue posible subir la imagen.'));
+    } finally {
+      setUploadingImage(false);
+    }
+  };
+
+  const handleSetPrimaryImage = async (imageId: string) => {
+    try {
+      const auth = await getWebAuth();
+      await setOwnedCommercialOfferPrimaryImage(auth, businessId, offerId, imageId);
+      setNotice('Imagen principal actualizada.');
+      onSaved();
+    } catch (err) {
+      setNotice(actionError(err));
+    }
+  };
+
+  const handleMoveImage = async (index: number, direction: -1 | 1) => {
+    const targetIndex = index + direction;
+    if (targetIndex < 0 || targetIndex >= sortedImages.length) return;
+    const currentImg = sortedImages[index];
+    const swapImg = sortedImages[targetIndex];
+    try {
+      const auth = await getWebAuth();
+      await Promise.all([
+        updateOwnedCommercialOfferImage(auth, businessId, offerId, currentImg.id, {
+          sort_order: targetIndex,
+        }),
+        updateOwnedCommercialOfferImage(auth, businessId, offerId, swapImg.id, {
+          sort_order: index,
+        }),
+      ]);
+      onSaved();
+    } catch (err) {
+      setNotice(actionError(err));
+    }
+  };
+
+  const handleDeleteImage = async (imageId: string) => {
+    if (!confirm('¿Eliminar esta imagen de la oferta?')) return;
+    try {
+      const auth = await getWebAuth();
+      await deleteOwnedCommercialOfferImage(auth, businessId, offerId, imageId);
+      setNotice('Imagen eliminada.');
+      onSaved();
+    } catch (err) {
+      setNotice(actionError(err));
+    }
+  };
+
+  const handleLifecycleAction = async (action: 'publish' | 'pause' | 'archive' | 'restore') => {
+    if (action === 'archive' && !confirm('¿Archivar esta oferta?')) return;
+    try {
+      const auth = await getWebAuth();
+      if (action === 'publish') await publishOwnedCommercialOffer(auth, businessId, offerId);
+      if (action === 'pause') await pauseOwnedCommercialOffer(auth, businessId, offerId);
+      if (action === 'archive') await archiveOwnedCommercialOffer(auth, businessId, offerId);
+      if (action === 'restore') await restoreOwnedCommercialOffer(auth, businessId, offerId);
+      setNotice('Estado de la oferta actualizado.');
+      onSaved();
+    } catch (err) {
+      setNotice(actionError(err));
+    }
+  };
+
+  const handleDeleteOffer = async () => {
+    try {
+      const auth = await getWebAuth();
+      const delStatus = await getOwnedCommercialOfferDeletionStatus(auth, businessId, offerId);
+      if (!delStatus.can_delete) {
+        setNotice(
+          `No se puede eliminar porque aparece en ${delStatus.orders} solicitudes y ${delStatus.chats} chats. Puedes archivarla.`,
+        );
+        return;
+      }
+      if (!confirm('¿Eliminar permanentemente esta oferta?')) return;
+      await deleteOwnedCommercialOffer(auth, businessId, offerId);
+      onDeleted();
+    } catch (err) {
+      setNotice(actionError(err, 'No fue posible eliminar la oferta.'));
+    }
+  };
+
+  const handleAdjustInventory = async () => {
+    const delta = Number(adjustDelta);
+    if (!Number.isFinite(delta) || delta === 0) {
+      setNotice('Ingresa una cantidad distinta de 0 (positiva para sumar, negativa para restar).');
+      return;
+    }
+    try {
+      const auth = await getWebAuth();
+      const res = await adjustOwnedCommercialOfferInventory(auth, businessId, offerId, {
+        quantity_delta: delta,
+        reason_code: adjustReasonCode,
+        reason_text: adjustReasonText.trim() || null,
+      });
+      setStock(String(res.available_inventory));
+      setAdjustModalOpen(false);
+      setNotice(`Inventario ajustado. Disponible: ${res.available_inventory}.`);
+      onSaved();
+    } catch (err) {
+      setNotice(actionError(err));
+    }
+  };
 
   const previewMeta = (
     <>
@@ -2174,13 +3049,19 @@ function OfferEditorForm({
     setNotice('');
     try {
       const auth = await getWebAuth();
+      const needsPrice = pricingStrategy === 'fixed' || pricingStrategy === 'starting_at';
       await updateOwnedCommercialOffer(auth, businessId, offerId, {
         title: title.trim(),
         description: description.trim() || null,
-        base_price_amount: price.trim() ? Number(price) : null,
-        stock_quantity: stock.trim() ? Number(stock) : null,
-        duration_minutes: duration.trim() ? Number(duration) : null,
-        requires_booking: requiresBooking,
+        pricing_strategy: pricingStrategy,
+        base_price_amount: needsPrice && price.trim() ? Number(price) : pricingStrategy === 'free' ? 0 : null,
+        original_price_amount: originalPrice.trim() ? Number(originalPrice) : null,
+        discount_percent: discountPercent.trim() ? Number(discountPercent) : null,
+        track_inventory: isProduct ? trackInventory : false,
+        stock_quantity: isProduct && trackInventory && stock.trim() ? Number(stock) : null,
+        duration_minutes: !isProduct && duration.trim() ? Number(duration) : null,
+        requires_booking: !isProduct ? requiresBooking : false,
+        payment_policy: !isProduct ? paymentPolicy : null,
         is_available: isAvailable,
       });
       await updateOwnedCommercialOfferModalities(auth, businessId, offerId, {
@@ -2197,13 +3078,22 @@ function OfferEditorForm({
 
   return (
     <div className="mx-auto w-full max-w-5xl">
-      <p className="mb-4 flex items-start gap-2 rounded-xl border border-[#E8D1F1] bg-gradient-to-r from-[#FAF4FF] to-[#FFFCF9] px-3 py-2 text-xs leading-snug text-[#786593] md:mb-5">
-        <ShoppingBag className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[#7427D5]" aria-hidden />
-        <span>
-          Los cambios se reflejan al instante en la vista previa.
-          {isProduct ? ' Ajusta precio e inventario para tus clientes.' : ' Define duración, reserva y modalidades del servicio.'}
-        </span>
-      </p>
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-[#E8D1F1] bg-gradient-to-r from-[#FAF4FF] to-[#FFFCF9] px-3 py-2 text-xs leading-snug text-[#786593] md:mb-5">
+        <div className="flex items-start gap-2">
+          <ShoppingBag className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[#7427D5]" aria-hidden />
+          <span>
+            Los cambios se reflejan al instante en la vista previa.
+            {isProduct ? ' Ajusta precio, descuentos, galería e inventario.' : ' Define duración, reserva, política de pago y modalidades.'}
+          </span>
+        </div>
+        <Link
+          href={`/app/beeservices/offer/${offerId}`}
+          className="inline-flex items-center gap-1 font-extrabold text-[#7427D5] hover:underline"
+        >
+          <ExternalLink className="h-3.5 w-3.5" />
+          Ver vista pública
+        </Link>
+      </div>
 
       <div className="grid gap-5 md:gap-6 lg:grid-cols-[minmax(0,340px)_minmax(0,1fr)] lg:items-start xl:grid-cols-[minmax(300px,380px)_minmax(0,1fr)]">
         <aside className="space-y-4 lg:sticky lg:top-20">
@@ -2213,6 +3103,11 @@ function OfferEditorForm({
                 <div className="relative aspect-[5/4] bg-[#F6EAFE] sm:aspect-[16/10] lg:aspect-[5/4]">
                   {activeImageUrl ? (
                     <img src={activeImageUrl} alt="" className="h-full w-full object-cover" />
+                  ) : null}
+                  {discountPercent && Number(discountPercent) > 0 ? (
+                    <span className="absolute left-3 top-3 rounded-full bg-rose-600 px-2.5 py-1 text-xs font-extrabold text-white shadow">
+                      -{discountPercent}% OFF
+                    </span>
                   ) : null}
                 </div>
                 {galleryImages.length > 1 ? (
@@ -2255,11 +3150,75 @@ function OfferEditorForm({
               <h2 className="mt-2 text-lg font-extrabold leading-snug text-[#261743] sm:text-xl [overflow-wrap:anywhere]">
                 {title.trim() || 'Sin nombre'}
               </h2>
-              <p className="mt-1 text-base font-extrabold text-[#7427D5] sm:text-lg">
-                {Number.isFinite(parsedPrice) && price.trim() ? moneyCop(parsedPrice) : 'Precio pendiente'}
-              </p>
+              <div className="mt-1 flex items-baseline gap-2">
+                <p className="text-base font-extrabold text-[#7427D5] sm:text-lg">
+                  {pricingStrategy === 'free'
+                    ? 'Gratis'
+                    : pricingStrategy === 'to_be_confirmed'
+                      ? 'Precio por confirmar'
+                      : Number.isFinite(parsedPrice) && price.trim()
+                        ? `${pricingStrategy === 'starting_at' ? 'Desde ' : ''}${moneyCop(parsedPrice)}`
+                        : 'Precio pendiente'}
+                </p>
+                {originalPrice && Number(originalPrice) > parsedPrice ? (
+                  <span className="text-xs text-[#9A8FB0] line-through">
+                    {moneyCop(Number(originalPrice))}
+                  </span>
+                ) : null}
+              </div>
             </div>
           </article>
+
+          {/* Lifecycle & Delete Controls */}
+          <div className="rounded-2xl border border-[#E7DDF2] bg-white p-4 shadow-sm space-y-2">
+            <p className="text-[10px] font-extrabold uppercase tracking-wide text-[#8A72B2]">Estado y ciclo de vida</p>
+            <div className="flex flex-wrap gap-2">
+              {offer.status === 'archived' ? (
+                <button
+                  type="button"
+                  onClick={() => void handleLifecycleAction('restore')}
+                  className={secondaryButtonClass}
+                >
+                  Restaurar oferta
+                </button>
+              ) : (
+                <>
+                  {offer.status === 'paused' ? (
+                    <button
+                      type="button"
+                      onClick={() => void handleLifecycleAction('publish')}
+                      className={primaryButtonClass}
+                    >
+                      Publicar
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => void handleLifecycleAction('pause')}
+                      className={secondaryButtonClass}
+                    >
+                      Pausar
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => void handleLifecycleAction('archive')}
+                    className={secondaryButtonClass}
+                  >
+                    Archivar
+                  </button>
+                </>
+              )}
+              <button
+                type="button"
+                onClick={() => void handleDeleteOffer()}
+                className="inline-flex h-10 items-center justify-center gap-1.5 rounded-2xl border border-rose-200 bg-rose-50 px-3.5 text-xs font-bold text-rose-700 hover:bg-rose-100"
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+                Eliminar oferta
+              </button>
+            </div>
+          </div>
 
           <div className="hidden space-y-3 lg:block">{previewMeta}</div>
         </aside>
@@ -2274,6 +3233,102 @@ function OfferEditorForm({
           </div>
 
           <div className="space-y-5 p-4 sm:p-5">
+            {/* Image Gallery Manager (up to 5 images) */}
+            <section className="space-y-3">
+              <div className="flex items-center justify-between">
+                <h3 className="text-[11px] font-extrabold uppercase tracking-wide text-[#8A72B2]">
+                  Imágenes ({sortedImages.length}/5)
+                </h3>
+                {sortedImages.length < 5 ? (
+                  <button
+                    type="button"
+                    disabled={uploadingImage}
+                    onClick={() => imageInputRef.current?.click()}
+                    className="inline-flex items-center gap-1.5 rounded-xl border border-[#D9B9EE] bg-white px-3 py-1.5 text-xs font-bold text-[#7427D5] hover:bg-[#F6EAFE]"
+                  >
+                    <Camera className="h-3.5 w-3.5" />
+                    {uploadingImage ? 'Subiendo…' : 'Subir imagen'}
+                  </button>
+                ) : null}
+                <input
+                  ref={imageInputRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={(e) => void handleUploadImage(e)}
+                />
+              </div>
+
+              {sortedImages.length === 0 ? (
+                <p className="rounded-xl border border-dashed border-[#E7DDF2] bg-white px-4 py-4 text-center text-xs text-[#786593]">
+                  Aún no has subido imágenes para esta oferta.
+                </p>
+              ) : (
+                <ul className="space-y-2">
+                  {sortedImages.map((img, idx) => (
+                    <li
+                      key={img.id}
+                      className="flex items-center justify-between gap-3 rounded-xl border border-[#E7DDF2] bg-white p-2.5 text-xs"
+                    >
+                      <div className="flex items-center gap-3 min-w-0">
+                        {img.url ? (
+                          <img src={img.url} alt="" className="h-12 w-12 shrink-0 rounded-lg object-cover" />
+                        ) : (
+                          <div className="h-12 w-12 shrink-0 rounded-lg bg-[#F6EAFE]" />
+                        )}
+                        <div className="min-w-0">
+                          <p className="truncate font-bold text-[#261743]">
+                            {img.display_name || `Imagen ${idx + 1}`}
+                          </p>
+                          {img.is_primary ? (
+                            <span className="inline-flex items-center gap-1 text-[11px] font-extrabold text-[#7427D5]">
+                              <Star className="h-3 w-3 fill-current" /> Principal
+                            </span>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => void handleSetPrimaryImage(img.id)}
+                              className="text-[11px] font-semibold text-[#786593] hover:text-[#7427D5] hover:underline"
+                            >
+                              Marcar como principal
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-1 shrink-0">
+                        <button
+                          type="button"
+                          disabled={idx === 0}
+                          onClick={() => void handleMoveImage(idx, -1)}
+                          title="Subir orden"
+                          className="rounded-lg border border-[#E7DDF2] p-1.5 text-[#5E506B] hover:bg-[#FAF4FF] disabled:opacity-35"
+                        >
+                          <ArrowUp className="h-3.5 w-3.5" />
+                        </button>
+                        <button
+                          type="button"
+                          disabled={idx === sortedImages.length - 1}
+                          onClick={() => void handleMoveImage(idx, 1)}
+                          title="Bajar orden"
+                          className="rounded-lg border border-[#E7DDF2] p-1.5 text-[#5E506B] hover:bg-[#FAF4FF] disabled:opacity-35"
+                        >
+                          <ArrowDown className="h-3.5 w-3.5" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => void handleDeleteImage(img.id)}
+                          title="Eliminar imagen"
+                          className="rounded-lg border border-rose-200 bg-rose-50 p-1.5 text-rose-700 hover:bg-rose-100"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </section>
+
             <section className="space-y-4">
               <h3 className="text-[11px] font-extrabold uppercase tracking-wide text-[#8A72B2]">Información básica</h3>
               <div>
@@ -2305,35 +3360,136 @@ function OfferEditorForm({
             </section>
 
             <section className="space-y-4">
-              <h3 className="text-[11px] font-extrabold uppercase tracking-wide text-[#8A72B2]">Precio y {isProduct ? 'inventario' : 'duración'}</h3>
+              <h3 className="text-[11px] font-extrabold uppercase tracking-wide text-[#8A72B2]">Estrategia de precio y descuentos</h3>
               <div className="grid gap-4 sm:grid-cols-2">
                 <div>
-                  <label className={offerFieldLabelClass} htmlFor="offer-price">Precio (COP)</label>
-                  <input
-                    id="offer-price"
-                    name="price"
-                    type="number"
-                    min="0"
-                    value={price}
-                    onChange={(event) => setPrice(event.target.value)}
+                  <label className={offerFieldLabelClass} htmlFor="offer-pricing-strategy">Tipo de precio</label>
+                  <select
+                    id="offer-pricing-strategy"
+                    value={pricingStrategy}
+                    onChange={(e) => setPricingStrategy(e.target.value as CommercialPricingStrategy)}
                     className={fieldClass}
-                  />
+                  >
+                    <option value="fixed">Precio fijo</option>
+                    <option value="starting_at">Desde (precio base)</option>
+                    <option value="free">Gratis</option>
+                    <option value="to_be_confirmed">Por confirmar / cotizar</option>
+                  </select>
                 </div>
-                {isProduct ? (
+
+                {pricingStrategy === 'fixed' || pricingStrategy === 'starting_at' ? (
                   <div>
-                    <label className={offerFieldLabelClass} htmlFor="offer-stock">Inventario</label>
+                    <label className={offerFieldLabelClass} htmlFor="offer-price">Precio final (COP)</label>
                     <input
-                      id="offer-stock"
-                      name="stock"
+                      id="offer-price"
+                      name="price"
                       type="number"
                       min="0"
-                      value={stock}
-                      onChange={(event) => setStock(event.target.value)}
+                      value={price}
+                      onChange={(event) => setPrice(event.target.value)}
                       className={fieldClass}
-                      placeholder="Unidades disponibles"
                     />
                   </div>
-                ) : (
+                ) : null}
+              </div>
+
+              {pricingStrategy === 'fixed' || pricingStrategy === 'starting_at' ? (
+                <div className="space-y-3 rounded-xl border border-[#E8D1F1] bg-white p-3.5">
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <div>
+                      <label className={offerFieldLabelClass} htmlFor="offer-orig-price">
+                        Precio original antes de descuento (COP)
+                      </label>
+                      <input
+                        id="offer-orig-price"
+                        type="number"
+                        min="0"
+                        value={originalPrice}
+                        onChange={(e) => setOriginalPrice(e.target.value)}
+                        placeholder="Opcional"
+                        className={fieldClass}
+                      />
+                    </div>
+                    <div>
+                      <label className={offerFieldLabelClass} htmlFor="offer-discount-pct">
+                        % Descuento
+                      </label>
+                      <input
+                        id="offer-discount-pct"
+                        type="number"
+                        min="0"
+                        max="95"
+                        value={discountPercent}
+                        onChange={(e) => setDiscountPercent(e.target.value)}
+                        placeholder="Ej. 20"
+                        className={fieldClass}
+                      />
+                    </div>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <span className="text-[11px] font-bold text-[#786593]">Presets de descuento:</span>
+                    {DISCOUNT_PRESETS.map((pct) => (
+                      <button
+                        key={pct}
+                        type="button"
+                        onClick={() => applyDiscountPreset(pct)}
+                        className="rounded-full border border-[#D9B9EE] bg-[#FAF4FF] px-2.5 py-0.5 text-[11px] font-extrabold text-[#7427D5] hover:bg-[#7427D5] hover:text-white"
+                      >
+                        -{pct}%
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
+            </section>
+
+            {/* Product Inventory or Service Duration & Payment Policy */}
+            {isProduct ? (
+              <section className="space-y-3">
+                <h3 className="text-[11px] font-extrabold uppercase tracking-wide text-[#8A72B2]">Control de inventario</h3>
+                <label className="flex cursor-pointer items-center gap-2 rounded-xl border border-[#E8D1F1] bg-white px-3 py-3 text-sm font-semibold text-[#38294E]">
+                  <input
+                    type="checkbox"
+                    checked={trackInventory}
+                    onChange={(e) => setTrackInventory(e.target.checked)}
+                    className="rounded border-[#C9A8E8] text-[#7427D5]"
+                  />
+                  Controlar stock disponible automáticamente
+                </label>
+                {trackInventory ? (
+                  <div className="flex flex-wrap items-end gap-3">
+                    <div className="flex-1 min-w-[160px]">
+                      <label className={offerFieldLabelClass} htmlFor="offer-stock">Unidades en inventario</label>
+                      <input
+                        id="offer-stock"
+                        name="stock"
+                        type="number"
+                        min="0"
+                        value={stock}
+                        onChange={(event) => setStock(event.target.value)}
+                        className={fieldClass}
+                        placeholder="Unidades disponibles"
+                      />
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setAdjustDelta('1');
+                        setAdjustReasonCode('restock');
+                        setAdjustReasonText('');
+                        setAdjustModalOpen(true);
+                      }}
+                      className={secondaryButtonClass}
+                    >
+                      Ajuste de inventario con motivo
+                    </button>
+                  </div>
+                ) : null}
+              </section>
+            ) : (
+              <section className="space-y-4">
+                <h3 className="text-[11px] font-extrabold uppercase tracking-wide text-[#8A72B2]">Duración y política de pago</h3>
+                <div className="grid gap-4 sm:grid-cols-2">
                   <div>
                     <label className={offerFieldLabelClass} htmlFor="offer-duration">Duración (minutos)</label>
                     <input
@@ -2347,9 +3503,23 @@ function OfferEditorForm({
                       placeholder="Ej. 45"
                     />
                   </div>
-                )}
-              </div>
-            </section>
+                  <div>
+                    <label className={offerFieldLabelClass} htmlFor="offer-payment-policy">Política de pago</label>
+                    <select
+                      id="offer-payment-policy"
+                      value={paymentPolicy}
+                      onChange={(e) => setPaymentPolicy(e.target.value as CommercialPaymentPolicy)}
+                      className={fieldClass}
+                    >
+                      <option value="not_required">No requiere pago anticipado</option>
+                      <option value="required_before_confirmation">Pago previo a confirmar</option>
+                      <option value="required_after_service">Pago al finalizar el servicio</option>
+                      <option value="to_be_agreed">Por acordar con el cliente</option>
+                    </select>
+                  </div>
+                </div>
+              </section>
+            )}
 
             <section className="space-y-3">
               <h3 className="text-[11px] font-extrabold uppercase tracking-wide text-[#8A72B2]">Disponibilidad</h3>
@@ -2362,7 +3532,7 @@ function OfferEditorForm({
                       onChange={(event) => setRequiresBooking(event.target.checked)}
                       className="rounded border-[#C9A8E8] text-[#7427D5]"
                     />
-                    Requiere reserva
+                    Requiere reserva de horario
                   </label>
                 ) : null}
                 <label className="flex cursor-pointer items-center gap-2 rounded-xl border border-[#E8D1F1] bg-white px-3 py-3 text-sm font-semibold text-[#38294E]">
@@ -2396,6 +3566,67 @@ function OfferEditorForm({
           </div>
         </form>
       </div>
+
+      {/* Modal: Inventory adjustment */}
+      {adjustModalOpen ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-md rounded-3xl bg-white p-6 shadow-xl">
+            <h3 className="text-base font-extrabold text-[#261743]">Ajustar inventario</h3>
+            <p className="mt-1 text-xs text-[#786593]">
+              Ingresa una cantidad positiva para entrada de mercancía o negativa para salida/merma.
+            </p>
+            <div className="mt-4 space-y-3 text-xs">
+              <div>
+                <label className={offerFieldLabelClass}>Variación de unidades (ej. +10 o -2)</label>
+                <input
+                  type="number"
+                  value={adjustDelta}
+                  onChange={(e) => setAdjustDelta(e.target.value)}
+                  className={fieldClass}
+                />
+              </div>
+              <div>
+                <label className={offerFieldLabelClass}>Motivo</label>
+                <select
+                  value={adjustReasonCode}
+                  onChange={(e) => setAdjustReasonCode(e.target.value)}
+                  className={fieldClass}
+                >
+                  <option value="restock">Reposición de inventario</option>
+                  <option value="manual_count">Conteo físico / auditoría</option>
+                  <option value="damaged">Producto dañado / merma</option>
+                  <option value="external_sale">Venta por otro canal</option>
+                </select>
+              </div>
+              <div>
+                <label className={offerFieldLabelClass}>Nota adicional (opcional)</label>
+                <input
+                  value={adjustReasonText}
+                  onChange={(e) => setAdjustReasonText(e.target.value)}
+                  placeholder="Detalle opcional"
+                  className={fieldClass}
+                />
+              </div>
+            </div>
+            <div className="mt-5 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setAdjustModalOpen(false)}
+                className={secondaryButtonClass}
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={() => void handleAdjustInventory()}
+                className={primaryButtonClass}
+              >
+                Aplicar ajuste
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -2500,9 +3731,13 @@ export function ManageVerification({ businessId }: { businessId: string }) {
   }, [businessId]);
   const [notice, setNotice] = useState('');
 
-  const save = async (event: FormEvent<HTMLFormElement>, submit: boolean) => {
+  const save = async (event: FormEvent<HTMLFormElement>, submit: boolean, pdfFile?: File | null) => {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
+    if (form.get('declaration_accepted') !== 'on') {
+      setNotice('Debes aceptar la declaración de veracidad para continuar.');
+      return;
+    }
     try {
       const auth = await getWebAuth();
       await saveOwnedCommercialVerification(auth, businessId, {
@@ -2512,10 +3747,27 @@ export function ManageVerification({ businessId }: { businessId: string }) {
         business_address: String(form.get('business_address') || ''),
         review_note: String(form.get('review_note') || ''),
         declaration_accepted: true,
-        declaration_version: 'web-1',
+        declaration_version: 'v1',
       });
+      if (pdfFile) {
+        if (pdfFile.type !== 'application/pdf') {
+          throw new Error('El documento soporte debe estar en formato PDF.');
+        }
+        if (pdfFile.size > 10 * 1024 * 1024) {
+          throw new Error('El documento PDF no debe superar los 10 MB.');
+        }
+        const fd = new FormData();
+        fd.append('files', pdfFile);
+        const uploaded = await uploadCurrentWebStorageFiles(fd);
+        const createdFile = uploaded.files?.[0];
+        if (createdFile?.id) {
+          await attachOwnedCommercialVerificationDocument(auth, businessId, {
+            file_id: createdFile.id,
+          });
+        }
+      }
       if (submit) await submitOwnedCommercialVerification(auth, businessId);
-      setNotice(submit ? 'Verificación enviada.' : 'Borrador guardado.');
+      setNotice(submit ? 'Verificación enviada a revisión.' : 'Borrador guardado.');
       loaded.reload();
     } catch (saveError) {
       setNotice(actionError(saveError));
@@ -2588,25 +3840,30 @@ function VerificationForm({
   request: CommercialVerificationRequest | null;
   isEditable: boolean;
   notice: string;
-  onSave: (event: FormEvent<HTMLFormElement>, submit: boolean) => void;
+  onSave: (event: FormEvent<HTMLFormElement>, submit: boolean, pdfFile?: File | null) => void;
 }) {
   const [applicantType, setApplicantType] = useState<'natural' | 'legal'>(request?.applicant_type || 'natural');
+  const [pdfFile, setPdfFile] = useState<File | null>(null);
+  const [declarationAccepted, setDeclarationAccepted] = useState(
+    Boolean(request?.declaration_accepted_at),
+  );
 
   useEffect(() => {
     setApplicantType(request?.applicant_type || 'natural');
+    setDeclarationAccepted(Boolean(request?.declaration_accepted_at));
   }, [request]);
 
   const submitForReview = (event: MouseEvent<HTMLButtonElement>) => {
     const form = event.currentTarget.form;
     if (!form) return;
     if (!form.reportValidity()) return;
-    onSave({ preventDefault() {}, currentTarget: form } as FormEvent<HTMLFormElement>, true);
+    onSave({ preventDefault() {}, currentTarget: form } as FormEvent<HTMLFormElement>, true, pdfFile);
   };
 
   return (
     <form
       className="overflow-hidden rounded-2xl border border-[#E7DDF2] bg-gradient-to-br from-white via-[#FFFCF9] to-[#F6EAFE] shadow-[0_10px_30px_rgba(116,39,213,0.08)]"
-      onSubmit={(event) => onSave(event, false)}
+      onSubmit={(event) => onSave(event, false, pdfFile)}
     >
       <div className="border-b border-[#F1EAF6] bg-white/85 px-4 py-4 backdrop-blur sm:px-5">
         <h3 className="text-base font-extrabold text-[#261743]">Datos de verificación</h3>
@@ -2680,6 +3937,42 @@ function VerificationForm({
           />
         </label>
 
+        {/* PDF Support Document upload */}
+        <div className="rounded-xl border border-[#E8D1F1] bg-white p-3.5">
+          <label className={verificationFieldLabel}>
+            Documento soporte en PDF (RUT / Cámara de Comercio / Cédula · máx 10 MB)
+          </label>
+          {request?.document ? (
+            <p className="mb-2 text-xs font-semibold text-emerald-700">
+              Documento adjunto actualmente (ID: {request.document.file_id.slice(0, 8)}…)
+            </p>
+          ) : null}
+          <div className="flex flex-wrap items-center gap-3">
+            <label className="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-[#D9B9EE] bg-[#FAF4FF] px-3 py-2 text-xs font-bold text-[#7427D5] hover:bg-[#F3E8FF]">
+              <FileUp className="h-4 w-4" />
+              <span>{pdfFile ? pdfFile.name : 'Seleccionar archivo PDF'}</span>
+              <input
+                type="file"
+                accept="application/pdf"
+                className="hidden"
+                onChange={(e) => {
+                  const f = e.target.files?.[0] || null;
+                  setPdfFile(f);
+                }}
+              />
+            </label>
+            {pdfFile ? (
+              <button
+                type="button"
+                onClick={() => setPdfFile(null)}
+                className="text-xs font-semibold text-rose-600 hover:underline"
+              >
+                Quitar selección
+              </button>
+            ) : null}
+          </div>
+        </div>
+
         <label className={verificationFieldLabel}>
           Nota para el revisor (opcional)
           <textarea
@@ -2692,9 +3985,16 @@ function VerificationForm({
         </label>
 
         <label className="flex cursor-pointer gap-3 rounded-xl border border-[#E8D1F1] bg-[#FFFCF9] p-3 sm:items-start">
-          <input type="checkbox" required defaultChecked className="mt-0.5 h-4 w-4 rounded border-[#C9A8E8] text-[#7427D5]" />
+          <input
+            type="checkbox"
+            name="declaration_accepted"
+            required
+            checked={declarationAccepted}
+            onChange={(e) => setDeclarationAccepted(e.target.checked)}
+            className="mt-0.5 h-4 w-4 rounded border-[#C9A8E8] text-[#7427D5]"
+          />
           <span className="text-xs leading-relaxed text-[#594C67]">
-            Declaro que la información es veraz y autorizo su revisión para fines de verificación del negocio.
+            Declaro que la información es veraz y autorizo su revisión para fines de verificación del negocio (Versión v1).
           </span>
         </label>
       </fieldset>
@@ -3215,60 +4515,5 @@ function RequestList({ businessId, requests }: { businessId: string; requests: C
 }
 
 export function ManageRequestDetail({ businessId, requestId }: { businessId: string; requestId: string }) {
-  const loaded = useAsync(async () => {
-    const auth = await getWebAuth();
-    return (await getCommercialRequest(auth, requestId)).request;
-  }, [requestId]);
-  const [notice, setNotice] = useState('');
-
-  const act = async (action: 'start_review' | 'accept' | 'reject' | 'complete') => {
-    try {
-      const auth = await getWebAuth();
-      if (action === 'complete') await completeCommercialRequest(auth, requestId, {});
-      else await transitionCommercialRequest(auth, requestId, { action });
-      setNotice('Solicitud actualizada.');
-      loaded.reload();
-    } catch (saveError) {
-      setNotice(actionError(saveError));
-    }
-  };
-
-  return (
-    <CommercialShell title="Solicitud" backHref={`/app/beeservices/manage/${businessId}/requests`}>
-      <StatusLine loading={loaded.loading} error={loaded.error} />
-      {loaded.data ? <RequestBody request={loaded.data} onAct={act} notice={notice} /> : null}
-    </CommercialShell>
-  );
-}
-
-function RequestBody({
-  request,
-  onAct,
-  notice,
-}: {
-  request: CommercialRequestDetail;
-  onAct: (action: 'start_review' | 'accept' | 'reject' | 'complete') => void;
-  notice: string;
-}) {
-  return (
-    <div className="space-y-3 text-sm">
-      <p className="font-semibold">{request.code} · {request.status}</p>
-      <p className="text-[#594C67]">{request.customer_note || 'Sin nota del cliente'}</p>
-      <ul className="space-y-2">
-        {request.items.map((item) => (
-          <li key={item.id} className="rounded-xl border border-[#F0EAF3] bg-white px-3 py-2">
-            {item.title} × {item.quantity} · {moneyCop(item.line_total_amount)}
-          </li>
-        ))}
-      </ul>
-      <p>Total {moneyCop(request.total_amount)}</p>
-      <div className="flex flex-wrap gap-2">
-        <button type="button" className={secondaryButtonClass} onClick={() => onAct('start_review')}>Revisar</button>
-        <button type="button" className={primaryButtonClass} onClick={() => onAct('accept')}>Aceptar</button>
-        <button type="button" className={secondaryButtonClass} onClick={() => onAct('reject')}>Rechazar</button>
-        <button type="button" className={secondaryButtonClass} onClick={() => onAct('complete')}>Completar</button>
-      </div>
-      {notice ? <p className="text-[#5E1ABF]">{notice}</p> : null}
-    </div>
-  );
+  return <ManageRequestDetailView businessId={businessId} requestId={requestId} />;
 }

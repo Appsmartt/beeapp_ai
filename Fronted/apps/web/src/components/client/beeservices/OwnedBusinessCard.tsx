@@ -3,12 +3,15 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
+  Archive,
+  BadgeCheck,
   ChevronRight,
   ClipboardList,
   Eye,
   MoreHorizontal,
   Package,
   Pencil,
+  RotateCcw,
   Store,
   Trash2,
   Wrench,
@@ -28,6 +31,13 @@ const PUBLICATION_LABEL = {
   archived: 'Archivado',
   suspended: 'Suspendido',
 } as const;
+
+const ARCHIVE_REASONS = [
+  { code: 'temporary_closure', label: 'Cierre temporal del negocio' },
+  { code: 'restructuring', label: 'Reestructuración de catálogo u operación' },
+  { code: 'no_longer_operating', label: 'El negocio dejó de operar' },
+  { code: 'other', label: 'Otro motivo' },
+] as const;
 
 function publicationPresentation(status: NonNullable<BusinessItem['publicationStatus']>) {
   switch (status) {
@@ -62,10 +72,14 @@ export default function OwnedBusinessCard({
   const router = useRouter();
   const [menuOpen, setMenuOpen] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [archivingModalOpen, setArchivingModalOpen] = useState(false);
+  const [reasonCode, setReasonCode] = useState<string>(ARCHIVE_REASONS[0].code);
+  const [reasonText, setReasonText] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const status = business.publicationStatus || 'paused';
   const published = status === 'published';
+  const isArchived = status === 'archived';
   const publication = publicationPresentation(status);
   const productCount = business.products.length;
   const serviceCount = business.services.length;
@@ -90,7 +104,60 @@ export default function OwnedBusinessCard({
       });
       onChanged();
     } catch (actionError) {
-      setError(actionError instanceof Error ? actionError.message : 'No fue posible actualizar la publicación.');
+      setError(
+        actionError instanceof Error
+          ? actionError.message
+          : 'No fue posible actualizar la publicación.',
+      );
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleArchiveWithReason = async () => {
+    if (!reasonText.trim() && reasonCode === 'other') {
+      setError('Especifica el motivo para archivar el negocio.');
+      return;
+    }
+    setBusy(true);
+    setError('');
+    try {
+      const auth = await getWebAuth();
+      await updateCommercialProfilePublication(auth, business.id, {
+        publication_status: 'archived',
+        reason_code: reasonCode,
+        reason_text:
+          reasonText.trim()
+          || ARCHIVE_REASONS.find((r) => r.code === reasonCode)?.label
+          || 'Archivado por el propietario',
+      });
+      setArchivingModalOpen(false);
+      setReasonText('');
+      onChanged();
+    } catch (actionError) {
+      setError(
+        actionError instanceof Error ? actionError.message : 'No fue posible archivar el negocio.',
+      );
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleRestoreFromArchive = async () => {
+    setBusy(true);
+    setError('');
+    try {
+      const auth = await getWebAuth();
+      await updateCommercialProfilePublication(auth, business.id, {
+        publication_status: 'paused',
+      });
+      onChanged();
+    } catch (actionError) {
+      setError(
+        actionError instanceof Error
+          ? actionError.message
+          : 'No fue posible restaurar el negocio.',
+      );
     } finally {
       setBusy(false);
     }
@@ -113,7 +180,9 @@ export default function OwnedBusinessCard({
       setConfirmingDelete(false);
       onChanged();
     } catch (actionError) {
-      setError(actionError instanceof Error ? actionError.message : 'No fue posible eliminar el negocio.');
+      setError(
+        actionError instanceof Error ? actionError.message : 'No fue posible eliminar el negocio.',
+      );
     } finally {
       setBusy(false);
     }
@@ -128,17 +197,33 @@ export default function OwnedBusinessCard({
           className="flex flex-1 flex-col p-4 text-left sm:p-5"
         >
           <div className="flex items-start justify-between gap-3">
-            <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-[#F6EAFE] to-white text-sm font-extrabold text-[#7427D5] shadow-sm ring-1 ring-[#E8D1F1]">
-              {businessInitials(business.name)}
-            </span>
-            <span className={`shrink-0 rounded-full px-2.5 py-1 text-[10px] font-extrabold ${publication.className}`}>
+            {business.logoUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={business.logoUrl}
+                alt={business.name}
+                className="h-12 w-12 shrink-0 rounded-2xl object-cover shadow-sm ring-1 ring-[#E8D1F1]"
+              />
+            ) : (
+              <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-[#F6EAFE] to-white text-sm font-extrabold text-[#7427D5] shadow-sm ring-1 ring-[#E8D1F1]">
+                {businessInitials(business.name)}
+              </span>
+            )}
+            <span
+              className={`shrink-0 rounded-full px-2.5 py-1 text-[10px] font-extrabold ${publication.className}`}
+            >
               {publication.label}
             </span>
           </div>
 
-          <h3 className="mt-4 text-base font-extrabold leading-snug text-[#261743] [overflow-wrap:anywhere] sm:text-lg">
-            {business.name}
-          </h3>
+          <div className="mt-4 flex items-center gap-1.5">
+            <h3 className="text-base font-extrabold leading-snug text-[#261743] [overflow-wrap:anywhere] sm:text-lg">
+              {business.name}
+            </h3>
+            {business.isVerified ? (
+              <BadgeCheck className="h-4 w-4 shrink-0 text-[#7427D5]" aria-label="Negocio verificado" />
+            ) : null}
+          </div>
           <p className="mt-1 text-xs font-semibold text-[#8A72B2]">
             {business.category || 'Sin categoría'}
           </p>
@@ -157,7 +242,9 @@ export default function OwnedBusinessCard({
               </span>
             ) : null}
             {productCount === 0 && serviceCount === 0 ? (
-              <span className="text-[11px] font-semibold text-[#B8A5D6]">Sin ofertas en catálogo</span>
+              <span className="text-[11px] font-semibold text-[#B8A5D6]">
+                Sin ofertas en catálogo
+              </span>
             ) : null}
           </div>
         </button>
@@ -184,18 +271,92 @@ export default function OwnedBusinessCard({
 
         {menuOpen ? (
           <div className="border-t border-[#F1EAF6] bg-white px-3 py-3 sm:px-4">
-            <p className="mb-2 text-[10px] font-extrabold uppercase tracking-wide text-[#8A72B2]">Acciones rápidas</p>
+            <p className="mb-2 text-[10px] font-extrabold uppercase tracking-wide text-[#8A72B2]">
+              Acciones rápidas
+            </p>
             <div className="flex flex-wrap gap-2">
               <ActionButton label="Abrir espacio" icon={Store} onClick={openSpace} />
-              <ActionButton label="Editar perfil" icon={Pencil} onClick={() => go(`/app/beeservices/manage/${business.id}/profile`)} />
-              <ActionButton label="Ver ficha" icon={Eye} onClick={() => go(`/app/beeservices/profile/${business.id}`)} />
               <ActionButton
-                label={published ? 'Pausar' : 'Publicar'}
-                icon={ClipboardList}
-                disabled={busy || status === 'suspended'}
-                onClick={() => void togglePublication()}
+                label="Editar perfil"
+                icon={Pencil}
+                onClick={() => go(`/app/beeservices/manage/${business.id}/profile`)}
               />
-              <ActionButton label="Eliminar" icon={Trash2} onClick={() => setConfirmingDelete(true)} />
+              <ActionButton
+                label="Ver ficha"
+                icon={Eye}
+                onClick={() => go(`/app/beeservices/profile/${business.id}`)}
+              />
+              {isArchived ? (
+                <ActionButton
+                  label="Restaurar"
+                  icon={RotateCcw}
+                  disabled={busy}
+                  onClick={() => void handleRestoreFromArchive()}
+                />
+              ) : (
+                <>
+                  <ActionButton
+                    label={published ? 'Pausar' : 'Publicar'}
+                    icon={ClipboardList}
+                    disabled={busy || status === 'suspended'}
+                    onClick={() => void togglePublication()}
+                  />
+                  <ActionButton
+                    label="Archivar"
+                    icon={Archive}
+                    disabled={busy}
+                    onClick={() => setArchivingModalOpen(true)}
+                  />
+                </>
+              )}
+              <ActionButton
+                label="Eliminar"
+                icon={Trash2}
+                onClick={() => setConfirmingDelete(true)}
+              />
+            </div>
+          </div>
+        ) : null}
+
+        {archivingModalOpen ? (
+          <div className="border-t border-[#E8D1F1] bg-[#FAF4FF] px-3 py-3 text-xs sm:px-4 space-y-2.5">
+            <p className="font-extrabold text-[#261743]">
+              Archivar {business.name}
+            </p>
+            <select
+              value={reasonCode}
+              onChange={(e) => setReasonCode(e.target.value)}
+              className="h-9 w-full rounded-xl border border-[#E2D6F0] bg-white px-2.5 text-xs text-[#261743]"
+            >
+              {ARCHIVE_REASONS.map((r) => (
+                <option key={r.code} value={r.code}>
+                  {r.label}
+                </option>
+              ))}
+            </select>
+            <input
+              type="text"
+              value={reasonText}
+              onChange={(e) => setReasonText(e.target.value)}
+              placeholder="Detalle adicional del motivo (obligatorio si elegiste 'Otro')"
+              className="h-9 w-full rounded-xl border border-[#E2D6F0] bg-white px-2.5 text-xs text-[#261743]"
+            />
+            <div className="flex gap-2">
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => void handleArchiveWithReason()}
+                className="rounded-xl bg-[#7427D5] px-3 py-1.5 text-xs font-extrabold text-white disabled:opacity-60"
+              >
+                {busy ? 'Archivando…' : 'Confirmar archivado'}
+              </button>
+              <button
+                type="button"
+                onClick={() => setArchivingModalOpen(false)}
+                className="rounded-xl border border-[#E8D1F1] bg-white px-3 py-1.5 text-xs font-extrabold text-[#5E1ABF]"
+              >
+                Cancelar
+              </button>
             </div>
           </div>
         ) : null}
@@ -226,7 +387,9 @@ export default function OwnedBusinessCard({
         ) : null}
 
         {error ? (
-          <p className="border-t border-[#F1EAF6] px-3 py-2 text-xs text-rose-600 sm:px-4">{error}</p>
+          <p className="border-t border-[#F1EAF6] px-3 py-2 text-xs text-rose-600 sm:px-4">
+            {error}
+          </p>
         ) : null}
       </article>
     </li>

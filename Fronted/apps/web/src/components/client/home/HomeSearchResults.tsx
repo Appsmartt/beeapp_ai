@@ -132,7 +132,7 @@ export default function HomeSearchResults({
 
     void Promise.all([
       showMail
-        ? getMailMessages({ search, folder: 'inbox', limit: 25 }).then((response) => response.messages)
+        ? getMailMessages({ search, limit: 25 }).then((response) => response.messages)
         : Promise.resolve([] as MailMessage[]),
       showNotes
         ? getCurrentWebNotes({ search, limit: 25, deleted: false }).then((response) => response.notes)

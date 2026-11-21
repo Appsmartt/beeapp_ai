@@ -1086,6 +1086,8 @@ export async function loadOwnedBusinesses(): Promise<BusinessItem[]> {
       services,
       publicationStatus: profile.publication_status,
       offerType: profile.offer_type,
+      logoUrl: profile.logo_url,
+      isVerified: profile.verification_status === 'verified',
     } satisfies BusinessItem;
   }));
 

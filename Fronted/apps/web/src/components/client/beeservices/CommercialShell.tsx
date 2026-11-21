@@ -54,8 +54,8 @@ export function moneyCop(amount: number | null | undefined): string {
   }).format(amount);
 }
 
-export function actionError(error: unknown): string {
-  return error instanceof Error ? error.message : 'No fue posible completar la acción.';
+export function actionError(error: unknown, fallback = 'No fue posible completar la acción.'): string {
+  return error instanceof Error ? error.message : fallback;
 }
 
 export const fieldClass =

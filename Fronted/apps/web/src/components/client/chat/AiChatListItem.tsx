@@ -1,7 +1,8 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { Bot, Pin, Sparkles, Lock, MoreVertical, BellOff } from 'lucide-react';
+import Link from 'next/link';
+import { Bot, Pin, Sparkles, MoreVertical, BellOff, ExternalLink } from 'lucide-react';
 import { ChatItem } from '@/lib/client/chats';
 import { ChatInlineText } from './ChatFormattedText';
 
@@ -11,8 +12,6 @@ interface AiChatListItemProps {
   onClick: () => void;
   onPin?: (id: string) => void;
   onMute?: (id: string) => void;
-  onAssignCategory?: (chat: ChatItem) => void;
-  onToggleProtection?: (chat: ChatItem) => void;
 }
 
 export default function AiChatListItem({
@@ -48,11 +47,6 @@ export default function AiChatListItem({
         <div className="flex h-9 w-9 items-center justify-center rounded-full bg-brand-primary text-white shadow-xs">
           <Bot className="h-[18px] w-[18px]" />
         </div>
-        {chat.isProtected && (
-          <div className="absolute -bottom-0.5 -right-0.5 flex h-4 w-4 items-center justify-center rounded-full border-[1.5px] border-white bg-brand-primary text-white">
-            <Lock className="h-2 w-2" />
-          </div>
-        )}
       </div>
 
       <div className="flex-1 min-w-0">
@@ -74,11 +68,7 @@ export default function AiChatListItem({
         </div>
 
         <p className="truncate text-xs leading-4 font-normal text-neutral-500">
-          {chat.isProtected ? (
-            <span className="italic text-neutral-400">Chat protegido</span>
-          ) : (
-            <ChatInlineText text={chat.lastMessage || ''} />
-          )}
+          <ChatInlineText text={chat.lastMessage || ''} />
         </p>
       </div>
 
@@ -95,13 +85,22 @@ export default function AiChatListItem({
         <MoreVertical className="h-3.5 w-3.5" />
       </button>
 
-      {/* Menú contextual desplegable (sin eliminar ni archivar) */}
+      {/* Menú contextual desplegable */}
       {menuOpen && (
         <div
           ref={menuRef}
           onClick={(e) => e.stopPropagation()}
           className="animate-in fade-in zoom-in-95 duration-100 absolute right-3 top-8 z-30 w-48 select-none rounded-xl border border-neutral-200 bg-white py-1.5 text-xs text-neutral-800 shadow-xl"
         >
+          <Link
+            href="/app/assistant"
+            onClick={() => setMenuOpen(false)}
+            className="w-full flex items-center gap-2.5 px-3 py-2 hover:bg-neutral-50 text-left font-normal text-brand-primary"
+          >
+            <ExternalLink className="w-3.5 h-3.5" />
+            <span>Abrir vista completa</span>
+          </Link>
+
           {onPin && (
             <button
               type="button"

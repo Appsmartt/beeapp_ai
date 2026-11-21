@@ -105,3 +105,9 @@ export function clearAssistantMemory(
 ): Promise<{ cleared: boolean }> {
     return api.delete<{ cleared: boolean }>('/assistant/memories/', { auth });
 }
+
+export function clearAssistantMessages(
+    auth: AuthCredentials,
+): Promise<{ cleared: boolean }> {
+    return api.delete<{ cleared: boolean }>('/assistant/messages/', { auth });
+}
