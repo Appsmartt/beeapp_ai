@@ -1,16 +1,21 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
 import {
   ArrowLeft,
   Bot,
   Briefcase,
   Check,
+  Clock,
+  Lock,
+  MessageSquareText,
   Mic,
   Minus,
   Shield,
   Smile,
   Sparkles,
+  Store,
   Trash2,
 } from 'lucide-react';
 import {
@@ -56,6 +61,8 @@ const LANGUAGES = [
   { id: 'en', label: 'Inglés' },
   { id: 'pt', label: 'Portugués' },
 ];
+
+const PAUSE_OPTIONS = [15, 30, 60] as const;
 
 const PERMISSIONS: { id: keyof AssistantPermissions; label: string }[] = [
   { id: 'calendar', label: 'Agenda' },
@@ -104,6 +111,12 @@ export default function AiSettingsScreen({ onBack, hideHeader = false }: AiSetti
   const [level, setLevel] = useState<AssistantLevel>('confirmar');
   const [memoryEnabled, setMemoryEnabled] = useState(true);
   const [permissions, setPermissions] = useState<AssistantPermissions>(DEFAULT_PERMISSIONS);
+  const [autoReplyPersonalEnabled, setAutoReplyPersonalEnabled] = useState(false);
+  const [autoReplyBusinessEnabled, setAutoReplyBusinessEnabled] = useState(false);
+  const [autoReplyPersonalPrompt, setAutoReplyPersonalPrompt] = useState('');
+  const [autoReplyPauseMinutes, setAutoReplyPauseMinutes] = useState(30);
+  const [canAutoReplyPersonal, setCanAutoReplyPersonal] = useState(false);
+  const [canAutoReplyBusiness, setCanAutoReplyBusiness] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -120,6 +133,12 @@ export default function AiSettingsScreen({ onBack, hideHeader = false }: AiSetti
         setLevel(settings.assistance_level || 'confirmar');
         setMemoryEnabled(settings.memory_enabled !== false);
         setPermissions({ ...DEFAULT_PERMISSIONS, ...settings.permissions });
+        setAutoReplyPersonalEnabled(Boolean(settings.auto_reply_personal_enabled));
+        setAutoReplyBusinessEnabled(Boolean(settings.auto_reply_business_enabled));
+        setAutoReplyPersonalPrompt(settings.auto_reply_personal_prompt || '');
+        setAutoReplyPauseMinutes(settings.auto_reply_pause_minutes || 30);
+        setCanAutoReplyPersonal(Boolean(settings.entitlements?.chat_auto_reply_personal));
+        setCanAutoReplyBusiness(Boolean(settings.entitlements?.chat_auto_reply_business));
       })
       .catch((error) => {
         if (!cancelled) {
@@ -149,6 +168,10 @@ export default function AiSettingsScreen({ onBack, hideHeader = false }: AiSetti
           assistance_level: level,
           memory_enabled: memoryEnabled,
           permissions,
+          ...(canAutoReplyPersonal ? { auto_reply_personal_enabled: autoReplyPersonalEnabled } : {}),
+          ...(canAutoReplyBusiness ? { auto_reply_business_enabled: autoReplyBusinessEnabled } : {}),
+          auto_reply_personal_prompt: autoReplyPersonalPrompt.trim().slice(0, 1000),
+          auto_reply_pause_minutes: autoReplyPauseMinutes,
         });
         onBack();
       } catch (error) {
@@ -368,6 +391,121 @@ export default function AiSettingsScreen({ onBack, hideHeader = false }: AiSetti
                     <Trash2 className="h-3.5 w-3.5" aria-hidden />
                     Borrar memoria
                   </button>
+                </div>
+              </section>
+
+              <section className="rounded-2xl border border-[#E7DDF2] bg-white p-4 shadow-sm sm:p-5">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <p className={`${sectionLabelClass} flex items-center gap-1.5`}>
+                    <MessageSquareText className="h-3.5 w-3.5 text-[#7427D5]" aria-hidden />
+                    Respuestas automáticas en chats
+                  </p>
+                  {(!canAutoReplyPersonal || !canAutoReplyBusiness) ? (
+                    <Link
+                      href="/app/profile/subscription"
+                      className="rounded-full bg-[#F6EAFE] px-2.5 py-1 text-[11px] font-extrabold text-[#7427D5] hover:bg-[#EBD5FC]"
+                    >
+                      Mejorar plan
+                    </Link>
+                  ) : null}
+                </div>
+                <p className="mt-1.5 text-[11px] leading-relaxed text-[#786593]">
+                  Permite que Buddy AI lea y responda automáticamente mensajes entrantes por ti. Si respondes manualmente en un chat, la IA se pausa temporalmente para que tú tomes el control.
+                </p>
+
+                <div className="mt-3 space-y-2.5">
+                  <button
+                    type="button"
+                    disabled={!canAutoReplyPersonal}
+                    onClick={() => canAutoReplyPersonal && setAutoReplyPersonalEnabled((current) => !current)}
+                    className={`${toggleCardClass(canAutoReplyPersonal && autoReplyPersonalEnabled)} ${
+                      !canAutoReplyPersonal ? 'cursor-not-allowed opacity-65' : ''
+                    }`}
+                  >
+                    {canAutoReplyPersonal ? (
+                      <MessageSquareText className="mt-0.5 h-4 w-4 shrink-0 text-[#7427D5]" aria-hidden />
+                    ) : (
+                      <Lock className="mt-0.5 h-4 w-4 shrink-0 text-[#8A72B2]" aria-hidden />
+                    )}
+                    <span className="min-w-0 flex-1">
+                      <span className="block text-xs font-extrabold text-[#261743]">
+                        Responder mis chats personales (1-a-1)
+                      </span>
+                      <span className="mt-0.5 block text-[11px] text-[#786593]">
+                        {canAutoReplyPersonal
+                          ? 'Responde usando solo la conversación actual y tus indicaciones. Nunca expone correos, notas ni agenda.'
+                          : 'No disponible en tu plan actual.'}
+                      </span>
+                    </span>
+                    {canAutoReplyPersonal && autoReplyPersonalEnabled ? (
+                      <Check className="h-4 w-4 shrink-0 text-[#7427D5]" />
+                    ) : null}
+                  </button>
+
+                  <button
+                    type="button"
+                    disabled={!canAutoReplyBusiness}
+                    onClick={() => canAutoReplyBusiness && setAutoReplyBusinessEnabled((current) => !current)}
+                    className={`${toggleCardClass(canAutoReplyBusiness && autoReplyBusinessEnabled)} ${
+                      !canAutoReplyBusiness ? 'cursor-not-allowed opacity-65' : ''
+                    }`}
+                  >
+                    {canAutoReplyBusiness ? (
+                      <Store className="mt-0.5 h-4 w-4 shrink-0 text-[#7427D5]" aria-hidden />
+                    ) : (
+                      <Lock className="mt-0.5 h-4 w-4 shrink-0 text-[#8A72B2]" aria-hidden />
+                    )}
+                    <span className="min-w-0 flex-1">
+                      <span className="block text-xs font-extrabold text-[#261743]">
+                        Responder chats de mis negocios
+                      </span>
+                      <span className="mt-0.5 block text-[11px] text-[#786593]">
+                        {canAutoReplyBusiness
+                          ? 'Atiende clientes con el catálogo y horarios públicos de cada negocio que actives en Buddy Services.'
+                          : 'No disponible en tu plan actual.'}
+                      </span>
+                    </span>
+                    {canAutoReplyBusiness && autoReplyBusinessEnabled ? (
+                      <Check className="h-4 w-4 shrink-0 text-[#7427D5]" />
+                    ) : null}
+                  </button>
+
+                  <div className="pt-1">
+                    <p className="flex items-center gap-1.5 text-[11px] text-[#786593]">
+                      <Clock className="h-3.5 w-3.5 text-[#7427D5]" aria-hidden />
+                      Pausa automática cuando respondo manualmente
+                    </p>
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      {PAUSE_OPTIONS.map((minutes) => (
+                        <button
+                          key={minutes}
+                          type="button"
+                          onClick={() => setAutoReplyPauseMinutes(minutes)}
+                          className={chipClass(autoReplyPauseMinutes === minutes)}
+                        >
+                          {minutes} min
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="pt-1">
+                    <label className={fieldLabelClass} htmlFor="assistant-personal-auto-reply-prompt">
+                      Instrucciones para mis chats personales (opcional)
+                    </label>
+                    <textarea
+                      id="assistant-personal-auto-reply-prompt"
+                      rows={3}
+                      maxLength={1000}
+                      value={autoReplyPersonalPrompt}
+                      onChange={(event) => setAutoReplyPersonalPrompt(event.target.value)}
+                      placeholder="Ej. Si me escriben en horario laboral, responde que estoy en reuniones y les devuelvo el mensaje después de las 6 p. m."
+                      className={fieldClass}
+                    />
+                    <p className="mt-1 text-right text-[11px] text-[#9B8AB4]">
+                      {autoReplyPersonalPrompt.length}/1000
+                    </p>
+                  </div>
                 </div>
               </section>
 

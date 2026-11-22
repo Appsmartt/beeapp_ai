@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import {
   Archive,
   CheckCircle2,
@@ -39,6 +40,8 @@ export default function MailListItem({
   onArchive,
   onDelete,
 }: MailListItemProps) {
+  const [menuOpen, setMenuOpen] = useState(false);
+
   return (
     <div
       className={`group relative flex cursor-pointer items-start gap-3 px-4 py-3.5 transition-colors ${
@@ -156,51 +159,70 @@ export default function MailListItem({
           />
         </button>
 
-        <div className="relative">
+        <div className="relative" onClick={(event) => event.stopPropagation()}>
           <button
             type="button"
             disabled={isUpdating}
             aria-label="Más acciones"
-            className="peer rounded-md p-1 text-neutral-400 transition-colors hover:text-neutral-700"
+            aria-expanded={menuOpen}
+            onClick={() => setMenuOpen((curr) => !curr)}
+            className="rounded-md p-1.5 text-neutral-400 transition-colors hover:text-neutral-700"
           >
             <MoreVertical className="h-4 w-4" />
           </button>
 
-          <div className="invisible absolute right-0 top-full z-30 mt-1 w-52 overflow-hidden rounded-xl border border-neutral-200 bg-white py-1 opacity-0 shadow-xl transition-all peer-focus-within:visible peer-focus-within:opacity-100 hover:visible hover:opacity-100">
-            <button
-              type="button"
-              onClick={onToggleRead}
-              className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs font-normal text-neutral-700 transition-colors hover:bg-neutral-50"
-            >
-              {email.isRead ? (
-                <Mail className="h-3.5 w-3.5 text-neutral-500" />
-              ) : (
-                <MailOpen className="h-3.5 w-3.5 text-neutral-500" />
-              )}
+          {menuOpen ? (
+            <>
+              <div
+                className="fixed inset-0 z-20 cursor-default"
+                onClick={() => setMenuOpen(false)}
+              />
+              <div className="absolute right-0 top-full z-30 mt-1 w-52 overflow-hidden rounded-xl border border-neutral-200 bg-white py-1 shadow-xl">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMenuOpen(false);
+                    onToggleRead();
+                  }}
+                  className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs font-normal text-neutral-700 transition-colors hover:bg-neutral-50"
+                >
+                  {email.isRead ? (
+                    <Mail className="h-3.5 w-3.5 text-neutral-500" />
+                  ) : (
+                    <MailOpen className="h-3.5 w-3.5 text-neutral-500" />
+                  )}
 
-              {email.isRead
-                ? 'Marcar como no leído'
-                : 'Marcar como leído'}
-            </button>
+                  {email.isRead
+                    ? 'Marcar como no leído'
+                    : 'Marcar como leído'}
+                </button>
 
-            <button
-              type="button"
-              onClick={onArchive}
-              className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs font-normal text-neutral-700 transition-colors hover:bg-neutral-50"
-            >
-              <Archive className="h-3.5 w-3.5 text-neutral-500" />
-              Archivar
-            </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMenuOpen(false);
+                    onArchive();
+                  }}
+                  className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs font-normal text-neutral-700 transition-colors hover:bg-neutral-50"
+                >
+                  <Archive className="h-3.5 w-3.5 text-neutral-500" />
+                  Archivar
+                </button>
 
-            <button
-              type="button"
-              onClick={onDelete}
-              className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs font-normal text-red-600 transition-colors hover:bg-red-50"
-            >
-              <Trash2 className="h-3.5 w-3.5" />
-              Mover a papelera
-            </button>
-          </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMenuOpen(false);
+                    onDelete();
+                  }}
+                  className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs font-normal text-red-600 transition-colors hover:bg-red-50"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                  Mover a papelera
+                </button>
+              </div>
+            </>
+          ) : null}
         </div>
       </div>
     </div>

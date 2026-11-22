@@ -21,6 +21,8 @@ import AuthPageShell from '@/components/auth/AuthPageShell';
 import LandingNavbar from '@/components/landing/LandingNavbar';
 import CountrySelector, { type Country } from './CountrySelector';
 import { loadRegistrationCountries } from '@/lib/client/publicAppSettings';
+import { useAuth } from '@/lib/auth/AuthProvider';
+import { homePathForRole } from '@/lib/auth/session';
 
 type FormErrors = {
   firstName?: string;
@@ -65,6 +67,7 @@ function registerErrorMessage(error: unknown): string {
 
 export default function RegisterForm() {
   const router = useRouter();
+  const { status, profile, sessionConfirmed, refreshProfile } = useAuth();
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [countries, setCountries] = useState<Country[]>([]);
@@ -89,6 +92,12 @@ export default function RegisterForm() {
 
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+
+  useEffect(() => {
+    if (status === 'ready' && sessionConfirmed && profile && !createdUserName) {
+      router.replace(homePathForRole(profile.role));
+    }
+  }, [createdUserName, profile, router, sessionConfirmed, status]);
 
   const clearError = (field: keyof FormErrors) => {
     setErrors((current) => ({
@@ -170,7 +179,8 @@ export default function RegisterForm() {
           access_token: response.session.access_token,
           refresh_token: response.session.refresh_token,
         });
-        router.replace('/app');
+        const nextProfile = await refreshProfile();
+        router.replace(homePathForRole(nextProfile?.role));
         return;
       }
 
@@ -186,6 +196,30 @@ export default function RegisterForm() {
       setIsSubmitting(false);
     }
   };
+
+  const redirectingToApp = status === 'ready' && Boolean(profile) && !createdUserName;
+  const checkingSession = (status === 'loading' || redirectingToApp) && !createdUserName;
+
+  if (checkingSession) {
+    return (
+      <AuthPageShell
+        mode="register"
+        title={redirectingToApp ? 'Sesión activa' : 'Verificando sesión'}
+        subtitle={
+          redirectingToApp
+            ? 'Ya tienes una sesión abierta en este navegador.'
+            : 'Comprobando si ya iniciaste sesión…'
+        }
+      >
+        <div className="flex flex-col items-center justify-center gap-3 py-10 text-center">
+          <div className="h-8 w-8 animate-spin rounded-full border-2 border-brand-primary border-t-transparent" />
+          <p className="text-sm font-medium text-[#2A194B]">
+            {redirectingToApp ? 'Redirigiendo a tu espacio…' : 'Verificando tu sesión…'}
+          </p>
+        </div>
+      </AuthPageShell>
+    );
+  }
 
   if (createdUserName) {
     return (

@@ -87,7 +87,7 @@ export function CreateFolderModal({
         onSubmit={(event) => {
           void handleSubmit(event);
         }}
-        className="relative z-10 w-full max-w-sm space-y-4 rounded-3xl border border-neutral-100 bg-white p-6 shadow-xl animate-in fade-in zoom-in-95 duration-150"
+        className="relative z-10 max-h-[90dvh] w-full max-w-sm space-y-4 overflow-y-auto rounded-3xl border border-neutral-100 bg-white p-5 shadow-xl animate-in fade-in zoom-in-95 duration-150 sm:p-6"
       >
         <div className="flex items-center justify-between border-b border-neutral-100 pb-3">
           <div className="flex items-center gap-2">
@@ -211,7 +211,7 @@ export function RenameModal({
         onSubmit={(event) => {
           void handleSubmit(event);
         }}
-        className="relative z-10 w-full max-w-sm space-y-4 rounded-3xl border border-neutral-100 bg-white p-6 shadow-xl animate-in fade-in zoom-in-95 duration-150"
+        className="relative z-10 max-h-[90dvh] w-full max-w-sm space-y-4 overflow-y-auto rounded-3xl border border-neutral-100 bg-white p-5 shadow-xl animate-in fade-in zoom-in-95 duration-150 sm:p-6"
       >
         <div className="flex items-center justify-between border-b border-neutral-100 pb-3">
           <div className="flex items-center gap-2">
@@ -368,7 +368,7 @@ export function MoveFolderModal({
         onClick={onClose}
       />
 
-      <div className="relative z-10 w-full max-w-sm space-y-4 rounded-3xl border border-neutral-100 bg-white p-6 shadow-xl animate-in fade-in zoom-in-95 duration-150">
+      <div className="relative z-10 max-h-[90dvh] w-full max-w-sm space-y-4 overflow-y-auto rounded-3xl border border-neutral-100 bg-white p-5 shadow-xl animate-in fade-in zoom-in-95 duration-150 sm:p-6">
         <div className="flex items-center justify-between border-b border-neutral-100 pb-3">
           <div className="flex items-center gap-2">
             <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-brand-primary/10 text-brand-primary">

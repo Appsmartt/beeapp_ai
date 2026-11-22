@@ -160,7 +160,7 @@ export default function StoragePreview({
               <img
                 src={accessUrl}
                 alt={item.name}
-                className="max-h-[92vh] max-w-[92vw] rounded-xl object-contain shadow-2xl"
+                className="max-h-[92dvh] max-w-[92vw] rounded-xl object-contain shadow-2xl"
               />
             </div>
           ) : null}
@@ -174,7 +174,7 @@ export default function StoragePreview({
           <video
             src={accessUrl}
             controls
-            className="max-h-[70vh] w-full"
+            className="max-h-[70dvh] w-full"
           >
             Tu navegador no puede reproducir este video.
           </video>
@@ -184,7 +184,7 @@ export default function StoragePreview({
 
     if (item.type === 'audio' || item.mimeType?.startsWith('audio/')) {
       return (
-        <div className="w-full max-w-md space-y-4 rounded-2xl border border-neutral-200 bg-white p-8 text-center shadow-sm">
+        <div className="w-full max-w-md space-y-4 rounded-2xl border border-neutral-200 bg-white p-5 text-center shadow-sm sm:p-8">
           <h2 className="break-all text-sm font-semibold text-neutral-900">
             {item.name}
           </h2>
@@ -200,13 +200,13 @@ export default function StoragePreview({
         <iframe
           src={accessUrl}
           title={item.name}
-          className="h-[70vh] w-full max-w-5xl rounded-xl border border-neutral-200 bg-white shadow-sm"
+          className="h-[70dvh] w-full max-w-5xl rounded-xl border border-neutral-200 bg-white shadow-sm"
         />
       );
     }
 
     return (
-      <div className="max-w-md space-y-4 rounded-2xl border border-neutral-200 bg-white p-8 text-center shadow-sm">
+      <div className="max-w-md space-y-4 rounded-2xl border border-neutral-200 bg-white p-5 text-center shadow-sm sm:p-8">
         <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-brand-primary/10 text-brand-primary">
           <FileText className="h-8 w-8" />
         </div>

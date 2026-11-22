@@ -184,8 +184,8 @@ export default function MailDetail({
         </div>
       </div>
 
-      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
-        <div className="mx-auto w-full max-w-3xl px-6 pb-6 pt-6">
+      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain pb-24">
+        <div className="mx-auto w-full max-w-3xl px-4 pb-6 pt-5 sm:px-6 sm:pt-6">
           {actionLoading ? (
             <div className="mb-4 inline-flex items-center gap-2 rounded-xl bg-brand-primary/10 px-3 py-2 text-xs font-semibold text-brand-primary">
               <span className="h-3 w-3 animate-spin rounded-full border-2 border-brand-primary border-t-transparent" />
@@ -193,16 +193,16 @@ export default function MailDetail({
             </div>
           ) : null}
 
-          <span className="inline-flex items-center gap-1.5 rounded-lg bg-neutral-100 px-2.5 py-1 text-[11px] font-medium text-neutral-600">
-            <Mail className="h-3 w-3" />
-            Cuenta: {email.accountEmail}
+          <span className="inline-flex max-w-full items-center gap-1.5 rounded-lg bg-neutral-100 px-2.5 py-1 text-[11px] font-medium text-neutral-600">
+            <Mail className="h-3 w-3 shrink-0" />
+            <span className="truncate">Cuenta: {email.accountEmail}</span>
           </span>
 
-          <h1 className="mt-4 text-xl font-semibold leading-snug text-neutral-900">
+          <h1 className="mt-4 break-words text-lg font-semibold leading-snug text-neutral-900 sm:text-xl">
             {email.subject}
           </h1>
 
-          <div className="mt-5 flex items-start gap-3 border-b border-neutral-100 pb-5">
+          <div className="mt-5 flex flex-wrap items-start gap-3 border-b border-neutral-100 pb-5">
             <div
               style={{
                 backgroundColor: email.initialsColor,
@@ -228,7 +228,7 @@ export default function MailDetail({
               </p>
             </div>
 
-            <span className="max-w-[130px] shrink-0 text-right text-[11px] font-normal leading-4 text-neutral-500">
+            <span className="w-full shrink-0 text-left text-[11px] font-normal leading-4 text-neutral-500 sm:w-auto sm:max-w-[140px] sm:text-right">
               {emailDate}
             </span>
           </div>
@@ -242,7 +242,7 @@ export default function MailDetail({
                     onClick={() => setViewMode('html')}
                     className={`rounded-lg px-2.5 py-1 transition-colors ${
                       viewMode === 'html'
-                        ? 'bg-white text-brand-primary shadow-xs'
+                        ? 'bg-white text-brand-primary shadow-sm'
                         : 'text-neutral-500 hover:text-neutral-800'
                     }`}
                   >
@@ -253,7 +253,7 @@ export default function MailDetail({
                     onClick={() => setViewMode('text')}
                     className={`rounded-lg px-2.5 py-1 transition-colors ${
                       viewMode === 'text'
-                        ? 'bg-white text-brand-primary shadow-xs'
+                        ? 'bg-white text-brand-primary shadow-sm'
                         : 'text-neutral-500 hover:text-neutral-800'
                     }`}
                   >
@@ -332,12 +332,12 @@ export default function MailDetail({
           ) : null}
 
           {!email.isTrashed ? (
-            <div className="mt-8 flex gap-3 border-t border-neutral-100 pt-5">
+            <div className="mt-8 grid grid-cols-1 gap-2.5 border-t border-neutral-100 pt-5 sm:grid-cols-3 sm:gap-3">
               <button
                 type="button"
                 onClick={() => onReply(email)}
                 disabled={actionLoading}
-                className="flex h-10 flex-1 items-center justify-center gap-2 rounded-xl border border-neutral-300 text-xs font-medium text-neutral-700 transition-colors hover:bg-neutral-50 disabled:opacity-50"
+                className="flex h-10 items-center justify-center gap-2 rounded-xl border border-neutral-300 text-xs font-medium text-neutral-700 transition-colors hover:bg-neutral-50 disabled:opacity-50"
               >
                 <CornerUpLeft className="h-4 w-4" />
                 Responder
@@ -347,7 +347,7 @@ export default function MailDetail({
                 type="button"
                 onClick={() => onReplyAll(email)}
                 disabled={actionLoading}
-                className="flex h-10 flex-1 items-center justify-center gap-2 rounded-xl border border-neutral-300 text-xs font-medium text-neutral-700 transition-colors hover:bg-neutral-50 disabled:opacity-50"
+                className="flex h-10 items-center justify-center gap-2 rounded-xl border border-neutral-300 text-xs font-medium text-neutral-700 transition-colors hover:bg-neutral-50 disabled:opacity-50"
               >
                 <ReplyAll className="h-4 w-4" />
                 Todos
@@ -357,7 +357,7 @@ export default function MailDetail({
                 type="button"
                 onClick={() => onForward(email)}
                 disabled={actionLoading}
-                className="flex h-10 flex-1 items-center justify-center gap-2 rounded-xl border border-neutral-300 text-xs font-medium text-neutral-700 transition-colors hover:bg-neutral-50 disabled:opacity-50"
+                className="flex h-10 items-center justify-center gap-2 rounded-xl border border-neutral-300 text-xs font-medium text-neutral-700 transition-colors hover:bg-neutral-50 disabled:opacity-50"
               >
                 <CornerUpRight className="h-4 w-4" />
                 Reenviar

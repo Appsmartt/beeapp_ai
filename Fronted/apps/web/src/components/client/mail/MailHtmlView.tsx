@@ -282,10 +282,12 @@ function buildMailDocument(
     height: auto !important;
     min-height: 0 !important;
     max-height: none !important;
-    overflow: hidden !important;
+    overflow-x: auto !important;
+    overflow-y: hidden !important;
   }
   body { padding: 8px 0 16px !important; }
   img, video { max-width: 100% !important; height: auto !important; }
+  table { max-width: 100% !important; }
 </style>
 </head>
 <body>${body}</body>
@@ -494,30 +496,32 @@ export default function MailHtmlView({
   };
 
   return (
-    <iframe
-      ref={frameRef}
-      title="Contenido del correo"
-      scrolling="no"
-      sandbox="allow-same-origin allow-popups allow-popups-to-escape-sandbox"
-      srcDoc={srcDoc}
-      onLoad={() => {
-        observerRef.current?.disconnect();
-        fitFrame();
-
-        const body = frameRef.current?.contentDocument?.body;
-
-        if (!body) {
-          return;
-        }
-
-        const observer = new ResizeObserver(() => {
+    <div className="w-full max-w-full overflow-x-auto">
+      <iframe
+        ref={frameRef}
+        title="Contenido del correo"
+        scrolling="auto"
+        sandbox="allow-same-origin allow-popups allow-popups-to-escape-sandbox"
+        srcDoc={srcDoc}
+        onLoad={() => {
+          observerRef.current?.disconnect();
           fitFrame();
-        });
 
-        observer.observe(body);
-        observerRef.current = observer;
-      }}
-      className="block w-full border-0 bg-white"
-    />
+          const body = frameRef.current?.contentDocument?.body;
+
+          if (!body) {
+            return;
+          }
+
+          const observer = new ResizeObserver(() => {
+            fitFrame();
+          });
+
+          observer.observe(body);
+          observerRef.current = observer;
+        }}
+        className="block w-full border-0 bg-white"
+      />
+    </div>
   );
 }

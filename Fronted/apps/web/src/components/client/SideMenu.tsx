@@ -315,7 +315,7 @@ export default function SideMenu({
 
   return createPortal(
     <div
-      className="fixed inset-0 z-50 flex justify-end overflow-hidden"
+      className="fixed inset-0 z-[100] flex justify-end overflow-hidden"
       aria-hidden={!menuMotion.visible}
     >
       <MotionOverlay
@@ -327,24 +327,24 @@ export default function SideMenu({
       <MotionDrawer
         visible={menuMotion.visible}
         side="right"
-        className="relative z-50 flex h-dvh max-h-dvh w-[min(340px,100vw)] shrink-0 overflow-hidden rounded-l-3xl bg-white shadow-2xl"
+        className="relative z-50 flex h-dvh max-h-dvh w-[min(340px,90vw)] shrink-0 overflow-hidden rounded-l-2xl bg-white shadow-2xl sm:rounded-l-3xl"
       >
         <aside className="flex h-full min-h-0 w-full flex-col overflow-hidden bg-white">
-          <div className="px-5 pt-5">
+          <div className="shrink-0 px-5 pt-4 sm:pt-5">
             <BuddyLogo height={30} />
           </div>
 
-          <div className="flex items-center justify-between border-b border-neutral-100 bg-neutral-50/50 p-5">
-            <div className="flex items-center gap-3">
+          <div className="flex shrink-0 items-center justify-between gap-2 border-b border-neutral-100 bg-neutral-50/50 p-4 sm:p-5">
+            <div className="flex min-w-0 items-center gap-3">
               <ProfileAvatar
                 initials={menuUser.initials}
                 avatarUrl={menuUser.avatarUrl}
                 size="sm"
               />
 
-              <div className="space-y-0.5">
+              <div className="min-w-0 space-y-0.5">
                 <div className="flex items-center gap-1.5 text-sm font-semibold text-neutral-900">
-                  <span>{menuUser.name}</span>
+                  <span className="truncate">{menuUser.name}</span>
 
                   {menuUser.isVerified ? (
                     <UserCheck className="h-4 w-4 shrink-0 text-brand-primary" />
@@ -352,7 +352,7 @@ export default function SideMenu({
                 </div>
 
                 {menuUser.email ? (
-                  <p className="text-xs font-normal text-neutral-500">
+                  <p className="truncate text-xs font-normal text-neutral-500">
                     {menuUser.email}
                   </p>
                 ) : null}
@@ -445,10 +445,10 @@ export default function SideMenu({
               )}
 
               <div className="px-3 py-2.5">
-                <div className="flex items-center justify-between text-sm font-normal text-neutral-700">
-                  <div className="flex items-center gap-3">
-                    <Eye className="h-4 w-4 text-neutral-500" />
-                    <span>Visibilidad en la red</span>
+                <div className="flex items-center justify-between gap-3 text-sm font-normal text-neutral-700">
+                  <div className="flex min-w-0 items-center gap-3">
+                    <Eye className="h-4 w-4 shrink-0 text-neutral-500" />
+                    <span className="truncate">Visibilidad en la red</span>
                   </div>
 
                   <button
@@ -459,7 +459,7 @@ export default function SideMenu({
                       void handleToggleVisibility();
                     }}
                     aria-label="Cambiar visibilidad en la red"
-                    className={`relative h-6 w-10 rounded-full p-0.5 transition-colors disabled:opacity-60 ${networkVisibility
+                    className={`relative h-6 w-10 shrink-0 rounded-full p-0.5 transition-colors disabled:opacity-60 ${networkVisibility
                       ? 'bg-brand-primary'
                       : 'bg-neutral-300'
                       }`}
@@ -520,7 +520,7 @@ export default function SideMenu({
             </div>
           </div>
 
-          <div className="border-t border-neutral-100 p-4">
+          <div className="shrink-0 border-t border-neutral-100 p-3 sm:p-4">
             <button
               type="button"
               onClick={() => {
@@ -536,7 +536,7 @@ export default function SideMenu({
       </MotionDrawer>
 
       {toastVisible ? (
-        <div className="fixed bottom-6 left-1/2 z-[60] -translate-x-1/2 rounded-full bg-neutral-900 px-4 py-2 text-xs font-semibold text-white shadow-lg">
+        <div className="fixed bottom-6 left-1/2 z-[105] -translate-x-1/2 rounded-full bg-neutral-900 px-4 py-2 text-xs font-semibold text-white shadow-lg">
           Enlace copiado
         </div>
       ) : null}

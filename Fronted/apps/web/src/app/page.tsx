@@ -8,7 +8,7 @@ import Footer from "@/components/landing/Footer";
 
 export default function Home() {
   return (
-    <div className="min-h-screen bg-white font-sans text-neutral-900 selection:bg-brand-primary/20">
+    <div className="min-h-screen bg-[#F4EEFC] font-sans text-[#1A1033] selection:bg-brand-primary/20">
       <LandingNavbar />
 
       <main>

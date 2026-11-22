@@ -7,6 +7,7 @@ import {
   ArrowDown,
   ArrowUp,
   BarChart3,
+  Bot,
   BriefcaseBusiness,
   CalendarDays,
   ChevronLeft,
@@ -57,11 +58,9 @@ import {
 } from '@/lib/client/beeservices/commercialRequestListPresentation';
 import {
   adjustOwnedCommercialOfferInventory,
-  archiveOwnedCommercialCatalog,
   archiveOwnedCommercialOffer,
   archiveOwnedCommercialPaymentMethod,
   attachOwnedCommercialVerificationDocument,
-  createOwnedCommercialCatalog,
   createOwnedCommercialOffer,
   createOwnedCommercialOfferImage,
   createOwnedCommercialPaymentMethod,
@@ -71,7 +70,6 @@ import {
   deleteOwnedCommercialPaymentMethod,
   getCommercialProfileDeletionStatus,
   getOwnedBusinessSalesMetrics,
-  getOwnedCommercialCatalogs,
   getOwnedCommercialOffer,
   getOwnedCommercialOfferDeletionStatus,
   getOwnedCommercialOffers,
@@ -80,18 +78,14 @@ import {
   getOwnedCommercialRequests,
   getOwnedCommercialVerification,
   getPublicCommercialCategories,
-  pauseOwnedCommercialCatalog,
   pauseOwnedCommercialOffer,
-  publishOwnedCommercialCatalog,
   publishOwnedCommercialOffer,
-  restoreOwnedCommercialCatalog,
   restoreOwnedCommercialOffer,
   saveOwnedCommercialVerification,
   setOwnedCommercialOfferPrimaryImage,
   submitOwnedCommercialVerification,
   updateCommercialProfile,
   updateCommercialProfilePublication,
-  updateOwnedCommercialCatalog,
   updateOwnedCommercialOffer,
   updateOwnedCommercialOfferImage,
   updateOwnedCommercialOfferModalities,
@@ -100,7 +94,6 @@ import {
 } from '@beeapp/api-client';
 import type {
   BusinessSalesMetrics,
-  CommercialCatalog,
   CommercialOwnedOffer,
   CommercialOwnedPaymentMethod,
   CommercialOwnedProfile,
@@ -135,7 +128,7 @@ const ALL_MODALITIES: CommercialModality[] = [
 const DAYS = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
 
 const hoursTimeFieldClass =
-  'w-full min-w-0 rounded-lg border border-[#E8D1F1] bg-white px-2 py-0.5 text-sm text-neutral-900 outline-none focus:border-[#7427D5] disabled:cursor-not-allowed h-8';
+  'h-11 w-full min-w-0 rounded-lg border border-[#E8D1F1] bg-white px-2.5 py-1 text-sm text-neutral-900 outline-none focus:border-[#7427D5] disabled:cursor-not-allowed sm:h-10';
 
 function withSeconds(value: string): string | null {
   const text = value.trim();
@@ -280,7 +273,7 @@ function profilePublicationPresentation(status: CommercialOwnedProfile['publicat
     case 'archived':
       return {
         label: 'Archivado',
-        hint: 'El negocio quedó fuera del catálogo público.',
+        hint: 'El negocio dejó de mostrarse públicamente.',
         className: 'bg-[#E2E8F0] text-[#4A5568]',
       };
     case 'suspended':
@@ -465,7 +458,7 @@ function ProfileForm({
       </div>
 
       <form onSubmit={handleSubmit} className="grid gap-5 md:gap-6 lg:grid-cols-[minmax(0,320px)_minmax(0,1fr)] lg:items-start xl:grid-cols-[minmax(300px,360px)_minmax(0,1fr)]">
-        <aside className="space-y-4 lg:sticky lg:top-20">
+        <aside className="order-2 space-y-4 lg:order-1 lg:sticky lg:top-20">
           <article className="overflow-hidden rounded-2xl border border-[#E7DDF2] bg-white shadow-[0_10px_30px_rgba(116,39,213,0.08)]">
             <div className="flex items-center gap-4 border-b border-[#F1EAF6] bg-gradient-to-br from-[#F6EAFE] to-white p-4 sm:p-5">
               <div className="relative flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-[#E8D1F1] bg-white shadow-sm">
@@ -588,7 +581,7 @@ function ProfileForm({
           </div>
         </aside>
 
-        <div className="overflow-hidden rounded-2xl border border-[#E7DDF2] bg-gradient-to-br from-white via-[#FFFCF9] to-[#F6EAFE] shadow-[0_10px_30px_rgba(116,39,213,0.08)]">
+        <div className="order-1 lg:order-2 overflow-hidden rounded-2xl border border-[#E7DDF2] bg-gradient-to-br from-white via-[#FFFCF9] to-[#F6EAFE] shadow-[0_10px_30px_rgba(116,39,213,0.08)]">
           <div className="border-b border-[#F1EAF6] bg-white/90 px-4 py-4 backdrop-blur sm:px-5">
             <h3 className="text-base font-extrabold text-[#261743]">Datos del perfil</h3>
             <p className="mt-1 text-xs text-[#786593]">Los cambios se guardan sin afectar el estado de publicación.</p>
@@ -1135,7 +1128,7 @@ function HoursScheduleForm({
                   <span className={`text-sm font-extrabold ${closed ? 'text-[#9A8FB0]' : 'text-[#261743]'}`}>{label}</span>
                   {renderStatusToggle(row, label)}
                 </div>
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-1 gap-2 min-[400px]:grid-cols-2">
                   <label className="block text-[10px] font-semibold text-[#786593]">
                     Apertura
                     <input
@@ -1270,6 +1263,8 @@ export function ManageOperation({ businessId }: { businessId: string }) {
         delivery_currency_code: String(form.get('delivery_currency_code') || 'COP'),
         booking_hold_minutes: Number(form.get('booking_hold_minutes') || 30),
         inventory_hold_minutes: Number(form.get('inventory_hold_minutes') || 30),
+        ai_auto_reply_enabled: form.get('ai_auto_reply_enabled') === 'on',
+        ai_auto_reply_prompt: String(form.get('ai_auto_reply_prompt') || '').trim().slice(0, 1500),
       });
       setNotice('Operación actualizada.');
       loaded.reload();
@@ -1319,6 +1314,13 @@ function OperationForm({
   const [inventoryHoldMinutes, setInventoryHoldMinutes] = useState(
     String(profile.inventory_hold_minutes ?? 30),
   );
+  const [aiAutoReplyEnabled, setAiAutoReplyEnabled] = useState(
+    Boolean(profile.ai_auto_reply_enabled),
+  );
+  const [aiAutoReplyPrompt, setAiAutoReplyPrompt] = useState(
+    profile.ai_auto_reply_prompt || '',
+  );
+  const canUseBusinessAi = profile.can_use_ai_auto_reply === true;
 
   const sellsServices = operationSellsServices(profile.offer_type);
   const sellsProducts = operationSellsProducts(profile.offer_type);
@@ -1341,7 +1343,7 @@ function OperationForm({
         onSubmit={onSubmit}
         className="grid gap-5 md:gap-6 lg:grid-cols-[minmax(0,280px)_minmax(0,1fr)] lg:items-start"
       >
-        <aside className="space-y-4 lg:sticky lg:top-20">
+        <aside className="order-2 space-y-4 lg:order-1 lg:sticky lg:top-20">
           <div className="rounded-2xl border border-[#E7DDF2] bg-white p-4 shadow-sm sm:p-5">
             <p className="text-[10px] font-extrabold uppercase tracking-wide text-[#8A72B2]">Resumen</p>
             <ul className="mt-3 space-y-2.5 text-xs text-[#5E506B]">
@@ -1383,11 +1385,21 @@ function OperationForm({
                   <span>Inventario apartado {inventoryHoldMinutes || '—'} min</span>
                 </li>
               ) : null}
+              <li className="flex gap-2 rounded-xl border border-[#F1EAF6] bg-[#FFFCF9] px-3 py-2">
+                <Bot className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[#7427D5]" aria-hidden />
+                <span>
+                  {canUseBusinessAi
+                    ? aiAutoReplyEnabled
+                      ? 'IA responde chats del negocio'
+                      : 'IA en chats desactivada'
+                    : 'IA en chats (no incluida en tu plan)'}
+                </span>
+              </li>
             </ul>
           </div>
         </aside>
 
-        <div className="overflow-hidden rounded-2xl border border-[#E7DDF2] bg-gradient-to-br from-white via-[#FFFCF9] to-[#F6EAFE] shadow-[0_10px_30px_rgba(116,39,213,0.08)]">
+        <div className="order-1 lg:order-2 overflow-hidden rounded-2xl border border-[#E7DDF2] bg-gradient-to-br from-white via-[#FFFCF9] to-[#F6EAFE] shadow-[0_10px_30px_rgba(116,39,213,0.08)]">
           <div className="border-b border-[#F1EAF6] bg-white/90 px-4 py-4 backdrop-blur sm:px-5">
             <h3 className="text-base font-extrabold text-[#261743]">Configuración operativa</h3>
             <p className="mt-1 text-xs text-[#786593]">Define cómo recibes solicitudes y entregas.</p>
@@ -1556,6 +1568,75 @@ function OperationForm({
                 ) : (
                   <input type="hidden" name="inventory_hold_minutes" value={inventoryHoldMinutes} />
                 )}
+              </div>
+            </section>
+
+            <section className="space-y-3 rounded-2xl border border-[#E8D1F1] bg-white p-4">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <Bot className="h-4 w-4 text-[#7427D5]" aria-hidden />
+                  <h4 className="text-[11px] font-extrabold uppercase tracking-wide text-[#8A72B2]">
+                    Asistente IA en chats del negocio
+                  </h4>
+                </div>
+                {!canUseBusinessAi ? (
+                  <Link
+                    href="/app/profile/subscription"
+                    className="rounded-full bg-[#F6EAFE] px-2.5 py-1 text-[11px] font-extrabold text-[#7427D5] hover:bg-[#EBD5FC]"
+                  >
+                    Mejorar plan
+                  </Link>
+                ) : null}
+              </div>
+
+              <p className="text-xs leading-relaxed text-[#786593]">
+                Cuando un cliente escriba al chat de este negocio, Buddy AI responderá usando únicamente la información pública del negocio, su catálogo publicado y estas instrucciones. Si tú respondes manualmente, la IA se pausará automáticamente.
+              </p>
+
+              <label
+                className={`flex items-start gap-3 rounded-xl border px-3 py-3 text-sm font-semibold ${
+                  canUseBusinessAi
+                    ? 'cursor-pointer border-[#E8D1F1] bg-[#FFFCF9] text-[#38294E]'
+                    : 'cursor-not-allowed border-[#EFE9F6] bg-[#FAF8FC] text-[#8E7FA3]'
+                }`}
+              >
+                <input
+                  type="checkbox"
+                  name="ai_auto_reply_enabled"
+                  disabled={!canUseBusinessAi}
+                  checked={canUseBusinessAi && aiAutoReplyEnabled}
+                  onChange={(event) => setAiAutoReplyEnabled(event.target.checked)}
+                  className="mt-0.5 rounded border-[#C9A8E8] text-[#7427D5] disabled:opacity-50"
+                />
+                <span>
+                  <span className="block font-extrabold text-[#261743]">
+                    Activar respuestas automáticas para este negocio
+                  </span>
+                  <span className="mt-0.5 block text-xs font-normal text-[#786593]">
+                    {canUseBusinessAi
+                      ? 'Recuerda también tener encendida la IA para negocios en la Configuración del Asistente (o actívala chat por chat).'
+                      : 'Esta función no está habilitada en tu plan actual.'}
+                  </span>
+                </span>
+              </label>
+
+              <div>
+                <label className={profileFieldLabelClass} htmlFor="operation-ai-prompt">
+                  Instrucciones de atención para Buddy AI (privado)
+                </label>
+                <textarea
+                  id="operation-ai-prompt"
+                  name="ai_auto_reply_prompt"
+                  rows={4}
+                  maxLength={1500}
+                  value={aiAutoReplyPrompt}
+                  onChange={(event) => setAiAutoReplyPrompt(event.target.value)}
+                  placeholder="Ej. Saluda con amabilidad, aclara que los domicilios salen en 40 minutos y pide la dirección exacta si el cliente quiere ordenar."
+                  className={fieldClass}
+                />
+                <p className="mt-1 text-right text-[11px] text-[#9B8AB4]">
+                  {aiAutoReplyPrompt.length}/1500
+                </p>
               </div>
             </section>
           </div>
@@ -2170,211 +2251,26 @@ export function ManagePayments({ businessId }: { businessId: string }) {
   );
 }
 
-const CATALOG_STATUS_LABELS: Record<string, string> = {
-  published: 'Publicado',
-  paused: 'En pausa',
-  archived: 'Archivado',
-};
-
-export function ManageCatalogs({ businessId, archived = false }: { businessId: string; archived?: boolean }) {
-  const loaded = useAsync(async () => {
-    const auth = await getWebAuth();
-    const response = await getOwnedCommercialCatalogs(auth, businessId, { include_archived: archived });
-    return response.catalogs.filter((catalog) => (
-      archived ? catalog.status === 'archived' : catalog.status !== 'archived'
-    ));
-  }, [businessId, archived]);
-  const [notice, setNotice] = useState('');
-
-  const run = async (action: () => Promise<unknown>) => {
-    try {
-      setNotice('');
-      await action();
-      loaded.reload();
-    } catch (saveError) {
-      setNotice(actionError(saveError));
-    }
-  };
-
-  const create = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    const form = new FormData(event.currentTarget);
-    await run(async () => {
-      const auth = await getWebAuth();
-      await createOwnedCommercialCatalog(auth, businessId, {
-        name: String(form.get('name') || ''),
-        description: String(form.get('description') || ''),
-      });
-    });
-    event.currentTarget.reset();
-  };
-
-  return (
-    <CommercialShell
-      title={archived ? 'Catálogos archivados' : 'Catálogos'}
-      backHref={archived ? `/app/beeservices/manage/${businessId}/catalogs` : `/app/beeservices/manage/${businessId}`}
-    >
-      <StatusLine loading={loaded.loading} error={loaded.error} />
-      {!archived ? (
-        <div className="mb-4 flex justify-end">
-          <Link href={`/app/beeservices/manage/${businessId}/catalogs/archived`} className="text-xs font-semibold text-[#7427D5]">Ver archivados</Link>
-        </div>
-      ) : null}
-      <CatalogList businessId={businessId} catalogs={loaded.data || []} archived={archived} onRun={run} />
-      {!archived ? (
-        <form onSubmit={create} className="mt-4 space-y-2">
-          <input name="name" placeholder="Nuevo catálogo" className={fieldClass} required />
-          <input name="description" placeholder="Descripción" className={fieldClass} />
-          <button type="submit" className={primaryButtonClass}>Crear catálogo</button>
-        </form>
-      ) : null}
-      {notice ? <p className="mt-3 text-sm text-rose-600">{notice}</p> : null}
-    </CommercialShell>
-  );
-}
-
-function CatalogList({
-  businessId,
-  catalogs,
-  archived,
-  onRun,
-}: {
-  businessId: string;
-  catalogs: CommercialCatalog[];
-  archived: boolean;
-  onRun: (action: () => Promise<unknown>) => Promise<void>;
-}) {
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [editName, setEditName] = useState('');
-  const [editDescription, setEditDescription] = useState('');
-
-  const startEdit = (catalog: CommercialCatalog) => {
-    setEditingId(catalog.id);
-    setEditName(catalog.name);
-    setEditDescription(catalog.description || '');
-  };
-
-  return (
-    <ul className="space-y-2">
-      {catalogs.map((catalog) => {
-        const isEditing = editingId === catalog.id;
-        return (
-          <li key={catalog.id} className="rounded-xl border border-[#F0EAF3] bg-white px-4 py-3">
-            {isEditing ? (
-              <div className="space-y-2">
-                <input
-                  value={editName}
-                  onChange={(e) => setEditName(e.target.value)}
-                  placeholder="Nombre del catálogo"
-                  className={fieldClass}
-                />
-                <input
-                  value={editDescription}
-                  onChange={(e) => setEditDescription(e.target.value)}
-                  placeholder="Descripción (opcional)"
-                  className={fieldClass}
-                />
-                <div className="flex gap-2">
-                  <button
-                    type="button"
-                    className={primaryButtonClass}
-                    onClick={() =>
-                      void onRun(async () => {
-                        const auth = await getWebAuth();
-                        await updateOwnedCommercialCatalog(auth, businessId, catalog.id, {
-                          name: editName.trim() || catalog.name,
-                          description: editDescription.trim() || null,
-                        });
-                        setEditingId(null);
-                      })
-                    }
-                  >
-                    Guardar
-                  </button>
-                  <button
-                    type="button"
-                    className={secondaryButtonClass}
-                    onClick={() => setEditingId(null)}
-                  >
-                    Cancelar
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <>
-                <div className="flex items-center justify-between gap-2">
-                  <p className="text-sm font-semibold text-[#261743]">{catalog.name}</p>
-                  <span className="rounded-full bg-[#F6EAFE] px-2.5 py-0.5 text-[11px] font-bold text-[#7427D5]">
-                    {CATALOG_STATUS_LABELS[catalog.status || 'published'] || catalog.status}
-                  </span>
-                </div>
-                {catalog.description ? (
-                  <p className="mt-0.5 text-xs text-[#786593]">{catalog.description}</p>
-                ) : null}
-                <div className="mt-2.5 flex flex-wrap gap-2">
-                  <Link href={`/app/beeservices/manage/${businessId}/offers?catalog=${catalog.id}`} className={secondaryButtonClass}>Ofertas</Link>
-                  {archived ? (
-                    <button type="button" className={secondaryButtonClass} onClick={() => void onRun(async () => {
-                      const auth = await getWebAuth();
-                      await restoreOwnedCommercialCatalog(auth, businessId, catalog.id);
-                    })}>Restaurar</button>
-                  ) : (
-                    <>
-                      <button
-                        type="button"
-                        className={secondaryButtonClass}
-                        onClick={() => startEdit(catalog)}
-                      >
-                        Editar
-                      </button>
-                      <button type="button" className={secondaryButtonClass} onClick={() => void onRun(async () => {
-                        const auth = await getWebAuth();
-                        if (catalog.status === 'paused') await publishOwnedCommercialCatalog(auth, businessId, catalog.id);
-                        else await pauseOwnedCommercialCatalog(auth, businessId, catalog.id);
-                      })}>{catalog.status === 'paused' ? 'Publicar' : 'Pausar'}</button>
-                      <button type="button" className={secondaryButtonClass} onClick={() => {
-                        if (!confirm(`¿Archivar el catálogo "${catalog.name}"?`)) return;
-                        void onRun(async () => {
-                          const auth = await getWebAuth();
-                          await archiveOwnedCommercialCatalog(auth, businessId, catalog.id);
-                        });
-                      }}>Archivar</button>
-                    </>
-                  )}
-                </div>
-              </>
-            )}
-          </li>
-        );
-      })}
-    </ul>
-  );
-}
-
 export function ManageOffers({
   businessId,
   archived = false,
-  catalogId,
   embedded = false,
   heading,
 }: {
   businessId: string;
   archived?: boolean;
-  catalogId?: string;
   embedded?: boolean;
   heading?: string;
 }) {
   const loaded = useAsync(async () => {
     const auth = await getWebAuth();
-    const [offers, catalogs] = await Promise.all([
-      getOwnedCommercialOffers(auth, businessId, { include_archived: archived, catalog_id: catalogId }),
-      getOwnedCommercialCatalogs(auth, businessId),
-    ]);
-    return {
-      offers: offers.offers.filter((offer) => (archived ? offer.status === 'archived' : offer.status !== 'archived')),
-      catalogs: catalogs.catalogs.filter((catalog) => catalog.status !== 'archived'),
-    };
-  }, [businessId, archived, catalogId]);
+    const offers = await getOwnedCommercialOffers(auth, businessId, {
+      include_archived: archived,
+    });
+    return offers.offers.filter((offer) =>
+      archived ? offer.status === 'archived' : offer.status !== 'archived',
+    );
+  }, [businessId, archived]);
   const [notice, setNotice] = useState('');
   const [composerOpen, setComposerOpen] = useState(false);
 
@@ -2384,22 +2280,7 @@ export function ManageOffers({
     const data = new FormData(form);
     try {
       const auth = await getWebAuth();
-      let targetCatalogId = String(data.get('catalog_id') || catalogId || loaded.data?.catalogs?.[0]?.id || '');
-      if (!targetCatalogId) {
-        const defaultName = heading === 'Productos'
-          ? 'Productos'
-          : heading === 'Servicios'
-            ? 'Servicios'
-            : 'Catálogo principal';
-        const createdCatalog = await createOwnedCommercialCatalog(auth, businessId, {
-          name: defaultName,
-          description: null,
-          status: 'published',
-        });
-        targetCatalogId = createdCatalog.catalog.id;
-      }
       await createOwnedCommercialOffer(auth, businessId, {
-        catalog_id: targetCatalogId,
         offer_kind: String(data.get('offer_kind') || 'product') as 'product' | 'service',
         title: String(data.get('title') || ''),
         description: String(data.get('description') || ''),
@@ -2415,7 +2296,7 @@ export function ManageOffers({
     }
   };
 
-  const offers = loaded.data?.offers || [];
+  const offers = loaded.data || [];
   const noun = heading === 'Servicios' ? 'servicio' : heading === 'Productos' ? 'producto' : 'oferta';
   const archivedWord = noun === 'oferta'
     ? (offers.length === 1 ? 'archivada' : 'archivadas')
@@ -2443,7 +2324,6 @@ export function ManageOffers({
           </div>
           {!archived ? (
             <div className="flex flex-wrap gap-2">
-              <Link href={`/app/beeservices/manage/${businessId}/catalogs`} className={secondaryButtonClass}>Catálogos</Link>
               <Link href={`/app/beeservices/manage/${businessId}/offers/archived`} className={secondaryButtonClass}>Ver archivadas</Link>
               <button
                 type="button"
@@ -2464,25 +2344,9 @@ export function ManageOffers({
         >
           <div className="mb-4">
             <h3 className="text-base font-extrabold text-[#261743]">{formTitle}</h3>
-            <p className="mt-1 text-xs text-[#786593]">Queda publicado en el catálogo del negocio.</p>
+            <p className="mt-1 text-xs text-[#786593]">Queda publicado en el perfil de tu negocio.</p>
           </div>
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-6 lg:items-end">
-            <label className="block text-xs font-semibold text-[#4E3B68]">
-              Catálogo
-              <select
-                name="catalog_id"
-                className={fieldClass}
-                defaultValue={catalogId || loaded.data?.catalogs?.[0]?.id || ''}
-              >
-                {(loaded.data?.catalogs || []).length === 0 ? (
-                  <option value="">Catálogo principal (se creará automáticamente)</option>
-                ) : (
-                  (loaded.data?.catalogs || []).map((catalog) => (
-                    <option key={catalog.id} value={catalog.id}>{catalog.name}</option>
-                  ))
-                )}
-              </select>
-            </label>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5 lg:items-end">
             <label className="block text-xs font-semibold text-[#4E3B68]">
               Tipo
               <select name="offer_kind" className={fieldClass} defaultValue={defaultKind}>
@@ -2515,15 +2379,12 @@ export function ManageOffers({
           <div className="rounded-[18px] border border-dashed border-[#E7DDF2] bg-white px-6 py-10 text-center">
             <p className="text-sm font-semibold text-[#261743]">Todavía no hay {emptyNoun}</p>
             <p className="mt-1 text-xs text-[#786593]">
-              {archived ? 'No hay elementos archivados.' : 'Crea el primero con precio, descripción y catálogo.'}
+              {archived ? 'No hay elementos archivados.' : 'Crea el primero con precio y descripción.'}
             </p>
           </div>
         ) : null}
         {!loaded.loading && offers.length > 0 ? (
-          <ul
-            className="grid justify-start gap-3"
-            style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 220px), 260px))' }}
-          >
+          <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             {offers.map((offer) => (
               <OfferRow key={offer.id} businessId={businessId} offer={offer} archived={archived} onChanged={loaded.reload} onError={setNotice} />
             ))}
@@ -2577,7 +2438,7 @@ function OfferRow({
   const kindLabel = offer.offer_kind === 'product' ? 'Producto' : 'Servicio';
   const href = `/app/beeservices/manage/${businessId}/offers/${offer.id}`;
   const compactActionClass =
-    'inline-flex h-8 items-center justify-center rounded-lg border border-[#E8D1F1] bg-white px-3 text-xs font-semibold text-[#5E1ABF] hover:bg-[#F6EAFE]';
+    'inline-flex min-h-10 sm:min-h-8 items-center justify-center rounded-lg border border-[#E8D1F1] bg-white px-3 text-xs font-semibold text-[#5E1ABF] hover:bg-[#F6EAFE]';
   const KindIcon = offer.offer_kind === 'product' ? Package : BriefcaseBusiness;
 
   const renderActions = () => archived ? (
@@ -3096,7 +2957,7 @@ function OfferEditorForm({
       </div>
 
       <div className="grid gap-5 md:gap-6 lg:grid-cols-[minmax(0,340px)_minmax(0,1fr)] lg:items-start xl:grid-cols-[minmax(300px,380px)_minmax(0,1fr)]">
-        <aside className="space-y-4 lg:sticky lg:top-20">
+        <aside className="order-2 space-y-4 lg:order-1 lg:sticky lg:top-20">
           <article className="overflow-hidden rounded-2xl border border-[#E7DDF2] bg-white shadow-[0_10px_30px_rgba(116,39,213,0.08)]">
             {galleryImages.length > 0 ? (
               <>
@@ -3225,11 +3086,11 @@ function OfferEditorForm({
 
         <form
           onSubmit={save}
-          className="overflow-hidden rounded-2xl border border-[#E7DDF2] bg-gradient-to-br from-white via-[#FFFCF9] to-[#F6EAFE] shadow-[0_10px_30px_rgba(116,39,213,0.08)]"
+          className="order-1 lg:order-2 overflow-hidden rounded-2xl border border-[#E7DDF2] bg-gradient-to-br from-white via-[#FFFCF9] to-[#F6EAFE] shadow-[0_10px_30px_rgba(116,39,213,0.08)]"
         >
           <div className="border-b border-[#F1EAF6] bg-white/90 px-4 py-4 backdrop-blur sm:px-5">
             <h2 className="text-base font-extrabold text-[#261743]">Editar {isProduct ? 'producto' : 'servicio'}</h2>
-            <p className="mt-1 text-xs text-[#786593]">Completa la información visible en tu catálogo.</p>
+            <p className="mt-1 text-xs text-[#786593]">Completa la información visible para tus clientes.</p>
           </div>
 
           <div className="space-y-5 p-4 sm:p-5">
@@ -3301,7 +3162,7 @@ function OfferEditorForm({
                           disabled={idx === 0}
                           onClick={() => void handleMoveImage(idx, -1)}
                           title="Subir orden"
-                          className="rounded-lg border border-[#E7DDF2] p-1.5 text-[#5E506B] hover:bg-[#FAF4FF] disabled:opacity-35"
+                          className="rounded-lg border border-[#E7DDF2] p-2.5 sm:p-1.5 text-[#5E506B] hover:bg-[#FAF4FF] disabled:opacity-35"
                         >
                           <ArrowUp className="h-3.5 w-3.5" />
                         </button>
@@ -3310,7 +3171,7 @@ function OfferEditorForm({
                           disabled={idx === sortedImages.length - 1}
                           onClick={() => void handleMoveImage(idx, 1)}
                           title="Bajar orden"
-                          className="rounded-lg border border-[#E7DDF2] p-1.5 text-[#5E506B] hover:bg-[#FAF4FF] disabled:opacity-35"
+                          className="rounded-lg border border-[#E7DDF2] p-2.5 sm:p-1.5 text-[#5E506B] hover:bg-[#FAF4FF] disabled:opacity-35"
                         >
                           <ArrowDown className="h-3.5 w-3.5" />
                         </button>
@@ -3318,7 +3179,7 @@ function OfferEditorForm({
                           type="button"
                           onClick={() => void handleDeleteImage(img.id)}
                           title="Eliminar imagen"
-                          className="rounded-lg border border-rose-200 bg-rose-50 p-1.5 text-rose-700 hover:bg-rose-100"
+                          className="rounded-lg border border-rose-200 bg-rose-50 p-2.5 sm:p-1.5 text-rose-700 hover:bg-rose-100"
                         >
                           <Trash2 className="h-3.5 w-3.5" />
                         </button>
@@ -3558,7 +3419,7 @@ function OfferEditorForm({
 
           <div className="flex flex-col gap-3 border-t border-[#F1EAF6] bg-[#FFFCF9] px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-5">
             {notice ? <p className="text-center text-xs font-semibold text-[#5E1ABF] sm:text-left">{notice}</p> : (
-              <p className="text-center text-xs text-[#B8A5D6] sm:text-left">Guarda para publicar los cambios en el catálogo.</p>
+              <p className="text-center text-xs text-[#B8A5D6] sm:text-left">Guarda para publicar los cambios.</p>
             )}
             <button type="submit" className={`${primaryButtonClass} w-full sm:w-auto sm:min-w-[11rem]`} disabled={saving}>
               {saving ? 'Guardando…' : 'Guardar cambios'}
@@ -3570,7 +3431,7 @@ function OfferEditorForm({
       {/* Modal: Inventory adjustment */}
       {adjustModalOpen ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="w-full max-w-md rounded-3xl bg-white p-6 shadow-xl">
+          <div className="max-h-[90dvh] w-full max-w-md overflow-y-auto rounded-3xl bg-white p-5 shadow-xl sm:p-6">
             <h3 className="text-base font-extrabold text-[#261743]">Ajustar inventario</h3>
             <p className="mt-1 text-xs text-[#786593]">
               Ingresa una cantidad positiva para entrada de mercancía o negativa para salida/merma.
@@ -3948,9 +3809,9 @@ function VerificationForm({
             </p>
           ) : null}
           <div className="flex flex-wrap items-center gap-3">
-            <label className="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-[#D9B9EE] bg-[#FAF4FF] px-3 py-2 text-xs font-bold text-[#7427D5] hover:bg-[#F3E8FF]">
-              <FileUp className="h-4 w-4" />
-              <span>{pdfFile ? pdfFile.name : 'Seleccionar archivo PDF'}</span>
+            <label className="inline-flex max-w-full cursor-pointer items-center gap-2 rounded-xl border border-[#D9B9EE] bg-[#FAF4FF] px-3 py-2 text-xs font-bold text-[#7427D5] hover:bg-[#F3E8FF]">
+              <FileUp className="h-4 w-4 shrink-0" />
+              <span className="min-w-0 truncate">{pdfFile ? pdfFile.name : 'Seleccionar archivo PDF'}</span>
               <input
                 type="file"
                 accept="application/pdf"
@@ -4161,12 +4022,12 @@ function MetricsBody({
       <div className="grid gap-3 sm:grid-cols-2">
         <article className="rounded-[18px] border border-[#E7DDF2] bg-white p-5 shadow-[0_8px_24px_rgba(116,39,213,0.05)]">
           <p className="text-xs font-extrabold uppercase tracking-wide text-[#786593]">Dinero ganado</p>
-          <p className="mt-3 text-3xl font-extrabold tracking-tight text-[#261743]">{moneyCop(metrics.totals.amount)}</p>
+          <p className="mt-3 text-2xl sm:text-3xl font-extrabold tracking-tight text-[#261743] break-words">{moneyCop(metrics.totals.amount)}</p>
           <p className="mt-2 text-xs text-[#88709E]">{metrics.period.label}</p>
         </article>
         <article className="rounded-[18px] border border-[#E7DDF2] bg-white p-5 shadow-[0_8px_24px_rgba(116,39,213,0.05)]">
           <p className="text-xs font-extrabold uppercase tracking-wide text-[#786593]">Ventas</p>
-          <p className="mt-3 text-3xl font-extrabold tracking-tight text-[#261743]">{salesCount}</p>
+          <p className="mt-3 text-2xl sm:text-3xl font-extrabold tracking-tight text-[#261743] break-words">{salesCount}</p>
           <p className="mt-2 text-xs text-[#88709E]">Completadas</p>
         </article>
       </div>

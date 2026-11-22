@@ -222,16 +222,18 @@ export default function DashboardPage() {
                 <p className="page-toolbar-subtitle">Sin planes activos.</p>
               ) : (
                 <>
-                  <ResponsiveContainer width="100%" height="100%">
-                    <PieChart>
-                      <Pie data={plans} dataKey="valor" nameKey="nombre" innerRadius={54} outerRadius={82} paddingAngle={2} label={({ percent }) => `${((percent ?? 0) * 100).toFixed(0)}%`} labelLine={false} isAnimationActive={false}>
-                        {plans.map((entry) => (
-                          <Cell key={entry.planId} fill={entry.color} stroke={CHART_COLORS.surface} strokeWidth={2} />
-                        ))}
-                      </Pie>
-                      <Tooltip content={<ChartTooltip valueFormatter={formatNumber} />} />
-                    </PieChart>
-                  </ResponsiveContainer>
+                  <div style={{ flex: 1, minHeight: 190 }}>
+                    <ResponsiveContainer width="100%" height="100%">
+                      <PieChart>
+                        <Pie data={plans} dataKey="valor" nameKey="nombre" innerRadius={54} outerRadius={82} paddingAngle={2} label={({ percent }) => `${((percent ?? 0) * 100).toFixed(0)}%`} labelLine={false} isAnimationActive={false}>
+                          {plans.map((entry) => (
+                            <Cell key={entry.planId} fill={entry.color} stroke={CHART_COLORS.surface} strokeWidth={2} />
+                          ))}
+                        </Pie>
+                        <Tooltip content={<ChartTooltip valueFormatter={formatNumber} />} />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  </div>
                   <ChartLegend
                     items={plans.map((entry) => ({
                       id: entry.planId,

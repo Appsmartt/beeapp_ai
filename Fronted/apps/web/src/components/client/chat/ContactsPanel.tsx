@@ -112,14 +112,14 @@ export default function ContactsPanel({
           className="p-3.5 px-5 flex items-center gap-3 cursor-pointer border-b border-neutral-100 hover:bg-neutral-50 transition-colors"
         >
           <div className="w-10 h-10 rounded-full border border-dashed border-brand-primary text-brand-primary flex items-center justify-center shrink-0">
-            <UserPlus className="w-4.5 h-4.5" />
+            <UserPlus className="h-[18px] w-[18px]" />
           </div>
           <span className="font-semibold text-xs text-neutral-900">Crear nuevo contacto</span>
         </div>
       )}
 
       {/* List items */}
-      <div className="flex-1 overflow-y-auto divide-y divide-neutral-100">
+      <div className="flex-1 divide-y divide-neutral-100 overflow-y-auto pb-28">
         {items.length === 0 ? (
           <div className="p-12 text-center text-neutral-400 space-y-2">
             <Users className="w-10 h-10 mx-auto text-neutral-300" />

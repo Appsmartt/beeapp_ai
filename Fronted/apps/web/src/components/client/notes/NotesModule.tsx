@@ -2,9 +2,11 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
+  FolderOpen,
   Grid2x2,
   List,
   Loader2,
+  Plus,
   RefreshCw,
   Search,
 } from 'lucide-react';
@@ -95,6 +97,7 @@ export default function NotesModule() {
   const [savingNoteId, setSavingNoteId] = useState<string | null>(null);
   const [sharedNotes, setSharedNotes] = useState<Note[]>([]);
   const [shareModalNote, setShareModalNote] = useState<Note | null>(null);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const loadTagsForNotes = async (items: Note[]) => {
     const entries = await Promise.all(
@@ -670,15 +673,20 @@ export default function NotesModule() {
   const isTrashView = activeView === 'trash';
 
   return (
-    <div className="min-h-full bg-white flex relative">
+    <div className="relative flex h-full min-h-0 overflow-hidden bg-white">
       <NotesSidebar
         activeView={activeView}
+        mobileOpen={sidebarOpen}
+        onMobileClose={() => setSidebarOpen(false)}
         folders={folders}
         tags={tags}
         folderCounts={folderCounts}
         tagCounts={tagCounts}
         systemCounts={systemCounts}
-        onSelectView={handleSelectView}
+        onSelectView={(nextView) => {
+          handleSelectView(nextView);
+          setSidebarOpen(false);
+        }}
         onCreateNote={() => setIsCreateModalOpen(true)}
         onCreateFolder={handleCreateFolder}
         onRenameFolder={handleRenameFolder}
@@ -688,20 +696,44 @@ export default function NotesModule() {
         onDeleteTag={handleDeleteTag}
       />
 
-      <section className="w-[390px] xl:w-[440px] shrink-0 border-r border-neutral-200 bg-white flex flex-col">
-        <header className="px-4 pt-4 pb-3 border-b border-neutral-100">
-          <div className="flex items-center justify-between gap-3">
-            <div className="min-w-0">
-              <h1 className="text-base font-semibold text-neutral-900 truncate">
-                {title}
-              </h1>
-              <p className="text-xs text-neutral-500 mt-0.5">
-                {visibleNotes.length}{' '}
-                {visibleNotes.length === 1 ? 'nota' : 'notas'}
-              </p>
+      <section
+        className={`${
+          selectedNote ? 'hidden md:flex' : 'flex'
+        } min-h-0 w-full shrink-0 flex-col border-r border-neutral-200 bg-white md:w-[300px] lg:w-[360px] xl:w-[440px]`}
+      >
+        <header className="border-b border-neutral-100 px-3.5 pt-3.5 pb-3 sm:px-4 sm:pt-4">
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex min-w-0 items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setSidebarOpen(true)}
+                aria-label="Abrir carpetas y etiquetas"
+                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-neutral-200 bg-neutral-50 text-neutral-700 hover:bg-neutral-100 lg:hidden"
+              >
+                <FolderOpen className="h-4 w-4 text-brand-primary" />
+              </button>
+              <div className="min-w-0">
+                <h1 className="truncate text-base font-semibold text-neutral-900">
+                  {title}
+                </h1>
+                <p className="mt-0.5 text-xs text-neutral-500">
+                  {visibleNotes.length}{' '}
+                  {visibleNotes.length === 1 ? 'nota' : 'notas'}
+                </p>
+              </div>
             </div>
 
-            <div className="flex items-center gap-1">
+            <div className="flex shrink-0 items-center gap-1">
+              <button
+                type="button"
+                onClick={() => setIsCreateModalOpen(true)}
+                aria-label="Nueva nota"
+                title="Nueva nota"
+                className="flex h-9 items-center gap-1 rounded-xl bg-brand-primary px-2.5 text-xs font-semibold text-white hover:bg-brand-dark lg:hidden"
+              >
+                <Plus className="h-3.5 w-3.5" />
+                <span className="hidden sm:inline">Nueva</span>
+              </button>
               <ModuleNotificationBell moduleId="notes" placement="header" />
 
               <button
@@ -759,7 +791,7 @@ export default function NotesModule() {
           </label>
         </header>
 
-        <div className="flex-1 min-h-0 overflow-y-auto">
+        <div className="min-h-0 flex-1 overflow-y-auto pb-24">
           {isLoading ? (
             <div className="h-full min-h-[280px] flex items-center justify-center">
               <div className="text-center">
@@ -819,7 +851,11 @@ export default function NotesModule() {
         </div>
       </section>
 
-      <main className="flex-1 min-w-0 bg-neutral-50/50">
+      <main
+        className={`${
+          selectedNote ? 'flex flex-col' : 'hidden md:block'
+        } min-h-0 min-w-0 flex-1 bg-neutral-50/50`}
+      >
         {selectedNote ? (
           <NoteEdit
             key={selectedNote.id}
@@ -829,6 +865,7 @@ export default function NotesModule() {
             noteTags={tagsByNote[selectedNote.id] ?? []}
             isSaving={savingNoteId === selectedNote.id}
             isTrashView={!!selectedNote.deleted_at}
+            onBack={() => setSelectedNoteId(null)}
             onSave={handleSaveNote}
             onMoveToTrash={(note) => void handleMoveToTrash(note)}
             onRestore={(note) => void handleRestore(note)}

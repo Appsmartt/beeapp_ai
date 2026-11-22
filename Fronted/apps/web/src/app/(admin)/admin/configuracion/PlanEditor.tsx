@@ -10,11 +10,12 @@ import PlanPreviewCard from './PlanPreviewCard';
 
 interface PlanEditorProps {
   plan: Plan;
+  isSuperadmin?: boolean;
   onSave: (plan: Plan) => void;
   onCancel: () => void;
 }
 
-export default function PlanEditor({ plan, onSave, onCancel }: PlanEditorProps) {
+export default function PlanEditor({ plan, isSuperadmin = false, onSave, onCancel }: PlanEditorProps) {
   const [draft, setDraft] = useState<Plan>(plan);
   const [confirmOpen, setConfirmOpen] = useState(false);
 
@@ -69,6 +70,7 @@ export default function PlanEditor({ plan, onSave, onCancel }: PlanEditorProps) 
           <PlanFeaturesEditor
             entitlements={draft.entitlements}
             caracteristicas={draft.caracteristicas}
+            isSuperadmin={isSuperadmin}
             onEntitlementsChange={(value) => setField('entitlements', value)}
             onCaracteristicasChange={(list) => setField('caracteristicas', list)}
           />

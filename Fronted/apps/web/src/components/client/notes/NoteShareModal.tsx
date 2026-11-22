@@ -103,25 +103,25 @@ export default function NoteShareModal({
         onClick={onClose}
         className="fixed inset-0 bg-black/60 backdrop-blur-sm"
       />
-      <div className="relative z-10 flex max-h-[85vh] w-full max-w-md flex-col overflow-hidden rounded-3xl border border-neutral-100 bg-white shadow-xl">
-        <header className="flex items-center justify-between border-b border-neutral-100 px-5 py-4">
+      <div className="relative z-10 flex max-h-[90dvh] sm:max-h-[85dvh] w-full max-w-md flex-col overflow-hidden rounded-3xl border border-neutral-100 bg-white shadow-xl">
+        <header className="flex shrink-0 items-center justify-between gap-2 border-b border-neutral-100 px-4 py-3.5 sm:px-5 sm:py-4">
           <div className="min-w-0">
             <h2 className="text-sm font-semibold text-neutral-900 flex items-center gap-1.5">
-              <Share2 className="h-4 w-4 text-brand-primary" />
-              <span>Compartir nota</span>
+              <Share2 className="h-4 w-4 shrink-0 text-brand-primary" />
+              <span className="truncate">Compartir nota</span>
             </h2>
             <p className="mt-0.5 truncate text-xs text-neutral-500">{noteTitle}</p>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="rounded-full p-1.5 text-neutral-400 hover:bg-neutral-100 hover:text-neutral-700"
+            className="shrink-0 rounded-full p-1.5 text-neutral-400 hover:bg-neutral-100 hover:text-neutral-700"
           >
             <X className="h-4 w-4" />
           </button>
         </header>
 
-        <div className="flex-1 space-y-4 overflow-y-auto p-5">
+        <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-4 sm:p-5">
           {error ? (
             <div className="rounded-xl border border-red-100 bg-red-50 px-3 py-2 text-xs text-red-700">
               {error}
@@ -175,7 +175,7 @@ export default function NoteShareModal({
                         type="button"
                         disabled={alreadyShared || busyId === rec.id}
                         onClick={() => void handleShareWith(rec)}
-                        className={`inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-semibold transition-colors ${
+                        className={`inline-flex shrink-0 items-center gap-1 rounded-full px-3 py-1 text-xs font-semibold transition-colors ${
                           alreadyShared
                             ? 'bg-neutral-100 text-neutral-500'
                             : 'bg-brand-primary text-white hover:bg-brand-dark'

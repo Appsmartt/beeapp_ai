@@ -443,7 +443,8 @@ export function toUiChatMessage(message: ApiChatMessage, identityId: string): Ch
     isPinned: Boolean(message.is_pinned),
     isEdited: Boolean(message.edited_at),
     isDestroyed: Boolean(message.destroyed_at),
-    sentByAi: Boolean(message.is_sent_by_ai),
+    sentByAi: message.sender_identity_id === identityId
+      && Boolean(message.is_sent_by_ai || rawMeta.sent_by_ai),
     reactions: summarizeReactions(message.reactions, identityId),
   };
 }

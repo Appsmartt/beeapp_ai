@@ -187,7 +187,7 @@ export default function ConfiguracionPage() {
                 fontSize: '13px',
                 lineHeight: '1.6',
                 padding: '16px',
-                height: '350px',
+                height: 'clamp(220px, 45dvh, 350px)',
                 border: '1.5px solid #E9ECEF',
                 borderRadius: '12px',
                 outline: 'none',
@@ -223,7 +223,7 @@ export default function ConfiguracionPage() {
                 fontSize: '13px',
                 lineHeight: '1.6',
                 padding: '16px',
-                height: '350px',
+                height: 'clamp(220px, 45dvh, 350px)',
                 border: '1.5px solid #E9ECEF',
                 borderRadius: '12px',
                 outline: 'none',
@@ -306,7 +306,7 @@ export default function ConfiguracionPage() {
 
               <div className="form-field">
                 <label className="form-field-label">Tipo de canal</label>
-                <div style={{ display: 'flex', gap: '10px', marginTop: '4px' }}>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginTop: '4px' }}>
                   {['WhatsApp', 'Sitio web', 'Correo', 'Otro'].map((type) => {
                     const isSelected = channelType === type;
                     return (
@@ -413,8 +413,10 @@ export default function ConfiguracionPage() {
 const tabBarContainerStyle: React.CSSProperties = {
   display: 'flex',
   borderBottom: '1px solid #E9ECEF',
-  gap: '24px',
+  gap: '16px',
   paddingBottom: '2px',
+  overflowX: 'auto',
+  scrollbarWidth: 'none',
 };
 
 const tabButtonStyle: React.CSSProperties = {
@@ -426,7 +428,9 @@ const tabButtonStyle: React.CSSProperties = {
   borderBottom: '2.5px solid transparent',
   padding: '10px 4px 12px 4px',
   cursor: 'pointer',
-  fontSize: '15px',
+  fontSize: '14px',
+  whiteSpace: 'nowrap',
+  flexShrink: 0,
   transition: 'all 0.2s',
   outline: 'none',
 };

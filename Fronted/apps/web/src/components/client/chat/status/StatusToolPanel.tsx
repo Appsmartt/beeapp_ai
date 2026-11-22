@@ -65,7 +65,7 @@ export default function StatusToolPanel(props: StatusToolPanelProps) {
   const { hasTextSelection } = props;
 
   return (
-    <aside className="w-full md:w-[30%] md:max-w-[320px] md:min-w-[288px] shrink-0 bg-white border-t md:border-t-0 md:border-l border-neutral-200 flex flex-col min-h-0">
+    <aside className="flex max-h-[46dvh] min-h-0 w-full shrink-0 flex-col border-t border-neutral-200 bg-white md:max-h-none md:w-[30%] md:min-w-[288px] md:max-w-[320px] md:border-l md:border-t-0">
       <header className="flex items-center justify-between gap-3 px-4 py-3 border-b border-neutral-100 shrink-0">
         <button
           type="button"

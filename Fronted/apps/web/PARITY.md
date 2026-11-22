@@ -58,19 +58,18 @@ Leyenda: `[x]` implementado y verificado en web · `[N/A]` excluido por decisió
 - [x] Inicio marketplace con búsqueda por texto y voz (Whisper STT con validación anti-alucinaciones), categorías, negocios recientes y feed paginado
 - [x] Resultados públicos (`PublicResults`) con 6 selectores de filtro, chips removibles, conteo total y paginación
 - [x] Perfil público de negocio (`PublicProfile`) con tabs Productos/Servicios/Información, estado abierto/cerrado según horario, alerta de carrito cruzado y chat directo
-- [x] Catálogo y detalle de oferta (`PublicCatalog`, `PublicOffer`) con galería de imágenes, badge `-XX% OFF`, políticas de servicio y atajo de edición para el dueño
+- [x] Detalle de oferta (`PublicOffer`) con galería de imágenes, badge `-XX% OFF`, políticas de servicio y atajo de edición para el dueño
 - [x] Solicitud de oferta y reserva (`OfferRequestForm`) con bloqueo de días cerrados, grilla de horarios cada 30 min en zona horaria del negocio y cálculo automático de fin
 - [x] Carrito unificado aislado por usuario (`CartScreen`) con controles `-/+`, edición inline de reserva/comentario por línea, modalidad, dirección de entrega, `Idempotency-Key` persistente y revalidación automática
 - [x] Mis compras y detalle formal (`MyPurchases`, `CustomerRequestDetailView`) con 13 estados traducidos, cuenta regresiva de reserva (`SlotHeld`), negociación por ítem, subida/reemplazo de comprobante de pago (`X/3` intentos) y línea de tiempo
 
 ## Buddy Services — Dueño (`/app/beeservices/manage/[businessId]/*`)
-- [x] Mis negocios (`OwnedBusinessCard`, `CreateBusinessForm`) con logo, insignia verificado, creación guiada (país/ciudad, hasta 5 categorías, 8 modalidades, redes, primer catálogo y oferta), archivado con motivo y eliminación validada
+- [x] Mis negocios (`OwnedBusinessCard`, `CreateBusinessForm`) con logo, insignia verificado, creación guiada (país/ciudad, hasta 5 categorías, 8 modalidades, redes y primera oferta), archivado con motivo y eliminación validada
 - [x] Workspace comercial (`CommercialWorkspace`) con selector rápido de negocio en cabecera, tarjeta hero de estado, badge `"Sin configurar"` en horario y presencia comercial en chats
 - [x] Perfil del negocio (`ManageProfile`) con subida de logo, tipo de oferta, categorías, modalidades, redes sociales, validación de privacidad de contacto, archivado con motivo y zona de peligro
 - [x] Horario (`ManageHours`) con zona horaria y validación `closes_at > opens_at`
 - [x] Operación (`ManageOperation`) con zona horaria, moneda COP, modos de domicilio y tiempos de apartado
 - [x] Métodos de pago (`ManagePayments`) con toggle rápido de contraentrega, crear/editar/archivar/eliminar métodos y validación celular de billeteras
-- [x] Catálogos (`ManageCatalogs`) con edición inline, estados localizados y confirmación de archivo
 - [x] Ofertas y editor (`ManageOffers`, `ManageOfferEditor`) con galería de hasta 5 imágenes (subir, principal, reordenar, eliminar), estrategias de precio, presets de descuento, control y ajuste de inventario con motivo, política de pago y eliminación validada
 - [x] Verificación (`ManageVerification`) con subida de soporte PDF (máx 10 MB) y declaración explícita opt-in (`v1`)
 - [x] Solicitudes recibidas y detalle formal (`ManageRequests`, `ManageRequestDetailView`) con transiciones de solicitud, negociación por ítem, estados operativos por ítem, creación de reserva (`SlotHold`), revisión de comprobantes de pago (aprobar/rechazar con motivo y alerta de 3er intento) y confirmación de pago recibido

@@ -9,6 +9,7 @@ import {
   listAdminPlans,
   setAdminReportStatus,
   setAdminSubscription,
+  setAdminUserChatAiOverrides,
   setAdminUserStatus,
 } from '@beeapp/api-client';
 import KpiGrid, { type KpiItem } from '@/components/admin/KpiGrid';
@@ -20,7 +21,9 @@ import ConfirmDialog from '@/components/admin/ConfirmDialog';
 import ModerationSection from './ModerationSection';
 import NetworkSection from './NetworkSection';
 import type {
+  AdminChatAiOverrideMode,
   AdminUser,
+  AdminUserChatAutoReply,
   NetworkVisibility,
   Plan,
   ReportStatus,
@@ -67,6 +70,20 @@ export default function UsuarioDetallePage({ params }: { params: { id: string } 
   const [verificacionRed, setVerificacionRed] = useState<VerificationStatus>('no_solicitado');
   const [reports, setReports] = useState<UserReport[]>([]);
   const [sanctions, setSanctions] = useState<UserSanction[]>([]);
+  const [isSuperadmin, setIsSuperadmin] = useState(false);
+  const [chatAutoReply, setChatAutoReply] = useState<AdminUserChatAutoReply>({
+    effectivePersonal: false,
+    effectiveBusiness: false,
+    planPersonal: false,
+    planBusiness: false,
+    overridePersonal: 'inherit',
+    overrideBusiness: 'inherit',
+  });
+  const [aiOverridePersonal, setAiOverridePersonal] = useState<AdminChatAiOverrideMode>('inherit');
+  const [aiOverrideBusiness, setAiOverrideBusiness] = useState<AdminChatAiOverrideMode>('inherit');
+  const [aiOverrideReason, setAiOverrideReason] = useState('');
+  const [aiOverrideNotice, setAiOverrideNotice] = useState('');
+  const [aiOverrideBusy, setAiOverrideBusy] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
@@ -76,6 +93,10 @@ export default function UsuarioDetallePage({ params }: { params: { id: string } 
     setHistory(detail.transactions);
     setReports(detail.reports);
     setSanctions(detail.sanctions);
+    setIsSuperadmin(detail.isSuperadmin);
+    setChatAutoReply(detail.chatAutoReply);
+    setAiOverridePersonal(detail.chatAutoReply.overridePersonal);
+    setAiOverrideBusiness(detail.chatAutoReply.overrideBusiness);
     setEstado(detail.user.estado);
     setVisibilidadRed(detail.user.visibilidadRed);
     setVerificacionRed(detail.user.verificacionRed);
@@ -152,6 +173,38 @@ export default function UsuarioDetallePage({ params }: { params: { id: string } 
       setError(actionError instanceof Error ? actionError.message : 'No fue posible cambiar el plan.');
     } finally {
       setBusy(false);
+    }
+  };
+
+  const saveChatAiOverrides = async () => {
+    if (!user || !isSuperadmin) return;
+    const reason = aiOverrideReason.trim();
+    if (!reason) {
+      setAiOverrideNotice('');
+      setError('Escribe el motivo del cambio de permisos de IA en chats.');
+      return;
+    }
+    setAiOverrideBusy(true);
+    setError('');
+    setAiOverrideNotice('');
+    try {
+      const updated = await setAdminUserChatAiOverrides({
+        userId: user.id,
+        personal: aiOverridePersonal,
+        business: aiOverrideBusiness,
+        reason,
+      });
+      applyDetail(updated, plans);
+      setAiOverrideReason('');
+      setAiOverrideNotice('Permisos de IA en chats actualizados correctamente.');
+    } catch (actionError) {
+      setError(
+        actionError instanceof Error
+          ? actionError.message
+          : 'No fue posible actualizar los permisos de IA en chats.',
+      );
+    } finally {
+      setAiOverrideBusy(false);
     }
   };
 
@@ -237,7 +290,7 @@ export default function UsuarioDetallePage({ params }: { params: { id: string } 
             </button>
           )}
         </div>
-        <div className="plan-limits-grid">
+        <div className="form-grid-wide">
           <div className="form-field">
             <label className="form-field-label">Plan</label>
             <select className="form-field-input" value={selectedPlanId} onChange={(event) => setSelectedPlanId(event.target.value)}>
@@ -291,6 +344,101 @@ export default function UsuarioDetallePage({ params }: { params: { id: string } 
               </div>
             ))}
           </div>
+        ) : null}
+      </div>
+
+      <div className="panel-card" style={{ display: 'flex', flexDirection: 'column', gap: 16, marginTop: 16 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+          <div>
+            <span className="panel-card-title">Asistente IA en chats (Control Superadmin)</span>
+            <p className="form-hint" style={{ marginTop: 4 }}>
+              Permite habilitar o bloquear la auto-respuesta de Buddy AI para este usuario de forma individual sin modificar su plan ni fechas de facturación.
+            </p>
+          </div>
+          {!isSuperadmin ? (
+            <span className="form-hint" style={{ fontWeight: 600 }}>Solo lectura (requiere Superadmin)</span>
+          ) : null}
+        </div>
+
+        <div className="detail-rows">
+          <div className="detail-row">
+            <span className="detail-row-label">Chats personales (1-a-1)</span>
+            <span className="detail-row-value">
+              {chatAutoReply.effectivePersonal ? 'Habilitado' : 'Deshabilitado'} ·{' '}
+              {chatAutoReply.overridePersonal === 'inherit'
+                ? `Hereda del plan (${chatAutoReply.planPersonal ? 'Sí' : 'No'})`
+                : chatAutoReply.overridePersonal === 'allow'
+                  ? 'Override: Forzar habilitado'
+                  : 'Override: Forzar bloqueado'}
+            </span>
+          </div>
+          <div className="detail-row">
+            <span className="detail-row-label">Chats de negocios</span>
+            <span className="detail-row-value">
+              {chatAutoReply.effectiveBusiness ? 'Habilitado' : 'Deshabilitado'} ·{' '}
+              {chatAutoReply.overrideBusiness === 'inherit'
+                ? `Hereda del plan (${chatAutoReply.planBusiness ? 'Sí' : 'No'})`
+                : chatAutoReply.overrideBusiness === 'allow'
+                  ? 'Override: Forzar habilitado'
+                  : 'Override: Forzar bloqueado'}
+            </span>
+          </div>
+        </div>
+
+        <div className="form-grid-wide">
+          <div className="form-field">
+            <label className="form-field-label">Override chats personales</label>
+            <select
+              className="form-field-input"
+              disabled={!isSuperadmin || aiOverrideBusy}
+              value={aiOverridePersonal}
+              onChange={(event) => setAiOverridePersonal(event.target.value as AdminChatAiOverrideMode)}
+            >
+              <option value="inherit">Heredar del plan ({chatAutoReply.planPersonal ? 'Habilitado' : 'Deshabilitado'})</option>
+              <option value="allow">Permitir siempre (override)</option>
+              <option value="block">Bloquear siempre (override)</option>
+            </select>
+          </div>
+
+          <div className="form-field">
+            <label className="form-field-label">Override chats de negocios</label>
+            <select
+              className="form-field-input"
+              disabled={!isSuperadmin || aiOverrideBusy}
+              value={aiOverrideBusiness}
+              onChange={(event) => setAiOverrideBusiness(event.target.value as AdminChatAiOverrideMode)}
+            >
+              <option value="inherit">Heredar del plan ({chatAutoReply.planBusiness ? 'Habilitado' : 'Deshabilitado'})</option>
+              <option value="allow">Permitir siempre (override)</option>
+              <option value="block">Bloquear siempre (override)</option>
+            </select>
+          </div>
+
+          <div className="form-field">
+            <label className="form-field-label">Motivo del cambio (auditoría)</label>
+            <input
+              className="form-field-input"
+              disabled={!isSuperadmin || aiOverrideBusy}
+              value={aiOverrideReason}
+              onChange={(event) => setAiOverrideReason(event.target.value)}
+              placeholder="Ej. Acceso beta, cortesía comercial o restricción por abuso"
+            />
+          </div>
+        </div>
+
+        {aiOverrideNotice ? (
+          <p className="form-alert form-alert-success" role="status">{aiOverrideNotice}</p>
+        ) : null}
+
+        {isSuperadmin ? (
+          <button
+            className="confirm-dialog-btn-confirm"
+            type="button"
+            disabled={aiOverrideBusy || !aiOverrideReason.trim()}
+            onClick={() => void saveChatAiOverrides()}
+          >
+            {aiOverrideBusy ? 'Guardando permisos IA…' : 'Guardar permisos de IA en chats'}
+          </button>
         ) : null}
       </div>
 

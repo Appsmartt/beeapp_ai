@@ -9,6 +9,7 @@ import {
 } from 'react-native';
 import {
   ArrowLeft,
+  Bot,
   Save,
 } from 'lucide-react-native';
 import {
@@ -153,6 +154,9 @@ export default function BuddyServicesOperationScreen() {
   const [deliveryCurrencyCode, setDeliveryCurrencyCode] = useState(
     'COP',
   );
+  const [aiAutoReplyEnabled, setAiAutoReplyEnabled] = useState(false);
+  const [aiAutoReplyPrompt, setAiAutoReplyPrompt] = useState('');
+  const [canUseBusinessAi, setCanUseBusinessAi] = useState(false);
 
   const applyProfile = useCallback((
     nextProfile: CommercialOwnedProfile,
@@ -177,6 +181,9 @@ export default function BuddyServicesOperationScreen() {
     setDeliveryCurrencyCode(
       nextProfile.delivery_currency_code || 'COP',
     );
+    setAiAutoReplyEnabled(Boolean(nextProfile.ai_auto_reply_enabled));
+    setAiAutoReplyPrompt(nextProfile.ai_auto_reply_prompt || '');
+    setCanUseBusinessAi(nextProfile.can_use_ai_auto_reply === true);
   }, []);
 
   const loadProfile = useCallback(async () => {
@@ -324,6 +331,10 @@ export default function BuddyServicesOperationScreen() {
               : null
           ),
           delivery_currency_code: normalizedCurrencyCode,
+          ...(canUseBusinessAi
+            ? { ai_auto_reply_enabled: aiAutoReplyEnabled }
+            : {}),
+          ai_auto_reply_prompt: aiAutoReplyPrompt.trim().slice(0, 1500),
         },
       );
 
@@ -337,8 +348,11 @@ export default function BuddyServicesOperationScreen() {
       setIsSaving(false);
     }
   }, [
+    aiAutoReplyEnabled,
+    aiAutoReplyPrompt,
     applyProfile,
     bookingHoldMinutes,
+    canUseBusinessAi,
     deliveryCurrencyCode,
     deliveryFeeAmount,
     deliveryFeeMode,
@@ -950,6 +964,141 @@ export default function BuddyServicesOperationScreen() {
               </View>
             </View>
           ) : null}
+
+          <View style={{ marginTop: 26 }}>
+            <View
+              style={{
+                alignItems: 'center',
+                flexDirection: 'row',
+                justifyContent: 'space-between',
+                gap: 8,
+              }}
+            >
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flex: 1 }}>
+                <Bot color="#7427D5" size={18} />
+                <Text
+                  style={{
+                    color: '#261743',
+                    fontSize: 16,
+                    fontWeight: '800',
+                  }}
+                >
+                  Asistente IA en chats
+                </Text>
+              </View>
+              {!canUseBusinessAi ? (
+                <TouchableOpacity
+                  activeOpacity={0.8}
+                  onPress={() => router.push('/(main)/profile/subscription')}
+                  style={{
+                    backgroundColor: '#F6EAFE',
+                    borderRadius: 999,
+                    paddingHorizontal: 10,
+                    paddingVertical: 5,
+                  }}
+                >
+                  <Text style={{ color: '#7427D5', fontSize: 11, fontWeight: '800' }}>
+                    Mejorar plan
+                  </Text>
+                </TouchableOpacity>
+              ) : null}
+            </View>
+
+            <Text
+              style={{
+                color: '#786593',
+                fontSize: 13,
+                lineHeight: 19,
+                marginTop: 4,
+              }}
+            >
+              Cuando un cliente escriba a este negocio, Buddy AI responderá usando solo la información pública, catálogo publicado y estas indicaciones. Si respondes manualmente, la IA se pausará automáticamente.
+            </Text>
+
+            <View
+              style={{
+                alignItems: 'center',
+                backgroundColor: '#FFFFFF',
+                borderColor: '#E7DDF2',
+                borderRadius: 16,
+                borderWidth: 1,
+                flexDirection: 'row',
+                justifyContent: 'space-between',
+                marginTop: 12,
+                opacity: canUseBusinessAi ? 1 : 0.65,
+                padding: 15,
+              }}
+            >
+              <View style={{ flex: 1, paddingRight: 14 }}>
+                <Text style={{ color: '#261743', fontSize: 14, fontWeight: '800' }}>
+                  Responder chats del negocio con IA
+                </Text>
+                <Text style={{ color: '#786593', fontSize: 12, lineHeight: 18, marginTop: 3 }}>
+                  {canUseBusinessAi
+                    ? 'Activa también la IA para negocios en Configuración del Asistente o chat por chat.'
+                    : 'No disponible en tu plan actual.'}
+                </Text>
+              </View>
+              <Switch
+                accessibilityLabel="Responder chats del negocio con IA"
+                disabled={isSaving || !canUseBusinessAi}
+                onValueChange={setAiAutoReplyEnabled}
+                value={canUseBusinessAi && aiAutoReplyEnabled}
+              />
+            </View>
+
+            <View
+              style={{
+                backgroundColor: '#FFFFFF',
+                borderColor: '#E7DDF2',
+                borderRadius: 16,
+                borderWidth: 1,
+                marginTop: 12,
+                padding: 15,
+              }}
+            >
+              <Text style={{ color: '#261743', fontSize: 14, fontWeight: '800' }}>
+                Instrucciones para Buddy AI (privado)
+              </Text>
+              <Text
+                style={{
+                  color: '#786593',
+                  fontSize: 12,
+                  lineHeight: 18,
+                  marginTop: 4,
+                  marginBottom: 10,
+                }}
+              >
+                Indica tono, tiempos de entrega o políticas que Buddy AI debe respetar al responder clientes.
+              </Text>
+              <TextInput
+                accessibilityLabel="Instrucciones para Buddy AI del negocio"
+                editable={!isSaving}
+                multiline
+                maxLength={1500}
+                numberOfLines={4}
+                onChangeText={setAiAutoReplyPrompt}
+                placeholder="Ej. Saluda con amabilidad, aclara que los domicilios salen en 40 minutos..."
+                placeholderTextColor="#A692B7"
+                style={{
+                  backgroundColor: '#FAFAFD',
+                  borderColor: '#DCCBEE',
+                  borderRadius: 12,
+                  borderWidth: 1,
+                  color: '#261743',
+                  fontSize: 14,
+                  minHeight: 96,
+                  paddingHorizontal: 13,
+                  paddingVertical: 10,
+                  textAlignVertical: 'top',
+                }}
+                value={aiAutoReplyPrompt}
+              />
+              <Text style={{ color: '#9B8AB4', fontSize: 11, marginTop: 6, textAlign: 'right' }}>
+                {aiAutoReplyPrompt.length}/1500
+              </Text>
+            </View>
+          </View>
 
           <TouchableOpacity
             accessibilityLabel="Guardar configuración operativa"

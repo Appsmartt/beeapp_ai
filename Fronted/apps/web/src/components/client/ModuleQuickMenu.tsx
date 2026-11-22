@@ -89,7 +89,7 @@ export default function ModuleQuickMenu({
       <button
         type="button"
         onClick={() => setOpen((value) => !value)}
-        className={`flex h-11 w-11 items-center justify-center rounded-2xl text-white shadow-[0_6px_16px_rgba(116,39,213,0.28)] ${
+        className={`flex h-9 w-9 items-center justify-center rounded-xl text-white shadow-[0_6px_16px_rgba(116,39,213,0.28)] sm:h-11 sm:w-11 sm:rounded-2xl ${
           open || quickActive ? 'bg-[#5E1ABF]' : 'bg-[#7427D5] hover:bg-[#5E1ABF]'
         }`}
         aria-label="Abrir accesos rápidos"
@@ -97,50 +97,58 @@ export default function ModuleQuickMenu({
         aria-haspopup="dialog"
         title="Accesos rápidos"
       >
-        <LayoutGrid className="h-5 w-5" />
+        <LayoutGrid className="h-[18px] w-[18px] sm:h-5 sm:w-5" />
       </button>
 
       {open ? (
-        <div
-          role="dialog"
-          aria-label="Accesos rápidos"
-          className="absolute right-0 top-[calc(100%+10px)] z-50 w-[min(340px,calc(100vw-2rem))] rounded-[24px] border border-[#E7DDF2] bg-white p-4 shadow-[0_18px_40px_rgba(48,32,72,0.16)]"
-        >
-          <p className="text-sm font-extrabold text-[#261743]">Accesos rápidos</p>
-          <p className="mt-0.5 text-xs text-[#786593]">Correos, agenda, notas y archivos</p>
-          <div className="mt-3 grid grid-cols-2 gap-2">
-            {QUICK_MODULES.map((item) => {
-              const Icon = item.icon;
-              const selected = activeModule === item.key;
-              return (
-                <button
-                  key={item.key}
-                  type="button"
-                  onClick={() => {
-                    setOpen(false);
-                    onSelect(item.key);
-                  }}
-                  className="flex flex-col items-start gap-2 rounded-2xl border px-3 py-3 text-left transition hover:-translate-y-0.5"
-                  style={{
-                    backgroundColor: selected ? item.soft : '#FFFFFF',
-                    borderColor: item.strong,
-                  }}
-                >
-                  <span
-                    className="flex h-10 w-10 items-center justify-center rounded-xl border"
-                    style={{ backgroundColor: item.soft, borderColor: item.strong, color: item.accent }}
+        <>
+          <button
+            type="button"
+            aria-label="Cerrar accesos rápidos"
+            onClick={() => setOpen(false)}
+            className="fixed inset-0 z-40 cursor-default bg-black/20 backdrop-blur-[1px] sm:hidden"
+          />
+          <div
+            role="dialog"
+            aria-label="Accesos rápidos"
+            className="fixed inset-x-3 top-14 z-50 w-auto max-h-[calc(100dvh-4.5rem)] overflow-y-auto rounded-[22px] border border-[#E7DDF2] bg-white p-3.5 shadow-[0_18px_40px_rgba(48,32,72,0.16)] sm:absolute sm:inset-auto sm:right-0 sm:top-[calc(100%+10px)] sm:w-[340px] sm:rounded-[24px] sm:p-4"
+          >
+            <p className="text-sm font-extrabold text-[#261743]">Accesos rápidos</p>
+            <p className="mt-0.5 text-xs text-[#786593]">Correos, agenda, notas y archivos</p>
+            <div className="mt-3 grid grid-cols-2 gap-2">
+              {QUICK_MODULES.map((item) => {
+                const Icon = item.icon;
+                const selected = activeModule === item.key;
+                return (
+                  <button
+                    key={item.key}
+                    type="button"
+                    onClick={() => {
+                      setOpen(false);
+                      onSelect(item.key);
+                    }}
+                    className="flex flex-col items-start gap-2 rounded-2xl border px-2.5 py-2.5 text-left transition hover:-translate-y-0.5 sm:px-3 sm:py-3"
+                    style={{
+                      backgroundColor: selected ? item.soft : '#FFFFFF',
+                      borderColor: item.strong,
+                    }}
                   >
-                    <Icon className="h-5 w-5" />
-                  </span>
-                  <span>
-                    <span className="block text-sm font-extrabold text-[#303B5A]">{item.label}</span>
-                    <span className="mt-0.5 block text-[11px] text-[#6C7892]">{item.subtitle}</span>
-                  </span>
-                </button>
-              );
-            })}
+                    <span
+                      className="flex h-9 w-9 items-center justify-center rounded-xl border sm:h-10 sm:w-10"
+                      style={{ backgroundColor: item.soft, borderColor: item.strong, color: item.accent }}
+                    >
+                      <Icon className="h-4 w-4 sm:h-5 sm:w-5" />
+                    </span>
+                    <span className="min-w-0 w-full">
+                      <span className="block truncate text-sm font-extrabold text-[#303B5A]">{item.label}</span>
+                      <span className="mt-0.5 block text-[11px] leading-snug text-[#6C7892]">{item.subtitle}</span>
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
           </div>
-        </div>
+        </>
       ) : null}
     </div>
   );

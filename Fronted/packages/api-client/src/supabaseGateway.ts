@@ -1070,10 +1070,13 @@ async function handleAccounts(
 
 
 
-function mapMessage(row: Json | null): Json {
+function mapMessage(row: Json | null, viewerUserId?: string): Json {
     const message = row || {};
     const attachments = asRows<Json>(message.attachments);
     const reactions = asRows<Json>(message.reactions);
+    const isVisibleAiBadge = message.ai_generated === true
+        && Boolean(viewerUserId)
+        && String(message.sender_id || '') === viewerUserId;
 
     return {
         ...message,
@@ -1088,7 +1091,7 @@ function mapMessage(row: Json | null): Json {
         attachment_file_id: attachments[0]?.file_id ?? null,
         reference_type: null,
         reference_id: null,
-        metadata: {},
+        metadata: isVisibleAiBadge ? { sent_by_ai: true } : {},
         sequence_number: Number(message.seq || 0),
         attachments,
         reactions,
@@ -1603,6 +1606,24 @@ async function handleChat(
         return { participants: conversation.participants };
     }
 
+    const aiAutoReplyMatch = path.match(/^\/chat\/conversations\/([0-9a-f-]{36})\/ai-auto-reply\/$/i);
+    if (aiAutoReplyMatch && method === 'GET') {
+        const state = unwrap(await supabase.rpc('get_conversation_ai_auto_reply', {
+            p_conversation_id: aiAutoReplyMatch[1],
+        }));
+        return state;
+    }
+
+    if (aiAutoReplyMatch && method === 'PATCH') {
+        const state = unwrap(await supabase.rpc('set_conversation_ai_auto_reply', {
+            p_conversation_id: aiAutoReplyMatch[1],
+            p_enabled: payload.enabled === undefined ? null : payload.enabled,
+            p_resume: payload.resume === true,
+            p_clear_override: payload.clear_override === true,
+        }));
+        return state;
+    }
+
     const messagesMatch = path.match(/^\/chat\/conversations\/([0-9a-f-]{36})\/messages\/$/i);
     if (messagesMatch && method === 'GET') {
         const limit = Number(query.get('limit') || 50);
@@ -1615,7 +1636,7 @@ async function handleChat(
             .order('seq', { ascending: false })
             .limit(limit);
         if (before) request = request.lt('seq', Number(before));
-        const messages = (unwrap(await request) ?? []).map(mapMessage);
+        const messages = (unwrap(await request) ?? []).map((row) => mapMessage(row as Json, userId));
 
         return {
             conversation_id: messagesMatch[1],
@@ -1649,7 +1670,7 @@ async function handleChat(
                 attachments,
             })
             .select('*')
-            .single()));
+            .single()), userId);
 
         return { message };
     }
@@ -1661,7 +1682,7 @@ async function handleChat(
                 .from('messages')
                 .select('*')
                 .eq('id', messageMatch[1])
-                .single())),
+                .single()), userId),
         };
     }
 
@@ -2522,7 +2543,7 @@ async function handleStatuses(
                 kind: 'text',
             })
             .select('*')
-            .single()));
+            .single()), userId);
 
         return {
             conversation: await loadConversation(supabase, conversationId, userId),

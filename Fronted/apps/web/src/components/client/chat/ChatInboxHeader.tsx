@@ -46,28 +46,28 @@ export default function ChatInboxHeader({
   }, []);
 
   return (
-    <div className="flex items-center justify-between gap-2 border-b border-[#E6DCF4] px-4 py-3">
+    <div className="flex items-center justify-between gap-2 border-b border-[#E6DCF4] px-3 py-1.5 md:px-4 md:py-3">
       <div className="flex min-w-0 items-center gap-2">
         {onBack ? (
           <button
             type="button"
             onClick={onBack}
-            className="rounded-xl p-2 text-neutral-700 hover:bg-neutral-100"
+            className="rounded-xl p-1.5 text-neutral-700 hover:bg-neutral-100 md:p-2"
             aria-label="Volver a chats"
           >
-            <ArrowLeft className="h-5 w-5" />
+            <ArrowLeft className="h-4 w-4 md:h-5 md:w-5" />
           </button>
         ) : onGoHome ? (
           <button
             type="button"
             onClick={onGoHome}
-            className="flex h-10 w-10 items-center justify-center rounded-2xl bg-brand-primary text-white"
+            className="flex h-9 w-9 items-center justify-center rounded-xl bg-brand-primary text-white md:h-10 md:w-10 md:rounded-2xl"
             aria-label="Ir al inicio"
           >
-            <Home className="h-5 w-5" />
+            <Home className="h-[18px] w-[18px] md:h-5 md:w-5" />
           </button>
         ) : null}
-        <h1 className="truncate text-xl font-semibold text-neutral-900">{title}</h1>
+        <h1 className="truncate text-base font-semibold text-neutral-900 md:text-xl">{title}</h1>
       </div>
 
       <div className="flex items-center gap-1">
@@ -76,13 +76,13 @@ export default function ChatInboxHeader({
           <button
             type="button"
             onClick={() => setSocialOpen((open) => !open)}
-            className="flex h-10 w-10 items-center justify-center rounded-xl text-neutral-700 hover:bg-white/70"
+            className="flex h-9 w-9 items-center justify-center rounded-xl text-neutral-700 hover:bg-white/70 md:h-10 md:w-10"
             aria-label="Contactos y actividad"
           >
-            <UserPlus className="h-5 w-5" />
+            <UserPlus className="h-[18px] w-[18px] md:h-5 md:w-5" />
           </button>
           {socialOpen ? (
-            <div className="absolute right-0 top-12 z-40 w-52 rounded-2xl border border-neutral-200 bg-white py-1.5 text-xs shadow-xl">
+            <div className="absolute right-0 top-12 z-40 w-[min(13rem,calc(100vw-2rem))] rounded-2xl border border-neutral-200 bg-white py-1.5 text-xs shadow-xl">
               {SOCIAL_ITEMS.map((item) => {
                 const Icon = item.icon;
                 return (

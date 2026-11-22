@@ -36,8 +36,17 @@ export function VoiceFabVisibility({
   );
 }
 
-const FAB_SIZE = 64;
-const FAB_MARGIN = 24;
+const DESKTOP_FAB_SIZE = 64;
+const MOBILE_FAB_SIZE = 56;
+const DESKTOP_FAB_MARGIN = 24;
+const MOBILE_FAB_MARGIN = 16;
+
+function getFabMetrics() {
+  if (typeof window === 'undefined' || window.innerWidth >= 640) {
+    return { size: DESKTOP_FAB_SIZE, margin: DESKTOP_FAB_MARGIN };
+  }
+  return { size: MOBILE_FAB_SIZE, margin: MOBILE_FAB_MARGIN };
+}
 
 /**
  * El botón vive anclado a una esquina (lado + distancia al borde inferior), no a una
@@ -57,7 +66,8 @@ type DragState = {
 export default function VoiceAssistantFab({ hidden = false }: { hidden?: boolean }) {
   const [voiceOpen, setVoiceOpen] = useState(false);
   const [portalRoot, setPortalRoot] = useState<HTMLElement | null>(null);
-  const [anchor, setAnchor] = useState<FabAnchor>({ side: 'right', bottom: FAB_MARGIN });
+  const [metrics, setMetrics] = useState(getFabMetrics);
+  const [anchor, setAnchor] = useState<FabAnchor>(() => ({ side: 'right', bottom: getFabMetrics().margin }));
   const [dragPosition, setDragPosition] = useState<{ left: number; top: number } | null>(null);
 
   const buttonRef = useRef<HTMLButtonElement | null>(null);
@@ -65,6 +75,20 @@ export default function VoiceAssistantFab({ hidden = false }: { hidden?: boolean
 
   useEffect(() => {
     setPortalRoot(document.body);
+    const updateMetrics = () => {
+      const next = getFabMetrics();
+      setMetrics(next);
+      setAnchor((current) => ({
+        side: current.side,
+        bottom: Math.max(
+          next.margin,
+          Math.min(window.innerHeight - next.size - next.margin, current.bottom),
+        ),
+      }));
+    };
+    updateMetrics();
+    window.addEventListener('resize', updateMetrics);
+    return () => window.removeEventListener('resize', updateMetrics);
   }, []);
 
   useEffect(() => {
@@ -96,8 +120,8 @@ export default function VoiceAssistantFab({ hidden = false }: { hidden?: boolean
     drag.moved = true;
 
     setDragPosition({
-      left: Math.max(0, Math.min(window.innerWidth - FAB_SIZE, drag.startLeft + deltaX)),
-      top: Math.max(FAB_MARGIN, Math.min(window.innerHeight - FAB_SIZE, drag.startTop + deltaY)),
+      left: Math.max(0, Math.min(window.innerWidth - metrics.size, drag.startLeft + deltaX)),
+      top: Math.max(metrics.margin, Math.min(window.innerHeight - metrics.size, drag.startTop + deltaY)),
     });
   };
 
@@ -118,10 +142,10 @@ export default function VoiceAssistantFab({ hidden = false }: { hidden?: boolean
 
     const rect = buttonRef.current?.getBoundingClientRect();
     if (rect) {
-      const side = rect.left + FAB_SIZE / 2 < window.innerWidth / 2 ? 'left' : 'right';
+      const side = rect.left + metrics.size / 2 < window.innerWidth / 2 ? 'left' : 'right';
       const bottom = Math.max(
-        FAB_MARGIN,
-        Math.min(window.innerHeight - FAB_SIZE - FAB_MARGIN, window.innerHeight - rect.bottom),
+        metrics.margin,
+        Math.min(window.innerHeight - metrics.size - metrics.margin, window.innerHeight - rect.bottom),
       );
       setAnchor({ side, bottom });
     }
@@ -135,8 +159,8 @@ export default function VoiceAssistantFab({ hidden = false }: { hidden?: boolean
   const style: React.CSSProperties = dragPosition
     ? { left: `${dragPosition.left}px`, top: `${dragPosition.top}px` }
     : {
-        [anchor.side]: `${FAB_MARGIN}px`,
-        bottom: `min(${anchor.bottom}px, calc(100dvh - ${FAB_SIZE + FAB_MARGIN}px))`,
+        [anchor.side]: `${metrics.margin}px`,
+        bottom: `min(${anchor.bottom}px, calc(100dvh - ${metrics.size + metrics.margin}px))`,
       };
 
   return createPortal(
@@ -150,7 +174,7 @@ export default function VoiceAssistantFab({ hidden = false }: { hidden?: boolean
           onPointerUp={(event) => finishDrag(event)}
           onPointerCancel={(event) => finishDrag(event, true)}
           style={{ ...style, touchAction: 'none' }}
-          className={`group fixed z-[120] flex h-16 w-16 select-none items-center justify-center rounded-full bg-brand-primary text-white shadow-lg shadow-brand-primary/40 ${
+          className={`group fixed z-[45] flex h-14 w-14 select-none items-center justify-center rounded-full bg-brand-primary text-white shadow-lg shadow-brand-primary/40 sm:h-16 sm:w-16 ${
             dragPosition
               ? 'scale-105 cursor-grabbing opacity-80 duration-100'
               : 'scale-100 cursor-grab opacity-100 duration-300'
@@ -158,7 +182,7 @@ export default function VoiceAssistantFab({ hidden = false }: { hidden?: boolean
           aria-label="Asistente de IA por voz"
         >
           <span className="pointer-events-none absolute inset-0 animate-ping rounded-full bg-brand-primary opacity-40" />
-          <Mic className="pointer-events-none relative z-10 h-7 w-7" />
+          <Mic className="pointer-events-none relative z-10 h-6 w-6 sm:h-7 sm:w-7" />
         </button>
       )}
 

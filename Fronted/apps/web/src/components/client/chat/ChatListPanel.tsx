@@ -70,7 +70,7 @@ export default function ChatListPanel({
       />
 
       {/* Chat list */}
-      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-1 pb-28 pt-2">
+      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-1 pb-28 pt-1 md:pt-2">
         {loading ? (
           <ChatListSkeleton />
         ) : null}

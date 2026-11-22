@@ -116,10 +116,23 @@ export interface PlanEntitlements {
   aiLevel: string;
   transcription: boolean;
   documentProcessing: boolean;
+  chatAutoReplyPersonal: boolean;
+  chatAutoReplyBusiness: boolean;
   automations: string;
   storageAddon: boolean | string;
   extraAiCredits: boolean | string;
   promotedSpaces: boolean | string;
+}
+
+export type AdminChatAiOverrideMode = 'inherit' | 'allow' | 'block';
+
+export interface AdminUserChatAutoReply {
+  effectivePersonal: boolean;
+  effectiveBusiness: boolean;
+  planPersonal: boolean;
+  planBusiness: boolean;
+  overridePersonal: AdminChatAiOverrideMode;
+  overrideBusiness: AdminChatAiOverrideMode;
 }
 
 export type PlanFeatureKey =

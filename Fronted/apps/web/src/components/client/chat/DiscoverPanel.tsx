@@ -236,7 +236,7 @@ export default function DiscoverPanel({
       </div>
 
       {/* Contenido por sub-pestaña */}
-      <div className="flex-1 overflow-y-auto divide-y divide-neutral-100">
+      <div className="flex-1 divide-y divide-neutral-100 overflow-y-auto pb-28">
         {loading && targets.length === 0 && networkContacts.length === 0 ? (
           <div className="p-8 text-center text-xs text-neutral-400">Cargando red...</div>
         ) : subTab === 'discover' ? (

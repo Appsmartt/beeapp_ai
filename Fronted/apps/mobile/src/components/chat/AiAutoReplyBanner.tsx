@@ -1,24 +1,51 @@
 import { useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, Switch, Animated, Easing } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  Switch,
+  Animated,
+  Easing,
+  TouchableOpacity,
+} from 'react-native';
 import { colors, spacing } from '@beeapp/design-system';
-import { Bot } from 'lucide-react-native';
+import { Bot, PauseCircle, Play } from 'lucide-react-native';
+import type { ConversationAiAutoReplyScope } from '@beeapp/shared-types';
 
 interface AiAutoReplyBannerProps {
   enabled: boolean;
+  scope?: ConversationAiAutoReplyScope | null;
+  pausedUntil?: string | null;
+  busy?: boolean;
   onChange: (enabled: boolean) => void;
+  onResume?: () => void;
 }
 
-/**
- * Fixed bar under the header of a seller chat: the assistant can answer the
- * customer on the seller's behalf. Mock — flipping the switch only changes
- * how the bar looks.
- */
-export default function AiAutoReplyBanner({ enabled, onChange }: AiAutoReplyBannerProps) {
-  const pulse = useRef(new Animated.Value(0.35)).current;
+function formatPausedRemaining(pausedUntil?: string | null): string | null {
+  if (!pausedUntil) return null;
+  const target = new Date(pausedUntil).getTime();
+  if (Number.isNaN(target)) return null;
+  const diffMs = target - Date.now();
+  if (diffMs <= 0) return null;
+  const mins = Math.max(1, Math.ceil(diffMs / 60000));
+  return `${mins} min`;
+}
 
-  // A soft heartbeat next to the icon while the assistant is on duty
+export default function AiAutoReplyBanner({
+  enabled,
+  scope,
+  pausedUntil,
+  busy = false,
+  onChange,
+  onResume,
+}: AiAutoReplyBannerProps) {
+  const pulse = useRef(new Animated.Value(0.35)).current;
+  const pausedRemaining = enabled ? formatPausedRemaining(pausedUntil) : null;
+  const isPaused = Boolean(pausedRemaining);
+  const scopeLabel = scope === 'business' ? 'IA del negocio' : 'IA personal';
+
   useEffect(() => {
-    if (!enabled) {
+    if (!enabled || isPaused) {
       pulse.setValue(0.35);
       return;
     }
@@ -26,26 +53,58 @@ export default function AiAutoReplyBanner({ enabled, onChange }: AiAutoReplyBann
       Animated.sequence([
         Animated.timing(pulse, { toValue: 1, duration: 700, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
         Animated.timing(pulse, { toValue: 0.35, duration: 700, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
-      ])
+      ]),
     );
     loop.start();
     return () => loop.stop();
-  }, [enabled]);
+  }, [enabled, isPaused, pulse]);
 
-  const tint = enabled ? colors.brand.primary : colors.neutral.gray600;
+  const tint = isPaused
+    ? '#B45309'
+    : enabled
+      ? colors.brand.primary
+      : colors.neutral.gray600;
 
   return (
-    <View style={[styles.bar, enabled ? styles.barOn : styles.barOff]}>
-      <Bot size={18} color={tint} />
+    <View
+      style={[
+        styles.bar,
+        isPaused ? styles.barPaused : enabled ? styles.barOn : styles.barOff,
+      ]}
+    >
+      {isPaused ? (
+        <PauseCircle size={17} color={tint} />
+      ) : (
+        <Bot size={17} color={tint} />
+      )}
 
-      {enabled && <Animated.View style={[styles.pulseDot, { opacity: pulse }]} />}
+      {enabled && !isPaused ? (
+        <Animated.View style={[styles.pulseDot, { opacity: pulse }]} />
+      ) : null}
 
       <Text style={[styles.label, { color: tint }]} numberOfLines={1}>
-        {enabled ? 'Asistente IA respondiendo' : 'Asistente IA desactivado'}
+        {isPaused
+          ? `${scopeLabel} en pausa (${pausedRemaining})`
+          : enabled
+            ? `${scopeLabel} respondiendo`
+            : `${scopeLabel} desactivada`}
       </Text>
+
+      {isPaused && onResume ? (
+        <TouchableOpacity
+          activeOpacity={0.8}
+          disabled={busy}
+          onPress={onResume}
+          style={[styles.resumeBtn, busy && { opacity: 0.55 }]}
+        >
+          <Play size={11} color="#FFFFFF" />
+          <Text style={styles.resumeText}>Reanudar</Text>
+        </TouchableOpacity>
+      ) : null}
 
       <Switch
         value={enabled}
+        disabled={busy}
         onValueChange={onChange}
         trackColor={{ false: colors.neutral.gray300, true: colors.brand.primary }}
         thumbColor={colors.neutral.white}
@@ -59,7 +118,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.sm,
-    height: 44,
+    minHeight: 44,
+    paddingVertical: 4,
     paddingHorizontal: spacing.md,
     borderBottomWidth: 1,
     borderBottomColor: colors.neutral.gray200,
@@ -71,6 +131,10 @@ const styles = StyleSheet.create({
     backgroundColor: colors.brand.primary + '15',
     borderBottomColor: colors.brand.primary + '30',
   },
+  barPaused: {
+    backgroundColor: '#FFFBEB',
+    borderBottomColor: '#FDE68A',
+  },
   pulseDot: {
     width: 7,
     height: 7,
@@ -80,7 +144,21 @@ const styles = StyleSheet.create({
   },
   label: {
     flex: 1,
-    fontSize: 13,
-    fontWeight: '400',
+    fontSize: 12.5,
+    fontWeight: '500',
+  },
+  resumeBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#D97706',
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+  },
+  resumeText: {
+    color: '#FFFFFF',
+    fontSize: 11,
+    fontWeight: '700',
   },
 });

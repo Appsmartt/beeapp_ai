@@ -362,7 +362,7 @@ export default function ChatProfile({
                   type="button"
                   disabled={uploadingPhoto}
                   onClick={() => photoInputRef.current?.click()}
-                  className="absolute bottom-0 right-0 flex h-7 w-7 items-center justify-center rounded-full border-2 border-white bg-brand-primary text-white shadow-xs disabled:opacity-50"
+                  className="absolute bottom-0 right-0 flex h-7 w-7 items-center justify-center rounded-full border-2 border-white bg-brand-primary text-white shadow-sm disabled:opacity-50"
                   aria-label="Cambiar foto del grupo"
                 >
                   {uploadingPhoto ? (
@@ -386,13 +386,13 @@ export default function ChatProfile({
                     void saveGroupMetadata({ name: name.trim() });
                   }
                 }}
-                className="border-b border-transparent px-2 py-0.5 text-center text-lg font-bold text-neutral-900 outline-none focus:border-brand-primary"
+                className="w-full max-w-full border-b border-transparent px-2 py-0.5 text-center text-lg font-bold text-neutral-900 outline-none focus:border-brand-primary"
               />
             ) : (
               <div className="flex items-center justify-center gap-1.5 text-lg font-bold text-neutral-900">
-                <span>{name}</span>
+                <span className="truncate">{name}</span>
                 {chat.verified ? (
-                  <ShieldCheck className="h-4.5 w-4.5 shrink-0 text-brand-primary" />
+                  <ShieldCheck className="h-[18px] w-[18px] shrink-0 text-brand-primary" />
                 ) : null}
               </div>
             )}

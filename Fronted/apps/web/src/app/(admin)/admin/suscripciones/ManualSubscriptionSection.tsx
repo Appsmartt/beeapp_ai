@@ -165,7 +165,7 @@ export default function ManualSubscriptionSection() {
           ))}
         </div>
       ) : null}
-      <div className="plan-limits-grid">
+      <div className="form-grid-wide">
         <div className="form-field">
           <label className="form-field-label">Plan</label>
           <select className="form-field-input" value={planId} onChange={(event) => setPlanId(event.target.value)}>

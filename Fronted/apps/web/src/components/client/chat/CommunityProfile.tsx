@@ -88,7 +88,7 @@ export default function CommunityProfile({ community, onBack }: CommunityProfile
                 onChange={(e) => setName(e.target.value)}
                 onBlur={() => handleSaveDetails()}
                 placeholder="Nombre de la comunidad"
-                className="text-center font-bold text-lg text-neutral-900 outline-none border-b border-neutral-200 focus:border-brand-primary px-2 py-0.5"
+                className="w-full max-w-full border-b border-neutral-200 px-2 py-0.5 text-center text-lg font-bold text-neutral-900 outline-none focus:border-brand-primary"
               />
             ) : (
               <h2 className="font-bold text-lg text-neutral-900">{name}</h2>

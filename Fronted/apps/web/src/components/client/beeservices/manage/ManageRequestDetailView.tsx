@@ -417,7 +417,7 @@ export default function ManageRequestDetailView({
                 </p>
               </div>
 
-              <div className="text-right">
+              <div className="w-full text-left sm:w-auto sm:text-right">
                 <p className="text-xs text-[#6E6083]">Total de la solicitud</p>
                 <p className="text-xl font-extrabold text-[#5E1ABF]">
                   {moneyCop(request.total_amount)}
@@ -560,8 +560,8 @@ export default function ManageRequestDetailView({
 
           {/* Reservation card / Hold creator */}
           {reservation || permissions?.can_create_reservation_hold ? (
-            <div className="rounded-2xl border border-[#EADFF3] bg-white p-5 shadow-sm">
-              <div className="flex items-center justify-between gap-2">
+            <div className="rounded-2xl border border-[#EADFF3] bg-white p-4 shadow-sm sm:p-5">
+              <div className="flex flex-wrap items-center justify-between gap-2">
                 <h3 className="flex items-center gap-2 text-sm font-extrabold text-[#2B1945]">
                   <CalendarClock className="h-4 w-4 text-[#5E1ABF]" />
                   Reserva y horario de servicio
@@ -593,8 +593,8 @@ export default function ManageRequestDetailView({
               ) : null}
 
               {permissions?.can_create_reservation_hold ? (
-                <div className="mt-3 flex flex-wrap items-end gap-3 rounded-xl border border-[#EFE6F7] bg-[#FCFAFF] p-3">
-                  <div>
+                <div className="mt-3 grid w-full gap-3 rounded-xl border border-[#EFE6F7] bg-[#FCFAFF] p-3 sm:flex sm:flex-wrap sm:items-end">
+                  <div className="min-w-0 flex-1 sm:flex-initial">
                     <label className="mb-1 block text-[11px] font-bold text-[#53426B]">
                       Fecha del cupo
                     </label>
@@ -606,7 +606,7 @@ export default function ManageRequestDetailView({
                       className={fieldClass}
                     />
                   </div>
-                  <div>
+                  <div className="min-w-0 flex-1 sm:flex-initial">
                     <label className="mb-1 block text-[11px] font-bold text-[#53426B]">
                       Hora
                     </label>
@@ -621,7 +621,7 @@ export default function ManageRequestDetailView({
                     type="button"
                     disabled={busy}
                     onClick={() => void handleCreateHold()}
-                    className={primaryButtonClass}
+                    className={`${primaryButtonClass} w-full sm:w-auto`}
                   >
                     Reservar horario (Slot Hold)
                   </button>
@@ -800,7 +800,7 @@ export default function ManageRequestDetailView({
 
                       {/* Operational status selector */}
                       {canUpdateOperational ? (
-                        <div className="flex flex-col items-end gap-1.5">
+                        <div className="flex w-full flex-col items-start gap-1.5 sm:w-auto sm:items-end">
                           <span className="text-[11px] font-semibold text-[#6E6083]">
                             Actualizar estado operativo:
                           </span>
@@ -819,7 +819,7 @@ export default function ManageRequestDetailView({
                                 });
                               }, `Estado operativo de "${item.title}" actualizado.`);
                             }}
-                            className="rounded-xl border border-[#DFCFEF] bg-white px-2.5 py-1.5 text-xs font-semibold text-[#2B1945]"
+                            className="h-10 w-full rounded-xl border border-[#DFCFEF] bg-white px-2.5 py-1.5 text-xs font-semibold text-[#2B1945] outline-none focus:border-[#5E1ABF] sm:h-9 sm:w-auto"
                           >
                             <option value="" disabled>
                               Seleccionar estado…
@@ -1174,7 +1174,7 @@ export default function ManageRequestDetailView({
       {/* Modal: Per-item counterproposal */}
       {counterItem ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="w-full max-w-md rounded-3xl bg-white p-6 shadow-xl">
+          <div className="max-h-[90dvh] w-full max-w-md overflow-y-auto rounded-3xl bg-white p-5 shadow-xl sm:p-6">
             <h3 className="text-base font-extrabold text-[#2B1945]">
               Contraofertar ítem: {counterItem.title}
             </h3>
@@ -1202,8 +1202,8 @@ export default function ManageRequestDetailView({
                 />
               </div>
               {counterItem.offer_kind === 'service' || counterItem.requires_booking ? (
-                <div className="grid grid-cols-2 gap-2">
-                  <div>
+                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                  <div className="min-w-0">
                     <label className="mb-1 block font-bold text-[#4C3C64]">Fecha propuesta</label>
                     <input
                       type="date"
@@ -1213,7 +1213,7 @@ export default function ManageRequestDetailView({
                       className={fieldClass}
                     />
                   </div>
-                  <div>
+                  <div className="min-w-0">
                     <label className="mb-1 block font-bold text-[#4C3C64]">Hora propuesta</label>
                     <input
                       type="time"
@@ -1235,7 +1235,7 @@ export default function ManageRequestDetailView({
                 />
               </div>
             </div>
-            <div className="mt-5 flex justify-end gap-2">
+            <div className="mt-5 flex flex-wrap justify-end gap-2">
               <button
                 type="button"
                 onClick={() => setCounterItem(null)}
@@ -1260,7 +1260,7 @@ export default function ManageRequestDetailView({
       {/* Modal: Global proposal */}
       {globalProposalOpen ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="w-full max-w-md rounded-3xl bg-white p-6 shadow-xl">
+          <div className="max-h-[90dvh] w-full max-w-md overflow-y-auto rounded-3xl bg-white p-5 shadow-xl sm:p-6">
             <h3 className="text-base font-extrabold text-[#2B1945]">Enviar propuesta global</h3>
             <div className="mt-4 space-y-3 text-xs">
               <div>
@@ -1297,7 +1297,7 @@ export default function ManageRequestDetailView({
                 />
               </div>
             </div>
-            <div className="mt-5 flex justify-end gap-2">
+            <div className="mt-5 flex flex-wrap justify-end gap-2">
               <button
                 type="button"
                 onClick={() => setGlobalProposalOpen(false)}
@@ -1321,7 +1321,7 @@ export default function ManageRequestDetailView({
       {/* Modal: Reject or Cancel Request */}
       {transitionAction ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="w-full max-w-md rounded-3xl bg-white p-6 shadow-xl">
+          <div className="max-h-[90dvh] w-full max-w-md overflow-y-auto rounded-3xl bg-white p-5 shadow-xl sm:p-6">
             <h3 className="text-base font-extrabold text-[#2B1945]">
               {transitionAction === 'reject' ? 'Rechazar solicitud' : 'Cancelar solicitud'}
             </h3>

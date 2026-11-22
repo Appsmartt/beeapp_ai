@@ -31,7 +31,7 @@ export default function BeeServicesQuickActions({
             Gestión rápida
         </h2>
 
-        <div className="grid grid-cols-3 gap-3">
+        <div className="grid grid-cols-3 gap-2 sm:gap-3">
             {BEE_SERVICES_QUICK_ACTIONS.map((action) => {
             const Icon = ACTION_ICONS[action.id];
             const isActive = activeAction === action.id;
@@ -41,7 +41,7 @@ export default function BeeServicesQuickActions({
                 key={action.id}
                 type="button"
                 onClick={() => onPressAction(action)}
-                className={`flex min-h-[104px] flex-col items-center justify-center rounded-2xl border px-2 transition-all ${
+                className={`flex min-h-[100px] flex-col items-center justify-center rounded-2xl border px-1.5 py-2 transition-all sm:min-h-[104px] sm:px-2 ${
                     isActive
                     ? 'border-[#7427D5] bg-[#F6EAFE] shadow-[0_5px_16px_rgba(116,39,213,0.14)]'
                     : 'border-[#EEE8F1] bg-white shadow-[0_3px_8px_rgba(42,26,69,0.04)] hover:-translate-y-0.5 hover:border-[#E8D1F1]'
@@ -51,7 +51,7 @@ export default function BeeServicesQuickActions({
                     <Icon className="h-[18px] w-[18px] text-[#7B2DD9]" />
                 </span>
 
-                <span className="text-center text-xs font-medium text-[#38294E]">
+                <span className="text-center text-[11px] font-medium leading-tight text-[#38294E] sm:text-xs">
                     {action.label}
                 </span>
                 </button>

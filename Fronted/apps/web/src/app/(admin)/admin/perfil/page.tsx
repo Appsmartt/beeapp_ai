@@ -104,7 +104,7 @@ export default function AdminProfilePage() {
       <form onSubmit={handleSave} className="panel-card" style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
         
         {/* Header/Avatar Area with selector */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '20px', borderBottom: '1px solid #E9ECEF', paddingBottom: '20px' }}>
+        <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '16px', borderBottom: '1px solid #E9ECEF', paddingBottom: '20px' }}>
           <div style={{ position: 'relative' }}>
             <button
               type="button"
@@ -136,8 +136,8 @@ export default function AdminProfilePage() {
               style={{ display: 'none' }}
             />
           </div>
-          <div>
-            <h2 style={{ fontSize: '20px', fontWeight: '600', color: '#1A1A2E', margin: '0 0 4px 0' }}>
+          <div style={{ flex: '1 1 180px', minWidth: 0 }}>
+            <h2 style={{ fontSize: '20px', fontWeight: '600', color: '#1A1A2E', margin: '0 0 4px 0', overflowWrap: 'anywhere' }}>
               {savedNombre}
             </h2>
             <span style={roleBadgeStyle}>
@@ -213,7 +213,7 @@ export default function AdminProfilePage() {
         </div>
 
         {/* Action Buttons */}
-        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', borderTop: '1px solid #E9ECEF', paddingTop: '20px', marginTop: '8px' }}>
+        <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'flex-end', gap: '12px', borderTop: '1px solid #E9ECEF', paddingTop: '20px', marginTop: '8px' }}>
           {hasChanges && (
             <button
               type="button"

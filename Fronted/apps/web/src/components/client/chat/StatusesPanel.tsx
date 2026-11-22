@@ -113,7 +113,7 @@ export default function StatusesPanel({
   );
 
   return (
-    <div className="flex-1 flex flex-col">
+    <div className="flex flex-1 flex-col pb-28">
       {/* Crear estado */}
       <div
         onClick={onCreateStatus}

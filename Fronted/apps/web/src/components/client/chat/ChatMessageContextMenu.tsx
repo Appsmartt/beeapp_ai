@@ -38,8 +38,8 @@ export default function ChatMessageContextMenu({
       <div
         style={{
           position: 'fixed',
-          left: `${Math.min(position.x, window.innerWidth - 230)}px`,
-          top: `${Math.min(position.y, window.innerHeight - 170)}px`,
+          left: `${Math.max(8, Math.min(position.x, window.innerWidth - 220))}px`,
+          top: `${Math.max(8, Math.min(position.y, window.innerHeight - 170))}px`,
         }}
         className="z-50 w-52 select-none rounded-2xl border border-neutral-200 bg-white py-2 text-xs shadow-xl animate-in fade-in zoom-in-95 duration-100"
       >

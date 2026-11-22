@@ -181,6 +181,8 @@ export function emptyEntitlements(): PlanEntitlements {
     aiLevel: 'basic',
     transcription: false,
     documentProcessing: false,
+    chatAutoReplyPersonal: false,
+    chatAutoReplyBusiness: false,
     automations: 'none',
     storageAddon: false,
     extraAiCredits: false,
@@ -214,6 +216,8 @@ export function toPlan(row: Record<string, unknown>): Plan {
     aiLevel: text(rawEntitlements.aiLevel, 'basic'),
     transcription: Boolean(rawEntitlements.transcription),
     documentProcessing: Boolean(rawEntitlements.documentProcessing),
+    chatAutoReplyPersonal: Boolean(rawEntitlements.chatAutoReplyPersonal),
+    chatAutoReplyBusiness: Boolean(rawEntitlements.chatAutoReplyBusiness),
     automations: text(rawEntitlements.automations, 'none'),
     storageAddon: (rawEntitlements.storageAddon ?? false) as PlanEntitlements['storageAddon'],
     extraAiCredits: (rawEntitlements.extraAiCredits ?? false) as PlanEntitlements['extraAiCredits'],
@@ -243,9 +247,24 @@ export function toPlan(row: Record<string, unknown>): Plan {
   };
 }
 
+function toOverrideMode(value: unknown): 'inherit' | 'allow' | 'block' {
+  if (value === 'allow' || value === 'block') return value;
+  return 'inherit';
+}
+
 export function detailCollections(row: Record<string, unknown>) {
+  const rawChatAi = asRecord(row.chatAutoReply);
   return {
     user: toAdminUser(row),
+    isSuperadmin: Boolean(row.isSuperadmin),
+    chatAutoReply: {
+      effectivePersonal: Boolean(rawChatAi.effectivePersonal),
+      effectiveBusiness: Boolean(rawChatAi.effectiveBusiness),
+      planPersonal: Boolean(rawChatAi.planPersonal),
+      planBusiness: Boolean(rawChatAi.planBusiness),
+      overridePersonal: toOverrideMode(rawChatAi.overridePersonal),
+      overrideBusiness: toOverrideMode(rawChatAi.overrideBusiness),
+    },
     transactions: (Array.isArray(row.transacciones) ? row.transacciones : [])
       .map((item) => toTransaction(item as Record<string, unknown>)),
     reports: (Array.isArray(row.reportes) ? row.reportes : [])

@@ -68,7 +68,7 @@ export default function CreateEventModal({ isOpen, onClose, onCreate }: CreateEv
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 select-none">
       <div className="fixed inset-0 bg-black/60 backdrop-blur-xl" onClick={onClose} />
-      <div className="relative w-full max-w-md bg-white rounded-3xl shadow-xl z-50 p-6 space-y-4 border border-neutral-100 animate-in fade-in zoom-in-95 duration-150 max-h-[90vh] flex flex-col">
+      <div className="relative z-50 flex max-h-[90dvh] w-full max-w-md flex-col space-y-4 rounded-3xl border border-neutral-100 bg-white p-5 shadow-xl animate-in fade-in zoom-in-95 duration-150 sm:p-6">
         <div className="flex items-center justify-between border-b border-neutral-100 pb-3 shrink-0">
           <div className="flex items-center gap-2">
             <div className="w-8 h-8 rounded-xl bg-brand-primary/10 text-brand-primary flex items-center justify-center">
@@ -94,7 +94,7 @@ export default function CreateEventModal({ isOpen, onClose, onCreate }: CreateEv
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-2">
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
             <div>
               <label className="text-[11px] font-normal text-neutral-600">Fecha</label>
               <input

@@ -271,7 +271,7 @@ export default function StatusViewer({
                       : 'bg-rose-50 text-rose-600'
                   } disabled:opacity-50`}
                 >
-                  <Trash2 className="h-4.5 w-4.5" />
+                  <Trash2 className="h-[18px] w-[18px]" />
                 </button>
               ) : null}
               <button
@@ -293,7 +293,7 @@ export default function StatusViewer({
             <img
               src={status.photoUrl}
               alt="Status"
-              className="h-full max-h-[68vh] w-full rounded-3xl object-cover shadow-2xl"
+              className="h-full max-h-[68dvh] w-full rounded-3xl object-cover shadow-2xl"
             />
           ) : null}
 
@@ -303,7 +303,7 @@ export default function StatusViewer({
               autoPlay
               controls
               playsInline
-              className="pointer-events-auto h-full max-h-[68vh] w-full rounded-3xl bg-black object-contain shadow-2xl"
+              className="pointer-events-auto h-full max-h-[68dvh] w-full rounded-3xl bg-black object-contain shadow-2xl"
             />
           ) : null}
 
@@ -425,7 +425,7 @@ export default function StatusViewer({
                 onBlur={() => setReplyFocused(false)}
                 onChange={(e) => setReplyText(e.target.value)}
                 placeholder={`Responder a ${status.authorName}…`}
-                className="h-10 flex-1 rounded-full border border-white/25 bg-black/50 px-4 text-xs text-white outline-none backdrop-blur-md placeholder:text-white/60 focus:border-white"
+                className="h-10 min-w-0 flex-1 rounded-full border border-white/25 bg-black/50 px-4 text-base text-white outline-none backdrop-blur-md placeholder:text-white/60 focus:border-white sm:text-xs"
               />
               <button
                 type="submit"
@@ -440,7 +440,7 @@ export default function StatusViewer({
       </div>
 
       {viewersOpen ? (
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 p-4 backdrop-blur-xs sm:items-center">
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 p-4 backdrop-blur-sm sm:items-center">
           <div className="w-full max-w-sm space-y-4 rounded-2xl bg-white p-5 shadow-2xl animate-in fade-in zoom-in-95 duration-150">
             <div className="flex items-center justify-between border-b border-neutral-100 pb-3">
               <div className="flex items-center gap-2">

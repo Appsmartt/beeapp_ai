@@ -7,7 +7,7 @@ import { Receipt, ShoppingBag, Sparkles, Store } from 'lucide-react';
 import { beginAppNavigation } from '@/lib/client/navigationFeedback';
 import VoiceAssistantModal from './VoiceAssistantModal';
 
-const DOCK_BUTTON_BASE = 'flex h-10 w-10 items-center justify-center rounded-[14px] transition-transform hover:scale-105';
+const DOCK_BUTTON_BASE = 'flex h-10 w-10 items-center justify-center rounded-[14px] transition-transform hover:scale-105 sm:h-11 sm:w-11';
 
 export default function MainQuickDock({ hidden = false }: { hidden?: boolean }) {
   const router = useRouter();
@@ -23,8 +23,9 @@ export default function MainQuickDock({ hidden = false }: { hidden?: boolean }) 
   return createPortal(
     <>
       {hidden ? null : (
+      <div className="pointer-events-none fixed inset-x-3 bottom-4 z-40 flex justify-center pr-[76px] sm:inset-x-0 sm:pr-0">
       <div
-        className="fixed bottom-4 left-1/2 z-[80] flex -translate-x-1/2 items-center gap-2 rounded-[22px] border border-[#E7DFF5] bg-white/95 px-2.5 py-2 shadow-[0_6px_18px_rgba(141,115,201,0.22)]"
+        className="pointer-events-auto flex items-center gap-2 rounded-[22px] border border-[#E7DFF5] bg-white/95 px-2.5 py-2 shadow-[0_6px_18px_rgba(141,115,201,0.22)] backdrop-blur-sm"
         aria-label="Accesos rápidos"
       >
         <button
@@ -68,6 +69,7 @@ export default function MainQuickDock({ hidden = false }: { hidden?: boolean }) 
         >
           <Store className="h-[18px] w-[18px]" />
         </button>
+      </div>
       </div>
       )}
       <VoiceAssistantModal isOpen={voiceOpen} onClose={() => setVoiceOpen(false)} />

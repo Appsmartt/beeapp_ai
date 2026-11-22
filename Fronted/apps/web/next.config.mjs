@@ -18,6 +18,9 @@ const distDir = process.env.VERCEL === '1' || process.env.NODE_ENV === 'developm
 /** @type {import('next').NextConfig} */
 const nextConfig = {
     distDir,
+    experimental: {
+        optimizePackageImports: ['lucide-react', '@beeapp/api-client'],
+    },
     transpilePackages: [
         '@beeapp/api-client',
         '@beeapp/design-system',

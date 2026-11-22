@@ -145,26 +145,26 @@ export default function NotificationsPage() {
 
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden bg-white">
-      <div className="sticky top-0 z-10 border-b border-neutral-100 bg-white px-4 py-3">
-        <div className="flex items-center justify-between gap-2">
-          <div className="flex items-center">
-            <Link href="/app" className="rounded-full p-1.5 text-neutral-600 hover:bg-neutral-100">
+      <div className="sticky top-0 z-10 border-b border-neutral-100 bg-white px-3 py-3 sm:px-4">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="flex min-w-0 items-center">
+            <Link href="/app" className="shrink-0 rounded-full p-1.5 text-neutral-600 hover:bg-neutral-100">
               <ArrowLeft className="h-5 w-5" />
             </Link>
-            <h1 className="ml-2 text-base font-semibold text-neutral-900">Centro de Notificaciones</h1>
+            <h1 className="ml-2 truncate text-base font-semibold text-neutral-900">Centro de Notificaciones</h1>
             {unreadCount > 0 ? (
-              <span className="ml-2 rounded-full bg-brand-primary/10 px-2 py-0.5 text-[11px] font-bold text-brand-primary">
+              <span className="ml-2 shrink-0 rounded-full bg-brand-primary/10 px-2 py-0.5 text-[11px] font-bold text-brand-primary">
                 {unreadCount} sin leer
               </span>
             ) : null}
           </div>
-          <div className="flex items-center gap-2">
+          <div className="ml-auto flex shrink-0 items-center gap-2">
             <button
               type="button"
               onClick={() => void load()}
               disabled={loading}
               aria-label="Actualizar notificaciones"
-              className="rounded-lg border border-neutral-200 p-1.5 text-neutral-600 hover:bg-neutral-50 disabled:opacity-50"
+              className="flex h-9 w-9 items-center justify-center rounded-lg border border-neutral-200 text-neutral-600 hover:bg-neutral-50 disabled:opacity-50"
             >
               <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
             </button>
@@ -172,7 +172,7 @@ export default function NotificationsPage() {
               <button
                 type="button"
                 onClick={() => void markAll()}
-                className="inline-flex items-center gap-1 rounded-lg bg-brand-primary/10 px-2.5 py-1.5 text-[11px] font-semibold text-brand-primary hover:bg-brand-primary/15"
+                className="inline-flex shrink-0 items-center gap-1 rounded-lg bg-brand-primary/10 px-2.5 py-2 text-[11px] font-semibold text-brand-primary hover:bg-brand-primary/15"
               >
                 <CheckCheck className="h-3.5 w-3.5" />
                 Marcar todas
@@ -181,7 +181,7 @@ export default function NotificationsPage() {
           </div>
         </div>
 
-        <div className="mt-3 flex gap-1.5">
+        <div className="mt-3 flex gap-1.5 overflow-x-auto pb-0.5 [scrollbar-width:none]">
           {([
             { id: 'all', label: `Todas (${items.length})` },
             { id: 'unread', label: `No leídas (${unreadCount})` },
@@ -191,7 +191,7 @@ export default function NotificationsPage() {
               key={tab.id}
               type="button"
               onClick={() => setFilter(tab.id)}
-              className={`rounded-full px-3 py-1 text-xs font-semibold transition ${
+              className={`shrink-0 rounded-full px-3 py-1.5 text-xs font-semibold transition ${
                 filter === tab.id
                   ? 'bg-brand-primary text-white'
                   : 'bg-neutral-100 text-neutral-600 hover:bg-neutral-200'

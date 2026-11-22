@@ -271,6 +271,7 @@ export default function UsuariosPage() {
       key: 'acciones',
       header: '',
       align: 'right',
+      hideOnMobile: true,
       render: (row) => (
         <button
           className="table-row-action-btn"

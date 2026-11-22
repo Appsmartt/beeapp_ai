@@ -497,7 +497,7 @@ export function IntegrationsPanel() {
           aria-modal="true"
           aria-labelledby="integration-provider-modal-title"
         >
-          <div className="w-full max-w-xl rounded-3xl bg-white p-6 shadow-xl">
+          <div className="max-h-[90dvh] w-full max-w-xl overflow-y-auto rounded-3xl bg-white p-5 shadow-xl sm:p-6">
             <div className="flex items-start justify-between gap-4">
               <div>
                 <h2
@@ -608,7 +608,7 @@ export function IntegrationsPanel() {
           aria-modal="true"
           aria-labelledby="integration-detail-modal-title"
         >
-          <div className="w-full max-w-lg rounded-3xl bg-white p-6 shadow-xl">
+          <div className="max-h-[90dvh] w-full max-w-lg overflow-y-auto rounded-3xl bg-white p-5 shadow-xl sm:p-6">
             <div className="flex items-start justify-between gap-4">
               <div>
                 <h2

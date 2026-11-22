@@ -1230,7 +1230,11 @@ export default function StorageModule() {
         onSelectFilter={setFilter}
       />
 
-      <div className="flex h-full min-h-0 w-[380px] shrink-0 flex-col overflow-hidden border-r border-neutral-200 bg-white lg:w-[420px]">
+      <div
+        className={`${
+          selectedItem ? 'hidden md:flex' : 'flex'
+        } h-full min-h-0 w-full shrink-0 flex-col overflow-hidden border-r border-neutral-200 bg-white md:w-[320px] lg:w-[400px]`}
+      >
         <div className="shrink-0 space-y-3 border-b border-neutral-100 p-3.5">
           <div className="flex items-center justify-between gap-2">
             <h1 className="truncate text-base font-semibold text-neutral-900">
@@ -1245,7 +1249,7 @@ export default function StorageModule() {
                   onClick={() => setViewMode('list')}
                   className={`rounded-lg p-1.5 transition-colors ${
                     viewMode === 'list'
-                      ? 'bg-white text-brand-primary shadow-xs'
+                      ? 'bg-white text-brand-primary shadow-sm'
                       : 'text-neutral-500'
                   }`}
                   title="Vista en lista"
@@ -1258,7 +1262,7 @@ export default function StorageModule() {
                   onClick={() => setViewMode('grid')}
                   className={`rounded-lg p-1.5 transition-colors ${
                     viewMode === 'grid'
-                      ? 'bg-white text-brand-primary shadow-xs'
+                      ? 'bg-white text-brand-primary shadow-sm'
                       : 'text-neutral-500'
                   }`}
                   title="Vista en cuadrícula"
@@ -1273,7 +1277,7 @@ export default function StorageModule() {
                   setCreateMenuOpen((current) => !current)
                 }
                 disabled={isSubmitting}
-                className="flex h-8 items-center gap-1 rounded-full bg-brand-primary px-3 text-xs font-semibold text-white shadow-xs transition-colors hover:bg-brand-dark disabled:bg-neutral-300"
+                className="flex h-8 items-center gap-1 rounded-full bg-brand-primary px-3 text-xs font-semibold text-white shadow-sm transition-colors hover:bg-brand-dark disabled:bg-neutral-300"
               >
                 <Plus className="h-3.5 w-3.5" />
                 <span>Subir</span>
@@ -1296,6 +1300,33 @@ export default function StorageModule() {
                 }
               />
             </div>
+          </div>
+
+          <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5 [scrollbar-width:none] lg:hidden">
+            {(
+              [
+                { id: 'all', label: 'Todos' },
+                { id: 'recent', label: 'Recientes' },
+                { id: 'docs', label: 'Documentos' },
+                { id: 'media', label: 'Multimedia' },
+                { id: 'shared', label: 'Compartidos' },
+                { id: 'protected', label: 'Protegidos' },
+                { id: 'trash', label: 'Papelera' },
+              ] satisfies readonly { id: StorageFilter; label: string }[]
+            ).map((item) => (
+              <button
+                key={item.id}
+                type="button"
+                onClick={() => setFilter(item.id)}
+                className={`shrink-0 rounded-full px-3 py-1 text-xs font-semibold transition-colors ${
+                  filter === item.id
+                    ? 'bg-brand-primary text-white'
+                    : 'bg-neutral-100 text-neutral-600 hover:bg-neutral-200'
+                }`}
+              >
+                {item.label}
+              </button>
+            ))}
           </div>
 
           <input
@@ -1404,7 +1435,7 @@ export default function StorageModule() {
           )}
         </div>
 
-        <div className="min-h-0 flex-1 overflow-y-auto p-3">
+        <div className="min-h-0 flex-1 overflow-y-auto p-3 pb-24">
           <div className="mb-3 flex items-center justify-between gap-2">
             <span className="text-[11px] font-normal text-neutral-500">
               {loading
@@ -1532,7 +1563,11 @@ export default function StorageModule() {
         </div>
       </div>
 
-      <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+      <div
+        className={`${
+          selectedItem ? 'flex' : 'hidden md:flex'
+        } min-h-0 min-w-0 flex-1 flex-col overflow-hidden`}
+      >
         {selectedItem ? (
           <StoragePreview
             key={selectedItem.id}
@@ -1706,7 +1741,7 @@ function CreateWebCategoryModal({
 
         <div className="space-y-1.5">
           <span className="text-[11px] font-medium text-neutral-500">Color</span>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             {STORAGE_CATEGORY_COLORS.map((c) => (
               <button
                 key={c}

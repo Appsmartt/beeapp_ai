@@ -85,16 +85,18 @@ export default function SuscripcionesPage() {
 
           <ChartCard title="Altas vs. cancelaciones" subtitle="Movimiento mensual de suscripciones">
             <div style={{ display: 'flex', flexDirection: 'column', height: '100%', gap: 12 }}>
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={flow} margin={{ top: 8, right: 8, left: -12, bottom: 0 }}>
-                  <CartesianGrid vertical={false} stroke={CHART_GRID_STROKE} />
-                  <XAxis dataKey="label" tick={CHART_AXIS_TICK} axisLine={CHART_AXIS_LINE} tickLine={false} />
-                  <YAxis tick={CHART_AXIS_TICK} axisLine={false} tickLine={false} width={30} />
-                  <Tooltip content={<ChartTooltip />} cursor={CHART_CURSOR} />
-                  <Bar dataKey="altas" name="Altas" fill={CHART_COLORS.primary} radius={[4, 4, 0, 0]} maxBarSize={16} isAnimationActive={false} />
-                  <Bar dataKey="cancelaciones" name="Cancelaciones" fill={CHART_COLORS.negative} radius={[4, 4, 0, 0]} maxBarSize={16} isAnimationActive={false} />
-                </BarChart>
-              </ResponsiveContainer>
+              <div style={{ flex: 1, minHeight: 190 }}>
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={flow} margin={{ top: 8, right: 8, left: -12, bottom: 0 }}>
+                    <CartesianGrid vertical={false} stroke={CHART_GRID_STROKE} />
+                    <XAxis dataKey="label" tick={CHART_AXIS_TICK} axisLine={CHART_AXIS_LINE} tickLine={false} />
+                    <YAxis tick={CHART_AXIS_TICK} axisLine={false} tickLine={false} width={30} />
+                    <Tooltip content={<ChartTooltip />} cursor={CHART_CURSOR} />
+                    <Bar dataKey="altas" name="Altas" fill={CHART_COLORS.primary} radius={[4, 4, 0, 0]} maxBarSize={16} isAnimationActive={false} />
+                    <Bar dataKey="cancelaciones" name="Cancelaciones" fill={CHART_COLORS.negative} radius={[4, 4, 0, 0]} maxBarSize={16} isAnimationActive={false} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
               <ChartLegend
                 items={[
                   { id: 'altas', label: 'Altas', color: CHART_COLORS.primary },
@@ -114,15 +116,15 @@ export default function SuscripcionesPage() {
         <TransactionsSection />
       </div>
 
-      <div className="panel-card" style={{ display: 'flex', alignItems: 'center', gap: '16px', backgroundColor: '#F8F9FC', border: '1.5px dashed #E9ECEF', padding: '20px' }}>
+      <div className="panel-card" style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '16px', backgroundColor: '#F8F9FC', border: '1.5px dashed #E9ECEF', padding: '20px' }}>
         <Settings size={24} style={{ color: '#6025d2', flexShrink: 0 }} />
-        <div style={{ flex: 1 }}>
+        <div style={{ flex: 1, minWidth: 'min(220px, 100%)' }}>
           <span className="panel-card-title" style={{ margin: 0, fontSize: '15px', color: '#1A1A2E' }}>Gestión de planes de suscripción</span>
           <p style={{ margin: '4px 0 0 0', fontSize: '13px', color: '#6C757D' }}>
             La configuración de precios, límites y características de los planes se ha trasladado al módulo de configuraciones generales.
           </p>
         </div>
-        <Link href="/admin/configuracion" className="confirm-dialog-btn-confirm" style={{ textDecoration: 'none', display: 'inline-flex', alignItems: 'center', whiteSpace: 'nowrap' }}>
+        <Link href="/admin/configuracion" className="confirm-dialog-btn-confirm" style={{ textDecoration: 'none', display: 'inline-flex', alignItems: 'center', whiteSpace: 'nowrap', flexShrink: 0 }}>
           Configurar planes
         </Link>
       </div>

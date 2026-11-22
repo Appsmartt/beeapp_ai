@@ -51,19 +51,19 @@ export default function StatusCirclesRow({
 
   return (
     <div className="border-b border-[#E6DCF4]">
-      <div className="flex gap-4 overflow-x-auto px-4 py-3 no-scrollbar">
+      <div className="flex gap-3 overflow-x-auto px-3 py-2 md:gap-4 md:px-4 md:py-3 no-scrollbar">
         <button
           type="button"
           onClick={onCreateStatus}
-          className="flex w-16 shrink-0 flex-col items-center gap-1.5"
+          className="flex w-14 shrink-0 flex-col items-center gap-1 md:w-16 md:gap-1.5"
         >
-          <span className="relative flex h-14 w-14 items-center justify-center rounded-full bg-brand-primary/10 text-xs font-semibold text-brand-primary">
+          <span className="relative flex h-11 w-11 items-center justify-center rounded-full bg-brand-primary/10 text-xs font-semibold text-brand-primary md:h-14 md:w-14">
             {authorInitials}
-            <span className="absolute -bottom-0.5 -right-0.5 flex h-5 w-5 items-center justify-center rounded-full border-2 border-white bg-brand-primary text-white">
-              <Plus className="h-3 w-3" />
+            <span className="absolute -bottom-0.5 -right-0.5 flex h-4 w-4 items-center justify-center rounded-full border-2 border-white bg-brand-primary text-white md:h-5 md:w-5">
+              <Plus className="h-2.5 w-2.5 md:h-3 md:w-3" />
             </span>
           </span>
-          <span className="max-w-full truncate text-[11px] text-neutral-600">Tu estado</span>
+          <span className="max-w-full truncate text-[10px] text-neutral-600 md:text-[11px]">Tu estado</span>
         </button>
 
         {authorCircles.map((circle) => (
@@ -71,10 +71,10 @@ export default function StatusCirclesRow({
             key={circle.authorId}
             type="button"
             onClick={() => onOpenStatus(circle.firstOpenIndex)}
-            className="flex w-16 shrink-0 flex-col items-center gap-1.5"
+            className="flex w-14 shrink-0 flex-col items-center gap-1 md:w-16 md:gap-1.5"
           >
             <span
-              className={`flex h-14 w-14 items-center justify-center rounded-full border-2 p-0.5 ${
+              className={`flex h-11 w-11 items-center justify-center rounded-full border-2 p-0.5 md:h-14 md:w-14 ${
                 circle.allViewed ? 'border-neutral-300' : 'border-brand-primary'
               }`}
             >

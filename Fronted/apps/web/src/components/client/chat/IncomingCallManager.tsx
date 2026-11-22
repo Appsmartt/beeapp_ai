@@ -224,7 +224,7 @@ export default function IncomingCallManager() {
   return (
     <>
       {incoming && !activeCall ? (
-        <div className="fixed top-5 right-5 z-[110] w-80 rounded-2xl bg-[#18122B] text-white p-4 shadow-2xl border border-white/15 animate-in fade-in slide-in-from-top-3 duration-200">
+        <div className="fixed inset-x-3 top-3 z-[110] rounded-2xl border border-white/15 bg-[#18122B] p-4 text-white shadow-2xl animate-in fade-in slide-in-from-top-3 duration-200 sm:inset-auto sm:top-5 sm:right-5 sm:w-80">
           <div className="flex items-center gap-3">
             <div className="w-11 h-11 rounded-full bg-brand-primary/25 border border-brand-primary/40 flex items-center justify-center font-bold text-sm text-white shrink-0">
               {incoming.callerName.slice(0, 2).toUpperCase()}

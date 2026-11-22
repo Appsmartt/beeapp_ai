@@ -7,6 +7,7 @@ import type { PlanEntitlements } from '@/lib/admin/types';
 interface PlanFeaturesEditorProps {
   entitlements: PlanEntitlements;
   caracteristicas: string[];
+  isSuperadmin?: boolean;
   onEntitlementsChange: (value: PlanEntitlements) => void;
   onCaracteristicasChange: (list: string[]) => void;
 }
@@ -29,6 +30,7 @@ const NUMBER_FIELDS: Array<{ key: keyof PlanEntitlements; label: string }> = [
 export default function PlanFeaturesEditor({
   entitlements,
   caracteristicas,
+  isSuperadmin = false,
   onEntitlementsChange,
   onCaracteristicasChange,
 }: PlanFeaturesEditorProps) {
@@ -135,7 +137,36 @@ export default function PlanFeaturesEditor({
               </button>
             </div>
           ))}
+          {([
+            ['chatAutoReplyPersonal', 'IA responde chats personales (1-a-1)'],
+            ['chatAutoReplyBusiness', 'IA responde chats de negocios'],
+          ] as const).map(([key, label]) => (
+            <div key={key} className="feature-toggle-row">
+              <span className="feature-toggle-label">
+                {label}
+                {!isSuperadmin ? ' (Solo Superadmin)' : ''}
+              </span>
+              <button
+                type="button"
+                disabled={!isSuperadmin}
+                style={!isSuperadmin ? { opacity: 0.55, cursor: 'not-allowed' } : undefined}
+                title={isSuperadmin ? label : 'Solo un Superadmin puede cambiar esta funcionalidad'}
+                className={`toggle-switch ${entitlements[key] ? 'on' : ''}`}
+                onClick={() => {
+                  if (!isSuperadmin) return;
+                  onEntitlementsChange({ ...entitlements, [key]: !entitlements[key] });
+                }}
+              >
+                <span className="toggle-switch-knob" />
+              </button>
+            </div>
+          ))}
         </div>
+        <p className="form-hint" style={{ marginTop: 6 }}>
+          {isSuperadmin
+            ? 'Control estratégico de Superadmin: activa en qué planes los usuarios podrán habilitar Buddy AI para responder chats personales y de sus negocios.'
+            : 'Los permisos de IA automática en chats solo pueden ser editados por un Superadmin.'}
+        </p>
         <div className="form-field">
           <label className="form-field-label">Storage extra</label>
           <select

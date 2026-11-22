@@ -12,7 +12,7 @@ import { View,
 import { appAlert } from '../feedback/appAlert';
 import ScreenSafeArea from '../layout/ScreenSafeArea';
 import { colors, spacing, radii } from '@beeapp/design-system';
-import { ChevronLeft, Bot, Smile, Briefcase, Minus, Check } from 'lucide-react-native';
+import { ChevronLeft, Bot, Smile, Briefcase, Minus, Check, Lock } from 'lucide-react-native';
 import { useModuleNav } from '../embedded/EmbeddedNavContext';
 import FloatingTabBar from '../FloatingTabBar';
 import {
@@ -50,6 +50,8 @@ const LANGUAGES = [
     { id: 'pt', label: 'Portugués' },
 ];
 
+const PAUSE_OPTIONS = [15, 30, 60] as const;
+
 const PERMISSIONS: { id: keyof AssistantPermissions; label: string }[] = [
     { id: 'calendar', label: 'Agenda' },
     { id: 'notes', label: 'Notas' },
@@ -78,6 +80,12 @@ export default function AiSettingsScreen() {
     const [level, setLevel] = useState<AssistantLevel>('confirmar');
     const [memoryEnabled, setMemoryEnabled] = useState(true);
     const [permissions, setPermissions] = useState<AssistantPermissions>(DEFAULT_PERMISSIONS);
+    const [autoReplyPersonalEnabled, setAutoReplyPersonalEnabled] = useState(false);
+    const [autoReplyBusinessEnabled, setAutoReplyBusinessEnabled] = useState(false);
+    const [autoReplyPersonalPrompt, setAutoReplyPersonalPrompt] = useState('');
+    const [autoReplyPauseMinutes, setAutoReplyPauseMinutes] = useState(30);
+    const [canAutoReplyPersonal, setCanAutoReplyPersonal] = useState(false);
+    const [canAutoReplyBusiness, setCanAutoReplyBusiness] = useState(false);
 
     useEffect(() => {
         let cancelled = false;
@@ -98,6 +106,12 @@ export default function AiSettingsScreen() {
             setLevel(settings.assistance_level);
             setMemoryEnabled(settings.memory_enabled);
             setPermissions(settings.permissions);
+            setAutoReplyPersonalEnabled(Boolean(settings.auto_reply_personal_enabled));
+            setAutoReplyBusinessEnabled(Boolean(settings.auto_reply_business_enabled));
+            setAutoReplyPersonalPrompt(settings.auto_reply_personal_prompt || '');
+            setAutoReplyPauseMinutes(settings.auto_reply_pause_minutes || 30);
+            setCanAutoReplyPersonal(Boolean(settings.entitlements?.chat_auto_reply_personal));
+            setCanAutoReplyBusiness(Boolean(settings.entitlements?.chat_auto_reply_business));
             setLoading(false);
         };
         load().catch((error) => {
@@ -123,6 +137,10 @@ export default function AiSettingsScreen() {
                 assistance_level: level,
                 memory_enabled: memoryEnabled,
                 permissions,
+                ...(canAutoReplyPersonal ? { auto_reply_personal_enabled: autoReplyPersonalEnabled } : {}),
+                ...(canAutoReplyBusiness ? { auto_reply_business_enabled: autoReplyBusinessEnabled } : {}),
+                auto_reply_personal_prompt: autoReplyPersonalPrompt.trim().slice(0, 1000),
+                auto_reply_pause_minutes: autoReplyPauseMinutes,
             });
             appAlert('Cambios guardados', 'La configuración de tu asistente quedó guardada.');
             router.back();
@@ -266,6 +284,96 @@ export default function AiSettingsScreen() {
                             <Text style={styles.secondaryBtnText}>Borrar memoria</Text>
                         </TouchableOpacity>
 
+                        <View style={styles.sectionHeaderRow}>
+                            <Text style={[styles.label, { marginBottom: 0, marginTop: 0 }]}>Respuestas automáticas en chats</Text>
+                            {(!canAutoReplyPersonal || !canAutoReplyBusiness) ? (
+                                <TouchableOpacity
+                                    style={styles.upgradePill}
+                                    onPress={() => router.push('/(main)/profile/subscription')}
+                                    activeOpacity={0.8}
+                                >
+                                    <Text style={styles.upgradePillText}>Mejorar plan</Text>
+                                </TouchableOpacity>
+                            ) : null}
+                        </View>
+                        <Text style={styles.sectionHint}>
+                            Buddy AI puede leer y responder chats entrantes por ti. Si respondes manualmente, la IA se pausará automáticamente.
+                        </Text>
+
+                        <TouchableOpacity
+                            style={[
+                                styles.toneCard,
+                                canAutoReplyPersonal && autoReplyPersonalEnabled && styles.toneCardActive,
+                                !canAutoReplyPersonal && styles.toneCardDisabled,
+                            ]}
+                            disabled={!canAutoReplyPersonal}
+                            onPress={() => setAutoReplyPersonalEnabled((value) => !value)}
+                            activeOpacity={0.8}
+                        >
+                            <View style={styles.toneTexts}>
+                                <Text style={styles.toneTitle}>Responder mis chats personales (1-a-1)</Text>
+                                <Text style={styles.toneDesc}>
+                                    {canAutoReplyPersonal
+                                        ? 'Usa solo la conversación actual y tus indicaciones. Nunca expone correos, notas ni agenda.'
+                                        : 'No disponible en tu plan actual.'}
+                                </Text>
+                            </View>
+                            {canAutoReplyPersonal
+                                ? (autoReplyPersonalEnabled ? <Check size={16} color={colors.brand.primary} /> : null)
+                                : <Lock size={16} color={colors.neutral.gray500} />}
+                        </TouchableOpacity>
+
+                        <TouchableOpacity
+                            style={[
+                                styles.toneCard,
+                                canAutoReplyBusiness && autoReplyBusinessEnabled && styles.toneCardActive,
+                                !canAutoReplyBusiness && styles.toneCardDisabled,
+                            ]}
+                            disabled={!canAutoReplyBusiness}
+                            onPress={() => setAutoReplyBusinessEnabled((value) => !value)}
+                            activeOpacity={0.8}
+                        >
+                            <View style={styles.toneTexts}>
+                                <Text style={styles.toneTitle}>Responder chats de mis negocios</Text>
+                                <Text style={styles.toneDesc}>
+                                    {canAutoReplyBusiness
+                                        ? 'Atiende clientes con el catálogo y horarios públicos de cada negocio activado.'
+                                        : 'No disponible en tu plan actual.'}
+                                </Text>
+                            </View>
+                            {canAutoReplyBusiness
+                                ? (autoReplyBusinessEnabled ? <Check size={16} color={colors.brand.primary} /> : null)
+                                : <Lock size={16} color={colors.neutral.gray500} />}
+                        </TouchableOpacity>
+
+                        <Text style={styles.label}>Pausa automática al responder tú</Text>
+                        <View style={styles.chipsRow}>
+                            {PAUSE_OPTIONS.map((minutes) => (
+                                <TouchableOpacity
+                                    key={minutes}
+                                    style={[styles.chip, autoReplyPauseMinutes === minutes && styles.chipActive]}
+                                    onPress={() => setAutoReplyPauseMinutes(minutes)}
+                                >
+                                    <Text style={[styles.chipText, autoReplyPauseMinutes === minutes && styles.chipTextActive]}>
+                                        {minutes} min
+                                    </Text>
+                                </TouchableOpacity>
+                            ))}
+                        </View>
+
+                        <Text style={styles.label}>Instrucciones para chats personales (opcional)</Text>
+                        <TextInput
+                            style={[styles.input, styles.promptInput]}
+                            value={autoReplyPersonalPrompt}
+                            onChangeText={setAutoReplyPersonalPrompt}
+                            maxLength={1000}
+                            multiline
+                            numberOfLines={3}
+                            placeholder="Ej. Si me escriben en horario laboral, responde que estoy en reuniones y respondo después de las 6 p. m."
+                            placeholderTextColor={colors.neutral.gray500}
+                        />
+                        <Text style={styles.charCount}>{autoReplyPersonalPrompt.length}/1000</Text>
+
                         <Text style={styles.label}>Permisos</Text>
                         {PERMISSIONS.map((item) => {
                             const active = permissions[item.id];
@@ -351,6 +459,42 @@ const styles = StyleSheet.create({
         marginBottom: spacing.sm,
     },
     toneCardActive: { borderColor: colors.brand.primary, backgroundColor: colors.brand.primary + '08' },
+    toneCardDisabled: { opacity: 0.62 },
+    sectionHeaderRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        gap: 8,
+        marginTop: spacing.md,
+        marginBottom: 4,
+    },
+    sectionHint: {
+        fontSize: 12,
+        color: colors.neutral.gray600,
+        lineHeight: 17,
+        marginBottom: spacing.sm,
+    },
+    upgradePill: {
+        backgroundColor: colors.brand.primary + '15',
+        borderRadius: 999,
+        paddingHorizontal: 10,
+        paddingVertical: 5,
+    },
+    upgradePillText: {
+        color: colors.brand.primary,
+        fontSize: 11,
+        fontWeight: '700',
+    },
+    promptInput: {
+        minHeight: 84,
+        textAlignVertical: 'top',
+    },
+    charCount: {
+        fontSize: 11,
+        color: colors.neutral.gray500,
+        textAlign: 'right',
+        marginTop: 4,
+    },
     toneIcon: {
         width: 36,
         height: 36,

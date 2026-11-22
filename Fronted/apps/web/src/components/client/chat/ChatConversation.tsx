@@ -15,7 +15,7 @@ import {
   Volume2,
   X,
 } from 'lucide-react';
-import type { AssistantCard } from '@beeapp/shared-types';
+import type { AssistantCard, ConversationAiAutoReplyState } from '@beeapp/shared-types';
 import {
   cancelAssistantAction,
   clearAssistantMessages,
@@ -23,6 +23,7 @@ import {
   confirmAssistantAction,
   endCall,
   getActiveConversationCall,
+  getConversationAiAutoReply,
   listAssistantMessages,
   markChatConversationDelivered,
   markChatConversationRead,
@@ -31,6 +32,7 @@ import {
   startCall,
   transcribeAssistantAudio,
   updateChatConversationNotifications,
+  updateConversationAiAutoReply,
   type CallCredentialsResponse,
 } from '@beeapp/api-client';
 import { ASSISTANT_CHAT_ID, ChatItem, ChatMessage } from '@/lib/client/chats';
@@ -116,7 +118,6 @@ export default function ChatConversation({
   const isGroup = chat.isGroup;
   const online = chat.online;
   const isVerified = chat.verified;
-  const isSellerChat = chat.isSellerChat;
   const groupMemberCount = chat.members?.length ?? 0;
 
   const isGroupAdmin = !isGroup
@@ -124,7 +125,8 @@ export default function ChatConversation({
     || chat.members.some((m) => m.isCurrentUser && (m.role === 'owner' || m.role === 'admin'));
   const groupPostingBlocked = isGroup && chat.postingPolicy === 'admins_only' && !isGroupAdmin;
 
-  const [aiAutoReply, setAiAutoReply] = useState(false);
+  const [aiAutoReplyState, setAiAutoReplyState] = useState<ConversationAiAutoReplyState | null>(null);
+  const [aiAutoReplyBusy, setAiAutoReplyBusy] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [contextMenu, setContextMenu] = useState<{ message: ChatMessage; x: number; y: number } | null>(null);
   const [replyTarget, setReplyTarget] = useState<ChatMessage | null>(null);
@@ -216,13 +218,82 @@ export default function ChatConversation({
     };
   }, [chat.id, chat.postingIdentityId, isAI]);
 
+  const refreshAiAutoReply = () => {
+    if (isAI || isGroup || !chat.id) {
+      setAiAutoReplyState(null);
+      return;
+    }
+    void getWebAuth()
+      .then((auth) => getConversationAiAutoReply(auth, chat.id))
+      .then((state) => {
+        setAiAutoReplyState(state);
+      })
+      .catch(() => {
+        setAiAutoReplyState(null);
+      });
+  };
+
+  useEffect(() => {
+    if (isAI || isGroup || !chat.id) {
+      setAiAutoReplyState(null);
+      return undefined;
+    }
+    let active = true;
+    void getWebAuth()
+      .then((auth) => getConversationAiAutoReply(auth, chat.id))
+      .then((state) => {
+        if (active) setAiAutoReplyState(state);
+      })
+      .catch(() => {
+        if (active) setAiAutoReplyState(null);
+      });
+    return () => {
+      active = false;
+    };
+  }, [chat.id, isAI, isGroup]);
+
+  const handleToggleConversationAiAutoReply = (enabled: boolean) => {
+    if (aiAutoReplyBusy || !chat.id) return;
+    setAiAutoReplyBusy(true);
+    void getWebAuth()
+      .then((auth) => updateConversationAiAutoReply(auth, chat.id, { enabled }))
+      .then((state) => {
+        setAiAutoReplyState(state);
+        showToast(
+          state.effective_enabled
+            ? 'Asistente IA activado para este chat.'
+            : 'Asistente IA desactivado en este chat.',
+        );
+      })
+      .catch((error) => {
+        showToast(error instanceof Error ? error.message : 'No fue posible actualizar la IA del chat.');
+      })
+      .finally(() => setAiAutoReplyBusy(false));
+  };
+
+  const handleResumeConversationAiAutoReply = () => {
+    if (aiAutoReplyBusy || !chat.id) return;
+    setAiAutoReplyBusy(true);
+    void getWebAuth()
+      .then((auth) => updateConversationAiAutoReply(auth, chat.id, { resume: true }))
+      .then((state) => {
+        setAiAutoReplyState(state);
+        showToast('Asistente IA reanudado en este chat.');
+      })
+      .catch((error) => {
+        showToast(error instanceof Error ? error.message : 'No fue posible reanudar la IA.');
+      })
+      .finally(() => setAiAutoReplyBusy(false));
+  };
+
   useEffect(() => {
     if (isAI || !chat.postingIdentityId) return undefined;
     const identityId = chat.postingIdentityId;
     return subscribeConversationMessages(chat.id, (row, eventType) => {
       const textContent = row.content ?? row.body ?? '';
       const rawKind = row.message_type ?? row.kind ?? 'text';
-      const isMine = row.sender_identity_id ? row.sender_identity_id === identityId : false;
+      const rowIdentityId = row.sender_business_id ?? row.sender_identity_id ?? row.sender_id ?? null;
+      const isMine = rowIdentityId ? rowIdentityId === identityId : false;
 
       if (eventType === 'UPDATE') {
         setMessages((prev) =>
@@ -259,6 +330,7 @@ export default function ChatConversation({
         const incoming: ChatMessage = {
           id: row.id,
           isUser: isMine,
+          sentByAi: isMine && row.ai_generated === true,
           type,
           text: textContent,
           time: new Date(row.created_at || Date.now()).toLocaleTimeString('es-CO', {
@@ -502,6 +574,7 @@ export default function ChatConversation({
                 : message,
             ),
           );
+          refreshAiAutoReply();
         })
         .catch(() => undefined);
     }
@@ -792,8 +865,15 @@ export default function ChatConversation({
             </div>
           </div>
 
-          {isSellerChat && !isAI ? (
-            <AiAutoReplyBanner enabled={aiAutoReply} onChange={setAiAutoReply} />
+          {!isAI && !isGroup && aiAutoReplyState?.supported && aiAutoReplyState?.entitled ? (
+            <AiAutoReplyBanner
+              enabled={aiAutoReplyState.effective_enabled}
+              scope={aiAutoReplyState.scope}
+              pausedUntil={aiAutoReplyState.paused_until}
+              busy={aiAutoReplyBusy}
+              onChange={handleToggleConversationAiAutoReply}
+              onResume={handleResumeConversationAiAutoReply}
+            />
           ) : null}
         </div>
 

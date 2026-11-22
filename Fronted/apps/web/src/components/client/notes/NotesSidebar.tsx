@@ -16,12 +16,15 @@ import {
     Tag,
     Tags,
     Trash2,
+    X,
     } from 'lucide-react';
 import type { NoteFolder, NoteTag } from '@beeapp/shared-types';
 import type { NotesViewId } from './notesWebTypes';
 
 interface NotesSidebarProps {
     activeView: NotesViewId;
+    mobileOpen?: boolean;
+    onMobileClose?: () => void;
     folders: NoteFolder[];
     tags: NoteTag[];
     folderCounts: Record<string, number>;
@@ -170,7 +173,7 @@ function SectionItemMenu({ onRename, onAddSubfolder, onDelete }: SectionItemMenu
             event.stopPropagation();
             setOpen((current) => !current);
             }}
-            className="p-1 rounded-md text-neutral-400 opacity-0 group-hover:opacity-100 focus:opacity-100 hover:bg-neutral-100 hover:text-neutral-700 transition-all"
+            className="rounded-md p-1.5 text-neutral-400 opacity-100 transition-all hover:bg-neutral-100 hover:text-neutral-700 focus:opacity-100 lg:p-1 lg:opacity-0 lg:group-hover:opacity-100"
         >
             <MoreHorizontal className="w-3.5 h-3.5" />
         </button>
@@ -288,6 +291,8 @@ function SidebarRow({
 
 export default function NotesSidebar({
     activeView,
+    mobileOpen = false,
+    onMobileClose,
     folders,
     tags,
     folderCounts,
@@ -351,16 +356,45 @@ export default function NotesSidebar({
     };
 
     return (
-        <aside className="w-[252px] shrink-0 border-r border-neutral-200 bg-white flex flex-col">
-        <div className="p-3 border-b border-neutral-100">
+        <>
+        {mobileOpen && onMobileClose ? (
             <button
             type="button"
-            onClick={onCreateNote}
-            className="w-full h-10 rounded-xl bg-brand-primary text-white text-sm font-semibold flex items-center justify-center gap-2 hover:bg-brand-dark transition-colors"
+            aria-label="Cerrar menú de carpetas"
+            onClick={onMobileClose}
+            className="fixed inset-0 z-[60] bg-black/40 backdrop-blur-[1px] lg:hidden"
+            />
+        ) : null}
+
+        <aside
+            className={`${
+            mobileOpen
+                ? 'fixed inset-y-0 left-0 z-[65] flex w-[min(272px,86vw)] shadow-2xl'
+                : 'hidden'
+            } shrink-0 flex-col border-r border-neutral-200 bg-white lg:static lg:z-auto lg:flex lg:w-[252px] lg:shadow-none`}
+        >
+        <div className="flex items-center gap-2 border-b border-neutral-100 p-3">
+            <button
+            type="button"
+            onClick={() => {
+                onMobileClose?.();
+                onCreateNote();
+            }}
+            className="flex h-10 flex-1 items-center justify-center gap-2 rounded-xl bg-brand-primary text-sm font-semibold text-white transition-colors hover:bg-brand-dark"
             >
             <Plus className="w-4 h-4" />
             Nueva nota
             </button>
+            {onMobileClose ? (
+            <button
+                type="button"
+                onClick={onMobileClose}
+                aria-label="Cerrar menú"
+                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-neutral-200 text-neutral-600 hover:bg-neutral-100 lg:hidden"
+            >
+                <X className="h-4 w-4" />
+            </button>
+            ) : null}
         </div>
 
         <div className="flex-1 overflow-y-auto p-3">
@@ -567,5 +601,6 @@ export default function NotesSidebar({
             </div>
         </div>
         </aside>
+        </>
     );
 }

@@ -275,6 +275,12 @@ category?: CommercialCategory | null;
   modalities: CommercialProfileModalityRecord[];
   hours: CommercialProfileHour[];
   social_links: CommercialProfileSocialLink[];
+  /** Si la IA responde automáticamente chats de clientes de este negocio. */
+  ai_auto_reply_enabled?: boolean;
+  /** Instrucciones privadas del dueño para las respuestas automáticas del negocio. */
+  ai_auto_reply_prompt?: string;
+  /** Si el plan o permiso del dueño habilita IA automática en chats de negocios. */
+  can_use_ai_auto_reply?: boolean;
   created_at: string | null;
   updated_at: string | null;
 }
@@ -528,6 +534,8 @@ export interface UpdateCommercialProfilePayload {
   modalities?: CommercialModality[];
   hours?: CommercialProfileHour[];
   social_links?: CommercialProfileSocialLink[];
+  ai_auto_reply_enabled?: boolean;
+  ai_auto_reply_prompt?: string;
 }
 
 export interface CreateCommercialProfileResponse {
@@ -598,7 +606,7 @@ export interface CommercialCatalogMutationResponse {
 }
 
 export interface CreateCommercialOfferPayload {
-  catalog_id: string;
+  catalog_id?: string | null;
   offer_kind: CommercialOfferKind;
   title: string;
   description?: string | null;

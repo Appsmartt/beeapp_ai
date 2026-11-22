@@ -375,7 +375,7 @@ export default function MessageBubble({
               : null,
           ]}
         >
-          {sentByAi ? (
+          {isUser && sentByAi ? (
             <View style={styles.sentByAiBadge}>
               <Bot
                 size={10}
@@ -383,7 +383,7 @@ export default function MessageBubble({
               />
 
               <Text style={styles.sentByAiBadgeText}>
-                IA
+                Respondido con IA
               </Text>
             </View>
           ) : null}

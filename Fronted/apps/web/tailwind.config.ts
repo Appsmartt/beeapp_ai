@@ -12,7 +12,7 @@ const config: Config = {
         background: 'var(--background)',
         foreground: 'var(--foreground)',
         brand: {
-          primary: 'var(--brand-primary)',
+          primary: 'rgb(var(--brand-primary-channels) / <alpha-value>)',
           dark: 'var(--brand-dark)',
           light: 'var(--brand-light)',
         },

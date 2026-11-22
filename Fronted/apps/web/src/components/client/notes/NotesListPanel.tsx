@@ -242,7 +242,7 @@ function NoteActionsMenu({
                 </button>
 
                 {showFolders && (
-                  <div className="absolute right-full top-0 mr-1 w-48 max-h-56 overflow-y-auto rounded-xl border border-neutral-200 bg-white py-1.5 shadow-xl">
+                  <div className="mt-1 ml-2 max-h-48 overflow-y-auto rounded-xl border border-neutral-200 bg-neutral-50/70 py-1 md:absolute md:right-full md:top-0 md:ml-0 md:mr-1 md:mt-0 md:w-48 md:max-h-56 md:bg-white md:py-1.5 md:shadow-xl">
                     <button
                       type="button"
                       onClick={() => {

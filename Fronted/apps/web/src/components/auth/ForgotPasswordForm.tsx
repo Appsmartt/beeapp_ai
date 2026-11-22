@@ -52,7 +52,7 @@ export default function ForgotPasswordForm() {
   return (
     <AuthPageShell mode="login" title="Recuperar contraseña" subtitle="Verificamos tu identidad con el celular registrado.">
       <form onSubmit={(e) => void handleRequest(e)} className="space-y-3">
-        <div className="flex h-10 items-center overflow-hidden rounded-lg border border-neutral-300 bg-white focus-within:border-brand-primary">
+        <div className="flex h-10 items-center rounded-lg border border-neutral-300 bg-white focus-within:border-brand-primary">
           <CountrySelector
             countries={countries}
             selectedCountry={country}
@@ -66,7 +66,7 @@ export default function ForgotPasswordForm() {
             value={phone}
             onChange={(e) => setPhone(e.target.value)}
             placeholder="300 123 4567"
-            className="h-full min-w-0 flex-1 border-l border-neutral-200 px-3 text-sm outline-none"
+            className="h-full min-w-0 flex-1 rounded-r-lg border-l border-neutral-200 px-3 text-sm outline-none"
           />
         </div>
         {error ? <p className="text-xs text-red-600">{error}</p> : null}

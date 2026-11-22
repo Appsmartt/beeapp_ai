@@ -20,11 +20,11 @@ export function CommercialShell({
   compact?: boolean;
 }) {
   return (
-    <div className="h-full overflow-y-auto bg-[#F7F4FB]">
-      <header className="sticky top-0 z-10 flex items-center gap-3 border-b border-[#E7DDF2] bg-[#F7F4FB]/95 px-4 py-4 backdrop-blur sm:px-6">
+    <div className="h-full overflow-y-auto bg-[#F7F4FB] pb-28">
+      <header className="sticky top-0 z-10 flex items-center gap-3 border-b border-[#E7DDF2] bg-[#F7F4FB]/95 px-4 py-3.5 backdrop-blur sm:px-6 sm:py-4">
         <Link
           href={backHref}
-          className="flex h-10 w-10 items-center justify-center rounded-xl border border-[#E8D1F1] bg-white text-[#5E1ABF]"
+          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-[#E8D1F1] bg-white text-[#5E1ABF]"
           aria-label="Volver"
         >
           <ArrowLeft className="h-5 w-5" />
@@ -62,7 +62,7 @@ export const fieldClass =
   'mt-1 w-full rounded-xl border border-[#E8D1F1] bg-white px-3 py-2 text-sm text-neutral-900 outline-none focus:border-[#7427D5]';
 
 export const primaryButtonClass =
-  'inline-flex h-10 items-center justify-center rounded-xl bg-[#7427D5] px-4 text-sm font-semibold text-white hover:bg-[#5E1ABF] disabled:opacity-50';
+  'inline-flex min-h-11 items-center justify-center rounded-xl bg-[#7427D5] px-4 py-2 text-center text-sm font-semibold text-white hover:bg-[#5E1ABF] disabled:opacity-50 sm:min-h-10';
 
 export const secondaryButtonClass =
-  'inline-flex h-10 items-center justify-center rounded-xl border border-[#E8D1F1] bg-white px-4 text-sm font-medium text-[#5E1ABF] hover:bg-[#F6EAFE]';
+  'inline-flex min-h-11 items-center justify-center rounded-xl border border-[#E8D1F1] bg-white px-4 py-2 text-center text-sm font-medium text-[#5E1ABF] hover:bg-[#F6EAFE] sm:min-h-10';

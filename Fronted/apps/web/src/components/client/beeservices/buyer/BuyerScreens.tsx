@@ -31,7 +31,6 @@ import {
   getCommercialCountries,
   getCommercialRequests,
   getOwnedCommercialProfiles,
-  getPublicCommercialCatalogs,
   getPublicCommercialCategories,
   getPublicCommercialOffer,
   getPublicCommercialOffers,
@@ -348,16 +347,16 @@ export function PublicResults({ query }: { query: string }) {
             setPage(1);
             setActiveQuery(searchInput.trim());
           }}
-          className="flex gap-2"
+          className="flex items-center gap-2"
         >
           <input
             type="text"
             value={searchInput}
             onChange={(e) => setSearchInput(e.target.value)}
             placeholder="Buscar negocio, producto o servicio..."
-            className={fieldClass}
+            className="min-w-0 flex-1 rounded-xl border border-[#E8D1F1] bg-white px-3 py-2 text-sm text-neutral-900 outline-none focus:border-[#7427D5]"
           />
-          <button type="submit" className={primaryButtonClass}>
+          <button type="submit" className={`${primaryButtonClass} shrink-0`}>
             Buscar
           </button>
         </form>
@@ -643,7 +642,6 @@ export function PublicProfile({ profileId }: { profileId: string }) {
   const router = useRouter();
   const [profile, setProfile] = useState<CommercialPublicProfile | null>(null);
   const [offers, setOffers] = useState<CommercialPublicOffer[]>([]);
-  const [catalogs, setCatalogs] = useState<Array<{ id: string; name: string }>>([]);
   const [tab, setTab] = useState<'products' | 'services' | 'info'>('products');
   const [cartCount, setCartCount] = useState(0);
   const [isOwner, setIsOwner] = useState(false);
@@ -658,10 +656,9 @@ export function PublicProfile({ profileId }: { profileId: string }) {
     let active = true;
     getWebAuth()
       .then(async (auth) => {
-        const [profileResponse, offerResponse, catalogResponse, ownedRes] = await Promise.all([
+        const [profileResponse, offerResponse, ownedRes] = await Promise.all([
           getPublicCommercialProfile(auth, profileId),
           getPublicCommercialOffers(auth, profileId, { limit: 60 }),
-          getPublicCommercialCatalogs(auth, profileId),
           getOwnedCommercialProfiles(auth).catch(() => ({ profiles: [] })),
         ]);
         if (!active) return;
@@ -669,9 +666,6 @@ export function PublicProfile({ profileId }: { profileId: string }) {
         const loadedOffers = offerResponse.offers || [];
         setProfile(loadedProfile);
         setOffers(loadedOffers);
-        setCatalogs(
-          (catalogResponse.catalogs || []).map((catalog) => ({ id: catalog.id, name: catalog.name })),
-        );
         setIsOwner((ownedRes.profiles || []).some((p) => p.id === profileId));
 
         const hasProducts = loadedOffers.some((o) => o.offer_kind === 'product');
@@ -824,27 +818,12 @@ export function PublicProfile({ profileId }: { profileId: string }) {
             </p>
           ) : null}
 
-          {catalogs.length > 0 ? (
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="text-xs font-bold text-[#786593]">Catálogos:</span>
-              {catalogs.map((catalog) => (
-                <Link
-                  key={catalog.id}
-                  href={`/app/beeservices/profile/${profileId}/catalog/${catalog.id}`}
-                  className={secondaryButtonClass}
-                >
-                  {catalog.name}
-                </Link>
-              ))}
-            </div>
-          ) : null}
-
           {/* Tabs: Productos / Servicios / Información */}
-          <div className="flex gap-2 border-b border-[#E7DDF2] pb-2">
+          <div className="flex flex-wrap gap-2 border-b border-[#E7DDF2] pb-2">
             <button
               type="button"
               onClick={() => setTab('products')}
-              className={`rounded-xl px-4 py-2 text-xs font-extrabold transition ${
+              className={`shrink-0 rounded-xl px-3.5 py-2 text-xs font-extrabold transition sm:px-4 ${
                 tab === 'products'
                   ? 'bg-[#7427D5] text-white'
                   : 'bg-[#F7F1FB] text-[#5C4A78] hover:bg-[#EFE4FA]'
@@ -855,7 +834,7 @@ export function PublicProfile({ profileId }: { profileId: string }) {
             <button
               type="button"
               onClick={() => setTab('services')}
-              className={`rounded-xl px-4 py-2 text-xs font-extrabold transition ${
+              className={`shrink-0 rounded-xl px-3.5 py-2 text-xs font-extrabold transition sm:px-4 ${
                 tab === 'services'
                   ? 'bg-[#7427D5] text-white'
                   : 'bg-[#F7F1FB] text-[#5C4A78] hover:bg-[#EFE4FA]'
@@ -866,7 +845,7 @@ export function PublicProfile({ profileId }: { profileId: string }) {
             <button
               type="button"
               onClick={() => setTab('info')}
-              className={`rounded-xl px-4 py-2 text-xs font-extrabold transition ${
+              className={`shrink-0 rounded-xl px-3.5 py-2 text-xs font-extrabold transition sm:px-4 ${
                 tab === 'info'
                   ? 'bg-[#7427D5] text-white'
                   : 'bg-[#F7F1FB] text-[#5C4A78] hover:bg-[#EFE4FA]'
@@ -972,11 +951,11 @@ function OfferList({
         return (
           <li
             key={offer.id}
-            className="flex items-start gap-3 rounded-2xl border border-[#F0EAF3] bg-white p-3.5 shadow-sm"
+            className="flex flex-col items-start gap-3 rounded-2xl border border-[#F0EAF3] bg-white p-3.5 shadow-sm sm:flex-row"
           >
             <Link
               href={`/app/beeservices/offer/${offer.id}`}
-              className="relative flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-[#F6EAFE] text-[#7427D5]"
+              className="relative flex h-24 w-full shrink-0 items-center justify-center overflow-hidden rounded-xl bg-[#F6EAFE] text-[#7427D5] sm:h-20 sm:w-20"
             >
               {primaryImg ? (
                 // eslint-disable-next-line @next/next/no-img-element
@@ -1046,71 +1025,7 @@ function OfferList({
 }
 
 /* =========================================================================
- * 3. PublicCatalog
- * ========================================================================= */
-export function PublicCatalog({ profileId, catalogId }: { profileId: string; catalogId: string }) {
-  const [offers, setOffers] = useState<CommercialPublicOffer[]>([]);
-  const [profile, setProfile] = useState<CommercialPublicProfile | null>(null);
-  const [name, setName] = useState('Catálogo');
-  const [error, setError] = useState('');
-  const [notice, setNotice] = useState('');
-
-  useEffect(() => {
-    let active = true;
-    getWebAuth()
-      .then(async (auth) => {
-        const [catalogs, response, profileRes] = await Promise.all([
-          getPublicCommercialCatalogs(auth, profileId),
-          getPublicCommercialOffers(auth, profileId, { catalog_id: catalogId, limit: 60 }),
-          getPublicCommercialProfile(auth, profileId).catch(() => null),
-        ]);
-        if (!active) return;
-        setName(catalogs.catalogs.find((catalog) => catalog.id === catalogId)?.name || 'Catálogo');
-        setOffers(response.offers || []);
-        if (profileRes?.profile) setProfile(profileRes.profile);
-      })
-      .catch((loadError) => {
-        if (active) setError(actionError(loadError));
-      });
-    return () => {
-      active = false;
-    };
-  }, [profileId, catalogId]);
-
-  return (
-    <CommercialShell title={name} backHref={`/app/beeservices/profile/${profileId}`} wide>
-      {error ? <p className="text-sm text-rose-600">{error}</p> : null}
-      {notice ? <p className="mb-3 text-sm text-[#5E1ABF]">{notice}</p> : null}
-      <OfferList
-        offers={offers}
-        onAddToCart={(offer) => {
-          addCartLine(
-            {
-              id: profileId,
-              name: profile?.display_name || 'Negocio',
-              deliveryFeeMode: profile?.delivery_fee_mode,
-              modalities: profile?.modalities,
-            },
-            {
-              offerId: offer.id,
-              title: offer.title,
-              unitPrice: offer.base_price_amount,
-              quantity: 1,
-              kind: offer.offer_kind,
-              requiresBooking: offer.requires_booking,
-              modalities: offer.modalities,
-              durationMinutes: offer.duration_minutes,
-            },
-          );
-          setNotice(`"${offer.title}" agregado al carrito.`);
-        }}
-      />
-    </CommercialShell>
-  );
-}
-
-/* =========================================================================
- * 4. PublicOffer
+ * 3. PublicOffer
  * ========================================================================= */
 export function PublicOffer({ offerId }: { offerId: string }) {
   const router = useRouter();
@@ -1637,13 +1552,13 @@ export function OfferRequestForm({ offerId, booking }: { offerId: string; bookin
                     El negocio se encuentra cerrado en el día seleccionado. Por favor elige otra fecha.
                   </p>
                 ) : (
-                  <div className="grid grid-cols-4 gap-1.5 sm:grid-cols-6">
+                  <div className="grid grid-cols-3 gap-1.5 sm:grid-cols-6">
                     {availableSlots.map((slot) => (
                       <button
                         key={slot}
                         type="button"
                         onClick={() => setSelectedSlot(slot)}
-                        className={`rounded-lg py-1.5 text-xs font-bold transition ${
+                        className={`min-h-[44px] rounded-lg py-2 text-xs font-bold transition ${
                           selectedSlot === slot
                             ? 'bg-[#7427D5] text-white'
                             : 'border border-[#E2D6F0] bg-white text-[#5C4A78] hover:border-[#7427D5]'
@@ -1903,7 +1818,7 @@ export function CartScreen() {
                     </p>
                   </div>
 
-                  <div className="flex items-center gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
                     <button
                       type="button"
                       onClick={() => {
@@ -1912,7 +1827,7 @@ export function CartScreen() {
                         }
                         setCart(updateCartLineQuantity(line.offerId, -1));
                       }}
-                      className="flex h-8 w-8 items-center justify-center rounded-full border border-[#E2D6F0] bg-[#FAF7FD] text-[#7427D5]"
+                      className="flex h-11 w-11 sm:h-9 sm:w-9 items-center justify-center rounded-full border border-[#E2D6F0] bg-[#FAF7FD] text-[#7427D5]"
                       aria-label="Disminuir cantidad"
                     >
                       <Minus className="h-3.5 w-3.5" />
@@ -1923,7 +1838,7 @@ export function CartScreen() {
                     <button
                       type="button"
                       onClick={() => setCart(updateCartLineQuantity(line.offerId, 1))}
-                      className="flex h-8 w-8 items-center justify-center rounded-full border border-[#E2D6F0] bg-[#FAF7FD] text-[#7427D5]"
+                      className="flex h-11 w-11 sm:h-9 sm:w-9 items-center justify-center rounded-full border border-[#E2D6F0] bg-[#FAF7FD] text-[#7427D5]"
                       aria-label="Aumentar cantidad"
                     >
                       <Plus className="h-3.5 w-3.5" />
@@ -1934,7 +1849,7 @@ export function CartScreen() {
                         if (!window.confirm(`¿Quitar "${line.title}" del carrito?`)) return;
                         setCart(removeCartLine(line.offerId));
                       }}
-                      className="ml-2 text-xs font-semibold text-rose-600 hover:underline"
+                      className="ml-auto sm:ml-2 inline-flex min-h-9 items-center text-xs font-semibold text-rose-600 hover:underline"
                     >
                       Quitar
                     </button>
@@ -2196,8 +2111,8 @@ export function MyPurchases() {
 
         <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(260px,300px)] lg:items-start">
           <section className="order-2 min-w-0 overflow-hidden rounded-2xl border border-[#E7DDF2] bg-white shadow-[0_10px_30px_rgba(116,39,213,0.06)] lg:order-1">
-            <div className="flex items-center justify-between border-b border-[#F1EAF6] bg-gradient-to-r from-[#FFFCF9] to-[#FAF4FF] px-4 py-4 sm:px-5">
-              <div>
+            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#F1EAF6] bg-gradient-to-r from-[#FFFCF9] to-[#FAF4FF] px-4 py-4 sm:px-5">
+              <div className="min-w-0">
                 <h3 className="text-sm font-extrabold text-[#261743]">Historial de compras</h3>
                 <p className="mt-0.5 text-xs text-[#786593]">{requestSummary}</p>
               </div>
@@ -2205,7 +2120,7 @@ export function MyPurchases() {
                 type="button"
                 onClick={loadPurchases}
                 disabled={loading}
-                className={secondaryButtonClass}
+                className={`${secondaryButtonClass} shrink-0`}
               >
                 <RefreshCw className="mr-1.5 inline h-3.5 w-3.5" />
                 Actualizar

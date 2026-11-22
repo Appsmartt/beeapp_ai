@@ -24,6 +24,7 @@ import {
   transcribeAssistantAudio,
 } from '@beeapp/api-client';
 import ProfileAvatar from '@/components/client/ProfileAvatar';
+import { HideVoiceFabOnChats } from '@/components/client/VoiceAssistantFab';
 import { useAuth } from '@/lib/auth/AuthProvider';
 import { AI_ASSISTANT_NAME } from '@/lib/client/chats';
 import { contactInitials } from '@/lib/client/contacts';
@@ -364,7 +365,7 @@ export default function AssistantTextPage() {
                   )}
 
                   <div
-                    className={`flex max-w-[72%] flex-col ${
+                    className={`flex max-w-[85%] flex-col sm:max-w-[72%] ${
                       isUser ? 'items-end' : 'items-start'
                     }`}
                   >
@@ -436,12 +437,13 @@ export default function AssistantTextPage() {
         </div>
       </div>
 
-      <footer className="z-10 shrink-0 border-t border-neutral-200 bg-white px-4 pt-3 pb-5 shadow-[0_-4px_12px_rgba(0,0,0,0.04)]">
+      <footer className="z-10 shrink-0 border-t border-neutral-200 bg-white px-3 pt-3 pb-4 shadow-[0_-4px_12px_rgba(0,0,0,0.04)] sm:px-4 sm:pb-5">
+        <HideVoiceFabOnChats active />
         {planBlock ? (
           <p className="mx-auto mb-2 w-full max-w-2xl text-xs text-neutral-600">{planBlock}</p>
         ) : null}
         <form
-          className="mx-auto flex w-full max-w-2xl items-end gap-2 pr-20"
+          className="mx-auto flex w-full max-w-2xl items-end gap-2"
           onSubmit={(event) => {
             event.preventDefault();
             void sendText(draft);
@@ -465,7 +467,7 @@ export default function AssistantTextPage() {
             disabled={sending || loading || recording || blocked}
             onChange={(event) => setDraft(event.target.value)}
             placeholder={recording ? 'Escuchando…' : 'Escribe a tu asistente…'}
-            className="box-border max-h-28 min-h-[44px] flex-1 resize-none rounded-xl border border-neutral-200 bg-neutral-50 px-3 py-2.5 text-sm leading-normal text-neutral-900 outline-none transition-colors placeholder:text-neutral-400 focus:border-brand-primary focus:bg-white disabled:opacity-60"
+            className="box-border max-h-28 min-h-[44px] min-w-0 flex-1 resize-none rounded-xl border border-neutral-200 bg-neutral-50 px-3 py-2.5 text-base leading-normal text-neutral-900 outline-none transition-colors placeholder:text-neutral-400 focus:border-brand-primary focus:bg-white disabled:opacity-60 sm:text-sm"
             onKeyDown={(event) => {
               if (event.key === 'Enter' && !event.shiftKey) {
                 event.preventDefault();

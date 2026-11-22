@@ -48,7 +48,7 @@ export default function CreateNoteModal({
     }
 
     return (
-        <div className="fixed inset-0 z-[80] flex items-center justify-center p-4 sm:p-6">
+        <div className="fixed inset-0 z-[90] flex items-center justify-center p-3 sm:p-6">
         <button
             type="button"
             aria-label="Cerrar modal"
@@ -61,23 +61,23 @@ export default function CreateNoteModal({
             role="dialog"
             aria-modal="true"
             aria-labelledby="create-note-title"
-            className="relative flex w-full max-w-5xl max-h-[88vh] flex-col overflow-hidden rounded-[28px] border border-white/70 bg-white shadow-2xl"
+            className="relative flex w-full max-w-5xl max-h-[90dvh] sm:max-h-[88dvh] flex-col overflow-hidden rounded-[22px] sm:rounded-[28px] border border-white/70 bg-white shadow-2xl"
         >
-            <header className="relative overflow-hidden border-b border-neutral-100 bg-gradient-to-br from-violet-50 via-white to-white px-6 py-5 sm:px-8 sm:py-6">
+            <header className="relative shrink-0 overflow-hidden border-b border-neutral-100 bg-gradient-to-br from-violet-50 via-white to-white px-4 py-4 sm:px-8 sm:py-6">
             <div className="pointer-events-none absolute -right-16 -top-16 h-44 w-44 rounded-full bg-brand-primary/10 blur-3xl" />
             <div className="pointer-events-none absolute -bottom-20 left-1/3 h-32 w-32 rounded-full bg-violet-300/20 blur-3xl" />
 
-            <div className="relative flex items-start justify-between gap-5">
-                <div className="flex min-w-0 items-start gap-4">
-                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-brand-primary text-white shadow-lg shadow-brand-primary/25">
-                    <FilePlus2 className="h-6 w-6" />
+            <div className="relative flex items-start justify-between gap-3 sm:gap-5">
+                <div className="flex min-w-0 items-start gap-3 sm:gap-4">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-brand-primary text-white shadow-lg shadow-brand-primary/25 sm:h-12 sm:w-12 sm:rounded-2xl">
+                    <FilePlus2 className="h-5 w-5 sm:h-6 sm:w-6" />
                 </div>
 
                 <div className="min-w-0 pt-0.5">
                     <div className="mb-1 flex items-center gap-2">
                     <h2
                         id="create-note-title"
-                        className="text-lg font-semibold tracking-tight text-neutral-900 sm:text-xl"
+                        className="text-base font-semibold tracking-tight text-neutral-900 sm:text-xl"
                     >
                         Crear una nota
                     </h2>
@@ -88,7 +88,7 @@ export default function CreateNoteModal({
                     </span>
                     </div>
 
-                    <p className="max-w-xl text-sm leading-relaxed text-neutral-500">
+                    <p className="max-w-xl text-xs leading-relaxed text-neutral-500 sm:text-sm">
                     Empieza desde cero o usa una plantilla para organizar tus
                     ideas, tareas y proyectos.
                     </p>
@@ -108,14 +108,14 @@ export default function CreateNoteModal({
             </div>
             </header>
 
-            <div className="overflow-y-auto px-6 py-6 sm:px-8 sm:py-7">
+            <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 sm:px-8 sm:py-7">
             <button
                 type="button"
                 onClick={onCreateBlank}
                 disabled={isCreating}
-                className="group flex w-full items-center gap-4 rounded-2xl border border-brand-primary/20 bg-gradient-to-r from-brand-primary/[0.09] via-violet-50/60 to-white px-5 py-4 text-left transition-all hover:-translate-y-0.5 hover:border-brand-primary/45 hover:shadow-md disabled:cursor-not-allowed disabled:opacity-60"
+                className="group flex w-full items-center gap-3 rounded-2xl border border-brand-primary/20 bg-gradient-to-r from-brand-primary/[0.09] via-violet-50/60 to-white px-4 py-3.5 text-left transition-all hover:-translate-y-0.5 hover:border-brand-primary/45 hover:shadow-md disabled:cursor-not-allowed disabled:opacity-60 sm:gap-4 sm:px-5 sm:py-4"
             >
-                <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-brand-primary text-white shadow-md shadow-brand-primary/20">
+                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-brand-primary text-white shadow-md shadow-brand-primary/20 sm:h-12 sm:w-12 sm:rounded-2xl">
                 {isCreating ? (
                     <Loader2 className="h-5 w-5 animate-spin" />
                 ) : (
@@ -128,7 +128,7 @@ export default function CreateNoteModal({
                     Nota en blanco
                 </span>
 
-                <span className="mt-1 block text-xs leading-relaxed text-neutral-500">
+                <span className="mt-0.5 block text-xs leading-relaxed text-neutral-500 sm:mt-1">
                     Crea una nota vacía y comienza a escribir de inmediato.
                 </span>
                 </span>
@@ -136,8 +136,8 @@ export default function CreateNoteModal({
                 <ArrowRight className="h-5 w-5 shrink-0 text-brand-primary transition-transform group-hover:translate-x-1" />
             </button>
 
-            <div className="mt-8 mb-4 flex items-center gap-3">
-                <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-neutral-100 text-neutral-600">
+            <div className="mt-5 mb-3 flex items-center gap-2.5 sm:mt-8 sm:mb-4 sm:gap-3">
+                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-neutral-100 text-neutral-600">
                 <LayoutTemplate className="h-4 w-4" />
                 </span>
 
@@ -151,7 +151,7 @@ export default function CreateNoteModal({
                 </p>
                 </div>
 
-                <span className="ml-auto rounded-full bg-neutral-100 px-2.5 py-1 text-xs font-medium text-neutral-500">
+                <span className="ml-auto shrink-0 rounded-full bg-neutral-100 px-2.5 py-1 text-xs font-medium text-neutral-500">
                 {templates.length}
                 </span>
             </div>
@@ -184,7 +184,7 @@ export default function CreateNoteModal({
                         type="button"
                         onClick={() => onCreateFromTemplate(template)}
                         disabled={isCreating}
-                        className="group relative flex min-h-[174px] flex-col overflow-hidden rounded-2xl border border-neutral-200 bg-white p-4 text-left transition-all hover:-translate-y-0.5 hover:border-transparent hover:shadow-lg disabled:cursor-not-allowed disabled:opacity-60"
+                        className="group relative flex min-h-[140px] flex-col overflow-hidden rounded-2xl border border-neutral-200 bg-white p-4 text-left transition-all hover:-translate-y-0.5 hover:border-transparent hover:shadow-lg disabled:cursor-not-allowed disabled:opacity-60 sm:min-h-[174px]"
                         style={{
                         boxShadow: `0 0 0 0 ${templateColor}`,
                         }}

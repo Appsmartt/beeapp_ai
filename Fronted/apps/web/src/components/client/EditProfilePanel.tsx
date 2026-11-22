@@ -710,7 +710,7 @@ export function EditProfilePanel({
                 Número de teléfono *
               </label>
               <div
-                className={`flex h-12 items-stretch overflow-hidden rounded-xl border bg-[#FCFAFF] transition-colors focus-within:border-brand-primary focus-within:bg-white focus-within:ring-4 focus-within:ring-brand-primary/10 ${
+                className={`flex h-12 items-stretch rounded-xl border bg-[#FCFAFF] transition-colors focus-within:border-brand-primary focus-within:bg-white focus-within:ring-4 focus-within:ring-brand-primary/10 ${
                   isSaving
                     ? 'cursor-not-allowed opacity-60'
                     : 'border-[#E4D8F2]'
@@ -733,7 +733,7 @@ export function EditProfilePanel({
                   }}
                   placeholder="300 000 0000"
                   disabled={isSaving}
-                  className="min-w-0 flex-1 border-0 bg-transparent px-3.5 text-sm text-neutral-900 outline-none ring-0 placeholder:text-neutral-400 disabled:cursor-not-allowed"
+                  className="min-w-0 flex-1 rounded-r-xl border-0 bg-transparent px-3.5 text-sm text-neutral-900 outline-none ring-0 placeholder:text-neutral-400 disabled:cursor-not-allowed"
                 />
               </div>
             </div>

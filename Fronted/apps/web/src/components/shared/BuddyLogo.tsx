@@ -5,6 +5,7 @@ type BuddyLogoProps = {
   width?: number;
   showText?: boolean;
   inverted?: boolean;
+  priority?: boolean;
   className?: string;
 };
 
@@ -54,6 +55,7 @@ export default function BuddyLogo({
   width,
   showText = true,
   inverted = false,
+  priority = false,
   className,
 }: BuddyLogoProps) {
   if (!showText) {
@@ -79,6 +81,7 @@ export default function BuddyLogo({
       alt="Buddy AI"
       width={resolvedWidth}
       height={resolvedHeight}
+      priority={priority}
       className={className}
       style={{
         width: `${resolvedWidth}px`,

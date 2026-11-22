@@ -688,7 +688,7 @@ export default function CustomerRequestDetailView({ requestId }: { requestId: st
                     className="rounded-2xl border border-[#F0EAF3] bg-[#FFFCF9] p-4 space-y-3"
                   >
                     <div className="flex flex-wrap items-start justify-between gap-3">
-                      <div className="flex items-start gap-3">
+                      <div className="flex min-w-0 flex-1 items-start gap-3">
                         <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#F6EAFE] text-[#7427D5]">
                           {item.offer_kind === 'service' ? (
                             <Wrench className="h-5 w-5" />
@@ -696,19 +696,19 @@ export default function CustomerRequestDetailView({ requestId }: { requestId: st
                             <Package className="h-5 w-5" />
                           )}
                         </span>
-                        <div>
-                          <p className="text-sm font-extrabold text-[#261743]">{item.title}</p>
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-extrabold text-[#261743] [overflow-wrap:anywhere]">{item.title}</p>
                           <p className="text-xs text-[#786593]">
                             Cantidad: {qty} · Unitario: {formatCommercialRequestListAmount(unitPrice, item.currency_code)}
                             {item.modality ? ` · ${getCommercialModalityLabel(item.modality)}` : ''}
                           </p>
                           {item.customer_note ? (
-                            <p className="mt-1 text-xs text-[#5C4A78]">Comentario: {item.customer_note}</p>
+                            <p className="mt-1 text-xs text-[#5C4A78] [overflow-wrap:anywhere]">Comentario: {item.customer_note}</p>
                           ) : null}
                         </div>
                       </div>
 
-                      <div className="text-right">
+                      <div className="w-full text-left sm:w-auto sm:text-right">
                         <span className="inline-block rounded-full bg-[#F4EDFC] px-2.5 py-0.5 text-[11px] font-bold text-[#54209E]">
                           {lifecycleLabel}
                         </span>
@@ -1042,19 +1042,19 @@ export default function CustomerRequestDetailView({ requestId }: { requestId: st
                         key={method.id}
                         className="rounded-xl border border-[#E7D9F0] bg-[#FCFAFD] p-3.5 text-xs space-y-2"
                       >
-                        <div className="flex items-center justify-between">
-                          <span className="font-extrabold text-[#261743]">{method.display_name}</span>
-                          <span className="rounded-full bg-[#F6EAFE] px-2 py-0.5 text-[10px] font-bold uppercase text-[#7427D5]">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <span className="min-w-0 font-extrabold text-[#261743] [overflow-wrap:anywhere]">{method.display_name}</span>
+                          <span className="shrink-0 rounded-full bg-[#F6EAFE] px-2 py-0.5 text-[10px] font-bold uppercase text-[#7427D5]">
                             {method.payment_method_type}
                           </span>
                         </div>
 
                         {details.length > 0 ? (
-                          <dl className="space-y-1 border-t border-[#F0EAF3] pt-2">
+                          <dl className="space-y-1.5 border-t border-[#F0EAF3] pt-2">
                             {details.map(([k, v]) => (
-                              <div key={k} className="flex justify-between gap-2">
-                                <dt className="text-[#786593]">{PUBLIC_DETAIL_LABELS[k] || k}:</dt>
-                                <dd className="font-bold text-[#261743] break-all text-right">{String(v)}</dd>
+                              <div key={k} className="flex flex-col gap-0.5 sm:flex-row sm:justify-between sm:gap-2">
+                                <dt className="shrink-0 text-[#786593]">{PUBLIC_DETAIL_LABELS[k] || k}:</dt>
+                                <dd className="min-w-0 break-all text-left font-bold text-[#261743] sm:text-right">{String(v)}</dd>
                               </div>
                             ))}
                           </dl>
@@ -1176,10 +1176,12 @@ export default function CustomerRequestDetailView({ requestId }: { requestId: st
                     <button
                       type="button"
                       onClick={() => proofInputRef.current?.click()}
-                      className={secondaryButtonClass}
+                      className={`${secondaryButtonClass} max-w-full`}
                     >
-                      <Upload className="mr-1.5 inline h-4 w-4" />
-                      {proofFile ? proofFile.name : 'Seleccionar imagen o PDF'}
+                      <Upload className="mr-1.5 inline h-4 w-4 shrink-0" />
+                      <span className="min-w-0 truncate">
+                        {proofFile ? proofFile.name : 'Seleccionar imagen o PDF'}
+                      </span>
                     </button>
                   </div>
 

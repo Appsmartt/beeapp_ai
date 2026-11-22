@@ -1366,8 +1366,8 @@ export default function CalendarModule() {
   };
 
   return (
-    <div className="grid h-full max-h-full min-h-0 select-none grid-cols-1 overflow-hidden bg-[#F7F4FB] md:grid-cols-[minmax(300px,360px)_minmax(0,1fr)]">
-      <aside className="flex h-full min-h-0 flex-col overflow-hidden border-b border-[#E4D8F2] bg-white md:border-b-0 md:border-r">
+    <div className="flex h-full max-h-full min-h-0 select-none flex-col overflow-y-auto overscroll-contain bg-[#F7F4FB] md:grid md:grid-cols-[minmax(300px,360px)_minmax(0,1fr)] md:overflow-hidden">
+      <aside className={`${selectedEvent ? 'hidden md:flex' : 'flex'} shrink-0 flex-col border-b border-[#E4D8F2] bg-white md:h-full md:min-h-0 md:overflow-hidden md:border-b-0 md:border-r`}>
         <div className="shrink-0 space-y-3 border-b border-neutral-100 p-4">
           <div className="flex items-center justify-between gap-1">
             <button
@@ -1425,7 +1425,7 @@ export default function CalendarModule() {
           </div>
         </div>
 
-        <div className="grid min-h-0 flex-1 auto-rows-max grid-cols-7 overflow-y-auto overscroll-contain bg-neutral-50 content-start pb-4">
+        <div className="grid shrink-0 auto-rows-max grid-cols-7 content-start bg-neutral-50 pb-4 md:min-h-0 md:flex-1 md:overflow-y-auto md:overscroll-contain">
             {[
               'Lun',
               'Mar',
@@ -1504,7 +1504,7 @@ export default function CalendarModule() {
         </div>
       </aside>
 
-      <main className="flex h-full max-h-full min-h-0 min-w-0 flex-col overflow-hidden bg-[#FAF8FC]">
+      <main className="flex min-h-[340px] min-w-0 flex-1 flex-col bg-[#FAF8FC] md:h-full md:max-h-full md:min-h-0 md:overflow-hidden">
         {selectedEvent ? (
           <CalendarEventPanel
             event={selectedEvent}
@@ -1525,9 +1525,9 @@ export default function CalendarModule() {
           />
         ) : (
           <>
-            <header className="shrink-0 border-b border-[#E7DDF2] bg-white px-5 py-4">
-              <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0">
+            <header className="shrink-0 border-b border-[#E7DDF2] bg-white px-4 py-3.5 sm:px-5 sm:py-4">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div className="min-w-0 flex-1">
                   <p className="text-[11px] font-semibold uppercase tracking-wide text-brand-primary">
                     {viewMode === 'week' ? 'Vista semanal' : viewMode === 'day' ? 'Agenda del día' : 'Día seleccionado'}
                   </p>
@@ -1542,7 +1542,7 @@ export default function CalendarModule() {
                         : `${listedDayEvents.length} evento(s)`}
                   </p>
                 </div>
-                <div className="flex items-center gap-2 shrink-0">
+                <div className="flex w-full shrink-0 flex-wrap items-center justify-between gap-2 sm:w-auto sm:justify-end">
                   <div className="inline-flex rounded-xl border border-neutral-200 bg-neutral-50 p-0.5 text-xs font-semibold">
                     {(
                       [
@@ -1557,7 +1557,7 @@ export default function CalendarModule() {
                         onClick={() => setViewMode(mode.id)}
                         className={`rounded-lg px-2.5 py-1 transition-colors ${
                           viewMode === mode.id
-                            ? 'bg-white text-brand-primary shadow-xs'
+                            ? 'bg-white text-brand-primary shadow-sm'
                             : 'text-neutral-500 hover:text-neutral-800'
                         }`}
                       >
@@ -1569,7 +1569,7 @@ export default function CalendarModule() {
                     type="button"
                     onClick={openCreateModal}
                     disabled={saving}
-                    className="flex h-9 shrink-0 items-center gap-1.5 rounded-xl bg-brand-primary px-4 text-xs font-semibold text-white hover:bg-brand-dark disabled:opacity-50"
+                    className="flex h-9 shrink-0 items-center gap-1.5 rounded-xl bg-brand-primary px-3.5 text-xs font-semibold text-white hover:bg-brand-dark disabled:opacity-50 sm:px-4"
                   >
                     <Plus className="h-4 w-4" />
                     Nuevo evento
@@ -2172,10 +2172,10 @@ function CalendarEventModal({
         onSubmit={(submitEvent) => {
           void handleSubmit(submitEvent);
         }}
-        className="relative z-10 flex max-h-[90vh] w-full max-w-xl flex-col overflow-hidden rounded-3xl border border-neutral-100 bg-white shadow-xl"
+        className="relative z-10 flex max-h-[90dvh] w-full max-w-xl flex-col overflow-hidden rounded-3xl border border-neutral-100 bg-white shadow-xl"
       >
-        <header className="flex items-center justify-between border-b border-neutral-100 px-6 py-4">
-          <div>
+        <header className="flex items-center justify-between gap-2 border-b border-neutral-100 px-4 py-3.5 sm:px-6 sm:py-4">
+          <div className="min-w-0">
             <h2 className="text-base font-semibold text-neutral-900">
               {event
                 ? 'Editar evento'
@@ -2191,14 +2191,14 @@ function CalendarEventModal({
             type="button"
             onClick={onClose}
             disabled={saving}
-            className="rounded-full p-1.5 text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-neutral-700 disabled:opacity-50"
+            className="shrink-0 rounded-full p-1.5 text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-neutral-700 disabled:opacity-50"
             title="Cerrar"
           >
             <X className="h-5 w-5" />
           </button>
         </header>
 
-        <div className="flex-1 space-y-4 overflow-y-auto p-6">
+        <div className="flex-1 space-y-4 overflow-y-auto p-4 sm:p-6">
           {errorMessage ? (
             <div className="flex items-start gap-2 rounded-xl border border-red-100 bg-red-50 px-3 py-2">
               <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-red-600" />
@@ -2276,8 +2276,8 @@ function CalendarEventModal({
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1.5">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div className="min-w-0 space-y-1.5">
               <label className="text-xs font-semibold text-neutral-700">
                 Tipo
               </label>
@@ -2305,12 +2305,12 @@ function CalendarEventModal({
               </select>
             </div>
 
-            <div className="space-y-1.5">
+            <div className="min-w-0 space-y-1.5">
               <label className="text-xs font-semibold text-neutral-700">
                 Color
               </label>
 
-              <div className="flex h-10 items-center gap-2 rounded-xl border border-neutral-200 px-2">
+              <div className="flex min-h-10 flex-wrap items-center gap-2 rounded-xl border border-neutral-200 px-2.5 py-2">
                 {CALENDAR_COLORS.map((color) => (
                   <button
                     key={color}
@@ -2371,8 +2371,8 @@ function CalendarEventModal({
             </button>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1.5">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div className="min-w-0 space-y-1.5">
               <label className="text-xs font-semibold text-neutral-700">
                 Inicio *
               </label>
@@ -2408,7 +2408,7 @@ function CalendarEventModal({
               ) : null}
             </div>
 
-            <div className="space-y-1.5">
+            <div className="min-w-0 space-y-1.5">
               <label className="text-xs font-semibold text-neutral-700">
                 Finalización *
               </label>

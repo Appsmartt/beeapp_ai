@@ -30,12 +30,13 @@ import ChatProfile from '@/components/client/chat/ChatProfile';
 import { ChatRow } from '@/components/client/chat/ChatRow';
 import PinLockModal from '@/components/client/chat/modals/PinLockModal';
 import { ListSkeleton } from '@/components/client/RouteSkeleton';
+import { HideVoiceFabOnChats } from '@/components/client/VoiceAssistantFab';
 import { ManageOffers, ManageRequests } from '@/components/client/beeservices/manage/OwnerScreens';
 import type { ChatItem } from '@/lib/client/chats';
 import { loadCommercialInbox } from '@/lib/client/liveData';
 import { getWebAuth } from '@/lib/client/webAuth';
 
-type CommercialModule = 'chat' | 'requests' | 'catalogs' | 'manage';
+type CommercialModule = 'chat' | 'requests' | 'offers' | 'manage';
 
 const MODULES: Array<{
   id: CommercialModule;
@@ -45,13 +46,12 @@ const MODULES: Array<{
 }> = [
   { id: 'chat', label: 'Chats del negocio', idleClass: 'border-[#E2D8F2] bg-[#F1ECFA] text-[#7C6AA5]', icon: MessageCircle },
   { id: 'requests', label: 'Solicitudes del negocio', idleClass: 'border-[#E0D5F2] bg-[#EEE7F8] text-[#6D4DA0]', icon: ClipboardList },
-  { id: 'catalogs', label: 'Productos y servicios del negocio', idleClass: 'border-[#F5DCD1] bg-[#FBEDE7] text-[#C58B72]', icon: PackageSearch },
+  { id: 'offers', label: 'Productos y servicios del negocio', idleClass: 'border-[#F5DCD1] bg-[#FBEDE7] text-[#C58B72]', icon: PackageSearch },
   { id: 'manage', label: 'Gestión del negocio', idleClass: 'border-[#D2EAE1] bg-[#E6F4EF] text-[#5D9D8C]', icon: Wrench },
 ];
 
 const MANAGE_LINKS = [
   { label: 'Perfil', path: 'profile', hint: 'Nombre, ciudad y descripción', icon: UserRound },
-  { label: 'Catálogos', path: 'catalogs', hint: 'Grupos de productos y servicios', icon: PackageSearch },
   { label: 'Horario', path: 'hours', hint: 'Días y horas de atención', icon: Clock3 },
   { label: 'Operación', path: 'operation', hint: 'Entrega, reservas e inventario', icon: Store },
   { label: 'Métodos de pago', path: 'payment-methods', hint: 'Cómo te pueden pagar', icon: CreditCard },
@@ -76,7 +76,7 @@ const VERIFICATION_STATUS_LABEL: Record<string, string> = {
   suspended: 'Verificación suspendida',
 };
 
-function catalogHeading(offerType: CommercialOfferType | undefined): string {
+function offersHeading(offerType: CommercialOfferType | undefined): string {
   if (offerType === 'products') return 'Productos';
   if (offerType === 'services') return 'Servicios';
   return 'Productos y servicios';
@@ -85,7 +85,7 @@ function catalogHeading(offerType: CommercialOfferType | undefined): string {
 function moduleCaption(module: CommercialModule, offerType: CommercialOfferType | undefined): string {
   if (module === 'chat') return 'Chats';
   if (module === 'requests') return 'Solicitudes';
-  if (module === 'catalogs') return catalogHeading(offerType);
+  if (module === 'offers') return offersHeading(offerType);
   return 'Gestión';
 }
 
@@ -159,8 +159,8 @@ export default function CommercialWorkspace({ businessId }: { businessId: string
           </div>
 
           {ownedBusinesses.length > 1 ? (
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-bold text-[#786593]">Cambiar negocio:</span>
+            <div className="flex w-full min-w-0 items-center gap-2 sm:w-auto">
+              <span className="shrink-0 text-xs font-bold text-[#786593]">Cambiar negocio:</span>
               <select
                 value={businessId}
                 onChange={(e) => {
@@ -169,7 +169,7 @@ export default function CommercialWorkspace({ businessId }: { businessId: string
                     router.push(`/app/beeservices/manage/${nextId}`);
                   }
                 }}
-                className="h-9 rounded-xl border border-[#E7DDF2] bg-white px-3 text-xs font-bold text-[#261743] outline-none focus:border-[#7427D5]"
+                className="h-9 w-full min-w-0 max-w-full rounded-xl border border-[#E7DDF2] bg-white px-3 text-xs font-bold text-[#261743] outline-none focus:border-[#7427D5] sm:w-auto sm:max-w-[240px]"
               >
                 {ownedBusinesses.map((biz) => (
                   <option key={biz.id} value={biz.id}>
@@ -202,17 +202,19 @@ export default function CommercialWorkspace({ businessId }: { businessId: string
               <CommercialChats businessId={businessId} onOpenChange={setChatOpen} />
             ) : null}
             {module === 'requests' ? <ManageRequests businessId={businessId} embedded /> : null}
-            {module === 'catalogs' ? (
+            {module === 'offers' ? (
               <ManageOffers
                 businessId={businessId}
                 embedded
-                heading={catalogHeading(profile.offer_type)}
+                heading={offersHeading(profile.offer_type)}
               />
             ) : null}
             {module === 'manage' ? <ManageLinks businessId={businessId} profile={profile} /> : null}
           </div>
         ) : null}
       </div>
+
+      <HideVoiceFabOnChats active={chatOpen} />
 
       {!chatOpen && !loadingProfile ? (
         <CommercialDock module={module} onChange={openModule} />
@@ -237,29 +239,31 @@ function CommercialDock({
   if (!mounted) return null;
 
   return createPortal(
-    <div
-      className="fixed bottom-5 left-1/2 z-[80] flex w-[min(320px,70vw)] -translate-x-1/2 items-center justify-between rounded-[28px] border border-[#E7DFF5] bg-white/95 px-3 py-3 shadow-[0_6px_18px_rgba(141,115,201,0.22)]"
-      aria-label="Menú de trabajo del negocio"
-    >
-      {MODULES.map((item) => {
-        const Icon = item.icon;
-        const active = module === item.id;
-        return (
-          <button
-            key={item.id}
-            type="button"
-            aria-label={item.label}
-            onClick={() => onChange(item.id)}
-            className={`flex h-[52px] w-[52px] items-center justify-center rounded-[18px] border ${
-              active
-                ? '-translate-y-1 border-transparent bg-[#7427D5] text-white shadow-[0_3px_8px_rgba(116,39,213,0.3)]'
-                : item.idleClass
-            }`}
-          >
-            <Icon className="h-5 w-5" />
-          </button>
-        );
-      })}
+    <div className="pointer-events-none fixed inset-x-3 bottom-4 z-40 flex justify-center pr-[76px] sm:inset-x-0 sm:bottom-5 sm:pr-0">
+      <div
+        className="pointer-events-auto flex w-full max-w-[300px] items-center justify-between gap-1.5 rounded-[24px] border border-[#E7DFF5] bg-white/95 px-2.5 py-2.5 shadow-[0_6px_18px_rgba(141,115,201,0.22)] backdrop-blur-sm sm:max-w-[320px] sm:rounded-[28px] sm:px-3 sm:py-3"
+        aria-label="Menú de trabajo del negocio"
+      >
+        {MODULES.map((item) => {
+          const Icon = item.icon;
+          const active = module === item.id;
+          return (
+            <button
+              key={item.id}
+              type="button"
+              aria-label={item.label}
+              onClick={() => onChange(item.id)}
+              className={`flex h-11 w-11 items-center justify-center rounded-[15px] border sm:h-[52px] sm:w-[52px] sm:rounded-[18px] ${
+                active
+                  ? '-translate-y-1 border-transparent bg-[#7427D5] text-white shadow-[0_3px_8px_rgba(116,39,213,0.3)]'
+                  : item.idleClass
+              }`}
+            >
+              <Icon className="h-5 w-5" />
+            </button>
+          );
+        })}
+      </div>
     </div>,
     document.body,
   );
@@ -384,7 +388,7 @@ function CommercialChats({
 
   if (selected && viewingProfile) {
     return (
-      <div className="h-[calc(100vh-180px)] min-h-[420px] overflow-hidden rounded-2xl border border-[#F0EAF3] bg-white">
+      <div className="h-[calc(100dvh-160px)] min-h-[300px] overflow-hidden rounded-2xl border border-[#F0EAF3] bg-white sm:h-[calc(100dvh-180px)] sm:min-h-[420px]">
         <ChatProfile
           chat={selected}
           onBack={() => setViewingProfile(false)}
@@ -402,7 +406,7 @@ function CommercialChats({
 
   if (selected) {
     return (
-      <div className="h-[calc(100vh-180px)] min-h-[420px] overflow-hidden rounded-2xl border border-[#F0EAF3] bg-white">
+      <div className="h-[calc(100dvh-160px)] min-h-[300px] overflow-hidden rounded-2xl border border-[#F0EAF3] bg-white sm:h-[calc(100dvh-180px)] sm:min-h-[420px]">
         <ChatConversation
           chat={selected}
           onBack={() => {

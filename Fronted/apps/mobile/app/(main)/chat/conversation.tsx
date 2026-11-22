@@ -43,15 +43,18 @@ import {
   getChatContactProfile,
   getChatMessageAttachmentAccess,
   getChatMessage,
+  getConversationAiAutoReply,
   createChatMessageReaction,
   deleteChatMessageReaction,
   getChatPinProtection,
   updateChatConversationNotifications,
+  updateConversationAiAutoReply,
   verifyAccountSecurityPin,
   markChatConversationRead,
   getStorageFileAccess,
   startCall,
 } from '@beeapp/api-client';
+import type { ConversationAiAutoReplyState } from '@beeapp/shared-types';
 
 import ScreenSafeArea from '../../../src/components/layout/ScreenSafeArea';
 import { getLatestIncomingChatMessage } from '../../../src/services/chatMessageReceipts';
@@ -583,8 +586,69 @@ function ConversationContent({
     messages,
   ]);
 
-  const [aiAutoReply, setAiAutoReply] =
+  const [aiAutoReplyState, setAiAutoReplyState] =
+    useState<ConversationAiAutoReplyState | null>(null);
+  const [aiAutoReplyBusy, setAiAutoReplyBusy] =
     useState(false);
+
+  const refreshAiAutoReply = useCallback(async () => {
+    if (!chatId || conversation?.conversation_type === 'group') {
+      setAiAutoReplyState(null);
+      return;
+    }
+    try {
+      const auth = await getValidSessionCredentials();
+      if (!auth || auth.scheme !== 'Bearer') return;
+      const state = await getConversationAiAutoReply(auth, chatId);
+      setAiAutoReplyState(state);
+    } catch {
+      setAiAutoReplyState(null);
+    }
+  }, [chatId, conversation?.conversation_type]);
+
+  useEffect(() => {
+    void refreshAiAutoReply();
+  }, [refreshAiAutoReply]);
+
+  const handleToggleAiAutoReply = useCallback(async (enabled: boolean) => {
+    if (!chatId || aiAutoReplyBusy) return;
+    setAiAutoReplyBusy(true);
+    try {
+      const auth = await getValidSessionCredentials();
+      if (!auth || auth.scheme !== 'Bearer') return;
+      const next = await updateConversationAiAutoReply(auth, chatId, { enabled });
+      setAiAutoReplyState(next);
+    } catch (toggleError) {
+      appAlert(
+        'Asistente IA',
+        toggleError instanceof Error
+          ? toggleError.message
+          : 'No fue posible actualizar la IA automática.',
+      );
+    } finally {
+      setAiAutoReplyBusy(false);
+    }
+  }, [aiAutoReplyBusy, chatId]);
+
+  const handleResumeAiAutoReply = useCallback(async () => {
+    if (!chatId || aiAutoReplyBusy) return;
+    setAiAutoReplyBusy(true);
+    try {
+      const auth = await getValidSessionCredentials();
+      if (!auth || auth.scheme !== 'Bearer') return;
+      const next = await updateConversationAiAutoReply(auth, chatId, { resume: true });
+      setAiAutoReplyState(next);
+    } catch (resumeError) {
+      appAlert(
+        'Asistente IA',
+        resumeError instanceof Error
+          ? resumeError.message
+          : 'No fue posible reanudar la IA.',
+      );
+    } finally {
+      setAiAutoReplyBusy(false);
+    }
+  }, [aiAutoReplyBusy, chatId]);
 
   const [menuOpen, setMenuOpen] =
     useState(false);
@@ -1225,12 +1289,9 @@ function ConversationContent({
     )
   );
 
-  /*
-   * El contrato actual del backend no expone metadata de conversación.
-   * Por eso el banner de respuesta automática queda oculto hasta que
-   * exista una señal explícita para los chats de vendedor.
-   */
-  const isSellerChat = false;
+  const canShowAiAutoReplyBanner = Boolean(
+    aiAutoReplyState?.supported && aiAutoReplyState?.entitled,
+  );
 
   const pinnedMessage = messages.find(
     (message) => message.isPinned,
@@ -1559,6 +1620,7 @@ function ConversationContent({
       ));
       setReplyTarget(null);
       scrollToBottom();
+      void refreshAiAutoReply();
     } catch (sendError) {
       setPendingTextMessage(null);
       appAlert(
@@ -2394,10 +2456,18 @@ function ConversationContent({
           }}
         />
 
-        {isSellerChat ? (
+        {canShowAiAutoReplyBanner && aiAutoReplyState ? (
           <AiAutoReplyBanner
-            enabled={aiAutoReply}
-            onChange={setAiAutoReply}
+            enabled={aiAutoReplyState.effective_enabled}
+            scope={aiAutoReplyState.scope}
+            pausedUntil={aiAutoReplyState.paused_until}
+            busy={aiAutoReplyBusy}
+            onChange={(enabled) => {
+              void handleToggleAiAutoReply(enabled);
+            }}
+            onResume={() => {
+              void handleResumeAiAutoReply();
+            }}
           />
         ) : null}
 

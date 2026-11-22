@@ -109,7 +109,7 @@ export default function ExternalCalendarsModal({
         onClick={onClose}
         className="fixed inset-0 bg-black/60 backdrop-blur-sm"
       />
-      <div className="relative z-10 flex max-h-[88vh] w-full max-w-xl flex-col overflow-hidden rounded-3xl border border-neutral-100 bg-white shadow-xl">
+      <div className="relative z-10 flex max-h-[90dvh] w-full max-w-xl flex-col overflow-hidden rounded-3xl border border-neutral-100 bg-white shadow-xl">
         <header className="flex items-center justify-between border-b border-neutral-100 px-6 py-4">
           <div>
             <h2 className="text-base font-semibold text-neutral-900">Calendarios externos</h2>
@@ -161,7 +161,7 @@ export default function ExternalCalendarsModal({
                   key={integration.id}
                   className="rounded-2xl border border-neutral-200 bg-white p-4 space-y-3"
                 >
-                  <div className="flex items-center justify-between gap-2">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
                     <div className="min-w-0">
                       <p className="text-xs font-semibold text-neutral-900 truncate">
                         {integration.provider_email || integration.provider_display_name || integration.provider}
@@ -174,7 +174,7 @@ export default function ExternalCalendarsModal({
                       type="button"
                       disabled={isSyncing}
                       onClick={() => void handleDiscoverAndSync(integration.id)}
-                      className="inline-flex items-center gap-1.5 rounded-xl bg-brand-primary/10 px-3 py-1.5 text-xs font-semibold text-brand-primary hover:bg-brand-primary/20 disabled:opacity-50"
+                      className="inline-flex shrink-0 items-center gap-1.5 rounded-xl bg-brand-primary/10 px-3 py-1.5 text-xs font-semibold text-brand-primary hover:bg-brand-primary/20 disabled:opacity-50"
                     >
                       <RefreshCw className={`h-3.5 w-3.5 ${isSyncing ? 'animate-spin' : ''}`} />
                       <span>{isSyncing ? 'Sincronizando...' : 'Descubrir y sincronizar'}</span>

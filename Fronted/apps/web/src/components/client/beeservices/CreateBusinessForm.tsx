@@ -5,7 +5,6 @@ import { useRouter } from 'next/navigation';
 import { Camera, Check, Loader2, Plus, X } from 'lucide-react';
 import {
   createCommercialProfile,
-  createOwnedCommercialCatalog,
   createOwnedCommercialOffer,
   getCommercialCities,
   getCommercialCountries,
@@ -80,9 +79,8 @@ export default function CreateBusinessForm({
     'buddy_chat',
   ]);
 
-  // Optional first catalog + first offer
-  const [createInitialCatalog, setCreateInitialCatalog] = useState(true);
-  const [initialCatalogName, setInitialCatalogName] = useState('Catálogo principal');
+  // Optional first offer
+  const [createInitialOffer, setCreateInitialOffer] = useState(true);
   const [initialOfferTitle, setInitialOfferTitle] = useState('');
   const [initialOfferPrice, setInitialOfferPrice] = useState('');
   const [initialOfferKind, setInitialOfferKind] = useState<'product' | 'service'>('product');
@@ -246,23 +244,15 @@ export default function CreateBusinessForm({
 
       const businessId = created.profile.id;
 
-      if (createInitialCatalog && initialCatalogName.trim()) {
-        const catRes = await createOwnedCommercialCatalog(auth, businessId, {
-          name: initialCatalogName.trim(),
+      if (createInitialOffer && initialOfferTitle.trim()) {
+        await createOwnedCommercialOffer(auth, businessId, {
+          offer_kind: initialOfferKind,
+          title: initialOfferTitle.trim(),
+          pricing_strategy: initialOfferPrice.trim() ? 'fixed' : 'to_be_confirmed',
+          base_price_amount: initialOfferPrice.trim() ? Number(initialOfferPrice) : null,
+          modalities,
           status: 'published',
         }).catch(() => null);
-
-        if (catRes?.catalog?.id && initialOfferTitle.trim()) {
-          await createOwnedCommercialOffer(auth, businessId, {
-            catalog_id: catRes.catalog.id,
-            offer_kind: initialOfferKind,
-            title: initialOfferTitle.trim(),
-            pricing_strategy: initialOfferPrice.trim() ? 'fixed' : 'to_be_confirmed',
-            base_price_amount: initialOfferPrice.trim() ? Number(initialOfferPrice) : null,
-            modalities,
-            status: 'published',
-          }).catch(() => null);
-        }
       }
 
       const all = await loadOwnedBusinesses().catch(() => [] as BusinessItem[]);
@@ -400,12 +390,12 @@ export default function CreateBusinessForm({
             value={newCategoryInput}
             onChange={(e) => setNewCategoryInput(e.target.value)}
             placeholder="Agregar nueva categoría o actividad..."
-            className="h-9 flex-1 rounded-xl border border-neutral-200 bg-white px-3 text-xs outline-none focus:border-brand-primary"
+            className="h-9 min-w-0 flex-1 rounded-xl border border-neutral-200 bg-white px-3 text-xs outline-none focus:border-brand-primary"
           />
           <button
             type="button"
             onClick={addCustomCategory}
-            className="inline-flex h-9 items-center gap-1 rounded-xl bg-brand-primary px-3 text-xs font-semibold text-white"
+            className="inline-flex h-9 shrink-0 items-center gap-1 rounded-xl bg-brand-primary px-3 text-xs font-semibold text-white"
           >
             <Plus className="h-3.5 w-3.5" />
             Agregar
@@ -535,7 +525,7 @@ export default function CreateBusinessForm({
               value={phoneNumber}
               onChange={(e) => setPhoneNumber(e.target.value)}
               placeholder="3001234567"
-              className="h-10 flex-1 rounded-xl border border-neutral-200 bg-neutral-50 px-3 text-xs outline-none focus:border-brand-primary"
+              className="h-10 min-w-0 flex-1 rounded-xl border border-neutral-200 bg-neutral-50 px-3 text-xs outline-none focus:border-brand-primary"
             />
           </div>
         </div>
@@ -632,31 +622,20 @@ export default function CreateBusinessForm({
         </div>
       </div>
 
-      {/* Guided Initial Catalog & First Offer */}
+      {/* Guided Initial Offer */}
       <div className="space-y-3 rounded-2xl border border-neutral-200 bg-neutral-50/70 p-4">
         <label className="flex items-center justify-between gap-2 text-xs font-semibold text-neutral-800">
-          <span>Crear catálogo inicial y primera oferta al finalizar</span>
+          <span>Crear primera oferta al finalizar (opcional)</span>
           <input
             type="checkbox"
-            checked={createInitialCatalog}
-            onChange={(e) => setCreateInitialCatalog(e.target.checked)}
+            checked={createInitialOffer}
+            onChange={(e) => setCreateInitialOffer(e.target.checked)}
             className="h-4 w-4 accent-brand-primary"
           />
         </label>
 
-        {createInitialCatalog ? (
-          <div className="grid gap-3 sm:grid-cols-3 pt-1">
-            <div>
-              <label className="text-[11px] font-semibold text-neutral-600">
-                Nombre del catálogo
-              </label>
-              <input
-                type="text"
-                value={initialCatalogName}
-                onChange={(e) => setInitialCatalogName(e.target.value)}
-                className="mt-1 h-9 w-full rounded-xl border border-neutral-200 bg-white px-2.5 text-xs outline-none focus:border-brand-primary"
-              />
-            </div>
+        {createInitialOffer ? (
+          <div className="grid gap-3 sm:grid-cols-2 pt-1">
             <div>
               <label className="text-[11px] font-semibold text-neutral-600">
                 Primera oferta (opcional)
@@ -669,8 +648,8 @@ export default function CreateBusinessForm({
                 className="mt-1 h-9 w-full rounded-xl border border-neutral-200 bg-white px-2.5 text-xs outline-none focus:border-brand-primary"
               />
             </div>
-            <div className="flex gap-2">
-              <div className="flex-1">
+            <div className="flex flex-wrap gap-2">
+              <div className="min-w-0 flex-1">
                 <label className="text-[11px] font-semibold text-neutral-600">
                   Precio (COP)
                 </label>

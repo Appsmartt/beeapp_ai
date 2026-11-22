@@ -40,8 +40,15 @@ function toneOf(value: unknown): string {
     return 'neutro';
 }
 
-function mapSettings(row: Json): Json {
+function mapSettings(
+    row: Json,
+    entitlements?: {
+        chat_auto_reply_personal: boolean;
+        chat_auto_reply_business: boolean;
+    },
+): Json {
     const inbox = inboxPreferencesOf(row.permissions);
+    const pauseMinutes = Number(row.auto_reply_pause_minutes);
     return {
         user_id: row.user_id,
         name: row.name || 'Buddy AI',
@@ -55,8 +62,34 @@ function mapSettings(row: Json): Json {
         permissions: permissionsOf(row.permissions),
         inbox_pinned: inbox.inbox_pinned !== false,
         inbox_muted: inbox.inbox_muted === true,
+        auto_reply_personal_enabled: row.auto_reply_personal_enabled === true,
+        auto_reply_business_enabled: row.auto_reply_business_enabled === true,
+        auto_reply_personal_prompt: typeof row.auto_reply_personal_prompt === 'string'
+            ? row.auto_reply_personal_prompt
+            : '',
+        auto_reply_pause_minutes: Number.isInteger(pauseMinutes)
+            && pauseMinutes >= 5
+            && pauseMinutes <= 240
+            ? pauseMinutes
+            : 30,
+        ...(entitlements ? { entitlements } : {}),
         language: LANGUAGES.includes(String(row.language)) ? row.language : 'es',
         updated_at: row.updated_at || null,
+    };
+}
+
+async function loadChatAutoReplyEntitlements(
+    supabase: SupabaseClient,
+): Promise<{
+    chat_auto_reply_personal: boolean;
+    chat_auto_reply_business: boolean;
+}> {
+    const result = await supabase.rpc('get_my_subscription');
+    const data = asJson(result.data);
+    const entitlements = asJson(data.entitlements);
+    return {
+        chat_auto_reply_personal: entitlements.chatAutoReplyPersonal === true,
+        chat_auto_reply_business: entitlements.chatAutoReplyBusiness === true,
     };
 }
 
@@ -259,10 +292,20 @@ export async function handleAssistant(
     const payload = asJson(body);
 
     if (method === 'GET' && path === '/assistant/settings/') {
-        return { settings: await loadOrCreateSettings(supabase, userId) };
+        const [settings, entitlements] = await Promise.all([
+            loadOrCreateSettings(supabase, userId),
+            loadChatAutoReplyEntitlements(supabase),
+        ]);
+        return {
+            settings: {
+                ...settings,
+                entitlements,
+            },
+        };
     }
 
     if (method === 'PATCH' && path === '/assistant/settings/') {
+        const entitlements = await loadChatAutoReplyEntitlements(supabase);
         const patch: Json = { updated_at: new Date().toISOString() };
         if (payload.name !== undefined) {
             const name = String(payload.name).trim().slice(0, 40);
@@ -299,6 +342,41 @@ export async function handleAssistant(
             }
             patch.language = payload.language;
         }
+        if (payload.auto_reply_personal_enabled !== undefined) {
+            const nextPersonal = payload.auto_reply_personal_enabled === true;
+            if (nextPersonal && !entitlements.chat_auto_reply_personal) {
+                throw new GatewayError(
+                    'Tu plan actual no incluye respuestas automáticas de IA en chats personales.',
+                    403,
+                );
+            }
+            patch.auto_reply_personal_enabled = nextPersonal;
+        }
+        if (payload.auto_reply_business_enabled !== undefined) {
+            const nextBusiness = payload.auto_reply_business_enabled === true;
+            if (nextBusiness && !entitlements.chat_auto_reply_business) {
+                throw new GatewayError(
+                    'Tu plan actual no incluye respuestas automáticas de IA en chats de negocios.',
+                    403,
+                );
+            }
+            patch.auto_reply_business_enabled = nextBusiness;
+        }
+        if (payload.auto_reply_personal_prompt !== undefined) {
+            patch.auto_reply_personal_prompt = String(payload.auto_reply_personal_prompt ?? '')
+                .trim()
+                .slice(0, 1000);
+        }
+        if (payload.auto_reply_pause_minutes !== undefined) {
+            const pauseMinutes = Math.round(Number(payload.auto_reply_pause_minutes));
+            if (!Number.isInteger(pauseMinutes) || pauseMinutes < 5 || pauseMinutes > 240) {
+                throw new GatewayError(
+                    'El tiempo de pausa automática debe estar entre 5 y 240 minutos.',
+                    400,
+                );
+            }
+            patch.auto_reply_pause_minutes = pauseMinutes;
+        }
         if (payload.permissions !== undefined) {
             const currentRow = (unwrap(await supabase
                 .from('assistant_settings')
@@ -326,7 +404,7 @@ export async function handleAssistant(
                 })
                 .eq('id', userId));
         }
-        return { settings: mapSettings(updated as Json) };
+        return { settings: mapSettings(updated as Json, entitlements) };
     }
 
     if (method === 'GET' && path === '/assistant/messages/') {

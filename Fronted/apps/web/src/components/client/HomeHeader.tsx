@@ -70,15 +70,15 @@ export default function HomeHeader({ onOpenSideMenu, onSelectModule, activeModul
   };
 
   return (
-    <header className="sticky top-0 z-30 border-b border-[#E4D8F2] bg-[#F7F4FB] px-5 py-3">
-      <div className="flex items-center gap-3">
+    <header className="sticky top-0 z-30 border-b border-[#E4D8F2] bg-[#F7F4FB] px-2.5 py-1.5 sm:px-5 sm:py-3">
+      <div className="flex items-center gap-1.5 sm:gap-3">
 
         {/* Filter Button */}
-        <div className="relative">
+        <div className="relative shrink-0">
           <button
             type="button"
             onClick={() => setFilterOpen(!filterOpen)}
-            className={`flex h-11 w-11 items-center justify-center rounded-2xl transition-colors ${
+            className={`flex h-9 w-9 items-center justify-center rounded-xl transition-colors sm:h-11 sm:w-11 sm:rounded-2xl ${
               filterActive
                 ? 'bg-brand-primary text-white shadow-sm'
                 : 'border border-[#E4D8F2] bg-white text-neutral-600 hover:bg-[#F7F2FC]'
@@ -86,14 +86,14 @@ export default function HomeHeader({ onOpenSideMenu, onSelectModule, activeModul
             title="Filtrar por tipo"
             aria-expanded={filterOpen}
           >
-            <ActiveFilterIcon className="w-5 h-5" />
+            <ActiveFilterIcon className="h-[18px] w-[18px] sm:h-5 sm:w-5" />
           </button>
 
           {/* Filter Dropdown Overlay */}
           {filterOpen && (
             <>
               <div className="fixed inset-0 z-40" onClick={() => setFilterOpen(false)} />
-              <div className="absolute top-full left-0 mt-2 w-48 bg-white border border-neutral-200 rounded-2xl shadow-xl z-50 py-1.5 overflow-hidden">
+              <div className="absolute top-full left-0 z-50 mt-2 w-[min(12rem,calc(100vw-1.5rem))] overflow-hidden rounded-2xl border border-neutral-200 bg-white py-1.5 shadow-xl">
                 <div className="px-3 py-1.5 text-[11px] font-semibold text-neutral-400 uppercase tracking-wider">
                   Filtrar contenido
                 </div>
@@ -116,14 +116,14 @@ export default function HomeHeader({ onOpenSideMenu, onSelectModule, activeModul
         </div>
 
         {/* Search Input */}
-        <div className="flex h-11 min-w-0 max-w-xl flex-1 items-center gap-2 rounded-2xl border border-[#E4D8F2] bg-white px-3 transition-all focus-within:border-[#7427D5]">
+        <div className="flex h-9 min-w-0 max-w-xl flex-1 items-center gap-1.5 rounded-xl border border-[#E4D8F2] bg-white px-2.5 transition-all focus-within:border-[#7427D5] sm:h-11 sm:gap-2 sm:rounded-2xl sm:px-3">
           <Search className="w-4 h-4 text-neutral-400 shrink-0" />
           <input
             type="search"
-            placeholder={selectedFilter === 'Todos' ? 'Buscar en todo Buddy...' : `Buscar en ${selectedFilter}...`}
+            placeholder={selectedFilter === 'Todos' ? 'Buscar en Buddy...' : `Buscar en ${selectedFilter}...`}
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            className="w-full bg-transparent text-sm text-neutral-900 font-normal outline-none placeholder:text-neutral-400"
+            className="min-w-0 w-full bg-transparent text-base text-neutral-900 font-normal outline-none placeholder:text-xs placeholder:text-neutral-400 sm:text-sm sm:placeholder:text-sm"
           />
           {query.length > 0 ? (
             <button
@@ -137,15 +137,15 @@ export default function HomeHeader({ onOpenSideMenu, onSelectModule, activeModul
           ) : null}
         </div>
 
-        <div className="ml-auto flex shrink-0 items-center gap-2">
+        <div className="ml-auto flex shrink-0 items-center gap-1.5 sm:gap-2">
         <ModuleQuickMenu activeModule={activeModule} onSelect={onSelectModule} />
         <button
           type="button"
           onClick={onOpenSideMenu}
-          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-[#E4D8F2] bg-white text-neutral-700 transition-colors hover:bg-[#F7F2FC]"
+          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-[#E4D8F2] bg-white text-neutral-700 transition-colors hover:bg-[#F7F2FC] sm:h-11 sm:w-11 sm:rounded-2xl"
           title="Menú principal"
         >
-          <Menu className="w-5 h-5" />
+          <Menu className="h-[18px] w-[18px] sm:h-5 sm:w-5" />
         </button>
         </div>
 

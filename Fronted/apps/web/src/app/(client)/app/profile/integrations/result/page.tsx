@@ -118,8 +118,8 @@ export default function IntegrationOAuthResultPage() {
     }, [isPending, isSuccess, router]);
 
     return (
-        <main className="min-h-screen bg-neutral-100 flex items-center justify-center p-6">
-        <section className="w-full max-w-md rounded-3xl border border-neutral-200 bg-white p-8 text-center shadow-sm">
+        <main className="flex min-h-dvh items-center justify-center bg-neutral-100 p-4 sm:p-6">
+        <section className="w-full max-w-md rounded-3xl border border-neutral-200 bg-white p-6 text-center shadow-sm sm:p-8">
             <div className="mx-auto w-14 h-14 rounded-2xl bg-purple-100 text-brand-primary flex items-center justify-center">
             {isSuccess ? (
                 <CheckCircle2 className="w-8 h-8 text-emerald-600" />

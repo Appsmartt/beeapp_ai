@@ -11,7 +11,9 @@ import type {
   ChatParticipant,
   ChatParticipantRole,
   ChatSearchUser,
+  ConversationAiAutoReplyState,
   StatusStory,
+  UpdateConversationAiAutoReplyPayload,
 } from '@beeapp/shared-types';
 
 import {
@@ -2048,5 +2050,27 @@ export async function removeChatGroupParticipant(
       auth: requireBearerAuth(auth),
       body: payload,
     },
+  );
+}
+
+export async function getConversationAiAutoReply(
+  auth: AuthCredentials,
+  conversationId: string,
+): Promise<ConversationAiAutoReplyState> {
+  return api.get<ConversationAiAutoReplyState>(
+    `${conversationPath(conversationId)}ai-auto-reply/`,
+    { auth: requireBearerAuth(auth) },
+  );
+}
+
+export async function updateConversationAiAutoReply(
+  auth: AuthCredentials,
+  conversationId: string,
+  payload: UpdateConversationAiAutoReplyPayload,
+): Promise<ConversationAiAutoReplyState> {
+  return api.patch<ConversationAiAutoReplyState>(
+    `${conversationPath(conversationId)}ai-auto-reply/`,
+    payload,
+    { auth: requireBearerAuth(auth) },
   );
 }

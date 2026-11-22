@@ -847,7 +847,7 @@ export default function MailCompose({
     : 'Selecciona una cuenta';
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center sm:p-4">
       <button
         type="button"
         aria-label="Cerrar redacción"
@@ -856,8 +856,8 @@ export default function MailCompose({
         className="fixed inset-0 bg-black/60 backdrop-blur-sm"
       />
 
-      <div className="relative z-10 flex max-h-[90vh] w-full max-w-3xl flex-col overflow-hidden rounded-3xl bg-white shadow-xl">
-        <div className="flex items-center justify-between border-b border-neutral-100 px-5 py-3.5">
+      <div className="relative z-10 flex h-dvh w-full max-w-3xl flex-col overflow-hidden bg-white shadow-xl sm:h-auto sm:max-h-[90dvh] sm:rounded-3xl">
+        <div className="flex shrink-0 items-center justify-between gap-2 border-b border-neutral-100 px-4 py-3 sm:px-5 sm:py-3.5">
           <div>
             <h2 className="text-sm font-semibold text-neutral-900">
               Mensaje nuevo
@@ -942,7 +942,7 @@ export default function MailCompose({
                 </button>
 
                 {senderMenuOpen ? (
-                  <div className="absolute left-20 top-full z-30 mt-1 w-72 overflow-hidden rounded-xl border border-neutral-200 bg-white py-1 shadow-xl">
+                  <div className="absolute left-4 right-4 top-full z-30 mt-1 overflow-hidden rounded-xl border border-neutral-200 bg-white py-1 shadow-xl sm:left-20 sm:right-auto sm:w-72">
                     {activeIntegrations.map((integration) => {
                       const isSelected = (
                         integration.id
@@ -997,7 +997,7 @@ export default function MailCompose({
                 </>
               ) : null}
 
-              <div className="flex items-center gap-3 border-b border-neutral-100 px-5 py-3">
+              <div className="flex flex-wrap items-center gap-2 border-b border-neutral-100 px-4 py-3 sm:flex-nowrap sm:gap-3 sm:px-5">
                 <span className="w-14 shrink-0 text-xs font-normal text-neutral-500">
                   Asunto:
                 </span>
@@ -1103,7 +1103,7 @@ export default function MailCompose({
                 onChange={(event) => {
                   setBody(event.target.value);
                 }}
-                className="min-h-[260px] w-full resize-none px-5 py-4 text-sm leading-relaxed text-neutral-800 outline-none placeholder:text-neutral-400 disabled:opacity-50"
+                className="min-h-[160px] w-full resize-none px-4 py-3 text-sm leading-relaxed text-neutral-800 outline-none placeholder:text-neutral-400 disabled:opacity-50 sm:min-h-[260px] sm:px-5 sm:py-4"
               />
 
               {attachments.length > 0 ? (
@@ -1154,8 +1154,8 @@ export default function MailCompose({
               ) : null}
             </div>
 
-            <div className="flex items-center justify-between gap-3 border-t border-neutral-100 px-5 py-3">
-              <div>
+            <div className="flex flex-wrap items-center justify-between gap-2.5 border-t border-neutral-100 px-4 py-3 sm:px-5">
+              <div className="min-w-0 flex-1">
                 <input
                   ref={fileInputRef}
                   type="file"
@@ -1197,7 +1197,7 @@ export default function MailCompose({
                   sending
                   || uploadingAttachments
                 }
-                className="flex items-center gap-2 rounded-xl bg-brand-primary px-5 py-2.5 text-xs font-semibold text-white transition-colors hover:bg-brand-dark disabled:bg-neutral-300"
+                className="flex shrink-0 items-center gap-2 rounded-xl bg-brand-primary px-5 py-2.5 text-xs font-semibold text-white transition-colors hover:bg-brand-dark disabled:bg-neutral-300"
               >
                 {sending ? (
                   <>

@@ -288,6 +288,26 @@ export function setAdminSubscription(input: {
   });
 }
 
+export type AdminChatAiOverrideMode = 'inherit' | 'allow' | 'block';
+
+export function getAdminIsSuperadmin(): Promise<boolean> {
+  return callAdmin<boolean>('is_superadmin').then((value) => Boolean(value));
+}
+
+export function setAdminUserChatAiOverrides(input: {
+  userId: string;
+  personal: AdminChatAiOverrideMode;
+  business: AdminChatAiOverrideMode;
+  reason: string;
+}) {
+  return callAdmin<Record<string, unknown>>('admin_set_user_chat_ai_overrides', {
+    p_user_id: input.userId,
+    p_personal: input.personal,
+    p_business: input.business,
+    p_reason: input.reason,
+  });
+}
+
 export function listAdminSubscriptionEvents(userId: string) {
   return callAdmin<Array<Record<string, unknown>>>('admin_list_subscription_events', {
     p_user_id: userId,

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { Check, Pencil } from 'lucide-react';
-import { listAdminPlans, updateAdminPlan } from '@beeapp/api-client';
+import { getAdminIsSuperadmin, listAdminPlans, updateAdminPlan } from '@beeapp/api-client';
 import type { Plan, PlanId } from '@/lib/admin/types';
 import { toPlan } from '@/lib/admin/mapRecords';
 import { formatCurrencyCOP, formatNumber } from '@/lib/admin/format';
@@ -11,11 +11,18 @@ import PlanEditor from './PlanEditor';
 export default function PlansSection() {
   const [plans, setPlans] = useState<Plan[]>([]);
   const [editingId, setEditingId] = useState<PlanId | null>(null);
+  const [isSuperadmin, setIsSuperadmin] = useState(false);
   const [error, setError] = useState('');
 
   useEffect(() => {
-    listAdminPlans()
-      .then((rows) => setPlans(rows.map(toPlan)))
+    Promise.all([
+      listAdminPlans(),
+      getAdminIsSuperadmin().catch(() => false),
+    ])
+      .then(([rows, superadmin]) => {
+        setPlans(rows.map(toPlan));
+        setIsSuperadmin(superadmin);
+      })
       .catch((loadError: unknown) => {
         setError(loadError instanceof Error ? loadError.message : 'No fue posible cargar los planes.');
       });
@@ -45,7 +52,12 @@ export default function PlansSection() {
   if (editingPlan) {
     return (
       <div className="page-section">
-        <PlanEditor plan={editingPlan} onSave={handleSave} onCancel={() => setEditingId(null)} />
+        <PlanEditor
+          plan={editingPlan}
+          isSuperadmin={isSuperadmin}
+          onSave={handleSave}
+          onCancel={() => setEditingId(null)}
+        />
       </div>
     );
   }

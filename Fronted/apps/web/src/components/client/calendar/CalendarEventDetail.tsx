@@ -114,13 +114,13 @@ export default function CalendarEventDetail({
         {/* Sección de Tu Respuesta (RSVP) */}
         <div className="p-4 rounded-2xl bg-neutral-50 border border-neutral-200/80 space-y-2.5">
           <span className="text-[11px] font-semibold text-neutral-700">¿Asistirás a esta reunión/evento?</span>
-          <div className="flex gap-2">
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
             <button
               type="button"
               onClick={() => setUserResponse('accepted')}
-              className={`flex-1 h-9 rounded-xl text-xs font-normal flex items-center justify-center gap-1.5 border transition-all ${
+              className={`h-10 sm:h-9 rounded-xl text-xs font-normal flex items-center justify-center gap-1.5 border transition-all ${
                 userResponse === 'accepted'
-                  ? 'bg-emerald-600 border-emerald-600 text-white font-semibold shadow-xs'
+                  ? 'bg-emerald-600 border-emerald-600 text-white font-semibold shadow-sm'
                   : 'border-emerald-600/40 text-emerald-700 hover:bg-emerald-50'
               }`}
             >
@@ -131,9 +131,9 @@ export default function CalendarEventDetail({
             <button
               type="button"
               onClick={() => setUserResponse('maybe')}
-              className={`flex-1 h-9 rounded-xl text-xs font-normal flex items-center justify-center gap-1.5 border transition-all ${
+              className={`h-10 sm:h-9 rounded-xl text-xs font-normal flex items-center justify-center gap-1.5 border transition-all ${
                 userResponse === 'maybe'
-                  ? 'bg-amber-500 border-amber-500 text-white font-semibold shadow-xs'
+                  ? 'bg-amber-500 border-amber-500 text-white font-semibold shadow-sm'
                   : 'border-amber-500/40 text-amber-700 hover:bg-amber-50'
               }`}
             >
@@ -144,9 +144,9 @@ export default function CalendarEventDetail({
             <button
               type="button"
               onClick={() => setUserResponse('declined')}
-              className={`flex-1 h-9 rounded-xl text-xs font-normal flex items-center justify-center gap-1.5 border transition-all ${
+              className={`h-10 sm:h-9 rounded-xl text-xs font-normal flex items-center justify-center gap-1.5 border transition-all ${
                 userResponse === 'declined'
-                  ? 'bg-red-600 border-red-600 text-white font-semibold shadow-xs'
+                  ? 'bg-red-600 border-red-600 text-white font-semibold shadow-sm'
                   : 'border-red-600/40 text-red-700 hover:bg-red-50'
               }`}
             >
@@ -167,7 +167,7 @@ export default function CalendarEventDetail({
               href={event.meetUrl}
               target="_blank"
               rel="noreferrer"
-              className="w-full h-10 rounded-xl bg-brand-primary text-white text-xs font-semibold flex items-center justify-center gap-1.5 shadow-xs hover:bg-brand-dark transition-colors"
+              className="w-full h-10 rounded-xl bg-brand-primary text-white text-xs font-semibold flex items-center justify-center gap-1.5 shadow-sm hover:bg-brand-dark transition-colors"
             >
               <span>Unirse a la reunión</span>
               <ExternalLink className="w-3.5 h-3.5" />
@@ -220,7 +220,7 @@ export default function CalendarEventDetail({
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div className="space-y-1">
             <span className="text-[11px] font-semibold text-neutral-400 uppercase tracking-wider">Fecha</span>
             <p className="text-xs text-neutral-900 font-normal">{event.dateStr}</p>

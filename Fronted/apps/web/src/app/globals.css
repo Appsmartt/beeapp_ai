@@ -13,6 +13,7 @@
   --brand-primary: #6025d2;
   /* Componentes RGB de --brand-primary, para poder modular su opacidad */
   --brand-primary-rgb: 96, 37, 210;
+  --brand-primary-channels: 96 37 210;
   --brand-dark: #5B2CD9;
   --brand-light: rgba(96, 37, 210, 0.15);
 

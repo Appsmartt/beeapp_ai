@@ -5,7 +5,6 @@ import { usePathname, useRouter } from 'next/navigation';
 import { getCurrentProfile } from '@beeapp/api-client';
 import AuthGuard from '@/lib/auth/AuthGuard';
 import { useAuth } from '@/lib/auth/AuthProvider';
-import MobileBlockScreen from '@/components/client/MobileBlockScreen';
 import NavigationProgress from '@/components/client/NavigationProgress';
 import { AppRouteSkeleton } from '@/components/client/RouteSkeleton';
 import { VoiceFabVisibility } from '@/components/client/VoiceAssistantFab';
@@ -87,42 +86,24 @@ export default function AppLayout({
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
-  const [isMobileScreen, setIsMobileScreen] = useState(false);
   const [hideVoiceFab, setHideVoiceFab] = useState(false);
   const onOnboarding = pathname === '/app/onboarding';
 
-  useEffect(() => {
-    const checkScreenSize = () => {
-      setIsMobileScreen(window.innerWidth < 768);
-    };
-
-    checkScreenSize();
-    window.addEventListener('resize', checkScreenSize);
-
-    return () => {
-      window.removeEventListener('resize', checkScreenSize);
-    };
-  }, []);
-
   return (
     <AuthGuard area="client">
-      {isMobileScreen ? (
-        <MobileBlockScreen />
-      ) : (
-        <VoiceFabVisibility hidden={onOnboarding || hideVoiceFab} onHiddenChange={setHideVoiceFab}>
-          <div className="flex h-dvh max-h-dvh min-h-0 flex-col overflow-hidden bg-neutral-100/90 selection:bg-brand-primary/20">
-            <div className="relative flex h-full min-h-0 w-full flex-1 flex-col overflow-hidden">
-              <div className="relative flex h-full min-h-0 w-full flex-1 flex-col overflow-hidden bg-white">
-                <Suspense fallback={null}>
-                  <NavigationProgress />
-                </Suspense>
-                <IncomingCallManager />
-                <OnboardingGate>{children}</OnboardingGate>
-              </div>
+      <VoiceFabVisibility hidden={onOnboarding || hideVoiceFab} onHiddenChange={setHideVoiceFab}>
+        <div className="flex h-dvh max-h-dvh min-h-0 flex-col overflow-hidden bg-neutral-100/90 selection:bg-brand-primary/20">
+          <div className="relative flex h-full min-h-0 w-full flex-1 flex-col overflow-hidden">
+            <div className="relative flex h-full min-h-0 w-full flex-1 flex-col overflow-hidden bg-white">
+              <Suspense fallback={null}>
+                <NavigationProgress />
+              </Suspense>
+              <IncomingCallManager />
+              <OnboardingGate>{children}</OnboardingGate>
             </div>
           </div>
-        </VoiceFabVisibility>
-      )}
+        </div>
+      </VoiceFabVisibility>
     </AuthGuard>
   );
 }

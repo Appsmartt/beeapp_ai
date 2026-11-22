@@ -23,7 +23,7 @@ export default function AuthGuard({
   children: ReactNode;
 }) {
   const router = useRouter();
-  const { status, profile } = useAuth();
+  const { status, profile, sessionConfirmed } = useAuth();
   const isAdmin = isAdminRole(profile?.role);
   const allowed = area === 'admin' ? isAdmin : !isAdmin;
 
@@ -33,16 +33,16 @@ export default function AuthGuard({
       return;
     }
 
-    if (status !== 'ready' || !profile) {
+    if (status !== 'ready' || !sessionConfirmed || !profile) {
       return;
     }
 
     if (!allowed) {
       router.replace(homePathForRole(profile.role));
     }
-  }, [allowed, profile, router, status]);
+  }, [allowed, profile, router, sessionConfirmed, status]);
 
-  if (status !== 'ready' || !profile || !allowed) {
+  if (status !== 'ready' || !sessionConfirmed || !profile || !allowed) {
     return <AuthSpinner />;
   }
 

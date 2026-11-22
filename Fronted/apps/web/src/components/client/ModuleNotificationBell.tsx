@@ -184,8 +184,8 @@ export default function ModuleNotificationBell({
 
   const popoverClassName =
     placement === 'header'
-      ? 'absolute right-0 top-12 z-50 w-80 rounded-2xl border border-neutral-200 bg-white p-4 shadow-xl animate-in fade-in slide-in-from-top-2 duration-150'
-      : 'absolute bottom-0 left-12 z-50 w-80 rounded-2xl border border-neutral-200 bg-white p-4 shadow-xl animate-in fade-in slide-in-from-left-2 duration-150';
+      ? 'fixed inset-x-3 top-14 z-50 rounded-2xl border border-neutral-200 bg-white p-4 shadow-xl animate-in fade-in slide-in-from-top-2 duration-150 sm:absolute sm:inset-auto sm:right-0 sm:top-12 sm:w-80'
+      : 'fixed inset-x-3 bottom-20 z-50 rounded-2xl border border-neutral-200 bg-white p-4 shadow-xl animate-in fade-in slide-in-from-left-2 duration-150 sm:absolute sm:inset-auto sm:bottom-0 sm:left-12 sm:w-80';
 
   return (
     <div className="relative" ref={popoverRef}>
@@ -199,12 +199,14 @@ export default function ModuleNotificationBell({
 
           void handleOpen();
         }}
-        className="relative flex h-10 w-10 items-center justify-center rounded-xl text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-neutral-700"
+        className={`relative flex items-center justify-center rounded-xl text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-neutral-700 ${
+          placement === 'header' ? 'h-9 w-9 md:h-10 md:w-10' : 'h-10 w-10'
+        }`}
         title={`Notificaciones de ${moduleId}`}
         aria-label={`Notificaciones de ${moduleId}`}
         aria-expanded={open}
       >
-        <Bell className="h-5 w-5" />
+        <Bell className="h-[18px] w-[18px] md:h-5 md:w-5" />
 
         {unreadCount > 0 && (
           <span className="absolute right-1.5 top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-semibold text-white">

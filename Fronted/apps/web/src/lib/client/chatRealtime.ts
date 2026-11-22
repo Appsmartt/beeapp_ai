@@ -5,12 +5,14 @@ import { getSupabase } from '@beeapp/api-client';
 export type RealtimeMessageRow = {
   id: string;
   sender_id?: string | null;
+  sender_business_id?: string | null;
   sender_identity_id?: string | null;
   body: string | null;
   content?: string | null;
   kind?: string | null;
   message_type?: string | null;
   status?: string | null;
+  ai_generated?: boolean | null;
   reference_type?: string | null;
   reference_id?: string | null;
   metadata?: Record<string, unknown> | null;

@@ -140,7 +140,7 @@ export default function MessageBubble({
       ) : null}
 
       <div
-        className={`relative max-w-[80%] rounded-[18px] px-3.5 pb-1.5 pt-2.5 shadow-xs transition-all sm:max-w-[70%] ${
+        className={`relative max-w-[80%] rounded-[18px] px-3.5 pb-1.5 pt-2.5 shadow-sm transition-all sm:max-w-[70%] ${
           isUser
             ? 'rounded-br-[2px] bg-brand-primary text-white'
             : isAI
@@ -148,10 +148,10 @@ export default function MessageBubble({
               : 'rounded-bl-[2px] border border-neutral-200 bg-white text-neutral-900'
         }`}
       >
-        {sentByAi ? (
+        {isUser && sentByAi ? (
           <div className="mb-1.5 inline-flex items-center gap-1 rounded-md bg-white/20 px-1.5 py-0.5 text-white">
             <Bot className="h-2.5 w-2.5" />
-            <span className="text-[9px] font-normal tracking-wide">IA</span>
+            <span className="text-[10px] font-medium tracking-wide">Respondido con IA</span>
           </div>
         ) : null}
 
@@ -162,7 +162,7 @@ export default function MessageBubble({
                 onClickReply(replyTo.id);
               }
             }}
-            className={`mb-2 flex items-stretch rounded-lg border-l-3 p-2 ${
+            className={`mb-2 flex items-stretch rounded-lg border-l-[3px] p-2 ${
               replyTo.id && onClickReply ? 'cursor-pointer hover:opacity-90' : ''
             } ${
               isUser

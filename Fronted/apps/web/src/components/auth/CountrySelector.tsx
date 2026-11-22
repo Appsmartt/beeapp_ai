@@ -61,8 +61,8 @@ export default function CountrySelector({
         }}
         className={
           isInline
-            ? 'flex h-full max-w-[9.5rem] items-center gap-1.5 border-0 bg-transparent px-2.5 transition-colors hover:bg-neutral-100/80 disabled:cursor-not-allowed disabled:opacity-60 sm:max-w-[11rem]'
-            : 'flex w-full items-center gap-2 rounded-xl border border-neutral-200 bg-white px-3 py-2.5 transition-colors hover:bg-neutral-50 disabled:cursor-not-allowed disabled:opacity-60'
+            ? 'flex h-full max-w-[9.5rem] items-center gap-1.5 rounded-l-lg border-0 bg-transparent px-2.5 transition-colors hover:bg-neutral-100/80 disabled:cursor-not-allowed disabled:opacity-60 sm:max-w-[11rem]'
+            : 'flex h-10 w-full items-center gap-2 rounded-xl border border-neutral-200 bg-white px-3 py-2 transition-colors hover:bg-neutral-50 disabled:cursor-not-allowed disabled:opacity-60'
         }
       >
         <span className="text-lg leading-none">{current.flag}</span>
@@ -86,7 +86,7 @@ export default function CountrySelector({
       {open && (
         <>
           <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
-          <div className={`absolute top-full left-0 z-50 mt-1 rounded-xl border border-neutral-200 bg-white shadow-lg ${isInline ? 'min-w-[17rem]' : 'right-0'}`}>
+          <div className="absolute top-full left-0 z-50 mt-1 w-[min(17.5rem,calc(100vw-2.5rem))] rounded-xl border border-neutral-200 bg-white shadow-lg">
             <div className="flex items-center gap-2 border-b border-neutral-100 px-3 py-2">
               <Search className="h-3.5 w-3.5 shrink-0 text-neutral-400" />
               <input

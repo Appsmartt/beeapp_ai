@@ -34,7 +34,7 @@ const PUBLICATION_LABEL = {
 
 const ARCHIVE_REASONS = [
   { code: 'temporary_closure', label: 'Cierre temporal del negocio' },
-  { code: 'restructuring', label: 'Reestructuración de catálogo u operación' },
+  { code: 'restructuring', label: 'Reestructuración de ofertas u operación' },
   { code: 'no_longer_operating', label: 'El negocio dejó de operar' },
   { code: 'other', label: 'Otro motivo' },
 ] as const;
@@ -243,7 +243,7 @@ export default function OwnedBusinessCard({
             ) : null}
             {productCount === 0 && serviceCount === 0 ? (
               <span className="text-[11px] font-semibold text-[#B8A5D6]">
-                Sin ofertas en catálogo
+                Sin ofertas publicadas
               </span>
             ) : null}
           </div>
@@ -412,7 +412,7 @@ function ActionButton({
       type="button"
       disabled={disabled}
       onClick={onClick}
-      className="inline-flex h-8 items-center gap-1.5 rounded-full border border-[#E8D1F1] bg-white px-3 text-xs font-semibold text-[#5E1ABF] hover:bg-[#F6EAFE] disabled:opacity-50"
+      className="inline-flex min-h-10 items-center gap-1.5 rounded-full border border-[#E8D1F1] bg-white px-3 text-xs font-semibold text-[#5E1ABF] hover:bg-[#F6EAFE] disabled:opacity-50 sm:min-h-8"
     >
       <Icon className="h-3.5 w-3.5" />
       {label}

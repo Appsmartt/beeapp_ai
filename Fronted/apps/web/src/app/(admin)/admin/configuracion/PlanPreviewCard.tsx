@@ -46,6 +46,18 @@ export default function PlanPreviewCard({ plan, descuentoAnual }: PlanPreviewCar
               : `${plan.entitlements.aiCredits} créditos de IA al mes`}
           </span>
         </div>
+        {plan.entitlements.chatAutoReplyPersonal ? (
+          <div className="plan-manage-feature-row">
+            <Check size={14} />
+            <span>IA responde chats personales (1-a-1)</span>
+          </div>
+        ) : null}
+        {plan.entitlements.chatAutoReplyBusiness ? (
+          <div className="plan-manage-feature-row">
+            <Check size={14} />
+            <span>IA responde chats de negocios</span>
+          </div>
+        ) : null}
       </div>
 
       <div className="plan-preview-limits">

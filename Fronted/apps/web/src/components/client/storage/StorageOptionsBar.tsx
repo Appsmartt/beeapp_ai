@@ -71,7 +71,7 @@ export default function StorageOptionsBar({
   onSelectFilter,
 }: StorageOptionsBarProps) {
   return (
-    <div className="flex w-[56px] shrink-0 select-none flex-col items-center gap-3 border-r border-neutral-200 bg-white py-4">
+    <div className="hidden w-[56px] shrink-0 select-none flex-col items-center gap-3 border-r border-neutral-200 bg-white py-4 lg:flex">
       <div className="flex w-full flex-col items-center gap-3">
         {NAV_ITEMS.map((item) => {
           const Icon = item.icon;

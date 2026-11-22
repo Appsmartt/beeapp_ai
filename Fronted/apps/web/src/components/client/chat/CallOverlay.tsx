@@ -157,8 +157,8 @@ export default function CallOverlay({
   };
 
   return (
-    <div className="fixed inset-0 z-[70] bg-[#11101E]/95 backdrop-blur-md flex flex-col justify-between p-8 text-white select-none animate-in fade-in duration-200">
-      <div className="text-center pt-6 space-y-1">
+    <div className="fixed inset-0 z-[70] flex select-none flex-col justify-between bg-[#11101E]/95 p-4 text-white backdrop-blur-md animate-in fade-in duration-200 sm:p-8">
+      <div className="space-y-1 pt-4 text-center sm:pt-6">
         <p className="text-xs font-semibold text-brand-primary tracking-wide uppercase">
           {connectError
             ? 'Error de conexión'
@@ -174,7 +174,7 @@ export default function CallOverlay({
         ) : null}
       </div>
 
-      <div className="flex-1 flex flex-col items-center justify-center space-y-4 my-6">
+      <div className="my-4 flex min-h-0 flex-1 flex-col items-center justify-center space-y-4 sm:my-6">
         {isVideo ? (
           <div className="w-full max-w-lg h-72 rounded-3xl bg-[#1E1D2D] border border-white/10 flex flex-col items-center justify-center relative overflow-hidden shadow-2xl">
             <div ref={remoteVideoRef} className="absolute inset-0" />
@@ -192,19 +192,19 @@ export default function CallOverlay({
             />
           </div>
         ) : (
-          <div className="flex flex-col items-center space-y-4">
+          <div className="flex max-w-full flex-col items-center space-y-4 px-2">
             <div className="w-[100px] h-[100px] rounded-full bg-white text-brand-primary border-4 border-[#DDD6FE] font-extrabold text-4xl flex items-center justify-center shadow-2xl">
               {contactName[0]?.toUpperCase() || 'C'}
             </div>
-            <div className="flex items-center gap-2">
-              <h2 className="font-semibold text-xl text-white">{contactName}</h2>
-              {isVerified && <CheckCircle2 className="w-5 h-5 text-brand-primary" />}
+            <div className="flex max-w-full items-center gap-2">
+              <h2 className="truncate font-semibold text-xl text-white">{contactName}</h2>
+              {isVerified && <CheckCircle2 className="w-5 h-5 shrink-0 text-brand-primary" />}
             </div>
           </div>
         )}
       </div>
 
-      <div className="flex items-center justify-center gap-5 pb-8">
+      <div className="flex flex-wrap items-center justify-center gap-3 pb-6 sm:gap-5 sm:pb-8">
         <button
           type="button"
           onClick={() => setIsMuted(!isMuted)}

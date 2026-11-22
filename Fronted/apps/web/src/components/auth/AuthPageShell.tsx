@@ -56,10 +56,10 @@ export default function AuthPageShell({
       <LandingNavbar />
 
       <main className="border-b border-neutral-100">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 sm:py-14 lg:py-16">
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 lg:gap-16 items-start">
+        <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 sm:py-12 lg:px-8 lg:py-16">
+          <div className="grid grid-cols-1 items-start gap-8 lg:grid-cols-12 lg:gap-16">
             {/* Aside — mismo tono que Hero / Features */}
-            <div className="lg:col-span-5 space-y-6 lg:sticky lg:top-24">
+            <div className="order-2 space-y-6 lg:order-1 lg:sticky lg:top-24 lg:col-span-5">
               <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-brand-primary/10 text-brand-primary text-xs font-medium">
                 <Sparkles className="w-3.5 h-3.5" />
                 <span>{aside.badge}</span>
@@ -105,7 +105,7 @@ export default function AuthPageShell({
             </div>
 
             {/* Form card */}
-            <div className="lg:col-span-7 w-full max-w-xl lg:max-w-none lg:ml-auto">
+            <div className="order-1 w-full max-w-xl lg:order-2 lg:col-span-7 lg:ml-auto lg:max-w-none">
               <div className={`motion-content-enter rounded-2xl border p-4 sm:p-5 shadow-sm ${mode === 'login' ? 'border-[#CDB4F2] bg-[#E7D4FF]' : 'border-neutral-200/80 bg-white'}`}>
                 <div className="mb-3 space-y-0.5">
                   <h2 className="text-xl font-bold text-neutral-900 tracking-tight">

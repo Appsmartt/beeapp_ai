@@ -660,7 +660,7 @@ async function mapPublicOffer(
     return {
         id: row.id,
         commercial_profile_id: row.business_id,
-        catalog_id: row.catalog,
+        catalog_id: row.catalog ?? '',
         offer_kind: row.offer_kind,
         title: row.title,
         description: row.description ?? null,
@@ -759,6 +759,18 @@ async function mapProfile(
         };
     }
 
+    const [aiSettingsResult, subscriptionResult] = await Promise.all([
+        supabase
+            .from('business_ai_settings')
+            .select('enabled, prompt')
+            .eq('business_id', String(row.id))
+            .maybeSingle(),
+        supabase.rpc('get_my_subscription'),
+    ]);
+    const aiSettings = asJson(aiSettingsResult.data);
+    const subData = asJson(subscriptionResult.data);
+    const entitlements = asJson(subData.entitlements);
+
     return {
         ...row,
         description: row.description || '',
@@ -775,6 +787,9 @@ async function mapProfile(
         })),
         hours: asRows(row.hours),
         social_links: asRows(row.social_links),
+        ai_auto_reply_enabled: aiSettings.enabled === true,
+        ai_auto_reply_prompt: typeof aiSettings.prompt === 'string' ? aiSettings.prompt : '',
+        can_use_ai_auto_reply: entitlements.chatAutoReplyBusiness === true,
     };
 }
 
@@ -1352,7 +1367,41 @@ export async function handleCommercial(
                 patch.category_ids = payload.category_ids;
                 patch.category_id = payload.category_ids[0] ?? null;
             }
-            const saved = await saveBusiness(supabase, businessId, patch);
+            const hasAiUpdate = 'ai_auto_reply_enabled' in payload || 'ai_auto_reply_prompt' in payload;
+            if (hasAiUpdate) {
+                const subRes = await supabase.rpc('get_my_subscription');
+                const subEntitlements = asJson(asJson(subRes.data).entitlements);
+                const canUseBizAi = subEntitlements.chatAutoReplyBusiness === true;
+                const currentAi = asJson(unwrap(await supabase
+                    .from('business_ai_settings')
+                    .select('enabled, prompt')
+                    .eq('business_id', businessId)
+                    .maybeSingle()));
+                const nextEnabled = 'ai_auto_reply_enabled' in payload
+                    ? payload.ai_auto_reply_enabled === true
+                    : currentAi.enabled === true;
+                if (nextEnabled && !canUseBizAi) {
+                    throw new GatewayError(
+                        'Tu plan actual no incluye respuestas automáticas de IA para negocios.',
+                        403,
+                    );
+                }
+                const nextPrompt = 'ai_auto_reply_prompt' in payload
+                    ? String(payload.ai_auto_reply_prompt ?? '').trim().slice(0, 1500)
+                    : String(currentAi.prompt ?? '');
+                unwrap(await supabase
+                    .from('business_ai_settings')
+                    .upsert({
+                        business_id: businessId,
+                        owner_id: userId,
+                        enabled: nextEnabled,
+                        prompt: nextPrompt,
+                        updated_at: new Date().toISOString(),
+                    }, { onConflict: 'business_id' }));
+            }
+            const saved = Object.keys(patch).length > 0
+                ? await saveBusiness(supabase, businessId, patch)
+                : business;
             return { profile: await mapProfile(supabase, saved, true) };
         }
 
@@ -1496,7 +1545,7 @@ export async function handleCommercial(
                     .from('offers')
                     .insert({
                         business_id: businessId,
-                        catalog: payload.catalog_id,
+                        catalog: payload.catalog_id ?? null,
                         offer_kind: payload.offer_kind || 'product',
                         title: payload.title,
                         description: payload.description ?? null,

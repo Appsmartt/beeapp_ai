@@ -499,7 +499,14 @@ export function mapChatMessageToModel(
       && message.sender_id === currentUserId
     ),
     isAI: Boolean(options.conversationIsAi),
-    sentByAi: Boolean(message.is_sent_by_ai),
+    sentByAi: (
+      Boolean(message.sender_id)
+      && message.sender_id === currentUserId
+      && Boolean(
+        message.is_sent_by_ai
+        || (message.metadata as Record<string, unknown> | undefined)?.sent_by_ai,
+      )
+    ),
     type: toUiMessageType(message.message_type),
     location: message.message_type === 'location'
       ? parseChatLocation(message.metadata)

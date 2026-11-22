@@ -157,7 +157,7 @@ function HomePageBody() {
           />
 
           {activeModule !== 'chat' ? (
-            <div className="flex items-center gap-2 border-b border-[#E4D8F2] bg-[#F7F4FB] px-5 py-2.5">
+            <div className="flex items-center gap-2 border-b border-[#E4D8F2] bg-[#F7F4FB] px-3 py-2 sm:px-5 sm:py-2.5">
               <button
                 type="button"
                 onClick={returnToChats}

@@ -199,7 +199,8 @@ export default function OnboardingPage() {
   const stepIndex = step === 'profile' ? 1 : step === 'assistant' ? 2 : 3;
 
   return (
-    <div className="mx-auto flex h-full max-w-lg flex-col justify-center px-6 py-8">
+    <div className="h-full w-full overflow-y-auto overscroll-contain">
+      <div className="mx-auto flex min-h-full max-w-lg flex-col justify-center px-4 py-6 sm:px-6 sm:py-8">
       <div className="mb-4 flex items-center justify-between">
         {step !== 'profile' ? (
           <button
@@ -286,7 +287,7 @@ export default function OnboardingPage() {
                       onClick={() => setAssistantTone(option.id)}
                       className={`rounded-2xl border p-3 text-left transition ${
                         selected
-                          ? 'border-brand-primary bg-brand-primary/5 shadow-xs'
+                          ? 'border-brand-primary bg-brand-primary/5 shadow-sm'
                           : 'border-neutral-200 bg-white hover:border-neutral-300'
                       }`}
                     >
@@ -370,6 +371,7 @@ export default function OnboardingPage() {
       ) : null}
 
       {error ? <p className="mt-3 text-sm text-rose-600">{error}</p> : null}
+      </div>
     </div>
   );
 }

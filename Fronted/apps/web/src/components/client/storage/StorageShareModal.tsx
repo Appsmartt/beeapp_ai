@@ -166,7 +166,7 @@ export default function StorageShareModal({
             disabled={submitting}
         />
 
-        <div className="relative z-10 flex w-full max-w-lg flex-col rounded-3xl border border-neutral-100 bg-white p-6 shadow-xl">
+        <div className="relative z-10 flex max-h-[90dvh] w-full max-w-lg flex-col overflow-y-auto rounded-3xl border border-neutral-100 bg-white p-5 shadow-xl sm:p-6">
             <div className="mb-5 flex items-start justify-between gap-4 border-b border-neutral-100 pb-4">
             <div className="flex min-w-0 items-center gap-3">
                 <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-brand-primary/10 text-brand-primary">
@@ -286,7 +286,7 @@ export default function StorageShareModal({
             Permiso
             </label>
 
-            <div className="flex gap-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <button
                 type="button"
                 onClick={() => setPermission('viewer')}

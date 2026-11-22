@@ -3026,6 +3026,11 @@ export interface AssistantPermissions {
   send_messages: boolean;
 }
 
+export interface AssistantAutoReplyEntitlements {
+  chat_auto_reply_personal: boolean;
+  chat_auto_reply_business: boolean;
+}
+
 export interface AssistantSettings {
   user_id: string;
   name: string;
@@ -3039,8 +3044,40 @@ export interface AssistantSettings {
   inbox_pinned?: boolean;
   /** Si las notificaciones del asistente en inbox están silenciadas. */
   inbox_muted?: boolean;
+  /** Auto-respuesta global en chats personales 1-a-1 (direct). */
+  auto_reply_personal_enabled?: boolean;
+  /** Auto-respuesta global en chats de negocios propios (business). */
+  auto_reply_business_enabled?: boolean;
+  /** Instrucciones personalizadas del usuario para chats personales 1-a-1. */
+  auto_reply_personal_prompt?: string;
+  /** Minutos de pausa automática cuando el humano responde manualmente en un chat. */
+  auto_reply_pause_minutes?: number;
+  /** Permisos efectivos otorgados por el plan y/o overrides del Superadmin (solo lectura). */
+  entitlements?: AssistantAutoReplyEntitlements;
   language: string;
   updated_at: string | null;
+}
+
+export type ConversationAiAutoReplyScope = 'personal' | 'business';
+
+export interface ConversationAiAutoReplyState {
+  conversation_id: string;
+  supported: boolean;
+  scope: ConversationAiAutoReplyScope | null;
+  business_id?: string | null;
+  entitled: boolean;
+  global_enabled: boolean;
+  business_enabled: boolean;
+  conversation_override: boolean | null;
+  effective_enabled: boolean;
+  paused_until: string | null;
+  pause_minutes: number;
+}
+
+export interface UpdateConversationAiAutoReplyPayload {
+  enabled?: boolean | null;
+  resume?: boolean;
+  clear_override?: boolean;
 }
 
 export interface AssistantCardDetail {

@@ -156,14 +156,14 @@ export default function CreateStatusModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex select-none flex-col bg-white md:flex-row">
+    <div className="fixed inset-0 z-50 flex select-none flex-col overflow-hidden bg-white md:flex-row">
       {businesses.length > 0 ? (
-        <div className="absolute left-4 top-4 z-50 flex items-center gap-2 rounded-full border border-neutral-200 bg-white/95 px-3 py-1.5 text-xs shadow-md backdrop-blur">
-          <span className="font-semibold text-neutral-500">Publicar como:</span>
+        <div className="z-30 flex shrink-0 items-center gap-2 border-b border-neutral-200 bg-white/95 px-3 py-2 text-xs backdrop-blur md:absolute md:left-4 md:top-4 md:z-50 md:max-w-[calc(100%-22rem)] md:rounded-full md:border md:py-1.5 md:shadow-md">
+          <span className="shrink-0 font-semibold text-neutral-500">Publicar como:</span>
           <select
             value={actorBusinessId}
             onChange={(e) => setActorBusinessId(e.target.value)}
-            className="bg-transparent font-bold text-brand-primary outline-none"
+            className="min-w-0 flex-1 truncate bg-transparent font-bold text-brand-primary outline-none"
           >
             <option value="">{personalName} (Personal)</option>
             {businesses.map((biz) => (

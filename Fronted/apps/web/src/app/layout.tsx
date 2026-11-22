@@ -1,6 +1,11 @@
 import type { Metadata } from "next";
+import { cookies } from "next/headers";
 import "./globals.css";
 import { AuthProvider } from "@/lib/auth/AuthProvider";
+import {
+  AUTH_HINT_COOKIE_NAME,
+  parseAuthHintCookie,
+} from "@/lib/auth/sessionHint";
 
 export const metadata: Metadata = {
   title: "Buddy AI",
@@ -16,10 +21,15 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const cookieStore = cookies();
+  const initialProfile = parseAuthHintCookie(
+    cookieStore.get(AUTH_HINT_COOKIE_NAME)?.value,
+  );
+
   return (
     <html lang="es">
       <body className="antialiased">
-        <AuthProvider>{children}</AuthProvider>
+        <AuthProvider initialProfile={initialProfile}>{children}</AuthProvider>
       </body>
     </html>
   );

@@ -210,7 +210,7 @@ export default function FactusPayModal({
 
   return (
     <div
-      className="fixed inset-0 z-[90] flex items-center justify-center bg-black/45 p-4 backdrop-blur-[2px]"
+      className="fixed inset-0 z-[130] flex items-center justify-center bg-black/45 p-3 backdrop-blur-[2px] sm:p-4"
       role="dialog"
       aria-modal="true"
       aria-label="Pago con Factus Pay Bre-B"
@@ -220,13 +220,13 @@ export default function FactusPayModal({
         className="w-full max-w-md overflow-hidden rounded-3xl border border-[#E7DDF2] bg-white shadow-[0_24px_60px_rgba(38,23,67,0.24)]"
         onClick={(event) => event.stopPropagation()}
       >
-        <div className="flex items-center justify-between border-b border-[#F1EAF6] bg-[#FAF7FF] px-5 py-3.5">
-          <div className="flex items-center gap-2">
-            <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-[#7427D5]/10 text-[#7427D5]">
+        <div className="flex items-center justify-between gap-2 border-b border-[#F1EAF6] bg-[#FAF7FF] px-4 py-3.5 sm:px-5">
+          <div className="flex min-w-0 items-center gap-2">
+            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-[#7427D5]/10 text-[#7427D5]">
               <QrCode className="h-4 w-4" aria-hidden />
             </span>
-            <div>
-              <div className="flex items-center gap-1.5">
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-1.5">
                 <h3 className="text-sm font-extrabold text-[#261743]">Pagar con Factus Pay · Bre-B</h3>
                 {checkout.sandbox ? (
                   <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-800">
@@ -234,7 +234,7 @@ export default function FactusPayModal({
                   </span>
                 ) : null}
               </div>
-              <p className="text-[11px] text-[#786593]">
+              <p className="truncate text-[11px] text-[#786593]">
                 Plan {checkout.planName} ({checkout.billingPeriod === 'yearly' ? 'Anual' : 'Mensual'})
               </p>
             </div>
@@ -243,13 +243,13 @@ export default function FactusPayModal({
             type="button"
             onClick={onClose}
             aria-label="Cerrar ventana de pago"
-            className="rounded-lg p-1.5 text-[#786593] hover:bg-[#F1EAF6] hover:text-[#261743]"
+            className="shrink-0 rounded-lg p-1.5 text-[#786593] hover:bg-[#F1EAF6] hover:text-[#261743]"
           >
             <X className="h-4 w-4" />
           </button>
         </div>
 
-        <div className="max-h-[82vh] space-y-4 overflow-y-auto p-5">
+        <div className="max-h-[90dvh] space-y-4 overflow-y-auto p-4 sm:max-h-[82dvh] sm:p-5">
           {status === 'paid' ? (
             <div className="space-y-4 py-4 text-center">
               <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-emerald-100 text-emerald-600">
@@ -272,7 +272,7 @@ export default function FactusPayModal({
             </div>
           ) : (
             <>
-              <div className="flex items-center justify-between rounded-2xl border border-[#E8D1F1] bg-[#FAF7FF] px-3.5 py-2.5">
+              <div className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-[#E8D1F1] bg-[#FAF7FF] px-3.5 py-2.5">
                 <div>
                   <p className="text-[10px] font-bold uppercase tracking-wide text-[#8A72B2]">Monto exacto a transferir</p>
                   <p className="text-xl font-extrabold text-[#261743]">{formatCop(checkout.amount)}</p>
@@ -372,12 +372,12 @@ export default function FactusPayModal({
                 </div>
               ) : null}
 
-              <div className="flex gap-2">
+              <div className="flex flex-wrap gap-2">
                 <button
                   type="button"
                   disabled={verifying || renewing}
                   onClick={() => void verifyNow(true)}
-                  className="flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-[#7427D5] py-2.5 text-xs font-extrabold text-white hover:bg-[#5E1ABF] disabled:opacity-50"
+                  className="flex min-w-[160px] flex-1 items-center justify-center gap-1.5 rounded-xl bg-[#7427D5] px-3 py-2.5 text-xs font-extrabold text-white hover:bg-[#5E1ABF] disabled:opacity-50"
                 >
                   {verifying ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CheckCircle2 className="h-3.5 w-3.5" />}
                   {verifying ? 'Verificando…' : 'Ya pagué · Verificar'}
@@ -387,7 +387,7 @@ export default function FactusPayModal({
                     type="button"
                     disabled={renewing}
                     onClick={() => void handleRenew()}
-                    className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-[#D8C2EE] bg-white px-3.5 py-2.5 text-xs font-bold text-[#5E1ABF] hover:bg-[#F6EAFE] disabled:opacity-50"
+                    className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-xl border border-[#D8C2EE] bg-white px-3.5 py-2.5 text-xs font-bold text-[#5E1ABF] hover:bg-[#F6EAFE] disabled:opacity-50 sm:flex-initial"
                   >
                     <RefreshCw className={`h-3.5 w-3.5 ${renewing ? 'animate-spin' : ''}`} />
                     Renovar QR

@@ -369,7 +369,7 @@ export default function BeeServicesWorkspace() {
 
         <Link
           href="/app/beeservices/my-purchases"
-          className="mt-6 inline-flex items-center rounded-[17px] border border-[#E2D6F0] bg-white py-2.5 pl-2.5 pr-4 shadow-[0_4px_10px_rgba(95,82,197,0.08)]"
+          className="mt-6 flex w-full items-center rounded-[17px] border border-[#E2D6F0] bg-white py-2.5 pl-2.5 pr-4 shadow-[0_4px_10px_rgba(95,82,197,0.08)] sm:inline-flex sm:w-auto"
         >
           <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#7567D9] text-white">
             <ClipboardList className="h-[18px] w-[18px]" />
@@ -546,7 +546,7 @@ export default function BeeServicesWorkspace() {
                   aria-label="Ver productos y servicios en grilla"
                   aria-selected={offerViewMode === 'grid'}
                   onClick={() => setOfferViewMode('grid')}
-                  className={`flex h-8 w-8 items-center justify-center rounded-lg ${
+                  className={`flex h-11 w-11 items-center justify-center rounded-lg sm:h-9 sm:w-9 ${
                     offerViewMode === 'grid' ? 'bg-[#7427D5] text-white' : 'text-[#7A579D]'
                   }`}
                 >
@@ -558,7 +558,7 @@ export default function BeeServicesWorkspace() {
                   aria-label="Ver productos y servicios en lista"
                   aria-selected={offerViewMode === 'list'}
                   onClick={() => setOfferViewMode('list')}
-                  className={`flex h-8 w-8 items-center justify-center rounded-lg ${
+                  className={`flex h-11 w-11 items-center justify-center rounded-lg sm:h-9 sm:w-9 ${
                     offerViewMode === 'list' ? 'bg-[#7427D5] text-white' : 'text-[#7A579D]'
                   }`}
                 >
@@ -691,7 +691,7 @@ function Pager({
         aria-label="Página anterior"
         disabled={!canPrevious}
         onClick={() => onPage(page - 1)}
-        className="flex h-9 w-9 items-center justify-center rounded-full border border-[#E3D7F5] text-[#7567D9] disabled:text-[#C4B8D9]"
+        className="flex h-11 w-11 items-center justify-center rounded-full border border-[#E3D7F5] text-[#7567D9] disabled:text-[#C4B8D9] sm:h-9 sm:w-9"
       >
         <ChevronLeft className="h-5 w-5" />
       </button>
@@ -703,7 +703,7 @@ function Pager({
         aria-label="Página siguiente"
         disabled={!canNext}
         onClick={() => onPage(page + 1)}
-        className="flex h-9 w-9 items-center justify-center rounded-full border border-[#E3D7F5] text-[#7567D9] disabled:text-[#C4B8D9]"
+        className="flex h-11 w-11 items-center justify-center rounded-full border border-[#E3D7F5] text-[#7567D9] disabled:text-[#C4B8D9] sm:h-9 sm:w-9"
       >
         <ChevronRight className="h-5 w-5" />
       </button>

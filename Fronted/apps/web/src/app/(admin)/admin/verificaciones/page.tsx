@@ -325,9 +325,9 @@ export default function VerificacionesPage() {
 
             <div className="account-actions-row" style={{ marginTop: 16 }}>
               {selected.document_bucket && selected.document_path ? (
-                <button className="confirm-dialog-btn-cancel" onClick={() => void openPdf()} type="button">
-                  <FileText size={14} />
-                  <span>{selected.document_name || 'Ver PDF'}</span>
+                <button className="confirm-dialog-btn-cancel" style={{ maxWidth: '100%', overflow: 'hidden' }} onClick={() => void openPdf()} type="button">
+                  <FileText size={14} style={{ flexShrink: 0 }} />
+                  <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{selected.document_name || 'Ver PDF'}</span>
                 </button>
               ) : (
                 <span className="detail-row-label">Sin PDF de soporte</span>

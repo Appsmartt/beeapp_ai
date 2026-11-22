@@ -755,32 +755,34 @@ export default function ChatModule({
                     }}
                   />
                 </div>
-                <ChatInboxTabs
-                  activeTab={inboxTab}
-                  onChange={(tab) => {
-                    setShowingAll(false);
-                    setInboxTab(tab);
-                  }}
-                />
-                <div className="flex justify-end gap-3 px-4 py-1.5">
-                  <button
-                    type="button"
-                    onClick={() => setInvitesOpen((open) => !open)}
-                    className="text-xs font-medium text-brand-primary hover:underline"
-                  >
-                    {invitesOpen ? 'Ver chats' : 'Invitaciones'}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setShowingAll(true);
-                      setActiveCategoryId(null);
-                      setInboxTab('chats');
+                <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-1 md:block md:px-0 md:py-0">
+                  <ChatInboxTabs
+                    activeTab={inboxTab}
+                    onChange={(tab) => {
+                      setShowingAll(false);
+                      setInboxTab(tab);
                     }}
-                    className="text-xs font-medium text-brand-primary hover:underline"
-                  >
-                    Ver todo
-                  </button>
+                  />
+                  <div className="flex shrink-0 items-center gap-2.5 md:justify-end md:gap-3 md:px-4 md:py-1.5">
+                    <button
+                      type="button"
+                      onClick={() => setInvitesOpen((open) => !open)}
+                      className="text-[11px] font-medium text-brand-primary hover:underline md:text-xs"
+                    >
+                      {invitesOpen ? 'Ver chats' : 'Invitaciones'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowingAll(true);
+                        setActiveCategoryId(null);
+                        setInboxTab('chats');
+                      }}
+                      className="text-[11px] font-medium text-brand-primary hover:underline md:text-xs"
+                    >
+                      Ver todo
+                    </button>
+                  </div>
                 </div>
               </>
             ) : null}

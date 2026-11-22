@@ -89,7 +89,7 @@ export function BeeServicesPanel({ onClose }: BeeServicesPanelProps) {
               <div className="min-w-0 flex-1">
                 <h2 className="text-base font-extrabold text-[#261743]">Tu portafolio comercial</h2>
                 <p className="mt-1 text-xs leading-relaxed text-[#786593]">
-                  Administra catálogo, solicitudes, pagos y operación de cada negocio.
+                  Administra productos, servicios, solicitudes, pagos y operación de cada negocio.
                 </p>
               </div>
               <div className="hidden shrink-0 flex-col items-end sm:flex">

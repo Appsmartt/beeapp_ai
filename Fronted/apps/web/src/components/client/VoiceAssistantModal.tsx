@@ -232,9 +232,9 @@ export default function VoiceAssistantModal({ isOpen, onClose }: VoiceAssistantM
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-[60] bg-black/20" onClick={onClose} role="presentation">
+    <div className="fixed inset-0 z-[130] bg-black/30" onClick={onClose} role="presentation">
       <div
-        className="fixed inset-y-0 left-0 flex w-[35vw] min-w-[360px] max-w-[620px] flex-col bg-[#1B0B3A] pt-9 pb-7 shadow-[12px_0_35px_rgba(15,5,35,0.45)]"
+        className="fixed inset-y-0 left-0 flex w-full max-w-[420px] flex-col bg-[#1B0B3A] pt-6 pb-6 shadow-[12px_0_35px_rgba(15,5,35,0.45)] sm:w-[min(420px,85vw)] sm:pt-9 sm:pb-7 md:w-[45vw] lg:w-[35vw] lg:min-w-[360px] lg:max-w-[620px]"
         onClick={(event) => event.stopPropagation()}
         role="dialog"
         aria-modal="true"

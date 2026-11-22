@@ -173,7 +173,7 @@ export default function WriteBar({
   return (
     <div className="z-20 w-full bg-white">
       {attachOpen ? (
-        <div className="flex items-center justify-around border-b border-neutral-200 bg-neutral-50 px-4 py-3 animate-slide-up">
+        <div className="grid grid-cols-3 gap-2 border-b border-neutral-200 bg-neutral-50 px-3 py-3 animate-slide-up sm:flex sm:items-center sm:justify-around sm:px-4">
           <button
             type="button"
             onClick={() => handleAttachItemClick('file')}
@@ -242,7 +242,7 @@ export default function WriteBar({
         </div>
       ) : null}
 
-      <div className="p-3">
+      <div className="p-2.5 sm:p-3">
         {isRecording ? (
           <div className="flex h-10 items-center justify-between px-2">
             <div className="flex items-center gap-2">
@@ -263,21 +263,22 @@ export default function WriteBar({
               <button
                 type="button"
                 onClick={handleStopRecord}
-                className="flex h-9 w-9 items-center justify-center rounded-full bg-brand-primary text-white"
+                className="flex h-10 w-10 items-center justify-center rounded-full bg-brand-primary text-white"
               >
                 <Send className="h-4 w-4" />
               </button>
             </div>
           </div>
         ) : (
-          <form onSubmit={handleSend} className="flex items-center gap-2">
+          <form onSubmit={handleSend} className="flex items-center gap-1.5 sm:gap-2">
             {!isAssistant ? (
               <>
                 <button
                   type="button"
                   onClick={() => setAttachOpen(!attachOpen)}
                   title="Adjuntar"
-                  className={`flex h-9.5 w-9.5 shrink-0 items-center justify-center rounded-full transition-colors ${
+                  aria-label="Adjuntar"
+                  className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full transition-colors sm:h-10 sm:w-10 ${
                     attachOpen ? 'bg-neutral-200 text-neutral-800' : 'text-neutral-500 hover:bg-neutral-100'
                   }`}
                 >
@@ -288,7 +289,8 @@ export default function WriteBar({
                   type="button"
                   onClick={() => handleAttachItemClick('camera')}
                   title="Cámara"
-                  className="flex h-9.5 w-9.5 shrink-0 items-center justify-center rounded-full text-neutral-500 hover:bg-neutral-100"
+                  aria-label="Cámara"
+                  className="hidden h-10 w-10 shrink-0 items-center justify-center rounded-full text-neutral-500 hover:bg-neutral-100 sm:flex"
                 >
                   <Camera className="h-5 w-5" />
                 </button>
@@ -297,7 +299,8 @@ export default function WriteBar({
                   type="button"
                   onClick={() => handleAttachItemClick('location')}
                   title="Ubicación"
-                  className="flex h-9.5 w-9.5 shrink-0 items-center justify-center rounded-full text-neutral-500 hover:bg-neutral-100"
+                  aria-label="Ubicación"
+                  className="hidden h-10 w-10 shrink-0 items-center justify-center rounded-full text-neutral-500 hover:bg-neutral-100 sm:flex"
                 >
                   <MapPin className="h-5 w-5" />
                 </button>
@@ -310,7 +313,7 @@ export default function WriteBar({
                 onClick={onDictate}
                 disabled={disabled && !dictating}
                 title={dictating ? 'Detener dictado' : 'Dictar'}
-                className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${
+                className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full sm:h-10 sm:w-10 ${
                   dictating ? 'bg-red-500 text-white' : 'bg-neutral-100 text-brand-primary hover:bg-neutral-200'
                 } disabled:opacity-40`}
               >
@@ -330,23 +333,25 @@ export default function WriteBar({
               value={text}
               disabled={disabled || dictating}
               onChange={(e) => setText(e.target.value)}
-              className="h-10 flex-1 rounded-full border border-neutral-200/80 bg-neutral-100 px-4 text-xs font-normal text-neutral-900 outline-none focus:ring-2 focus:ring-brand-primary disabled:opacity-60"
+              className="h-11 min-w-0 flex-1 rounded-full border border-neutral-200/80 bg-neutral-100 px-3.5 text-base font-normal text-neutral-900 outline-none focus:ring-2 focus:ring-brand-primary disabled:opacity-60 sm:h-10 sm:px-4 sm:text-xs"
             />
 
             {text.trim() || isAssistant ? (
               <button
                 type="submit"
                 disabled={disabled || !text.trim()}
-                className="flex h-9.5 w-9.5 shrink-0 items-center justify-center rounded-full bg-brand-primary text-white transition-colors hover:bg-brand-dark disabled:opacity-50"
+                aria-label="Enviar"
+                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-brand-primary text-white transition-colors hover:bg-brand-dark disabled:opacity-50 sm:h-10 sm:w-10"
               >
-                <Send className="h-4.5 w-4.5" />
+                <Send className="h-[18px] w-[18px]" />
               </button>
             ) : (
               <button
                 type="button"
                 onClick={() => void handleStartRecord()}
                 title="Nota de voz"
-                className="flex h-9.5 w-9.5 shrink-0 items-center justify-center rounded-full bg-neutral-100 text-neutral-600 transition-colors hover:bg-neutral-200"
+                aria-label="Nota de voz"
+                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-neutral-100 text-neutral-600 transition-colors hover:bg-neutral-200 sm:h-10 sm:w-10"
               >
                 <Mic className="h-5 w-5" />
               </button>

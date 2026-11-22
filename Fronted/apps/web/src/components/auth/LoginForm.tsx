@@ -59,7 +59,7 @@ type LoginMode = 'email' | 'phone' | 'qr';
 
 export default function LoginForm() {
   const router = useRouter();
-  const { status, profile, refreshProfile, signOut } = useAuth();
+  const { status, profile, sessionConfirmed, refreshProfile, signOut } = useAuth();
   const [mode, setMode] = useState<LoginMode>('email');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -102,7 +102,7 @@ export default function LoginForm() {
   }, []);
 
   useEffect(() => {
-    if (status !== 'ready' || !profile) return;
+    if (status !== 'ready' || !sessionConfirmed || !profile) return;
     const adminSso = window.sessionStorage.getItem('buddy.adminSso') === '1';
     if (adminSso && !isAdminRole(profile.role)) {
       window.sessionStorage.removeItem('buddy.adminSso');
@@ -111,7 +111,7 @@ export default function LoginForm() {
     }
     if (adminSso) window.sessionStorage.removeItem('buddy.adminSso');
     router.replace(homePathForRole(profile.role));
-  }, [profile, router, signOut, status]);
+  }, [profile, router, sessionConfirmed, signOut, status]);
 
   const startGoogle = async () => {
     setError('');
@@ -309,6 +309,30 @@ export default function LoginForm() {
     }
   };
 
+  const redirectingToApp = status === 'ready' && Boolean(profile);
+  const checkingSession = status === 'loading' || redirectingToApp;
+
+  if (checkingSession && !error) {
+    return (
+      <AuthPageShell
+        mode="login"
+        title={redirectingToApp ? 'Sesión activa' : 'Verificando sesión'}
+        subtitle={
+          redirectingToApp
+            ? 'Ya tienes una sesión abierta en este navegador.'
+            : 'Comprobando si ya iniciaste sesión…'
+        }
+      >
+        <div className="flex flex-col items-center justify-center gap-3 py-10 text-center">
+          <div className="h-8 w-8 animate-spin rounded-full border-2 border-brand-primary border-t-transparent" />
+          <p className="text-sm font-medium text-[#2A194B]">
+            {redirectingToApp ? 'Redirigiendo a tu espacio…' : 'Verificando tu sesión…'}
+          </p>
+        </div>
+      </AuthPageShell>
+    );
+  }
+
   return (
     <AuthPageShell
       mode="login"
@@ -321,7 +345,7 @@ export default function LoginForm() {
             key={item}
             type="button"
             onClick={() => { setMode(item); setError(''); }}
-            className={`flex-1 py-1.5 rounded-lg font-semibold ${mode === item ? 'bg-white text-brand-primary shadow-xs' : 'text-neutral-500'}`}
+            className={`flex-1 py-1.5 rounded-lg font-semibold ${mode === item ? 'bg-white text-brand-primary shadow-sm' : 'text-neutral-500'}`}
           >
             {item === 'email' ? 'Correo' : item === 'phone' ? 'OTP' : 'QR'}
           </button>
@@ -407,7 +431,7 @@ export default function LoginForm() {
 
       {mode === 'phone' ? (
         <form onSubmit={(e) => void (otpSent ? handlePhoneVerify(e) : handlePhoneOtpRequest(e))} className="space-y-3">
-          <div className="flex h-10 items-center overflow-hidden rounded-lg border border-neutral-300 bg-white focus-within:border-brand-primary">
+          <div className="flex h-10 items-center rounded-lg border border-neutral-300 bg-white focus-within:border-brand-primary">
             <CountrySelector
               countries={countries}
               selectedCountry={country}
@@ -420,7 +444,7 @@ export default function LoginForm() {
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
               placeholder="300 123 4567"
-              className="h-full min-w-0 flex-1 border-l border-neutral-200 px-3 text-sm outline-none disabled:bg-neutral-50"
+              className="h-full min-w-0 flex-1 rounded-r-lg border-l border-neutral-200 px-3 text-sm outline-none disabled:bg-neutral-50"
               disabled={otpSent}
             />
           </div>

@@ -39,7 +39,7 @@ export default function CreateNoteCategoryModal({
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="fixed inset-0 bg-neutral-900/40" onClick={onClose} />
 
-      <div className="relative w-full max-w-md bg-white rounded-3xl shadow-2xl z-50 overflow-hidden">
+      <div className="relative z-50 max-h-[90dvh] w-full max-w-md overflow-y-auto rounded-3xl bg-white shadow-2xl">
         <div className="px-5 py-3.5 border-b border-neutral-100 flex items-center justify-between">
           <h2 className="text-sm font-semibold text-neutral-900">Nueva categoría</h2>
           <button
